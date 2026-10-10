@@ -1614,6 +1614,14 @@ def _display_name_uses_custom_emoji(account, display_name):
     return False
 
 
+def _open_row_menu(_button, row_ref):
+    """Gtk.MenuButton create-popup callback of a StatusRow's overflow
+    button; holds the row weakly so the button does not keep it alive."""
+    row = row_ref()
+    if row is not None:
+        row._prepare_menu()
+
+
 class StatusRow(Gtk.Overlay):
     """Post card: boost strip, author header with indicators and the
     overflow menu, content warning, body, poll, quote, card, media and
@@ -1961,6 +1969,15 @@ class StatusRow(Gtk.Overlay):
         button.add_css_class('flat')
         button.update_property([Gtk.AccessibleProperty.LABEL],
                                [_('More Options')])
+        # The actions and the menu are built when the menu opens: a list
+        # binds rows far more often than anyone opens their menu.
+        self._menu_actions = None
+        button.set_create_popup_func(_open_row_menu, weakref.ref(self))
+        return button
+
+    def _ensure_menu_actions(self):
+        if self._menu_actions is not None:
+            return
         group = Gio.SimpleActionGroup()
         self._menu_actions = {}
         for name in self.MENU_ACTIONS:
@@ -1975,8 +1992,15 @@ class StatusRow(Gtk.Overlay):
         connect_weak(policy, 'activate', self._menu_quote_policy)
         group.add_action(policy)
         self._menu_actions['quote-policy'] = policy
-        button.insert_action_group('row', group)
-        return button
+        self._overflow.insert_action_group('row', group)
+
+    def _prepare_menu(self):
+        """Actions and menu for the bound post, as the menu opens."""
+        if self.item is None:
+            return
+        self._ensure_menu_actions()
+        self._sync_menu_state(self.item)
+        self._overflow.set_menu_model(self._build_menu(self.item))
 
     def _is_own(self):
         own = _own_account_id(self)
@@ -2403,6 +2427,9 @@ class StatusRow(Gtk.Overlay):
     def bind(self, item, client):
         self.item = item
         self.client = client
+        if self._overflow.get_menu_model() is not None:
+            # Rebuilt for this post the next time the menu opens.
+            self._overflow.set_menu_model(None)
         if isinstance(item, BoostCarouselItem):
             self._bind_carousel(item, client)
             return
@@ -2506,8 +2533,6 @@ class StatusRow(Gtk.Overlay):
             and not attachments
         self._show_card(status.get('card') if show_card else None)
         self._bind_actions(item)
-        self._overflow.set_menu_model(self._build_menu(item))
-        self._sync_menu_state(item)
 
     def _bind_translation(self, item):
         """The 'Translated from …' note above the body, when shown."""
