@@ -12,10 +12,11 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
+gi.require_version('GdkPixbuf', '2.0')
 
 from .i18n import gettext as _, ngettext
 
-from gi.repository import Adw, Gdk, GLib, GObject, Gio, Gtk, Pango, Soup  # noqa: E402
+from gi.repository import Adw, Gdk, GdkPixbuf, GLib, GObject, Gio, Gtk, Pango, Soup  # noqa: E402
 
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
@@ -674,6 +675,50 @@ def _should_collapse(segments):
     return not plain and len(tagged) >= 4 or len(hashtags) >= 6
 
 
+def _display_scale():
+    """Largest scale of any monitor: a decoded image must stay sharp on
+    whichever one the window ends up on."""
+    display = Gdk.Display.get_default()
+    monitors = display.get_monitors() if display is not None else None
+    scale = 1.0
+    for index in range(monitors.get_n_items() if monitors else 0):
+        monitor = monitors.get_item(index)
+        scale = max(scale, monitor.get_scale())
+    return scale
+
+
+def _decode_covering(data, cover):
+    """Texture of the image in *data*, decoded no larger than it takes to
+    cover a *cover* (width, height) box of logical pixels. None when
+    GdkPixbuf cannot read it."""
+    scale = _display_scale()
+    box_width, box_height = cover[0] * scale, cover[1] * scale
+
+    def prepared(loader, width, height):
+        factor = max(box_width / width, box_height / height)
+        if factor < 1:
+            loader.set_size(max(1, round(width * factor)),
+                            max(1, round(height * factor)))
+
+    loader = GdkPixbuf.PixbufLoader()
+    loader.connect('size-prepared', prepared)
+    try:
+        loader.write_bytes(data)
+        loader.close()
+    except GLib.Error:
+        return None
+    pixbuf = loader.get_pixbuf()
+    if pixbuf is None:
+        return None
+    if pixbuf.get_has_alpha():
+        memory_format = Gdk.MemoryFormat.R8G8B8A8
+    else:
+        memory_format = Gdk.MemoryFormat.R8G8B8
+    return Gdk.MemoryTexture.new(pixbuf.get_width(), pixbuf.get_height(),
+                                 memory_format, pixbuf.read_pixel_bytes(),
+                                 pixbuf.get_rowstride())
+
+
 class _TextureCache:
     """Decoded media textures shared between rows by URL."""
 
@@ -690,10 +735,15 @@ class _TextureCache:
         return cls._session
 
     @classmethod
-    def load(cls, url, picture):
-        if url in cls._textures:
-            cls._textures.move_to_end(url)
-            picture.set_paintable(cls._textures[url])
+    def load(cls, url, picture, cover=None):
+        """Show *url* in *picture*. With *cover* (width, height), the
+        largest box in logical pixels the picture fills, the image is
+        decoded only as large as that box needs: an original attachment
+        can be tens of megapixels, its thumbnail a few hundred."""
+        key = url if cover is None else (url, cover)
+        if key in cls._textures:
+            cls._textures.move_to_end(key)
+            picture.set_paintable(cls._textures[key])
             return
         message = Soup.Message.new('GET', url)
         if message is None:
@@ -708,11 +758,11 @@ class _TextureCache:
         picture._babble_cancel = cancellable
         cls.session().send_and_read_async(
             message, GLib.PRIORITY_DEFAULT, cancellable, cls._on_loaded,
-            (picture, url, cancellable))
+            (picture, key, cover, cancellable))
 
     @classmethod
     def _on_loaded(cls, session, result, extra):
-        picture, url, cancellable = extra
+        picture, key, cover, cancellable = extra
         # Check the cancellable this request was issued with, not
         # whichever one the picture happens to hold now.
         if cancellable.is_cancelled():
@@ -723,12 +773,14 @@ class _TextureCache:
             return
         if data is None or data.get_size() == 0:
             return
-        try:
-            texture = Gdk.Texture.new_from_bytes(data)
-        except GLib.Error:
-            return
-        cls._textures[url] = texture
-        cls._textures.move_to_end(url)
+        texture = _decode_covering(data, cover) if cover else None
+        if texture is None:
+            try:
+                texture = Gdk.Texture.new_from_bytes(data)
+            except GLib.Error:
+                return
+        cls._textures[key] = texture
+        cls._textures.move_to_end(key)
         while len(cls._textures) > MEDIA_TEXTURE_CACHE_SIZE:
             cls._textures.popitem(last=False)
         if picture.get_paintable() is None \
@@ -928,6 +980,7 @@ class PollBox(Gtk.Box):
 
 CARD_THUMB_W = 200
 CARD_THUMB_H = 96
+BOOST_CARD_WIDTH = 272
 
 
 class CardPreview(Gtk.Button):
@@ -968,7 +1021,8 @@ class CardPreview(Gtk.Button):
             image.set_can_shrink(True)
             # Square at minimum, CARD_THUMB_W wide when there is room.
             image.set_size_request(CARD_THUMB_H, CARD_THUMB_H)
-            _TextureCache.load(card['image'], image)
+            _TextureCache.load(card['image'], image,
+                               (CARD_THUMB_W, CARD_THUMB_W))
             thumb = Adw.Clamp(maximum_size=CARD_THUMB_W,
                               tightening_threshold=CARD_THUMB_W,
                               child=image)
@@ -986,7 +1040,7 @@ class _BoostCard(Gtk.Button):
     """One numbered boost in the carousel; opens the boosted post."""
 
     def __init__(self, number, status, client):
-        super().__init__(width_request=272)
+        super().__init__(width_request=BOOST_CARD_WIDTH)
         self.add_css_class('card')
         self.add_css_class('boost-card')
         self.status = status
@@ -1043,7 +1097,7 @@ class _BoostCard(Gtk.Button):
                    else media[0].get('preview_url')) \
                 or media[0].get('preview_url') or media[0].get('url')
             if url:
-                _TextureCache.load(url, picture)
+                _TextureCache.load(url, picture, (BOOST_CARD_WIDTH, 96))
             box.append(picture)
         self.connect('clicked', self._on_clicked)
 
@@ -1242,7 +1296,8 @@ class MediaBox(Gtk.Box):
                 url = attachment.get('preview_url') \
                     or attachment.get('url')
             if url:
-                _TextureCache.load(url, picture)
+                _TextureCache.load(url, picture,
+                                   (COLUMN_WIDTH // columns, tile_height))
         if footnotes:
             notes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             for note in footnotes:
@@ -1585,7 +1640,7 @@ class QuoteCard(Gtk.Button):
             picture.add_css_class('status-media')
             url = media[0].get('preview_url') or media[0].get('url')
             if url:
-                _TextureCache.load(url, picture)
+                _TextureCache.load(url, picture, (COLUMN_WIDTH, 110))
             box.append(picture)
         self.update_property(
             [Gtk.AccessibleProperty.LABEL],
