@@ -16,7 +16,7 @@ here by :mod:`emojichooser`.
 
 import collections
 import re
-from gettext import gettext as _
+from .i18n import gettext as _
 
 import gi
 

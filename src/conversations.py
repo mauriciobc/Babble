@@ -11,7 +11,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gettext import gettext as _, ngettext
+from .i18n import gettext as _, ngettext
 
 import re  # noqa: E402
 

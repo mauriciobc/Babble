@@ -21,7 +21,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gettext import gettext as _  # noqa: E402
+from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, Gio, Gtk, Pango  # noqa: E402
 

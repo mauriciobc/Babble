@@ -18,7 +18,7 @@ import gi
 
 gi.require_version('Gtk', '4.0')
 
-from gettext import gettext as _, ngettext  # noqa: E402
+from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import GLib, Gio  # noqa: E402
 

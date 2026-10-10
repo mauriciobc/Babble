@@ -16,7 +16,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gettext import gettext as _  # noqa: E402
+from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
@@ -65,7 +65,7 @@ def compact_number(value):
 
 
 def account_subtitle(account):
-    from gettext import ngettext
+    from .i18n import ngettext
     followers = int(account.get('followers_count') or 0)
     return '@%s · %s' % (
         account.get('acct', ''),

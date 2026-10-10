@@ -8,7 +8,7 @@ Widgets/AccountSuggestions.vala. Phanpy: pages/trending.jsx.
 
 import re
 import urllib.parse
-from gettext import gettext as _, ngettext
+from .i18n import gettext as _, ngettext
 
 import gi
 

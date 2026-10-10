@@ -14,7 +14,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gettext import gettext as _
+from .i18n import gettext as _
 
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 

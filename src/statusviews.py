@@ -2,7 +2,7 @@
 the edit history of a post."""
 
 import datetime
-from gettext import gettext as _
+from .i18n import gettext as _
 
 import gi
 

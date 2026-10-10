@@ -14,7 +14,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
 
-from gettext import gettext as _, ngettext
+from .i18n import gettext as _, ngettext
 
 from gi.repository import (Adw, Gdk, GLib, Gio, GObject, Gtk,  # noqa: E402
                            Pango, Soup)

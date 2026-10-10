@@ -39,6 +39,7 @@ install_data(
   'fedicollections.py',
   'filters.py',
   'hashtags.py',
+  'i18n.py',
   'lists.py',
   'main.py',
   'mastodon.py',

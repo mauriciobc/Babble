@@ -4,7 +4,7 @@ import urllib.parse
 
 import gi
 
-from gettext import gettext as _, ngettext
+from .i18n import gettext as _, ngettext
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')

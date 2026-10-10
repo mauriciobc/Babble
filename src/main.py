@@ -3,7 +3,7 @@
 import sys
 import gi
 
-from gettext import gettext as _
+from .i18n import gettext as _
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')

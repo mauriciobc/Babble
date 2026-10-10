@@ -23,7 +23,7 @@ gi.require_version('Gdk', '4.0')
 gi.require_version('Gsk', '4.0')
 gi.require_version('Soup', '3.0')
 
-from gettext import gettext as _  # noqa: E402
+from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import (  # noqa: E402
     Adw, Gdk, Gio, GLib, GObject, Graphene, Gsk, Gtk, Soup,
