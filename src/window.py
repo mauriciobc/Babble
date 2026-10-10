@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import secrets
 import urllib.parse
 
 import gi
@@ -119,6 +120,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._items = {}
         self._pinned_lists = {}
         self._held = False
+        self._background_asked = False
+        self._background_pending = False
         self._auth_client = None
         self._fallback = False
         # One authorization attempt is one click on the login button and
@@ -526,7 +529,37 @@ class BabbleWindow(Adw.ApplicationWindow):
             app.hold()
             self._held = True
         self.set_visible(False)
+        if not self._background_asked:
+            self.request_background()
         return True
+
+    # Background portal
+
+    def request_background(self):
+        """Ask the XDG Background portal to let the app run with its
+        window closed. A refusal turns ``work-in-background`` off and
+        says so; no portal (unsandboxed host, D-Bus error) is silently
+        ignored. Asked at most once at a time; fully async."""
+        if self._background_pending:
+            return
+        self._background_pending = True
+        self._background_asked = True
+        Gio.bus_get(Gio.BusType.SESSION, None, _on_background_bus,
+                    self.weak_ref())
+
+    def _background_done(self, allowed):
+        self._background_pending = False
+        if allowed:
+            return
+        self.settings.set_boolean('work-in-background', False)
+        pages.show_toast(self, _('Running in the background was not allowed'))
+        if not self.get_visible():
+            # Hidden by a close the portal now refuses: finish closing.
+            app = self.get_application()
+            if app is not None and self._held:
+                app.release()
+                self._held = False
+            self.close()
 
     # Pages
 
@@ -1285,3 +1318,78 @@ class BabbleWindow(Adw.ApplicationWindow):
         # Server bodies can be whole HTML pages; the summariser strips
         # them to one short plain line.
         self.show_toast('%s: %s' % (heading, summarize_error(body)))
+
+
+# XDG Background portal plumbing. The callbacks hold the window only
+# through a GObject weak reference, so a pending request never keeps a
+# closed window alive.
+
+_PORTAL_NAME = 'org.freedesktop.portal.Desktop'
+_PORTAL_PATH = '/org/freedesktop/portal/desktop'
+
+
+def _background_finish(window_ref, allowed):
+    window = window_ref()
+    if window is None:
+        return
+    if allowed is None:  # no portal: nothing to ask, nothing to undo
+        window._background_pending = False
+    else:
+        window._background_done(allowed)
+
+
+def _on_background_bus(_source, result, window_ref):
+    try:
+        bus = Gio.bus_get_finish(result)
+    except GLib.Error:
+        _background_finish(window_ref, None)
+        return
+    if window_ref() is None:
+        return
+    token = 'babble_%s' % secrets.token_hex(8)
+    sender = (bus.get_unique_name() or '').lstrip(':').replace('.', '_')
+    request_path = '/org/freedesktop/portal/desktop/request/%s/%s' % (
+        sender, token)
+    state = {'id': 0}
+
+    def on_response(connection, _sender, _path, _iface, _signal, params):
+        unsubscribe()
+        code, results = params.unpack()
+        _background_finish(
+            window_ref, code == 0 and bool(results.get('background')))
+
+    def subscribe(path):
+        state['id'] = bus.signal_subscribe(
+            _PORTAL_NAME, 'org.freedesktop.portal.Request', 'Response',
+            path, None, Gio.DBusSignalFlags.NONE, on_response)
+
+    def unsubscribe():
+        if state['id']:
+            bus.signal_unsubscribe(state['id'])
+            state['id'] = 0
+
+    # Subscribe before calling so the response cannot slip past.
+    subscribe(request_path)
+
+    def on_called(connection, call_result):
+        try:
+            handle, = connection.call_finish(call_result).unpack()
+        except GLib.Error:
+            unsubscribe()
+            _background_finish(window_ref, None)
+            return
+        if handle != request_path and state['id']:
+            # Pre-0.9 portals pick their own request path.
+            unsubscribe()
+            subscribe(handle)
+
+    options = {
+        'handle_token': GLib.Variant('s', token),
+        'reason': GLib.Variant(
+            's', _('Deliver notifications while the window is closed')),
+        'autostart': GLib.Variant('b', False),
+    }
+    bus.call(_PORTAL_NAME, _PORTAL_PATH, 'org.freedesktop.portal.Background',
+             'RequestBackground', GLib.Variant('(sa{sv})', ('', options)),
+             GLib.VariantType('(o)'), Gio.DBusCallFlags.NONE, -1, None,
+             on_called)

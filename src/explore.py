@@ -141,6 +141,7 @@ class LinkCard(Gtk.ListBoxRow):
                     'image_description') or '',
                 accessible_role=Gtk.AccessibleRole.PRESENTATION)
             picture.add_css_class('link-card-image')
+            picture.add_css_class('darkenable')
             box.append(picture)
             _TextureCache.load(image_url, picture)
 

@@ -387,6 +387,7 @@ class InlineEmojiText(Gtk.TextView):
         def emoji_anchor(url):
             image = Gtk.Image(accessible_role=Gtk.AccessibleRole.PRESENTATION)
             image.set_pixel_size(self._emoji_size)
+            image.add_css_class('custom-emoji')
             EmojiTextures.bind(image, url)
             anchor = self._buffer.create_child_anchor(
                 self._buffer.get_end_iter())

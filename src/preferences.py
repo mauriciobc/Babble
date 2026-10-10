@@ -88,7 +88,6 @@ STYLE_CLASSES = {
     'larger-line-height': 'large-line-height',
     'enlarge-custom-emojis': 'enlarge-emoji',
     'scale-emoji-hover': 'scale-emoji-hover',
-    'dim-trivial-notifications': 'dim-trivial-notifications',
 }
 STYLE_KEYS = ('color-scheme', 'text-size', 'darken-images-on-dark-mode',
               *STYLE_CLASSES)
@@ -105,8 +104,8 @@ def apply_color_scheme(settings):
 def apply_style(window, settings):
     """Sync the window's CSS classes and the colour scheme with the
     settings: ``text-small``/``text-large``, ``large-line-height``,
-    ``enlarge-emoji``, ``scale-emoji-hover``, ``dim-trivial-notifications``
-    and ``darken-media`` (the dark style with the darken toggle on)."""
+    ``enlarge-emoji``, ``scale-emoji-hover`` and ``darken-media`` (the
+    dark style with the darken toggle on)."""
     apply_color_scheme(settings)
     for name in ('text-small', 'text-large'):
         window.remove_css_class(name)
@@ -292,9 +291,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     def _on_background_toggled(self, row, _pspec):
         if row.get_active():
-            request = getattr(self.window, 'request_background', None)
-            if request is not None:
-                request()
+            self.window.request_background()
 
     def _timelines_page(self):
         page = Adw.PreferencesPage(title=_('Timelines'),
