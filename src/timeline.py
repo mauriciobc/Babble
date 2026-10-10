@@ -189,18 +189,31 @@ class StatusItem(GObject.Object):
     """One row's data: a status, transparent to boosts."""
 
     __gtype_name__ = 'BabbleStatusItem'
+    # Emitted when the payload is swapped for an edited one; rows bound to
+    # the item rebind, and the list keeps its row instead of rebuilding.
+    __gsignals__ = {'changed': (GObject.SignalFlags.RUN_FIRST, None, ())}
 
     def __init__(self, data):
         super().__init__()
-        boost = data.get('reblog')
-        self.raw = data
-        self.status = boost if boost else data
-        self.boosted_by = data['account'] if boost else None
+        self._set_data(data)
         # Per-post view state that must survive row recycling: expanded
         # text, opened content warning, revealed filtered post.
         self.ui = {}
         # Result of POST /statuses/:id/translate while it is shown.
         self.translation = None
+
+    def _set_data(self, data):
+        boost = data.get('reblog')
+        self.raw = data
+        self.status = boost if boost else data
+        self.boosted_by = data['account'] if boost else None
+
+    def update(self, data):
+        """Take *data*, a newer payload of the same post (an edit): the
+        view state stays, a translation of the old text goes."""
+        self._set_data(data)
+        self.translation = None
+        self.emit('changed')
 
     @GObject.Property(type=str)
     def status_id(self):
@@ -288,11 +301,6 @@ class BoostCarouselItem(StatusItem):
     (test: get_item_type() == StatusItem) stays intact."""
 
     __gtype_name__ = 'BabbleBoostCarouselItem'
-    # The carousel row stays one list item for the life of the timeline;
-    # its posts change in place and the bound row follows this signal,
-    # instead of the list view tearing the row down for a new item.
-    __gsignals__ = {'boosts-changed': (GObject.SignalFlags.RUN_FIRST,
-                                       None, ())}
 
     def __init__(self, boosts):
         super().__init__({'id': '__babble_boosts__',
@@ -302,11 +310,14 @@ class BoostCarouselItem(StatusItem):
         self.boosts = boosts
 
     def set_boosts(self, boosts):
+        """Swap the boosted posts in place: the carousel stays one list
+        item for the life of the timeline and its bound row follows
+        ``changed``, instead of the list view rebuilding the row."""
         if len(self.boosts) == len(boosts) and all(
                 a is b for a, b in zip(self.boosts, boosts)):
             return
         self.boosts = boosts
-        self.emit('boosts-changed')
+        self.emit('changed')
 
 
 class TimelineModel(GObject.Object, Gio.ListModel):
@@ -400,7 +411,6 @@ class TimelineModel(GObject.Object, Gio.ListModel):
                 continue
             if item.status_id != status_id:
                 continue
-            ui = item.ui
             if item.is_boost:
                 # The row is a boost: the edit applies to the boosted
                 # post, so keep the wrapper and the booster.
@@ -408,9 +418,7 @@ class TimelineModel(GObject.Object, Gio.ListModel):
                 raw['reblog'] = dict(item.status, **status)
             else:
                 raw = dict(item.raw, **status)
-            fresh = StatusItem(raw)
-            fresh.ui = ui
-            self._store.splice(position, 1, [fresh])
+            item.update(raw)
             return True
         return False
 
@@ -1954,7 +1962,7 @@ class StatusRow(Gtk.Overlay):
         main.append(actions)
 
         self.carousel = None
-        self._boosts_watch = None
+        self._item_watch = None
 
         self.connect('map', self._on_map)
         self.connect('unmap', self._on_unmap)
@@ -2527,10 +2535,14 @@ class StatusRow(Gtk.Overlay):
     # Binding
 
     def bind(self, item, client):
-        if self._boosts_watch is not None:
-            watched, handler = self._boosts_watch
+        if self._item_watch is not None and self._item_watch[0] is not item:
+            watched, handler = self._item_watch
             watched.disconnect(handler)
-            self._boosts_watch = None
+            self._item_watch = None
+        if self._item_watch is None:
+            # Edits and carousel updates change the item in place.
+            self._item_watch = (item, connect_weak(
+                item, 'changed', self._on_item_changed))
         self.item = item
         self.client = client
         if self._overflow.get_menu_model() is not None:
@@ -2538,8 +2550,6 @@ class StatusRow(Gtk.Overlay):
             self._overflow.set_menu_model(None)
         if isinstance(item, BoostCarouselItem):
             self._bind_carousel(item, client)
-            self._boosts_watch = (item, connect_weak(
-                item, 'boosts-changed', self._on_boosts_changed))
             return
         if self.carousel is not None:
             self.carousel.set_visible(False)
@@ -2790,7 +2800,9 @@ class StatusRow(Gtk.Overlay):
         if full:
             self.time_label.update_property([Gtk.AccessibleProperty.LABEL],
                                             [full])
-        self.time_label.set_visible(True)
+        # A continuation post of a run card leaves the time to the lead;
+        # it can rebind on its own when the post is edited.
+        self.time_label.set_visible(not self.has_css_class('run-post'))
 
     def _set_post_meta(self, item):
         """Phanpy-style line under the body: visibility, relative and
@@ -2819,9 +2831,9 @@ class StatusRow(Gtk.Overlay):
         carousel.set_visible(True)
         carousel.set_boosts(item.boosts, client)
 
-    def _on_boosts_changed(self, item):
+    def _on_item_changed(self, item):
         if item is self.item:
-            self.carousel.set_boosts(item.boosts, self.client)
+            self.bind(item, self.client)
 
     def _on_show_filtered(self, _button):
         if self.item is None:
