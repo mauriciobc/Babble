@@ -468,8 +468,9 @@ class StatusRunRow(Gtk.Box):
         # Gtk.ListView still instantiates a child for every loaded post
         # (up to a couple of hundred) and lays that whole set out on
         # every top insertion. A StatusRow is a large tree, so it is
-        # parented only while the run is mapped; scrolling back reuses
-        # the same card instead of building another one.
+        # hidden while the run is unmapped (measure and snapshot skip
+        # it) and shown again on the way back, instead of being
+        # unparented and reparented at every stop.
         self._cards = {}
         # Floor so an unmapped run does not collapse to 0px, which would
         # keep the list from ever mapping it. Later rows use the height
@@ -514,8 +515,11 @@ class StatusRunRow(Gtk.Box):
         self._detach()
 
     def _detach(self):
+        # Hide, rather than unparent. A hidden child is skipped by
+        # measure and snapshot, so a top insertion still lays out a
+        # cheap shell, but scrolling back does not reparent the card.
         for row in self.rows:
-            self.column.remove(row)
+            row.set_visible(False)
             row.remove_css_class('run-lead')
             row.remove_css_class('run-post')
         self.rows = []
@@ -532,6 +536,7 @@ class StatusRunRow(Gtk.Box):
         # card on the column and strips chrome from each inner row.
         if multi:
             self.column.add_css_class('status-row')
+        previous = None
         for position, item in enumerate(run.items):
             row = self._cards.get(item)
             if row is None:
@@ -551,7 +556,12 @@ class StatusRunRow(Gtk.Box):
                 else:
                     row.add_css_class('run-lead')
             row.set_run(position + 1, len(run.items))
-            self.column.append(row)
+            row.set_visible(True)
+            if row.get_parent() is None:
+                self.column.insert_child_after(row, previous)
+            elif row.get_prev_sibling() is not previous:
+                self.column.reorder_child_after(row, previous)
+            previous = row
             self.rows.append(row)
 
 
