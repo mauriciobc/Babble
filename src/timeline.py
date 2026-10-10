@@ -12,10 +12,11 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
 gi.require_version('GdkPixbuf', '2.0')
+gi.require_version('Graphene', '1.0')
 
 from .i18n import gettext as _, ngettext
 
-from gi.repository import Adw, Gdk, GdkPixbuf, GLib, GObject, Gio, Gtk, Pango, Soup  # noqa: E402
+from gi.repository import Adw, Gdk, GdkPixbuf, GLib, GObject, Gio, Graphene, Gtk, Pango, Soup  # noqa: E402
 
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
@@ -819,6 +820,48 @@ def _decode_covering(data, cover):
                                  pixbuf.get_rowstride())
 
 
+class _BrokenImage(GObject.Object, Gdk.Paintable, Gtk.SymbolicPaintable):
+    """Stand-in for an image that failed to load: image-missing centred
+    at its natural size, whatever the picture's size or content fit. It
+    has no intrinsic size, so the picture keeps the box it was given,
+    and as a symbolic paintable it takes the picture's colours."""
+
+    ICON_SIZE = 32
+    _instance = None
+
+    @classmethod
+    def get(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def do_get_flags(self):
+        return (Gdk.PaintableFlags.STATIC_SIZE
+                | Gdk.PaintableFlags.STATIC_CONTENTS)
+
+    def do_snapshot(self, snapshot, width, height):
+        self.do_snapshot_symbolic(snapshot, width, height, [])
+
+    def do_snapshot_symbolic(self, snapshot, width, height, colors, *_n):
+        display = Gdk.Display.get_default()
+        if display is None:
+            return
+        icon = Gtk.IconTheme.get_for_display(display).lookup_icon(
+            'image-missing-symbolic', None, self.ICON_SIZE, 1,
+            Gtk.TextDirection.NONE, 0)
+        size = min(self.ICON_SIZE, width, height)
+        snapshot.save()
+        snapshot.translate(Graphene.Point().init((width - size) / 2,
+                                                 (height - size) / 2))
+        icon.snapshot_symbolic(snapshot, size, size, colors)
+        snapshot.restore()
+
+
+def _show_broken(picture):
+    picture.set_paintable(_BrokenImage.get())
+    picture.add_css_class('broken-image')
+
+
 class _TextureCache:
     """Decoded media textures shared between rows by URL."""
 
@@ -843,10 +886,12 @@ class _TextureCache:
         key = url if cover is None else (url, cover)
         if key in cls._textures:
             cls._textures.move_to_end(key)
+            picture.remove_css_class('broken-image')
             picture.set_paintable(cls._textures[key])
             return
         message = Soup.Message.new('GET', url)
         if message is None:
+            _show_broken(picture)
             return
         # A rebuilt row replaces the request it already had in flight;
         # cancelling the old one stops the bytes for a thumbnail nobody
@@ -870,19 +915,25 @@ class _TextureCache:
         try:
             data = session.send_and_read_finish(result)
         except GLib.Error:
+            # Also how a cancel the check above missed would surface.
+            if not cancellable.is_cancelled():
+                _show_broken(picture)
             return
         if data is None or data.get_size() == 0:
+            _show_broken(picture)
             return
         texture = _decode_covering(data, cover) if cover else None
         if texture is None:
             try:
                 texture = Gdk.Texture.new_from_bytes(data)
             except GLib.Error:
+                _show_broken(picture)
                 return
         cls._textures[key] = texture
         cls._textures.move_to_end(key)
         while len(cls._textures) > MEDIA_TEXTURE_CACHE_SIZE:
             cls._textures.popitem(last=False)
+        picture.remove_css_class('broken-image')
         if picture.get_paintable() is None \
                 or picture.get_paintable() is not texture:
             picture.set_paintable(texture)
