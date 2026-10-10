@@ -21,7 +21,7 @@ from gettext import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
-from .lists import ToastDialog, error_text  # noqa: E402
+from .lists import ToastDialog, error_text_markup  # noqa: E402
 
 RECENT_KEY = 'recent-searches'
 RECENT_MAX = 10
@@ -188,7 +188,7 @@ class SearchTypePage(Adw.Bin):
             if self.count:
                 pages.report_error(self, _('Could not load more'), error)
             else:
-                self.error_page.set_description(error_text(error))
+                self.error_page.set_description(error_text_markup(error))
                 self.stack.set_visible_child_name('error')
             return
         items = data.get(self.kind) or []
@@ -424,7 +424,7 @@ class SearchPage(Adw.Bin):
             try:
                 data = client.request_finish(result)
             except GLib.Error as error:
-                self.error_page.set_description(error_text(error))
+                self.error_page.set_description(error_text_markup(error))
                 self.stack.set_visible_child_name('error')
                 return
             callback(data)

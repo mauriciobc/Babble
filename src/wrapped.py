@@ -25,7 +25,8 @@ from gettext import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
-from .mastodon import summarize_error  # noqa: E402
+from .mastodon import (summarize_error,  # noqa: E402
+                       summarize_error_markup)
 
 # (name, description), the way Mastodon's own report words them.
 ARCHETYPES = {
@@ -260,7 +261,8 @@ class WrappedDialog(Adw.Dialog):
             if error.code in (404, 410):
                 self._check_state(self.year or default_year())
                 return
-            self.error_page.set_description(summarize_error(error.message))
+            self.error_page.set_description(
+                summarize_error_markup(error.message))
             self.stack.set_visible_child_name('error')
 
         _send(self.client, 'GET', path, ok, failed)

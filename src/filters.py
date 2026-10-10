@@ -383,7 +383,7 @@ class FiltersList(Adw.Bin):
             self.items = client.request_finish(result)
         except GLib.Error as error:
             self.error_page.set_description(
-                pages.summarize_error(error.message))
+                pages.summarize_error_markup(error.message))
             self.stack.set_visible_child_name('error')
             return
         self._populate()

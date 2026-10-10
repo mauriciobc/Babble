@@ -18,7 +18,7 @@ from gettext import gettext as _, ngettext
 from gi.repository import Adw, Gdk, GLib, GObject, Gio, Gtk, Pango, Soup  # noqa: E402
 
 from . import pages  # noqa: E402
-from .mastodon import HTTP_TIMEOUT_SECONDS, summarize_error  # noqa: E402
+from .mastodon import HTTP_TIMEOUT_SECONDS, summarize_error_markup  # noqa: E402
 from .textemoji import (InlineEmojiText, emoji_bank, launch_uri,  # noqa: E402
                         poll_emoji_bank, status_emoji_bank)
 
@@ -3161,7 +3161,8 @@ class TimelinePage(Adw.Bin):
                 self.mode = 'public'
                 self.load()
                 return
-            self.error_page.set_description(summarize_error(e.message))
+            self.error_page.set_description(
+                summarize_error_markup(e.message))
             self.stack.set_visible_child_name('error')
             return
         if not statuses:

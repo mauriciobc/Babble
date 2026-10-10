@@ -23,7 +23,7 @@ from gettext import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, Gio, Gtk, Pango  # noqa: E402
 
-from .mastodon import summarize_error  # noqa: E402
+from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 COLUMN_WIDTH = 660
@@ -317,7 +317,7 @@ class PagedList(Adw.Bin):
         except GLib.Error as error:
             if not self.rows:
                 self.error_page.set_description(
-                    summarize_error(error.message))
+                    summarize_error_markup(error.message))
                 self.stack.set_visible_child_name('error')
             else:
                 report_error(self, _('Could not load more'), error)

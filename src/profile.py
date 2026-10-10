@@ -20,7 +20,7 @@ from gi.repository import (Adw, Gdk, GLib, Gio, GObject, Gtk,  # noqa: E402
                            Pango, Soup)
 
 from . import pages  # noqa: E402
-from .mastodon import summarize_error  # noqa: E402
+from .mastodon import summarize_error_markup  # noqa: E402
 from .timeline import AvatarCache, TimelinePage, COLUMN_WIDTH  # noqa: E402
 
 
@@ -1673,7 +1673,8 @@ class LookupProfilePage(ProfilePage):
         self.show_account(account)
 
     def show_lookup_error(self, error):
-        self.error_page.set_description(summarize_error(error.message))
+        self.error_page.set_description(
+            summarize_error_markup(error.message))
         self.set_stack_state('error')
 
     def show_account(self, account):

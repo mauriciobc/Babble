@@ -29,7 +29,8 @@ from gettext import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
-from .mastodon import summarize_error  # noqa: E402
+from .mastodon import (summarize_error,  # noqa: E402
+                       summarize_error_markup)
 
 MAX_MEMBERS = 25
 DEFAULT_LIMIT = 10
@@ -337,7 +338,7 @@ class CollectionsPage(Adw.Bin):
             self.stack.add_titled(
                 Adw.StatusPage(icon_name='network-error-symbolic',
                                title=_('Could Not Load'),
-                               description=summarize_error(
+                               description=summarize_error_markup(
                                    error.message)),
                 'error', _('Collections'))
 
@@ -429,7 +430,7 @@ class CollectionPage(Adw.Bin):
 
         def failed(error):
             self.error_page.set_description(
-                summarize_error(error.message))
+                summarize_error_markup(error.message))
             self.stack.set_visible_child_name('error')
 
         _send(self.client, 'GET', '/collections/%s' % self.collection_id,

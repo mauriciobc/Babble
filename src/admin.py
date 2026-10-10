@@ -36,7 +36,7 @@ PERM_USERS = 1024
 
 # Helpers
 
-def error_text(error):
+def _admin_line(error):
     """One readable line for a GLib.Error from an admin call."""
     code = getattr(error, 'code', 0)
     message = summarize_error(getattr(error, 'message', None) or str(error))
@@ -45,6 +45,20 @@ def error_text(error):
                  'app needs to be authorised for the admin scopes.') \
             % message.rstrip('.')
     return message
+
+
+def error_text(error):
+    """*error* as one plain-text line, for a ``use_markup=False`` toast."""
+    return _admin_line(error)
+
+
+def error_text_markup(error):
+    """*error* as one line escaped for a markup-rendering widget.
+
+    A status page parses its description as markup, so a bare ``&`` in
+    a server body fails the parse and blanks the label.
+    """
+    return GLib.markup_escape_text(_admin_line(error))
 
 
 def format_date(iso, fmt='%x %X'):
@@ -158,7 +172,7 @@ class StatePage(Adw.Bin):
         self.stack.set_visible_child_name('loading')
 
     def show_error(self, error):
-        self.error_page.set_description(error_text(error))
+        self.error_page.set_description(error_text_markup(error))
         self.stack.set_visible_child_name('error')
 
     def show_content(self, widget):

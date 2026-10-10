@@ -17,7 +17,7 @@ import re  # noqa: E402
 import time as _time  # noqa: E402
 import weakref  # noqa: E402
 
-from .mastodon import summarize_error  # noqa: E402
+from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import (PagedList, launch_external, push_page,  # noqa: E402
                     report_error, settings)
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
@@ -1443,7 +1443,7 @@ class NotificationsPage(Adw.Bin):
             notifications = self._finish(result)
         except GLib.Error as e:
             self.error_page.set_description(
-                GLib.markup_escape_text(summarize_error(e.message)))
+                summarize_error_markup(e.message))
             self.stack.set_visible_child_name('error')
             return
         if not notifications:
@@ -2029,7 +2029,7 @@ class NotificationPolicyDialog(Adw.Dialog):
             self.filters_group.set_description(
                 _('This server does not support filtering notifications')
                 if getattr(error, 'code', 0) == 404
-                else summarize_error(error.message))
+                else summarize_error_markup(error.message))
             return
         self.policy = policy
         self.filters_group.set_description(_(

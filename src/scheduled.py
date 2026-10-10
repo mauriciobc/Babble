@@ -23,7 +23,7 @@ from gettext import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
-from .mastodon import summarize_error  # noqa: E402
+from .mastodon import summarize_error_markup  # noqa: E402
 
 # Tuba: scheduled statuses dated in a year after this one are drafts.
 # NOTE: revisit in the year 3000.
@@ -519,7 +519,7 @@ class _FilteredList(pages.PagedList):
         except GLib.Error as error:
             if not self.rows:
                 self.error_page.set_description(
-                    summarize_error(error.message))
+                    summarize_error_markup(error.message))
                 self.stack.set_visible_child_name('error')
             else:
                 pages.report_error(self, _('Could not load more'), error)

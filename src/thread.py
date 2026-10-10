@@ -13,7 +13,7 @@ from gettext import gettext as _, ngettext
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
-from .mastodon import summarize_error  # noqa: E402
+from .mastodon import summarize_error_markup  # noqa: E402
 from .timeline import COLUMN_WIDTH, StatusItem, StatusRow  # noqa: E402
 
 MAX_NESTING = 5
@@ -146,7 +146,8 @@ class ThreadPage(Adw.Bin):
         try:
             ancestors, descendants = client.status_context_finish(result)
         except GLib.Error as e:
-            self.error_page.set_description(summarize_error(e.message))
+            self.error_page.set_description(
+                summarize_error_markup(e.message))
             self.stack.set_visible_child_name('error')
             return
         self.build(ancestors, descendants)

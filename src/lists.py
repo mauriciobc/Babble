@@ -109,6 +109,15 @@ def error_text(error):
     return summarize_error(getattr(error, 'message', None) or str(error))
 
 
+def error_text_markup(error):
+    """*error* as one line escaped for a markup-rendering widget.
+
+    :func:`error_text` is for plain-text widgets; a status page parses
+    its description as markup and blanks the label on a bare ``&``.
+    """
+    return GLib.markup_escape_text(error_text(error))
+
+
 class ToastDialog(Adw.Dialog):
     """Adw.Dialog with a header bar, an inner toast overlay and a scrolled
     Adw.PreferencesPage as content."""
