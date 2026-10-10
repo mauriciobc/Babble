@@ -128,6 +128,11 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._settled_attempt = -1
         self._pending_code = None
         self._consumed_codes = {}
+        # Reading the keyring is an out-of-process round trip, so a
+        # restore or switch can still be in flight when the next one
+        # starts. This id tells the replies apart: only the newest
+        # lookup is allowed to touch the session.
+        self._session_lookup = 0
         self.settings = pages.settings()
         self.settings.bind('window-width', self, 'default-width', Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('window-height', self, 'default-height', Gio.SettingsBindFlags.DEFAULT)
@@ -220,17 +225,41 @@ class BabbleWindow(Adw.ApplicationWindow):
         if account is None:
             self.main_stack.set_visible_child_name('login')
             return
+        self._activate_account(account, login_only=True)
+
+    def _activate_account(self, account, login_only=False):
+        """Read *account*'s token from the keyring and make it the
+        session.
+
+        The read is an out-of-process round trip, so a second restore or
+        switch can start before the first answers. Only the newest
+        lookup may touch the session: a stale reply that returned a
+        token would show the wrong account, and one that returned None
+        would forget an account that is in fact signed in.
+        """
         account_id = account['id']
         client = MastodonClient(account['instance'])
+        lookup = self._session_lookup = self._session_lookup + 1
 
         def loaded(token):
-            if token is None:
-                self.remove_account(account_id)
-                self.main_stack.set_visible_child_name('login')
+            if lookup != self._session_lookup:
                 return
+            if token is None:
+                if login_only:
+                    self.remove_account(account_id)
+                    self.main_stack.set_visible_child_name('login')
+                else:
+                    self.show_toast(
+                        _('The login for @%s is gone from the keyring')
+                        % account.get('acct', ''))
+                return
+            if not login_only:
+                self._teardown_session()
             client.token = token
             self.client = client
             self.account = account
+            if not login_only:
+                self.settings.set_string('active-account', account_id)
             self.show_shell()
 
         # The keyring is an out-of-process round trip; the token arrives
@@ -284,22 +313,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         account = account_store.find_account(self.settings, account_id)
         if account is None:
             return
-        client = MastodonClient(account['instance'])
-
-        def loaded(token):
-            if token is None:
-                self.show_toast(
-                    _('The login for @%s is gone from the keyring')
-                    % account.get('acct', ''))
-                return
-            self._teardown_session()
-            client.token = token
-            self.client = client
-            self.account = account
-            self.settings.set_string('active-account', account_id)
-            self.show_shell()
-
-        client.load_secret_token(account_id, loaded)
+        self._activate_account(account)
 
     @staticmethod
     def _grab_focus(widget):
