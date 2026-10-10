@@ -20,6 +20,7 @@ from gi.repository import (Adw, Gdk, GLib, Gio, GObject, Gtk,  # noqa: E402
                            Pango, Soup)
 
 from . import pages  # noqa: E402
+from .pages import connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .timeline import AvatarCache, TimelinePage, COLUMN_WIDTH  # noqa: E402
 
@@ -63,8 +64,12 @@ class ProfileDialog(Adw.Dialog):
                          presentation_mode=Adw.DialogPresentationMode.BOTTOM_SHEET,
                          **kwargs)
         self._view = view
-        self._pushed = view.connect('pushed', lambda *_a: self.close())
+        # The window's navigation view outlives the sheet.
+        self._pushed = connect_weak(view, 'pushed', self._on_view_pushed)
         self.connect('closed', self._on_closed)
+
+    def _on_view_pushed(self, _view):
+        self.close()
 
     def _on_closed(self, _dialog):
         self._view.disconnect(self._pushed)
@@ -304,11 +309,11 @@ class PrivateNoteDialog(Adw.Dialog):
         header = Adw.HeaderBar(show_start_title_buttons=False,
                                show_end_title_buttons=False)
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.close())
+        connect_weak(cancel, 'clicked', self._on_cancel_clicked)
         header.pack_start(cancel)
         self.save_button = Gtk.Button(label=_('_Save'), use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        self.save_button.connect('clicked', self._on_save_clicked)
+        connect_weak(self.save_button, 'clicked', self._on_save_clicked)
         header.pack_end(self.save_button)
         self.counter = Gtk.Label(label=str(NOTE_LIMIT),
                                  tooltip_text=_('Remaining Characters'))
@@ -325,7 +330,7 @@ class PrivateNoteDialog(Adw.Dialog):
             [_('Private note about %s') % handle])
         self.buffer = self.text_view.get_buffer()
         self.buffer.set_text(text or '', -1)
-        self.buffer.connect('changed', self._on_changed)
+        connect_weak(self.buffer, 'changed', self._on_changed)
         scrolled = Gtk.ScrolledWindow(child=self.text_view, vexpand=True,
                                       margin_start=12, margin_end=12,
                                       margin_top=12, margin_bottom=12)
@@ -357,6 +362,9 @@ class PrivateNoteDialog(Adw.Dialog):
         else:
             self.counter.remove_css_class('error')
         self.save_button.set_sensitive(remaining >= 0)
+
+    def _on_cancel_clicked(self, _button):
+        self.close()
 
     def _on_save_clicked(self, _button):
         self.save_button.set_sensitive(False)
@@ -404,7 +412,7 @@ class ProfilePage(Adw.Bin):
 
         self.follow_button = Gtk.Button(valign=Gtk.Align.CENTER)
         self.follow_button.add_css_class('pill')
-        self.follow_button.connect('clicked', self.on_follow_clicked)
+        connect_weak(self.follow_button, 'clicked', self.on_follow_clicked)
         self.action_bar = Gtk.ActionBar(revealed=self._signed_in())
         self.action_bar.pack_end(self.follow_button)
         if self._signed_in():
@@ -433,7 +441,7 @@ class ProfilePage(Adw.Bin):
                            halign=Gtk.Align.CENTER)
         retry.add_css_class('pill')
         retry.add_css_class('suggested-action')
-        retry.connect('clicked', self.on_retry)
+        connect_weak(retry, 'clicked', self.on_retry)
         self.error_page.set_child(retry)
         self.stack.add_named(self.error_page, 'error')
 
@@ -660,8 +668,8 @@ class ProfilePage(Adw.Bin):
         self.note_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,
                                      visible=False)
         self.note_list.add_css_class('boxed-list')
-        self.note_list.connect('row-activated',
-                               lambda *_a: self.edit_private_note())
+        connect_weak(self.note_list, 'row-activated',
+                     self._on_note_activated)
         header.append(self.note_list)
 
         header.append(self._build_stats(account))
@@ -709,9 +717,13 @@ class ProfilePage(Adw.Bin):
     def _open_image_on_click(self, widget, url, description):
         click = Gtk.GestureClick.new()
         click.set_button(1)
-        click.connect('released', self._on_image_clicked, url, description)
+        connect_weak(click, 'released', self._on_image_clicked, url,
+                     description)
         widget.add_controller(click)
         widget.set_cursor_from_name('pointer')
+
+    def _on_note_activated(self, _listbox, _row):
+        self.edit_private_note()
 
     def _on_image_clicked(self, _gesture, _n_press, _x, _y, url,
                           description):
@@ -775,20 +787,20 @@ class ProfilePage(Adw.Bin):
         button.add_css_class('flat')
         button.update_property([Gtk.AccessibleProperty.LABEL],
                                ['%s %s' % (format_count(count), caption)])
-        button.connect('clicked', lambda *_a: callback())
+        connect_weak(button, 'clicked', callback)
         return button
 
-    def on_posts_clicked(self):
+    def on_posts_clicked(self, _button):
         self.view_stack.set_visible_child_name('posts')
 
-    def on_followers_clicked(self):
+    def on_followers_clicked(self, _button):
         count = self.account.get('followers_count') or 0
         self._push_accounts(
             _('Followers'), 'followers',
             _('This user has chosen to not make this information available')
             if count else _('No Followers'))
 
-    def on_following_clicked(self):
+    def on_following_clicked(self, _button):
         count = self.account.get('following_count') or 0
         self._push_accounts(
             _('Following'), 'following',
@@ -815,8 +827,8 @@ class ProfilePage(Adw.Bin):
             listbox.append(row)
         if len(rows) > VISIBLE_FIELDS:
             toggle = Adw.ButtonRow(title=_('Show More'))
-            toggle.connect('activated', self.on_fields_toggle,
-                           rows[VISIBLE_FIELDS:])
+            connect_weak(toggle, 'activated', self.on_fields_toggle,
+                         rows[VISIBLE_FIELDS:])
             listbox.append(toggle)
         return listbox
 
@@ -1008,7 +1020,7 @@ class ProfilePage(Adw.Bin):
         button = Gtk.Button(child=row, halign=Gtk.Align.START)
         button.add_css_class('flat')
         button.update_property([Gtk.AccessibleProperty.LABEL], [text])
-        button.connect('clicked', self.on_familiar_clicked)
+        connect_weak(button, 'clicked', self.on_familiar_clicked)
         return button
 
     def on_familiar_clicked(self, _button):
@@ -1035,7 +1047,7 @@ class ProfilePage(Adw.Bin):
             if count is not None:
                 button.set_tooltip_text(ngettext(
                     '%d post', '%d posts', int(count)) % int(count))
-            button.connect('clicked', self.on_tag_clicked, name)
+            connect_weak(button, 'clicked', self.on_tag_clicked, name)
             flow.append(button)
         self.tags_box.append(flow)
         self.tags_box.set_visible(True)
@@ -1058,7 +1070,7 @@ class ProfilePage(Adw.Bin):
             more = Adw.ButtonRow(title=ngettext(
                 'Show All %d Profile', 'Show All %d Profiles',
                 len(accounts)) % len(accounts))
-            more.connect('activated', self.on_endorsements_clicked)
+            connect_weak(more, 'activated', self.on_endorsements_clicked)
             listbox.append(more)
         self.endorse_box.append(listbox)
         self.endorse_box.set_visible(True)
@@ -1213,43 +1225,52 @@ class ProfilePage(Adw.Bin):
 
     # Menu and actions
 
+    # Action name -> (method, arguments); dispatched by name so the
+    # actions, which the page owns, hold the page only weakly.
+    _PLAIN_ACTIONS = {
+        'mention': ('on_mention', False),
+        'direct': ('on_mention', True),
+        'copy-handle': ('on_copy_handle',),
+        'copy-link': ('on_copy_link',),
+        'open-browser': ('on_open_browser',),
+        'private-note': ('edit_private_note',),
+        'lists': ('on_lists',),
+        'hide-boosts': ('set_boosts', False),
+        'show-boosts': ('set_boosts', True),
+        'remove-follower': ('confirm_remove_follower',),
+        'mute': ('on_mute',),
+        'unmute': ('on_unmute',),
+        'block': ('confirm_block', True),
+        'unblock': ('confirm_block', False),
+        'block-domain': ('confirm_domain_block', True),
+        'unblock-domain': ('confirm_domain_block', False),
+        'report': ('on_report',),
+    }
+    _STATEFUL_ACTIONS = {
+        'notify': 'set_notifying',
+        'endorse': 'set_endorsed',
+    }
+
     def _build_actions(self):
         self.actions = Gio.SimpleActionGroup()
-        plain = {
-            'mention': lambda: self.on_mention(False),
-            'direct': lambda: self.on_mention(True),
-            'copy-handle': self.on_copy_handle,
-            'copy-link': self.on_copy_link,
-            'open-browser': self.on_open_browser,
-            'private-note': self.edit_private_note,
-            'lists': self.on_lists,
-            'hide-boosts': lambda: self.set_boosts(False),
-            'show-boosts': lambda: self.set_boosts(True),
-            'remove-follower': self.confirm_remove_follower,
-            'mute': self.on_mute,
-            'unmute': self.on_unmute,
-            'block': lambda: self.confirm_block(True),
-            'unblock': lambda: self.confirm_block(False),
-            'block-domain': lambda: self.confirm_domain_block(True),
-            'unblock-domain': lambda: self.confirm_domain_block(False),
-            'report': self.on_report,
-        }
-        for name, callback in plain.items():
+        for name in self._PLAIN_ACTIONS:
             action = Gio.SimpleAction.new(name, None)
-            action.connect('activate', lambda _a, _p, cb=callback: cb())
+            connect_weak(action, 'activate', self._on_plain_action)
             self.actions.add_action(action)
-        stateful = {
-            'notify': self.set_notifying,
-            'endorse': self.set_endorsed,
-        }
-        for name, callback in stateful.items():
+        for name in self._STATEFUL_ACTIONS:
             action = Gio.SimpleAction.new_stateful(
                 name, None, GLib.Variant.new_boolean(False))
-            action.connect('change-state',
-                           lambda _a, value, cb=callback:
-                           cb(value.get_boolean()))
+            connect_weak(action, 'change-state', self._on_stateful_action)
             self.actions.add_action(action)
         self.insert_action_group('profile', self.actions)
+
+    def _on_plain_action(self, action, _param):
+        method, *args = self._PLAIN_ACTIONS[action.get_name()]
+        getattr(self, method)(*args)
+
+    def _on_stateful_action(self, action, value):
+        getattr(self, self._STATEFUL_ACTIONS[action.get_name()])(
+            value.get_boolean())
 
     def update_menu(self):
         """Rebuild the overflow menu for the current relationship."""

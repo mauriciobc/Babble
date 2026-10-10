@@ -26,7 +26,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import timeline  # noqa: E402
+from src import notifications, profile, timeline  # noqa: E402
 
 failures = []
 
@@ -120,6 +120,77 @@ page_ref, model_ref = weakref.ref(page), weakref.ref(page.model)
 del page
 check('a dropped timeline page is freed', freed(page_ref))
 check('its model is freed', freed(model_ref))
+
+
+class _ApiClient:
+    """Signed-in client whose requests never complete; *request_finish*
+    hands back the payload a test feeds a page's callbacks."""
+    token = 'token'
+    instance_info = None
+    instance = 'https://example.org'
+
+    def request_async(self, *_args, **_kwargs):
+        pass
+
+    def request_finish(self, result):
+        return result
+
+    def __getattr__(self, _name):
+        return lambda *_args, **_kwargs: None
+
+
+def account(number, **extra):
+    return dict({'id': str(number), 'acct': 'user%d' % number,
+                 'display_name': 'User %d' % number}, **extra)
+
+
+# Profile and notifications pages are freed once dropped, with the
+# content they build after their requests load.
+api = _ApiClient()
+field = {'name': 'site', 'value': '<a href="https://e.org">e.org</a>'}
+page = profile.ProfilePage(api, account(
+    1, note='<p>hi <a href="https://example.org/tags/t">#t</a></p>',
+    fields=[field] * 6, moved=account(2)), viewer_id='99')
+page._on_familiar(api, [{'accounts': [account(3), account(4)]}])
+page._on_featured_tags(api, [{'name': 'tag', 'statuses_count': 3}])
+page._on_endorsements(api, [account(n) for n in range(5, 10)])
+page._open_image_on_click(page.avatar, 'https://e.org/a.png', None)
+page._relationship_known = True
+page.set_relationship({'id': '1', 'following': True, 'note': 'note'})
+page_ref = weakref.ref(page)
+del page
+check('a dropped profile page is freed', freed(page_ref))
+
+view = Adw.NavigationView()
+dialog = profile.ProfileDialog(
+    view, profile.ProfilePage(api, account(1), viewer_id='99'), 'User 1')
+dialog_ref = weakref.ref(dialog)
+del dialog
+check('a dropped profile sheet is freed', freed(dialog_ref))
+
+dialog = profile.PrivateNoteDialog('@user1', 'note', lambda _text: None)
+dialog_ref = weakref.ref(dialog)
+del dialog
+check('a dropped private note dialog is freed', freed(dialog_ref))
+
+actor = account(3)
+row = notifications.NotificationRow()
+row.bind(notifications.NotificationItem(
+    {'id': '1', 'type': 'follow_request', 'account': actor,
+     'created_at': '2026-10-05T10:10:00.000Z'}), api)
+row_ref = weakref.ref(row)
+del row
+check('a dropped notification row is freed', freed(row_ref))
+
+model = notifications.NotificationModel()
+model.append_page([{'id': '1', 'type': 'mention', 'account': actor,
+                    'created_at': '2026-10-05T10:10:00.000Z',
+                    'status': status(1, 'hello')}])
+page = notifications.NotificationsPage(api, model=model)
+page_ref, model_ref = weakref.ref(page), weakref.ref(model)
+del page, model
+check('a dropped notifications page is freed', freed(page_ref))
+check('its notification model is freed', freed(model_ref))
 
 # Before its first allocation a wrapped body measures its text at the
 # width it is offered; Gtk.TextView alone would wrap it at one pixel.

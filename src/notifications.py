@@ -18,8 +18,8 @@ import time as _time  # noqa: E402
 import weakref  # noqa: E402
 
 from .mastodon import summarize_error_markup  # noqa: E402
-from .pages import (PagedList, launch_external, push_page,  # noqa: E402
-                    report_error, settings)
+from .pages import (PagedList, connect_weak, launch_external,  # noqa: E402
+                    push_page, report_error, settings)
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .timeline import (StatusItem, AvatarCache, _RefreshGesture,  # noqa: E402
                        _TextureCache, parse_content, relative_time,
@@ -438,7 +438,7 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         self.newest_id = None
         self.exhausted = False
         self.loading = False
-        self._store.connect('items-changed', self._on_store_changed)
+        connect_weak(self._store, 'items-changed', self._on_store_changed)
 
     def _on_store_changed(self, _store, position, removed, added):
         self._stamp_sections()
@@ -732,7 +732,7 @@ class NotificationPost(Gtk.Box):
                                       visible=False)
         self.more_button.add_css_class('flat')
         self.more_button.add_css_class('caption')
-        self.more_button.connect('clicked', self._on_read_more)
+        connect_weak(self.more_button, 'clicked', self._on_read_more)
         self.append(self.more_button)
 
         self.poll_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
@@ -995,12 +995,12 @@ class NotificationRow(ColumnBox):
         while (child := self.actions_box.get_first_child()) is not None:
             self.actions_box.remove(child)
 
-    def _action_button(self, label, callback, css=None):
+    def _action_button(self, label, callback, *extra, css=None):
         button = Gtk.Button(label=label, use_underline=True)
         button.add_css_class('pill')
         if css:
             button.add_css_class(css)
-        button.connect('clicked', callback)
+        connect_weak(button, 'clicked', callback, *extra)
         self.actions_box.append(button)
         return button
 
@@ -1031,16 +1031,18 @@ class NotificationRow(ColumnBox):
             self._action_button(_('_View Reports'), self._on_view_reports)
         elif kind == 'annual_report':
             self._action_button(_('_View'), self._on_view_report_year,
-                                'suggested-action')
+                                css='suggested-action')
         for label, uri in notification_links(item, instance):
-            self._action_button(
-                label, lambda _b, uri=uri: launch_external(self, uri))
+            self._action_button(label, self._on_link_clicked, uri)
         self.actions_box.set_visible(
             self.actions_box.get_first_child() is not None)
 
     def _on_view_reports(self, _button):
         from .admin import present_admin
         present_admin(self, self.client)
+
+    def _on_link_clicked(self, _button, uri):
+        launch_external(self, uri)
 
     def _on_view_report_year(self, _button):
         from .wrapped import present_wrapped
@@ -1056,11 +1058,14 @@ class NotificationRow(ColumnBox):
             self._action_note(_('Request rejected'))
             return
         reject = self._action_button(
-            _('_Reject'), lambda _b: self._answer_request(item, 'reject'))
+            _('_Reject'), self._on_request_clicked, item, 'reject')
         accept = self._action_button(
-            _('_Accept'), lambda _b: self._answer_request(item, 'authorize'),
-            'suggested-action')
+            _('_Accept'), self._on_request_clicked, item, 'authorize',
+            css='suggested-action')
         self._request_buttons = (reject, accept)
+
+    def _on_request_clicked(self, _button, item, action):
+        self._answer_request(item, action)
 
     def _answer_request(self, item, action):
         """POST /api/v1/follow_requests/:account_id/(authorize|reject)."""
@@ -1101,9 +1106,11 @@ class NotificationRow(ColumnBox):
             return
         else:
             self._follow_button = self._action_button(
-                _('_Follow Back'),
-                lambda _b: self._follow_back(item, actor, key),
-                'suggested-action')
+                _('_Follow Back'), self._on_follow_back_clicked,
+                item, actor, key, css='suggested-action')
+
+    def _on_follow_back_clicked(self, _button, item, actor, key):
+        self._follow_back(item, actor, key)
 
     def _fetch_relationship(self, item, actor, key):
         client = self.client
@@ -1233,7 +1240,7 @@ class NotificationsPage(Adw.Bin):
         retry = Gtk.Button(label=_('Try Again'), halign=Gtk.Align.CENTER)
         retry.add_css_class('pill')
         retry.add_css_class('suggested-action')
-        retry.connect('clicked', self.refresh)
+        connect_weak(retry, 'clicked', self.refresh)
         self.error_page.set_child(retry)
         self.empty_page = Adw.StatusPage(
             icon_name='babble-notifications-symbolic',
@@ -1254,7 +1261,7 @@ class NotificationsPage(Adw.Bin):
             factory=NotificationFactory(client),
             header_factory=NotificationFactory(client),
             single_click_activate=True)
-        self.list_view.connect('activate', self.on_row_activated)
+        connect_weak(self.list_view, 'activate', self.on_row_activated)
         clamp = Adw.ClampScrollable(maximum_size=COLUMN_WIDTH,
                                     tightening_threshold=COLUMN_WIDTH)
         clamp.set_child(self.list_view)
@@ -1264,12 +1271,12 @@ class NotificationsPage(Adw.Bin):
         # Filtered notifications (Mastodon 4.3+): pending requests.
         self.requests_banner = Adw.Banner(button_label=_('View'),
                                           use_markup=False)
-        self.requests_banner.connect('button-clicked',
-                                     self.on_requests_banner_clicked)
+        connect_weak(self.requests_banner, 'button-clicked',
+                     self.on_requests_banner_clicked)
 
         # Instance announcements: the button opens the Announcements page.
         self.banner = Adw.Banner(button_label=_('View'), use_markup=False)
-        self.banner.connect('button-clicked', self.on_announcement_view)
+        connect_weak(self.banner, 'button-clicked', self.on_announcement_view)
 
         self.filter_group = Adw.ToggleGroup(
             halign=Gtk.Align.CENTER, margin_top=6, margin_bottom=6)
@@ -1278,8 +1285,8 @@ class NotificationsPage(Adw.Bin):
         self.filter_group.set_active_name('all')
         self.filter_group.update_property(
             [Gtk.AccessibleProperty.LABEL], [_('Filter Notifications')])
-        self.filter_group.connect('notify::active-name',
-                                  self.on_filter_changed)
+        connect_weak(self.filter_group, 'notify::active-name',
+                     self.on_filter_changed)
 
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         column.append(self.requests_banner)
@@ -1290,7 +1297,7 @@ class NotificationsPage(Adw.Bin):
 
         _RefreshGesture(self, scrolled)
         adjustment = scrolled.get_vadjustment()
-        adjustment.connect('value-changed', self.on_scroll_position)
+        connect_weak(adjustment, 'value-changed', self.on_scroll_position)
 
         self.header_widget = None
         if account_id is None:
@@ -1323,13 +1330,13 @@ class NotificationsPage(Adw.Bin):
             name = 'show-' + _slug(kind)
             action = Gio.SimpleAction.new_stateful(
                 name, None, GLib.Variant.new_boolean(kind not in excluded))
-            action.connect('change-state', self._on_type_toggled, kind)
+            connect_weak(action, 'change-state', self._on_type_toggled, kind)
             self.actions.add_action(action)
             filter_menu.append(label, 'notifs.' + name)
         for name, handler in (('policy', self.on_open_policy),
                               ('announcements', self.on_announcement_view)):
             action = Gio.SimpleAction.new(name, None)
-            action.connect('activate', handler)
+            connect_weak(action, 'activate', handler)
             self.actions.add_action(action)
 
         menu = Gio.Menu()
@@ -1353,7 +1360,7 @@ class NotificationsPage(Adw.Bin):
         clear_button.set_tooltip_text(_('Clear Notifications'))
         clear_button.update_property([Gtk.AccessibleProperty.LABEL],
                                      [_('Clear Notifications')])
-        clear_button.connect('clicked', self.on_clear_requested)
+        connect_weak(clear_button, 'clicked', self.on_clear_requested)
 
         box = Gtk.Box(spacing=0)
         box.append(self.menu_button)
@@ -1827,8 +1834,11 @@ class NotificationRequestRow(Adw.ActionRow):
         button.add_css_class('circular')
         button.set_tooltip_text(label)
         button.update_property([Gtk.AccessibleProperty.LABEL], [label])
-        button.connect('clicked', lambda _b: self.answer(action))
+        connect_weak(button, 'clicked', self._on_answer_clicked, action)
         self.add_suffix(button)
+
+    def _on_answer_clicked(self, _button, action):
+        self.answer(action)
 
     @staticmethod
     def _preview(status):
@@ -1921,13 +1931,16 @@ class RequestNotificationsPage(Adw.Bin):
         dismiss.set_tooltip_text(_('Dismiss'))
         dismiss.update_property([Gtk.AccessibleProperty.LABEL],
                                 [_('Dismiss')])
-        dismiss.connect('clicked', lambda _b: self._answer('dismiss'))
+        connect_weak(dismiss, 'clicked', self._on_answer_clicked, 'dismiss')
         accept = Gtk.Button(icon_name='object-select-symbolic')
         accept.add_css_class('flat')
         accept.set_tooltip_text(_('Accept'))
         accept.update_property([Gtk.AccessibleProperty.LABEL], [_('Accept')])
-        accept.connect('clicked', lambda _b: self._answer('accept'))
+        connect_weak(accept, 'clicked', self._on_answer_clicked, 'accept')
         self.header_widgets = [dismiss, accept]
+
+    def _on_answer_clicked(self, _button, action):
+        self._answer(action)
 
     def _answer(self, action):
         from .pages import window_of
@@ -2008,7 +2021,7 @@ class NotificationPolicyDialog(Adw.Dialog):
         for kind, label in NOTIFICATION_TYPES:
             row = Adw.SwitchRow(title=label, active=kind not in excluded)
             row.add_prefix(Gtk.Image(icon_name=type_icon(kind)))
-            row.connect('notify::active', self._on_type_switched, kind)
+            connect_weak(row, 'notify::active', self._on_type_switched, kind)
             self.type_rows[kind] = row
             types_group.add(row)
         page.add(types_group)
