@@ -49,10 +49,14 @@ MEDIA_RESPONSES = ['9901', '9902']
 
 posts = []
 uploads = []
+polls = []
 
 
 class StubMediaResult:
     """Results are opaque; the view only passes them to *_finish."""
+
+    #: Set by a test to make the instance answer an undecoded upload.
+    needs_processing = False
 
 
 class StubClient:
@@ -87,6 +91,12 @@ class StubClient:
 
         def cb(source, result, _user_data=None):
             media = {'id': MEDIA_RESPONSES[index]}
+            if result.needs_processing:
+                # The instance accepted the bytes but has not decoded
+                # them yet: no url, so the composer must poll.
+                media['url'] = None
+            else:
+                media['url'] = 'https://example.social/media/%s.png' % index
             result._media = media  # type: ignore[attr-defined]
             callback(source, result)
 
@@ -95,6 +105,26 @@ class StubClient:
         return None
 
     def media_upload_finish(self, result):
+        return result._media
+
+    def media_status_async(self, media_id, callback=None, cancellable=None):
+        polls.append(media_id)
+
+        def cb(source, result, _user_data=None):
+            # First poll still reports no url, as an instance mid-transcode
+            # would; the second one is ready.
+            ready = polls.count(media_id) > 1
+            result._media = {  # type: ignore[attr-defined]
+                'id': media_id,
+                'url': ('https://example.social/media/%s.png' % media_id
+                        if ready else None)}
+            callback(source, result)
+
+        GLib.idle_add(lambda *_: (cb(self, StubMediaResult()),
+                                  GLib.SOURCE_REMOVE)[1])
+        return None
+
+    def media_status_finish(self, result):
         return result._media
 
 
@@ -265,6 +295,34 @@ check('media_ids array encoded',
 check('no in_reply_to for top post', 'in_reply_to_id' not in form)
 check('fixed response returned from stub',
       view.in_reply_to_id is None)
+
+# An upload the instance has not decoded yet: the composer must wait for
+# GET /media/:id rather than posting a media_id the server will reject.
+StubMediaResult.needs_processing = True
+processing_view = BabbleComposeView(client)
+processing_view._add_toast = _capture_toast  # type: ignore[attr-defined]
+processing_window = Gtk.Window()
+processing_window.set_child(processing_view)
+processing_window.show_toast = lambda text: toast_titles.append(text)  # type: ignore
+processing_window.present()
+polls.clear()
+posts.clear()
+collect_toasts()
+processing_view.add_attachment_path(tmp_png, alt='a red test pixel')
+pump(50)
+processing_view.on_post_clicked(processing_view.post_button)
+pump(50)
+check('an unprocessed upload is not posted immediately', posts == [])
+check('the composer polls the media for processing', polls != [])
+# The stub only reports a url on the second poll, so the composer has
+# to come back for it after the polling interval.
+pump(1800)
+check('the post is sent once processing finishes',
+      len(posts) == 1
+      and posts[0].get('media_ids') == [MEDIA_RESPONSES[-1]])
+check('the waited-for post reports success',
+      collect_toasts()[-1:] == [_('Post sent')])
+processing_window.destroy()
 
 # Re-post with CW text preserved and sensitive flag.
 collect_toasts()

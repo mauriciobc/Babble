@@ -24,9 +24,13 @@ class TestErrorSummary(unittest.TestCase):
         self.assertNotIn('<', out)
 
     def test_markup_ambush_is_rendered_as_text(self):
-        # '<b>' from an attacker-supplied body must not survive as markup.
+        # The output reaches Adw.Toast with use_markup=False, so '<b>'
+        # must be stripped and '&' must survive as itself rather than as
+        # an escaped '&amp;' the user would read literally.
         out = summarize_error('<b>bold</b> & <a>x</a>')
         self.assertNotIn('<b>', out)
+        self.assertNotIn('&amp;', out)
+        self.assertIn('&', out)
 
     def test_long_bodies_truncated(self):
         out = summarize_error('x' * 500)

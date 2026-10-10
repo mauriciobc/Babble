@@ -4,12 +4,17 @@
 
 Home of the InlineEmojiText renderer used for rendered status/profile
 text: every segment flows through ONE wrapped Gtk.TextView where
-:shortcode: occurrences become Gtk.Image child anchors loaded through
+::shortcode: occurrences become Gtk.Image child anchors loaded through
 EmojiTextures, links stay clickable and the raw string survives as the
 accessible label.  Originally written for the profile sheet; timeline
 post bodies now reuse the same pipeline.
+
+Shortcodes resolve in two layers: whatever the entity's own payload
+declares, and the signed-in instance's whole custom-emoji set published
+here by :mod:`emojichooser`.
 """
 
+import collections
 import re
 from gettext import gettext as _
 
@@ -22,6 +27,38 @@ gi.require_version('Soup', '3.0')
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango, Soup  # noqa: E402
 
 EMOJI_RE = re.compile(r':([A-Za-z0-9_+\-]+):')
+
+# An instance can publish thousands of emoji; only a screenful is ever
+# visible at once, so the decoded cache stays deliberately small.
+EMOJI_TEXTURE_CACHE_SIZE = 128
+
+# An instance publishes its whole custom-emoji set through
+# ``GET /api/v1/custom_emojis``; emojichooser publishes it here once per
+# session and every payload bank is layered on top of it (the Tuba
+# ``InstanceAccount.instance_emojis`` layer).  Looked up through
+# :func:`lookup_emoji` rather than merged into a fresh dict, because an
+# instance can define thousands of emoji and a timeline rebinds a bank
+# per row.
+_instance_bank = {}
+
+
+def set_instance_emoji_bank(bank):
+    """Publish shortcode -> image URL for the signed-in instance."""
+    global _instance_bank
+    _instance_bank = bank if bank is not None else {}
+
+
+def instance_emoji_bank():
+    """The instance-wide bank (empty until it has been fetched)."""
+    return _instance_bank
+
+
+def lookup_emoji(emojis, shortcode):
+    """Image URL for *shortcode*: the payload bank first, so a remote
+    post keeps the emoji its own instance drew, then the instance-wide
+    bank.  ``None`` means no layer knows the code and it stays literal
+    text."""
+    return emojis.get(shortcode) or _instance_bank.get(shortcode)
 
 
 def launch_uri(widget, uri):
@@ -48,15 +85,25 @@ def content_segments(raw_html):
     return parse_content(raw_html or '')
 
 
-def emoji_bank(account):
-    """shortcode -> static image URL from a Mastodon `emojis` payload."""
+def emoji_bank_from(emojis):
+    """shortcode -> image URL from one Mastodon ``emojis`` array."""
     bank = {}
-    for emoji in account.get('emojis') or []:
+    for emoji in emojis or []:
         code = emoji.get('shortcode')
         url = emoji.get('static_url') or emoji.get('url')
         if code and url:
             bank[code] = url
     return bank
+
+
+def emoji_bank(account):
+    """shortcode -> static image URL from a Mastodon `emojis` payload."""
+    return emoji_bank_from((account or {}).get('emojis'))
+
+
+def poll_emoji_bank(poll):
+    """shortcode -> image URL declared by a poll's option titles."""
+    return emoji_bank_from((poll or {}).get('emojis'))
 
 
 def status_emoji_bank(status):
@@ -65,21 +112,20 @@ def status_emoji_bank(status):
     Merges the account bank with the status's own `emojis` payload:
     the shortcodes as declared (including combined/dash-prefixed ones
     copied verbatim from the payload) are the only keys honoured — the
-    renderer never guesses or downloads emoji for undeclared codes, so
-    shortcodes missing from the payload stay literal text."""
+    renderer never guesses, so a shortcode neither the payload nor the
+    instance declares stays literal text.  See :func:`lookup_emoji` for
+    how the instance-wide bank joins in."""
     bank = emoji_bank(status.get('account') or {})
-    for emoji in status.get('emojis') or []:
-        code = emoji.get('shortcode')
-        url = emoji.get('static_url') or emoji.get('url')
-        if code and url:
-            bank[code] = url
+    bank.update(emoji_bank_from(status.get('emojis')))
     return bank
 
 
 class EmojiTextures:
     """Async custom-emoji texture cache keyed by image URL."""
 
-    _textures = {}
+    # Bounded LRU: a server instance can define thousands of emoji and a
+    # long reading session would keep every one of them decoded.
+    _textures = collections.OrderedDict()
     _inflight = {}
 
     @classmethod
@@ -117,6 +163,9 @@ class EmojiTextures:
         except GLib.Error:
             return
         cls._textures[url] = texture
+        cls._textures.move_to_end(url)
+        while len(cls._textures) > EMOJI_TEXTURE_CACHE_SIZE:
+            cls._textures.popitem(last=False)
         for image in waiting:
             image.set_from_paintable(texture)
 
@@ -143,7 +192,6 @@ class InlineEmojiText(Gtk.TextView):
         self._emoji_size = emoji_size
         self._shorten_links = shorten_links
         self._paragraph_gap = paragraph_gap
-        self._single_line = single_line
         self._links = []
         self._link_tags = {}
         self._style_ids = []
@@ -286,7 +334,7 @@ class InlineEmojiText(Gtk.TextView):
             for match in EMOJI_RE.finditer(text):
                 if match.start() > position:
                     put(text[position:match.start()], tag)
-                url = emojis.get(match.group(1))
+                url = lookup_emoji(emojis, match.group(1))
                 if url:
                     emoji_anchor(url)
                     plain.append(match.group(0))

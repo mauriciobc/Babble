@@ -27,13 +27,17 @@ MAX_ATTACHMENTS = 4
 MAX_POLL_CHOICES = 4
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 
+# An instance may take a few seconds to transcode an upload. Poll
+# GET /media/:id until it is ready, but never longer than this: a post
+# blocked on a stuck upload is worse than a clear failure.
+PROCESSING_INTERVAL_MS = 1500
+PROCESSING_ATTEMPTS = 80
+
 # Mastodon's Extractor: URLs (scheme optional) and remote mentions.
 _URL_RE = re.compile(
     r'(?<![\w@/])(?:https?://)?'
     r'(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}'
     r'(?:/[^\s<>"\u201c\u201d]*)?', re.IGNORECASE)
-_MENTION_RE = re.compile(r'@[a-z0-9_]+(?:@[a-z0-9.-]+\.[a-z]{2,})?',
-                         re.IGNORECASE)
 
 # UAX #29 grapheme clusters, close enough to Ruby's
 # each_grapheme_cluster for the sequences Mastodon counts: CRLF, flag
@@ -111,8 +115,7 @@ def _make_dropdown(options, label):
     dropdown.add_css_class('flat')
     dropdown.get_first_child().add_css_class('flat')
     dropdown.set_valign(Gtk.Align.CENTER)
-    dropdown.set_tooltip_text(label)
-    dropdown.update_property([Gtk.AccessibleProperty.LABEL], [label])
+    _set_label(dropdown, label)
     return dropdown
 
 
@@ -175,7 +178,6 @@ class BabbleComposeView(Adw.Bin):
         super().__init__(**kwargs)
         self.client = client
         self.in_reply_to_id = None
-        self.in_reply_to_visibility = 'public'
         self._draft_stack = []
         self._posting = False
         self._upload_results = []
@@ -188,6 +190,11 @@ class BabbleComposeView(Adw.Bin):
         self.scheduled_at = None
         self.scheduled_on_done = None
         self._pending_media_ids = []
+        # One cancellable per posting round: abandoning the dialog or
+        # starting a new post stops the uploads still in flight instead
+        # of leaving them to finish against a client that has moved on.
+        self._upload_cancellable = None
+        self._processing_poll = {}
 
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(self.build_header_bar())
@@ -379,6 +386,10 @@ class BabbleComposeView(Adw.Bin):
                 'options': [entry.get_text() for entry in self.poll_entries],
                 'expires': self.poll_expiry.get_selected()}
 
+    def _poll_options(self):
+        return [entry.get_text().strip() for entry in self.poll_entries
+                if entry.get_text().strip()]
+
     def restore(self, draft):
         self.buffer.set_text(draft['text'])
         self.visibility_row.set_selected(draft['visibility'])
@@ -426,10 +437,7 @@ class BabbleComposeView(Adw.Bin):
             self.buffer.place_cursor(self.buffer.get_end_iter())
             self._draft_stack = [previous]
         self.in_reply_to_id = str(status_id) if status_id is not None else None
-        self.in_reply_to_visibility = visibility
-        codes = [code for code, _label in VISIBILITIES]
-        if visibility in codes:
-            self.visibility_row.set_selected(codes.index(visibility))
+        self._select_visibility(visibility)
         self.update_compose_state()
         self.text_view.grab_focus()
 
@@ -448,8 +456,18 @@ class BabbleComposeView(Adw.Bin):
 
     def start_edit(self, status):
         """Load an existing post into the composer for a PUT."""
+        self.editing_id = str(status.get('id') or '') or None
+        self._load_status_draft(status)
+
+    def start_redraft(self, status):
+        """Refill the composer from a just-deleted post. The server keeps
+        the media for about 24h, so the attachment ids can be reused."""
+        self.editing_id = None
+        self._load_status_draft(status)
+
+    def _load_status_draft(self, status):
+        """Fill in the fields shared by editing and re-drafting a post."""
         source = dict(status)
-        self.editing_id = str(source.get('id') or '') or None
         self._pending_media_ids = [
             attachment['id']
             for attachment in source.get('media_attachments') or []
@@ -460,25 +478,6 @@ class BabbleComposeView(Adw.Bin):
         self.cw_toggle.set_active(bool(spoiler))
         self.spoiler_entry.set_text(spoiler)
         self._select_visibility(source.get('visibility') or 'public')
-        self.in_reply_to_id = None
-        self._draft_stack = []
-        self.update_compose_state()
-        self.text_view.grab_focus()
-
-    def start_redraft(self, status):
-        """Refill the composer from a just-deleted post. The server keeps
-        the media for about 24h, so the attachment ids can be reused."""
-        self.editing_id = None
-        self._pending_media_ids = [
-            attachment['id']
-            for attachment in status.get('media_attachments') or []
-            if attachment.get('id')]
-        self.buffer.set_text(status.get('text') or '')
-        self.buffer.place_cursor(self.buffer.get_end_iter())
-        spoiler = status.get('spoiler_text') or ''
-        self.cw_toggle.set_active(bool(spoiler))
-        self.spoiler_entry.set_text(spoiler)
-        self._select_visibility(status.get('visibility') or 'public')
         self.in_reply_to_id = None
         self._draft_stack = []
         self.update_compose_state()
@@ -735,6 +734,7 @@ class BabbleComposeView(Adw.Bin):
         if not self._validate_before_upload():
             return
         self._posting = True
+        self._cancel_uploads()
         self._upload_generation += 1
         self._upload_results = []
         self._upload_failures = 0
@@ -757,8 +757,7 @@ class BabbleComposeView(Adw.Bin):
             self._toast(_('Add content warning text'))
             return False
         if self.poll_toggle.get_active():
-            options = [entry.get_text().strip() for entry in self.poll_entries
-                       if entry.get_text().strip()]
+            options = self._poll_options()
             if len(options) < 2:
                 self._toast(_('Add at least two poll choices'))
                 return False
@@ -787,6 +786,15 @@ class BabbleComposeView(Adw.Bin):
         self._posting = False
         self.set_posting_ui(False)
 
+    def _cancel_uploads(self):
+        """Stop whatever the previous posting round still had in flight."""
+        if self._upload_cancellable is not None:
+            self._upload_cancellable.cancel()
+        self._upload_cancellable = None
+        for source in self._processing_poll.values():
+            GLib.source_remove(source)
+        self._processing_poll.clear()
+
     def upload_one(self, row):
         try:
             with open(row.path, 'rb') as f:
@@ -795,10 +803,13 @@ class BabbleComposeView(Adw.Bin):
             self.on_upload_failed(row, e.strerror or str(e))
             return
         generation = self._upload_generation
+        if self._upload_cancellable is None:
+            self._upload_cancellable = Gio.Cancellable()
         self.client.media_upload_async(
             data, GLib.path_get_basename(row.path), row.content_type,
             description=row.description or None,
-            callback=self.on_uploaded_context(row, generation))
+            callback=self.on_uploaded_context(row, generation),
+            cancellable=self._upload_cancellable)
 
     def on_uploaded_context(self, row, generation):
         def _on_uploaded(client, result, _user_data=None):
@@ -813,8 +824,64 @@ class BabbleComposeView(Adw.Bin):
         except GLib.Error as e:
             self.on_upload_failed(row, e.message)
             return
-        row.uploaded_id = data.get('id')
+        media_id = data.get('id')
+        if not data.get('url'):
+            # Nothing decoded yet: the instance would reject the post,
+            # so wait for the attachment to finish processing first.
+            self.await_processing(row, media_id)
+            return
+        row.uploaded_id = media_id
         self._upload_results.append(data)
+        self._maybe_send_after_uploads()
+
+    def await_processing(self, row, media_id, attempt=0):
+        """Poll GET /media/:id until the instance finishes processing."""
+        if media_id is None:
+            self.on_upload_failed(row, _('The server did not accept the media'))
+            return
+        generation = self._upload_generation
+
+        def check(client, result, _user_data=None):
+            if generation != self._upload_generation:
+                return
+            try:
+                media = client.media_status_finish(result)
+            except GLib.Error as e:
+                if attempt + 1 >= PROCESSING_ATTEMPTS:
+                    self.on_upload_failed(row, e.message)
+                    return
+                self._schedule_processing_check(row, media_id,
+                                                 attempt + 1, generation)
+                return
+            if media.get('url'):
+                row.uploaded_id = media_id
+                self._upload_results.append(media)
+                self._maybe_send_after_uploads()
+                return
+            if attempt + 1 >= PROCESSING_ATTEMPTS:
+                self.on_upload_failed(
+                    row, _('The server is still processing the media'))
+                return
+            self._schedule_processing_check(row, media_id, attempt + 1,
+                                             generation)
+
+        self.client.media_status_async(media_id, callback=check,
+                                       cancellable=self._upload_cancellable)
+
+    def _schedule_processing_check(self, row, media_id, attempt, generation):
+        source = GLib.timeout_add(
+            PROCESSING_INTERVAL_MS,
+            self._run_processing_check, row, media_id, attempt, generation)
+        self._processing_poll[media_id] = source
+
+    def _run_processing_check(self, row, media_id, attempt, generation):
+        self._processing_poll.pop(media_id, None)
+        if generation != self._upload_generation:
+            return False
+        self.await_processing(row, media_id, attempt)
+        return False
+
+    def _maybe_send_after_uploads(self):
         if len(self._upload_results) + self._upload_failures \
                 == self._upload_expected and not self._upload_failures:
             self.send_status()
@@ -835,18 +902,16 @@ class BabbleComposeView(Adw.Bin):
                 params['spoiler_text'] = cw_text
                 params['sensitive'] = True
         if self.poll_toggle.get_active():
-            options = [entry.get_text().strip() for entry in self.poll_entries
-                       if entry.get_text().strip()]
-            if len(options) >= 2:
-                params['poll'] = {
-                    'options': options,
-                    'expires_in': POLL_DURATIONS[
-                        self.poll_expiry.get_selected()][0],
-                }
-            else:
+            options = self._poll_options()
+            if len(options) < 2:
                 self._finish_posting()
                 self._toast(_('Add at least two poll choices'))
                 return
+            params['poll'] = {
+                'options': options,
+                'expires_in': POLL_DURATIONS[
+                    self.poll_expiry.get_selected()][0],
+            }
         if self.in_reply_to_id is not None:
             params['in_reply_to_id'] = self.in_reply_to_id
         if self.quoted_status_id is not None:
@@ -889,7 +954,6 @@ class BabbleComposeView(Adw.Bin):
             # Chain the next post in the thread; media and poll must not
             # be sent twice.
             self.in_reply_to_id = str(status.get('id') or '') or None
-            self.in_reply_to_visibility = status.get('visibility')
             self.buffer.set_text('')
             self.clear_attachments()
             self.attach_button.set_sensitive(True)
@@ -929,6 +993,8 @@ class BabbleComposeView(Adw.Bin):
             callback=finished)
 
     def reset(self):
+        # Discarding the draft also abandons any upload it started.
+        self._cancel_uploads()
         self.buffer.set_text('')
         self.spoiler_entry.set_text('')
         self.cw_toggle.set_active(False)
@@ -958,10 +1024,7 @@ class ComposeDialog(Adw.Dialog):
     def __init__(self, client, **kwargs):
         super().__init__(content_width=600, content_height=480, **kwargs)
         self.view = BabbleComposeView(client)
-        codes = [code for code, _label in VISIBILITIES]
-        stored = default_visibility()
-        if stored in codes:
-            self.view.visibility_row.set_selected(codes.index(stored))
+        self.view._select_visibility(default_visibility())
         self.view.connect('changed', self._on_view_changed)
         self.set_child(self.view)
         self.set_focus(self.view.text_view)

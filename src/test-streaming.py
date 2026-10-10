@@ -49,6 +49,100 @@ check('streaming url fallback', streaming_url(client)
 
 check('stream tuples', LOCAL == ('public:local',) and FEDERATED == ('public',))
 
+# --- Rate limiting: a 429 must pause this client, not just fail one call.
+
+check('a fresh client is not rate limited', not client.rate_limited())
+
+
+class _Headers:
+    """Just enough of SoupMessageHeaders for _note_rate_limit."""
+
+    def __init__(self, **values):
+        self._values = values
+
+    def get_one(self, name):
+        return self._values.get(name)
+
+client._note_rate_limit(_Headers(**{'Retry-After': '30'}))
+check('a 429 marks the client rate limited', client.rate_limited())
+check('the retry delay comes from Retry-After',
+      25 <= client.retry_after_seconds() <= 30)
+check('the limit expires', not client.rate_limited(
+    client._rate_limited_until + 1))
+
+client._rate_limited_until = 0.0
+client._note_rate_limit(_Headers())
+check('a 429 without a header still pauses the client',
+      client.rate_limited())
+check('the fallback delay is the default',
+      55 <= client.retry_after_seconds() <= 60)
+client._rate_limited_until = 0.0
+
+# --- Instance addresses: plaintext http would carry the token in clear.
+
+try:
+    MastodonClient('http://plain.example')
+    check('a plaintext instance is refused', False)
+except ValueError:
+    check('a plaintext instance is refused', True)
+
+check('a bare host becomes https',
+      MastodonClient('example.social').instance == 'https://example.social')
+check('a trailing slash is trimmed',
+      MastodonClient('https://example.social/').instance
+      == 'https://example.social')
+
+# --- The keyring helpers must actually deliver their callbacks ----------
+
+# These went through Secret.password_* first, whose callbacks never fired:
+# PyGObject hands the callback (None, result, user_data), so the *_finish
+# call raised on a None source and every login silently hung. The
+# helpers now go through one shared Secret.Service, which binds the task
+# to the proxy that started it.
+
+import time  # noqa: E402
+
+from gi.repository import GLib  # noqa: E402
+
+import mastodon as mastodon_module  # noqa: E402
+
+
+def pump_until(predicate, limit=8.0):
+    """Iterate the default main context until *predicate* or *limit*."""
+    context = GLib.MainContext.default()
+    deadline = time.monotonic() + limit
+    while time.monotonic() < deadline and not predicate():
+        while context.iteration(False):
+            pass
+        time.sleep(0.02)
+    return predicate()
+
+
+done = []
+mastodon_module.store_secret_async('babble-selftest.example', 'probe',
+                                    'round-trip-value', lambda: done.append(1))
+check('storing a secret completes its callback',
+      pump_until(lambda: bool(done)))
+
+read = {}
+mastodon_module.load_secret_async(
+    'babble-selftest.example', 'probe', lambda v: read.update(v=v))
+pump_until(lambda: 'v' in read)
+check('the stored secret reads back',
+      read.get('v') == 'round-trip-value')
+
+gone = []
+mastodon_module.clear_secret_async(
+    'babble-selftest.example', 'probe', lambda: gone.append(1))
+check('clearing a secret completes its callback',
+      pump_until(lambda: bool(gone)))
+
+after = {}
+mastodon_module.load_secret_async(
+    'babble-selftest.example', 'probe', lambda v: after.update(v=v))
+pump_until(lambda: 'v' in after)
+check('the cleared secret is gone', after.get('v') is None)
+
 if failures:
     print('%d failure(s)' % failures)
     sys.exit(1)

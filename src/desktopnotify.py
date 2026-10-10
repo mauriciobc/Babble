@@ -225,6 +225,11 @@ class DesktopNotifier:
         if self.window.client is not self._polling_client:
             self._poll_source = 0
             return GLib.SOURCE_REMOVE
+        if self._polling_client is not None \
+                and self._polling_client.rate_limited():
+            # The instance asked us to back off; keep the timer but do
+            # not spend another request until the limit expires.
+            return GLib.SOURCE_CONTINUE
         self._poll()
         return GLib.SOURCE_CONTINUE
 

@@ -29,6 +29,11 @@ STABLE_SECONDS = 30
 KEEPALIVE_SECONDS = 30
 MAX_PAYLOAD = 4 * 1024 * 1024
 
+# The upgrade request is a normal HTTP request; libsoup's default of no
+# timeout would leave it hanging against a host that accepts the TCP
+# connection and then goes quiet.
+STREAMING_TIMEOUT_SECONDS = 30
+
 USER = ('user',)
 DIRECT = ('direct',)
 LOCAL = ('public:local',)
@@ -91,6 +96,7 @@ class StreamingManager(GObject.Object):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._session = Soup.Session()
+        self._session.set_timeout(STREAMING_TIMEOUT_SECONDS)
         # Same reason as the REST client: reverse proxies reject the
         # default libsoup User-Agent on the upgrade request.
         try:
@@ -209,10 +215,9 @@ class StreamingManager(GObject.Object):
         try:
             connection = session.websocket_connect_finish(result)
         except GLib.Error as error:
-            if error.matches(Gio.io_error_quark(),
-                             Gio.IOErrorEnum.CANCELLED):
-                return
-            self._schedule_retry()
+            if not error.matches(Gio.io_error_quark(),
+                                 Gio.IOErrorEnum.CANCELLED):
+                self._schedule_retry()
             return
         connection.set_keepalive_interval(KEEPALIVE_SECONDS)
         connection.set_max_incoming_payload_size(MAX_PAYLOAD)
@@ -238,7 +243,7 @@ class StreamingManager(GObject.Object):
         # Only a connection that stayed up counts as healthy: a server
         # that accepts and immediately closes (revoked token, limited
         # federation) must back off exponentially, not retry every 2s.
-        lived = GLib.get_monotonic_time() - getattr(self, '_opened_at', 0)
+        lived = GLib.get_monotonic_time() - self._opened_at
         if lived > STABLE_SECONDS * 1_000_000:
             self._attempt = 0
         self._drop_connection()

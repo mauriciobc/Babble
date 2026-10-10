@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import collections
 import datetime
 import html as html_module
 import urllib.parse
@@ -17,16 +18,20 @@ from gettext import gettext as _, ngettext
 from gi.repository import Adw, Gdk, GLib, GObject, Gio, Gtk, Pango, Soup  # noqa: E402
 
 from . import pages  # noqa: E402
-from .mastodon import summarize_error  # noqa: E402
-from .textemoji import (InlineEmojiText, emoji_bank,  # noqa: E402
-                        launch_uri, status_emoji_bank)
+from .mastodon import HTTP_TIMEOUT_SECONDS, summarize_error  # noqa: E402
+from .textemoji import (InlineEmojiText, emoji_bank, launch_uri,  # noqa: E402
+                        poll_emoji_bank, status_emoji_bank)
 
 PAGE_SIZE = 20
-PRELOAD_THRESHOLD = 5
 AUTO_REFRESH_SCROLLED_TICKS = 2  # 30s when the user is scrolled away
-COLUMN_WIDTH = 660
+COLUMN_WIDTH = pages.COLUMN_WIDTH
 BOOST_WINDOW = 60
 BOOST_CAP = 12
+
+# Decoded-texture budgets. Avatars repeat across a timeline so they are
+# cheap to keep; media are large, so far fewer stay resident.
+AVATAR_CACHE_SIZE = 256
+MEDIA_TEXTURE_CACHE_SIZE = 48
 
 
 class _ContentParser(HTMLParser):
@@ -178,10 +183,6 @@ def is_hashtag(segment):
             or segment['text'].startswith('#'))
 
 
-def is_mention_text(segment):
-    return segment['href'] is not None and segment['text'].startswith('@')
-
-
 class StatusItem(GObject.Object):
     """One row's data: a status, transparent to boosts."""
 
@@ -211,10 +212,6 @@ class StatusItem(GObject.Object):
     @GObject.Property(type=str)
     def handle(self):
         return '@%s' % self.status['account'].get('acct', '')
-
-    @GObject.Property(type=str)
-    def avatar_text(self):
-        return self.display_name or '?'
 
     @GObject.Property(type=str)
     def timestamp(self):
@@ -419,9 +416,6 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         else:
             self._store.insert(0, item)
 
-    def clear(self):
-        self._store.remove_all()
-
 
 class StatusRunRow(Gtk.Box):
     """Card for one run: the author line, then every post of the run with
@@ -549,7 +543,10 @@ def run_key(item):
 class AvatarCache:
     """Shares avatar textures across rows; one Soup session, one HTTP hit."""
 
-    _textures = {}
+    # Bounded like the media viewer's: a long session on a big timeline
+    # meets hundreds of avatars, and decoded textures are expensive to
+    # keep. Least recently used goes first.
+    _textures = collections.OrderedDict()
     _session = None
     _inflight = {}
 
@@ -557,7 +554,15 @@ class AvatarCache:
     def session(cls):
         if cls._session is None:
             cls._session = Soup.Session()
+            cls._session.set_timeout(HTTP_TIMEOUT_SECONDS)
         return cls._session
+
+    @classmethod
+    def _remember(cls, url, texture):
+        cls._textures[url] = texture
+        cls._textures.move_to_end(url)
+        while len(cls._textures) > AVATAR_CACHE_SIZE:
+            cls._textures.popitem(last=False)
 
     @classmethod
     def load(cls, avatar, account):
@@ -567,6 +572,7 @@ class AvatarCache:
         if not url:
             return
         if url in cls._textures:
+            cls._textures.move_to_end(url)
             avatar.set_custom_image(cls._textures[url])
             return
         if url in cls._inflight:
@@ -593,7 +599,7 @@ class AvatarCache:
             texture = Gdk.Texture.new_from_bytes(data)
         except GLib.Error:
             return
-        cls._textures[url] = texture
+        cls._remember(url, texture)
         for avatar in waiting:
             avatar.set_custom_image(texture)
 
@@ -638,56 +644,48 @@ def _should_collapse(segments):
     return not plain and len(tagged) >= 4 or len(hashtags) >= 6
 
 
-def make_loading_page(title, description=None):
-    """Status page with a spinner, shown while a view fetches its data."""
-    page = Adw.StatusPage(title=title, description=description)
-    page.set_paintable(Adw.SpinnerPaintable.new(page))
-    return page
-
-
-def make_error_page(title, on_retry):
-    """Status page for a failed load, with a Try Again button."""
-    page = Adw.StatusPage(icon_name='network-error-symbolic', title=title)
-    retry = Gtk.Button(label=_('_Try Again'), use_underline=True,
-                       halign=Gtk.Align.CENTER)
-    retry.add_css_class('pill')
-    retry.add_css_class('suggested-action')
-    retry.connect('clicked', on_retry)
-    page.set_child(retry)
-    return page
-
-
 class _TextureCache:
     """Decoded media textures shared between rows by URL."""
 
-    _textures = {}
+    # Bounded LRU: scrolling a media-heavy timeline would otherwise keep
+    # every attachment ever decoded alive for the life of the process.
+    _textures = collections.OrderedDict()
     _session = None
 
     @classmethod
     def session(cls):
         if cls._session is None:
             cls._session = Soup.Session()
+            cls._session.set_timeout(HTTP_TIMEOUT_SECONDS)
         return cls._session
 
     @classmethod
     def load(cls, url, picture):
         if url in cls._textures:
+            cls._textures.move_to_end(url)
             picture.set_paintable(cls._textures[url])
             return
         message = Soup.Message.new('GET', url)
         if message is None:
             return
+        # A rebuilt row replaces the request it already had in flight;
+        # cancelling the old one stops the bytes for a thumbnail nobody
+        # will display any more.
+        previous = getattr(picture, '_babble_cancel', None)
+        if previous is not None:
+            previous.cancel()
         cancellable = Gio.Cancellable.new()
         picture._babble_cancel = cancellable
         cls.session().send_and_read_async(
             message, GLib.PRIORITY_DEFAULT, cancellable, cls._on_loaded,
-            (picture, url))
+            (picture, url, cancellable))
 
     @classmethod
     def _on_loaded(cls, session, result, extra):
-        picture, url = extra
-        cancelled = getattr(picture, '_babble_cancel', None)
-        if cancelled is not None and cancelled.is_cancelled():
+        picture, url, cancellable = extra
+        # Check the cancellable this request was issued with, not
+        # whichever one the picture happens to hold now.
+        if cancellable.is_cancelled():
             return
         try:
             data = session.send_and_read_finish(result)
@@ -699,7 +697,10 @@ class _TextureCache:
             texture = Gdk.Texture.new_from_bytes(data)
         except GLib.Error:
             return
-        cls._textures.setdefault(url, texture)
+        cls._textures[url] = texture
+        cls._textures.move_to_end(url)
+        while len(cls._textures) > MEDIA_TEXTURE_CACHE_SIZE:
+            cls._textures.popitem(last=False)
         if picture.get_paintable() is None \
                 or picture.get_paintable() is not texture:
             picture.set_paintable(texture)
@@ -732,7 +733,10 @@ class PollBox(Gtk.Box):
             self.set_visible(False)
             return
         self.set_visible(True)
-        self._bank = bank or {}
+        # A poll declares its own emoji for the option titles; they win
+        # over the post's bank, which only covers the body.
+        self._bank = dict(bank or {})
+        self._bank.update(poll_emoji_bank(poll))
         self._client = client
         self._ui = ui if ui is not None else {}
         self._on_update = on_update
@@ -1610,9 +1614,6 @@ class StatusRow(Gtk.Overlay):
         self.item = None
         self.client = None
         self._busy = False
-        self._continuation = False
-        self._detailed = False
-        self._show_reply_line = True
         self._emoji_bank = {}
         self._style_ids = []
         self._settings_id = 0
@@ -1817,13 +1818,6 @@ class StatusRow(Gtk.Overlay):
 
         self.media_box = MediaBox()
         guarded.append(self.media_box)
-
-        # Thread view detail: full meta line and the counts row.
-        self.detail_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-                                  spacing=4)
-        self.detail_box.add_css_class('thread-meta')
-        self.detail_box.set_visible(False)
-        main.append(self.detail_box)
 
         # WrapBox, not Box: with a count next to each icon the five
         # actions need ~314 px, which overflows the 360 px window
@@ -2337,19 +2331,6 @@ class StatusRow(Gtk.Overlay):
             self.badge.update_property([Gtk.AccessibleProperty.LABEL],
                                        [text])
 
-    def set_continuation(self, continuation):
-        """Continuation posts of a run keep only the thread badge: the
-        author line, time, actions and menu belong to the lead post."""
-        self._continuation = continuation
-
-    def set_detailed(self, detailed):
-        """Thread-focus mode: full date, visibility, application and
-        a counts row replace the relative time and action counters."""
-        self._detailed = detailed
-
-    def set_show_reply_line(self, show):
-        self._show_reply_line = show
-
     # Binding
 
     def bind(self, item, client):
@@ -2377,8 +2358,7 @@ class StatusRow(Gtk.Overlay):
         self.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
         rule = status_filter(item.raw)
-        collapsed = rule is not None and not ui.get('filter_shown') \
-            and not self._detailed
+        collapsed = rule is not None and not ui.get('filter_shown')
         self.filter_bar.set_visible(collapsed)
         self.main.set_visible(not collapsed)
         if collapsed:
@@ -2432,19 +2412,7 @@ class StatusRow(Gtk.Overlay):
         self.guarded.set_visible(bool(revealed))
 
         self._render_body(item, bank)
-        self.translation_box.set_visible(bool(translation))
-        if translation:
-            detected = (translation.get('detected_source_language') or ''
-                        ).upper()
-            provider = translation.get('provider') or ''
-            if detected and provider:
-                text = _('Translated from %(language)s using %(provider)s') \
-                    % {'language': detected, 'provider': provider}
-            elif provider:
-                text = _('Translated using %s') % provider
-            else:
-                text = _('Translated')
-            self.translation_label.set_text(text)
+        self._bind_translation(item)
 
         poll = status.get('poll')
         if poll and translation and translation.get('poll'):
@@ -2465,15 +2433,25 @@ class StatusRow(Gtk.Overlay):
             and not attachments
         self._show_card(status.get('card') if show_card else None)
         self._bind_actions(item)
-        self.detail_box.set_visible(self._detailed)
-        if self._detailed:
-            self._fill_detail(item)
         self._overflow.set_menu_model(self._build_menu(item))
         self._sync_menu_state(item)
-        if self._continuation:
-            for widget in (self.profile_button, self.time_label,
-                           self.actions, self._overflow):
-                widget.set_visible(False)
+
+    def _bind_translation(self, item):
+        """The 'Translated from …' note above the body, when shown."""
+        translation = item.translation
+        self.translation_box.set_visible(bool(translation))
+        if not translation:
+            return
+        detected = (translation.get('detected_source_language') or '').upper()
+        provider = translation.get('provider') or ''
+        if detected and provider:
+            text = _('Translated from %(language)s using %(provider)s') \
+                % {'language': detected, 'provider': provider}
+        elif provider:
+            text = _('Translated using %s') % provider
+        else:
+            text = _('Translated')
+        self.translation_label.set_text(text)
 
     def _bind_indicators(self, item):
         status = item.status
@@ -2487,7 +2465,7 @@ class StatusRow(Gtk.Overlay):
             self.visibility_icon.update_property(
                 [Gtk.AccessibleProperty.LABEL], [info[0]])
         language = status.get('language')
-        show_language = bool(language) and not self._detailed \
+        show_language = bool(language) \
             and language.lower().split('-')[0] != ui_language()
         self.language_label.set_visible(show_language)
         if show_language:
@@ -2495,7 +2473,7 @@ class StatusRow(Gtk.Overlay):
             self.language_label.set_tooltip_text(
                 _('Language: %s') % language)
         edited = status.get('edited_at')
-        self.edited_button.set_visible(bool(edited) and not self._detailed)
+        self.edited_button.set_visible(bool(edited))
         if edited:
             tip = _('Edited %s') % absolute_time(edited)
             self.edited_button.set_tooltip_text(tip)
@@ -2507,8 +2485,7 @@ class StatusRow(Gtk.Overlay):
     def _bind_reply_line(self, item):
         status = item.status
         target = status.get('in_reply_to_account_id')
-        show = bool(target and status.get('in_reply_to_id')) \
-            and self._show_reply_line
+        show = bool(target and status.get('in_reply_to_id'))
         self.reply_box.set_visible(show)
         if not show:
             return
@@ -2551,7 +2528,7 @@ class StatusRow(Gtk.Overlay):
     def _bind_actions(self, item):
         status = item.status
         can_act = self._can_act()
-        counters = _flag('show-interaction-counters') and not self._detailed
+        counters = _flag('show-interaction-counters')
         self._set_count(self.reply_button,
                         item.reply_count if counters else 0)
         self._set_count(self.boost_button,
@@ -2596,71 +2573,6 @@ class StatusRow(Gtk.Overlay):
         self._menu_actions['quote-policy'].set_state(
             GLib.Variant.new_string(quote_policy_of(status)))
 
-    def _fill_detail(self, item):
-        status = item.status
-        while (child := self.detail_box.get_first_child()) is not None:
-            self.detail_box.remove(child)
-        info = VISIBILITY_INFO.get(status.get('visibility'),
-                                   VISIBILITY_INFO['public'])
-        parts = [info[0], absolute_time(status.get('created_at'))]
-        line = Gtk.Box(spacing=0)
-        meta = Gtk.Label(label=' · '.join(p for p in parts if p),
-                         xalign=0.0)
-        meta.add_css_class('caption')
-        meta.add_css_class('dimmed')
-        line.append(meta)
-        application = status.get('application') or {}
-        if application.get('name'):
-            via = Gtk.Label(label=' · %s ' % _('via'))
-            via.add_css_class('caption')
-            via.add_css_class('dimmed')
-            line.append(via)
-            if application.get('website'):
-                link = Gtk.LinkButton(uri=application['website'],
-                                      label=application['name'])
-                link.add_css_class('caption')
-                link.set_has_tooltip(False)
-                line.append(link)
-            else:
-                name = Gtk.Label(label=application['name'])
-                name.add_css_class('caption')
-                name.add_css_class('dimmed')
-                line.append(name)
-        if status.get('edited_at'):
-            dot = Gtk.Label(label=' · ')
-            dot.add_css_class('caption')
-            dot.add_css_class('dimmed')
-            line.append(dot)
-            edited = Gtk.Button(label=_('Edited %s') % absolute_time(
-                status['edited_at']))
-            edited.add_css_class('flat')
-            edited.add_css_class('caption')
-            edited.connect('clicked', self._on_edited_clicked)
-            line.append(edited)
-        self.detail_box.append(line)
-        counts = Gtk.Box(spacing=4)
-        for kind, key, singular, plural in (
-                ('favourites', 'favourites_count', '%d Favorite',
-                 '%d Favorites'),
-                ('boosts', 'reblogs_count', '%d Boost', '%d Boosts'),
-                ('quotes', 'quotes_count', '%d Quote', '%d Quotes')):
-            if kind == 'quotes' and 'quote_approval' not in status:
-                continue
-            count = status.get(key) or 0
-            button = Gtk.Button(label=ngettext(singular, plural, count)
-                                % count)
-            button.add_css_class('flat')
-            button.add_css_class('caption-heading')
-            button.connect('clicked', self._on_counts_clicked, kind)
-            counts.append(button)
-        self.detail_box.append(counts)
-
-    def _on_counts_clicked(self, _button, kind):
-        if self.item is None or self.client is None:
-            return
-        from .statusviews import push_status_stats
-        push_status_stats(self, self.client, self.item.status, kind)
-
     def _set_time(self, item):
         self.time_label.set_text(item.timestamp)
         created = GLib.DateTime.new_from_iso8601(
@@ -2670,15 +2582,12 @@ class StatusRow(Gtk.Overlay):
         if full:
             self.time_label.update_property([Gtk.AccessibleProperty.LABEL],
                                             [full])
-        self.time_label.set_visible(not self._detailed)
+        self.time_label.set_visible(True)
 
     def _set_post_meta(self, item):
         """Phanpy-style line under the body: visibility, relative and
         absolute time."""
-        show = not self._detailed and not self._continuation
-        self.post_meta.set_visible(show)
-        if not show:
-            return
+        self.post_meta.set_visible(True)
         status = item.status
         visibility = VISIBILITY_INFO.get(status.get('visibility'),
                                        VISIBILITY_INFO['public'])[0]
@@ -3131,9 +3040,9 @@ class TimelinePage(Adw.Bin):
         self.stack.add_named(self.overlay, 'list')
         self.set_child(self.stack)
 
-        self.loading_page = make_loading_page(
+        self.loading_page = pages.make_loading_page(
             _('Loading Timeline'), _('Fetching the latest posts'))
-        self.error_page = make_error_page(
+        self.error_page = pages.make_error_page(
             _('Could Not Load Timeline'), lambda _button: self.load())
         self.empty_page = Adw.StatusPage(
             icon_name='user-home-symbolic',
@@ -3164,6 +3073,11 @@ class TimelinePage(Adw.Bin):
 
     def _on_auto_refresh(self):
         if not self.get_mapped() or self.model.loading:
+            return
+        client = getattr(self, 'client', None)
+        if client is not None and client.rate_limited():
+            # A 429 is still in force; polling into it would only deepen
+            # the limit the server just asked us to respect.
             return
         self._auto_refresh_ticks += 1
         at_top = self._scrolled.get_vadjustment().get_value() <= 0.0
@@ -3392,7 +3306,7 @@ class _RefreshGesture:
         controller.connect('scroll', self.on_scroll)
         scrolled.add_controller(controller)
 
-    def on_scroll(self, controller, dx, dy):
+    def on_scroll(self, _controller, _dx, dy):
         adjustment = self.scrolled.get_vadjustment()
         if adjustment is None:
             return False

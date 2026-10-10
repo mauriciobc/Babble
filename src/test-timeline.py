@@ -240,6 +240,19 @@ def collect_poll_emojis(widget, out):
 check('poll option titles inline declared emoji',
       len(collect_poll_emojis(poll_row, [])) == 1)
 
+# A poll declares its own emoji for the option titles; that array is
+# honoured even when the post's own payload never mentions the code.
+own_poll_status = {**fixture_status, 'poll': {
+    'id': '8',
+    'options': [{'title': 'Vote :newt:', 'votes_count': 2}],
+    'emojis': [{'shortcode': 'newt',
+                'static_url': EMOJI_URL_BASE + 'newt.png'}],
+    'votes_count': 2, 'expired': True, 'closed': True, 'own_votes': []}}
+own_poll_row = StatusRow()
+own_poll_row.bind(StatusItem(own_poll_status), _DummyClient())
+check('poll option titles honour the poll emoji payload',
+      len(collect_poll_emojis(own_poll_row, [])) == 1)
+
 emoji_window.set_child(None)
 
 # Live rendering check

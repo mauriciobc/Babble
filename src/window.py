@@ -12,9 +12,11 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
+from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from .mastodon import (MastodonClient, OAUTH_REDIRECT, OOB_REDIRECT,  # noqa: E402
-                       clear_secret, normalize_instance, summarize_error)
+                       clear_secret_async, normalize_instance,
+                       summarize_error)
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
 
 # One-click alternatives for the login suggestions row, ranked from the
@@ -24,9 +26,6 @@ SUGGESTED_SERVERS = (
     'mastodon.social', 'mstdn.social', 'infosec.exchange', 'mstdn.jp',
     'hachyderm.io', 'piaille.fr', 'mastodon.world', 'social.vivaldi.net',
     'epsilon.social', 'troet.cafe', 'mastodon.uno', 'mathstodon.xyz')
-
-# Choices of the "auto-refresh" key, in the order the preference lists them.
-AUTO_REFRESH_CHOICES = ('0', '30', '60', '300')
 
 # Authorization codes are handed out by the instance and spent by
 # /oauth/token, so a ledger of this many recent codes outlives every
@@ -93,14 +92,12 @@ class BabbleWindow(Adw.ApplicationWindow):
     login_back_button = Gtk.Template.Child()
     split_view = Gtk.Template.Child()
     sidebar_list = Gtk.Template.Child()
-    primary_menu_button = Gtk.Template.Child()
     account_button = Gtk.Template.Child()
     account_avatar = Gtk.Template.Child()
     account_name_label = Gtk.Template.Child()
     account_handle_label = Gtk.Template.Child()
     content_page = Gtk.Template.Child()
     navigation_view = Gtk.Template.Child()
-    notifications_bell = Gtk.Template.Child()
     home_bin = Gtk.Template.Child()
     notifications_bin = Gtk.Template.Child()
     notifications_header_slot = Gtk.Template.Child()
@@ -224,15 +221,21 @@ class BabbleWindow(Adw.ApplicationWindow):
             self.main_stack.set_visible_child_name('login')
             return
         account_id = account['id']
-        self.client = MastodonClient(account['instance'])
-        self.client.token = self.client.load_secret_token(account_id)
-        if self.client.token is None:
-            self.remove_account(account_id)
-            self.client = None
-            self.main_stack.set_visible_child_name('login')
-            return
-        self.account = account
-        self.show_shell()
+        client = MastodonClient(account['instance'])
+
+        def loaded(token):
+            if token is None:
+                self.remove_account(account_id)
+                self.main_stack.set_visible_child_name('login')
+                return
+            client.token = token
+            self.client = client
+            self.account = account
+            self.show_shell()
+
+        # The keyring is an out-of-process round trip; the token arrives
+        # later and the shell is built then.
+        client.load_secret_token(account_id, loaded)
 
     def get_stored_account(self):
         return account_store.active_account(self.settings)
@@ -262,6 +265,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         """Drop every page, stream and dialog tied to the current
         client, before another account takes over."""
         self.streaming.stop()
+        emojichooser.deactivate_instance_emojis()
         self.notifier.reset()
         if self.compose_dialog is not None:
             self.compose_dialog.close()
@@ -280,17 +284,22 @@ class BabbleWindow(Adw.ApplicationWindow):
         account = account_store.find_account(self.settings, account_id)
         if account is None:
             return
-        token = MastodonClient(account['instance']).load_secret_token(
-            account_id)
-        if token is None:
-            self.show_toast(_('The login for @%s is gone from the keyring')
-                            % account.get('acct', ''))
-            return
-        self._teardown_session()
-        self.client = MastodonClient(account['instance'], token=token)
-        self.account = account
-        self.settings.set_string('active-account', account_id)
-        self.show_shell()
+        client = MastodonClient(account['instance'])
+
+        def loaded(token):
+            if token is None:
+                self.show_toast(
+                    _('The login for @%s is gone from the keyring')
+                    % account.get('acct', ''))
+                return
+            self._teardown_session()
+            client.token = token
+            self.client = client
+            self.account = account
+            self.settings.set_string('active-account', account_id)
+            self.show_shell()
+
+        client.load_secret_token(account_id, loaded)
 
     @staticmethod
     def _grab_focus(widget):
@@ -326,7 +335,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             _('_Remove'), lambda: self._remove_account_now(account))
 
     def _remove_account_now(self, account):
-        clear_secret(account['instance'], account['id'])
+        clear_secret_async(account['instance'], account['id'])
         was_active = self.account is not None \
             and self.account['id'] == account['id']
         remaining = account_store.forget_account(self.settings, account['id'])
@@ -364,6 +373,21 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.login_back_button.set_visible(False)
         self.main_stack.set_visible_child_name('shell')
         self._load_session_info()
+        self._load_instance_emojis()
+
+    def _load_instance_emojis(self):
+        """The instance's whole custom-emoji set, fetched once per
+        session: it is the fallback layer every rendered ``:shortcode:``
+        resolves against, so it cannot wait for the composer to ask
+        for it (Tuba gathers these as the account comes up)."""
+        client = self.client
+        emojichooser.activate_instance_emojis(client)
+
+        def loaded(_emojis):
+            if client is self.client:
+                emojichooser.activate_instance_emojis(client)
+
+        emojichooser.load_custom_emojis(client, loaded)
 
     def _load_session_info(self):
         """Instance details (limits, streaming URL, API level) and the
@@ -448,28 +472,31 @@ class BabbleWindow(Adw.ApplicationWindow):
         from .streaming import FEDERATED, LOCAL
         if name == 'update':
             if stream == LOCAL:
-                targets = [self.public_pages.get('local')]
+                target = self.public_pages.get('local')
             elif stream == FEDERATED:
-                targets = [self.public_pages.get('federated')]
+                target = self.public_pages.get('federated')
             else:
-                targets = [self.timeline_page]
-            for page in targets:
-                if page is not None:
-                    page.on_stream_update(payload)
-        elif name == 'delete':
+                target = self.timeline_page
+            if target is not None:
+                target.on_stream_update(payload)
+            return
+        if name == 'delete':
             for page in self._timeline_pages():
                 page.on_stream_delete(payload)
             conversations = self._place_children.get('conversations')
             if conversations is not None:
                 conversations.on_stream_delete(payload)
-        elif name == 'status.update':
+            return
+        if name == 'status.update':
             for page in self._timeline_pages():
                 page.on_stream_status_update(payload)
-        elif name == 'notification':
+            return
+        if name == 'notification':
             if self.notifications_page is not None:
                 self.notifications_page.on_stream_notification(payload)
             self.notifier.handle(payload)
-        elif name == 'conversation':
+            return
+        if name == 'conversation':
             conversations = self._place_children.get('conversations')
             if conversations is not None:
                 conversations.on_stream_conversation(payload)
@@ -486,12 +513,6 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._held = True
         self.set_visible(False)
         return True
-
-    def release_background_hold(self):
-        app = self.get_application()
-        if app is not None and self._held:
-            app.release()
-            self._held = False
 
     # Pages
 
@@ -664,7 +685,7 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     # Sidebar
 
-    def _refresh_sidebar(self, *args):
+    def _refresh_sidebar(self, *_args):
         """Rebuild the sidebar: the built-in places (minus the ones the
         preferences hide), then the lists and hashtags pinned for the
         active account."""
@@ -915,8 +936,22 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     @staticmethod
     def _instance_domain(text):
-        """The bare server name typed, without scheme, path or case."""
-        url = urllib.parse.urlsplit(normalize_instance(text))
+        """The bare server name typed, without scheme, path or case.
+
+        An explicit ``http://`` is refused rather than quietly upgraded,
+        so a user who typed it is told the connection would be
+        plaintext instead of being sent somewhere they did not name.
+        """
+        text = (text or '').strip()
+        if '://' in text:
+            scheme, _, rest = text.partition('://')
+            if scheme.lower() != 'https':
+                return ''
+            text = rest
+        try:
+            url = urllib.parse.urlsplit(normalize_instance(text))
+        except ValueError:
+            return ''
         return (url.netloc or url.path).lower().strip('.')
 
     def _update_suggestions(self, typed):
@@ -976,11 +1011,19 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def on_login_clicked(self, _widget):
-        domain = self._instance_domain(self.instance_entry.get_text())
-        if not domain or self._auth_client is not None:
+        typed = self.instance_entry.get_text()
+        domain = self._instance_domain(typed)
+        if self._auth_client is not None:
             return
-        instance = normalize_instance(domain)
-        self._auth_client = MastodonClient(instance)
+        if not domain:
+            if '://' in (typed or '') \
+                    and not typed.strip().lower().startswith('https://'):
+                self.show_error(
+                    _('Could not connect to the server'),
+                    _('Babble only connects over HTTPS. Enter the server '
+                      'address without a scheme, or with https://.'))
+            return
+        self._auth_client = MastodonClient(normalize_instance(domain))
         self.begin_auth_attempt()
         self.refresh_login_widgets()
         self._auth_client.register_app_async(self.on_app_registered)
@@ -1051,7 +1094,12 @@ class BabbleWindow(Adw.ApplicationWindow):
             self.paste_code_button.set_visible(True)
 
     def on_oauth_callback(self, uri):
-        code = MastodonClient.parse_callback_uri(uri)
+        client = self._auth_client
+        if client is None:
+            return
+        # parse_callback_uri drops a callback whose state belongs to a
+        # different authorization than the one in flight.
+        code = client.parse_callback_uri(uri)
         if code is None:
             return
         self.start_token_exchange(code, OAUTH_REDIRECT)

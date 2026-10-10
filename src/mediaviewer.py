@@ -422,7 +422,7 @@ class ZoomPicture(Gtk.Widget):
     def do_measure(self, orientation, for_size):
         return (1, 400, -1, -1)
 
-    def do_size_allocate(self, width, height, baseline):
+    def do_size_allocate(self, width, height, _baseline):
         self._clamp_pan()
         self._changed()
 
@@ -461,7 +461,7 @@ class ZoomPicture(Gtk.Widget):
         if n_press == 2:
             self.toggle_actual_size((x, y))
 
-    def _on_pinch_begin(self, gesture, sequence):
+    def _on_pinch_begin(self, gesture, _sequence):
         self._pinch_origin = self.scale
 
     def _on_pinch(self, gesture, factor):
@@ -495,7 +495,6 @@ class MediaViewer(Adw.Dialog):
                          follows_content_size=False)
         self.attachments = [a for a in attachments if isinstance(a, dict)]
         self.index = 0
-        self.parent_widget = parent
         self.window = pages.window_of(parent)
         if self.window is None and parent is not None:
             root = parent.get_root()
@@ -747,16 +746,21 @@ class MediaViewer(Adw.Dialog):
                 'gifv': _('Animated GIF'), 'audio': _('Audio')}.get(
                     attachment.get('type'), _('Attachment'))
 
+    def _description(self, attachment):
+        """Alt text for *attachment*, falling back to its kind."""
+        description = (attachment.get('description') or '').strip()
+        return description or self._kind_title(attachment)
+
     def _update_chrome(self, attachment):
         total = len(self.attachments)
+        multiple = total > 1
         self.window_title.set_title(self._kind_title(attachment))
-        if total > 1:
+        if multiple:
             self.window_title.set_subtitle(
                 _('{current} of {total}').format(
                     current=self.index + 1, total=total))
         else:
             self.window_title.set_subtitle('')
-        multiple = total > 1
         self.previous_button.set_visible(multiple)
         self.next_button.set_visible(multiple)
         self.previous_button.set_sensitive(self.index > 0)
@@ -779,7 +783,7 @@ class MediaViewer(Adw.Dialog):
         self.alt_label.set_text(description)
         self.picture.update_property(
             [Gtk.AccessibleProperty.LABEL],
-            [description or self._kind_title(attachment)])
+            [self._description(attachment)])
         self.zoom_controls.set_visible(False)
 
     def _on_alt_toggled(self, button):
@@ -791,6 +795,13 @@ class MediaViewer(Adw.Dialog):
         if self._cancellable is not None:
             self._cancellable.cancel()
         self._cancellable = Gio.Cancellable()
+        # Downloads run on their own cancellable so a slow file save can
+        # be stopped independently of the texture loads. Closing the
+        # viewer has to stop those too, or they keep writing the file
+        # for an attachment nobody is looking at any more.
+        if self._downloads is not None:
+            self._downloads.cancel()
+        self._downloads = Gio.Cancellable()
 
     def _unload_media(self):
         stream = self._stream
@@ -857,10 +868,8 @@ class MediaViewer(Adw.Dialog):
                 can_shrink=True, hexpand=True, vexpand=True,
                 accessible_role=Gtk.AccessibleRole.IMG)
             view.add_css_class('media-viewer-gifv')
-            view.update_property(
-                [Gtk.AccessibleProperty.LABEL],
-                [(attachment.get('description') or '').strip()
-                 or self._kind_title(attachment)])
+            view.update_property([Gtk.AccessibleProperty.LABEL],
+                                 [self._description(attachment)])
             click = Gtk.GestureClick()
             click.connect('pressed', self._on_gifv_pressed, stream)
             view.add_controller(click)
@@ -1048,7 +1057,7 @@ class MediaViewer(Adw.Dialog):
 
     # Events
 
-    def _on_key_pressed(self, controller, keyval, keycode, state):
+    def _on_key_pressed(self, controller, keyval, _keycode, state):
         if state & (Gdk.ModifierType.CONTROL_MASK
                     | Gdk.ModifierType.ALT_MASK):
             return False

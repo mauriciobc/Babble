@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+import urllib.parse
 import time
 
 # Own Xvfb + X11 backend: the window under test is a real one, so the
@@ -68,14 +69,17 @@ if not os.environ.get('DISPLAY'):
 resource = Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))
 resource._register()
 
+from src import emojichooser, textemoji  # noqa: E402
 from src.main import BabbleApplication  # noqa: E402
 from src.mastodon import OAUTH_REDIRECT, OOB_REDIRECT  # noqa: E402
 from src.window import BabbleWindow  # noqa: E402
 
 from gettext import gettext as _  # noqa: E402
 
+STATE = 'state-for-this-attempt'
 SCHEMA = 'io.github.mauriciobc.Babble'
-REDIRECT_URI = OAUTH_REDIRECT + '?code=code-once'
+REDIRECT_URI = OAUTH_REDIRECT + '?code=code-once&state=' + STATE
+SECOND_URI = OAUTH_REDIRECT + '?code=code-two&state=' + STATE
 
 failures = []
 
@@ -128,8 +132,13 @@ class StubClient:
     TOKEN = '{"access_token": "test-token"}'
     ACCOUNT = ('{"id": "42", "acct": "me@example.social",'
                ' "display_name": "Me"}')
+    EMOJIS = ('[{"shortcode": "blobwave", "visible_in_picker": true,'
+              ' "url": "https://example.social/custom/blobwave.png"},'
+              ' {"shortcode": "hushpup", "visible_in_picker": false,'
+              ' "url": "https://example.social/custom/hushpup.png"}]')
 
-    def __init__(self, fail_token=False, fail_verify=False, deferred=False):
+    def __init__(self, fail_token=False, fail_verify=False, deferred=False,
+                 state=STATE):
         self.instance = 'https://example.social'
         self.client_id = 'client-id'
         self.client_secret = 'client-secret'
@@ -140,6 +149,23 @@ class StubClient:
         self.fail_verify = fail_verify
         self.deferred = deferred
         self.pending = []
+        # What get_authorize_url would have minted for this attempt.
+        self._state = state
+
+    def parse_callback_uri(self, uri):
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(uri).query)
+        codes = params.get('code')
+        states = params.get('state')
+        code = codes[0] if codes else None
+        state = states[0] if states else None
+        if code is None:
+            return None
+        if state is not None and state != self._state:
+            return None
+        return code
+
+    def get_authorize_url(self, redirect_uri=None):
+        return 'https://example.social/oauth/authorize?state=%s' % self._state
 
     # OAuth
 
@@ -178,6 +204,14 @@ class StubClient:
     def notifications_unread_count_async(self, params=None, callback=None,
                                          cancellable=None):
         return StubTask('{"count": 0}')
+
+    def request_async(self, method, path, params=None, form=None,
+                      json_body=None, callback=None, cancellable=None):
+        self.reply(callback, StubTask(
+            self.EMOJIS if path == '/custom_emojis' else '{}'))
+
+    def request_finish(self, result):
+        return self._finish(result)
 
     # Plumbing
 
@@ -247,6 +281,18 @@ check('the account is signed in',
       and win.client is client)
 check('the token reached the secret store',
       client.stored == ('42', 'test-token'))
+check('signing in activates the instance emoji bank',
+      textemoji.instance_emoji_bank() == {
+          'blobwave': 'https://example.social/custom/blobwave.png',
+          'hushpup': 'https://example.social/custom/hushpup.png'})
+check('emoji hidden from the picker still resolve when rendered',
+      textemoji.lookup_emoji({}, 'hushpup')
+      == 'https://example.social/custom/hushpup.png')
+check('the chooser only offers picker-visible emoji',
+      [e['shortcode'] for e in emojichooser.cached_custom_emojis(client)]
+      == ['blobwave'])
+check('a shortcode no layer knows stays literal',
+      textemoji.lookup_emoji({}, 'nosuchemoji') is None)
 
 # A third delivery, once the first has settled, must stay silent too.
 toasts.clear()
@@ -318,7 +364,7 @@ client = start_attempt(win, StubClient())
 win.on_oauth_callback(REDIRECT_URI)
 pump()
 second = start_attempt(win, StubClient())
-win.on_oauth_callback('babble://oauth/callback?code=code-two')
+win.on_oauth_callback(SECOND_URI)
 pump()
 check('a second login with a new code works',
       len(second.exchanges) == 1
@@ -344,19 +390,53 @@ check('a pasted code settles one toast', len(toasts) == 1)
 win, toasts = fresh_window()
 client = start_attempt(win, StubClient(deferred=True))
 win.on_oauth_callback(REDIRECT_URI)
-win.on_oauth_callback('babble://oauth/callback?code=code-two')
+win.on_oauth_callback(SECOND_URI)
 check('a busy attempt takes no second code',
       [code for code, _ in client.exchanges] == ['code-once'])
 client.flush()
 pump()
 check('the first code still settles the attempt', len(toasts) == 1
       and toasts == [_('Logged in as @me@example.social')])
-win.on_oauth_callback('babble://oauth/callback?code=code-two')
+win.on_oauth_callback(SECOND_URI)
 client.flush()
 pump()
 check('the rejected code is not exchanged after the attempt',
       [code for code, _ in client.exchanges] == ['code-once']
       and len(toasts) == 1)
+
+# --- A callback for another authorization is refused ------------------
+
+win, toasts = fresh_window()
+client = start_attempt(win, StubClient())
+win.on_oauth_callback(OAUTH_REDIRECT + '?code=stolen&state=someone-elses')
+pump()
+check('a callback whose state belongs elsewhere is not exchanged',
+      client.exchanges == [] and toasts == [])
+
+# The real attempt still works afterwards.
+win.on_oauth_callback(REDIRECT_URI)
+pump()
+check('the matching state is still accepted',
+      [code for code, _ in client.exchanges] == ['code-once']
+      and len(toasts) == 1)
+
+# --- The login field refuses a plaintext server -------------------------
+
+win, toasts = fresh_window()
+check('a bare host is accepted',
+      win._instance_domain('mastodon.social') == 'mastodon.social')
+check('an https address is accepted',
+      win._instance_domain('https://fosstodon.org/') == 'fosstodon.org')
+check('a plaintext address is refused',
+      win._instance_domain('http://plain.example') == ''
+      and win._instance_domain('HTTP://Plain.Example') == '')
+
+win.instance_entry.set_text('http://plain.example')
+win.on_login_clicked(None)
+pump()
+check('a plaintext login never starts an attempt',
+      win._auth_client is None
+      and win.main_stack.get_visible_child_name() == 'login')
 
 # --- The application delivers a duplicated dispatch once ---------------
 

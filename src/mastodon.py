@@ -1,6 +1,11 @@
+import base64
+import hashlib
 import json
 import re
+import secrets as _secrets
+import time
 import urllib.parse
+
 
 import gi
 
@@ -18,12 +23,29 @@ from gi.repository import GLib, GObject, Gio, Secret, Soup  # noqa: E402
 # call at once, uploads included, since they share the one session.
 USER_AGENT = 'Babble/%s (+https://github.com/mauriciobc/babble)'
 
-# Adw.Toast renders its title as Pango markup, and a markup-parse failure
-# leaves the toast empty — the user then cannot even see that an error
-# happened. Server response bodies are untrusted, so every error text goes
-# through this summariser: HTML stripped to a bounded plain-text line,
-# ready to be passed to a markup-rendering widget untouched.
+# Adw.Toast renders its title as plain text, so an untrusted server body
+# must reach it with nothing that Pango or a widget could interpret and
+# nothing long enough to blow out the toast. HTML is stripped and the
+# result is bounded to a single short line; no markup escaping happens
+# here, because escaping would show a literal '&amp;' to the reader.
 MAX_ERROR_SUMMARY = 240
+
+# RFC 7636 code_verifier: 43-128 chars from the unreserved set. 32
+# random bytes encode to 43 characters, the shortest legal value.
+CODE_VERIFIER_BYTES = 32
+
+# libsoup's session timeout defaults to 0, meaning "wait forever". A
+# stalled peer would then leave the Gio.Task pending for the life of the
+# process, so every session that talks to a server sets this instead.
+HTTP_TIMEOUT_SECONDS = 30
+
+# A 429 without a usable Retry-After still pauses the pollers, so the
+# app stops deepening the limit instead of retrying into it.
+DEFAULT_RATE_LIMIT_SECONDS = 60
+MAX_RATE_LIMIT_SECONDS = 3600
+
+# libsoup 3 does not name HTTP 429, so the wire value is spelled out.
+HTTP_TOO_MANY_REQUESTS = 429
 
 # <script>/<style> payloads first: stripping only the tags would leave
 # their source in the middle of the sentence.
@@ -33,13 +55,33 @@ _SPACES = re.compile(r'\s+')
 
 
 def summarize_error(text):
-    """HTML from a server response to a safe, bounded plain-text line."""
-    text = _UNPRINTABLE_BLOCK.sub(' ', text or '').replace('&', '&amp;')
+    """HTML from a server response to a safe, bounded plain-text line.
+
+    Every consumer renders this with ``use_markup=False``, so the output
+    must be literal text: tags are stripped and the result truncated, but
+    every other character is left exactly as the server sent it.
+    """
+    text = _UNPRINTABLE_BLOCK.sub(' ', text or '')
     text = _TAG.sub(' ', text)
     text = _SPACES.sub(' ', text).strip()
     if len(text) > MAX_ERROR_SUMMARY:
         text = text[:MAX_ERROR_SUMMARY - 1].rstrip() + '…'
     return text
+
+def generate_code_verifier():
+    """A fresh RFC 7636 ``code_verifier`` (43 chars, unreserved set)."""
+    return _secrets.token_urlsafe(CODE_VERIFIER_BYTES)
+
+
+def code_challenge(verifier):
+    """The S256 ``code_challenge`` for *verifier*."""
+    digest = hashlib.sha256(verifier.encode('ascii')).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
+
+
+def new_state():
+    """A fresh ``state`` value, used to bind the callback to this attempt."""
+    return _secrets.token_urlsafe(CODE_VERIFIER_BYTES)
 
 OAUTH_REDIRECT = 'babble://oauth/callback'
 OOB_REDIRECT = 'urn:ietf:wg:oauth:2.0:oob'
@@ -54,31 +96,96 @@ SECRET_SCHEMA = Secret.Schema.new('io.github.mauriciobc.Babble',
 
 
 def normalize_instance(url):
+    """The canonical https origin for *url*.
+
+    A plaintext ``http://`` instance is refused outright: the bearer
+    token and the client secret would cross the network in the clear.
+    """
     url = url.strip()
     if '://' not in url:
         url = 'https://' + url
-    return url.rstrip('/')
+    url = url.rstrip('/')
+    scheme, sep, rest = url.partition('://')
+    if not sep:
+        raise ValueError(_('Invalid server address: %s') % url)
+    if scheme.lower() != 'https':
+        raise ValueError(_('Babble only connects over HTTPS: %s') % url)
+    return url
+
+# Lazily built by _secret_service(); see there for why one proxy is
+# shared rather than created per call.
+_service = None
 
 
-def store_secret(instance, kind, payload):
-    Secret.password_store_sync(SECRET_SCHEMA,
-                               {'instance': instance, 'kind': kind},
-                               Secret.COLLECTION_DEFAULT,
-                               'Babble: %s' % instance,
-                               payload,
-                               None)
+def _secret_service():
+    """The session-wide keyring proxy.
+
+    Built once and reused: the async calls must be finished on the very
+    proxy that started them, and the module-level ``Secret.password_*``
+    helpers hide theirs, so the calls go through the service directly.
+    """
+    global _service
+    if _service is None:
+        _service = Secret.Service.get_sync(Secret.ServiceFlags.NONE, None)
+    return _service
 
 
-def load_secret(instance, kind):
-    return Secret.password_lookup_sync(SECRET_SCHEMA,
-                                       {'instance': instance, 'kind': kind},
-                                       None)
+def store_secret_async(instance, kind, payload, callback=None,
+                       cancellable=None):
+    """Write *payload* to the keyring without blocking the main loop."""
+
+    def done(service, result, _user_data):
+        try:
+            service.store_finish(result)
+        except GLib.Error:
+            pass  # a keyring that will not take the secret is not fatal
+        if callback is not None:
+            callback()
+
+    _secret_service().store(SECRET_SCHEMA,
+                            {'instance': instance, 'kind': kind},
+                            Secret.COLLECTION_DEFAULT,
+                            'Babble: %s' % instance,
+                            Secret.Value.new(payload, len(payload),
+                                              'text/plain'),
+                            cancellable, done, None)
 
 
-def clear_secret(instance, kind):
-    Secret.password_clear_sync(SECRET_SCHEMA,
-                               {'instance': instance, 'kind': kind},
-                               None)
+def load_secret_async(instance, kind, callback, cancellable=None):
+    """Read a keyring entry; *callback* receives the value or None.
+
+    The value arrives on the main loop. It is deliberately None when the
+    keyring is unreachable: an unreadable keyring means no session, which
+    the login flow already handles as a signed-out window.
+    """
+
+    def done(service, result, _user_data):
+        try:
+            secret = service.lookup_finish(result)
+        except GLib.Error:
+            secret = None
+        callback(secret.get_text() if secret is not None else None)
+
+    _secret_service().lookup(SECRET_SCHEMA,
+                             {'instance': instance, 'kind': kind},
+                             cancellable, done, None)
+
+
+def clear_secret_async(instance, kind, callback=None, cancellable=None):
+    """Remove a keyring entry without blocking the main loop."""
+
+    def done(service, result, _user_data):
+        try:
+            service.clear_finish(result)
+        except GLib.Error:
+            pass
+        if callback is not None:
+            callback()
+
+    _secret_service().clear(SECRET_SCHEMA,
+                            {'instance': instance, 'kind': kind},
+                            cancellable, done, None)
+
 
 
 _LINK_PART = re.compile(r'<([^>]*)>\s*;\s*rel="?([a-z]+)"?')
@@ -113,6 +220,9 @@ class MastodonClient(GObject.Object):
         self.client_id = None
         self.client_secret = None
         self.instance_info = None
+        self._code_verifier = None
+        self._state = None
+        self._rate_limited_until = 0.0
         self._session = Soup.Session()
         try:
             import babble as _app_meta
@@ -120,7 +230,20 @@ class MastodonClient(GObject.Object):
         except ImportError:
             _version = '0.1'
         self._session.props.user_agent = USER_AGENT % _version
+        self._session.set_timeout(HTTP_TIMEOUT_SECONDS)
         self._pending = {}
+
+    def rate_limited(self, now=None):
+        """True while a 429 from the instance is still in force."""
+        return (self._rate_limited_until or 0) > (
+            GLib.get_monotonic_time() / 1000000.0
+            if now is None else now)
+
+    def retry_after_seconds(self):
+        """How much longer this client is rate limited, in seconds."""
+        remaining = self._rate_limited_until - (
+            GLib.get_monotonic_time() / 1000000.0)
+        return int(max(0, remaining) + 0.5)
 
     @GObject.Property(type=str, default='')
     def instance_url(self):
@@ -136,6 +259,23 @@ class MastodonClient(GObject.Object):
                                           self._on_response,
                                           task)
 
+    def _note_rate_limit(self, headers):
+        """Record how long a 429 says to stop asking for."""
+        retry = headers.get_one('Retry-After') or ''
+        seconds = DEFAULT_RATE_LIMIT_SECONDS
+        try:
+            seconds = max(1, min(int(retry.strip()), MAX_RATE_LIMIT_SECONDS))
+        except (TypeError, ValueError):
+            remaining = headers.get_one('X-RateLimit-Reset')
+            try:
+                reset = int(remaining) - int(time.time())
+                seconds = max(1, min(reset, MAX_RATE_LIMIT_SECONDS))
+            except (TypeError, ValueError):
+                pass
+        self._rate_limited_until = (GLib.get_monotonic_time() / 1000000.0
+                                    + seconds)
+        return seconds
+
     def _on_response(self, _session, result, task):
         message = self._pending.pop(task, None)
         try:
@@ -149,12 +289,19 @@ class MastodonClient(GObject.Object):
         except json.JSONDecodeError:
             data = {'error': text}
         status = message.get_status()
+        headers = message.get_response_headers()
         if 200 <= status < 300 and status != Soup.Status.NONE:
-            link = message.get_response_headers().get_one('Link') or ''
+            link = headers.get_one('Link') or ''
             task.return_value(GLib.Variant('s', json.dumps(
                 {'data': data, 'link': link})))
         else:
             error = data.get('error') if isinstance(data, dict) else None
+            if status == HTTP_TOO_MANY_REQUESTS:
+                seconds = self._note_rate_limit(headers)
+                task.return_error(GLib.Error(
+                    _('Rate limited by this server. Trying again in %d seconds.')
+                    % seconds, 'mastodon-http-error-quark', status))
+                return
             task.return_error(GLib.Error(
                 str(error or Soup.status_get_phrase(status)),
                 'mastodon-http-error-quark', status))
@@ -260,51 +407,72 @@ class MastodonClient(GObject.Object):
         data = self._finish(result)
         self.client_id = data['client_id']
         self.client_secret = data['client_secret']
-        store_secret(self.instance, 'app',
-                     json.dumps({'client_id': self.client_id,
-                                 'client_secret': self.client_secret}))
         return data
 
-    def load_registered_app(self):
-        stored = load_secret(self.instance, 'app')
-        if not stored:
-            return False
-        data = json.loads(stored)
-        self.client_id = data['client_id']
-        self.client_secret = data['client_secret']
-        return True
+    def store_secret_token(self, account_id, token, callback=None,
+                           cancellable=None):
+        store_secret_async(self.instance, account_id, token, callback,
+                           cancellable)
 
-    def store_secret_token(self, account_id, token):
-        store_secret(self.instance, account_id, token)
-
-    def load_secret_token(self, account_id):
-        return load_secret(self.instance, account_id)
+    def load_secret_token(self, account_id, callback, cancellable=None):
+        """Read the stored token; *callback* receives it, or None."""
+        load_secret_async(self.instance, account_id, callback, cancellable)
 
     def get_authorize_url(self, redirect_uri=OAUTH_REDIRECT):
+        """The browser URL that starts one authorization.
+
+        A fresh PKCE verifier and ``state`` are minted per call and kept
+        on the client until the matching callback arrives. PKCE binds the
+        code to this process: an authorization code intercepted on the
+        ``babble://`` scheme by any other application cannot be redeemed
+        without the verifier, which never leaves this process.
+        """
+        self._code_verifier = generate_code_verifier()
+        self._state = new_state()
         query = urllib.parse.urlencode({
             'client_id': self.client_id,
             'redirect_uri': redirect_uri,
             'response_type': 'code',
             'scope': OAUTH_SCOPES,
+            'state': self._state,
+            'code_challenge': code_challenge(self._code_verifier),
+            'code_challenge_method': 'S256',
         })
         return self.instance + '/oauth/authorize?' + query
 
-    @staticmethod
-    def parse_callback_uri(uri):
+    def parse_callback_uri(self, uri):
+        """``(code, state)`` from a redirect, either may be None.
+
+        The out-of-band flow has no redirect URI, so it arrives as a
+        code the user pasted; there is no state to check against and the
+        caller accepts it on the PKCE verifier alone.
+        """
         query = urllib.parse.urlparse(uri).query
         params = urllib.parse.parse_qs(query)
         codes = params.get('code')
-        return codes[0] if codes else None
+        states = params.get('state')
+        code = codes[0] if codes else None
+        state = states[0] if states else None
+        if code is None:
+            return None
+        if state is not None and state != self._state:
+            # A callback for a different authorization than the one this
+            # client started: refuse it rather than spend the code.
+            return None
+        return code
 
     def request_token_async(self, code, callback=None, cancellable=None,
                             redirect_uri=OAUTH_REDIRECT):
         # /oauth/token lives at the instance root, not under /api/v1.
+        form = {'client_id': self.client_id,
+                'client_secret': self.client_secret,
+                'redirect_uri': redirect_uri,
+                'grant_type': 'authorization_code',
+                'code': code}
+        if self._code_verifier is not None:
+            form['code_verifier'] = self._code_verifier
         return self._request_async('POST', self.instance + '/oauth/token',
-                                   form={'client_id': self.client_id,
-                                         'client_secret': self.client_secret,
-                                         'redirect_uri': redirect_uri,
-                                         'grant_type': 'authorization_code',
-                                         'code': code},
+                                   form=form,
                                    callback=callback, cancellable=cancellable)
 
     def request_token_finish(self, result):
@@ -314,7 +482,7 @@ class MastodonClient(GObject.Object):
 
     def verify_credentials_async(self, callback=None, cancellable=None):
         return self._request_async('GET', '/accounts/verify_credentials',
-                                   auth=True, callback=callback,
+                                   callback=callback,
                                    cancellable=cancellable)
 
     def verify_credentials_finish(self, result):
@@ -326,73 +494,6 @@ class MastodonClient(GObject.Object):
                                    callback=callback, cancellable=cancellable)
 
     def lookup_account_finish(self, result):
-        return self._finish(result)
-
-    def follow_account_async(self, account_id, callback=None, cancellable=None):
-        return self._request_async('POST',
-                                   '/accounts/%s/follow' % account_id,
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
-
-    def follow_account_finish(self, result):
-        return self._finish(result)
-
-    def unfollow_account_async(self, account_id, callback=None,
-                               cancellable=None):
-        return self._request_async('POST',
-                                   '/accounts/%s/unfollow' % account_id,
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
-
-    def unfollow_account_finish(self, result):
-        return self._finish(result)
-
-    def mute_account_async(self, account_id, callback=None,
-                           cancellable=None):
-        return self._request_async('POST',
-                                   '/accounts/%s/mute' % account_id,
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
-
-    def mute_account_finish(self, result):
-        return self._finish(result)
-
-    def unmute_account_async(self, account_id, callback=None,
-                             cancellable=None):
-        return self._request_async('POST',
-                                   '/accounts/%s/unmute' % account_id,
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
-
-    def unmute_account_finish(self, result):
-        return self._finish(result)
-
-    def block_account_async(self, account_id, callback=None,
-                            cancellable=None):
-        return self._request_async('POST',
-                                   '/accounts/%s/block' % account_id,
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
-
-    def block_account_finish(self, result):
-        return self._finish(result)
-
-    def unblock_account_async(self, account_id, callback=None,
-                              cancellable=None):
-        return self._request_async('POST',
-                                   '/accounts/%s/unblock' % account_id,
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
-
-    def unblock_account_finish(self, result):
-        return self._finish(result)
-
-    def account_async(self, account_id, callback=None, cancellable=None):
-        return self._request_async('GET', '/accounts/%s' % account_id,
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
-
-    def account_finish(self, result):
         return self._finish(result)
 
     def account_statuses_async(self, account_id, params=None, callback=None,
@@ -409,7 +510,7 @@ class MastodonClient(GObject.Object):
                             cancellable=None):
         return self._request_async(
             'GET', '/accounts/relationships',
-            params={'id[]': account_ids}, auth=True, callback=callback,
+            params={'id[]': account_ids}, callback=callback,
             cancellable=cancellable)
 
     def relationships_finish(self, result):
@@ -421,7 +522,7 @@ class MastodonClient(GObject.Object):
 
     def timelines_home_async(self, params=None, callback=None, cancellable=None):
         return self._request_async('GET', '/timelines/home', params=params,
-                                   auth=True, callback=callback,
+                                   callback=callback,
                                    cancellable=cancellable)
 
     def timelines_home_finish(self, result):
@@ -450,7 +551,7 @@ class MastodonClient(GObject.Object):
         page), ``limit``; ``types`` filters by notification type.
         """
         return self._request_async('GET', '/notifications', params=params,
-                                   auth=True, callback=callback,
+                                   callback=callback,
                                    cancellable=cancellable)
 
     def notifications_finish(self, result):
@@ -462,7 +563,7 @@ class MastodonClient(GObject.Object):
         ``params`` accepts the same ``types[]``/``exclude_types[]`` as the
         list endpoint, so the badge counts what the list shows."""
         return self._request_async('GET', '/notifications/unread_count',
-                                   params=params, auth=True,
+                                   params=params,
                                    callback=callback,
                                    cancellable=cancellable)
 
@@ -472,7 +573,7 @@ class MastodonClient(GObject.Object):
     def notifications_clear_async(self, callback=None, cancellable=None):
         """POST /api/v1/notifications/clear: delete every notification."""
         return self._request_async('POST', '/notifications/clear',
-                                   auth=True, callback=callback,
+                                   callback=callback,
                                    cancellable=cancellable)
 
     def notifications_clear_finish(self, result):
@@ -485,20 +586,13 @@ class MastodonClient(GObject.Object):
         return self._request_async('POST', '/markers',
                                    form={'notifications[last_read_id]':
                                          last_read_id},
-                                   auth=True, callback=callback,
+                                   callback=callback,
                                    cancellable=cancellable)
 
     def notifications_mark_read_finish(self, result):
         return self._finish(result)
 
     # Statuses
-
-    def statuses_async(self, status_id, callback=None, cancellable=None):
-        return self._request_async('GET', '/statuses/%s' % status_id,
-                                   callback=callback, cancellable=cancellable)
-
-    def statuses_finish(self, result):
-        return self._finish(result)
 
     def status_context_async(self, status_id, callback=None,
                              cancellable=None):
@@ -509,7 +603,6 @@ class MastodonClient(GObject.Object):
     def status_context_finish(self, result):
         data = self._finish(result)
         return data.get('ancestors', []), data.get('descendants', [])
-
 
     def post_status_async(self, text, params=None, callback=None,
                           cancellable=None):
@@ -578,30 +671,11 @@ class MastodonClient(GObject.Object):
     def media_upload_finish(self, result):
         return self._finish(result)
 
-    def _status_action_async(self, action, status_id, callback=None,
-                             cancellable=None):
-        return self._request_async('POST',
-                                   '/statuses/%s/%s' % (status_id, action),
-                                   auth=True, callback=callback,
-                                   cancellable=cancellable)
+    def media_status_async(self, media_id, callback=None, cancellable=None):
+        """GET /api/v1/media/:id, to poll an upload being processed."""
+        return self._request_async('GET', '/media/%s' % media_id,
+                                   callback=callback, cancellable=cancellable)
 
-    def favourite_async(self, status_id, callback=None, cancellable=None):
-        return self._status_action_async('favourite', status_id, callback,
-                                         cancellable)
-
-    def favourite_finish(self, result):
+    def media_status_finish(self, result):
         return self._finish(result)
 
-    def reblog_async(self, status_id, callback=None, cancellable=None):
-        return self._status_action_async('reblog', status_id, callback,
-                                         cancellable)
-
-    def reblog_finish(self, result):
-        return self._finish(result)
-
-    def bookmark_async(self, status_id, callback=None, cancellable=None):
-        return self._status_action_async('bookmark', status_id, callback,
-                                         cancellable)
-
-    def bookmark_finish(self, result):
-        return self._finish(result)
