@@ -640,13 +640,18 @@ class ProfileEditDialog(Adw.Dialog):
         else:
             self.save_tabs()
 
-    def on_credentials_saved(self, client, result, _data=None):
+    def _finish_saving(self, client, result):
+        """True on success; failure toasts and stops saving."""
         try:
             client.request_finish(result)
         except GLib.Error as error:
             self.save_failed(error)
-            return
-        self.save_tabs()
+            return False
+        return True
+
+    def on_credentials_saved(self, client, result, _data=None):
+        if self._finish_saving(client, result):
+            self.save_tabs()
 
     def save_tabs(self):
         if not self._tab_changes:
@@ -657,12 +662,8 @@ class ProfileEditDialog(Adw.Dialog):
                                   callback=self.on_tabs_saved)
 
     def on_tabs_saved(self, client, result, _data=None):
-        try:
-            client.request_finish(result)
-        except GLib.Error as error:
-            self.save_failed(error)
-            return
-        self.reload()
+        if self._finish_saving(client, result):
+            self.reload()
 
     def reload(self):
         self.client.verify_credentials_async(self.on_reloaded)

@@ -320,7 +320,6 @@ class NotificationItem(GObject.Object):
         super().__init__()
         self._section_title = None
         self._section_weekday = None
-        self._kinds_by_actor = []
         self.kind = notification.get('type', '')
         self._kinds_by_actor = [self._kind]
         self._date_keys = [_date_key_of(notification)]
@@ -352,10 +351,6 @@ class NotificationItem(GObject.Object):
 
     @property
     def kinds(self):
-        return self._kinds_by_actor
-
-    @property
-    def kinds_by_actor(self):
         return self._kinds_by_actor
 
     @property
@@ -401,10 +396,6 @@ class NotificationItem(GObject.Object):
     @GObject.Property(type=GObject.TYPE_PYOBJECT)
     def status_item(self):
         return self._status_item
-
-    @property
-    def status_id(self):
-        return self.status['id'] if self.status else None
 
     @property
     def group_key(self):
@@ -478,10 +469,6 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
             start -= 1
         return (start, end)
 
-    @staticmethod
-    def _group_key(notification):
-        return group_key_of(notification)
-
     def _stamp_sections(self):
         """Mark each day's first row with the heading text ('Today',
         'Yesterday' or the full date) and clear it on continuations."""
@@ -491,27 +478,58 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         for index in range(n):
             item = self._store[index]
             key = item.date_key
-            if key != last_key:
-                last_key = key
-                try:
-                    day = _time.strptime(key, '%Y-%m-%d')
-                    date = datetime.date(*day[:3])
-                except ValueError:
-                    day = None
-                    date = None
-                if day is None:
-                    item._stamp_section('', None)
-                    continue
-                if date == today:
-                    title = _('Today')
-                elif date == today - datetime.timedelta(days=1):
-                    title = _('Yesterday')
-                else:
-                    title = _('%(month)s %(day)d') % {
-                        'month': date.strftime('%b'), 'day': day.tm_mday}
-                item._stamp_section(title, _WEEKDAYS[day.tm_wday])
-            else:
+            if key == last_key:
                 item._stamp_section(None, None)
+                continue
+            last_key = key
+            try:
+                day = _time.strptime(key, '%Y-%m-%d')
+                date = datetime.date(*day[:3])
+            except ValueError:
+                day = None
+            if day is None:
+                item._stamp_section('', None)
+                continue
+            if date == today:
+                title = _('Today')
+            elif date == today - datetime.timedelta(days=1):
+                title = _('Yesterday')
+            else:
+                title = _('%(month)s %(day)d') % {
+                    'month': date.strftime('%b'), 'day': day.tm_mday}
+            item._stamp_section(title, _WEEKDAYS[day.tm_wday])
+
+    def _runs(self, fresh):
+        """Group a newest-first page into runs of consecutive matching
+        notifications: [group_key, [newest, ..., oldest]]."""
+        runs = []
+        for n in fresh:
+            key = group_key_of(n)
+            if runs and runs[-1][0] == key:
+                runs[-1][1].append(n)
+            else:
+                runs.append([key, [n]])
+        return runs
+
+    @staticmethod
+    def _items(runs):
+        items = []
+        for _key, run in runs:
+            item = NotificationItem(run[0])
+            for n in run[1:]:
+                item.merge(n)
+            items.append(item)
+        return items
+
+    def _track_ids(self, fresh):
+        """Widen the oldest/newest cursors over a page's ids."""
+        ids = [n['id'] for n in fresh]
+        page_oldest = min(ids, key=id_key)
+        page_newest = max(ids, key=id_key)
+        self.oldest_id = page_oldest if self.oldest_id is None \
+            else min(self.oldest_id, page_oldest)
+        self.newest_id = page_newest if self.newest_id is None \
+            else max(self.newest_id, page_newest)
 
     def append_page(self, notifications):
         """Append an older page (newest-first); returns False when the
@@ -524,15 +542,7 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
             return False
         for n in fresh:
             self._seen.add(n['id'])
-        # fresh is newest-first; runs are lists of consecutive matching
-        # notifications: [group_key, [newest, ..., oldest]].
-        runs = []
-        for n in fresh:
-            key = self._group_key(n)
-            if runs and runs[-1][0] == key:
-                runs[-1][1].append(n)
-            else:
-                runs.append([key, [n]])
+        runs = self._runs(fresh)
         position = self._store.get_n_items()
         if position:
             last = self._store.get_item(position - 1)
@@ -542,23 +552,8 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
                 self._stamp_sections()
                 self.items_changed(position - 1, 1, 1)
                 runs = runs[1:]
-        items = []
-        for _key, run in runs:
-            item = NotificationItem(run[0])
-            for n in run[1:]:
-                item.merge(n)
-            items.append(item)
-        self._store.splice(position, 0, items)
-        self.oldest_id = min(self.oldest_id,
-                             min((n['id'] for n in fresh),
-                                 key=id_key)) \
-            if self.oldest_id is not None else min(
-                (n['id'] for n in fresh), key=id_key)
-        self.newest_id = max(self.newest_id,
-                             max((n['id'] for n in fresh),
-                                 key=id_key)) \
-            if self.newest_id is not None else max(
-                (n['id'] for n in fresh), key=id_key)
+        self._store.splice(position, 0, self._items(runs))
+        self._track_ids(fresh)
         return True
 
     def prepend_page(self, notifications):
@@ -568,13 +563,7 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
             return 0
         for n in fresh:
             self._seen.add(n['id'])
-        runs = []
-        for n in fresh:
-            key = self._group_key(n)
-            if runs and runs[-1][0] == key:
-                runs[-1][1].append(n)
-            else:
-                runs.append([key, [n]])
+        runs = self._runs(fresh)
         if self._store.get_n_items():
             first = self._store.get_item(0)
             if first.group_key == runs[-1][0]:
@@ -583,22 +572,9 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
                 self._stamp_sections()
                 self.items_changed(0, 1, 1)
                 runs = runs[:-1]
-        items = []
-        for _key, run in runs:
-            item = NotificationItem(run[0])
-            for n in run[1:]:
-                item.merge(n)
-            items.append(item)
-        for item in reversed(items):
+        for item in reversed(self._items(runs)):
             self._store.insert(0, item)
-        self.newest_id = max(self.newest_id,
-                             max((n['id'] for n in fresh), key=id_key)) \
-            if self.newest_id is not None else max(
-                (n['id'] for n in fresh), key=id_key)
-        self.oldest_id = min(self.oldest_id,
-                             min((n['id'] for n in fresh), key=id_key)) \
-            if self.oldest_id is not None else min(
-                (n['id'] for n in fresh), key=id_key)
+        self._track_ids(fresh)
         return len(fresh)
 
     def clear(self):
@@ -952,6 +928,16 @@ class NotificationRow(ColumnBox):
 
         self.append(content)
 
+    def _person_row(self, name, kind):
+        """One named person row under the expander: action icon and name."""
+        person = Gtk.Box(spacing=8)
+        person.append(Gtk.Image(
+            icon_name=type_icon(kind),
+            accessible_role=Gtk.AccessibleRole.PRESENTATION))
+        person.append(Gtk.Label(label=name, xalign=0.0, hexpand=True,
+                                ellipsize=Pango.EllipsizeMode.END))
+        return person
+
     def _populate_people(self, item):
         """Build the stacked avatars with per-action badges and the
         named per-person rows behind the expander."""
@@ -983,14 +969,7 @@ class NotificationRow(ColumnBox):
             badge.add_css_class('notification-badge')
             slot.add_overlay(badge)
             self.avatar_stack.append(slot)
-
-            person = Gtk.Box(spacing=8)
-            person.append(Gtk.Image(
-                icon_name=type_icon(kind),
-                accessible_role=Gtk.AccessibleRole.PRESENTATION))
-            person.append(Gtk.Label(label=name, xalign=0.0, hexpand=True,
-                                    ellipsize=Pango.EllipsizeMode.END))
-            self.people_box.append(person)
+            self.people_box.append(self._person_row(name, kind))
         remaining = len(actors) - len(shown)
         if remaining > 0:
             more = Gtk.Label(label='+%d' % remaining)
@@ -1004,13 +983,7 @@ class NotificationRow(ColumnBox):
         for actor, kind in actors[len(shown):]:
             name = _clean_name(actor)
             names.append(name)
-            person = Gtk.Box(spacing=8)
-            person.append(Gtk.Image(
-                icon_name=type_icon(kind),
-                accessible_role=Gtk.AccessibleRole.PRESENTATION))
-            person.append(Gtk.Label(label=name, xalign=0.0, hexpand=True,
-                                    ellipsize=Pango.EllipsizeMode.END))
-            self.people_box.append(person)
+            self.people_box.append(self._person_row(name, kind))
         people = ', '.join(names)
         self.cluster_expander.set_tooltip_text(people)
         self.cluster_expander.update_property(
@@ -1276,11 +1249,11 @@ class NotificationsPage(Adw.Bin):
         scrolled.set_vexpand(True)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.add_css_class('notification-list-scroller')
-        self._header_factory = NotificationFactory(client)
-        self.list_view = Gtk.ListView(model=Gtk.NoSelection.new(self.model),
-                                      factory=NotificationFactory(client),
-                                      header_factory=self._header_factory,
-                                      single_click_activate=True)
+        self.list_view = Gtk.ListView(
+            model=Gtk.NoSelection.new(self.model),
+            factory=NotificationFactory(client),
+            header_factory=NotificationFactory(client),
+            single_click_activate=True)
         self.list_view.connect('activate', self.on_row_activated)
         clamp = Adw.ClampScrollable(maximum_size=COLUMN_WIDTH,
                                     tightening_threshold=COLUMN_WIDTH)
@@ -1297,7 +1270,6 @@ class NotificationsPage(Adw.Bin):
         # Instance announcements: the button opens the Announcements page.
         self.banner = Adw.Banner(button_label=_('View'), use_markup=False)
         self.banner.connect('button-clicked', self.on_announcement_view)
-        self._announcement_id = None
 
         self.filter_group = Adw.ToggleGroup(
             halign=Gtk.Align.CENTER, margin_top=6, margin_bottom=6)
@@ -1382,7 +1354,6 @@ class NotificationsPage(Adw.Bin):
         clear_button.update_property([Gtk.AccessibleProperty.LABEL],
                                      [_('Clear Notifications')])
         clear_button.connect('clicked', self.on_clear_requested)
-        self.clear_button = clear_button
 
         box = Gtk.Box(spacing=0)
         box.append(self.menu_button)
@@ -1398,12 +1369,7 @@ class NotificationsPage(Adw.Bin):
         """Check items show a type: unchecking adds it to the persisted
         exclusion list (sent as ``exclude_types[]``)."""
         action.set_state(value)
-        current = settings().get_strv(EXCLUDED_TYPES_KEY)
-        excluded = [k for k in current if k != kind]
-        if not value.get_boolean():
-            excluded.append(kind)
-        if excluded != list(current):
-            settings().set_strv(EXCLUDED_TYPES_KEY, excluded)
+        _store_type_visibility(kind, value.get_boolean())
 
     def _on_excluded_changed(self, *_args):
         """The exclusion list changed (here or in Preferences): sync the
@@ -1673,7 +1639,6 @@ class NotificationsPage(Adw.Bin):
             return
         unread = next((a for a in announcements or []
                        if not a.get('read')), None)
-        self._announcement_id = unread.get('id') if unread else None
         self.banner.set_revealed(unread is not None)
         if unread is None:
             return
@@ -1845,34 +1810,25 @@ class NotificationRequestRow(Adw.ActionRow):
         self.add_prefix(avatar)
 
         count = int(request.get('notifications_count') or 0)
-        self.count_label = Gtk.Label(
+        count_label = Gtk.Label(
             label=ngettext('%d notification', '%d notifications', count)
             % count, valign=Gtk.Align.CENTER)
-        self.count_label.add_css_class('caption')
-        self.count_label.add_css_class('dimmed')
-        self.add_suffix(self.count_label)
+        count_label.add_css_class('caption')
+        count_label.add_css_class('dimmed')
+        self.add_suffix(count_label)
 
-        self.dismiss_button = Gtk.Button(icon_name='user-trash-symbolic',
-                                         valign=Gtk.Align.CENTER)
-        self.dismiss_button.add_css_class('flat')
-        self.dismiss_button.add_css_class('circular')
-        self.dismiss_button.set_tooltip_text(_('Dismiss'))
-        self.dismiss_button.update_property([Gtk.AccessibleProperty.LABEL],
-                                            [_('Dismiss')])
-        self.dismiss_button.connect('clicked',
-                                    lambda _b: self.answer('dismiss'))
-        self.add_suffix(self.dismiss_button)
+        self._answer_button('user-trash-symbolic', _('Dismiss'), 'dismiss')
+        self._answer_button('object-select-symbolic', _('Accept'), 'accept')
 
-        self.accept_button = Gtk.Button(icon_name='object-select-symbolic',
-                                        valign=Gtk.Align.CENTER)
-        self.accept_button.add_css_class('flat')
-        self.accept_button.add_css_class('circular')
-        self.accept_button.set_tooltip_text(_('Accept'))
-        self.accept_button.update_property([Gtk.AccessibleProperty.LABEL],
-                                           [_('Accept')])
-        self.accept_button.connect('clicked',
-                                   lambda _b: self.answer('accept'))
-        self.add_suffix(self.accept_button)
+    def _answer_button(self, icon_name, label, action):
+        """Flat circular suffix button answering the request."""
+        button = Gtk.Button(icon_name=icon_name, valign=Gtk.Align.CENTER)
+        button.add_css_class('flat')
+        button.add_css_class('circular')
+        button.set_tooltip_text(label)
+        button.update_property([Gtk.AccessibleProperty.LABEL], [label])
+        button.connect('clicked', lambda _b: self.answer(action))
+        self.add_suffix(button)
 
     @staticmethod
     def _preview(status):
@@ -2127,12 +2083,17 @@ class NotificationPolicyDialog(Adw.Dialog):
     # Visible types
 
     def _on_type_switched(self, row, _pspec, kind):
-        current = settings().get_strv(EXCLUDED_TYPES_KEY)
-        excluded = [k for k in current if k != kind]
-        if not row.get_active():
-            excluded.append(kind)
-        if excluded != list(current):
-            settings().set_strv(EXCLUDED_TYPES_KEY, excluded)
+        _store_type_visibility(kind, row.get_active())
+
+
+def _store_type_visibility(kind, visible):
+    """Persist one type's visibility in the exclusion list."""
+    current = settings().get_strv(EXCLUDED_TYPES_KEY)
+    excluded = [k for k in current if k != kind]
+    if not visible:
+        excluded.append(kind)
+    if excluded != list(current):
+        settings().set_strv(EXCLUDED_TYPES_KEY, excluded)
 
 
 def present_notification_policy(parent, client):

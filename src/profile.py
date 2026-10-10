@@ -186,11 +186,10 @@ class HeaderCache:
 from . import textemoji  # noqa: E402
 
 # Shared machinery now lives in textemoji.py; the profile sheet keeps
-# using the very same emoji bank, texture cache and renderer.
+# using the very same emoji bank and renderer.
 EMOJI_RE = textemoji.EMOJI_RE
 emoji_bank = textemoji.emoji_bank
 content_segments = textemoji.content_segments
-EmojiTextures = textemoji.EmojiTextures
 InlineEmojiText = textemoji.InlineEmojiText
 
 VISIBLE_FIELDS = 4
@@ -364,6 +363,14 @@ class PrivateNoteDialog(Adw.Dialog):
         self._on_save(self.text())
 
 
+def _request_result(client, result):
+    """Decoded body of *result*, or None when the request failed."""
+    try:
+        return client.request_finish(result)
+    except GLib.Error:
+        return None
+
+
 class ProfilePage(Adw.Bin):
     """Account header plus Posts / Posts & Replies / Media tabs.
 
@@ -386,7 +393,6 @@ class ProfilePage(Adw.Bin):
         self._content = False
         self._generation = 0
         self._follow_mode = None
-        self._timeline_pages = []
         self.badge_box = None
         self.note_list = None
 
@@ -962,10 +968,7 @@ class ProfilePage(Adw.Bin):
             params={'limit': 80}, callback=handler(self._on_endorsements))
 
     def _on_familiar(self, client, result, _data=None):
-        try:
-            data = client.request_finish(result)
-        except GLib.Error:
-            return
+        data = _request_result(client, result)
         accounts = (data[0].get('accounts') or []) if data else []
         if not accounts:
             return
@@ -1018,10 +1021,7 @@ class ProfilePage(Adw.Bin):
         self.push_subpage(_('Followers You Know'), page)
 
     def _on_featured_tags(self, client, result, _data=None):
-        try:
-            tags = client.request_finish(result)
-        except GLib.Error:
-            return
+        tags = _request_result(client, result)
         if not tags:
             return
         self.tags_box.append(pages.section_label(_('Featured Hashtags')))
@@ -1045,10 +1045,7 @@ class ProfilePage(Adw.Bin):
         push_hashtag(self, self.client, name)
 
     def _on_endorsements(self, client, result, _data=None):
-        try:
-            accounts = client.request_finish(result)
-        except GLib.Error:
-            return
+        accounts = _request_result(client, result)
         if not accounts:
             return
         self.endorse_box.append(pages.section_label(_('Featured Profiles')))
@@ -1101,7 +1098,6 @@ class ProfilePage(Adw.Bin):
             timeline_pages.append(page)
         if self.account.get('show_media') is False:
             self.view_stack.get_page(timeline_pages[2]).set_visible(False)
-        self._timeline_pages = timeline_pages
         self.set_stack_state('content')
 
     def refresh(self):
@@ -1123,10 +1119,7 @@ class ProfilePage(Adw.Bin):
         def loaded(client, result, _data=None):
             if generation != self._generation:
                 return
-            try:
-                fresh = client.request_finish(result)
-            except GLib.Error:
-                return
+            fresh = _request_result(client, result)
             if isinstance(fresh, dict) and fresh.get('id') == account_id \
                     and fresh != self.account:
                 self.account = dict(self.account, **fresh)
@@ -1415,35 +1408,29 @@ class ProfilePage(Adw.Bin):
                 lambda: self.send_relationship(
                     'block', done=_('Blocked %s'),
                     failed=_('Could not block %s')))
-        else:
-            self.send_relationship(
-                'unblock', done=_('Unblocked %s'),
-                failed=_('Could not unblock %s'),
-                undo=('block', None, _('_Undo')))
+            return
+        self.send_relationship(
+            'unblock', done=_('Unblocked %s'),
+            failed=_('Could not unblock %s'),
+            undo=('block', None, _('_Undo')))
 
     def confirm_domain_block(self, block):
         domain = self._remote_domain()
         if not domain:
             return
         if block:
-            heading = _('Block Entire %s?') % domain
-            body = _('Blocking a domain will:\n\n'
-                     '• Remove its public posts and notifications from '
-                     'your timelines\n'
-                     '• Remove its followers from your account\n'
-                     '• Prevent you from following its users')
-            label = _('_Block')
-        else:
-            heading = _('Unblock Entire %s?') % domain
-            body = _('You will be able to see and follow its users '
-                     'again.')
-            label = _('_Unblock')
-        if block:
-            pages.confirm(self, heading, body, label,
-                          lambda: self.send_domain_block(block, domain),
-                          destructive=True)
-        else:
-            self.send_domain_block(block, domain, undo=_('_Undo'))
+            pages.confirm(
+                self, _('Block Entire %s?') % domain,
+                _('Blocking a domain will:\n\n'
+                  '• Remove its public posts and notifications from '
+                  'your timelines\n'
+                  '• Remove its followers from your account\n'
+                  '• Prevent you from following its users'),
+                _('_Block'),
+                lambda: self.send_domain_block(block, domain),
+                destructive=True)
+            return
+        self.send_domain_block(block, domain, undo=_('_Undo'))
 
     # Requests
 

@@ -197,10 +197,8 @@ class SchedulePickerDialog(Adw.Dialog):
         date = self.calendar.get_date()
         index = self.zone_row.get_selected()
         zone_id = self._zones[index] if index < len(self._zones) else 'UTC'
-        if zone_id == 'UTC':
-            zone = GLib.TimeZone.new_utc()
-        else:
-            zone = GLib.TimeZone.new_local()
+        zone = GLib.TimeZone.new_utc() if zone_id == 'UTC' \
+            else GLib.TimeZone.new_local()
         return GLib.DateTime.new(
             zone, date.get_year(), date.get_month(),
             date.get_day_of_month(), self.hour_spin.get_value_as_int(),

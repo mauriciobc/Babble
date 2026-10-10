@@ -239,7 +239,6 @@ class ConversationsPage(PagedList):
         button.update_property([Gtk.AccessibleProperty.LABEL],
                                [_('New Direct Message')])
         button.connect('clicked', lambda _b: self.new_message())
-        self.new_message_button = button
         self.header_widgets = [button]
 
     def _make_row(self, conversation):

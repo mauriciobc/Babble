@@ -12,9 +12,9 @@ from gettext import gettext as _, ngettext
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
+from . import pages  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
-from .timeline import (COLUMN_WIDTH, StatusItem, StatusRow,  # noqa: E402
-                       make_error_page, make_loading_page)
+from .timeline import COLUMN_WIDTH, StatusItem, StatusRow  # noqa: E402
 
 MAX_NESTING = 5
 # Per-level nesting indent. Kept at 12 px so a full-depth thread still
@@ -111,11 +111,11 @@ class ThreadPage(Adw.Bin):
         toolbar.set_content(self.stack)
         self.set_child(toolbar)
 
-        self.loading_page = make_loading_page(_('Loading Thread'))
+        self.loading_page = pages.make_loading_page(_('Loading Thread'))
         self.stack.add_named(self.loading_page, 'loading')
 
-        self.error_page = make_error_page(_('Could Not Load Thread'),
-                                          self.on_retry)
+        self.error_page = pages.make_error_page(_('Could Not Load Thread'),
+                                                self.on_retry)
         self.stack.add_named(self.error_page, 'error')
 
         scrolled = Gtk.ScrolledWindow()

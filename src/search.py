@@ -413,45 +413,10 @@ class SearchPage(Adw.Bin):
         else:
             self.search(resolve=True)
 
-    def _resolve_url(self, url, force=False):
-        if url == self._resolved_url and not force:
-            return
-        self._resolved_url = url
+    def _request(self, params, callback):
         self._serial += 1
         serial = self._serial
         self.stack.set_visible_child_name('loading')
-
-        def resolved(client, result, _d=None):
-            if serial != self._serial:
-                return
-            try:
-                data = client.request_finish(result)
-            except GLib.Error as error:
-                self.error_page.set_description(error_text(error))
-                self.stack.set_visible_child_name('error')
-                return
-            if data.get('statuses'):
-                pages.open_status(self, self.client, data['statuses'][0])
-            elif data.get('accounts'):
-                pages.open_profile(self, self.client, data['accounts'][0])
-            else:
-                self._show_results(data)
-
-        self.client.request_async(
-            'GET', '/api/v2/search',
-            params={'q': url, 'resolve': 'true', 'limit': PREVIEW_COUNT + 1},
-            callback=resolved)
-
-    def search(self, resolve=False):
-        query = self.query
-        if not query:
-            return
-        self._serial += 1
-        serial = self._serial
-        self.stack.set_visible_child_name('loading')
-        params = {'q': query, 'limit': PREVIEW_COUNT + 1}
-        if resolve:
-            params['resolve'] = 'true'
 
         def finished(client, result, _d=None):
             if serial != self._serial:
@@ -462,10 +427,34 @@ class SearchPage(Adw.Bin):
                 self.error_page.set_description(error_text(error))
                 self.stack.set_visible_child_name('error')
                 return
-            self._show_results(data)
+            callback(data)
 
         self.client.request_async('GET', '/api/v2/search', params=params,
                                   callback=finished)
+
+    def _resolve_url(self, url, force=False):
+        if url == self._resolved_url and not force:
+            return
+        self._resolved_url = url
+
+        def resolved(data):
+            if data.get('statuses'):
+                pages.open_status(self, self.client, data['statuses'][0])
+            elif data.get('accounts'):
+                pages.open_profile(self, self.client, data['accounts'][0])
+            else:
+                self._show_results(data)
+
+        self._request({'q': url, 'resolve': 'true',
+                       'limit': PREVIEW_COUNT + 1}, resolved)
+
+    def search(self, resolve=False):
+        if not self.query:
+            return
+        params = {'q': self.query, 'limit': PREVIEW_COUNT + 1}
+        if resolve:
+            params['resolve'] = 'true'
+        self._request(params, self._show_results)
 
     # Results
 

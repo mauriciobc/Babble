@@ -79,10 +79,7 @@ class BabbleApplication(Adw.Application):
         window nobody is looking at.
         """
         windows = self.get_windows()
-        win = windows[0] if windows else None
-        if win is None:
-            win = BabbleWindow(application=self)
-        return win
+        return windows[0] if windows else BabbleWindow(application=self)
 
     def do_shutdown(self):
         for win in self.get_windows():

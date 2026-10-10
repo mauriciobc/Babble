@@ -181,7 +181,6 @@ class FilterEditPage(Adw.NavigationPage):
                             start_icon_name='list-add-symbolic')
         add.connect('activated', lambda _r: self._add_keyword_row(
             None, focus=True))
-        self._add_row = add
         self.keywords_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.keywords_list.add_css_class('boxed-list')
         for row in self._keyword_rows:
@@ -207,9 +206,9 @@ class FilterEditPage(Adw.NavigationPage):
             title=_('Action'),
             model=Gtk.StringList.new([label for _n, label, _d in ACTIONS]))
         current = item.get('filter_action') or 'warn'
-        self.action_row.set_selected(
-            [name for name, _l, _d in ACTIONS].index(current)
-            if current in [name for name, _l, _d in ACTIONS] else 0)
+        names = [name for name, _l, _d in ACTIONS]
+        self.action_row.set_selected(names.index(current)
+                                     if current in names else 0)
         self.action_row.set_subtitle(
             ACTIONS[self.action_row.get_selected()][2])
         self.action_row.connect('notify::selected', self._on_action_changed)
@@ -435,6 +434,5 @@ def present_filters(parent_widget, client):
     dialog = Adw.Dialog(title=_('Filters'), content_width=520,
                         content_height=640)
     dialog.set_child(navigation_view)
-    dialog.filters_list = listing
     dialog.present(parent_widget)
     return dialog

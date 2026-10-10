@@ -20,12 +20,8 @@ STATS_TABS = (
 
 
 def _tab_title(kind, count):
-    if kind == 'favourites':
-        label = _('Favorites')
-    elif kind == 'boosts':
-        label = _('Boosts')
-    else:
-        label = _('Quotes')
+    label = {'favourites': _('Favorites'),
+             'boosts': _('Boosts')}.get(kind, _('Quotes'))
     if count is None:
         return label
     return '%s · %d' % (label, count)
@@ -41,7 +37,6 @@ class StatusStatsView(Adw.Bin):
         self.client = client
         # Stats are always about the boosted post itself.
         status = status.get('reblog') or status
-        self.status = status
         status_id = status['id']
 
         self.stack = Adw.ViewStack()
@@ -197,10 +192,8 @@ class EditHistoryView(Adw.Bin):
             self.error_page.set_description(error.message)
             self.stack.set_visible_child_name('error')
             return
-        child = self.content.get_first_child()
-        while child is not None:
+        while (child := self.content.get_first_child()) is not None:
             self.content.remove(child)
-            child = self.content.get_first_child()
         revisions = revisions or []
         for index in reversed(range(len(revisions))):
             previous = revisions[index - 1] if index > 0 else None

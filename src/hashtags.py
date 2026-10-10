@@ -58,10 +58,6 @@ def stats_text(history, days=STATS_DAYS):
         'days': days}
 
 
-def total_uses(history):
-    return sum(int(entry.get('uses') or 0) for entry in history or ())
-
-
 # Saved multi-hashtag timelines
 
 def load_saved():
@@ -146,7 +142,6 @@ class HashtagPage(Adw.Bin):
 
         self.following = False
         self.featured_id = None
-        self.tag_info = None
         self.header_widgets = []
         if not self.multi:
             self._build_single_header()
@@ -214,7 +209,6 @@ class HashtagPage(Adw.Bin):
             info = client.request_finish(result)
         except GLib.Error:
             return
-        self.tag_info = info
         text = stats_text(info.get('history'))
         self.stats_label.set_label(text)
         self.stats_label.set_visible(bool(text))
@@ -363,7 +357,6 @@ class _TagsEditor:
         self.dialog = dialog
         self.tags = []
         self.rows = {}
-        self.minimum = minimum
         self.group = Adw.PreferencesGroup(title=title,
                                           description=description)
         self.entry = Adw.EntryRow(title=_('Add Hashtag'),
@@ -606,14 +599,11 @@ class TagRow(HashtagRow):
             pages.show_toast(self.page, _('Unfollowed #%s') % name,
                              undo=undo)
 
-        def failed_reset():
-            button.set_sensitive(True)
-
         def finished(c, result, _d=None):
             try:
                 data = c.request_finish(result)
             except GLib.Error as error:
-                failed_reset()
+                button.set_sensitive(True)
                 pages.report_error(
                     self, _('Could not unfollow #%s') % name, error)
                 return

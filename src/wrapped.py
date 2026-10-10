@@ -173,8 +173,7 @@ def section_title(text):
 
 
 class WrappedDialog(Adw.Dialog):
-    """The dialog; ``show_report`` renders a response of
-    ``GET /api/v1/annual_reports``."""
+    """The dialog; renders ``GET /api/v1/annual_reports``."""
 
     def __init__(self, parent, client, year=None, **kwargs):
         super().__init__(title=_('Wrapped'), content_width=560,
@@ -365,12 +364,6 @@ class WrappedDialog(Adw.Dialog):
         if reports and 0 <= index < len(reports) \
                 and reports[index] is not self.report:
             self._render(reports[index])
-
-    def show_report(self, data, year=None):
-        """Render an already fetched ``/annual_reports`` response."""
-        self.data = data
-        self._generation += 1
-        self._select(year)
 
     def _render(self, report):
         self.report = report

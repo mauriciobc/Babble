@@ -19,7 +19,7 @@ from gettext import gettext as _
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from .pages import PagedList, report_error  # noqa: E402
-from .textemoji import InlineEmojiText  # noqa: E402
+from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
 from .timeline import AvatarCache, parse_content  # noqa: E402
 
 
@@ -140,8 +140,7 @@ class ReactionsBar(Gtk.Box):
         button = self.buttons.get(emoji)
         if button is None:
             button = self._add({'name': emoji, 'count': 0, 'me': False})
-        if not button.get_active():
-            button.set_active(True)
+        button.set_active(True)
 
     def _on_toggled(self, button):
         """Reflect the toggle on the server: PUT adds your reaction,
@@ -228,11 +227,7 @@ class AnnouncementRow(Gtk.ListBoxRow):
         self.content.add_css_class('status-content')
         self.content.link_mentions = announcement.get('mentions') or []
         self.content.link_tags = announcement.get('tags') or []
-        bank = {}
-        for emoji in announcement.get('emojis') or []:
-            url = emoji.get('static_url') or emoji.get('url')
-            if emoji.get('shortcode') and url:
-                bank[emoji['shortcode']] = url
+        bank = emoji_bank_from(announcement.get('emojis'))
         self.content.set_segments(
             parse_content(announcement.get('content') or ''), bank)
         box.append(self.content)

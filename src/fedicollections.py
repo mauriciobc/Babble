@@ -274,7 +274,6 @@ class CollectionRow(Adw.ActionRow):
         self.set_subtitle(self._count_text)
         self.add_prefix(AvatarStack(client, collection))
         actions = CollectionActions(self, client, collection, on_changed)
-        self.actions = actions
         self.add_suffix(actions.menu_button())
         if not actions.is_owner:
             fetch_accounts(client, [collection.get('account_id')],
@@ -443,7 +442,6 @@ class CollectionPage(Adw.Bin):
             self.stack.remove(self._body)
         actions = CollectionActions(self, self.client, collection,
                                     self.refresh, self._pop)
-        self.actions = actions
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
                          margin_top=18, margin_bottom=24, margin_start=12,
                          margin_end=12)
@@ -463,8 +461,6 @@ class CollectionPage(Adw.Bin):
             chip.connect('clicked', lambda *_a, n=name: self._open_tag(n))
             column.append(chip)
 
-        self.sensitive_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-                                     spacing=18)
         details = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
         description = collection.get('description')
         if description:
@@ -472,9 +468,8 @@ class CollectionPage(Adw.Bin):
                               wrap_mode=Pango.WrapMode.WORD_CHAR,
                               selectable=True)
             details.append(label)
-        facts = []
-        facts.append(_('Public') if collection.get('discoverable')
-                     else _('Unlisted'))
+        facts = [_('Public') if collection.get('discoverable')
+                 else _('Unlisted')]
         if collection.get('language'):
             facts.append(collection['language'].upper())
         if collection.get('updated_at'):
@@ -578,7 +573,6 @@ class MemberRow(Adw.ActionRow):
     def __init__(self, account, **kwargs):
         super().__init__(activatable=False, use_markup=False, **kwargs)
         from .timeline import AvatarCache
-        self.account = account
         name = pages.display_name(account)
         self.set_title(name)
         self.set_subtitle('@' + account.get('acct', ''))
@@ -764,8 +758,7 @@ class CollectionEditDialog(Adw.Dialog):
                                    lambda a=account: self._remove(a))
         remove.add_css_class('error')
         row.add_suffix(remove)
-        self.members[account['id']] = {'row': row, 'item': item,
-                                       'account': account}
+        self.members[account['id']] = {'row': row, 'item': item}
         self.members_group.add(row)
         self._update_members_title()
         self._refresh_results()

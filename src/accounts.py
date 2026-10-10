@@ -158,7 +158,6 @@ class AccountSwitcher(Gtk.Popover):
         listbox.add_css_class('navigation-sidebar')
         listbox.update_property([Gtk.AccessibleProperty.LABEL],
                                 [_('Accounts')])
-        self._rows = {}
         for account in read_accounts(self.settings):
             row = Gtk.ListBoxRow()
             row.account_id = account['id']

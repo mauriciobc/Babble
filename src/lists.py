@@ -98,10 +98,8 @@ def make_pin_button(widget_provider, key, item_id, what):
 
 def policy_label(policy):
     choices = reply_policies()
-    for value, label in choices:
-        if value == policy:
-            return label
-    return choices[0][1]
+    return next((label for value, label in choices if value == policy),
+                choices[0][1])
 
 
 # Dialog helpers
@@ -324,17 +322,15 @@ class ListEditor(ToastDialog):
                                    _('Remove from List'))
         remove.connect('clicked', self._on_remove_member, row)
         row.add_suffix(remove)
-        row.remove_button = remove
         self._members[account['id']] = row
         self.member_rows.append(row)
         self.members_group.add(row)
 
     def _on_remove_member(self, button, row):
         button.set_sensitive(False)
-        account = row.account
         self.client.request_async(
             'DELETE', '/lists/%s/accounts' % self.list['id'],
-            params={'account_ids[]': [account['id']]},
+            params={'account_ids[]': [row.account['id']]},
             callback=lambda c, r, _d=None: self._on_member_removed(
                 c, r, row, button))
 
@@ -600,7 +596,6 @@ class _MembershipDialog(ToastDialog):
         super().__init__(_('Add to Lists'), height=520)
         self.client = client
         self.account = account
-        self.checks = {}
         self._pending = 2
         self._lists = []
         self._member_of = set()
@@ -670,8 +665,6 @@ class _MembershipDialog(ToastDialog):
         row.set_activatable_widget(check)
         handler = check.connect('toggled', self._on_toggled, item, row)
         row.handler = handler
-        row.check = check
-        self.checks[item['id']] = row
         self.group.add(row)
         self.empty_row.set_visible(False)
 

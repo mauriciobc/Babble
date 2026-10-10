@@ -28,7 +28,6 @@ from .mastodon import summarize_error  # noqa: E402
 
 # Role permission bits (Mastodon UserRole::FLAGS)
 PERM_ADMINISTRATOR = 1
-PERM_DASHBOARD = 8
 PERM_REPORTS = 16
 PERM_FEDERATION = 32
 PERM_BLOCKS = 128
@@ -193,6 +192,21 @@ class AdminDialogBase(Adw.Dialog):
 
     def error(self, heading, error):
         self.toast('%s: %s' % (heading, error_text(error)))
+
+    def add_header_buttons(self, cancel_label, action_label, callback,
+                           css=None, sensitive=True):
+        """Cancel button that closes the dialog plus an end-side action
+        button calling *callback*; returns the action button."""
+        cancel = Gtk.Button(label=cancel_label, use_underline=True)
+        cancel.connect('clicked', lambda *_a: self.force_close())
+        self.header.pack_start(cancel)
+        button = Gtk.Button(label=action_label, use_underline=True,
+                            sensitive=sensitive)
+        if css:
+            button.add_css_class(css)
+        button.connect('clicked', callback)
+        self.header.pack_end(button)
+        return button
 
 
 def count_badge_label(text, css=None):
@@ -509,7 +523,6 @@ class ReportsPage(Adw.Bin):
     def _open(self, report):
         dialog = ReportDialog(self.ctx, report)
         dialog.connect('closed', self._on_dialog_closed)
-        self._dialog = dialog
         dialog.present(self.ctx)
 
     def _on_dialog_closed(self, dialog):
@@ -815,13 +828,9 @@ class TakeActionDialog(AdminDialogBase):
         self.account_id = account_id
         self.handle = handle
         self.report_id = report_id
-        cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.force_close())
-        self.header.pack_start(cancel)
-        self.submit = Gtk.Button(label=_('_Submit'), use_underline=True)
-        self.submit.add_css_class('destructive-action')
-        self.submit.connect('clicked', self._on_submit)
-        self.header.pack_end(self.submit)
+        self.submit = self.add_header_buttons(
+            _('_Cancel'), _('_Submit'), self._on_submit,
+            css='destructive-action')
 
         group = Adw.PreferencesGroup()
         first = None
@@ -983,7 +992,6 @@ class AccountsPage(Adw.Bin):
     def _open(self, item):
         dialog = AdminAccountDialog(self.ctx, item)
         dialog.connect('closed', self._on_dialog_closed)
-        self._dialog = dialog
         dialog.present(self.ctx)
 
     def _on_dialog_closed(self, dialog):
@@ -1033,18 +1041,13 @@ class AdminAccountDialog(AdminDialogBase):
                          height=600)
         self.ctx = ctx
         self.client = ctx.client
-        self.item = item
         self.account_id = item['id']
         self.handle = account_handle(item, ctx.client)
         self.should_refresh = False
 
-        close = Gtk.Button(label=_('_Close'), use_underline=True)
-        close.connect('clicked', lambda *_a: self.force_close())
-        self.header.pack_start(close)
-        action = Gtk.Button(label=_('Take _Action'), use_underline=True)
-        action.add_css_class('destructive-action')
-        action.connect('clicked', self._on_take_action)
-        self.header.pack_end(action)
+        self.add_header_buttons(
+            _('_Close'), _('Take _Action'), self._on_take_action,
+            css='destructive-action')
 
         profile = Adw.PreferencesGroup()
         profile.add(AccountSummary(self.client, item))
@@ -1229,14 +1232,9 @@ class AddFederationBlockDialog(AdminDialogBase):
     def __init__(self, ctx):
         super().__init__(_('Add Federation Block'), width=480, height=620)
         self.client = ctx.client
-        cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.force_close())
-        self.header.pack_start(cancel)
-        self.save = Gtk.Button(label=_('_Add'), use_underline=True,
-                               sensitive=False)
-        self.save.add_css_class('suggested-action')
-        self.save.connect('clicked', self._on_save)
-        self.header.pack_end(self.save)
+        self.save = self.add_header_buttons(
+            _('_Cancel'), _('_Add'), self._on_save,
+            css='suggested-action', sensitive=False)
 
         group = Adw.PreferencesGroup()
         self.domain = Adw.EntryRow(title=_('Domain'))
@@ -1450,14 +1448,9 @@ class AddIPBlockDialog(AdminDialogBase):
     def __init__(self, ctx):
         super().__init__(_('Add IP Rule'), width=480, height=620)
         self.client = ctx.client
-        cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.force_close())
-        self.header.pack_start(cancel)
-        self.save = Gtk.Button(label=_('_Add'), use_underline=True,
-                               sensitive=False)
-        self.save.add_css_class('suggested-action')
-        self.save.connect('clicked', self._on_save)
-        self.header.pack_end(self.save)
+        self.save = self.add_header_buttons(
+            _('_Cancel'), _('_Add'), self._on_save,
+            css='suggested-action', sensitive=False)
 
         group = Adw.PreferencesGroup()
         self.ip = Adw.EntryRow(title='192.0.2.0/24')
@@ -1609,10 +1602,6 @@ class AdminDialog(Adw.Dialog):
         self.split.set_content(page)
         self.split.set_show_content(True)
         return page
-
-    def current_content(self):
-        page = self.split.get_content()
-        return getattr(page, 'content', None)
 
 
 def present_admin(parent_widget, client):

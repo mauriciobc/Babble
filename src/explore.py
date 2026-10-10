@@ -79,7 +79,6 @@ class LinkTimelinePage(Adw.Bin):
     def __init__(self, client, link):
         super().__init__()
         from .timeline import ApiTimelineSource, TimelinePage
-        self.client = client
         self.link = link
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
             client, '/timelines/link', params={'url': link['url']}))
@@ -192,7 +191,6 @@ class SuggestionRow(pages.AccountRow):
         account = suggestion['account']
         super().__init__(page.client, account)
         self.page = page
-        self.suggestion = suggestion
         sources = suggestion.get('sources') or [suggestion.get('source')]
         reasons = []
         for source in sources:
@@ -262,7 +260,6 @@ class SuggestionsPage(Adw.Bin):
 
     def __init__(self, client):
         super().__init__()
-        self.client = client
         self.paged = pages.PagedList(
             client, '/api/v2/suggestions',
             lambda suggestion: SuggestionRow(self, suggestion)
@@ -365,10 +362,6 @@ class ExplorePage(Adw.Bin):
         name = self.stack.get_visible_child_name()
         if name in self.bins:
             self._populate(name)
-
-    def show_tab(self, name):
-        self.stack.set_visible_child_name(name)
-        self._populate(name)
 
     def refresh(self):
         child = self.stack.get_visible_child()

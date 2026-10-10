@@ -361,6 +361,27 @@ class PagedList(Adw.Bin):
             return
         self.stack.set_visible_child_name('empty')
 
+    def mutate_row(self, row, method, path, on_done=None,
+                   error_heading=None, **kwargs):
+        """Fire a row-scoped request: *row* is disabled while it runs and
+        dropped on success; failure re-enables it and toasts
+        *error_heading* (default 'Action failed')."""
+        row.set_sensitive(False)
+
+        def finished(_client, result, _data=None):
+            try:
+                self.client.request_finish(result)
+            except GLib.Error as error:
+                row.set_sensitive(True)
+                report_error(self, error_heading or _('Action failed'),
+                             error)
+                return
+            self.remove_row(row)
+            if on_done is not None:
+                on_done()
+
+        self.client.request_async(method, path, callback=finished, **kwargs)
+
 
 # Accounts
 

@@ -41,6 +41,11 @@ def category_info(category):
     }[category]
 
 
+def _unique(values):
+    """String values in order, without repeats."""
+    return list(dict.fromkeys(str(value) for value in values))
+
+
 def build_report_payload(account_id, category, status_ids=(), rule_ids=(),
                          comment='', forward=None):
     """Form fields for POST /api/v1/reports.
@@ -55,19 +60,11 @@ def build_report_payload(account_id, category, status_ids=(), rule_ids=(),
     if category not in CATEGORIES:
         raise ValueError('unknown report category: %r' % (category,))
     payload = {'account_id': str(account_id), 'category': category}
-    seen = []
-    for status_id in status_ids:
-        status_id = str(status_id)
-        if status_id not in seen:
-            seen.append(status_id)
+    seen = _unique(status_ids)
     if seen:
         payload['status_ids[]'] = seen
     if category == 'violation':
-        rules = []
-        for rule_id in rule_ids:
-            rule_id = str(rule_id)
-            if rule_id not in rules:
-                rules.append(rule_id)
+        rules = _unique(rule_ids)
         if not rules:
             raise ValueError('a violation report needs at least one rule')
         payload['rule_ids[]'] = rules
@@ -110,7 +107,6 @@ class _PostRow(Adw.ActionRow):
     def __init__(self, status):
         super().__init__(use_markup=False, title_lines=3, subtitle_lines=1)
         from .timeline import relative_time
-        self.status_id = str(status['id'])
         self.check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
         self.check.add_css_class('selection-mode')
         self.add_prefix(self.check)
@@ -204,13 +200,12 @@ class ReportDialog(Adw.Dialog):
     def _build_category_page(self):
         page = Adw.PreferencesPage()
         group = Adw.PreferencesGroup()
-        who = Adw.ActionRow(title=GLib.markup_escape_text(
-            _plain_name(self.account)),
-            subtitle='@' + self.account.get('acct', ''),
-            title_lines=1, subtitle_lines=1)
+        name = _plain_name(self.account)
+        who = Adw.ActionRow(title=GLib.markup_escape_text(name),
+                            subtitle='@' + self.account.get('acct', ''),
+                            title_lines=1, subtitle_lines=1)
         from .timeline import AvatarCache
-        avatar = Adw.Avatar(size=40, text=_plain_name(self.account),
-                            show_initials=True)
+        avatar = Adw.Avatar(size=40, text=name, show_initials=True)
         AvatarCache.load(avatar, self.account)
         who.add_prefix(avatar)
         group.add(who)

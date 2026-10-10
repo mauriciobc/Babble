@@ -20,7 +20,6 @@ from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 
-SCHEMA_ID = 'io.github.mauriciobc.Babble'
 
 COLOR_SCHEMES = (
     ('system', _('System'), Adw.ColorScheme.DEFAULT),
@@ -233,7 +232,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
         appearance = Adw.PreferencesGroup(title=_('Appearance'))
         self._combo_string(appearance, 'color-scheme', _('_Color Scheme'),
                            [(n, label) for n, label, _v in COLOR_SCHEMES])
-        self._combo_enum_text_size(appearance)
+        self._combo_string(
+            appearance, 'text-size', _('_Text Size'), TEXT_SIZES,
+            subtitle=_('Set the text size used in the interface'))
         self._switch(appearance, 'larger-line-height', _('Large _Line Height'),
                      _('Increase the line height in posts'))
         self._switch(appearance, 'darken-images-on-dark-mode',
@@ -285,25 +286,6 @@ class PreferencesDialog(Adw.PreferencesDialog):
         row.connect('notify::active', self._on_background_toggled)
         page.add(behavior)
         return page
-
-    def _combo_enum_text_size(self, group):
-        row = Adw.ComboRow(
-            title=_('_Text Size'), use_underline=True,
-            subtitle=_('Set the text size used in the interface'),
-            model=Gtk.StringList.new([label for _n, label in TEXT_SIZES]))
-        nicks = [nick for nick, _l in TEXT_SIZES]
-        row.set_selected(nicks.index(self.settings.get_string('text-size')))
-
-        def selected(row, _pspec):
-            nick = nicks[row.get_selected()]
-            if nick != self.settings.get_string('text-size'):
-                self.settings.set_string('text-size', nick)
-
-        row.connect('notify::selected', selected)
-        self.settings.connect(
-            'changed::text-size',
-            lambda s, k: row.set_selected(nicks.index(s.get_string(k))))
-        group.add(row)
 
     def _on_background_toggled(self, row, _pspec):
         if row.get_active():

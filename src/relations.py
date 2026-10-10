@@ -10,7 +10,7 @@ gi.require_version('Adw', '1')
 
 from gettext import gettext as _  # noqa: E402
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 
@@ -53,26 +53,14 @@ class FollowRequestsPage(pages.AccountListPage):
         return box
 
     def answer(self, row, account, verb):
-        row.set_sensitive(False)
-
-        def finished(client, result, _data=None):
-            try:
-                client.request_finish(result)
-            except GLib.Error as error:
-                row.set_sensitive(True)
-                pages.report_error(
-                    self, _('Could not accept the request')
-                    if verb == 'authorize'
-                    else _('Could not reject the request'), error)
-                return
-            self.remove_row(row)
-            pages.show_toast(
-                self, (_('Accepted %s') if verb == 'authorize'
-                       else _('Rejected %s')) % _account_label(account))
-
-        self.client.request_async(
-            'POST', '/follow_requests/%s/%s' % (account['id'], verb),
-            callback=finished)
+        accepted = verb == 'authorize'
+        self.mutate_row(
+            row, 'POST', '/follow_requests/%s/%s' % (account['id'], verb),
+            lambda: pages.show_toast(
+                self, (_('Accepted %s') if accepted else _('Rejected %s'))
+                % _account_label(account)),
+            _('Could not accept the request') if accepted
+            else _('Could not reject the request'))
 
 
 def _remove_button(label, callback):
@@ -97,22 +85,11 @@ class MutedAccountsPage(pages.AccountListPage):
                               lambda: self.unmute(row, account))
 
     def unmute(self, row, account):
-        row.set_sensitive(False)
-
-        def finished(client, result, _data=None):
-            try:
-                client.request_finish(result)
-            except GLib.Error as error:
-                row.set_sensitive(True)
-                pages.report_error(self, _('Could not unmute %s')
-                                   % _account_label(account), error)
-                return
-            self.remove_row(row)
-            pages.show_toast(self, _('Unmuted %s') % _account_label(account))
-
-        self.client.request_async(
-            'POST', '/accounts/%s/unmute' % account['id'],
-            callback=finished)
+        self.mutate_row(
+            row, 'POST', '/accounts/%s/unmute' % account['id'],
+            lambda: pages.show_toast(
+                self, _('Unmuted %s') % _account_label(account)),
+            _('Could not unmute %s') % _account_label(account))
 
 
 class BlockedAccountsPage(pages.AccountListPage):
@@ -131,23 +108,11 @@ class BlockedAccountsPage(pages.AccountListPage):
                               lambda: self.unblock(row, account))
 
     def unblock(self, row, account):
-        row.set_sensitive(False)
-
-        def finished(client, result, _data=None):
-            try:
-                client.request_finish(result)
-            except GLib.Error as error:
-                row.set_sensitive(True)
-                pages.report_error(self, _('Could not unblock %s')
-                                   % _account_label(account), error)
-                return
-            self.remove_row(row)
-            pages.show_toast(self,
-                             _('Unblocked %s') % _account_label(account))
-
-        self.client.request_async(
-            'POST', '/accounts/%s/unblock' % account['id'],
-            callback=finished)
+        self.mutate_row(
+            row, 'POST', '/accounts/%s/unblock' % account['id'],
+            lambda: pages.show_toast(
+                self, _('Unblocked %s') % _account_label(account)),
+            _('Could not unblock %s') % _account_label(account))
 
 
 class BlockedDomainsPage(pages.PagedList):
@@ -170,22 +135,11 @@ class BlockedDomainsPage(pages.PagedList):
         return row
 
     def unblock(self, row, domain):
-        row.set_sensitive(False)
-
-        def finished(client, result, _data=None):
-            try:
-                client.request_finish(result)
-            except GLib.Error as error:
-                row.set_sensitive(True)
-                pages.report_error(self, _('Could not unblock %s')
-                                   % domain, error)
-                return
-            self.remove_row(row)
-            pages.show_toast(self, _('Unblocked %s') % domain)
-
-        self.client.request_async('DELETE', '/domain_blocks',
-                                  params={'domain': domain},
-                                  callback=finished)
+        self.mutate_row(
+            row, 'DELETE', '/domain_blocks', params={'domain': domain},
+            on_done=lambda: pages.show_toast(
+                self, _('Unblocked %s') % domain),
+            error_heading=_('Could not unblock %s') % domain)
 
 
 class MutesBlocksPage(Adw.Bin):
