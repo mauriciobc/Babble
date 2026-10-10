@@ -33,6 +33,12 @@ SCHEMA_ID = 'io.github.mauriciobc.Babble'
 PROCESSING_INTERVAL_MS = 1500
 PROCESSING_ATTEMPTS = 80
 
+
+def _cancelled(error):
+    """True when *error* is the cancellation of a request we abandoned."""
+    return error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED)
+
+
 # Mastodon's Extractor: URLs (scheme optional) and remote mentions.
 _URL_RE = re.compile(
     r'(?<![\w@/])(?:https?://)?'
@@ -822,6 +828,10 @@ class BabbleComposeView(Adw.Bin):
         try:
             data = self.client.media_upload_finish(result)
         except GLib.Error as e:
+            # A cancelled upload belongs to a round the user abandoned,
+            # not to a failure worth a toast.
+            if _cancelled(e):
+                return
             self.on_upload_failed(row, e.message)
             return
         media_id = data.get('id')
@@ -847,6 +857,12 @@ class BabbleComposeView(Adw.Bin):
             try:
                 media = client.media_status_finish(result)
             except GLib.Error as e:
+                # A cancelled request is this round going away, not the
+                # instance being slow: retrying it would keep polling a
+                # draft the user already discarded, on a cancellable
+                # that no longer exists.
+                if _cancelled(e):
+                    return
                 if attempt + 1 >= PROCESSING_ATTEMPTS:
                     self.on_upload_failed(row, e.message)
                     return
@@ -993,7 +1009,11 @@ class BabbleComposeView(Adw.Bin):
             callback=finished)
 
     def reset(self):
-        # Discarding the draft also abandons any upload it started.
+        # Discarding the draft abandons any upload it started. The
+        # generation bump is what tells a still-in-flight reply that it
+        # belongs to a round that no longer exists; cancelling alone only
+        # turns the request into an error the reply would still act on.
+        self._upload_generation += 1
         self._cancel_uploads()
         self.buffer.set_text('')
         self.spoiler_entry.set_text('')
