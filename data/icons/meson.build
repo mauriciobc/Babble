@@ -27,3 +27,8 @@ install_data(
   'hicolor/symbolic/actions/babble-explore-symbolic.svg',
   install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'symbolic' / 'actions',
 )
+
+install_data(
+  'hicolor/symbolic/actions/babble-bookmarks-symbolic.svg',
+  install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'symbolic' / 'actions',
+)

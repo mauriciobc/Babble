@@ -40,7 +40,7 @@ PLACES = (
     ('conversations', 'mail-unread-symbolic', 0),
     ('search', 'system-search-symbolic', 0),
     ('favourites', 'starred-symbolic', 0),
-    ('bookmarks', 'user-bookmarks-symbolic', 0),
+    ('bookmarks', 'babble-bookmarks-symbolic', 0),
     ('hashtags', 'tag-symbolic', 0),
     ('explore', 'babble-explore-symbolic', 1),
     ('local', 'network-server-symbolic', 1),
@@ -616,7 +616,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 _('Posts you favorite will appear here'))
         if tag == 'bookmarks':
             return self._timeline_place(
-                '/bookmarks', None, 'user-bookmarks-symbolic',
+                '/bookmarks', None, 'babble-bookmarks-symbolic',
                 _('No Bookmarks Yet'),
                 _('Posts you bookmark will appear here'))
         if tag == 'hashtags':
