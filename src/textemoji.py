@@ -26,6 +26,8 @@ gi.require_version('Soup', '3.0')
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango, Soup  # noqa: E402
 
+from .pages import connect_weak  # noqa: E402
+
 EMOJI_RE = re.compile(r':([A-Za-z0-9_+\-]+):')
 
 # An instance can publish thousands of emoji; only a screenful is ever
@@ -216,20 +218,23 @@ class InlineEmojiText(Gtk.TextView):
 
         click = Gtk.GestureClick.new()
         click.set_button(1)
-        click.connect('released', self._on_link_clicked)
+        connect_weak(click, 'released', self._on_link_clicked)
         self.add_controller(click)
 
         keys = Gtk.EventControllerKey.new()
         keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        keys.connect('key-pressed', self._on_key_pressed)
+        connect_weak(keys, 'key-pressed', self._on_key_pressed)
         self.add_controller(keys)
 
         focus = Gtk.EventControllerFocus.new()
-        focus.connect('enter', self._on_focus_enter)
+        connect_weak(focus, 'enter', self._on_focus_enter)
         self.add_controller(focus)
 
-        self.connect('map', self._on_map)
-        self.connect('unmap', self._on_unmap)
+        # Weak even on self: a Gtk.TextView holds internal references to
+        # itself, so PyGObject cannot collect a wrapper whose own
+        # handlers point back at it.
+        connect_weak(self, 'map', self._on_map)
+        connect_weak(self, 'unmap', self._on_unmap)
 
     def set_emoji_size(self, size):
         """Pixel size of inline custom emojis for the next

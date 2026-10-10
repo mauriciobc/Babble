@@ -12,7 +12,9 @@
 """
 
 import re
+import types
 import urllib.parse
+import weakref
 
 import gi
 
@@ -38,6 +40,31 @@ def settings():
     if _settings is None:
         _settings = Gio.Settings.new(SCHEMA_ID)
     return _settings
+
+
+def connect_weak(emitter, signal, method, *extra):
+    """``emitter.connect(signal, method, *extra)`` holding the bound
+    *method* weakly.
+
+    A widget that connects a signal of something it owns (a child
+    widget, an event controller, an adjustment, an action) to one of its
+    own methods closes a reference cycle through C that Python's
+    collector cannot see: the handler keeps the widget's wrapper, the
+    wrapper keeps the GObject, the GObject keeps the emitter. The widget
+    and its whole subtree then outlive every list row, dialog or page
+    that dropped it. With the method held weakly the cycle never forms;
+    once its object is gone the handler disconnects itself.
+    """
+    ref = weakref.WeakMethod(method)
+
+    def handler(source, *args):
+        bound = ref()
+        if bound is None:
+            source.disconnect_by_func(handler)
+            return False
+        return bound(source, *args)
+
+    return emitter.connect(signal, handler, *extra)
 
 
 # Navigation
@@ -191,12 +218,19 @@ def make_loading_page(title, description=None):
 
 
 def make_error_page(title, on_retry):
+    """Error status page with a Try Again button calling
+    ``on_retry(button)``. A bound method is held weakly: it is normally
+    a method of the page that owns this error page, and a strong handler
+    would keep that page alive forever."""
     page = Adw.StatusPage(icon_name='network-error-symbolic', title=title)
     retry = Gtk.Button(label=_('_Try Again'), use_underline=True,
                        halign=Gtk.Align.CENTER)
     retry.add_css_class('pill')
     retry.add_css_class('suggested-action')
-    retry.connect('clicked', on_retry)
+    if isinstance(on_retry, types.MethodType):
+        connect_weak(retry, 'clicked', on_retry)
+    else:
+        retry.connect('clicked', on_retry)
     page.set_child(retry)
     return page
 

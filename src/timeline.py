@@ -18,6 +18,7 @@ from gettext import gettext as _, ngettext
 from gi.repository import Adw, Gdk, GLib, GObject, Gio, Gtk, Pango, Soup  # noqa: E402
 
 from . import pages  # noqa: E402
+from .pages import connect_weak  # noqa: E402
 from .mastodon import HTTP_TIMEOUT_SECONDS, summarize_error_markup  # noqa: E402
 from .textemoji import (InlineEmojiText, emoji_bank, launch_uri,  # noqa: E402
                         poll_emoji_bank, status_emoji_bank)
@@ -309,7 +310,7 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         self.exhausted = False
         self.loading = False
         # Re-emit the store's changes so GListModel consumers stay in sync.
-        self._store.connect('items-changed', self._on_store_changed)
+        connect_weak(self._store, 'items-changed', self._on_store_changed)
 
     def _on_store_changed(self, _store, position, removed, added):
         self.items_changed(position, removed, added)
@@ -501,7 +502,7 @@ class RunModel(GObject.Object, Gio.ListModel):
         super().__init__()
         self._source = source
         self._runs = []
-        source.connect('items-changed', self._on_items_changed)
+        connect_weak(source, 'items-changed', self._on_items_changed)
         self._rebuild()
 
     def _on_items_changed(self, *_args):
@@ -794,7 +795,7 @@ class PollBox(Gtk.Box):
                 else:
                     button.set_group(first)
             button.set_child(self._label(option))
-            button.connect('toggled', self._on_choice_toggled)
+            connect_weak(button, 'toggled', self._on_choice_toggled)
             button.update_property([Gtk.AccessibleProperty.LABEL],
                                    [option.get('title') or ''])
             button.babble_index = index
@@ -853,17 +854,17 @@ class PollBox(Gtk.Box):
             self.vote_button.add_css_class('suggested-action')
             self.vote_button.add_css_class('pill')
             self.vote_button.set_sensitive(False)
-            self.vote_button.connect('clicked', self._on_vote)
+            connect_weak(self.vote_button, 'clicked', self._on_vote)
             footer.append(self.vote_button)
             show = Gtk.Button(label=_('Show _Results'), use_underline=True)
             show.add_css_class('flat')
-            show.connect('clicked', self._on_show_results)
+            connect_weak(show, 'clicked', self._on_show_results)
             footer.append(show)
         elif not closed and not poll.get('voted') and self._ui.get(
                 'poll_results'):
             back = Gtk.Button(label=_('_Back to Voting'), use_underline=True)
             back.add_css_class('flat')
-            back.connect('clicked', self._on_show_results)
+            connect_weak(back, 'clicked', self._on_show_results)
             footer.append(back)
         votes = poll.get('votes_count') or 0
         voters = poll.get('voters_count')
@@ -884,8 +885,8 @@ class PollBox(Gtk.Box):
         footer.append(detail)
         if not closed:
             refresh = pages.icon_button('view-refresh-symbolic',
-                                        _('Refresh Results'),
-                                        self._on_refresh)
+                                        _('Refresh Results'))
+            connect_weak(refresh, 'clicked', self._on_refresh)
             footer.append(refresh)
         self.append(footer)
 
@@ -914,7 +915,7 @@ class PollBox(Gtk.Box):
             3, lambda: self.vote_button.set_sensitive(
                 bool(self._selected())) or GLib.SOURCE_REMOVE)
 
-    def _on_refresh(self):
+    def _on_refresh(self, _button):
         if self._poll is None:
             return
         pages.call(self, self._client, 'GET', '/polls/%s' % self._poll['id'],
@@ -1075,8 +1076,8 @@ class BoostCarousel(Gtk.Box):
             vscrollbar_policy=Gtk.PolicyType.NEVER)
         self.scroll.set_child(self.cards_box)
         adjustment = self.scroll.get_hadjustment()
-        adjustment.connect('changed', self._update_arrows)
-        adjustment.connect('value-changed', self._update_arrows)
+        connect_weak(adjustment, 'changed', self._update_arrows)
+        connect_weak(adjustment, 'value-changed', self._update_arrows)
         self.append(self.scroll)
 
     def _arrow(self, icon_name, tooltip, direction):
@@ -1084,7 +1085,7 @@ class BoostCarousel(Gtk.Box):
         button.add_css_class('flat')
         button.add_css_class('circular')
         button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
-        button.connect('clicked', self._page_by, direction)
+        connect_weak(button, 'clicked', self._page_by, direction)
         return button
 
     def set_boosts(self, statuses, client=None):
@@ -1169,13 +1170,15 @@ class MediaBox(Gtk.Box):
             content.set_visible(False)
             reveal = Gtk.Button(label=_('Show Sensitive Content'),
                                 halign=Gtk.Align.START)
-            reveal.connect('clicked', self._reveal, content, ui)
+            connect_weak(reveal, 'clicked', self._toggle_sensitive,
+                         content, ui)
             self.append(reveal)
         elif sensitive:
             hide = Gtk.Button(label=_('Hide Sensitive Content'),
                               halign=Gtk.Align.START)
             hide.add_css_class('flat')
-            hide.connect('clicked', self._hide, content, ui)
+            connect_weak(hide, 'clicked', self._toggle_sensitive,
+                         content, ui)
             self.append(hide)
 
     def _build_grid(self, visual):
@@ -1221,7 +1224,7 @@ class MediaBox(Gtk.Box):
                 play.add_css_class('osd')
                 overlay.add_overlay(play)
             click = Gtk.GestureClick()
-            click.connect('released', self._on_tile_clicked, index)
+            connect_weak(click, 'released', self._on_tile_clicked, index)
             overlay.add_controller(click)
             overlay.set_cursor_from_name('pointer')
             grid.attach(overlay, slot % columns, slot // columns, 1, 1)
@@ -1261,8 +1264,11 @@ class MediaBox(Gtk.Box):
                           ellipsize=Pango.EllipsizeMode.END)
         line.append(label)
         button.set_child(line)
-        button.connect('clicked', lambda *_a: self._open(index))
+        connect_weak(button, 'clicked', self._on_file_clicked, index)
         return button
+
+    def _on_file_clicked(self, _button, index):
+        self._open(index)
 
     def _on_tile_clicked(self, _gesture, _n_press, _x, _y, index):
         self._open(index)
@@ -1271,21 +1277,16 @@ class MediaBox(Gtk.Box):
         from .mediaviewer import present_media
         present_media(self, self._attachments, index)
 
-    def _reveal(self, button, content, ui):
-        ui['media_revealed'] = True
-        content.set_visible(True)
-        button.set_label(_('Hide Sensitive Content'))
-        button.add_css_class('flat')
-        button.disconnect_by_func(self._reveal)
-        button.connect('clicked', self._hide, content, ui)
-
-    def _hide(self, button, content, ui):
-        ui['media_revealed'] = False
-        content.set_visible(False)
-        button.set_label(_('Show Sensitive Content'))
-        button.remove_css_class('flat')
-        button.disconnect_by_func(self._hide)
-        button.connect('clicked', self._reveal, content, ui)
+    def _toggle_sensitive(self, button, content, ui):
+        revealed = not content.get_visible()
+        ui['media_revealed'] = revealed
+        content.set_visible(revealed)
+        if revealed:
+            button.set_label(_('Hide Sensitive Content'))
+            button.add_css_class('flat')
+        else:
+            button.set_label(_('Show Sensitive Content'))
+            button.remove_css_class('flat')
 
 
 # Settings, locale and status helpers
@@ -1672,7 +1673,7 @@ class StatusRow(Gtk.Overlay):
                                         use_underline=True,
                                         valign=Gtk.Align.CENTER)
         self.filter_button.add_css_class('flat')
-        self.filter_button.connect('clicked', self._on_show_filtered)
+        connect_weak(self.filter_button, 'clicked', self._on_show_filtered)
         self.filter_bar.append(self.filter_button)
         self.filter_bar.set_visible(False)
         body.append(self.filter_bar)
@@ -1722,7 +1723,7 @@ class StatusRow(Gtk.Overlay):
         names.append(self.handle_label)
         opener.append(names)
         profile_button.set_child(opener)
-        profile_button.connect('clicked', self._on_profile_clicked)
+        connect_weak(profile_button, 'clicked', self._on_profile_clicked)
         self.profile_button = profile_button
         header.append(profile_button)
         meta = Gtk.Box(spacing=6, halign=Gtk.Align.END,
@@ -1752,7 +1753,7 @@ class StatusRow(Gtk.Overlay):
         self.edited_button.add_css_class('flat')
         self.edited_button.add_css_class('caption')
         self.edited_button.add_css_class('edited-marker')
-        self.edited_button.connect('clicked', self._on_edited_clicked)
+        connect_weak(self.edited_button, 'clicked', self._on_edited_clicked)
         self.edited_button.set_visible(False)
         meta.append(self.edited_button)
         self.time_label = Gtk.Label()
@@ -1791,7 +1792,7 @@ class StatusRow(Gtk.Overlay):
         self.cw_toggle = Gtk.Button(valign=Gtk.Align.CENTER)
         self.cw_toggle.add_css_class('pill')
         self.cw_toggle.add_css_class('cw-toggle')
-        self.cw_toggle.connect('clicked', self._on_cw_toggle)
+        connect_weak(self.cw_toggle, 'clicked', self._on_cw_toggle)
         self.cw_box.append(self.cw_toggle)
         self.cw_box.set_visible(False)
         main.append(self.cw_box)
@@ -1808,7 +1809,7 @@ class StatusRow(Gtk.Overlay):
         self.expand_button.add_css_class('flat')
         self.expand_button.add_css_class('caption-heading')
         self.expand_button.set_visible(False)
-        self.expand_button.connect('clicked', self._on_expand)
+        connect_weak(self.expand_button, 'clicked', self._on_expand)
         guarded.append(self.expand_button)
 
         self.post_meta = Gtk.Label(xalign=0.0, wrap=True)
@@ -1826,7 +1827,7 @@ class StatusRow(Gtk.Overlay):
         original = Gtk.Button(label=_('Show _Original'), use_underline=True)
         original.add_css_class('flat')
         original.add_css_class('caption')
-        original.connect('clicked', lambda _b: self._menu_translate())
+        connect_weak(original, 'clicked', self._menu_translate)
         self.translation_box.append(original)
         self.translation_box.set_visible(False)
         guarded.append(self.translation_box)
@@ -1924,13 +1925,13 @@ class StatusRow(Gtk.Overlay):
         for name in self.MENU_ACTIONS:
             action = Gio.SimpleAction.new(name, None)
             handler = getattr(self, '_menu_' + name.replace('-', '_'))
-            action.connect('activate', handler)
+            connect_weak(action, 'activate', handler)
             group.add_action(action)
             self._menu_actions[name] = action
         policy = Gio.SimpleAction.new_stateful(
             'quote-policy', GLib.VariantType.new('s'),
             GLib.Variant.new_string('public'))
-        policy.connect('activate', self._menu_quote_policy)
+        connect_weak(policy, 'activate', self._menu_quote_policy)
         group.add_action(policy)
         self._menu_actions['quote-policy'] = policy
         button.insert_action_group('row', group)
@@ -2337,7 +2338,7 @@ class StatusRow(Gtk.Overlay):
         button.set_child(Adw.ButtonContent(icon_name=icons[0]))
         button.set_tooltip_text(tooltip)
         button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
-        button.connect('clicked', callback)
+        connect_weak(button, 'clicked', callback)
         button.icons = icons
         button.action_name_text = tooltip
         button.nouns = nouns
@@ -3036,7 +3037,7 @@ class TimelinePage(Adw.Bin):
                                       single_click_activate=True)
         self.list_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Posts')])
-        self.list_view.connect('activate', self.on_row_activated)
+        connect_weak(self.list_view, 'activate', self.on_row_activated)
         # Phanpy-style: a single centered ~660px column with grey gutters.
         # The clamp is the scrollable, so the column follows the viewport
         # and never raises the page's minimum width.
@@ -3054,7 +3055,7 @@ class TimelinePage(Adw.Bin):
         self.new_pill = Gtk.Button()
         self.new_pill.add_css_class('pill')
         self.new_pill.add_css_class('suggested-action')
-        self.new_pill.connect('clicked', self._on_new_pill_clicked)
+        connect_weak(self.new_pill, 'clicked', self._on_new_pill_clicked)
         self.new_posts_revealer.set_child(self.new_pill)
         self.new_posts_revealer.set_reveal_child(False)
 
@@ -3068,7 +3069,7 @@ class TimelinePage(Adw.Bin):
         self.loading_page = pages.make_loading_page(
             _('Loading Timeline'), _('Fetching the latest posts'))
         self.error_page = pages.make_error_page(
-            _('Could Not Load Timeline'), lambda _button: self.load())
+            _('Could Not Load Timeline'), self._on_retry)
         self.empty_page = Adw.StatusPage(
             icon_name='user-home-symbolic',
             title=_('No Posts Yet'),
@@ -3080,7 +3081,7 @@ class TimelinePage(Adw.Bin):
         _RefreshGesture(self, scrolled)
         self._scrolled = scrolled
         adjustment = scrolled.get_vadjustment()
-        adjustment.connect('value-changed', self.on_scroll_position)
+        connect_weak(adjustment, 'value-changed', self.on_scroll_position)
         self.load()
 
     # New posts pill / auto refresh
@@ -3164,6 +3165,9 @@ class TimelinePage(Adw.Bin):
         if self.mode == 'public':
             return self.client.timelines_public_finish(result)
         return self.client.timelines_home_finish(result)
+
+    def _on_retry(self, _button):
+        self.load()
 
     def load(self):
         if self.model.loading:
@@ -3325,18 +3329,21 @@ class _RefreshGesture:
     """Pull down at the top of the list to refresh (Phanpy-style)."""
 
     def __init__(self, page, scrolled):
-        self.page = page
-        self.scrolled = scrolled
+        # Held weakly: the controller lives on the scrolled window inside
+        # the page, so strong references here would keep the page alive
+        # through the handler.
+        self._page = weakref.ref(page)
         controller = Gtk.EventControllerScroll.new(
             Gtk.EventControllerScrollFlags.VERTICAL)
         controller.connect('scroll', self.on_scroll)
         scrolled.add_controller(controller)
 
-    def on_scroll(self, _controller, _dx, dy):
-        adjustment = self.scrolled.get_vadjustment()
-        if adjustment is None:
+    def on_scroll(self, controller, _dx, dy):
+        page = self._page()
+        adjustment = controller.get_widget().get_vadjustment()
+        if page is None or adjustment is None:
             return False
         at_top = adjustment.get_value() <= 0.0
         if at_top and dy < 0:
-            self.page.refresh()
+            page.refresh()
         return False
