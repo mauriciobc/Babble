@@ -93,7 +93,7 @@ class LinkTimelinePage(Adw.Bin):
             subtitle=link.get('provider_name') or _domain(link['url']),
             use_markup=False, title_lines=2, subtitle_lines=1)
         summary.add_suffix(Gtk.Image(icon_name='web-browser-symbolic'))
-        summary.connect('activated', lambda *_a: self._open_browser())
+        pages.connect_weak(summary, 'activated', self._on_open_browser)
         frame = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,
                             margin_top=12, margin_bottom=4,
                             margin_start=12, margin_end=12)
@@ -104,12 +104,16 @@ class LinkTimelinePage(Adw.Bin):
         box.append(self.timeline)
         self.set_child(box)
         self.browser_button = pages.icon_button(
-            'web-browser-symbolic', _('Open in Browser'),
-            self._open_browser)
+            'web-browser-symbolic', _('Open in Browser'))
+        pages.connect_weak(self.browser_button, 'clicked',
+                           self._on_open_browser)
         self.header_widgets = [self.browser_button]
 
     def refresh(self):
         self.timeline.refresh()
+
+    def _on_open_browser(self, _widget):
+        self._open_browser()
 
     def _open_browser(self):
         pages.launch_external(self, self.link['url'])
@@ -190,7 +194,7 @@ class SuggestionRow(pages.AccountRow):
     def __init__(self, page, suggestion):
         account = suggestion['account']
         super().__init__(page.client, account)
-        self.page = page
+        self._page = page.weak_ref()  # weak: the row lives in the page
         sources = suggestion.get('sources') or [suggestion.get('source')]
         reasons = []
         for source in sources:
@@ -208,12 +212,16 @@ class SuggestionRow(pages.AccountRow):
                                         use_underline=True,
                                         valign=Gtk.Align.CENTER)
         self.follow_button.add_css_class('suggested-action')
-        self.follow_button.connect('clicked', self._on_follow)
+        pages.connect_weak(self.follow_button, 'clicked', self._on_follow)
         self.dismiss_button = pages.icon_button(
-            'window-close-symbolic', _('Dismiss Suggestion'),
-            self._on_dismiss)
+            'window-close-symbolic', _('Dismiss Suggestion'))
+        pages.connect_weak(self.dismiss_button, 'clicked', self._on_dismiss)
         self.add_suffix(self.follow_button)
         self.add_suffix(self.dismiss_button)
+
+    @property
+    def page(self):
+        return self._page()
 
     def _on_follow(self, button):
         button.set_sensitive(False)
@@ -234,7 +242,7 @@ class SuggestionRow(pages.AccountRow):
             'POST', '/accounts/%s/follow' % self.account['id'],
             callback=finished)
 
-    def _on_dismiss(self):
+    def _on_dismiss(self, _button):
         client = self.page.client
         self.dismiss_button.set_sensitive(False)
 
@@ -260,9 +268,11 @@ class SuggestionsPage(Adw.Bin):
 
     def __init__(self, client):
         super().__init__()
+        self.client = client
+        page = self.weak_ref()  # the list is a child: no strong cycle
         self.paged = pages.PagedList(
             client, '/api/v2/suggestions',
-            lambda suggestion: SuggestionRow(self, suggestion)
+            lambda suggestion: SuggestionRow(page(), suggestion)
             if suggestion.get('account') else None,
             params={'limit': 40}, paginated=False,
             empty_title=_('No Suggestions'),
@@ -336,7 +346,8 @@ class ExplorePage(Adw.Bin):
             self.bins[name] = bin_
             self.stack.add_titled_with_icon(bin_, name, title, icon)
         self.set_child(self.stack)
-        self.stack.connect('notify::visible-child-name', self._on_tab)
+        pages.connect_weak(self.stack, 'notify::visible-child-name',
+                           self._on_tab)
         self.switcher = Adw.InlineViewSwitcher(
             stack=self.stack,
             display_mode=Adw.InlineViewSwitcherDisplayMode.LABELS)

@@ -18,7 +18,7 @@ from .i18n import gettext as _
 
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
-from .pages import PagedList, report_error  # noqa: E402
+from .pages import PagedList, connect_weak, report_error  # noqa: E402
 from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
 from .timeline import AvatarCache, parse_content  # noqa: E402
 
@@ -116,7 +116,7 @@ class ReactionsBar(Gtk.Box):
         self.append(self.flow)
 
         chooser = Gtk.EmojiChooser()
-        chooser.connect('emoji-picked', self._on_emoji_picked)
+        connect_weak(chooser, 'emoji-picked', self._on_emoji_picked)
         self.add_button = Gtk.MenuButton(icon_name='list-add-symbolic',
                                          popover=chooser,
                                          valign=Gtk.Align.START)
@@ -131,7 +131,7 @@ class ReactionsBar(Gtk.Box):
 
     def _add(self, reaction):
         button = ReactionButton(reaction)
-        button.toggled_id = button.connect('toggled', self._on_toggled)
+        button.toggled_id = connect_weak(button, 'toggled', self._on_toggled)
         self.buttons[reaction['name']] = button
         self.flow.append(button)
         return button
@@ -184,7 +184,9 @@ class AnnouncementRow(Gtk.ListBoxRow):
 
     def __init__(self, page, announcement):
         super().__init__(activatable=False, selectable=False)
-        self.page = page
+        # Weak: the row lives inside the page; a strong back-reference
+        # through C would keep both alive forever.
+        self._page = page.weak_ref()
         self.announcement = announcement
         client = page.client
         self.add_css_class('announcement-row')
@@ -245,9 +247,16 @@ class AnnouncementRow(Gtk.ListBoxRow):
                                       use_underline=True,
                                       halign=Gtk.Align.END)
         self.read_button.add_css_class('pill')
-        self.read_button.connect('clicked', lambda _b: self.mark_read())
+        connect_weak(self.read_button, 'clicked', self._on_read_clicked)
         box.append(self.read_button)
         self._sync_read()
+
+    @property
+    def page(self):
+        return self._page()
+
+    def _on_read_clicked(self, _button):
+        self.mark_read()
 
     def _sync_read(self):
         unread = not self.announcement.get('read')
@@ -303,11 +312,14 @@ class AnnouncementsPage(PagedList):
         self.mark_all_button.update_property(
             [Gtk.AccessibleProperty.LABEL], [_('Mark All as Read')])
         self.mark_all_button.set_sensitive(False)
-        self.mark_all_button.connect('clicked',
-                                     lambda _b: self.mark_all_read())
+        connect_weak(self.mark_all_button, 'clicked',
+                     self._on_mark_all_clicked)
         self.header_widgets = [self.mark_all_button]
         if not client.instance_info:
             client.instance_info_async(callback=self._on_instance_info)
+
+    def _on_mark_all_clicked(self, _button):
+        self.mark_all_read()
 
     def _on_instance_info(self, client, result, _data=None):
         """The cards show the instance's title and thumbnail; rebuild

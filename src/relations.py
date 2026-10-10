@@ -39,18 +39,24 @@ class FollowRequestsPage(pages.AccountListPage):
                       valign=Gtk.Align.CENTER)
         reject = pages.icon_button(
             'window-close-symbolic',
-            _('Reject Follow Request from %s') % _account_label(account),
-            lambda: self.answer(row, account, 'reject'))
+            _('Reject Follow Request from %s') % _account_label(account))
+        pages.connect_weak(reject, 'clicked', self._on_answer, account,
+                           'reject')
         reject.add_css_class('circular')
         accept = pages.icon_button(
             'object-select-symbolic',
             _('Accept Follow Request from %s') % _account_label(account),
-            lambda: self.answer(row, account, 'authorize'), flat=False)
+            flat=False)
+        pages.connect_weak(accept, 'clicked', self._on_answer, account,
+                           'authorize')
         accept.add_css_class('circular')
         accept.add_css_class('suggested-action')
         box.append(reject)
         box.append(accept)
         return box
+
+    def _on_answer(self, button, account, verb):
+        self.answer(_row_of(button), account, verb)
 
     def answer(self, row, account, verb):
         accepted = verb == 'authorize'
@@ -63,9 +69,16 @@ class FollowRequestsPage(pages.AccountListPage):
             else _('Could not reject the request'))
 
 
-def _remove_button(label, callback):
+def _row_of(button):
+    # Resolved on click rather than bound into the handler: the row owns
+    # the button, so binding the row would cycle through C.
+    return button.get_ancestor(Adw.ActionRow)
+
+
+def _remove_button(label, on_clicked, *extra):
+    """*on_clicked*: a bound method ``(button, *extra)``, held weakly."""
     button = Gtk.Button(label=label, valign=Gtk.Align.CENTER)
-    button.connect('clicked', lambda *_a: callback())
+    pages.connect_weak(button, 'clicked', on_clicked, *extra)
     return button
 
 
@@ -81,8 +94,10 @@ class MutedAccountsPage(pages.AccountListPage):
         self.empty_page.set_icon_name('audio-volume-muted-symbolic')
 
     def _suffix_for(self, account, row):
-        return _remove_button(_('Unmute'),
-                              lambda: self.unmute(row, account))
+        return _remove_button(_('Unmute'), self._on_unmute, account)
+
+    def _on_unmute(self, button, account):
+        self.unmute(_row_of(button), account)
 
     def unmute(self, row, account):
         self.mutate_row(
@@ -104,8 +119,10 @@ class BlockedAccountsPage(pages.AccountListPage):
         self.empty_page.set_icon_name('action-unavailable-symbolic')
 
     def _suffix_for(self, account, row):
-        return _remove_button(_('Unblock'),
-                              lambda: self.unblock(row, account))
+        return _remove_button(_('Unblock'), self._on_unblock, account)
+
+    def _on_unblock(self, button, account):
+        self.unblock(_row_of(button), account)
 
     def unblock(self, row, account):
         self.mutate_row(
@@ -130,9 +147,11 @@ class BlockedDomainsPage(pages.PagedList):
         row = Adw.ActionRow(title=domain, use_markup=False,
                             title_selectable=True)
         row.add_prefix(Gtk.Image(icon_name='network-server-symbolic'))
-        row.add_suffix(_remove_button(
-            _('Unblock'), lambda: self.unblock(row, domain)))
+        row.add_suffix(_remove_button(_('Unblock'), self._on_unblock, domain))
         return row
+
+    def _on_unblock(self, button, domain):
+        self.unblock(_row_of(button), domain)
 
     def unblock(self, row, domain):
         self.mutate_row(

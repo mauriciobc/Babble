@@ -15,7 +15,6 @@ from gi.repository import Adw, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
 import datetime  # noqa: E402
 import re  # noqa: E402
 import time as _time  # noqa: E402
-import weakref  # noqa: E402
 
 from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import (PagedList, connect_weak, launch_external,  # noqa: E402
@@ -1181,7 +1180,9 @@ def _slug(kind):
 def _weak_connect(obj, signal, owner, method):
     """Connect *obj*'s *signal* to ``owner.<method>`` without keeping
     *owner* alive; the handler removes itself once the owner is gone."""
-    ref = weakref.ref(owner)
+    # A GObject weak ref: the Python wrapper of a widget only GTK holds
+    # can be dropped and re-created, which would kill a weakref.ref.
+    ref = owner.weak_ref()
     ids = []
 
     def callback(*args):

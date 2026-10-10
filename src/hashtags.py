@@ -148,7 +148,8 @@ class HashtagPage(Adw.Bin):
             self._load_info()
         else:
             self.edit_button = pages.icon_button(
-                'document-edit-symbolic', _('Edit Timeline'), self._on_edit)
+                'document-edit-symbolic', _('Edit Timeline'))
+            pages.connect_weak(self.edit_button, 'clicked', self._on_edit)
             self.header_widgets = [self.edit_button]
 
     def refresh(self):
@@ -162,9 +163,10 @@ class HashtagPage(Adw.Bin):
                                         use_underline=True,
                                         valign=Gtk.Align.CENTER,
                                         sensitive=False)
-        self.follow_button.connect('clicked', self._on_follow_clicked)
+        pages.connect_weak(self.follow_button, 'clicked',
+                           self._on_follow_clicked)
         self.pin_button = make_pin_button(
-            lambda: self, FAVORITE_TAGS_KEY, name, '#' + name)
+            self, FAVORITE_TAGS_KEY, name, '#' + name)
         self.more_button = Gtk.MenuButton(
             icon_name='view-more-symbolic', tooltip_text=_('More Options'),
             valign=Gtk.Align.CENTER, sensitive=False)
@@ -173,7 +175,7 @@ class HashtagPage(Adw.Bin):
                                          [_('More Options')])
         group = Gio.SimpleActionGroup()
         feature = Gio.SimpleAction.new('feature', None)
-        feature.connect('activate', self._on_feature)
+        pages.connect_weak(feature, 'activate', self._on_feature)
         group.add_action(feature)
         self.more_button.insert_action_group('tag', group)
         self._build_menu()
@@ -281,7 +283,7 @@ class HashtagPage(Adw.Bin):
 
     # Multi-hashtag header
 
-    def _on_edit(self):
+    def _on_edit(self, _button=None):
         definition = self.definition or {
             'title': default_title(self.tags), 'tags': list(self.tags)}
         present_multi_hashtag_editor(
@@ -354,7 +356,9 @@ class _TagsEditor:
     an entry row to add more."""
 
     def __init__(self, title, description, dialog, minimum=0):
-        self.dialog = dialog
+        # Weak: the dialog owns this editor's widgets, whose handlers
+        # hold the editor.
+        self._dialog = dialog.weak_ref()
         self.tags = []
         self.rows = {}
         self.group = Adw.PreferencesGroup(title=title,
@@ -364,6 +368,10 @@ class _TagsEditor:
         self.entry.add_prefix(hash_badge())
         self.entry.connect('apply', self._on_apply)
         self.group.add(self.entry)
+
+    @property
+    def dialog(self):
+        return self._dialog()
 
     def set_tags(self, tags):
         for tag in list(self.tags):
@@ -378,13 +386,16 @@ class _TagsEditor:
         row = Adw.ActionRow(title='#' + name, use_markup=False)
         remove = pages.icon_button('list-remove-symbolic',
                                    _('Remove Hashtag'))
-        remove.connect('clicked', lambda *_a: self.remove(name))
+        remove.connect('clicked', self._on_remove_clicked, name)
         row.add_suffix(remove)
         self.group.add(row)
         self.tags.append(name)
         self.rows[name] = row
         self.dialog.changed()
         return True
+
+    def _on_remove_clicked(self, _button, name):
+        self.remove(name)
 
     def remove(self, name):
         row = self.rows.pop(name, None)
@@ -419,11 +430,11 @@ class MultiHashtagEditor(ToastDialog):
         self.existing = existing
 
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.close())
+        pages.connect_weak(cancel, 'clicked', self._on_cancel)
         self.header.pack_start(cancel)
         self.save_button = Gtk.Button(label=_('_Save'), use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        self.save_button.connect('clicked', self._on_save)
+        pages.connect_weak(self.save_button, 'clicked', self._on_save)
         self.header.pack_end(self.save_button)
 
         group = Adw.PreferencesGroup()
@@ -458,10 +469,13 @@ class MultiHashtagEditor(ToastDialog):
                                 use_underline=True, halign=Gtk.Align.CENTER)
             delete.add_css_class('destructive-action')
             delete.add_css_class('pill')
-            delete.connect('clicked', self._on_delete)
+            pages.connect_weak(delete, 'clicked', self._on_delete)
             danger.add(delete)
             self.page.add(danger)
         self.changed()
+
+    def _on_cancel(self, _button):
+        self.close()
 
     def total(self):
         return (len(self.any_editor.tags) + len(self.all_editor.tags)
@@ -570,18 +584,24 @@ class TagRow(HashtagRow):
 
     def __init__(self, page, tag):
         super().__init__(page.client, tag)
-        self.page = page
+        # Weak: the row lives inside the page; a strong back-reference
+        # would keep the page alive forever.
+        self._page = page.weak_ref()
         name = tag.get('name', '')
-        self.pin = make_pin_button(lambda: self, FAVORITE_TAGS_KEY, name,
+        self.pin = make_pin_button(self, FAVORITE_TAGS_KEY, name,
                                    '#' + name)
         self.unfollow = Gtk.Button(label=_('_Unfollow'), use_underline=True,
                                    valign=Gtk.Align.CENTER)
-        self.unfollow.connect('clicked', self._on_unfollow)
+        pages.connect_weak(self.unfollow, 'clicked', self._on_unfollow)
         self.add_suffix(self.pin)
         self.add_suffix(self.unfollow)
         self.add_suffix(Gtk.Image(
             icon_name='go-next-symbolic',
             accessible_role=Gtk.AccessibleRole.PRESENTATION))
+
+    @property
+    def page(self):
+        return self._page()
 
     def _on_unfollow(self, button):
         name = self.tag['name']
@@ -619,15 +639,19 @@ class SavedTimelinesGroup(Gtk.Box):
 
     def __init__(self, page):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.page = page
+        self._page = page.weak_ref()  # weak: this group is its child
         self.heading = pages.section_label(_('Multi-Hashtag Timelines'))
         self.append(self.heading)
         self.list_box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.list_box.add_css_class('boxed-list')
-        self.list_box.connect('row-activated', self._on_activated)
+        pages.connect_weak(self.list_box, 'row-activated', self._on_activated)
         self.append(self.list_box)
         self.rows = []
         self.reload()
+
+    @property
+    def page(self):
+        return self._page()
 
     def reload(self):
         for row in self.rows:
@@ -640,7 +664,7 @@ class SavedTimelinesGroup(Gtk.Box):
             row.add_prefix(hash_badge())
             edit = pages.icon_button('document-edit-symbolic',
                                      _('Edit Timeline'))
-            edit.connect('clicked', self._on_edit, definition)
+            pages.connect_weak(edit, 'clicked', self._on_edit, definition)
             row.add_suffix(edit)
             row.add_suffix(Gtk.Image(
                 icon_name='go-next-symbolic',
@@ -650,9 +674,12 @@ class SavedTimelinesGroup(Gtk.Box):
             self.rows.append(row)
         add = Adw.ButtonRow(title=_('New Multi-Hashtag Timeline…'))
         add.set_start_icon_name('list-add-symbolic')
-        add.connect('activated', lambda *_a: self.page.new_multi())
+        pages.connect_weak(add, 'activated', self._on_new_activated)
         self.list_box.append(add)
         self.rows.append(add)
+
+    def _on_new_activated(self, _row):
+        self.page.new_multi()
 
     def _on_activated(self, _box, row):
         definition = getattr(row, 'definition', None)
@@ -723,8 +750,9 @@ class FollowedHashtagsPage(Adw.Bin):
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         header.append(self.saved)
         header.append(pages.section_label(_('Followed Hashtags')))
+        page = self.weak_ref()  # the list is a child: no strong cycle
         self.paged = _FollowedTagsList(
-            client, '/followed_tags', lambda tag: TagRow(self, tag),
+            client, '/followed_tags', lambda tag: TagRow(page(), tag),
             empty_title=_('No Followed Hashtags'),
             empty_icon='edit-find-symbolic',
             empty_description=_('Follow a hashtag from its page to see its '
@@ -732,13 +760,16 @@ class FollowedHashtagsPage(Adw.Bin):
             header=header)
         self.set_child(self.paged)
         self.add_button = pages.icon_button(
-            'list-add-symbolic', _('New Multi-Hashtag Timeline'),
-            self.new_multi)
+            'list-add-symbolic', _('New Multi-Hashtag Timeline'))
+        pages.connect_weak(self.add_button, 'clicked', self._on_add_clicked)
         self.header_widgets = [self.add_button]
 
     def refresh(self):
         self.saved.reload()
         self.paged.refresh()
+
+    def _on_add_clicked(self, _button):
+        self.new_multi()
 
     def new_multi(self):
         present_multi_hashtag_editor(

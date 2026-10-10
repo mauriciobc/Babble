@@ -183,7 +183,7 @@ class ReportDialog(Adw.Dialog):
         button = Gtk.Button(label=suggested_label or _('_Next'),
                             use_underline=True, sensitive=False)
         button.add_css_class('suggested-action')
-        button.connect('clicked', self._on_next, name)
+        pages.connect_weak(button, 'clicked', self._on_next, name)
         header.pack_end(button)
         self.next_buttons[name] = button
         toolbar = Adw.ToolbarView(content=content)
@@ -225,7 +225,8 @@ class ReportDialog(Adw.Dialog):
                 first = check
             else:
                 check.set_group(first)
-            check.connect('toggled', self._on_category_toggled, category)
+            pages.connect_weak(check, 'toggled', self._on_category_toggled,
+                               category)
             row = Adw.ActionRow(title=title, subtitle=subtitle,
                                 use_markup=False, activatable_widget=check)
             row.add_prefix(check)
@@ -255,7 +256,7 @@ class ReportDialog(Adw.Dialog):
         for rule in self._rules():
             check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             check.add_css_class('selection-mode')
-            check.connect('toggled', self._on_rule_toggled)
+            pages.connect_weak(check, 'toggled', self._on_rule_toggled)
             row = Adw.ActionRow(
                 title=GLib.markup_escape_text((rule.get('text') or '').strip()),
                 subtitle=GLib.markup_escape_text(
@@ -289,9 +290,16 @@ class ReportDialog(Adw.Dialog):
         hint.add_css_class('dimmed')
         header.append(hint)
 
+        # The list is ours: a strong bound method would cycle through C.
+        ref = self.weak_ref()
+
+        def make_row(status):
+            dialog = ref()
+            return None if dialog is None else dialog._make_post_row(status)
+
         self.posts_list = pages.PagedList(
             self.client, '/accounts/%s/statuses' % self.account['id'],
-            self._make_post_row,
+            make_row,
             params={'limit': 20, 'exclude_replies': 'false',
                     'exclude_reblogs': 'true'},
             empty_title=_('No Posts Found'),
@@ -334,7 +342,8 @@ class ReportDialog(Adw.Dialog):
         self.comment_view.update_property(
             [Gtk.AccessibleProperty.LABEL], [_('Additional Comments')])
         self.comment_buffer = self.comment_view.get_buffer()
-        self.comment_buffer.connect('changed', self._on_comment_changed)
+        pages.connect_weak(self.comment_buffer, 'changed',
+                           self._on_comment_changed)
         scrolled = Gtk.ScrolledWindow(
             child=self.comment_view, min_content_height=140,
             hscrollbar_policy=Gtk.PolicyType.NEVER)

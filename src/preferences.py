@@ -197,7 +197,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         return row
 
     def _combo_string(self, group, key, title, choices, subtitle=None,
-                      on_user_change=None):
+                      sync=False):
         """ComboRow over a string key; *choices* is (nick, label)…"""
         nicks = [choice[0] for choice in choices]
         row = Adw.ComboRow(
@@ -206,21 +206,24 @@ class PreferencesDialog(Adw.PreferencesDialog):
         current = self.settings.get_string(key)
         row.set_selected(nicks.index(current) if current in nicks else 0)
 
-        def selected(row, _pspec):
-            value = nicks[row.get_selected()]
-            if value != self.settings.get_string(key):
-                self.settings.set_string(key, value)
-                if on_user_change is not None:
-                    on_user_change(key)
-
-        row.connect('notify::selected', selected)
+        pages.connect_weak(row, 'notify::selected', self._on_combo_selected,
+                           key, nicks, sync)
         # Follow outside changes (e.g. the keyboard font-size shortcuts).
-        self.settings.connect(
-            'changed::' + key,
-            lambda s, k: row.set_selected(nicks.index(s.get_string(k)))
-            if s.get_string(k) in nicks else None)
+        pages.connect_weak(self.settings, 'changed::' + key,
+                           self._on_combo_setting_changed, row, nicks)
         group.add(row)
         return row
+
+    def _on_combo_selected(self, row, _pspec, key, nicks, sync):
+        value = nicks[row.get_selected()]
+        if value != self.settings.get_string(key):
+            self.settings.set_string(key, value)
+            if sync:
+                self._sync(key)
+
+    def _on_combo_setting_changed(self, settings, key, row, nicks):
+        if settings.get_string(key) in nicks:
+            row.set_selected(nicks.index(settings.get_string(key)))
 
     # Pages
 
@@ -283,7 +286,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         row = self._switch(behavior, 'work-in-background',
                            _('_Run in Background'),
                            _('Keep running after the window is closed to deliver notifications'))
-        row.connect('notify::active', self._on_background_toggled)
+        pages.connect_weak(row, 'notify::active', self._on_background_toggled)
         page.add(behavior)
         return page
 
@@ -333,16 +336,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
             description=_('Changes are also saved to your server preferences'))
         self._combo_string(group, 'default-visibility',
                            _('Default _Visibility'), VISIBILITIES,
-                           on_user_change=self._sync)
+                           sync=True)
         self._combo_string(group, 'default-quote-policy',
                            _('Default _Quote Policy'), QUOTE_POLICIES,
                            subtitle=_('Who can quote your new posts'),
-                           on_user_change=self._sync)
+                           sync=True)
         self._language_row(group)
         row = self._switch(group, 'default-sensitive',
                            _('Mark Media as _Sensitive'))
-        row.connect('notify::active',
-                    lambda *_a: self._sync('default-sensitive'))
+        pages.connect_weak(row, 'notify::active', self._on_sensitive_toggled)
 
         instance = (self.window.account or {}).get('instance', '')
         server = Adw.PreferencesGroup()
@@ -353,13 +355,19 @@ class PreferencesDialog(Adw.PreferencesDialog):
         server_row.add_suffix(Gtk.Image(
             icon_name='adw-external-link-symbolic',
             accessible_role=Gtk.AccessibleRole.PRESENTATION))
-        server_row.connect('activated', lambda _r: Gtk.UriLauncher.new(
-            '%s/settings/preferences' % instance).launch(
-                self.window, None, None))
+        pages.connect_weak(server_row, 'activated',
+                           self._on_server_activated, instance)
         server.add(server_row)
         page.add(group)
         page.add(server)
         return page
+
+    def _on_sensitive_toggled(self, _row, _pspec):
+        self._sync('default-sensitive')
+
+    def _on_server_activated(self, _row, instance):
+        Gtk.UriLauncher.new('%s/settings/preferences' % instance).launch(
+            self.window, None, None)
 
     def _language_row(self, group):
         codes = [''] + [code for code, _n in LANGUAGES]
@@ -369,14 +377,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
         current = self.settings.get_string('default-language')
         row.set_selected(codes.index(current) if current in codes else 0)
 
-        def selected(row, _pspec):
-            value = codes[row.get_selected()]
-            if value != self.settings.get_string('default-language'):
-                self.settings.set_string('default-language', value)
-                self._sync('default-language')
-
-        row.connect('notify::selected', selected)
+        pages.connect_weak(row, 'notify::selected',
+                           self._on_language_selected, codes)
         group.add(row)
+
+    def _on_language_selected(self, row, _pspec, codes):
+        value = codes[row.get_selected()]
+        if value != self.settings.get_string('default-language'):
+            self.settings.set_string('default-language', value)
+            self._sync('default-language')
 
     def _sync(self, key):
         sync_posting_defaults(self.window, key, self.settings)
@@ -392,7 +401,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
             row = Adw.SwitchRow(title=title, subtitle=subtitle or '')
             row.set_active(kind in self.settings.get_strv(
                 'desktop-notification-types'))
-            row.connect('notify::active', self._on_type_toggled, kind)
+            pages.connect_weak(row, 'notify::active', self._on_type_toggled,
+                               kind)
             desktop.add(row)
         self._switch(
             desktop, 'group-desktop-notifications', _('_Group'),
@@ -408,7 +418,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             policy.add_suffix(Gtk.Image(
                 icon_name='go-next-symbolic',
                 accessible_role=Gtk.AccessibleRole.PRESENTATION))
-            policy.connect('activated', self._on_policy_activated)
+            pages.connect_weak(policy, 'activated', self._on_policy_activated)
             server.add(policy)
             page.add(server)
         return page
@@ -443,7 +453,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         row.add_suffix(Gtk.Image(
             icon_name='go-next-symbolic',
             accessible_role=Gtk.AccessibleRole.PRESENTATION))
-        row.connect('activated', self._on_filters_activated)
+        pages.connect_weak(row, 'activated', self._on_filters_activated)
         group.add(row)
         page.add(group)
         return page

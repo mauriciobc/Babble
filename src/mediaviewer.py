@@ -272,6 +272,8 @@ class ZoomPicture(Gtk.Widget):
     """
 
     __gtype_name__ = 'BabbleZoomPicture'
+    __gsignals__ = {
+        'zoom-changed': (GObject.SignalFlags.RUN_FIRST, None, ())}
 
     def __init__(self, **kwargs):
         super().__init__(hexpand=True, vexpand=True, focusable=True,
@@ -285,25 +287,24 @@ class ZoomPicture(Gtk.Widget):
         self._pan_y = 0.0
         self._drag_origin = (0.0, 0.0)
         self._pinch_origin = 1.0
-        self.on_zoom_changed = None
 
         drag = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
-        drag.connect('drag-begin', self._on_drag_begin)
-        drag.connect('drag-update', self._on_drag_update)
+        pages.connect_weak(drag, 'drag-begin', self._on_drag_begin)
+        pages.connect_weak(drag, 'drag-update', self._on_drag_update)
         self.add_controller(drag)
 
         click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-        click.connect('pressed', self._on_pressed)
+        pages.connect_weak(click, 'pressed', self._on_pressed)
         self.add_controller(click)
 
         pinch = Gtk.GestureZoom()
-        pinch.connect('begin', self._on_pinch_begin)
-        pinch.connect('scale-changed', self._on_pinch)
+        pages.connect_weak(pinch, 'begin', self._on_pinch_begin)
+        pages.connect_weak(pinch, 'scale-changed', self._on_pinch)
         self.add_controller(pinch)
 
         scroll = Gtk.EventControllerScroll(
             flags=Gtk.EventControllerScrollFlags.BOTH_AXES)
-        scroll.connect('scroll', self._on_scroll)
+        pages.connect_weak(scroll, 'scroll', self._on_scroll)
         self.add_controller(scroll)
 
     # Geometry
@@ -354,8 +355,7 @@ class ZoomPicture(Gtk.Widget):
         self.set_cursor_from_name(
             None if self.fitted else
             ('grabbing' if self._dragging else 'grab'))
-        if self.on_zoom_changed is not None:
-            self.on_zoom_changed()
+        self.emit('zoom-changed')
 
     _dragging = False
 
@@ -509,8 +509,9 @@ class MediaViewer(Adw.Dialog):
         self._build()
         self.connect('closed', self._on_closed)
         if self.window is not None:
-            self._fullscreen_handler = self.window.connect(
-                'notify::fullscreened', self._on_fullscreen_changed)
+            self._fullscreen_handler = pages.connect_weak(
+                self.window, 'notify::fullscreened',
+                self._on_fullscreen_changed)
         self.show_index(index)
 
     # Construction
@@ -523,8 +524,8 @@ class MediaViewer(Adw.Dialog):
 
         self.fullscreen_button = _icon_button(
             'view-fullscreen-symbolic', _('Fullscreen'))
-        self.fullscreen_button.connect(
-            'clicked', lambda _button: self.toggle_fullscreen())
+        pages.connect_weak(self.fullscreen_button, 'clicked',
+                           self._on_fullscreen_clicked)
         self.header.pack_end(self.fullscreen_button)
 
         menu = Gio.Menu()
@@ -538,14 +539,13 @@ class MediaViewer(Adw.Dialog):
 
         self.save_button = _icon_button(
             'document-save-symbolic', _('Save As…'))
-        self.save_button.connect('clicked', lambda _button: self.save_as())
+        pages.connect_weak(self.save_button, 'clicked', self._on_save_clicked)
         self.header.pack_end(self.save_button)
 
         actions = Gio.SimpleActionGroup()
-        for name, handler in (('copy-url', self.copy_url),
-                              ('open-browser', self.open_in_browser)):
+        for name in ('copy-url', 'open-browser'):
             action = Gio.SimpleAction.new(name, None)
-            action.connect('activate', lambda _a, _p, h=handler: h())
+            pages.connect_weak(action, 'activate', self._on_action)
             actions.add_action(action)
         self.insert_action_group('viewer', actions)
 
@@ -562,7 +562,8 @@ class MediaViewer(Adw.Dialog):
         self.stack.add_named(spinner_page, 'loading')
 
         self.picture = ZoomPicture()
-        self.picture.on_zoom_changed = self._update_zoom_controls
+        pages.connect_weak(self.picture, 'zoom-changed',
+                           self._on_zoom_changed)
         self.stack.add_named(self.picture, 'image')
 
         self.media_bin = Adw.Bin(hexpand=True, vexpand=True)
@@ -576,13 +577,13 @@ class MediaViewer(Adw.Dialog):
                                        use_underline=True)
         self.retry_button.add_css_class('pill')
         self.retry_button.add_css_class('suggested-action')
-        self.retry_button.connect(
-            'clicked', lambda _button: self.show_index(self.index))
+        pages.connect_weak(self.retry_button, 'clicked',
+                           self._on_retry_clicked)
         self.error_browser_button = Gtk.Button(
             label=_('_Open in Browser'), use_underline=True)
         self.error_browser_button.add_css_class('pill')
-        self.error_browser_button.connect(
-            'clicked', lambda _button: self.open_in_browser())
+        pages.connect_weak(self.error_browser_button, 'clicked',
+                           self._on_browser_clicked)
         self.error_buttons.append(self.retry_button)
         self.error_buttons.append(self.error_browser_button)
         self.error_page.set_child(self.error_buttons)
@@ -596,14 +597,14 @@ class MediaViewer(Adw.Dialog):
         self.previous_button.set_halign(Gtk.Align.START)
         self.previous_button.set_valign(Gtk.Align.CENTER)
         self.previous_button.set_margin_start(12)
-        self.previous_button.connect(
-            'clicked', lambda _button: self.go_previous())
+        pages.connect_weak(self.previous_button, 'clicked',
+                           self._on_previous_clicked)
         self.next_button = _icon_button(
             'go-next-symbolic', _('Next Attachment'), ('osd', 'circular'))
         self.next_button.set_halign(Gtk.Align.END)
         self.next_button.set_valign(Gtk.Align.CENTER)
         self.next_button.set_margin_end(12)
-        self.next_button.connect('clicked', lambda _button: self.go_next())
+        pages.connect_weak(self.next_button, 'clicked', self._on_next_clicked)
         self.overlay.add_overlay(self.previous_button)
         self.overlay.add_overlay(self.next_button)
 
@@ -615,23 +616,23 @@ class MediaViewer(Adw.Dialog):
         self.zoom_controls.add_css_class('media-viewer-zoom')
         self.zoom_out_button = _icon_button(
             'zoom-out-symbolic', _('Zoom Out'), ('flat', 'circular'))
-        self.zoom_out_button.connect(
-            'clicked', lambda _button: self.picture.zoom_out())
+        pages.connect_weak(self.zoom_out_button, 'clicked',
+                           self._on_zoom_out_clicked)
         self.zoom_label_button = Gtk.Button(
             label='100%', tooltip_text=_('Toggle Fit and Actual Size'))
         self.zoom_label_button.add_css_class('flat')
         self.zoom_label_button.add_css_class('numeric')
-        self.zoom_label_button.connect(
-            'clicked', lambda _button: self.picture.toggle_actual_size())
+        pages.connect_weak(self.zoom_label_button, 'clicked',
+                           self._on_zoom_label_clicked)
         self.zoom_in_button = _icon_button(
             'zoom-in-symbolic', _('Zoom In'), ('flat', 'circular'))
-        self.zoom_in_button.connect(
-            'clicked', lambda _button: self.picture.zoom_in())
+        pages.connect_weak(self.zoom_in_button, 'clicked',
+                           self._on_zoom_in_clicked)
         self.zoom_fit_button = _icon_button(
             'zoom-fit-best-symbolic', _('Fit to Window'),
             ('flat', 'circular'))
-        self.zoom_fit_button.connect(
-            'clicked', lambda _button: self.picture.zoom_fit())
+        pages.connect_weak(self.zoom_fit_button, 'clicked',
+                           self._on_zoom_fit_clicked)
         for widget in (self.zoom_out_button, self.zoom_label_button,
                        self.zoom_in_button, self.zoom_fit_button):
             self.zoom_controls.append(widget)
@@ -655,8 +656,42 @@ class MediaViewer(Adw.Dialog):
         self.set_child(self.toasts)
 
         keys = Gtk.EventControllerKey()
-        keys.connect('key-pressed', self._on_key_pressed)
+        pages.connect_weak(keys, 'key-pressed', self._on_key_pressed)
         self.add_controller(keys)
+
+    def _on_fullscreen_clicked(self, _button):
+        self.toggle_fullscreen()
+
+    def _on_save_clicked(self, _button):
+        self.save_as()
+
+    def _on_action(self, action, _param):
+        {'copy-url': self.copy_url,
+         'open-browser': self.open_in_browser}[action.get_name()]()
+
+    def _on_retry_clicked(self, _button):
+        self.show_index(self.index)
+
+    def _on_browser_clicked(self, _button):
+        self.open_in_browser()
+
+    def _on_previous_clicked(self, _button):
+        self.go_previous()
+
+    def _on_next_clicked(self, _button):
+        self.go_next()
+
+    def _on_zoom_out_clicked(self, _button):
+        self.picture.zoom_out()
+
+    def _on_zoom_label_clicked(self, _button):
+        self.picture.toggle_actual_size()
+
+    def _on_zoom_in_clicked(self, _button):
+        self.picture.zoom_in()
+
+    def _on_zoom_fit_clicked(self, _button):
+        self.picture.zoom_fit()
 
     def _build_bottom(self):
         self.bottom = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
@@ -670,7 +705,7 @@ class MediaViewer(Adw.Dialog):
             tooltip_text=_('Show or Hide Description'))
         self.alt_toggle.add_css_class('media-viewer-alt-badge')
         _label(self.alt_toggle, _('Show or Hide Description'))
-        self.alt_toggle.connect('toggled', self._on_alt_toggled)
+        pages.connect_weak(self.alt_toggle, 'toggled', self._on_alt_toggled)
         self.alt_box.append(self.alt_toggle)
 
         self.alt_label = Gtk.Label(
@@ -846,6 +881,9 @@ class MediaViewer(Adw.Dialog):
             self._first_focus = False
             self.picture.grab_focus()
 
+    def _on_zoom_changed(self, _picture):
+        self._update_zoom_controls()
+
     def _update_zoom_controls(self):
         scale = self.picture.scale
         self.zoom_label_button.set_label('{:d}%'.format(round(scale * 100)))
@@ -871,7 +909,7 @@ class MediaViewer(Adw.Dialog):
             view.update_property([Gtk.AccessibleProperty.LABEL],
                                  [self._description(attachment)])
             click = Gtk.GestureClick()
-            click.connect('pressed', self._on_gifv_pressed, stream)
+            pages.connect_weak(click, 'pressed', self._on_gifv_pressed, stream)
             view.add_controller(click)
             autoplay = animations
         elif kind == 'video':
@@ -883,8 +921,9 @@ class MediaViewer(Adw.Dialog):
             view = self._audio_view(attachment, stream)
             autoplay = True
         self.media_bin.set_child(view)
-        stream.connect('notify::error', self._on_stream_error)
-        stream.connect('notify::prepared', self._on_stream_prepared, autoplay)
+        pages.connect_weak(stream, 'notify::error', self._on_stream_error)
+        pages.connect_weak(stream, 'notify::prepared', self._on_stream_prepared,
+                           autoplay)
         if stream.get_error() is not None:
             self._on_stream_error(stream, None)
         elif stream.is_prepared():

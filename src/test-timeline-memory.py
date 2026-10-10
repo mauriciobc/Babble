@@ -9,7 +9,6 @@ display."""
 import gc
 import os
 import sys
-import weakref
 
 import gi
 
@@ -110,13 +109,13 @@ class _Source:
 row = timeline.StatusRow()
 row.bind(timeline.StatusItem(status(1, 'see <a href="https://e.org">'
                                        'e.org</a>')), _Client())
-row_ref, body_ref = weakref.ref(row), weakref.ref(row.content)
+row_ref, body_ref = row.weak_ref(), row.content.weak_ref()
 del row
 check('a dropped status row is freed', freed(row_ref))
 check('its text view is freed', freed(body_ref))
 
 page = timeline.TimelinePage(None, source=_Source())
-page_ref, model_ref = weakref.ref(page), weakref.ref(page.model)
+page_ref, model_ref = page.weak_ref(), page.model.weak_ref()
 del page
 check('a dropped timeline page is freed', freed(page_ref))
 check('its model is freed', freed(model_ref))
@@ -157,19 +156,19 @@ page._on_endorsements(api, [account(n) for n in range(5, 10)])
 page._open_image_on_click(page.avatar, 'https://e.org/a.png', None)
 page._relationship_known = True
 page.set_relationship({'id': '1', 'following': True, 'note': 'note'})
-page_ref = weakref.ref(page)
+page_ref = page.weak_ref()
 del page
 check('a dropped profile page is freed', freed(page_ref))
 
 view = Adw.NavigationView()
 dialog = profile.ProfileDialog(
     view, profile.ProfilePage(api, account(1), viewer_id='99'), 'User 1')
-dialog_ref = weakref.ref(dialog)
+dialog_ref = dialog.weak_ref()
 del dialog
 check('a dropped profile sheet is freed', freed(dialog_ref))
 
 dialog = profile.PrivateNoteDialog('@user1', 'note', lambda _text: None)
-dialog_ref = weakref.ref(dialog)
+dialog_ref = dialog.weak_ref()
 del dialog
 check('a dropped private note dialog is freed', freed(dialog_ref))
 
@@ -178,7 +177,7 @@ row = notifications.NotificationRow()
 row.bind(notifications.NotificationItem(
     {'id': '1', 'type': 'follow_request', 'account': actor,
      'created_at': '2026-10-05T10:10:00.000Z'}), api)
-row_ref = weakref.ref(row)
+row_ref = row.weak_ref()
 del row
 check('a dropped notification row is freed', freed(row_ref))
 
@@ -187,7 +186,7 @@ model.append_page([{'id': '1', 'type': 'mention', 'account': actor,
                     'created_at': '2026-10-05T10:10:00.000Z',
                     'status': status(1, 'hello')}])
 page = notifications.NotificationsPage(api, model=model)
-page_ref, model_ref = weakref.ref(page), weakref.ref(model)
+page_ref, model_ref = page.weak_ref(), model.weak_ref()
 del page, model
 check('a dropped notifications page is freed', freed(page_ref))
 check('its notification model is freed', freed(model_ref))
@@ -203,6 +202,20 @@ box.append(body)
 natural = box.measure(Gtk.Orientation.VERTICAL, 600).natural
 check('an unallocated body is not one character per line',
       0 < natural < 200)
+
+# Weak hookups must survive PyGObject dropping and re-creating the Python
+# wrapper of a widget that only GTK holds.
+held = timeline.TimelinePage(None, source=_Source())
+box.append(held)
+held._pill_count = 5
+held.new_posts_revealer.set_reveal_child(True)
+del held
+gc.collect()
+held = box.get_last_child()
+held.new_pill.emit('clicked')
+check('a page held only by GTK still handles its signals',
+      held._pill_count == 0
+      and not held.new_posts_revealer.get_reveal_child())
 
 if failures:
     print('%d checks failed' % len(failures))

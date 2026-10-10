@@ -4,7 +4,6 @@ import collections
 import datetime
 import html as html_module
 import urllib.parse
-import weakref
 from html.parser import HTMLParser
 
 import gi
@@ -2082,7 +2081,7 @@ class StatusRow(Gtk.Overlay):
         # The actions and the menu are built when the menu opens: a list
         # binds rows far more often than anyone opens their menu.
         self._menu_actions = None
-        button.set_create_popup_func(_open_row_menu, weakref.ref(self))
+        button.set_create_popup_func(_open_row_menu, self.weak_ref())
         return button
 
     def _ensure_menu_actions(self):
@@ -3295,7 +3294,7 @@ class TimelinePage(Adw.Bin):
         self._auto_refresh_ticks = 0
         if seconds > 0:
             self._auto_refresh_id = GLib.timeout_add_seconds(
-                seconds, _auto_refresh_tick, weakref.ref(self))
+                seconds, _auto_refresh_tick, self.weak_ref())
 
     def _on_auto_refresh(self):
         if not self.get_mapped() or self.model.loading:
@@ -3531,8 +3530,9 @@ class _RefreshGesture:
     def __init__(self, page, scrolled):
         # Held weakly: the controller lives on the scrolled window inside
         # the page, so strong references here would keep the page alive
-        # through the handler.
-        self._page = weakref.ref(page)
+        # through the handler. A GObject weak reference, because PyGObject
+        # re-creates the page's Python wrapper while GTK alone holds it.
+        self._page = page.weak_ref()
         controller = Gtk.EventControllerScroll.new(
             Gtk.EventControllerScrollFlags.VERTICAL)
         controller.connect('scroll', self.on_scroll)

@@ -23,6 +23,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
 # Tuba: scheduled statuses dated in a year after this one are drafts.
@@ -112,12 +113,12 @@ class SchedulePickerDialog(Adw.Dialog):
         header = Adw.HeaderBar(show_start_title_buttons=False,
                                show_end_title_buttons=False)
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.close())
+        pages.connect_weak(cancel, 'clicked', self._on_cancel)
         header.pack_start(cancel)
         self.schedule_button = Gtk.Button(
             label=button_label or _('_Schedule'), use_underline=True)
         self.schedule_button.add_css_class('suggested-action')
-        self.schedule_button.connect('clicked', self._on_accept)
+        pages.connect_weak(self.schedule_button, 'clicked', self._on_accept)
         header.pack_end(self.schedule_button)
         toolbar.add_top_bar(header)
 
@@ -164,10 +165,10 @@ class SchedulePickerDialog(Adw.Dialog):
         self.set_child(toolbar)
         self.set_default_widget(self.schedule_button)
 
-        self.calendar.connect('day-selected', self._validate)
-        self.hour_spin.connect('value-changed', self._validate)
-        self.minute_spin.connect('value-changed', self._validate)
-        self.zone_row.connect('notify::selected', self._validate)
+        pages.connect_weak(self.calendar, 'day-selected', self._validate)
+        pages.connect_weak(self.hour_spin, 'value-changed', self._validate)
+        pages.connect_weak(self.minute_spin, 'value-changed', self._validate)
+        pages.connect_weak(self.zone_row, 'notify::selected', self._validate)
         self._validate()
 
     @staticmethod
@@ -211,6 +212,9 @@ class SchedulePickerDialog(Adw.Dialog):
         valid = lead >= MIN_LEAD_SECONDS
         self.schedule_button.set_sensitive(valid)
         self.hint.set_visible(not valid)
+
+    def _on_cancel(self, _button):
+        self.close()
 
     def _on_accept(self, *_args):
         self._validate()
@@ -261,21 +265,21 @@ class ScheduledRow(Gtk.ListBoxRow):
         self.buttons = []
         if draft:
             header.append(self._add_button(
-                'document-edit-symbolic', _('Open'), self.on_activate))
+                'document-edit-symbolic', _('Open'), 'on_activate'))
             header.append(self._add_button(
-                'user-trash-symbolic', _('Delete'), self._on_delete,
+                'user-trash-symbolic', _('Delete'), '_on_delete',
                 destructive=True))
         else:
             self.edit_button = self._add_button(
-                'document-edit-symbolic', _('Edit'), self._on_edit)
+                'document-edit-symbolic', _('Edit'), '_on_edit')
             header.append(self.edit_button)
             header.append(self._add_button(
-                'alarm-symbolic', _('Reschedule'), self._on_reschedule))
+                'alarm-symbolic', _('Reschedule'), '_on_reschedule'))
             header.append(self._add_button(
                 'folder-new-symbolic', _('Convert into a Draft'),
-                self._on_convert))
+                '_on_convert'))
             header.append(self._add_button(
-                'user-trash-symbolic', _('Delete'), self._on_delete,
+                'user-trash-symbolic', _('Delete'), '_on_delete',
                 destructive=True))
         column.append(header)
 
@@ -285,12 +289,17 @@ class ScheduledRow(Gtk.ListBoxRow):
         self.set_child(column)
         self.bind(scheduled)
 
-    def _add_button(self, icon, tooltip, callback, destructive=False):
-        button = pages.icon_button(icon, tooltip, callback)
+    def _add_button(self, icon, tooltip, method_name, destructive=False):
+        button = pages.icon_button(icon, tooltip)
+        pages.connect_weak(button, 'clicked', self._on_button_clicked,
+                           method_name)
         if destructive:
             button.add_css_class('destructive-action')
         self.buttons.append(button)
         return button
+
+    def _on_button_clicked(self, _button, method_name):
+        getattr(self, method_name)()
 
     # Rendering
 
@@ -542,16 +551,18 @@ class _ScheduledPage(Adw.Bin):
     def __init__(self, client, empty_title, empty_icon, empty_description):
         super().__init__()
         self.client = client
+        # The list and its rows live inside the page: hand them weak
+        # callbacks so they do not keep the page alive through C.
         self.list = _FilteredList(
-            client, self._make_row, self.DRAFTS,
+            client, weak_method(self._make_row), self.DRAFTS,
             empty_title=empty_title, empty_icon=empty_icon,
             empty_description=empty_description)
         self.set_child(self.list)
 
     def _make_row(self, scheduled):
         return ScheduledRow(self.client, scheduled, draft=self.DRAFTS,
-                            on_removed=self.list.remove_row,
-                            on_refresh=self.refresh)
+                            on_removed=weak_method(self.list.remove_row),
+                            on_refresh=weak_method(self.refresh))
 
     def refresh(self):
         self.list.refresh()

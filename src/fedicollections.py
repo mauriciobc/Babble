@@ -29,6 +29,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .pages import weak_method  # noqa: E402
 from .mastodon import (summarize_error,  # noqa: E402
                        summarize_error_markup)
 
@@ -154,17 +155,27 @@ class CollectionActions:
     def menu_button(self):
         group = Gio.SimpleActionGroup()
         menu = Gio.Menu()
-        entries = [('copy-url', _('Copy URL'), self.copy_url)]
+        entries = [('copy-url', _('Copy URL'))]
         if self.is_owner:
-            entries.append(('edit', _('Edit'), self.edit))
+            entries.append(('edit', _('Edit')))
         if self.my_item is not None and not self.is_owner:
-            entries.append(('remove-me', _('Remove Myself'),
-                            self.remove_me))
+            entries.append(('remove-me', _('Remove Myself')))
         if self.is_owner:
-            entries.append(('delete', _('Delete'), self.delete))
-        for name, label, callback in entries:
+            entries.append(('delete', _('Delete')))
+        # The widget owns the button and keeps this object as
+        # ``widget.actions``: reach it through a GObject weak reference
+        # so the handlers do not keep the widget alive.
+        widget = self.widget.weak_ref()
+
+        def activate(action, _param):
+            owner = widget()
+            if owner is not None:
+                # 'copy-url' -> copy_url, 'remove-me' -> remove_me, ...
+                getattr(owner.actions, action.get_name().replace('-', '_'))()
+
+        for name, label in entries:
             action = Gio.SimpleAction.new(name, None)
-            action.connect('activate', lambda _a, _p, cb=callback: cb())
+            action.connect('activate', activate)
             group.add_action(action)
             menu.append(label, 'collection.' + name)
         button = Gtk.MenuButton(icon_name='view-more-symbolic',
@@ -274,7 +285,8 @@ class CollectionRow(Adw.ActionRow):
             % count
         self.set_subtitle(self._count_text)
         self.add_prefix(AvatarStack(client, collection))
-        actions = CollectionActions(self, client, collection, on_changed)
+        actions = self.actions = CollectionActions(self, client, collection,
+                                                   on_changed)
         self.add_suffix(actions.menu_button())
         if not actions.is_owner:
             fetch_accounts(client, [collection.get('account_id')],
@@ -315,8 +327,8 @@ class CollectionsPage(Adw.Bin):
         self.title_widget = Adw.InlineViewSwitcher(
             stack=self.stack, display_mode=Adw.InlineViewSwitcherDisplayMode.LABELS)
         self.new_button = pages.icon_button(
-            'list-add-symbolic', _('New Collection'), self._on_new,
-            flat=False)
+            'list-add-symbolic', _('New Collection'), flat=False)
+        pages.connect_weak(self.new_button, 'clicked', self._on_new)
         self.new_button.add_css_class('suggested-action')
         self.header_widgets = [self.new_button]
 
@@ -345,16 +357,18 @@ class CollectionsPage(Adw.Bin):
         _send(self.client, 'GET', '/accounts/verify_credentials', ok, failed)
 
     def _build(self):
+        # The lists and their rows live inside the page: hand them weak
+        # callbacks so they do not keep the page alive through C.
         self.own = pages.PagedList(
             self.client, '/accounts/%s/collections' % self.me,
-            self._make_row, empty_title=_('No Collections'),
+            weak_method(self._make_row), empty_title=_('No Collections'),
             empty_icon='folder-symbolic',
             empty_description=_('Collections you create to recommend '
                                 'accounts show up here.'),
-            extract=self._extract_own)
+            extract=weak_method(self._extract_own))
         self.featuring = pages.PagedList(
             self.client, '/accounts/%s/in_collections' % self.me,
-            self._make_row, empty_title=_('No Collections'),
+            weak_method(self._make_row), empty_title=_('No Collections'),
             empty_icon='avatar-default-symbolic',
             empty_description=_('Collections other people add you to '
                                 'show up here.'),
@@ -382,9 +396,9 @@ class CollectionsPage(Adw.Bin):
         return GLib.SOURCE_REMOVE
 
     def _make_row(self, collection):
-        return CollectionRow(self.client, collection, self.refresh)
+        return CollectionRow(self.client, collection, weak_method(self.refresh))
 
-    def _on_new(self):
+    def _on_new(self, _button):
         dialog = CollectionEditDialog(self.client, None,
                                       on_saved=self.refresh)
         dialog.present(self)
@@ -413,9 +427,12 @@ class CollectionPage(Adw.Bin):
         self.stack.add_named(pages.make_loading_page(_('Loading')),
                              'loading')
         self.error_page = pages.make_error_page(
-            _('Could Not Load'), lambda *_a: self.refresh())
+            _('Could Not Load'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self._body = None
+        self.refresh()
+
+    def _on_retry(self, _button):
         self.refresh()
 
     def refresh(self):
@@ -441,8 +458,8 @@ class CollectionPage(Adw.Bin):
         by_id = {account['id']: account for account in accounts}
         if self._body is not None:
             self.stack.remove(self._body)
-        actions = CollectionActions(self, self.client, collection,
-                                    self.refresh, self._pop)
+        actions = self._actions = CollectionActions(
+            self, self.client, collection, self.refresh, self._pop)
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
                          margin_top=18, margin_bottom=24, margin_start=12,
                          margin_end=12)
@@ -459,7 +476,7 @@ class CollectionPage(Adw.Bin):
             name = tag['name'].lstrip('#')
             chip = Gtk.Button(label='#' + name, halign=Gtk.Align.CENTER)
             chip.add_css_class('pill')
-            chip.connect('clicked', lambda *_a, n=name: self._open_tag(n))
+            pages.connect_weak(chip, 'clicked', self._on_tag_clicked, name)
             column.append(chip)
 
         details = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
@@ -484,24 +501,28 @@ class CollectionPage(Adw.Bin):
         buttons = Gtk.Box(spacing=6, halign=Gtk.Align.CENTER)
         copy = Gtk.Button(label=_('Copy _URL'), use_underline=True)
         copy.add_css_class('pill')
-        copy.connect('clicked', lambda *_a: actions.copy_url())
+        pages.connect_weak(copy, 'clicked', self._on_action_clicked,
+                           'copy_url')
         buttons.append(copy)
         if actions.is_owner:
             edit = Gtk.Button(label=_('_Edit'), use_underline=True)
             edit.add_css_class('pill')
-            edit.connect('clicked', lambda *_a: actions.edit())
+            pages.connect_weak(edit, 'clicked', self._on_action_clicked,
+                               'edit')
             buttons.append(edit)
             delete = Gtk.Button(label=_('_Delete'), use_underline=True)
             delete.add_css_class('pill')
             delete.add_css_class('destructive-action')
-            delete.connect('clicked', lambda *_a: actions.delete())
+            pages.connect_weak(delete, 'clicked', self._on_action_clicked,
+                               'delete')
             buttons.append(delete)
         elif actions.my_item is not None:
             leave = Gtk.Button(label=_('Remove _Myself'),
                                use_underline=True)
             leave.add_css_class('pill')
             leave.add_css_class('destructive-action')
-            leave.connect('clicked', lambda *_a: actions.remove_me())
+            pages.connect_weak(leave, 'clicked', self._on_action_clicked,
+                               'remove_me')
             buttons.append(leave)
         column.append(buttons)
 
@@ -533,8 +554,8 @@ class CollectionPage(Adw.Bin):
             show.add_css_class('pill')
             warning.set_child(show)
             details.set_visible(False)
-            show.connect('clicked', lambda *_a: (
-                details.set_visible(True), warning.set_visible(False)))
+            self._hidden = (details, warning)
+            pages.connect_weak(show, 'clicked', self._on_show_content)
             column.append(warning)
         column.append(details)
 
@@ -553,6 +574,17 @@ class CollectionPage(Adw.Bin):
             badge.add_css_class('warning')
             row.add_suffix(badge)
         return row
+
+    def _on_tag_clicked(self, _button, name):
+        self._open_tag(name)
+
+    def _on_action_clicked(self, _button, method):
+        getattr(self._actions, method)()
+
+    def _on_show_content(self, _button):
+        details, warning = self._hidden
+        details.set_visible(True)
+        warning.set_visible(False)
 
     def _open_tag(self, name):
         from .hashtags import push_hashtag
@@ -615,13 +647,13 @@ class CollectionEditDialog(Adw.Dialog):
         toolbar = Adw.ToolbarView(content=self.toasts)
         header = Adw.HeaderBar()
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.close())
+        pages.connect_weak(cancel, 'clicked', self._on_cancel)
         header.pack_start(cancel)
         self.save_button = Gtk.Button(
             label=_('_Save') if self.edit_mode else _('_Create'),
             use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        self.save_button.connect('clicked', self._on_save)
+        pages.connect_weak(self.save_button, 'clicked', self._on_save)
         header.pack_end(self.save_button)
         toolbar.add_top_bar(header)
         self.set_child(toolbar)
@@ -629,7 +661,7 @@ class CollectionEditDialog(Adw.Dialog):
         details = Adw.PreferencesGroup()
         self.name_row = Adw.EntryRow(title=_('Name'))
         self._limit_length(self.name_row, 40)
-        self.name_row.connect('changed', self._update_save)
+        pages.connect_weak(self.name_row, 'changed', self._update_save)
         self.description_row = Adw.EntryRow(title=_('Description'))
         self._limit_length(self.description_row, 100)
         self.topic_row = Adw.EntryRow(title=_('Topic (Hashtag)'))
@@ -681,7 +713,8 @@ class CollectionEditDialog(Adw.Dialog):
             description=_('Only people who allow being featured can be '
                           'added.'))
         self.search_row = Adw.EntryRow(title=_('Search Accounts'))
-        self.search_row.connect('changed', self._on_search_changed)
+        pages.connect_weak(self.search_row, 'changed',
+                           self._on_search_changed)
         self.search_group.add(self.search_row)
         self.page.add(self.search_group)
         self.members_group = Adw.PreferencesGroup()
@@ -708,6 +741,9 @@ class CollectionEditDialog(Adw.Dialog):
         delegate = row.get_delegate()
         if delegate is not None and hasattr(delegate, 'set_max_length'):
             delegate.set_max_length(length)
+
+    def _on_cancel(self, _button):
+        self.close()
 
     def toast(self, text):
         self.toasts.add_toast(Adw.Toast(title=text, use_markup=False,
@@ -755,14 +791,18 @@ class CollectionEditDialog(Adw.Dialog):
         row = MemberRow(account)
         if item and item.get('state') == 'pending':
             row.add_badge(_('Pending'))
-        remove = pages.icon_button('user-trash-symbolic', _('Remove'),
-                                   lambda a=account: self._remove(a))
+        remove = pages.icon_button('user-trash-symbolic', _('Remove'))
+        pages.connect_weak(remove, 'clicked', self._on_remove_clicked,
+                           account)
         remove.add_css_class('error')
         row.add_suffix(remove)
         self.members[account['id']] = {'row': row, 'item': item}
         self.members_group.add(row)
         self._update_members_title()
         self._refresh_results()
+
+    def _on_remove_clicked(self, _button, account):
+        self._remove(account)
 
     def _remove_member(self, account_id):
         entry = self.members.pop(account_id, None)
@@ -838,13 +878,16 @@ class CollectionEditDialog(Adw.Dialog):
         row.account_data = account
         button = Gtk.Button(label=_('_Add'), use_underline=True,
                             valign=Gtk.Align.CENTER)
-        button.connect('clicked',
-                       lambda *_a, a=account, r=row: self._invite(a, r))
+        pages.connect_weak(button, 'clicked', self._on_add_clicked)
         row.add_suffix(button)
         row.add_button = button
         self._search_results.append(row)
         self.search_group.add(row)
         self._refresh_result(row)
+
+    def _on_add_clicked(self, button):
+        row = next(r for r in self._search_results if r.add_button is button)
+        self._invite(row.account_data, row)
 
     def _refresh_results(self):
         for row in self._search_results:

@@ -59,16 +59,22 @@ def set_pinned(widget, key, item_id, pinned):
     return pinned
 
 
-def make_pin_button(widget_provider, key, item_id, what):
+def make_pin_button(widget, key, item_id, what):
     """Flat toggle with a star: pins *item_id* under settings *key*.
-    *widget_provider* is a callable returning a widget inside the window
-    (the button itself is not parented yet when created)."""
+    *widget* is the page or row that will be inside the window (the
+    button itself is not parented yet when created). It is held weakly:
+    the button is normally its child, and a strong reference would keep
+    both alive forever."""
+    widget_ref = widget.weak_ref()
     button = Gtk.ToggleButton(valign=Gtk.Align.CENTER)
     button.add_css_class('flat')
     state = {'busy': False}
 
     def sync(*_a):
-        pinned = is_pinned(widget_provider(), key, item_id)
+        widget = widget_ref()
+        if widget is None:
+            return
+        pinned = is_pinned(widget, key, item_id)
         state['busy'] = True
         button.set_active(pinned)
         state['busy'] = False
@@ -80,13 +86,14 @@ def make_pin_button(widget_provider, key, item_id, what):
         button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
 
     def toggled(_button):
-        if state['busy']:
+        widget = widget_ref()
+        if state['busy'] or widget is None:
             return
         pinned = button.get_active()
-        set_pinned(widget_provider(), key, item_id, pinned)
+        set_pinned(widget, key, item_id, pinned)
         sync()
         pages.show_toast(
-            widget_provider(),
+            widget,
             (_('%s pinned to the sidebar') if pinned
              else _('%s unpinned from the sidebar')) % what)
 
@@ -176,21 +183,21 @@ class ListEditor(ToastDialog):
         self._members = {}
 
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.close())
+        pages.connect_weak(cancel, 'clicked', self._on_cancel)
         self.header.pack_start(cancel)
         self.save_button = Gtk.Button(
             label=_('_Save') if list_json else _('C_reate'),
             use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        self.save_button.connect('clicked', self._on_save)
+        pages.connect_weak(self.save_button, 'clicked', self._on_save)
         self.header.pack_end(self.save_button)
         self.set_default_widget(self.save_button)
 
         group = Adw.PreferencesGroup()
         self.title_row = Adw.EntryRow(title=_('Title'))
         self.title_row.set_text((list_json or {}).get('title', ''))
-        self.title_row.connect('changed', self._update_sensitive)
-        self.title_row.connect('apply', self._on_save)
+        pages.connect_weak(self.title_row, 'changed', self._update_sensitive)
+        pages.connect_weak(self.title_row, 'apply', self._on_save)
         self.title_row.set_show_apply_button(False)
         group.add(self.title_row)
 
@@ -218,11 +225,14 @@ class ListEditor(ToastDialog):
                                 halign=Gtk.Align.CENTER)
             delete.add_css_class('destructive-action')
             delete.add_css_class('pill')
-            delete.connect('clicked', self._on_delete)
+            pages.connect_weak(delete, 'clicked', self._on_delete)
             danger.add(delete)
             self.page.add(danger)
         self._update_sensitive()
         self.set_focus(self.title_row)
+
+    def _on_cancel(self, _button):
+        self.close()
 
     def _update_sensitive(self, *_a):
         self.save_button.set_sensitive(bool(self.title_row.get_text().strip()))
@@ -299,7 +309,7 @@ class ListEditor(ToastDialog):
         self.search_row = Adw.EntryRow(title=_('Search Accounts'))
         self.search_row.add_prefix(Gtk.Image(
             icon_name='system-search-symbolic'))
-        self.search_row.connect('changed', self._on_search_changed)
+        pages.connect_weak(self.search_row, 'changed', self._on_search_changed)
         self.search_group.add(self.search_row)
         self.result_rows = []
         self.page.add(self.members_group)
@@ -329,7 +339,7 @@ class ListEditor(ToastDialog):
         row = AvatarRow(account)
         remove = pages.icon_button('list-remove-symbolic',
                                    _('Remove from List'))
-        remove.connect('clicked', self._on_remove_member, row)
+        pages.connect_weak(remove, 'clicked', self._on_remove_member, row)
         row.add_suffix(remove)
         self._members[account['id']] = row
         self.member_rows.append(row)
@@ -397,7 +407,7 @@ class ListEditor(ToastDialog):
                 continue
             row = AvatarRow(account)
             add = pages.icon_button('list-add-symbolic', _('Add to List'))
-            add.connect('clicked', self._on_add_member, row)
+            pages.connect_weak(add, 'clicked', self._on_add_member, row)
             row.add_suffix(add)
             self.result_rows.append(row)
             self.search_group.add(row)
@@ -463,16 +473,17 @@ class ListTimelinePage(Adw.Bin):
             _('Add members to the list to see their posts'))
         self.set_child(self.timeline)
         self.pin_button = make_pin_button(
-            lambda: self, FAVORITE_LISTS_KEY, list_json['id'],
+            self, FAVORITE_LISTS_KEY, list_json['id'],
             list_json.get('title', ''))
         self.edit_button = pages.icon_button(
-            'document-edit-symbolic', _('Edit List'), self._on_edit)
+            'document-edit-symbolic', _('Edit List'))
+        pages.connect_weak(self.edit_button, 'clicked', self._on_edit)
         self.header_widgets = [self.edit_button, self.pin_button]
 
     def refresh(self):
         self.timeline.refresh()
 
-    def _on_edit(self):
+    def _on_edit(self, _button):
         present_list_editor(self, self.client, self.list,
                             on_saved=self._on_saved,
                             on_deleted=self._on_deleted)
@@ -504,21 +515,27 @@ class ListRow(Adw.ActionRow):
 
     def __init__(self, page, list_json):
         super().__init__(activatable=True, use_markup=False)
-        self.page = page
+        self._page = page.weak_ref()  # weak: the row lives in the page
         self.list = list_json
         self.add_prefix(Gtk.Image(icon_name='view-list-symbolic'))
         self._bind()
-        self.pin = make_pin_button(lambda: self, FAVORITE_LISTS_KEY,
+        self.pin = make_pin_button(self, FAVORITE_LISTS_KEY,
                                    list_json['id'], list_json['title'])
         self.edit = pages.icon_button('document-edit-symbolic',
-                                      _('Edit List'), self._on_edit)
+                                      _('Edit List'))
+        pages.connect_weak(self.edit, 'clicked', self._on_edit)
         self.delete = pages.icon_button('user-trash-symbolic',
-                                        _('Delete List'), self._on_delete)
+                                        _('Delete List'))
+        pages.connect_weak(self.delete, 'clicked', self._on_delete)
         self.add_suffix(self.pin)
         self.add_suffix(self.edit)
         self.add_suffix(self.delete)
         self.add_suffix(Gtk.Image(icon_name='go-next-symbolic',
                                   accessible_role=Gtk.AccessibleRole.PRESENTATION))
+
+    @property
+    def page(self):
+        return self._page()
 
     def _bind(self):
         self.set_title(self.list.get('title', ''))
@@ -531,7 +548,7 @@ class ListRow(Adw.ActionRow):
     def on_activate(self):
         push_list(self, self.page.client, self.list)
 
-    def _on_edit(self):
+    def _on_edit(self, _button):
         present_list_editor(self, self.page.client, self.list,
                             on_saved=self._on_saved,
                             on_deleted=self._on_deleted)
@@ -544,7 +561,7 @@ class ListRow(Adw.ActionRow):
         set_pinned(self, FAVORITE_LISTS_KEY, list_json['id'], False)
         self.page.paged.remove_row(self)
 
-    def _on_delete(self):
+    def _on_delete(self, _button):
         def really():
             pages.call(
                 self, self.page.client, 'DELETE',
@@ -567,8 +584,9 @@ class ListsPage(Adw.Bin):
     def __init__(self, client):
         super().__init__()
         self.client = client
+        page = self.weak_ref()  # the list is a child: no strong cycle
         self.paged = pages.PagedList(
-            client, '/lists', lambda item: ListRow(self, item),
+            client, '/lists', lambda item: ListRow(page(), item),
             paginated=False, empty_title=_('No Lists'),
             empty_icon='view-list-symbolic',
             empty_description=_('Create a list to follow a group of people '
@@ -577,15 +595,19 @@ class ListsPage(Adw.Bin):
                             halign=Gtk.Align.CENTER)
         create.add_css_class('suggested-action')
         create.add_css_class('pill')
-        create.connect('clicked', lambda *_a: self.new_list())
+        pages.connect_weak(create, 'clicked', self._on_new_clicked)
         self.paged.empty_page.set_child(create)
         self.set_child(self.paged)
         self.add_button = pages.icon_button('list-add-symbolic',
-                                            _('New List'), self.new_list)
+                                            _('New List'))
+        pages.connect_weak(self.add_button, 'clicked', self._on_new_clicked)
         self.header_widgets = [self.add_button]
 
     def refresh(self):
         self.paged.refresh()
+
+    def _on_new_clicked(self, _button):
+        self.new_list()
 
     def new_list(self):
         present_list_editor(self, self.client, None,
@@ -611,7 +633,7 @@ class _MembershipDialog(ToastDialog):
 
         done = Gtk.Button(label=_('_Done'), use_underline=True)
         done.add_css_class('suggested-action')
-        done.connect('clicked', lambda *_a: self.close())
+        pages.connect_weak(done, 'clicked', self._on_close_clicked)
         self.header.pack_end(done)
 
         self.group = Adw.PreferencesGroup(
@@ -619,7 +641,7 @@ class _MembershipDialog(ToastDialog):
             description=_('Lists with @%s as a member are checked')
             % account.get('acct', ''))
         new = pages.icon_button('list-add-symbolic', _('New List'))
-        new.connect('clicked', self._on_new)
+        pages.connect_weak(new, 'clicked', self._on_new)
         self.group.set_header_suffix(new)
         self.spinner = Adw.Spinner(halign=Gtk.Align.CENTER, margin_top=12,
                                    margin_bottom=12)
@@ -672,7 +694,8 @@ class _MembershipDialog(ToastDialog):
                               [item.get('title', '')])
         row.add_prefix(check)
         row.set_activatable_widget(check)
-        handler = check.connect('toggled', self._on_toggled, item, row)
+        handler = pages.connect_weak(check, 'toggled', self._on_toggled,
+                                     item, row)
         row.handler = handler
         self.group.add(row)
         self.empty_row.set_visible(False)
@@ -703,6 +726,9 @@ class _MembershipDialog(ToastDialog):
             check.set_active(not adding)
             check.handler_unblock(row.handler)
             self.toast(error_text(error))
+
+    def _on_close_clicked(self, _button):
+        self.close()
 
     def _on_new(self, _button):
         def created(list_json, _created):

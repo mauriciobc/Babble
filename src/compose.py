@@ -206,7 +206,8 @@ class BabbleComposeView(Adw.Bin):
         toolbar_view.add_top_bar(self.build_header_bar())
         self.reply_banner = Adw.Banner(title=_('Replying to a post'),
                                        button_label=_('_Cancel Reply'))
-        self.reply_banner.connect('button-clicked', self.on_reply_cancel)
+        pages.connect_weak(self.reply_banner, 'button-clicked',
+                           self.on_reply_cancel)
         toolbar_view.add_top_bar(self.reply_banner)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
@@ -231,7 +232,9 @@ class BabbleComposeView(Adw.Bin):
         for accel in ('<Control>Return', '<Control>KP_Enter'):
             shortcuts.add_shortcut(Gtk.Shortcut.new(
                 Gtk.ShortcutTrigger.parse_string(accel),
-                Gtk.CallbackAction.new(self._on_post_shortcut)))
+                # Unbound: the action passes the widget, so it never
+                # captures (and pins) this view.
+                Gtk.CallbackAction.new(BabbleComposeView._on_post_shortcut)))
         self.add_controller(shortcuts)
         self.update_compose_state()
 
@@ -248,13 +251,14 @@ class BabbleComposeView(Adw.Bin):
         header = Adw.HeaderBar()
         self.discard_button = Gtk.Button(icon_name='user-trash-symbolic')
         _set_label(self.discard_button, _('Discard Draft'))
-        self.discard_button.connect('clicked', self.on_discard_clicked)
+        pages.connect_weak(self.discard_button, 'clicked',
+                           self.on_discard_clicked)
         header.pack_start(self.discard_button)
 
         self.post_button = Gtk.Button(label=_('_Post'), use_underline=True)
         self.post_button.add_css_class('suggested-action')
         self.post_button.set_tooltip_text(_('Post (Ctrl+Enter)'))
-        self.post_button.connect('clicked', self.on_post_clicked)
+        pages.connect_weak(self.post_button, 'clicked', self.on_post_clicked)
         header.pack_end(self.post_button)
         self.progress_spinner = Adw.Spinner(visible=False)
         header.pack_end(self.progress_spinner)
@@ -262,7 +266,7 @@ class BabbleComposeView(Adw.Bin):
 
     def build_text_area(self):
         self.buffer = Gtk.TextBuffer()
-        self.buffer.connect('changed', self.on_draft_changed)
+        pages.connect_weak(self.buffer, 'changed', self.on_draft_changed)
         self.text_view = Gtk.TextView(buffer=self.buffer,
                                       wrap_mode=Gtk.WrapMode.WORD_CHAR,
                                       top_margin=12, bottom_margin=12,
@@ -291,7 +295,8 @@ class BabbleComposeView(Adw.Bin):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 
         self.spoiler_entry = Adw.EntryRow(title=_('Content Warning'))
-        self.spoiler_entry.connect('changed', self.on_draft_changed)
+        pages.connect_weak(self.spoiler_entry, 'changed',
+                           self.on_draft_changed)
         self._spoiler_box = Gtk.ListBox(
             selection_mode=Gtk.SelectionMode.NONE, visible=False)
         self._spoiler_box.add_css_class('boxed-list')
@@ -310,7 +315,8 @@ class BabbleComposeView(Adw.Bin):
         self.poll_add = Adw.ButtonRow(title=_('_Add Choice'),
                                       use_underline=True,
                                       start_icon_name='list-add-symbolic')
-        self.poll_add.connect('activated', self.on_poll_add_choice)
+        pages.connect_weak(self.poll_add, 'activated',
+                           self.on_poll_add_choice)
         self._poll_box.append(self.poll_add)
         for _n in range(2):
             self.on_poll_add_choice(self.poll_add)
@@ -334,19 +340,22 @@ class BabbleComposeView(Adw.Bin):
 
         self.attach_button = icon_button('mail-attachment-symbolic',
                                          _('Attach Media'))
-        self.attach_button.connect('clicked', self.on_attach_clicked)
+        pages.connect_weak(self.attach_button, 'clicked',
+                           self.on_attach_clicked)
         self.cw_toggle = icon_button('dialog-warning-symbolic',
                                      _('Content Warning'), toggle=True)
-        self.cw_toggle.connect('toggled', self.on_cw_toggled)
+        pages.connect_weak(self.cw_toggle, 'toggled', self.on_cw_toggled)
         self.poll_toggle = icon_button('babble-compose-poll-symbolic',
                                        _('Poll'), toggle=True)
-        self.poll_toggle.connect('toggled', self.on_poll_toggled)
+        pages.connect_weak(self.poll_toggle, 'toggled', self.on_poll_toggled)
         self.mention_button = icon_button('contact-new-symbolic',
                                           _('Mention'))
-        self.mention_button.connect('clicked', self.on_mention_clicked)
+        pages.connect_weak(self.mention_button, 'clicked',
+                           self.on_mention_clicked)
         self.emoji_button = icon_button('face-smile-symbolic',
                                         _('Insert Emoji'))
-        self.emoji_button.connect('clicked', self.on_emoji_clicked)
+        pages.connect_weak(self.emoji_button, 'clicked',
+                           self.on_emoji_clicked)
         self.thread_toggle = icon_button('view-list-symbolic',
                                          _('Keep Open for a Thread'),
                                          toggle=True)
@@ -602,7 +611,7 @@ class BabbleComposeView(Adw.Bin):
             return
         entry = Adw.EntryRow(title=_('Choice %d')
                              % (len(self.poll_entries) + 1))
-        entry.connect('changed', self.on_draft_changed)
+        pages.connect_weak(entry, 'changed', self.on_draft_changed)
         self._poll_box.insert(entry, len(self.poll_entries))
         self.poll_entries.append(entry)
         self.poll_add.set_visible(len(self.poll_entries) < MAX_POLL_CHOICES)
@@ -614,7 +623,7 @@ class BabbleComposeView(Adw.Bin):
     def on_emoji_clicked(self, _button):
         chooser = Gtk.EmojiChooser()
         chooser.set_parent(self.emoji_button)
-        chooser.connect('emoji-picked', self.on_emoji_picked)
+        pages.connect_weak(chooser, 'emoji-picked', self.on_emoji_picked)
         chooser.connect('closed', lambda c: c.unparent())
         chooser.popup()
 
@@ -665,8 +674,11 @@ class BabbleComposeView(Adw.Bin):
         if not path or len(self.attachments()) >= MAX_ATTACHMENTS:
             return None
         row = AttachmentRow(path)
-        row.remove_button.connect('clicked', self.on_remove_attachment, row)
-        row.alt_entry.connect('changed', self.on_alt_changed, row)
+        # The row is looked up from the emitter: passing it as user data
+        # would pin it through its own button and entry.
+        pages.connect_weak(row.remove_button, 'clicked',
+                           self._on_row_remove_clicked)
+        pages.connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
         if alt:
             row.alt_entry.set_text(alt)
         rows = self.attachments()
@@ -703,6 +715,12 @@ class BabbleComposeView(Adw.Bin):
             row.path, alt=alt, position=position))
         self._add_toast(toast)
 
+    def _on_row_remove_clicked(self, button):
+        self.on_remove_attachment(button, button.get_ancestor(AttachmentRow))
+
+    def _on_row_alt_changed(self, entry):
+        self.on_alt_changed(entry, entry.get_ancestor(AttachmentRow))
+
     def on_alt_changed(self, _entry, row):
         row.description = row.alt_entry.get_text()
 
@@ -727,7 +745,9 @@ class BabbleComposeView(Adw.Bin):
 
     # Posting
 
-    def _on_post_shortcut(self, _widget, _args):
+    def _on_post_shortcut(self, _args):
+        # Called unbound by the shortcut action as (widget, args): the
+        # widget is this view.
         self.on_post_clicked(self.post_button)
         return True
 
@@ -1045,7 +1065,7 @@ class ComposeDialog(Adw.Dialog):
         super().__init__(content_width=600, content_height=480, **kwargs)
         self.view = BabbleComposeView(client)
         self.view._select_visibility(default_visibility())
-        self.view.connect('changed', self._on_view_changed)
+        pages.connect_weak(self.view, 'changed', self._on_view_changed)
         self.set_child(self.view)
         self.set_focus(self.view.text_view)
         self._on_view_changed(self.view)

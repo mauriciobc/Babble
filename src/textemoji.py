@@ -200,6 +200,11 @@ class InlineEmojiText(Gtk.TextView):
         # Pango layout of the current text for do_measure's estimate.
         self._estimate_layout = None
         self.set_editable(False)
+        # Nothing is ever typed here. A platform input-method module (IBus)
+        # keeps a strong reference to its client text view, which is only
+        # dropped in the view's dispose: the view could then never be
+        # freed. The built-in simple context holds no such reference.
+        self.set_property('im-module', 'gtk-im-context-simple')
         self.set_focusable(False)
         self.set_vexpand(False)
         if single_line:

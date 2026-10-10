@@ -17,8 +17,8 @@ import re  # noqa: E402
 
 from gi.repository import Adw, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
 
-from .pages import (PagedList, confirm, open_status, report_error,  # noqa: E402
-                    show_toast, window_of)
+from .pages import (PagedList, confirm, connect_weak,  # noqa: E402
+                    open_status, report_error, show_toast, window_of)
 from .timeline import AvatarCache, parse_content, relative_time  # noqa: E402
 
 MAX_AVATARS = 3
@@ -64,7 +64,9 @@ class ConversationRow(Gtk.ListBoxRow):
 
     def __init__(self, page, conversation):
         super().__init__(activatable=True)
-        self.page = page
+        # Weak: the row lives inside the page; a strong back-reference
+        # through C would keep both alive forever.
+        self._page = page.weak_ref()
         self.conversation = conversation
         self.add_css_class('conversation-row')
 
@@ -111,11 +113,11 @@ class ConversationRow(Gtk.ListBoxRow):
         self.unread_dot.add_css_class('accent')
         box.append(self.unread_dot)
 
+        # The actions, which the row owns, hold the row only weakly.
         actions = Gio.SimpleActionGroup()
-        for name, handler in (('read', lambda *_a: self.mark_read()),
-                              ('delete', lambda *_a: self.delete())):
+        for name in self._ACTIONS:
             action = Gio.SimpleAction.new(name, None)
-            action.connect('activate', handler)
+            connect_weak(action, 'activate', self._on_action)
             actions.add_action(action)
         self.read_action = actions.lookup_action('read')
         menu = Gio.Menu()
@@ -132,6 +134,15 @@ class ConversationRow(Gtk.ListBoxRow):
         box.append(self.menu_button)
 
         self.update_content()
+
+    @property
+    def page(self):
+        return self._page()
+
+    _ACTIONS = {'read': 'mark_read', 'delete': 'delete'}
+
+    def _on_action(self, action, _param):
+        getattr(self, self._ACTIONS[action.get_name()])()
 
     def update_content(self):
         conversation = self.conversation
@@ -238,8 +249,11 @@ class ConversationsPage(PagedList):
         button.set_tooltip_text(_('New Direct Message'))
         button.update_property([Gtk.AccessibleProperty.LABEL],
                                [_('New Direct Message')])
-        button.connect('clicked', lambda _b: self.new_message())
+        connect_weak(button, 'clicked', self._on_new_clicked)
         self.header_widgets = [button]
+
+    def _on_new_clicked(self, _button):
+        self.new_message()
 
     def _make_row(self, conversation):
         return ConversationRow(self, conversation)

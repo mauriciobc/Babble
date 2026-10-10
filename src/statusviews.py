@@ -61,7 +61,8 @@ class StatusStatsView(Adw.Bin):
             kind = self._kinds[0]
         self.stack.set_visible_child_name(kind)
         self._ensure_built(kind)
-        self.stack.connect('notify::visible-child-name', self._on_switched)
+        pages.connect_weak(self.stack, 'notify::visible-child-name',
+                           self._on_switched)
 
         self.switcher = Adw.ViewSwitcher(
             stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
@@ -165,7 +166,7 @@ class EditHistoryView(Adw.Bin):
         self.stack = Gtk.Stack()
         self.loading_page = pages.make_loading_page(_('Loading Edit History'))
         self.error_page = pages.make_error_page(
-            _('Could Not Load Edit History'), lambda _b: self.refresh())
+            _('Could Not Load Edit History'), self._on_retry)
         self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                spacing=12, margin_top=12, margin_bottom=12,
                                margin_start=12, margin_end=12)
@@ -177,6 +178,9 @@ class EditHistoryView(Adw.Bin):
         self.stack.add_named(self.error_page, 'error')
         self.stack.add_named(scrolled, 'list')
         self.set_child(self.stack)
+        self.refresh()
+
+    def _on_retry(self, _button):
         self.refresh()
 
     def refresh(self):

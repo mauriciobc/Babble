@@ -12,7 +12,7 @@ gi.require_version('Adw', '1')
 
 from .i18n import gettext as _, ngettext  # noqa: E402
 
-from gi.repository import Adw, Gdk, GLib, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gio, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
@@ -121,31 +121,40 @@ def present_profile_edit(parent, client, account, on_saved=None):
 
 
 class FieldRow(Adw.ExpanderRow):
-    """One profile field: label and content entries."""
+    """One profile field: label and content entries. Emits
+    ``remove-requested`` and ``field-changed``: callbacks into the
+    dialog stored on the row would pin the dialog that owns it."""
 
-    def __init__(self, name, value, index, limits, on_remove, on_change):
+    __gsignals__ = {
+        'remove-requested': (GObject.SignalFlags.RUN_FIRST, None, ()),
+        'field-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+
+    def __init__(self, name, value, index, limits):
         super().__init__(expanded=bool(name or value), use_markup=False)
         self._limits = limits
         self.name_row = Adw.EntryRow(title=_('Label'), text=name or '')
         self.value_row = Adw.EntryRow(title=_('Content'), text=value or '')
         self.add_row(self.name_row)
         self.add_row(self.value_row)
-        remove = pages.icon_button(
-            'user-trash-symbolic', _('Remove Field'),
-            lambda: on_remove(self))
+        remove = pages.icon_button('user-trash-symbolic', _('Remove Field'))
+        pages.connect_weak(remove, 'clicked', self._on_remove_clicked)
         self.add_suffix(remove)
         self.set_index(index)
-        self.name_row.connect('changed', self._changed, on_change)
-        self.value_row.connect('changed', self._changed, on_change)
+        pages.connect_weak(self.name_row, 'changed', self._changed)
+        pages.connect_weak(self.value_row, 'changed', self._changed)
         self._update()
 
     def set_index(self, index):
         self._index = index
         self._update()
 
-    def _changed(self, _row, on_change):
+    def _on_remove_clicked(self, _button):
+        self.emit('remove-requested')
+
+    def _changed(self, _row):
         self._update()
-        on_change()
+        self.emit('field-changed')
 
     def _update(self):
         self.set_title(self.name_row.get_text()
@@ -206,11 +215,12 @@ class ProfileEditDialog(Adw.Dialog):
                                show_end_title_buttons=False)
         self.cancel_button = Gtk.Button(label=_('_Cancel'),
                                         use_underline=True)
-        self.cancel_button.connect('clicked', lambda *_a: self.close())
+        pages.connect_weak(self.cancel_button, 'clicked',
+                           self._on_cancel_clicked)
         header.pack_start(self.cancel_button)
         self.save_button = Gtk.Button(label=_('_Save'), use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        self.save_button.connect('clicked', self.on_save_clicked)
+        pages.connect_weak(self.save_button, 'clicked', self.on_save_clicked)
         header.pack_end(self.save_button)
 
         toolbar = Adw.ToolbarView(content=page)
@@ -269,7 +279,7 @@ class ProfileEditDialog(Adw.Dialog):
             self.avatar_alt = Adw.EntryRow(
                 title=_('Avatar Description'),
                 text=self.account.get('avatar_description') or '')
-            self.avatar_alt.connect('changed', self.on_changed)
+            pages.connect_weak(self.avatar_alt, 'changed', self.on_changed)
             listbox.add(self.avatar_alt)
         self.header_row = Adw.ActionRow(title=_('Header Image'),
                                         subtitle=_('PNG, JPEG, GIF or WebP'),
@@ -281,7 +291,7 @@ class ProfileEditDialog(Adw.Dialog):
             self.header_alt = Adw.EntryRow(
                 title=_('Header Description'),
                 text=self.account.get('header_description') or '')
-            self.header_alt.connect('changed', self.on_changed)
+            pages.connect_weak(self.header_alt, 'changed', self.on_changed)
             listbox.add(self.header_alt)
         page.add(group)
         page.add(listbox)
@@ -292,7 +302,8 @@ class ProfileEditDialog(Adw.Dialog):
             [Gtk.AccessibleProperty.LABEL],
             [_('Choose Header Image') if for_header
              else _('Choose Avatar')])
-        button.connect('clicked', self.on_choose_clicked, for_header)
+        pages.connect_weak(button, 'clicked', self.on_choose_clicked,
+                           for_header)
         return button
 
     def on_choose_clicked(self, _button, for_header):
@@ -348,7 +359,7 @@ class ProfileEditDialog(Adw.Dialog):
         self.name_row = Adw.EntryRow(
             title=_('Display Name'),
             text=self.account.get('display_name') or '')
-        self.name_row.connect('changed', self.on_changed)
+        pages.connect_weak(self.name_row, 'changed', self.on_changed)
         group.add(self.name_row)
         page.add(group)
 
@@ -360,7 +371,7 @@ class ProfileEditDialog(Adw.Dialog):
                                       [_('Bio')])
         self.bio_buffer = self.bio_view.get_buffer()
         self.bio_buffer.set_text(self.source.get('note') or '', -1)
-        self.bio_buffer.connect('changed', self.on_changed)
+        pages.connect_weak(self.bio_buffer, 'changed', self.on_changed)
         scrolled = Gtk.ScrolledWindow(
             child=self.bio_view, min_content_height=110,
             max_content_height=240, propagate_natural_height=True)
@@ -387,8 +398,8 @@ class ProfileEditDialog(Adw.Dialog):
             % self.limits['max_profile_fields'])
         self.add_field_row = Adw.ButtonRow(title=_('Add Field'),
                                            start_icon_name='list-add-symbolic')
-        self.add_field_row.connect('activated',
-                                   lambda *_a: self.add_field('', ''))
+        pages.connect_weak(self.add_field_row, 'activated',
+                           self._on_add_field_activated)
         self.fields_group.add(self.add_field_row)
         for field in self.source.get('fields') or []:
             self.add_field(field.get('name', ''), field.get('value', ''),
@@ -399,8 +410,9 @@ class ProfileEditDialog(Adw.Dialog):
     def add_field(self, name, value, track=True):
         if len(self.fields) >= self.limits['max_profile_fields']:
             return None
-        row = FieldRow(name, value, len(self.fields), self.limits,
-                       self.remove_field, self.on_changed)
+        row = FieldRow(name, value, len(self.fields), self.limits)
+        pages.connect_weak(row, 'remove-requested', self.remove_field)
+        pages.connect_weak(row, 'field-changed', self.on_changed)
         self.fields.append(row)
         self.fields_group.remove(self.add_field_row)
         self.fields_group.add(row)
@@ -435,7 +447,7 @@ class ProfileEditDialog(Adw.Dialog):
                 continue
             row = Adw.SwitchRow(title=title, subtitle=subtitle,
                                 active=self._flag_value(key))
-            row.connect('notify::active', self.on_changed)
+            pages.connect_weak(row, 'notify::active', self.on_changed)
             self.flag_rows[key] = row
             group.add(row)
         if self.flag_rows:
@@ -450,13 +462,15 @@ class ProfileEditDialog(Adw.Dialog):
         privacy = self.source.get('privacy') or 'public'
         self.privacy_row.set_selected(codes.index(privacy)
                                       if privacy in codes else 0)
-        self.privacy_row.connect('notify::selected', self.on_changed)
+        pages.connect_weak(self.privacy_row, 'notify::selected',
+                           self.on_changed)
         group.add(self.privacy_row)
 
         self.sensitive_row = Adw.SwitchRow(
             title=_('Mark Media as Sensitive'),
             active=bool(self.source.get('sensitive')))
-        self.sensitive_row.connect('notify::active', self.on_changed)
+        pages.connect_weak(self.sensitive_row, 'notify::active',
+                           self.on_changed)
         group.add(self.sensitive_row)
 
         self.languages = list(LANGUAGES)
@@ -468,7 +482,8 @@ class ProfileEditDialog(Adw.Dialog):
             model=Gtk.StringList.new([name for _c, name in self.languages]))
         self.language_row.set_selected(
             [code for code, _n in self.languages].index(current))
-        self.language_row.connect('notify::selected', self.on_changed)
+        pages.connect_weak(self.language_row, 'notify::selected',
+                           self.on_changed)
         group.add(self.language_row)
         page.add(group)
 
@@ -482,7 +497,7 @@ class ProfileEditDialog(Adw.Dialog):
                 continue
             row = Adw.SwitchRow(title=title,
                                 active=bool(self.account.get(key)))
-            row.connect('notify::active', self.on_changed)
+            pages.connect_weak(row, 'notify::active', self.on_changed)
             self.tab_rows[key] = row
             group.add(row)
         media = self.tab_rows.get('show_media')
@@ -583,6 +598,12 @@ class ProfileEditDialog(Adw.Dialog):
     def has_changes(self):
         fields, files, tab_changes = self.collect()
         return bool(fields or files or tab_changes)
+
+    def _on_cancel_clicked(self, _button):
+        self.close()
+
+    def _on_add_field_activated(self, _row):
+        self.add_field('', '')
 
     def on_changed(self, *_args):
         self.update_state()

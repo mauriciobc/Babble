@@ -133,8 +133,11 @@ class _KeywordRow(Adw.EntryRow):
         remove.add_css_class('circular')
         remove.update_property([Gtk.AccessibleProperty.LABEL],
                                [_('Remove Keyword')])
-        remove.connect('clicked', lambda _b: self.emit('removed'))
+        pages.connect_weak(remove, 'clicked', self._on_remove_clicked)
         self.add_suffix(remove)
+
+    def _on_remove_clicked(self, _button):
+        self.emit('removed')
 
     def value(self):
         return {'id': self.keyword_id, 'keyword': self.get_text(),
@@ -158,7 +161,7 @@ class FilterEditPage(Adw.NavigationPage):
 
         self.save_button = Gtk.Button(label=_('_Save'), use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        self.save_button.connect('clicked', self._on_save_clicked)
+        pages.connect_weak(self.save_button, 'clicked', self._on_save_clicked)
         header = Adw.HeaderBar()
         header.pack_end(self.save_button)
 
@@ -167,7 +170,7 @@ class FilterEditPage(Adw.NavigationPage):
         group = Adw.PreferencesGroup()
         self.title_row = Adw.EntryRow(title=_('_Title'), use_underline=True,
                                       text=item.get('title', ''))
-        self.title_row.connect('changed', lambda *_a: self._validate())
+        pages.connect_weak(self.title_row, 'changed', self._on_form_changed)
         group.add(self.title_row)
         page.add(group)
 
@@ -179,8 +182,7 @@ class FilterEditPage(Adw.NavigationPage):
             self._add_keyword_row(keyword)
         add = Adw.ButtonRow(title=_('_Add Keyword'), use_underline=True,
                             start_icon_name='list-add-symbolic')
-        add.connect('activated', lambda _r: self._add_keyword_row(
-            None, focus=True))
+        pages.connect_weak(add, 'activated', self._on_add_keyword)
         self.keywords_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.keywords_list.add_css_class('boxed-list')
         for row in self._keyword_rows:
@@ -196,7 +198,7 @@ class FilterEditPage(Adw.NavigationPage):
         active = set(item.get('context') or ('home', 'public'))
         for name, label in CONTEXTS:
             row = Adw.SwitchRow(title=label, active=name in active)
-            row.connect('notify::active', lambda *_a: self._validate())
+            pages.connect_weak(row, 'notify::active', self._on_form_changed)
             self._context_rows[name] = row
             contexts.add(row)
         page.add(contexts)
@@ -211,7 +213,8 @@ class FilterEditPage(Adw.NavigationPage):
                                      if current in names else 0)
         self.action_row.set_subtitle(
             ACTIONS[self.action_row.get_selected()][2])
-        self.action_row.connect('notify::selected', self._on_action_changed)
+        pages.connect_weak(self.action_row, 'notify::selected',
+                           self._on_action_changed)
         options.add(self.action_row)
 
         labels = [label for _s, label in EXPIRIES]
@@ -231,7 +234,7 @@ class FilterEditPage(Adw.NavigationPage):
             delete = Adw.ButtonRow(title=_('_Delete Filter'),
                                    use_underline=True)
             delete.add_css_class('destructive-action')
-            delete.connect('activated', self._on_delete_clicked)
+            pages.connect_weak(delete, 'activated', self._on_delete_clicked)
             danger.add(delete)
             page.add(danger)
 
@@ -245,12 +248,15 @@ class FilterEditPage(Adw.NavigationPage):
 
     def _add_keyword_row(self, keyword, focus=False):
         row = _KeywordRow(keyword)
-        row.connect('removed', self._on_keyword_removed)
+        pages.connect_weak(row, 'removed', self._on_keyword_removed)
         self._keyword_rows.append(row)
         if focus:
             self.keywords_list.insert(row, len(self._keyword_rows) - 1)
             row.grab_focus()
         return row
+
+    def _on_add_keyword(self, _row):
+        self._add_keyword_row(None, focus=True)
 
     def _on_keyword_removed(self, row):
         self._keyword_rows.remove(row)
@@ -260,6 +266,9 @@ class FilterEditPage(Adw.NavigationPage):
         row.set_subtitle(ACTIONS[row.get_selected()][2])
 
     # Saving
+
+    def _on_form_changed(self, *_args):
+        self._validate()
 
     def _validate(self):
         valid = bool(self.title_row.get_text().strip()) and any(
@@ -353,7 +362,7 @@ class FiltersList(Adw.Bin):
         self.stack.add_named(pages.make_loading_page(_('Loading Filters')),
                              'loading')
         self.error_page = pages.make_error_page(
-            _('Could Not Load Filters'), lambda _b: self.refresh())
+            _('Could Not Load Filters'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self.empty_page = Adw.StatusPage(
             icon_name='view-filter-symbolic', title=_('No Filters'),
@@ -371,6 +380,9 @@ class FiltersList(Adw.Bin):
         scrolled.set_child(clamp)
         self.stack.add_named(scrolled, 'list')
         self.set_child(self.stack)
+        self.refresh()
+
+    def _on_retry(self, _button):
         self.refresh()
 
     def refresh(self):
@@ -402,8 +414,14 @@ class FiltersList(Adw.Bin):
                             activatable=True)
         row.add_suffix(Gtk.Image(icon_name='go-next-symbolic',
                                  accessible_role=Gtk.AccessibleRole.PRESENTATION))
-        row.connect('activated', lambda _r: self.edit(item))
+        pages.connect_weak(row, 'activated', self._on_row_activated, item)
         return row
+
+    def _on_row_activated(self, _row, item):
+        self.edit(item)
+
+    def _on_add_clicked(self, _button):
+        self.edit(None)
 
     def edit(self, item=None):
         self.navigation_view.push(
@@ -421,7 +439,7 @@ def present_filters(parent_widget, client):
     add = Gtk.Button(icon_name='list-add-symbolic',
                      tooltip_text=_('New Filter'))
     add.update_property([Gtk.AccessibleProperty.LABEL], [_('New Filter')])
-    add.connect('clicked', lambda _b: listing.edit(None))
+    pages.connect_weak(add, 'clicked', listing._on_add_clicked)
     header = Adw.HeaderBar()
     header.pack_start(add)
     toolbar = Adw.ToolbarView()

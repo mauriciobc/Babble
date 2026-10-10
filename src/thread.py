@@ -78,7 +78,8 @@ class ThreadReply(Gtk.Box):
             self.expander.add_css_class('thread-expander')
             self.expander.get_label_widget().add_css_class('caption-heading')
             self.expander.set_child(self.children_box)
-            self.expander.connect('notify::expanded', self._sync_expander_child)
+            pages.connect_weak(self.expander, 'notify::expanded',
+                               self._sync_expander_child)
             self._sync_expander_child(self.expander, None)
             column.append(self.expander)
 

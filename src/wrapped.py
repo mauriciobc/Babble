@@ -92,6 +92,12 @@ def default_year():
     return now.get_year() if now.get_month() == 12 else now.get_year() - 1
 
 
+def _draw_chart(area, cr, width, height):
+    # Module-level draw func: a bound one would pin the chart through
+    # itself.
+    area._draw(area, cr, width, height)
+
+
 class MonthlyChart(Gtk.DrawingArea):
     """Twelve bars, one per month, with the month under each."""
 
@@ -101,7 +107,7 @@ class MonthlyChart(Gtk.DrawingArea):
         super().__init__(content_height=150, hexpand=True, **kwargs)
         self.series = series  # {month (1-12): value}
         self.accent = accent
-        self.set_draw_func(self._draw)
+        self.set_draw_func(_draw_chart)
         self.month_names = [
             GLib.DateTime.new_local(2000, month, 1, 0, 0, 0).format('%b')
             for month in range(1, 13)]
@@ -195,7 +201,9 @@ class WrappedDialog(Adw.Dialog):
         self.set_child(self.toolbar)
 
         self.save_button = pages.icon_button(
-            'document-save-symbolic', _('Save as Image…'), self._on_save)
+            'document-save-symbolic', _('Save as Image…'))
+        pages.connect_weak(self.save_button, 'clicked',
+                           self._on_save_clicked)
         self.save_button.set_visible(False)
         self.header.pack_end(self.save_button)
         self.style_button = Gtk.MenuButton(
@@ -204,26 +212,33 @@ class WrappedDialog(Adw.Dialog):
         self.header.pack_start(self.style_button)
         self.year_dropdown = Gtk.DropDown(visible=False,
                                           tooltip_text=_('Year'))
-        self.year_dropdown.connect('notify::selected', self._on_year)
+        pages.connect_weak(self.year_dropdown, 'notify::selected',
+                           self._on_year)
         self.header.pack_start(self.year_dropdown)
 
         actions = Gio.SimpleActionGroup()
         action = Gio.SimpleAction.new_stateful(
             'style', GLib.VariantType.new('s'),
             GLib.Variant.new_string('window'))
-        action.connect('activate', self._on_style)
+        pages.connect_weak(action, 'activate', self._on_style)
         actions.add_action(action)
         self.insert_action_group('wrapped', actions)
 
         self.stack.add_named(pages.make_loading_page(_('Loading')),
                              'loading')
         self.error_page = pages.make_error_page(
-            _('Could Not Load'), lambda *_a: self.load())
+            _('Could Not Load'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self.status_page = Adw.StatusPage()
         self.stack.add_named(self.status_page, 'status')
         self._report_widget = None
         self.load()
+
+    def _on_retry(self, _button):
+        self.load()
+
+    def _on_save_clicked(self, _button):
+        self._on_save()
 
     # Loading
 
@@ -272,7 +287,9 @@ class WrappedDialog(Adw.Dialog):
         self.style_button.set_visible(visible)
 
     def _show_status(self, title, description, icon='emoji-symbols-symbolic',
-                     button=None, callback=None):
+                     button=None, callback=()):
+        """*callback* is ``(method_name, *args)`` of this dialog: a
+        closure over self would pin the dialog through its button."""
         self.status_page.set_icon_name(icon)
         self.status_page.set_title(title)
         self.status_page.set_description(description)
@@ -281,13 +298,17 @@ class WrappedDialog(Adw.Dialog):
                                 halign=Gtk.Align.CENTER)
             action.add_css_class('pill')
             action.add_css_class('suggested-action')
-            action.connect('clicked', lambda *_a: callback())
+            pages.connect_weak(action, 'clicked', self._on_status_clicked,
+                               *callback)
             self.status_page.set_child(action)
         else:
             self.status_page.set_child(None)
         self.year_dropdown.set_visible(False)
         self._set_chrome(False)
         self.stack.set_visible_child_name('status')
+
+    def _on_status_clicked(self, _button, method, *args):
+        getattr(self, method)(*args)
 
     def _empty(self, year):
         self._show_status(
@@ -310,13 +331,13 @@ class WrappedDialog(Adw.Dialog):
                     _('Your %d Wrapped Is Ready to Make') % year,
                     _('Your server can put it together now. It takes a '
                       'little while.'), button=_('_Generate'),
-                    callback=lambda: self._generate(year))
+                    callback=('_generate', year))
             elif state == 'generating':
                 self._show_status(
                     _('Putting Your %d Wrapped Together') % year,
                     _('Check again in a few minutes.'),
                     icon='content-loading-symbolic',
-                    button=_('_Check Again'), callback=self.load)
+                    button=_('_Check Again'), callback=('load',))
             elif state == 'available':
                 self.year = year
                 self.load()
@@ -334,7 +355,7 @@ class WrappedDialog(Adw.Dialog):
                 _('Putting Your %d Wrapped Together') % year,
                 _('Check again in a few minutes.'),
                 icon='content-loading-symbolic', button=_('_Check Again'),
-                callback=self.load)
+                callback=('load',))
 
         def failed(error):
             self._check_state(year)
@@ -576,9 +597,13 @@ class WrappedDialog(Adw.Dialog):
             if widget is not None:
                 widget.set_visible(False)
         click = Gtk.GestureClick()
-        click.connect('released', lambda *_a: self._open_status(status))
+        pages.connect_weak(click, 'released', self._on_status_released,
+                           status)
         row.add_controller(click)
         holder.append(row)
+
+    def _on_status_released(self, _click, _n_press, _x, _y, status):
+        self._open_status(status)
 
     def _open_status(self, status):
         parent = self.parent

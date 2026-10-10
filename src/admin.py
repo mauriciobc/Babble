@@ -24,6 +24,7 @@ from urllib.parse import urlsplit  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 
 # Role permission bits (Mastodon UserRole::FLAGS)
@@ -103,6 +104,19 @@ def bool_str(value):
     return 'true' if value else 'false'
 
 
+class CtxRef:
+    """Mixin holding ``ctx`` (the AdminDialog) weakly: the pages live
+    inside it, so a strong reference would cycle through C."""
+
+    @property
+    def ctx(self):
+        return self._ctx()
+
+    @ctx.setter
+    def ctx(self, ctx):
+        self._ctx = ctx.weak_ref()
+
+
 def permission_allows(permissions, mask):
     """*permissions* is the role bitmask, None when unknown (the server
     decides then)."""
@@ -131,7 +145,8 @@ class Sparkline(Gtk.DrawingArea):
         super().__init__(content_width=96, content_height=28,
                          valign=Gtk.Align.CENTER, **kwargs)
         self.values = list(values)
-        self.set_draw_func(self._draw)
+        # A plain function: a bound method would cycle through C.
+        self.set_draw_func(_draw_sparkline)
         self.update_property([Gtk.AccessibleProperty.LABEL],
                              [_('Trend over the selected period')])
 
@@ -154,7 +169,11 @@ class Sparkline(Gtk.DrawingArea):
         cr.stroke()
 
 
-class StatePage(Adw.Bin):
+def _draw_sparkline(area, cr, width, height):
+    area._draw(area, cr, width, height)
+
+
+class StatePage(CtxRef, Adw.Bin):
     """Loading / error / content states for pages that fetch by hand."""
 
     def __init__(self, ctx, **kwargs):
@@ -165,8 +184,11 @@ class StatePage(Adw.Bin):
         self.set_child(self.stack)
         self.stack.add_named(pages.make_loading_page(_('Loading')), 'loading')
         self.error_page = pages.make_error_page(
-            _('Could Not Load'), lambda *_a: self.refresh())
+            _('Could Not Load'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
+
+    def _on_retry(self, _button):
+        self.refresh()
 
     def show_loading(self):
         self.stack.set_visible_child_name('loading')
@@ -212,15 +234,18 @@ class AdminDialogBase(Adw.Dialog):
         """Cancel button that closes the dialog plus an end-side action
         button calling *callback*; returns the action button."""
         cancel = Gtk.Button(label=cancel_label, use_underline=True)
-        cancel.connect('clicked', lambda *_a: self.force_close())
+        pages.connect_weak(cancel, 'clicked', self._on_cancel)
         self.header.pack_start(cancel)
         button = Gtk.Button(label=action_label, use_underline=True,
                             sensitive=sensitive)
         if css:
             button.add_css_class(css)
-        button.connect('clicked', callback)
+        pages.connect_weak(button, 'clicked', callback)
         self.header.pack_end(button)
         return button
+
+    def _on_cancel(self, _button):
+        self.force_close()
 
 
 def count_badge_label(text, css=None):
@@ -234,8 +259,11 @@ def count_badge_label(text, css=None):
     return label
 
 
-def delete_button(tooltip, callback):
-    button = pages.icon_button('user-trash-symbolic', tooltip, callback)
+def delete_button(tooltip, method, *extra):
+    """Trash button calling the bound *method* ``(button, *extra)``,
+    held weakly."""
+    button = pages.icon_button('user-trash-symbolic', tooltip)
+    pages.connect_weak(button, 'clicked', method, *extra)
     button.add_css_class('error')
     return button
 
@@ -295,9 +323,9 @@ class AddBar(Gtk.Box):
         self.button.add_css_class('suggested-action')
         self.append(self.entry)
         self.append(self.button)
-        self.entry.connect('notify::text', self._on_changed)
-        self.entry.connect('activate', self._on_submit)
-        self.button.connect('clicked', self._on_submit)
+        pages.connect_weak(self.entry, 'notify::text', self._on_changed)
+        pages.connect_weak(self.entry, 'activate', self._on_submit)
+        pages.connect_weak(self.button, 'clicked', self._on_submit)
         self.set_halign(Gtk.Align.CENTER)
         self.set_size_request(420, -1)
 
@@ -342,7 +370,7 @@ class DashboardPage(StatePage):
         self.period.add(Adw.Toggle(name='7', label=_('7 Days')))
         self.period.add(Adw.Toggle(name='30', label=_('30 Days')))
         self.period.set_active_name('30')
-        self.period.connect('notify::active-name', self._on_period)
+        pages.connect_weak(self.period, 'notify::active-name', self._on_period)
         self.header_widgets = [self.period]
         self.refresh()
 
@@ -508,7 +536,7 @@ class ReportRow(Adw.ActionRow):
         self.on_open(self.report)
 
 
-class ReportsPage(Adw.Bin):
+class ReportsPage(CtxRef, Adw.Bin):
     def __init__(self, ctx, **kwargs):
         super().__init__(**kwargs)
         self.ctx = ctx
@@ -518,16 +546,16 @@ class ReportsPage(Adw.Bin):
         self.resolved_button.add_css_class('flat')
         self.resolved_button.update_property(
             [Gtk.AccessibleProperty.LABEL], [_('Show Resolved Reports')])
-        self.resolved_button.connect('toggled', self._on_toggled)
+        pages.connect_weak(self.resolved_button, 'toggled', self._on_toggled)
         self.header_widgets = [self.resolved_button]
         self.list = pages.PagedList(
-            ctx.client, '/admin/reports', self._make_row,
+            ctx.client, '/admin/reports', weak_method(self._make_row),
             empty_title=_('No Reports'), empty_icon='object-select-symbolic',
             empty_description=_('Nothing needs your attention.'))
         self.set_child(self.list)
 
     def _make_row(self, report):
-        return ReportRow(self.ctx.client, report, self._open)
+        return ReportRow(self.ctx.client, report, weak_method(self._open))
 
     def _on_toggled(self, button):
         self.list.params = {'resolved': 'true'} if button.get_active() \
@@ -567,14 +595,16 @@ class ReportDialog(AdminDialogBase):
             label=_('_Reopen') if resolved else _('_Resolve'),
             use_underline=True)
         self.resolve_button.add_css_class('suggested-action')
-        self.resolve_button.connect(
-            'clicked', self._on_reopen if resolved else self._on_resolve)
+        pages.connect_weak(
+            self.resolve_button, 'clicked',
+            self._on_reopen if resolved else self._on_resolve)
         self.header.pack_start(self.resolve_button)
         self.action_button = Gtk.Button(label=_('Take _Action'),
                                         use_underline=True,
                                         sensitive=not resolved)
         self.action_button.add_css_class('destructive-action')
-        self.action_button.connect('clicked', self._on_take_action)
+        pages.connect_weak(self.action_button, 'clicked',
+                           self._on_take_action)
         self.header.pack_end(self.action_button)
 
         profile = Adw.PreferencesGroup()
@@ -628,7 +658,7 @@ class ReportDialog(AdminDialogBase):
         self.page.add(self.rules_group)
         self._build_rules(resolved)
         for check in self.category_checks.values():
-            check.connect('toggled', self._on_category_toggled)
+            pages.connect_weak(check, 'toggled', self._on_category_toggled)
 
         statuses = report.get('statuses') or []
         if statuses:
@@ -666,7 +696,8 @@ class ReportDialog(AdminDialogBase):
                 row.add_prefix(check)
                 self.rules_group.add(row)
                 self._rule_checks[rule.get('id')] = check
-                check.connect('toggled', self._on_category_toggled)
+                pages.connect_weak(check, 'toggled',
+                                   self._on_category_toggled)
 
         info = getattr(self.client, 'instance_info', None)
         if info and info.get('rules') is not None:
@@ -766,12 +797,16 @@ class AssignedRow(Adw.ActionRow):
         super().__init__(title=_('Assigned to'), use_markup=False,
                          subtitle_selectable=True, **kwargs)
         self.add_css_class('property')
-        self.dialog = dialog
+        self._dialog = dialog.weak_ref()
         self.report_id = report['id']
         self.button = Gtk.Button(valign=Gtk.Align.CENTER)
-        self.button.connect('clicked', self._on_clicked)
+        pages.connect_weak(self.button, 'clicked', self._on_clicked)
         self.add_suffix(self.button)
         self._update(report.get('assigned_account'))
+
+    @property
+    def dialog(self):
+        return self._dialog()
 
     def _me(self):
         window = pages.window_of(self.dialog.ctx.parent)
@@ -924,7 +959,7 @@ class AdminAccountRow(Adw.ActionRow):
         self.on_open(self.item)
 
 
-class AccountsPage(Adw.Bin):
+class AccountsPage(CtxRef, Adw.Bin):
     ORIGINS = (('', _('All Locations')), ('local', _('Local')),
                ('remote', _('Remote')))
     STATUSES = (('', _('All Statuses')), ('active', _('Active')),
@@ -957,7 +992,7 @@ class AccountsPage(Adw.Bin):
             entry = Gtk.Entry(placeholder_text=placeholder)
             entry.update_property([Gtk.AccessibleProperty.LABEL],
                                   [placeholder])
-            entry.connect('activate', self._on_search)
+            pages.connect_weak(entry, 'activate', self._on_search)
             self.entries[key] = entry
             flow.append(entry)
         revealer = Gtk.Revealer(child=flow)
@@ -965,11 +1000,11 @@ class AccountsPage(Adw.Bin):
         self.search_button.bind_property(
             'active', revealer, 'reveal-child',
             GObject.BindingFlags.SYNC_CREATE)
-        self.origin.connect('notify::selected', self._on_search)
-        self.status.connect('notify::selected', self._on_search)
+        pages.connect_weak(self.origin, 'notify::selected', self._on_search)
+        pages.connect_weak(self.status, 'notify::selected', self._on_search)
 
         self.list = pages.PagedList(
-            ctx.client, '/api/v2/admin/accounts', self._make_row,
+            ctx.client, '/api/v2/admin/accounts', weak_method(self._make_row),
             empty_title=_('No Accounts'), empty_icon='system-users-symbolic')
         self.set_child(self.list)
 
@@ -1001,7 +1036,8 @@ class AccountsPage(Adw.Bin):
         self.list.refresh()
 
     def _make_row(self, item):
-        return AdminAccountRow(self.ctx.client, item, self._open)
+        return AdminAccountRow(self.ctx.client, item,
+                               weak_method(self._open))
 
     def _open(self, item):
         dialog = AdminAccountDialog(self.ctx, item)
@@ -1021,13 +1057,17 @@ class UndoRow(Adw.ActionRow):
 
     def __init__(self, dialog, title, endpoint, **kwargs):
         super().__init__(title=title, activatable=False, **kwargs)
-        self.dialog = dialog
+        self._dialog = dialog.weak_ref()
         self.endpoint = endpoint
         self.button = Gtk.Button(label=_('_Undo'), use_underline=True,
                                  valign=Gtk.Align.CENTER)
         self.button.add_css_class('destructive-action')
-        self.button.connect('clicked', self._on_clicked)
+        pages.connect_weak(self.button, 'clicked', self._on_clicked)
         self.add_suffix(self.button)
+
+    @property
+    def dialog(self):
+        return self._dialog()
 
     def _on_clicked(self, _button):
         pages.confirm(self.dialog, _('Undo this Action?'), None,
@@ -1100,15 +1140,14 @@ class AdminAccountDialog(AdminDialogBase):
             self.approval_row = Adw.ActionRow(
                 title=_('Awaiting Approval'), subtitle=note,
                 subtitle_lines=0, use_markup=False, activatable=False)
-            reject = pages.icon_button(
-                'window-close-symbolic', _('Reject'),
-                lambda: self._review('reject', _('Reject %s?'),
-                                     _('_Reject')))
+            reject = pages.icon_button('window-close-symbolic', _('Reject'))
+            pages.connect_weak(reject, 'clicked', self._on_review, 'reject',
+                               _('Reject %s?'), _('_Reject'))
             reject.add_css_class('error')
-            approve = pages.icon_button(
-                'object-select-symbolic', _('Approve'),
-                lambda: self._review('approve', _('Approve %s?'),
-                                     _('_Approve')))
+            approve = pages.icon_button('object-select-symbolic',
+                                        _('Approve'))
+            pages.connect_weak(approve, 'clicked', self._on_review,
+                               'approve', _('Approve %s?'), _('_Approve'))
             approve.add_css_class('success')
             self.approval_row.add_suffix(reject)
             self.approval_row.add_suffix(approve)
@@ -1121,6 +1160,9 @@ class AdminAccountDialog(AdminDialogBase):
             if item.get(flag):
                 actions.add(UndoRow(self, title, endpoint))
         self.page.add(actions)
+
+    def _on_review(self, _button, endpoint, heading, label):
+        self._review(endpoint, heading, label)
 
     def _review(self, endpoint, heading, label):
         def go():
@@ -1153,7 +1195,7 @@ class AdminAccountDialog(AdminDialogBase):
 
 # Federation, e-mail domains and IP rules
 
-class RuleList(Adw.Bin):
+class RuleList(CtxRef, Adw.Bin):
     """List of block/allow rules with delete buttons and an add
     control: shared by the four rule pages."""
 
@@ -1163,7 +1205,7 @@ class RuleList(Adw.Bin):
         self.ctx = ctx
         self.path = path
         self.list = pages.PagedList(
-            ctx.client, path, make_row, empty_title=empty_title,
+            ctx.client, path, weak_method(make_row), empty_title=empty_title,
             empty_icon=empty_icon, empty_description=empty_description)
         self.set_child(self.list)
 
@@ -1186,6 +1228,12 @@ class RuleList(Adw.Bin):
 
         pages.confirm(self.ctx, heading, None, label, go)
 
+    def _on_delete(self, _button, row_ref, item_id, heading, label):
+        # The row owns the button, so the handler holds it weakly.
+        row = row_ref()
+        if row is not None:
+            self.delete(row, item_id, heading, label)
+
 
 SEVERITIES = (
     ('silence', _('Limit')),
@@ -1205,7 +1253,8 @@ class FederationBlocksPage(RuleList):
             _('No Federation Blocks'), 'action-unavailable-symbolic',
             _('Servers you block or limit will show up here.'), **kwargs)
         self.add_button = pages.icon_button(
-            'list-add-symbolic', _('Add Federation Block'), self._on_add)
+            'list-add-symbolic', _('Add Federation Block'))
+        pages.connect_weak(self.add_button, 'clicked', self._on_add)
         self.header_widgets = [self.add_button]
 
     def _make_row(self, block):
@@ -1228,13 +1277,11 @@ class FederationBlocksPage(RuleList):
         if flags:
             row.add_row(info_row(_('Restrictions'), ' · '.join(flags)))
         row.add_suffix(delete_button(
-            _('Remove Block'),
-            lambda: self.delete(row, block['id'],
-                                _('Unblock %s?') % block['domain'],
-                                _('_Unblock'))))
+            _('Remove Block'), self._on_delete, row.weak_ref(),
+            block['id'], _('Unblock %s?') % block['domain'], _('_Unblock')))
         return row
 
-    def _on_add(self):
+    def _on_add(self, _button):
         dialog = AddFederationBlockDialog(self.ctx)
         dialog.connect('added', lambda *_a: self.refresh())
         dialog.present(self.ctx)
@@ -1252,12 +1299,12 @@ class AddFederationBlockDialog(AdminDialogBase):
 
         group = Adw.PreferencesGroup()
         self.domain = Adw.EntryRow(title=_('Domain'))
-        self.domain.connect('changed', self._on_domain_changed)
+        pages.connect_weak(self.domain, 'changed', self._on_domain_changed)
         group.add(self.domain)
         self.severity = Adw.ComboRow(
             title=_('Severity'),
             model=Gtk.StringList.new([label for _k, label in SEVERITIES]))
-        self.severity.connect('notify::selected', self._on_severity)
+        pages.connect_weak(self.severity, 'notify::selected', self._on_severity)
         group.add(self.severity)
         self.reject_media = Adw.SwitchRow(
             title=_('Reject Media Files'), active=True,
@@ -1325,18 +1372,16 @@ class DomainAllowsPage(RuleList):
             _('Servers allowed to federate show up here when the '
               'allowlist is in use.'), **kwargs)
         self.bar = AddBar(_('Allow federation with a server'), _('_Allow'),
-                          self._on_add)
+                          weak_method(self._on_add))
         self.bar.button.set_use_underline(True)
         self.top_bar = self.bar
 
     def _make_row(self, allow):
         row = Adw.ActionRow(title=allow['domain'], use_markup=False)
         row.add_suffix(delete_button(
-            _('Remove'),
-            lambda: self.delete(
-                row, allow['id'],
-                _('Remove Federation with %s?') % allow['domain'],
-                _('_Remove'))))
+            _('Remove'), self._on_delete, row.weak_ref(), allow['id'],
+            _('Remove Federation with %s?') % allow['domain'],
+            _('_Remove')))
         return row
 
     def _on_add(self, domain):
@@ -1361,7 +1406,7 @@ class EmailBlocksPage(RuleList):
             _('No Blocked E-mail Domains'), 'mail-unread-symbolic',
             _('Sign-ups from these e-mail domains are refused.'), **kwargs)
         self.bar = AddBar(_('Block an e-mail domain'), _('_Block'),
-                          self._on_add)
+                          weak_method(self._on_add))
         self.bar.button.set_use_underline(True)
         self.top_bar = self.bar
 
@@ -1378,10 +1423,8 @@ class EmailBlocksPage(RuleList):
             subtitle=ngettext('%d sign-up attempt', '%d sign-up attempts',
                               attempts) % attempts)
         row.add_suffix(delete_button(
-            _('Remove'),
-            lambda: self.delete(row, block['id'],
-                                _('Unblock %s?') % block['domain'],
-                                _('_Unblock'))))
+            _('Remove'), self._on_delete, row.weak_ref(), block['id'],
+            _('Unblock %s?') % block['domain'], _('_Unblock')))
         return row
 
     def _on_add(self, domain):
@@ -1429,7 +1472,8 @@ class IPBlocksPage(RuleList):
             'network-server-symbolic',
             _('Address ranges you restrict show up here.'), **kwargs)
         self.add_button = pages.icon_button(
-            'list-add-symbolic', _('Add IP Rule'), self._on_add)
+            'list-add-symbolic', _('Add IP Rule'))
+        pages.connect_weak(self.add_button, 'clicked', self._on_add)
         self.header_widgets = [self.add_button]
 
     def _make_row(self, block):
@@ -1444,13 +1488,11 @@ class IPBlocksPage(RuleList):
         row = Adw.ActionRow(title=block['ip'], subtitle=subtitle,
                             subtitle_lines=0, use_markup=False)
         row.add_suffix(delete_button(
-            _('Remove'),
-            lambda: self.delete(row, block['id'],
-                                _('Remove the Rule for %s?') % block['ip'],
-                                _('_Remove'))))
+            _('Remove'), self._on_delete, row.weak_ref(), block['id'],
+            _('Remove the Rule for %s?') % block['ip'], _('_Remove')))
         return row
 
-    def _on_add(self):
+    def _on_add(self, _button):
         dialog = AddIPBlockDialog(self.ctx)
         dialog.connect('added', lambda *_a: self.refresh())
         dialog.present(self.ctx)
@@ -1468,7 +1510,7 @@ class AddIPBlockDialog(AdminDialogBase):
 
         group = Adw.PreferencesGroup()
         self.ip = Adw.EntryRow(title='192.0.2.0/24')
-        self.ip.connect('changed', self._on_ip_changed)
+        pages.connect_weak(self.ip, 'changed', self._on_ip_changed)
         group.add(self.ip)
         self.comment = Adw.EntryRow(title=_('Comment'))
         group.add(self.comment)
@@ -1570,7 +1612,8 @@ class AdminDialog(Adw.Dialog):
         self.sidebar_list = Gtk.ListBox(
             selection_mode=Gtk.SelectionMode.SINGLE)
         self.sidebar_list.add_css_class('navigation-sidebar')
-        self.sidebar_list.connect('row-activated', self._on_row_activated)
+        pages.connect_weak(self.sidebar_list, 'row-activated',
+                           self._on_row_activated)
         self._rows = {}
         for entry in self.ENTRIES:
             tag, title, icon, _cls, mask = entry
