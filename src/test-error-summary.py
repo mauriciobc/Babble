@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, '.')
 
-from mastodon import summarize_error  # noqa: E402
+from mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
 # The exact nginx 403 page ursal.zone served to the default libsoup
 # session: markup parsing of this body left the Adw.Toast empty, which is
@@ -31,6 +31,29 @@ class TestErrorSummary(unittest.TestCase):
         self.assertNotIn('<b>', out)
         self.assertNotIn('&amp;', out)
         self.assertIn('&', out)
+
+    def test_markup_variant_survives_a_bare_ampersand(self):
+        # Adw.StatusPage parses its description as markup: an unescaped
+        # '&' fails the parse and the label comes out empty, so the error
+        # is invisible -- the failure this variant exists to prevent.
+        out = summarize_error_markup('Tom & Jerry')
+        self.assertIn('&amp;', out)
+        self.assertNotEqual(out, '')
+
+    def test_markup_variant_is_parseable_by_pango(self):
+        from gi.repository import GLib, Pango
+        for body in ('Tom & Jerry', 'a & b & c', '<b>x</b> & y',
+                     'broken &amp; entity'):
+            parsed = summarize_error_markup(body)
+            try:
+                Pango.parse_markup(parsed, -1, '\0')
+            except GLib.Error as error:
+                self.fail('unparseable markup for %r: %s' % (body, error))
+
+    def test_plain_variant_stays_literal_for_toasts(self):
+        # The toast path must not receive escaped entities: the reader
+        # would see a literal '&amp;'.
+        self.assertEqual(summarize_error('Tom & Jerry'), 'Tom & Jerry')
 
     def test_long_bodies_truncated(self):
         out = summarize_error('x' * 500)

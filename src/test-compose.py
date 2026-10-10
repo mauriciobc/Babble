@@ -13,7 +13,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, Gio, GLib, Gtk
 
 if not os.environ.get('DISPLAY'):
     print('SKIP - no display available for widget rendering')
@@ -57,6 +57,12 @@ class StubMediaResult:
 
     #: Set by a test to make the instance answer an undecoded upload.
     needs_processing = False
+    #: Set by a test to answer with a cancellation instead of data.
+    cancelled = False
+    #: Set by a test to hold status replies until it releases them.
+    defer_status = False
+    #: Replies withheld by defer_status, released by release_status().
+    held = []
 
 
 class StubClient:
@@ -86,11 +92,12 @@ class StubClient:
                            cancellable=None):
         uploads.append({'bytes': len(file_bytes), 'filename': filename,
                         'content_type': content_type,
-                        'description': description})
+                        'description': description,
+                        'id': '%d' % (9900 + len(uploads) + 1)})
         index = len(uploads) - 1
 
         def cb(source, result, _user_data=None):
-            media = {'id': MEDIA_RESPONSES[index]}
+            media = {'id': uploads[index]['id']}
             if result.needs_processing:
                 # The instance accepted the bytes but has not decoded
                 # them yet: no url, so the composer must poll.
@@ -120,11 +127,31 @@ class StubClient:
                         if ready else None)}
             callback(source, result)
 
-        GLib.idle_add(lambda *_: (cb(self, StubMediaResult()),
-                                  GLib.SOURCE_REMOVE)[1])
+        result = StubMediaResult()
+        if StubMediaResult.defer_status:
+            # Hold the reply so a test can order it against a reset; a
+            # reply that lands after the draft is gone is the race.
+            StubMediaResult.held.append((self, result, cb))
+        else:
+            GLib.idle_add(lambda *_: (cb(self, result),
+                                      GLib.SOURCE_REMOVE)[1])
         return None
 
+    @staticmethod
+    def release_status():
+        """Answer every held status reply."""
+        held, StubMediaResult.held = StubMediaResult.held, []
+        for client, result, cb in held:
+            cb(client, result)
+
     def media_status_finish(self, result):
+        if result.cancelled:
+            # What a real cancellation looks like to the caller: a
+            # GLib.Error in the Gio.IOErrorEnum.CANCELLED domain, not a
+            # server error, so retrying it would be nonsense.
+            raise GLib.Error('Operation was cancelled',
+                             Gio.io_error_quark(),
+                             Gio.IOErrorEnum.CANCELLED)
         return result._media
 
 
@@ -291,7 +318,7 @@ check('visibility value valid', form.get('visibility') == 'public')
 check('language is ISO 639-1', len(form.get('language', '')) == 2)
 check('spoiler text from CW field', form.get('spoiler_text') == 'potential spoilers')
 check('media_ids array encoded',
-      form.get('media_ids') == MEDIA_RESPONSES[:1])
+      form.get('media_ids') == [uploads[0]['id']])
 check('no in_reply_to for top post', 'in_reply_to_id' not in form)
 check('fixed response returned from stub',
       view.in_reply_to_id is None)
@@ -319,10 +346,50 @@ check('the composer polls the media for processing', polls != [])
 pump(1800)
 check('the post is sent once processing finishes',
       len(posts) == 1
-      and posts[0].get('media_ids') == [MEDIA_RESPONSES[-1]])
+      and posts[0].get('media_ids') == [uploads[-1]['id']])
 check('the waited-for post reports success',
       collect_toasts()[-1:] == [_('Post sent')])
 processing_window.destroy()
+
+# Discarding the draft must stop the poll and stay quiet, including when
+# the poll's reply lands *after* the reset. That reply used to look like
+# a server error, so the composer rescheduled the poll against a
+# cancellable that no longer existed and eventually toasted an upload
+# failure for a draft the user had already thrown away.
+StubMediaResult.needs_processing = True
+StubMediaResult.cancelled = True
+StubMediaResult.defer_status = True
+cancelled_view = BabbleComposeView(client)
+cancelled_view._add_toast = _capture_toast  # type: ignore[attr-defined]
+cancelled_window = Gtk.Window()
+cancelled_window.set_child(cancelled_view)
+cancelled_window.show_toast = lambda text: toast_titles.append(text)  # type: ignore
+cancelled_window.present()
+polls.clear()
+posts.clear()
+collect_toasts()
+cancelled_view.add_attachment_path(tmp_png, alt='a red test pixel')
+pump(50)
+cancelled_view.on_post_clicked(cancelled_view.post_button)
+pump(50)
+check('the composer is polling for the upload', polls != [])
+cancelled_view.reset()
+pump(50)
+polls_at_reset = len(polls)
+# Only now does the in-flight reply arrive, cancelled.
+StubClient.release_status()
+pump(50)
+pump(1800)
+check('a poll reply arriving after a reset is not retried',
+      len(polls) == polls_at_reset)
+check('a cancelled upload does not post', posts == [])
+check('a cancelled upload toasts nothing about media',
+      not any('upload' in t.lower() for t in collect_toasts()))
+cancelled_window.destroy()
+StubMediaResult.cancelled = False
+StubMediaResult.needs_processing = False
+StubMediaResult.defer_status = False
+StubMediaResult.held = []
 
 # Re-post with CW text preserved and sensitive flag.
 collect_toasts()

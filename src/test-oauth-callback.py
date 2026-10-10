@@ -19,7 +19,6 @@ import json
 import os
 import subprocess
 import sys
-import urllib.parse
 import time
 
 # Own Xvfb + X11 backend: the window under test is a real one, so the
@@ -71,7 +70,8 @@ resource._register()
 
 from src import emojichooser, textemoji  # noqa: E402
 from src.main import BabbleApplication  # noqa: E402
-from src.mastodon import OAUTH_REDIRECT, OOB_REDIRECT  # noqa: E402
+from src.mastodon import (MastodonClient, OAUTH_REDIRECT,  # noqa: E402
+                          OOB_REDIRECT)
 from src.window import BabbleWindow  # noqa: E402
 
 from gettext import gettext as _  # noqa: E402
@@ -80,6 +80,12 @@ STATE = 'state-for-this-attempt'
 SCHEMA = 'io.github.mauriciobc.Babble'
 REDIRECT_URI = OAUTH_REDIRECT + '?code=code-once&state=' + STATE
 SECOND_URI = OAUTH_REDIRECT + '?code=code-two&state=' + STATE
+
+# The stub answers with the real parse_callback_uri, so the state under
+# test has to live on a real client.
+_real_client = MastodonClient('https://example.social')
+_real_client.client_id = 'client-id'
+_real_client.client_secret = 'client-secret'
 
 failures = []
 
@@ -151,18 +157,12 @@ class StubClient:
         self.pending = []
         # What get_authorize_url would have minted for this attempt.
         self._state = state
+        _real_client._state = state
 
     def parse_callback_uri(self, uri):
-        params = urllib.parse.parse_qs(urllib.parse.urlparse(uri).query)
-        codes = params.get('code')
-        states = params.get('state')
-        code = codes[0] if codes else None
-        state = states[0] if states else None
-        if code is None:
-            return None
-        if state is not None and state != self._state:
-            return None
-        return code
+        # The real implementation, not a copy of it: a stub mirroring
+        # the production code cannot catch a defect in that code.
+        return _real_client.parse_callback_uri(uri)
 
     def get_authorize_url(self, redirect_uri=None):
         return 'https://example.social/oauth/authorize?state=%s' % self._state
@@ -413,6 +413,14 @@ pump()
 check('a callback whose state belongs elsewhere is not exchanged',
       client.exchanges == [] and toasts == [])
 
+# A callback with the state stripped must be refused too: without the
+# check, anything able to hand Babble a babble:// URL could redeem a
+# code of its own choosing into the signed-in session.
+win.on_oauth_callback(OAUTH_REDIRECT + '?code=stolen-no-state')
+pump()
+check('a callback with no state is not exchanged',
+      client.exchanges == [] and toasts == [])
+
 # The real attempt still works afterwards.
 win.on_oauth_callback(REDIRECT_URI)
 pump()
@@ -456,6 +464,87 @@ check('a duplicated dispatch is delivered once',
       delivered == [REDIRECT_URI])
 check('a later dispatch reuses that window',
       app.props.active_window is win)
+
+# --- A stale keyring reply must not touch the session -------------------
+
+# Reading the token is an out-of-process round trip, so a switch can be
+# started before an earlier restore answers. The late reply used to win,
+# showing the account the user had already switched away from.
+
+
+class DeferredTokenClient(StubClient):
+    """Holds the token lookup back so the test can answer it late.
+
+    Everything else comes from StubClient, because answering a lookup
+    builds the shell, and the shell asks the client for pages.
+    """
+
+    created = []
+
+    def __init__(self, instance, **kwargs):
+        super().__init__(**kwargs)
+        self.instance = instance
+        self.pending = []
+        DeferredTokenClient.created.append(self)
+
+    def load_secret_token(self, account_id, callback, cancellable=None):
+        self.pending.append(callback)
+
+    def answer(self, token):
+        self.pending.pop(0)(token)
+
+
+win, toasts = fresh_window()
+import src.window as window_module  # noqa: E402
+_real_client_class = window_module.MastodonClient
+window_module.MastodonClient = DeferredTokenClient
+try:
+    # Which account ids the window decided to forget, if any.
+    forgotten = []
+    win.remove_account = lambda aid: forgotten.append(aid)
+    win._activate_account(
+        {'id': '1', 'instance': 'https://a.example', 'acct': 'first'},
+        login_only=True)
+    win._activate_account(
+        {'id': '2', 'instance': 'https://b.example', 'acct': 'second'})
+    check('two keyring lookups are in flight',
+          len(DeferredTokenClient.created) == 2)
+    # The newer switch answers first; the older restore lands late.
+    DeferredTokenClient.created[1].answer('token-b')
+    pump()
+    check('the newest lookup wins',
+          win.account is not None and win.account['id'] == '2')
+    DeferredTokenClient.created[0].answer('token-a')
+    pump()
+    check('a stale keyring reply does not change the account',
+          win.account is not None and win.account['id'] == '2')
+    check('a stale keyring reply does not replace the client',
+          getattr(win.client, 'instance', None) == 'https://b.example')
+
+    # A stale reply carrying no token must not report a missing login,
+    # forget the account, or drop a signed-in window back to the login
+    # page. This one is a restore, which is the case that used to do all
+    # three.
+    win._activate_account(
+        {'id': '3', 'instance': 'https://c.example', 'acct': 'third'},
+        login_only=True)
+    win._activate_account(
+        {'id': '4', 'instance': 'https://d.example', 'acct': 'fourth'})
+    DeferredTokenClient.created[3].answer('token-d')
+    pump()
+    toast_count = len(toasts)
+    DeferredTokenClient.created[2].answer(None)
+    pump()
+    check('a stale empty reply does not report a missing login',
+          toasts[toast_count:] == [])
+    check('a stale empty reply keeps the signed-in account',
+          win.account is not None and win.account['id'] == '4')
+    check('a stale empty reply keeps the shell visible',
+          win.main_stack.get_visible_child_name() == 'shell')
+    check('a stale empty reply does not forget the account',
+          forgotten == [])
+finally:
+    window_module.MastodonClient = _real_client_class
 
 if failures:
     print('%d checks failed' % len(failures))
