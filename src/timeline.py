@@ -405,17 +405,21 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         """Keep the boosts carousel as the first row (None removes it)."""
         if not self._store.get_n_items():
             return
-        item = BoostCarouselItem(boosts) if boosts else None
         head = self._store.get_item(0)
         has = isinstance(head, BoostCarouselItem)
-        if item is None:
+        if not boosts:
             if has:
                 self._store.remove(0)
             return
         if has:
-            self._store.splice(0, 1, [item])
+            if len(head.boosts) == len(boosts) and all(
+                    a is b for a, b in zip(head.boosts, boosts)):
+                # Same posts: rebuilding the carousel would only redo
+                # every card for nothing.
+                return
+            self._store.splice(0, 1, [BoostCarouselItem(boosts)])
         else:
-            self._store.insert(0, item)
+            self._store.insert(0, BoostCarouselItem(boosts))
 
 
 class StatusRunRow(Gtk.Box):
