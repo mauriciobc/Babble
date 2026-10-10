@@ -1,0 +1,36 @@
+desktop_file = i18n.merge_file(
+  input: 'io.github.mauriciobc.Babble.desktop.in',
+  output: 'io.github.mauriciobc.Babble.desktop',
+  type: 'desktop',
+  po_dir: '../po',
+  install: true,
+  install_dir: get_option('datadir') / 'applications',
+)
+
+metainfo_file = i18n.merge_file(
+  input: 'io.github.mauriciobc.Babble.metainfo.xml.in',
+  output: 'io.github.mauriciobc.Babble.metainfo.xml',
+  po_dir: '../po',
+  install: true,
+  install_dir: get_option('datadir') / 'metainfo',
+)
+
+install_data(
+  'io.github.mauriciobc.Babble.gschema.xml',
+  install_dir: get_option('datadir') / 'glib-2.0' / 'schemas',
+)
+
+gnome.compile_schemas(build_by_default: true, depend_files: 'io.github.mauriciobc.Babble.gschema.xml')
+
+desktop_validate = find_program('desktop-file-validate', required: false, disabler: true)
+test('validate desktop file', desktop_validate, args: [desktop_file])
+
+appstreamcli = find_program('appstreamcli', required: false, disabler: true)
+test('validate metainfo', appstreamcli,
+  args: ['validate', '--no-net', '--strict', metainfo_file])
+
+compile_schemas = find_program('glib-compile-schemas', required: false, disabler: true)
+test('validate gschema', compile_schemas,
+  args: ['--strict', '--dry-run', meson.current_source_dir()])
+
+subdir('icons')

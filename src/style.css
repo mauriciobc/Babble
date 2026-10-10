@@ -1,0 +1,395 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
+/* Phanpy-style shell: discrete cards with rounded corners on a grey
+   canvas, in a centered column. The canvas is mixed from the window
+   pair so it stays a step away from the card in light, dark and high
+   contrast alike. */
+.timeline-list,
+.notification-list-scroller {
+  background-color: color-mix(in srgb,
+                              var(--window-bg-color) 92%,
+                              var(--window-fg-color));
+}
+
+.status-row {
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  margin: 8px 12px;
+  padding: 14px 16px;
+}
+
+/* Posts are tab stops in the thread view. */
+.status-row:focus-visible,
+.inline-emoji-text:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-color) 50%, transparent);
+  outline-offset: -2px;
+}
+
+.inline-emoji-text:focus-visible {
+  outline-offset: 2px;
+}
+
+/* The selected post of a thread stands out by border weight as well as
+   by colour. */
+.status-row.thread-focused {
+  border-width: 2px;
+  border-color: var(--accent-color);
+  background-color: color-mix(in srgb,
+                              var(--accent-bg-color) 8%,
+                              var(--card-bg-color));
+}
+
+/* Thread branch rail drawn down the left of every reply. */
+.thread-branch {
+  min-width: 2px;
+  margin-right: 10px;
+  border-radius: 2px;
+  background-color: var(--border-color);
+}
+
+/* Boosts carousel cards; the height follows the text size. */
+.boost-card {
+  min-height: 9em;
+}
+
+.boost-card.has-media {
+  min-height: 14em;
+}
+
+.boost-num {
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+  min-width: 1.6em;
+  border-radius: 9999px;
+  padding: 0 0.4em;
+}
+
+.status-media {
+  border-radius: 12px;
+}
+
+.media-badge {
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.profile-opener {
+  padding: 0;
+}
+
+.thread-reply.status-row {
+  margin-left: 0;
+}
+
+.thread-expander {
+  margin: 0;
+}
+
+.notifications-badge {
+  min-width: 12px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}
+
+/* Notifications: stock .card rows on the shared canvas. The embedded
+   post is a tint, not a second bordered card; high contrast adds the
+   border back. */
+.notification-post {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: var(--card-shade-color);
+}
+
+/* Overlapping stacked avatars with per-action badge overlays for
+   merged clusters. */
+.notification-avatar-stack > overlay > avatar {
+  margin-right: -8px;
+  border: 2px solid var(--card-bg-color);
+}
+
+.notification-avatar-stack > overlay:last-child > avatar {
+  margin-right: 0;
+}
+
+/* notifications.py: "+N" chip closing a cluster's avatar strip */
+.notification-avatar-more {
+  min-width: 32px;
+  min-height: 32px;
+  margin-left: -8px;
+  border-radius: 9999px;
+  background-color: var(--card-bg-color);
+  border: 2px solid var(--border-color);
+  font-size: 0.75em;
+  font-weight: bold;
+}
+
+.notification-badge {
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 9999px;
+  background-color: var(--card-bg-color);
+  border: 1px solid var(--border-color);
+  padding: 1px 3px;
+}
+
+@media (prefers-contrast: more) {
+  .notification-post {
+    border: 1px solid var(--border-color);
+  }
+}
+
+/* Interface text size preference: three presets toggled as window
+   classes; Adw's default ('normal') is used when no class is set. */
+window.text-small label {
+  font-size: 90%;
+}
+
+window.text-large label {
+  font-size: 110%;
+}
+
+/* -- Profile section ----------------------------------------------- */
+
+/* Sheet scroller: the clamped 660px content column is centered over
+   the same grey deck the main timeline paints, so the gutters flanking
+   the column read like the tabs'. */
+.profile-page-scroller {
+  background-color: var(--card-shade-color);
+}
+
+/* Hero: rounded banner with a gradient band behind the cover image. */
+.profile-banner {
+  border-radius: 12px;
+}
+
+.profile-banner-fallback {
+  background-image: linear-gradient(135deg,
+                                    var(--accent-bg-color),
+                                    color-mix(in srgb, var(--accent-bg-color) 50%, var(--window-fg-color)));
+}
+
+/* 'Follows you' badge: the text carries the meaning, the accent only
+   tints it; the border keeps it visible in high contrast. */
+.profile-follows-chip {
+  border: 1px solid var(--accent-color);
+  background-color: color-mix(in srgb, var(--accent-bg-color) 15%, transparent);
+  color: var(--accent-color);
+  border-radius: 9999px;
+  padding: 1px 9px;
+}
+
+/* Vertical rail on the left of a multi-post author run (Phanpy bar). */
+.status-run .run-rail {
+  min-width: 3px;
+  margin: 8px 12px 8px 6px;
+  border-radius: 2px;
+  background-color: color-mix(in srgb,
+                              var(--accent-color) 55%,
+                              var(--border-color));
+}
+
+/* Posts of a run share the card around them: no frame of their own,
+   only a rule above each continuation post. */
+.status-row.run-post,
+.status-row.run-lead {
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.status-row.run-post {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* The position badge reads '2/4'; the border carries it in every
+   colour scheme. */
+.run-badge {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0 6px;
+}
+
+@media (prefers-contrast: more) {
+  .status-row:focus-visible,
+  .inline-emoji-text:focus-visible {
+    outline-color: var(--accent-color);
+  }
+}
+
+/* scheduled.py: media thumbnails in scheduled post and draft rows */
+.scheduled-thumb {
+  border-radius: 8px;
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+/* mediaviewer.py: dark attachment viewer */
+.media-viewer-content {
+  background-color: #000;
+  color: #fff;
+}
+
+.media-viewer-content > .top-bar,
+.media-viewer-content > .bottom-bar,
+.media-viewer-content headerbar,
+.media-viewer-header,
+.media-viewer-content .media-viewer-bottom {
+  background-color: #000;
+  background-image: none;
+  color: #fff;
+  box-shadow: none;
+}
+
+.media-viewer-content button.osd,
+.media-viewer-zoom {
+  background-color: rgba(30, 30, 30, 0.85);
+  color: #fff;
+}
+
+.media-viewer-content button.osd:disabled {
+  opacity: 0.35;
+}
+
+.media-viewer-zoom button {
+  color: #fff;
+}
+
+.media-viewer-zoom button:disabled {
+  opacity: 0.4;
+}
+
+.media-viewer-content headerbar button:hover,
+.media-viewer-content headerbar button:checked,
+.media-viewer-content headerbar menubutton > button:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.media-viewer-content headerbar button {
+  color: #fff;
+}
+
+.media-viewer-content headerbar .subtitle {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.media-viewer-content statuspage {
+  color: #fff;
+}
+
+.media-viewer-bottom {
+  padding: 8px 14px 12px;
+}
+
+.media-viewer-alt-badge {
+  min-height: 0;
+  min-width: 0;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.media-viewer-alt-badge:checked {
+  color: #000;
+  background-color: #fff;
+}
+
+.media-viewer-alt-text {
+  color: #fff;
+}
+
+.media-viewer-dot {
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.media-viewer-dot.active {
+  background-color: #fff;
+}
+
+.media-viewer-zoom {
+  border-radius: 99px;
+  padding: 4px;
+}
+
+.media-viewer-audio-icon,
+.media-viewer-cover {
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.media-viewer-picture:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -4px;
+}
+
+/* Profile slice: badges under the profile name (account type and
+   relationship); the text carries the meaning, the tone only tints it.
+   .profile-follows-chip above is kept for the accent variant. */
+.profile-chip {
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  padding: 1px 9px;
+}
+
+.profile-chip-accent {
+  border-color: var(--accent-color);
+  background-color: color-mix(in srgb, var(--accent-bg-color) 15%, transparent);
+  color: var(--accent-color);
+}
+
+.profile-chip-danger {
+  border-color: var(--error-color);
+  background-color: color-mix(in srgb, var(--error-bg-color) 15%, transparent);
+  color: var(--error-color);
+}
+
+/* Moved-account notice above the banner. */
+.profile-moved {
+  padding: 6px 0;
+}
+
+/* notifications.py / conversations.py / announcements.py */
+
+/* Dim favourite, boost and follow rows when the setting is on; hover or
+   keyboard focus restores them. */
+.dim-enabled .notification-row.can-be-dimmed {
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+}
+
+.dim-enabled .notification-row.can-be-dimmed:hover,
+.dim-enabled .notification-row.can-be-dimmed:focus-within {
+  opacity: 1;
+}
+
+/* Overlapping participant avatars of a conversation. */
+.conversation-avatars > avatar {
+  margin-right: -10px;
+  border: 2px solid var(--card-bg-color);
+}
+
+.conversation-avatars > avatar:last-child {
+  margin-right: 0;
+}
+
+/* The unread text of an announcement: the label carries the meaning,
+   the accent only tints it. */
+.announcement-unread {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--accent-bg-color);
+  color: var(--accent-color);
+}

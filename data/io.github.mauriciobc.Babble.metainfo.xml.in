@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.mauriciobc.Babble</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Babble</name>
+  <summary>Follow your Mastodon timelines</summary>
+  <developer id="io.github.mauriciobc">
+    <name>Mauricio BC</name>
+  </developer>
+  <description>
+    <p>Babble is a Mastodon client focused on reading and writing posts. Follow your home timeline, catch up on notifications, read whole threads and write posts without leaving the desktop.</p>
+    <ul>
+      <li>Home, Local, Federated and Explore timelines</li>
+      <li>Notifications with mentions filter</li>
+      <li>Threads and profiles</li>
+      <li>Posts with media, content warnings and polls</li>
+    </ul>
+  </description>
+  <url type="homepage">https://github.com/mauriciobc</url>
+  <launchable type="desktop-id">io.github.mauriciobc.Babble.desktop</launchable>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-info">mild</content_attribute>
+  </content_rating>
+  <branding>
+    <color type="primary" scheme_preference="light">#04c7f0</color>
+    <color type="primary" scheme_preference="dark">#0799ed</color>
+  </branding>
+  <requires>
+    <display_length>360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <control>touch</control>
+  </supports>
+  <translation type="gettext">babble</translation>
+  <releases>
+    <release version="0.1.0" date="2026-01-01"/>
+  </releases>
+</component>

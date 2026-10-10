@@ -1,0 +1,13 @@
+/build
+/build-flatpak
+/.flatpak-builder
+/repo
+
+__pycache__/
+*.pyc
+
+# Local design references (Phanpy comparison screenshots)
+.reference/
+
+# Gauntlet evidence: rendered screenshots and bar references
+evidence/

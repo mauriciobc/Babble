@@ -1,0 +1,28 @@
+{
+	"id": "io.github.mauriciobc.Babble",
+	"x-comment": "LOCAL DEVELOPMENT manifest. Not a Flathub submission. A Flathub manifest must be written by a human and must not contain AI-generated or AI-assisted content.",
+	"runtime": "org.gnome.Platform",
+	"runtime-version": "51",
+	"sdk": "org.gnome.Sdk",
+	"command": "babble",
+	"finish-args": [
+		"--share=ipc",
+		"--share=network",
+		"--socket=fallback-x11",
+		"--socket=wayland",
+		"--device=dri",
+		"--talk-name=org.freedesktop.secrets"
+	],
+	"modules": [
+		{
+			"name": "babble",
+			"buildsystem": "meson",
+			"sources": [
+				{
+					"type": "dir",
+					"path": "../.."
+				}
+			]
+		}
+	]
+}

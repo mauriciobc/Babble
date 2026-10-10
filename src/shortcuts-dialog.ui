@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<interface>
+  <requires lib="gtk" version="4.24"/>
+  <requires lib="libadwaita" version="1.10"/>
+  <object class="AdwShortcutsDialog" id="shortcuts_dialog">
+    <child>
+      <object class="AdwShortcutsSection">
+        <property name="title" translatable="yes">General</property>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Preferences</property>
+            <property name="action-name">app.preferences</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Keyboard Shortcuts</property>
+            <property name="action-name">app.shortcuts</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Main Menu</property>
+            <property name="accelerator">F10</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Close Window</property>
+            <property name="action-name">window.close</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Quit</property>
+            <property name="action-name">app.quit</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="AdwShortcutsSection">
+        <property name="title" translatable="yes">Timelines</property>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">New Post</property>
+            <property name="action-name">win.compose</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Reload</property>
+            <property name="action-name">win.reload</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go Back</property>
+            <property name="accelerator">&lt;Alt&gt;Left</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Search</property>
+            <property name="accelerator">&lt;primary&gt;f &lt;primary&gt;k</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Home</property>
+            <property name="accelerator">&lt;Alt&gt;Home</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Notifications</property>
+            <property name="accelerator">&lt;primary&gt;&lt;shift&gt;n</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Sidebar Place</property>
+            <property name="accelerator">&lt;primary&gt;1...9</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Scroll Page Down</property>
+            <property name="accelerator">Page_Down</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Scroll Page Up</property>
+            <property name="accelerator">Page_Up</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Increase Text Size</property>
+            <property name="accelerator">&lt;primary&gt;plus</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Decrease Text Size</property>
+            <property name="accelerator">&lt;primary&gt;minus</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Reset Text Size</property>
+            <property name="accelerator">&lt;primary&gt;0</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="AdwShortcutsSection">
+        <property name="title" translatable="yes">Composer</property>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Send Post</property>
+            <property name="accelerator">&lt;primary&gt;Return</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Close Composer</property>
+            <property name="accelerator">Escape</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

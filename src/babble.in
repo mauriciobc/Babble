@@ -1,0 +1,52 @@
+#!@PYTHON@
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import os
+import sys
+import signal
+import locale
+import gettext
+
+VERSION = '@VERSION@'
+pkgdatadir = '@pkgdatadir@'
+localedir = '@localedir@'
+
+# Prefer the installed data directory; fall back to the build tree so an
+# uninstalled run works. The modules are a package named `babble`, so the
+# build-tree case binds that name to the source directory directly.
+if os.path.isdir(pkgdatadir):
+    sys.path.insert(1, pkgdatadir)
+else:
+    import importlib.util
+    _srcdir = os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src'))
+    _spec = importlib.util.spec_from_file_location(
+        'babble', os.path.join(_srcdir, '__init__.py'),
+        submodule_search_locations=[_srcdir])
+    _pkg = importlib.util.module_from_spec(_spec)
+    sys.modules['babble'] = _pkg
+    _spec.loader.exec_module(_pkg)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+locale.bindtextdomain('babble', localedir)
+locale.textdomain('babble')
+gettext.bindtextdomain('babble', localedir)
+gettext.textdomain('babble')
+
+if __name__ == '__main__':
+    import gi
+
+    from gi.repository import Gio
+
+    # An uninstalled build has no pkgdatadir yet; fall back to the
+    # gresource meson just generated so dev runs never load a stale
+    # installed copy.
+    bundle = os.path.join(pkgdatadir, 'babble.gresource')
+    if not os.path.exists(bundle):
+        bundle = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), 'babble.gresource')
+    resource = Gio.Resource.load(bundle)
+    resource._register()
+
+    from babble import main
+    sys.exit(main.main(VERSION))

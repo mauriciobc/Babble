@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="babble">
+  <enum id="io.github.mauriciobc.Babble.TextSize">
+    <value nick="small" value="1"/>
+    <value nick="normal" value="2"/>
+    <value nick="large" value="3"/>
+  </enum>
+  <enum id="io.github.mauriciobc.Babble.PostVisibility">
+    <value nick="public" value="1"/>
+    <value nick="unlisted" value="2"/>
+    <value nick="private" value="3"/>
+    <value nick="direct" value="4"/>
+  </enum>
+  <schema id="io.github.mauriciobc.Babble" path="/io/github/mauriciobc/Babble/">
+    <key name="window-width" type="i">
+      <default>800</default>
+    </key>
+    <key name="window-height" type="i">
+      <default>600</default>
+    </key>
+    <key name="window-maximized" type="b">
+      <default>false</default>
+    </key>
+    <key name="active-account" type="s">
+      <default>''</default>
+      <summary>ID of the active account</summary>
+    </key>
+    <key name="auto-refresh" type="s">
+      <choices>
+        <choice value="0"/>
+        <choice value="30"/>
+        <choice value="60"/>
+        <choice value="300"/>
+      </choices>
+      <default>'60'</default>
+      <summary>Timeline refresh interval in seconds; 0 turns automatic refresh off</summary>
+    </key>
+    <key name="accounts" type="as">
+      <default>[]</default>
+      <summary>Known accounts as JSON strings</summary>
+    </key>
+    <key name="text-size" enum="io.github.mauriciobc.Babble.TextSize">
+      <default>'normal'</default>
+      <summary>Interface text size class</summary>
+    </key>
+    <key name="default-visibility" enum="io.github.mauriciobc.Babble.PostVisibility">
+      <default>'public'</default>
+      <summary>Visibility preset used for new posts</summary>
+    </key>
+    <key name="hide-trending" type="b">
+      <default>false</default>
+      <summary>Hide the Explore page from the sidebar</summary>
+    </key>
+    <key name="hide-local" type="b">
+      <default>false</default>
+      <summary>Hide the Local timeline from the sidebar</summary>
+    </key>
+    <key name="hide-federated" type="b">
+      <default>false</default>
+      <summary>Hide the Federated timeline from the sidebar</summary>
+    </key>
+    <key name="color-scheme" type="s">
+      <choices>
+        <choice value="system"/>
+        <choice value="light"/>
+        <choice value="dark"/>
+      </choices>
+      <default>'system'</default>
+      <summary>Style preference: follow the system, light or dark</summary>
+    </key>
+    <key name="larger-line-height" type="b">
+      <default>false</default>
+      <summary>Increase the line height in posts</summary>
+    </key>
+    <key name="darken-images-on-dark-mode" type="b">
+      <default>false</default>
+      <summary>Dim post media while the dark style is in use</summary>
+    </key>
+    <key name="dim-trivial-notifications" type="b">
+      <default>false</default>
+      <summary>Render favorite, boost and follow notifications less prominently</summary>
+    </key>
+    <key name="enlarge-custom-emojis" type="b">
+      <default>false</default>
+      <summary>Render custom emojis in posts at a larger size</summary>
+    </key>
+    <key name="scale-emoji-hover" type="b">
+      <default>false</default>
+      <summary>Slightly enlarge custom emojis under the pointer</summary>
+    </key>
+    <key name="collapse-long-posts" type="b">
+      <default>true</default>
+      <summary>Collapse long posts behind a Show More button</summary>
+    </key>
+    <key name="letterbox-media" type="b">
+      <default>false</default>
+      <summary>Letterbox media instead of cropping it to the preview frame</summary>
+    </key>
+    <key name="show-sensitive-media" type="b">
+      <default>false</default>
+      <summary>Reveal media marked as sensitive without a click</summary>
+    </key>
+    <key name="show-spoilers" type="b">
+      <default>false</default>
+      <summary>Expand posts behind content warnings by default</summary>
+    </key>
+    <key name="show-preview-cards" type="b">
+      <default>true</default>
+      <summary>Show link preview cards under posts</summary>
+    </key>
+    <key name="show-interaction-counters" type="b">
+      <default>true</default>
+      <summary>Show reply, boost and favorite counts on post actions</summary>
+    </key>
+    <key name="advanced-boost-dialog" type="b">
+      <default>false</default>
+      <summary>Ask for visibility (and offer quoting) before boosting</summary>
+    </key>
+    <key name="strip-tracking" type="b">
+      <default>true</default>
+      <summary>Remove tracking parameters from opened links</summary>
+    </key>
+    <key name="aggressive-resolving" type="b">
+      <default>true</default>
+      <summary>Open links to posts and profiles on other servers inside Babble</summary>
+    </key>
+    <key name="reply-to-old-post-reminder" type="b">
+      <default>true</default>
+      <summary>Warn before replying to a post older than three months</summary>
+    </key>
+    <key name="copy-private-link-reminder" type="b">
+      <default>true</default>
+      <summary>Warn before copying a link to a non-public post</summary>
+    </key>
+    <key name="boost-alt-text-reminder" type="b">
+      <default>true</default>
+      <summary>Warn before boosting a post with media that lacks alt text</summary>
+    </key>
+    <key name="work-in-background" type="b">
+      <default>false</default>
+      <summary>Keep running after the window closes to deliver notifications</summary>
+    </key>
+    <key name="live-updates" type="b">
+      <default>true</default>
+      <summary>Stream new posts and notifications in real time</summary>
+    </key>
+    <key name="public-live-updates" type="b">
+      <default>false</default>
+      <summary>Also stream the Local and Federated timelines</summary>
+    </key>
+    <key name="default-language" type="s">
+      <default>''</default>
+      <summary>ISO 639-1 language of new posts; empty follows the system locale</summary>
+    </key>
+    <key name="default-quote-policy" type="s">
+      <choices>
+        <choice value="public"/>
+        <choice value="followers"/>
+        <choice value="nobody"/>
+      </choices>
+      <default>'public'</default>
+      <summary>Who may quote new posts</summary>
+    </key>
+    <key name="default-sensitive" type="b">
+      <default>false</default>
+      <summary>Mark media of new posts as sensitive by default</summary>
+    </key>
+    <key name="desktop-notification-types" type="as">
+      <default>['mention', 'follow', 'follow_request', 'favourite', 'reblog', 'poll', 'status', 'update', 'quote', 'quoted_update', 'admin.sign_up', 'admin.report']</default>
+      <summary>Notification types announced on the desktop</summary>
+    </key>
+    <key name="group-desktop-notifications" type="b">
+      <default>true</default>
+      <summary>Combine desktop notifications of the same type and post</summary>
+    </key>
+    <key name="notification-excluded-types" type="as">
+      <default>[]</default>
+      <summary>Notification types hidden from the Notifications page</summary>
+    </key>
+    <key name="recent-searches" type="as">
+      <default>[]</default>
+      <summary>Most recent search queries, newest first</summary>
+    </key>
+    <key name="recently-used-custom-emojis" type="as">
+      <default>[]</default>
+      <summary>Shortcodes of recently inserted custom emojis, newest first</summary>
+    </key>
+    <key name="favorite-lists-ids" type="as">
+      <default>[]</default>
+      <summary>Lists pinned to the sidebar, as "account-id/list-id"</summary>
+    </key>
+    <key name="favorite-tags-ids" type="as">
+      <default>[]</default>
+      <summary>Hashtags pinned to the sidebar, as "account-id/tag"</summary>
+    </key>
+    <key name="hashtag-lists" type="as">
+      <default>[]</default>
+      <summary>Saved multi-hashtag timelines as JSON {"title", "tags": [...]}</summary>
+    </key>
+    <key name="local-drafts" type="as">
+      <default>[]</default>
+      <summary>Unsent composer drafts as JSON, newest first</summary>
+    </key>
+  </schema>
+</schemalist>
