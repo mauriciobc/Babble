@@ -15,7 +15,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY'):
     print('SKIP - no display available for widget rendering')
@@ -202,6 +202,52 @@ box.append(body)
 natural = box.measure(Gtk.Orientation.VERTICAL, 600).natural
 check('an unallocated body is not one character per line',
       0 < natural < 200)
+
+
+def settle(ready=lambda: True, seconds=5.0, quiet=0.1):
+    """Run the main loop until *ready* holds and nothing has been
+    dispatched for *quiet* seconds: layout runs on frame ticks, so an
+    empty queue between two frames is not the end of it."""
+    context = GLib.MainContext.default()
+    now = GLib.get_monotonic_time
+    deadline = now() + int(seconds * 1000000)
+    last = now()
+    while now() < deadline:
+        if context.iteration(False):
+            last = now()
+        elif ready() and now() - last >= quiet * 1000000:
+            return
+        else:
+            GLib.usleep(2000)
+
+
+# A shell's placeholder height must not outlive it: a short post bound
+# into a slot sized for a tall one would sit above a blank gap.
+box.remove(body)
+window.set_default_size(660, 900)
+window.present()
+typical = timeline.StatusRunRow._typical_height
+timeline.StatusRunRow._typical_height = 700
+shell = timeline.StatusRunRow()
+shell.bind(grouped.get_item(0), _Client())
+box.append(shell)
+settle(lambda: shell.get_mapped() and shell.get_height() > 0)
+check('a shown run is as tall as its card, not its placeholder',
+      shell.get_mapped() and shell.get_height() < 400)
+timeline.StatusRunRow._typical_height = typical
+box.remove(shell)
+
+# The pre-allocation estimate is plain text; paragraph gaps and inline
+# images change the real height, which must replace it once allocated.
+body = timeline.StatusBody()
+body.set_segments(timeline.parse_content(
+    ''.join('<p>paragraph %d</p>' % n for n in range(8))))
+box.append(body)
+settle(lambda: body.get_width() > 0)
+real = Gtk.TextView.do_measure(body, Gtk.Orientation.VERTICAL,
+                               body.get_width())[1]
+check('an allocated body is as tall as its text', body.get_height() == real)
+box.remove(body)
 
 # Weak hookups must survive PyGObject dropping and re-creating the Python
 # wrapper of a widget that only GTK holds.

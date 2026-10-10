@@ -228,6 +228,15 @@ class InlineEmojiText(Gtk.TextView):
         connect_weak(click, 'released', self._on_link_clicked)
         self.add_controller(click)
 
+        # Links get the hand pointer; everything else keeps the text
+        # view's own cursor.
+        self._text_cursor = self.get_cursor()
+        self._over_link = False
+        motion = Gtk.EventControllerMotion.new()
+        connect_weak(motion, 'motion', self._on_motion)
+        connect_weak(motion, 'leave', self._on_leave)
+        self.add_controller(motion)
+
         keys = Gtk.EventControllerKey.new()
         keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         connect_weak(keys, 'key-pressed', self._on_key_pressed)
@@ -256,6 +265,22 @@ class InlineEmojiText(Gtk.TextView):
         return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
 
     def do_measure(self, orientation, for_size):
+        if orientation == Gtk.Orientation.HORIZONTAL \
+                and self.get_wrap_mode() == Gtk.WrapMode.NONE:
+            # Gtk.TextView reports 0 as the natural width of unwrapped
+            # text, so a header line (boost byline, display name) only
+            # showed when it was given spare width to expand into. Ask
+            # for the text's own width, inline emoji images included;
+            # the minimum stays 0 so a long name can still be squeezed.
+            layout = self._estimate()
+            layout.set_width(-1)
+            buf = self._buffer
+            images = buf.get_slice(buf.get_start_iter(), buf.get_end_iter(),
+                                   True).count('\ufffc')
+            natural = layout.get_pixel_size()[0] \
+                + images * self._emoji_size + self.get_left_margin() \
+                + self.get_right_margin()
+            return 0, natural, -1, -1
         if orientation != Gtk.Orientation.VERTICAL \
                 or self.get_width() > 0 \
                 or self.get_wrap_mode() == Gtk.WrapMode.NONE:
@@ -272,13 +297,7 @@ class InlineEmojiText(Gtk.TextView):
         # than it shows. Until the view has a width, answer with the
         # height of its text wrapped to the width being asked about
         # (unwrapped when no width is given).
-        layout = self._estimate_layout
-        if layout is None:
-            buf = self._buffer
-            layout = self.create_pango_layout(
-                buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True))
-            layout.set_wrap(Pango.WrapMode.WORD_CHAR)
-            self._estimate_layout = layout
+        layout = self._estimate()
         if for_size > 0:
             layout.set_width(max(1, for_size - self.get_left_margin()
                                  - self.get_right_margin()) * Pango.SCALE)
@@ -287,6 +306,18 @@ class InlineEmojiText(Gtk.TextView):
         height = layout.get_pixel_size()[1] + self.get_top_margin() \
             + self.get_bottom_margin()
         return height, height, -1, -1
+
+    def _estimate(self):
+        """Pango layout of the plain text, for measuring before (or
+        instead of) Gtk.TextView's own layout."""
+        layout = self._estimate_layout
+        if layout is None:
+            buf = self._buffer
+            layout = self.create_pango_layout(
+                buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True))
+            layout.set_wrap(Pango.WrapMode.WORD_CHAR)
+            self._estimate_layout = layout
+        return layout
 
     def _context(self):
         """Shared link/URL helpers that still live in the timeline
@@ -417,6 +448,21 @@ class InlineEmojiText(Gtk.TextView):
         if not over_text:
             return None
         return self._href_at_offset(location.get_offset())
+
+    def _set_over_link(self, over):
+        if over != self._over_link:
+            self._over_link = over
+            if over:
+                self.set_cursor_from_name('pointer')
+            else:
+                self.set_cursor(self._text_cursor)
+
+    def _on_motion(self, _controller, x, y):
+        self._set_over_link(bool(self._links)
+                            and self._href_at(x, y) is not None)
+
+    def _on_leave(self, _controller):
+        self._set_over_link(False)
 
     def _on_link_clicked(self, controller, n_press, x, y):
         href = self._href_at(x, y)

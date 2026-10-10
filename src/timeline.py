@@ -530,6 +530,10 @@ class StatusRunRow(Gtk.Box):
         run = self._run
         if run is None or self.rows:
             return
+        # The placeholder height is for an empty shell only. As a
+        # minimum it would outlive the cards it stood in for and leave a
+        # short post at the top of a tall slot.
+        self.set_size_request(-1, -1)
         multi = len(run.items) > 1
         self.rail.set_visible(multi)
         # One post keeps the normal card on StatusRow; a run shares one
@@ -1884,7 +1888,6 @@ class StatusRow(Gtk.Overlay):
         self._name_line = name_line
         self.name_plain = Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)
         self.name_plain.add_css_class('heading')
-        self.name_plain.set_hexpand(True)
         name_line.append(self.name_plain)
         self.name_label = None
         self.bot_badge = Gtk.Label(label=_('Bot'), valign=Gtk.Align.CENTER)
@@ -2060,7 +2063,6 @@ class StatusRow(Gtk.Overlay):
         if self.name_label is None:
             label = InlineEmojiText(emoji_size=18, single_line=True)
             label.add_css_class('heading')
-            label.set_hexpand(True)
             # Clicks fall through to the profile button.
             label.set_can_target(False)
             self.name_label = label
