@@ -1117,6 +1117,7 @@ class CardPreview(Gtk.Button):
         if card.get('image'):
             image = Gtk.Picture(accessible_role=Gtk.AccessibleRole.PRESENTATION)
             image.add_css_class('status-media')
+            image.add_css_class('darkenable')
             image.set_content_fit(Gtk.ContentFit.COVER)
             image.set_can_shrink(True)
             # Square at minimum, CARD_THUMB_W wide when there is room.
@@ -1194,6 +1195,7 @@ class _BoostCard(Gtk.Button):
             picture.set_can_shrink(True)
             picture.set_size_request(-1, 96)
             picture.add_css_class('status-media')
+            picture.add_css_class('darkenable')
             url = (media[0].get('url') if media[0].get('type') == 'image'
                    else media[0].get('preview_url')) \
                 or media[0].get('preview_url') or media[0].get('url')
@@ -1391,6 +1393,7 @@ class MediaBox(Gtk.Box):
             picture.set_hexpand(True)
             picture.set_size_request(-1, tile_height)
             picture.add_css_class('status-media')
+            picture.add_css_class('darkenable')
             overlay = Gtk.Overlay()
             overlay.set_child(picture)
             if description:
@@ -1765,6 +1768,7 @@ class QuoteCard(Gtk.Button):
             picture.set_can_shrink(True)
             picture.set_size_request(-1, 110)
             picture.add_css_class('status-media')
+            picture.add_css_class('darkenable')
             url = media[0].get('preview_url') or media[0].get('url')
             if url:
                 _TextureCache.load(url, picture, (COLUMN_WIDTH, 110))
@@ -1835,8 +1839,6 @@ class StatusRow(Gtk.Overlay):
         self.client = None
         self._busy = False
         self._emoji_bank = {}
-        self._style_ids = []
-        self._settings_id = 0
 
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         body.set_hexpand(True)
@@ -2036,9 +2038,6 @@ class StatusRow(Gtk.Overlay):
         self.carousel = None
         self._item_watch = None
 
-        self.connect('map', self._on_map)
-        self.connect('unmap', self._on_unmap)
-
     # Parts built on first use
 
     def _ensure_boost_strip(self):
@@ -2113,33 +2112,6 @@ class StatusRow(Gtk.Overlay):
             self.carousel = BoostCarousel()
             self.body.append(self.carousel)
         return self.carousel
-
-    # Dark-mode dimming of media
-
-    def _on_map(self, _widget):
-        manager = Adw.StyleManager.get_default()
-        self._style_ids = [manager.connect('notify::dark',
-                                           self._update_darken)]
-        if _has_schema():
-            self._settings_id = pages.settings().connect(
-                'changed::darken-images-on-dark-mode', self._update_darken)
-        self._update_darken()
-
-    def _on_unmap(self, _widget):
-        manager = Adw.StyleManager.get_default()
-        for handler in self._style_ids:
-            manager.disconnect(handler)
-        self._style_ids = []
-        if self._settings_id:
-            pages.settings().disconnect(self._settings_id)
-            self._settings_id = 0
-
-    def _update_darken(self, *_args):
-        dark = Adw.StyleManager.get_default().get_dark()
-        if dark and _flag('darken-images-on-dark-mode'):
-            self.add_css_class('darken-media')
-        else:
-            self.remove_css_class('darken-media')
 
     # Overflow menu
 
@@ -2652,7 +2624,6 @@ class StatusRow(Gtk.Overlay):
                 _('Filtered: %s') % rule[1] if rule[1] else _('Filtered'))
             return
 
-        self._update_darken()
         AvatarCache.load(self.avatar, account)
         display = item.display_name or '?'
         if _display_name_uses_custom_emoji(account, display):

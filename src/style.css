@@ -144,12 +144,45 @@
 
 /* Interface text size preference: three presets toggled as window
    classes; Adw's default ('normal') is used when no class is set. */
-window.text-small label {
+window.text-small label,
+window.text-small .inline-emoji-text {
   font-size: 90%;
 }
 
-window.text-large label {
+window.text-large label,
+window.text-large .inline-emoji-text {
   font-size: 110%;
+}
+
+/* Large Line Height preference: GtkTextView honours CSS line-height,
+   so post bodies take it the same way plain labels do. */
+window.large-line-height label,
+window.large-line-height .inline-emoji-text {
+  line-height: 1.4;
+}
+
+/* Scale Emoji on Hover preference: custom emoji images inside
+   rendered text grow while the pointer is over them. */
+.custom-emoji {
+  transition: transform 150ms ease-out;
+}
+
+window.scale-emoji-hover .custom-emoji:hover {
+  transform: scale(1.75);
+}
+
+/* Darken images in dark mode: media pictures are dimmed until
+   hovered; the class is only set while the style is dark. */
+.darkenable {
+  transition: filter 150ms;
+}
+
+window.darken-media .darkenable {
+  filter: brightness(0.8);
+}
+
+window.darken-media .darkenable:hover {
+  filter: none;
 }
 
 /* -- Profile section ----------------------------------------------- */

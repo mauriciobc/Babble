@@ -834,6 +834,7 @@ class NotificationPost(Gtk.Box):
             picture.set_alternative_text(
                 attachment.get('description') or _('Attachment'))
             picture.add_css_class('card')
+            picture.add_css_class('darkenable')
             self.media_box.append(picture)
             url = attachment.get('preview_url') or attachment.get('url')
             if url:

@@ -80,18 +80,32 @@ POLL_DURATIONS = [
 ]
 
 
+def _setting_string(key):
+    """GSettings string *key*, or None when the schema (or, in a stale
+    compiled schema, the key) is not installed."""
+    source = Gio.SettingsSchemaSource.get_default()
+    schema = source.lookup(SCHEMA_ID, True) if source is not None else None
+    if schema is None or not schema.has_key(key):
+        return None
+    return pages.settings().get_string(key)
+
+
 def default_language():
+    """Language preset for a brand new post: the preference when set,
+    else the system locale, else English."""
+    codes = [lang[0] for lang in LANGUAGES]
+    code = _setting_string('default-language')
+    if code in codes:
+        return code
     code = os.environ.get('LANG', 'en_US')[:2]
-    if code not in [lang[0] for lang in LANGUAGES]:
+    if code not in codes:
         code = 'en'
     return code
 
 
 def default_visibility():
     """Visibility preset for a brand new post, read from GSettings."""
-    source = Gio.SettingsSchemaSource.get_default()
-    if source is None or source.lookup(SCHEMA_ID, True) is None:
-        return 'public'
+    return _setting_string('default-visibility') or 'public'
 
 
 def countable_length(text, spoiler_text='', url_chars=URL_PLACEHOLDER_CHARS):
@@ -1074,6 +1088,11 @@ class BabbleComposeView(Adw.Bin):
         self.scheduled_at = None
         self.scheduled_on_done = None
         self._pending_media_ids = []
+        # Back to the presets, so a DM or a reply's visibility does not
+        # carry over; before the pop, so a stacked draft keeps its own.
+        self._select_visibility(default_visibility())
+        self.language_row.set_selected(
+            [lang[0] for lang in LANGUAGES].index(default_language()))
         if self.in_reply_to_id is not None:
             self.pop_reply_state()
         self.update_compose_state()
