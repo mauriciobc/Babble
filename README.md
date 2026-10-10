@@ -50,6 +50,33 @@ Babble is never brought back. Flatpak cannot write the host's `mimeapps.list` fr
 inside the sandbox, so this has to run on the host. It applies to `meson install`
 as well.
 
+## Translations
+
+Babble ships Brazilian Portuguese, German, French and Spanish. These were
+machine-assisted and still need review by native speakers; corrections are
+welcome. The interface language follows the system unless one is chosen in
+Preferences → General → Language, which applies on the next start.
+
+In the Flatpak, Babble's own translations ship inside the app
+(`"separate-locales": false`), so every language in the picker works whatever
+the system language is. The few strings that come from GTK and libadwaita
+themselves live in the runtime's locale extension, which only installs the
+system's languages. To get those too, add the language to Flatpak with
+`flatpak config --set extra-languages de` (for example) and run
+`flatpak update`.
+
+To update the catalogues after changing strings:
+
+```sh
+meson compile -C build babble-pot          # regenerate po/babble.pot
+meson compile -C build babble-update-po    # merge it into every po/*.po
+```
+
+To add a language, create `po/<lang>.po` from the template
+(`msginit -l <lang> -i po/babble.pot -o po/<lang>.po`), list it in
+`po/LINGUAS`, and add it, named in its own language, to
+`INTERFACE_LANGUAGES` in `src/preferences.py`.
+
 ## Flathub
 
 `build-aux/flatpak/io.github.mauriciobc.Babble.json` is a local development manifest only.

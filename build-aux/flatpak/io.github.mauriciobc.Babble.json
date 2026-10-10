@@ -5,6 +5,8 @@
 	"runtime-version": "51",
 	"sdk": "org.gnome.Sdk",
 	"command": "babble",
+	"x-comment-locales": "Keep every translation in the app itself. A split .Locale extension only installs the system's languages, so the in-app language preference could not switch to any other.",
+	"separate-locales": false,
 	"finish-args": [
 		"--share=ipc",
 		"--share=network",
