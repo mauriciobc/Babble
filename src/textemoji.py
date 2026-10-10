@@ -197,6 +197,8 @@ class InlineEmojiText(Gtk.TextView):
         self._links = []
         self._link_tags = {}
         self._style_ids = []
+        # Pango layout of the current text for do_measure's estimate.
+        self._estimate_layout = None
         self.set_editable(False)
         self.set_focusable(False)
         self.set_vexpand(False)
@@ -265,13 +267,18 @@ class InlineEmojiText(Gtk.TextView):
         # than it shows. Until the view has a width, answer with the
         # height of its text wrapped to the width being asked about
         # (unwrapped when no width is given).
-        buf = self._buffer
-        layout = self.create_pango_layout(
-            buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True))
+        layout = self._estimate_layout
+        if layout is None:
+            buf = self._buffer
+            layout = self.create_pango_layout(
+                buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True))
+            layout.set_wrap(Pango.WrapMode.WORD_CHAR)
+            self._estimate_layout = layout
         if for_size > 0:
             layout.set_width(max(1, for_size - self.get_left_margin()
                                  - self.get_right_margin()) * Pango.SCALE)
-            layout.set_wrap(Pango.WrapMode.WORD_CHAR)
+        else:
+            layout.set_width(-1)
         height = layout.get_pixel_size()[1] + self.get_top_margin() \
             + self.get_bottom_margin()
         return height, height, -1, -1
@@ -315,6 +322,7 @@ class InlineEmojiText(Gtk.TextView):
             table.remove(tag)
         buf.set_text('', -1)
         self._link_tags = {}
+        self._estimate_layout = None
         self._links = []
         plain = []
         pending_breaks = 0

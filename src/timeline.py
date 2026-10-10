@@ -514,25 +514,29 @@ class RunModel(GObject.Object, Gio.ListModel):
         super().__init__()
         self._source = source
         self._runs = []
+        # Mirror of the source's items, kept in step from items-changed:
+        # regrouping then reads a Python list instead of calling back
+        # into the source for every post on every change.
+        self._items = []
         connect_weak(source, 'items-changed', self._on_items_changed)
-        self._rebuild()
+        self._on_items_changed(source, 0, 0, source.get_n_items())
 
-    def _on_items_changed(self, *_args):
+    def _on_items_changed(self, source, position, removed, added):
+        self._items[position:position + removed] = [
+            source.get_item(index)
+            for index in range(position, position + added)]
         self._rebuild()
 
     def _rebuild(self):
         groups = []
-        for index in range(self._source.get_n_items()):
-            item = self._source.get_item(index)
-            if isinstance(item, BoostCarouselItem):
-                groups.append([item])
-                continue
+        previous = None
+        for item in self._items:
             key = run_key(item)
-            if groups and key is not None \
-                    and key == run_key(groups[-1][-1]):
+            if groups and key is not None and key == previous:
                 groups[-1].append(item)
             else:
                 groups.append([item])
+            previous = key
         # Keep the StatusRun objects of unchanged runs and announce only
         # the changed middle: the list view then keeps the widgets bound
         # to every other run instead of rebuilding all of them.
@@ -573,9 +577,17 @@ def _same_items(a, b):
 
 def run_key(item):
     """Key that decides whether two adjacent posts belong to one run."""
-    if isinstance(item, BoostCarouselItem) or item.is_boost or not item.handle:
-        return None
-    return item.thread_id
+    key = item.__dict__.get('_run_key', run_key)
+    if key is run_key:
+        # Cached: a post's author and thread never change, and reading
+        # GObject properties is slow enough to show on every regroup.
+        if isinstance(item, BoostCarouselItem) or item.is_boost \
+                or not item.handle:
+            key = None
+        else:
+            key = item.thread_id
+        item._run_key = key
+    return key
 
 
 class AvatarCache:
