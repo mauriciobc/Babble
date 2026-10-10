@@ -48,5 +48,16 @@ if __name__ == '__main__':
     resource = Gio.Resource.load(bundle)
     resource._register()
 
+    # Babble's own language preference overrides the session's. It has
+    # to be in place before the first lookup: modules translate at import
+    # time and i18n.py caches the catalogue for the life of the process.
+    schemas = Gio.SettingsSchemaSource.get_default()
+    if schemas is not None and schemas.lookup(
+            'io.github.mauriciobc.Babble', True) is not None:
+        language = Gio.Settings.new('io.github.mauriciobc.Babble').get_string(
+            'interface-language')
+        if language:
+            os.environ['LANGUAGE'] = language
+
     from babble import main
     sys.exit(main.main(VERSION))
