@@ -1924,8 +1924,9 @@ class StatusRow(Gtk.Overlay):
 
         header = Gtk.Box(spacing=6)
         self.header = header
-        profile_button = Gtk.Button(halign=Gtk.Align.START,
-                                    tooltip_text=_('View Profile'))
+        # Fills the header up to the time and menu, so its hover pill
+        # reads as the header's left side, not a box hugging the name.
+        profile_button = Gtk.Button(tooltip_text=_('View Profile'))
         profile_button.add_css_class('flat')
         profile_button.add_css_class('profile-opener')
         profile_button.set_hexpand(True)

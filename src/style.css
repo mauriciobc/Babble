@@ -81,7 +81,12 @@ picture.broken-image {
 }
 
 .profile-opener {
-  padding: 0;
+  /* Padding for the hover highlight, cancelled by the negative margin
+     so the avatar stays aligned with the post text. The pill radius
+     makes its left end follow the round avatar. */
+  padding: 4px;
+  margin: -4px 0 -4px -4px;
+  border-radius: 9999px;
 }
 
 .thread-reply.status-row {
