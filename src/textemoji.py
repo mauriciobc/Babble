@@ -241,6 +241,41 @@ class InlineEmojiText(Gtk.TextView):
         :meth:`set_segments`."""
         self._emoji_size = size
 
+    def do_get_request_mode(self):
+        # Gtk.TextView asks for a constant size, so containers never tell
+        # it the width it is measured for; wrapped text needs it.
+        if self.get_wrap_mode() == Gtk.WrapMode.NONE:
+            return Gtk.SizeRequestMode.CONSTANT_SIZE
+        return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
+
+    def do_measure(self, orientation, for_size):
+        if orientation != Gtk.Orientation.VERTICAL \
+                or self.get_width() > 0 \
+                or self.get_wrap_mode() == Gtk.WrapMode.NONE:
+            minimum, natural, _b, _b = Gtk.TextView.do_measure(
+                self, orientation, for_size)
+            # Chained through PyGObject the baselines come back as 0;
+            # Gtk.TextView itself reports none.
+            return minimum, natural, -1, -1
+        # Gtk.TextView ignores for_size and answers with its text wrapped
+        # to its last allocated width: 1px before the first allocation,
+        # i.e. one character per line. A fresh list row would then
+        # measure tens of thousands of pixels tall, which blows up the
+        # scrollable height and makes the list realize far more rows
+        # than it shows. Until the view has a width, answer with the
+        # height of its text wrapped to the width being asked about
+        # (unwrapped when no width is given).
+        buf = self._buffer
+        layout = self.create_pango_layout(
+            buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True))
+        if for_size > 0:
+            layout.set_width(max(1, for_size - self.get_left_margin()
+                                 - self.get_right_margin()) * Pango.SCALE)
+            layout.set_wrap(Pango.WrapMode.WORD_CHAR)
+        height = layout.get_pixel_size()[1] + self.get_top_margin() \
+            + self.get_bottom_margin()
+        return height, height, -1, -1
+
     def _context(self):
         """Shared link/URL helpers that still live in the timeline
         module (imported lazily to avoid an import cycle)."""
