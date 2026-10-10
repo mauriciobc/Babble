@@ -71,6 +71,15 @@ test('timeline render', python,
   timeout: 120,
 )
 
+timeline_memory_test_env = environment()
+timeline_memory_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+timeline_memory_test_env.set('G_DEBUG', 'fatal-criticals')
+test('timeline memory', python,
+  args: [files('test-timeline-memory.py')],
+  env: timeline_memory_test_env,
+  timeout: 60,
+)
+
 thread_profile_test_env = environment()
 thread_profile_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 thread_profile_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
