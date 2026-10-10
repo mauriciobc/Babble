@@ -409,8 +409,10 @@ class _TagsEditor:
         text = entry.get_text()
         names = [part for part in text.replace(',', ' ').split() if part]
         if self.dialog.total() + len(names) > TOTAL_TAGS_LIMIT:
-            self.dialog.toast(_('At most %d hashtags can be combined')
-                              % TOTAL_TAGS_LIMIT)
+            self.dialog.toast(ngettext(
+                'At most %d hashtag can be combined',
+                'At most %d hashtags can be combined',
+                TOTAL_TAGS_LIMIT) % TOTAL_TAGS_LIMIT)
             return
         for name in names:
             self.add(name)

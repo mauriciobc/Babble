@@ -391,7 +391,9 @@ class CollectionsPage(Adw.Bin):
         full = self._own_count >= self.limit
         self.new_button.set_sensitive(not full)
         self.new_button.set_tooltip_text(
-            _('You have reached the limit of %d collections') % self.limit
+            ngettext('You have reached the limit of %d collection',
+                     'You have reached the limit of %d collections',
+                     self.limit) % self.limit
             if full else _('New Collection'))
         return GLib.SOURCE_REMOVE
 

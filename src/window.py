@@ -1067,6 +1067,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                     and not typed.strip().lower().startswith('https://'):
                 self.show_error(
                     _('Could not connect to the server'),
+                    # Translators: keep "https://" untranslated
                     _('Babble only connects over HTTPS. Enter the server '
                       'address without a scheme, or with https://.'))
             return
