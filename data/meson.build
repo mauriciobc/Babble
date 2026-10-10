@@ -20,6 +20,12 @@ install_data(
   install_dir: get_option('datadir') / 'glib-2.0' / 'schemas',
 )
 
+install_data(
+  'screenshots/timeline.png',
+  'screenshots/thread.png',
+  install_dir: get_option('datadir') / 'metainfo' / 'io.github.mauriciobc.Babble' / 'screenshots',
+)
+
 gnome.compile_schemas(build_by_default: true, depend_files: 'io.github.mauriciobc.Babble.gschema.xml')
 
 desktop_validate = find_program('desktop-file-validate', required: false, disabler: true)

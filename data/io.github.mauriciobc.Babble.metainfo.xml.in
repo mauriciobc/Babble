@@ -6,7 +6,7 @@
   <name>Babble</name>
   <summary>Follow your Mastodon timelines</summary>
   <developer id="io.github.mauriciobc">
-    <name>Mauricio BC</name>
+    <name>mauriciobc</name>
   </developer>
   <description>
     <p>Babble is a Mastodon client focused on reading and writing posts. Follow your home timeline, catch up on notifications, read whole threads and write posts without leaving the desktop.</p>
@@ -17,12 +17,26 @@
       <li>Posts with media, content warnings and polls</li>
     </ul>
   </description>
-  <url type="homepage">https://github.com/mauriciobc</url>
+  <url type="homepage">https://github.com/mauriciobc/babble</url>
+  <url type="bugtracker">https://github.com/mauriciobc/babble/issues</url>
+  <url type="vcs-browser">https://github.com/mauriciobc/babble</url>
+  <url type="contribute">https://github.com/mauriciobc/babble/graphs/contributors</url>
   <launchable type="desktop-id">io.github.mauriciobc.Babble.desktop</launchable>
+  <update_contact>mauriciobc_AT_github.com</update_contact>
   <content_rating type="oars-1.1">
     <content_attribute id="social-chat">intense</content_attribute>
     <content_attribute id="social-info">mild</content_attribute>
   </content_rating>
+  <screenshots>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/babble/main/data/screenshots/timeline.png</image>
+      <caption>Home timeline with posts, media and the action bar</caption>
+    </screenshot>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/babble/main/data/screenshots/thread.png</image>
+      <caption>A thread, with the focused post and its replies</caption>
+    </screenshot>
+  </screenshots>
   <branding>
     <color type="primary" scheme_preference="light">#04c7f0</color>
     <color type="primary" scheme_preference="dark">#0799ed</color>
@@ -37,6 +51,6 @@
   </supports>
   <translation type="gettext">babble</translation>
   <releases>
-    <release version="0.1.0" date="2026-01-01"/>
+    <release version="0.1.0" date="2026-10-10"/>
   </releases>
 </component>
