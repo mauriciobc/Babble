@@ -79,6 +79,7 @@ def operator_hints():
     """(operator to insert, title, description) for the tips list."""
     return (
         ('from:', _('From a User'),
+         # Translators: keep the "from:" operator and the examples as-is
          _('Posts by one account, e.g. from:me or from:user@example.social')),
         ('has:', _('Containing'), _('has:media, has:poll or has:embed')),
         ('is:', _('Kind of Post'), _('is:reply or is:sensitive')),

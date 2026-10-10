@@ -792,6 +792,7 @@ class MediaViewer(Adw.Dialog):
         self.window_title.set_title(self._kind_title(attachment))
         if multiple:
             self.window_title.set_subtitle(
+                # Translators: position in a media gallery, e.g. "2 of 4"
                 _('{current} of {total}').format(
                     current=self.index + 1, total=total))
         else:

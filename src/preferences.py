@@ -27,6 +27,16 @@ COLOR_SCHEMES = (
     ('dark', _('Dark'), Adw.ColorScheme.FORCE_DARK),
 )
 
+# Languages Babble ships a translation for (po/LINGUAS) plus English,
+# each named in its own language. '' follows the system.
+INTERFACE_LANGUAGES = (
+    ('en', 'English'),
+    ('de', 'Deutsch'),
+    ('es', 'Español'),
+    ('fr', 'Français'),
+    ('pt_BR', 'Português (Brasil)'),
+)
+
 TEXT_SIZES = (('small', _('Small')), ('normal', _('Normal')),
               ('large', _('Large')))
 
@@ -232,6 +242,12 @@ class PreferencesDialog(Adw.PreferencesDialog):
                                    name='general')
 
         appearance = Adw.PreferencesGroup(title=_('Appearance'))
+        row = self._combo_string(
+            appearance, 'interface-language', _('_Language'),
+            [('', _('System Language'))] + list(INTERFACE_LANGUAGES),
+            subtitle=_('Takes effect the next time Babble starts'))
+        pages.connect_weak(row, 'notify::selected',
+                           self._on_interface_language_selected)
         self._combo_string(appearance, 'color-scheme', _('_Color Scheme'),
                            [(n, label) for n, label, _v in COLOR_SCHEMES])
         self._combo_string(
@@ -288,6 +304,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
         pages.connect_weak(row, 'notify::active', self._on_background_toggled)
         page.add(behavior)
         return page
+
+    def _on_interface_language_selected(self, _row, _pspec):
+        self.add_toast(Adw.Toast(
+            title=_('Restart Babble to use the new language')))
 
     def _on_background_toggled(self, row, _pspec):
         if row.get_active():

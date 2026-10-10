@@ -12,7 +12,10 @@ import gi
 gi.require_version('Soup', '3.0')
 gi.require_version('Secret', '1')
 
-from gettext import gettext as _  # noqa: E402
+try:
+    from .i18n import gettext as _, ngettext  # noqa: E402
+except ImportError:  # loaded as a top-level module by the standalone tests
+    from i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import GLib, GObject, Gio, Secret, Soup  # noqa: E402
 
@@ -313,8 +316,10 @@ class MastodonClient(GObject.Object):
             if status == HTTP_TOO_MANY_REQUESTS:
                 seconds = self._note_rate_limit(headers)
                 task.return_error(GLib.Error(
-                    _('Rate limited by this server. Trying again in %d seconds.')
-                    % seconds, 'mastodon-http-error-quark', status))
+                    ngettext('Rate limited by this server. Trying again in '
+                             '%d second.',
+                             'Rate limited by this server. Trying again in '
+                             '%d seconds.', seconds) % seconds, 'mastodon-http-error-quark', status))
                 return
             task.return_error(GLib.Error(
                 str(error or Soup.status_get_phrase(status)),

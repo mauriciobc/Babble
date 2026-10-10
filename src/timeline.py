@@ -154,17 +154,24 @@ def relative_time(iso_timestamp):
     if seconds < 0:
         seconds = 0
     if seconds < 60:
+        # Translators: compact age of a post in seconds, e.g. "42s"
         return _('%ds').replace('%d', str(seconds))
     minutes = seconds // 60
     if minutes < 60:
+        # Translators: compact age of a post in minutes, e.g. "5m"
         return _('%dm').replace('%d', str(minutes))
     hours = minutes // 60
     if hours < 24:
+        # Translators: compact age of a post in hours, e.g. "3h"
         return _('%dh').replace('%d', str(hours))
     days = hours // 24
     if days < 365:
+        # Translators: compact age of a post in days, e.g. "12d"
         return _('%dd').replace('%d', str(days))
-    return then.strftime('%b %Y')
+    moment = GLib.DateTime.new_from_unix_utc(int(then.timestamp()))
+    # Translators: date of a post older than a year, a GDateTime format
+    # string, e.g. "Oct 2025"; see the g_date_time_format() docs
+    return moment.to_local().format(_('%b %Y'))
 
 
 def shorten_url_text(text):
@@ -1576,6 +1583,8 @@ def absolute_time(iso_timestamp):
     moment = GLib.DateTime.new_from_iso8601(iso_timestamp or '', None)
     if moment is None:
         return ''
+    # Translators: a GDateTime format string, e.g. "9 Oct 2026, 10:47";
+    # see the g_date_time_format() docs
     return moment.to_local().format(_('%-d %b %Y, %H:%M'))
 
 

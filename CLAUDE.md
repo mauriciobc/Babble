@@ -15,7 +15,7 @@ meson test -C build -v 'compose widgets'  # -v shows the test's ok/FAIL lines
 python3 build/src/babble                  # uninstalled run; not executable until installed, and only works with the build dir directly inside the source tree (it resolves ../../src)
 ```
 
-Test names: `timeline render`, `timeline memory`, `thread profile render`, `compose widgets`, `notifications render`, `oauth callback`, `error summary`, `streaming helpers`.
+Test names (besides the `validate …` and `po check <lang>` tests): `timeline render`, `timeline memory`, `thread profile render`, `compose widgets`, `notifications render`, `oauth callback`, `error summary`, `streaming helpers`.
 
 - Each test is a standalone script, `src/test-*.py`, that prints `ok - …` / `FAIL - …` lines. It exits 77 (a Meson skip) when there is no `DISPLAY` or, for `timeline render` and `thread profile render`, no network: those two fetch live public data from mastodon.social. To run one headless, use `xvfb-run -a meson test -C build '<name>'`.
 - Tests import modules as `src.<module>` through `BABBLE_SRCDIR`. Several need `GSETTINGS_SCHEMA_DIR=build/data`, so they need a compiled build tree. They also run with `G_DEBUG=fatal-criticals`, so any GTK critical fails the test.
@@ -46,7 +46,8 @@ OAuth login needs `xdg-mime default io.github.mauriciobc.Babble.desktop x-scheme
   - Other parts: post text is rendered by `InlineEmojiText` from `src/textemoji.py` (a `Gtk.TextView` with inline custom emoji and height-for-width). Images go through `AvatarCache` and `_TextureCache` (scaled decode, capped size).
   - Other views (notifications, profile, thread, hashtags, lists, …) reuse `StatusRow` and `TimelinePage`.
 - **Streaming.** `src/streaming.py` `StreamingManager` multiplexes Mastodon streaming subscriptions (user, public, list, hashtag) and feeds inserts, edits, and deletes into open pages.
-- **i18n.** Always import `from .i18n import gettext as _` (and `ngettext`), never the stdlib `gettext` directly. The cached catalogue is a measured hot-path optimization.
+- **i18n.** Always import `from .i18n import gettext as _` (and `ngettext`), never the stdlib `gettext` directly. The cached catalogue is a measured hot-path optimization. Use `ngettext` for any count, and add a `# Translators:` comment right above the `_()` line for terse or format strings.
+- **Translations.** `po/LINGUAS` lists de, es, fr and pt_BR. After changing strings, run `meson compile -C build babble-pot` and then `babble-update-po`. The `po check <lang>` tests run `msgfmt --check-format`. The `interface-language` key (Preferences → Language) is applied in `src/babble.in` by setting `LANGUAGE` before anything translates, which is why it only takes effect on restart. A new language also goes into `INTERFACE_LANGUAGES` in `src/preferences.py`.
 
 ## Conventions that matter
 
