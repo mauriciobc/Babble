@@ -365,7 +365,7 @@ class FiltersList(Adw.Bin):
             _('Could Not Load Filters'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self.empty_page = Adw.StatusPage(
-            icon_name='view-filter-symbolic', title=_('No Filters'),
+            icon_name='babble-filter-symbolic', title=_('No Filters'),
             description=_('Hide or warn about posts that match keywords'))
         self.stack.add_named(self.empty_page, 'empty')
 

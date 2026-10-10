@@ -53,7 +53,7 @@ class StatusStatsView(Adw.Bin):
                 holder, tab_kind, _tab_title(tab_kind, status.get(count_key)))
             page.set_icon_name({'favourites': 'starred-symbolic',
                                 'boosts': 'media-playlist-repeat-symbolic',
-                                'quotes': 'chat-bubble-text-symbolic'}[tab_kind])
+                                'quotes': 'babble-quote-symbolic'}[tab_kind])
             self._builders[tab_kind] = (
                 lambda k=tab_kind, p=path % status_id: self._make_tab(k, p))
 
@@ -267,7 +267,7 @@ class EditHistoryView(Adw.Bin):
             for option in titles:
                 row = Gtk.Box(spacing=6)
                 row.append(Gtk.Image.new_from_icon_name(
-                    'emblem-ok-symbolic'))
+                    'object-select-symbolic'))
                 row.append(Gtk.Label(label=option, xalign=0, wrap=True,
                                      hexpand=True))
                 poll.append(row)
