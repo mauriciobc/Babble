@@ -57,9 +57,12 @@ _SPACES = re.compile(r'\s+')
 def summarize_error(text):
     """HTML from a server response to a safe, bounded plain-text line.
 
-    Every consumer renders this with ``use_markup=False``, so the output
-    must be literal text: tags are stripped and the result truncated, but
-    every other character is left exactly as the server sent it.
+    The result is literal text: tags are stripped and it is truncated,
+    but every other character is left as the server sent it. Consumers
+    rendering plain text (``Adw.Toast`` with ``use_markup=False``) use
+    it as-is; those rendering Pango markup must pass it through
+    :func:`summarize_error_markup`, or a bare ``&`` in the body fails
+    the markup parse and blanks the label.
     """
     text = _UNPRINTABLE_BLOCK.sub(' ', text or '')
     text = _TAG.sub(' ', text)
@@ -67,6 +70,17 @@ def summarize_error(text):
     if len(text) > MAX_ERROR_SUMMARY:
         text = text[:MAX_ERROR_SUMMARY - 1].rstrip() + '…'
     return text
+
+
+def summarize_error_markup(text):
+    """:func:`summarize_error` escaped for a markup-rendering widget.
+
+    ``Adw.StatusPage`` descriptions and descriptions built on them are
+    Pango markup, so an unescaped ``&`` makes the parse fail and the
+    whole label come out empty -- an error the user cannot see.
+    """
+    return GLib.markup_escape_text(summarize_error(text))
+
 
 def generate_code_verifier():
     """A fresh RFC 7636 ``code_verifier`` (43 chars, unreserved set)."""
@@ -441,11 +455,19 @@ class MastodonClient(GObject.Object):
         return self.instance + '/oauth/authorize?' + query
 
     def parse_callback_uri(self, uri):
-        """``(code, state)`` from a redirect, either may be None.
+        """The authorization *code* from a redirect, or None.
 
-        The out-of-band flow has no redirect URI, so it arrives as a
-        code the user pasted; there is no state to check against and the
-        caller accepts it on the PKCE verifier alone.
+        A redirect callback must carry the ``state`` this client minted
+        in :meth:`get_authorize_url`. A callback without one, or with
+        someone else's, is refused rather than spent against our own
+        PKCE verifier: without the check, any application able to hand
+        Babble a ``babble://oauth/callback?code=...`` URL could redeem
+        a code of its own choosing into the signed-in session (login
+        CSRF).
+
+        The out-of-band flow never reaches this method; the user pastes
+        the code directly and :meth:`request_token_async` binds it to
+        the verifier on its own.
         """
         query = urllib.parse.urlparse(uri).query
         params = urllib.parse.parse_qs(query)
@@ -453,11 +475,7 @@ class MastodonClient(GObject.Object):
         states = params.get('state')
         code = codes[0] if codes else None
         state = states[0] if states else None
-        if code is None:
-            return None
-        if state is not None and state != self._state:
-            # A callback for a different authorization than the one this
-            # client started: refuse it rather than spend the code.
+        if code is None or state is None or state != self._state:
             return None
         return code
 
