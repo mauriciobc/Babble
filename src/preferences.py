@@ -438,7 +438,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     def _filters_page(self):
         page = Adw.PreferencesPage(title=_('Filters'),
-                                   icon_name='view-filter-symbolic',
+                                   icon_name='babble-filter-symbolic',
                                    name='filters')
         group = Adw.PreferencesGroup(
             title=_('Filters'),

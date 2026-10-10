@@ -42,7 +42,7 @@ PLACES = (
     ('search', 'system-search-symbolic', 0),
     ('favourites', 'starred-symbolic', 0),
     ('bookmarks', 'babble-bookmarks-symbolic', 0),
-    ('hashtags', 'tag-symbolic', 0),
+    ('hashtags', 'babble-hashtag-symbolic', 0),
     ('explore', 'babble-explore-symbolic', 1),
     ('local', 'network-server-symbolic', 1),
     ('federated', 'babble-compose-globe-symbolic', 1),
@@ -780,7 +780,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         for name in tags:
             tag = 'tag:%s' % name
             item = Adw.SidebarItem(title='#' + name,
-                                   icon_name='tag-symbolic')
+                                   icon_name='babble-hashtag-symbolic')
             section.append(item)
             self._items[tag] = item
         if list_ids and not all(i in self._pinned_lists for i in list_ids):
