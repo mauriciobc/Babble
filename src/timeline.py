@@ -441,6 +441,9 @@ class StatusRunRow(Gtk.Box):
     """Card for one run: the author line, then every post of the run with
     its own body, media and 'n/total' badge inside the same card."""
 
+    # Replaced with the height of posts that have actually been shown.
+    _typical_height = 64
+
     def __init__(self):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         self.set_valign(Gtk.Align.START)
@@ -459,26 +462,83 @@ class StatusRunRow(Gtk.Box):
         self.append(self.column)
         self.rows = []
         self.item = None
+        self._run = None
+        self._client = None
+        # Built cards, kept while this run is scrolled off screen.
+        # Gtk.ListView still instantiates a child for every loaded post
+        # (up to a couple of hundred) and lays that whole set out on
+        # every top insertion. A StatusRow is a large tree, so it is
+        # parented only while the run is mapped; scrolling back reuses
+        # the same card instead of building another one.
+        self._cards = {}
+        # Floor so an unmapped run does not collapse to 0px, which would
+        # keep the list from ever mapping it. Later rows use the height
+        # of posts already shown, so the scrollbar is not stuck at one
+        # line per post.
+        self.set_size_request(-1, type(self)._typical_height)
+        connect_weak(self, 'map', self._on_map)
+        connect_weak(self, 'unmap', self._on_unmap)
 
     def bind(self, run, client):
+        self._run = run
+        self._client = client
+        self.item = run.items[0]
+        keep = set(run.items)
+        for item in [key for key in self._cards if key not in keep]:
+            card = self._cards.pop(item)
+            parent = card.get_parent()
+            if parent is not None:
+                parent.remove(card)
+        self.set_size_request(-1, type(self)._typical_height)
+        self._detach()
+        if self.get_mapped():
+            self._populate()
+
+    def _on_map(self, _widget):
+        if self._run is not None:
+            self._populate()
+
+    def _on_unmap(self, _widget):
+        # Keep the height the list just measured, or dropping the cards
+        # makes the scrollbar jump and every row below this one relayout.
+        height = self.get_height()
+        kind = type(self)
+        if height > 64:
+            # This shell keeps the height it just had, and the next
+            # off-screen shells start from the posts already shown.
+            self.set_size_request(-1, height)
+            if kind._typical_height <= 64:
+                kind._typical_height = height
+            else:
+                kind._typical_height = (kind._typical_height * 3 + height) // 4
+        self._detach()
+
+    def _detach(self):
         for row in self.rows:
             self.column.remove(row)
             row.remove_css_class('run-lead')
             row.remove_css_class('run-post')
         self.rows = []
-        self.item = run.items[0]
+        self.column.remove_css_class('status-row')
+        self.rail.set_visible(False)
+
+    def _populate(self):
+        run = self._run
+        if run is None or self.rows:
+            return
         multi = len(run.items) > 1
         self.rail.set_visible(multi)
         # One post keeps the normal card on StatusRow; a run shares one
         # card on the column and strips chrome from each inner row.
         if multi:
             self.column.add_css_class('status-row')
-        else:
-            self.column.remove_css_class('status-row')
         for position, item in enumerate(run.items):
-            row = StatusRow()
-            row.bind(item, client)
-            row.set_vexpand(False)
+            row = self._cards.get(item)
+            if row is None:
+                row = StatusRow()
+                row.bind(item, self._client)
+                row.set_vexpand(False)
+                self._cards[item] = row
             if multi:
                 if position:
                     # Continuation posts keep only the thread badge: the
