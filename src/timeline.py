@@ -288,6 +288,11 @@ class BoostCarouselItem(StatusItem):
     (test: get_item_type() == StatusItem) stays intact."""
 
     __gtype_name__ = 'BabbleBoostCarouselItem'
+    # The carousel row stays one list item for the life of the timeline;
+    # its posts change in place and the bound row follows this signal,
+    # instead of the list view tearing the row down for a new item.
+    __gsignals__ = {'boosts-changed': (GObject.SignalFlags.RUN_FIRST,
+                                       None, ())}
 
     def __init__(self, boosts):
         super().__init__({'id': '__babble_boosts__',
@@ -295,6 +300,13 @@ class BoostCarouselItem(StatusItem):
                           'account': {'acct': 'boosts'},
                           'created_at': ''})
         self.boosts = boosts
+
+    def set_boosts(self, boosts):
+        if len(self.boosts) == len(boosts) and all(
+                a is b for a, b in zip(self.boosts, boosts)):
+            return
+        self.boosts = boosts
+        self.emit('boosts-changed')
 
 
 class TimelineModel(GObject.Object, Gio.ListModel):
@@ -413,12 +425,7 @@ class TimelineModel(GObject.Object, Gio.ListModel):
                 self._store.remove(0)
             return
         if has:
-            if len(head.boosts) == len(boosts) and all(
-                    a is b for a, b in zip(head.boosts, boosts)):
-                # Same posts: rebuilding the carousel would only redo
-                # every card for nothing.
-                return
-            self._store.splice(0, 1, [BoostCarouselItem(boosts)])
+            head.set_boosts(boosts)
         else:
             self._store.insert(0, BoostCarouselItem(boosts))
 
@@ -1057,11 +1064,11 @@ class _BoostCard(Gtk.Button):
         self.set_child(box)
 
         header = Gtk.Box(spacing=6)
-        badge = Gtk.Label(label=str(number), valign=Gtk.Align.CENTER)
-        badge.add_css_class('boost-num')
-        badge.add_css_class('caption-heading')
-        badge.add_css_class('numeric')
-        header.append(badge)
+        self._badge = Gtk.Label(valign=Gtk.Align.CENTER)
+        self._badge.add_css_class('boost-num')
+        self._badge.add_css_class('caption-heading')
+        self._badge.add_css_class('numeric')
+        header.append(self._badge)
         avatar = Adw.Avatar(size=24, show_initials=True, text=author or '?')
         AvatarCache.load(avatar, account)
         header.append(avatar)
@@ -1084,8 +1091,9 @@ class _BoostCard(Gtk.Button):
                           wrap_mode=Pango.WrapMode.WORD_CHAR,
                           ellipsize=Pango.EllipsizeMode.END)
         box.append(label)
-        self.update_property([Gtk.AccessibleProperty.LABEL],
-                             ['%d. %s: %s' % (number, author, summary)])
+        self._author = author
+        self._summary = summary
+        self.set_number(number)
 
         if media:
             picture = Gtk.Picture(accessible_role=Gtk.AccessibleRole.PRESENTATION)
@@ -1100,6 +1108,12 @@ class _BoostCard(Gtk.Button):
                 _TextureCache.load(url, picture, (BOOST_CARD_WIDTH, 96))
             box.append(picture)
         self.connect('clicked', self._on_clicked)
+
+    def set_number(self, number):
+        self._badge.set_label(str(number))
+        self.update_property([Gtk.AccessibleProperty.LABEL],
+                             ['%d. %s: %s' % (number, self._author,
+                                              self._summary)])
 
     def _on_clicked(self, _button):
         view = getattr(self.get_root(), 'navigation_view', None)
@@ -1147,15 +1161,35 @@ class BoostCarousel(Gtk.Box):
         return button
 
     def set_boosts(self, statuses, client=None):
-        while (child := self.cards_box.get_first_child()) is not None:
-            self.cards_box.remove(child)
+        # Cards are kept for posts still in the strip and only renumbered:
+        # a new boost shifts every number but changes no other card.
+        current = {}
+        child = self.cards_box.get_first_child()
+        while child is not None:
+            current[id(child.status)] = child
+            child = child.get_next_sibling()
+        cards = []
         seen = set()
         for status in statuses:
             key = status.get('id')
             if key in seen:
                 continue
             seen.add(key)
-            self.cards_box.append(_BoostCard(len(seen), status, client))
+            card = current.pop(id(status), None)
+            if card is None or card.client is not client:
+                card = _BoostCard(len(seen), status, client)
+            else:
+                card.set_number(len(seen))
+            cards.append(card)
+        for stale in current.values():
+            self.cards_box.remove(stale)
+        previous = None
+        for card in cards:
+            if card.get_parent() is None:
+                self.cards_box.insert_child_after(card, previous)
+            else:
+                self.cards_box.reorder_child_after(card, previous)
+            previous = card
         self.set_visible(bool(seen))
         self.title.set_text(
             ngettext('%d Boost', '%d Boosts', len(seen)) % len(seen))
@@ -1908,6 +1942,7 @@ class StatusRow(Gtk.Overlay):
         main.append(actions)
 
         self.carousel = None
+        self._boosts_watch = None
 
         self.connect('map', self._on_map)
         self.connect('unmap', self._on_unmap)
@@ -2480,6 +2515,10 @@ class StatusRow(Gtk.Overlay):
     # Binding
 
     def bind(self, item, client):
+        if self._boosts_watch is not None:
+            watched, handler = self._boosts_watch
+            watched.disconnect(handler)
+            self._boosts_watch = None
         self.item = item
         self.client = client
         if self._overflow.get_menu_model() is not None:
@@ -2487,6 +2526,8 @@ class StatusRow(Gtk.Overlay):
             self._overflow.set_menu_model(None)
         if isinstance(item, BoostCarouselItem):
             self._bind_carousel(item, client)
+            self._boosts_watch = (item, connect_weak(
+                item, 'boosts-changed', self._on_boosts_changed))
             return
         if self.carousel is not None:
             self.carousel.set_visible(False)
@@ -2765,6 +2806,10 @@ class StatusRow(Gtk.Overlay):
         carousel = self._ensure_carousel()
         carousel.set_visible(True)
         carousel.set_boosts(item.boosts, client)
+
+    def _on_boosts_changed(self, item):
+        if item is self.item:
+            self.carousel.set_boosts(item.boosts, self.client)
 
     def _on_show_filtered(self, _button):
         if self.item is None:
