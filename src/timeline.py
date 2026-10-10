@@ -1653,19 +1653,12 @@ class StatusRow(Gtk.Overlay):
         self.body = body
         self.set_child(body)
 
-        boost_strip = Gtk.Box(spacing=6)
-        boost_icon = Gtk.Image(
-            icon_name=self.ICON_BOOST, pixel_size=12,
-            accessible_role=Gtk.AccessibleRole.PRESENTATION)
-        boost_icon.add_css_class('dimmed')
-        boost_strip.append(boost_icon)
-        self.boost_label = InlineEmojiText(emoji_size=14, single_line=True)
-        self.boost_label.add_css_class('caption-heading')
-        self.boost_label.add_css_class('dimmed')
-        self.boost_label.set_can_target(False)
-        boost_strip.append(self.boost_label)
-        self.boost_strip = boost_strip
-        body.append(boost_strip)
+        # The boost strip, display-name emoji text, content-warning bar,
+        # translation note and boosts carousel are built on first use:
+        # most posts need none of them, and each costs a text view or a
+        # scrolled window per row.
+        self.boost_strip = None
+        self.boost_label = None
 
         # Filtered posts collapse into this bar until shown anyway.
         self.filter_bar = Gtk.Box(spacing=8)
@@ -1702,17 +1695,12 @@ class StatusRow(Gtk.Overlay):
         names.set_hexpand(True)
         name_line = Gtk.Box(spacing=6)
         name_line.set_hexpand(True)
+        self._name_line = name_line
         self.name_plain = Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)
         self.name_plain.add_css_class('heading')
         self.name_plain.set_hexpand(True)
         name_line.append(self.name_plain)
-        self.name_label = InlineEmojiText(emoji_size=18, single_line=True)
-        self.name_label.add_css_class('heading')
-        self.name_label.set_hexpand(True)
-        self.name_label.set_visible(False)
-        # Clicks fall through to the profile button.
-        self.name_label.set_can_target(False)
-        name_line.append(self.name_label)
+        self.name_label = None
         self.bot_badge = Gtk.Label(label=_('Bot'), valign=Gtk.Align.CENTER)
         self.bot_badge.set_hexpand(False)
         self.bot_badge.add_css_class('status-chip')
@@ -1785,21 +1773,9 @@ class StatusRow(Gtk.Overlay):
         self.reply_box.append(self.reply_label)
         main.append(self.reply_box)
 
-        # Content warning: the spoiler line with its Show/Hide toggle.
-        self.cw_box = Gtk.Box(spacing=8)
-        self.cw_box.add_css_class('cw-bar')
-        self.cw_label = InlineEmojiText(emoji_size=16, shorten_links=True)
-        self.cw_label.set_hexpand(True)
-        self.cw_label.add_css_class('heading')
-        self.cw_label.set_valign(Gtk.Align.CENTER)
-        self.cw_box.append(self.cw_label)
-        self.cw_toggle = Gtk.Button(valign=Gtk.Align.CENTER)
-        self.cw_toggle.add_css_class('pill')
-        self.cw_toggle.add_css_class('cw-toggle')
-        connect_weak(self.cw_toggle, 'clicked', self._on_cw_toggle)
-        self.cw_box.append(self.cw_toggle)
-        self.cw_box.set_visible(False)
-        main.append(self.cw_box)
+        self.cw_box = None
+        self.cw_label = None
+        self.cw_toggle = None
 
         guarded = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.guarded = guarded
@@ -1822,19 +1798,8 @@ class StatusRow(Gtk.Overlay):
         self.post_meta.set_visible(False)
         guarded.append(self.post_meta)
 
-        self.translation_box = Gtk.Box(spacing=8)
-        self.translation_label = Gtk.Label(xalign=0.0, hexpand=True,
-                                           wrap=True)
-        self.translation_label.add_css_class('caption')
-        self.translation_label.add_css_class('dimmed')
-        self.translation_box.append(self.translation_label)
-        original = Gtk.Button(label=_('Show _Original'), use_underline=True)
-        original.add_css_class('flat')
-        original.add_css_class('caption')
-        connect_weak(original, 'clicked', self._menu_translate)
-        self.translation_box.append(original)
-        self.translation_box.set_visible(False)
-        guarded.append(self.translation_box)
+        self.translation_box = None
+        self.translation_label = None
 
         self.poll_box = PollBox()
         guarded.append(self.poll_box)
@@ -1879,14 +1844,86 @@ class StatusRow(Gtk.Overlay):
         actions.add_css_class('status-actions')
         main.append(actions)
 
-        # Boosts-carousel mode: the first list row can render as the
-        # horizontal boosts carousel instead of a normal post.
-        self.carousel = BoostCarousel()
-        self.carousel.set_visible(False)
-        body.append(self.carousel)
+        self.carousel = None
 
         self.connect('map', self._on_map)
         self.connect('unmap', self._on_unmap)
+
+    # Parts built on first use
+
+    def _ensure_boost_strip(self):
+        if self.boost_strip is None:
+            strip = Gtk.Box(spacing=6)
+            icon = Gtk.Image(
+                icon_name=self.ICON_BOOST, pixel_size=12,
+                accessible_role=Gtk.AccessibleRole.PRESENTATION)
+            icon.add_css_class('dimmed')
+            strip.append(icon)
+            self.boost_label = InlineEmojiText(emoji_size=14,
+                                               single_line=True)
+            self.boost_label.add_css_class('caption-heading')
+            self.boost_label.add_css_class('dimmed')
+            self.boost_label.set_can_target(False)
+            strip.append(self.boost_label)
+            self.boost_strip = strip
+            self.body.prepend(strip)
+        return self.boost_strip
+
+    def _ensure_name_label(self):
+        if self.name_label is None:
+            label = InlineEmojiText(emoji_size=18, single_line=True)
+            label.add_css_class('heading')
+            label.set_hexpand(True)
+            # Clicks fall through to the profile button.
+            label.set_can_target(False)
+            self.name_label = label
+            self._name_line.insert_child_after(label, self.name_plain)
+        return self.name_label
+
+    def _ensure_cw_box(self):
+        """Content warning: the spoiler line with its Show/Hide toggle."""
+        if self.cw_box is None:
+            box = Gtk.Box(spacing=8)
+            box.add_css_class('cw-bar')
+            self.cw_label = InlineEmojiText(emoji_size=16, shorten_links=True)
+            self.cw_label.set_hexpand(True)
+            self.cw_label.add_css_class('heading')
+            self.cw_label.set_valign(Gtk.Align.CENTER)
+            box.append(self.cw_label)
+            self.cw_toggle = Gtk.Button(valign=Gtk.Align.CENTER)
+            self.cw_toggle.add_css_class('pill')
+            self.cw_toggle.add_css_class('cw-toggle')
+            connect_weak(self.cw_toggle, 'clicked', self._on_cw_toggle)
+            box.append(self.cw_toggle)
+            self.cw_box = box
+            self.main.insert_child_after(box, self.reply_box)
+        return self.cw_box
+
+    def _ensure_translation_box(self):
+        if self.translation_box is None:
+            box = Gtk.Box(spacing=8)
+            self.translation_label = Gtk.Label(xalign=0.0, hexpand=True,
+                                               wrap=True)
+            self.translation_label.add_css_class('caption')
+            self.translation_label.add_css_class('dimmed')
+            box.append(self.translation_label)
+            original = Gtk.Button(label=_('Show _Original'),
+                                  use_underline=True)
+            original.add_css_class('flat')
+            original.add_css_class('caption')
+            connect_weak(original, 'clicked', self._menu_translate)
+            box.append(original)
+            self.translation_box = box
+            self.guarded.insert_child_after(box, self.post_meta)
+        return self.translation_box
+
+    def _ensure_carousel(self):
+        """Boosts-carousel mode: the first list row can render as the
+        horizontal boosts carousel instead of a normal post."""
+        if self.carousel is None:
+            self.carousel = BoostCarousel()
+            self.body.append(self.carousel)
+        return self.carousel
 
     # Dark-mode dimming of media
 
@@ -2369,21 +2406,24 @@ class StatusRow(Gtk.Overlay):
         if isinstance(item, BoostCarouselItem):
             self._bind_carousel(item, client)
             return
-        self.carousel.set_visible(False)
+        if self.carousel is not None:
+            self.carousel.set_visible(False)
         self._bind_status(item)
 
     def _bind_status(self, item):
         status = item.status
         account = status['account']
         ui = item.ui
-        self.boost_strip.set_visible(item.is_boost)
         if item.is_boost:
+            self._ensure_boost_strip().set_visible(True)
             self.boost_label.set_segments(
                 [{'text': _('%s boosted') % item.boost_line,
                   'href': None}], emoji_bank(item.boosted_by))
             label = _('Post by %(author)s, boosted by %(booster)s') % {
                 'author': item.display_name, 'booster': item.boost_line}
         else:
+            if self.boost_strip is not None:
+                self.boost_strip.set_visible(False)
             label = _('Post by %s') % item.display_name
         self.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
@@ -2401,11 +2441,12 @@ class StatusRow(Gtk.Overlay):
         display = item.display_name or '?'
         if _display_name_uses_custom_emoji(account, display):
             self.name_plain.set_visible(False)
-            self.name_label.set_visible(True)
+            self._ensure_name_label().set_visible(True)
             self.name_label.set_segments(
                 [{'text': display, 'href': None}], emoji_bank(account))
         else:
-            self.name_label.set_visible(False)
+            if self.name_label is not None:
+                self.name_label.set_visible(False)
             self.name_plain.set_visible(True)
             self.name_plain.set_label(display)
             self.name_plain.set_tooltip_text(display)
@@ -2425,9 +2466,9 @@ class StatusRow(Gtk.Overlay):
         bank = status_emoji_bank(status)
         self._emoji_bank = bank
         has_cw = bool(spoiler)
-        self.cw_box.set_visible(has_cw)
         revealed = True
         if has_cw:
+            self._ensure_cw_box().set_visible(True)
             self.cw_label.set_segments(
                 [{'text': spoiler, 'href': None}], bank)
             revealed = ui.get('cw_open')
@@ -2439,6 +2480,8 @@ class StatusRow(Gtk.Overlay):
                 [Gtk.AccessibleProperty.LABEL],
                 [_('Hide content warning: %s') % spoiler if revealed
                  else _('Show content warning: %s') % spoiler])
+        elif self.cw_box is not None:
+            self.cw_box.set_visible(False)
         self.guarded.set_visible(bool(revealed))
 
         self._render_body(item, bank)
@@ -2469,9 +2512,11 @@ class StatusRow(Gtk.Overlay):
     def _bind_translation(self, item):
         """The 'Translated from …' note above the body, when shown."""
         translation = item.translation
-        self.translation_box.set_visible(bool(translation))
         if not translation:
+            if self.translation_box is not None:
+                self.translation_box.set_visible(False)
             return
+        self._ensure_translation_box().set_visible(True)
         detected = (translation.get('detected_source_language') or '').upper()
         provider = translation.get('provider') or ''
         if detected and provider:
@@ -2634,10 +2679,12 @@ class StatusRow(Gtk.Overlay):
 
     def _bind_carousel(self, item, client):
         for widget in (self.boost_strip, self.filter_bar, self.main):
-            widget.set_visible(False)
+            if widget is not None:
+                widget.set_visible(False)
         self.update_property([Gtk.AccessibleProperty.LABEL], [_('Boosts')])
-        self.carousel.set_visible(True)
-        self.carousel.set_boosts(item.boosts, client)
+        carousel = self._ensure_carousel()
+        carousel.set_visible(True)
+        carousel.set_boosts(item.boosts, client)
 
     def _on_show_filtered(self, _button):
         if self.item is None:
