@@ -508,20 +508,41 @@ class RunModel(GObject.Object, Gio.ListModel):
         self._rebuild()
 
     def _rebuild(self):
-        runs = []
+        groups = []
         for index in range(self._source.get_n_items()):
             item = self._source.get_item(index)
             if isinstance(item, BoostCarouselItem):
-                runs.append([item])
+                groups.append([item])
                 continue
             key = run_key(item)
-            if runs and key is not None and key == run_key(runs[-1][-1]):
-                runs[-1].append(item)
+            if groups and key is not None \
+                    and key == run_key(groups[-1][-1]):
+                groups[-1].append(item)
             else:
-                runs.append([item])
-        previous = len(self._runs)
-        self._runs = [StatusRun(group) for group in runs]
-        self.items_changed(0, previous, len(self._runs))
+                groups.append([item])
+        # Keep the StatusRun objects of unchanged runs and announce only
+        # the changed middle: the list view then keeps the widgets bound
+        # to every other run instead of rebuilding all of them.
+        old = self._runs
+        n_old, n_new = len(old), len(groups)
+        start = 0
+        while start < n_old and start < n_new \
+                and _same_items(old[start].items, groups[start]):
+            start += 1
+        end = 0
+        while end < n_old - start and end < n_new - start \
+                and _same_items(old[n_old - 1 - end].items,
+                                groups[n_new - 1 - end]):
+            end += 1
+        removed = n_old - start - end
+        added = n_new - start - end
+        if not removed and not added:
+            return
+        self._runs = (old[:start]
+                      + [StatusRun(group)
+                         for group in groups[start:n_new - end]]
+                      + old[n_old - end:])
+        self.items_changed(start, removed, added)
 
     def do_get_n_items(self):
         return len(self._runs)
@@ -531,6 +552,10 @@ class RunModel(GObject.Object, Gio.ListModel):
 
     def do_get_item_type(self):
         return StatusRun
+
+
+def _same_items(a, b):
+    return len(a) == len(b) and all(x is y for x, y in zip(a, b))
 
 
 def run_key(item):
