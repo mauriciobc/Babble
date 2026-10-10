@@ -4,8 +4,10 @@
 client (no real token), validating the POST payload shape against
 docs.joinmastodon.org/methods/statuses and /methods/media."""
 
+import gc
 import os
 import sys
+import weakref
 
 import gi
 
@@ -26,6 +28,7 @@ sys.path.insert(0, srcdir)
 
 from src.compose import (VISIBILITIES, BabbleComposeView,  # noqa: E402
                          ComposeDialog, countable_length)
+from src import emojichooser  # noqa: E402
 from gettext import gettext as _  # noqa: E402
 
 failures = []
@@ -236,6 +239,81 @@ check('emoji insertion works', view.buffer.get_text(
 view.poll_toggle.set_active(False)
 pump(50)
 check('poll box hidden again', not view._poll_box.get_visible())
+set_text('')
+
+# Custom emoji: with an instance that publishes some, the emoji button
+# opens the instance chooser (no network: the list is pre-cached and the
+# emoji have no image URL); a picked shortcode lands at the cursor.
+client.instance = 'emoji.test'
+emojichooser._cache['emoji.test'] = [
+    {'shortcode': 'blobcat', 'category': 'Cats'},
+    {'shortcode': 'blobdog', 'category': ''}]
+set_text('hi')
+view.on_emoji_clicked(view.emoji_button)
+pump(100)
+chooser = view.emoji_chooser
+check('emoji button opens the emoji chooser',
+      isinstance(chooser, emojichooser.CustomEmojiChooser)
+      and chooser.get_parent() is view.emoji_button
+      and chooser.get_visible())
+check('it opens on the standard tab with its groups',
+      chooser.tabs.get_visible() and chooser.mode == 'emoji'
+      and chooser.category_store.get_n_items() == 9)
+chooser.search_entry.set_text('grinning face')
+chooser.on_search_changed(chooser.search_entry)
+check('standard emoji are searchable',
+      chooser.stack.get_visible_child_name() == 'grid'
+      and chooser.grid_store.get_item(0).emoji['char'] == '\U0001F600')
+chooser.on_emoji_activated(chooser.grid, 0)
+pump(50)
+check('a picked standard emoji is inserted', view.text() == 'hi\U0001F600')
+set_text('hi')
+chooser.search_entry.set_text('')
+chooser.tabs.set_active_name('custom')
+pump(20)
+check('the custom tab lists the instance categories',
+      chooser.mode == 'custom'
+      and chooser.category_store.get_n_items() == 2)
+chooser.pick('blobcat')
+pump(50)
+check('picked shortcode is inserted with spacing',
+      view.text() == 'hi :blobcat: ')
+check('picked shortcode is remembered',
+      'blobcat' in emojichooser.recent_shortcodes()
+      or emojichooser._settings() is None)
+set_text('')
+view.on_custom_emoji_picked(chooser, 'blobdog')
+check('shortcode at the start needs no leading space',
+      view.text() == ':blobdog: ')
+
+# An instance without custom emoji only gets the standard tab.
+emojichooser._cache['emoji.test'] = []
+chooser.unparent()
+view.emoji_chooser = None
+view.on_emoji_clicked(view.emoji_button)
+pump(50)
+chooser = view.emoji_chooser
+check('no custom emoji hides the tabs and keeps the standard set',
+      not chooser.tabs.get_visible() and chooser.mode == 'emoji'
+      and chooser.category_store.get_n_items() == 9)
+chooser.popdown()
+chooser.unparent()
+view.emoji_chooser = None
+del chooser
+
+# The chooser is freed with the composer that owns it.
+emojichooser._cache['emoji.test'] = [{'shortcode': 'blobcat'}]
+extra = BabbleComposeView(client)
+extra.emoji_chooser = emojichooser.CustomEmojiChooser(client)
+extra.emoji_chooser.set_parent(extra.emoji_button)
+pages_connect = extra.emoji_chooser
+views_ref = weakref.ref(extra)
+chooser_ref = weakref.ref(pages_connect)
+del extra, pages_connect
+gc.collect()
+check('composer and its emoji chooser are freed',
+      views_ref() is None and chooser_ref() is None)
+del client.instance
 set_text('')
 # Counter thresholds (docs Mastodon default max_characters)
 check('counter shows remaining when empty',

@@ -393,3 +393,8 @@ window.text-large label {
   border: 1px solid var(--accent-bg-color);
   color: var(--accent-color);
 }
+
+/* Standard emoji in the composer's emoji chooser. */
+.emoji-picker .emoji-glyph {
+  font-size: 24px;
+}

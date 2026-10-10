@@ -18,7 +18,7 @@ from .i18n import gettext as _
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import emojichooser, pages  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 
 DEFAULT_CHAR_LIMIT = 500
@@ -183,6 +183,7 @@ class BabbleComposeView(Adw.Bin):
     def __init__(self, client, **kwargs):
         super().__init__(**kwargs)
         self.client = client
+        self.emoji_chooser = None
         self.in_reply_to_id = None
         self._draft_stack = []
         self._posting = False
@@ -621,15 +622,38 @@ class BabbleComposeView(Adw.Bin):
         self.text_view.grab_focus()
 
     def on_emoji_clicked(self, _button):
-        chooser = Gtk.EmojiChooser()
-        chooser.set_parent(self.emoji_button)
-        pages.connect_weak(chooser, 'emoji-picked', self.on_emoji_picked)
-        chooser.connect('closed', lambda c: c.unparent())
-        chooser.popup()
+        """One popover with a standard and a custom emoji tab; the custom
+        tab hides itself when the instance has none."""
+        if self.emoji_chooser is None:
+            self.emoji_chooser = emojichooser.CustomEmojiChooser(self.client)
+            self.emoji_chooser.set_parent(self.emoji_button)
+            pages.connect_weak(self.emoji_chooser, 'emoji-picked',
+                               self.on_custom_emoji_picked)
+            pages.connect_weak(self.emoji_chooser, 'text-picked',
+                               self.on_emoji_picked)
+        self.emoji_chooser.popup()
 
     def on_emoji_picked(self, chooser, emoji):
         self.buffer.insert_at_cursor(emoji)
-        chooser.unparent()
+        self.text_view.grab_focus()
+
+    def on_custom_emoji_picked(self, _chooser, shortcode):
+        """Insert ``:shortcode:`` set off from the surrounding words, as
+        Mastodon only renders it between non-word characters."""
+        cursor = self.buffer.get_iter_at_mark(self.buffer.get_insert())
+        before = ''
+        if not cursor.starts_line():
+            previous = cursor.copy()
+            previous.backward_char()
+            before = previous.get_char()
+        after = cursor.get_char()
+        text = ':%s:' % shortcode
+        if before and not before.isspace():
+            text = ' ' + text
+        if not after or not after.isspace():
+            text += ' '
+        self.buffer.insert_at_cursor(text)
+        self.text_view.grab_focus()
 
     def on_discard_clicked(self, _button):
         dialog = Adw.AlertDialog(
