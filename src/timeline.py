@@ -42,6 +42,11 @@ MEDIA_TEXTURE_CACHE_SIZE = 48
 # Only this many unmapped shells, across all pages, keep theirs; the
 # least recently unmapped drop them and rebuild if scrolled back to.
 CARD_SHELLS_KEPT = 100
+# Posts a timeline keeps. Streaming and refreshes only ever prepend, so
+# an open timeline grew for the whole session; past this many, the
+# oldest are dropped while the reader is at the top, and infinite scroll
+# fetches them again.
+TIMELINE_MAX_ITEMS = 400
 
 
 class StatusItem(GObject.Object):
@@ -271,6 +276,23 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             self._store.remove(position)
             removed = True
         return removed
+
+    def trim(self, keep):
+        """Drop every post after the first *keep* and page from the
+        oldest one left, so scrolling down fetches the dropped ones
+        again. Returns True when anything was dropped."""
+        total = self._store.get_n_items()
+        if total <= keep:
+            return False
+        for position in range(keep, total):
+            self._seen.discard(self._store.get_item(position).status_id)
+        self._store.splice(keep, total - keep, [])
+        ids = [item.raw['id'] for item in
+               (self._store.get_item(i) for i in range(keep))
+               if not isinstance(item, BoostCarouselItem)]
+        self.oldest_id = min(ids) if ids else None
+        self.exhausted = False
+        return True
 
     def replace_status(self, status):
         """Swap in an edited post, keeping the row's view state.
@@ -3497,6 +3519,21 @@ class TimelinePage(Adw.Bin):
         self._fetch({'limit': PAGE_SIZE, 'max_id': self.model.oldest_id},
                     self.on_older_loaded)
 
+    def _trim_old(self):
+        """Keep the timeline to TIMELINE_MAX_ITEMS while the reader is on
+        its first screen, so the dropped tail is far out of sight. Only
+        id-paged timelines: a Link cursor cannot be moved back, and an
+        unpaginated source could never fetch the dropped posts again.
+        An older page in flight would land after the gap, so wait."""
+        if self._loading_older or (
+                self.source is not None
+                and getattr(self.source, 'paging', None) != 'id'):
+            return
+        adjustment = self._scrolled.get_vadjustment()
+        if adjustment.get_value() > adjustment.get_page_size():
+            return
+        self.model.trim(TIMELINE_MAX_ITEMS)
+
     def on_older_loaded(self, client, result, _user_data=None):
         self._loading_older = False
         try:
@@ -3541,6 +3578,7 @@ class TimelinePage(Adw.Bin):
             added = self.model.insert_new(statuses)
             if added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
+            self._trim_old()
         self._update_boosts()
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('empty')
@@ -3563,6 +3601,7 @@ class TimelinePage(Adw.Bin):
         if adjustment.get_value() <= 0.0:
             self._pill_count = 0
             self.new_posts_revealer.set_reveal_child(False)
+            self._trim_old()
 
     # Streaming hooks (driven by the shell's streaming connection)
 
@@ -3577,6 +3616,7 @@ class TimelinePage(Adw.Bin):
             return
         if self._scrolled.get_vadjustment().get_value() > 24:
             self._show_new_pill(added)
+        self._trim_old()
         self._update_boosts()
         self.stack.set_visible_child_name('list')
 
