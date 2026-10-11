@@ -16,8 +16,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src.statustext import (is_hashtag, parse_content,  # noqa: E402
-                            relative_time, shorten_url_text)
+from src.statustext import (is_hashtag, is_web_link,  # noqa: E402
+                            parse_content, relative_time, shorten_url_text)
 
 
 def text_of(segments):
@@ -64,6 +64,19 @@ class TestHashtag(unittest.TestCase):
     def test_an_ordinary_link_is_not(self):
         self.assertFalse(is_hashtag(
             {'href': 'https://x.test/@me', 'text': 'me'}))
+
+
+class TestWebLink(unittest.TestCase):
+    def test_http_and_https_may_be_launched(self):
+        for uri in ('https://x.test/a', 'http://x.test', 'HTTPS://X.test/'):
+            self.assertTrue(is_web_link(uri), uri)
+
+    def test_other_schemes_never_reach_the_launcher(self):
+        # What a server that does not sanitise its HTML could serve.
+        for uri in ('javascript:alert(1)', 'file:///etc/passwd',
+                    'smb://host/share', 'babble://oauth/callback?code=x',
+                    'data:text/html,x', 'https:no-host', '', None):
+            self.assertFalse(is_web_link(uri), uri)
 
 
 class TestShortenUrl(unittest.TestCase):

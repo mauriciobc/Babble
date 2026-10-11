@@ -188,6 +188,17 @@ def relative_time(iso_timestamp):
     return moment.to_local().format(_('%b %Y'))
 
 
+def is_web_link(uri):
+    """Whether *uri* is an http(s) address, the only kind a link from a
+    post, a profile or a card may hand to the system launcher.
+
+    A server that does not sanitise its HTML can serve ``file://``,
+    ``smb://`` or any scheme some installed app handles; outside the
+    Flatpak portal a click would open that handler directly."""
+    parts = urllib.parse.urlsplit(uri or '')
+    return parts.scheme in ('http', 'https') and bool(parts.netloc)
+
+
 def shorten_url_text(text):
     """Compact raw URLs for display, keeping the href target intact."""
     if text.lower().startswith(('http://', 'https://')):
