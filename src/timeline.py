@@ -3215,9 +3215,11 @@ class TimelinePage(Adw.Bin):
         self.list_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Posts')])
         connect_weak(self.list_view, 'activate', self.on_row_activated)
-        # Phanpy-style: a single centered ~660px column with grey gutters.
-        # The clamp is the scrollable, so the column follows the viewport
-        # and never raises the page's minimum width.
+        # Phanpy-style: a single centered column with grey gutters. The
+        # cap is COLUMN_WIDTH in sp, the clamp's default unit, so it is
+        # 660px at the default text size and follows the text-scaling
+        # factor. The clamp is the scrollable, so the column follows the
+        # viewport and never raises the page's minimum width.
         clamp = Adw.ClampScrollable(maximum_size=COLUMN_WIDTH,
                                     tightening_threshold=COLUMN_WIDTH)
         clamp.set_child(self.list_view)

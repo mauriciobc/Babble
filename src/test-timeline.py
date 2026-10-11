@@ -331,8 +331,12 @@ check('action buttons rendered',
 pictures = [w for w in row_widgets if isinstance(w, Gtk.Picture)]
 print('note - %d GtkPicture media widgets instantiated' % len(pictures))
 
-# The column follows the window: at every width it is min(viewport, 660),
-# centered, and never wider than the window. A large one-step shrink
+# The column follows the window: at every width it is min(viewport, cap),
+# centered, and never wider than the window. The cap is COLUMN_WIDTH in
+# the clamp's unit, which libadwaita defaults to sp, so it scales with
+# the text-scaling factor: at 0.9 that is 660 * 86/96 = 591.25px, not
+# 660 * 0.9 -- the factor is applied as a DPI, and DPI is whole.
+# A large one-step shrink
 # (1270 -> 500) used to leave margin-inflated minimums behind and push
 # the cards off the right edge.
 def settle(seconds):
@@ -353,14 +357,17 @@ for width in (1270, 500, 1270, 800):
         check('column measurable at %d' % width, False)
         continue
     viewport = outer.size.width
+    clamp = page.list_view.get_parent()
+    cap = Adw.LengthUnit.to_px(clamp.get_unit(), COLUMN_WIDTH,
+                               clamp.get_settings())
     left = inner.origin.x
     right = viewport - inner.origin.x - inner.size.width
-    print('note - window %d: viewport %d, column %d at %d' % (
-        window.get_width(), viewport, inner.size.width, left))
+    print('note - window %d: viewport %d, column %d at %d, cap %.1f' % (
+        window.get_width(), viewport, inner.size.width, left, cap))
     check('viewport fits the window at %d' % width,
           outer.origin.x + viewport <= window.get_width() + 0.5)
-    check('column is min(viewport, %d) at %d' % (COLUMN_WIDTH, width),
-          abs(inner.size.width - min(viewport, COLUMN_WIDTH)) <= 1)
+    check('column is min(viewport, %.1f) at %d' % (cap, width),
+          abs(inner.size.width - min(viewport, cap)) <= 1)
     check('column centered at %d' % width, abs(left - right) <= 1)
 
 if failures:
