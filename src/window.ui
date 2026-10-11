@@ -447,24 +447,20 @@
       </object>
     </property>
   </template>
+  <!-- New Post and Refresh are absent on purpose: both have headerbar
+       buttons and accelerators (Ctrl+N, Ctrl+R and F5), and Quit is
+       reachable through Ctrl+Q and the app icon menu, so the primary
+       menu keeps only items with no other front door. -->
   <menu id="primary_menu">
     <section>
-      <item>
-        <attribute name="label" translatable="yes">_New Post</attribute>
-        <attribute name="action">win.compose</attribute>
-      </item>
       <item>
         <attribute name="label" translatable="yes">_Open Profile</attribute>
         <attribute name="action">win.view-profile</attribute>
       </item>
-      <item>
-        <attribute name="label" translatable="yes">_Refresh</attribute>
-        <attribute name="action">win.reload</attribute>
-      </item>
     </section>
     <section>
       <item>
-        <attribute name="label" translatable="yes">_Announcements</attribute>
+        <attribute name="label" translatable="yes">A_nnouncements</attribute>
         <attribute name="action">win.announcements</attribute>
       </item>
       <item>
@@ -475,6 +471,8 @@
         <attribute name="label" translatable="yes">_Mutes &amp; Blocks</attribute>
         <attribute name="action">win.mutes-blocks</attribute>
       </item>
+    </section>
+    <section>
       <item>
         <attribute name="label" translatable="yes">D_raft Posts</attribute>
         <attribute name="action">win.drafts</attribute>
@@ -483,6 +481,8 @@
         <attribute name="label" translatable="yes">_Scheduled Posts</attribute>
         <attribute name="action">win.scheduled</attribute>
       </item>
+    </section>
+    <section>
       <item>
         <attribute name="label" translatable="yes">_Collections</attribute>
         <attribute name="action">win.collections</attribute>
@@ -509,10 +509,6 @@
       <item>
         <attribute name="label" translatable="yes">_About Babble</attribute>
         <attribute name="action">app.about</attribute>
-      </item>
-      <item>
-        <attribute name="label" translatable="yes">_Quit</attribute>
-        <attribute name="action">app.quit</attribute>
       </item>
     </section>
   </menu>
