@@ -33,7 +33,20 @@ BOOST_CAP = 12
 # Decoded-texture budgets. Avatars repeat across a timeline so they are
 # cheap to keep; media are large, so far fewer stay resident.
 AVATAR_CACHE_SIZE = 256
+# Instances serve 400px avatars; the largest one shown is 96px. Decoded
+# at full size, a full avatar cache held ~156 MB.
+AVATAR_DECODE_SIZE = 96
 MEDIA_TEXTURE_CACHE_SIZE = 48
+# Gtk.ListView keeps up to ~200 list items alive per page whatever the
+# scroll position, and each unmapped one holds its built StatusRow cards.
+# Only this many unmapped shells, across all pages, keep theirs; the
+# least recently unmapped drop them and rebuild if scrolled back to.
+CARD_SHELLS_KEPT = 100
+# Posts a timeline keeps. Streaming and refreshes only ever prepend, so
+# an open timeline grew for the whole session; past this many, the
+# oldest are dropped while the reader is at the top, and infinite scroll
+# fetches them again.
+TIMELINE_MAX_ITEMS = 400
 
 
 class StatusItem(GObject.Object):
@@ -264,6 +277,26 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             removed = True
         return removed
 
+    def trim(self, keep):
+        """Drop every post after the first *keep* and page from the
+        oldest one left, so scrolling down fetches the dropped ones
+        again. Returns True when anything was dropped."""
+        total = self._store.get_n_items()
+        if total <= keep:
+            return False
+        dropped = {self._store.get_item(i).status_id
+                   for i in range(keep, total)}
+        self._store.splice(keep, total - keep, [])
+        left = [self._store.get_item(i) for i in range(keep)]
+        # A post can also be shown higher up as a boost or the original:
+        # its id stays seen while any copy is left.
+        self._seen -= dropped - {item.status_id for item in left}
+        ids = [item.raw['id'] for item in left
+               if not isinstance(item, BoostCarouselItem)]
+        self.oldest_id = min(ids) if ids else None
+        self.exhausted = False
+        return True
+
     def replace_status(self, status):
         """Swap in an edited post, keeping the row's view state.
         Returns True when a row was found and updated."""
@@ -309,6 +342,11 @@ class StatusRunRow(Gtk.Box):
 
     # Replaced with the height of posts that have actually been shown.
     _typical_height = 64
+    # Unmapped shells that still hold cards, least recently unmapped
+    # first. GObject weak refs, so the LRU never keeps a shell (and its
+    # page) alive; keyed by a per-shell counter, not the object.
+    _kept = collections.OrderedDict()
+    _next_key = 0
 
     def __init__(self):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
@@ -330,13 +368,19 @@ class StatusRunRow(Gtk.Box):
         self.item = None
         self._run = None
         self._client = None
+        kind = type(self)
+        self._key = kind._next_key
+        kind._next_key += 1
         # Built cards, kept while this run is scrolled off screen.
         # Gtk.ListView still instantiates a child for every loaded post
         # (up to a couple of hundred) and lays that whole set out on
         # every top insertion. A StatusRow is a large tree, so it is
         # hidden while the run is unmapped (measure and snapshot skip
         # it) and shown again on the way back, instead of being
-        # unparented and reparented at every stop.
+        # unparented and reparented at every stop. Hidden cards still
+        # cost memory (~77 MB per page at realistic image sizes), so only
+        # CARD_SHELLS_KEPT unmapped shells app-wide keep theirs; the
+        # rest are dropped through _kept and rebuilt on demand.
         self._cards = {}
         # Floor so an unmapped run does not collapse to 0px, which would
         # keep the list from ever mapping it. Later rows use the height
@@ -356,12 +400,19 @@ class StatusRunRow(Gtk.Box):
             parent = card.get_parent()
             if parent is not None:
                 parent.remove(card)
+        # A run that changed is rebound to a shell that may be off screen
+        # and still hold cards for the posts it shares: they count.
+        if self._cards and not self.get_mapped():
+            self._keep_cards()
+        else:
+            type(self)._kept.pop(self._key, None)
         self.set_size_request(-1, type(self)._typical_height)
         self._detach()
         if self.get_mapped():
             self._populate()
 
     def _on_map(self, _widget):
+        type(self)._kept.pop(self._key, None)
         if self._run is not None:
             self._populate()
 
@@ -379,6 +430,26 @@ class StatusRunRow(Gtk.Box):
             else:
                 kind._typical_height = (kind._typical_height * 3 + height) // 4
         self._detach()
+        if self._cards:
+            self._keep_cards()
+
+    def _keep_cards(self):
+        """Count this unmapped shell's cards against CARD_SHELLS_KEPT,
+        dropping the cards of the least recently unmapped shells."""
+        kept = type(self)._kept
+        kept[self._key] = self.weak_ref()
+        kept.move_to_end(self._key)
+        while len(kept) > CARD_SHELLS_KEPT:
+            _key, ref = kept.popitem(last=False)
+            shell = ref()
+            if shell is not None and not shell.get_mapped():
+                shell._drop_cards()
+
+    def _drop_cards(self):
+        for card in self._cards.values():
+            if card.get_parent() is self.column:
+                self.column.remove(card)
+        self._cards = {}
 
     def _detach(self):
         # Hide, rather than unparent. A hidden child is skipped by
@@ -605,11 +676,13 @@ class AvatarCache:
         if not data or data.get_size() == 0:
             log_media_failure(url, 'empty response')
             return
-        try:
-            texture = Gdk.Texture.new_from_bytes(data)
-        except GLib.Error as error:
-            log_media_failure(url, error.message)
-            return
+        texture = _decode_covering(data, (AVATAR_DECODE_SIZE,) * 2)
+        if texture is None:
+            try:
+                texture = Gdk.Texture.new_from_bytes(data)
+            except GLib.Error as error:
+                log_media_failure(url, error.message)
+                return
         cls._remember(url, texture)
         for avatar in waiting:
             avatar.set_custom_image(texture)
@@ -3459,6 +3532,21 @@ class TimelinePage(Adw.Bin):
         self._fetch({'limit': PAGE_SIZE, 'max_id': self.model.oldest_id},
                     self.on_older_loaded)
 
+    def _trim_old(self):
+        """Keep the timeline to TIMELINE_MAX_ITEMS while the reader is on
+        its first screen, so the dropped tail is far out of sight. Only
+        id-paged timelines: a Link cursor cannot be moved back, and an
+        unpaginated source could never fetch the dropped posts again.
+        An older page in flight would land after the gap, so wait."""
+        if self._loading_older or (
+                self.source is not None
+                and getattr(self.source, 'paging', None) != 'id'):
+            return
+        adjustment = self._scrolled.get_vadjustment()
+        if adjustment.get_value() > adjustment.get_page_size():
+            return
+        self.model.trim(TIMELINE_MAX_ITEMS)
+
     def on_older_loaded(self, client, result, _user_data=None):
         self._loading_older = False
         try:
@@ -3503,6 +3591,7 @@ class TimelinePage(Adw.Bin):
             added = self.model.insert_new(statuses)
             if added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
+            self._trim_old()
         self._update_boosts()
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('empty')
@@ -3525,6 +3614,7 @@ class TimelinePage(Adw.Bin):
         if adjustment.get_value() <= 0.0:
             self._pill_count = 0
             self.new_posts_revealer.set_reveal_child(False)
+            self._trim_old()
 
     # Streaming hooks (driven by the shell's streaming connection)
 
@@ -3539,6 +3629,7 @@ class TimelinePage(Adw.Bin):
             return
         if self._scrolled.get_vadjustment().get_value() > 24:
             self._show_new_pill(added)
+        self._trim_old()
         self._update_boosts()
         self.stack.set_visible_child_name('list')
 

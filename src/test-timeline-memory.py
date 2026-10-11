@@ -81,6 +81,29 @@ check('the boosts carousel is updated in place',
       changes == [] and model.get_item(0) is head
       and head.boosts[0]['id'] == '00006')
 
+# Trimming keeps the newest posts and pages from the oldest one left,
+# so infinite scroll can fetch the dropped posts again.
+long = timeline.TimelineModel()
+long.append_old([status(n) for n in range(30, 0, -1)])
+long.exhausted = True
+long_runs = timeline.RunModel(long)
+check('trim drops the oldest posts', long.trim(10)
+      and long.get_n_items() == 10 and long_runs.get_n_items() == 10
+      and long.get_item(0).status_id == '00030')
+check('trim pages from the oldest post left',
+      long.oldest_id == '00021' and not long.exhausted)
+check('dropped posts can be loaded again',
+      long.append_old([status(n) for n in range(20, 15, -1)])
+      and long.get_n_items() == 15)
+check('trim within the limit does nothing', not long.trim(40))
+boosted = timeline.TimelineModel()
+original = status(9)
+boost = dict(status(8), reblog=original)
+boosted.append_old([status(10), original, status(7), boost])
+boosted.trim(3)
+check('a post still shown stays seen after its boost is dropped',
+      not boosted.insert_new([status(9)]))
+
 # Same-thread posts by one author still group into one run.
 threaded = timeline.TimelineModel()
 threaded.append_old([status(3), status(2, thread='t'), status(1, thread='t')])
