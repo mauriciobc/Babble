@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-11 15:33-0300\n"
+"POT-Creation-Date: 2026-10-11 16:41-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: French\n"
@@ -2518,11 +2518,11 @@ msgstr "« {name} » enregistré"
 msgid "Show in _Folder"
 msgstr "Afficher dans le _dossier"
 
-#: src/mentioncompleter.py:82
+#: src/mentioncompleter.py:83
 msgid "Suggested Accounts"
 msgstr "Comptes suggérés"
 
-#: src/mentioncompleter.py:86
+#: src/mentioncompleter.py:87
 msgid "Type a name to search"
 msgstr "Saisissez un nom pour rechercher"
 
@@ -4762,38 +4762,69 @@ msgid "Go to Notifications"
 msgstr "Aller aux notifications"
 
 #: src/shortcuts-dialog.ui:83
-msgid "Go to Sidebar Place"
-msgstr "Aller à un emplacement de la barre latérale"
+#, fuzzy
+msgid "Go to Conversations"
+msgstr "Aucune conversation"
 
 #: src/shortcuts-dialog.ui:89
+#, fuzzy
+msgid "Go to Search"
+msgstr "Aller à un emplacement de la barre latérale"
+
+#: src/shortcuts-dialog.ui:95
+#, fuzzy
+msgid "Go to Favorites"
+msgstr "Favoris"
+
+#: src/shortcuts-dialog.ui:101
+#, fuzzy
+msgid "Go to Bookmarks"
+msgstr "Signets"
+
+#: src/shortcuts-dialog.ui:107
+#, fuzzy
+msgid "Go to Hashtags"
+msgstr "Hashtags principaux"
+
+#: src/shortcuts-dialog.ui:113
+#, fuzzy
+msgid "Go to Explore"
+msgstr "Explorer"
+
+#: src/shortcuts-dialog.ui:119
+#, fuzzy
+msgid "Go to Local"
+msgstr "Aller à l’accueil"
+
+#: src/shortcuts-dialog.ui:125
 msgid "Scroll Page Down"
 msgstr "Défiler d’une page vers le bas"
 
-#: src/shortcuts-dialog.ui:95
+#: src/shortcuts-dialog.ui:131
 msgid "Scroll Page Up"
 msgstr "Défiler d’une page vers le haut"
 
-#: src/shortcuts-dialog.ui:101
+#: src/shortcuts-dialog.ui:137
 msgid "Increase Text Size"
 msgstr "Augmenter la taille du texte"
 
-#: src/shortcuts-dialog.ui:107
+#: src/shortcuts-dialog.ui:143
 msgid "Decrease Text Size"
 msgstr "Réduire la taille du texte"
 
-#: src/shortcuts-dialog.ui:113
+#: src/shortcuts-dialog.ui:149
 msgid "Reset Text Size"
 msgstr "Réinitialiser la taille du texte"
 
-#: src/shortcuts-dialog.ui:121
+#: src/shortcuts-dialog.ui:157
 msgid "Composer"
 msgstr "Rédaction"
 
-#: src/shortcuts-dialog.ui:124
+#: src/shortcuts-dialog.ui:160
 msgid "Send Post"
 msgstr "Envoyer le message"
 
-#: src/shortcuts-dialog.ui:130
+#: src/shortcuts-dialog.ui:166
 msgid "Close Composer"
 msgstr "Fermer la rédaction"
 
@@ -5686,35 +5717,28 @@ msgstr "Les identifiants sont stockés dans le trousseau du système"
 msgid "Switch Account"
 msgstr "Changer de compte"
 
-#: src/window.ui:453
-msgid "_New Post"
-msgstr "_Nouveau message"
-
 #: src/window.ui:457
 msgid "_Open Profile"
 msgstr "_Ouvrir le profil"
 
-#: src/window.ui:461
-msgid "_Refresh"
-msgstr "_Actualiser"
+#: src/window.ui:463
+#, fuzzy
+msgid "A_nnouncements"
+msgstr "Annonces"
 
 #: src/window.ui:467
-msgid "_Announcements"
-msgstr "A_nnonces"
-
-#: src/window.ui:471
 msgid "_Follow Requests"
 msgstr "_Demandes d’abonnement"
 
-#: src/window.ui:475
+#: src/window.ui:471
 msgid "_Mutes & Blocks"
 msgstr "_Masqués et bloqués"
 
-#: src/window.ui:479
+#: src/window.ui:477
 msgid "D_raft Posts"
 msgstr "_Brouillons"
 
-#: src/window.ui:483
+#: src/window.ui:481
 msgid "_Scheduled Posts"
 msgstr "Messages _programmés"
 
@@ -5723,6 +5747,7 @@ msgid "_Collections"
 msgstr "_Collections"
 
 #: src/window.ui:491
+#, fuzzy
 msgid "#Fedi_Wrapped"
 msgstr "#Fedi_Wrapped"
 
@@ -5730,21 +5755,17 @@ msgstr "#Fedi_Wrapped"
 msgid "Admin _Dashboard"
 msgstr "_Tableau de bord d’administration"
 
-#: src/window.ui:502 src/window.ui:522
+#: src/window.ui:502 src/window.ui:518
 msgid "_Preferences"
 msgstr "_Préférences"
 
-#: src/window.ui:506 src/window.ui:526
+#: src/window.ui:506 src/window.ui:522
 msgid "_Keyboard Shortcuts"
 msgstr "_Raccourcis clavier"
 
-#: src/window.ui:510 src/window.ui:530
+#: src/window.ui:510 src/window.ui:526
 msgid "_About Babble"
 msgstr "À _propos de Babble"
-
-#: src/window.ui:514
-msgid "_Quit"
-msgstr "_Quitter"
 
 #: src/wrapped.py:34
 msgid "The Archer"
@@ -5945,6 +5966,18 @@ msgstr "Enregistrer le Wrapped"
 #, python-format
 msgid "Saved %d Wrapped"
 msgstr "Wrapped %d enregistré"
+
+#~ msgid "_Announcements"
+#~ msgstr "A_nnonces"
+
+#~ msgid "_New Post"
+#~ msgstr "_Nouveau message"
+
+#~ msgid "_Refresh"
+#~ msgstr "_Actualiser"
+
+#~ msgid "_Quit"
+#~ msgstr "_Quitter"
 
 #~ msgid "English"
 #~ msgstr "English"

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-11 15:33-0300\n"
+"POT-Creation-Date: 2026-10-11 16:41-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -2509,11 +2509,11 @@ msgstr "“{name}” salvo"
 msgid "Show in _Folder"
 msgstr "Mostrar na _pasta"
 
-#: src/mentioncompleter.py:82
+#: src/mentioncompleter.py:83
 msgid "Suggested Accounts"
 msgstr "Contas sugeridas"
 
-#: src/mentioncompleter.py:86
+#: src/mentioncompleter.py:87
 msgid "Type a name to search"
 msgstr "Digite um nome para pesquisar"
 
@@ -4748,38 +4748,69 @@ msgid "Go to Notifications"
 msgstr "Ir para Notificações"
 
 #: src/shortcuts-dialog.ui:83
-msgid "Go to Sidebar Place"
-msgstr "Ir para local da barra lateral"
+#, fuzzy
+msgid "Go to Conversations"
+msgstr "Nenhuma conversa"
 
 #: src/shortcuts-dialog.ui:89
+#, fuzzy
+msgid "Go to Search"
+msgstr "Ir para local da barra lateral"
+
+#: src/shortcuts-dialog.ui:95
+#, fuzzy
+msgid "Go to Favorites"
+msgstr "Favoritos"
+
+#: src/shortcuts-dialog.ui:101
+#, fuzzy
+msgid "Go to Bookmarks"
+msgstr "Itens salvos"
+
+#: src/shortcuts-dialog.ui:107
+#, fuzzy
+msgid "Go to Hashtags"
+msgstr "Principais hashtags"
+
+#: src/shortcuts-dialog.ui:113
+#, fuzzy
+msgid "Go to Explore"
+msgstr "Explorar"
+
+#: src/shortcuts-dialog.ui:119
+#, fuzzy
+msgid "Go to Local"
+msgstr "Ir para o Início"
+
+#: src/shortcuts-dialog.ui:125
 msgid "Scroll Page Down"
 msgstr "Rolar página para baixo"
 
-#: src/shortcuts-dialog.ui:95
+#: src/shortcuts-dialog.ui:131
 msgid "Scroll Page Up"
 msgstr "Rolar página para cima"
 
-#: src/shortcuts-dialog.ui:101
+#: src/shortcuts-dialog.ui:137
 msgid "Increase Text Size"
 msgstr "Aumentar tamanho do texto"
 
-#: src/shortcuts-dialog.ui:107
+#: src/shortcuts-dialog.ui:143
 msgid "Decrease Text Size"
 msgstr "Diminuir tamanho do texto"
 
-#: src/shortcuts-dialog.ui:113
+#: src/shortcuts-dialog.ui:149
 msgid "Reset Text Size"
 msgstr "Redefinir tamanho do texto"
 
-#: src/shortcuts-dialog.ui:121
+#: src/shortcuts-dialog.ui:157
 msgid "Composer"
 msgstr "Editor"
 
-#: src/shortcuts-dialog.ui:124
+#: src/shortcuts-dialog.ui:160
 msgid "Send Post"
 msgstr "Enviar publicação"
 
-#: src/shortcuts-dialog.ui:130
+#: src/shortcuts-dialog.ui:166
 msgid "Close Composer"
 msgstr "Fechar editor"
 
@@ -5672,35 +5703,28 @@ msgstr "As credenciais são armazenadas no chaveiro do sistema"
 msgid "Switch Account"
 msgstr "Trocar de conta"
 
-#: src/window.ui:453
-msgid "_New Post"
-msgstr "_Nova publicação"
-
 #: src/window.ui:457
 msgid "_Open Profile"
 msgstr "_Abrir perfil"
 
-#: src/window.ui:461
-msgid "_Refresh"
-msgstr "_Atualizar"
+#: src/window.ui:463
+#, fuzzy
+msgid "A_nnouncements"
+msgstr "Anúncios"
 
 #: src/window.ui:467
-msgid "_Announcements"
-msgstr "A_núncios"
-
-#: src/window.ui:471
 msgid "_Follow Requests"
 msgstr "_Pedidos para seguir"
 
-#: src/window.ui:475
+#: src/window.ui:471
 msgid "_Mutes & Blocks"
 msgstr "_Silenciados e bloqueados"
 
-#: src/window.ui:479
+#: src/window.ui:477
 msgid "D_raft Posts"
 msgstr "_Rascunhos"
 
-#: src/window.ui:483
+#: src/window.ui:481
 msgid "_Scheduled Posts"
 msgstr "Publicações a_gendadas"
 
@@ -5709,6 +5733,7 @@ msgid "_Collections"
 msgstr "_Coleções"
 
 #: src/window.ui:491
+#, fuzzy
 msgid "#Fedi_Wrapped"
 msgstr "#Fedi_Wrapped"
 
@@ -5716,21 +5741,17 @@ msgstr "#Fedi_Wrapped"
 msgid "Admin _Dashboard"
 msgstr "_Painel de administração"
 
-#: src/window.ui:502 src/window.ui:522
+#: src/window.ui:502 src/window.ui:518
 msgid "_Preferences"
 msgstr "_Preferências"
 
-#: src/window.ui:506 src/window.ui:526
+#: src/window.ui:506 src/window.ui:522
 msgid "_Keyboard Shortcuts"
 msgstr "_Atalhos de teclado"
 
-#: src/window.ui:510 src/window.ui:530
+#: src/window.ui:510 src/window.ui:526
 msgid "_About Babble"
 msgstr "_Sobre o Babble"
-
-#: src/window.ui:514
-msgid "_Quit"
-msgstr "Sa_ir"
 
 #: src/wrapped.py:34
 msgid "The Archer"
@@ -5931,6 +5952,18 @@ msgstr "Salvar Wrapped"
 #, python-format
 msgid "Saved %d Wrapped"
 msgstr "Wrapped de %d salvo"
+
+#~ msgid "_Announcements"
+#~ msgstr "A_núncios"
+
+#~ msgid "_New Post"
+#~ msgstr "_Nova publicação"
+
+#~ msgid "_Refresh"
+#~ msgstr "_Atualizar"
+
+#~ msgid "_Quit"
+#~ msgstr "Sa_ir"
 
 #~ msgid "English"
 #~ msgstr "English"
