@@ -4,9 +4,11 @@ name: CI
 # desktop/metainfo/gschema/catalogue validators -- runs on every push
 # and pull request.
 #
-# `timeline render` and `thread profile render` fetch live public data
-# from mastodon.social, and every widget test needs a display, which is
-# why the run is under Xvfb.
+# The build runs in a Fedora rawhide container because the project needs
+# GTK >= 4.24 and libadwaita >= 1.10 (GNOME 51). No Ubuntu image carries
+# those: ubuntu-latest ships GTK 4.14, and Canonical's repositories have
+# nothing newer. The widget tests need a display, so the run is under
+# Xvfb, and a session bus, because the keyring tests talk to D-Bus.
 
 on:
   push:
@@ -22,22 +24,27 @@ jobs:
   test:
     name: Build and test
     runs-on: ubuntu-latest
+    container:
+      # GNOME 51, matching what the app targets. Pinned to rawhide
+      # rather than a release tag because there is no released image
+      # carrying GTK 4.24 yet.
+      image: docker.io/library/fedora:rawhide
 
     steps:
       - uses: actions/checkout@v4
 
-      # msgfmt, desktop-file-validate, appstreamcli and
-      # glib-compile-schemas are each `required: false` in meson so a
-      # developer missing one can still build. Here they are installed,
-      # so the run cannot be green having checked nothing.
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            gettext desktop-file-utils appstream \
-            libglib2.0-bin libgtk-4-dev libadwaita-1-dev \
-            libsoup-3.0-dev libsecret-1-dev \
-            meson ninja-build python3 xvfb
+          sudo -E dnf install -y \
+            gtk4-devel libadwaita-devel libsoup3-devel libsecret-devel \
+            python3-gobject gobject-introspection \
+            meson ninja-build gettext desktop-file-utils appstream \
+            glib2-devel \
+            xorg-x11-server-Xvfb mesa-libGLES libglvnd-devel \
+            dbus-daemon dbus-x11
+          # Secret needs a session bus to answer at all, and D-Bus
+          # refuses to start without a machine id.
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
 
       - name: Configure
         run: meson setup build
@@ -46,9 +53,12 @@ jobs:
         run: meson compile -C build
 
       - name: Test
+        # dbus-run-session supplies the bus the keyring tests need;
         # --print-errorlogs puts a failing test's own output in the
         # console rather than only in meson-logs/testlog.txt.
-        run: xvfb-run -a meson test -C build --print-errorlogs 2>&1 | tee ci.log
+        run: |
+          xvfb-run -a dbus-run-session -- \
+            meson test -C build --print-errorlogs 2>&1 | tee ci.log
 
       - name: Fail on a skipped test
         # A test that exits 77 is skipped, and meson still exits 0. A
@@ -71,4 +81,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/ruff-action@v3
         with:
-          args: check
+          # The whole repository, not just src/: bench/ is checked too.
+          args: check .
