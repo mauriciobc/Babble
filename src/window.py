@@ -816,7 +816,10 @@ class BabbleWindow(Adw.ApplicationWindow):
         if page is not None and page is not self.notifications_page:
             return
         self.notifications_badge.set_label(str(count) if count else '')
+        was_shown = self.notifications_badge.get_visible()
         self.notifications_badge.set_visible(bool(count))
+        if count and not was_shown:
+            pages.flash_class(self.notifications_badge, 'just-toggled')
         description = ngettext('%d unread notification',
                                '%d unread notifications', count) % count \
             if count else ''

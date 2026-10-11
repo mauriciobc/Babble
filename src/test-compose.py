@@ -252,14 +252,14 @@ poll_text = 'poll question one'
 view.poll_toggle.set_active(True)
 view.poll_entries[0].set_text('Blue')
 pump(50)
-check('poll box revealed', view._poll_box.get_visible())
+check('poll box revealed', view._poll_revealer.get_reveal_child())
 view.on_emoji_picked(view.emoji_button, '😀')
 check('emoji insertion works', view.buffer.get_text(
     view.buffer.get_start_iter(), view.buffer.get_end_iter(),
     False) == '😀')
 view.poll_toggle.set_active(False)
 pump(50)
-check('poll box hidden again', not view._poll_box.get_visible())
+check('poll box hidden again', not view._poll_revealer.get_reveal_child())
 set_text('')
 
 # Custom emoji: with an instance that publishes some, the emoji button
@@ -365,10 +365,10 @@ check('visibility codes are Mastodon values',
       codes == ['public', 'unlisted', 'private', 'direct'])
 
 # Content warning toggle and subject field
-check('spoiler hidden initially', not view._spoiler_box.get_visible())
+check('spoiler hidden initially', not view._spoiler_revealer.get_reveal_child())
 view.cw_toggle.set_active(True)
 pump(50)
-check('spoiler field revealed', view._spoiler_box.get_visible())
+check('spoiler field revealed', view._spoiler_revealer.get_reveal_child())
 view.spoiler_entry.set_text('potential spoilers')
 pump(50)
 

@@ -88,6 +88,45 @@ def weak_method(method):
     return call
 
 
+# Motion
+
+REVEAL_MS = 200
+
+
+def reveal(revealer, shown, animate=False):
+    """Show or hide *revealer*'s child, sliding only when *animate*.
+
+    List rows are rebound when the view recycles them, so binding has to
+    land on the final state at once; only a user's toggle animates."""
+    revealer.set_transition_duration(REVEAL_MS if animate else 0)
+    revealer.set_reveal_child(shown)
+
+
+def flash_class(widget, css_class, ms=300):
+    """Add *css_class* to *widget* for *ms* milliseconds, to play a CSS
+    keyframe animation once. A state selector such as ``:checked`` would
+    replay it whenever a recycled row is bound to a checked item."""
+    # A flash restarted before the last one ended must not be cut short
+    # by the earlier timeout: only the latest one removes the class.
+    flashes = getattr(widget, '_babble_flashes', None)
+    if flashes is None:
+        flashes = widget._babble_flashes = {}
+    token = flashes.get(css_class, 0) + 1
+    flashes[css_class] = token
+    widget.remove_css_class(css_class)
+    widget.add_css_class(css_class)
+    target = widget.weak_ref()
+
+    def done():
+        owner = target()
+        if owner is not None:
+            latest = getattr(owner, '_babble_flashes', {}).get(css_class)
+            if latest in (None, token):
+                owner.remove_css_class(css_class)
+        return GLib.SOURCE_REMOVE
+    GLib.timeout_add(ms, done)
+
+
 # Navigation
 
 def window_of(widget):

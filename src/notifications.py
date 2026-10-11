@@ -18,7 +18,7 @@ import time as _time  # noqa: E402
 
 from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import (PagedList, connect_weak, launch_external,  # noqa: E402
-                    push_page, report_error, settings)
+                    push_page, report_error, reveal, settings)
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .timeline import (StatusItem, AvatarCache, _RefreshGesture,  # noqa: E402
                        _TextureCache, parse_content, relative_time,
@@ -921,12 +921,21 @@ class NotificationRow(ColumnBox):
         self.avatar_stack.add_css_class('notification-avatar-stack')
         self.people_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                   spacing=6, margin_top=6)
+        self.people_revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
+            child=self.people_box)
         self.cluster_expander = Gtk.Expander(
-            label_widget=self.avatar_stack, child=self.people_box,
+            label_widget=self.avatar_stack, child=self.people_revealer,
             visible=False)
+        connect_weak(self.cluster_expander, 'notify::expanded',
+                     self._on_expanded_changed)
         content.append(self.cluster_expander)
 
         self.append(content)
+
+    def _on_expanded_changed(self, expander, _pspec):
+        expanded = expander.get_expanded()
+        reveal(self.people_revealer, expanded, animate=expanded)
 
     def _person_row(self, name, kind):
         """One named person row under the expander: action icon and name."""
@@ -948,6 +957,7 @@ class NotificationRow(ColumnBox):
         is_cluster = len(item.notifications) > 1
         self.cluster_expander.set_visible(is_cluster)
         self.cluster_expander.set_expanded(False)
+        reveal(self.people_revealer, False)
         self.avatar.set_visible(not is_cluster)
         if not is_cluster:
             return

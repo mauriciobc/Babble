@@ -208,6 +208,8 @@ class InlineEmojiText(Gtk.TextView):
         self._style_ids = []
         # Pango layout of the current text for do_measure's estimate.
         self._estimate_layout = None
+        # Height forced by the show more / less animation.
+        self._height_override = None
         self.set_editable(False)
         # Nothing is ever typed here. A platform input-method module (IBus)
         # keeps a strong reference to its client text view, which is only
@@ -274,6 +276,10 @@ class InlineEmojiText(Gtk.TextView):
         return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
 
     def do_measure(self, orientation, for_size):
+        if self._height_override is not None \
+                and orientation == Gtk.Orientation.VERTICAL:
+            h = self._height_override
+            return h, h, -1, -1
         if orientation == Gtk.Orientation.HORIZONTAL \
                 and self.get_wrap_mode() == Gtk.WrapMode.NONE:
             # Gtk.TextView reports 0 as the natural width of unwrapped

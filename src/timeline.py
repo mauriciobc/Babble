@@ -923,13 +923,17 @@ class PollBox(Gtk.Box):
         self._ui = {}
         self._on_update = None
         self._choices = []
+        self._animate_bars = False
+        self._bar_animations = []
 
     def set_poll(self, poll, bank=None, client=None, ui=None,
                  on_update=None):
         while (child := self.get_first_child()) is not None:
             self.remove(child)
+        self._bar_animations = []
         self._poll = poll
         if not poll:
+            self._animate_bars = False
             self.set_visible(False)
             return
         self.set_visible(True)
@@ -950,6 +954,9 @@ class PollBox(Gtk.Box):
         else:
             self._build_results(poll, closed)
         self._build_footer(poll, closed, can_vote)
+        for animation in self._bar_animations:
+            animation.play()
+        self._animate_bars = False
 
     def _label(self, option):
         text = InlineEmojiText(emoji_size=15)
@@ -1010,7 +1017,13 @@ class PollBox(Gtk.Box):
             percent.add_css_class('caption')
             line.append(percent)
             row.append(line)
-            bar = Gtk.ProgressBar(fraction=share)
+            bar = Gtk.ProgressBar(
+                fraction=0.0 if self._animate_bars else share)
+            if self._animate_bars:
+                self._bar_animations.append(Adw.TimedAnimation(
+                    widget=bar, value_from=0.0, value_to=share,
+                    duration=400, easing=Adw.Easing.EASE_OUT_CUBIC,
+                    target=Adw.PropertyAnimationTarget.new(bar, 'fraction')))
             bar.add_css_class('poll-bar')
             if index in own:
                 bar.add_css_class('accent')
@@ -1066,12 +1079,14 @@ class PollBox(Gtk.Box):
 
     def _on_show_results(self, _button):
         self._ui['poll_results'] = not self._ui.get('poll_results')
+        self._animate_bars = True
         self.set_poll(self._poll, self._bank, self._client, self._ui,
                       self._on_update)
 
     def _apply(self, poll):
         if self._on_update is not None:
             self._on_update(poll)
+        self._animate_bars = True
         self.set_poll(poll, self._bank, self._client, self._ui,
                       self._on_update)
 
@@ -1379,7 +1394,13 @@ class MediaBox(Gtk.Box):
         visual = [(i, a) for i, a in enumerate(self._attachments)
                   if a.get('type') in ('image', 'video', 'gifv')][:4]
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.append(content)
+        if sensitive:
+            covered = Gtk.Revealer(
+                transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
+                child=content)
+            self.append(covered)
+        else:
+            self.append(content)
         if visual:
             content.append(self._build_grid(visual, blur))
         for index, attachment in enumerate(self._attachments):
@@ -1387,18 +1408,19 @@ class MediaBox(Gtk.Box):
                 content.append(self._file_row(index, attachment))
         if sensitive and not _flag('show-sensitive-media') \
                 and not ui.get('media_revealed'):
-            content.set_visible(False)
+            pages.reveal(covered, False)
             reveal = Gtk.Button(label=_('Show Sensitive Content'),
                                 halign=Gtk.Align.START)
             connect_weak(reveal, 'clicked', self._toggle_sensitive,
-                         content, ui)
+                         covered, ui)
             self.append(reveal)
         elif sensitive:
+            pages.reveal(covered, True)
             hide = Gtk.Button(label=_('Hide Sensitive Content'),
                               halign=Gtk.Align.START)
             hide.add_css_class('flat')
             connect_weak(hide, 'clicked', self._toggle_sensitive,
-                         content, ui)
+                         covered, ui)
             self.append(hide)
 
     def _build_grid(self, visual, blur=False):
@@ -1499,10 +1521,10 @@ class MediaBox(Gtk.Box):
         from .mediaviewer import present_media
         present_media(self, self._attachments, index)
 
-    def _toggle_sensitive(self, button, content, ui):
-        revealed = not content.get_visible()
+    def _toggle_sensitive(self, button, covered, ui):
+        revealed = not covered.get_reveal_child()
         ui['media_revealed'] = revealed
-        content.set_visible(revealed)
+        pages.reveal(covered, revealed, animate=True)
         if revealed:
             button.set_label(_('Hide Sensitive Content'))
             button.add_css_class('flat')
@@ -1877,6 +1899,9 @@ class StatusRow(Gtk.Overlay):
         self.media_blur = False
         self._busy = False
         self._emoji_bank = {}
+        self._body_animation = None
+        self._body_tick = None
+        self._body_overflow = Gtk.Overflow.VISIBLE
 
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         body.set_hexpand(True)
@@ -2009,6 +2034,7 @@ class StatusRow(Gtk.Overlay):
 
         guarded = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.guarded = guarded
+        self.guarded_revealer = None
         main.append(guarded)
 
         self.content = StatusBody()
@@ -2124,6 +2150,14 @@ class StatusRow(Gtk.Overlay):
             box.append(self.cw_toggle)
             self.cw_box = box
             self.main.insert_child_after(box, self.reply_box)
+            # Only rows that have shown a content warning pay for the
+            # revealer the body slides in and out of.
+            revealer = Gtk.Revealer(
+                transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+            self.main.insert_child_after(revealer, self.guarded)
+            self.main.remove(self.guarded)
+            revealer.set_child(self.guarded)
+            self.guarded_revealer = revealer
         return self.cw_box
 
     def _ensure_translation_box(self):
@@ -2382,6 +2416,10 @@ class StatusRow(Gtk.Overlay):
             item.translation = data
             if self.item is item:
                 self.bind(item, self.client)
+                # A post collapsed by a filter binds no translation box.
+                if self.translation_box is not None:
+                    pages.flash_class(self.translation_box, 'fade-in')
+                pages.flash_class(self.content, 'fade-in')
 
         pages.call(self, self.client, 'POST',
                    '/statuses/%s/translate' % item.status_id, translated,
@@ -2617,6 +2655,7 @@ class StatusRow(Gtk.Overlay):
     # Binding
 
     def bind(self, item, client):
+        self._stop_body_animation()
         if self._item_watch is not None and self._item_watch[0] is not item:
             watched, handler = self._item_watch
             watched.disconnect(handler)
@@ -2625,6 +2664,8 @@ class StatusRow(Gtk.Overlay):
             # Edits and carousel updates change the item in place.
             self._item_watch = (item, connect_weak(
                 item, 'changed', self._on_item_changed))
+        if item is not self.item:
+            self._clear_flashes()
         self.item = item
         self.client = client
         if self._overflow.get_menu_model() is not None:
@@ -2636,6 +2677,17 @@ class StatusRow(Gtk.Overlay):
         if self.carousel is not None:
             self.carousel.set_visible(False)
         self._bind_status(item)
+
+    def _clear_flashes(self):
+        """End a pop or fade still playing for the post this recycled row
+        showed before, so the next post does not inherit it."""
+        for widget, css in ((self.favourite_button, 'just-toggled'),
+                            (self.boost_button, 'just-toggled'),
+                            (self.bookmark_button, 'just-toggled'),
+                            (self.content, 'fade-in'),
+                            (self.translation_box, 'fade-in')):
+            if widget is not None:
+                widget.remove_css_class(css)
 
     def _bind_status(self, item):
         status = item.status
@@ -2717,15 +2769,11 @@ class StatusRow(Gtk.Overlay):
             revealed = ui.get('cw_open')
             if revealed is None:
                 revealed = _flag('show-spoilers')
-            self.cw_toggle.set_label(_('Hide Content') if revealed
-                                     else _('Show Content'))
-            self.cw_toggle.update_property(
-                [Gtk.AccessibleProperty.LABEL],
-                [_('Hide content warning: %s') % spoiler if revealed
-                 else _('Show content warning: %s') % spoiler])
+            self._update_cw_toggle(spoiler, revealed)
         elif self.cw_box is not None:
             self.cw_box.set_visible(False)
-        self.guarded.set_visible(bool(revealed))
+        if self.guarded_revealer is not None:
+            pages.reveal(self.guarded_revealer, bool(revealed))
 
         self._render_body(item, bank)
         self._bind_translation(item)
@@ -2934,6 +2982,14 @@ class StatusRow(Gtk.Overlay):
         self.item.ui['filter_shown'] = True
         self.bind(self.item, self.client)
 
+    def _update_cw_toggle(self, spoiler, revealed):
+        self.cw_toggle.set_label(_('Hide Content') if revealed
+                                 else _('Show Content'))
+        self.cw_toggle.update_property(
+            [Gtk.AccessibleProperty.LABEL],
+            [_('Hide content warning: %s') % spoiler if revealed
+             else _('Show content warning: %s') % spoiler])
+
     def _on_cw_toggle(self, _button):
         item = self.item
         if item is None:
@@ -2942,14 +2998,73 @@ class StatusRow(Gtk.Overlay):
         if current is None:
             current = _flag('show-spoilers')
         item.ui['cw_open'] = not current
-        self.bind(item, self.client)
+        spoiler = (item.translation or {}).get('spoiler_text') \
+            or item.status.get('spoiler_text') or ''
+        self._update_cw_toggle(spoiler, not current)
+        pages.reveal(self.guarded_revealer, not current, animate=True)
 
     def _on_expand(self, _button):
         item = self.item
         if item is None:
             return
+        content = self.content
+        h0 = content.get_height()
+        animate = h0 > 0 and content.get_mapped()
+        self._stop_body_animation()
         item.ui['expanded'] = not item.ui.get('expanded')
         self._render_body(item, self._emoji_bank)
+        if not animate:
+            return
+        # The text view lays the new text out before the next frame;
+        # measured now it still answers with the old height. Hold the
+        # old height until then and size the animation from the layout.
+        self._body_overflow = content.get_overflow()
+        content.set_overflow(Gtk.Overflow.HIDDEN)
+        content._height_override = h0
+        self._body_tick = content.add_tick_callback(
+            pages.weak_method(self._on_body_laid_out), h0)
+
+    def _on_body_laid_out(self, content, _clock, h0):
+        self._body_tick = None
+        h1 = Gtk.TextView.do_measure(
+            content, Gtk.Orientation.VERTICAL, content.get_width())[1]
+        if abs(h1 - h0) < 4:
+            self._clear_body_height()
+            return GLib.SOURCE_REMOVE
+        animation = Adw.TimedAnimation(
+            widget=content, value_from=h0, value_to=h1, duration=250,
+            easing=Adw.Easing.EASE_OUT_CUBIC,
+            target=Adw.CallbackAnimationTarget.new(
+                pages.weak_method(self._on_body_height)))
+        connect_weak(animation, 'done', self._on_body_animation_done)
+        self._body_animation = animation
+        animation.play()
+        return GLib.SOURCE_REMOVE
+
+    def _on_body_height(self, value):
+        self.content._height_override = round(value)
+        self.content.queue_resize()
+
+    def _on_body_animation_done(self, _animation):
+        self._body_animation = None
+        self._clear_body_height()
+
+    def _clear_body_height(self):
+        content = self.content
+        if content._height_override is not None:
+            content._height_override = None
+            content.set_overflow(self._body_overflow)
+            content.queue_resize()
+
+    def _stop_body_animation(self):
+        if self._body_tick is not None:
+            self.content.remove_tick_callback(self._body_tick)
+            self._body_tick = None
+        animation = self._body_animation
+        if animation is not None:
+            self._body_animation = None
+            animation.skip()
+        self._clear_body_height()
 
     def _show_card(self, card):
         while (child := self.card_box.get_first_child()) is not None:
@@ -3098,11 +3213,15 @@ class StatusRow(Gtk.Overlay):
     def _on_favourite(self, button):
         item = self.item
         self._set_active(button, item.favourited)
+        if not item.favourited:
+            pages.flash_class(button, 'just-toggled')
         self._send_toggle('favourite', not item.favourited)
 
     def _on_bookmark(self, button):
         item = self.item
         self._set_active(button, item.bookmarked)
+        if not item.bookmarked:
+            pages.flash_class(button, 'just-toggled')
         self._send_toggle('bookmark', not item.bookmarked)
 
     def _missing_alt(self):
@@ -3123,6 +3242,7 @@ class StatusRow(Gtk.Overlay):
             if _flag('advanced-boost-dialog'):
                 self._present_boost_dialog()
             else:
+                pages.flash_class(button, 'just-toggled')
                 self._send_toggle('reblog', True)
 
         if _flag('boost-alt-text-reminder') and self._missing_alt():
@@ -3203,6 +3323,7 @@ class StatusRow(Gtk.Overlay):
             if response == 'boost':
                 chosen = next((v for v, c in checks.items()
                                if c.get_active()), default)
+                pages.flash_class(self.boost_button, 'just-toggled')
                 self._send_toggle('reblog', True,
                                   form={'visibility': chosen})
             elif response == 'quote':
