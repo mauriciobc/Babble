@@ -21,12 +21,13 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Gdk', '4.0')
 gi.require_version('Gsk', '4.0')
+gi.require_version('Pango', '1.0')
 gi.require_version('Soup', '3.0')
 
 from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import (  # noqa: E402
-    Adw, Gdk, Gio, GLib, GObject, Graphene, Gsk, Gtk, Soup,
+    Adw, Gdk, Gio, GLib, GObject, Graphene, Gsk, Gtk, Pango, Soup,
 )
 
 from . import pages  # noqa: E402
@@ -709,7 +710,7 @@ class MediaViewer(Adw.Dialog):
         self.alt_box.append(self.alt_toggle)
 
         self.alt_label = Gtk.Label(
-            wrap=True, wrap_mode=Gtk.WrapMode.WORD_CHAR, xalign=0,
+            wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR, xalign=0,
             selectable=True, hexpand=True, valign=Gtk.Align.START)
         self.alt_label.add_css_class('media-viewer-alt-text')
         self.alt_scroll = Gtk.ScrolledWindow(
