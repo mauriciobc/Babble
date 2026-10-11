@@ -2343,7 +2343,9 @@ class StatusRow(Gtk.Overlay):
             item.translation = data
             if self.item is item:
                 self.bind(item, self.client)
-                pages.flash_class(self.translation_box, 'fade-in')
+                # A post collapsed by a filter binds no translation box.
+                if self.translation_box is not None:
+                    pages.flash_class(self.translation_box, 'fade-in')
                 pages.flash_class(self.content, 'fade-in')
 
         pages.call(self, self.client, 'POST',
@@ -2589,6 +2591,8 @@ class StatusRow(Gtk.Overlay):
             # Edits and carousel updates change the item in place.
             self._item_watch = (item, connect_weak(
                 item, 'changed', self._on_item_changed))
+        if item is not self.item:
+            self._clear_flashes()
         self.item = item
         self.client = client
         if self._overflow.get_menu_model() is not None:
@@ -2600,6 +2604,17 @@ class StatusRow(Gtk.Overlay):
         if self.carousel is not None:
             self.carousel.set_visible(False)
         self._bind_status(item)
+
+    def _clear_flashes(self):
+        """End a pop or fade still playing for the post this recycled row
+        showed before, so the next post does not inherit it."""
+        for widget, css in ((self.favourite_button, 'just-toggled'),
+                            (self.boost_button, 'just-toggled'),
+                            (self.bookmark_button, 'just-toggled'),
+                            (self.content, 'fade-in'),
+                            (self.translation_box, 'fade-in')):
+            if widget is not None:
+                widget.remove_css_class(css)
 
     def _bind_status(self, item):
         status = item.status

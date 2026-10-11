@@ -106,6 +106,13 @@ def flash_class(widget, css_class, ms=300):
     """Add *css_class* to *widget* for *ms* milliseconds, to play a CSS
     keyframe animation once. A state selector such as ``:checked`` would
     replay it whenever a recycled row is bound to a checked item."""
+    # A flash restarted before the last one ended must not be cut short
+    # by the earlier timeout: only the latest one removes the class.
+    flashes = getattr(widget, '_babble_flashes', None)
+    if flashes is None:
+        flashes = widget._babble_flashes = {}
+    token = flashes.get(css_class, 0) + 1
+    flashes[css_class] = token
     widget.remove_css_class(css_class)
     widget.add_css_class(css_class)
     target = widget.weak_ref()
@@ -113,7 +120,9 @@ def flash_class(widget, css_class, ms=300):
     def done():
         owner = target()
         if owner is not None:
-            owner.remove_css_class(css_class)
+            latest = getattr(owner, '_babble_flashes', {}).get(css_class)
+            if latest in (None, token):
+                owner.remove_css_class(css_class)
         return GLib.SOURCE_REMOVE
     GLib.timeout_add(ms, done)
 
