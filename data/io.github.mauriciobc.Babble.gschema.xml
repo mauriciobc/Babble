@@ -92,6 +92,10 @@
       <default>false</default>
       <summary>Slightly enlarge custom emojis under the pointer</summary>
     </key>
+    <key name="translucent-sidebar" type="b">
+      <default>false</default>
+      <summary>Blur the desktop behind a translucent sidebar, where the compositor supports it</summary>
+    </key>
     <key name="collapse-long-posts" type="b">
       <default>true</default>
       <summary>Collapse long posts behind a Show More button</summary>

@@ -266,6 +266,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('_Scale Custom Emojis on Hover'),
                      _('Slightly increases the size of custom emojis '
                        'when you hover over them'))
+        self._switch(appearance, 'translucent-sidebar',
+                     _('T_ranslucent Sidebar'),
+                     _('Blur the desktop behind the sidebar. '
+                       'Needs a compositor that supports background blur'))
         page.add(appearance)
 
         posts = Adw.PreferencesGroup(title=_('Posts'))

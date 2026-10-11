@@ -441,3 +441,41 @@ window.darken-media .darkenable:hover {
 .emoji-picker .emoji-glyph {
   font-size: 24px;
 }
+
+/* Opt-in translucent sidebar (window class set from Python). The window
+   goes transparent so the desktop shows through the sidebar pane, which
+   gets a tinted, blurred layer; GTK forwards backdrop-filter to the
+   compositor's background-effect protocol. The content pane stays opaque.
+   GTK never matches `prefers-contrast: no-preference`, so high contrast is
+   handled by undoing the rules below instead of by guarding them. */
+window.translucent-sidebar {
+  background-color: transparent;
+}
+
+window.translucent-sidebar .content-pane {
+  background-color: var(--window-bg-color);
+}
+
+window.translucent-sidebar .sidebar-pane {
+  background-color: color-mix(in srgb, var(--sidebar-bg-color) 70%, transparent);
+  backdrop-filter: blur(30px);
+}
+
+window.translucent-sidebar .sidebar-pane:backdrop {
+  background-color: color-mix(in srgb, var(--sidebar-backdrop-color) 70%, transparent);
+}
+
+@media (prefers-contrast: more) {
+  window.translucent-sidebar {
+    background-color: var(--window-bg-color);
+  }
+
+  window.translucent-sidebar .sidebar-pane {
+    background-color: var(--sidebar-bg-color);
+    backdrop-filter: none;
+  }
+
+  window.translucent-sidebar .sidebar-pane:backdrop {
+    background-color: var(--sidebar-backdrop-color);
+  }
+}
