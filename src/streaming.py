@@ -55,14 +55,19 @@ def hashtag_stream(tag):
 
 def streaming_url(client):
     """Base WebSocket URL of the client's server: the one the instance
-    advertises, or the instance itself."""
+    advertises, or the instance itself.
+
+    The socket carries the bearer token, so an advertised address that is
+    not encrypted (``http``, ``ws``, or anything else) is ignored in
+    favour of the instance, which is always https."""
     info = getattr(client, 'instance_info', None) or {}
-    url = ((info.get('configuration') or {}).get('urls') or {}) \
-        .get('streaming') or client.instance
-    parts = urllib.parse.urlsplit(url)
-    scheme = {'http': 'ws', 'https': 'wss'}.get(parts.scheme, parts.scheme)
+    advertised = ((info.get('configuration') or {}).get('urls') or {}) \
+        .get('streaming')
+    parts = urllib.parse.urlsplit(advertised or '')
+    if parts.scheme not in ('https', 'wss') or not parts.netloc:
+        parts = urllib.parse.urlsplit(client.instance)
     return urllib.parse.urlunsplit(
-        (scheme, parts.netloc, parts.path.rstrip('/'), '', ''))
+        ('wss', parts.netloc, parts.path.rstrip('/'), '', ''))
 
 
 def subscribe_message(stream, kind='subscribe'):

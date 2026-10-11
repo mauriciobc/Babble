@@ -43,6 +43,18 @@ client.instance_info = {
     'configuration': {'urls': {'streaming': 'https://stream.example'}}}
 check('streaming url from instance', streaming_url(client)
       == 'wss://stream.example')
+client.instance_info = {
+    'configuration': {'urls': {'streaming': 'wss://stream.example/'}}}
+check('an advertised wss url is kept', streaming_url(client)
+      == 'wss://stream.example')
+# The socket carries the bearer token: an unencrypted address the
+# instance advertises must never be used.
+for advertised in ('http://stream.example', 'ws://stream.example',
+                   'gopher://stream.example', 'stream.example'):
+    client.instance_info = {
+        'configuration': {'urls': {'streaming': advertised}}}
+    check('an advertised %s url falls back to the instance' % advertised,
+          streaming_url(client) == 'wss://social.example')
 client.instance_info = {}
 check('streaming url fallback', streaming_url(client)
       == 'wss://social.example')
