@@ -217,6 +217,11 @@ class BabbleWindow(Adw.ApplicationWindow):
             'notify::dark', lambda *a: preferences.apply_style(
                 self, self.settings))
         preferences.apply_style(self, self.settings)
+        pages.connect_weak(self.split_view, 'notify::collapsed',
+                           self._sync_translucent_sidebar)
+        pages.connect_weak(self.main_stack, 'notify::visible-child-name',
+                           self._sync_translucent_sidebar)
+        self._sync_translucent_sidebar()
         self.connect('close-request', self._on_close_request)
 
         self._refresh_sidebar()
@@ -235,6 +240,19 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._refresh_sidebar()
         elif key in ('live-updates', 'public-live-updates'):
             self._sync_streaming()
+        elif key == 'translucent-sidebar':
+            self._sync_translucent_sidebar()
+
+    def _sync_translucent_sidebar(self, *_args):
+        # The window background goes transparent so the sidebar can show
+        # the blurred desktop (style.css), which only suits the expanded
+        # shell: the login page and the collapsed layout are full-width.
+        if self.settings.get_boolean('translucent-sidebar') \
+                and self.main_stack.get_visible_child_name() == 'shell' \
+                and not self.split_view.get_collapsed():
+            self.add_css_class('translucent-sidebar')
+        else:
+            self.remove_css_class('translucent-sidebar')
 
     # Session
 
