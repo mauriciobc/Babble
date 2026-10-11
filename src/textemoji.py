@@ -64,7 +64,16 @@ def lookup_emoji(emojis, shortcode):
 
 
 def launch_uri(widget, uri):
-    """Open *uri* in the default handler, with a toast when that fails."""
+    """Open *uri* in the default handler, with a toast when that fails.
+
+    Every link that comes from a server ends here, so only http(s) is let
+    through (see :func:`statustext.is_web_link`)."""
+    from .statustext import is_web_link
+    if not is_web_link(uri):
+        root = widget.get_root()
+        if hasattr(root, 'show_toast'):
+            root.show_toast(_('Could not open link'))
+        return
     Gtk.UriLauncher.new(uri).launch(widget.get_root(), None,
                                     _on_uri_launched, widget)
 

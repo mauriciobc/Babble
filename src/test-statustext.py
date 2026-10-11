@@ -16,8 +16,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src.statustext import (is_hashtag, parse_content,  # noqa: E402
-                            relative_time, shorten_url_text)
+from src.statustext import (is_hashtag, is_web_link,  # noqa: E402
+                            parse_content, relative_time, shorten_url_text)
 
 
 def text_of(segments):
@@ -66,6 +66,23 @@ class TestHashtag(unittest.TestCase):
             {'href': 'https://x.test/@me', 'text': 'me'}))
 
 
+class TestWebLink(unittest.TestCase):
+    def test_http_and_https_may_be_launched(self):
+        for uri in ('https://x.test/a', 'http://x.test', 'HTTPS://X.test/'):
+            self.assertTrue(is_web_link(uri), uri)
+
+    def test_other_schemes_never_reach_the_launcher(self):
+        # What a server that does not sanitise its HTML could serve.
+        for uri in ('javascript:alert(1)', 'file:///etc/passwd',
+                    'smb://host/share', 'babble://oauth/callback?code=x',
+                    'data:text/html,x', 'https:no-host', '', None):
+            self.assertFalse(is_web_link(uri), uri)
+
+    def test_a_malformed_address_is_refused_not_raised(self):
+        # urlsplit raises ValueError on an unmatched '['.
+        self.assertFalse(is_web_link('https://[oops/x'))
+
+
 class TestShortenUrl(unittest.TestCase):
     def test_the_host_and_path_are_kept(self):
         self.assertEqual(
@@ -76,6 +93,28 @@ class TestShortenUrl(unittest.TestCase):
         out = shorten_url_text('https://example.test/' + 'x' * 200)
         self.assertLessEqual(len(out), 43)
         self.assertTrue(out.endswith('…'))
+
+    def test_credentials_never_disguise_the_host(self):
+        self.assertEqual(
+            shorten_url_text('https://bank.test:pw@evil.test/login'),
+            'evil.test/login')
+        # Long enough to be truncated: the real host must still lead.
+        out = shorten_url_text(
+            'https://bank.test.verify.account.example.com@evil.test/x')
+        self.assertTrue(out.startswith('evil.test'), out)
+
+    def test_a_backslash_ends_the_host_as_in_a_browser(self):
+        # A browser opens evil.test here; the label must say so.
+        self.assertEqual(shorten_url_text('https://evil.test\\@bank.test/x'),
+                         'evil.test/@bank.test/x')
+
+    def test_a_malformed_url_is_left_alone(self):
+        self.assertEqual(shorten_url_text('https://[oops/x'),
+                         'https://[oops/x')
+
+    def test_the_port_is_kept(self):
+        self.assertEqual(shorten_url_text('https://u@example.test:8443/a'),
+                         'example.test:8443/a')
 
     def test_something_that_is_not_a_url_is_left_alone(self):
         self.assertEqual(shorten_url_text('not a url'), 'not a url')
