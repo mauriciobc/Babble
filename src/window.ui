@@ -282,6 +282,7 @@
                     </child>
                     <child>
                       <object class="AdwNavigationSplitView" id="split_view">
+                    <property name="vexpand">True</property>
                     <property name="collapsed">True</property>
                     <property name="sidebar">
                       <object class="AdwNavigationPage">
