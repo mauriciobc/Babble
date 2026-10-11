@@ -1,0 +1,70 @@
+name: CI
+
+# The suite is the gate. Every test -- the meson tests and the
+# desktop/metainfo/gschema/catalogue validators -- runs on every push
+# and pull request.
+#
+# `timeline render` and `thread profile render` fetch live public data
+# from mastodon.social, and every widget test needs a display, which is
+# why the run is under Xvfb.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # msgfmt, desktop-file-validate, appstreamcli and
+      # glib-compile-schemas are each `required: false` in meson so a
+      # developer missing one can still build. Here they are installed,
+      # so the run cannot be green having checked nothing.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gettext desktop-file-utils appstream \
+            libglib2.0-bin libgtk-4-dev libadwaita-1-dev \
+            libsoup-3.0-dev libsecret-1-dev \
+            meson ninja-build python3 xvfb
+
+      - name: Configure
+        run: meson setup build
+
+      - name: Compile
+        run: meson compile -C build
+
+      - name: Test
+        # --print-errorlogs puts a failing test's own output in the
+        # console rather than only in meson-logs/testlog.txt.
+        run: xvfb-run -a meson test -C build --print-errorlogs 2>&1 | tee ci.log
+
+      - name: Fail on a skipped test
+        # A test that exits 77 is skipped, and meson still exits 0. A
+        # machine that cannot run the suite must not report green.
+        run: |
+          if grep -qE '^Skipped: +[0-9]+' ci.log; then
+            echo '::error::tests were skipped rather than run'
+            grep -E '^Skipped: +[0-9]+' ci.log
+            exit 1
+          fi
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          args: check

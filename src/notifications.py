@@ -952,7 +952,7 @@ class NotificationRow(ColumnBox):
         if not is_cluster:
             return
         names = []
-        actors = list(zip(item.actors, item.kinds))
+        actors = list(zip(item.actors, item.kinds, strict=False))
         shown = actors[:AVATAR_STRIP_MAX]
         for actor, kind in shown:
             name = _clean_name(actor)
@@ -1178,24 +1178,6 @@ def _slug(kind):
     return re.sub(r'[^a-z0-9]+', '-', kind)
 
 
-def _weak_connect(obj, signal, owner, method):
-    """Connect *obj*'s *signal* to ``owner.<method>`` without keeping
-    *owner* alive; the handler removes itself once the owner is gone."""
-    # A GObject weak ref: the Python wrapper of a widget only GTK holds
-    # can be dropped and re-created, which would kill a weakref.ref.
-    ref = owner.weak_ref()
-    ids = []
-
-    def callback(*args):
-        target = ref()
-        if target is None:
-            obj.disconnect(ids[0])
-            return
-        getattr(target, method)(*args)
-
-    ids.append(obj.connect(signal, callback))
-
-
 class NotificationsPage(Adw.Bin):
     """Scrollable notifications list with all/mentions chips, a header
     menu (type filter, notification settings, announcements), infinite
@@ -1304,12 +1286,12 @@ class NotificationsPage(Adw.Bin):
         self.header_widget = None
         if account_id is None:
             self._build_header()
-            _weak_connect(settings(), 'changed::' + EXCLUDED_TYPES_KEY,
-                          self, '_on_excluded_changed')
+            connect_weak(settings(), 'changed::' + EXCLUDED_TYPES_KEY,
+                         self._on_excluded_changed)
         else:
             self.filter_group.set_visible(False)
-        _weak_connect(settings(), 'changed::dim-trivial-notifications',
-                      self, '_update_dim')
+        connect_weak(settings(), 'changed::dim-trivial-notifications',
+                     self._update_dim)
         self._update_dim()
 
         if client.token:

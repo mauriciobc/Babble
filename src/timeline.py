@@ -2,9 +2,7 @@
 
 import collections
 import datetime
-import html as html_module
 import urllib.parse
-from html.parser import HTMLParser
 
 import gi
 
@@ -16,11 +14,14 @@ gi.require_version('Graphene', '1.0')
 
 from .i18n import gettext as _, ngettext
 
-from gi.repository import Adw, Gdk, GdkPixbuf, GLib, GObject, Gio, Graphene, Gtk, Pango, Soup  # noqa: E402
+from gi.repository import (Adw, Gdk, GdkPixbuf, GLib, GObject, Gio,  # noqa: E402
+                           Graphene, Gtk, Pango, Soup)
 
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .mastodon import HTTP_TIMEOUT_SECONDS, summarize_error_markup  # noqa: E402
+from .statustext import (is_hashtag, parse_content, relative_time,  # noqa: E402
+                         shorten_url_text)
 from .textemoji import (InlineEmojiText, emoji_bank, launch_uri,  # noqa: E402
                         poll_emoji_bank, status_emoji_bank)
 
@@ -34,162 +35,6 @@ BOOST_CAP = 12
 # cheap to keep; media are large, so far fewer stay resident.
 AVATAR_CACHE_SIZE = 256
 MEDIA_TEXTURE_CACHE_SIZE = 48
-
-
-class _ContentParser(HTMLParser):
-    """Turns status HTML into safe text/link segments.
-
-    Paragraph boundaries become a plain ``'\n'`` segment, ``<br>`` (and
-    list items) a ``'\n'`` segment flagged ``br`` so renderers can keep a
-    line break distinct from a paragraph gap."""
-
-    BLOCK_TAGS = {'p', 'div', 'blockquote', 'pre', 'h1', 'h2', 'h3', 'h4',
-                  'h5', 'h6'}
-    LINE_TAGS = {'br', 'li'}
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.segments = []
-        self._href = None
-        self._buffer = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag == 'a':
-            self._flush()
-            self._href = dict(attrs).get('href')
-        elif tag in self.BLOCK_TAGS:
-            self._flush()
-            if self.segments:
-                self.segments.append({'text': '\n', 'href': None})
-        elif tag in self.LINE_TAGS:
-            self._flush()
-            if tag == 'br' or self.segments:
-                self.segments.append({'text': '\n', 'href': None,
-                                      'br': True})
-
-    def handle_startendtag(self, tag, attrs):
-        self.handle_starttag(tag, attrs)
-
-    def handle_endtag(self, tag):
-        if tag == 'a':
-            self._flush()
-            self._href = None
-        elif tag in self.BLOCK_TAGS or tag in self.LINE_TAGS:
-            self._flush()
-
-    def handle_data(self, data):
-        self._buffer.append(data)
-
-    def _flush(self):
-        text = ''.join(self._buffer)
-        self._buffer = []
-        if not text:
-            return
-        self.segments.append({'text': text, 'href': self._href})
-
-
-def parse_content(html_text):
-    """Convert status HTML to a list of segments.
-
-    Text segments are ``{'text', 'href', 'sp_before', 'sp_after'}`` (the
-    flags record whether the source had whitespace around the text, so
-    punctuation after a link does not get a stray space). A line break
-    is a ``'newline'`` segment flagged ``br`` and a paragraph break the
-    same segment without the flag."""
-    if not html_text:
-        return []
-    parser = _ContentParser()
-    try:
-        parser.feed(html_text)
-        parser.close()
-    except Exception:
-        return [{'text': html_module.unescape(html_text), 'href': None}]
-    # HTMLParser never flushes a trailing run of plain text that isn't
-    # followed by a tag, which silently dropped tag-free payloads (e.g.
-    # plain field values).
-    parser._flush()
-    segments = []
-    pending_space = False
-    for segment in parser.segments:
-        if segment['text'] == '\n':
-            pending_space = False
-            if not segments:
-                continue
-            last = segments[-1]
-            if not segment.get('br') and last['text'] == '\n' \
-                    and not last.get('br'):
-                continue
-            segments.append(segment)
-            continue
-        raw = segment['text'].replace('\n', ' ')
-        text = raw.strip()
-        if not text:
-            if raw:
-                pending_space = True
-            continue
-        sp_before = raw[0].isspace() or pending_space
-        sp_after = raw[-1].isspace()
-        pending_space = False
-        if segments and segments[-1]['href'] == segment['href'] \
-                and segment['href'] is not None \
-                and segments[-1]['text'] != '\n':
-            segments[-1]['text'] += ' ' + text
-            segments[-1]['sp_after'] = sp_after
-        else:
-            segments.append({'text': text, 'href': segment['href'],
-                             'sp_before': sp_before, 'sp_after': sp_after})
-    while segments and segments[-1]['text'] == '\n':
-        segments.pop()
-    return segments
-
-
-def relative_time(iso_timestamp):
-    try:
-        then = datetime.datetime.fromisoformat(
-            iso_timestamp.replace('Z', '+00:00'))
-    except (ValueError, AttributeError, TypeError):
-        return ''
-    delta = datetime.datetime.now(datetime.timezone.utc) - then
-    seconds = int(delta.total_seconds())
-    if seconds < 0:
-        seconds = 0
-    if seconds < 60:
-        # Translators: compact age of a post in seconds, e.g. "42s"
-        return _('%ds').replace('%d', str(seconds))
-    minutes = seconds // 60
-    if minutes < 60:
-        # Translators: compact age of a post in minutes, e.g. "5m"
-        return _('%dm').replace('%d', str(minutes))
-    hours = minutes // 60
-    if hours < 24:
-        # Translators: compact age of a post in hours, e.g. "3h"
-        return _('%dh').replace('%d', str(hours))
-    days = hours // 24
-    if days < 365:
-        # Translators: compact age of a post in days, e.g. "12d"
-        return _('%dd').replace('%d', str(days))
-    moment = GLib.DateTime.new_from_unix_utc(int(then.timestamp()))
-    # Translators: date of a post older than a year, a GDateTime format
-    # string, e.g. "Oct 2025"; see the g_date_time_format() docs
-    return moment.to_local().format(_('%b %Y'))
-
-
-def shorten_url_text(text):
-    """Compact raw URLs for display, keeping the href target intact."""
-    if text.lower().startswith(('http://', 'https://')):
-        parsed = urllib.parse.urlsplit(text)
-        path = parsed.path.rstrip('/')
-        label = parsed.netloc + path
-        if len(label) > 42:
-            label = label[:39] + '…'
-        return label
-    return text
-
-
-def is_hashtag(segment):
-    return (segment['href'] is not None
-            and '/tags/' in segment['href']
-            or segment['text'].startswith('#'))
 
 
 class StatusItem(GObject.Object):
@@ -321,7 +166,7 @@ class BoostCarouselItem(StatusItem):
         item for the life of the timeline and its bound row follows
         ``changed``, instead of the list view rebuilding the row."""
         if len(self.boosts) == len(boosts) and all(
-                a is b for a, b in zip(self.boosts, boosts)):
+                a is b for a, b in zip(self.boosts, boosts, strict=True)):
             return
         self.boosts = boosts
         self.emit('changed')
@@ -661,7 +506,8 @@ class RunModel(GObject.Object, Gio.ListModel):
 
 
 def _same_items(a, b):
-    return len(a) == len(b) and all(x is y for x, y in zip(a, b))
+    return len(a) == len(b) and all(
+        x is y for x, y in zip(a, b, strict=True))
 
 
 def run_key(item):

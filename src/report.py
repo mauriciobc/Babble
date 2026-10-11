@@ -86,7 +86,7 @@ def account_domain(account):
 
 def status_excerpt(status):
     """One-line plain text of a post for the selection list."""
-    from .timeline import parse_content
+    from .statustext import parse_content
     parts = [segment['text'] for segment in
              parse_content(status.get('content') or '')]
     text = re.sub(r'\s+', ' ', ' '.join(parts)).strip()
@@ -106,7 +106,7 @@ class _PostRow(Adw.ActionRow):
 
     def __init__(self, status):
         super().__init__(use_markup=False, title_lines=3, subtitle_lines=1)
-        from .timeline import relative_time
+        from .statustext import relative_time
         self.check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
         self.check.add_css_class('selection-mode')
         self.add_prefix(self.check)

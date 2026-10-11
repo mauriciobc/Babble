@@ -11,6 +11,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .mastodon import summarize_error_markup  # noqa: E402
 
 STATS_TABS = (
     ('favourites', 'favourites_count', '/statuses/%s/favourited_by'),
@@ -193,7 +194,10 @@ class EditHistoryView(Adw.Bin):
         try:
             revisions = client.request_finish(result)
         except GLib.Error as error:
-            self.error_page.set_description(error.message)
+            # Adw.StatusPage parses its description as markup, so the
+            # server body has to be escaped or a bare '&' blanks it.
+            self.error_page.set_description(
+                summarize_error_markup(error.message))
             self.stack.set_visible_child_name('error')
             return
         while (child := self.content.get_first_child()) is not None:

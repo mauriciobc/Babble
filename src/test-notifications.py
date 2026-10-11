@@ -324,7 +324,7 @@ def visible_text(widget):
                     if isinstance(w, Gtk.Label))
 
 
-from src.timeline import parse_content  # noqa: E402
+from src.statustext import parse_content  # noqa: E402
 plain_full = ''.join(
     s['text'] for s in parse_content(LONG_MENTION['status']['content'])
     if s['text'] != '\n')

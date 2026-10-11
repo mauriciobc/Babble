@@ -104,6 +104,23 @@ OAUTH_REDIRECT = 'babble://oauth/callback'
 OOB_REDIRECT = 'urn:ietf:wg:oauth:2.0:oob'
 REDIRECT_URIS = OAUTH_REDIRECT + ' ' + OOB_REDIRECT
 OAUTH_SCOPES = 'read write follow'
+
+# The moderation scopes, asked for only by the admin dashboard and only
+# once the account's role says it could use them. A registration that
+# carries them is harmless -- Mastodon grants nothing until an
+# authorization names a scope -- but an authorization that names them
+# puts "All administrative functions" on the consent screen, so every
+# ordinary login must stay on OAUTH_SCOPES.
+ADMIN_SCOPES = OAUTH_SCOPES + ' admin:read admin:write'
+
+# Shown as the application's own homepage on the instance's consent
+# screen. It is Babble's address, never the server the user is signing
+# in to.
+APP_WEBSITE = 'https://github.com/mauriciobc/babble'
+
+# Keyring kind of the OAuth client credentials, stored per instance.
+CLIENT_CREDENTIALS_KIND = 'oauth-client'
+
 SECRET_SCHEMA = Secret.Schema.new('io.github.mauriciobc.Babble',
                                   Secret.SchemaFlags.NONE,
                                   {
@@ -149,15 +166,23 @@ def _secret_service():
 
 def store_secret_async(instance, kind, payload, callback=None,
                        cancellable=None):
-    """Write *payload* to the keyring without blocking the main loop."""
+    """Write *payload* to the keyring without blocking the main loop.
+
+    *callback* receives None once the entry is stored, or the GLib.Error
+    that stopped it. A keyring that will not take the secret is not a
+    transport failure, but the caller has to learn about it: an account
+    recorded without a recoverable token is an account that silently
+    signs the user out on the next start.
+    """
 
     def done(service, result, _user_data):
+        error = None
         try:
             service.store_finish(result)
-        except GLib.Error:
-            pass  # a keyring that will not take the secret is not fatal
+        except GLib.Error as failure:
+            error = failure
         if callback is not None:
-            callback()
+            callback(error)
 
     _secret_service().store(SECRET_SCHEMA,
                             {'instance': instance, 'kind': kind},
@@ -189,15 +214,21 @@ def load_secret_async(instance, kind, callback, cancellable=None):
 
 
 def clear_secret_async(instance, kind, callback=None, cancellable=None):
-    """Remove a keyring entry without blocking the main loop."""
+    """Remove a keyring entry without blocking the main loop.
+
+    *callback* receives None, or the GLib.Error that stopped it. An
+    entry that will not delete leaves a live token behind, so the caller
+    is told rather than left to assume the removal took.
+    """
 
     def done(service, result, _user_data):
+        error = None
         try:
             service.clear_finish(result)
-        except GLib.Error:
-            pass
+        except GLib.Error as failure:
+            error = failure
         if callback is not None:
-            callback()
+            callback(error)
 
     _secret_service().clear(SECRET_SCHEMA,
                             {'instance': instance, 'kind': kind},
@@ -319,10 +350,18 @@ class MastodonClient(GObject.Object):
                     ngettext('Rate limited by this server. Trying again in '
                              '%d second.',
                              'Rate limited by this server. Trying again in '
-                             '%d seconds.', seconds) % seconds, 'mastodon-http-error-quark', status))
+                             '%d seconds.', seconds) % seconds,
+                    'mastodon-http-error-quark', status))
                 return
+            # Summarised here, at the one place an error body enters the
+            # app, so every consumer inherits the bound: a non-JSON
+            # response (an nginx or CDN error page) would otherwise
+            # travel whole inside the GLib.Error, and a single consumer
+            # that renders it as markup blanks its label or renders the
+            # server's markup. summarize_error is idempotent, so the
+            # consumers that still sanitize are unaffected.
             task.return_error(GLib.Error(
-                str(error or Soup.status_get_phrase(status)),
+                summarize_error(error) or Soup.status_get_phrase(status),
                 'mastodon-http-error-quark', status))
 
     def _envelope(self, result):
@@ -414,12 +453,16 @@ class MastodonClient(GObject.Object):
 
     # OAuth
 
-    def register_app_async(self, callback=None, cancellable=None):
+    def register_app_async(self, scopes=OAUTH_SCOPES, callback=None,
+                           cancellable=None):
+        """POST /api/v1/apps. *scopes* becomes the ceiling every later
+        authorization may ask for: Mastodon refuses to authorize a scope
+        the registration did not declare."""
         return self._request_async('POST', '/apps',
                                    form={'client_name': 'Babble',
                                          'redirect_uris': REDIRECT_URIS,
-                                         'scopes': OAUTH_SCOPES,
-                                         'website': self.instance},
+                                         'scopes': scopes,
+                                         'website': APP_WEBSITE},
                                    callback=callback, cancellable=cancellable)
 
     def register_app_finish(self, result):
@@ -437,7 +480,68 @@ class MastodonClient(GObject.Object):
         """Read the stored token; *callback* receives it, or None."""
         load_secret_async(self.instance, account_id, callback, cancellable)
 
-    def get_authorize_url(self, redirect_uri=OAUTH_REDIRECT):
+    def store_client_credentials(self, client_id, client_secret, callback=None,
+                                 cancellable=None):
+        """Keep the OAuth client credentials in the keyring.
+
+        ``POST /oauth/revoke`` authenticates the client, so signing a
+        token out later needs them again -- and a logout can happen in a
+        later process than the one that registered the app.
+        """
+        payload = json.dumps({'client_id': client_id,
+                              'client_secret': client_secret})
+        store_secret_async(self.instance, CLIENT_CREDENTIALS_KIND, payload,
+                           callback, cancellable)
+
+    def load_client_credentials(self, callback, cancellable=None):
+        """Read the stored client credentials into ``client_id`` and
+        ``client_secret``; *callback* receives None when there are none."""
+        def loaded(text):
+            if text:
+                try:
+                    stored = json.loads(text)
+                    self.client_id = stored.get('client_id')
+                    self.client_secret = stored.get('client_secret')
+                except ValueError:
+                    self.client_id = self.client_secret = None
+            callback(text is not None and self.client_id is not None)
+        load_secret_async(self.instance, CLIENT_CREDENTIALS_KIND, loaded,
+                          cancellable)
+
+    def clear_client_credentials(self, callback=None, cancellable=None):
+        clear_secret_async(self.instance, CLIENT_CREDENTIALS_KIND, callback,
+                           cancellable)
+
+    def revoke_token_async(self, token, callback=None, cancellable=None):
+        """POST /oauth/revoke: the token stops being accepted by the
+        instance.
+
+        The endpoint is POST only (a DELETE 404s) and authenticates the
+        client, so ``client_id``/``client_secret``/``token`` all travel
+        as form fields -- a bearer header alone is refused. Mastodon
+        answers 200 for a token that was already gone, which is exactly
+        what a logout wants.
+        """
+        if not token or not self.client_id or not self.client_secret:
+            task = Gio.Task.new(self, cancellable, callback)
+            task.return_error(GLib.Error(
+                _('This login cannot be signed out on the server.'),
+                'mastodon-http-error-quark', 0))
+            return task
+        return self._request_async(
+            'POST', '/oauth/revoke', auth=False,
+            form={'client_id': self.client_id,
+                  'client_secret': self.client_secret,
+                  'token': token},
+            callback=callback, cancellable=cancellable)
+
+    def revoke_token_finish(self, result):
+        """Revocation is idempotent server-side: a 200 means the token is
+        gone, whether or not it was still live."""
+        return self._finish(result)
+
+    def get_authorize_url(self, redirect_uri=OAUTH_REDIRECT,
+                          scopes=OAUTH_SCOPES):
         """The browser URL that starts one authorization.
 
         A fresh PKCE verifier and ``state`` are minted per call and kept
@@ -445,6 +549,9 @@ class MastodonClient(GObject.Object):
         code to this process: an authorization code intercepted on the
         ``babble://`` scheme by any other application cannot be redeemed
         without the verifier, which never leaves this process.
+
+        *scopes* must be a subset of what :meth:`register_app_async`
+        declared; Mastodon refuses the authorization otherwise.
         """
         self._code_verifier = generate_code_verifier()
         self._state = new_state()
@@ -452,7 +559,7 @@ class MastodonClient(GObject.Object):
             'client_id': self.client_id,
             'redirect_uri': redirect_uri,
             'response_type': 'code',
-            'scope': OAUTH_SCOPES,
+            'scope': scopes,
             'state': self._state,
             'code_challenge': code_challenge(self._code_verifier),
             'code_challenge_method': 'S256',

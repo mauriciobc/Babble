@@ -83,7 +83,7 @@ def _on_uri_launched(launcher, result, widget):
 def content_segments(raw_html):
     """parse_content is the shared converter; raw non-HTML payload now
     survives via the trailing-flush fix there."""
-    from .timeline import parse_content
+    from .statustext import parse_content
     return parse_content(raw_html or '')
 
 

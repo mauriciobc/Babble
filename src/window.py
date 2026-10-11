@@ -15,9 +15,9 @@ from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
 from . import accounts as account_store  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
-from .mastodon import (MastodonClient, OAUTH_REDIRECT, OOB_REDIRECT,  # noqa: E402
-                       clear_secret_async, normalize_instance,
-                       summarize_error)
+from .mastodon import (ADMIN_SCOPES, MastodonClient, OAUTH_REDIRECT,  # noqa: E402
+                       OAUTH_SCOPES, OOB_REDIRECT, clear_secret_async,
+                       normalize_instance, summarize_error)
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
 
 # One-click alternatives for the login suggestions row, ranked from the
@@ -32,6 +32,10 @@ SUGGESTED_SERVERS = (
 # /oauth/token, so a ledger of this many recent codes outlives every
 # redelivery a browser can be trusted to make of one redirect.
 MAX_CONSUMED_CODES = 32
+
+# What an authorization in flight is for.
+AUTH_LOGIN = 'login'
+AUTH_ADMIN = 'admin'
 
 # Sidebar places in Tuba's order: (tag, icon, group). Titles are looked
 # up at runtime so they translate.
@@ -124,6 +128,11 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._background_pending = False
         self._auth_client = None
         self._fallback = False
+        # What the authorization in flight is for. A login installs a new
+        # account; a moderation authorization replaces the token of the
+        # one already signed in, asking for the admin scopes on top.
+        self._auth_mode = AUTH_LOGIN
+        self._auth_admin_callback = None
         # One authorization attempt is one click on the login button and
         # the redirect (or pasted code) that answers it. The attempt id
         # tells replies apart, the ledger spends each code exactly once.
@@ -137,9 +146,12 @@ class BabbleWindow(Adw.ApplicationWindow):
         # lookup is allowed to touch the session.
         self._session_lookup = 0
         self.settings = pages.settings()
-        self.settings.bind('window-width', self, 'default-width', Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('window-height', self, 'default-height', Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('window-maximized', self, 'maximized', Gio.SettingsBindFlags.DEFAULT)
+        self.settings.bind('window-width', self, 'default-width',
+                            Gio.SettingsBindFlags.DEFAULT)
+        self.settings.bind('window-height', self, 'default-height',
+                            Gio.SettingsBindFlags.DEFAULT)
+        self.settings.bind('window-maximized', self, 'maximized',
+                            Gio.SettingsBindFlags.DEFAULT)
 
         self.notifications_badge = Gtk.Label(visible=False)
         self.notifications_badge.add_css_class('notifications-badge')
@@ -312,8 +324,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._pinned_lists = {}
         self.navigation_view.replace([self.page_home])
 
-    def switch_account(self, account_id):
-        account = account_store.find_account(self.settings, account_id)
+    def switch_account(self, account_key):
+        account = account_store.find_account_by_key(self.settings, account_key)
         if account is None:
             return
         self._activate_account(account)
@@ -341,8 +353,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         if self.client is not None and self.account is not None:
             self.main_stack.set_visible_child_name('shell')
 
-    def on_remove_account_requested(self, _switcher, account_id):
-        account = account_store.find_account(self.settings, account_id)
+    def on_remove_account_requested(self, _switcher, account_key):
+        account = account_store.find_account_by_key(self.settings, account_key)
         if account is None:
             return
         pages.confirm(
@@ -352,17 +364,70 @@ class BabbleWindow(Adw.ApplicationWindow):
             _('_Remove'), lambda: self._remove_account_now(account))
 
     def _remove_account_now(self, account):
+        """Sign *account* out and stop using it on this device.
+
+        The token is read back, the local removal happens at once, and
+        the server is told afterwards. The read has to come first -- the
+        revoke needs the token, and the keyring entry is deleted on the
+        way out -- but it is local IPC, so the window never waits on the
+        network to finish logging you out.
+        """
+        was_active = self.account is not None and \
+            account_store.same_account(self.account, account)
+        self._revoke_then_remove(account, was_active)
+
+    def _revoke_then_remove(self, account, was_active):
+        instance, account_id = account['instance'], account['id']
+        # The session that signed in already holds this account's token
+        # and client credentials; removing another account needs a client
+        # that reads them back.
+        client = self.client if was_active and self.client is not None \
+            else MastodonClient(instance)
+        live = client is self.client
+        have_token = live and bool(client.token)
+        have_credentials = live and bool(client.client_id
+                                         and client.client_secret)
+
+        def revoke_then_forget():
+            """Start the revoke, then drop everything locally.
+
+            The revoke runs on its own from here: a server that has
+            already forgotten the token answers 200, and one that cannot
+            be reached must not keep the window signed in.
+            """
+            if client.token and client.client_id and client.client_secret:
+                client.revoke_token_async(
+                    client.token,
+                    lambda _c, result, _d=None: _swallow(
+                        client.revoke_token_finish, result))
+            self._finish_account_removal(account, was_active)
+
+        def on_credentials(_known):
+            revoke_then_forget()
+
+        def on_token(token):
+            client.token = token
+            client.load_client_credentials(on_credentials)
+
+        if have_token and have_credentials:
+            revoke_then_forget()
+        elif have_token:
+            client.load_client_credentials(on_credentials)
+        else:
+            client.load_secret_token(account_id, on_token)
+
+    def _finish_account_removal(self, account, was_active):
         clear_secret_async(account['instance'], account['id'])
-        was_active = self.account is not None \
-            and self.account['id'] == account['id']
-        remaining = account_store.forget_account(self.settings, account['id'])
+        remaining = account_store.forget_account(self.settings,
+                                                 account['id'],
+                                                 account['instance'])
         if not was_active:
             return
         self._teardown_session()
         self.account = None
         self.client = None
         if remaining is not None:
-            self.switch_account(remaining['id'])
+            self.switch_account(account_store.account_key(remaining))
         else:
             self._sign_out_to_login()
 
@@ -1086,6 +1151,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                       'address without a scheme, or with https://.'))
             return
         self._auth_client = MastodonClient(normalize_instance(domain))
+        self._auth_mode = AUTH_LOGIN
         self.begin_auth_attempt()
         self.refresh_login_widgets()
         self._auth_client.register_app_async(self.on_app_registered)
@@ -1103,7 +1169,14 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._fallback = False
         self.paste_code_button.set_visible(False)
         self._hide_code_entry()
+        # A cancelled moderation authorization still owes its caller an
+        # outcome, or the dashboard waits on a button that will never
+        # answer.
+        pending, self._auth_admin_callback = self._auth_admin_callback, None
+        self._auth_mode = AUTH_LOGIN
         self.refresh_login_widgets()
+        if pending is not None:
+            pending(False)
 
     def on_app_registered(self, client, result):
         if client is not self._auth_client:
@@ -1112,14 +1185,18 @@ class BabbleWindow(Adw.ApplicationWindow):
         try:
             client.register_app_finish(result)
         except GLib.Error as e:
-            self._auth_client = None
-            self.refresh_login_widgets()
-            self.show_error(_('Could not register with %s') % client.instance, e.message)
+            self._fail_attempt(self._auth_attempt,
+                               _('Could not register with %s')
+                               % client.instance, e.message)
             return
         redirect = OOB_REDIRECT if self._fallback else OAUTH_REDIRECT
-        self.open_url(client.get_authorize_url(redirect))
+        scopes = ADMIN_SCOPES if self._auth_mode == AUTH_ADMIN else OAUTH_SCOPES
+        self.open_url(client.get_authorize_url(redirect, scopes))
         if not self._fallback:
-            self.show_toast(_('Finish logging in with the web browser'))
+            self.show_toast(
+                _('Finish authorizing moderation in the web browser')
+                if self._auth_mode == AUTH_ADMIN
+                else _('Finish logging in with the web browser'))
 
     def open_url(self, uri):
         def launched(launcher, result):
@@ -1245,11 +1322,29 @@ class BabbleWindow(Adw.ApplicationWindow):
         if heading is not None:
             self._auth_client = None
             self._fallback = False
+            # What the authorization in flight is for. A login installs a new
+            # account; a moderation authorization replaces the token of the
+            # one already signed in, asking for the admin scopes on top.
+            self._auth_mode = AUTH_LOGIN
+            self._auth_admin_callback = None
             self.refresh_login_widgets()
             self.show_error(heading, body)
         elif message is not None:
             self.show_toast(message)
         return True
+
+    def _fail_attempt(self, attempt, heading, body):
+        """Close out a failed authorization on the channel it started on.
+
+        A moderation authorization owes its caller an outcome, so it must
+        not settle through the login path -- that one reports to a toast
+        and would leave the dashboard waiting forever.
+        """
+        if self._auth_mode == AUTH_ADMIN:
+            self._settle_admin_authorization(
+                False, _('Authorization failed: %s') % body)
+        else:
+            self.settle_auth_attempt(attempt, heading, body)
 
     def on_token_received(self, client, result, attempt):
         if attempt != self._auth_attempt:
@@ -1258,8 +1353,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         try:
             token = client.request_token_finish(result)
         except GLib.Error as e:
-            self.settle_auth_attempt(attempt, _('Authorization failed'),
-                                     e.message)
+            self._fail_attempt(attempt, _('Authorization failed'),
+                               e.message)
             return
         client.token = token
         client.verify_credentials_async(
@@ -1272,11 +1367,106 @@ class BabbleWindow(Adw.ApplicationWindow):
         try:
             account = client.verify_credentials_finish(result)
         except GLib.Error as e:
-            self.settle_auth_attempt(attempt, _('Could not verify the account'),
-                                     e.message)
+            self._fail_attempt(attempt, _('Could not verify the account'),
+                               e.message)
             return
         account['instance'] = client.instance
-        client.store_secret_token(account['id'], client.token)
+        if self._auth_mode == AUTH_ADMIN:
+            self._on_admin_token(client, account, attempt)
+            return
+        client.store_secret_token(
+            account['id'], client.token,
+            lambda error: self.on_token_stored(client, account, attempt,
+                                               error))
+
+    # Moderation authorization
+
+    def authorize_admin(self, callback=None):
+        """Ask the instance for the admin scopes on the signed-in account.
+
+        The scopes are not part of the login the app asks for by default:
+        Mastodon lists every requested scope on its consent screen, and
+        "all administrative functions" is not something to ask of
+        everyone. When the role says the account moderates and the token
+        does not carry the scopes, this runs one extra authorization that
+        asks for exactly those and keeps the result as the account's
+        token. *callback(granted)* runs with the outcome.
+        """
+        if self.account is None or self.client is None:
+            if callback is not None:
+                callback(False)
+            return
+        self._auth_admin_callback = callback
+        self._auth_client = MastodonClient(self.account['instance'])
+        self._auth_mode = AUTH_ADMIN
+        self.begin_auth_attempt()
+        self.refresh_login_widgets()
+        self._auth_client.register_app_async(
+            scopes=ADMIN_SCOPES, callback=self.on_app_registered)
+
+    def _on_admin_token(self, client, account, attempt):
+        """Keep the moderation token as the signed-in account's token."""
+        client.store_secret_token(
+            account['id'], client.token,
+            lambda error: self._on_admin_token_stored(client, account,
+                                                      attempt, error))
+
+    def _on_admin_token_stored(self, client, account, attempt, error):
+        if attempt != self._auth_attempt:
+            return
+        if error is not None:
+            self._settle_admin_authorization(
+                False, _('The system keyring refused to store the login.'))
+            return
+        # The freshly verified entity carries no role, and losing it
+        # would take the admin action with it; keep the one we have.
+        if self.account is not None:
+            account['role'] = self.account.get('role')
+        if self.client is not None:
+            self.client.token = client.token
+            self.client.client_id = client.client_id
+            self.client.client_secret = client.client_secret
+            self.client.store_client_credentials(client.client_id,
+                                                 client.client_secret)
+        self.account = account
+        self.store_account(account)
+        self._settle_admin_authorization(True, _('Moderation access granted'))
+
+    def _settle_admin_authorization(self, granted, message=None):
+        """Report the outcome once, and clear the admin attempt."""
+        callback = self._auth_admin_callback
+        self._auth_admin_callback = None
+        self._auth_attempt += 1
+        self._auth_client = None
+        self._auth_mode = AUTH_LOGIN
+        self._fallback = False
+        self.paste_code_button.set_visible(False)
+        self._hide_code_entry()
+        self.refresh_login_widgets()
+        if callback is not None:
+            callback(granted)
+        if message is not None:
+            self.show_toast(message)
+
+    def on_token_stored(self, client, account, attempt, error):
+        """Commit the login once the token is really in the keyring.
+
+        Recording an account whose token never landed leaves an entry
+        that signs the user out on the next start, with no explanation
+        here or then. A keyring that refuses the secret is reported
+        instead, and nothing is stored.
+        """
+        if attempt != self._auth_attempt:
+            return
+        if error is not None:
+            self.settle_auth_attempt(
+                attempt, _('Could not save the login'),
+                _('The system keyring refused to store the login for '
+                  '@%s. Check that a keyring service is running, then '
+                  'try again.') % account.get('acct', ''))
+            return
+        client.store_client_credentials(
+            client.client_id, client.client_secret)
         self.account = account
         self.store_account(account)
         self.client = client
@@ -1291,7 +1481,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         dialog = Adw.AlertDialog(
             heading=_('Log Out?'),
-            body=_('The login for @%s will be removed from this device.')
+            body=_('The login for @%s will be signed out on the server '
+                   'and removed from this device.')
             % self.account.get('acct', ''))
         dialog.add_response('cancel', _('_Cancel'))
         dialog.add_response('logout', _('_Log Out'))
@@ -1341,6 +1532,16 @@ class BabbleWindow(Adw.ApplicationWindow):
 
 _PORTAL_NAME = 'org.freedesktop.portal.Desktop'
 _PORTAL_PATH = '/org/freedesktop/portal/desktop'
+
+
+def _swallow(finish, result):
+    """Take delivery of a reply nobody is waiting for, discarding any
+    failure. Used where the outcome is already decided and the request
+    was only ever best-effort."""
+    try:
+        finish(result)
+    except GLib.Error:
+        pass
 
 
 def _background_finish(window_ref, allowed):

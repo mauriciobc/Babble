@@ -119,10 +119,15 @@ def pump_until(predicate, limit=8.0):
 
 
 done = []
-mastodon_module.store_secret_async('babble-selftest.example', 'probe',
-                                    'round-trip-value', lambda: done.append(1))
+mastodon_module.store_secret_async(
+    'babble-selftest.example', 'probe', 'round-trip-value',
+    lambda error: done.append(error))
 check('storing a secret completes its callback',
-      pump_until(lambda: bool(done)))
+      pump_until(lambda: len(done) == 1))
+# The callback hands back the failure instead of swallowing it: a
+# keyring that refused the secret has to be reportable, or the caller
+# stores an account it can never sign back in.
+check('a successful store reports no error', done and done[0] is None)
 
 read = {}
 mastodon_module.load_secret_async(
@@ -133,9 +138,11 @@ check('the stored secret reads back',
 
 gone = []
 mastodon_module.clear_secret_async(
-    'babble-selftest.example', 'probe', lambda: gone.append(1))
+    'babble-selftest.example', 'probe',
+    lambda error: gone.append(error))
 check('clearing a secret completes its callback',
-      pump_until(lambda: bool(gone)))
+      pump_until(lambda: len(gone) == 1))
+check('a successful clear reports no error', gone and gone[0] is None)
 
 after = {}
 mastodon_module.load_secret_async(

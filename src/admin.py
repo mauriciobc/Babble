@@ -6,11 +6,17 @@ Pages: Dashboard (measures and dimensions), Reports (with the report
 detail and the take-action dialog), Accounts, Federation blocklist,
 Federation allowlist, Blocked e-mail domains and IP rules.
 
-Tuba: Dialogs/Admin.vala, Dialogs/Admin/*.vala, Views/Admin/**,
+Tuba: Dialogs/Admin.vala, Dialogs/Admin/*, Views/Admin/**,
 Widgets/Admin/*.vala. Mastodon: docs.joinmastodon.org/methods/admin/.
 The calls need the ``admin:read``/``admin:write`` OAuth scopes and a
-role with the matching permission; the server answers 403 otherwise and
-every page turns that into an error state instead of crashing.
+role with the matching permission.
+
+Those scopes are deliberately absent from the login the app asks for by
+default: Mastodon shows every requested scope on its consent screen, and
+"all administrative functions" is not something to ask of every user.
+So the dashboard probes for them on open and, when the token lacks them,
+offers one extra authorization that asks for exactly those. Every page
+turns a 403 into an error state instead of crashing.
 """
 
 import gi
@@ -42,9 +48,8 @@ def _admin_line(error):
     code = getattr(error, 'code', 0)
     message = summarize_error(getattr(error, 'message', None) or str(error))
     if code in (401, 403):
-        return _('%s. Administrator permissions are required, and the '
-                 'app needs to be authorised for the admin scopes.') \
-            % message.rstrip('.')
+        return _('%s. This login is not authorized for moderation on this '
+                 'server.') % message.rstrip('.')
     return message
 
 
@@ -132,6 +137,17 @@ def role_permissions(account):
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def needs_admin_scopes(error):
+    """Whether *error* is the token missing the admin scopes.
+
+    The account's role is checked before the dashboard opens, so a 403
+    raised inside it is not "this user is not a moderator" but "this
+    token was never authorized for ``admin:read``/``admin:write``" --
+    the one cause this app can act on, by asking the user for them.
+    """
+    return getattr(error, 'code', 0) in (401, 403)
 
 
 # Small widgets
@@ -1591,8 +1607,10 @@ class AdminDialog(Adw.Dialog):
                          content_height=700)
         self.parent = parent
         self.client = client
+        self.account = account
         self.toasts = Adw.ToastOverlay()
         self._pages = {}
+        self._authorized = False
         permissions = role_permissions(account)
 
         self.split = Adw.NavigationSplitView(
@@ -1632,6 +1650,9 @@ class AdminDialog(Adw.Dialog):
         toolbar.set_content(scroller)
         self.split.set_sidebar(Adw.NavigationPage(
             title=_('Admin Dashboard'), child=toolbar))
+        self.content_page = Adw.NavigationPage(title=_('Admin Dashboard'))
+        self.split.set_content(self.content_page)
+        self.split.set_show_content(True)
         self.show_tool('dashboard')
 
     def toast(self, text):
@@ -1660,11 +1681,82 @@ class AdminDialog(Adw.Dialog):
         self.split.set_show_content(True)
         return page
 
+    # Moderation scopes
+
+    def authorize_scopes(self, on_done):
+        """Confirm the token may use the admin endpoints.
+
+        A role permission and an OAuth scope are two different gates, and
+        only the second is this app's to grant. The cheapest admin call
+        is the probe: it answers 200 when both are in place and 403 when
+        the token never asked for the scopes, which is what the extra
+        authorization below fixes.
+        """
+        send(self.client, 'GET', '/admin/accounts',
+             params={'limit': 1},
+             on_ok=lambda _data: self._on_scopes_ok(on_done),
+             on_error=lambda error: self._on_scopes_error(error, on_done))
+
+    def _on_scopes_ok(self, on_done):
+        self._authorized = True
+        self.show_tool('dashboard')
+        if on_done is not None:
+            on_done(True)
+
+    def _on_scopes_error(self, error, on_done):
+        if not needs_admin_scopes(error):
+            self.toast(error_text(error))
+            if on_done is not None:
+                on_done(False)
+            return
+        self._authorized = False
+        self.show_authorization_needed()
+        if on_done is not None:
+            on_done(False)
+
+    def show_authorization_needed(self):
+        """The page shown when the token lacks the admin scopes."""
+        page = Adw.StatusPage(
+            icon_name='dialog-password-symbolic',
+            title=_('Moderation Access Needed'),
+            description=_('This login was authorized for reading and '
+                          'posting, but not for moderation. Babble needs '
+                          'permission to use this server’s moderation '
+                          'tools.'))
+        button = Gtk.Button(label=_('_Authorize Moderation'),
+                            use_underline=True, halign=Gtk.Align.CENTER)
+        button.add_css_class('pill')
+        button.add_css_class('suggested-action')
+        pages.connect_weak(button, 'clicked', self._on_authorize_clicked)
+        page.set_child(button)
+        content = pages.make_nav_page(_('Admin Dashboard'), page,
+                                      'authorize')
+        self.split.set_content(content)
+        self.split.set_show_content(True)
+
+    def _on_authorize_clicked(self, _button):
+        window = pages.window_of(self) or self.parent
+        authorize = getattr(window, 'authorize_admin', None)
+        if authorize is None:
+            return
+        authorize(lambda granted: self._on_reauthorized(granted))
+
+    def _on_reauthorized(self, granted):
+        if granted:
+            self._pages.clear()
+            self.authorize_scopes(None)
+
 
 def present_admin(parent_widget, client):
-    """Open the admin dashboard over *parent_widget*'s window."""
+    """Open the admin dashboard over *parent_widget*'s window.
+
+    The tool pages only build once the token is known to carry the admin
+    scopes; until then the dashboard shows what it needs and one button
+    that asks the server for them.
+    """
     window = pages.window_of(parent_widget)
     account = getattr(window, 'account', None)
     dialog = AdminDialog(parent_widget, client, account)
     dialog.present(parent_widget)
+    dialog.authorize_scopes(None)
     return dialog
