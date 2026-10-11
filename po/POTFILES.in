@@ -17,6 +17,7 @@ src/lists.py
 src/main.py
 src/mastodon.py
 src/mediaviewer.py
+src/mentioncompleter.py
 src/notifications.py
 src/pages.py
 src/preferences.py

@@ -15,7 +15,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 if not os.environ.get('DISPLAY'):
     print('SKIP - no display available for widget rendering')
@@ -29,6 +29,7 @@ sys.path.insert(0, srcdir)
 from src.compose import (VISIBILITIES, BabbleComposeView,  # noqa: E402
                          ComposeDialog, countable_length)
 from src import emojichooser  # noqa: E402
+from src.mentioncompleter import mention_query  # noqa: E402
 from gettext import gettext as _  # noqa: E402
 
 failures = []
@@ -53,6 +54,14 @@ MEDIA_RESPONSES = ['9901', '9902']
 posts = []
 uploads = []
 polls = []
+searches = []
+
+SEARCH_ACCOUNTS = [
+    {'id': '1', 'acct': 'alice', 'username': 'alice',
+     'display_name': 'Alice :blobcat:'},
+    {'id': '2', 'acct': 'bob@remote.example', 'username': 'bob',
+     'display_name': ''},
+]
 
 
 class StubMediaResult:
@@ -146,6 +155,18 @@ class StubClient:
         held, StubMediaResult.held = StubMediaResult.held, []
         for client, result, cb in held:
             cb(client, result)
+
+    def request_async(self, method, path, params=None, form=None,
+                      json_body=None, callback=None, cancellable=None):
+        # Only the mention completer's account search goes through here.
+        searches.append((method, path, dict(params or {})))
+        result = StubMediaResult()
+        GLib.idle_add(lambda *_: (callback(self, result),
+                                  GLib.SOURCE_REMOVE)[1])
+        return None
+
+    def request_finish(self, result):
+        return SEARCH_ACCOUNTS
 
     def media_status_finish(self, result):
         if result.cancelled:
@@ -581,6 +602,143 @@ check('new message keeps the draft',
       view.text() == 'a draft worth keeping')
 check('new message sets direct visibility',
       VISIBILITIES[view.visibility_row.get_selected()][0] == 'direct')
+view.reset()
+
+# Mention suggestions: the token under the cursor follows Mastodon's
+# mention rule, so addresses and URLs never open the list.
+check('mention query at the start', mention_query('@al') == (0, 'al'))
+check('mention query after a space', mention_query('hi @al') == (3, 'al'))
+check('mention query after punctuation', mention_query('(@al') == (1, 'al'))
+check('bare @ is an empty query', mention_query('hi @') == (3, ''))
+check('remote mention keeps its domain',
+      mention_query('@bob@remote.ex') == (0, 'bob@remote.ex'))
+check('an email address is no mention',
+      mention_query('mail me@example.com') is None)
+check('a URL path is no mention',
+      mention_query('https://example.com/@al') is None)
+check('a finished mention is no query', mention_query('@al ') is None)
+
+completer = view.mention_completer
+NO_MODS = Gdk.ModifierType(0)
+
+
+def press(keyval, state=NO_MODS):
+    return completer._on_key_pressed(None, keyval, 0, state)
+
+
+def settle():
+    """Run the loop until the completer's debounced search has been
+    answered: a fixed wait is too short on a loaded machine."""
+    deadline = GLib.get_monotonic_time() + 3 * 1000 * 1000
+    while (completer._search_id or completer._cancellable is not None) \
+            and GLib.get_monotonic_time() < deadline:
+        pump(20)
+    pump(50)
+
+
+def type_text(text, cursor=None):
+    view.buffer.set_text(text)
+    position = (view.buffer.get_end_iter() if cursor is None
+                else view.buffer.get_iter_at_offset(cursor))
+    view.buffer.place_cursor(position)
+    settle()
+
+
+view.reset()
+view.text_view.grab_focus()
+searches.clear()
+type_text('hi @al')
+check('typing a mention searches accounts',
+      searches and searches[-1][1] == '/accounts/search'
+      and searches[-1][2].get('q') == 'al'
+      and 'resolve' not in searches[-1][2])
+rows = [completer.list_box.get_row_at_index(i) for i in range(3)]
+check('suggestions pop up under the mention', completer.get_visible())
+check('one row per account, the first selected',
+      rows[0] is not None and rows[1] is not None and rows[2] is None
+      and completer.list_box.get_selected_row() is rows[0])
+check('custom emoji are dropped from the shown name',
+      rows[0].acct == 'alice'
+      and rows[0].get_child().get_last_child().get_first_child()
+      .get_label() == 'Alice')
+check('rows activate on a single click',
+      completer.list_box.get_activate_on_single_click())
+check('Shift+Enter is left to the text view for a line break',
+      not press(Gdk.KEY_Return, Gdk.ModifierType.SHIFT_MASK)
+      and completer.get_visible())
+check('Down moves the selection', press(Gdk.KEY_Down)
+      and completer.list_box.get_selected_row() is rows[1])
+check('Ctrl+Enter is left to the composer',
+      not press(Gdk.KEY_Return, Gdk.ModifierType.CONTROL_MASK))
+check('Enter inserts the selected account', press(Gdk.KEY_Return)
+      and view.text() == 'hi @bob@remote.example ')
+check('the list closes after inserting', not completer.get_visible())
+cursor = view.buffer.get_iter_at_mark(view.buffer.get_insert())
+check('the cursor lands after the mention',
+      cursor.get_offset() == len(view.text()))
+
+# Results for an older query are never inserted into a newer one.
+type_text('@al')
+view.buffer.insert_at_cursor('x')
+check('older results are out of reach while the new query runs',
+      completer.list_box.get_selected_row() is None
+      and not completer.list_box.get_sensitive()
+      and not press(Gdk.KEY_Return) and view.text() == '@alx')
+settle()
+check('new results make the list usable again',
+      completer.list_box.get_sensitive()
+      and completer.list_box.get_selected_row() is not None)
+
+type_text('@al rest', cursor=2)
+check('a mention mid-word still suggests', completer.get_visible())
+completer._on_row_activated(completer.list_box,
+                            completer.list_box.get_row_at_index(0))
+check('picking replaces the whole name and keeps the space',
+      view.text() == '@alice rest'
+      and view.buffer.get_iter_at_mark(
+          view.buffer.get_insert()).get_offset() == len('@alice '))
+
+type_text('@al')
+check('Escape closes the list', press(Gdk.KEY_Escape)
+      and not completer.get_visible())
+view.buffer.place_cursor(view.buffer.get_end_iter())
+settle()
+check('a closed mention stays closed while it is unchanged',
+      not completer.get_visible())
+view.buffer.insert_at_cursor('i')
+settle()
+check('typing on reopens it', completer.get_visible()
+      and searches[-1][2].get('q') == 'ali')
+
+stale = completer._serial
+type_text('@bob@remote.example')
+check('a full remote address resolves',
+      searches[-1][2].get('resolve') == 'true')
+completer._clear_rows()
+completer._on_search_done(client, StubMediaResult(), stale)
+check('a stale reply is ignored',
+      completer.list_box.get_row_at_index(0) is None)
+
+view.reset()
+check('reset closes the list', not completer.get_visible())
+
+# The Mention button starts a mention set off from the word before it
+# and shows the hint until a name is typed.
+set_text('hello')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+view.on_mention_clicked(view.mention_button)
+pump(50)
+check('mention button spaces the @ from a word', view.text() == 'hello @')
+check('mention button shows the hint', completer.get_visible()
+      and completer.hint_label.get_visible())
+view.buffer.insert_at_cursor('al')
+settle()
+check('typing replaces the hint with suggestions',
+      not completer.hint_label.get_visible()
+      and completer.list_box.get_row_at_index(0) is not None)
+view.reset()
+view.on_mention_clicked(view.mention_button)
+check('mention button on an empty draft adds a bare @', view.text() == '@')
 view.reset()
 
 if failures:

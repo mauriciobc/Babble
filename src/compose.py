@@ -19,6 +19,7 @@ from .i18n import gettext as _
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import emojichooser, pages  # noqa: E402
+from .mentioncompleter import MentionCompleter  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 # The same list Preferences offers as the default post language.
 from .preferences import LANGUAGES  # noqa: E402
@@ -280,6 +281,7 @@ class BabbleComposeView(Adw.Bin):
                                       accepts_tab=False)
         self.text_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Post Text')])
+        self.mention_completer = MentionCompleter(self.client, self.text_view)
         self.placeholder = Gtk.Label(label=_('What’s on your mind?'),
                                      halign=Gtk.Align.START,
                                      valign=Gtk.Align.START,
@@ -626,8 +628,18 @@ class BabbleComposeView(Adw.Bin):
         self.poll_add.set_visible(len(self.poll_entries) < MAX_POLL_CHOICES)
 
     def on_mention_clicked(self, _button):
-        self.buffer.insert_at_cursor('@')
+        """Start a mention at the cursor, set off from a word before it,
+        and show the suggestions as the name is typed."""
+        cursor = self.buffer.get_iter_at_mark(self.buffer.get_insert())
+        text = '@'
+        if not cursor.starts_line():
+            previous = cursor.copy()
+            previous.backward_char()
+            if not previous.get_char().isspace():
+                text = ' @'
         self.text_view.grab_focus()
+        self.buffer.insert_at_cursor(text)
+        self.mention_completer.prompt()
 
     def on_emoji_clicked(self, _button):
         """One popover with a standard and a custom emoji tab; the custom
@@ -832,7 +844,9 @@ class BabbleComposeView(Adw.Bin):
                        self.thread_toggle, self.visibility_row,
                        self.language_row):
             widget.set_sensitive(not active)
-        if not active:
+        if active:
+            self.mention_completer.dismiss()
+        else:
             self.attach_button.set_sensitive(
                 len(self.attachments()) < MAX_ATTACHMENTS)
         self.progress_spinner.set_visible(active)
@@ -1067,6 +1081,7 @@ class BabbleComposeView(Adw.Bin):
         # turns the request into an error the reply would still act on.
         self._upload_generation += 1
         self._cancel_uploads()
+        self.mention_completer.dismiss()
         self.buffer.set_text('')
         self.spoiler_entry.set_text('')
         self.cw_toggle.set_active(False)

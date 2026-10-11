@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-11 14:06-0300\n"
+"POT-Creation-Date: 2026-10-11 16:41-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -407,7 +407,7 @@ msgstr ""
 msgid "Take Action"
 msgstr "Tomar ação"
 
-#: src/admin.py:904 src/admin.py:1320 src/admin.py:1531 src/compose.py:671
+#: src/admin.py:904 src/admin.py:1320 src/admin.py:1531 src/compose.py:683
 #: src/fedicollections.py:651 src/hashtags.py:434 src/lists.py:185
 #: src/notifications.py:1716 src/pages.py:197 src/profile.py:296
 #: src/profile.py:326 src/profileedit.py:216 src/scheduled.py:115
@@ -495,7 +495,7 @@ msgstr "E-mail"
 msgid "No Accounts"
 msgstr "Nenhuma conta"
 
-#: src/admin.py:1085 src/admin.py:1097 src/compose.py:744 src/pages.py:173
+#: src/admin.py:1085 src/admin.py:1097 src/compose.py:756 src/pages.py:173
 #: src/profile.py:1419 src/profile.py:1425 src/profile.py:1451
 #: src/profile.py:1469
 msgid "_Undo"
@@ -980,215 +980,215 @@ msgstr "Mensagens dos administradores do servidor aparecerão aqui"
 msgid "Mark All as Read"
 msgstr "Marcar todos como lidos"
 
-#: src/compose.py:60 src/fedicollections.py:491 src/fedicollections.py:691
+#: src/compose.py:61 src/fedicollections.py:491 src/fedicollections.py:691
 #: src/preferences.py:55 src/profileedit.py:33 src/scheduled.py:380
 #: src/search.py:602 src/timeline.py:1493
 msgid "Public"
 msgstr "Público"
 
-#: src/compose.py:61 src/fedicollections.py:492 src/fedicollections.py:696
+#: src/compose.py:62 src/fedicollections.py:492 src/fedicollections.py:696
 #: src/preferences.py:55 src/scheduled.py:381 src/timeline.py:1494
 msgid "Unlisted"
 msgstr "Não listado"
 
-#: src/compose.py:62 src/preferences.py:56 src/profileedit.py:35
+#: src/compose.py:63 src/preferences.py:56 src/profileedit.py:35
 msgid "Followers only"
 msgstr "Somente seguidores"
 
-#: src/compose.py:63 src/preferences.py:56 src/scheduled.py:383
+#: src/compose.py:64 src/preferences.py:56 src/scheduled.py:383
 msgid "Direct"
 msgstr "Direta"
 
-#: src/compose.py:67
+#: src/compose.py:68
 msgid "30 minutes"
 msgstr "30 minutos"
 
-#: src/compose.py:68
+#: src/compose.py:69
 msgid "1 hour"
 msgstr "1 hora"
 
-#: src/compose.py:69
+#: src/compose.py:70
 msgid "1 day"
 msgstr "1 dia"
 
-#: src/compose.py:70
+#: src/compose.py:71
 msgid "7 days"
 msgstr "7 dias"
 
-#: src/compose.py:165
+#: src/compose.py:166
 msgid "Remove Attachment"
 msgstr "Remover anexo"
 
-#: src/compose.py:174 src/fedicollections.py:667
+#: src/compose.py:175 src/fedicollections.py:667
 msgid "Description"
 msgstr "Descrição"
 
-#: src/compose.py:213 src/timeline.py:2692
+#: src/compose.py:214 src/timeline.py:2692
 msgid "Replying to a post"
 msgstr "Respondendo a uma publicação"
 
-#: src/compose.py:214
+#: src/compose.py:215
 msgid "_Cancel Reply"
 msgstr "_Cancelar resposta"
 
-#: src/compose.py:259
+#: src/compose.py:260
 msgid "Discard Draft"
 msgstr "Descartar rascunho"
 
-#: src/compose.py:264
+#: src/compose.py:265
 msgid "_Post"
 msgstr "_Publicar"
 
-#: src/compose.py:266
+#: src/compose.py:267
 msgid "Post (Ctrl+Enter)"
 msgstr "Publicar (Ctrl+Enter)"
 
-#: src/compose.py:282
+#: src/compose.py:283
 msgid "Post Text"
 msgstr "Texto da publicação"
 
-#: src/compose.py:283
+#: src/compose.py:285
 msgid "What’s on your mind?"
 msgstr "No que você está pensando?"
 
-#: src/compose.py:303 src/compose.py:352 src/fedicollections.py:704
+#: src/compose.py:305 src/compose.py:354 src/fedicollections.py:704
 msgid "Content Warning"
 msgstr "Aviso de conteúdo"
 
-#: src/compose.py:317
+#: src/compose.py:319
 msgid "Duration"
 msgstr "Duração"
 
-#: src/compose.py:321
+#: src/compose.py:323
 msgid "_Add Choice"
 msgstr "_Adicionar opção"
 
-#: src/compose.py:348 src/compose.py:689
+#: src/compose.py:350 src/compose.py:701
 msgid "Attach Media"
 msgstr "Anexar mídia"
 
-#: src/compose.py:355 src/search.py:590
+#: src/compose.py:357 src/search.py:590
 msgid "Poll"
 msgstr "Enquete"
 
-#: src/compose.py:358 src/profile.py:1300
+#: src/compose.py:360 src/profile.py:1300
 msgid "Mention"
 msgstr "Mencionar"
 
-#: src/compose.py:362
+#: src/compose.py:364
 msgid "Insert Emoji"
 msgstr "Inserir emoji"
 
-#: src/compose.py:366
+#: src/compose.py:368
 msgid "Keep Open for a Thread"
 msgstr "Manter aberto para um fio"
 
-#: src/compose.py:371
+#: src/compose.py:373
 msgid "Post Visibility"
 msgstr "Visibilidade da publicação"
 
-#: src/compose.py:372
+#: src/compose.py:374
 msgid "Post Language"
 msgstr "Idioma da publicação"
 
-#: src/compose.py:381
+#: src/compose.py:383
 msgid "Characters Left"
 msgstr "Caracteres restantes"
 
-#: src/compose.py:621
+#: src/compose.py:623
 #, python-format
 msgid "Choice %d"
 msgstr "Opção %d"
 
-#: src/compose.py:668
+#: src/compose.py:680
 msgid "Discard Draft?"
 msgstr "Descartar rascunho?"
 
-#: src/compose.py:669
+#: src/compose.py:681
 msgid "The text, attachments and poll of this post will be lost"
 msgstr "O texto, os anexos e a enquete desta publicação serão perdidos"
 
-#: src/compose.py:672 src/profileedit.py:627
+#: src/compose.py:684 src/profileedit.py:627
 msgid "_Discard"
 msgstr "_Descartar"
 
-#: src/compose.py:686
+#: src/compose.py:698
 msgid "Images and Videos"
 msgstr "Imagens e vídeos"
 
-#: src/compose.py:699
+#: src/compose.py:711
 msgid "Could not open the file picker"
 msgstr "Não foi possível abrir o seletor de arquivos"
 
-#: src/compose.py:743
+#: src/compose.py:755
 msgid "Attachment removed"
 msgstr "Anexo removido"
 
-#: src/compose.py:812
+#: src/compose.py:824
 msgid "Post is too long"
 msgstr "A publicação é muito longa"
 
-#: src/compose.py:815
+#: src/compose.py:827
 msgid "Add content warning text"
 msgstr "Adicione o texto do aviso de conteúdo"
 
-#: src/compose.py:820 src/compose.py:976
+#: src/compose.py:832 src/compose.py:990
 msgid "Add at least two poll choices"
 msgstr "Adicione pelo menos duas opções à enquete"
 
-#: src/compose.py:823
+#: src/compose.py:835
 msgid "Poll choices must be unique"
 msgstr "As opções da enquete devem ser diferentes"
 
-#: src/compose.py:826
+#: src/compose.py:838
 msgid "A poll cannot be combined with media"
 msgstr "Uma enquete não pode ser combinada com mídia"
 
-#: src/compose.py:902
+#: src/compose.py:916
 msgid "The server did not accept the media"
 msgstr "O servidor não aceitou a mídia"
 
-#: src/compose.py:931
+#: src/compose.py:945
 msgid "The server is still processing the media"
 msgstr "O servidor ainda está processando a mídia"
 
-#: src/compose.py:960
+#: src/compose.py:974
 msgid "Could not upload media"
 msgstr "Não foi possível enviar a mídia"
 
-#: src/compose.py:1012
+#: src/compose.py:1026
 msgid "Could not post"
 msgstr "Não foi possível publicar"
 
-#: src/compose.py:1040
+#: src/compose.py:1054
 msgid "Post edited"
 msgstr "Publicação editada"
 
-#: src/compose.py:1042
+#: src/compose.py:1056
 msgid "Post scheduled"
 msgstr "Publicação agendada"
 
-#: src/compose.py:1044
+#: src/compose.py:1058
 msgid "Post sent"
 msgstr "Publicação enviada"
 
-#: src/compose.py:1134
+#: src/compose.py:1149
 msgid "Edit Post"
 msgstr "Editar publicação"
 
-#: src/compose.py:1136
+#: src/compose.py:1151
 msgid "Edit Scheduled Post"
 msgstr "Editar publicação agendada"
 
-#: src/compose.py:1138
+#: src/compose.py:1153
 msgid "Quote Post"
 msgstr "Citar publicação"
 
-#: src/compose.py:1140 src/scheduled.py:401 src/timeline.py:1949
+#: src/compose.py:1155 src/scheduled.py:401 src/timeline.py:1949
 msgid "Reply"
 msgstr "Responder"
 
-#: src/compose.py:1142 src/shortcuts-dialog.ui:47 src/window.ui:288
+#: src/compose.py:1157 src/shortcuts-dialog.ui:47 src/window.ui:288
 #: src/window.ui:290 src/window.ui:390 src/window.ui:392
 msgid "New Post"
 msgstr "Nova publicação"
@@ -2508,6 +2508,14 @@ msgstr "“{name}” salvo"
 #: src/mediaviewer.py:1091
 msgid "Show in _Folder"
 msgstr "Mostrar na _pasta"
+
+#: src/mentioncompleter.py:83
+msgid "Suggested Accounts"
+msgstr "Contas sugeridas"
+
+#: src/mentioncompleter.py:87
+msgid "Type a name to search"
+msgstr "Digite um nome para pesquisar"
 
 #: src/notifications.py:76
 #, python-format
