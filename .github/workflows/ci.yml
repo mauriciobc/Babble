@@ -1,0 +1,95 @@
+name: CI
+
+# The suite is the gate. Every test -- the meson tests and the
+# desktop/metainfo/gschema/catalogue validators -- runs on every push
+# and pull request.
+#
+# The build runs in a Fedora rawhide container because the project needs
+# GTK >= 4.24 and libadwaita >= 1.10 (GNOME 51). No Ubuntu image carries
+# those: ubuntu-latest ships GTK 4.14, and Canonical's repositories have
+# nothing newer. The widget tests need a display, so the run is under
+# Xvfb, and a session bus, because the keyring tests talk to D-Bus.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    container:
+      # GNOME 51, matching what the app targets. Pinned to rawhide
+      # rather than a release tag because there is no released image
+      # carrying GTK 4.24 yet.
+      image: docker.io/library/fedora:rawhide
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo -E dnf install -y \
+            gtk4-devel libadwaita-devel libsoup3-devel libsecret-devel \
+            python3-gobject gobject-introspection \
+            meson ninja-build gettext desktop-file-utils appstream \
+            glib2-devel \
+            xorg-x11-server-Xvfb mesa-libGLES libglvnd-devel \
+            dbus-daemon dbus-x11
+          # Secret needs a session bus to answer at all, and D-Bus
+          # refuses to start without a machine id.
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+
+      - name: Configure
+        run: meson setup build
+
+      - name: Compile
+        run: meson compile -C build
+
+      - name: Test
+        # dbus-run-session supplies the bus the keyring tests need;
+        # --print-errorlogs puts a failing test's own output in the
+        # console rather than only in meson-logs/testlog.txt.
+        run: |
+          xvfb-run -a dbus-run-session -- \
+            meson test -C build --print-errorlogs 2>&1 | tee ci.log
+
+      - name: Check the suite ran
+        # A test that exits 77 is skipped, and meson still exits 0, so a
+        # machine that cannot run part of the suite would report green.
+        #
+        # meson always prints a "Skipped:" line, with a count of 0 on a
+        # clean run, so matching the line alone would fail every green
+        # run. Parse the count instead, and allow exactly the skips this
+        # environment forces -- `streaming helpers` needs a secret
+        # service, and a container has none. A skip outside that set is
+        # a real loss of coverage and fails.
+        run: |
+          skipped=$(sed -nE 's/^Skipped:[[:space:]]+([0-9]+).*/\1/p' ci.log | tail -1)
+          skipped=${skipped:-0}
+          unexpected=$(grep -E 'SKIP' ci.log \
+            | grep -v 'streaming helpers' | grep -v 'no network' || true)
+          if [ "$skipped" -ne 0 ] && [ -n "$unexpected" ]; then
+            echo '::error::tests were skipped that this environment does not explain:'
+            echo "$unexpected"
+            exit 1
+          fi
+          if [ "$skipped" -ne 0 ]; then
+            echo "::warning::$skipped test(s) skipped (expected: no secret service in a container)"
+          fi
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          # The whole repository, not just src/: bench/ is checked too.
+          args: check .

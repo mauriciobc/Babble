@@ -70,8 +70,8 @@ resource._register()
 
 from src import emojichooser, textemoji  # noqa: E402
 from src.main import BabbleApplication  # noqa: E402
-from src.mastodon import (MastodonClient, OAUTH_REDIRECT,  # noqa: E402
-                          OOB_REDIRECT)
+from src.mastodon import (ADMIN_SCOPES, MastodonClient,  # noqa: E402
+                          OAUTH_REDIRECT, OOB_REDIRECT)
 from src.window import BabbleWindow  # noqa: E402
 
 from gettext import gettext as _  # noqa: E402
@@ -164,7 +164,8 @@ class StubClient:
         # the production code cannot catch a defect in that code.
         return _real_client.parse_callback_uri(uri)
 
-    def get_authorize_url(self, redirect_uri=None):
+    def get_authorize_url(self, redirect_uri=None, scopes=None):
+        self.scopes = scopes
         return 'https://example.social/oauth/authorize?state=%s' % self._state
 
     # OAuth
@@ -188,8 +189,21 @@ class StubClient:
     def verify_credentials_finish(self, result):
         return self._finish(result)
 
-    def store_secret_token(self, account_id, token):
+    def store_secret_token(self, account_id, token, callback=None):
         self.stored = (account_id, token)
+        # The real client reports a keyring that refused the secret
+        # instead of swallowing it; the login only commits once this
+        # answers.
+        if callback is not None:
+            callback(None)
+
+    def store_client_credentials(self, account_id, client_id, client_secret,
+                                 callback=None):
+        # Keyed by account: each authorization registers its own app, so
+        # two accounts on one instance hold different credentials.
+        self.client_credentials = (account_id, client_id, client_secret)
+        if callback is not None:
+            callback(None)
 
     # Pages the shell builds after a successful login.
 
@@ -472,6 +486,92 @@ check('a later dispatch reuses that window',
 # showing the account the user had already switched away from.
 
 
+class AdminScopeClient(StubClient):
+    """A client the window builds for the moderation authorization."""
+
+    created = []
+
+    def __init__(self, instance, **kwargs):
+        super().__init__(**kwargs)
+        self.instance = instance
+        self.registered_with = None
+        AdminScopeClient.created.append(self)
+
+    def register_app_async(self, scopes=None, callback=None,
+                           cancellable=None):
+        self.registered_with = scopes
+        self.reply(callback, StubTask(
+            '{"client_id": "admin-client", "client_secret": "admin-secret"}'))
+
+    def register_app_finish(self, result):
+        data = self._finish(result)
+        self.client_id = data['client_id']
+        self.client_secret = data['client_secret']
+        return data
+
+    def store_secret_token(self, account_id, token, callback=None):
+        self.stored = (account_id, token)
+        if callback is not None:
+            callback(None)
+
+
+win, toasts = fresh_window()
+import src.window as window_module  # noqa: E402
+_real_client_class = window_module.MastodonClient
+window_module.MastodonClient = AdminScopeClient
+try:
+    # Sign in, so there is an account whose token the moderation
+    # authorization has to replace.
+    session = AdminScopeClient('https://mod.example')
+    session.token = 'login-token'
+    win.account = {'id': '42', 'acct': 'mod@mod.example',
+                   'instance': 'https://mod.example',
+                   'role': {'permissions': 16}}
+    win.client = session
+    win.store_account(win.account)
+    opened = []
+    win.open_url = lambda uri: opened.append(uri)
+
+    granted = []
+    win.authorize_admin(granted.append)
+    pump()
+    admin = AdminScopeClient.created[-1]
+    check('the moderation authorization asks for the admin scopes',
+          admin.registered_with == ADMIN_SCOPES)
+    check('the moderation authorization opens the browser',
+          len(opened) == 1)
+
+    # Answer it with a redirect carrying that attempt's state.
+    win.on_oauth_callback(OAUTH_REDIRECT + '?code=admin-once&state='
+                          + admin._state)
+    pump()
+    check('the moderation token replaces the login token',
+          session.token == 'test-token')
+    check('the new token is what the keyring keeps',
+          admin.stored == ('42', 'test-token'))
+    check('the caller is told it was granted', granted == [True])
+    check('a granted attempt leaves no authorization in flight',
+          win._auth_client is None and win._auth_mode == 'login')
+
+    # A second attempt that fails must still answer its caller, or the
+    # dashboard waits on a button that will never reply.
+    refused = []
+    win.authorize_admin(refused.append)
+    pump()
+    retry = AdminScopeClient.created[-1]
+    retry.fail_token = True
+    win._auth_client = retry
+    win.begin_auth_attempt()
+    attempt = win._auth_attempt
+    retry.request_token_async('bad', win.replying(win.on_token_received,
+                                                  attempt))
+    pump()
+    check('a refused moderation attempt answers its caller',
+          refused == [False])
+finally:
+    window_module.MastodonClient = _real_client_class
+
+
 class DeferredTokenClient(StubClient):
     """Holds the token lookup back so the test can answer it late.
 
@@ -499,9 +599,10 @@ import src.window as window_module  # noqa: E402
 _real_client_class = window_module.MastodonClient
 window_module.MastodonClient = DeferredTokenClient
 try:
-    # Which account ids the window decided to forget, if any.
+    # Which accounts the window decided to forget, if any. The whole
+    # account, so another instance's account with the same id survives.
     forgotten = []
-    win.remove_account = lambda aid: forgotten.append(aid)
+    win.remove_account = lambda acc: forgotten.append(acc)
     win._activate_account(
         {'id': '1', 'instance': 'https://a.example', 'acct': 'first'},
         login_only=True)
@@ -545,6 +646,73 @@ try:
           forgotten == [])
 finally:
     window_module.MastodonClient = _real_client_class
+
+# --- Logging out revokes the token, not just forgets it ----------------
+
+# Deleting the keyring entry leaves the token valid on the instance: a
+# copy of it, from a backup or a shared machine, would keep working. So
+# the removal has to ask the server, and must not wait for the answer --
+# the local state has to be settled either way.
+
+win, toasts = fresh_window()
+
+
+class RevokeClient(StubClient):
+    """A signed-in session whose logout requests are recorded."""
+
+    revokes = []
+    unreachable = False
+
+    def __init__(self, instance='https://example.social', **kwargs):
+        super().__init__(**kwargs)
+        self.instance = instance
+        self.client_id = 'cid'
+        self.client_secret = 'csecret'
+        self.token = 'live-token'
+
+    def load_client_credentials(self, account_id, callback,
+                                cancellable=None):
+        callback(True)
+
+    def revoke_token_async(self, token, callback=None, cancellable=None):
+        if not RevokeClient.unreachable:
+            RevokeClient.revokes.append((token, self.client_id,
+                                         self.client_secret))
+        if callback is not None:
+            pump()
+            callback(self,
+                     StubTask(error=http_error('Connection refused'))
+                     if RevokeClient.unreachable else StubTask('{}'))
+
+    def revoke_token_finish(self, result):
+        return self._finish(result)
+
+
+win.account = {'id': '42', 'acct': 'me@example.social',
+               'instance': 'https://example.social'}
+win.client = RevokeClient()
+win.store_account(win.account)
+win._remove_account_now(win.account)
+pump()
+check('logging out revokes the token it was using',
+      RevokeClient.revokes == [('live-token', 'cid', 'csecret')])
+check('logging out forgets the account',
+      win.account is None
+      and win.main_stack.get_visible_child_name() == 'login')
+
+# A server that cannot be reached must not strand the window signed in.
+RevokeClient.revokes = []
+RevokeClient.unreachable = True
+win, toasts = fresh_window()
+win.account = {'id': '43', 'acct': 'other@example.social',
+               'instance': 'https://example.social'}
+win.client = RevokeClient()
+win.store_account(win.account)
+win._remove_account_now(win.account)
+pump()
+check('an unreachable server does not keep the window signed in',
+      win.account is None
+      and win.main_stack.get_visible_child_name() == 'login')
 
 if failures:
     print('%d checks failed' % len(failures))

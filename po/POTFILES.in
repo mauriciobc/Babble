@@ -27,6 +27,7 @@ src/report.py
 src/scheduled.py
 src/search.py
 src/shortcuts-dialog.ui
+src/statustext.py
 src/statusviews.py
 src/streaming.py
 src/textemoji.py

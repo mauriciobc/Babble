@@ -7,6 +7,12 @@ Accounts live in the ``accounts`` setting as one JSON object per
 entry: the account entity returned by ``verify_credentials`` plus an
 ``instance`` key. ``active-account`` names the one in use. Tokens are
 kept in the system keyring under (instance, account id).
+
+A Mastodon account id is server-local -- two instances both hand out
+``42`` -- so an account is identified by the pair, never by the id
+alone. ``active-account`` therefore holds an :func:`account_key`, and a
+value written before this pairing (a bare id) still resolves, by id,
+when it is unambiguous.
 """
 
 import json
@@ -23,6 +29,26 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GObject, Gtk  # noqa: E402
 
 _SHORTCODE = re.compile(r':[A-Za-z0-9_]{2,}:')
+
+# Separates the instance from the id inside an account key. Neither part
+# can contain it: an instance is an https origin and an id is a number.
+_KEY_SEPARATOR = '#'
+
+
+def account_key(account):
+    """``'<instance>#<id>'``: the name one account is stored and
+    switched under."""
+    return '%s%s%s' % (account.get('instance') or '', _KEY_SEPARATOR,
+                       account.get('id') or '')
+
+
+def _split_key(value):
+    """``(instance, id)`` from an account key; *instance* is None when
+    *value* is a bare id, the shape written before accounts were paired
+    with their instance."""
+    instance, separator, account_id = (value or '').partition(
+        _KEY_SEPARATOR)
+    return (instance, account_id) if separator else (None, value or '')
 
 
 # Names and handles
@@ -67,19 +93,35 @@ def read_accounts(settings):
     return accounts
 
 
-def find_account(settings, account_id):
-    for account in read_accounts(settings):
-        if account['id'] == account_id:
-            return account
-    return None
+def find_account(settings, account_id, instance=None):
+    """The stored account with this id, on *instance* when given.
+
+    Without *instance* this matches on the id alone, which is only
+    unambiguous when a single stored account carries it -- callers that
+    can name the server pass it.
+    """
+    matches = [a for a in read_accounts(settings) if a['id'] == account_id]
+    if instance is not None:
+        matches = [a for a in matches if a.get('instance') == instance]
+    return matches[0] if len(matches) == 1 else None
+
+
+def find_account_by_key(settings, key):
+    """The stored account named by an :func:`account_key`."""
+    instance, account_id = _split_key(key)
+    return find_account(settings, account_id, instance)
 
 
 def active_account(settings):
     active = settings.get_string('active-account')
-    return find_account(settings, active) if active else None
+    return find_account_by_key(settings, active) if active else None
 
 
-def _same(account, other):
+def same_account(account, other):
+    """Whether two dicts name the same account: the id *and* the server.
+
+    Ids alone collide -- every instance starts handing them out at 1.
+    """
     return account['id'] == other['id'] \
         and account.get('instance') == other.get('instance')
 
@@ -87,23 +129,31 @@ def _same(account, other):
 def save_account(settings, account, activate=True):
     """Add or replace *account* (same id on the same server)."""
     entries = [json.dumps(other) for other in read_accounts(settings)
-               if not _same(other, account)]
+               if not same_account(other, account)]
     entries.append(json.dumps(account))
     settings.set_strv('accounts', entries)
     if activate:
-        settings.set_string('active-account', account['id'])
+        settings.set_string('active-account', account_key(account))
 
 
-def forget_account(settings, account_id):
-    """Drop the entry *account_id*; when it was the active one the
-    first remaining account (if any) takes over. Returns the account now
-    active, or None."""
-    remaining = [a for a in read_accounts(settings)
-                 if a['id'] != account_id]
-    settings.set_strv('accounts', [json.dumps(a) for a in remaining])
-    if settings.get_string('active-account') == account_id:
+def forget_account(settings, account_id, instance=None):
+    """Drop the entry *account_id* on *instance* (every stored account
+    carrying that id when *instance* is None); when it was the active
+    one the first remaining account (if any) takes over. Returns the
+    account now active, or None."""
+    def matches(account):
+        return account['id'] == account_id and (
+            instance is None or account.get('instance') == instance)
+
+    keep = [a for a in read_accounts(settings) if not matches(a)]
+    settings.set_strv('accounts', [json.dumps(a) for a in keep])
+    # A bare id in active-account predates the pairing; compare on the
+    # id alone when that is all it carries.
+    active_instance, active_id = _split_key(
+        settings.get_string('active-account'))
+    if active_id == account_id and active_instance in (instance, None):
         settings.set_string('active-account',
-                            remaining[0]['id'] if remaining else '')
+                            account_key(keep[0]) if keep else '')
     return active_account(settings)
 
 
@@ -159,8 +209,9 @@ class AccountSwitcher(Gtk.Popover):
         listbox.update_property([Gtk.AccessibleProperty.LABEL],
                                 [_('Accounts')])
         for account in read_accounts(self.settings):
+            key = account_key(account)
             row = Gtk.ListBoxRow()
-            row.account_id = account['id']
+            row.account_key = key
             line = Gtk.Box(spacing=12)
             line.set_margin_top(4)
             line.set_margin_bottom(4)
@@ -180,7 +231,7 @@ class AccountSwitcher(Gtk.Popover):
             names.append(name)
             names.append(handle)
             line.append(names)
-            if account['id'] == active:
+            if key == active:
                 check = Gtk.Image(icon_name='object-select-symbolic',
                                   accessible_role=Gtk.AccessibleRole.PRESENTATION)
                 line.append(check)
@@ -193,8 +244,7 @@ class AccountSwitcher(Gtk.Popover):
             remove.add_css_class('circular')
             remove.update_property([Gtk.AccessibleProperty.LABEL],
                                    [_('Remove %s') % full_handle(account)])
-            remove.connect('clicked', self._on_remove_clicked,
-                           account['id'])
+            remove.connect('clicked', self._on_remove_clicked, key)
             line.append(remove)
             row.set_child(line)
             listbox.append(row)
@@ -217,9 +267,9 @@ class AccountSwitcher(Gtk.Popover):
 
     def _on_row_activated(self, _listbox, row):
         self.popdown()
-        if row.account_id != self.settings.get_string('active-account'):
-            self.emit('switch', row.account_id)
+        if row.account_key != self.settings.get_string('active-account'):
+            self.emit('switch', row.account_key)
 
-    def _on_remove_clicked(self, _button, account_id):
+    def _on_remove_clicked(self, _button, key):
         self.popdown()
-        self.emit('remove', account_id)
+        self.emit('remove', key)

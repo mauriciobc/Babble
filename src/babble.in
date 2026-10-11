@@ -28,6 +28,12 @@ else:
     sys.modules['babble'] = _pkg
     _spec.loader.exec_module(_pkg)
 signal.signal(signal.SIGINT, signal.SIG_DFL)
+# Adopting the session's locale used to happen as a side effect of GTK
+# being imported, which meant any module reached before that formatted
+# dates in the C locale instead of the user's. Set it here, where the
+# catalogue is bound, so the order of imports cannot change what a date
+# looks like.
+locale.setlocale(locale.LC_ALL, '')
 locale.bindtextdomain('babble', localedir)
 locale.textdomain('babble')
 gettext.bindtextdomain('babble', localedir)

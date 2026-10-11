@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Ruff configuration.
+#
+# This encodes the conventions the code already follows rather than
+# imposing new ones. Notably UP031/UP032 are off: the codebase formats
+# with `%` on purpose, because gettext placeholders and the call sites
+# that pass the arguments read better that way, and switching styles
+# would touch every translated string for no gain.
+
+[lint]
+# pycodestyle errors and warnings, pyflakes, and the bugs that
+# actually bite. Deliberately not the full default set: a linter that
+# reports 489 findings on a codebase that is otherwise clean trains
+# people to ignore it.
+select = ["E", "W", "F", "B"]
+ignore = [
+    # Every module calls gi.require_version() between the import and
+    # the gi.repository import it guards, which is exactly what E402
+    # flags as "module level import not at top of file".
+    "E402",
+    # gettext catalogues and the widgets that render their markup build
+    # strings with % on purpose.
+    "UP031",
+]
+
+[lint.per-file-ignores]
+# The standalone tests import modules as `src.<module>` through
+# BABBLE_SRCDIR, so the import is deliberately late.
+"src/test-*.py" = ["E402"]
+
+[format]
+# Matches the layout the code is already written in.
+quote-style = "single"

@@ -53,6 +53,7 @@ install_data(
   'report.py',
   'scheduled.py',
   'search.py',
+  'statustext.py',
   'statusviews.py',
   'streaming.py',
   'textemoji.py',
@@ -133,5 +134,22 @@ streaming_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test('streaming helpers', python,
   args: [files('test-streaming.py')],
   env: streaming_test_env,
+  timeout: 60,
+)
+
+account_store_test_env = environment()
+account_store_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+test('account store', python,
+  args: [files('test-account-store.py')],
+  env: account_store_test_env,
+  timeout: 60,
+)
+
+# Needs no display: the text layer is deliberately widget-free.
+statustext_test_env = environment()
+statustext_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+test('status text', python,
+  args: [files('test-statustext.py')],
+  env: statustext_test_env,
   timeout: 60,
 )

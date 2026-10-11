@@ -264,13 +264,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Large Custom _Emojis'))
         self._switch(appearance, 'scale-emoji-hover',
                      _('_Scale Custom Emojis on Hover'),
-                     _('Slightly increases the size of custom emojis when you hover over them'))
+                     _('Slightly increases the size of custom emojis '
+                       'when you hover over them'))
         page.add(appearance)
 
         posts = Adw.PreferencesGroup(title=_('Posts'))
         self._switch(posts, 'collapse-long-posts', _('Collapse _Long Posts'))
         self._switch(posts, 'letterbox-media', _('_Letterbox Media'),
-                     _('Scale down and letterbox media to fill the image containers instead of cropping them'))
+                     _('Scale down and letterbox media to fill the '
+                       'image containers instead of cropping them'))
         self._switch(posts, 'show-sensitive-media',
                      _('Reveal Sensitive _Media by Default'))
         self._switch(posts, 'show-spoilers',
@@ -291,7 +293,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('This option can lead to broken links when enabled'))
         self._switch(behavior, 'aggressive-resolving',
                      _('Open Remote Links in _Babble'),
-                     _('Open links to posts and profiles on other servers inside the app'))
+                     _('Open links to posts and profiles on other '
+                       'servers inside the app'))
         self._switch(behavior, 'reply-to-old-post-reminder',
                      _('Warn Before Replying to an _Old Post'))
         self._switch(behavior, 'copy-private-link-reminder',
@@ -300,7 +303,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Warn Before Boosting Media Without _Alt Text'))
         row = self._switch(behavior, 'work-in-background',
                            _('_Run in Background'),
-                           _('Keep running after the window is closed to deliver notifications'))
+                           _('Keep running after the window is '
+                             'closed to deliver notifications'))
         pages.connect_weak(row, 'notify::active', self._on_background_toggled)
         page.add(behavior)
         return page

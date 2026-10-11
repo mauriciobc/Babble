@@ -3,6 +3,10 @@
 import sys
 import unittest
 
+import gi
+
+gi.require_version('Pango', '1.0')
+
 sys.path.insert(0, '.')
 
 from mastodon import summarize_error, summarize_error_markup  # noqa: E402
@@ -59,6 +63,105 @@ class TestErrorSummary(unittest.TestCase):
         out = summarize_error('x' * 500)
         self.assertLessEqual(len(out), 240)
         self.assertTrue(out.endswith('…'))
+
+
+class TestSummarizedAtTheSource(unittest.TestCase):
+    """A server body must never reach a consumer whole.
+
+    Every error leaves ``_on_response`` as a GLib.Error, and a consumer
+    that renders it as markup blanks its label -- which is how a failure
+    became invisible. Summarizing once, where the body enters, bounds
+    every path; these pin that, including for the consumers that still
+    summarize themselves.
+    """
+
+    # An nginx/CDN error page: not JSON, so it lands in `error` whole.
+    HTML_502 = ('<html>\r\n<head><title>502 Bad Gateway</title></head>\r\n'
+                '<body><h1>502 Bad Gateway</h1></body>\r\n</html>\r\n')
+
+    def _error_for(self, status, body):
+        """The GLib.Error ``_on_response`` would raise for *body*."""
+        from mastodon import MastodonClient
+
+        client = MastodonClient('https://example.test')
+        client._session = _FakeSession(body)
+
+        class _Message:
+            def get_status(self):
+                return status
+
+            def get_response_headers(self):
+                return _FakeHeaders()
+
+        task = _FakeTask()
+        client._pending[task] = _Message()
+        client._on_response(None, None, task)
+        return task.error
+
+    def test_a_non_json_body_is_bounded_before_it_leaves(self):
+        error = self._error_for(502, self.HTML_502)
+        self.assertLessEqual(len(error.message), 240)
+        self.assertIn('502 Bad Gateway', error.message)
+        self.assertNotIn('<', error.message)
+
+    def test_a_body_reaching_a_markup_widget_still_parses(self):
+        from gi.repository import GLib, Pango
+        for body in (self.HTML_502, 'Tom & Jerry', 'a & b',
+                     '{"error":"Rejected: bad & ugly"}'):
+            with self.subTest(body=body[:24]):
+                message = self._error_for(500, body).message
+                try:
+                    Pango.parse_markup(summarize_error_markup(message),
+                                       -1, '\0')
+                except GLib.Error as error:
+                    self.fail('unparseable for %r: %s' % (body, error))
+
+    def test_the_status_code_is_kept_for_the_scope_check(self):
+        # admin.py tells "needs the admin scopes" from "not a moderator"
+        # by the code, so sanitizing the message must not lose it.
+        self.assertEqual(self._error_for(403, 'Forbidden').code, 403)
+        self.assertEqual(self._error_for(404, 'Record not found').code, 404)
+
+    def test_an_empty_body_falls_back_to_the_status_phrase(self):
+        self.assertTrue(self._error_for(500, '<html></html>').message)
+
+    def test_a_second_summarize_changes_nothing(self):
+        once = self._error_for(502, self.HTML_502).message
+        self.assertEqual(summarize_error(once), once)
+
+
+class _FakeTask:
+    """The Gio.Task surface ``_on_response`` touches."""
+
+    def __init__(self):
+        self.error = None
+
+    def return_error(self, error):
+        self.error = error
+
+    def return_value(self, _value):
+        pass
+
+
+class _FakeSession:
+    def __init__(self, body):
+        self._body = body
+
+    def send_and_read_finish(self, _result):
+        return _FakeBytes(self._body.encode())
+
+
+class _FakeBytes:
+    def __init__(self, data):
+        self._data = data
+
+    def get_data(self):
+        return self._data
+
+
+class _FakeHeaders:
+    def get_one(self, _name):
+        return None
 
 
 if __name__ == '__main__':
