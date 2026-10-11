@@ -612,9 +612,14 @@ class MastodonClient(GObject.Object):
         Only the registered redirect itself is read: a ``babble://`` URL
         with another host or path is not an answer to this authorization.
         """
-        parts = urllib.parse.urlsplit(uri)
+        try:
+            parts = urllib.parse.urlsplit(uri)
+        except ValueError:  # a malformed authority, such as an unmatched '['
+            return None
         expected = urllib.parse.urlsplit(OAUTH_REDIRECT)
-        if (parts.scheme, parts.netloc, parts.path) \
+        # The scheme and host are case-insensitive (urlsplit already
+        # lowercases the scheme); the path is not.
+        if (parts.scheme, parts.netloc.lower(), parts.path) \
                 != (expected.scheme, expected.netloc, expected.path):
             return None
         params = urllib.parse.parse_qs(parts.query)

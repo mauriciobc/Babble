@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 import time
+import types
 
 # Own Xvfb + X11 backend: the window under test is a real one, so the
 # session's WAYLAND_DISPLAY must not leak in.
@@ -68,7 +69,7 @@ if not os.environ.get('DISPLAY'):
 resource = Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))
 resource._register()
 
-from src import emojichooser, textemoji  # noqa: E402
+from src import emojichooser, pages, textemoji  # noqa: E402
 from src.main import BabbleApplication  # noqa: E402
 from src.mastodon import (ADMIN_SCOPES, MastodonClient,  # noqa: E402
                           OAUTH_REDIRECT, OOB_REDIRECT)
@@ -443,6 +444,19 @@ pump()
 check('a callback to another host or path is not exchanged',
       client.exchanges == [] and toasts == [])
 
+# A malformed authority (urlsplit raises on an unmatched '[') is
+# refused, not raised out of the open handler.
+win.on_oauth_callback('babble://[oauth/callback?code=stolen&state=' + STATE)
+pump()
+check('a malformed callback is refused without raising',
+      client.exchanges == [] and toasts == [])
+
+# The host of a URI is case-insensitive; the registered redirect still
+# matches when a handler hands it back in another case.
+check('the redirect host matches in any case',
+      _real_client.parse_callback_uri(
+          'babble://OAuth/callback?code=c&state=' + STATE) == 'c')
+
 # The real attempt still works afterwards.
 win.on_oauth_callback(REDIRECT_URI)
 pump()
@@ -721,6 +735,44 @@ pump()
 check('an unreachable server does not keep the window signed in',
       win.account is None
       and win.main_stack.get_visible_child_name() == 'login')
+
+# --- Only web links reach the system launcher -------------------------
+#
+# Every link a server supplies ends in textemoji.launch_uri; the GTK
+# launcher is swapped for one that records what it was handed.
+
+launched = []
+
+
+class RecordingLauncher:
+    @staticmethod
+    def new(uri):
+        launched.append(uri)
+        return RecordingLauncher()
+
+    def launch(self, *_args):
+        pass
+
+
+win, toasts = fresh_window()
+real_gtk = textemoji.Gtk
+textemoji.Gtk = types.SimpleNamespace(UriLauncher=RecordingLauncher)
+try:
+    for uri in ('javascript:alert(1)', 'file:///etc/passwd',
+                'smb://host/share', 'babble://oauth/callback?code=x',
+                'https://[oops/x'):
+        textemoji.launch_uri(win, uri)
+    check('non-web links never reach the launcher, with a toast each',
+          launched == [] and toasts == [_('Could not open link')] * 5)
+    toasts.clear()
+    pages.open_link(win, 'https://[oops/x')
+    check('a malformed link clicked in a post is refused, not raised',
+          launched == [] and toasts == [_('Could not open link')])
+    textemoji.launch_uri(win, 'https://example.social/@me')
+    check('a web link is launched',
+          launched == ['https://example.social/@me'])
+finally:
+    textemoji.Gtk = real_gtk
 
 if failures:
     print('%d checks failed' % len(failures))

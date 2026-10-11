@@ -63,8 +63,12 @@ def streaming_url(client):
     info = getattr(client, 'instance_info', None) or {}
     advertised = ((info.get('configuration') or {}).get('urls') or {}) \
         .get('streaming')
-    parts = urllib.parse.urlsplit(advertised or '')
-    if parts.scheme not in ('https', 'wss') or not parts.netloc:
+    try:
+        parts = urllib.parse.urlsplit(advertised or '')
+    except ValueError:  # a malformed address, such as an unmatched '['
+        parts = None
+    if parts is None or parts.scheme not in ('https', 'wss') \
+            or not parts.netloc:
         parts = urllib.parse.urlsplit(client.instance)
     return urllib.parse.urlunsplit(
         ('wss', parts.netloc, parts.path.rstrip('/'), '', ''))

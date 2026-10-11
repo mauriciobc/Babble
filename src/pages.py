@@ -25,6 +25,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gio, Gtk, Pango  # noqa: E402
 
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
+from .statustext import is_web_link, split_url  # noqa: E402
 
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 COLUMN_WIDTH = 660
@@ -534,8 +535,8 @@ _TAG_PATH = re.compile(r'^/(?:tags|tag)/([^/?#]+)/?$')
 
 
 def strip_tracking(uri):
-    parts = urllib.parse.urlsplit(uri)
-    if not parts.query:
+    parts = split_url(uri)
+    if parts is None or not parts.query:
         return uri
     query = [(k, v) for k, v in urllib.parse.parse_qsl(
         parts.query, keep_blank_values=True) if not TRACKING_PARAMS.match(k)]
@@ -556,17 +557,20 @@ def open_link(widget, uri, mentions=None, tags=None):
     URLs are resolved through the instance's search when the
     ``aggressive-resolving`` setting is on; everything else goes to the
     browser, minus tracking parameters when ``strip-tracking`` is on."""
+    if not is_web_link(uri):
+        launch_external(widget, uri)  # refuses it, with a toast
+        return
     if settings().get_boolean('strip-tracking'):
         uri = strip_tracking(uri)
     client = client_of(widget)
-    if client is None or not uri.startswith(('http://', 'https://')):
+    if client is None:
         launch_external(widget, uri)
         return
     for mention in mentions or ():
         if mention.get('url') == uri:
             open_profile(widget, client, acct=mention.get('acct'))
             return
-    parts = urllib.parse.urlsplit(uri)
+    parts = split_url(uri)
     tag = _TAG_PATH.match(parts.path)
     if tag:
         name = urllib.parse.unquote(tag.group(1))

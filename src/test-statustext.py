@@ -78,6 +78,10 @@ class TestWebLink(unittest.TestCase):
                     'data:text/html,x', 'https:no-host', '', None):
             self.assertFalse(is_web_link(uri), uri)
 
+    def test_a_malformed_address_is_refused_not_raised(self):
+        # urlsplit raises ValueError on an unmatched '['.
+        self.assertFalse(is_web_link('https://[oops/x'))
+
 
 class TestShortenUrl(unittest.TestCase):
     def test_the_host_and_path_are_kept(self):
@@ -98,6 +102,15 @@ class TestShortenUrl(unittest.TestCase):
         out = shorten_url_text(
             'https://bank.test.verify.account.example.com@evil.test/x')
         self.assertTrue(out.startswith('evil.test'), out)
+
+    def test_a_backslash_ends_the_host_as_in_a_browser(self):
+        # A browser opens evil.test here; the label must say so.
+        self.assertEqual(shorten_url_text('https://evil.test\\@bank.test/x'),
+                         'evil.test/@bank.test/x')
+
+    def test_a_malformed_url_is_left_alone(self):
+        self.assertEqual(shorten_url_text('https://[oops/x'),
+                         'https://[oops/x')
 
     def test_the_port_is_kept(self):
         self.assertEqual(shorten_url_text('https://u@example.test:8443/a'),

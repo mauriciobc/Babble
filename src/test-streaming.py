@@ -50,7 +50,8 @@ check('an advertised wss url is kept', streaming_url(client)
 # The socket carries the bearer token: an unencrypted address the
 # instance advertises must never be used.
 for advertised in ('http://stream.example', 'ws://stream.example',
-                   'gopher://stream.example', 'stream.example'):
+                   'gopher://stream.example', 'stream.example',
+                   'wss://[stream.example'):
     client.instance_info = {
         'configuration': {'urls': {'streaming': advertised}}}
     check('an advertised %s url falls back to the instance' % advertised,

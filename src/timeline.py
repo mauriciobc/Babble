@@ -2,7 +2,6 @@
 
 import collections
 import datetime
-import urllib.parse
 
 import gi
 
@@ -21,7 +20,7 @@ from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .mastodon import HTTP_TIMEOUT_SECONDS, summarize_error_markup  # noqa: E402
 from .statustext import (is_hashtag, parse_content, relative_time,  # noqa: E402
-                         shorten_url_text)
+                         shorten_url_text, split_url, url_host)
 from .textemoji import (InlineEmojiText, emoji_bank, launch_uri,  # noqa: E402
                         poll_emoji_bank, status_emoji_bank)
 
@@ -1034,8 +1033,8 @@ class CardPreview(Gtk.Button):
                                 ellipsize=Pango.EllipsizeMode.END)
         description.add_css_class('caption')
         description.add_css_class('dimmed')
-        info = Gtk.Label(label=urllib.parse.urlsplit(self._href).netloc,
-                         xalign=0.0)
+        parts = split_url(self._href)
+        info = Gtk.Label(label=url_host(parts) if parts else '', xalign=0.0)
         info.add_css_class('caption')
         info.add_css_class('dimmed')
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,

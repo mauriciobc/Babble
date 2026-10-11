@@ -188,6 +188,28 @@ def relative_time(iso_timestamp):
     return moment.to_local().format(_('%b %Y'))
 
 
+def split_url(uri):
+    """*uri* split the way a browser reads it, or None when malformed.
+
+    Browsers treat a backslash as a slash in an http(s) URL, so
+    ``https://evil.test\\@bank.test`` opens evil.test; ``urlsplit``
+    alone would read ``evil.test\\`` as credentials and bank.test as the
+    host. A malformed authority (an unmatched ``[``) makes ``urlsplit``
+    raise; servers can send one, so it is None here instead."""
+    uri = uri or ''
+    if uri[:8].lower().startswith(('http:', 'https:')):
+        uri = uri.replace('\\', '/')
+    try:
+        return urllib.parse.urlsplit(uri)
+    except ValueError:
+        return None
+
+
+def url_host(parts):
+    """The host (and port) a split URL opens, without any credentials."""
+    return parts.netloc.rpartition('@')[2]
+
+
 def is_web_link(uri):
     """Whether *uri* is an http(s) address, the only kind a link from a
     post, a profile or a card may hand to the system launcher.
@@ -195,8 +217,9 @@ def is_web_link(uri):
     A server that does not sanitise its HTML can serve ``file://``,
     ``smb://`` or any scheme some installed app handles; outside the
     Flatpak portal a click would open that handler directly."""
-    parts = urllib.parse.urlsplit(uri or '')
-    return parts.scheme in ('http', 'https') and bool(parts.netloc)
+    parts = split_url(uri)
+    return parts is not None and parts.scheme in ('http', 'https') \
+        and bool(url_host(parts))
 
 
 def shorten_url_text(text):
@@ -207,9 +230,10 @@ def shorten_url_text(text):
     would otherwise read as the bank, and the truncation could cut the
     real host off entirely."""
     if text.lower().startswith(('http://', 'https://')):
-        parsed = urllib.parse.urlsplit(text)
-        path = parsed.path.rstrip('/')
-        label = parsed.netloc.rpartition('@')[2] + path
+        parsed = split_url(text)
+        if parsed is None:
+            return text
+        label = url_host(parsed) + parsed.path.rstrip('/')
         if len(label) > 42:
             label = label[:39] + '…'
         return label
