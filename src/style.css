@@ -105,8 +105,9 @@ picture.broken-image {
 }
 
 .notifications-badge {
-  min-width: 12px;
-  padding: 1px 6px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0 4px;
   border-radius: 9999px;
   background-color: var(--accent-bg-color);
   color: var(--accent-fg-color);
