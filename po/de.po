@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-11 16:55-0300\n"
+"POT-Creation-Date: 2026-10-11 17:27-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -409,12 +409,12 @@ msgstr ""
 msgid "Take Action"
 msgstr "Maßnahme ergreifen"
 
-#: src/admin.py:904 src/admin.py:1320 src/admin.py:1531 src/compose.py:734
+#: src/admin.py:904 src/admin.py:1320 src/admin.py:1531 src/compose.py:737
 #: src/fedicollections.py:651 src/hashtags.py:434 src/lists.py:185
 #: src/notifications.py:1716 src/pages.py:197 src/profile.py:296
 #: src/profile.py:326 src/profileedit.py:216 src/scheduled.py:115
 #: src/search.py:565 src/timeline.py:2265 src/timeline.py:2941
-#: src/timeline.py:3068 src/timeline.py:3120 src/window.py:1646
+#: src/timeline.py:3068 src/timeline.py:3120 src/window.py:1659
 msgid "_Cancel"
 msgstr "_Abbrechen"
 
@@ -497,7 +497,7 @@ msgstr "E-Mail"
 msgid "No Accounts"
 msgstr "Keine Konten"
 
-#: src/admin.py:1085 src/admin.py:1097 src/compose.py:807 src/pages.py:173
+#: src/admin.py:1085 src/admin.py:1097 src/compose.py:810 src/pages.py:173
 #: src/profile.py:1419 src/profile.py:1425 src/profile.py:1451
 #: src/profile.py:1469
 msgid "_Undo"
@@ -711,7 +711,7 @@ msgid "Remove Federation with %s?"
 msgstr "Föderation mit %s entfernen?"
 
 #: src/admin.py:1407 src/admin.py:1515 src/fedicollections.py:216
-#: src/profile.py:1431 src/timeline.py:2384 src/window.py:461
+#: src/profile.py:1431 src/timeline.py:2384 src/window.py:474
 msgid "_Remove"
 msgstr "_Entfernen"
 
@@ -1066,7 +1066,7 @@ msgstr "Dauer"
 msgid "_Add Choice"
 msgstr "Option _hinzufügen"
 
-#: src/compose.py:356 src/compose.py:752
+#: src/compose.py:356 src/compose.py:755
 msgid "Attach Media"
 msgstr "Medien anhängen"
 
@@ -1098,100 +1098,100 @@ msgstr "Sprache des Beitrags"
 msgid "Characters Left"
 msgstr "Verbleibende Zeichen"
 
-#: src/compose.py:674
+#: src/compose.py:677
 #, python-format
 msgid "Choice %d"
 msgstr "Option %d"
 
-#: src/compose.py:731
+#: src/compose.py:734
 msgid "Discard Draft?"
 msgstr "Entwurf verwerfen?"
 
-#: src/compose.py:732
+#: src/compose.py:735
 msgid "The text, attachments and poll of this post will be lost"
 msgstr "Text, Anhänge und Umfrage dieses Beitrags gehen verloren"
 
-#: src/compose.py:735 src/profileedit.py:627
+#: src/compose.py:738 src/profileedit.py:627
 msgid "_Discard"
 msgstr "_Verwerfen"
 
-#: src/compose.py:749
+#: src/compose.py:752
 msgid "Images and Videos"
 msgstr "Bilder und Videos"
 
-#: src/compose.py:762
+#: src/compose.py:765
 msgid "Could not open the file picker"
 msgstr "Die Dateiauswahl konnte nicht geöffnet werden"
 
-#: src/compose.py:806
+#: src/compose.py:809
 msgid "Attachment removed"
 msgstr "Anhang entfernt"
 
-#: src/compose.py:875
+#: src/compose.py:878
 msgid "Post is too long"
 msgstr "Der Beitrag ist zu lang"
 
-#: src/compose.py:878
+#: src/compose.py:881
 msgid "Add content warning text"
 msgstr "Fügen Sie einen Text für die Inhaltswarnung hinzu"
 
-#: src/compose.py:883 src/compose.py:1041
+#: src/compose.py:886 src/compose.py:1044
 msgid "Add at least two poll choices"
 msgstr "Fügen Sie mindestens zwei Umfrageoptionen hinzu"
 
-#: src/compose.py:886
+#: src/compose.py:889
 msgid "Poll choices must be unique"
 msgstr "Die Umfrageoptionen müssen eindeutig sein"
 
-#: src/compose.py:889
+#: src/compose.py:892
 msgid "A poll cannot be combined with media"
 msgstr "Eine Umfrage kann nicht mit Medien kombiniert werden"
 
-#: src/compose.py:967
+#: src/compose.py:970
 msgid "The server did not accept the media"
 msgstr "Der Server hat die Medien nicht angenommen"
 
-#: src/compose.py:996
+#: src/compose.py:999
 msgid "The server is still processing the media"
 msgstr "Der Server verarbeitet die Medien noch"
 
-#: src/compose.py:1025
+#: src/compose.py:1028
 msgid "Could not upload media"
 msgstr "Die Medien konnten nicht hochgeladen werden"
 
-#: src/compose.py:1077
+#: src/compose.py:1080
 msgid "Could not post"
 msgstr "Veröffentlichen fehlgeschlagen"
 
-#: src/compose.py:1106
+#: src/compose.py:1109
 msgid "Post edited"
 msgstr "Beitrag bearbeitet"
 
-#: src/compose.py:1108
+#: src/compose.py:1111
 msgid "Post scheduled"
 msgstr "Beitrag geplant"
 
-#: src/compose.py:1110
+#: src/compose.py:1113
 msgid "Post sent"
 msgstr "Beitrag gesendet"
 
-#: src/compose.py:1202
+#: src/compose.py:1205
 msgid "Edit Post"
 msgstr "Beitrag bearbeiten"
 
-#: src/compose.py:1204
+#: src/compose.py:1207
 msgid "Edit Scheduled Post"
 msgstr "Geplanten Beitrag bearbeiten"
 
-#: src/compose.py:1206
+#: src/compose.py:1209
 msgid "Quote Post"
 msgstr "Beitrag zitieren"
 
-#: src/compose.py:1208 src/scheduled.py:401 src/timeline.py:1981
+#: src/compose.py:1211 src/scheduled.py:401 src/timeline.py:1981
 msgid "Reply"
 msgstr "Antworten"
 
-#: src/compose.py:1210 src/shortcuts-dialog.ui:47 src/window.ui:298
+#: src/compose.py:1213 src/shortcuts-dialog.ui:47 src/window.ui:298
 #: src/window.ui:300 src/window.ui:400 src/window.ui:402
 msgid "New Post"
 msgstr "Neuer Beitrag"
@@ -2264,7 +2264,7 @@ msgstr "Keine Beiträge in dieser Liste"
 msgid "Add members to the list to see their posts"
 msgstr "Fügen Sie der Liste Mitglieder hinzu, um ihre Beiträge zu sehen"
 
-#: src/lists.py:507 src/window.py:865 src/window.py:888 src/window.py:967
+#: src/lists.py:507 src/window.py:878 src/window.py:901 src/window.py:980
 msgid "List"
 msgstr "Liste"
 
@@ -2513,11 +2513,11 @@ msgstr "„{name}“ gespeichert"
 msgid "Show in _Folder"
 msgstr "Im _Ordner anzeigen"
 
-#: src/mentioncompleter.py:82
+#: src/mentioncompleter.py:83
 msgid "Suggested Accounts"
 msgstr "Vorgeschlagene Konten"
 
-#: src/mentioncompleter.py:86
+#: src/mentioncompleter.py:87
 msgid "Type a name to search"
 msgstr "Namen zum Suchen eingeben"
 
@@ -3712,7 +3712,7 @@ msgstr[1] "Alle %d Profile anzeigen"
 msgid "No Featured Profiles"
 msgstr "Keine vorgestellten Profile"
 
-#: src/profile.py:1109 src/timeline.py:1887 src/window.py:963
+#: src/profile.py:1109 src/timeline.py:1887 src/window.py:976
 msgid "Pinned"
 msgstr "Angeheftet"
 
@@ -4763,38 +4763,69 @@ msgid "Go to Notifications"
 msgstr "Zu Benachrichtigungen"
 
 #: src/shortcuts-dialog.ui:83
-msgid "Go to Sidebar Place"
-msgstr "Zu Seitenleisteneintrag"
+#, fuzzy
+msgid "Go to Conversations"
+msgstr "Keine Unterhaltungen"
 
 #: src/shortcuts-dialog.ui:89
+#, fuzzy
+msgid "Go to Search"
+msgstr "Zu Seitenleisteneintrag"
+
+#: src/shortcuts-dialog.ui:95
+#, fuzzy
+msgid "Go to Favorites"
+msgstr "Favoriten"
+
+#: src/shortcuts-dialog.ui:101
+#, fuzzy
+msgid "Go to Bookmarks"
+msgstr "Lesezeichen"
+
+#: src/shortcuts-dialog.ui:107
+#, fuzzy
+msgid "Go to Hashtags"
+msgstr "Top-Hashtags"
+
+#: src/shortcuts-dialog.ui:113
+#, fuzzy
+msgid "Go to Explore"
+msgstr "Erkunden"
+
+#: src/shortcuts-dialog.ui:119
+#, fuzzy
+msgid "Go to Local"
+msgstr "Zur Startseite"
+
+#: src/shortcuts-dialog.ui:125
 msgid "Scroll Page Down"
 msgstr "Seite nach unten blättern"
 
-#: src/shortcuts-dialog.ui:95
+#: src/shortcuts-dialog.ui:131
 msgid "Scroll Page Up"
 msgstr "Seite nach oben blättern"
 
-#: src/shortcuts-dialog.ui:101
+#: src/shortcuts-dialog.ui:137
 msgid "Increase Text Size"
 msgstr "Textgröße erhöhen"
 
-#: src/shortcuts-dialog.ui:107
+#: src/shortcuts-dialog.ui:143
 msgid "Decrease Text Size"
 msgstr "Textgröße verringern"
 
-#: src/shortcuts-dialog.ui:113
+#: src/shortcuts-dialog.ui:149
 msgid "Reset Text Size"
 msgstr "Textgröße zurücksetzen"
 
-#: src/shortcuts-dialog.ui:121
+#: src/shortcuts-dialog.ui:157
 msgid "Composer"
 msgstr "Editor"
 
-#: src/shortcuts-dialog.ui:124
+#: src/shortcuts-dialog.ui:160
 msgid "Send Post"
 msgstr "Beitrag senden"
 
-#: src/shortcuts-dialog.ui:130
+#: src/shortcuts-dialog.ui:166
 msgid "Close Composer"
 msgstr "Editor schließen"
 
@@ -4828,7 +4859,7 @@ msgstr "%dT"
 msgid "%b %Y"
 msgstr "%b %Y"
 
-#: src/statusviews.py:76 src/window.py:835
+#: src/statusviews.py:76 src/window.py:848
 msgid "No Favorites Yet"
 msgstr "Noch keine Favoriten"
 
@@ -5449,11 +5480,11 @@ msgstr "Die neuesten Beiträge werden abgerufen"
 msgid "Could Not Load Timeline"
 msgstr "Zeitleiste konnte nicht geladen werden"
 
-#: src/timeline.py:3305 src/window.py:852
+#: src/timeline.py:3305 src/window.py:865
 msgid "No Posts Yet"
 msgstr "Noch keine Beiträge"
 
-#: src/timeline.py:3306 src/window.py:852
+#: src/timeline.py:3306 src/window.py:865
 msgid "New posts will appear here"
 msgstr "Neue Beiträge werden hier angezeigt"
 
@@ -5499,67 +5530,67 @@ msgstr "Die Anmeldung für @%s fehlt im Schlüsselbund"
 
 #. Translators: a draft saved earlier is offered for
 #. restoring; %s is a compact age like "5m"
-#: src/window.py:379
+#: src/window.py:395
 #, fuzzy, python-format
 msgid "Draft from %s"
 msgstr "Entwürfe"
 
-#: src/window.py:382
+#: src/window.py:397
 #, fuzzy
 msgid "You have an unsent draft"
 msgstr "Sie haben noch keine Listen"
 
-#: src/window.py:458
+#: src/window.py:471
 msgid "Remove Account?"
 msgstr "Konto entfernen?"
 
-#: src/window.py:459
+#: src/window.py:472
 #, python-format
 msgid "The login for %s will be removed from this device."
 msgstr "Die Anmeldung für %s wird von diesem Gerät entfernt."
 
-#: src/window.py:730
+#: src/window.py:743
 msgid "Running in the background was not allowed"
 msgstr "Die Ausführung im Hintergrund wurde nicht erlaubt"
 
-#: src/window.py:807
+#: src/window.py:820
 #, python-format
 msgid "%d unread notification"
 msgid_plural "%d unread notifications"
 msgstr[0] "%d ungelesene Benachrichtigung"
 msgstr[1] "%d ungelesene Benachrichtigungen"
 
-#: src/window.py:836
+#: src/window.py:849
 msgid "Posts you favorite will appear here"
 msgstr "Beiträge, die Sie favorisieren, werden hier angezeigt"
 
-#: src/window.py:840
+#: src/window.py:853
 msgid "No Bookmarks Yet"
 msgstr "Noch keine Lesezeichen"
 
-#: src/window.py:841
+#: src/window.py:854
 msgid "Posts you bookmark will appear here"
 msgstr "Beiträge, die Sie als Lesezeichen speichern, werden hier angezeigt"
 
-#: src/window.py:1161
+#: src/window.py:1174
 msgid "Waiting for Authorization"
 msgstr "Warten auf Autorisierung"
 
-#: src/window.py:1163
+#: src/window.py:1176
 #, python-format
 msgid "_Continue with %s"
 msgstr "Mit %s _fortfahren"
 
-#: src/window.py:1165 src/window.ui:204
+#: src/window.py:1178 src/window.ui:204
 msgid "_Continue"
 msgstr "_Fortfahren"
 
-#: src/window.py:1260
+#: src/window.py:1273
 msgid "Could not connect to the server"
 msgstr "Verbindung zum Server fehlgeschlagen"
 
 #. Translators: keep "https://" untranslated
-#: src/window.py:1262
+#: src/window.py:1275
 msgid ""
 "Babble only connects over HTTPS. Enter the server address without a scheme, "
 "or with https://."
@@ -5567,62 +5598,62 @@ msgstr ""
 "Babble verbindet sich nur über HTTPS. Geben Sie die Serveradresse ohne "
 "Schema oder mit https:// ein."
 
-#: src/window.py:1301
+#: src/window.py:1314
 #, python-format
 msgid "Could not register with %s"
 msgstr "Registrierung bei %s fehlgeschlagen"
 
-#: src/window.py:1309
+#: src/window.py:1322
 msgid "Finish authorizing moderation in the web browser"
 msgstr "Schließen Sie die Moderationsautorisierung im Webbrowser ab"
 
-#: src/window.py:1311
+#: src/window.py:1324
 msgid "Finish logging in with the web browser"
 msgstr "Schließen Sie die Anmeldung im Webbrowser ab"
 
-#: src/window.py:1330 src/window.py:1336
+#: src/window.py:1343 src/window.py:1349
 msgid "Could not open the web browser"
 msgstr "Webbrowser konnte nicht geöffnet werden"
 
-#: src/window.py:1337
+#: src/window.py:1350
 msgid "No app is set to open web links"
 msgstr "Keine Anwendung ist zum Öffnen von Weblinks eingerichtet"
 
-#: src/window.py:1457
+#: src/window.py:1470
 #, python-format
 msgid "Authorization failed: %s"
 msgstr "Autorisierung fehlgeschlagen: %s"
 
-#: src/window.py:1468
+#: src/window.py:1481
 msgid "Authorization failed"
 msgstr "Autorisierung fehlgeschlagen"
 
-#: src/window.py:1482
+#: src/window.py:1495
 msgid "Could not verify the account"
 msgstr "Das Konto konnte nicht überprüft werden"
 
-#: src/window.py:1535 src/window.py:1561
+#: src/window.py:1548 src/window.py:1574
 msgid "The system keyring refused to store the login."
 msgstr "Der System-Schlüsselbund hat die Anmeldung nicht gespeichert."
 
-#: src/window.py:1543 src/window.py:1566
+#: src/window.py:1556 src/window.py:1579
 msgid "The account changed before moderation was authorized."
 msgstr "Das Konto wurde gewechselt, bevor die Moderation autorisiert war."
 
-#: src/window.py:1575
+#: src/window.py:1588
 msgid "Moderation access granted"
 msgstr "Moderationszugriff erteilt"
 
-#: src/window.py:1628
+#: src/window.py:1641
 #, python-format
 msgid "Logged in as @%s"
 msgstr "Angemeldet als @%s"
 
-#: src/window.py:1633
+#: src/window.py:1646
 msgid "Could not save the login"
 msgstr "Die Anmeldung konnte nicht gespeichert werden"
 
-#: src/window.py:1634
+#: src/window.py:1647
 #, python-format
 msgid ""
 "The system keyring refused to store the login for @%s. Check that a keyring "
@@ -5631,11 +5662,11 @@ msgstr ""
 "Der System-Schlüsselbund hat die Anmeldung für @%s nicht gespeichert. Prüfen "
 "Sie, ob ein Schlüsselbunddienst läuft, und versuchen Sie es erneut."
 
-#: src/window.py:1642
+#: src/window.py:1655
 msgid "Log Out?"
 msgstr "Abmelden?"
 
-#: src/window.py:1643
+#: src/window.py:1656
 #, python-format
 msgid ""
 "The login for @%s will be signed out on the server and removed from this "
@@ -5644,11 +5675,11 @@ msgstr ""
 "Die Anmeldung für @%s wird auf dem Server abgemeldet und von diesem Gerät "
 "entfernt."
 
-#: src/window.py:1647
+#: src/window.py:1660
 msgid "_Log Out"
 msgstr "_Abmelden"
 
-#: src/window.py:1764
+#: src/window.py:1777
 msgid "Deliver notifications while the window is closed"
 msgstr "Benachrichtigungen zustellen, während das Fenster geschlossen ist"
 
@@ -5705,35 +5736,28 @@ msgstr "%s wiederhergestellt"
 msgid "Switch Account"
 msgstr "Konto wechseln"
 
-#: src/window.ui:465
-msgid "_New Post"
-msgstr "_Neuer Beitrag"
-
 #: src/window.ui:469
 msgid "_Open Profile"
 msgstr "Profil ö_ffnen"
 
-#: src/window.ui:473
-msgid "_Refresh"
-msgstr "_Aktualisieren"
+#: src/window.ui:475
+#, fuzzy
+msgid "A_nnouncements"
+msgstr "Ankündigungen"
 
 #: src/window.ui:479
-msgid "_Announcements"
-msgstr "An_kündigungen"
-
-#: src/window.ui:483
 msgid "_Follow Requests"
 msgstr "_Folgeanfragen"
 
-#: src/window.ui:487
+#: src/window.ui:483
 msgid "_Mutes & Blocks"
 msgstr "_Stummgeschaltet und gesperrt"
 
-#: src/window.ui:491
+#: src/window.ui:489
 msgid "D_raft Posts"
 msgstr "_Entwürfe"
 
-#: src/window.ui:495
+#: src/window.ui:493
 msgid "_Scheduled Posts"
 msgstr "_Geplante Beiträge"
 
@@ -5742,6 +5766,7 @@ msgid "_Collections"
 msgstr "Samm_lungen"
 
 #: src/window.ui:503
+#, fuzzy
 msgid "#Fedi_Wrapped"
 msgstr "#Fedi_Wrapped"
 
@@ -5749,21 +5774,17 @@ msgstr "#Fedi_Wrapped"
 msgid "Admin _Dashboard"
 msgstr "Administrations_übersicht"
 
-#: src/window.ui:514 src/window.ui:534
+#: src/window.ui:514 src/window.ui:530
 msgid "_Preferences"
 msgstr "_Einstellungen"
 
-#: src/window.ui:518 src/window.ui:538
+#: src/window.ui:518 src/window.ui:534
 msgid "_Keyboard Shortcuts"
 msgstr "_Tastenkürzel"
 
-#: src/window.ui:522 src/window.ui:542
+#: src/window.ui:522 src/window.ui:538
 msgid "_About Babble"
 msgstr "_Info zu Babble"
-
-#: src/window.ui:526
-msgid "_Quit"
-msgstr "_Beenden"
 
 #: src/wrapped.py:34
 msgid "The Archer"
@@ -5964,6 +5985,18 @@ msgstr "Wrapped speichern"
 #, python-format
 msgid "Saved %d Wrapped"
 msgstr "Wrapped %d gespeichert"
+
+#~ msgid "_Announcements"
+#~ msgstr "An_kündigungen"
+
+#~ msgid "_New Post"
+#~ msgstr "_Neuer Beitrag"
+
+#~ msgid "_Refresh"
+#~ msgstr "_Aktualisieren"
+
+#~ msgid "_Quit"
+#~ msgstr "_Beenden"
 
 #~ msgid "English"
 #~ msgstr "English"

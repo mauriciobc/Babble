@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-11 16:55-0300\n"
+"POT-Creation-Date: 2026-10-11 17:27-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -398,12 +398,12 @@ msgstr ""
 msgid "Take Action"
 msgstr ""
 
-#: src/admin.py:904 src/admin.py:1320 src/admin.py:1531 src/compose.py:734
+#: src/admin.py:904 src/admin.py:1320 src/admin.py:1531 src/compose.py:737
 #: src/fedicollections.py:651 src/hashtags.py:434 src/lists.py:185
 #: src/notifications.py:1716 src/pages.py:197 src/profile.py:296
 #: src/profile.py:326 src/profileedit.py:216 src/scheduled.py:115
 #: src/search.py:565 src/timeline.py:2265 src/timeline.py:2941
-#: src/timeline.py:3068 src/timeline.py:3120 src/window.py:1646
+#: src/timeline.py:3068 src/timeline.py:3120 src/window.py:1659
 msgid "_Cancel"
 msgstr ""
 
@@ -486,7 +486,7 @@ msgstr ""
 msgid "No Accounts"
 msgstr ""
 
-#: src/admin.py:1085 src/admin.py:1097 src/compose.py:807 src/pages.py:173
+#: src/admin.py:1085 src/admin.py:1097 src/compose.py:810 src/pages.py:173
 #: src/profile.py:1419 src/profile.py:1425 src/profile.py:1451
 #: src/profile.py:1469
 msgid "_Undo"
@@ -694,7 +694,7 @@ msgid "Remove Federation with %s?"
 msgstr ""
 
 #: src/admin.py:1407 src/admin.py:1515 src/fedicollections.py:216
-#: src/profile.py:1431 src/timeline.py:2384 src/window.py:461
+#: src/profile.py:1431 src/timeline.py:2384 src/window.py:474
 msgid "_Remove"
 msgstr ""
 
@@ -1044,7 +1044,7 @@ msgstr ""
 msgid "_Add Choice"
 msgstr ""
 
-#: src/compose.py:356 src/compose.py:752
+#: src/compose.py:356 src/compose.py:755
 msgid "Attach Media"
 msgstr ""
 
@@ -1076,100 +1076,100 @@ msgstr ""
 msgid "Characters Left"
 msgstr ""
 
-#: src/compose.py:674
+#: src/compose.py:677
 #, python-format
 msgid "Choice %d"
 msgstr ""
 
-#: src/compose.py:731
+#: src/compose.py:734
 msgid "Discard Draft?"
 msgstr ""
 
-#: src/compose.py:732
+#: src/compose.py:735
 msgid "The text, attachments and poll of this post will be lost"
 msgstr ""
 
-#: src/compose.py:735 src/profileedit.py:627
+#: src/compose.py:738 src/profileedit.py:627
 msgid "_Discard"
 msgstr ""
 
-#: src/compose.py:749
+#: src/compose.py:752
 msgid "Images and Videos"
 msgstr ""
 
-#: src/compose.py:762
+#: src/compose.py:765
 msgid "Could not open the file picker"
 msgstr ""
 
-#: src/compose.py:806
+#: src/compose.py:809
 msgid "Attachment removed"
 msgstr ""
 
-#: src/compose.py:875
+#: src/compose.py:878
 msgid "Post is too long"
 msgstr ""
 
-#: src/compose.py:878
+#: src/compose.py:881
 msgid "Add content warning text"
 msgstr ""
 
-#: src/compose.py:883 src/compose.py:1041
+#: src/compose.py:886 src/compose.py:1044
 msgid "Add at least two poll choices"
 msgstr ""
 
-#: src/compose.py:886
+#: src/compose.py:889
 msgid "Poll choices must be unique"
 msgstr ""
 
-#: src/compose.py:889
+#: src/compose.py:892
 msgid "A poll cannot be combined with media"
 msgstr ""
 
-#: src/compose.py:967
+#: src/compose.py:970
 msgid "The server did not accept the media"
 msgstr ""
 
-#: src/compose.py:996
+#: src/compose.py:999
 msgid "The server is still processing the media"
 msgstr ""
 
-#: src/compose.py:1025
+#: src/compose.py:1028
 msgid "Could not upload media"
 msgstr ""
 
-#: src/compose.py:1077
+#: src/compose.py:1080
 msgid "Could not post"
 msgstr ""
 
-#: src/compose.py:1106
+#: src/compose.py:1109
 msgid "Post edited"
 msgstr ""
 
-#: src/compose.py:1108
+#: src/compose.py:1111
 msgid "Post scheduled"
 msgstr ""
 
-#: src/compose.py:1110
+#: src/compose.py:1113
 msgid "Post sent"
 msgstr ""
 
-#: src/compose.py:1202
+#: src/compose.py:1205
 msgid "Edit Post"
 msgstr ""
 
-#: src/compose.py:1204
+#: src/compose.py:1207
 msgid "Edit Scheduled Post"
 msgstr ""
 
-#: src/compose.py:1206
+#: src/compose.py:1209
 msgid "Quote Post"
 msgstr ""
 
-#: src/compose.py:1208 src/scheduled.py:401 src/timeline.py:1981
+#: src/compose.py:1211 src/scheduled.py:401 src/timeline.py:1981
 msgid "Reply"
 msgstr ""
 
-#: src/compose.py:1210 src/shortcuts-dialog.ui:47 src/window.ui:298
+#: src/compose.py:1213 src/shortcuts-dialog.ui:47 src/window.ui:298
 #: src/window.ui:300 src/window.ui:400 src/window.ui:402
 msgid "New Post"
 msgstr ""
@@ -2227,7 +2227,7 @@ msgstr ""
 msgid "Add members to the list to see their posts"
 msgstr ""
 
-#: src/lists.py:507 src/window.py:865 src/window.py:888 src/window.py:967
+#: src/lists.py:507 src/window.py:878 src/window.py:901 src/window.py:980
 msgid "List"
 msgstr ""
 
@@ -2474,11 +2474,11 @@ msgstr ""
 msgid "Show in _Folder"
 msgstr ""
 
-#: src/mentioncompleter.py:82
+#: src/mentioncompleter.py:83
 msgid "Suggested Accounts"
 msgstr ""
 
-#: src/mentioncompleter.py:86
+#: src/mentioncompleter.py:87
 msgid "Type a name to search"
 msgstr ""
 
@@ -3639,7 +3639,7 @@ msgstr[1] ""
 msgid "No Featured Profiles"
 msgstr ""
 
-#: src/profile.py:1109 src/timeline.py:1887 src/window.py:963
+#: src/profile.py:1109 src/timeline.py:1887 src/window.py:976
 msgid "Pinned"
 msgstr ""
 
@@ -4667,38 +4667,62 @@ msgid "Go to Notifications"
 msgstr ""
 
 #: src/shortcuts-dialog.ui:83
-msgid "Go to Sidebar Place"
+msgid "Go to Conversations"
 msgstr ""
 
 #: src/shortcuts-dialog.ui:89
-msgid "Scroll Page Down"
+msgid "Go to Search"
 msgstr ""
 
 #: src/shortcuts-dialog.ui:95
-msgid "Scroll Page Up"
+msgid "Go to Favorites"
 msgstr ""
 
 #: src/shortcuts-dialog.ui:101
-msgid "Increase Text Size"
+msgid "Go to Bookmarks"
 msgstr ""
 
 #: src/shortcuts-dialog.ui:107
-msgid "Decrease Text Size"
+msgid "Go to Hashtags"
 msgstr ""
 
 #: src/shortcuts-dialog.ui:113
+msgid "Go to Explore"
+msgstr ""
+
+#: src/shortcuts-dialog.ui:119
+msgid "Go to Local"
+msgstr ""
+
+#: src/shortcuts-dialog.ui:125
+msgid "Scroll Page Down"
+msgstr ""
+
+#: src/shortcuts-dialog.ui:131
+msgid "Scroll Page Up"
+msgstr ""
+
+#: src/shortcuts-dialog.ui:137
+msgid "Increase Text Size"
+msgstr ""
+
+#: src/shortcuts-dialog.ui:143
+msgid "Decrease Text Size"
+msgstr ""
+
+#: src/shortcuts-dialog.ui:149
 msgid "Reset Text Size"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:121
+#: src/shortcuts-dialog.ui:157
 msgid "Composer"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:124
+#: src/shortcuts-dialog.ui:160
 msgid "Send Post"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:130
+#: src/shortcuts-dialog.ui:166
 msgid "Close Composer"
 msgstr ""
 
@@ -4732,7 +4756,7 @@ msgstr ""
 msgid "%b %Y"
 msgstr ""
 
-#: src/statusviews.py:76 src/window.py:835
+#: src/statusviews.py:76 src/window.py:848
 msgid "No Favorites Yet"
 msgstr ""
 
@@ -5345,11 +5369,11 @@ msgstr ""
 msgid "Could Not Load Timeline"
 msgstr ""
 
-#: src/timeline.py:3305 src/window.py:852
+#: src/timeline.py:3305 src/window.py:865
 msgid "No Posts Yet"
 msgstr ""
 
-#: src/timeline.py:3306 src/window.py:852
+#: src/timeline.py:3306 src/window.py:865
 msgid "New posts will appear here"
 msgstr ""
 
@@ -5395,149 +5419,149 @@ msgstr ""
 
 #. Translators: a draft saved earlier is offered for
 #. restoring; %s is a compact age like "5m"
-#: src/window.py:379
+#: src/window.py:395
 #, python-format
 msgid "Draft from %s"
 msgstr ""
 
-#: src/window.py:382
+#: src/window.py:397
 msgid "You have an unsent draft"
 msgstr ""
 
-#: src/window.py:458
+#: src/window.py:471
 msgid "Remove Account?"
 msgstr ""
 
-#: src/window.py:459
+#: src/window.py:472
 #, python-format
 msgid "The login for %s will be removed from this device."
 msgstr ""
 
-#: src/window.py:730
+#: src/window.py:743
 msgid "Running in the background was not allowed"
 msgstr ""
 
-#: src/window.py:807
+#: src/window.py:820
 #, python-format
 msgid "%d unread notification"
 msgid_plural "%d unread notifications"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/window.py:836
+#: src/window.py:849
 msgid "Posts you favorite will appear here"
 msgstr ""
 
-#: src/window.py:840
+#: src/window.py:853
 msgid "No Bookmarks Yet"
 msgstr ""
 
-#: src/window.py:841
+#: src/window.py:854
 msgid "Posts you bookmark will appear here"
 msgstr ""
 
-#: src/window.py:1161
+#: src/window.py:1174
 msgid "Waiting for Authorization"
 msgstr ""
 
-#: src/window.py:1163
+#: src/window.py:1176
 #, python-format
 msgid "_Continue with %s"
 msgstr ""
 
-#: src/window.py:1165 src/window.ui:204
+#: src/window.py:1178 src/window.ui:204
 msgid "_Continue"
 msgstr ""
 
-#: src/window.py:1260
+#: src/window.py:1273
 msgid "Could not connect to the server"
 msgstr ""
 
 #. Translators: keep "https://" untranslated
-#: src/window.py:1262
+#: src/window.py:1275
 msgid ""
 "Babble only connects over HTTPS. Enter the server address without a scheme, "
 "or with https://."
 msgstr ""
 
-#: src/window.py:1301
+#: src/window.py:1314
 #, python-format
 msgid "Could not register with %s"
 msgstr ""
 
-#: src/window.py:1309
+#: src/window.py:1322
 msgid "Finish authorizing moderation in the web browser"
 msgstr ""
 
-#: src/window.py:1311
+#: src/window.py:1324
 msgid "Finish logging in with the web browser"
 msgstr ""
 
-#: src/window.py:1330 src/window.py:1336
+#: src/window.py:1343 src/window.py:1349
 msgid "Could not open the web browser"
 msgstr ""
 
-#: src/window.py:1337
+#: src/window.py:1350
 msgid "No app is set to open web links"
 msgstr ""
 
-#: src/window.py:1457
+#: src/window.py:1470
 #, python-format
 msgid "Authorization failed: %s"
 msgstr ""
 
-#: src/window.py:1468
+#: src/window.py:1481
 msgid "Authorization failed"
 msgstr ""
 
-#: src/window.py:1482
+#: src/window.py:1495
 msgid "Could not verify the account"
 msgstr ""
 
-#: src/window.py:1535 src/window.py:1561
+#: src/window.py:1548 src/window.py:1574
 msgid "The system keyring refused to store the login."
 msgstr ""
 
-#: src/window.py:1543 src/window.py:1566
+#: src/window.py:1556 src/window.py:1579
 msgid "The account changed before moderation was authorized."
 msgstr ""
 
-#: src/window.py:1575
+#: src/window.py:1588
 msgid "Moderation access granted"
 msgstr ""
 
-#: src/window.py:1628
+#: src/window.py:1641
 #, python-format
 msgid "Logged in as @%s"
 msgstr ""
 
-#: src/window.py:1633
+#: src/window.py:1646
 msgid "Could not save the login"
 msgstr ""
 
-#: src/window.py:1634
+#: src/window.py:1647
 #, python-format
 msgid ""
 "The system keyring refused to store the login for @%s. Check that a keyring "
 "service is running, then try again."
 msgstr ""
 
-#: src/window.py:1642
+#: src/window.py:1655
 msgid "Log Out?"
 msgstr ""
 
-#: src/window.py:1643
+#: src/window.py:1656
 #, python-format
 msgid ""
 "The login for @%s will be signed out on the server and removed from this "
 "device."
 msgstr ""
 
-#: src/window.py:1647
+#: src/window.py:1660
 msgid "_Log Out"
 msgstr ""
 
-#: src/window.py:1764
+#: src/window.py:1777
 msgid "Deliver notifications while the window is closed"
 msgstr ""
 
@@ -5593,35 +5617,27 @@ msgstr ""
 msgid "Switch Account"
 msgstr ""
 
-#: src/window.ui:465
-msgid "_New Post"
-msgstr ""
-
 #: src/window.ui:469
 msgid "_Open Profile"
 msgstr ""
 
-#: src/window.ui:473
-msgid "_Refresh"
+#: src/window.ui:475
+msgid "A_nnouncements"
 msgstr ""
 
 #: src/window.ui:479
-msgid "_Announcements"
-msgstr ""
-
-#: src/window.ui:483
 msgid "_Follow Requests"
 msgstr ""
 
-#: src/window.ui:487
+#: src/window.ui:483
 msgid "_Mutes & Blocks"
 msgstr ""
 
-#: src/window.ui:491
+#: src/window.ui:489
 msgid "D_raft Posts"
 msgstr ""
 
-#: src/window.ui:495
+#: src/window.ui:493
 msgid "_Scheduled Posts"
 msgstr ""
 
@@ -5637,20 +5653,16 @@ msgstr ""
 msgid "Admin _Dashboard"
 msgstr ""
 
-#: src/window.ui:514 src/window.ui:534
+#: src/window.ui:514 src/window.ui:530
 msgid "_Preferences"
 msgstr ""
 
-#: src/window.ui:518 src/window.ui:538
+#: src/window.ui:518 src/window.ui:534
 msgid "_Keyboard Shortcuts"
 msgstr ""
 
-#: src/window.ui:522 src/window.ui:542
+#: src/window.ui:522 src/window.ui:538
 msgid "_About Babble"
-msgstr ""
-
-#: src/window.ui:526
-msgid "_Quit"
 msgstr ""
 
 #: src/wrapped.py:34
