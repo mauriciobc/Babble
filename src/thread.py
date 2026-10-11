@@ -34,7 +34,7 @@ def push_thread(view, client, item):
 
 
 def _thread_row(item, client):
-    row = StatusRow()
+    row = StatusRow(detail=True)
     row.bind(item, client)
     row.set_focusable(True)
     return row

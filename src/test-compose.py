@@ -563,6 +563,76 @@ check('dialog title reply', dialog.get_title() == _('Reply'))
 dialog.close()
 pump(100)
 
+# Local drafts: a close with content keeps it for the next launch,
+# keyed with the related account, so restoring happens there only.
+from src import pages  # noqa: E402
+local_settings = pages.settings()
+
+def saved_list():
+    return local_settings.get_strv('local-drafts')
+
+def settle_until(deadline_s, condition):
+    """Pump until *condition*, or the deadline; the dialog's 'closed'
+    signal only lands after the close animation, which can lag."""
+    end = GLib.get_monotonic_time() + int(deadline_s * GLib.USEC_PER_SEC)
+    while GLib.get_monotonic_time() < end and not condition():
+        pump(50)
+    return condition()
+
+local_settings.set_strv('local-drafts', [])
+dialog.view.reset()
+dialog.view.local_draft_key = 'mastodon.social#11'
+dialog.present(app_window)
+pump(50)
+dialog.view.buffer.set_text('draft for later')
+dialog.close()
+settle_until(3.0, lambda: saved_list())
+saved = saved_list()
+check('closing with content saves one draft', len(saved) == 1)
+check('the saved draft is keyed with the account',
+      bool(saved) and '"key": "mastodon.social#11"' in saved[0])
+dialog.present(app_window)
+pump(50)
+dialog.close()
+pump(300)
+check('closing unchanged does not duplicate',
+      saved_list() == saved)
+dialog.present(app_window)
+pump(50)
+dialog.view.buffer.set_text('changed draft')
+dialog.close()
+settle_until(3.0, lambda: saved_list() != saved)
+check('a changed draft replaces its earlier version',
+      len(saved_list()) == 1 and 'changed draft' in saved_list()[0])
+
+# Restoring keeps what was already being written: the content in
+# progress moves to the draft stack, out where the banner above the
+# buffer brings it back.
+dialog.present(app_window)
+pump(50)
+dialog.view.buffer.set_text('in progress')
+dialog.view.restore_stashing({
+    'text': 'recovered draft', 'visibility': 0, 'language': 0,
+    'cw_visible': False, 'cw_text': '', 'attachments': [],
+    'poll': {'active': False, 'options': ['', ''], 'expires': 0},
+    'in_reply_to_id': None, 'key': 'mastodon.social#11', 'saved_at': 'x'})
+pump(50)
+check('restore replaces the buffer',
+      dialog.view.text() == 'recovered draft')
+check('restore stashes the content in progress',
+      bool(dialog.view._draft_stack)
+      and dialog.view._draft_stack[0]['text'] == 'in progress')
+
+# The draft that was just posted is no longer offered for restoring.
+dialog.present(app_window)
+pump(50)
+dialog.view.buffer.set_text('about to be posted')
+collect_toasts()
+dialog.view.on_post_clicked(dialog.view.post_button)
+pump(400)
+remaining = local_settings.get_strv('local-drafts')
+check('a posted draft is taken off the restore list', remaining == [])
+
 # The composer contract other modules rely on: timeline.py, profile.py
 # and scheduled.py call these names, and a missing one raises
 # AttributeError in a signal callback after the action already ran.

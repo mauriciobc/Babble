@@ -271,7 +271,17 @@
               <object class="GtkStackPage">
                 <property name="name">shell</property>
                 <property name="child">
-                  <object class="AdwNavigationSplitView" id="split_view">
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="AdwBanner" id="draft_banner">
+                        <property name="revealed">False</property>
+                        <property name="button-label" translatable="yes">Restore</property>
+                        <signal name="button-clicked" handler="on_draft_restore" swapped="no"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwNavigationSplitView" id="split_view">
                     <property name="collapsed">True</property>
                     <property name="sidebar">
                       <object class="AdwNavigationPage">
@@ -438,6 +448,8 @@
                         </property>
                       </object>
                     </property>
+                  </object>
+                    </child>
                   </object>
                 </property>
               </object>

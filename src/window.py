@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import json
 import secrets
 import urllib.parse
 
@@ -18,6 +19,7 @@ from . import pages  # noqa: E402
 from .mastodon import (ADMIN_SCOPES, MastodonClient, OAUTH_REDIRECT,  # noqa: E402
                        OAUTH_SCOPES, OOB_REDIRECT, clear_secret_async,
                        normalize_instance, summarize_error)
+from .statustext import relative_time  # noqa: E402
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
 
 # One-click alternatives for the login suggestions row, ranked from the
@@ -96,6 +98,7 @@ class BabbleWindow(Adw.ApplicationWindow):
     sign_up_link = Gtk.Template.Child()
     login_back_button = Gtk.Template.Child()
     split_view = Gtk.Template.Child()
+    draft_banner = Gtk.Template.Child()
     sidebar_list = Gtk.Template.Child()
     account_button = Gtk.Template.Child()
     account_avatar = Gtk.Template.Child()
@@ -155,6 +158,10 @@ class BabbleWindow(Adw.ApplicationWindow):
                             Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('window-maximized', self, 'maximized',
                             Gio.SettingsBindFlags.DEFAULT)
+        # The composer saves a draft when it closes; the banner reacts
+        # live instead of waiting for the next account sync.
+        pages.connect_weak(self.settings, 'changed::local-drafts',
+                           self._refresh_draft_banner)
 
         self.notifications_badge = Gtk.Label(visible=False)
         self.notifications_badge.add_css_class('notifications-badge')
@@ -336,6 +343,77 @@ class BabbleWindow(Adw.ApplicationWindow):
             signed_in and (versions.get('mastodon') or 0) >= 10)
         self.lookup_action('admin').set_enabled(
             signed_in and account_store.role_is_admin(self.account))
+        self._refresh_draft_banner()
+
+    def _local_drafts(self):
+        """Restorable drafts of the signed-in account, newest first, as
+        ``(raw, draft)`` pairs: the raw string is what gets removed from
+        the setting, so no entry depends on re-serializing the same way.
+        Drafts stay keyed with the account because ids like
+        ``in_reply_to_id`` inside them are server-local; restoring one on
+        another instance would answer an unrelated post. Malformed
+        entries are skipped here, not deleted, and age out of the list."""
+        if self.account is None or self.client is None:
+            return []
+        key = account_store.account_key(self.account)
+        drafts = []
+        for raw in pages.settings().get_strv('local-drafts'):
+            try:
+                entry = json.loads(raw)
+            except ValueError:
+                continue
+            if isinstance(entry, dict) and entry.get('key') == key \
+                    and self._valid_draft(entry):
+                drafts.append((raw, entry))
+        return drafts
+
+    DRAFT_TYPES = {'text': str, 'visibility': int, 'language': int,
+                   'cw_visible': bool, 'cw_text': str, 'attachments': list,
+                   'poll': dict}
+    POLL_TYPES = {'active': bool, 'options': list, 'expires': int}
+
+    def _valid_draft(self, draft):
+        """Everything ``BabbleComposeView.restore`` reads is there and of
+        the right type."""
+        def typed(mapping, types):
+            return all(isinstance(mapping.get(k), t)
+                       for k, t in types.items())
+        return (typed(draft, self.DRAFT_TYPES)
+                and 'in_reply_to_id' in draft
+                and typed(draft['poll'], self.POLL_TYPES)
+                and all(isinstance(a, dict) and isinstance(a.get('path'), str)
+                        and isinstance(a.get('alt'), str)
+                        for a in draft['attachments']))
+
+    def _refresh_draft_banner(self, *_args):
+        drafts = self._local_drafts()
+        self.draft_banner.set_revealed(bool(drafts))
+        when = relative_time(drafts[0][1].get('saved_at')) if drafts else ''
+        if when:
+            # Translators: a draft saved earlier is offered for
+            # restoring; %s is a compact age like "5m"
+            self.draft_banner.set_title(_('Draft from %s') % when)
+        else:
+            self.draft_banner.set_title(_('You have an unsent draft'))
+
+    @Gtk.Template.Callback()
+    def on_draft_restore(self, _banner):
+        """Reopen the newest unsent draft saved when the composer was
+        closed; the entry leaves the list once it is back in the
+        composer."""
+        drafts = self._local_drafts()
+        if not drafts:
+            self.draft_banner.set_revealed(False)
+            return
+        raw, draft = drafts[0]
+        dialog = self.present_composer()
+        if dialog is None:
+            return
+        dialog.view.restore_stashing(draft)
+        settings = pages.settings()
+        settings.set_strv('local-drafts',
+                          [r for r in settings.get_strv('local-drafts')
+                           if r != raw])
 
     def _teardown_session(self):
         """Drop every page, stream and dialog tied to the current
@@ -836,12 +914,16 @@ class BabbleWindow(Adw.ApplicationWindow):
         if self.compose_dialog is None \
                 or self.compose_dialog.view.client is not self.client:
             self.compose_dialog = ComposeDialog(self.client)
+        self.compose_dialog.view.local_draft_key = (
+            account_store.account_key(self.account)
+            if self.account is not None else None)
         return self.compose_dialog
 
     def present_composer(self):
         dialog = self.ensure_composer()
         if dialog is not None and dialog.get_parent() is None:
             dialog.present(self)
+        return dialog
 
     def open_compose_reply(self, status_id, handle, visibility='public'):
         """Called by timeline rows to reply to a status while keeping

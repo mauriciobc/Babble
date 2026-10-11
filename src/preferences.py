@@ -286,6 +286,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._switch(posts, 'show-interaction-counters',
                      _('Show Interaction C_ounters'),
                      _('Reply, boost and favorite counts on post actions'))
+        self._switch(posts, 'show-action-bar',
+                     _('Show Post _Actions on Timelines'),
+                     _('Actions stay available in each post’s menu'))
         page.add(posts)
 
         behavior = Adw.PreferencesGroup(title=_('Behavior'))

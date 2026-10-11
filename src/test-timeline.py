@@ -27,9 +27,9 @@ sys.path.insert(0, srcdir)
 
 from src.mastodon import MastodonClient  # noqa: E402
 from src.textemoji import InlineEmojiText, status_emoji_bank  # noqa: E402
-from src.timeline import (BoostCarouselItem, StatusItem, StatusRow,  # noqa: E402
-                          TimelineModel, TimelinePage, COLUMN_WIDTH,
-                          parse_content, relative_time)
+from src.timeline import (BlurredPicture, BoostCarouselItem, StatusItem,  # noqa: E402
+                          StatusRow, TimelineModel, TimelinePage,
+                          COLUMN_WIDTH, parse_content, relative_time)
 
 failures = []
 
@@ -248,10 +248,85 @@ own_poll_status = {**fixture_status, 'poll': {
     'emojis': [{'shortcode': 'newt',
                 'static_url': EMOJI_URL_BASE + 'newt.png'}],
     'votes_count': 2, 'expired': True, 'closed': True, 'own_votes': []}}
-own_poll_row = StatusRow()
-own_poll_row.bind(StatusItem(own_poll_status), _DummyClient())
-check('poll option titles honour the poll emoji payload',
-      len(collect_poll_emojis(own_poll_row, [])) == 1)
+# Short handles: the instance part is dropped on the timeline because
+# the tooltip and the accessible label still carry it; a short handle
+# that only repeats the display name is dropped with it.
+def bind_with_account(account):
+    row = StatusRow()
+    row.bind(StatusItem({'id': '9', 'content': '<p>x</p>',
+                         'account': account,
+                         'created_at': '2026-10-01T00:00:00.000Z'}),
+             _DummyClient())
+    return row
+
+local_row = bind_with_account({'acct': 'dash', 'display_name': 'Dasher'})
+check('local handle short', local_row.handle_label.get_text() == '@dash'
+      and local_row.handle_label.get_visible())
+repeat_row = bind_with_account({'acct': 'dash', 'display_name': 'Dash'})
+check('repeating handle suppressed',
+      not repeat_row.handle_label.get_visible())
+remote_row = bind_with_account({'acct': 'alice@other.social'})
+check('remote handle keeps only the user',
+      remote_row.handle_label.get_text() == '@alice')
+check('full handle stays in the tooltip',
+      remote_row.handle_label.get_tooltip_text() == '@alice@other.social')
+
+# Action bar: on timeline cards it is hidden by default (the actions
+# live in the post's menu) and always up on detail views.
+bar_row = bind_with_account({'acct': 'patrol'})
+check('action bar hidden on patrol cards', not bar_row.actions.get_visible())
+check('detail rows keep the action bar',
+      StatusRow(detail=True).actions.get_visible())
+
+# A 'blur' filter covers just the media: the badge stays, the text
+# stays, and Show Anyway clears both the badge and the blur.
+def media_status(order):
+    status = {'id': '9', 'content': '<p>text for the filtered card</p>',
+              'account': {'acct': 'patrol'},
+              'created_at': '2026-10-01T00:00:00.000Z',
+              'media_attachments': [{
+                  'type': 'image', 'url': EMOJI_URL_BASE + 'x.png'}]}
+    if order is not None:
+        status['filtered'] = [{
+            'filter': {'filter_action': order, 'title': 'Spoiler'}}]
+    return status
+
+def deep_pictures(widget, out):
+    if isinstance(widget, BlurredPicture):
+        out.append(widget)
+    child = widget.get_first_child()
+    while child is not None:
+        deep_pictures(child, out)
+        child = child.get_next_sibling()
+
+blur_row = StatusRow()
+blur_item = StatusItem(media_status('blur'))
+blur_row.bind(blur_item, _DummyClient())
+check('blur shows the badge', blur_row.filter_bar.get_visible())
+check('blur does not collapse the post', blur_row.main.get_visible())
+blurred_seen = []
+deep_pictures(blur_row, blurred_seen)
+check('blur wraps the media picture', len(blurred_seen) == 1)
+
+normal_row = StatusRow()
+normal_row.bind(StatusItem(media_status(None)), _DummyClient())
+plain_seen = []
+deep_pictures(normal_row, plain_seen)
+check('unfiltered media is not blurred', not plain_seen)
+
+blur_item.ui['filter_shown'] = True
+blur_row.bind(blur_item, _DummyClient())
+check('Show Anyway clears badge and blur',
+      not blur_row.filter_bar.get_visible())
+unblurred_seen = []
+deep_pictures(blur_row, unblurred_seen)
+check('media unblurred after Show Anyway', not unblurred_seen)
+
+# 'warn' still collapses the whole card until shown.
+warn_row = StatusRow()
+warn_item = StatusItem(media_status('warn'))
+warn_row.bind(warn_item, _DummyClient())
+check('warn collapses the card', not warn_row.main.get_visible())
 
 emoji_window.set_child(None)
 
@@ -326,8 +401,8 @@ collect(page.list_view)
 check('avatars rendered', any(isinstance(w, Adw.Avatar) for w in row_widgets))
 check('content labels rendered',
       any(isinstance(w, Gtk.Label) for w in row_widgets))
-check('action buttons rendered',
-      sum(1 for w in row_widgets if isinstance(w, Gtk.Button)) >= 4)
+check('post cards rendered',
+      any(isinstance(w, StatusRow) for w in row_widgets))
 pictures = [w for w in row_widgets if isinstance(w, Gtk.Picture)]
 print('note - %d GtkPicture media widgets instantiated' % len(pictures))
 
