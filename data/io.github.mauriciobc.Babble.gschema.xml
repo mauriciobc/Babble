@@ -120,6 +120,10 @@
       <default>true</default>
       <summary>Show reply, boost and favorite counts on post actions</summary>
     </key>
+    <key name="show-action-bar" type="b">
+      <default>false</default>
+      <summary>Show the reply, boost and favorite actions on every post in timelines</summary>
+    </key>
     <key name="advanced-boost-dialog" type="b">
       <default>false</default>
       <summary>Ask for visibility (and offer quoting) before boosting</summary>

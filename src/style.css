@@ -66,6 +66,13 @@
   padding: 0 0.4em;
 }
 
+/* Boosts read as the accent colour, like the reference client's
+   purple rocket; the icon itself still changes when active, so the
+   state is never carried by colour alone. */
+.boost-accent {
+  color: var(--accent-color);
+}
+
 .status-media {
   border-radius: 12px;
 }

@@ -67,6 +67,9 @@ install_data(
 
 timeline_test_env = environment()
 timeline_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+timeline_test_env.set('GSETTINGS_SCHEMA_DIR',
+                      meson.project_build_root() / 'data')
+timeline_test_env.set('GSETTINGS_BACKEND', 'memory')
 test('timeline render', python,
   args: [files('test-timeline.py')],
   env: timeline_test_env,
@@ -76,6 +79,7 @@ test('timeline render', python,
 timeline_memory_test_env = environment()
 timeline_memory_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 timeline_memory_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+timeline_memory_test_env.set('GSETTINGS_BACKEND', 'memory')
 timeline_memory_test_env.set('G_DEBUG', 'fatal-criticals')
 test('timeline memory', python,
   args: [files('test-timeline-memory.py')],
@@ -86,6 +90,7 @@ test('timeline memory', python,
 thread_profile_test_env = environment()
 thread_profile_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 thread_profile_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+thread_profile_test_env.set('GSETTINGS_BACKEND', 'memory')
 thread_profile_test_env.set('G_DEBUG', 'fatal-criticals')
 test('thread profile render', python,
   args: [files('test-thread-profile.py')],
@@ -95,6 +100,9 @@ test('thread profile render', python,
 
 compose_test_env = environment()
 compose_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+compose_test_env.set('GSETTINGS_SCHEMA_DIR',
+                     meson.project_build_root() / 'data')
+compose_test_env.set('GSETTINGS_BACKEND', 'memory')
 test('compose widgets', python,
   args: [files('test-compose.py')],
   env: compose_test_env,
@@ -104,6 +112,7 @@ test('compose widgets', python,
 notifications_test_env = environment()
 notifications_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 notifications_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+notifications_test_env.set('GSETTINGS_BACKEND', 'memory')
 notifications_test_env.set('G_DEBUG', 'fatal-criticals')
 test('notifications render', python,
   args: [files('test-notifications.py')],

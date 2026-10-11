@@ -44,6 +44,8 @@ def last_status_preview(conversation):
     if not status:
         return _('No messages')
     if status.get('spoiler_text'):
+        # Translators: one-line inbox preview; the message body is
+        # hidden behind this content warning
         return _('CW: %s') % status['spoiler_text']
     text = ' '.join(s['text'] for s in parse_content(status.get('content')
                                                       or '')

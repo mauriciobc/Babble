@@ -80,6 +80,20 @@ class StatusItem(GObject.Object):
         return '@%s' % self.status['account'].get('acct', '')
 
     @GObject.Property(type=str)
+    def short_handle(self):
+        account = self.status['account'].get('acct', '')
+        return '@%s' % account.split('@', 1)[0]
+
+    @GObject.Property(type=str)
+    def header_caption(self):
+        """Handle shown on the row: hidden when the short name merely
+        repeats the display name, like the reference client does."""
+        name = self.display_name or '?'
+        if name.strip().casefold() == self.short_handle[1:].casefold():
+            return ''
+        return self.short_handle
+
+    @GObject.Property(type=str)
     def timestamp(self):
         return relative_time(self.status.get('created_at'))
 
@@ -1252,6 +1266,21 @@ MEDIA_KINDS = {'image': _('Image'), 'video': _('Video'),
                'gifv': _('Animated Image'), 'audio': _('Audio')}
 
 
+class BlurredPicture(Gtk.Picture):
+    """A Gtk.Picture blurred at snapshot time: server filters set to
+    'blur' reveal the shape of the media without its content, while
+    the filter badge above it names what matched."""
+
+    def __init__(self, **kwargs):
+        super().__init__(accessible_role=Gtk.AccessibleRole.IMG,
+                         **kwargs)
+
+    def do_snapshot(self, snapshot):
+        snapshot.push_blur(10.0)
+        Gtk.Picture.do_snapshot(self, snapshot)
+        snapshot.pop()
+
+
 class MediaBox(Gtk.Box):
     """Adaptive attachment grid: 1 full / 2 side-by-side / 3-4 in a 2x2
     grid, with ALT and GIF badges. Clicking a tile opens the media
@@ -1265,7 +1294,7 @@ class MediaBox(Gtk.Box):
         self.add_css_class('status-media-box')
         self._attachments = []
 
-    def set_media(self, attachments, sensitive, ui=None):
+    def set_media(self, attachments, sensitive, ui=None, blur=False):
         while (child := self.get_first_child()) is not None:
             self.remove(child)
         ui = ui if ui is not None else {}
@@ -1279,7 +1308,7 @@ class MediaBox(Gtk.Box):
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.append(content)
         if visual:
-            content.append(self._build_grid(visual))
+            content.append(self._build_grid(visual, blur))
         for index, attachment in enumerate(self._attachments):
             if attachment.get('type') not in ('image', 'video', 'gifv'):
                 content.append(self._file_row(index, attachment))
@@ -1299,7 +1328,7 @@ class MediaBox(Gtk.Box):
                          content, ui)
             self.append(hide)
 
-    def _build_grid(self, visual):
+    def _build_grid(self, visual, blur=False):
         count = len(visual)
         if count == 1:
             columns, tile_height = 1, 260
@@ -1316,9 +1345,9 @@ class MediaBox(Gtk.Box):
         for slot, (index, attachment) in enumerate(visual):
             kind = attachment.get('type')
             description = attachment.get('description')
-            picture = Gtk.Picture(
-                alternative_text=description or MEDIA_KINDS.get(
-                    kind, _('Image')))
+            caption = description or MEDIA_KINDS.get(kind, _('Image'))
+            picture = BlurredPicture(alternative_text=caption) if blur \
+                else Gtk.Picture(alternative_text=caption)
             picture.set_content_fit(fit)
             picture.set_can_shrink(True)
             picture.set_hexpand(True)
@@ -1744,7 +1773,8 @@ def _open_row_menu(_button, row_ref):
 class StatusRow(Gtk.Overlay):
     """Post card: boost strip, author header with indicators and the
     overflow menu, content warning, body, poll, quote, card, media and
-    a permanent action row, like the bar's post cards."""
+    an action row; like the reference client the bar is off on patrols
+    and always on detail views."""
 
     __gtype_name__ = 'BabbleStatusRow'
 
@@ -1759,7 +1789,7 @@ class StatusRow(Gtk.Overlay):
         'mute-conversation', 'pin', 'edit', 'delete', 'redraft',
         'revoke-quote', 'report', 'mention', 'mute', 'block')
 
-    def __init__(self, **kwargs):
+    def __init__(self, detail=False, **kwargs):
         super().__init__(accessible_role=Gtk.AccessibleRole.ARTICLE,
                          **kwargs)
         # A card is sized by its content; without this it stretches to
@@ -1770,6 +1800,8 @@ class StatusRow(Gtk.Overlay):
         self.add_css_class('status-row')
         self.item = None
         self.client = None
+        self.detail = detail
+        self.media_blur = False
         self._busy = False
         self._emoji_bank = {}
 
@@ -1980,7 +2012,7 @@ class StatusRow(Gtk.Overlay):
             icon = Gtk.Image(
                 icon_name=self.ICON_BOOST, pixel_size=12,
                 accessible_role=Gtk.AccessibleRole.PRESENTATION)
-            icon.add_css_class('dimmed')
+            icon.add_css_class('boost-accent')
             strip.append(icon)
             self.boost_label = InlineEmojiText(emoji_size=14,
                                                single_line=True)
@@ -2550,13 +2582,27 @@ class StatusRow(Gtk.Overlay):
         self.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
         rule = status_filter(item.raw)
-        collapsed = rule is not None and not ui.get('filter_shown')
-        self.filter_bar.set_visible(collapsed)
-        self.main.set_visible(not collapsed)
+        shown = ui.get('filter_shown')
+        # 'blur' never collapses: the post stays readable and only the
+        # media is covered; 'warn' and 'hide' collapse until shown.
+        blurred_rule = rule is not None and rule[0] == 'blur'
+        collapsed = rule is not None and not blurred_rule and not shown
+        blur = blurred_rule and not shown
+        self.media_blur = blur
+        self.filter_bar.set_visible(collapsed or blur)
+        self.actions.set_visible(
+            self.detail or _flag('show-action-bar'))
         if collapsed:
             self.filter_label.set_text(
                 _('Filtered: %s') % rule[1] if rule[1] else _('Filtered'))
+            self.main.set_visible(False)
             return
+        self.main.set_visible(True)
+        if blur:
+            # The badge stays so the filter names itself; the Show
+            # Anyway click clears it together with the blur.
+            self.filter_label.set_text(
+                _('Filtered: %s') % rule[1] if rule[1] else _('Filtered'))
 
         AvatarCache.load(self.avatar, account)
         display = item.display_name or '?'
@@ -2571,7 +2617,10 @@ class StatusRow(Gtk.Overlay):
             self.name_plain.set_visible(True)
             self.name_plain.set_label(display)
             self.name_plain.set_tooltip_text(display)
-        self.handle_label.set_text(item.handle)
+        caption = item.header_caption
+        self.handle_label.set_text(caption)
+        self.handle_label.set_visible(bool(caption))
+        self.handle_label.set_tooltip_text(item.handle)
         self.bot_badge.set_visible(bool(account.get('bot')))
         self.profile_button.update_property(
             [Gtk.AccessibleProperty.LABEL],
@@ -2622,7 +2671,8 @@ class StatusRow(Gtk.Overlay):
         self._show_quote(quote)
         attachments = status.get('media_attachments') or []
         self.media_box.set_media(
-            attachments, bool(status.get('sensitive')) and not has_cw, ui)
+            attachments, bool(status.get('sensitive')) and not has_cw, ui,
+            blur=self.media_blur)
         show_card = _flag('show-preview-cards') and not poll and not quote \
             and not attachments
         self._show_card(status.get('card') if show_card else None)
@@ -2781,21 +2831,15 @@ class StatusRow(Gtk.Overlay):
         self.time_label.set_visible(not self.has_css_class('run-post'))
 
     def _set_post_meta(self, item):
-        """Phanpy-style line under the body: visibility, relative and
-        absolute time."""
+        """Phanpy-style line under the body: only the visibility and the
+        relative time; the absolute date stays in the tooltip."""
         self.post_meta.set_visible(True)
         status = item.status
         visibility = VISIBILITY_INFO.get(status.get('visibility'),
                                        VISIBILITY_INFO['public'])[0]
         absolute = absolute_time(status.get('created_at'))
-        relative = item.timestamp or ''
-        if absolute and relative:
-            text = '%s · %s — %s' % (visibility, relative, absolute)
-        elif absolute:
-            text = '%s — %s' % (visibility, absolute)
-        else:
-            text = visibility
-        self.post_meta.set_label(text)
+        self.post_meta.set_label('%s · %s' % (visibility, item.timestamp)
+                                 if item.timestamp else visibility)
         self.post_meta.set_tooltip_text(absolute or None)
 
     def _bind_carousel(self, item, client):
@@ -2845,7 +2889,15 @@ class StatusRow(Gtk.Overlay):
 
     def _set_active(self, button, active):
         button.set_active(active)
-        button.get_child().set_icon_name(button.icons[bool(active)])
+        child = button.get_child()
+        child.set_icon_name(button.icons[bool(active)])
+        if button is self.boost_button:
+            # add/remove rather than set_css_classes: the icon may
+            # carry other classes on it.
+            if active:
+                child.add_css_class('boost-accent')
+            else:
+                child.remove_css_class('boost-accent')
 
     def _set_count(self, button, count):
         """Show *count* next to the icon and name it in the accessible

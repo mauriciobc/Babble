@@ -7,6 +7,8 @@ the reply round trip and closing the dialog keeps the draft."""
 import mimetypes
 import os
 import re
+import datetime
+import json
 
 import gi
 
@@ -28,6 +30,7 @@ DEFAULT_CHAR_LIMIT = 500
 URL_PLACEHOLDER_CHARS = 23
 MAX_ATTACHMENTS = 4
 MAX_POLL_CHOICES = 4
+MAX_LOCAL_DRAFTS = 5
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 
 # An instance may take a few seconds to transcode an upload. Poll
@@ -200,6 +203,9 @@ class BabbleComposeView(Adw.Bin):
         self.editing_id = None
         self.quoted_status_id = None
         self.scheduled_id = None
+        self.local_draft_key = None
+        self._saved_local_raw = None
+        self._saved_local_content = None
         self.scheduled_at = None
         self.scheduled_on_done = None
         self._pending_media_ids = []
@@ -440,6 +446,54 @@ class BabbleComposeView(Adw.Bin):
         return not (self.text() or self.attachments()
                     or self.spoiler_entry.get_text()
                     or any(e.get_text() for e in self.poll_entries))
+
+    def save_local_draft(self, *_args):
+        """Keep the unsent draft for the next launch; the dialog calls
+        this when it closes with content still in it. One account's
+        drafts cannot be restored on another one: ids in them are
+        server-local."""
+        if self._posting or self.editing_id is not None \
+                or self.scheduled_id is not None or self.is_empty():
+            return
+        content = self.snapshot()
+        if content == self._saved_local_content:
+            # Closing again without touching anything must not fill the
+            # list with copies of one draft.
+            return
+        draft = dict(content, key=self.local_draft_key,
+                     saved_at=datetime.datetime.now(
+                         datetime.timezone.utc).isoformat())
+        # A changed draft replaces its earlier saved version, so posting
+        # it later leaves no stale copy behind to restore.
+        previous = self._saved_local_raw
+        self._saved_local_raw = json.dumps(draft)
+        self._saved_local_content = content
+        settings = pages.settings()
+        drafts = [self._saved_local_raw] + [
+            raw for raw in settings.get_strv('local-drafts')
+            if raw != previous]
+        settings.set_strv('local-drafts', drafts[:MAX_LOCAL_DRAFTS])
+
+    def drop_saved_local_draft(self):
+        """The saved copy of a draft that was just sent has to stop
+        being offered as something to restore."""
+        if self._saved_local_raw is None:
+            return
+        settings = pages.settings()
+        settings.set_strv(
+            'local-drafts',
+            [raw for raw in settings.get_strv('local-drafts')
+             if raw != self._saved_local_raw])
+        self._saved_local_raw = None
+        self._saved_local_content = None
+
+    def restore_stashing(self, draft):
+        """Restore a recovered draft, keeping the content in progress
+        on the draft stack so the banner above the buffer can bring it
+        back."""
+        if not self.is_empty():
+            self._draft_stack = [self.snapshot()]
+        self.restore(draft)
 
     def clear_attachments(self):
         for row in self.attachments():
@@ -1025,6 +1079,7 @@ class BabbleComposeView(Adw.Bin):
             self._finish_posting()
             self._show_error(_('Could not post'), e.message)
             return
+        self.drop_saved_local_draft()
         self._finish_posting()
         # Resolve the toast target before the dialog closes.
         window = pages.window_of(self)
@@ -1118,6 +1173,7 @@ class ComposeDialog(Adw.Dialog):
         self.view = BabbleComposeView(client)
         self.view._select_visibility(default_visibility())
         pages.connect_weak(self.view, 'changed', self._on_view_changed)
+        pages.connect_weak(self, 'closed', self.view.save_local_draft)
         self.set_child(self.view)
         self.set_focus(self.view.text_view)
         self._on_view_changed(self.view)
