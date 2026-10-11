@@ -274,7 +274,10 @@ window.darken-media .darkenable:hover {
   background-color: color-mix(in srgb, currentColor 8%, transparent);
 }
 
-/* mediaviewer.py: dark attachment viewer */
+/* mediaviewer.py: dark attachment viewer. The hard-coded #000/#fff
+   are an intentional exemption from the palette: a fullscreen photo
+   overlay reads as a lightbox in both color schemes, like the HIG
+   media viewer. */
 .media-viewer-content {
   background-color: #000;
   color: #fff;

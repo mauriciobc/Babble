@@ -69,19 +69,55 @@
         <child>
           <object class="AdwShortcutsItem">
             <property name="title" translatable="yes">Go to Home</property>
-            <property name="accelerator">&lt;Alt&gt;Home</property>
+            <property name="accelerator">&lt;primary&gt;1 &lt;alt&gt;Home</property>
           </object>
         </child>
         <child>
           <object class="AdwShortcutsItem">
             <property name="title" translatable="yes">Go to Notifications</property>
-            <property name="accelerator">&lt;primary&gt;&lt;shift&gt;n</property>
+            <property name="accelerator">&lt;primary&gt;2 &lt;primary&gt;&lt;shift&gt;n</property>
           </object>
         </child>
         <child>
           <object class="AdwShortcutsItem">
-            <property name="title" translatable="yes">Go to Sidebar Place</property>
-            <property name="accelerator">&lt;primary&gt;1...9</property>
+            <property name="title" translatable="yes">Go to Conversations</property>
+            <property name="action-name">win.goto-place('conversations')</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Search</property>
+            <property name="action-name">win.goto-place('search')</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Favorites</property>
+            <property name="action-name">win.goto-place('favourites')</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Bookmarks</property>
+            <property name="action-name">win.goto-place('bookmarks')</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Hashtags</property>
+            <property name="action-name">win.goto-place('hashtags')</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Explore</property>
+            <property name="action-name">win.goto-place('explore')</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Go to Local</property>
+            <property name="action-name">win.goto-place('local')</property>
           </object>
         </child>
         <child>
