@@ -523,6 +523,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         the application (and its notifications) running."""
         if self.client is None or not self.settings.get_boolean(
                 'work-in-background'):
+            # A hold left from an earlier hide would outlive the window.
+            self._release_hold()
             return False
         app = self.get_application()
         if app is not None and not self._held:
@@ -553,13 +555,25 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         self.settings.set_boolean('work-in-background', False)
         pages.show_toast(self, _('Running in the background was not allowed'))
+        # Released even when the window was shown again meanwhile, so
+        # its next close is not kept alive by a stale hold.
+        self._release_hold()
         if not self.get_visible():
             # Hidden by a close the portal now refuses: finish closing.
-            app = self.get_application()
-            if app is not None and self._held:
-                app.release()
-                self._held = False
             self.close()
+
+    def _background_failed(self):
+        # No portal or a D-Bus error: nothing refused, so stay in the
+        # background, but ask again on the next close in case the
+        # failure was transient.
+        self._background_pending = False
+        self._background_asked = False
+
+    def _release_hold(self):
+        app = self.get_application()
+        if app is not None and self._held:
+            app.release()
+            self._held = False
 
     # Pages
 
@@ -1334,7 +1348,7 @@ def _background_finish(window_ref, allowed):
     if window is None:
         return
     if allowed is None:  # no portal: nothing to ask, nothing to undo
-        window._background_pending = False
+        window._background_failed()
     else:
         window._background_done(allowed)
 

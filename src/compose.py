@@ -20,6 +20,8 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import emojichooser, pages  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
+# The same list Preferences offers as the default post language.
+from .preferences import LANGUAGES  # noqa: E402
 
 DEFAULT_CHAR_LIMIT = 500
 URL_PLACEHOLDER_CHARS = 23
@@ -59,17 +61,6 @@ VISIBILITIES = [
     ('unlisted', _('Unlisted')),
     ('private', _('Followers only')),
     ('direct', _('Direct')),
-]
-
-LANGUAGES = [
-    ('en', _('English')),
-    ('es', _('Español')),
-    ('fr', _('Français')),
-    ('de', _('Deutsch')),
-    ('it', _('Italiano')),
-    ('pt', _('Português')),
-    ('ru', _('Русский')),
-    ('zh', _('中文')),
 ]
 
 POLL_DURATIONS = [
@@ -379,6 +370,9 @@ class BabbleComposeView(Adw.Bin):
         self.visibility_row = _make_dropdown(VISIBILITIES,
                                              _('Post Visibility'))
         self.language_row = _make_dropdown(LANGUAGES, _('Post Language'))
+        self.language_row.set_expression(Gtk.PropertyExpression.new(
+            Gtk.StringObject, None, 'string'))
+        self.language_row.set_enable_search(True)
         self.language_row.set_selected(
             [lang[0] for lang in LANGUAGES].index(default_language()))
         options.append(self.visibility_row)
