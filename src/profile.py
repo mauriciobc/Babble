@@ -838,6 +838,13 @@ class ProfilePage(Adw.Bin):
                                 [_('Profile Fields')])
         rows = [self._field_row(field, account) for field in fields]
         for index, row in enumerate(rows):
+            if index >= VISIBLE_FIELDS:
+                box = row.get_child()
+                revealer = Gtk.Revealer(
+                    transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+                row.set_child(None)
+                revealer.set_child(box)
+                row.set_child(revealer)
             row.set_visible(index < VISIBLE_FIELDS)
             listbox.append(row)
         if len(rows) > VISIBLE_FIELDS:
@@ -882,7 +889,13 @@ class ProfilePage(Adw.Bin):
         """Reveal/hide field rows beyond the first few."""
         expand = not hidden_rows[0].get_visible()
         for row in hidden_rows:
-            row.set_visible(expand)
+            revealer = row.get_child()
+            if expand:
+                row.set_visible(True)
+                pages.reveal(revealer, True, animate=True)
+            else:
+                pages.reveal(revealer, False)
+                row.set_visible(False)
         toggle.set_title(_('Show Less') if expand else _('Show More'))
 
     @staticmethod

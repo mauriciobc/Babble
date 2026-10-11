@@ -312,13 +312,15 @@ class BabbleComposeView(Adw.Bin):
         pages.connect_weak(self.spoiler_entry, 'changed',
                            self.on_draft_changed)
         self._spoiler_box = Gtk.ListBox(
-            selection_mode=Gtk.SelectionMode.NONE, visible=False)
+            selection_mode=Gtk.SelectionMode.NONE)
         self._spoiler_box.add_css_class('boxed-list')
         self._spoiler_box.append(self.spoiler_entry)
-        box.append(self._spoiler_box)
+        self._spoiler_revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
+            child=self._spoiler_box)
+        box.append(self._spoiler_revealer)
 
-        self._poll_box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,
-                                     visible=False)
+        self._poll_box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self._poll_box.add_css_class('boxed-list')
         self.poll_entries = []
         self.poll_expiry = Adw.ComboRow(
@@ -334,7 +336,10 @@ class BabbleComposeView(Adw.Bin):
         self._poll_box.append(self.poll_add)
         for _n in range(2):
             self.on_poll_add_choice(self.poll_add)
-        box.append(self._poll_box)
+        self._poll_revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
+            child=self._poll_box)
+        box.append(self._poll_revealer)
         return box
 
     def build_action_bar(self):
@@ -389,6 +394,7 @@ class BabbleComposeView(Adw.Bin):
                                        tooltip_text=_('Characters Left'))
         self.counter_label.add_css_class('numeric')
         self.counter_label.add_css_class('caption')
+        self.counter_label.add_css_class('compose-counter')
         options.append(self.counter_label)
         bar.append(options)
         return bar
@@ -657,14 +663,16 @@ class BabbleComposeView(Adw.Bin):
         self.update_compose_state()
 
     def on_cw_toggled(self, toggle):
-        self._spoiler_box.set_visible(toggle.get_active())
+        pages.reveal(self._spoiler_revealer, toggle.get_active(),
+                     animate=self.get_mapped())
         if toggle.get_active():
             self.spoiler_entry.grab_focus()
         else:
             self.spoiler_entry.set_text('')
 
     def on_poll_toggled(self, toggle):
-        self._poll_box.set_visible(toggle.get_active())
+        pages.reveal(self._poll_revealer, toggle.get_active(),
+                     animate=self.get_mapped())
         if toggle.get_active():
             self.poll_entries[0].grab_focus()
         else:
