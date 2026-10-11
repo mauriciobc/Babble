@@ -76,7 +76,8 @@ class MentionCompleter(Gtk.Popover):
         self._hint = False
 
         self.list_box = Gtk.ListBox(
-            selection_mode=Gtk.SelectionMode.SINGLE, can_focus=False)
+            selection_mode=Gtk.SelectionMode.SINGLE,
+            activate_on_single_click=True, can_focus=False)
         self.list_box.add_css_class('navigation-sidebar')
         self.list_box.update_property([Gtk.AccessibleProperty.LABEL],
                                       [_('Suggested Accounts')])
@@ -122,8 +123,7 @@ class MentionCompleter(Gtk.Popover):
         self._hint = False
         self._clear_rows()
         self.hint_label.set_visible(False)
-        if self.get_visible():
-            self.popdown()
+        self._hide()
 
     def update(self):
         """Follow the cursor: search for the mention it ends, if any."""
@@ -137,6 +137,11 @@ class MentionCompleter(Gtk.Popover):
             return
         self._token = token
         self._cancel_search()
+        # The rows shown answer the previous query: keep them in view,
+        # so the list does not flicker on every keystroke, but out of
+        # reach until the new results replace them.
+        self.list_box.unselect_all()
+        self.list_box.set_sensitive(False)
         _start, query = token
         if not query:
             # Nothing to search for yet: a bare @ the button inserted
@@ -248,6 +253,7 @@ class MentionCompleter(Gtk.Popover):
                                 ['%s, @%s' % (name, acct)])
             row.acct = acct
             self.list_box.append(row)
+        self.list_box.set_sensitive(True)
         self.list_box.select_row(self.list_box.get_row_at_index(0))
         self._show_if_filled()
 
@@ -255,12 +261,23 @@ class MentionCompleter(Gtk.Popover):
         filled = (self.hint_label.get_visible()
                   or self.list_box.get_row_at_index(0) is not None)
         if not filled or self._token is None:
-            if self.get_visible():
-                self.popdown()
+            self._hide()
             return
         self._place(self._token[0])
         if not self.get_visible():
             self.popup()
+
+    def _hide(self):
+        if not self.get_visible():
+            return
+        self.popdown()
+        # A popover shown again keeps its wl_surface, and when the
+        # frame it last drew is still waiting on its GPU fence the
+        # compositor rejects the new popup role ("already has a buffer
+        # committed") and drops the connection. This list hides and
+        # shows again within a frame, so give every showing a fresh
+        # surface.
+        self.unrealize()
 
     def _place(self, offset):
         """Point at the ``@`` the suggestions are for."""
@@ -319,9 +336,11 @@ class MentionCompleter(Gtk.Popover):
             self._suppressed = self._token
             self.dismiss()
             return True
+        # Shift too: Shift+Enter is a line break, Shift+Tab moves focus.
         modifiers = state & (Gdk.ModifierType.CONTROL_MASK
                              | Gdk.ModifierType.ALT_MASK
-                             | Gdk.ModifierType.SUPER_MASK)
+                             | Gdk.ModifierType.SUPER_MASK
+                             | Gdk.ModifierType.SHIFT_MASK)
         selected = self.list_box.get_selected_row()
         if modifiers or selected is None:
             return False

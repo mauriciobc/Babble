@@ -626,12 +626,22 @@ def press(keyval, state=NO_MODS):
     return completer._on_key_pressed(None, keyval, 0, state)
 
 
+def settle():
+    """Run the loop until the completer's debounced search has been
+    answered: a fixed wait is too short on a loaded machine."""
+    deadline = GLib.get_monotonic_time() + 3 * 1000 * 1000
+    while (completer._search_id or completer._cancellable is not None) \
+            and GLib.get_monotonic_time() < deadline:
+        pump(20)
+    pump(50)
+
+
 def type_text(text, cursor=None):
     view.buffer.set_text(text)
     position = (view.buffer.get_end_iter() if cursor is None
                 else view.buffer.get_iter_at_offset(cursor))
     view.buffer.place_cursor(position)
-    pump(400)
+    settle()
 
 
 view.reset()
@@ -651,6 +661,11 @@ check('custom emoji are dropped from the shown name',
       rows[0].acct == 'alice'
       and rows[0].get_child().get_last_child().get_first_child()
       .get_label() == 'Alice')
+check('rows activate on a single click',
+      completer.list_box.get_activate_on_single_click())
+check('Shift+Enter is left to the text view for a line break',
+      not press(Gdk.KEY_Return, Gdk.ModifierType.SHIFT_MASK)
+      and completer.get_visible())
 check('Down moves the selection', press(Gdk.KEY_Down)
       and completer.list_box.get_selected_row() is rows[1])
 check('Ctrl+Enter is left to the composer',
@@ -661,6 +676,18 @@ check('the list closes after inserting', not completer.get_visible())
 cursor = view.buffer.get_iter_at_mark(view.buffer.get_insert())
 check('the cursor lands after the mention',
       cursor.get_offset() == len(view.text()))
+
+# Results for an older query are never inserted into a newer one.
+type_text('@al')
+view.buffer.insert_at_cursor('x')
+check('older results are out of reach while the new query runs',
+      completer.list_box.get_selected_row() is None
+      and not completer.list_box.get_sensitive()
+      and not press(Gdk.KEY_Return) and view.text() == '@alx')
+settle()
+check('new results make the list usable again',
+      completer.list_box.get_sensitive()
+      and completer.list_box.get_selected_row() is not None)
 
 type_text('@al rest', cursor=2)
 check('a mention mid-word still suggests', completer.get_visible())
@@ -675,11 +702,11 @@ type_text('@al')
 check('Escape closes the list', press(Gdk.KEY_Escape)
       and not completer.get_visible())
 view.buffer.place_cursor(view.buffer.get_end_iter())
-pump(400)
+settle()
 check('a closed mention stays closed while it is unchanged',
       not completer.get_visible())
 view.buffer.insert_at_cursor('i')
-pump(400)
+settle()
 check('typing on reopens it', completer.get_visible()
       and searches[-1][2].get('q') == 'ali')
 
@@ -705,7 +732,7 @@ check('mention button spaces the @ from a word', view.text() == 'hello @')
 check('mention button shows the hint', completer.get_visible()
       and completer.hint_label.get_visible())
 view.buffer.insert_at_cursor('al')
-pump(400)
+settle()
 check('typing replaces the hint with suggestions',
       not completer.hint_label.get_visible()
       and completer.list_box.get_row_at_index(0) is not None)
