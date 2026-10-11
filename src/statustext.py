@@ -200,11 +200,16 @@ def is_web_link(uri):
 
 
 def shorten_url_text(text):
-    """Compact raw URLs for display, keeping the href target intact."""
+    """Compact raw URLs for display, keeping the href target intact.
+
+    Any ``user:password@`` is dropped, so the label always starts with
+    the host the link goes to: ``https://bank.test.verify.example@evil.test``
+    would otherwise read as the bank, and the truncation could cut the
+    real host off entirely."""
     if text.lower().startswith(('http://', 'https://')):
         parsed = urllib.parse.urlsplit(text)
         path = parsed.path.rstrip('/')
-        label = parsed.netloc + path
+        label = parsed.netloc.rpartition('@')[2] + path
         if len(label) > 42:
             label = label[:39] + '…'
         return label

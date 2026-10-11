@@ -90,6 +90,19 @@ class TestShortenUrl(unittest.TestCase):
         self.assertLessEqual(len(out), 43)
         self.assertTrue(out.endswith('…'))
 
+    def test_credentials_never_disguise_the_host(self):
+        self.assertEqual(
+            shorten_url_text('https://bank.test:pw@evil.test/login'),
+            'evil.test/login')
+        # Long enough to be truncated: the real host must still lead.
+        out = shorten_url_text(
+            'https://bank.test.verify.account.example.com@evil.test/x')
+        self.assertTrue(out.startswith('evil.test'), out)
+
+    def test_the_port_is_kept(self):
+        self.assertEqual(shorten_url_text('https://u@example.test:8443/a'),
+                         'example.test:8443/a')
+
     def test_something_that_is_not_a_url_is_left_alone(self):
         self.assertEqual(shorten_url_text('not a url'), 'not a url')
 
