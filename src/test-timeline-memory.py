@@ -73,13 +73,13 @@ changes.clear()
 check('an edit changes the post in place',
       model.replace_status({'id': '00020', 'content': '<p>edited</p>'})
       and changes == [])
-model.set_boosts([status(5)])
+carousel = timeline.BoostCarouselItem([status(5)], [])
+model._store.insert(0, carousel)
 changes.clear()
-head = model.get_item(0)
-model.set_boosts([status(6)])
+carousel.set_boosts([status(6)])
 check('the boosts carousel is updated in place',
-      changes == [] and model.get_item(0) is head
-      and head.boosts[0]['id'] == '00006')
+      changes == [] and model.get_item(0) is carousel
+      and carousel.boosts[0]['id'] == '00006')
 
 # Trimming keeps the newest posts and pages from the oldest one left,
 # so infinite scroll can fetch the dropped posts again.
