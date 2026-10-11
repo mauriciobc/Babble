@@ -142,12 +142,19 @@ def role_permissions(account):
 def needs_admin_scopes(error):
     """Whether *error* is the token missing the admin scopes.
 
-    The account's role is checked before the dashboard opens, so a 403
-    raised inside it is not "this user is not a moderator" but "this
-    token was never authorized for ``admin:read``/``admin:write``" --
-    the one cause this app can act on, by asking the user for them.
+    Only the scope refusal is something this app can fix, by asking the
+    user to authorize them. A 403 whose body does not name the scopes is
+    the role refusing the request, and offering another authorization
+    for it would send the user to a consent screen that changes nothing.
+
+    Mastodon answers the scope refusal with ``This action is outside the
+    authorized scopes``; a role refusal is a bare ``Forbidden``. Keying
+    on the status alone would mistake the second for the first.
     """
-    return getattr(error, 'code', 0) in (401, 403)
+    if getattr(error, 'code', 0) not in (401, 403):
+        return False
+    message = summarize_error(getattr(error, 'message', None) or '')
+    return 'scope' in message.lower()
 
 
 # Small widgets

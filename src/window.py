@@ -133,6 +133,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         # one already signed in, asking for the admin scopes on top.
         self._auth_mode = AUTH_LOGIN
         self._auth_admin_callback = None
+        # The account a moderation authorization was started for, so a
+        # reply arriving after an account switch is refused.
+        self._admin_owner = None
         # One authorization attempt is one click on the login button and
         # the redirect (or pasted code) that answers it. The attempt id
         # tells replies apart, the ledger spends each code exactly once.
@@ -261,7 +264,9 @@ class BabbleWindow(Adw.ApplicationWindow):
                 return
             if token is None:
                 if login_only:
-                    self.remove_account(account_id)
+                    # The whole account, not just an id: another
+                    # instance may hold the same id.
+                    self.remove_account(account)
                     self.main_stack.set_visible_child_name('login')
                 else:
                     self.show_toast(
@@ -274,7 +279,10 @@ class BabbleWindow(Adw.ApplicationWindow):
             self.client = client
             self.account = account
             if not login_only:
-                self.settings.set_string('active-account', account_id)
+                # The paired key, so a second account with the same id on
+                # another instance cannot take the selection with it.
+                self.settings.set_string(
+                    'active-account', account_store.account_key(account))
             self.show_shell()
 
         # The keyring is an out-of-process round trip; the token arrives
@@ -287,8 +295,14 @@ class BabbleWindow(Adw.ApplicationWindow):
     def store_account(self, account):
         account_store.save_account(self.settings, account, activate=True)
 
-    def remove_account(self, account_id):
-        account_store.forget_account(self.settings, account_id)
+    def remove_account(self, account):
+        """Forget *account* -- the id together with its instance.
+
+        Forgetting by id alone would delete every stored account carrying
+        that id, including another instance's.
+        """
+        account_store.forget_account(self.settings, account['id'],
+                                      account['instance'])
 
     def _update_session_actions(self):
         signed_in = self.client is not None and self.account is not None
@@ -372,12 +386,14 @@ class BabbleWindow(Adw.ApplicationWindow):
         way out -- but it is local IPC, so the window never waits on the
         network to finish logging you out.
         """
-        was_active = self.account is not None and \
-            account_store.same_account(self.account, account)
-        self._revoke_then_remove(account, was_active)
+        self._revoke_then_remove(account)
 
-    def _revoke_then_remove(self, account, was_active):
+    def _revoke_then_remove(self, account):
         instance, account_id = account['instance'], account['id']
+        # Whether this is the account being removed *now* is decided when
+        # the removal completes, not when it starts: the keyring read is
+        # asynchronous, and the user can switch accounts in between.
+        was_active = self._is_active(account)
         # The session that signed in already holds this account's token
         # and client credentials; removing another account needs a client
         # that reads them back.
@@ -400,28 +416,37 @@ class BabbleWindow(Adw.ApplicationWindow):
                     client.token,
                     lambda _c, result, _d=None: _swallow(
                         client.revoke_token_finish, result))
-            self._finish_account_removal(account, was_active)
+            self._finish_account_removal(account)
 
         def on_credentials(_known):
             revoke_then_forget()
 
         def on_token(token):
             client.token = token
-            client.load_client_credentials(on_credentials)
+            client.load_client_credentials(account_id, on_credentials)
 
         if have_token and have_credentials:
             revoke_then_forget()
         elif have_token:
-            client.load_client_credentials(on_credentials)
+            client.load_client_credentials(account_id, on_credentials)
         else:
             client.load_secret_token(account_id, on_token)
 
-    def _finish_account_removal(self, account, was_active):
+    def _is_active(self, account):
+        """Whether *account* is the one currently signed in."""
+        return self.account is not None \
+            and account_store.same_account(self.account, account)
+
+    def _finish_account_removal(self, account):
         clear_secret_async(account['instance'], account['id'])
         remaining = account_store.forget_account(self.settings,
                                                  account['id'],
                                                  account['instance'])
-        if not was_active:
+        # Re-read now that the keyring has answered: the user may have
+        # switched accounts while it was in flight, and tearing down a
+        # session that is no longer this account would sign the wrong one
+        # out.
+        if not self._is_active(account):
             return
         self._teardown_session()
         self.account = None
@@ -1154,7 +1179,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._auth_mode = AUTH_LOGIN
         self.begin_auth_attempt()
         self.refresh_login_widgets()
-        self._auth_client.register_app_async(self.on_app_registered)
+        self._auth_client.register_app_async(callback=self.on_app_registered)
 
     @Gtk.Template.Callback()
     def on_cancel_login_clicked(self, _button):
@@ -1397,6 +1422,10 @@ class BabbleWindow(Adw.ApplicationWindow):
                 callback(False)
             return
         self._auth_admin_callback = callback
+        # Bound the authorization to the account that asked for it: a
+        # switch or a logout while the browser step is open must not let
+        # the reply install a token for the account that replaced it.
+        self._admin_owner = account_store.account_key(self.account)
         self._auth_client = MastodonClient(self.account['instance'])
         self._auth_mode = AUTH_ADMIN
         self.begin_auth_attempt()
@@ -1418,16 +1447,42 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._settle_admin_authorization(
                 False, _('The system keyring refused to store the login.'))
             return
+        # The session must still be the one that asked for moderation.
+        # The attempt id alone cannot tell: switching accounts does not
+        # bump it, so a reply from the previous session would still match.
+        if self.account is None or self._admin_owner != \
+                account_store.account_key(self.account):
+            self._settle_admin_authorization(
+                False, _('The account changed before moderation was '
+                         'authorized.'))
+            return
         # The freshly verified entity carries no role, and losing it
         # would take the admin action with it; keep the one we have.
-        if self.account is not None:
-            account['role'] = self.account.get('role')
+        account['role'] = self.account.get('role')
+        # The credentials have to land before the token does, or a
+        # restart leaves an account that cannot be revoked on logout.
+        client.store_client_credentials(
+            account['id'], client.client_id, client.client_secret,
+            lambda cred_error: self._on_admin_credentials_stored(
+                client, account, attempt, cred_error))
+
+    def _on_admin_credentials_stored(self, client, account, attempt, error):
+        if attempt != self._auth_attempt:
+            return
+        if error is not None:
+            self._settle_admin_authorization(
+                False, _('The system keyring refused to store the login.'))
+            return
+        if self.account is None or self._admin_owner != \
+                account_store.account_key(self.account):
+            self._settle_admin_authorization(
+                False, _('The account changed before moderation was '
+                         'authorized.'))
+            return
         if self.client is not None:
             self.client.token = client.token
             self.client.client_id = client.client_id
             self.client.client_secret = client.client_secret
-            self.client.store_client_credentials(client.client_id,
-                                                 client.client_secret)
         self.account = account
         self.store_account(account)
         self._settle_admin_authorization(True, _('Moderation access granted'))
@@ -1436,6 +1491,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         """Report the outcome once, and clear the admin attempt."""
         callback = self._auth_admin_callback
         self._auth_admin_callback = None
+        self._admin_owner = None
         self._auth_attempt += 1
         self._auth_client = None
         self._auth_mode = AUTH_LOGIN
@@ -1459,14 +1515,23 @@ class BabbleWindow(Adw.ApplicationWindow):
         if attempt != self._auth_attempt:
             return
         if error is not None:
-            self.settle_auth_attempt(
-                attempt, _('Could not save the login'),
-                _('The system keyring refused to store the login for '
-                  '@%s. Check that a keyring service is running, then '
-                  'try again.') % account.get('acct', ''))
+            self._report_keyring_failure(attempt, account)
             return
+        # The client credentials have to land before the account does.
+        # Without them a later logout cannot authenticate the revoke, so
+        # it drops the local account while the server token stays live.
         client.store_client_credentials(
-            client.client_id, client.client_secret)
+            account['id'], client.client_id, client.client_secret,
+            lambda cred_error: self.on_credentials_stored(
+                client, account, attempt, cred_error))
+
+    def on_credentials_stored(self, client, account, attempt, error):
+        """The last keyring write answered: commit, or report."""
+        if attempt != self._auth_attempt:
+            return
+        if error is not None:
+            self._report_keyring_failure(attempt, account)
+            return
         self.account = account
         self.store_account(account)
         self.client = client
@@ -1475,6 +1540,13 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.show_shell()
         self.settle_auth_attempt(attempt, message=_('Logged in as @%s')
                                  % account.get('acct', ''))
+
+    def _report_keyring_failure(self, attempt, account):
+        self.settle_auth_attempt(
+            attempt, _('Could not save the login'),
+            _('The system keyring refused to store the login for '
+              '@%s. Check that a keyring service is running, then '
+              'try again.') % account.get('acct', ''))
 
     def on_logout_requested(self, _action, _param):
         if self.account is None:

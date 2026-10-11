@@ -118,8 +118,11 @@ ADMIN_SCOPES = OAUTH_SCOPES + ' admin:read admin:write'
 # in to.
 APP_WEBSITE = 'https://github.com/mauriciobc/babble'
 
-# Keyring kind of the OAuth client credentials, stored per instance.
-CLIENT_CREDENTIALS_KIND = 'oauth-client'
+# Keyring kind of the OAuth client credentials. They are keyed per
+# account as well as per instance: every authorization registers its own
+# application, so two accounts on one instance hold different credential
+# pairs and sharing one entry would make the older token unrevokable.
+CLIENT_CREDENTIALS_KIND = 'oauth-client:'
 
 SECRET_SCHEMA = Secret.Schema.new('io.github.mauriciobc.Babble',
                                   Secret.SchemaFlags.NONE,
@@ -453,11 +456,16 @@ class MastodonClient(GObject.Object):
 
     # OAuth
 
-    def register_app_async(self, scopes=OAUTH_SCOPES, callback=None,
-                           cancellable=None):
+    def register_app_async(self, scopes=OAUTH_SCOPES, *,
+                           callback=None, cancellable=None):
         """POST /api/v1/apps. *scopes* becomes the ceiling every later
         authorization may ask for: Mastodon refuses to authorize a scope
-        the registration did not declare."""
+        the registration did not declare.
+
+        *callback* is keyword-only: passing the handler positionally used
+        to bind it to *scopes*, which silently left the registration with
+        no completion handler and the browser step never opened.
+        """
         return self._request_async('POST', '/apps',
                                    form={'client_name': 'Babble',
                                          'redirect_uris': REDIRECT_URIS,
@@ -480,22 +488,29 @@ class MastodonClient(GObject.Object):
         """Read the stored token; *callback* receives it, or None."""
         load_secret_async(self.instance, account_id, callback, cancellable)
 
-    def store_client_credentials(self, client_id, client_secret, callback=None,
-                                 cancellable=None):
-        """Keep the OAuth client credentials in the keyring.
+    def store_client_credentials(self, account_id, client_id, client_secret,
+                                 callback=None, cancellable=None):
+        """Keep the OAuth client credentials in the keyring, for
+        *account_id*.
 
         ``POST /oauth/revoke`` authenticates the client, so signing a
         token out later needs them again -- and a logout can happen in a
-        later process than the one that registered the app.
+        later process than the one that registered the app. They are keyed
+        by account because each authorization registers its own
+        application: one entry per instance would be overwritten by the
+        second login, leaving the first token unrevokable.
         """
         payload = json.dumps({'client_id': client_id,
                               'client_secret': client_secret})
-        store_secret_async(self.instance, CLIENT_CREDENTIALS_KIND, payload,
+        store_secret_async(self.instance,
+                           CLIENT_CREDENTIALS_KIND + account_id, payload,
                            callback, cancellable)
 
-    def load_client_credentials(self, callback, cancellable=None):
-        """Read the stored client credentials into ``client_id`` and
-        ``client_secret``; *callback* receives None when there are none."""
+    def load_client_credentials(self, account_id, callback,
+                                cancellable=None):
+        """Read the stored client credentials for *account_id* into
+        ``client_id`` and ``client_secret``; *callback* receives None
+        when there are none."""
         def loaded(text):
             if text:
                 try:
@@ -505,12 +520,25 @@ class MastodonClient(GObject.Object):
                 except ValueError:
                     self.client_id = self.client_secret = None
             callback(text is not None and self.client_id is not None)
-        load_secret_async(self.instance, CLIENT_CREDENTIALS_KIND, loaded,
-                          cancellable)
+        load_secret_async(self.instance, CLIENT_CREDENTIALS_KIND + account_id,
+                          loaded, cancellable)
 
-    def clear_client_credentials(self, callback=None, cancellable=None):
-        clear_secret_async(self.instance, CLIENT_CREDENTIALS_KIND, callback,
-                           cancellable)
+    def clear_client_credentials(self, account_id, callback=None,
+                                 cancellable=None):
+        clear_secret_async(self.instance, CLIENT_CREDENTIALS_KIND + account_id,
+                           callback, cancellable)
+
+    def adopt_client_credentials(self, other):
+        """Copy *other*'s OAuth client credentials onto this client.
+
+        Each authorization registers its own application, so the client
+        that will revoke a token has to be the one the token was issued
+        to. A client built to read an existing token back has none of its
+        own, and without them the revoke is refused with a 403.
+        """
+        self.client_id = other.client_id
+        self.client_secret = other.client_secret
+        return bool(self.client_id and self.client_secret)
 
     def revoke_token_async(self, token, callback=None, cancellable=None):
         """POST /oauth/revoke: the token stops being accepted by the

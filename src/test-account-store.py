@@ -123,6 +123,74 @@ class TestAccountIdentity(unittest.TestCase):
         self.assertIsNone(active_account(settings))
 
 
+class TestRegistrationCallbackIsKeywordOnly(unittest.TestCase):
+    """``callback`` must never bind to ``scopes``.
+
+    Adding ``scopes`` before ``callback`` made a positional call bind the
+    handler to ``scopes``, leaving the registration with no completion
+    handler: the browser step never opened and no login could finish.
+    """
+
+    def test_a_handler_passed_positionally_is_refused(self):
+        import inspect
+        parameters = inspect.signature(
+            MastodonClient.register_app_async).parameters
+        self.assertEqual(parameters['scopes'].kind,
+                         inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        self.assertEqual(parameters['callback'].kind,
+                         inspect.Parameter.KEYWORD_ONLY)
+
+
+class TestClientCredentialsPerAccount(unittest.TestCase):
+    """Each authorization registers its own application.
+
+    Two accounts on one instance therefore hold different credential
+    pairs; a single per-instance entry would be overwritten by the
+    second login, leaving the first token unrevokable.
+    """
+
+    def test_credentials_are_keyed_by_account_and_instance(self):
+        seen = []
+
+        def record(instance, kind, payload, callback=None,
+                   cancellable=None):
+            seen.append((instance, kind))
+            if callback is not None:
+                callback(None)
+
+        client = MastodonClient('https://a.example')
+        import src.mastodon as mastodon_module
+        original = mastodon_module.store_secret_async
+        mastodon_module.store_secret_async = record
+        try:
+            client.store_client_credentials('42', 'cid1', 'sec1')
+            client.store_client_credentials('7', 'cid2', 'sec2')
+        finally:
+            mastodon_module.store_secret_async = original
+        self.assertEqual([kind for _instance, kind in seen],
+                         ['oauth-client:42', 'oauth-client:7'])
+
+    def test_the_two_accounts_keep_different_credentials(self):
+        keys = {}
+
+        def record(instance, kind, payload, callback=None,
+                   cancellable=None):
+            keys[(instance, kind)] = payload
+            if callback is not None:
+                callback(None)
+
+        client = MastodonClient('https://a.example')
+        import src.mastodon as mastodon_module
+        original = mastodon_module.store_secret_async
+        mastodon_module.store_secret_async = record
+        try:
+            client.store_client_credentials('42', 'cid1', 'sec1')
+            client.store_client_credentials('7', 'cid2', 'sec2')
+        finally:
+            mastodon_module.store_secret_async = original
+        self.assertEqual(len(set(keys.values())), 2)
+
+
 class TestRevocation(unittest.TestCase):
     def setUp(self):
         self.client = MastodonClient('https://a.example')

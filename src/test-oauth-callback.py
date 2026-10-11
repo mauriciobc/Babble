@@ -197,9 +197,13 @@ class StubClient:
         if callback is not None:
             callback(None)
 
-    def store_client_credentials(self, client_id, client_secret,
+    def store_client_credentials(self, account_id, client_id, client_secret,
                                  callback=None):
-        self.client_credentials = (client_id, client_secret)
+        # Keyed by account: each authorization registers its own app, so
+        # two accounts on one instance hold different credentials.
+        self.client_credentials = (account_id, client_id, client_secret)
+        if callback is not None:
+            callback(None)
 
     # Pages the shell builds after a successful login.
 
@@ -595,9 +599,10 @@ import src.window as window_module  # noqa: E402
 _real_client_class = window_module.MastodonClient
 window_module.MastodonClient = DeferredTokenClient
 try:
-    # Which account ids the window decided to forget, if any.
+    # Which accounts the window decided to forget, if any. The whole
+    # account, so another instance's account with the same id survives.
     forgotten = []
-    win.remove_account = lambda aid: forgotten.append(aid)
+    win.remove_account = lambda acc: forgotten.append(acc)
     win._activate_account(
         {'id': '1', 'instance': 'https://a.example', 'acct': 'first'},
         login_only=True)
@@ -665,7 +670,8 @@ class RevokeClient(StubClient):
         self.client_secret = 'csecret'
         self.token = 'live-token'
 
-    def load_client_credentials(self, callback, cancellable=None):
+    def load_client_credentials(self, account_id, callback,
+                                cancellable=None):
         callback(True)
 
     def revoke_token_async(self, token, callback=None, cancellable=None):

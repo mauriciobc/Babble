@@ -60,7 +60,7 @@ def _sentence(rng, n):
 def _content(base, rng, sid):
     paragraphs = []
     mentions, tags, emojis = [], [], []
-    for p in range(rng.choice((1, 1, 2, 3, 5))):
+    for _p in range(rng.choice((1, 1, 2, 3, 5))):
         parts = [_sentence(rng, rng.randrange(6, 40))]
         if rng.random() < 0.3:
             m = rng.randrange(ACCOUNTS)

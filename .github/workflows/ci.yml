@@ -53,10 +53,14 @@ jobs:
       - name: Fail on a skipped test
         # A test that exits 77 is skipped, and meson still exits 0. A
         # machine that cannot run the suite must not report green.
+        #
+        # meson always prints a "Skipped:" line, with a count of 0 on a
+        # clean run, so matching the line alone would fail every green
+        # run. Match a nonzero count instead.
         run: |
-          if grep -qE '^Skipped: +[0-9]+' ci.log; then
-            echo '::error::tests were skipped rather than run'
-            grep -E '^Skipped: +[0-9]+' ci.log
+          skipped=$(sed -nE 's/^Skipped:[[:space:]]+([0-9]+).*/\1/p' ci.log | tail -1)
+          if [ -n "$skipped" ] && [ "$skipped" -ne 0 ]; then
+            echo "::error::$skipped test(s) were skipped rather than run"
             exit 1
           fi
 
