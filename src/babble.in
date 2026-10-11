@@ -33,6 +33,32 @@ locale.textdomain('babble')
 gettext.bindtextdomain('babble', localedir)
 gettext.textdomain('babble')
 
+
+def use_time_locale(language):
+    """Month names and date formats follow LC_TIME, not LANGUAGE:
+    point it at a locale for *language* when one is installed. A missing
+    one is left alone, since GTK's setlocale(LC_ALL, "") would then fail
+    for every category, translations included."""
+    if os.environ.get('LC_ALL'):
+        return  # overrides LC_TIME anyway
+    system = (os.environ.get('LC_TIME') or os.environ.get('LANG')
+              or '').split('.')[0]
+    if language in (system, system.split('_')[0]):
+        return
+    candidates = [locale.normalize(language).split('.')[0] + '.UTF-8']
+    if language == 'en':
+        candidates.append('C.UTF-8')
+    previous = locale.setlocale(locale.LC_TIME)
+    for candidate in candidates:
+        try:
+            locale.setlocale(locale.LC_TIME, candidate)
+        except locale.Error:
+            continue
+        os.environ['LC_TIME'] = candidate
+        break
+    locale.setlocale(locale.LC_TIME, previous)
+
+
 if __name__ == '__main__':
     import gi
 
@@ -58,6 +84,7 @@ if __name__ == '__main__':
             'interface-language')
         if language:
             os.environ['LANGUAGE'] = language
+            use_time_locale(language)
 
     from babble import main
     sys.exit(main.main(VERSION))
