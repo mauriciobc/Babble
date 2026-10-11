@@ -33,7 +33,15 @@ BOOST_CAP = 12
 # Decoded-texture budgets. Avatars repeat across a timeline so they are
 # cheap to keep; media are large, so far fewer stay resident.
 AVATAR_CACHE_SIZE = 256
+# Instances serve 400px avatars; the largest one shown is 96px. Decoded
+# at full size, a full avatar cache held ~156 MB.
+AVATAR_DECODE_SIZE = 96
 MEDIA_TEXTURE_CACHE_SIZE = 48
+# Gtk.ListView keeps up to ~200 list items alive per page whatever the
+# scroll position, and each unmapped one holds its built StatusRow cards.
+# Only this many unmapped shells, across all pages, keep theirs; the
+# least recently unmapped drop them and rebuild if scrolled back to.
+CARD_SHELLS_KEPT = 100
 
 
 class StatusItem(GObject.Object):
@@ -309,6 +317,11 @@ class StatusRunRow(Gtk.Box):
 
     # Replaced with the height of posts that have actually been shown.
     _typical_height = 64
+    # Unmapped shells that still hold cards, least recently unmapped
+    # first. GObject weak refs, so the LRU never keeps a shell (and its
+    # page) alive; keyed by a per-shell counter, not the object.
+    _kept = collections.OrderedDict()
+    _next_key = 0
 
     def __init__(self):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
@@ -330,13 +343,19 @@ class StatusRunRow(Gtk.Box):
         self.item = None
         self._run = None
         self._client = None
+        kind = type(self)
+        self._key = kind._next_key
+        kind._next_key += 1
         # Built cards, kept while this run is scrolled off screen.
         # Gtk.ListView still instantiates a child for every loaded post
         # (up to a couple of hundred) and lays that whole set out on
         # every top insertion. A StatusRow is a large tree, so it is
         # hidden while the run is unmapped (measure and snapshot skip
         # it) and shown again on the way back, instead of being
-        # unparented and reparented at every stop.
+        # unparented and reparented at every stop. Hidden cards still
+        # cost memory (~77 MB per page at realistic image sizes), so only
+        # CARD_SHELLS_KEPT unmapped shells app-wide keep theirs; the
+        # rest are dropped through _kept and rebuilt on demand.
         self._cards = {}
         # Floor so an unmapped run does not collapse to 0px, which would
         # keep the list from ever mapping it. Later rows use the height
@@ -350,6 +369,7 @@ class StatusRunRow(Gtk.Box):
         self._run = run
         self._client = client
         self.item = run.items[0]
+        type(self)._kept.pop(self._key, None)
         keep = set(run.items)
         for item in [key for key in self._cards if key not in keep]:
             card = self._cards.pop(item)
@@ -362,6 +382,7 @@ class StatusRunRow(Gtk.Box):
             self._populate()
 
     def _on_map(self, _widget):
+        type(self)._kept.pop(self._key, None)
         if self._run is not None:
             self._populate()
 
@@ -379,6 +400,21 @@ class StatusRunRow(Gtk.Box):
             else:
                 kind._typical_height = (kind._typical_height * 3 + height) // 4
         self._detach()
+        if self._cards:
+            kept = kind._kept
+            kept[self._key] = self.weak_ref()
+            kept.move_to_end(self._key)
+            while len(kept) > CARD_SHELLS_KEPT:
+                _key, ref = kept.popitem(last=False)
+                shell = ref()
+                if shell is not None and not shell.get_mapped():
+                    shell._drop_cards()
+
+    def _drop_cards(self):
+        for card in self._cards.values():
+            if card.get_parent() is self.column:
+                self.column.remove(card)
+        self._cards = {}
 
     def _detach(self):
         # Hide, rather than unparent. A hidden child is skipped by
@@ -605,11 +641,13 @@ class AvatarCache:
         if not data or data.get_size() == 0:
             log_media_failure(url, 'empty response')
             return
-        try:
-            texture = Gdk.Texture.new_from_bytes(data)
-        except GLib.Error as error:
-            log_media_failure(url, error.message)
-            return
+        texture = _decode_covering(data, (AVATAR_DECODE_SIZE,) * 2)
+        if texture is None:
+            try:
+                texture = Gdk.Texture.new_from_bytes(data)
+            except GLib.Error as error:
+                log_media_failure(url, error.message)
+                return
         cls._remember(url, texture)
         for avatar in waiting:
             avatar.set_custom_image(texture)
