@@ -44,6 +44,7 @@ install_data(
   'main.py',
   'mastodon.py',
   'mediaviewer.py',
+  'mentioncompleter.py',
   'notifications.py',
   'pages.py',
   'preferences.py',
