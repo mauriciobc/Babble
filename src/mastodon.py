@@ -608,9 +608,16 @@ class MastodonClient(GObject.Object):
         The out-of-band flow never reaches this method; the user pastes
         the code directly and :meth:`request_token_async` binds it to
         the verifier on its own.
+
+        Only the registered redirect itself is read: a ``babble://`` URL
+        with another host or path is not an answer to this authorization.
         """
-        query = urllib.parse.urlparse(uri).query
-        params = urllib.parse.parse_qs(query)
+        parts = urllib.parse.urlsplit(uri)
+        expected = urllib.parse.urlsplit(OAUTH_REDIRECT)
+        if (parts.scheme, parts.netloc, parts.path) \
+                != (expected.scheme, expected.netloc, expected.path):
+            return None
+        params = urllib.parse.parse_qs(parts.query)
         codes = params.get('code')
         states = params.get('state')
         code = codes[0] if codes else None

@@ -435,6 +435,14 @@ pump()
 check('a callback with no state is not exchanged',
       client.exchanges == [] and toasts == [])
 
+# Only the registered redirect is read, even with the right state.
+for wrong in ('babble://elsewhere/callback', 'babble://oauth/other',
+              'https://oauth/callback'):
+    win.on_oauth_callback(wrong + '?code=stolen&state=' + STATE)
+pump()
+check('a callback to another host or path is not exchanged',
+      client.exchanges == [] and toasts == [])
+
 # The real attempt still works afterwards.
 win.on_oauth_callback(REDIRECT_URI)
 pump()
