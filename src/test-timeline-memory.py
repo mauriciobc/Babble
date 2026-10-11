@@ -96,6 +96,13 @@ check('dropped posts can be loaded again',
       long.append_old([status(n) for n in range(20, 15, -1)])
       and long.get_n_items() == 15)
 check('trim within the limit does nothing', not long.trim(40))
+boosted = timeline.TimelineModel()
+original = status(9)
+boost = dict(status(8), reblog=original)
+boosted.append_old([status(10), original, status(7), boost])
+boosted.trim(3)
+check('a post still shown stays seen after its boost is dropped',
+      not boosted.insert_new([status(9)]))
 
 # Same-thread posts by one author still group into one run.
 threaded = timeline.TimelineModel()

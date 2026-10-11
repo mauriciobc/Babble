@@ -284,11 +284,14 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         total = self._store.get_n_items()
         if total <= keep:
             return False
-        for position in range(keep, total):
-            self._seen.discard(self._store.get_item(position).status_id)
+        dropped = {self._store.get_item(i).status_id
+                   for i in range(keep, total)}
         self._store.splice(keep, total - keep, [])
-        ids = [item.raw['id'] for item in
-               (self._store.get_item(i) for i in range(keep))
+        left = [self._store.get_item(i) for i in range(keep)]
+        # A post can also be shown higher up as a boost or the original:
+        # its id stays seen while any copy is left.
+        self._seen -= dropped - {item.status_id for item in left}
+        ids = [item.raw['id'] for item in left
                if not isinstance(item, BoostCarouselItem)]
         self.oldest_id = min(ids) if ids else None
         self.exhausted = False
@@ -391,13 +394,18 @@ class StatusRunRow(Gtk.Box):
         self._run = run
         self._client = client
         self.item = run.items[0]
-        type(self)._kept.pop(self._key, None)
         keep = set(run.items)
         for item in [key for key in self._cards if key not in keep]:
             card = self._cards.pop(item)
             parent = card.get_parent()
             if parent is not None:
                 parent.remove(card)
+        # A run that changed is rebound to a shell that may be off screen
+        # and still hold cards for the posts it shares: they count.
+        if self._cards and not self.get_mapped():
+            self._keep_cards()
+        else:
+            type(self)._kept.pop(self._key, None)
         self.set_size_request(-1, type(self)._typical_height)
         self._detach()
         if self.get_mapped():
@@ -423,14 +431,19 @@ class StatusRunRow(Gtk.Box):
                 kind._typical_height = (kind._typical_height * 3 + height) // 4
         self._detach()
         if self._cards:
-            kept = kind._kept
-            kept[self._key] = self.weak_ref()
-            kept.move_to_end(self._key)
-            while len(kept) > CARD_SHELLS_KEPT:
-                _key, ref = kept.popitem(last=False)
-                shell = ref()
-                if shell is not None and not shell.get_mapped():
-                    shell._drop_cards()
+            self._keep_cards()
+
+    def _keep_cards(self):
+        """Count this unmapped shell's cards against CARD_SHELLS_KEPT,
+        dropping the cards of the least recently unmapped shells."""
+        kept = type(self)._kept
+        kept[self._key] = self.weak_ref()
+        kept.move_to_end(self._key)
+        while len(kept) > CARD_SHELLS_KEPT:
+            _key, ref = kept.popitem(last=False)
+            shell = ref()
+            if shell is not None and not shell.get_mapped():
+                shell._drop_cards()
 
     def _drop_cards(self):
         for card in self._cards.values():
