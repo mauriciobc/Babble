@@ -502,6 +502,7 @@ class MediaViewer(Adw.Dialog):
             self.window = root if isinstance(root, Gtk.Window) else None
         self._cancellable = None
         self._stream = None
+        self._temp_media = None
         self._closed = False
         self._we_fullscreened = False
         self._first_focus = True
@@ -847,11 +848,23 @@ class MediaViewer(Adw.Dialog):
             stream.pause()
             if isinstance(stream, Gtk.MediaFile):
                 stream.clear()
+        media = self._temp_media
+        self._temp_media = None
+        if media is not None:
+            self._discard_temp(media)
         child = self.media_bin.get_child()
         if isinstance(child, Gtk.Video):
             child.set_media_stream(None)
         self.media_bin.set_child(None)
         self.picture.set_texture(None)
+
+    def _discard_temp(self, media):
+        # Fire and forget: deleting a cancelled download's copy fails
+        # silently and the empty directory is gone with the sandbox.
+        media.delete_async(GLib.PRIORITY_DEFAULT, None, None)
+        directory = media.get_parent()
+        if directory is not None:
+            directory.delete_async(GLib.PRIORITY_DEFAULT, None, None)
 
     def _show_loading(self):
         self.stack.set_visible_child_name('loading')
@@ -895,9 +908,51 @@ class MediaViewer(Adw.Dialog):
 
     def _show_stream(self, attachment, url):
         self._show_loading()
-        kind = attachment.get('type')
-        stream = Gtk.MediaFile.new_for_file(Gio.File.new_for_uri(url))
+        cancellable = self._cancellable
+        try:
+            directory = GLib.dir_make_tmp('babble-media-XXXXXX')
+        except GLib.Error as error:
+            self._show_error(_('Could Not Load Media'), error.message)
+            return
+        # Gtk.MediaFile reads remote files through gvfs, whose http
+        # backend is unavailable inside a Flatpak sandbox (and hesitates
+        # with buffering hiccups on the host as well). Download the media
+        # with libsoup instead, like every other fetch in the app, and
+        # hand the stream a local, seekable copy.
+        path = os.path.basename(urllib.parse.unquote(
+            urllib.parse.urlsplit(url).path)).replace(os.sep, '_').strip()
+        destination = Gio.File.new_for_path(
+            os.path.join(directory, path or 'media'))
+        self._temp_media = destination
+        self.progress.set_fraction(0)
+        self.progress.set_visible(True)
+
+        def progress(fraction):
+            if self._closed:
+                return
+            if fraction < 0:
+                self.progress.pulse()
+            else:
+                self.progress.set_fraction(fraction)
+
+        def download_done(error):
+            if cancellable is not self._cancellable \
+                    or cancellable.is_cancelled():
+                # The media was replaced or the viewer closed while the
+                # download ran; the temp copy is discarded by the unload.
+                return
+            self.progress.set_visible(False)
+            if error is None:
+                self._start_stream(attachment, destination)
+            else:
+                self._show_error(_('Could Not Load Media'), error.message)
+
+        download(url, destination, progress, download_done, cancellable)
+
+    def _start_stream(self, attachment, destination):
+        stream = Gtk.MediaFile.new_for_file(destination)
         self._stream = stream
+        kind = attachment.get('type')
         animations = Gtk.Settings.get_default().get_property(
             'gtk-enable-animations')
         if kind == 'gifv':
