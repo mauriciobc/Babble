@@ -22,7 +22,8 @@ from gi.repository import (Adw, Gdk, GLib, Gio, GObject, Gtk,  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
-from .timeline import AvatarCache, TimelinePage, COLUMN_WIDTH  # noqa: E402
+from .timeline import (AvatarCache, TimelinePage, COLUMN_WIDTH,  # noqa: E402
+                       log_media_failure)
 
 
 def push_profile(view, client, account, acct=None):
@@ -170,18 +171,32 @@ class HeaderCache:
             return
         message = Soup.Message.new('GET', url)
         if message is None:
+            log_media_failure(url, 'invalid URL')
             return
         cls._inflight[url] = [picture]
         AvatarCache.session().send_and_read_async(
-            message, GLib.PRIORITY_DEFAULT_IDLE, None, cls._on_loaded, url)
+            message, GLib.PRIORITY_DEFAULT_IDLE, None, cls._on_loaded,
+            (url, message))
 
     @classmethod
-    def _on_loaded(cls, session, result, url):
+    def _on_loaded(cls, session, result, extra):
+        # A failure leaves the banner empty and uncached for a retry.
+        url, message = extra
         waiting = cls._inflight.pop(url, [])
         try:
             data = session.send_and_read_finish(result)
+        except GLib.Error as error:
+            log_media_failure(url, error.message)
+            return
+        status = message.get_status()
+        if not 200 <= status < 300:
+            # A 404 page can be an image too; never show or cache it.
+            log_media_failure(url, 'HTTP %d' % status)
+            return
+        try:
             texture = Gdk.Texture.new_from_bytes(data)
-        except (GLib.Error, TypeError):
+        except (GLib.Error, TypeError) as error:
+            log_media_failure(url, str(error))
             return
         cls._textures[url] = texture
         for picture in waiting:

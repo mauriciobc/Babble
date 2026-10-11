@@ -721,22 +721,35 @@ class AvatarCache:
         message = Soup.Message.new('GET', url)
         if message is None:
             cls._inflight.pop(url, None)
+            log_media_failure(url, 'invalid URL')
             return
         cls.session().send_and_read_async(
-            message, GLib.PRIORITY_DEFAULT_IDLE, None, cls._on_loaded, url)
+            message, GLib.PRIORITY_DEFAULT_IDLE, None, cls._on_loaded,
+            (url, message))
 
     @classmethod
-    def _on_loaded(cls, session, result, url):
+    def _on_loaded(cls, session, result, extra):
+        # A failure leaves the avatars on their initials, the avatar's
+        # own placeholder, and uncached so a later row retries.
+        url, message = extra
         waiting = cls._inflight.pop(url, [])
         try:
             data = session.send_and_read_finish(result)
-        except GLib.Error:
+        except GLib.Error as error:
+            log_media_failure(url, error.message)
+            return
+        status = message.get_status()
+        if not 200 <= status < 300:
+            # A 404 page can be an image too; never show or cache it.
+            log_media_failure(url, 'HTTP %d' % status)
             return
         if not data or data.get_size() == 0:
+            log_media_failure(url, 'empty response')
             return
         try:
             texture = Gdk.Texture.new_from_bytes(data)
-        except GLib.Error:
+        except GLib.Error as error:
+            log_media_failure(url, error.message)
             return
         cls._remember(url, texture)
         for avatar in waiting:
@@ -864,13 +877,17 @@ class _BrokenImage(GObject.Object, Gdk.Paintable, Gtk.SymbolicPaintable):
         snapshot.restore()
 
 
+def log_media_failure(url, reason):
+    # Shown with G_MESSAGES_DEBUG=Babble: a host outage or a codec gap
+    # otherwise only surfaces as placeholders.
+    GLib.log_variant('Babble', GLib.LogLevelFlags.LEVEL_DEBUG,
+                     GLib.Variant('a{sv}', {'MESSAGE': GLib.Variant(
+                         's', 'Media %s failed: %s' % (url, reason))}))
+
+
 def _show_broken(picture, url=None, reason=None):
     if reason is not None:
-        # Shown with G_MESSAGES_DEBUG=Babble: a host outage or a codec
-        # gap otherwise only surfaces as placeholders.
-        GLib.log_variant('Babble', GLib.LogLevelFlags.LEVEL_DEBUG,
-                         GLib.Variant('a{sv}', {'MESSAGE': GLib.Variant(
-                             's', 'Media %s failed: %s' % (url, reason))}))
+        log_media_failure(url, reason)
     picture.set_paintable(_BrokenImage.get())
     picture.add_css_class('broken-image')
 
