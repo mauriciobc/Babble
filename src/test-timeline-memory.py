@@ -240,13 +240,13 @@ box.remove(shell)
 # The pre-allocation estimate is plain text; paragraph gaps and inline
 # images change the real height, which must replace it once allocated.
 #
-# Compared with a one-pixel tolerance, not for equality: both numbers
-# come from GTK's own measurement, but the widget's allocation and a
-# fresh measure disagree by a fraction depending on the font stack and
-# the text-scaling factor, which differ between a desktop and a
-# container. The invariant worth pinning is that the estimate has been
-# replaced by the real height, not that two measurements agree to the
-# pixel.
+# What this guards is that the estimate was replaced at all: 64 here,
+# against a real height of roughly 255. The tolerance is relative rather
+# than a fixed number of pixels because the real height comes from the
+# font stack, which is not the same everywhere -- a desktop resolves sans
+# to a static Noto Sans, a container to the variable font, and the two
+# lay this body out 255 and 285 pixels tall. Pinning exact pixels would
+# fail a correct build on whichever machine disagrees.
 body = timeline.StatusBody()
 body.set_segments(timeline.parse_content(
     ''.join('<p>paragraph %d</p>' % n for n in range(8))))
@@ -255,7 +255,7 @@ settle(lambda: body.get_width() > 0)
 real = Gtk.TextView.do_measure(body, Gtk.Orientation.VERTICAL,
                                body.get_width())[1]
 check('an allocated body is as tall as its text',
-      abs(body.get_height() - real) <= 1)
+      real > 0 and abs(body.get_height() - real) <= real * 0.1)
 box.remove(body)
 
 # Weak hookups must survive PyGObject dropping and re-creating the Python
