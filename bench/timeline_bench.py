@@ -134,9 +134,19 @@ def run(port, anchor):
         adjustment.set_value(adjustment.get_upper()
                              - adjustment.get_page_size())
         settle()
-    loaded = page.model.get_n_items()
-    if loaded < TOTAL:
-        fail('only %d of %d statuses loaded' % (loaded, TOTAL))
+    # A boosts carousel is one list row for several posts, so the row
+    # count is lower than the fixture size whenever a page groups.
+    loaded = 0
+    for i in range(page.model.get_n_items()):
+        item = page.model.get_item(i)
+        if isinstance(item, timeline.BoostCarouselItem):
+            loaded += len(item.boosts)
+        else:
+            loaded += 1
+    if not page.model.exhausted or loaded != TOTAL:
+        fail('loaded %d of %d statuses (exhausted=%s, rows=%d)'
+             % (loaded, TOTAL, page.model.exhausted,
+                page.model.get_n_items()))
     t = mark('scroll_down_ms', t)
     rss_scrolled = rss_kb()
 
