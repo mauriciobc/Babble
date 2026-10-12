@@ -144,6 +144,11 @@
       <default>true</default>
       <summary>Open links to posts and profiles on other servers inside Babble</summary>
     </key>
+    <key name="offer-copied-links" type="b">
+      <default>true</default>
+      <summary>Offer to open post and profile links found on the clipboard</summary>
+      <description>When the window gains focus, check the clipboard for a link to a post, profile or hashtag and offer to open it in Babble.</description>
+    </key>
     <key name="reply-to-old-post-reminder" type="b">
       <default>true</default>
       <summary>Warn before replying to a post older than three months</summary>

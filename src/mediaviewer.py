@@ -13,6 +13,7 @@ and Fullscreen.
 
 import collections
 import os
+import time
 import urllib.parse
 
 import gi
@@ -235,6 +236,28 @@ class _Download:
         self.output = None
         self.source.close_async(GLib.PRIORITY_DEFAULT, None, None)
         self.succeed()
+
+
+# Open With copies older than this are deleted before the next one is
+# downloaded; the app they were handed to has long since read them.
+OPEN_WITH_MAX_AGE = 24 * 60 * 60
+
+
+def prune_old_files(directory, max_age=OPEN_WITH_MAX_AGE):
+    """Best-effort removal of files in *directory* not modified for
+    *max_age* seconds."""
+    cutoff = time.time() - max_age
+    try:
+        entries = list(os.scandir(directory))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.is_file(follow_symlinks=False) \
+                    and entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                os.unlink(entry.path)
+        except OSError:
+            pass
 
 
 def suggested_filename(attachment):
@@ -533,6 +556,7 @@ class MediaViewer(Adw.Dialog):
         menu = Gio.Menu()
         menu.append(_('_Copy URL'), 'viewer.copy-url')
         menu.append(_('_Open in Browser'), 'viewer.open-browser')
+        menu.append(_('Open _With…'), 'viewer.open-with')
         self.menu_button = Gtk.MenuButton(
             icon_name='view-more-symbolic', menu_model=menu,
             tooltip_text=_('More Actions'), primary=False)
@@ -545,7 +569,7 @@ class MediaViewer(Adw.Dialog):
         self.header.pack_end(self.save_button)
 
         actions = Gio.SimpleActionGroup()
-        for name in ('copy-url', 'open-browser'):
+        for name in ('copy-url', 'open-browser', 'open-with'):
             action = Gio.SimpleAction.new(name, None)
             pages.connect_weak(action, 'activate', self._on_action)
             actions.add_action(action)
@@ -669,7 +693,8 @@ class MediaViewer(Adw.Dialog):
 
     def _on_action(self, action, _param):
         {'copy-url': self.copy_url,
-         'open-browser': self.open_in_browser}[action.get_name()]()
+         'open-browser': self.open_in_browser,
+         'open-with': self.open_with}[action.get_name()]()
 
     def _on_retry_clicked(self, _button):
         self.show_index(self.index)
@@ -1135,6 +1160,57 @@ class MediaViewer(Adw.Dialog):
                 on_done(error)
 
         download(url, destination, progress, done, self._downloads)
+
+    def open_with(self):
+        """Download the current attachment into the cache directory and
+        offer the apps that can open it."""
+        attachment = self.current()
+        url = attachment.get('url') or attachment.get('remote_url')
+        if not url:
+            return False
+        directory = os.path.join(GLib.get_user_cache_dir(), 'babble',
+                                 'open-with')
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except OSError:
+            self._notify(_('Could not open media'))
+            return False
+        prune_old_files(directory)
+        destination = Gio.File.new_for_path(
+            os.path.join(directory, suggested_filename(attachment)))
+        self.progress.set_fraction(0)
+        self.progress.set_visible(True)
+
+        def progress(fraction):
+            if self._closed:
+                return
+            if fraction < 0:
+                self.progress.pulse()
+            else:
+                self.progress.set_fraction(fraction)
+
+        def done(error):
+            self.progress.set_visible(False)
+            if error is not None:
+                self._notify(_('Could not open media'))
+                return
+            self.launch_file(destination)
+
+        download(url, destination, progress, done, self._downloads)
+        return True
+
+    def launch_file(self, file):
+        launcher = Gtk.FileLauncher.new(file)
+        launcher.set_always_ask(True)
+        launcher.launch(self.window, None, self._on_launched)
+
+    def _on_launched(self, launcher, result):
+        try:
+            launcher.launch_finish(result)
+        except GLib.Error as error:
+            if not error.matches(Gtk.DialogError.quark(),
+                                 Gtk.DialogError.DISMISSED):
+                self._notify(_('Could not open media'))
 
     def _notify(self, text, saved=None):
         if self._closed:

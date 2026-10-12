@@ -131,6 +131,17 @@ test('oauth callback', python,
   timeout: 120,
 )
 
+loopback_test_env = environment()
+loopback_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+loopback_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+loopback_test_env.set('GSETTINGS_BACKEND', 'memory')
+loopback_test_env.set('G_DEBUG', 'fatal-criticals')
+test('oauth loopback', python,
+  args: [files('test-oauth-loopback.py')],
+  env: loopback_test_env,
+  timeout: 120,
+)
+
 error_summary_test_env = environment()
 error_summary_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 error_summary_test_env.set('G_DEBUG', 'fatal-criticals')

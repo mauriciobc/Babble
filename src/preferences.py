@@ -310,6 +310,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Open Remote Links in _Babble'),
                      _('Open links to posts and profiles on other '
                        'servers inside the app'))
+        self._switch(behavior, 'offer-copied-links',
+                     _('Offer to Open _Copied Links'),
+                     _('Check the clipboard for post and profile links '
+                       'when Babble is focused'))
         self._switch(behavior, 'reply-to-old-post-reminder',
                      _('Warn Before Replying to an _Old Post'))
         self._switch(behavior, 'copy-private-link-reminder',

@@ -17,7 +17,7 @@ per session and used as the fallback under whatever each payload declares, so a
 
 ## Build and run
 
-Requires GTK 4.24+, libadwaita 1.10+ (GNOME 51), meson 1.0+, Python 3 with PyGObject, libsoup 3 and libsecret.
+Requires GTK 4.24+, libadwaita 1.10+ (GNOME 51), meson 1.0+, Python 3 with PyGObject, libsoup 3, libsecret, and GtkSourceView 5 with libspelling 0.4+ for spell checking in the composer. The GNOME 51 runtime has no libspelling, so the development Flatpak manifest builds it.
 
 ```sh
 meson setup build
@@ -33,8 +33,13 @@ flatpak-builder --user --install --force-clean build-flatpak build-aux/flatpak/i
 flatpak run io.github.mauriciobc.Babble
 ```
 
-One step is needed once per machine before logging in works, because the OAuth
-redirect comes back to the desktop as a `babble://` link:
+Logging in needs no setup: Babble listens on a `127.0.0.1` port for the length
+of the login, registers `http://127.0.0.1:<port>/callback` as the OAuth redirect,
+and the browser hands the authorization straight back to it. The tab then says
+it can be closed.
+
+Only when no loopback port can be opened does the login fall back to a
+`babble://` redirect, which needs one step once per machine:
 
 ```sh
 xdg-mime default io.github.mauriciobc.Babble.desktop x-scheme-handler/babble
@@ -48,12 +53,19 @@ custom scheme to its app — fails with "Unsupported location specified". The
 authorize page opens in the browser, but the callback finds no application and
 Babble is never brought back. Flatpak cannot write the host's `mimeapps.list` from
 inside the sandbox, so this has to run on the host. It applies to `meson install`
-as well.
+as well. "Enter Authorization Code…" on the login page works without either
+redirect.
 
 ## Desktop integration
 
 - **Paste and drop media**: paste a screenshot (Print Screen copies it) or
   copied files into the composer, or drag images and videos onto it.
+- **Take Screenshot**: the composer's camera button takes a screenshot
+  through the Screenshot portal and attaches it (hidden when the portal is
+  missing).
+- **Spell checking**: misspelled words in the composer are underlined, with
+  corrections on right-click, in the language picked for the post. With no
+  dictionary installed for that language, spell checking is off.
 - **Open With Babble**: images and videos opened with Babble from Files
   start a new post with them attached.
 - **Notification buttons**: Favourite, Boost and Follow Back act straight

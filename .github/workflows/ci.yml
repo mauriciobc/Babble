@@ -40,6 +40,7 @@ jobs:
             python3-gobject gobject-introspection \
             meson ninja-build gettext desktop-file-utils appstream \
             glib2-devel \
+            gtksourceview5-devel libspelling-devel hunspell-en-US \
             xorg-x11-server-Xvfb mesa-libGLES libglvnd-devel \
             dbus-daemon dbus-x11
           # Secret needs a session bus to answer at all, and D-Bus

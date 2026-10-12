@@ -8,6 +8,7 @@ import os
 import re
 import datetime
 import json
+import shutil
 import time
 
 import gi
@@ -15,10 +16,13 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
+gi.require_version('GtkSource', '5')
+gi.require_version('Spelling', '1')
 
 from .i18n import gettext as _, ngettext
 
-from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
+                           GtkSource, Spelling)
 
 from . import emojichooser, pages  # noqa: E402
 from .mentioncompleter import MentionCompleter  # noqa: E402
@@ -26,12 +30,18 @@ from .mastodon import summarize_error  # noqa: E402
 # The same list Preferences offers as the default post language.
 from .preferences import LANGUAGES  # noqa: E402
 
+# Spell checking (libspelling) works on a GtkSource.Buffer; that buffer
+# is all the composer takes from GtkSourceView.
+GtkSource.init()
+Spelling.init()
+
 DEFAULT_CHAR_LIMIT = 500
 URL_PLACEHOLDER_CHARS = 23
 MAX_ATTACHMENTS = 4
 MAX_POLL_CHOICES = 4
 MAX_LOCAL_DRAFTS = 5
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
+SCREENSHOT_PORTAL = 'org.freedesktop.portal.Screenshot'
 
 # An instance may take a few seconds to transcode an upload. Poll
 # GET /media/:id until it is ready, but never longer than this: a post
@@ -109,6 +119,29 @@ def default_visibility():
     return _setting_string('default-visibility') or 'public'
 
 
+def _language_subtag(code):
+    """Primary language subtag of a locale or dictionary code: ``pt``
+    for ``pt_BR``, ``pt-PT`` or ``pt_PT-preao``."""
+    return re.split(r'[_\-.@]', code, maxsplit=1)[0].lower()
+
+
+def spelling_language(code, available, preferred=()):
+    """The dictionary to check a post written in *code* (an ISO 639-1
+    code such as ``pt``) with: *code* itself when it is among
+    *available* (dictionary codes such as ``pt_BR``), else a regional
+    variant of it, the first of *preferred* (the user's locales, best
+    first) that is one or else the first in order. None when there is
+    no dictionary for the language at all."""
+    if code in available:
+        return code
+    variants = sorted(name for name in available
+                      if _language_subtag(name) == code)
+    for name in preferred:
+        if name in variants:
+            return name
+    return variants[0] if variants else None
+
+
 def countable_length(text, spoiler_text='', url_chars=URL_PLACEHOLDER_CHARS):
     """Characters Mastodon counts for *text* plus its content warning.
 
@@ -162,13 +195,14 @@ def is_media(mime):
     return bool(mime) and mime.startswith(('image/', 'video/'))
 
 
-# Pasted images are written under the user cache, not a temporary
-# directory, and are not deleted with their row: undoing a removal adds
-# row.path back, and a local draft keeps its attachment paths across
-# restarts. Instead, the first composer of a session prunes the pasted
-# files older than PASTED_MAX_AGE that no saved draft refers to. That
-# runs before any draft can be restored into a composer (which takes it
-# off the saved list), so a file still attached somewhere is never lost.
+# Pasted images, and screenshots taken from the composer, are written
+# under the user cache, not a temporary directory, and are not deleted
+# with their row: undoing a removal adds row.path back, and a local
+# draft keeps its attachment paths across restarts. Instead, the first
+# composer of a session prunes the pasted files older than
+# PASTED_MAX_AGE that no saved draft refers to. That runs before any
+# draft can be restored into a composer (which takes it off the saved
+# list), so a file still attached somewhere is never lost.
 PASTED_MAX_AGE = 7 * 24 * 3600
 _pasted_pruned = False
 
@@ -229,32 +263,65 @@ def _prune_pasted_once():
         prune_pasted_images()
 
 
-def save_pasted_texture(texture):
-    """Write *texture* as a PNG in :func:`pasted_dir`, under a name no
-    other file there has, and return its path. Raises OSError."""
+def _claim_pasted_path(stem, extension):
+    """Create an empty file in :func:`pasted_dir` named *stem* and
+    *extension*, numbered when that name is taken, and return its path.
+    Raises OSError."""
     directory = pasted_dir()
     os.makedirs(directory, mode=0o700, exist_ok=True)
-    # Translators: file name, without its extension, of an image pasted
-    # into the composer. It is shown on the attachment.
-    stem = _('Pasted image').replace(os.sep, '-')
+    stem = stem.replace(os.sep, '-')
     number = 1
     while True:
-        name = stem + ('.png' if number == 1 else ' %d.png' % number)
+        name = stem + (extension if number == 1
+                       else ' %d%s' % (number, extension))
         path = os.path.join(directory, name)
         try:
-            # Claimed exclusively, so two composers pasting at once never
+            # Claimed exclusively, so two composers saving at once never
             # write the same file.
             os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
                              0o600))
-            break
+            return path
         except FileExistsError:
             number += 1
+
+
+def _unlink_quietly(path):
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def save_pasted_texture(texture):
+    """Write *texture* as a PNG in :func:`pasted_dir`, under a name no
+    other file there has, and return its path. Raises OSError."""
+    # Translators: file name, without its extension, of an image pasted
+    # into the composer. It is shown on the attachment.
+    path = _claim_pasted_path(_('Pasted image'), '.png')
     if not texture.save_to_png(path):
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+        _unlink_quietly(path)
         raise OSError(_('The image could not be saved'))
+    return path
+
+
+def save_screenshot(source):
+    """Copy the screenshot at path *source* into :func:`pasted_dir`,
+    under its own name when no other file there has it, and return the
+    copy's path. Raises OSError.
+
+    The portal's file is the user's (in GNOME, in Pictures/Screenshots)
+    and may be moved or deleted at any time, while a saved draft keeps
+    its attachments by path; the copy lives as long as a draft needs it,
+    under the pruning rules of pasted images."""
+    stem, extension = os.path.splitext(os.path.basename(source))
+    # Translators: file name, without its extension, of a screenshot
+    # taken from the composer. It is shown on the attachment.
+    path = _claim_pasted_path(stem or _('Screenshot'), extension or '.png')
+    try:
+        shutil.copyfile(source, path)
+    except OSError:
+        _unlink_quietly(path)
+        raise
     return path
 
 
@@ -410,7 +477,13 @@ class BabbleComposeView(Adw.Bin):
         return header
 
     def build_text_area(self):
-        self.buffer = Gtk.TextBuffer()
+        # A GtkSource.Buffer, as spell checking needs one, and nothing
+        # more of GtkSourceView: no syntax or bracket highlighting, and
+        # no style scheme, whose colours are made for code. The
+        # misspelling underline is then libspelling's own.
+        self.buffer = GtkSource.Buffer(highlight_syntax=False,
+                                       highlight_matching_brackets=False)
+        self.buffer.set_style_scheme(None)
         pages.connect_weak(self.buffer, 'changed', self.on_draft_changed)
         self.text_view = Gtk.TextView(buffer=self.buffer,
                                       wrap_mode=Gtk.WrapMode.WORD_CHAR,
@@ -421,6 +494,21 @@ class BabbleComposeView(Adw.Bin):
                            self.on_paste_clipboard)
         self.text_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Post Text')])
+        # Misspelled words are underlined, with corrections in the
+        # context menu. A checker of this composer's own, not the shared
+        # default one: its language follows the language row, and the
+        # composer of another account may have another one picked. It is
+        # turned on, in a language, by _update_spell_language.
+        self.spell_adapter = Spelling.TextBufferAdapter.new(
+            self.buffer,
+            Spelling.Checker.new(Spelling.Provider.get_default(), None))
+        self.text_view.set_extra_menu(self.spell_adapter.get_menu_model())
+        self.text_view.insert_action_group('spelling', self.spell_adapter)
+        spell_click = Gtk.GestureClick(
+            button=Gdk.BUTTON_SECONDARY,
+            propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        pages.connect_weak(spell_click, 'pressed', self._on_spell_click)
+        self.text_view.add_controller(spell_click)
         self.mention_completer = MentionCompleter(self.client, self.text_view)
         self.placeholder = Gtk.Label(label=_('What’s on your mind?'),
                                      halign=Gtk.Align.START,
@@ -495,6 +583,15 @@ class BabbleComposeView(Adw.Bin):
                                          _('Attach Media'))
         pages.connect_weak(self.attach_button, 'clicked',
                            self.on_attach_clicked)
+        # Hidden until the screenshot portal is known to be there.
+        self.screenshot_button = icon_button(
+            'applets-screenshooter-symbolic', _('Take Screenshot'))
+        self.screenshot_button.set_visible(False)
+        pages.connect_weak(self.screenshot_button, 'clicked',
+                           self.on_screenshot_clicked)
+        from .window import portal_version
+        portal_version(SCREENSHOT_PORTAL,
+                       pages.weak_method(self._on_screenshot_portal))
         self.cw_toggle = icon_button('dialog-warning-symbolic',
                                      _('Content Warning'), toggle=True)
         pages.connect_weak(self.cw_toggle, 'toggled', self.on_cw_toggled)
@@ -522,6 +619,9 @@ class BabbleComposeView(Adw.Bin):
         self.language_row.set_enable_search(True)
         self.language_row.set_selected(
             [lang[0] for lang in LANGUAGES].index(default_language()))
+        pages.connect_weak(self.language_row, 'notify::selected',
+                           self._update_spell_language)
+        self._update_spell_language()
         options.append(self.visibility_row)
         options.append(self.language_row)
         self.counter_label = Gtk.Label(hexpand=True, xalign=1,
@@ -674,6 +774,19 @@ class BabbleComposeView(Adw.Bin):
         self.update_compose_state()
         self.text_view.grab_focus()
 
+    def prefill_text(self, text):
+        """Start a post with *text*, as shared from outside the app. A
+        draft in progress is kept on the draft stack, for the banner
+        above the buffer to bring back."""
+        previous = self.snapshot()
+        if not self.is_empty():
+            self._draft_stack = [previous]
+        self.buffer.set_text(text)
+        self.buffer.place_cursor(self.buffer.get_end_iter())
+        self.in_reply_to_id = None
+        self.update_compose_state()
+        self.text_view.grab_focus()
+
     def start_edit(self, status):
         """Load an existing post into the composer for a PUT."""
         self.editing_id = str(status.get('id') or '') or None
@@ -796,6 +909,42 @@ class BabbleComposeView(Adw.Bin):
     def on_draft_changed(self, *_args):
         self.update_compose_state()
 
+    def _update_spell_language(self, *_args):
+        """Check the post in the language picked for it, and not at all
+        when there is no dictionary for that language: a post checked
+        against another language's would come out all underlined. With
+        no language picked, the default dictionary."""
+        provider = Spelling.Provider.get_default()
+        selected = self.language_row.get_selected()
+        if selected < len(LANGUAGES):
+            languages = provider.list_languages()
+            available = [languages.get_item(index).get_code()
+                         for index in range(languages.get_n_items())]
+            code = spelling_language(LANGUAGES[selected][0], available,
+                                     GLib.get_language_names())
+        else:
+            code = provider.get_default_code()
+        if code:
+            self.spell_adapter.set_language(code)
+        self.spell_adapter.set_enabled(bool(code))
+
+    def _on_spell_click(self, _gesture, n_press, x, y):
+        """The corrections offered are those for the word at the cursor,
+        worked out a moment after it moves, while the text view opens
+        its menu at once without moving it. So a right click first puts
+        the cursor on the word clicked, unless it lands in a selection,
+        and has the corrections updated."""
+        if n_press != 1:
+            return
+        buffer_x, buffer_y = self.text_view.window_to_buffer_coords(
+            Gtk.TextWindowType.WIDGET, int(x), int(y))
+        _over_text, where = self.text_view.get_iter_at_location(buffer_x,
+                                                                buffer_y)
+        selection = self.buffer.get_selection_bounds()
+        if not selection or not where.in_range(*selection):
+            self.buffer.place_cursor(where)
+        self.spell_adapter.update_corrections()
+
     def on_cw_toggled(self, toggle):
         pages.reveal(self._spoiler_revealer, toggle.get_active(),
                      animate=self.get_mapped())
@@ -910,6 +1059,61 @@ class BabbleComposeView(Adw.Bin):
         for index in range(files.get_n_items()):
             self.add_attachment_path(files.get_item(index).get_path())
 
+    def on_screenshot_clicked(self, _button):
+        """Take a screenshot through the portal, which lets the user
+        pick what to capture, and attach it."""
+        from .window import _session_bus
+        _session_bus(pages.weak_method(self._on_screenshot_bus))
+
+    def _on_screenshot_portal(self, version):
+        self.screenshot_button.set_visible(version > 0)
+
+    def _on_screenshot_bus(self, bus):
+        if bus is None:
+            self._toast(_('Could not take a screenshot'))
+            return
+        from .window import _portal_request
+        _portal_request(bus, SCREENSHOT_PORTAL, 'Screenshot', '(sa{sv})',
+                        ('',), {
+                            'interactive': GLib.Variant('b', True),
+                            'modal': GLib.Variant('b', True),
+                        }, pages.weak_method(self._on_screenshot_response))
+
+    def _on_screenshot_response(self, code, results):
+        if code == 1:  # cancelled by the user
+            return
+        uri = results.get('uri') if code == 0 else None
+        source = Gio.File.new_for_uri(uri).get_path() if uri else None
+        if not source:
+            self._toast(_('Could not take a screenshot'))
+            return
+        # Checked before copying, so a refused screenshot leaves no file.
+        if not self._room_for_attachment():
+            return
+        try:
+            path = save_screenshot(source)
+        except OSError as e:
+            self._show_error(_('Could not take a screenshot'),
+                             e.strerror or str(e))
+            return
+        self.add_attachment_files([Gio.File.new_for_path(path)])
+
+    def _room_for_attachment(self):
+        """Whether one more attachment can be added now; a toast says
+        why not."""
+        if self._posting:
+            self._toast_busy_posting()
+            return False
+        if len(self.attachments()) >= MAX_ATTACHMENTS:
+            self._toast_attachment_limit()
+            return False
+        return True
+
+    def _set_attach_sensitive(self, sensitive):
+        """Attaching media and taking a screenshot go together."""
+        self.attach_button.set_sensitive(sensitive)
+        self.screenshot_button.set_sensitive(sensitive)
+
     def add_attachment_path(self, path, alt=None, position=-1):
         if not path or len(self.attachments()) >= MAX_ATTACHMENTS:
             return None
@@ -928,8 +1132,7 @@ class BabbleComposeView(Adw.Bin):
             self.attachments_box.insert_child_after(row, sibling)
         else:
             self.attachments_box.append(row)
-        self.attach_button.set_sensitive(
-            len(self.attachments()) < MAX_ATTACHMENTS)
+        self._set_attach_sensitive(len(self.attachments()) < MAX_ATTACHMENTS)
         self.update_compose_state()
         return row
 
@@ -1039,12 +1242,8 @@ class BabbleComposeView(Adw.Bin):
             return
         if texture is None:
             return
-        if self._posting:
-            self._toast_busy_posting()
-            return
-        if len(self.attachments()) >= MAX_ATTACHMENTS:
-            # Checked before saving, so a refused paste leaves no file.
-            self._toast_attachment_limit()
+        # Checked before saving, so a refused paste leaves no file.
+        if not self._room_for_attachment():
             return
         try:
             path = save_pasted_texture(texture)
@@ -1067,7 +1266,7 @@ class BabbleComposeView(Adw.Bin):
         position = self.attachments().index(row)
         alt = row.alt_entry.get_text()
         self.attachments_box.remove(row)
-        self.attach_button.set_sensitive(not self._posting)
+        self._set_attach_sensitive(not self._posting)
         self.update_compose_state()
         toast = Adw.Toast(title=_('Attachment removed'),
                           button_label=_('_Undo'),
@@ -1157,14 +1356,15 @@ class BabbleComposeView(Adw.Bin):
         return True
 
     def set_posting_ui(self, active):
-        for widget in (self.attach_button, self.cw_toggle, self.poll_toggle,
+        for widget in (self.attach_button, self.screenshot_button,
+                       self.cw_toggle, self.poll_toggle,
                        self.thread_toggle, self.visibility_row,
                        self.language_row):
             widget.set_sensitive(not active)
         if active:
             self.mention_completer.dismiss()
         else:
-            self.attach_button.set_sensitive(
+            self._set_attach_sensitive(
                 len(self.attachments()) < MAX_ATTACHMENTS)
         self.progress_spinner.set_visible(active)
         # No drop is taken while posting, so none is outlined either.
@@ -1359,7 +1559,7 @@ class BabbleComposeView(Adw.Bin):
             self.in_reply_to_id = str(status.get('id') or '') or None
             self.buffer.set_text('')
             self.clear_attachments()
-            self.attach_button.set_sensitive(True)
+            self._set_attach_sensitive(True)
             self.poll_toggle.set_active(False)
             self._upload_results = []
             self._upload_failures = 0
@@ -1408,7 +1608,7 @@ class BabbleComposeView(Adw.Bin):
         self.cw_toggle.set_active(False)
         self.poll_toggle.set_active(False)
         self.clear_attachments()
-        self.attach_button.set_sensitive(True)
+        self._set_attach_sensitive(True)
         self._upload_results = []
         self._upload_failures = 0
         self._upload_expected = 0

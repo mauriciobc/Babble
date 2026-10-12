@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import re
 import sys
+import urllib.parse
+
 import gi
 
 from .i18n import gettext as _
@@ -11,7 +14,95 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import desktopnotify
+from .statustext import is_web_link
 from .window import BabbleWindow
+
+# Links the desktop hands over by scheme: FEP-07d7 ``web+ap://`` object
+# links, and the ``web+mastodon://`` intents Mastodon's web UI registers
+# (``follow?uri=…`` and ``share?text=…``, as its IntentsController reads
+# them). Each is turned into something opened inside the window; none of
+# them is ever passed on to another handler.
+WEB_SCHEMES = ('web+ap', 'web+mastodon')
+
+# A server name has a dot (``javascript``, ``localhost`` name no
+# instance), or is a bracketed IPv6 literal.
+_HOST = re.compile(r'[\w\-]+(?:\.[\w\-]+)+|\[[0-9A-Fa-f:.]+\]')
+_ACCT = re.compile(r'@?([^@\s/\\:?#]+)@([\w.\-]+\.[\w\-]+)')
+
+
+def _https_url(parts):
+    """The https URL for the split *parts*: their host, path and query.
+    None when there is no host, a ``user@`` part or a malformed port."""
+    if '@' in parts.netloc or '\\' in parts.netloc:
+        return None
+    try:
+        host, port = parts.hostname, parts.port
+    except ValueError:
+        return None
+    if not host or port == 0:
+        return None
+    host = '[%s]' % host if ':' in host else host
+    if not _HOST.fullmatch(host):
+        return None
+    netloc = host + (':%d' % port if port is not None else '')
+    url = urllib.parse.urlunsplit(
+        ('https', netloc, parts.path or '/', parts.query, ''))
+    return url if is_web_link(url) else None
+
+
+def parse_web_uri(uri):
+    """What a ``web+ap://`` or ``web+mastodon://`` *uri* asks for.
+
+    ``('resolve', https_url)`` for an object to look up, ``('account',
+    'user@host')`` for a profile, ``('share', text)`` for a new post;
+    None for anything malformed or not understood."""
+    try:
+        parts = urllib.parse.urlsplit(uri or '')
+    except ValueError:
+        return None
+    scheme = parts.scheme.lower()
+    if scheme == 'web+ap':
+        # FEP-07d7: the object's https address, scheme swapped.
+        url = _https_url(parts)
+        return ('resolve', url) if url else None
+    if scheme != 'web+mastodon':
+        return None
+    params = urllib.parse.parse_qs(parts.query, keep_blank_values=True)
+    action = parts.netloc.lower()
+    if action == 'share':
+        return ('share', params.get('text', [''])[0])
+    if action != 'follow':
+        return None
+    target = params.get('uri', [''])[0].strip()
+    if target[:5].lower() == 'acct:':
+        target = target[5:]
+    acct = _ACCT.fullmatch(target)
+    if acct:
+        return ('account', '%s@%s' % (acct.group(1), acct.group(2).lower()))
+    if target[:8].lower() != 'https://':
+        return None
+    try:
+        url = _https_url(urllib.parse.urlsplit(target))
+    except ValueError:
+        return None
+    return ('resolve', url) if url else None
+
+
+def open_web_target(win, target):
+    """Open a :func:`parse_web_uri` *target* in the signed-in *win*."""
+    from . import pages
+    kind, value = target
+    if kind == 'share':
+        dialog = win.present_composer()
+        if dialog is not None:
+            dialog.view.prefill_text(value)
+    elif kind == 'account':
+        # The profile sheet looks the handle up, resolving it remotely.
+        pages.open_profile(win, win.client, acct=value)
+    else:
+        # Asked for by name: resolved in the app whatever the
+        # aggressive-resolving preference says.
+        pages.open_link(win, value, resolve=True)
 
 
 class BabbleApplication(Adw.Application):
@@ -22,6 +113,10 @@ class BabbleApplication(Adw.Application):
                          resource_base_path='/io/github/mauriciobc/Babble')
         self.version = version
         self._search_provider = None
+        # web+ap/web+mastodon links opened before a session exists, and
+        # the (stack, handler id) waiting for the shell to deliver them.
+        self._pending_web = []
+        self._pending_web_handler = None
         # Started by D-Bus for a shell search there is no window to keep
         # the service alive between Shell's calls; linger for a while.
         self.set_inactivity_timeout(10000)
@@ -180,11 +275,49 @@ class BabbleApplication(Adw.Application):
             delivered.add(uri)
             if file.has_uri_scheme('babble'):
                 win.on_oauth_callback(uri)
+            elif (GLib.Uri.peek_scheme(uri) or '') in WEB_SCHEMES:
+                self.open_web_uri(win, uri)
             elif file.is_native() and file.get_path() is not None:
                 # "Open With Babble" on an image or a video.
                 paths.append(file.get_path())
         if paths:
             win.compose_with_files(paths)
+
+    def open_web_uri(self, win, uri):
+        """Route a ``web+ap://``/``web+mastodon://`` *uri* inside *win*;
+        before a session exists it waits for the shell to come up."""
+        target = parse_web_uri(uri)
+        if target is None:
+            return
+        if win.client is not None and win.account is not None:
+            open_web_target(win, target)
+            return
+        if target not in self._pending_web:
+            self._pending_web.append(target)
+        stack = win.main_stack
+        waiting = self._pending_web_handler
+        if waiting is not None and waiting[0] is not stack:
+            waiting[0].disconnect(waiting[1])
+            waiting = None
+        if waiting is None:
+            self._pending_web_handler = (stack, stack.connect(
+                'notify::visible-child-name', self._on_session_page))
+        if stack.get_visible_child_name() == 'login':
+            # Translators: toast when a web+ap:// or web+mastodon:// link
+            # is opened before any account is signed in.
+            win.show_toast(_('Sign in to open this link'))
+
+    def _on_session_page(self, stack, _pspec):
+        win = stack.get_root()
+        if stack.get_visible_child_name() != 'shell' \
+                or getattr(win, 'client', None) is None \
+                or getattr(win, 'account', None) is None:
+            return
+        stack.disconnect(self._pending_web_handler[1])
+        self._pending_web_handler = None
+        pending, self._pending_web = self._pending_web, []
+        for target in pending:
+            open_web_target(win, target)
 
     def on_compose_action(self, *_args):
         win = self.ensure_window()

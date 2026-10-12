@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import html
 import json
 import secrets
 import urllib.parse
@@ -10,17 +11,43 @@ from .i18n import gettext as _, ngettext
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
+gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gio, Gtk, Soup  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
-from .mastodon import (ADMIN_SCOPES, MastodonClient, OAUTH_REDIRECT,  # noqa: E402
-                       OAUTH_SCOPES, OOB_REDIRECT, clear_secret_async,
+from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
+                       MastodonClient, OAUTH_REDIRECT, OAUTH_SCOPES,
+                       OOB_REDIRECT, clear_secret_async, loopback_redirect,
                        normalize_instance, summarize_error)
 from .statustext import relative_time  # noqa: E402
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
+
+# How long the loopback listener waits for the browser to come back.
+LOOPBACK_TIMEOUT_SECONDS = 10 * 60
+
+
+def _close_loopback(_msg, server):
+    """Close a spent loopback listener once its last page is out.
+
+    Closing it from the request handler would drop the page the browser
+    is still waiting for."""
+    server.disconnect()
+
+
+COPIED_LINK_MAX = 2048
+
+
+def copied_link_kind(text):
+    """``'post'``, ``'profile'`` or ``'tag'`` when *text* (already
+    stripped) is a single fediverse link, else None."""
+    if not text or len(text) > COPIED_LINK_MAX or any(
+            c.isspace() for c in text):
+        return None
+    return pages.fedi_link_kind(text)
+
 
 # One-click alternatives for the login suggestions row, ranked from the
 # public JoinMastodon server directory (api.joinmastodon.org/servers)
@@ -141,6 +168,10 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._shortcut_session = None
         self._shortcut_pending = False
         self._auth_client = None
+        # The 127.0.0.1 listener the login in flight is redirected to.
+        self._loopback = None
+        self._loopback_uri = None
+        self._loopback_timeout = 0
         self._fallback = False
         # What the authorization in flight is for. A login installs a new
         # account; a moderation authorization replaces the token of the
@@ -173,6 +204,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         # live instead of waiting for the next account sync.
         pages.connect_weak(self.settings, 'changed::local-drafts',
                            self._refresh_draft_banner)
+        self._setup_copied_link_banner()
 
         self.notifications_badge = Gtk.Label(visible=False)
         self.notifications_badge.add_css_class('notifications-badge')
@@ -410,6 +442,91 @@ class BabbleWindow(Adw.ApplicationWindow):
             self.draft_banner.set_title(_('Draft from %s') % when)
         else:
             self.draft_banner.set_title(_('You have an unsent draft'))
+
+    # Copied link banner
+
+    def _setup_copied_link_banner(self):
+        """Add the 'Open copied post?' banner below the draft banner and
+        watch focus and the clipboard for links worth offering."""
+        self.copied_link_banner = Adw.Banner(button_label=_('_Open'),
+                                             use_markup=False)
+        self.draft_banner.get_parent().insert_child_after(
+            self.copied_link_banner, self.draft_banner)
+        pages.connect_weak(self.copied_link_banner, 'button-clicked',
+                           self._on_copied_link_open)
+        # Links already offered, opened or not: none is offered twice.
+        self._offered_links = set()
+        self._copied_link = None
+        self._clipboard_read = 0
+        pages.connect_weak(self, 'notify::is-active',
+                           self._on_active_changed)
+        pages.connect_weak(self.get_clipboard(), 'changed',
+                           self._on_clipboard_changed)
+
+    def _on_active_changed(self, *_args):
+        if self.is_active():
+            self._check_clipboard()
+
+    def _on_clipboard_changed(self, *_args):
+        if self.is_active():
+            self._check_clipboard()
+        elif self.copied_link_banner.get_revealed():
+            self._hide_copied_link()
+
+    def _hide_copied_link(self):
+        self._clipboard_read += 1
+        self._copied_link = None
+        self.copied_link_banner.set_revealed(False)
+
+    def _check_clipboard(self):
+        if (not self.is_active() or self.client is None
+                or not self.settings.get_boolean('offer-copied-links')):
+            self._hide_copied_link()
+            return
+        clipboard = self.get_clipboard()
+        formats = clipboard.get_formats()
+        if not (formats.contain_gtype(GObject.TYPE_STRING)
+                or formats.contain_mime_type('text/plain')
+                or formats.contain_mime_type('text/plain;charset=utf-8')):
+            self._hide_copied_link()
+            return
+        self._clipboard_read += 1
+        clipboard.read_text_async(None, pages.weak_method(
+            self._on_clipboard_text), self._clipboard_read)
+
+    def _on_clipboard_text(self, clipboard, result, serial):
+        try:
+            text = clipboard.read_text_finish(result)
+        except GLib.Error:
+            text = None
+        if serial != self._clipboard_read:
+            return  # a newer read (or a hide) superseded this one
+        if not self.is_active() or self.client is None \
+                or not self.settings.get_boolean('offer-copied-links'):
+            self._hide_copied_link()
+            return
+        url = (text or '').strip()
+        kind = copied_link_kind(url)
+        if kind is None:
+            self._hide_copied_link()
+            return
+        if url in self._offered_links:
+            if url != self._copied_link:
+                self._hide_copied_link()
+            return  # already offered: never nag twice for the same link
+        self._offered_links.add(url)
+        self._copied_link = url
+        self.copied_link_banner.set_title({
+            'post': _('Open copied post?'),
+            'profile': _('Open copied profile?'),
+            'tag': _('Open copied hashtag?')}[kind])
+        self.copied_link_banner.set_revealed(True)
+
+    def _on_copied_link_open(self, _banner):
+        url = self._copied_link
+        self._hide_copied_link()
+        if url:
+            pages.open_link(self, url, resolve=True)
 
     @Gtk.Template.Callback()
     def on_draft_restore(self, _banner):
@@ -1384,6 +1501,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         """
         self._auth_attempt += 1
         self._pending_code = None
+        self._stop_loopback()
         return self._auth_attempt
 
     def consume_code(self, code):
@@ -1420,7 +1538,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._auth_mode = AUTH_LOGIN
         self.begin_auth_attempt()
         self.refresh_login_widgets()
-        self._auth_client.register_app_async(callback=self.on_app_registered)
+        self._auth_client.register_app_async(
+            loopback=self._start_loopback(), callback=self.on_app_registered)
 
     @Gtk.Template.Callback()
     def on_cancel_login_clicked(self, _button):
@@ -1431,6 +1550,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._grab_focus(self.instance_entry)
 
     def _reset_login(self):
+        self._stop_loopback()
         self._auth_client = None
         self._fallback = False
         self.paste_code_button.set_visible(False)
@@ -1455,7 +1575,8 @@ class BabbleWindow(Adw.ApplicationWindow):
                                _('Could not register with %s')
                                % client.instance, e.message)
             return
-        redirect = OOB_REDIRECT if self._fallback else OAUTH_REDIRECT
+        redirect = OOB_REDIRECT if self._fallback \
+            else self._loopback_uri or OAUTH_REDIRECT
         scopes = ADMIN_SCOPES if self._auth_mode == AUTH_ADMIN else OAUTH_SCOPES
         self.open_url(client.get_authorize_url(redirect, scopes))
         if not self._fallback:
@@ -1498,19 +1619,131 @@ class BabbleWindow(Adw.ApplicationWindow):
         else:
             self.paste_code_button.set_visible(True)
 
-    def on_oauth_callback(self, uri):
+    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
+        """Exchange the code a redirect to *redirect_uri* carries.
+
+        Returns whether the exchange started. *uri* arrives on the
+        ``babble://`` scheme or, rebuilt from the request, on the
+        loopback listener; either way it must answer the authorization
+        in flight.
+        """
         client = self._auth_client
         if client is None:
-            return
+            return False
         # parse_callback_uri drops a callback whose state belongs to a
         # different authorization than the one in flight.
         code = client.parse_callback_uri(uri)
         if code is None:
+            return False
+        return self.start_token_exchange(code, redirect_uri)
+
+    # Loopback redirect
+
+    def _start_loopback(self):
+        """Listen on 127.0.0.1 for the redirect of the authorization
+        starting now, returning its ``http://127.0.0.1:<port>/callback``
+        URI.
+
+        The browser hands a loopback redirect straight back, so the login
+        needs no ``babble://`` handler registered on the desktop. When no
+        port can be bound this returns None and the authorization names
+        ``babble://`` as before.
+        """
+        self._stop_loopback()
+        server = Soup.Server()
+        try:
+            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY)
+        except GLib.Error:
+            return None
+        uris = server.get_uris()
+        if not uris or uris[0].get_port() <= 0:
+            server.disconnect()
+            return None
+        # Held weakly: the window owns the server, and a strong handler
+        # would close a cycle through C that the collector cannot see.
+        server.add_handler(None, pages.weak_method(self._on_loopback_request))
+        self._loopback = server
+        self._loopback_uri = loopback_redirect(uris[0].get_port())
+        self._loopback_timeout = GLib.timeout_add_seconds(
+            LOOPBACK_TIMEOUT_SECONDS,
+            pages.weak_method(self._on_loopback_expired))
+        return self._loopback_uri
+
+    def _detach_loopback(self):
+        """Forget the listener without closing it, returning it."""
+        server, self._loopback = self._loopback, None
+        self._loopback_uri = None
+        if self._loopback_timeout:
+            GLib.source_remove(self._loopback_timeout)
+            self._loopback_timeout = 0
+        return server
+
+    def _stop_loopback(self):
+        server = self._detach_loopback()
+        if server is not None:
+            server.disconnect()
+
+    def _on_loopback_expired(self):
+        self._loopback_timeout = 0
+        self._stop_loopback()
+        return GLib.SOURCE_REMOVE
+
+    def _on_loopback_request(self, server, msg, path, _query):
+        """Answer one request to the loopback listener.
+
+        Only ``GET /callback`` answering the authorization in flight is
+        taken, through the same state check a ``babble://`` redirect
+        gets. The first one to start the exchange spends the listener:
+        it closes as soon as the browser has the page.
+        """
+        if server is not self._loopback or path != LOOPBACK_CALLBACK_PATH:
+            msg.set_status(404, None)
             return
-        self.start_token_exchange(code, OAUTH_REDIRECT)
+        if msg.get_method() != 'GET':
+            msg.get_response_headers().replace('Allow', 'GET')
+            msg.set_status(405, None)
+            return
+        redirect = self._loopback_uri
+        query = msg.get_uri().get_query()
+        uri = redirect + '?' + query if query else redirect
+        if not self.on_oauth_callback(uri, redirect):
+            self._loopback_reply(
+                msg, 400,
+                _('Babble could not use this login'),
+                _('Return to Babble and try logging in again.'))
+            return
+        self._loopback_reply(
+            msg, 200,
+            # Translators: heading of the web page the browser shows
+            # once it has handed the login back to the app
+            _('Logged in with Babble'),
+            _('You can close this tab and return to Babble.'))
+        self._detach_loopback()
+        msg.connect('finished', _close_loopback, server)
+        msg.connect('disconnected', _close_loopback, server)
+        # No activation token comes back from the browser, so this may
+        # only mark the window as wanting attention.
+        self.present()
+
+    @staticmethod
+    def _loopback_reply(msg, status, heading, body):
+        page = ('<!DOCTYPE html>\n<html><head><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width">'
+                '<title>%s</title><style>body{font-family:system-ui,'
+                'sans-serif;text-align:center;margin:4em 1em}</style>'
+                '</head><body><h1>%s</h1><p>%s</p></body></html>\n'
+                % (html.escape(heading), html.escape(heading),
+                   html.escape(body)))
+        msg.set_status(status, None)
+        msg.get_response_headers().replace('Cache-Control', 'no-store')
+        msg.set_response('text/html; charset=utf-8', Soup.MemoryUse.COPY,
+                         page.encode('utf-8'))
 
     @Gtk.Template.Callback()
     def on_paste_code_clicked(self, button):
+        # The authorization is named again for the out-of-band redirect,
+        # so nothing can answer on the loopback listener any more.
+        self._stop_loopback()
         self._fallback = True
         self.paste_code_button.set_visible(False)
         if self._auth_client is not None and self._auth_client.client_id is not None:
@@ -1582,6 +1815,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             return False
         self._settled_attempt = attempt
         self._pending_code = None
+        self._stop_loopback()
         # The pending "finish in the browser" toast gives way to the
         # outcome instead of queueing behind it.
         self.toast_overlay.dismiss_all()
@@ -1672,7 +1906,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.begin_auth_attempt()
         self.refresh_login_widgets()
         self._auth_client.register_app_async(
-            scopes=ADMIN_SCOPES, callback=self.on_app_registered)
+            scopes=ADMIN_SCOPES, loopback=self._start_loopback(),
+            callback=self.on_app_registered)
 
     def _on_admin_token(self, client, account, attempt):
         """Keep the moderation token as the signed-in account's token."""
@@ -1734,6 +1969,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._auth_admin_callback = None
         self._admin_owner = None
         self._auth_attempt += 1
+        self._stop_loopback()
         self._auth_client = None
         self._auth_mode = AUTH_LOGIN
         self._fallback = False

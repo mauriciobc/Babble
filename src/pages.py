@@ -568,9 +568,28 @@ TRACKING_PARAMS = re.compile(
 
 _FEDI_PATH = re.compile(
     r'^/(@[^/]+(/\d+)?|users/[^/]+(/statuses/[^/]+)?|notice/[^/]+|'
-    r'objects/[^/]+|p/[^/]+/\d+|u/[^/]+|web/statuses/\d+|'
+    r'notes/[^/]+|objects/[^/]+|p/[^/]+/\d+|u/[^/]+|web/statuses/\d+|'
     r'web/@[^/]+(/\d+)?)/?$')
+# The profile shapes among _FEDI_PATH; every other match is a post.
+_PROFILE_PATH = re.compile(r'^/(?:web/)?(?:@[^/]+|users/[^/]+|u/[^/]+)/?$')
 _TAG_PATH = re.compile(r'^/(?:tags|tag)/([^/?#]+)/?$')
+
+
+def fedi_link_kind(uri):
+    """``'post'``, ``'profile'`` or ``'tag'`` when *uri* is an http(s)
+    link shaped like one on a fediverse server, else None."""
+    if not is_web_link(uri):
+        return None
+    parts = split_url(uri)
+    if parts is None or not parts.hostname:
+        return None
+    if _TAG_PATH.match(parts.path):
+        return 'tag'
+    if _PROFILE_PATH.match(parts.path):
+        return 'profile'
+    if _FEDI_PATH.match(parts.path):
+        return 'post'
+    return None
 
 
 def strip_tracking(uri):
@@ -588,14 +607,15 @@ def launch_external(widget, uri):
     launch_uri(widget, uri)
 
 
-def open_link(widget, uri, mentions=None, tags=None):
+def open_link(widget, uri, mentions=None, tags=None, resolve=False):
     """Route a link clicked in post or profile text.
 
     Mentions (matched against the status ``mentions`` payload) open the
     profile, hashtags open the hashtag timeline, other post/profile
     URLs are resolved through the instance's search when the
-    ``aggressive-resolving`` setting is on; everything else goes to the
-    browser, minus tracking parameters when ``strip-tracking`` is on."""
+    ``aggressive-resolving`` setting is on, or always with *resolve*;
+    everything else goes to the browser, minus tracking parameters when
+    ``strip-tracking`` is on."""
     if not is_web_link(uri):
         launch_external(widget, uri)  # refuses it, with a toast
         return
@@ -618,7 +638,7 @@ def open_link(widget, uri, mentions=None, tags=None):
             from .hashtags import push_hashtag
             push_hashtag(widget, client, name)
             return
-    if settings().get_boolean('aggressive-resolving') \
+    if (resolve or settings().get_boolean('aggressive-resolving')) \
             and _FEDI_PATH.match(parts.path):
         resolve_uri(widget, client, uri)
         return

@@ -213,6 +213,10 @@ class DesktopNotifier:
         if not status.get('id') or kind not in _STATUS_BUTTON_KINDS:
             return
         target = GLib.Variant('(ss)', (key, str(status['id'])))
+        # The shell shows at most three buttons: Reply, Favourite, Boost.
+        if kind == 'mention':
+            _remember_status(key, status)
+            note.add_button_with_target(_('Reply'), 'app.reply', target)
         note.add_button_with_target(
             _('Favourite'), 'app.favourite', target)
         if status.get('visibility') not in ('direct', 'private'):
@@ -314,14 +318,95 @@ def _confirmation(name):
             'follow-back': _('Followed back')}[name]
 
 
+# Statuses of recent mention notifications, by (account_key, id), so
+# Reply can prefill without fetching the post again.
+_REPLY_STATUSES = {}
+_REPLY_STATUSES_MAX = 50
+# How long Reply waits for an account switch to finish, in ms.
+_SWITCH_TIMEOUT_MS = 15000
+_SWITCH_POLL_MS = 100
+
+
+def _remember_status(key, status):
+    _REPLY_STATUSES[(key, str(status['id']))] = status
+    while len(_REPLY_STATUSES) > _REPLY_STATUSES_MAX:
+        del _REPLY_STATUSES[next(iter(_REPLY_STATUSES))]
+
+
 def install_app_actions(app):
-    """Register ``app.favourite``, ``app.boost`` and ``app.follow-back``,
-    the targets of the desktop notification buttons. Each takes
-    ``(account_key, id)``."""
+    """Register ``app.reply``, ``app.favourite``, ``app.boost`` and
+    ``app.follow-back``, the targets of the desktop notification buttons.
+    Each takes ``(account_key, id)``."""
     for name in _ACTIONS:
         action = Gio.SimpleAction.new(name, GLib.VariantType.new('(ss)'))
         action.connect('activate', _on_activate, app)
         app.add_action(action)
+    action = Gio.SimpleAction.new('reply', GLib.VariantType.new('(ss)'))
+    action.connect('activate', _on_reply, app)
+    app.add_action(action)
+
+
+def _active_key(win):
+    if win is None or win.client is None or win.account is None:
+        return None
+    return account_key(win.account)
+
+
+def _on_reply(_action, parameter, app):
+    key, status_id = parameter.unpack()
+    win = app.ensure_window()
+    win.present()
+    if _active_key(win) == key:
+        _reply(win, key, status_id)
+        return
+    from .pages import settings, show_toast
+    account = find_account_by_key(settings(), key)
+    if account is None or not hasattr(win, 'switch_account'):
+        show_toast(win, _('That account is no longer signed in'))
+        return
+    win.switch_account(key)
+    waited = [0]
+
+    def check():
+        if _active_key(win) == key:
+            _reply(win, key, status_id)
+            return GLib.SOURCE_REMOVE
+        waited[0] += _SWITCH_POLL_MS
+        if waited[0] >= _SWITCH_TIMEOUT_MS:
+            # Translators: %s is an account's name.
+            show_toast(win, _('Switch to %s to reply') % plain_name(account))
+            if hasattr(win, 'show_page'):
+                win.show_page('notifications')
+            return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
+
+    if check() == GLib.SOURCE_CONTINUE:
+        GLib.timeout_add(_SWITCH_POLL_MS, check)
+
+
+def _reply(win, key, status_id):
+    status = _REPLY_STATUSES.get((key, status_id))
+    if status is not None:
+        _open_reply(win, status_id, status)
+        return
+
+    def done(c, result):
+        try:
+            fetched = c.request_finish(result)
+        except GLib.Error as error:
+            from .pages import report_error
+            report_error(win, _('Could not load post'), error)
+            return
+        _open_reply(win, status_id, fetched or {})
+
+    win.client.request_async('GET', '/statuses/%s' % status_id,
+                             callback=done)
+
+
+def _open_reply(win, status_id, status):
+    win.open_compose_reply(
+        status_id, (status.get('account') or {}).get('acct', ''),
+        status.get('visibility') or 'public')
 
 
 def _main_window(app):

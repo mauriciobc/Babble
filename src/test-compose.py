@@ -5,6 +5,7 @@ client (no real token), validating the POST payload shape against
 docs.joinmastodon.org/methods/statuses and /methods/media."""
 
 import gc
+import inspect
 import json
 import os
 import shutil
@@ -27,8 +28,11 @@ import gi  # noqa: E402
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
+gi.require_version('GtkSource', '5')
+gi.require_version('Spelling', '1')
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import (Adw, Gdk, Gio, GLib, Gtk,  # noqa: E402
+                           GtkSource, Spelling)
 
 srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 srcroot = os.path.dirname(os.path.abspath(srcdir))
@@ -51,6 +55,61 @@ def check(name, condition):
         failures.append(name)
         print('FAIL - %s' % name)
 
+
+# The composer reaches the desktop portals through window.py's helpers,
+# imported as it is built. The window module needs its resources.
+builddir = os.environ.get('BABBLE_BUILDDIR') or os.path.dirname(
+    os.environ.get('GSETTINGS_SCHEMA_DIR')
+    or os.path.join(srcroot, 'build', 'data'))
+Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))._register()
+import src.window as window_module  # noqa: E402
+
+SCREENSHOT = 'org.freedesktop.portal.Screenshot'
+#: Portal interface -> version the stub portal_version answers.
+portal_versions = {SCREENSHOT: 1}
+#: What _session_bus hands over; None plays a missing session bus.
+session_bus = [object()]
+#: (interface, method, signature, args, options) of each portal call.
+portal_calls = []
+#: (code, results) answered to the next calls, in order; with none
+#: left, a call's on_response is held in held_responses.
+portal_answers = []
+held_responses = []
+
+check('window.py keeps the portal helpers the composer uses',
+      all(callable(getattr(window_module, name, None))
+          for name in ('portal_version', '_session_bus', '_portal_request'))
+      and list(inspect.signature(
+          window_module._portal_request).parameters) == [
+              'bus', 'interface', 'method', 'signature', 'args', 'options',
+              'on_response'])
+
+
+def stub_portal_version(interface, callback):
+    callback(portal_versions.get(interface, 0))
+
+
+def stub_session_bus(callback):
+    callback(session_bus[0])
+
+
+def stub_portal_request(bus, interface, method, signature, args, options,
+                        on_response):
+    # The real helper adds the handle_token and sends this very tuple.
+    GLib.Variant(signature, (*args, dict(
+        options, handle_token=GLib.Variant('s', 'babble_test'))))
+    portal_calls.append((interface, method, signature, args,
+                         {key: value.unpack()
+                          for key, value in options.items()}))
+    if portal_answers:
+        on_response(*portal_answers.pop(0))
+    else:
+        held_responses.append(on_response)
+
+
+window_module.portal_version = stub_portal_version
+window_module._session_bus = stub_session_bus
+window_module._portal_request = stub_portal_request
 
 # A 1x1 PNG so attachment thumbnails render for real.
 PNG_BYTES = bytes.fromhex(
@@ -242,8 +301,9 @@ def set_text(text):
 
 MAX = 500
 
-for attr in ('attach_button', 'cw_toggle', 'poll_toggle', 'mention_button',
-             'emoji_button', 'thread_toggle'):
+for attr in ('attach_button', 'screenshot_button', 'cw_toggle',
+             'poll_toggle', 'mention_button', 'emoji_button',
+             'thread_toggle'):
     button = getattr(view, attr)
     check('toolbar %s present and labelled' % attr,
           button.get_visible() and button.get_tooltip_text()
@@ -947,6 +1007,252 @@ paste('pasted words')
 check('pasting text inserts it', view.text() == 'pasted words')
 check('pasting text adds no attachment', view.attachments() == [])
 view.reset()
+
+# Screenshot: taken through the portal, copied under the user cache as
+# pasted images are, and attached.
+SHOT_FAILED = _('Could not take a screenshot')
+
+
+def take_screenshot(*answers):
+    portal_answers.extend(answers)
+    view.screenshot_button.emit('clicked')
+    pump(50)
+
+
+def cached_files():
+    return sorted(os.listdir(compose.pasted_dir()))
+
+
+check('the screenshot button is labelled Take Screenshot',
+      view.screenshot_button.get_tooltip_text() == _('Take Screenshot'))
+portal_versions[SCREENSHOT] = 0
+no_portal = BabbleComposeView(client)
+check('the screenshot button is hidden without the portal',
+      not no_portal.screenshot_button.get_visible())
+del no_portal
+portal_versions[SCREENSHOT] = 1
+
+shot = media_file('Screenshot From 2026-10-12 10-00-00.png')
+shot_uri = Gio.File.new_for_path(shot).get_uri()
+collect_toasts()
+portal_calls.clear()
+take_screenshot((0, {'uri': shot_uri}))
+rows = view.attachments()
+check('the portal is asked for an interactive, modal screenshot',
+      portal_calls == [(SCREENSHOT, 'Screenshot', '(sa{sv})', ('',),
+                        {'interactive': True, 'modal': True})])
+check('a screenshot taken is attached', len(rows) == 1
+      and collect_toasts() == [])
+shot_copy = rows[0].path if rows else ''
+check('the screenshot is copied under the user cache, keeping its name',
+      shot_copy == os.path.join(compose.pasted_dir(),
+                                os.path.basename(shot)))
+with open(shot_copy or os.devnull, 'rb') as f:
+    check('the copy holds the screenshot', f.read() == PNG_BYTES)
+check('the portal file is left where it is', os.path.isfile(shot))
+check('the screenshot uploads as image/png',
+      bool(rows) and rows[0].content_type == 'image/png')
+take_screenshot((0, {'uri': shot_uri}))
+rows = view.attachments()
+check('a second screenshot of that name gets a file of its own',
+      len(rows) == 2 and rows[1].path != shot_copy
+      and os.path.isfile(rows[1].path))
+view.reset()
+
+before = cached_files()
+take_screenshot((1, {}))
+check('a cancelled screenshot attaches nothing and says nothing',
+      view.attachments() == [] and collect_toasts() == [])
+for answer in ((2, {}), (None, {}), (0, {})):
+    take_screenshot(answer)
+    check('a failed screenshot (%r, %r) is told in a toast' % answer,
+          view.attachments() == [] and collect_toasts() == [SHOT_FAILED])
+session_bus[0] = None
+calls = len(portal_calls)
+take_screenshot()
+check('no session bus is told in a toast',
+      len(portal_calls) == calls and collect_toasts() == [SHOT_FAILED])
+session_bus[0] = object()
+take_screenshot((0, {'uri': Gio.File.new_for_path(
+    os.path.join(media_dir, 'gone.png')).get_uri()}))
+toasts = collect_toasts()
+check('a screenshot that cannot be copied is told in a toast',
+      view.attachments() == [] and len(toasts) == 1
+      and toasts[0].startswith(SHOT_FAILED + ': '))
+check('failed screenshots leave no file behind', cached_files() == before)
+
+# The answer can come after posting started, or after the draft filled
+# up: then nothing is copied either.
+take_screenshot()
+view._posting = True
+view.set_posting_ui(True)
+check('the screenshot button is off while posting',
+      not view.screenshot_button.get_sensitive())
+held_responses.pop()(0, {'uri': shot_uri})
+check('a screenshot taken while posting is refused with a toast',
+      view.attachments() == [] and collect_toasts() == [BUSY_POSTING]
+      and cached_files() == before)
+view._posting = False
+view.set_posting_ui(False)
+check('the screenshot button is back after posting',
+      view.screenshot_button.get_sensitive())
+take_screenshot()
+view.add_attachment_files([media_file('f%d.png' % n)
+                           for n in range(MAX_ATTACHMENTS)])
+check('the screenshot button is off at the attachment limit',
+      not view.screenshot_button.get_sensitive())
+held_responses.pop()(0, {'uri': shot_uri})
+check('a screenshot past the limit is refused with a toast',
+      len(view.attachments()) == MAX_ATTACHMENTS
+      and collect_toasts() == [LIMIT_REACHED] and cached_files() == before)
+view.on_remove_attachment(view.attachments()[0].remove_button,
+                          view.attachments()[0])
+check('the screenshot button is back below the limit',
+      view.screenshot_button.get_sensitive())
+view.reset()
+collect_toasts()
+
+# A composer closed while the portal is open is not kept alive by it.
+gone = BabbleComposeView(client)
+gone.screenshot_button.emit('clicked')
+gone_ref = weakref.ref(gone)
+del gone
+gc.collect()
+check('a pending screenshot does not keep the composer alive',
+      gone_ref() is None)
+held_responses.pop()(0, {'uri': shot_uri})
+check('its answer then attaches nowhere', cached_files() == before)
+
+# Spell checking: libspelling on the composer's buffer, in the language
+# picked for the post.
+adapter = view.spell_adapter
+check('the composer buffer is a GtkSource.Buffer with no highlighting',
+      isinstance(view.buffer, GtkSource.Buffer)
+      and not view.buffer.get_highlight_syntax()
+      and not view.buffer.get_highlight_matching_brackets()
+      and view.buffer.get_style_scheme() is None)
+check('the spell adapter checks the composer buffer',
+      adapter.get_buffer() == view.buffer)
+check('the corrections are the text view context menu extra',
+      view.text_view.get_extra_menu() == adapter.get_menu_model())
+spell_was_on = adapter.get_enabled()
+check('the spelling actions reach the text view',
+      view.text_view.activate_action('spelling.enabled', None)
+      and adapter.get_enabled() != spell_was_on)
+view.text_view.activate_action('spelling.enabled', None)
+check('spell checking is back as it was',
+      adapter.get_enabled() == spell_was_on)
+check('each composer has a checker of its own',
+      adapter.get_checker() != Spelling.Checker.get_default()
+      and adapter.get_checker() != dialog.view.spell_adapter.get_checker())
+
+
+def spell_click_at(offset):
+    """Right-click the text view at character *offset*, through the
+    composer's own capture-phase gesture."""
+    controllers = view.text_view.observe_controllers()
+    gesture = next(
+        controllers.get_item(i) for i in range(controllers.get_n_items())
+        if isinstance(controllers.get_item(i), Gtk.GestureClick)
+        and controllers.get_item(i).get_button() == Gdk.BUTTON_SECONDARY)
+    rect = view.text_view.get_iter_location(
+        view.buffer.get_iter_at_offset(offset))
+    x, y = view.text_view.buffer_to_window_coords(
+        Gtk.TextWindowType.WIDGET, rect.x + 1, rect.y + rect.height // 2)
+    gesture.emit('pressed', 1, float(x), float(y))
+
+
+def cursor_offset():
+    return view.buffer.get_iter_at_mark(view.buffer.get_insert()).get_offset()
+
+
+set_text('first tset last')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+pump(100)
+spell_click_at(7)
+check('a right click puts the cursor on the word clicked',
+      cursor_offset() == 7 and not view.buffer.get_has_selection())
+view.buffer.select_range(view.buffer.get_iter_at_offset(6),
+                         view.buffer.get_iter_at_offset(10))
+spell_click_at(8)
+check('a right click in the selection keeps it',
+      view.buffer.get_has_selection() and cursor_offset() in (6, 10))
+spell_click_at(1)
+check('a right click out of the selection drops it',
+      cursor_offset() == 1 and not view.buffer.get_has_selection())
+set_text('')
+
+check('a dictionary named as the language is taken as is',
+      compose.spelling_language('pt', ['pt', 'pt_BR'], ['pt_BR']) == 'pt')
+check('a regional dictionary of the user locale is preferred',
+      compose.spelling_language(
+          'pt', ['en_US', 'pt_BR', 'pt_PT'],
+          ['pt_PT.UTF-8', 'pt_PT', 'pt.UTF-8', 'pt', 'C']) == 'pt_PT')
+check('else the first regional dictionary',
+      compose.spelling_language('pt', ['pt_PT', 'pt_BR', 'en_US'],
+                                ['en_US', 'C']) == 'pt_BR')
+check('a dictionary variant counts as the language',
+      compose.spelling_language('pt', ['pt_PT-preao'], []) == 'pt_PT-preao')
+check('a language without dictionary has none',
+      compose.spelling_language('ja', ['en_US', 'jv'], ['ja_JP']) is None)
+
+provider = Spelling.Provider.get_default()
+dictionaries = provider.list_languages()
+available = [dictionaries.get_item(i).get_code()
+             for i in range(dictionaries.get_n_items())]
+codes = [lang[0] for lang in compose.LANGUAGES]
+covered = [code for code in codes
+           if compose.spelling_language(code, available)]
+uncovered = [code for code in codes if code not in covered]
+if not covered:
+    print('# no spelling dictionary installed: only turning spell checking '
+          'off is exercised')
+for code in covered[:2]:
+    view.language_row.set_selected(codes.index(code))
+    expected = compose.spelling_language(code, available,
+                                         GLib.get_language_names())
+    check('the spelling language follows the language row (%s: %s)'
+          % (code, expected),
+          adapter.get_language() == expected and adapter.get_enabled())
+for code in uncovered[:1]:
+    view.language_row.set_selected(codes.index(code))
+    check('a language with no dictionary turns spell checking off (%s)'
+          % code, not adapter.get_enabled())
+if covered:
+    view.language_row.set_selected(codes.index(covered[0]))
+    check('a language with a dictionary turns it back on',
+          adapter.get_enabled())
+    # Checked on the plain Gtk.TextView: no GtkSource.View is needed.
+    set_text('xqzvkj and more')
+    view.buffer.place_cursor(view.buffer.get_end_iter())
+    check('a misspelled word gets underlined', settle_until(
+        3.0, lambda: view.buffer.get_start_iter().has_tag(
+            adapter.get_tag())))
+    set_text('')
+# The drop-down always keeps an item selected; none selected is played
+# by shadowing its getter.
+view.language_row.get_selected = lambda: Gtk.INVALID_LIST_POSITION
+view._update_spell_language()
+del view.language_row.get_selected
+default_code = provider.get_default_code()
+check('with no language picked, the default dictionary is used',
+      adapter.get_enabled() == bool(default_code)
+      and (not default_code or adapter.get_language() == default_code))
+view.reset()
+
+# Text shared from outside the app starts a post, keeping the draft.
+shared = BabbleComposeView(client)
+shared.prefill_text('shared words')
+check('prefill_text fills an empty draft',
+      shared.text() == 'shared words'
+      and not shared.reply_banner.get_revealed())
+shared.prefill_text('another share')
+check('prefill_text keeps the draft in progress',
+      shared.text() == 'another share'
+      and shared.reply_banner.get_revealed())
+shared.pop_reply_state()
+check('the kept draft comes back', shared.text() == 'shared words')
+del shared
 
 # Pasted images outlive their rows, for undo and saved drafts; the old
 # ones no saved draft refers to are pruned.

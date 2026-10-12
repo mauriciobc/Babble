@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Babble is a Mastodon client for GNOME written in Python with PyGObject, on GTK 4.24+ and libadwaita 1.10+ (GNOME 51), with libsoup 3 for HTTP and libsecret for tokens. Meson is the build system. There is no Python packaging, linter config, or pytest suite.
+Babble is a Mastodon client for GNOME written in Python with PyGObject, on GTK 4.24+ and libadwaita 1.10+ (GNOME 51), with libsoup 3 for HTTP, libsecret for tokens, and libspelling 0.4+ (on a GtkSourceView 5 buffer) for spell checking in the composer. Meson is the build system. There is no Python packaging, linter config, or pytest suite.
 
 ## Commands
 
@@ -15,7 +15,7 @@ meson test -C build -v 'compose widgets'  # -v shows the test's ok/FAIL lines
 python3 build/src/babble                  # uninstalled run; not executable until installed, and only works with the build dir directly inside the source tree (it resolves ../../src)
 ```
 
-Test names (besides the `validate …` and `po check <lang>` tests): `timeline render`, `timeline memory`, `thread profile render`, `compose widgets`, `notifications render`, `oauth callback`, `error summary`, `streaming helpers`, `account store`, `status text`, `search provider`.
+Test names (besides the `validate …` and `po check <lang>` tests): `timeline render`, `timeline memory`, `thread profile render`, `compose widgets`, `notifications render`, `oauth callback`, `oauth loopback`, `error summary`, `streaming helpers`, `account store`, `status text`, `search provider`.
 
 - Each test is a standalone script, `src/test-*.py`, that prints `ok - …` / `FAIL - …` lines. It exits 77 (a Meson skip) when there is no `DISPLAY` or, for `timeline render` and `thread profile render`, no network: those two fetch live public data from mastodon.social. To run one headless, use `xvfb-run -a meson test -C build '<name>'`.
 - Tests import modules as `src.<module>` through `BABBLE_SRCDIR`. Several need `GSETTINGS_SCHEMA_DIR=build/data`, so they need a compiled build tree. They also run with `G_DEBUG=fatal-criticals`, so any GTK critical fails the test.
@@ -35,7 +35,7 @@ Flatpak (local dev manifest only):
 ```sh
 flatpak-builder --user --install --force-clean build-flatpak build-aux/flatpak/io.github.mauriciobc.Babble.json
 ```
-OAuth login needs `xdg-mime default io.github.mauriciobc.Babble.desktop x-scheme-handler/babble` run once on the host. Without it the `babble://` redirect never reaches the app.
+OAuth login redirects to a `127.0.0.1` loopback listener the login opens (`window._start_loopback`), so it needs no setup. Only if that port cannot be bound does it fall back to `babble://`, which needs `xdg-mime default io.github.mauriciobc.Babble.desktop x-scheme-handler/babble` run once on the host; without it that redirect never reaches the app.
 
 ## Architecture
 
