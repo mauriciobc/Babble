@@ -28,7 +28,8 @@ sys.path.insert(0, srcdir)
 from src.mastodon import MastodonClient  # noqa: E402
 from src.textemoji import InlineEmojiText, status_emoji_bank  # noqa: E402
 from src.timeline import (BlurredPicture, BoostCarouselItem, StatusItem,  # noqa: E402
-                          StatusRow, TimelineModel, TimelinePage,
+                          StatusRow, TimelineModel, TimelinePage, group_boosts,
+                          snap_carousel_offset,
                           COLUMN_WIDTH, parse_content, relative_time)
 
 failures = []
@@ -50,6 +51,10 @@ check('link href extracted',
       any(s['href'] == 'https://example.org' for s in segments))
 check('no raw html leaks', all('<p>' not in s['text'] for s in segments))
 check('relative time', relative_time('2020-01-01T00:00:00.000Z') != '')
+check('carousel snap rounds to card columns',
+      snap_carousel_offset(290, 280, 1000) == 280)
+check('carousel snap clamps to the end',
+      snap_carousel_offset(950, 280, 840) == 840)
 
 model = TimelineModel()
 items = model.append_old([{'id': '2', 'content': 'b',
@@ -97,6 +102,130 @@ model.remove_status('3')
 check('a boost of a deleted post goes too',
       all(model.get_item(i).status_id != '3'
           for i in range(model.get_n_items())))
+
+_posts = [{'id': str(i), 'account': {'acct': 'a'}, 'content': ''}
+          for i in range(9)]
+_trailing = _posts + [
+    {'id': 'b%d' % i, 'account': {'acct': 'booster'},
+     'reblog': {'id': str(i), 'account': {'acct': 'a'}, 'content': ''}}
+    for i in range(3)]
+_grouped = group_boosts(_trailing)
+check('three trailing boosts open a carousel',
+      any(isinstance(x, BoostCarouselItem) for x in _grouped))
+check('grouped boosts are not inline rows',
+      sum(isinstance(x, BoostCarouselItem) for x in _grouped) == 1
+      and len(_grouped) == 10)
+_mostly_boosts = [{'id': 'p%d' % i, 'account': {'acct': 'a'}, 'content': ''}
+                  for i in range(4)]
+_mostly_boosts += [
+    {'id': 'b%d' % i, 'account': {'acct': 'booster'},
+     'reblog': {'id': 'p%d' % (i % 4), 'account': {'acct': 'a'},
+                'content': ''}}
+    for i in range(20)]
+check('a boost-heavy page slots the carousel last',
+      isinstance(group_boosts(_mostly_boosts)[-1], BoostCarouselItem))
+_sparse = [{'id': str(i), 'account': {'acct': 'a'}, 'content': ''}
+           for i in range(10)]
+_sparse.append({'id': 'b0', 'account': {'acct': 'booster'},
+                'reblog': {'id': '0', 'account': {'acct': 'a'},
+                           'content': ''}})
+check('a lone boost on a page stays inline', group_boosts(_sparse) is _sparse)
+_group_model = TimelineModel()
+_group_model.group_boosts_enabled = True
+_group_model.append_old(_trailing)
+check('model inserts a carousel row',
+      any(isinstance(_group_model.get_item(i), BoostCarouselItem)
+          for i in range(_group_model.get_n_items())))
+check('model does not duplicate boosts inline',
+      sum(1 for i in range(_group_model.get_n_items())
+          if _group_model.get_item(i).is_boost) == 0)
+
+
+def _post(i):
+    return {'id': '%05d' % i, 'content': '', 'created_at': '',
+            'account': {'acct': 'a%d' % i, 'id': str(i)}}
+
+
+def _boost(i, of):
+    return dict(_post(i), account={'acct': 'booster', 'id': 'b'},
+                reblog=_post(of))
+
+
+_page = [_post(100 - i) for i in range(6)] \
+    + [_boost(50 + i, 900 + i) for i in range(6)]
+
+# Trimming a page that held a carousel must leave its boosts fetchable.
+_trim_model = TimelineModel()
+_trim_model.append_old(_page)
+_trim_model.append_old([_post(10 - i) for i in range(3)])
+_trim_model.trim(2)
+_trim_model.append_old(_page)
+
+
+def _shown_ids(model):
+    ids = set()
+    for i in range(model.get_n_items()):
+        item = model.get_item(i)
+        if isinstance(item, BoostCarouselItem):
+            ids |= {s['id'] for s in item.boosts}
+        else:
+            ids.add(item.status_id)
+    return ids
+
+
+check('the boosts of a trimmed page come back when it is fetched again',
+      {'%05d' % (900 + i) for i in range(6)} <= _shown_ids(_trim_model))
+
+# An unboost deletes the wrapper, not the boosted post.
+_del_model = TimelineModel()
+_del_model.append_old(_page)
+check('deleting a boost wrapper drops its card from the carousel',
+      _del_model.remove_status('00050')
+      and all('00900' != s['id'] for i in range(_del_model.get_n_items())
+              if isinstance(_del_model.get_item(i), BoostCarouselItem)
+              for s in _del_model.get_item(i).boosts))
+_other = TimelineModel()
+_other.append_old(_page)
+check('deleting a post that is not in the carousel changes nothing',
+      not _other.remove_status('12345'))
+
+# The same boost fetched again is not a duplicate of itself.
+_dedupe = TimelineModel()
+_dedupe.group_boosts_enabled = False
+_dedupe.append_old([_boost(50, 900)])
+_dedupe._seen.clear()
+check('a boost already recorded is accepted again from the same wrapper',
+      len(_dedupe._filter_unseen([_boost(50, 900)])) == 1)
+check('a second boost of the same post is dropped',
+      len(_dedupe._filter_unseen([_boost(51, 900)])) == 0)
+
+# A page with nothing new still moves the paging cursor.
+_paging = TimelineModel()
+_paging.group_boosts_enabled = False
+_paging.append_old([_boost(50, 900)])
+check('an all-duplicate page returns True and moves the cursor back',
+      _paging.append_old([_boost(40, 900)]) and _paging.oldest_id == '00040')
+check('a page whose cursor did not move reports no more pages',
+      not _paging.append_old([_boost(45, 900)]))
+
+# Two boosts of one post on a single page dedupe too, newest first.
+_same_page = TimelineModel()
+_same_page.group_boosts_enabled = False
+_same_page.append_old([_boost(60, 900), _boost(55, 900), _post(50)])
+check('only the first boost of a post on one page is kept',
+      sorted(_same_page.get_item(n).status_id
+             for n in range(_same_page.get_n_items()))
+      == ['00050', '00900'])
+_no_dedupe = TimelineModel()
+_no_dedupe.group_boosts_enabled = False
+_no_dedupe.dedupe_boosts_enabled = False
+_no_dedupe.append_old([_boost(60, 900), _boost(55, 900)])
+check('dedupe can be switched off', _no_dedupe.get_n_items() == 2)
+
+# The new-posts pill counts posts, not rows: a carousel holds many.
+_count = TimelineModel()
+check('a carousel counts as every status it replaced',
+      _count.insert_new(_page) == len(_page))
 
 # --- Inline emoji gap fixtures (unit level, no network) ----------------
 # Post bodies now render :shortcode: custom emojis declared in the

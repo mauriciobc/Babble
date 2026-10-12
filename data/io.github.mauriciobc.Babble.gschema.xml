@@ -124,6 +124,14 @@
       <default>false</default>
       <summary>Show the reply, boost and favorite actions on every post in timelines</summary>
     </key>
+    <key name="boosts-carousel" type="b">
+      <default>true</default>
+      <summary>Group bursts of boosts into a horizontal carousel instead of listing each boost in the timeline</summary>
+    </key>
+    <key name="dedupe-boosts" type="b">
+      <default>true</default>
+      <summary>Show only the first boost of a post that several people boosted</summary>
+    </key>
     <key name="advanced-boost-dialog" type="b">
       <default>false</default>
       <summary>Ask for visibility (and offer quoting) before boosting</summary>

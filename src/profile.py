@@ -1129,8 +1129,9 @@ class ProfilePage(Adw.Bin):
             self.view_stack.remove(child)
         timeline_pages = []
         for name, title, icon, source in tabs:
-            page = ProfileTimeline(self.client, mode='account',
-                                   source=source)
+            page = ProfileTimeline(
+                self.client, mode='account', source=source,
+                boosts_carousel=not self._is_self())
             page.set_hexpand(True)
             page.set_vexpand(True)
             self.view_stack.add_titled(page, name, title)

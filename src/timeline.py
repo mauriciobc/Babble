@@ -27,8 +27,8 @@ from .textemoji import (InlineEmojiText, emoji_bank, launch_uri,  # noqa: E402
 PAGE_SIZE = 20
 AUTO_REFRESH_SCROLLED_TICKS = 2  # 30s when the user is scrolled away
 COLUMN_WIDTH = pages.COLUMN_WIDTH
-BOOST_WINDOW = 60
-BOOST_CAP = 12
+BOOST_DEDUPE_LIMIT = 100
+GROUP_BOOSTS_MIN_PAGE = 11
 
 # Decoded-texture budgets. Avatars repeat across a timeline so they are
 # cheap to keep; media are large, so far fewer stay resident.
@@ -172,20 +172,73 @@ class StatusItem(GObject.Object):
             or self.status.get('uri') or ''
 
 
+def is_boost_status(status):
+    """True for a reblog row that is not a group-account post."""
+    if not status.get('reblog'):
+        return False
+    return not (status.get('account') or {}).get('group')
+
+
+def sort_carousel_boosts(boost_wrappers):
+    """Inner statuses for carousel cards; filter warnings sort last."""
+    unfiltered, filtered = [], []
+    for wrapper in boost_wrappers:
+        action, _title = status_filter(wrapper) or (None, None)
+        if action and action != 'blur':
+            filtered.append(wrapper)
+        else:
+            unfiltered.append(wrapper)
+    ordered = unfiltered + filtered
+    return [(wrapper.get('reblog') or wrapper) for wrapper in ordered]
+
+
+def group_boosts(statuses):
+    """Phanpy-style grouping for one API page of statuses.
+
+    When the threshold is not met, returns *statuses* unchanged (boosts
+    stay inline). Otherwise returns a list of status dicts and
+    :class:`BoostCarouselItem` instances with boosts removed from the
+    stream and the carousel at the middle or end of that page."""
+    if not statuses:
+        return []
+    boost_stash = []
+    new_values = []
+    serial_boosts = 0
+    for status in statuses:
+        if is_boost_status(status):
+            boost_stash.append(status)
+            serial_boosts += 1
+        else:
+            new_values.append(status)
+            if serial_boosts < 3:
+                serial_boosts = 0
+    if len(statuses) < GROUP_BOOSTS_MIN_PAGE:
+        return statuses
+    if not (len(boost_stash) > len(statuses) / 4 or serial_boosts >= 3):
+        return statuses
+    carousel = BoostCarouselItem(sort_carousel_boosts(boost_stash),
+                                 boost_stash)
+    if len(boost_stash) > len(statuses) * 3 / 4:
+        return new_values + [carousel]
+    half = len(new_values) // 2
+    return new_values[:half] + [carousel] + new_values[half:]
+
+
 class BoostCarouselItem(StatusItem):
-    """Synthetic first row of the timeline: the boosts carousel.
+    """Synthetic timeline row: a horizontal boosts carousel.
 
     Subclasses StatusItem so the shared GListModel item type contract
     (test: get_item_type() == StatusItem) stays intact."""
 
     __gtype_name__ = 'BabbleBoostCarouselItem'
 
-    def __init__(self, boosts):
+    def __init__(self, boosts, wrappers=()):
         super().__init__({'id': '__babble_boosts__',
                           'content': '',
                           'account': {'acct': 'boosts'},
                           'created_at': ''})
         self.boosts = boosts
+        self.wrappers = list(wrappers)
 
     def set_boosts(self, boosts):
         """Swap the boosted posts in place: the carousel stays one list
@@ -207,6 +260,9 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         super().__init__()
         self._store = Gio.ListStore.new(StatusItem)
         self._seen = set()
+        self._boosted_reblog_ids = {}
+        self.group_boosts_enabled = True
+        self.dedupe_boosts_enabled = True
         self.oldest_id = None
         self.newest_id = None
         self.exhausted = False
@@ -226,38 +282,145 @@ class TimelineModel(GObject.Object, Gio.ListModel):
     def do_get_item_type(self):
         return StatusItem
 
+    def _filter_unseen(self, statuses):
+        fresh = []
+        # Boosts taken from this page so far, so two boosts of one post on
+        # the same page dedupe too, the first (newest) one winning.
+        taken = {}
+        for status in statuses:
+            status_id = str(status.get('id') or '')
+            if not status_id or status_id in self._seen:
+                continue
+            if self.dedupe_boosts_enabled and is_boost_status(status):
+                reblog_id = str(status['reblog']['id'])
+                booster = taken.get(
+                    reblog_id, self._boosted_reblog_ids.get(reblog_id))
+                if booster is not None and booster != status_id:
+                    continue
+                taken[reblog_id] = status_id
+            fresh.append(status)
+        return fresh
+
+    def _remember_boost_dedupe(self, status):
+        if not self.dedupe_boosts_enabled or not is_boost_status(status):
+            return
+        reblog_id = str(status['reblog']['id'])
+        self._boosted_reblog_ids[reblog_id] = str(status['id'])
+        while len(self._boosted_reblog_ids) > BOOST_DEDUPE_LIMIT:
+            self._boosted_reblog_ids.pop(next(iter(self._boosted_reblog_ids)))
+
+    @staticmethod
+    def _item_ids(item):
+        """Every id a row answers to: the posts it shows and, for boosts,
+        the wrappers they arrived as."""
+        if isinstance(item, BoostCarouselItem):
+            ids = {str(status['id']) for status in item.boosts}
+            ids.update(str(wrapper['id']) for wrapper in item.wrappers
+                       if wrapper.get('id'))
+            return ids
+        ids = {item.status_id}
+        if item.raw.get('id') is not None:
+            ids.add(str(item.raw['id']))
+        return ids
+
+    @staticmethod
+    def _wrapper_ids(items):
+        """Ids of the boost wrappers among *items*."""
+        ids = set()
+        for item in items:
+            if isinstance(item, BoostCarouselItem):
+                ids.update(str(wrapper['id']) for wrapper in item.wrappers
+                           if wrapper.get('id'))
+            elif item.is_boost:
+                ids.add(str(item.raw['id']))
+        return ids
+
+    def _register_seen(self, item):
+        self._seen |= self._item_ids(item)
+        if isinstance(item, BoostCarouselItem):
+            for wrapper in item.wrappers:
+                self._remember_boost_dedupe(wrapper)
+
+    def _statuses_to_items(self, statuses):
+        if not statuses:
+            return []
+        if self.group_boosts_enabled:
+            shaped = group_boosts(statuses)
+        else:
+            shaped = statuses
+        items = []
+        for entry in shaped:
+            if isinstance(entry, BoostCarouselItem):
+                items.append(entry)
+            else:
+                self._remember_boost_dedupe(entry)
+                items.append(StatusItem(entry))
+        return items
+
     def insert_new(self, statuses):
         """Prepend newer statuses, oldest of the new page first."""
-        fresh = [StatusItem(s) for s in statuses
-                 if s['id'] not in self._seen]
-        added = 0
-        offset = 0
-        if self._store.get_n_items() \
-                and isinstance(self._store.get_item(0), BoostCarouselItem):
-            offset = 1
-        for item in reversed(fresh):
-            self._store.insert(offset, item)
-            self._seen.add(item.status_id)
-            added += 1
+        fresh = self._filter_unseen(statuses)
+        items = self._statuses_to_items(fresh)
+        for item in reversed(items):
+            self._store.insert(0, item)
+            self._register_seen(item)
         if fresh:
             newest = max(s['id'] for s in statuses)
             if self.newest_id is None or newest > self.newest_id:
                 self.newest_id = newest
-        return added
+        return len(fresh)
 
     def append_old(self, statuses):
-        """Append older statuses; returns False when the page is empty."""
+        """Append older statuses. Returns False when there is nothing
+        further to page to: the page is empty, or it held nothing new and
+        its cursor did not move back. A page whose rows were all filtered
+        out or already seen still moves the cursor and returns True."""
         if not statuses:
             self.exhausted = True
             return False
-        fresh = [StatusItem(s) for s in statuses if s['id'] not in self._seen]
-        if not fresh:
+        oldest = min(s['id'] for s in statuses)
+        items = self._statuses_to_items(self._filter_unseen(statuses))
+        if items:
+            start = self._store.get_n_items()
+            self._store.splice(start, 0, items)
+            for item in items:
+                self._register_seen(item)
+        elif self.oldest_id is not None and oldest >= self.oldest_id:
             return False
-        start = self._store.get_n_items()
-        self._store.splice(start, 0, fresh)
-        for item in fresh:
-            self._seen.add(item.status_id)
-        self.oldest_id = min(s['id'] for s in statuses)
+        self.oldest_id = oldest
+        return True
+
+    def _forget_boost(self, status_id):
+        """A deleted post or boost is no longer a reason to hide a later
+        boost of the same post."""
+        self._seen.discard(status_id)
+        self._boosted_reblog_ids.pop(status_id, None)
+        for reblog_id, booster in list(self._boosted_reblog_ids.items()):
+            if booster == status_id:
+                del self._boosted_reblog_ids[reblog_id]
+
+    def _remove_from_carousel(self, item, position, target):
+        """Drop *target*, a boosted post or the id of one of its boost
+        wrappers (what an unboost deletes), from a carousel. Returns True
+        when the carousel changed."""
+        if item.wrappers:
+            wrappers = [
+                wrapper for wrapper in item.wrappers
+                if str(wrapper.get('id')) != target
+                and str((wrapper.get('reblog') or {}).get('id')) != target]
+            shown = {str(wrapper['reblog']['id']) for wrapper in wrappers}
+            kept = [s for s in item.boosts if str(s.get('id')) in shown]
+        else:
+            wrappers = []
+            kept = [s for s in item.boosts if str(s.get('id') or '') != target]
+        if len(kept) == len(item.boosts) \
+                and len(wrappers) == len(item.wrappers):
+            return False
+        item.wrappers = wrappers
+        if kept:
+            item.set_boosts(kept)
+        else:
+            self._store.remove(position)
         return True
 
     def remove_status(self, status_id):
@@ -268,6 +431,8 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         for position in reversed(range(self._store.get_n_items())):
             item = self._store.get_item(position)
             if isinstance(item, BoostCarouselItem):
+                if self._remove_from_carousel(item, position, target):
+                    removed = True
                 continue
             if item.status_id != target \
                     and str(item.raw.get('id') or '') != target:
@@ -275,6 +440,8 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             self._seen.discard(item.status_id)
             self._store.remove(position)
             removed = True
+        if removed:
+            self._forget_boost(target)
         return removed
 
     def trim(self, keep):
@@ -284,15 +451,27 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         total = self._store.get_n_items()
         if total <= keep:
             return False
-        dropped = {self._store.get_item(i).status_id
-                   for i in range(keep, total)}
+        dropped = [self._store.get_item(i) for i in range(keep, total)]
         self._store.splice(keep, total - keep, [])
         left = [self._store.get_item(i) for i in range(keep)]
         # A post can also be shown higher up as a boost or the original:
         # its id stays seen while any copy is left.
-        self._seen -= dropped - {item.status_id for item in left}
-        ids = [item.raw['id'] for item in left
-               if not isinstance(item, BoostCarouselItem)]
+        gone = set().union(*(self._item_ids(item) for item in dropped))
+        still = set().union(*(self._item_ids(item) for item in left))
+        self._seen -= gone - still
+        # The dropped boosts must be fetchable again, so they stop
+        # counting as the boost of their post.
+        orphaned = self._wrapper_ids(dropped) - self._wrapper_ids(left)
+        for reblog_id, booster in list(self._boosted_reblog_ids.items()):
+            if booster in orphaned:
+                del self._boosted_reblog_ids[reblog_id]
+        ids = []
+        for item in left:
+            if isinstance(item, BoostCarouselItem):
+                ids.extend(wrapper['id'] for wrapper in item.wrappers
+                           if wrapper.get('id'))
+            else:
+                ids.append(item.raw['id'])
         self.oldest_id = min(ids) if ids else None
         self.exhausted = False
         return True
@@ -306,6 +485,17 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         for position in range(self._store.get_n_items()):
             item = self._store.get_item(position)
             if isinstance(item, BoostCarouselItem):
+                updated = False
+                boosts = []
+                for inner in item.boosts:
+                    if str(inner.get('id') or '') == status_id:
+                        boosts.append(dict(inner, **status))
+                        updated = True
+                    else:
+                        boosts.append(inner)
+                if updated:
+                    item.set_boosts(boosts)
+                    return True
                 continue
             if item.status_id != status_id:
                 continue
@@ -319,21 +509,6 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             item.update(raw)
             return True
         return False
-
-    def set_boosts(self, boosts):
-        """Keep the boosts carousel as the first row (None removes it)."""
-        if not self._store.get_n_items():
-            return
-        head = self._store.get_item(0)
-        has = isinstance(head, BoostCarouselItem)
-        if not boosts:
-            if has:
-                self._store.remove(0)
-            return
-        if has:
-            head.set_boosts(boosts)
-        else:
-            self._store.insert(0, BoostCarouselItem(boosts))
 
 
 class StatusRunRow(Gtk.Box):
@@ -1114,6 +1289,16 @@ class PollBox(Gtk.Box):
 CARD_THUMB_W = 200
 CARD_THUMB_H = 96
 BOOST_CARD_WIDTH = 272
+BOOST_CARD_SPACING = 8
+BOOST_SCROLL_MS = 250
+
+
+def snap_carousel_offset(value, step, maximum):
+    """Scroll offset snapped to the nearest card column."""
+    if step <= 0:
+        return max(0.0, min(value, maximum))
+    snapped = round(value / step) * step
+    return max(0.0, min(snapped, maximum))
 
 
 class CardPreview(Gtk.Button):
@@ -1270,14 +1455,22 @@ class BoostCarousel(Gtk.Box):
         header.append(self.next)
         self.append(header)
 
-        self.cards_box = Gtk.Box(spacing=8)
+        self.cards_box = Gtk.Box(spacing=BOOST_CARD_SPACING)
         self.scroll = Gtk.ScrolledWindow(
             hscrollbar_policy=Gtk.PolicyType.EXTERNAL,
-            vscrollbar_policy=Gtk.PolicyType.NEVER)
+            vscrollbar_policy=Gtk.PolicyType.NEVER,
+            kinetic_scrolling=False)
         self.scroll.set_child(self.cards_box)
         adjustment = self.scroll.get_hadjustment()
         connect_weak(adjustment, 'changed', self._update_arrows)
         connect_weak(adjustment, 'value-changed', self._update_arrows)
+        controller = Gtk.EventControllerScroll.new(
+            Gtk.EventControllerScrollFlags.HORIZONTAL)
+        connect_weak(controller, 'scroll-end', self._on_scroll_end)
+        self.scroll.add_controller(controller)
+        self._scroll_animation = None
+        self._scroll_animating = False
+        self._scroll_target = None
         self.append(self.scroll)
 
     def _arrow(self, icon_name, tooltip, direction):
@@ -1323,12 +1516,71 @@ class BoostCarousel(Gtk.Box):
             ngettext('%d Boost', '%d Boosts', len(seen)) % len(seen))
         self._update_arrows()
 
+    def _card_step(self):
+        card = self.cards_box.get_first_child()
+        if card is not None and card.get_width() > 0:
+            return card.get_width() + self.cards_box.get_spacing()
+        return BOOST_CARD_WIDTH + self.cards_box.get_spacing()
+
+    def _scroll_maximum(self, adjustment):
+        return max(0.0, adjustment.get_upper() - adjustment.get_page_size())
+
+    def _scroll_to_value(self, target, animate=True):
+        adjustment = self.scroll.get_hadjustment()
+        maximum = self._scroll_maximum(adjustment)
+        target = snap_carousel_offset(target, self._card_step(), maximum)
+        # A running animation is dropped where it stands, so a click made
+        # during one carries on from the current position instead of
+        # jumping to the end of the old move.
+        if self._scroll_animation is not None:
+            self._scroll_animation.pause()
+            self._scroll_animation = None
+        self._scroll_animating = False
+        self._scroll_target = None
+        current = adjustment.get_value()
+        if not animate or abs(target - current) < 0.5:
+            adjustment.set_value(target)
+            self._update_arrows()
+            return
+        self._scroll_animating = True
+        self._scroll_target = target
+        animation = Adw.TimedAnimation(
+            widget=self.scroll, value_from=current, value_to=target,
+            duration=BOOST_SCROLL_MS, easing=Adw.Easing.EASE_OUT_CUBIC,
+            target=Adw.CallbackAnimationTarget.new(
+                pages.weak_method(self._apply_scroll_value)))
+        connect_weak(animation, 'done', self._on_scroll_animation_done)
+        self._scroll_animation = animation
+        animation.play()
+
+    def _apply_scroll_value(self, value):
+        self.scroll.get_hadjustment().set_value(value)
+
+    def _on_scroll_animation_done(self, _animation):
+        self._scroll_animation = None
+        self._scroll_animating = False
+        self._scroll_target = None
+        self._update_arrows()
+
+    def _snap_to_nearest(self, animate=True):
+        adjustment = self.scroll.get_hadjustment()
+        self._scroll_to_value(adjustment.get_value(), animate=animate)
+
+    def _on_scroll_end(self, _controller):
+        if self._scroll_animating:
+            return
+        self._snap_to_nearest(animate=True)
+
     def _page_by(self, _button, direction):
         adjustment = self.scroll.get_hadjustment()
-        value = adjustment.get_value() \
-            + direction * adjustment.get_page_increment()
-        adjustment.set_value(max(0, min(
-            value, adjustment.get_upper() - adjustment.get_page_size())))
+        step = self._card_step()
+        if step <= 0:
+            return
+        # From where a running animation is heading, so quick clicks add up.
+        base = self._scroll_target if self._scroll_target is not None \
+            else adjustment.get_value()
+        self._scroll_to_value((round(base / step) + direction) * step,
+                              animate=True)
 
     def _update_arrows(self, *_args):
         adjustment = self.scroll.get_hadjustment()
@@ -1368,6 +1620,7 @@ class BlurredPicture(Gtk.Picture):
         Gtk.Picture.do_snapshot(self, snapshot)
         snapshot.pop()
 
+FOOTNOTE_LINES = 2
 
 class MediaBox(Gtk.Box):
     """Adaptive attachment grid: 1 full / 2 side-by-side / 3-4 in a 2x2
@@ -1486,9 +1739,17 @@ class MediaBox(Gtk.Box):
         if footnotes:
             notes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             for note in footnotes:
-                label = Gtk.Label(label=note, xalign=0.0, wrap=True)
+                label = Gtk.Label(label=note, xalign=0.0, wrap=True,
+                                  wrap_mode=Pango.WrapMode.WORD_CHAR,
+                                  hexpand=True, lines=FOOTNOTE_LINES,
+                                  ellipsize=Pango.EllipsizeMode.END)
                 label.add_css_class('caption')
                 label.add_css_class('dimmed')
+                label.set_cursor_from_name('pointer')
+                click = Gtk.GestureClick()
+                connect_weak(click, 'released', self._on_footnote_clicked,
+                             label)
+                label.add_controller(click)
                 notes.append(label)
             box.append(notes)
         return box
@@ -1531,6 +1792,16 @@ class MediaBox(Gtk.Box):
         else:
             button.set_label(_('Show Sensitive Content'))
             button.remove_css_class('flat')
+
+    def _on_footnote_clicked(self, _gesture, _n_press, _x, _y, label):
+        """A description cut at two lines opens on click and closes on
+        the next one."""
+        if label.get_lines() == FOOTNOTE_LINES:
+            label.set_lines(-1)
+            label.set_ellipsize(Pango.EllipsizeMode.NONE)
+        else:
+            label.set_lines(FOOTNOTE_LINES)
+            label.set_ellipsize(Pango.EllipsizeMode.END)
 
 
 # Settings, locale and status helpers
@@ -1930,7 +2201,9 @@ class StatusRow(Gtk.Overlay):
         self.filter_bar.set_visible(False)
         body.append(self.filter_bar)
 
-        main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
+                       margin_top=4, margin_bottom=4, margin_start=4,
+                       margin_end=4)
         self.main = main
         body.append(main)
 
@@ -3436,11 +3709,17 @@ class TimelinePage(Adw.Bin):
     __gtype_name__ = 'BabbleTimelinePage'
 
     def __init__(self, client, mode='home', model=None, source=None,
-                 **kwargs):
+                 boosts_carousel=None, **kwargs):
         super().__init__(**kwargs)
         self.client = client
         self.mode = mode
         self.model = model if model is not None else TimelineModel()
+        settings = pages.settings()
+        if boosts_carousel is None:
+            boosts_carousel = settings.get_boolean('boosts-carousel')
+        self.model.group_boosts_enabled = boosts_carousel
+        self.model.dedupe_boosts_enabled = settings.get_boolean(
+            'dedupe-boosts')
         self.source = source
         self._loading_older = False
         self._fallback_done = False
@@ -3550,27 +3829,6 @@ class TimelinePage(Adw.Bin):
         self.new_posts_revealer.set_reveal_child(False)
         self.scroll_to_top()
 
-    # Boosts carousel data
-
-    def _update_boosts(self):
-        """Refresh the boosts carousel row from the loaded window."""
-        boosts = []
-        seen = set()
-        for index in range(min(self.model.get_n_items(), BOOST_WINDOW)):
-            item = self.model.get_item(index)
-            if isinstance(item, BoostCarouselItem):
-                continue
-            if not item.is_boost:
-                continue
-            key = item.status_id
-            if key in seen:
-                continue
-            seen.add(key)
-            boosts.append(item.status)
-            if len(boosts) >= BOOST_CAP:
-                break
-        self.model.set_boosts(boosts or None)
-
     # Data
 
     def _fetch(self, params, callback):
@@ -3642,7 +3900,6 @@ class TimelinePage(Adw.Bin):
                 self.stack.set_visible_child_name('loading')
                 self.load_older()
             return
-        self._update_boosts()
         self.stack.set_visible_child_name('list')
 
     def load_older(self):
@@ -3674,15 +3931,17 @@ class TimelinePage(Adw.Bin):
             statuses = self._finish(result)
         except GLib.Error:
             return
+        before = self.model.get_n_items()
         if not self.model.append_old(statuses):
             self.model.exhausted = True
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
         else:
-            self._update_boosts()
             if self.model.get_n_items():
                 self.stack.set_visible_child_name('list')
-            else:
+            if self.model.get_n_items() == before:
+                # Nothing new to show (all filtered or seen) but the
+                # cursor moved on: keep paging.
                 self.load_older()
 
     def refresh(self):
@@ -3713,7 +3972,6 @@ class TimelinePage(Adw.Bin):
             if added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
             self._trim_old()
-        self._update_boosts()
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('empty')
 
@@ -3751,20 +4009,17 @@ class TimelinePage(Adw.Bin):
         if self._scrolled.get_vadjustment().get_value() > 24:
             self._show_new_pill(added)
         self._trim_old()
-        self._update_boosts()
         self.stack.set_visible_child_name('list')
 
     def on_stream_delete(self, status_id):
         """Drop a deleted post (and boosts of it) from the list."""
         if self.model.remove_status(status_id):
-            self._update_boosts()
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
 
     def on_stream_status_update(self, status):
         """Replace an edited post in place."""
-        if self.model.replace_status(status):
-            self._update_boosts()
+        self.model.replace_status(status)
 
 
 class _RefreshGesture:
