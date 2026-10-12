@@ -511,12 +511,59 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         return False
 
 
+def _shell_stamp(run):
+    """What the shell's height depends on, besides the column width.
+
+    An edit, a toggled content warning or a carousel whose boosts
+    changed must miss the cached height and be measured again. The
+    stamp is a tuple of tuples, not the post text, so the cache does
+    not keep a second copy of every status."""
+    parts = []
+    for item in run.items:
+        status = item.status
+        ui = item.ui
+        parts.append((
+            item.status_id,
+            status.get('edited_at'),
+            len(status.get('content') or ''),
+            len(status.get('spoiler_text') or ''),
+            len(status.get('media_attachments') or []),
+            bool(ui.get('expanded')),
+            ui.get('cw_open'),
+            bool(ui.get('media_revealed')),
+            bool(ui.get('filter_shown')),
+            item.translation is not None,
+            len(getattr(item, 'boosts', ()) or ()),
+        ))
+    return tuple(parts)
+
+
+def _known_shell_height(shell, run):
+    """Pinned height for *run* at the shell's current width, or 0."""
+    height = getattr(run, '_shell_height', 0)
+    if height <= 64 or getattr(run, '_shell_stamp', None) != _shell_stamp(run):
+        return 0
+    width = shell.get_width()
+    stored = getattr(run, '_shell_width', 0)
+    if width > 1 and stored > 1 and abs(width - stored) > 4:
+        return 0
+    return height
+
+
 class StatusRunRow(Gtk.Box):
     """Card for one run: the author line, then every post of the run with
     its own body, media and 'n/total' badge inside the same card."""
 
     # Replaced with the height of posts that have actually been shown.
     _typical_height = 64
+    # Width of a shell that has actually been allocated. ListView maps
+    # every new shell to measure it and unmaps the off-screen ones
+    # before that allocation exists, so get_width() is still 0 then.
+    _column_width = 0
+    # Shells whose height could not be pinned because the column width
+    # was not known yet. GObject weak refs.
+    _pending_pin = []
+    _pinning = False
     # Unmapped shells that still hold cards, least recently unmapped
     # first. GObject weak refs, so the LRU never keeps a shell (and its
     # page) alive; keyed by a per-shell counter, not the object.
@@ -564,6 +611,7 @@ class StatusRunRow(Gtk.Box):
         self.set_size_request(-1, type(self)._typical_height)
         connect_weak(self, 'map', self._on_map)
         connect_weak(self, 'unmap', self._on_unmap)
+        connect_weak(self, 'notify::width', self._on_width)
 
     def bind(self, run, client):
         self._run = run
@@ -581,7 +629,8 @@ class StatusRunRow(Gtk.Box):
             self._keep_cards()
         else:
             type(self)._kept.pop(self._key, None)
-        self.set_size_request(-1, type(self)._typical_height)
+        known = _known_shell_height(self, run)
+        self.set_size_request(-1, known or type(self)._typical_height)
         self._detach()
         if self.get_mapped():
             self._populate()
@@ -591,19 +640,73 @@ class StatusRunRow(Gtk.Box):
         if self._run is not None:
             self._populate()
 
-    def _on_unmap(self, _widget):
-        # Keep the height the list just measured, or dropping the cards
-        # makes the scrollbar jump and every row below this one relayout.
-        height = self.get_height()
+    def _on_width(self, *_args):
+        width = self.get_width()
+        if width <= 1 or type(self)._pinning:
+            return
+        type(self)._column_width = width
+        self._flush_pending(width)
+
+    def _store_height(self, height, width):
+        """Remember *height* so the next time this run is shown the list
+        already has its final size and does not reflow every row below."""
+        self.set_size_request(-1, height)
         kind = type(self)
+        if kind._typical_height <= 64:
+            kind._typical_height = height
+        else:
+            kind._typical_height = (kind._typical_height * 3 + height) // 4
+        run = self._run
+        if run is None or width <= 1:
+            return
+        run._shell_height = height
+        run._shell_width = width
+        run._shell_stamp = _shell_stamp(run)
+
+    def _flush_pending(self, width):
+        kind = type(self)
+        pending = kind._pending_pin
+        if not pending or width <= 1:
+            return
+        kind._pending_pin = []
+        kind._pinning = True
+        try:
+            for ref in pending:
+                shell = ref()
+                if shell is None or shell.get_mapped() or shell._run is None:
+                    continue
+                if not shell.rows and not shell._cards:
+                    continue
+                shell._populate()
+                height = shell.measure(
+                    Gtk.Orientation.VERTICAL, width).natural
+                if height > 64:
+                    shell._store_height(height, width)
+                shell._detach()
+                if shell._cards:
+                    shell._keep_cards()
+        finally:
+            kind._pinning = False
+
+    def _on_unmap(self, _widget):
+        # ListView maps every shell once, measures it, and unmaps the
+        # off-screen ones before they have an allocation: get_height()
+        # is still 0, and hiding the cards then collapses the row. The
+        # scrollbar shrinks to the viewport and every row jumped into
+        # view later shifts the whole list. Measure while the cards are
+        # still shown and pin that height.
+        width = self.get_width()
+        if width > 1:
+            type(self)._column_width = width
+        else:
+            width = type(self)._column_width
+        height = self.get_height()
+        if height <= 64 and self.rows and width > 1:
+            height = self.measure(Gtk.Orientation.VERTICAL, width).natural
         if height > 64:
-            # This shell keeps the height it just had, and the next
-            # off-screen shells start from the posts already shown.
-            self.set_size_request(-1, height)
-            if kind._typical_height <= 64:
-                kind._typical_height = height
-            else:
-                kind._typical_height = (kind._typical_height * 3 + height) // 4
+            self._store_height(height, width if width > 1 else 0)
+        elif self.rows:
+            type(self)._pending_pin.append(self.weak_ref())
         self._detach()
         if self._cards:
             self._keep_cards()
@@ -644,8 +747,11 @@ class StatusRunRow(Gtk.Box):
             return
         # The placeholder height is for an empty shell only. As a
         # minimum it would outlive the cards it stood in for and leave a
-        # short post at the top of a tall slot.
-        self.set_size_request(-1, -1)
+        # short post at the top of a tall slot. A height pinned from a
+        # previous layout of this same run is the real one: clearing it
+        # would measure the text again and reflow every row below.
+        known = _known_shell_height(self, run)
+        self.set_size_request(-1, known if known else -1)
         multi = len(run.items) > 1
         self.rail.set_visible(multi)
         # One post keeps the normal card on StatusRow; a run shares one
