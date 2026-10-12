@@ -21,13 +21,15 @@ Test names (besides the `validate …` and `po check <lang>` tests): `timeline r
 - Tests import modules as `src.<module>` through `BABBLE_SRCDIR`. Several need `GSETTINGS_SCHEMA_DIR=build/data`, so they need a compiled build tree. They also run with `G_DEBUG=fatal-criticals`, so any GTK critical fails the test.
 - A new test is registered in `src/meson.build` with the same env pattern. A new Python module has to be added to the `install_data` list there too, or the installed app won't have it.
 
-Performance benchmark (timeline workload against a local fixture server, run under Xvfb with the Cairo renderer, median of `BENCH_RUNS` runs, default 3):
+Performance benchmark (timeline workload against a local fixture server, run under Xvfb with the Cairo renderer, median of `BENCH_RUNS` runs, default 5). Besides CPU and RSS it reports main-thread time and stalls (`main_ms`, `stall_max_ms`, `stall_p99_ms`, `stalls_over_16ms`) and `frames_with_empty_shell`; judge smoothness by those, since `cpu_ms` counts every thread:
 
 ```sh
 ./autoresearch.sh            # prints METRIC key=value lines
 ```
 
 `bench/timeline_bench.py` is the workload, and `bench/fixture_server.py` with `bench/fixtures.py` serve the fake instance. `PERFORMANCE.md` records baseline vs. current figures and why each optimization was made. Read it before changing timeline rendering.
+
+Memory leaks: follow `MEMORY-LEAKS.md`. `python3 bench/memwatch.py --trim` launches the uninstalled app (quit any running copy first; it is single-instance), samples RSS/CPU, and on Enter injects `bench/memprobe.py` through `sys.remote_exec` to report live objects, caches, textures and heap.
 
 Flatpak (local dev manifest only):
 ```sh

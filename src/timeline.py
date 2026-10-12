@@ -511,12 +511,82 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         return False
 
 
+def _shell_stamp(run):
+    """What the shell's height depends on, besides the column width.
+
+    An edit, a toggled content warning or a carousel whose boosts
+    changed must miss the cached height and be measured again. The
+    stamp is a tuple of tuples, not the post text, so the cache does
+    not keep a second copy of every status."""
+    parts = []
+    for item in run.items:
+        status = item.status
+        ui = item.ui
+        parts.append((
+            item.status_id,
+            status.get('edited_at'),
+            len(status.get('content') or ''),
+            len(status.get('spoiler_text') or ''),
+            len(status.get('media_attachments') or []),
+            bool(ui.get('expanded')),
+            ui.get('cw_open'),
+            bool(ui.get('media_revealed')),
+            bool(ui.get('filter_shown')),
+            item.translation is not None,
+            len(getattr(item, 'boosts', ()) or ()),
+        ))
+    return tuple(parts)
+
+
+def _known_shell_height(shell, run):
+    """Pinned height for *run* at the shell's current width, or 0."""
+    height = getattr(run, '_shell_height', 0)
+    if height <= 64 or getattr(run, '_shell_stamp', None) != _shell_stamp(run):
+        return 0
+    width = shell.get_width()
+    stored = getattr(run, '_shell_width', 0)
+    if width > 1 and stored > 1 and abs(width - stored) > 4:
+        return 0
+    return height
+
+
+# Shells mapped while their cards still have to be built. ListView maps
+# every new shell on items-changed and its layout unmaps the off-screen
+# ones right after, so building cards in the map handler stalls a page
+# load on cards nobody sees. One idle source builds one waiting shell per
+# dispatch instead; at default idle priority it runs below GDK's redraw,
+# so the frame's layout has already unmapped the off-screen shells. GObject
+# weak refs: the queue never keeps a shell (or its page) alive.
+_pending_shells = collections.deque()
+_pending_source = 0
+
+
+def _populate_pending():
+    """Build the cards of the next shell that is still mapped and still
+    empty; keep the source while shells are waiting."""
+    global _pending_source
+    while _pending_shells:
+        shell = _pending_shells.popleft()()
+        if shell is None:
+            continue
+        shell._queued = False
+        if shell.get_mapped() and shell._run is not None and not shell.rows:
+            shell._populate()
+            return GLib.SOURCE_CONTINUE
+    _pending_source = 0
+    return GLib.SOURCE_REMOVE
+
+
 class StatusRunRow(Gtk.Box):
     """Card for one run: the author line, then every post of the run with
     its own body, media and 'n/total' badge inside the same card."""
 
     # Replaced with the height of posts that have actually been shown.
     _typical_height = 64
+    # Width of a shell that has actually been allocated. ListView maps
+    # every new shell to measure it and unmaps the off-screen ones
+    # before that allocation exists, so get_width() is still 0 then.
+    _column_width = 0
     # Unmapped shells that still hold cards, least recently unmapped
     # first. GObject weak refs, so the LRU never keeps a shell (and its
     # page) alive; keyed by a per-shell counter, not the object.
@@ -546,6 +616,8 @@ class StatusRunRow(Gtk.Box):
         kind = type(self)
         self._key = kind._next_key
         kind._next_key += 1
+        # Whether _pending_shells holds a ref to this shell.
+        self._queued = False
         # Built cards, kept while this run is scrolled off screen.
         # Gtk.ListView still instantiates a child for every loaded post
         # (up to a couple of hundred) and lays that whole set out on
@@ -581,29 +653,75 @@ class StatusRunRow(Gtk.Box):
             self._keep_cards()
         else:
             type(self)._kept.pop(self._key, None)
-        self.set_size_request(-1, type(self)._typical_height)
+        known = _known_shell_height(self, run)
+        self.set_size_request(-1, known or type(self)._typical_height)
         self._detach()
+        # A shown run that changed is rebuilt at once, not left blank
+        # until the idle queue reaches it.
         if self.get_mapped():
             self._populate()
 
     def _on_map(self, _widget):
         type(self)._kept.pop(self._key, None)
-        if self._run is not None:
+        run = self._run
+        if run is None:
+            return
+        # Showing cards this shell kept is cheap; building them waits
+        # for _populate_pending, which skips the shell if layout unmaps
+        # it first.
+        if all(item in self._cards for item in run.items):
             self._populate()
+        else:
+            self._queue_populate()
+
+    def _queue_populate(self):
+        global _pending_source
+        # Card placeholder until the posts are built.
+        self.add_css_class('status-run-pending')
+        if not self._queued:
+            self._queued = True
+            _pending_shells.append(self.weak_ref())
+        if not _pending_source:
+            _pending_source = GLib.idle_add(_populate_pending)
+
+    def _store_height(self, height, width):
+        """Remember *height* so the next time this run is shown the list
+        already has its final size and does not reflow every row below."""
+        self.set_size_request(-1, height)
+        kind = type(self)
+        if kind._typical_height <= 64:
+            kind._typical_height = height
+        else:
+            kind._typical_height = (kind._typical_height * 3 + height) // 4
+        run = self._run
+        if run is None or width <= 1:
+            return
+        run._shell_height = height
+        run._shell_width = width
+        run._shell_stamp = _shell_stamp(run)
 
     def _on_unmap(self, _widget):
-        # Keep the height the list just measured, or dropping the cards
-        # makes the scrollbar jump and every row below this one relayout.
-        height = self.get_height()
-        kind = type(self)
-        if height > 64:
-            # This shell keeps the height it just had, and the next
-            # off-screen shells start from the posts already shown.
-            self.set_size_request(-1, height)
-            if kind._typical_height <= 64:
-                kind._typical_height = height
-            else:
-                kind._typical_height = (kind._typical_height * 3 + height) // 4
+        # ListView maps every shell once, measures it, and unmaps the
+        # off-screen ones before they have an allocation: get_height()
+        # is still 0. A shell that showed its kept cards on that map
+        # would collapse when they are hidden. The scrollbar shrinks to
+        # the viewport and every row jumped into view later shifts the
+        # whole list. Measure while the cards are still shown and pin
+        # that height.
+        width = self.get_width()
+        if width > 1:
+            type(self)._column_width = width
+        else:
+            width = type(self)._column_width
+        # A shell still waiting for its cards is only as tall as its
+        # placeholder: that height says nothing about the run.
+        if self.rows:
+            height = self.get_height()
+            if height <= 64 and width > 1:
+                height = self.measure(Gtk.Orientation.VERTICAL,
+                                      width).natural
+            if height > 64:
+                self._store_height(height, width if width > 1 else 0)
         self._detach()
         if self._cards:
             self._keep_cards()
@@ -637,15 +755,19 @@ class StatusRunRow(Gtk.Box):
         self.rows = []
         self.column.remove_css_class('status-row')
         self.rail.set_visible(False)
+        self.remove_css_class('status-run-pending')
 
     def _populate(self):
         run = self._run
         if run is None or self.rows:
             return
-        # The placeholder height is for an empty shell only. As a
-        # minimum it would outlive the cards it stood in for and leave a
-        # short post at the top of a tall slot.
+        # A pinned or placeholder height stands in for an empty shell
+        # only. As a minimum it would outlive the cards it stood in for:
+        # a post that got shorter (wider column, closed content warning,
+        # a poll answered) would sit above a blank gap, and the height
+        # stored on the next unmap would keep that gap for good.
         self.set_size_request(-1, -1)
+        self.remove_css_class('status-run-pending')
         multi = len(run.items) > 1
         self.rail.set_visible(multi)
         # One post keeps the normal card on StatusRow; a run shares one
@@ -834,30 +956,36 @@ class AvatarCache:
 
     @classmethod
     def _on_loaded(cls, session, result, extra):
-        # A failure leaves the avatars on their initials, the avatar's
-        # own placeholder, and uncached so a later row retries.
         url, message = extra
-        waiting = cls._inflight.pop(url, [])
+        reason = None
         try:
             data = session.send_and_read_finish(result)
         except GLib.Error as error:
-            log_media_failure(url, error.message)
+            reason = error.message
+        else:
+            status = message.get_status()
+            if not 200 <= status < 300:
+                # A 404 page can be an image too; never show or cache it.
+                reason = 'HTTP %d' % status
+            elif not data or data.get_size() == 0:
+                reason = 'empty response'
+        if reason is not None:
+            cls._decoded(url, None, reason)
             return
-        status = message.get_status()
-        if not 200 <= status < 300:
-            # A 404 page can be an image too; never show or cache it.
-            log_media_failure(url, 'HTTP %d' % status)
-            return
-        if not data or data.get_size() == 0:
-            log_media_failure(url, 'empty response')
-            return
-        texture = _decode_covering(data, (AVATAR_DECODE_SIZE,) * 2)
+        # The URL stays in flight while a worker decodes it: a row that
+        # asks for this avatar meanwhile waits instead of fetching again.
+        _decode_async(data, (AVATAR_DECODE_SIZE,) * 2, None,
+                      lambda texture, error: cls._decoded(url, texture,
+                                                          error))
+
+    @classmethod
+    def _decoded(cls, url, texture, reason):
+        # A failure leaves the avatars on their initials, the avatar's
+        # own placeholder, and uncached so a later row retries.
+        waiting = cls._inflight.pop(url, [])
         if texture is None:
-            try:
-                texture = Gdk.Texture.new_from_bytes(data)
-            except GLib.Error as error:
-                log_media_failure(url, error.message)
-                return
+            log_media_failure(url, reason)
+            return
         cls._remember(url, texture)
         for avatar in waiting:
             avatar.set_custom_image(texture)
@@ -915,12 +1043,95 @@ def _display_scale():
     return scale
 
 
-def _decode_covering(data, cover):
+def _peek_bytes(data, count):
+    """The first *count* bytes of a ``GLib.Bytes``, without copying the
+    rest of a multi-megabyte upload."""
+    stream = Gio.MemoryInputStream.new_from_bytes(data)
+    try:
+        chunk = stream.read_bytes(count, None)
+    except GLib.Error:
+        return b''
+    return chunk.get_data() or b''
+
+
+def _jpeg_pixel_size(data):
+    """Width and height from a JPEG SOF marker, or None when the header
+    is not a JPEG we can scan. Dimensions sit a few kilobytes in, past
+    the APP segments, so this reads a bounded prefix rather than the
+    compressed image."""
+    blob = _peek_bytes(data, 65536)
+    index = 2
+    limit = len(blob)
+    while index + 8 < limit:
+        if blob[index] != 0xFF:
+            return None
+        while index < limit and blob[index] == 0xFF:
+            index += 1
+        if index >= limit:
+            return None
+        marker = blob[index]
+        index += 1
+        # Standalone markers (SOI, EOI, restart) carry no length.
+        if marker in (0xD8, 0xD9) or 0xD0 <= marker <= 0xD7:
+            continue
+        if index + 2 > limit:
+            return None
+        segment = int.from_bytes(blob[index:index + 2], 'big')
+        if segment < 2:
+            return None
+        # Start-of-frame markers except DHT (C4) and JPG (C8).
+        if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                      0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            if index + 7 > limit:
+                return None
+            height = int.from_bytes(blob[index + 3:index + 5], 'big')
+            width = int.from_bytes(blob[index + 5:index + 7], 'big')
+            if width and height:
+                return width, height
+            return None
+        index += segment
+    return None
+
+
+def _image_pixel_size(data):
+    """Width and height stored in the file header. None when the format
+    does not put them up front: the caller then decodes through
+    GdkPixbuf, which can still scale the image down."""
+    head = _peek_bytes(data, 32)
+    if head.startswith(b'\x89PNG\r\n\x1a\n') and len(head) >= 24:
+        return (int.from_bytes(head[16:20], 'big'),
+                int.from_bytes(head[20:24], 'big'))
+    if head[:6] in (b'GIF87a', b'GIF89a') and len(head) >= 10:
+        return (int.from_bytes(head[6:8], 'little'),
+                int.from_bytes(head[8:10], 'little'))
+    if head.startswith(b'\xff\xd8'):
+        return _jpeg_pixel_size(data)
+    return None
+
+
+def _decode_covering(data, cover, scale):
     """Texture of the image in *data*, decoded no larger than it takes to
-    cover a *cover* (width, height) box of logical pixels. None when
-    GdkPixbuf cannot read it."""
-    scale = _display_scale()
+    cover a *cover* (width, height) box of logical pixels on a display of
+    *scale*, which the caller reads on the main thread (this also runs on
+    a worker, see ``_decode_async``). None when the image cannot be read.
+
+    GdkPixbuf's loader plus the copy into a ``Gdk.MemoryTexture`` is
+    several times slower than ``Gdk.Texture.new_from_bytes``. When the
+    file is already no larger than the tile there is nothing to scale
+    away, so that copy buys neither sharpness nor a smaller texture.
+    Oversized originals still go through GdkPixbuf with ``set_size``,
+    which decodes them already scaled down instead of holding the full
+    bitmap."""
     box_width, box_height = cover[0] * scale, cover[1] * scale
+    natural = _image_pixel_size(data)
+    if natural is not None:
+        width, height = natural
+        if width > 0 and height > 0 and max(box_width / width,
+                                             box_height / height) >= 1:
+            try:
+                return Gdk.Texture.new_from_bytes(data)
+            except GLib.Error:
+                pass
 
     def prepared(loader, width, height):
         factor = max(box_width / width, box_height / height)
@@ -945,6 +1156,45 @@ def _decode_covering(data, cover):
     return Gdk.MemoryTexture.new(pixbuf.get_width(), pixbuf.get_height(),
                                  memory_format, pixbuf.read_pixel_bytes(),
                                  pixbuf.get_rowstride())
+
+
+def _decode_async(data, cover, cancellable, callback):
+    """Decode *data* on a worker thread, no larger than a *cover* box
+    needs (at full size when *cover* is None), and call
+    ``callback(texture, error)`` on the main context: the texture, or
+    None and the reason. Nothing is called once *cancellable* fires.
+
+    A media decode costs milliseconds per image, a stall in the frame
+    whenever a page of posts arrives. GdkPixbuf and
+    ``Gdk.Texture.new_from_bytes`` are safe off the main thread; the
+    display scale is not, so it is read here first."""
+    scale = _display_scale() if cover else 1.0
+
+    def work(task, _source, _data, _cancellable):
+        # Worker thread: decoding only, no widget or display access.
+        texture = error = None
+        try:
+            if cover:
+                texture = _decode_covering(data, cover, scale)
+            if texture is None:
+                texture = Gdk.Texture.new_from_bytes(data)
+        except GLib.Error as failure:
+            error = failure.message
+        finally:
+            # Always return, or the task never calls back.
+            task.return_value(GObject.Value(GObject.TYPE_PYOBJECT,
+                                            (texture, error)))
+
+    def done(_source, task, _data):
+        if cancellable is not None and cancellable.is_cancelled():
+            return
+        _ok, value = task.propagate_value()
+        callback(*value)
+
+    task = Gio.Task.new(None, cancellable, done, None)
+    # A cancelled decode reports at once; its result is dropped.
+    task.set_return_on_cancel(True)
+    task.run_in_thread(work)
 
 
 class _BrokenImage(GObject.Object, Gdk.Paintable, Gtk.SymbolicPaintable):
@@ -1064,13 +1314,15 @@ class _TextureCache:
         if data is None or data.get_size() == 0:
             _show_broken(picture, url, 'empty response')
             return
-        texture = _decode_covering(data, cover) if cover else None
+        _decode_async(data, cover, cancellable,
+                      lambda texture, error: cls._decoded(
+                          picture, key, url, texture, error))
+
+    @classmethod
+    def _decoded(cls, picture, key, url, texture, reason):
         if texture is None:
-            try:
-                texture = Gdk.Texture.new_from_bytes(data)
-            except GLib.Error as error:
-                _show_broken(picture, url, error.message)
-                return
+            _show_broken(picture, url, reason)
+            return
         cls._textures[key] = texture
         cls._textures.move_to_end(key)
         while len(cls._textures) > MEDIA_TEXTURE_CACHE_SIZE:

@@ -633,7 +633,7 @@ class AdvancedSearchDialog(ToastDialog):
             date = datetime.date.fromisoformat(text)
         except ValueError:
             return
-        calendar.select_day(GLib.DateTime.new_local(
+        calendar.set_date(GLib.DateTime.new_local(
             date.year, date.month, date.day, 0, 0, 0))
         row.set_enable_expansion(True)
 

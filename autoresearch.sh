@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Timeline performance/memory benchmark: see bench/timeline_bench.py.
-# Runs the end-to-end workload BENCH_RUNS times in fresh processes under
-# a private Xvfb with the cairo renderer and in-memory GSettings, and
-# reports the median of each figure.
+# Runs the end-to-end workload BENCH_RUNS times (default 5; single runs
+# spread about ±14%) in fresh processes under a private Xvfb with the
+# cairo renderer and in-memory GSettings, and reports the median of each
+# figure: process CPU (cpu_ms), main-thread dispatch CPU and stalls
+# (main_ms, stall_max_ms, stall_p99_ms, stalls_over_16ms), painted frames
+# and frames showing an empty run shell, phases, and memory.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-RUNS=${BENCH_RUNS:-3}
+RUNS=${BENCH_RUNS:-5}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
