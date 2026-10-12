@@ -842,6 +842,7 @@ def drop(value):
 
 
 ONLY_MEDIA = _('Only images and videos can be attached')
+BUSY_POSTING = _('Wait for the post to be sent to attach files')
 LIMIT_REACHED = ngettext('A post can have at most %d attachment',
                          'A post can have at most %d attachments',
                          MAX_ATTACHMENTS) % MAX_ATTACHMENTS

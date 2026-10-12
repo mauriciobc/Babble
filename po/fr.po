@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-12 16:39-0300\n"
+"POT-Creation-Date: 2026-10-12 16:40-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: French\n"
@@ -32,7 +32,7 @@ msgstr "Suivez vos fils Mastodon"
 msgid "Mastodon;Fediverse;Social;Toot;Post;"
 msgstr "Mastodon;Fédivers;Social;Pouet;Message;Réseau social;"
 
-#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:1469
+#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:1479
 #: src/shortcuts-dialog.ui:47 src/window.py:2105 src/window.ui:299
 #: src/window.ui:301 src/window.ui:401 src/window.ui:403
 msgid "New Post"
@@ -511,7 +511,7 @@ msgstr "Courriel"
 msgid "No Accounts"
 msgstr "Aucun compte"
 
-#: src/admin.py:1085 src/admin.py:1097 src/compose.py:1063 src/pages.py:212
+#: src/admin.py:1085 src/admin.py:1097 src/compose.py:1073 src/pages.py:212
 #: src/profile.py:1433 src/profile.py:1439 src/profile.py:1465
 #: src/profile.py:1483
 msgid "_Undo"
@@ -1150,93 +1150,97 @@ msgstr "Images et vidéos"
 msgid "Could not open the file picker"
 msgstr "Impossible d’ouvrir le sélecteur de fichiers"
 
-#: src/compose.py:955
+#: src/compose.py:959
 msgid "Only images and videos can be attached"
 msgstr ""
 
+#: src/compose.py:965
+msgid "Wait for the post to be sent to attach files"
+msgstr ""
+
 #. Translators: %d is the most attachments a post can have.
-#: src/compose.py:962
+#: src/compose.py:969
 #, python-format
 msgid "A post can have at most %d attachment"
 msgid_plural "A post can have at most %d attachments"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/compose.py:1017
+#: src/compose.py:1024
 #, fuzzy
 msgid "Could not paste the files"
 msgstr "Impossible d’enregistrer le filtre"
 
-#: src/compose.py:1031 src/compose.py:1042
+#: src/compose.py:1038 src/compose.py:1052
 #, fuzzy
 msgid "Could not paste the image"
 msgstr "Impossible de générer l’image"
 
-#: src/compose.py:1062
+#: src/compose.py:1072
 msgid "Attachment removed"
 msgstr "Pièce jointe retirée"
 
-#: src/compose.py:1131
+#: src/compose.py:1141
 msgid "Post is too long"
 msgstr "Le message est trop long"
 
-#: src/compose.py:1134
+#: src/compose.py:1144
 msgid "Add content warning text"
 msgstr "Ajoutez le texte de l’avertissement de contenu"
 
-#: src/compose.py:1139 src/compose.py:1300
+#: src/compose.py:1149 src/compose.py:1310
 msgid "Add at least two poll choices"
 msgstr "Ajoutez au moins deux choix au sondage"
 
-#: src/compose.py:1142
+#: src/compose.py:1152
 msgid "Poll choices must be unique"
 msgstr "Les choix du sondage doivent être uniques"
 
-#: src/compose.py:1145
+#: src/compose.py:1155
 msgid "A poll cannot be combined with media"
 msgstr "Un sondage ne peut pas être combiné à des médias"
 
-#: src/compose.py:1226
+#: src/compose.py:1236
 msgid "The server did not accept the media"
 msgstr "Le serveur n’a pas accepté le média"
 
-#: src/compose.py:1255
+#: src/compose.py:1265
 msgid "The server is still processing the media"
 msgstr "Le serveur traite encore le média"
 
-#: src/compose.py:1284
+#: src/compose.py:1294
 msgid "Could not upload media"
 msgstr "Impossible de téléverser le média"
 
-#: src/compose.py:1336
+#: src/compose.py:1346
 msgid "Could not post"
 msgstr "Impossible de publier"
 
-#: src/compose.py:1365
+#: src/compose.py:1375
 msgid "Post edited"
 msgstr "Message modifié"
 
-#: src/compose.py:1367
+#: src/compose.py:1377
 msgid "Post scheduled"
 msgstr "Message programmé"
 
-#: src/compose.py:1369
+#: src/compose.py:1379
 msgid "Post sent"
 msgstr "Message envoyé"
 
-#: src/compose.py:1461
+#: src/compose.py:1471
 msgid "Edit Post"
 msgstr "Modifier le message"
 
-#: src/compose.py:1463
+#: src/compose.py:1473
 msgid "Edit Scheduled Post"
 msgstr "Modifier le message programmé"
 
-#: src/compose.py:1465
+#: src/compose.py:1475
 msgid "Quote Post"
 msgstr "Citer le message"
 
-#: src/compose.py:1467 src/scheduled.py:401 src/timeline.py:2605
+#: src/compose.py:1477 src/scheduled.py:401 src/timeline.py:2605
 msgid "Reply"
 msgstr "Répondre"
 

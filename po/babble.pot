@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-12 16:39-0300\n"
+"POT-Creation-Date: 2026-10-12 16:40-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -34,7 +34,7 @@ msgstr ""
 msgid "Mastodon;Fediverse;Social;Toot;Post;"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:1469
+#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:1479
 #: src/shortcuts-dialog.ui:47 src/window.py:2105 src/window.ui:299
 #: src/window.ui:301 src/window.ui:401 src/window.ui:403
 msgid "New Post"
@@ -498,7 +498,7 @@ msgstr ""
 msgid "No Accounts"
 msgstr ""
 
-#: src/admin.py:1085 src/admin.py:1097 src/compose.py:1063 src/pages.py:212
+#: src/admin.py:1085 src/admin.py:1097 src/compose.py:1073 src/pages.py:212
 #: src/profile.py:1433 src/profile.py:1439 src/profile.py:1465
 #: src/profile.py:1483
 msgid "_Undo"
@@ -1123,91 +1123,95 @@ msgstr ""
 msgid "Could not open the file picker"
 msgstr ""
 
-#: src/compose.py:955
+#: src/compose.py:959
 msgid "Only images and videos can be attached"
 msgstr ""
 
+#: src/compose.py:965
+msgid "Wait for the post to be sent to attach files"
+msgstr ""
+
 #. Translators: %d is the most attachments a post can have.
-#: src/compose.py:962
+#: src/compose.py:969
 #, python-format
 msgid "A post can have at most %d attachment"
 msgid_plural "A post can have at most %d attachments"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/compose.py:1017
+#: src/compose.py:1024
 msgid "Could not paste the files"
 msgstr ""
 
-#: src/compose.py:1031 src/compose.py:1042
+#: src/compose.py:1038 src/compose.py:1052
 msgid "Could not paste the image"
 msgstr ""
 
-#: src/compose.py:1062
+#: src/compose.py:1072
 msgid "Attachment removed"
 msgstr ""
 
-#: src/compose.py:1131
+#: src/compose.py:1141
 msgid "Post is too long"
 msgstr ""
 
-#: src/compose.py:1134
+#: src/compose.py:1144
 msgid "Add content warning text"
 msgstr ""
 
-#: src/compose.py:1139 src/compose.py:1300
+#: src/compose.py:1149 src/compose.py:1310
 msgid "Add at least two poll choices"
 msgstr ""
 
-#: src/compose.py:1142
+#: src/compose.py:1152
 msgid "Poll choices must be unique"
 msgstr ""
 
-#: src/compose.py:1145
+#: src/compose.py:1155
 msgid "A poll cannot be combined with media"
 msgstr ""
 
-#: src/compose.py:1226
+#: src/compose.py:1236
 msgid "The server did not accept the media"
 msgstr ""
 
-#: src/compose.py:1255
+#: src/compose.py:1265
 msgid "The server is still processing the media"
 msgstr ""
 
-#: src/compose.py:1284
+#: src/compose.py:1294
 msgid "Could not upload media"
 msgstr ""
 
-#: src/compose.py:1336
+#: src/compose.py:1346
 msgid "Could not post"
 msgstr ""
 
-#: src/compose.py:1365
+#: src/compose.py:1375
 msgid "Post edited"
 msgstr ""
 
-#: src/compose.py:1367
+#: src/compose.py:1377
 msgid "Post scheduled"
 msgstr ""
 
-#: src/compose.py:1369
+#: src/compose.py:1379
 msgid "Post sent"
 msgstr ""
 
-#: src/compose.py:1461
+#: src/compose.py:1471
 msgid "Edit Post"
 msgstr ""
 
-#: src/compose.py:1463
+#: src/compose.py:1473
 msgid "Edit Scheduled Post"
 msgstr ""
 
-#: src/compose.py:1465
+#: src/compose.py:1475
 msgid "Quote Post"
 msgstr ""
 
-#: src/compose.py:1467 src/scheduled.py:401 src/timeline.py:2605
+#: src/compose.py:1477 src/scheduled.py:401 src/timeline.py:2605
 msgid "Reply"
 msgstr ""
 
