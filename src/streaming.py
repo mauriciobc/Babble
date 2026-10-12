@@ -11,6 +11,16 @@ The manager reconnects with exponential backoff and re-subscribes; the
 owner decides what to do with the decoded events through the ``event``
 signal, and learns about outages from ``connection-changed`` so it can
 keep polling while the socket is down.
+
+It follows :func:`sysstate.monitor`: while the system is offline it
+neither connects nor keeps a retry timer, and once it is back online it
+connects at once with the backoff reset. A network change under an
+unchanged ``online`` (a Wi-Fi switch, a resume) reconnects an open
+socket straight away: its TCP connection may be bound to an address that
+is gone, and nothing would notice for minutes. libsoup has no call to
+send a ping now, and a write into a dead socket succeeds into the kernel
+buffer, so a fresh handshake is the cheapest check that is reliable;
+the owner fills the gap with its reconnect refresh.
 """
 
 import json
@@ -22,6 +32,9 @@ import gi
 gi.require_version('Soup', '3.0')
 
 from gi.repository import Gio, GLib, GObject, Soup  # noqa: E402
+
+from . import sysstate  # noqa: E402
+from .pages import connect_weak  # noqa: E402
 
 BACKOFF_START = 2
 BACKOFF_MAX = 60
@@ -124,6 +137,11 @@ class StreamingManager(GObject.Object):
         self._desired = {USER}
         self._subscribed = set()
         self.connected = False
+        self._system = sysstate.monitor()
+        self._online = self._system.props.online
+        connect_weak(self._system, 'notify::online', self._on_online_changed)
+        connect_weak(self._system, 'network-changed',
+                     self._on_network_changed)
 
     # Lifecycle
 
@@ -145,12 +163,7 @@ class StreamingManager(GObject.Object):
 
     def stop(self):
         self._client = None
-        if self._retry_source:
-            GLib.source_remove(self._retry_source)
-            self._retry_source = 0
-        if self._cancellable is not None:
-            self._cancellable.cancel()
-            self._cancellable = None
+        self._cancel_pending()
         self._drop_connection(close=True)
 
     def _drop_connection(self, close=False):
@@ -162,6 +175,44 @@ class StreamingManager(GObject.Object):
                 connection.close(Soup.WebsocketCloseCode.NORMAL, None)
         self._subscribed = set()
         self._set_connected(False)
+
+    # System state
+
+    def _on_online_changed(self, system, _pspec):
+        online = system.props.online
+        if online == self._online:
+            return
+        self._online = online
+        if not online:
+            # Nothing gets through: no retry timer, no handshake left
+            # to time out, and the socket is as good as gone.
+            self._cancel_pending()
+            self._drop_connection(close=True)
+            return
+        if self._client is not None and self._connection is None:
+            self._cancel_pending()
+            self._attempt = 0
+            self._connect()
+
+    def _on_network_changed(self, _system):
+        if not self._online or self._client is None:
+            return
+        if self._connection is not None:
+            self._drop_connection(close=True)
+            self._attempt = 0
+            self._connect()
+        elif self._retry_source:
+            # The route that failed may be the one just replaced.
+            GLib.source_remove(self._retry_source)
+            self._connect()
+
+    def _cancel_pending(self):
+        if self._retry_source:
+            GLib.source_remove(self._retry_source)
+            self._retry_source = 0
+        if self._cancellable is not None:
+            self._cancellable.cancel()
+            self._cancellable = None
 
     def _set_connected(self, connected):
         if connected != self.connected:
@@ -195,7 +246,7 @@ class StreamingManager(GObject.Object):
     def _connect(self):
         self._retry_source = 0
         client = self._client
-        if client is None:
+        if client is None or not self._online:
             return GLib.SOURCE_REMOVE
         message = Soup.Message.new('GET', self.build_url())
         if message is None:
@@ -221,6 +272,7 @@ class StreamingManager(GObject.Object):
             except GLib.Error:
                 pass
             return
+        self._cancellable = None
         try:
             connection = session.websocket_connect_finish(result)
         except GLib.Error as error:
@@ -259,7 +311,7 @@ class StreamingManager(GObject.Object):
         self._schedule_retry()
 
     def _schedule_retry(self):
-        if self._client is None or self._retry_source:
+        if self._client is None or self._retry_source or not self._online:
             return
         delay = min(BACKOFF_START * 2 ** self._attempt, BACKOFF_MAX)
         self._attempt += 1

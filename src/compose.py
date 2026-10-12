@@ -192,7 +192,13 @@ def media_type(path):
 
 def is_media(mime):
     """Whether *mime* is something Mastodon takes as an attachment."""
-    return bool(mime) and mime.startswith(('image/', 'video/'))
+    return bool(mime) and mime.startswith(('image/', 'video/', 'audio/'))
+
+
+def must_be_alone(mime):
+    """Whether *mime* is a video or audio file, which Mastodon only takes
+    as the single attachment of a post."""
+    return bool(mime) and mime.startswith(('video/', 'audio/'))
 
 
 # Pasted images, and screenshots taken from the composer, are written
@@ -325,6 +331,15 @@ def save_screenshot(source):
     return path
 
 
+def _end_inhibition(inhibition):
+    """Give back the logout and suspend inhibition a composer holds in
+    the dict *inhibition*, if any."""
+    app, cookie = inhibition['app'], inhibition['cookie']
+    inhibition.update(app=None, cookie=0)
+    if cookie:
+        app.uninhibit(cookie)
+
+
 class AttachmentRow(Gtk.ListBox):
     """Media attachment: preview row with remove button and a
     description (alt text) entry, as one boxed list."""
@@ -338,13 +353,23 @@ class AttachmentRow(Gtk.ListBox):
         self.uploaded_id = None
         self.description = ''
 
-        try:
-            self.thumbnail = Gtk.Picture(
-                paintable=Gdk.Texture.new_from_filename(path),
-                content_fit=Gtk.ContentFit.COVER)
-        except GLib.Error:
+        self.content_type = media_type(path) or 'application/octet-stream'
+        # Audio has no picture to decode: its icon, without reading the
+        # whole file in an attempt bound to fail.
+        texture = None
+        if not self.content_type.startswith('audio/'):
+            try:
+                texture = Gdk.Texture.new_from_filename(path)
+            except GLib.Error:
+                pass
+        if texture is not None:
+            self.thumbnail = Gtk.Picture(paintable=texture,
+                                         content_fit=Gtk.ContentFit.COVER)
+        else:
             self.thumbnail = Gtk.Image.new_from_icon_name(
-                'image-x-generic-symbolic')
+                'audio-x-generic-symbolic'
+                if self.content_type.startswith('audio/')
+                else 'image-x-generic-symbolic')
         self.thumbnail.set_size_request(48, 48)
         self.thumbnail.set_valign(Gtk.Align.CENTER)
         self.thumbnail.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
@@ -364,8 +389,6 @@ class AttachmentRow(Gtk.ListBox):
         self.alt_entry = Adw.EntryRow(title=_('Description'))
         self.append(self.alt_entry)
 
-        self.content_type = media_type(path) or 'application/octet-stream'
-
 
 class BabbleComposeView(Adw.Bin):
     """Post composer content: header bar with Post, text area, options
@@ -381,6 +404,9 @@ class BabbleComposeView(Adw.Bin):
         self.in_reply_to_id = None
         self._draft_stack = []
         self._posting = False
+        # Logout and suspend are held back while a post is on its way:
+        # the application that took the cookie, and the cookie.
+        self._inhibition = {'app': None, 'cookie': 0}
         self._upload_results = []
         self._upload_failures = 0
         self._upload_generation = 0
@@ -448,6 +474,11 @@ class BabbleComposeView(Adw.Bin):
                 # captures (and pins) this view.
                 Gtk.CallbackAction.new(BabbleComposeView._on_post_shortcut)))
         self.add_controller(shortcuts)
+        # Normally the posting round ends first, and that gives the
+        # inhibition back; a composer finalized before is the last chance
+        # not to leak it. Its Python wrapper may be gone by then, so the
+        # notification holds the inhibition itself, not the composer.
+        self.weak_ref(_end_inhibition, self._inhibition)
         self.update_compose_state()
 
     @property
@@ -1040,9 +1071,10 @@ class BabbleComposeView(Adw.Bin):
             self.text_view.grab_focus()
 
     def on_attach_clicked(self, _button):
-        media_filter = Gtk.FileFilter(name=_('Images and Videos'))
+        media_filter = Gtk.FileFilter(name=_('Images, Videos and Audio'))
         media_filter.add_mime_type('image/*')
         media_filter.add_mime_type('video/*')
+        media_filter.add_mime_type('audio/*')
         dialog = Gtk.FileDialog(title=_('Attach Media'),
                                 default_filter=media_filter)
         dialog.open_multiple(self.get_root(), None, self.on_files_selected)
@@ -1056,8 +1088,8 @@ class BabbleComposeView(Adw.Bin):
                 self._show_error(_('Could not open the file picker'),
                                  e.message)
             return
-        for index in range(files.get_n_items()):
-            self.add_attachment_path(files.get_item(index).get_path())
+        self.add_attachment_files(
+            [files.get_item(index) for index in range(files.get_n_items())])
 
     def on_screenshot_clicked(self, _button):
         """Take a screenshot through the portal, which lets the user
@@ -1107,7 +1139,19 @@ class BabbleComposeView(Adw.Bin):
         if len(self.attachments()) >= MAX_ATTACHMENTS:
             self._toast_attachment_limit()
             return False
+        if self._has_lone_media():
+            self._toast_lone_media()
+            return False
         return True
+
+    def _has_lone_media(self):
+        """Whether a video or audio file is attached: nothing can join it."""
+        return any(must_be_alone(row.content_type)
+                   for row in self.attachments())
+
+    def _can_attach_more(self):
+        return len(self.attachments()) < MAX_ATTACHMENTS \
+            and not self._has_lone_media()
 
     def _set_attach_sensitive(self, sensitive):
         """Attaching media and taking a screenshot go together."""
@@ -1115,7 +1159,9 @@ class BabbleComposeView(Adw.Bin):
         self.screenshot_button.set_sensitive(sensitive)
 
     def add_attachment_path(self, path, alt=None, position=-1):
-        if not path or len(self.attachments()) >= MAX_ATTACHMENTS:
+        if not path or not self._can_attach_more():
+            return None
+        if self.attachments() and must_be_alone(media_type(path)):
             return None
         row = AttachmentRow(path)
         # The row is looked up from the emitter: passing it as user data
@@ -1132,14 +1178,15 @@ class BabbleComposeView(Adw.Bin):
             self.attachments_box.insert_child_after(row, sibling)
         else:
             self.attachments_box.append(row)
-        self._set_attach_sensitive(len(self.attachments()) < MAX_ATTACHMENTS)
+        self._set_attach_sensitive(self._can_attach_more())
         self.update_compose_state()
         return row
 
     def add_attachment_files(self, files):
-        """Attach the images and videos among *files* (Gio.File objects
-        or paths), as a drop, a paste of copied files or files opened
-        from outside do, up to the attachment limit; a toast tells what
+        """Attach the images, videos and audio among *files* (Gio.File
+        objects or paths), as a drop, a paste of copied files or files
+        opened from outside do, up to the attachment limit; a video or an
+        audio file goes alone, as Mastodon takes it. A toast tells what
         had to be left out. Nothing is added while posting, as the round
         in flight would not send it: a toast says so. Returns the rows
         added."""
@@ -1149,23 +1196,32 @@ class BabbleComposeView(Adw.Bin):
                 self._toast_busy_posting()
             return []
         added = []
-        rejected = over_limit = False
+        rejected = over_limit = lone = False
         for item in files:
             path = item.get_path() if isinstance(item, Gio.File) else item
-            if not path or not is_media(media_type(path)):
+            mime = media_type(path) if path else None
+            if not is_media(mime):
                 rejected = True
+            elif self._has_lone_media() or (
+                    must_be_alone(mime) and self.attachments()):
+                lone = True
             elif len(self.attachments()) >= MAX_ATTACHMENTS:
                 over_limit = True
             else:
                 added.append(self.add_attachment_path(path))
         if rejected:
-            self._toast(_('Only images and videos can be attached'))
+            self._toast(_('Only images, videos and audio can be attached'))
+        if lone:
+            self._toast_lone_media()
         if over_limit:
             self._toast_attachment_limit()
         return added
 
     def _toast_busy_posting(self):
         self._toast(_('Wait for the post to be sent to attach files'))
+
+    def _toast_lone_media(self):
+        self._toast(_('A video or audio file must be the only attachment'))
 
     def _toast_attachment_limit(self):
         # Translators: %d is the most attachments a post can have.
@@ -1266,7 +1322,8 @@ class BabbleComposeView(Adw.Bin):
         position = self.attachments().index(row)
         alt = row.alt_entry.get_text()
         self.attachments_box.remove(row)
-        self._set_attach_sensitive(not self._posting)
+        self._set_attach_sensitive(not self._posting
+                                   and self._can_attach_more())
         self.update_compose_state()
         toast = Adw.Toast(title=_('Attachment removed'),
                           button_label=_('_Undo'),
@@ -1320,6 +1377,7 @@ class BabbleComposeView(Adw.Bin):
         if not self._validate_before_upload():
             return
         self._posting = True
+        self._inhibit_session()
         self._cancel_uploads()
         self._upload_generation += 1
         self._upload_results = []
@@ -1364,8 +1422,7 @@ class BabbleComposeView(Adw.Bin):
         if active:
             self.mention_completer.dismiss()
         else:
-            self._set_attach_sensitive(
-                len(self.attachments()) < MAX_ATTACHMENTS)
+            self._set_attach_sensitive(self._can_attach_more())
         self.progress_spinner.set_visible(active)
         # No drop is taken while posting, so none is outlined either.
         self.drop_target.set_actions(Gdk.DragAction.NONE if active
@@ -1376,7 +1433,24 @@ class BabbleComposeView(Adw.Bin):
 
     def _finish_posting(self):
         self._posting = False
+        _end_inhibition(self._inhibition)
         self.set_posting_ui(False)
+
+    def _inhibit_session(self):
+        """Keep the session from logging out or suspending while the
+        post is uploaded and sent: the round would be cut off half way."""
+        app = Gio.Application.get_default()
+        if self._inhibition['cookie'] or not isinstance(app, Gtk.Application):
+            return
+        root = self.get_root()
+        # Translators: why logging out or suspending is held back, as the
+        # session shows it while a post is being uploaded and sent.
+        reason = _('Sending a post')
+        cookie = app.inhibit(root if isinstance(root, Gtk.Window) else None,
+                             Gtk.ApplicationInhibitFlags.LOGOUT
+                             | Gtk.ApplicationInhibitFlags.SUSPEND, reason)
+        if cookie:
+            self._inhibition.update(app=app, cookie=cookie)
 
     def _cancel_uploads(self):
         """Stop whatever the previous posting round still had in flight."""
@@ -1602,6 +1676,9 @@ class BabbleComposeView(Adw.Bin):
         # turns the request into an error the reply would still act on.
         self._upload_generation += 1
         self._cancel_uploads()
+        # With its uploads gone, a posting round in flight is over.
+        if self._posting:
+            self._finish_posting()
         self.mention_completer.dismiss()
         self.buffer.set_text('')
         self.spoiler_entry.set_text('')

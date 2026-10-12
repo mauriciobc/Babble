@@ -5,11 +5,12 @@ import json
 import os
 import sys
 
-srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
-sys.path.insert(0, srcdir)
+srcdir = os.environ.get('BABBLE_SRCDIR') \
+    or os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
-from mastodon import MastodonClient, parse_link_header  # noqa: E402
-from streaming import (  # noqa: E402
+from src.mastodon import MastodonClient, parse_link_header  # noqa: E402
+from src.streaming import (  # noqa: E402
     FEDERATED, LOCAL, USER, hashtag_stream, list_stream,
     subscribe_message, streaming_url,
 )
@@ -105,19 +106,13 @@ check('a trailing slash is trimmed',
       MastodonClient('https://example.social/').instance
       == 'https://example.social')
 
-# --- The keyring helpers must actually deliver their callbacks ----------
-
-# These went through Secret.password_* first, whose callbacks never fired:
-# PyGObject hands the callback (None, result, user_data), so the *_finish
-# call raised on a None source and every login silently hung. The
-# helpers now go through one shared Secret.Service, which binds the task
-# to the proxy that started it.
-
 import time  # noqa: E402
 
-from gi.repository import GLib  # noqa: E402
+from gi.repository import GLib, GObject  # noqa: E402
 
-import mastodon as mastodon_module  # noqa: E402
+import src.mastodon as mastodon_module  # noqa: E402
+from src import desktopnotify, sysstate  # noqa: E402
+from src import streaming as streaming_module  # noqa: E402
 
 
 def pump_until(predicate, limit=8.0):
@@ -130,6 +125,174 @@ def pump_until(predicate, limit=8.0):
         time.sleep(0.02)
     return predicate()
 
+
+# --- System state: offline, back online, network changes, power saver ---
+
+
+class FakeMonitor(GObject.Object):
+    """sysstate.SystemState with writable properties."""
+    __gsignals__ = {
+        'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+    online = GObject.Property(type=bool, default=True)
+    metered = GObject.Property(type=bool, default=False)
+    power_saver = GObject.Property(type=bool, default=False)
+
+
+fake = FakeMonitor()
+_real_monitor = sysstate.monitor
+sysstate.monitor = lambda: fake
+
+
+class StubSession:
+    def __init__(self):
+        self.attempts = 0
+
+    def websocket_connect_async(self, *_args):
+        self.attempts += 1
+
+
+class StubConnection:
+    """Just enough of Soup.WebsocketConnection for _drop_connection."""
+    def __init__(self):
+        self.closed = False
+
+    def get_state(self):
+        return streaming_module.Soup.WebsocketState.OPEN
+
+    def close(self, *_args):
+        self.closed = True
+
+
+stream_client = MastodonClient('https://social.example/')
+stream_client.token = 'token'
+manager = streaming_module.StreamingManager()
+session = manager._session = StubSession()
+manager.start(stream_client)
+check('online, start connects', session.attempts == 1)
+# Three failed handshakes push the backoff up.
+for n in range(3):
+    # What _on_connected does with a failed handshake, then the timer
+    # firing at once.
+    manager._cancellable = None
+    manager._schedule_retry()
+    if n < 2:
+        GLib.source_remove(manager._retry_source)
+        manager._retry_source = 0
+check('failures back off', manager._attempt == 3 and manager._retry_source)
+
+fake.props.online = False
+check('going offline drops the retry timer', manager._retry_source == 0)
+manager._schedule_retry()
+check('offline, no retry is scheduled', manager._retry_source == 0)
+manager._connect()
+check('offline, no handshake is attempted', session.attempts == 1)
+fake.emit('network-changed')
+check('offline, a network change attempts nothing', session.attempts == 1)
+
+fake.props.online = True
+check('back online connects at once, once', session.attempts == 2)
+check('back online resets the backoff', manager._attempt == 0
+      and manager._retry_source == 0)
+fake.props.online = True
+check('a repeated online notify does not connect again',
+      session.attempts == 2)
+
+# A socket believed open is replaced after a network change.
+manager._cancellable = None
+connection = StubConnection()
+manager._connection = connection
+manager._set_connected(True)
+fake.emit('network-changed')
+check('a network change reconnects an open socket',
+      connection.closed and session.attempts == 3
+      and not manager.connected)
+
+fake.props.online = False
+check('offline cancels the handshake in flight',
+      manager._cancellable is None)
+manager.stop()
+
+
+class StubPollClient:
+    token = 'token'
+
+    def __init__(self):
+        self.polls = []
+
+    def rate_limited(self):
+        return False
+
+    def request_async(self, method, path, params=None, callback=None):
+        self.polls.append(params)
+
+
+class StubPollWindow:
+    def __init__(self):
+        self.client = StubPollClient()
+
+
+armed = []
+_real_timeout_add_seconds = GLib.timeout_add_seconds
+
+
+def _record_timeout(seconds, *args):
+    armed.append(seconds)
+    return _real_timeout_add_seconds(seconds, *args)
+
+
+desktopnotify.GLib.timeout_add_seconds = _record_timeout
+poll_window = StubPollWindow()
+polls = poll_window.client.polls
+notifier = desktopnotify.DesktopNotifier(poll_window)
+
+notifier.start_polling()
+check('offline, polling skips the first poll', polls == [])
+check('polling is scheduled at the normal rate',
+      armed[-1] == desktopnotify.POLL_SECONDS)
+notifier._on_poll_tick()
+check('offline, a poll tick sends nothing', polls == [])
+
+fake.props.online = True
+check('back online polls at once', len(polls) == 1
+      and polls[0] == {'limit': 1})
+notifier._last_id = '10'
+notifier._on_poll_tick()
+check('online, a tick polls from the cursor',
+      polls[-1] == {'limit': 20, 'since_id': '10'})
+
+fake.props.power_saver = True
+check('power saver doubles the poll interval',
+      notifier.poll_interval() == 2 * desktopnotify.POLL_SECONDS
+      and armed[-1] == 2 * desktopnotify.POLL_SECONDS)
+fake.props.power_saver = False
+check('leaving power saver restores the interval',
+      armed[-1] == desktopnotify.POLL_SECONDS)
+notifier.stop_polling()
+
+desktopnotify.GLib.timeout_add_seconds = _real_timeout_add_seconds
+sysstate.monitor = _real_monitor
+
+# The real monitor coalesces a burst of network signals into one change.
+real = sysstate.SystemState()
+bursts = []
+real.connect('network-changed', lambda *_a: bursts.append(1))
+for _ in range(5):
+    real._on_network_signal()
+pump_until(lambda: bursts, limit=2.0)
+check('a burst of network signals settles into one change',
+      bursts == [1] and not real._settle_source)
+check('the real monitor exposes the contract properties',
+      all(isinstance(real.get_property(name), bool)
+          for name in ('online', 'metered', 'power-saver')))
+
+# --- The keyring helpers must actually deliver their callbacks ----------
+
+# These went through Secret.password_* first, whose callbacks never fired:
+# PyGObject hands the callback (None, result, user_data), so the *_finish
+# call raised on a None source and every login silently hung. The
+# helpers now go through one shared Secret.Service, which binds the task
+# to the proxy that started it.
 
 done = []
 mastodon_module.store_secret_async(
@@ -144,6 +307,9 @@ check('storing a secret completes its callback',
 # than a defect: skip, loudly, instead of reporting a failure that only
 # describes the machine.
 if done and done[0] is not None:
+    if failures:
+        print('%d failure(s)' % failures)
+        sys.exit(1)
     print('SKIP - no usable secret service for the keyring round trip')
     sys.exit(77)
 

@@ -9,15 +9,35 @@ standing up a window to reach them.
 import datetime
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
+
+# The GSettings fallback is read from a schema compiled here, never from
+# the desktop's own settings.
+os.environ['GSETTINGS_BACKEND'] = 'memory'
 
 srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src.statustext import (is_hashtag, is_web_link,  # noqa: E402
-                            parse_content, relative_time, shorten_url_text)
+from src import statustext  # noqa: E402
+from src.statustext import (clock_format, format_time,  # noqa: E402
+                            is_hashtag, is_web_link, parse_content,
+                            relative_time, shorten_url_text)
+
+from gi.repository import Gio, GLib  # noqa: E402
+
+INTERFACE_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.desktop.interface"
+          path="/org/gnome/desktop/interface/">
+    <key name="clock-format" type="s"><default>'12h'</default></key>
+  </schema>
+</schemalist>
+'''
 
 
 def text_of(segments):
@@ -160,6 +180,115 @@ class TestRelativeTime(unittest.TestCase):
     def test_a_broken_timestamp_does_not_raise(self):
         for value in (None, '', 'not a date'):
             self.assertEqual(relative_time(value), '')
+
+
+class ClockState(unittest.TestCase):
+    """Saves and restores the module's clock cache, so a test can set
+    it -- or the bus and schema lookups behind it -- freely."""
+
+    NAMES = ('_clock_format', '_clock_subscription', '_clock_settings',
+             '_session_bus', '_schema_source')
+
+    def setUp(self):
+        self._saved = {name: getattr(statustext, name)
+                       for name in self.NAMES}
+
+    def tearDown(self):
+        for name, value in self._saved.items():
+            setattr(statustext, name, value)
+
+
+class TestFormatTime(ClockState):
+    """The format strings are translatable, so assert the time part --
+    computed from the same local time -- and the year, not exact text."""
+
+    MOMENT = GLib.DateTime.new_utc(2026, 10, 9, 14, 47, 0)
+
+    def setUp(self):
+        super().setUp()
+        local = self.MOMENT.to_local()
+        self.hour, self.minute = local.get_hour(), local.get_minute()
+
+    def test_24_hour_time_with_date(self):
+        statustext._clock_format = '24h'
+        text = format_time(self.MOMENT)
+        self.assertIn('2026', text)
+        self.assertTrue(text.endswith('%02d:%02d' % (self.hour, self.minute)))
+
+    def test_24_hour_time_alone(self):
+        statustext._clock_format = '24h'
+        self.assertEqual(format_time(self.MOMENT, with_date=False),
+                         '%02d:%02d' % (self.hour, self.minute))
+
+    def test_12_hour_time_with_date(self):
+        statustext._clock_format = '12h'
+        text = format_time(self.MOMENT)
+        self.assertIn('2026', text)
+        self.assertIn(', %d:%02d' % (self.hour % 12 or 12, self.minute), text)
+
+    def test_12_hour_time_alone(self):
+        statustext._clock_format = '12h'
+        text = format_time(self.MOMENT, with_date=False)
+        self.assertTrue(text.startswith('%d:%02d' % (self.hour % 12 or 12,
+                                                     self.minute)))
+
+    def test_an_aware_datetime_reads_like_a_glib_one(self):
+        statustext._clock_format = '24h'
+        moment = datetime.datetime(2026, 10, 9, 14, 47,
+                                   tzinfo=datetime.timezone.utc)
+        self.assertEqual(format_time(moment), format_time(self.MOMENT))
+
+    def test_no_moment_is_no_text(self):
+        self.assertEqual(format_time(None), '')
+
+
+class TestClockFormat(ClockState):
+    def setUp(self):
+        super().setUp()
+        statustext._clock_format = None
+        statustext._session_bus = lambda: None
+
+    def test_no_bus_and_no_schema_is_24_hour(self):
+        lookups = []
+
+        def no_source():
+            lookups.append(True)
+            return None
+        statustext._schema_source = no_source
+        self.assertEqual(clock_format(), '24h')
+        self.assertEqual(clock_format(), '24h')
+        self.assertEqual(len(lookups), 1, 'read once, then cached')
+
+    @unittest.skipUnless(shutil.which('glib-compile-schemas'),
+                         'needs glib-compile-schemas')
+    def test_no_bus_falls_back_to_gsettings(self):
+        with tempfile.TemporaryDirectory() as schemas:
+            with open(os.path.join(schemas, 'interface.gschema.xml'),
+                      'w') as handle:
+                handle.write(INTERFACE_SCHEMA)
+            subprocess.run(['glib-compile-schemas', schemas], check=True)
+            source = Gio.SettingsSchemaSource.new_from_directory(
+                schemas, None, False)
+        statustext._schema_source = lambda: source
+        self.assertEqual(clock_format(), '12h')
+        # A change to the setting reaches the cache.
+        statustext._clock_settings.set_string('clock-format', '24h')
+        self.assertEqual(clock_format(), '24h')
+
+    def test_a_portal_change_updates_the_cache(self):
+        statustext._clock_format = '24h'
+
+        def changed(namespace, key, value):
+            statustext._on_portal_setting_changed(
+                None, None, None, None, None,
+                GLib.Variant('(ssv)', (namespace, key,
+                                       GLib.Variant('s', value))))
+        changed('org.gnome.desktop.interface', 'clock-format', '12h')
+        self.assertEqual(clock_format(), '12h')
+        changed('org.gnome.desktop.interface', 'color-scheme', '24h')
+        self.assertEqual(clock_format(), '12h')
+        changed('org.gnome.desktop.interface', 'clock-format', 'bogus')
+        self.assertEqual(clock_format(), '24h')
 
 
 if __name__ == '__main__':

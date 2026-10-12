@@ -20,6 +20,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .statustext import format_time  # noqa: E402
 
 FILTERS_PATH = '/api/v2/filters'
 
@@ -96,8 +97,15 @@ def describe_filter(item):
     parts.append(', '.join(names.get(c, c) for c in item.get('context', ())))
     expires = _parse_time(item.get('expires_at'))
     if expires is not None:
-        parts.append(_('Expires %s') % expires.astimezone().strftime('%x %H:%M'))
+        parts.append(_('Expires %s') % _date_and_time(expires))
     return ' · '.join(part for part in parts if part)
+
+
+def _date_and_time(moment):
+    """The locale's short date, then the time in the desktop's clock
+    format."""
+    return '%s %s' % (moment.astimezone().strftime('%x'),
+                      format_time(moment, with_date=False))
 
 
 def _parse_time(value):
@@ -221,8 +229,7 @@ class FilterEditPage(Adw.NavigationPage):
         self._expires_at = _parse_time(item.get('expires_at'))
         self._keep_expiry = self._expires_at is not None
         if self._keep_expiry:
-            labels.insert(0, _('Until %s') % self._expires_at.astimezone()
-                          .strftime('%x %H:%M'))
+            labels.insert(0, _('Until %s') % _date_and_time(self._expires_at))
         self.expiry_row = Adw.ComboRow(
             title=_('Expire After'), model=Gtk.StringList.new(labels))
         self.expiry_row.set_selected(0)

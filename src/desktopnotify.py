@@ -3,7 +3,9 @@
 """Desktop notifications for new Mastodon notifications.
 
 Notifications arrive from the streaming socket; while that is down the
-notifier polls ``GET /api/v1/notifications`` itself. Nothing is shown
+notifier polls ``GET /api/v1/notifications`` itself, every
+:data:`POLL_SECONDS` (twice that in power saver mode), never while the
+system is offline, and immediately once it is back. Nothing is shown
 while the window is focused (the Notifications page already is the
 place for them), only the types ticked in ``desktop-notification-types``
 are announced, and with ``group-desktop-notifications`` notifications of
@@ -20,9 +22,11 @@ gi.require_version('Gtk', '4.0')
 
 from .i18n import gettext as _, ngettext  # noqa: E402
 
-from gi.repository import GLib, Gio  # noqa: E402
+from gi.repository import GLib, Gio, GObject  # noqa: E402
 
+from . import sysstate  # noqa: E402
 from .accounts import plain_name, strip_shortcodes  # noqa: E402
+from .pages import connect_weak  # noqa: E402
 
 POLL_SECONDS = 60
 BODY_LIMIT = 200
@@ -104,7 +108,7 @@ def notification_title(kind, names):
     return template % actor_list(names)
 
 
-class DesktopNotifier:
+class DesktopNotifier(GObject.Object):
     """Turns notification JSON into Gio.Notification objects.
 
     ``window`` supplies ``client``, ``settings``, ``is_active()`` and
@@ -112,6 +116,7 @@ class DesktopNotifier:
     survives account switches (``reset()`` forgets the old account)."""
 
     def __init__(self, window, application=None):
+        super().__init__()
         self.window = window
         self._application = application
         self._groups = {}
@@ -119,6 +124,11 @@ class DesktopNotifier:
         self._last_id = None
         self._poll_source = 0
         self._polling_client = None
+        self._system = sysstate.monitor()
+        self._online = self._system.props.online
+        connect_weak(self._system, 'notify::online', self._on_online_changed)
+        connect_weak(self._system, 'notify::power-saver',
+                     self._on_power_saver_changed)
 
     # Application access
 
@@ -240,10 +250,21 @@ class DesktopNotifier:
             return
         self.stop_polling()
         self._polling_client = client
-        if self._last_id is None:
+        if self._last_id is None and self._online:
             self._poll(initial=True)
+        self._arm_poll_timer()
+
+    def poll_interval(self):
+        """Seconds between polls; power saver mode halves the rate."""
+        if self._system.props.power_saver:
+            return POLL_SECONDS * 2
+        return POLL_SECONDS
+
+    def _arm_poll_timer(self):
+        if self._poll_source:
+            GLib.source_remove(self._poll_source)
         self._poll_source = GLib.timeout_add_seconds(
-            POLL_SECONDS, self._on_poll_tick)
+            self.poll_interval(), self._on_poll_tick)
 
     def stop_polling(self):
         if self._poll_source:
@@ -255,13 +276,33 @@ class DesktopNotifier:
         if self.window.client is not self._polling_client:
             self._poll_source = 0
             return GLib.SOURCE_REMOVE
-        if self._polling_client is not None \
-                and self._polling_client.rate_limited():
-            # The instance asked us to back off; keep the timer but do
-            # not spend another request until the limit expires.
+        if not self._online or self._polling_client.rate_limited():
+            # Offline nothing gets through; rate limited, the instance
+            # asked us to back off. Keep the timer but do not spend a
+            # request until that is over.
             return GLib.SOURCE_CONTINUE
-        self._poll()
+        # Without a cursor (the first poll skipped offline, or failed)
+        # only the newest one is fetched, as a starting point, not news.
+        self._poll(initial=self._last_id is None)
         return GLib.SOURCE_CONTINUE
+
+    def _on_online_changed(self, system, _pspec):
+        online = system.props.online
+        if online == self._online:
+            return
+        self._online = online
+        if not online or not self._poll_source \
+                or self.window.client is not self._polling_client \
+                or self._polling_client.rate_limited():
+            return
+        # Catch up now, not up to an interval late, and count the next
+        # poll from this one.
+        self._poll(initial=self._last_id is None)
+        self._arm_poll_timer()
+
+    def _on_power_saver_changed(self, *_args):
+        if self._poll_source:
+            self._arm_poll_timer()
 
     def _poll(self, initial=False):
         client = self._polling_client

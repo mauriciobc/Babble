@@ -19,13 +19,16 @@ from gi.repository import (Adw, Gdk, GdkPixbuf, GLib, GObject, Gio,  # noqa: E40
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .mastodon import HTTP_TIMEOUT_SECONDS, summarize_error_markup  # noqa: E402
-from .statustext import (is_hashtag, parse_content, relative_time,  # noqa: E402
-                         shorten_url_text, split_url, url_host)
+from .statustext import (format_time, is_hashtag, parse_content,  # noqa: E402
+                         relative_time, shorten_url_text, split_url, url_host)
 from .textemoji import (InlineEmojiText, emoji_bank, launch_uri,  # noqa: E402
                         poll_emoji_bank, status_emoji_bank)
 
 PAGE_SIZE = 20
 AUTO_REFRESH_SCROLLED_TICKS = 2  # 30s when the user is scrolled away
+# Screen readers hear about posts arriving at the top of a timeline at
+# most this often per page; the counts in between add up.
+NEW_POSTS_ANNOUNCE_INTERVAL_US = 10 * 1000 * 1000
 COLUMN_WIDTH = pages.COLUMN_WIDTH
 BOOST_DEDUPE_LIMIT = 100
 GROUP_BOOSTS_MIN_PAGE = 11
@@ -1974,6 +1977,13 @@ class MediaBox(Gtk.Box):
             click = Gtk.GestureClick()
             connect_weak(click, 'released', self._on_tile_clicked, index)
             overlay.add_controller(click)
+            if not blur:
+                # Dragging a tile out drops the attachment; a blurred one
+                # stays put until the reader chooses to see it.
+                drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
+                connect_weak(drag, 'prepare', self._on_tile_drag_prepare,
+                             index)
+                overlay.add_controller(drag)
             overlay.set_cursor_from_name('pointer')
             grid.attach(overlay, slot % columns, slot // columns, 1, 1)
             if kind == 'image':
@@ -2029,6 +2039,22 @@ class MediaBox(Gtk.Box):
 
     def _on_tile_clicked(self, _gesture, _n_press, _x, _y, index):
         self._open(index)
+
+    def _on_tile_drag_prepare(self, source, _x, _y, index):
+        if index >= len(self._attachments):
+            return None
+        attachment = self._attachments[index]
+        url = attachment.get('url') or attachment.get('remote_url')
+        # The tile shows its texture from _TextureCache once decoded.
+        texture = source.get_widget().get_child().get_paintable()
+        if not isinstance(texture, Gdk.Texture):
+            texture = None
+        from .mediaviewer import media_provider, set_drag_texture
+        if texture is not None:
+            set_drag_texture(source, texture)
+        # A video's tile is its preview frame, not the attachment.
+        return media_provider(
+            url, texture if attachment.get('type') == 'image' else None)
 
     def _open(self, index):
         from .mediaviewer import present_media
@@ -2099,13 +2125,12 @@ def ui_language():
 
 
 def absolute_time(iso_timestamp):
-    """'9 Oct 2026, 10:47' in local time, '' when unparsable."""
+    """'9 Oct 2026, 10:47' (or '…, 10:47 AM' on a 12-hour desktop) in
+    local time, '' when unparsable."""
     moment = GLib.DateTime.new_from_iso8601(iso_timestamp or '', None)
     if moment is None:
         return ''
-    # Translators: a GDateTime format string, e.g. "9 Oct 2026, 10:47";
-    # see the g_date_time_format() docs
-    return moment.to_local().format(_('%-d %b %Y, %H:%M'))
+    return format_time(moment)
 
 
 def time_left(iso_timestamp):
@@ -2533,6 +2558,11 @@ class StatusRow(Gtk.Overlay):
         self.time_label.add_css_class('dimmed')
         self.time_label.add_css_class('numeric')
         meta.append(self.time_label)
+        # Dragging the time or badges out drops the post's link. One
+        # controller per row; the content is only built when a drag starts.
+        link_drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
+        connect_weak(link_drag, 'prepare', self._on_link_drag_prepare)
+        meta.add_controller(link_drag)
         header.append(meta)
         # Overflow menu sits with the timestamp, the way the bar keeps it
         # in the post header rather than in the action row.
@@ -3467,7 +3497,7 @@ class StatusRow(Gtk.Overlay):
         self.time_label.set_text(item.timestamp)
         created = GLib.DateTime.new_from_iso8601(
             item.status.get('created_at') or '', None)
-        full = created.to_local().format('%c') if created else None
+        full = format_time(created) if created else None
         self.time_label.set_tooltip_text(full)
         if full:
             self.time_label.update_property([Gtk.AccessibleProperty.LABEL],
@@ -3676,6 +3706,17 @@ class StatusRow(Gtk.Overlay):
     def _on_profile_clicked(self, _button):
         if self.item is not None:
             self.activate_profile(self.item)
+
+    def _on_link_drag_prepare(self, source, _x, _y):
+        url = self.item.status_url if self.item is not None else ''
+        if not url:
+            return None
+        from .mediaviewer import link_provider
+        if self.avatar.get_mapped():
+            source.set_icon(Gtk.WidgetPaintable.new(self.avatar),
+                            self.avatar.get_width() // 2,
+                            self.avatar.get_height() // 2)
+        return link_provider(url)
 
     def _merge_status(self, item, data):
         """Copy the fields a status action changes into *item*."""
@@ -3947,6 +3988,13 @@ def _auto_refresh_tick(page_ref):
     return GLib.SOURCE_CONTINUE
 
 
+def _new_posts_announce_tick(page_ref):
+    page = page_ref()
+    if page is not None:
+        page._flush_new_posts_announcement()
+    return GLib.SOURCE_REMOVE
+
+
 class TimelinePage(Adw.Bin):
     """Scrollable timeline with infinite scroll, refresh and status pages.
 
@@ -3978,6 +4026,9 @@ class TimelinePage(Adw.Bin):
         self._auto_refresh_id = 0
         self._auto_refresh_ticks = 0
         self._pill_count = 0
+        self._announce_count = 0
+        self._announce_last_us = None
+        self._announce_id = 0
 
         self.stack = Gtk.Stack()
         scrolled = Gtk.ScrolledWindow()
@@ -4075,6 +4126,37 @@ class TimelinePage(Adw.Bin):
             ngettext('%d New Post', '%d New Posts', self._pill_count)
             % self._pill_count)
         self.new_posts_revealer.set_reveal_child(True)
+        self._announce_new_posts(count)
+
+    def _announce_new_posts(self, count):
+        """Tell screen readers that *count* posts arrived at the top,
+        throttled to one announcement per NEW_POSTS_ANNOUNCE_INTERVAL_US:
+        a burst of streamed posts is spoken once, with its total."""
+        self._announce_count += count
+        if self._announce_id:
+            return
+        wait_us = 0 if self._announce_last_us is None else \
+            self._announce_last_us + NEW_POSTS_ANNOUNCE_INTERVAL_US \
+            - GLib.get_monotonic_time()
+        if wait_us <= 0:
+            self._flush_new_posts_announcement()
+            return
+        # A GObject weak reference, so the wait never keeps a closed
+        # page alive.
+        self._announce_id = GLib.timeout_add(
+            wait_us // 1000 + 1, _new_posts_announce_tick, self.weak_ref())
+
+    def _flush_new_posts_announcement(self):
+        self._announce_id = 0
+        count, self._announce_count = self._announce_count, 0
+        # A page out of sight (another sidebar place) stays quiet.
+        if not count or not self.get_mapped():
+            return
+        self._announce_last_us = GLib.get_monotonic_time()
+        # Translators: spoken by screen readers when posts arrive at the
+        # top of a timeline; %d is how many.
+        pages.announce(self, ngettext('%d new post', '%d new posts', count)
+                       % count)
 
     def _on_new_pill_clicked(self, _button):
         self._pill_count = 0
@@ -4260,6 +4342,8 @@ class TimelinePage(Adw.Bin):
             return
         if self._scrolled.get_vadjustment().get_value() > 24:
             self._show_new_pill(added)
+        else:
+            self._announce_new_posts(added)
         self._trim_old()
         self.stack.set_visible_child_name('list')
 

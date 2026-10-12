@@ -32,6 +32,7 @@ from gi.repository import Adw, GLib, GObject, Gtk, Pango  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
+from .statustext import format_time  # noqa: E402
 
 # Role permission bits (Mastodon UserRole::FLAGS)
 PERM_ADMINISTRATOR = 1
@@ -67,9 +68,17 @@ def error_text_markup(error):
     return GLib.markup_escape_text(_admin_line(error))
 
 
-def format_date(iso, fmt='%x %X'):
+def format_date(iso, with_time=True):
+    """The locale's short date of *iso*, then the time in the desktop's
+    clock format unless *with_time* is false; '' when unparsable."""
     value = GLib.DateTime.new_from_iso8601(iso, None) if iso else None
-    return value.to_local().format(fmt) if value else ''
+    if value is None:
+        return ''
+    local = value.to_local()
+    date = local.format('%x')
+    if not with_time:
+        return date
+    return '%s %s' % (date, format_time(local, with_date=False))
 
 
 def account_handle(admin_account, client):
@@ -637,7 +646,8 @@ class ReportDialog(AdminDialogBase):
         info = Adw.PreferencesGroup()
         created = (target.get('account') or {}).get('created_at')
         if created:
-            info.add(info_row(_('Joined'), format_date(created, '%x')))
+            info.add(info_row(_('Joined'),
+                              format_date(created, with_time=False)))
         info.add(info_row(_('Reported on'),
                           format_date(report.get('created_at'))))
         info.add(info_row(_('Reported by'),
@@ -1134,7 +1144,8 @@ class AdminAccountDialog(AdminDialogBase):
         created = (item.get('account') or {}).get('created_at') \
             or item.get('created_at')
         if created:
-            info.add(info_row(_('Joined'), format_date(created, '%x')))
+            info.add(info_row(_('Joined'),
+                              format_date(created, with_time=False)))
         role = item.get('role') or {}
         info.add(info_row(_('Role'), role.get('name')))
         email = info_row(_('E-mail'), item.get('email'))
@@ -1507,7 +1518,7 @@ class IPBlocksPage(RuleList):
             subtitle += ' · ' + block['comment']
         if block.get('expires_at'):
             subtitle += '\n' + _('Expires %s') % format_date(
-                block['expires_at'], '%x')
+                block['expires_at'], with_time=False)
         row = Adw.ActionRow(title=block['ip'], subtitle=subtitle,
                             subtitle_lines=0, use_markup=False)
         row.add_suffix(delete_button(

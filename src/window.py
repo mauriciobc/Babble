@@ -205,6 +205,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         pages.connect_weak(self.settings, 'changed::local-drafts',
                            self._refresh_draft_banner)
         self._setup_copied_link_banner()
+        self._setup_offline_banner()
 
         self.notifications_badge = Gtk.Label(visible=False)
         self.notifications_badge.add_css_class('notifications-badge')
@@ -218,6 +219,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.streaming.connect('event', self._on_stream_event)
         self.streaming.connect('connection-changed',
                                self._on_stream_connection_changed)
+        # The stream went down after it had been up: whatever was posted
+        # meanwhile never came through it.
+        self._stream_dropped = False
 
         actions = (
             ('logout', self.on_logout_requested),
@@ -528,6 +532,24 @@ class BabbleWindow(Adw.ApplicationWindow):
         if url:
             pages.open_link(self, url, resolve=True)
 
+    # Offline banner
+
+    def _setup_offline_banner(self):
+        """Add a 'You're offline' banner below the copied-link banner,
+        shown for as long as the system reports no network."""
+        from . import sysstate
+        # Translators: banner shown while the computer has no network.
+        self.offline_banner = Adw.Banner(title=_('You’re offline'),
+                                         use_markup=False)
+        self.draft_banner.get_parent().insert_child_after(
+            self.offline_banner, self.copied_link_banner)
+        system = sysstate.monitor()
+        pages.connect_weak(system, 'notify::online', self._on_online_changed)
+        self._on_online_changed(system)
+
+    def _on_online_changed(self, system, *_args):
+        self.offline_banner.set_revealed(not system.props.online)
+
     @Gtk.Template.Callback()
     def on_draft_restore(self, _banner):
         """Reopen the newest unsent draft saved when the composer was
@@ -551,6 +573,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         """Drop every page, stream and dialog tied to the current
         client, before another account takes over."""
         self.streaming.stop()
+        self._stream_dropped = False
         emojichooser.deactivate_instance_emojis()
         self.notifier.reset()
         if self.compose_dialog is not None:
@@ -795,7 +818,12 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_stream_connection_changed(self, _manager, connected):
         if connected:
             self.notifier.stop_polling()
+            if self._stream_dropped and self.timeline_page is not None:
+                # Fetch what was posted while the stream was down.
+                self.timeline_page.refresh()
+            self._stream_dropped = False
         elif self.client is not None:
+            self._stream_dropped = True
             self.notifier.start_polling()
         self._schedule_background_status()
 

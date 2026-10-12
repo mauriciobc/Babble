@@ -66,6 +66,17 @@ redirect.
 - **Spell checking**: misspelled words in the composer are underlined, with
   corrections on right-click, in the language picked for the post. With no
   dictionary installed for that language, spell checking is off.
+- **System state**: Babble shows when offline, reconnects streaming when
+  connectivity returns, and slows notification polling in power-saver mode.
+  On metered connections, the media viewer waits for you to load video or
+  audio. GIFV autoplay respects power-saver mode.
+- **Clock format**: absolute times follow GNOME's 12/24-hour clock setting.
+- **Media handoff**: drag posts and media out of Babble, or copy an image
+  from the viewer.
+- **Audio posts**: attach or open audio files in Babble; audio is posted
+  alone, as required by Mastodon.
+- **Accessibility**: new-post batches are announced to screen readers, and
+  Babble prevents logout or suspend while a post is being sent.
 - **Open With Babble**: images and videos opened with Babble from Files
   start a new post with them attached.
 - **Notification buttons**: Favourite, Boost and Follow Back act straight

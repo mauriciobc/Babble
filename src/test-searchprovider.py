@@ -23,6 +23,7 @@ os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 # would hold the bus singleton and stall Gio.TestDBus.down() for 30 s.
 os.environ['GDK_DEBUG'] = ','.join(
     filter(None, (os.environ.get('GDK_DEBUG'), 'no-portals')))
+os.environ['NO_AT_BRIDGE'] = '1'
 
 import gi  # noqa: E402
 
@@ -219,11 +220,13 @@ def wait_for(box):
 
 def call_sync(connection, method, args, signature):
     box = wait_for(call(connection, method, args, signature))
-    check('error' not in box, '%s answered without error' % method)
+    check('error' not in box,
+          '%s answered without error (%s)' % (method, box.get('error')))
     return box.get('value')
 
 
 bus = Gio.TestDBus.new(Gio.TestDBusFlags.NONE)
+connections = []
 bus.up()
 try:
     address = bus.get_bus_address()
@@ -233,6 +236,7 @@ try:
         address, flags, None, None)
     shell = Gio.DBusConnection.new_for_address_sync(
         address, flags, None, None)
+    connections.extend((service, shell))
     destination = service.get_unique_name()
 
     window = StubWindow()
@@ -357,10 +361,14 @@ try:
           and window.presented[-1] == 46,
           'LaunchSearch passes the joined terms to the search page')
 
-    # No signed-in window and no stored account: nothing to search as.
+    # Ensure this process-local settings backend has no active account.
+    settings = pages.settings()
+    settings.set_strv('accounts', [])
+    settings.set_string('active-account', '')
     lonely = searchprovider.SearchProvider(StubApp([]))
     other = Gio.DBusConnection.new_for_address_sync(
         address, flags, None, None)
+    connections.append(other)
     check(lonely.register(other, PATH), 'second provider registers')
     destination = other.get_unique_name()
     results = call_sync(shell, 'GetInitialResultSet', (['ali'],), '(as)')
@@ -373,6 +381,12 @@ try:
     check(box.get('error', 'timed out') != 'timed out',
           'unregister removes the object')
 finally:
+    for connection in connections:
+        try:
+            connection.close_sync(None)
+        except GLib.Error:
+            pass
+    connections.clear()
     bus.down()
 
 sys.exit(1 if failures else 0)

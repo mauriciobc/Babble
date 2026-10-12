@@ -250,6 +250,39 @@ class StubClient:
 Adw.init()
 Gtk.init()
 
+
+class StubApp(Gtk.Application):
+    """The default application, recording the logout and suspend
+    inhibitions the composer takes while posting."""
+
+    def __init__(self):
+        super().__init__(application_id='io.github.mauriciobc.BabbleTest',
+                         flags=Gio.ApplicationFlags.NON_UNIQUE)
+        self.inhibited = []
+        self.held = set()
+        self.released = []
+
+    def inhibit(self, window, flags, reason):
+        cookie = len(self.inhibited) + 1
+        self.inhibited.append((window, flags, reason, cookie))
+        self.held.add(cookie)
+        return cookie
+
+    def uninhibit(self, cookie):
+        self.released.append(cookie)
+        self.held.discard(cookie)
+
+
+stub_app = StubApp()
+Gio.Application.set_default(stub_app)
+INHIBIT_FLAGS = (Gtk.ApplicationInhibitFlags.LOGOUT
+                 | Gtk.ApplicationInhibitFlags.SUSPEND)
+
+# Toasts already speak through libadwaita: what pages.announce is asked
+# to say on top of them would be said twice.
+announced = []
+compose.pages.announce = lambda widget, text, *a: announced.append(text)
+
 # Network-free widget exercise: no display timing needed beyond pumps.
 client = StubClient()
 view = BabbleComposeView(client)
@@ -464,9 +497,16 @@ pump(50)
 posts.clear()
 uploads.clear()
 collect_toasts()
+announced.clear()
 view.on_post_clicked(view.post_button)
 check('posting progress visible', view.progress_spinner.get_visible())
 check('posting disables button', not view.post_button.get_sensitive())
+check('posting holds back logout and suspend',
+      len(stub_app.inhibited) == 1
+      and stub_app.inhibited[0][0] is window
+      and stub_app.inhibited[0][1] == INHIBIT_FLAGS
+      and stub_app.inhibited[0][2] == _('Sending a post')
+      and stub_app.held == {1})
 pump(400)
 check('all attachments uploaded first', len(uploads) == 1)
 check('upload multipart shape',
@@ -478,6 +518,9 @@ check('posting finished, spinner hidden',
       not view.progress_spinner.get_visible())
 check('toast feedback for success',
       collect_toasts() == [_('Post sent')])
+check('a sent post gives the inhibition back',
+      stub_app.held == set() and stub_app.released == [1])
+check('the success toast is not announced a second time', announced == [])
 
 form = posts[0]
 # See docs.joinmastodon.org/methods/statuses POST /statuses
@@ -490,6 +533,30 @@ check('media_ids array encoded',
 check('no in_reply_to for top post', 'in_reply_to_id' not in form)
 check('fixed response returned from stub',
       view.in_reply_to_id is None)
+
+# An upload that fails ends the round, and gives the inhibition back.
+gone_png = os.path.join(tempfile.mkdtemp(prefix='babble-test-gone-'),
+                        'gone.png')
+with open(gone_png, 'wb') as f:
+    f.write(PNG_BYTES)
+set_text('upload will fail')
+view.cw_toggle.set_active(False)
+view.add_attachment_path(gone_png)
+os.unlink(gone_png)
+collect_toasts()
+inhibited_before = len(stub_app.inhibited)
+view.on_post_clicked(view.post_button)
+pump(50)
+check('a failed upload took and gave back the inhibition',
+      len(stub_app.inhibited) == inhibited_before + 1
+      and stub_app.held == set()
+      and stub_app.released[-1] == stub_app.inhibited[-1][3])
+check('a failed upload is told in a toast',
+      any(t.startswith(_('Could not upload media')) for t in collect_toasts())
+      and not view._posting and announced == [])
+view.reset()
+check('a reset with no post in flight releases nothing more',
+      stub_app.released.count(stub_app.inhibited[-1][3]) == 1)
 
 # An upload the instance has not decoded yet: the composer must wait for
 # GET /media/:id rather than posting a media_id the server will reject.
@@ -541,7 +608,12 @@ pump(50)
 cancelled_view.on_post_clicked(cancelled_view.post_button)
 pump(50)
 check('the composer is polling for the upload', polls != [])
+check('the waiting round holds the inhibition', len(stub_app.held) == 1)
 cancelled_view.reset()
+check('a reset gives the inhibition back and ends the round',
+      stub_app.held == set() and not cancelled_view._posting
+      and cancelled_view.post_button.get_sensitive() is False
+      and not cancelled_view.progress_spinner.get_visible())
 pump(50)
 polls_at_reset = len(polls)
 # Only now does the in-flight reply arrive, cancelled.
@@ -558,6 +630,18 @@ StubMediaResult.cancelled = False
 StubMediaResult.needs_processing = False
 StubMediaResult.defer_status = False
 StubMediaResult.held = []
+
+# A composer finalized while it holds the inhibition gives it back.
+held_view = BabbleComposeView(client)
+held_view._inhibit_session()
+held_cookie = stub_app.inhibited[-1][3]
+check('an unparented composer still takes the inhibition',
+      held_cookie in stub_app.held and stub_app.inhibited[-1][0] is None)
+held_ref = weakref.ref(held_view)
+del held_view
+gc.collect()
+check('a finalized composer gives the inhibition back',
+      held_ref() is None and held_cookie not in stub_app.held)
 
 # Re-post with CW text preserved and sensitive flag.
 collect_toasts()
@@ -881,7 +965,7 @@ check('mention button on an empty draft adds a bare @', view.text() == '@')
 view.reset()
 
 # Drag and drop: files dropped on the content are attached when they
-# are images or videos, through the drop target's own signal.
+# are images, videos or audio, through the drop target's own signal.
 media_dir = tempfile.mkdtemp(prefix='babble-test-media-')
 
 
@@ -901,7 +985,8 @@ def drop(value):
     return view.drop_target.emit('drop', value, 0.0, 0.0)
 
 
-ONLY_MEDIA = _('Only images and videos can be attached')
+ONLY_MEDIA = _('Only images, videos and audio can be attached')
+LONE_MEDIA = _('A video or audio file must be the only attachment')
 BUSY_POSTING = _('Wait for the post to be sent to attach files')
 LIMIT_REACHED = ngettext('A post can have at most %d attachment',
                          'A post can have at most %d attachments',
@@ -930,6 +1015,62 @@ check('a drop stops at the attachment limit',
       len(view.attachments()) == MAX_ATTACHMENTS
       and not view.attach_button.get_sensitive())
 check('the limit is told in a toast', collect_toasts() == [LIMIT_REACHED])
+view.reset()
+
+# Audio is attached as Mastodon takes it: alone, with an audio icon in
+# place of a thumbnail.
+song = media_file('song.mp3', b'ID3\x03\x00\x00\x00\x00\x00\x00' + bytes(64))
+check('a dropped audio file is accepted',
+      drop(Gio.File.new_for_path(song)) is True
+      and [row.path for row in view.attachments()] == [song]
+      and collect_toasts() == [])
+audio_row = view.attachments()[0] if view.attachments() else None
+check('the audio uploads with its own type',
+      audio_row is not None and audio_row.content_type == 'audio/mpeg')
+check('an audio row shows the audio icon, not a texture',
+      isinstance(getattr(audio_row, 'thumbnail', None), Gtk.Image)
+      and audio_row.thumbnail.get_icon_name() == 'audio-x-generic-symbolic')
+check('nothing more can be attached to an audio file',
+      not view.attach_button.get_sensitive()
+      and drop(Gio.File.new_for_path(png_a)) is False
+      and len(view.attachments()) == 1
+      and collect_toasts() == [LONE_MEDIA])
+view.reset()
+drop(Gio.File.new_for_path(png_a))
+clip = media_file('clip.ogg', b'OggS' + bytes(60))
+check('an audio file does not join an image',
+      drop(file_list([clip])) is False
+      and [row.path for row in view.attachments()] == [png_a]
+      and collect_toasts() == [LONE_MEDIA]
+      and view.attach_button.get_sensitive())
+view.reset()
+
+
+class StubFileDialog:
+    """What on_files_selected gets back from Gtk.FileDialog."""
+
+    def __init__(self, paths):
+        self.files = Gio.ListStore.new(Gio.File)
+        for path in paths:
+            self.files.append(Gio.File.new_for_path(path))
+
+    def open_multiple_finish(self, _result):
+        return self.files
+
+
+view.on_files_selected(StubFileDialog([clip]), None)
+check('an audio file picked in the file dialog is attached',
+      [row.path for row in view.attachments()] == [clip]
+      and view.attachments()[0].content_type == 'audio/ogg'
+      and collect_toasts() == [])
+view.reset()
+view.on_files_selected(StubFileDialog([png_a, notes, clip]), None)
+check('the file dialog path refuses what a drop refuses',
+      [row.path for row in view.attachments()] == [png_a]
+      and collect_toasts() == [ONLY_MEDIA, LONE_MEDIA])
+check('compose.is_media takes audio', compose.is_media('audio/ogg')
+      and compose.is_media('video/mp4') and compose.is_media('image/png')
+      and not compose.is_media('text/plain') and not compose.is_media(None))
 view.reset()
 view.set_posting_ui(True)
 check('no drop is taken while posting',

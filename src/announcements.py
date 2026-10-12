@@ -20,7 +20,7 @@ from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from .pages import PagedList, connect_weak, report_error  # noqa: E402
 from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
-from .statustext import parse_content  # noqa: E402
+from .statustext import format_time, parse_content  # noqa: E402
 from .timeline import AvatarCache  # noqa: E402
 
 
@@ -32,12 +32,15 @@ def _local(iso):
 
 
 def format_date(iso, all_day=False):
-    """Locale date (and time) of an ISO 8601 timestamp; '' when
-    unparseable."""
+    """Locale date of an ISO 8601 timestamp, then (unless *all_day*) the
+    time in the desktop's clock format; '' when unparseable."""
     moment = _local(iso) if iso else None
     if moment is None:
         return ''
-    return moment.format('%x' if all_day else '%x %R')
+    date = moment.format('%x')
+    if all_day:
+        return date
+    return '%s %s' % (date, format_time(moment, with_date=False))
 
 
 def date_lines(announcement):

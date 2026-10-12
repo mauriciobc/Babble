@@ -58,6 +58,7 @@ install_data(
   'statustext.py',
   'statusviews.py',
   'streaming.py',
+  'sysstate.py',
   'textemoji.py',
   'thread.py',
   'timeline.py',

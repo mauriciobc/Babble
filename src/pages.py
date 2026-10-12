@@ -3,7 +3,8 @@
 """Shared building blocks for every secondary view.
 
 * navigation: :func:`push_page`, :func:`make_nav_page`, :func:`window_of`
-* feedback: :func:`show_toast`, :func:`report_error`, :func:`confirm`
+* feedback: :func:`show_toast`, :func:`report_error`, :func:`confirm`,
+  :func:`announce`
 * settings: :func:`settings`
 * lists: :class:`PagedList` (any Link-paginated endpoint rendered as a
   boxed list of rows), :class:`AccountRow`, :class:`AccountListPage`
@@ -199,6 +200,15 @@ def push_page(widget, title, child, tag=None):
 
 
 # Feedback
+
+def announce(widget, text,
+             priority=Gtk.AccessibleAnnouncementPriority.MEDIUM):
+    """Have screen readers speak *text* for *widget*, for news that has
+    no focus change or toast of its own (toasts announce themselves);
+    nothing when *widget* is None."""
+    if widget is not None:
+        widget.announce(text, priority)
+
 
 def show_toast(widget, text, undo=None, undo_label=None):
     """Toast on the nearest Adw.ToastOverlay holding *widget* (falling
