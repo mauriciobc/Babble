@@ -129,7 +129,7 @@ class SchedulePickerDialog(Adw.Dialog):
         self.calendar = Gtk.Calendar(halign=Gtk.Align.CENTER)
         self.calendar.update_property([Gtk.AccessibleProperty.LABEL],
                                       [_('Date')])
-        self.calendar.select_day(initial)
+        self.calendar.set_date(initial)
         column.append(self.calendar)
 
         group = Adw.PreferencesGroup()
