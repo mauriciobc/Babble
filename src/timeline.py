@@ -2201,7 +2201,9 @@ class StatusRow(Gtk.Overlay):
         self.filter_bar.set_visible(False)
         body.append(self.filter_bar)
 
-        main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
+                       margin_top=4, margin_bottom=4, margin_start=4,
+                       margin_end=4)
         self.main = main
         body.append(main)
 
