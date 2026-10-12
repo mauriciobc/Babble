@@ -501,6 +501,83 @@ check('a duplicated dispatch is delivered once',
 check('a later dispatch reuses that window',
       app.props.active_window is win)
 
+# --- Open With: local files go to the composer, web URIs nowhere --------
+
+composed = []
+win.compose_with_files = lambda paths=(): composed.append(list(paths))
+delivered.clear()
+png = Gio.File.new_for_uri('file:///tmp/babble-open-with/picture.png')
+app.on_open(None, [png], 1, None)
+check('an opened image is handed to the composer',
+      composed == [['/tmp/babble-open-with/picture.png']] and delivered == [])
+composed.clear()
+app.on_open(None, [Gio.File.new_for_uri('http://example.com/x.png')], 1, None)
+check('a web URI handed to open is ignored',
+      composed == [] and delivered == [])
+app.on_open(None, [uri, png], 2, None)
+check('a redirect next to a file still reaches the OAuth handler',
+      delivered == [REDIRECT_URI]
+      and composed == [['/tmp/babble-open-with/picture.png']])
+
+# --- The jump-list and routing actions ---------------------------------
+
+check('the application exports the desktop actions',
+      all(app.lookup_action(name) is not None
+          for name in ('compose', 'show-notifications', 'open-uri',
+                       'open-notifications')))
+composed.clear()
+# Activated on the action itself: through the application, a Babble
+# already running on the session bus would be the one to receive it.
+app.lookup_action('compose').activate(None)
+check('app.compose opens the composer', composed == [[]])
+routed = []
+real_open_link = pages.open_link
+pages.open_link = lambda widget, link: routed.append((widget, link))
+try:
+    app.lookup_action('open-uri').activate(
+        GLib.Variant('s', 'https://example.social/@me/1'))
+finally:
+    pages.open_link = real_open_link
+check('app.open-uri routes the link through the window',
+      routed == [(win, 'https://example.social/@me/1')])
+
+# --- Files opened before signing in wait for the session ----------------
+
+
+class FakeComposeView:
+    """Records what reaches the composer's intake; its filtering and
+    limit are the compose test's to check."""
+
+    def __init__(self):
+        self.batches = []
+
+    def add_attachment_files(self, files):
+        self.batches.append(list(files))
+        return []
+
+
+win, toasts = fresh_window()
+fake_view = FakeComposeView()
+presented = []
+win.present_composer = lambda: (presented.append(True)
+                                or types.SimpleNamespace(view=fake_view))
+win.compose_with_files(['/tmp/a.png', '/tmp/b.png'])
+win.compose_with_files(['/tmp/b.png', '/tmp/c.mp4'])
+check('files opened while signed out wait for a session',
+      presented == [] and fake_view.batches == []
+      and toasts == [_('Sign in to post the files')] * 2)
+toasts.clear()
+client = start_attempt(win, StubClient())
+win.on_oauth_callback(REDIRECT_URI)
+pump()
+check('signing in hands the waiting files to the composer, once each',
+      presented == [True]
+      and fake_view.batches == [['/tmp/a.png', '/tmp/b.png',
+                                  '/tmp/c.mp4']])
+presented.clear()
+win.show_shell()
+check('the waiting files are handed over once', presented == [])
+
 # --- A stale keyring reply must not touch the session -------------------
 
 # Reading the token is an out-of-process round trip, so a switch can be

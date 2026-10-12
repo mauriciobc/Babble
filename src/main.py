@@ -10,6 +10,7 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
+from . import desktopnotify
 from .window import BabbleWindow
 
 
@@ -20,6 +21,12 @@ class BabbleApplication(Adw.Application):
                          Gio.ApplicationFlags.HANDLES_OPEN,
                          resource_base_path='/io/github/mauriciobc/Babble')
         self.version = version
+        self._search_provider = None
+        # Started by D-Bus for a shell search there is no window to keep
+        # the service alive between Shell's calls; linger for a while.
+        self.set_inactivity_timeout(10000)
+        # Buttons on desktop notifications activate these app actions.
+        desktopnotify.install_app_actions(self)
         self.connect('open', self.on_open)
         self.create_action('quit', lambda *args: self.quit(), ['<primary>q'])
         self.create_action('about', self.on_about_action)
@@ -45,6 +52,13 @@ class BabbleApplication(Adw.Application):
                                       GLib.VariantType.new('s'))
         opener.connect('activate', self.on_open_notifications)
         self.add_action(opener)
+        # The desktop file's jump-list entries: with DBusActivatable the
+        # shell activates the app action named like the [Desktop Action].
+        self.create_action('compose', self.on_compose_action)
+        self.create_action('show-notifications', self.on_open_notifications)
+        open_uri = Gio.SimpleAction.new('open-uri', GLib.VariantType.new('s'))
+        open_uri.connect('activate', self.on_open_uri)
+        self.add_action(open_uri)
         self.set_accels_for_action('window.close', ['<primary>w'])
         self.set_accels_for_action('win.compose', ['<primary>n'])
         self.set_accels_for_action('win.reload', ['<primary>r', 'F5'])
@@ -86,6 +100,24 @@ class BabbleApplication(Adw.Application):
             if hasattr(win, 'streaming'):
                 win.streaming.stop()
         Adw.Application.do_shutdown(self)
+
+    def do_dbus_register(self, connection, object_path):
+        if not Adw.Application.do_dbus_register(self, connection,
+                                                object_path):
+            return False
+        # GNOME Shell's search provider lives on the application's own
+        # bus name, exported as long as the name is held.
+        from . import searchprovider
+        self._search_provider = searchprovider.SearchProvider(self)
+        self._search_provider.register(connection,
+                                       searchprovider.OBJECT_PATH)
+        return True
+
+    def do_dbus_unregister(self, connection, object_path):
+        if self._search_provider is not None:
+            self._search_provider.unregister(connection)
+            self._search_provider = None
+        Adw.Application.do_dbus_unregister(self, connection, object_path)
 
     def on_open_notifications(self, _action, _param):
         win = self.ensure_window()
@@ -136,6 +168,7 @@ class BabbleApplication(Adw.Application):
         win = self.ensure_window()
         win.present()
         delivered = set()
+        paths = []
         for file in files:
             uri = file.get_uri()
             # A scheme handler can be entered more than once for the
@@ -145,7 +178,26 @@ class BabbleApplication(Adw.Application):
             if uri in delivered:
                 continue
             delivered.add(uri)
-            win.on_oauth_callback(uri)
+            if file.has_uri_scheme('babble'):
+                win.on_oauth_callback(uri)
+            elif file.is_native() and file.get_path() is not None:
+                # "Open With Babble" on an image or a video.
+                paths.append(file.get_path())
+        if paths:
+            win.compose_with_files(paths)
+
+    def on_compose_action(self, *_args):
+        win = self.ensure_window()
+        win.present()
+        win.compose_with_files()
+
+    def on_open_uri(self, _action, param):
+        """Open a post, profile or hashtag link inside the window, the
+        way a link clicked in a post is routed."""
+        from . import pages
+        win = self.ensure_window()
+        win.present()
+        pages.open_link(win, param.get_string())
 
     def on_about_action(self, *args):
         about = Adw.AboutDialog(application_name='Babble',

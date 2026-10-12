@@ -425,6 +425,122 @@ page.on_marked_read(client, None)
 check('badge signal emits 0 after mark-read', received == [0])
 
 
+# Desktop notification buttons and their app actions.
+from src import desktopnotify  # noqa: E402
+
+recorded_buttons = []
+_orig_add_button = Gio.Notification.add_button_with_target
+
+
+def _record_button(self, label, action, target):
+    recorded_buttons.append((label, action, target.unpack()))
+    return _orig_add_button(self, label, action, target)
+
+
+Gio.Notification.add_button_with_target = _record_button
+
+
+class StubSettings:
+    def __init__(self, group):
+        self.group = group
+
+    def get_strv(self, key):
+        return ['mention', 'follow', 'favourite']
+
+    def get_boolean(self, key):
+        return self.group
+
+
+class StubClient:
+    def __init__(self):
+        self.calls = []
+
+    def request_async(self, method, path, callback=None, **kw):
+        self.calls.append((method, path))
+
+
+class StubWindow:
+    def __init__(self, group=False):
+        self.settings = StubSettings(group)
+        self.account = {'id': '1', 'instance': 'https://fosstodon.org'}
+        self.client = StubClient()
+
+    def get_visible(self):
+        return False
+
+
+class StubApp:
+    def __init__(self, win):
+        self.sent = []
+        self.actions = {}
+        self.win = win
+
+    def send_notification(self, nid, note):
+        self.sent.append((nid, note))
+
+    def add_action(self, action):
+        self.actions[action.get_name()] = action
+
+    def get_windows(self):
+        return [self.win]
+
+
+ME_KEY = 'https://fosstodon.org#1'
+CREATED = '2026-10-05T12:00:00.000Z'
+stub_win = StubWindow()
+stub_app = StubApp(stub_win)
+notifier = desktopnotify.DesktopNotifier(stub_win, stub_app)
+
+recorded_buttons.clear()
+notifier.handle(make_notification('d1', 'mention', ACTOR, CREATED,
+                                  dict(STATUS, visibility='public')),
+                force=True)
+check('mention notification offers favourite and boost',
+      recorded_buttons == [('Favourite', 'app.favourite', (ME_KEY, '42')),
+                           ('Boost', 'app.boost', (ME_KEY, '42'))])
+
+recorded_buttons.clear()
+notifier.handle(make_notification('d2', 'mention', ACTOR, CREATED,
+                                  dict(STATUS, visibility='direct')),
+                force=True)
+check('direct mention offers no boost',
+      [b[1] for b in recorded_buttons] == ['app.favourite'])
+
+recorded_buttons.clear()
+notifier.handle(make_notification('d3', 'follow', ACTOR, CREATED),
+                force=True)
+check('follow notification offers follow back',
+      recorded_buttons == [('Follow Back', 'app.follow-back',
+                            (ME_KEY, '9'))])
+
+recorded_buttons.clear()
+notifier.handle(make_notification('d4', 'favourite', ACTOR, CREATED,
+                                  STATUS), force=True)
+check('favourite of own post offers no buttons', recorded_buttons == [])
+
+group_win = StubWindow(group=True)
+group_notifier = desktopnotify.DesktopNotifier(group_win, StubApp(group_win))
+recorded_buttons.clear()
+group_notifier.handle(make_notification('g1', 'mention', ACTOR, CREATED,
+                                        STATUS), force=True)
+check('single-actor group still offers buttons', len(recorded_buttons) == 2)
+recorded_buttons.clear()
+group_notifier.handle(make_notification('g2', 'mention', ACTOR2, CREATED,
+                                        STATUS), force=True)
+check('multi-actor grouped notification offers no buttons',
+      recorded_buttons == [])
+
+desktopnotify.install_app_actions(stub_app)
+check('app actions registered',
+      sorted(stub_app.actions) == ['boost', 'favourite', 'follow-back'])
+stub_app.actions['favourite'].activate(GLib.Variant('(ss)', (ME_KEY, '42')))
+stub_app.actions['follow-back'].activate(GLib.Variant('(ss)', (ME_KEY, '9')))
+check('action handlers call the active client',
+      stub_win.client.calls == [('POST', '/statuses/42/favourite'),
+                                ('POST', '/accounts/9/follow')])
+Gio.Notification.add_button_with_target = _orig_add_button
+
+
 def _live_error_result(error):
     """Wrap an already-arrived GLib.Error as a Gio.Task result."""
     task = Gio.Task.new()

@@ -50,6 +50,28 @@ Babble is never brought back. Flatpak cannot write the host's `mimeapps.list` fr
 inside the sandbox, so this has to run on the host. It applies to `meson install`
 as well.
 
+## Desktop integration
+
+- **Paste and drop media**: paste a screenshot (Print Screen copies it) or
+  copied files into the composer, or drag images and videos onto it.
+- **Open With Babble**: images and videos opened with Babble from Files
+  start a new post with them attached.
+- **Notification buttons**: Favourite, Boost and Follow Back act straight
+  from the notification.
+- **Launcher actions**: right-click the app icon for New Post or
+  Notifications.
+- **Search**: accounts, hashtags and posts show up in the Activities
+  overview search (enable Babble under Settings → Search).
+- **Background status**: with Run in Background on, Quick Settings shows
+  how many mentions arrived.
+- **Quick Post Shortcut** (Preferences): a system-wide Super+Shift+M
+  opens the composer through the GlobalShortcuts portal.
+
+D-Bus activation, the search provider and the launcher actions only work
+from an installed build (`meson install` or Flatpak), since GNOME finds
+them through the installed `.desktop`, D-Bus service and search provider
+files.
+
 ## Translations
 
 Babble ships Brazilian Portuguese, German, French and Spanish. These were

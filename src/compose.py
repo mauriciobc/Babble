@@ -4,11 +4,11 @@ warning, poll and language selection. Reply prefill goes through
 :meth:`ComposeDialog.start_reply`; the previous draft is preserved across
 the reply round trip and closing the dialog keeps the draft."""
 
-import mimetypes
 import os
 import re
 import datetime
 import json
+import time
 
 import gi
 
@@ -16,7 +16,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
 
-from .i18n import gettext as _
+from .i18n import gettext as _, ngettext
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
@@ -75,12 +75,18 @@ POLL_DURATIONS = [
 ]
 
 
+def _has_setting(key):
+    """Whether the GSettings schema, and in a stale compiled schema the
+    key, is installed."""
+    source = Gio.SettingsSchemaSource.get_default()
+    schema = source.lookup(SCHEMA_ID, True) if source is not None else None
+    return schema is not None and schema.has_key(key)
+
+
 def _setting_string(key):
     """GSettings string *key*, or None when the schema (or, in a stale
     compiled schema, the key) is not installed."""
-    source = Gio.SettingsSchemaSource.get_default()
-    schema = source.lookup(SCHEMA_ID, True) if source is not None else None
-    if schema is None or not schema.has_key(key):
+    if not _has_setting(key):
         return None
     return pages.settings().get_string(key)
 
@@ -139,6 +145,119 @@ def _set_label(widget, label):
     widget.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
 
+def media_type(path):
+    """MIME type of the file at *path*, judged from its name and its
+    first bytes; None when it cannot be read."""
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(4096)
+    except OSError:
+        return None
+    content_type, _uncertain = Gio.content_type_guess(path, head)
+    return Gio.content_type_get_mime_type(content_type)
+
+
+def is_media(mime):
+    """Whether *mime* is something Mastodon takes as an attachment."""
+    return bool(mime) and mime.startswith(('image/', 'video/'))
+
+
+# Pasted images are written under the user cache, not a temporary
+# directory, and are not deleted with their row: undoing a removal adds
+# row.path back, and a local draft keeps its attachment paths across
+# restarts. Instead, the first composer of a session prunes the pasted
+# files older than PASTED_MAX_AGE that no saved draft refers to. That
+# runs before any draft can be restored into a composer (which takes it
+# off the saved list), so a file still attached somewhere is never lost.
+PASTED_MAX_AGE = 7 * 24 * 3600
+_pasted_pruned = False
+
+
+def pasted_dir():
+    """Where images pasted into the composer are kept."""
+    return os.path.join(GLib.get_user_cache_dir(), 'babble', 'pasted')
+
+
+def _draft_attachment_paths():
+    """Attachment paths of the saved local drafts, or None when they
+    cannot be known (no schema installed)."""
+    if not _has_setting('local-drafts'):
+        return None
+    paths = set()
+    for raw in pages.settings().get_strv('local-drafts'):
+        try:
+            draft = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(draft, dict):
+            continue
+        for attachment in draft.get('attachments') or []:
+            if isinstance(attachment, dict) \
+                    and isinstance(attachment.get('path'), str):
+                paths.add(os.path.normpath(attachment['path']))
+    return paths
+
+
+def prune_pasted_images():
+    """Delete the pasted images older than PASTED_MAX_AGE that no saved
+    draft refers to. Best effort: whatever cannot be read or removed
+    waits for the next session."""
+    directory = pasted_dir()
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return
+    referenced = _draft_attachment_paths()
+    if referenced is None:
+        return
+    cutoff = time.time() - PASTED_MAX_AGE
+    for name in names:
+        path = os.path.normpath(os.path.join(directory, name))
+        try:
+            if path not in referenced and os.stat(path).st_mtime < cutoff:
+                os.unlink(path)
+        except OSError:
+            continue
+
+
+def _prune_pasted_once():
+    """Prune the pasted images when the first composer of the session is
+    built, never again: see the note above PASTED_MAX_AGE."""
+    global _pasted_pruned
+    if not _pasted_pruned:
+        _pasted_pruned = True
+        prune_pasted_images()
+
+
+def save_pasted_texture(texture):
+    """Write *texture* as a PNG in :func:`pasted_dir`, under a name no
+    other file there has, and return its path. Raises OSError."""
+    directory = pasted_dir()
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    # Translators: file name, without its extension, of an image pasted
+    # into the composer. It is shown on the attachment.
+    stem = _('Pasted image').replace(os.sep, '-')
+    number = 1
+    while True:
+        name = stem + ('.png' if number == 1 else ' %d.png' % number)
+        path = os.path.join(directory, name)
+        try:
+            # Claimed exclusively, so two composers pasting at once never
+            # write the same file.
+            os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                             0o600))
+            break
+        except FileExistsError:
+            number += 1
+    if not texture.save_to_png(path):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+        raise OSError(_('The image could not be saved'))
+    return path
+
+
 class AttachmentRow(Gtk.ListBox):
     """Media attachment: preview row with remove button and a
     description (alt text) entry, as one boxed list."""
@@ -178,8 +297,7 @@ class AttachmentRow(Gtk.ListBox):
         self.alt_entry = Adw.EntryRow(title=_('Description'))
         self.append(self.alt_entry)
 
-        mimetype, _encoding = mimetypes.guess_type(path)
-        self.content_type = mimetype or 'application/octet-stream'
+        self.content_type = media_type(path) or 'application/octet-stream'
 
 
 class BabbleComposeView(Adw.Bin):
@@ -214,6 +332,10 @@ class BabbleComposeView(Adw.Bin):
         # of leaving them to finish against a client that has moved on.
         self._upload_cancellable = None
         self._processing_poll = {}
+        # Set while the text view's own paste runs, re-emitted by
+        # on_paste_clipboard when the clipboard holds nothing to attach.
+        self._paste_through = False
+        _prune_pasted_once()
 
         toolbar_view = Adw.ToolbarView()
         toolbar_view.add_top_bar(self.build_header_bar())
@@ -235,6 +357,16 @@ class BabbleComposeView(Adw.Bin):
             hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
             child=Adw.Clamp(maximum_size=600, child=content))
         toolbar_view.set_content(scrolled)
+        # Files dropped on the content are attached. In the capture
+        # phase, as the text view would otherwise take a file drag as the
+        # text of its paths. The scrolled window gets :drop(active) while
+        # a drag hovers it, which the stylesheet outlines.
+        self.drop_target = Gtk.DropTarget.new(Gdk.FileList,
+                                              Gdk.DragAction.COPY)
+        self.drop_target.set_gtypes([Gdk.FileList, Gio.File])
+        self.drop_target.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        pages.connect_weak(self.drop_target, 'drop', self.on_drop)
+        scrolled.add_controller(self.drop_target)
         toolbar_view.add_bottom_bar(self.build_action_bar())
         # Own overlay: the composer lives in a dialog that covers the
         # window's, so feedback raised here must land inside it.
@@ -285,6 +417,8 @@ class BabbleComposeView(Adw.Bin):
                                       top_margin=12, bottom_margin=12,
                                       left_margin=12, right_margin=12,
                                       accepts_tab=False)
+        pages.connect_weak(self.text_view, 'paste-clipboard',
+                           self.on_paste_clipboard)
         self.text_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Post Text')])
         self.mention_completer = MentionCompleter(self.client, self.text_view)
@@ -799,6 +933,127 @@ class BabbleComposeView(Adw.Bin):
         self.update_compose_state()
         return row
 
+    def add_attachment_files(self, files):
+        """Attach the images and videos among *files* (Gio.File objects
+        or paths), as a drop, a paste of copied files or files opened
+        from outside do, up to the attachment limit; a toast tells what
+        had to be left out. Nothing is added while posting, as the round
+        in flight would not send it: a toast says so. Returns the rows
+        added."""
+        files = list(files)
+        if self._posting:
+            if files:
+                self._toast_busy_posting()
+            return []
+        added = []
+        rejected = over_limit = False
+        for item in files:
+            path = item.get_path() if isinstance(item, Gio.File) else item
+            if not path or not is_media(media_type(path)):
+                rejected = True
+            elif len(self.attachments()) >= MAX_ATTACHMENTS:
+                over_limit = True
+            else:
+                added.append(self.add_attachment_path(path))
+        if rejected:
+            self._toast(_('Only images and videos can be attached'))
+        if over_limit:
+            self._toast_attachment_limit()
+        return added
+
+    def _toast_busy_posting(self):
+        self._toast(_('Wait for the post to be sent to attach files'))
+
+    def _toast_attachment_limit(self):
+        # Translators: %d is the most attachments a post can have.
+        text = ngettext('A post can have at most %d attachment',
+                        'A post can have at most %d attachments',
+                        MAX_ATTACHMENTS)
+        self._toast(text % MAX_ATTACHMENTS)
+
+    def on_drop(self, _target, value, _x, _y):
+        # The value only lives through this emission: take the files out
+        # of it now.
+        files = value.get_files() if isinstance(value, Gdk.FileList) \
+            else [value]
+        return bool(self.add_attachment_files(files))
+
+    def on_paste_clipboard(self, text_view):
+        """Pasting copied files attaches them, and pasting a bare image
+        (a screenshot, an image copied from a browser) saves it and
+        attaches it. Anything that has text pastes as text, the text
+        view's own handler."""
+        if self._paste_through:
+            return
+        if self._read_clipboard_media(files=True):
+            text_view.stop_emission_by_name('paste-clipboard')
+
+    def _read_clipboard_media(self, files):
+        """Start reading the clipboard's files (when *files*) or image to
+        attach them; False when it holds neither, so it pastes as text."""
+        clipboard = self.text_view.get_clipboard()
+        formats = clipboard.get_formats().union_deserialize_gtypes()
+        if files and formats.contain_gtype(Gdk.FileList):
+            clipboard.read_value_async(
+                Gdk.FileList, GLib.PRIORITY_DEFAULT, None,
+                pages.weak_method(self._on_paste_files))
+            return True
+        # A clipboard set in this process holds the texture's own
+        # subclass, so contain_gtype(Gdk.Texture) alone misses it.
+        has_image = any(GObject.type_is_a(gtype, Gdk.Texture)
+                        for gtype in formats.get_gtypes())
+        if has_image and not formats.contain_gtype(GObject.TYPE_STRING):
+            clipboard.read_texture_async(
+                None, pages.weak_method(self._on_paste_texture))
+            return True
+        return False
+
+    def _paste_text(self):
+        """The text view's own paste, which on_paste_clipboard lets
+        through."""
+        self._paste_through = True
+        try:
+            self.text_view.emit('paste-clipboard')
+        finally:
+            self._paste_through = False
+
+    def _on_paste_files(self, clipboard, result):
+        try:
+            value = clipboard.read_value_finish(result)
+        except GLib.Error as e:
+            self._show_error(_('Could not paste the files'), e.message)
+            return
+        # The value only lives through this callback.
+        local = [f for f in value.get_files() if f.get_path()]
+        if local:
+            self.add_attachment_files(local)
+        elif not self._read_clipboard_media(files=False):
+            # Remote locations only, such as a copied link: their text.
+            self._paste_text()
+
+    def _on_paste_texture(self, clipboard, result):
+        try:
+            texture = clipboard.read_texture_finish(result)
+        except GLib.Error as e:
+            self._show_error(_('Could not paste the image'), e.message)
+            return
+        if texture is None:
+            return
+        if self._posting:
+            self._toast_busy_posting()
+            return
+        if len(self.attachments()) >= MAX_ATTACHMENTS:
+            # Checked before saving, so a refused paste leaves no file.
+            self._toast_attachment_limit()
+            return
+        try:
+            path = save_pasted_texture(texture)
+        except OSError as e:
+            self._show_error(_('Could not paste the image'),
+                             e.strerror or str(e))
+            return
+        self.add_attachment_path(path)
+
     def attachments(self):
         rows = []
         child = self.attachments_box.get_first_child()
@@ -912,6 +1167,9 @@ class BabbleComposeView(Adw.Bin):
             self.attach_button.set_sensitive(
                 len(self.attachments()) < MAX_ATTACHMENTS)
         self.progress_spinner.set_visible(active)
+        # No drop is taken while posting, so none is outlined either.
+        self.drop_target.set_actions(Gdk.DragAction.NONE if active
+                                     else Gdk.DragAction.COPY)
         for row in self.attachments():
             row.remove_button.set_sensitive(not active)
         self.update_compose_state()

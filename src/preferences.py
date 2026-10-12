@@ -321,6 +321,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
                            _('Keep running after the window is '
                              'closed to deliver notifications'))
         pages.connect_weak(row, 'notify::active', self._on_background_toggled)
+        self._shortcut_row = self._switch(
+            behavior, 'global-shortcut', _('_Quick Post Shortcut'),
+            _('Open the composer from anywhere with a system-wide '
+              'shortcut, which can be changed in the system settings'))
+        # Shown only once the GlobalShortcuts portal is known to exist.
+        self._shortcut_row.set_visible(False)
+        from .window import portal_version
+        portal_version('org.freedesktop.portal.GlobalShortcuts',
+                       pages.weak_method(self._on_shortcut_portal))
         page.add(behavior)
         return page
 
@@ -331,6 +340,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _on_background_toggled(self, row, _pspec):
         if row.get_active():
             self.window.request_background()
+
+    def _on_shortcut_portal(self, version):
+        self._shortcut_row.set_visible(version > 0)
 
     def _timelines_page(self):
         page = Adw.PreferencesPage(title=_('Timelines'),

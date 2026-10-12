@@ -160,6 +160,11 @@
       <default>false</default>
       <summary>Keep running after the window closes to deliver notifications</summary>
     </key>
+    <key name="global-shortcut" type="b">
+      <default>false</default>
+      <summary>Bind a system-wide shortcut that opens the composer</summary>
+      <description>Registered through the XDG GlobalShortcuts portal; the key combination is chosen in the system settings.</description>
+    </key>
     <key name="live-updates" type="b">
       <default>true</default>
       <summary>Stream new posts and notifications in real time</summary>

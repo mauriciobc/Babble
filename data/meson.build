@@ -20,6 +20,23 @@ install_data(
   install_dir: get_option('datadir') / 'glib-2.0' / 'schemas',
 )
 
+# DBusActivatable=true in the desktop file: the session bus starts the
+# application as a service for Open, ActivateAction and the shell search.
+service_conf = configuration_data()
+service_conf.set('bindir', get_option('prefix') / get_option('bindir'))
+configure_file(
+  input: 'io.github.mauriciobc.Babble.service.in',
+  output: 'io.github.mauriciobc.Babble.service',
+  configuration: service_conf,
+  install: true,
+  install_dir: get_option('datadir') / 'dbus-1' / 'services',
+)
+
+install_data(
+  'io.github.mauriciobc.Babble.search-provider.ini',
+  install_dir: get_option('datadir') / 'gnome-shell' / 'search-providers',
+)
+
 install_data(
   'screenshots/timeline.png',
   'screenshots/thread.png',

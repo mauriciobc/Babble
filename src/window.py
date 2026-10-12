@@ -119,6 +119,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.timeline_page = None
         self.timeline_model = None
         self.compose_dialog = None
+        # Files handed over by Open With (or a bare compose request)
+        # before an account was signed in; delivered once one is.
+        self._pending_compose = None
         self.notifications_page = None
         self._unread_handler = None
         self.public_pages = {}
@@ -129,6 +132,14 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._held = False
         self._background_asked = False
         self._background_pending = False
+        self._background_allowed = False
+        # Mentions (ids) that arrived while the window was hidden, the
+        # status line last sent to the portal and its pending refresh.
+        self._background_mentions = set()
+        self._background_status = ''
+        self._status_source = 0
+        self._shortcut_session = None
+        self._shortcut_pending = False
         self._auth_client = None
         self._fallback = False
         # What the authorization in flight is for. A login installs a new
@@ -230,6 +241,8 @@ class BabbleWindow(Adw.ApplicationWindow):
                            self._sync_translucent_sidebar)
         self._sync_translucent_sidebar()
         self.connect('close-request', self._on_close_request)
+        pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
+        self._sync_global_shortcut()
 
         self._refresh_sidebar()
         self.refresh_login_widgets()
@@ -249,6 +262,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._sync_streaming()
         elif key == 'translucent-sidebar':
             self._sync_translucent_sidebar()
+        elif key == 'global-shortcut':
+            self._sync_global_shortcut()
 
     def _sync_translucent_sidebar(self, *_args):
         # The window background goes transparent so the sidebar can show
@@ -577,6 +592,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.main_stack.set_visible_child_name('shell')
         self._load_session_info()
         self._load_instance_emojis()
+        self._flush_pending_compose()
 
     def _load_instance_emojis(self):
         """The instance's whole custom-emoji set, fetched once per
@@ -664,6 +680,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             self.notifier.stop_polling()
         elif self.client is not None:
             self.notifier.start_polling()
+        self._schedule_background_status()
 
     def _timeline_pages(self):
         found = [self.timeline_page, *self.public_pages.values()]
@@ -698,6 +715,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             if self.notifications_page is not None:
                 self.notifications_page.on_stream_notification(payload)
             self.notifier.handle(payload)
+            self.note_background_notification(payload)
             return
         if name == 'conversation':
             conversations = self._place_children.get('conversations')
@@ -732,12 +750,14 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         self._background_pending = True
         self._background_asked = True
-        Gio.bus_get(Gio.BusType.SESSION, None, _on_background_bus,
-                    self.weak_ref())
+        ref = self.weak_ref()
+        _session_bus(lambda bus: _request_background(ref, bus))
 
     def _background_done(self, allowed):
         self._background_pending = False
+        self._background_allowed = allowed
         if allowed:
+            self._schedule_background_status()
             return
         self.settings.set_boolean('work-in-background', False)
         pages.show_toast(self, _('Running in the background was not allowed'))
@@ -760,6 +780,96 @@ class BabbleWindow(Adw.ApplicationWindow):
         if app is not None and self._held:
             app.release()
             self._held = False
+
+    # Background status
+
+    def note_background_notification(self, notification):
+        """Count a mention that arrived while the window is hidden, for
+        the background status line. Any notification may be passed, the
+        same one twice included."""
+        if self.get_visible() or not isinstance(notification, dict) \
+                or notification.get('type') != 'mention':
+            return
+        nid = str(notification.get('id') or '')
+        if not nid or nid in self._background_mentions:
+            return
+        self._background_mentions.add(nid)
+        self._schedule_background_status()
+
+    def _on_visible_changed(self, _window, _pspec):
+        if not self.get_visible():
+            self._schedule_background_status()
+            return
+        self._background_mentions.clear()
+        if self._status_source:
+            GLib.source_remove(self._status_source)
+            self._status_source = 0
+        if self._background_status:
+            self._background_status = ''
+            _set_background_status('')
+
+    def _schedule_background_status(self):
+        """Refresh the line GNOME Shell shows for the app running in the
+        background, once the changes of the next second have landed."""
+        if not self._background_allowed or self.get_visible() \
+                or self._status_source:
+            return
+        self._status_source = GLib.timeout_add(
+            STATUS_DELAY_MS, pages.weak_method(self._flush_background_status))
+
+    def _flush_background_status(self):
+        self._status_source = 0
+        if self._background_allowed and not self.get_visible():
+            message = self._background_status_text()[:STATUS_MAX_CHARS]
+            if message != self._background_status:
+                self._background_status = message
+                _set_background_status(message)
+        return GLib.SOURCE_REMOVE
+
+    def _background_status_text(self):
+        count = len(self._background_mentions)
+        if count:
+            # Translators: status GNOME Shell shows for Babble running in
+            # the background with its window closed.
+            return ngettext('%d new mention', '%d new mentions',
+                            count) % count
+        if self.streaming.connected:
+            # Translators: background status: live updates are streaming.
+            return _('Connected')
+        # Translators: background status: no live stream, so Babble polls
+        # the server for new notifications.
+        return _('Checking for notifications')
+
+    # Global shortcut portal
+
+    def _sync_global_shortcut(self):
+        """Bind the quick post shortcut through the GlobalShortcuts portal
+        while ``global-shortcut`` is on; close the session once it is
+        off. A missing portal is silently ignored."""
+        if not self.settings.get_boolean('global-shortcut'):
+            if self._shortcut_session is not None:
+                self._shortcut_session.close()
+                self._shortcut_session = None
+            return
+        if self._shortcut_session is not None or self._shortcut_pending:
+            return
+        self._shortcut_pending = True
+        ref = self.weak_ref()
+        _session_bus(lambda bus: _create_shortcut_session(ref, bus))
+
+    def _shortcut_ready(self, session, refused):
+        self._shortcut_pending = False
+        if refused:
+            self.settings.set_boolean('global-shortcut', False)
+            pages.show_toast(self,
+                             _('The quick post shortcut was not allowed'))
+            return
+        if session is None:
+            return
+        if not self.settings.get_boolean('global-shortcut'):
+            session.close()  # switched off while it was being bound
+            return
+        self._shortcut_session = session
 
     # Pages
 
@@ -936,6 +1046,34 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         dialog.start_reply(status_id, handle, visibility)
         self.present_composer()
+
+    def compose_with_files(self, paths=()):
+        """Open the composer with *paths* attached: what "Open With
+        Babble" on an image or video does. Before a session exists the
+        request waits, and is handed over once an account is signed in."""
+        if self.client is None or self.account is None:
+            pending = self._pending_compose or []
+            pending.extend(p for p in paths if p not in pending)
+            self._pending_compose = pending
+            if paths and self.main_stack.get_visible_child_name() == 'login':
+                self.show_toast(ngettext(
+                    'Sign in to post the file',
+                    'Sign in to post the files', len(paths)))
+            return
+        dialog = self.present_composer()
+        if dialog is None:
+            return
+        if paths:
+            # The composer's own intake: media only, up to the limit,
+            # with a toast for whatever was left out.
+            dialog.view.add_attachment_files(list(paths))
+
+    def _flush_pending_compose(self):
+        pending = self._pending_compose
+        if pending is None:
+            return
+        self._pending_compose = None
+        self.compose_with_files(pending)
 
     # Sidebar
 
@@ -1701,12 +1839,27 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.show_toast('%s: %s' % (heading, summarize_error(body)))
 
 
-# XDG Background portal plumbing. The callbacks hold the window only
-# through a GObject weak reference, so a pending request never keeps a
-# closed window alive.
+# XDG portal plumbing: Background (running with the window closed, and
+# the status line shown for it) and GlobalShortcuts (quick post). The
+# callbacks hold the window only through a GObject weak reference, so a
+# pending request never keeps a closed window alive.
 
 _PORTAL_NAME = 'org.freedesktop.portal.Desktop'
 _PORTAL_PATH = '/org/freedesktop/portal/desktop'
+_BACKGROUND = 'org.freedesktop.portal.Background'
+_SHORTCUTS = 'org.freedesktop.portal.GlobalShortcuts'
+_SESSION = 'org.freedesktop.portal.Session'
+
+# The Background portal refuses status messages longer than this.
+STATUS_MAX_CHARS = 96
+# Status changes arriving within this many milliseconds share one call.
+STATUS_DELAY_MS = 1000
+QUICK_POST_SHORTCUT = 'quick-post'
+# A trigger as the XDG shortcuts specification writes it (LOGO is Super).
+QUICK_POST_TRIGGER = 'LOGO+SHIFT+m'
+
+# Portal interface -> its version (0: missing), as first answered.
+_portal_versions = {}
 
 
 def _swallow(finish, result):
@@ -1719,40 +1872,71 @@ def _swallow(finish, result):
         pass
 
 
-def _background_finish(window_ref, allowed):
-    window = window_ref()
-    if window is None:
-        return
-    if allowed is None:  # no portal: nothing to ask, nothing to undo
-        window._background_failed()
-    else:
-        window._background_done(allowed)
+def _swallow_call(connection, result):
+    _swallow(connection.call_finish, result)
 
 
-def _on_background_bus(_source, result, window_ref):
-    try:
-        bus = Gio.bus_get_finish(result)
-    except GLib.Error:
-        _background_finish(window_ref, None)
+def _session_bus(callback):
+    """Hand *callback* the session bus, or None when there is none."""
+    def done(_source, result):
+        try:
+            bus = Gio.bus_get_finish(result)
+        except GLib.Error:
+            bus = None
+        callback(bus)
+    Gio.bus_get(Gio.BusType.SESSION, None, done)
+
+
+def portal_version(interface, callback):
+    """Call *callback(version)* with the version of the portal
+    *interface*, 0 when the portal or that interface is missing. The
+    answer is cached; a missing session bus is not, it may come back."""
+    if interface in _portal_versions:
+        callback(_portal_versions[interface])
         return
-    if window_ref() is None:
-        return
+
+    def on_got(bus, result):
+        try:
+            version, = bus.call_finish(result).unpack()
+        except GLib.Error:
+            version = 0
+        _portal_versions[interface] = int(version)
+        callback(_portal_versions[interface])
+
+    def on_bus(bus):
+        if bus is None:
+            callback(0)
+            return
+        bus.call(_PORTAL_NAME, _PORTAL_PATH,
+                 'org.freedesktop.DBus.Properties', 'Get',
+                 GLib.Variant('(ss)', (interface, 'version')),
+                 GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, -1, None,
+                 on_got)
+    _session_bus(on_bus)
+
+
+def _portal_request(bus, interface, method, signature, args, options,
+                    on_response):
+    """Call the portal *method*, whose answer arrives later as the
+    ``org.freedesktop.portal.Request`` ``Response`` signal. *options*,
+    the trailing ``a{sv}`` of *signature*, gains the ``handle_token``.
+    *on_response(code, results)* runs once; *code* is None when the call
+    itself failed (no portal, D-Bus error)."""
     token = 'babble_%s' % secrets.token_hex(8)
     sender = (bus.get_unique_name() or '').lstrip(':').replace('.', '_')
     request_path = '/org/freedesktop/portal/desktop/request/%s/%s' % (
         sender, token)
     state = {'id': 0}
 
-    def on_response(connection, _sender, _path, _iface, _signal, params):
+    def on_signal(_connection, _sender, _path, _iface, _signal, params):
         unsubscribe()
         code, results = params.unpack()
-        _background_finish(
-            window_ref, code == 0 and bool(results.get('background')))
+        on_response(code, results)
 
     def subscribe(path):
         state['id'] = bus.signal_subscribe(
             _PORTAL_NAME, 'org.freedesktop.portal.Request', 'Response',
-            path, None, Gio.DBusSignalFlags.NONE, on_response)
+            path, None, Gio.DBusSignalFlags.NONE, on_signal)
 
     def unsubscribe():
         if state['id']:
@@ -1767,20 +1951,165 @@ def _on_background_bus(_source, result, window_ref):
             handle, = connection.call_finish(call_result).unpack()
         except GLib.Error:
             unsubscribe()
-            _background_finish(window_ref, None)
+            on_response(None, {})
             return
         if handle != request_path and state['id']:
             # Pre-0.9 portals pick their own request path.
             unsubscribe()
             subscribe(handle)
 
-    options = {
-        'handle_token': GLib.Variant('s', token),
-        'reason': GLib.Variant(
-            's', _('Deliver notifications while the window is closed')),
-        'autostart': GLib.Variant('b', False),
-    }
-    bus.call(_PORTAL_NAME, _PORTAL_PATH, 'org.freedesktop.portal.Background',
-             'RequestBackground', GLib.Variant('(sa{sv})', ('', options)),
+    options = dict(options, handle_token=GLib.Variant('s', token))
+    bus.call(_PORTAL_NAME, _PORTAL_PATH, interface, method,
+             GLib.Variant(signature, (*args, options)),
              GLib.VariantType('(o)'), Gio.DBusCallFlags.NONE, -1, None,
              on_called)
+
+
+def _background_finish(window_ref, allowed):
+    window = window_ref()
+    if window is None:
+        return
+    if allowed is None:  # no portal: nothing to ask, nothing to undo
+        window._background_failed()
+    else:
+        window._background_done(allowed)
+
+
+def _request_background(window_ref, bus):
+    if bus is None:
+        _background_finish(window_ref, None)
+        return
+    if window_ref() is None:
+        return
+
+    def on_response(code, results):
+        _background_finish(window_ref, None if code is None else
+                           code == 0 and bool(results.get('background')))
+
+    _portal_request(bus, _BACKGROUND, 'RequestBackground', '(sa{sv})',
+                    ('',), {
+                        'reason': GLib.Variant('s', _(
+                            'Deliver notifications while the window is '
+                            'closed')),
+                        'autostart': GLib.Variant('b', False),
+                    }, on_response)
+
+
+def _set_background_status(message):
+    """Best-effort ``Background.SetStatus``, which needs version 2 of
+    the portal; *message* '' clears the status."""
+    def on_bus(bus):
+        if bus is not None:
+            bus.call(_PORTAL_NAME, _PORTAL_PATH, _BACKGROUND, 'SetStatus',
+                     GLib.Variant('(a{sv})', (
+                         {'message': GLib.Variant('s', message)},)),
+                     None, Gio.DBusCallFlags.NONE, -1, None, _swallow_call)
+
+    def on_version(version):
+        if version >= 2:
+            _session_bus(on_bus)
+
+    portal_version(_BACKGROUND, on_version)
+
+
+class _ShortcutSession:
+    """A GlobalShortcuts session with the quick post shortcut bound.
+    Holds no window: activating the shortcut goes through the
+    application's ``compose`` action."""
+
+    def __init__(self, bus, handle, on_lost):
+        self.bus = bus
+        self.handle = handle
+        self._on_lost = on_lost
+        self._subscriptions = [
+            bus.signal_subscribe(_PORTAL_NAME, _SHORTCUTS, 'Activated',
+                                 _PORTAL_PATH, None,
+                                 Gio.DBusSignalFlags.NONE,
+                                 self._on_activated),
+            bus.signal_subscribe(_PORTAL_NAME, _SESSION, 'Closed', handle,
+                                 None, Gio.DBusSignalFlags.NONE,
+                                 self._on_closed),
+        ]
+
+    def _on_activated(self, _connection, _sender, _path, _iface, _signal,
+                      params):
+        session, shortcut_id = params.unpack()[:2]
+        if session != self.handle or shortcut_id != QUICK_POST_SHORTCUT:
+            return
+        app = Gio.Application.get_default()
+        if app is not None and app.has_action('compose'):
+            app.activate_action('compose', None)
+
+    def _on_closed(self, *_args):
+        # Ended by the portal (or the user, in the system settings).
+        self._unsubscribe()
+        on_lost, self._on_lost = self._on_lost, None
+        if on_lost is not None:
+            on_lost(self)
+
+    def _unsubscribe(self):
+        for subscription in self._subscriptions:
+            self.bus.signal_unsubscribe(subscription)
+        self._subscriptions = []
+
+    def close(self):
+        if not self._subscriptions:
+            return
+        self._unsubscribe()
+        self._on_lost = None
+        self.bus.call(_PORTAL_NAME, self.handle, _SESSION, 'Close', None,
+                      None, Gio.DBusCallFlags.NONE, -1, None, _swallow_call)
+
+
+def _shortcut_finish(window_ref, session, refused=False):
+    window = window_ref()
+    if window is None:
+        if session is not None:
+            session.close()
+        return
+    window._shortcut_ready(session, refused)
+
+
+def _shortcut_lost(window_ref, session):
+    window = window_ref()
+    if window is not None and window._shortcut_session is session:
+        window._shortcut_session = None
+
+
+def _create_shortcut_session(window_ref, bus):
+    """CreateSession, then BindShortcuts on the session it answers."""
+    if bus is None:
+        _shortcut_finish(window_ref, None)
+        return
+
+    def on_created(code, results):
+        handle = results.get('session_handle') if code == 0 else None
+        if not handle:
+            _shortcut_finish(window_ref, None)
+            return
+        session = _ShortcutSession(
+            bus, handle, lambda lost: _shortcut_lost(window_ref, lost))
+        if window_ref() is None:
+            session.close()
+            return
+
+        def on_bound(code, _results):
+            if code == 0:
+                _shortcut_finish(window_ref, session)
+                return
+            session.close()
+            # 1 is the user saying no; 2 or a failed call refused nothing.
+            _shortcut_finish(window_ref, None, refused=code == 1)
+
+        shortcut = (QUICK_POST_SHORTCUT, {
+            'description': GLib.Variant('s', _('New Post')),
+            'preferred_trigger': GLib.Variant('s', QUICK_POST_TRIGGER),
+        })
+        _portal_request(bus, _SHORTCUTS, 'BindShortcuts',
+                        '(oa(sa{sv})sa{sv})', (handle, [shortcut], ''), {},
+                        on_bound)
+
+    _portal_request(bus, _SHORTCUTS, 'CreateSession', '(a{sv})', (), {
+        'session_handle_token': GLib.Variant(
+            's', 'babble_%s' % secrets.token_hex(8)),
+    }, on_created)

@@ -185,13 +185,39 @@ class DesktopNotifier:
         note.set_priority(Gio.NotificationPriority.HIGH
                           if kind == 'mention'
                           else Gio.NotificationPriority.NORMAL)
-        note.set_default_action_and_target_value(
+        note.set_default_action_and_target(
             'app.open-notifications', GLib.Variant('s', nid))
         icon = self._avatar_icon(notification.get('account') or {})
         if icon is not None:
             note.set_icon(icon)
+        if len(names) == 1:
+            self._add_buttons(note, kind, notification, status)
         app.send_notification(platform_id, note)
         return note
+
+    def _add_buttons(self, note, kind, notification, status):
+        account = getattr(self.window, 'account', None)
+        if account is None:
+            return
+        key = account_key(account)
+        if kind == 'follow':
+            actor = notification.get('account') or {}
+            relationship = notification.get('relationship') or {}
+            following = relationship.get('following',
+                                         actor.get('following'))
+            if actor.get('id') and following is not True:
+                note.add_button_with_target(
+                    _('Follow Back'), 'app.follow-back',
+                    GLib.Variant('(ss)', (key, str(actor['id']))))
+            return
+        if not status.get('id') or kind not in _STATUS_BUTTON_KINDS:
+            return
+        target = GLib.Variant('(ss)', (key, str(status['id'])))
+        note.add_button_with_target(
+            _('Favourite'), 'app.favourite', target)
+        if status.get('visibility') not in ('direct', 'private'):
+            note.add_button_with_target(
+                _('Boost'), 'app.boost', target)
 
     @staticmethod
     def _avatar_icon(account):
@@ -257,7 +283,104 @@ class DesktopNotifier:
             return
         for notification in sorted(notifications,
                                    key=lambda n: _id_key(n['id'])):
+            hook = getattr(self.window, 'note_background_notification', None)
+            if hook is not None:
+                hook(notification)
             self.handle(notification)
 
 
 from .notifications import id_key as _id_key  # noqa: E402
+from .accounts import account_key, find_account_by_key  # noqa: E402
+from .mastodon import MastodonClient, summarize_error  # noqa: E402
+
+# Kinds whose post is someone else's and can be favourited or boosted
+# straight from the notification.
+_STATUS_BUTTON_KINDS = ('mention', 'status')
+
+# action name -> (HTTP method, path template, failure title)
+_ACTIONS = {
+    'favourite': ('POST', '/statuses/%s/favourite',
+                  lambda: _('Could not favourite post')),
+    'boost': ('POST', '/statuses/%s/reblog',
+              lambda: _('Could not boost post')),
+    'follow-back': ('POST', '/accounts/%s/follow',
+                    lambda: _('Could not follow back')),
+}
+
+
+def _confirmation(name):
+    return {'favourite': _('Post favourited'),
+            'boost': _('Post boosted'),
+            'follow-back': _('Followed back')}[name]
+
+
+def install_app_actions(app):
+    """Register ``app.favourite``, ``app.boost`` and ``app.follow-back``,
+    the targets of the desktop notification buttons. Each takes
+    ``(account_key, id)``."""
+    for name in _ACTIONS:
+        action = Gio.SimpleAction.new(name, GLib.VariantType.new('(ss)'))
+        action.connect('activate', _on_activate, app)
+        app.add_action(action)
+
+
+def _main_window(app):
+    for win in app.get_windows():
+        if hasattr(win, 'client') and hasattr(win, 'account'):
+            return win
+    return None
+
+
+def _on_activate(action, parameter, app):
+    name = action.get_name()
+    key, target_id = parameter.unpack()
+    win = _main_window(app)
+    if win is not None and win.client is not None \
+            and win.account is not None \
+            and account_key(win.account) == key:
+        _run(app, win.client, name, target_id)
+        return
+    # The notification belongs to an account that is not the active one:
+    # act as that account with its own token, without switching.
+    from .pages import settings
+    account = find_account_by_key(settings(), key)
+    if account is None:
+        _report_failure(app, name, _('That account is no longer signed in'))
+        return
+    client = MastodonClient(account['instance'])
+
+    def loaded(token):
+        if token is None:
+            _report_failure(app, name,
+                            _('The login for that account is gone from the '
+                              'keyring'))
+            return
+        client.token = token
+        _run(app, client, name, target_id)
+
+    client.load_secret_token(account['id'], loaded)
+
+
+def _run(app, client, name, target_id):
+    method, path, _title = _ACTIONS[name]
+
+    def done(c, result):
+        try:
+            c.request_finish(result)
+        except GLib.Error as error:
+            _report_failure(app, name, error.message)
+            return
+        win = _main_window(app)
+        if win is not None and win.get_visible():
+            from .pages import show_toast
+            show_toast(win, _confirmation(name))
+
+    client.request_async(method, path % target_id, callback=done)
+
+
+def _report_failure(app, name, detail):
+    note = Gio.Notification.new(_ACTIONS[name][2]())
+    body = summarize_error(detail or '')
+    if body:
+        note.set_body(body)
+    app.send_notification('babble-action-failed', note)

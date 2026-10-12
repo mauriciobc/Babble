@@ -5,32 +5,41 @@ client (no real token), validating the POST payload shape against
 docs.joinmastodon.org/methods/statuses and /methods/media."""
 
 import gc
+import json
 import os
+import shutil
 import sys
+import tempfile
+import time
 import weakref
 
-import gi
+if not os.environ.get('DISPLAY'):
+    print('SKIP - no display available for widget rendering')
+    sys.exit(77)
+
+# Pasted images are kept under the user cache: the test's go to a
+# throwaway one. Before GLib is loaded, as it reads the variable once.
+cache_home = tempfile.mkdtemp(prefix='babble-test-cache-')
+os.environ['XDG_CACHE_HOME'] = cache_home
+
+import gi  # noqa: E402
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk
-
-if not os.environ.get('DISPLAY'):
-    print('SKIP - no display available for widget rendering')
-    sys.exit(77)
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 srcroot = os.path.dirname(os.path.abspath(srcdir))
 sys.path.insert(0, srcroot)
 sys.path.insert(0, srcdir)
 
-from src.compose import (VISIBILITIES, BabbleComposeView,  # noqa: E402
-                         ComposeDialog, countable_length)
-from src import emojichooser  # noqa: E402
+from src.compose import (MAX_ATTACHMENTS, VISIBILITIES,  # noqa: E402
+                         BabbleComposeView, ComposeDialog, countable_length)
+from src import compose, emojichooser  # noqa: E402
 from src.mentioncompleter import mention_query  # noqa: E402
-from gettext import gettext as _  # noqa: E402
+from gettext import gettext as _, ngettext  # noqa: E402
 
 failures = []
 
@@ -810,6 +819,155 @@ view.reset()
 view.on_mention_clicked(view.mention_button)
 check('mention button on an empty draft adds a bare @', view.text() == '@')
 view.reset()
+
+# Drag and drop: files dropped on the content are attached when they
+# are images or videos, through the drop target's own signal.
+media_dir = tempfile.mkdtemp(prefix='babble-test-media-')
+
+
+def media_file(name, data=PNG_BYTES):
+    path = os.path.join(media_dir, name)
+    with open(path, 'wb') as f:
+        f.write(data)
+    return path
+
+
+def file_list(paths):
+    return Gdk.FileList.new_from_list([Gio.File.new_for_path(p)
+                                       for p in paths])
+
+
+def drop(value):
+    return view.drop_target.emit('drop', value, 0.0, 0.0)
+
+
+ONLY_MEDIA = _('Only images and videos can be attached')
+LIMIT_REACHED = ngettext('A post can have at most %d attachment',
+                         'A post can have at most %d attachments',
+                         MAX_ATTACHMENTS) % MAX_ATTACHMENTS
+png_a, png_b = media_file('a.png'), media_file('b.png')
+notes = media_file('notes.txt', b'just some words')
+collect_toasts()
+check('the drop target takes file lists and files',
+      view.drop_target.get_formats().contain_gtype(Gdk.FileList)
+      and view.drop_target.get_formats().contain_gtype(Gio.File))
+check('a dropped list of images is accepted',
+      drop(file_list([png_a, png_b])) is True)
+check('dropped images add one row each',
+      [row.path for row in view.attachments()] == [png_a, png_b]
+      and collect_toasts() == [])
+check('a dropped file that is no image or video is refused',
+      drop(Gio.File.new_for_path(notes)) is False
+      and len(view.attachments()) == 2)
+check('the refused file is told in a toast', collect_toasts() == [ONLY_MEDIA])
+check('a mixed drop keeps the media and refuses the rest',
+      drop(file_list([notes, media_file('c.png')])) is True
+      and len(view.attachments()) == 3
+      and collect_toasts() == [ONLY_MEDIA])
+drop(file_list([media_file('d.png'), media_file('e.png')]))
+check('a drop stops at the attachment limit',
+      len(view.attachments()) == MAX_ATTACHMENTS
+      and not view.attach_button.get_sensitive())
+check('the limit is told in a toast', collect_toasts() == [LIMIT_REACHED])
+view.reset()
+view.set_posting_ui(True)
+check('no drop is taken while posting',
+      view.drop_target.get_actions() == Gdk.DragAction.NONE)
+view._posting = True
+collect_toasts()
+check('nothing is attached while posting',
+      view.add_attachment_files([png_a]) == [] and view.attachments() == [])
+check('a refusal while posting is told in a toast',
+      collect_toasts() == [BUSY_POSTING])
+view._posting = False
+view.set_posting_ui(False)
+check('drops are taken again after posting',
+      view.drop_target.get_actions() == Gdk.DragAction.COPY)
+
+# Paste: a bare image on the clipboard (a screenshot) is saved as a PNG
+# under the cache and attached; text pastes as text.
+clipboard = view.text_view.get_clipboard()
+
+
+def paste(content, settle_ms=300):
+    if isinstance(content, Gdk.ContentProvider):
+        clipboard.set_content(content)
+    else:
+        clipboard.set(content)
+    pump(50)
+    view.text_view.emit('paste-clipboard')
+    pump(settle_ms)
+
+
+texture = Gdk.MemoryTexture.new(2, 2, Gdk.MemoryFormat.R8G8B8A8,
+                                GLib.Bytes.new(bytes(range(16))), 8)
+collect_toasts()
+paste(texture)
+rows = view.attachments()
+pasted = rows[0].path if rows else ''
+check('pasting an image adds one attachment', len(rows) == 1)
+check('the pasted image is kept under the user cache',
+      pasted.startswith(os.path.join(cache_home, 'babble', 'pasted') + '/'))
+with open(pasted or os.devnull, 'rb') as f:
+    check('the pasted image is a PNG file',
+          f.read(8) == b'\x89PNG\r\n\x1a\n')
+check('the pasted image uploads as image/png',
+      bool(rows) and rows[0].content_type == 'image/png')
+check('pasting an image inserts no text', view.text() == '')
+view.text_view.emit('paste-clipboard')
+pump(300)
+rows = view.attachments()
+check('a second paste gets a file of its own',
+      len(rows) == 2 and rows[1].path != pasted
+      and os.path.isfile(rows[1].path))
+view.on_remove_attachment(rows[0].remove_button, rows[0])
+check('removing a pasted image keeps its file for undo',
+      os.path.isfile(pasted))
+check('pasting images raised no toast of its own',
+      collect_toasts() == [_('Attachment removed')])
+view.reset()
+
+paste(Gdk.ContentProvider.new_for_value(file_list([png_a, notes])))
+check('pasting files copied in Files attaches the media among them',
+      [row.path for row in view.attachments()] == [png_a]
+      and view.text() == '' and collect_toasts() == [ONLY_MEDIA])
+view.reset()
+
+view._posting = True
+paste(texture)
+check('an image pasted while posting is refused with a toast',
+      view.attachments() == [] and collect_toasts() == [BUSY_POSTING])
+paste('pasted words')
+check('text still pastes while posting', view.text() == 'pasted words')
+view._posting = False
+view.reset()
+
+paste('pasted words')
+check('pasting text inserts it', view.text() == 'pasted words')
+check('pasting text adds no attachment', view.attachments() == [])
+view.reset()
+
+# Pasted images outlive their rows, for undo and saved drafts; the old
+# ones no saved draft refers to are pruned.
+pasted_dir = compose.pasted_dir()
+week_ago = time.time() - compose.PASTED_MAX_AGE - 60
+old_loose = os.path.join(pasted_dir, 'old loose.png')
+old_saved = os.path.join(pasted_dir, 'old saved.png')
+for path in (old_loose, old_saved):
+    with open(path, 'wb') as f:
+        f.write(PNG_BYTES)
+    os.utime(path, (week_ago, week_ago))
+local_settings.set_strv('local-drafts', [json.dumps(
+    {'attachments': [{'path': old_saved, 'alt': ''}]})])
+compose.prune_pasted_images()
+check('an old pasted image no draft refers to is pruned',
+      not os.path.exists(old_loose))
+check('an old pasted image a saved draft refers to is kept',
+      os.path.isfile(old_saved))
+check('a recent pasted image is kept', os.path.isfile(pasted))
+local_settings.set_strv('local-drafts', [])
+shutil.rmtree(media_dir, ignore_errors=True)
+shutil.rmtree(cache_home, ignore_errors=True)
 
 if failures:
     print('%d checks failed' % len(failures))
