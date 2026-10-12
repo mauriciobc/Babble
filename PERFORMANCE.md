@@ -40,8 +40,34 @@ Wall time fell less than CPU time because the harness waits 80 ms of idle after 
 
 **Avatars decoded to size.** `AvatarCache` decoded avatars at full size: instances serve 400×400 and the largest one shown is 96 px, so a full 256-entry cache held about 156 MB. They are now decoded to cover `AVATAR_DECODE_SIZE` (96 px) at the display scale, like media thumbnails.
 
+**Second pass (`autoresearch/improve-timeline-performance-20261012`).** CPU went from 3037 ms to about 2705 ms on the same workload (median of 3; single runs spread ±150 ms). Peak RSS stayed near 405 MB and retained RSS near 96 MB. Two changes:
+
+- *Images that already fit the tile skip GdkPixbuf.* `_decode_covering` reads the width and height from the PNG, GIF, or JPEG header (the JPEG scan stops at 64 KiB). When the image is no larger than the cover box, it is loaded with `Gdk.Texture.new_from_bytes`, which was several times faster than GdkPixbuf's loader plus the copy into a `Gdk.MemoryTexture`. Larger originals still decode through GdkPixbuf with `set_size`. Decoding modestly oversized files at full size was tried and dropped: Cairo then scaled the full bitmap on every paint, and RSS rose about 40 MB. Glycin (`Gly.Loader` plus a Cairo downscale) was also dropped: its `FrameRequest.set_scale` is ignored by PNG and JPEG loaders, and the gain was within noise.
+- *Off-screen runs keep a measured height.* `Gtk.ListView` maps each new shell, measures it, and unmaps the off-screen ones before they get an allocation, so `get_height()` was still 0 and hiding the cards collapsed the row. `_on_unmap` now measures the shell while its cards are still shown. It stores that height on the run, with the column width and a stamp of what the height depends on (edit, content warning, expansion, media reveal, translation, carousel size). A later shell bound to the same run uses it as its placeholder. The pin only applies while the shell is empty: `_populate` clears it, because as a minimum on a shown post it outlived any change that made the post shorter, such as a wider column, and the next unmap stored the inflated height for good. `timeline memory` checks that a widened post shown again is as tall as a fresh one.
+
+**Third pass: main-thread stalls.** CPU totals hid what the reader feels, a frame that does not come. The harness now also reports main-thread time, the longest single main-loop dispatch, the 99th percentile, dispatches over 16 ms, and frames painted while a shown run was still empty. It calls the introspected `GLib.MainContext.iteration` directly: PyGObject's override pauses an asyncio loop on every call, about 0.25 s of CPU per run that `Adw.Application.run` never pays. It defaults to 5 runs, because single runs spread ±14%. Same workload, median of 5, before → after:
+
+| | Before | After |
+|---|---:|---:|
+| CPU, all threads | 2782 ms | 2535 ms |
+| Main thread | 1967 ms | 1565 ms |
+| Longest dispatch | 82.4 ms | 22.2 ms |
+| p99 dispatch | 23.6 ms | 10.2 ms |
+| Dispatches over 16 ms | 36 | 4 |
+| First page | 337 ms | 159 ms |
+| Scroll to end | 1159 ms | 502 ms |
+| Scroll back to top | 755 ms | 1360 ms |
+| Stream burst | 439 ms | 346 ms |
+| RSS growth while scrolling | 89 MB | 48 MB |
+| Frames with an empty shown run | 0 of 175 | 52 of 265 |
+
+- *Cards are built after layout, one run per dispatch.* The worst stalls were page loads: every new shell is mapped on items-changed, and `_on_map` built all of its `StatusRow`s there (about 5 ms each), although the next layout unmapped most of them. A shell mapped without its cards now queues itself (`_pending_shells`, GObject weak refs), and one idle source at default idle priority, below GDK's redraw, builds the next still-mapped, still-empty shell per dispatch. Shells layout has already unmapped are skipped, so posts that are never shown are never built. A shell whose cards are all kept still shows them at once, and `bind` on a shown shell still rebuilds synchronously, so an edited or regrouped run never blanks. A waiting shell wears `status-run-pending`, an empty card frame, and `_on_unmap` stores no height for it. Two alternatives were measured and dropped: a tick callback runs before layout, so it still built every shell and its longest stall rose to 139 ms; an 8 ms per-burst budget left 19 stalls over 16 ms.
+- *Media and avatars decode on a worker.* `_decode_async` runs `_decode_covering` and the `Gdk.Texture.new_from_bytes` fallback through `Gio.Task.run_in_thread`; GDK documents both texture constructors as threadsafe. The display scale is read on the main thread and passed in. The cancellable a picture already holds drops a stale decode. An avatar stays in flight while it decodes, so a second row waits for it instead of fetching it again.
+- *Measured and not worth it:* inserting a refresh with one `splice` instead of one `insert` per post (GTK already lays the list out once per frame; 259–279 ms either way), and prebuilding 20 blank `StatusRow`s while idle (longest stall 84 → 68 ms, but more main-thread time overall).
+
 ## Tradeoffs
 
+- **A run can show empty for a frame.** Cards are built in the idle after the layout that shows their shell, so a run scrolling into view, or a post streamed in at the top, appears as an empty card first: 52 of 265 frames in the benchmark. Scrolling back to the top also rose to 1360 ms, mostly because the benchmark jumps straight to the end, so the posts it skipped are built on the way back up. Reading continuously, each post is built as it comes into view.
 - **Scrolling back is slower than the original 302 ms.** The old figure was cheap only because the list was already holding thousands of realized rows. Hiding is the better of the two virtualization attempts, and it is still about 190 ms more CPU than the baseline on the way up. Only the `CARD_SHELLS_KEPT` most recently unmapped shells, across all pages, keep their `StatusRow`s; scrolling back further rebuilds them.
 - **The scrollbar is an estimate until a row is shown.** The first off-screen shells use 64 px, then the height of posts already displayed. The thumb can grow as real rows are measured. The unallocated-body test only checks that a body is not one character per line.
 - **Downscaling applies to timeline tiles.** The media viewer does not go through this cache. Two on-screen sizes of the same URL occupy two cache slots. If the scaled decode fails, the full image is decoded.

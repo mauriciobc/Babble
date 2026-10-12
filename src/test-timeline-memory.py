@@ -260,6 +260,43 @@ check('a shown run is as tall as its card, not its placeholder',
 timeline.StatusRunRow._typical_height = typical
 box.remove(shell)
 
+# A height remembered for an off-screen run must not stay as a minimum
+# once the run is shown again: after the column widens, a post that got
+# shorter would otherwise keep a blank gap every time it comes back.
+def long_run():
+    model = timeline.TimelineModel()
+    model.append_old([status(1, 'word ' * 120)])
+    return timeline.RunModel(model).get_item(0)
+
+
+def clamped_shell(width):
+    clamp = Adw.Clamp(maximum_size=width, tightening_threshold=width)
+    shell = timeline.StatusRunRow()
+    shell.bind(long_run(), _Client())
+    clamp.set_child(shell)
+    box.append(clamp)
+    return clamp, shell
+
+
+clamp, shell = clamped_shell(360)
+settle(lambda: shell.get_mapped() and shell.get_height() > 64)
+narrow = shell.get_height()
+clamp.set_maximum_size(640)
+clamp.set_tightening_threshold(640)
+for visible in (False, True):
+    shell.set_visible(visible)
+    settle()
+fresh_clamp, fresh = clamped_shell(640)
+settle(lambda: fresh.get_mapped() and fresh.get_height() > 64)
+# A re-shown shell can settle a few pixels off a fresh one (it did so
+# before the height cache existed); a stuck height is the whole
+# narrow-column difference.
+check('a widened post shown again has no blank gap',
+      fresh.get_height() < narrow - 32
+      and abs(shell.get_height() - fresh.get_height()) < 16)
+box.remove(clamp)
+box.remove(fresh_clamp)
+
 # The pre-allocation estimate is plain text; paragraph gaps and inline
 # images change the real height, which must replace it once allocated.
 #

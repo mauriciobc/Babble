@@ -243,6 +243,15 @@ window.darken-media .darkenable:hover {
                               var(--border-color));
 }
 
+/* A shown run whose posts are still being built: an empty card in the
+   slot the posts will fill, framed like .status-row. */
+.status-run.status-run-pending {
+  background-color: var(--card-bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  margin: 8px 12px;
+}
+
 /* Posts of a run share the card around them: no frame of their own,
    only a rule above each continuation post. */
 .status-row.run-post,

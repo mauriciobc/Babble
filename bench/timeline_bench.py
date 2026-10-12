@@ -6,6 +6,13 @@ bench/fixture_server.py through MastodonClient, is scrolled to the end
 (infinite scroll pagination), scrolled back to the top, receives a burst
 of streaming updates/edits/deletes, and is then torn down. Prints one
 JSON line with CPU time, wall time and memory figures.
+
+cpu_ms is process CPU (every thread). main_ms, stall_max_ms,
+stall_p99_ms and stalls_over_16ms come from the thread CPU time of each
+main-loop dispatch (and each simulated stream message) during the
+measured run, so work moved off the main thread shows up there. frames
+counts painted frames of the window, and frames_with_empty_shell those
+where a mapped StatusRunRow had a bound run but no cards yet (pop-in).
 """
 
 import datetime
@@ -36,6 +43,19 @@ from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 import fixtures  # noqa: E402
 
+# PyGObject's MainContext.iteration override pauses the asyncio event
+# loop around every call (~65 us each), which the real app, running under
+# Adw.Application.run, never pays. Call the introspected method directly.
+_iteration = next(
+    klass for klass in GLib.MainContext.__mro__
+    if klass.__module__ == 'gi.repository.GLib').iteration
+if type(_iteration).__name__ != 'FunctionInfo':
+    raise SystemExit('MainContext.iteration is not the introspected method')
+
+# Main-thread CPU seconds of each dispatch, recorded while `recording`.
+dispatches = []
+recording = False
+
 
 def rss_kb():
     with open('/proc/self/statm') as f:
@@ -55,7 +75,11 @@ def settle(limit=30.0):
     start = last = time.monotonic()
     while True:
         now = time.monotonic()
-        if ctx.iteration(False):
+        t0 = time.thread_time()
+        dispatched = _iteration(ctx, False)
+        if dispatched:
+            if recording:
+                dispatches.append(time.thread_time() - t0)
             last = now
         elif now - last >= QUIET:
             return
@@ -63,6 +87,39 @@ def settle(limit=30.0):
             time.sleep(0.002)
         if now - start > limit:
             raise SystemExit('settle: main loop never went idle')
+
+
+def timed(func, *args):
+    """Run one main-thread unit of work (as a dispatch would) and record
+    its thread CPU time like a main-loop dispatch."""
+    t0 = time.thread_time()
+    func(*args)
+    if recording:
+        dispatches.append(time.thread_time() - t0)
+
+
+def has_empty_shell(widget, run_row_type):
+    """Whether a mapped run row under `widget` is bound but has no cards."""
+    child = widget.get_first_child()
+    while child is not None:
+        if isinstance(child, run_row_type):
+            if (child.get_mapped() and child._run is not None
+                    and not child.rows):
+                return True
+        elif child.get_mapped() and has_empty_shell(child, run_row_type):
+            return True
+        child = child.get_next_sibling()
+    return False
+
+
+def count_loaded(model, carousel_type):
+    """Statuses in the model; a boosts carousel holds several. Scoped in
+    a function so no item reference outlives the count."""
+    loaded = 0
+    for i in range(model.get_n_items()):
+        item = model.get_item(i)
+        loaded += len(item.boosts) if isinstance(item, carousel_type) else 1
+    return loaded
 
 
 def fail(message):
@@ -104,9 +161,11 @@ def run(port, anchor):
     client.instance = base
     client.api_base = base + '/api/v1'
 
+    global recording
     gc.collect()
     settle()
     rss_start = rss_kb()
+    recording = True
     cpu0 = cpu()
     wall0 = time.monotonic()
     phases = {}
@@ -120,6 +179,15 @@ def run(port, anchor):
     page = timeline.TimelinePage(client, mode='public')
     window.set_child(page)
     window.present()
+    frames = [0, 0]
+
+    def on_after_paint(_clock, root):
+        frames[0] += 1
+        if has_empty_shell(root, timeline.StatusRunRow):
+            frames[1] += 1
+
+    clock = window.get_frame_clock()
+    paint_handler = clock.connect('after-paint', on_after_paint, page)
     settle()
     if page.stack.get_visible_child_name() != 'list':
         fail('first page did not load (%s)'
@@ -136,13 +204,7 @@ def run(port, anchor):
         settle()
     # A boosts carousel is one list row for several posts, so the row
     # count is lower than the fixture size whenever a page groups.
-    loaded = 0
-    for i in range(page.model.get_n_items()):
-        item = page.model.get_item(i)
-        if isinstance(item, timeline.BoostCarouselItem):
-            loaded += len(item.boosts)
-        else:
-            loaded += 1
+    loaded = count_loaded(page.model, timeline.BoostCarouselItem)
     if not page.model.exhausted or loaded != TOTAL:
         fail('loaded %d of %d statuses (exhausted=%s, rows=%d)'
              % (loaded, TOTAL, page.model.exhausted,
@@ -162,19 +224,23 @@ def run(port, anchor):
     # Streaming burst at the top of the timeline.
     for k in range(STREAM):
         sid = TOTAL + 1 + k
-        page.on_stream_update(fixtures.status(base, sid, anchor))
+        timed(page.on_stream_update, fixtures.status(base, sid, anchor))
         if k % 4 == 3:
-            page.on_stream_delete('%018d' % (sid - 2))
+            timed(page.on_stream_delete, '%018d' % (sid - 2))
         if k % 6 == 5:
             edited = fixtures.status(base, sid - 1, anchor)
             edited['content'] += '<p>edited</p>'
             edited['edited_at'] = edited['created_at']
-            page.on_stream_status_update(edited.get('reblog') or edited)
+            timed(page.on_stream_status_update,
+                  edited.get('reblog') or edited)
         settle()
     t = mark('stream_ms', t)
     rss_peak_phase = rss_kb()
 
-    # Teardown: everything the page built must be releasable.
+    # Teardown: everything the page built must be releasable. The paint
+    # handler holds the page, so it goes first.
+    clock.disconnect(paint_handler)
+    del clock
     window.set_child(None)
     window.destroy()
     del page, window, adjustment
@@ -184,6 +250,9 @@ def run(port, anchor):
     mark('teardown_ms', t)
     cpu_total = (cpu() - cpu0) * 1000.0
     wall_total = (time.monotonic() - wall0) * 1000.0
+    recording = False
+    stalls = sorted(d * 1000.0 for d in dispatches)
+    p99 = stalls[max(0, -(-len(stalls) * 99 // 100) - 1)] if stalls else 0.0
 
     gc.collect()
     live_rows = sum(1 for o in gc.get_objects()
@@ -195,6 +264,12 @@ def run(port, anchor):
         'cpu_ms': round(cpu_total, 1),
         'wall_ms': round(wall_total, 1),
         **phases,
+        'main_ms': round(sum(stalls), 1),
+        'stall_max_ms': round(stalls[-1] if stalls else 0.0, 1),
+        'stall_p99_ms': round(p99, 1),
+        'stalls_over_16ms': sum(1 for d in stalls if d > 16.0),
+        'frames': frames[0],
+        'frames_with_empty_shell': frames[1],
         'peak_rss_mb': round(
             resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),
         'rss_growth_mb': round((rss_peak_phase - rss_start) / 1024.0, 1),
