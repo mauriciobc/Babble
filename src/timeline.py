@@ -915,12 +915,95 @@ def _display_scale():
     return scale
 
 
+def _peek_bytes(data, count):
+    """The first *count* bytes of a ``GLib.Bytes``, without copying the
+    rest of a multi-megabyte upload."""
+    stream = Gio.MemoryInputStream.new_from_bytes(data)
+    try:
+        chunk = stream.read_bytes(count, None)
+    except GLib.Error:
+        return b''
+    return chunk.get_data() or b''
+
+
+def _jpeg_pixel_size(data):
+    """Width and height from a JPEG SOF marker, or None when the header
+    is not a JPEG we can scan. Dimensions sit a few kilobytes in, past
+    the APP segments, so this reads a bounded prefix rather than the
+    compressed image."""
+    blob = _peek_bytes(data, 65536)
+    index = 2
+    limit = len(blob)
+    while index + 8 < limit:
+        if blob[index] != 0xFF:
+            return None
+        while index < limit and blob[index] == 0xFF:
+            index += 1
+        if index >= limit:
+            return None
+        marker = blob[index]
+        index += 1
+        # Standalone markers (SOI, EOI, restart) carry no length.
+        if marker in (0xD8, 0xD9) or 0xD0 <= marker <= 0xD7:
+            continue
+        if index + 2 > limit:
+            return None
+        segment = int.from_bytes(blob[index:index + 2], 'big')
+        if segment < 2:
+            return None
+        # Start-of-frame markers except DHT (C4) and JPG (C8).
+        if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                      0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            if index + 7 > limit:
+                return None
+            height = int.from_bytes(blob[index + 3:index + 5], 'big')
+            width = int.from_bytes(blob[index + 5:index + 7], 'big')
+            if width and height:
+                return width, height
+            return None
+        index += segment
+    return None
+
+
+def _image_pixel_size(data):
+    """Width and height stored in the file header. None when the format
+    does not put them up front: the caller then decodes through
+    GdkPixbuf, which can still scale the image down."""
+    head = _peek_bytes(data, 32)
+    if head.startswith(b'\x89PNG\r\n\x1a\n') and len(head) >= 24:
+        return (int.from_bytes(head[16:20], 'big'),
+                int.from_bytes(head[20:24], 'big'))
+    if head[:6] in (b'GIF87a', b'GIF89a') and len(head) >= 10:
+        return (int.from_bytes(head[6:8], 'little'),
+                int.from_bytes(head[8:10], 'little'))
+    if head.startswith(b'\xff\xd8'):
+        return _jpeg_pixel_size(data)
+    return None
+
+
 def _decode_covering(data, cover):
     """Texture of the image in *data*, decoded no larger than it takes to
-    cover a *cover* (width, height) box of logical pixels. None when
-    GdkPixbuf cannot read it."""
+    cover a *cover* (width, height) box of logical pixels. None when the
+    image cannot be read.
+
+    GdkPixbuf's loader plus the copy into a ``Gdk.MemoryTexture`` is
+    several times slower than ``Gdk.Texture.new_from_bytes``. When the
+    file is already no larger than the tile there is nothing to scale
+    away, so that copy buys neither sharpness nor a smaller texture.
+    Oversized originals still go through GdkPixbuf with ``set_size``,
+    which decodes them already scaled down instead of holding the full
+    bitmap."""
     scale = _display_scale()
     box_width, box_height = cover[0] * scale, cover[1] * scale
+    natural = _image_pixel_size(data)
+    if natural is not None:
+        width, height = natural
+        if width > 0 and height > 0 and max(box_width / width,
+                                             box_height / height) >= 1:
+            try:
+                return Gdk.Texture.new_from_bytes(data)
+            except GLib.Error:
+                pass
 
     def prepared(loader, width, height):
         factor = max(box_width / width, box_height / height)
