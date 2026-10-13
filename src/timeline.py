@@ -784,13 +784,13 @@ class StatusRunRow(Gtk.Box):
                 self._cards[item] = row
             if multi:
                 if position:
-                    # Continuation posts keep only the thread badge: the
+                    # Continuation posts keep the thread badge and their
+                    # own menu (which carries the post actions); the
                     # author line belongs to the run card above them.
                     row.add_css_class('run-post')
                     row.profile_button.set_visible(False)
                     row.time_label.set_visible(False)
                     row.actions.set_visible(False)
-                    row._overflow.set_visible(False)
                 else:
                     row.add_css_class('run-lead')
             row.set_run(position + 1, len(run.items))
@@ -2409,9 +2409,12 @@ class StatusRow(Gtk.Overlay):
     ICON_BOOKMARK = ('bookmark-new-symbolic', 'user-bookmarks-symbolic')
 
     MENU_ACTIONS = (
-        'view', 'open-browser', 'copy', 'stats', 'history', 'translate',
-        'mute-conversation', 'pin', 'edit', 'delete', 'redraft',
-        'revoke-quote', 'report', 'mention', 'mute', 'block')
+        'reply', 'quote', 'view', 'open-browser', 'copy', 'stats',
+        'history', 'translate', 'mute-conversation', 'pin', 'edit',
+        'delete', 'redraft', 'revoke-quote', 'report', 'mention', 'mute',
+        'block')
+    # Stateful: the menu's icon row shows them pressed when set.
+    MENU_TOGGLES = ('boost', 'favourite', 'bookmark')
 
     def __init__(self, detail=False, **kwargs):
         super().__init__(accessible_role=Gtk.AccessibleRole.ARTICLE,
@@ -2743,6 +2746,13 @@ class StatusRow(Gtk.Overlay):
             connect_weak(action, 'activate', handler)
             group.add_action(action)
             self._menu_actions[name] = action
+        for name in self.MENU_TOGGLES:
+            action = Gio.SimpleAction.new_stateful(
+                name, None, GLib.Variant.new_boolean(False))
+            connect_weak(action, 'activate',
+                         getattr(self, '_menu_' + name))
+            group.add_action(action)
+            self._menu_actions[name] = action
         policy = Gio.SimpleAction.new_stateful(
             'quote-policy', GLib.VariantType.new('s'),
             GLib.Variant.new_string('public'))
@@ -2798,6 +2808,10 @@ class StatusRow(Gtk.Overlay):
         # Underscores in a handle would read as access keys.
         handle = item.handle.replace('_', '__')
         menu = Gio.Menu()
+        # Phanpy keeps the post actions in this menu when the card has
+        # no action bar: an icon row above the rest.
+        if signed_in and not self.actions.get_visible():
+            menu.append_item(self._action_section(status))
 
         links = Gio.Menu()
         links.append(_('_View Post'), 'row.view')
@@ -2849,6 +2863,26 @@ class StatusRow(Gtk.Overlay):
             menu.append_section(None, account)
         return menu
 
+    def _action_section(self, status):
+        """Reply/Boost/(Quote)/Favorite/Bookmark as a row of icon
+        buttons; the toggles render pressed from their action state."""
+        section = Gio.Menu()
+        entries = [(_('Reply'), 'row.reply', self.ICON_REPLY),
+                   (_('Boost'), 'row.boost', self.ICON_BOOST)]
+        if 'quote_approval' in status:
+            entries.append((_('Quote'), 'row.quote', self.ICON_QUOTE))
+        entries += [(_('Favorite'), 'row.favourite', self.ICON_FAVOURITE[0]),
+                    (_('Bookmark'), 'row.bookmark', self.ICON_BOOKMARK[0])]
+        for label, action, icon in entries:
+            entry = Gio.MenuItem.new(label, action)
+            entry.set_attribute_value('verb-icon',
+                                      GLib.Variant.new_string(icon))
+            section.append_item(entry)
+        item = Gio.MenuItem.new_section(None, section)
+        item.set_attribute_value(
+            'display-hint', GLib.Variant.new_string('horizontal-buttons'))
+        return item
+
     def _can_act(self):
         return self.client is not None \
             and bool(getattr(self.client, 'token', None))
@@ -2861,6 +2895,28 @@ class StatusRow(Gtk.Overlay):
 
     def _toast(self, text, undo=None):
         pages.show_toast(self, text, undo=undo)
+
+    # The menu's icon row runs the action bar's handlers, so reminders,
+    # the boost dialog and the optimistic rollback stay in one place.
+    # The bar's (possibly hidden) buttons carry the toggle state.
+
+    def _menu_reply(self, *_args):
+        self._on_reply(self.reply_button)
+
+    def _menu_quote(self, *_args):
+        self._on_quote(self.quote_button)
+
+    def _menu_boost(self, *_args):
+        if self.item is not None:
+            self._on_boost(self.boost_button)
+
+    def _menu_favourite(self, *_args):
+        if self.item is not None:
+            self._on_favourite(self.favourite_button)
+
+    def _menu_bookmark(self, *_args):
+        if self.item is not None:
+            self._on_bookmark(self.bookmark_button)
 
     def _menu_view(self, *_args):
         if self.item is not None:
@@ -3468,6 +3524,17 @@ class StatusRow(Gtk.Overlay):
             self._menu_actions[name].set_enabled(can_act)
         self._menu_actions['quote-policy'].set_state(
             GLib.Variant.new_string(quote_policy_of(status)))
+        idle = can_act and not self._busy
+        boostable = item.reblogged or self.can_be_boosted(item)
+        for name, active, enabled in (
+                ('boost', item.reblogged, idle and boostable),
+                ('favourite', item.favourited, idle),
+                ('bookmark', item.bookmarked, idle)):
+            action = self._menu_actions[name]
+            action.set_state(GLib.Variant.new_boolean(bool(active)))
+            action.set_enabled(enabled)
+        self._menu_actions['quote'].set_enabled(
+            can_act and can_quote(status))
 
     def _set_time(self, item):
         self.time_label.set_text(item.timestamp)
