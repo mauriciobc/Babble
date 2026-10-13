@@ -32,6 +32,7 @@ install_data(
   'admin.py',
   'announcements.py',
   'catchupdigest.py',
+  'catchuprank.py',
   'compose.py',
   'conversations.py',
   'desktopnotify.py',
@@ -183,6 +184,12 @@ catchup_test_env = environment()
 catchup_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test('catchup digest', python,
   args: [files('test-catchup-digest.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
+test('catchup rank', python,
+  args: [files('test-catchup-rank.py')],
   env: catchup_test_env,
   timeout: 60,
 )
