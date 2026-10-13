@@ -31,6 +31,7 @@ install_data(
   'accounts.py',
   'admin.py',
   'announcements.py',
+  'catchupdigest.py',
   'compose.py',
   'conversations.py',
   'desktopnotify.py',
@@ -174,6 +175,15 @@ statustext_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test('status text', python,
   args: [files('test-statustext.py')],
   env: statustext_test_env,
+  timeout: 60,
+)
+
+# Needs no display: the Catch Up data layer imports no gi at all.
+catchup_test_env = environment()
+catchup_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+test('catchup digest', python,
+  args: [files('test-catchup-digest.py')],
+  env: catchup_test_env,
   timeout: 60,
 )
 
