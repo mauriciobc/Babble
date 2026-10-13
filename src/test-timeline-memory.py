@@ -15,7 +15,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY'):
     print('SKIP - no display available for widget rendering')
@@ -25,7 +25,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import notifications, profile, timeline  # noqa: E402
+from src.i18n import gettext as _  # noqa: E402
+from src import mediaviewer, notifications, profile, timeline  # noqa: E402
 
 failures = []
 
@@ -317,6 +318,85 @@ real = Gtk.TextView.do_measure(body, Gtk.Orientation.VERTICAL,
 check('an allocated body is as tall as its text',
       real > 0 and abs(body.get_height() - real) <= real * 0.1)
 box.remove(body)
+
+
+def drag_sources(widget):
+    """Every Gtk.DragSource on *widget* and its descendants."""
+    found = []
+    controllers = widget.observe_controllers()
+    for position in range(controllers.get_n_items()):
+        controller = controllers.get_item(position)
+        if isinstance(controller, Gtk.DragSource):
+            found.append(controller)
+    del controllers
+    child = widget.get_first_child()
+    while child is not None:
+        found += drag_sources(child)
+        child = child.get_next_sibling()
+    return found
+
+
+# Dragging a post or one of its pictures out, or a picture out of the
+# viewer, must not keep them alive: the drag sources' handlers are weak
+# and the drag icons do not hold their widgets.
+texture = Gdk.MemoryTexture.new(4, 4, Gdk.MemoryFormat.R8G8B8A8,
+                                GLib.Bytes.new(b'\x80' * 64), 16)
+picture_url = 'https://example.org/media/a.png'
+timeline._TextureCache._textures[
+    (picture_url, (timeline.COLUMN_WIDTH, 260))] = texture
+pictured = dict(status(2, 'pictured'), url='https://example.org/@user2/2',
+                media_attachments=[{'id': '1', 'type': 'image',
+                                    'url': picture_url}])
+row = timeline.StatusRow()
+row.bind(timeline.StatusItem(pictured), _Client())
+box.append(row)
+settle(lambda row=row: row.get_mapped() and row.avatar.get_mapped())
+prepared = [source.emit('prepare', 1.0, 1.0) for source in drag_sources(row)]
+check('a post and its picture can be dragged out',
+      len(prepared) == 2 and all(prepared))
+del prepared
+box.remove(row)
+row_ref = row.weak_ref()
+del row
+settle()
+check('a dragged status row is freed', freed(row_ref))
+
+# Hosted in an Adw window, like the app's: over a plain Gtk.Window the
+# dialog floats as a window of its own, and force_close() did not emit
+# 'closed' there.
+host = Adw.Window(content=Gtk.Box())
+host.present()
+viewer = mediaviewer.MediaViewer(
+    host.get_content(),
+    [{'type': 'unknown', 'url': 'https://example.org/media/a.bin'}])
+viewer.present(host)
+settle()
+viewer._on_texture(texture, None)
+check('Copy Image accepts the displayed texture', viewer.copy_image())
+check('Copy Image puts a texture on the clipboard',
+      host.get_display().get_clipboard().get_formats()
+      .contain_gtype(Gdk.Texture))
+prepared = [viewer.picture_drag.emit('prepare', 1.0, 1.0),
+            viewer.media_drag.emit('prepare', 1.0, 1.0)]
+check('the viewer can drag its picture and its media out', all(prepared))
+del prepared
+system_state = mediaviewer._system_state
+mediaviewer._system_state = lambda name: name == 'metered'
+viewer.attachments = [{'type': 'video',
+                       'url': 'https://example.org/media/a.mp4'}]
+viewer.show_index(0)
+check('metered video waits for an explicit load',
+      viewer.stack.get_visible_child_name() == 'deferred'
+      and viewer.load_button.get_label() == _('Load _Video'))
+mediaviewer._system_state = system_state
+viewer.force_close()
+settle(lambda viewer=viewer: viewer._closed)
+check('a closed media viewer ran its teardown', viewer._closed)
+viewer_ref = viewer.weak_ref()
+del viewer
+check('a closed media viewer is freed', freed(viewer_ref))
+host.destroy()
+timeline._TextureCache._textures.clear()
 
 # Weak hookups must survive PyGObject dropping and re-creating the Python
 # wrapper of a widget that only GTK holds.

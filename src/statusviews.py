@@ -12,6 +12,7 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
+from .statustext import format_time  # noqa: E402
 
 STATS_TABS = (
     ('favourites', 'favourites_count', '/statuses/%s/favourited_by'),
@@ -122,10 +123,7 @@ def _parse_time(iso):
 
 
 def _absolute_time(iso):
-    then = _parse_time(iso)
-    if then is None:
-        return ''
-    return then.astimezone().strftime('%-d %b %Y, %H:%M')
+    return format_time(_parse_time(iso))
 
 
 def _attachment_ids(revision):

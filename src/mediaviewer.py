@@ -7,12 +7,22 @@ MediaViewer and Phanpy's media modal.
 attachments of one post: images with zoom, pinch and pan, videos with
 playback controls, muted looping GIFVs and audio with a cover. Left and
 Right (or the side buttons) move between attachments, the alt text sits
-below the media, and the header offers Save As, Copy URL, Open in Browser
-and Fullscreen.
+below the media, and the header offers Save As, Copy URL, Copy Image,
+Open in Browser and Fullscreen.
+
+Media can be dragged out. An image that fits the window drags as the
+picture itself (plus the file, once saved or opened with an app); zoomed
+in, the same drag pans instead, so zoom back to fit (0, or double-click)
+to drag it out. Video and audio drag as the downloaded copy, or as their
+address before it is downloaded. While a video or audio plays, the
+session is kept from going idle. On a metered connection video, audio
+and GIFVs are not downloaded until asked; in power saver mode GIFVs do
+not start on their own.
 """
 
 import collections
 import os
+import time
 import urllib.parse
 
 import gi
@@ -237,6 +247,28 @@ class _Download:
         self.succeed()
 
 
+# Open With copies older than this are deleted before the next one is
+# downloaded; the app they were handed to has long since read them.
+OPEN_WITH_MAX_AGE = 24 * 60 * 60
+
+
+def prune_old_files(directory, max_age=OPEN_WITH_MAX_AGE):
+    """Best-effort removal of files in *directory* not modified for
+    *max_age* seconds."""
+    cutoff = time.time() - max_age
+    try:
+        entries = list(os.scandir(directory))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.is_file(follow_symlinks=False) \
+                    and entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                os.unlink(entry.path)
+        except OSError:
+            pass
+
+
 def suggested_filename(attachment):
     """File name for Save As: the last URL path segment, else a generic
     name with an extension matching the attachment type."""
@@ -261,6 +293,73 @@ def _icon_button(icon, tooltip, css=()):
     for name in css:
         button.add_css_class(name)
     return button
+
+
+# Drag and drop
+
+# Longest side of a drag icon made from a picture, in logical pixels.
+DRAG_ICON_SIZE = 128
+
+
+def link_provider(url):
+    """Drag content for the web address *url*: a ``text/uri-list`` for
+    file managers and browsers, and the plain text for everything else."""
+    return Gdk.ContentProvider.new_union([
+        Gdk.ContentProvider.new_for_bytes(
+            'text/uri-list', GLib.Bytes.new((url + '\r\n').encode())),
+        Gdk.ContentProvider.new_for_value(GObject.Value(str, url))])
+
+
+def media_provider(url=None, texture=None, file=None):
+    """Drag content for an attachment: its decoded *texture* if there is
+    one, the local Gio.File *file* if it has been downloaded, else its
+    *url*. None when there is nothing to offer."""
+    providers = []
+    if texture is not None:
+        providers.append(Gdk.ContentProvider.new_for_value(
+            GObject.Value(Gdk.Texture, texture)))
+    if file is not None:
+        providers.append(Gdk.ContentProvider.new_for_value(
+            GObject.Value(Gdk.FileList, Gdk.FileList.new_from_array([file]))))
+    elif url:
+        providers.append(link_provider(url))
+    if not providers:
+        return None
+    if len(providers) == 1:
+        return providers[0]
+    return Gdk.ContentProvider.new_union(providers)
+
+
+def set_drag_texture(source, texture):
+    """Use a thumbnail of *texture* as the drag icon of the Gtk.DragSource
+    *source*; a full-size picture would cover the drop target."""
+    width, height = texture.get_width(), texture.get_height()
+    scale = min(1.0, DRAG_ICON_SIZE / max(width, height, 1))
+    width, height = max(1.0, width * scale), max(1.0, height * scale)
+    snapshot = Gtk.Snapshot()
+    snapshot.append_scaled_texture(
+        texture, Gsk.ScalingFilter.TRILINEAR,
+        Graphene.Rect().init(0, 0, width, height))
+    paintable = snapshot.to_paintable(Graphene.Size().init(width, height))
+    source.set_icon(paintable, int(width / 2), int(height / 2))
+
+
+def set_drag_icon_name(source, widget, icon_name):
+    """Use the themed icon *icon_name* as *source*'s drag icon."""
+    theme = Gtk.IconTheme.get_for_display(widget.get_display())
+    icon = theme.lookup_icon(icon_name, None, 64, widget.get_scale_factor(),
+                             widget.get_direction(), 0)
+    source.set_icon(icon, 32, 32)
+
+
+def _system_state(name):
+    """The ``sysstate`` monitor's boolean property *name* ('metered',
+    'power-saver'); False when the monitor is unavailable."""
+    try:
+        from . import sysstate
+    except ImportError:
+        return False
+    return bool(sysstate.monitor().get_property(name))
 
 
 class ZoomPicture(Gtk.Widget):
@@ -507,6 +606,14 @@ class MediaViewer(Adw.Dialog):
         self._we_fullscreened = False
         self._first_focus = True
         self._downloads = Gio.Cancellable()
+        # Kind of the attachment the current stream plays.
+        self._stream_kind = None
+        # Idle inhibition held while a video or audio plays: the
+        # application it was asked of and the cookie it returned.
+        self._inhibit_app = None
+        self._inhibit_cookie = 0
+        # Saved and Open With copies by URL, offered when dragging out.
+        self._local_files = {}
 
         self._build()
         self.connect('closed', self._on_closed)
@@ -532,7 +639,14 @@ class MediaViewer(Adw.Dialog):
 
         menu = Gio.Menu()
         menu.append(_('_Copy URL'), 'viewer.copy-url')
+        copy_image = Gio.MenuItem.new(_('Copy _Image'), 'viewer.copy-image')
+        # Only images can be copied; the action is enabled while one is
+        # shown, and the item hidden otherwise.
+        copy_image.set_attribute_value(
+            'hidden-when', GLib.Variant.new_string('action-disabled'))
+        menu.append_item(copy_image)
         menu.append(_('_Open in Browser'), 'viewer.open-browser')
+        menu.append(_('Open _With…'), 'viewer.open-with')
         self.menu_button = Gtk.MenuButton(
             icon_name='view-more-symbolic', menu_model=menu,
             tooltip_text=_('More Actions'), primary=False)
@@ -545,10 +659,13 @@ class MediaViewer(Adw.Dialog):
         self.header.pack_end(self.save_button)
 
         actions = Gio.SimpleActionGroup()
-        for name in ('copy-url', 'open-browser'):
+        self._actions = {}
+        for name in ('copy-url', 'copy-image', 'open-browser', 'open-with'):
             action = Gio.SimpleAction.new(name, None)
             pages.connect_weak(action, 'activate', self._on_action)
             actions.add_action(action)
+            self._actions[name] = action
+        self._actions['copy-image'].set_enabled(False)
         self.insert_action_group('viewer', actions)
 
         self.stack = Gtk.Stack(
@@ -567,9 +684,42 @@ class MediaViewer(Adw.Dialog):
         pages.connect_weak(self.picture, 'zoom-changed',
                            self._on_zoom_changed)
         self.stack.add_named(self.picture, 'image')
+        # Dragging the picture out only starts while it fits the window
+        # (prepare refuses otherwise): zoomed in, the drag pans it.
+        self.picture_drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
+        pages.connect_weak(self.picture_drag, 'prepare',
+                           self._on_picture_drag_prepare)
+        self.picture.add_controller(self.picture_drag)
 
         self.media_bin = Adw.Bin(hexpand=True, vexpand=True)
         self.stack.add_named(self.media_bin, 'media')
+        self.media_drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
+        pages.connect_weak(self.media_drag, 'prepare',
+                           self._on_media_drag_prepare)
+        self.media_bin.add_controller(self.media_drag)
+
+        # Video, audio and GIFVs waiting to be downloaded on a metered
+        # connection: the preview with a button to load them.
+        self.deferred = Gtk.Overlay(hexpand=True, vexpand=True)
+        self.deferred_picture = Gtk.Picture(
+            content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True,
+            hexpand=True, vexpand=True,
+            accessible_role=Gtk.AccessibleRole.IMG)
+        self.deferred.set_child(self.deferred_picture)
+        self.load_button = Gtk.Button(
+            use_underline=True, halign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER,
+            tooltip_text=_('Media is not downloaded automatically on a '
+                           'metered connection'))
+        self.load_button.add_css_class('pill')
+        self.load_button.add_css_class('suggested-action')
+        pages.connect_weak(self.load_button, 'clicked', self._on_load_clicked)
+        self.deferred.add_overlay(self.load_button)
+        self.stack.add_named(self.deferred, 'deferred')
+        self.deferred_drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
+        pages.connect_weak(self.deferred_drag, 'prepare',
+                           self._on_media_drag_prepare)
+        self.deferred.add_controller(self.deferred_drag)
 
         self.error_page = Adw.StatusPage(
             icon_name='dialog-error-symbolic', vexpand=True)
@@ -669,7 +819,9 @@ class MediaViewer(Adw.Dialog):
 
     def _on_action(self, action, _param):
         {'copy-url': self.copy_url,
-         'open-browser': self.open_in_browser}[action.get_name()]()
+         'copy-image': self.copy_image,
+         'open-browser': self.open_in_browser,
+         'open-with': self.open_with}[action.get_name()]()
 
     def _on_retry_clicked(self, _button):
         self.show_index(self.index)
@@ -842,8 +994,10 @@ class MediaViewer(Adw.Dialog):
         self._downloads = Gio.Cancellable()
 
     def _unload_media(self):
+        self._set_inhibited(False)
         stream = self._stream
         self._stream = None
+        self._stream_kind = None
         if stream is not None:
             stream.pause()
             if isinstance(stream, Gtk.MediaFile):
@@ -856,7 +1010,9 @@ class MediaViewer(Adw.Dialog):
         if isinstance(child, Gtk.Video):
             child.set_media_stream(None)
         self.media_bin.set_child(None)
+        self.deferred_picture.set_paintable(None)
         self.picture.set_texture(None)
+        self._actions['copy-image'].set_enabled(False)
 
     def _discard_temp(self, media):
         # Fire and forget: deleting a cancelled download's copy fails
@@ -889,6 +1045,7 @@ class MediaViewer(Adw.Dialog):
             self._show_error(_('Could Not Load Image'), error.message)
             return
         self.picture.set_texture(texture)
+        self._actions['copy-image'].set_enabled(True)
         self.stack.set_visible_child_name('image')
         self.zoom_controls.set_visible(True)
         self._update_zoom_controls()
@@ -907,6 +1064,38 @@ class MediaViewer(Adw.Dialog):
         self.zoom_fit_button.set_sensitive(not self.picture.fitted)
 
     def _show_stream(self, attachment, url):
+        if _system_state('metered'):
+            self._show_deferred(attachment)
+        else:
+            self._download_stream(attachment, url)
+
+    def _show_deferred(self, attachment):
+        """On a metered connection: the preview and a button that starts
+        the download, instead of fetching a stream nobody asked for."""
+        if attachment.get('type') == 'audio':
+            self.load_button.set_label(_('Load _Audio'))
+        else:
+            self.load_button.set_label(_('Load _Video'))
+        _label(self.deferred_picture, self._description(attachment))
+        preview = attachment.get('preview_url')
+        if preview:
+            load_texture(preview, self._on_deferred_preview, self._cancellable)
+        self.stack.set_visible_child_name('deferred')
+        if self._first_focus:
+            self._first_focus = False
+            self.load_button.grab_focus()
+
+    def _on_deferred_preview(self, texture, error):
+        if error is None:
+            self.deferred_picture.set_paintable(texture)
+
+    def _on_load_clicked(self, _button):
+        attachment = self.current()
+        url = attachment.get('url') or attachment.get('remote_url')
+        if url:
+            self._download_stream(attachment, url)
+
+    def _download_stream(self, attachment, url):
         self._show_loading()
         cancellable = self._cancellable
         try:
@@ -953,8 +1142,7 @@ class MediaViewer(Adw.Dialog):
         stream = Gtk.MediaFile.new_for_file(destination)
         self._stream = stream
         kind = attachment.get('type')
-        animations = Gtk.Settings.get_default().get_property(
-            'gtk-enable-animations')
+        self._stream_kind = kind
         if kind == 'gifv':
             stream.set_loop(True)
             stream.set_muted(True)
@@ -965,10 +1153,15 @@ class MediaViewer(Adw.Dialog):
             view.add_css_class('media-viewer-gifv')
             view.update_property([Gtk.AccessibleProperty.LABEL],
                                  [self._description(attachment)])
+            # On release, so dragging the GIFV out leaves it playing.
             click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-            pages.connect_weak(click, 'pressed', self._on_gifv_pressed, stream)
+            pages.connect_weak(click, 'released', self._on_gifv_clicked,
+                               stream)
             view.add_controller(click)
-            autoplay = animations
+            # A looping animation is decoration: it waits for a click
+            # when animations are off or the system saves power.
+            autoplay = Gtk.Settings.get_default().get_property(
+                'gtk-enable-animations') and not _system_state('power-saver')
         elif kind == 'video':
             view = Gtk.Video(hexpand=True, vexpand=True)
             view.set_media_stream(stream)
@@ -981,6 +1174,8 @@ class MediaViewer(Adw.Dialog):
         pages.connect_weak(stream, 'notify::error', self._on_stream_error)
         pages.connect_weak(stream, 'notify::prepared', self._on_stream_prepared,
                            autoplay)
+        pages.connect_weak(stream, 'notify::playing', self._on_stream_playing)
+        pages.connect_weak(stream, 'notify::ended', self._on_stream_playing)
         if stream.get_error() is not None:
             self._on_stream_error(stream, None)
         elif stream.is_prepared():
@@ -1016,7 +1211,7 @@ class MediaViewer(Adw.Dialog):
         box.append(clamp)
         return box
 
-    def _on_gifv_pressed(self, gesture, n_press, x, y, stream):
+    def _on_gifv_clicked(self, gesture, n_press, x, y, stream):
         if stream.get_playing():
             stream.pause()
         else:
@@ -1025,10 +1220,46 @@ class MediaViewer(Adw.Dialog):
     def _on_stream_error(self, stream, _pspec):
         if stream is not self._stream:
             return
+        self._set_inhibited(False)
         error = stream.get_error()
         self._show_error(
             _('Could Not Load Media'),
             error.message if error is not None else '')
+
+    def _on_stream_playing(self, stream, _pspec):
+        if stream is not self._stream:
+            return
+        # A muted, looping GIFV is no reason to keep the screen on.
+        self._set_inhibited(
+            self._stream_kind in ('video', 'audio')
+            and stream.get_playing() and not stream.get_ended())
+
+    def _application(self):
+        app = self.window.get_application() if self.window is not None \
+            else None
+        return app if app is not None else Gio.Application.get_default()
+
+    def _set_inhibited(self, inhibited):
+        """Keep the session from going idle (dimming, locking, suspend)
+        while *inhibited*; every path that stops playback or drops the
+        stream clears it, so the cookie never outlives the playback."""
+        if inhibited == bool(self._inhibit_cookie):
+            return
+        if not inhibited:
+            app, cookie = self._inhibit_app, self._inhibit_cookie
+            self._inhibit_app, self._inhibit_cookie = None, 0
+            app.uninhibit(cookie)
+            return
+        app = self._application()
+        if not isinstance(app, Gtk.Application):
+            return
+        # Translators: why the session is kept from going idle, shown by
+        # the desktop where it lists apps blocking suspend or screen lock.
+        reason = _('Playing media')
+        cookie = app.inhibit(self.window, Gtk.ApplicationInhibitFlags.IDLE,
+                             reason)
+        if cookie:
+            self._inhibit_app, self._inhibit_cookie = app, cookie
 
     def _on_stream_prepared(self, stream, _pspec, autoplay):
         if stream is not self._stream or not stream.is_prepared():
@@ -1052,6 +1283,49 @@ class MediaViewer(Adw.Dialog):
             Gdk.ContentProvider.new_for_value(GObject.Value(str, url)))
         self.toasts.add_toast(Adw.Toast(title=_('URL copied')))
         return True
+
+    def copy_image(self):
+        texture = self.picture.texture
+        if texture is None or self.stack.get_visible_child_name() != 'image':
+            return False
+        # Gdk.Clipboard.set_texture() is not introspectable.
+        self.get_display().get_clipboard().set_content(
+            Gdk.ContentProvider.new_for_value(
+                GObject.Value(Gdk.Texture, texture)))
+        self.toasts.add_toast(Adw.Toast(title=_('Image copied')))
+        return True
+
+    def _local_file(self, url):
+        """The saved or Open With copy of *url*, if it is still there."""
+        file = self._local_files.get(url)
+        if file is not None and not file.query_exists(None):
+            del self._local_files[url]
+            return None
+        return file
+
+    def _on_picture_drag_prepare(self, source, _x, _y):
+        texture = self.picture.texture
+        if texture is None or not self.picture.fitted:
+            return None
+        attachment = self.current()
+        url = attachment.get('url') or attachment.get('remote_url')
+        set_drag_texture(source, texture)
+        return media_provider(url, texture, self._local_file(url))
+
+    def _on_media_drag_prepare(self, source, _x, _y):
+        attachment = self.current()
+        url = attachment.get('url') or attachment.get('remote_url')
+        # The temporary copy is complete once the stream plays it.
+        file = self._temp_media if self._stream is not None else None
+        if file is None:
+            file = self._local_file(url)
+        if file is None and not url:
+            return None
+        set_drag_icon_name(
+            source, source.get_widget(),
+            'audio-x-generic' if attachment.get('type') == 'audio'
+            else 'video-x-generic')
+        return media_provider(url, None, file)
 
     def open_in_browser(self):
         attachment = self.current()
@@ -1127,6 +1401,7 @@ class MediaViewer(Adw.Dialog):
         def done(error):
             self.progress.set_visible(False)
             if error is None:
+                self._local_files[url] = destination
                 self._notify(_('Saved “{name}”').format(name=name),
                              destination)
             else:
@@ -1135,6 +1410,58 @@ class MediaViewer(Adw.Dialog):
                 on_done(error)
 
         download(url, destination, progress, done, self._downloads)
+
+    def open_with(self):
+        """Download the current attachment into the cache directory and
+        offer the apps that can open it."""
+        attachment = self.current()
+        url = attachment.get('url') or attachment.get('remote_url')
+        if not url:
+            return False
+        directory = os.path.join(GLib.get_user_cache_dir(), 'babble',
+                                 'open-with')
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except OSError:
+            self._notify(_('Could not open media'))
+            return False
+        prune_old_files(directory)
+        destination = Gio.File.new_for_path(
+            os.path.join(directory, suggested_filename(attachment)))
+        self.progress.set_fraction(0)
+        self.progress.set_visible(True)
+
+        def progress(fraction):
+            if self._closed:
+                return
+            if fraction < 0:
+                self.progress.pulse()
+            else:
+                self.progress.set_fraction(fraction)
+
+        def done(error):
+            self.progress.set_visible(False)
+            if error is not None:
+                self._notify(_('Could not open media'))
+                return
+            self._local_files[url] = destination
+            self.launch_file(destination)
+
+        download(url, destination, progress, done, self._downloads)
+        return True
+
+    def launch_file(self, file):
+        launcher = Gtk.FileLauncher.new(file)
+        launcher.set_always_ask(True)
+        launcher.launch(self.window, None, self._on_launched)
+
+    def _on_launched(self, launcher, result):
+        try:
+            launcher.launch_finish(result)
+        except GLib.Error as error:
+            if not error.matches(Gtk.DialogError.quark(),
+                                 Gtk.DialogError.DISMISSED):
+                self._notify(_('Could not open media'))
 
     def _notify(self, text, saved=None):
         if self._closed:

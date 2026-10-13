@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import html
 import json
 import secrets
 import urllib.parse
@@ -10,17 +11,43 @@ from .i18n import gettext as _, ngettext
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
+gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gio, Gtk, Soup  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
-from .mastodon import (ADMIN_SCOPES, MastodonClient, OAUTH_REDIRECT,  # noqa: E402
-                       OAUTH_SCOPES, OOB_REDIRECT, clear_secret_async,
+from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
+                       MastodonClient, OAUTH_REDIRECT, OAUTH_SCOPES,
+                       OOB_REDIRECT, clear_secret_async, loopback_redirect,
                        normalize_instance, summarize_error)
 from .statustext import relative_time  # noqa: E402
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
+
+# How long the loopback listener waits for the browser to come back.
+LOOPBACK_TIMEOUT_SECONDS = 10 * 60
+
+
+def _close_loopback(_msg, server):
+    """Close a spent loopback listener once its last page is out.
+
+    Closing it from the request handler would drop the page the browser
+    is still waiting for."""
+    server.disconnect()
+
+
+COPIED_LINK_MAX = 2048
+
+
+def copied_link_kind(text):
+    """``'post'``, ``'profile'`` or ``'tag'`` when *text* (already
+    stripped) is a single fediverse link, else None."""
+    if not text or len(text) > COPIED_LINK_MAX or any(
+            c.isspace() for c in text):
+        return None
+    return pages.fedi_link_kind(text)
+
 
 # One-click alternatives for the login suggestions row, ranked from the
 # public JoinMastodon server directory (api.joinmastodon.org/servers)
@@ -119,6 +146,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.timeline_page = None
         self.timeline_model = None
         self.compose_dialog = None
+        # Files handed over by Open With (or a bare compose request)
+        # before an account was signed in; delivered once one is.
+        self._pending_compose = None
         self.notifications_page = None
         self._unread_handler = None
         self.public_pages = {}
@@ -129,7 +159,19 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._held = False
         self._background_asked = False
         self._background_pending = False
+        self._background_allowed = False
+        # Mentions (ids) that arrived while the window was hidden, the
+        # status line last sent to the portal and its pending refresh.
+        self._background_mentions = set()
+        self._background_status = ''
+        self._status_source = 0
+        self._shortcut_session = None
+        self._shortcut_pending = False
         self._auth_client = None
+        # The 127.0.0.1 listener the login in flight is redirected to.
+        self._loopback = None
+        self._loopback_uri = None
+        self._loopback_timeout = 0
         self._fallback = False
         # What the authorization in flight is for. A login installs a new
         # account; a moderation authorization replaces the token of the
@@ -162,6 +204,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         # live instead of waiting for the next account sync.
         pages.connect_weak(self.settings, 'changed::local-drafts',
                            self._refresh_draft_banner)
+        self._setup_copied_link_banner()
+        self._setup_offline_banner()
 
         self.notifications_badge = Gtk.Label(visible=False)
         self.notifications_badge.add_css_class('notifications-badge')
@@ -175,6 +219,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.streaming.connect('event', self._on_stream_event)
         self.streaming.connect('connection-changed',
                                self._on_stream_connection_changed)
+        # The stream went down after it had been up: whatever was posted
+        # meanwhile never came through it.
+        self._stream_dropped = False
 
         actions = (
             ('logout', self.on_logout_requested),
@@ -230,6 +277,8 @@ class BabbleWindow(Adw.ApplicationWindow):
                            self._sync_translucent_sidebar)
         self._sync_translucent_sidebar()
         self.connect('close-request', self._on_close_request)
+        pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
+        self._sync_global_shortcut()
 
         self._refresh_sidebar()
         self.refresh_login_widgets()
@@ -249,6 +298,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._sync_streaming()
         elif key == 'translucent-sidebar':
             self._sync_translucent_sidebar()
+        elif key == 'global-shortcut':
+            self._sync_global_shortcut()
 
     def _sync_translucent_sidebar(self, *_args):
         # The window background goes transparent so the sidebar can show
@@ -396,6 +447,109 @@ class BabbleWindow(Adw.ApplicationWindow):
         else:
             self.draft_banner.set_title(_('You have an unsent draft'))
 
+    # Copied link banner
+
+    def _setup_copied_link_banner(self):
+        """Add the 'Open copied post?' banner below the draft banner and
+        watch focus and the clipboard for links worth offering."""
+        self.copied_link_banner = Adw.Banner(button_label=_('_Open'),
+                                             use_markup=False)
+        self.draft_banner.get_parent().insert_child_after(
+            self.copied_link_banner, self.draft_banner)
+        pages.connect_weak(self.copied_link_banner, 'button-clicked',
+                           self._on_copied_link_open)
+        # Links already offered, opened or not: none is offered twice.
+        self._offered_links = set()
+        self._copied_link = None
+        self._clipboard_read = 0
+        pages.connect_weak(self, 'notify::is-active',
+                           self._on_active_changed)
+        pages.connect_weak(self.get_clipboard(), 'changed',
+                           self._on_clipboard_changed)
+
+    def _on_active_changed(self, *_args):
+        if self.is_active():
+            self._check_clipboard()
+
+    def _on_clipboard_changed(self, *_args):
+        if self.is_active():
+            self._check_clipboard()
+        elif self.copied_link_banner.get_revealed():
+            self._hide_copied_link()
+
+    def _hide_copied_link(self):
+        self._clipboard_read += 1
+        self._copied_link = None
+        self.copied_link_banner.set_revealed(False)
+
+    def _check_clipboard(self):
+        if (not self.is_active() or self.client is None
+                or not self.settings.get_boolean('offer-copied-links')):
+            self._hide_copied_link()
+            return
+        clipboard = self.get_clipboard()
+        formats = clipboard.get_formats()
+        if not (formats.contain_gtype(GObject.TYPE_STRING)
+                or formats.contain_mime_type('text/plain')
+                or formats.contain_mime_type('text/plain;charset=utf-8')):
+            self._hide_copied_link()
+            return
+        self._clipboard_read += 1
+        clipboard.read_text_async(None, pages.weak_method(
+            self._on_clipboard_text), self._clipboard_read)
+
+    def _on_clipboard_text(self, clipboard, result, serial):
+        try:
+            text = clipboard.read_text_finish(result)
+        except GLib.Error:
+            text = None
+        if serial != self._clipboard_read:
+            return  # a newer read (or a hide) superseded this one
+        if not self.is_active() or self.client is None \
+                or not self.settings.get_boolean('offer-copied-links'):
+            self._hide_copied_link()
+            return
+        url = (text or '').strip()
+        kind = copied_link_kind(url)
+        if kind is None:
+            self._hide_copied_link()
+            return
+        if url in self._offered_links:
+            if url != self._copied_link:
+                self._hide_copied_link()
+            return  # already offered: never nag twice for the same link
+        self._offered_links.add(url)
+        self._copied_link = url
+        self.copied_link_banner.set_title({
+            'post': _('Open copied post?'),
+            'profile': _('Open copied profile?'),
+            'tag': _('Open copied hashtag?')}[kind])
+        self.copied_link_banner.set_revealed(True)
+
+    def _on_copied_link_open(self, _banner):
+        url = self._copied_link
+        self._hide_copied_link()
+        if url:
+            pages.open_link(self, url, resolve=True)
+
+    # Offline banner
+
+    def _setup_offline_banner(self):
+        """Add a 'You're offline' banner below the copied-link banner,
+        shown for as long as the system reports no network."""
+        from . import sysstate
+        # Translators: banner shown while the computer has no network.
+        self.offline_banner = Adw.Banner(title=_('You’re offline'),
+                                         use_markup=False)
+        self.draft_banner.get_parent().insert_child_after(
+            self.offline_banner, self.copied_link_banner)
+        system = sysstate.monitor()
+        pages.connect_weak(system, 'notify::online', self._on_online_changed)
+        self._on_online_changed(system)
+
+    def _on_online_changed(self, system, *_args):
+        self.offline_banner.set_revealed(not system.props.online)
+
     @Gtk.Template.Callback()
     def on_draft_restore(self, _banner):
         """Reopen the newest unsent draft saved when the composer was
@@ -419,6 +573,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         """Drop every page, stream and dialog tied to the current
         client, before another account takes over."""
         self.streaming.stop()
+        self._stream_dropped = False
         emojichooser.deactivate_instance_emojis()
         self.notifier.reset()
         if self.compose_dialog is not None:
@@ -577,6 +732,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.main_stack.set_visible_child_name('shell')
         self._load_session_info()
         self._load_instance_emojis()
+        self._flush_pending_compose()
 
     def _load_instance_emojis(self):
         """The instance's whole custom-emoji set, fetched once per
@@ -662,8 +818,14 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_stream_connection_changed(self, _manager, connected):
         if connected:
             self.notifier.stop_polling()
+            if self._stream_dropped and self.timeline_page is not None:
+                # Fetch what was posted while the stream was down.
+                self.timeline_page.refresh()
+            self._stream_dropped = False
         elif self.client is not None:
+            self._stream_dropped = True
             self.notifier.start_polling()
+        self._schedule_background_status()
 
     def _timeline_pages(self):
         found = [self.timeline_page, *self.public_pages.values()]
@@ -698,6 +860,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             if self.notifications_page is not None:
                 self.notifications_page.on_stream_notification(payload)
             self.notifier.handle(payload)
+            self.note_background_notification(payload)
             return
         if name == 'conversation':
             conversations = self._place_children.get('conversations')
@@ -732,12 +895,14 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         self._background_pending = True
         self._background_asked = True
-        Gio.bus_get(Gio.BusType.SESSION, None, _on_background_bus,
-                    self.weak_ref())
+        ref = self.weak_ref()
+        _session_bus(lambda bus: _request_background(ref, bus))
 
     def _background_done(self, allowed):
         self._background_pending = False
+        self._background_allowed = allowed
         if allowed:
+            self._schedule_background_status()
             return
         self.settings.set_boolean('work-in-background', False)
         pages.show_toast(self, _('Running in the background was not allowed'))
@@ -760,6 +925,96 @@ class BabbleWindow(Adw.ApplicationWindow):
         if app is not None and self._held:
             app.release()
             self._held = False
+
+    # Background status
+
+    def note_background_notification(self, notification):
+        """Count a mention that arrived while the window is hidden, for
+        the background status line. Any notification may be passed, the
+        same one twice included."""
+        if self.get_visible() or not isinstance(notification, dict) \
+                or notification.get('type') != 'mention':
+            return
+        nid = str(notification.get('id') or '')
+        if not nid or nid in self._background_mentions:
+            return
+        self._background_mentions.add(nid)
+        self._schedule_background_status()
+
+    def _on_visible_changed(self, _window, _pspec):
+        if not self.get_visible():
+            self._schedule_background_status()
+            return
+        self._background_mentions.clear()
+        if self._status_source:
+            GLib.source_remove(self._status_source)
+            self._status_source = 0
+        if self._background_status:
+            self._background_status = ''
+            _set_background_status('')
+
+    def _schedule_background_status(self):
+        """Refresh the line GNOME Shell shows for the app running in the
+        background, once the changes of the next second have landed."""
+        if not self._background_allowed or self.get_visible() \
+                or self._status_source:
+            return
+        self._status_source = GLib.timeout_add(
+            STATUS_DELAY_MS, pages.weak_method(self._flush_background_status))
+
+    def _flush_background_status(self):
+        self._status_source = 0
+        if self._background_allowed and not self.get_visible():
+            message = self._background_status_text()[:STATUS_MAX_CHARS]
+            if message != self._background_status:
+                self._background_status = message
+                _set_background_status(message)
+        return GLib.SOURCE_REMOVE
+
+    def _background_status_text(self):
+        count = len(self._background_mentions)
+        if count:
+            # Translators: status GNOME Shell shows for Babble running in
+            # the background with its window closed.
+            return ngettext('%d new mention', '%d new mentions',
+                            count) % count
+        if self.streaming.connected:
+            # Translators: background status: live updates are streaming.
+            return _('Connected')
+        # Translators: background status: no live stream, so Babble polls
+        # the server for new notifications.
+        return _('Checking for notifications')
+
+    # Global shortcut portal
+
+    def _sync_global_shortcut(self):
+        """Bind the quick post shortcut through the GlobalShortcuts portal
+        while ``global-shortcut`` is on; close the session once it is
+        off. A missing portal is silently ignored."""
+        if not self.settings.get_boolean('global-shortcut'):
+            if self._shortcut_session is not None:
+                self._shortcut_session.close()
+                self._shortcut_session = None
+            return
+        if self._shortcut_session is not None or self._shortcut_pending:
+            return
+        self._shortcut_pending = True
+        ref = self.weak_ref()
+        _session_bus(lambda bus: _create_shortcut_session(ref, bus))
+
+    def _shortcut_ready(self, session, refused):
+        self._shortcut_pending = False
+        if refused:
+            self.settings.set_boolean('global-shortcut', False)
+            pages.show_toast(self,
+                             _('The quick post shortcut was not allowed'))
+            return
+        if session is None:
+            return
+        if not self.settings.get_boolean('global-shortcut'):
+            session.close()  # switched off while it was being bound
+            return
+        self._shortcut_session = session
 
     # Pages
 
@@ -936,6 +1191,34 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         dialog.start_reply(status_id, handle, visibility)
         self.present_composer()
+
+    def compose_with_files(self, paths=()):
+        """Open the composer with *paths* attached: what "Open With
+        Babble" on an image or video does. Before a session exists the
+        request waits, and is handed over once an account is signed in."""
+        if self.client is None or self.account is None:
+            pending = self._pending_compose or []
+            pending.extend(p for p in paths if p not in pending)
+            self._pending_compose = pending
+            if paths and self.main_stack.get_visible_child_name() == 'login':
+                self.show_toast(ngettext(
+                    'Sign in to post the file',
+                    'Sign in to post the files', len(paths)))
+            return
+        dialog = self.present_composer()
+        if dialog is None:
+            return
+        if paths:
+            # The composer's own intake: media only, up to the limit,
+            # with a toast for whatever was left out.
+            dialog.view.add_attachment_files(list(paths))
+
+    def _flush_pending_compose(self):
+        pending = self._pending_compose
+        if pending is None:
+            return
+        self._pending_compose = None
+        self.compose_with_files(pending)
 
     # Sidebar
 
@@ -1246,6 +1529,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         """
         self._auth_attempt += 1
         self._pending_code = None
+        self._stop_loopback()
         return self._auth_attempt
 
     def consume_code(self, code):
@@ -1282,7 +1566,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._auth_mode = AUTH_LOGIN
         self.begin_auth_attempt()
         self.refresh_login_widgets()
-        self._auth_client.register_app_async(callback=self.on_app_registered)
+        self._auth_client.register_app_async(
+            loopback=self._start_loopback(), callback=self.on_app_registered)
 
     @Gtk.Template.Callback()
     def on_cancel_login_clicked(self, _button):
@@ -1293,6 +1578,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._grab_focus(self.instance_entry)
 
     def _reset_login(self):
+        self._stop_loopback()
         self._auth_client = None
         self._fallback = False
         self.paste_code_button.set_visible(False)
@@ -1317,7 +1603,8 @@ class BabbleWindow(Adw.ApplicationWindow):
                                _('Could not register with %s')
                                % client.instance, e.message)
             return
-        redirect = OOB_REDIRECT if self._fallback else OAUTH_REDIRECT
+        redirect = OOB_REDIRECT if self._fallback \
+            else self._loopback_uri or OAUTH_REDIRECT
         scopes = ADMIN_SCOPES if self._auth_mode == AUTH_ADMIN else OAUTH_SCOPES
         self.open_url(client.get_authorize_url(redirect, scopes))
         if not self._fallback:
@@ -1360,19 +1647,131 @@ class BabbleWindow(Adw.ApplicationWindow):
         else:
             self.paste_code_button.set_visible(True)
 
-    def on_oauth_callback(self, uri):
+    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
+        """Exchange the code a redirect to *redirect_uri* carries.
+
+        Returns whether the exchange started. *uri* arrives on the
+        ``babble://`` scheme or, rebuilt from the request, on the
+        loopback listener; either way it must answer the authorization
+        in flight.
+        """
         client = self._auth_client
         if client is None:
-            return
+            return False
         # parse_callback_uri drops a callback whose state belongs to a
         # different authorization than the one in flight.
         code = client.parse_callback_uri(uri)
         if code is None:
+            return False
+        return self.start_token_exchange(code, redirect_uri)
+
+    # Loopback redirect
+
+    def _start_loopback(self):
+        """Listen on 127.0.0.1 for the redirect of the authorization
+        starting now, returning its ``http://127.0.0.1:<port>/callback``
+        URI.
+
+        The browser hands a loopback redirect straight back, so the login
+        needs no ``babble://`` handler registered on the desktop. When no
+        port can be bound this returns None and the authorization names
+        ``babble://`` as before.
+        """
+        self._stop_loopback()
+        server = Soup.Server()
+        try:
+            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY)
+        except GLib.Error:
+            return None
+        uris = server.get_uris()
+        if not uris or uris[0].get_port() <= 0:
+            server.disconnect()
+            return None
+        # Held weakly: the window owns the server, and a strong handler
+        # would close a cycle through C that the collector cannot see.
+        server.add_handler(None, pages.weak_method(self._on_loopback_request))
+        self._loopback = server
+        self._loopback_uri = loopback_redirect(uris[0].get_port())
+        self._loopback_timeout = GLib.timeout_add_seconds(
+            LOOPBACK_TIMEOUT_SECONDS,
+            pages.weak_method(self._on_loopback_expired))
+        return self._loopback_uri
+
+    def _detach_loopback(self):
+        """Forget the listener without closing it, returning it."""
+        server, self._loopback = self._loopback, None
+        self._loopback_uri = None
+        if self._loopback_timeout:
+            GLib.source_remove(self._loopback_timeout)
+            self._loopback_timeout = 0
+        return server
+
+    def _stop_loopback(self):
+        server = self._detach_loopback()
+        if server is not None:
+            server.disconnect()
+
+    def _on_loopback_expired(self):
+        self._loopback_timeout = 0
+        self._stop_loopback()
+        return GLib.SOURCE_REMOVE
+
+    def _on_loopback_request(self, server, msg, path, _query):
+        """Answer one request to the loopback listener.
+
+        Only ``GET /callback`` answering the authorization in flight is
+        taken, through the same state check a ``babble://`` redirect
+        gets. The first one to start the exchange spends the listener:
+        it closes as soon as the browser has the page.
+        """
+        if server is not self._loopback or path != LOOPBACK_CALLBACK_PATH:
+            msg.set_status(404, None)
             return
-        self.start_token_exchange(code, OAUTH_REDIRECT)
+        if msg.get_method() != 'GET':
+            msg.get_response_headers().replace('Allow', 'GET')
+            msg.set_status(405, None)
+            return
+        redirect = self._loopback_uri
+        query = msg.get_uri().get_query()
+        uri = redirect + '?' + query if query else redirect
+        if not self.on_oauth_callback(uri, redirect):
+            self._loopback_reply(
+                msg, 400,
+                _('Babble could not use this login'),
+                _('Return to Babble and try logging in again.'))
+            return
+        self._loopback_reply(
+            msg, 200,
+            # Translators: heading of the web page the browser shows
+            # once it has handed the login back to the app
+            _('Logged in with Babble'),
+            _('You can close this tab and return to Babble.'))
+        self._detach_loopback()
+        msg.connect('finished', _close_loopback, server)
+        msg.connect('disconnected', _close_loopback, server)
+        # No activation token comes back from the browser, so this may
+        # only mark the window as wanting attention.
+        self.present()
+
+    @staticmethod
+    def _loopback_reply(msg, status, heading, body):
+        page = ('<!DOCTYPE html>\n<html><head><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width">'
+                '<title>%s</title><style>body{font-family:system-ui,'
+                'sans-serif;text-align:center;margin:4em 1em}</style>'
+                '</head><body><h1>%s</h1><p>%s</p></body></html>\n'
+                % (html.escape(heading), html.escape(heading),
+                   html.escape(body)))
+        msg.set_status(status, None)
+        msg.get_response_headers().replace('Cache-Control', 'no-store')
+        msg.set_response('text/html; charset=utf-8', Soup.MemoryUse.COPY,
+                         page.encode('utf-8'))
 
     @Gtk.Template.Callback()
     def on_paste_code_clicked(self, button):
+        # The authorization is named again for the out-of-band redirect,
+        # so nothing can answer on the loopback listener any more.
+        self._stop_loopback()
         self._fallback = True
         self.paste_code_button.set_visible(False)
         if self._auth_client is not None and self._auth_client.client_id is not None:
@@ -1444,6 +1843,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             return False
         self._settled_attempt = attempt
         self._pending_code = None
+        self._stop_loopback()
         # The pending "finish in the browser" toast gives way to the
         # outcome instead of queueing behind it.
         self.toast_overlay.dismiss_all()
@@ -1534,7 +1934,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.begin_auth_attempt()
         self.refresh_login_widgets()
         self._auth_client.register_app_async(
-            scopes=ADMIN_SCOPES, callback=self.on_app_registered)
+            scopes=ADMIN_SCOPES, loopback=self._start_loopback(),
+            callback=self.on_app_registered)
 
     def _on_admin_token(self, client, account, attempt):
         """Keep the moderation token as the signed-in account's token."""
@@ -1596,6 +1997,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._auth_admin_callback = None
         self._admin_owner = None
         self._auth_attempt += 1
+        self._stop_loopback()
         self._auth_client = None
         self._auth_mode = AUTH_LOGIN
         self._fallback = False
@@ -1701,12 +2103,27 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.show_toast('%s: %s' % (heading, summarize_error(body)))
 
 
-# XDG Background portal plumbing. The callbacks hold the window only
-# through a GObject weak reference, so a pending request never keeps a
-# closed window alive.
+# XDG portal plumbing: Background (running with the window closed, and
+# the status line shown for it) and GlobalShortcuts (quick post). The
+# callbacks hold the window only through a GObject weak reference, so a
+# pending request never keeps a closed window alive.
 
 _PORTAL_NAME = 'org.freedesktop.portal.Desktop'
 _PORTAL_PATH = '/org/freedesktop/portal/desktop'
+_BACKGROUND = 'org.freedesktop.portal.Background'
+_SHORTCUTS = 'org.freedesktop.portal.GlobalShortcuts'
+_SESSION = 'org.freedesktop.portal.Session'
+
+# The Background portal refuses status messages longer than this.
+STATUS_MAX_CHARS = 96
+# Status changes arriving within this many milliseconds share one call.
+STATUS_DELAY_MS = 1000
+QUICK_POST_SHORTCUT = 'quick-post'
+# A trigger as the XDG shortcuts specification writes it (LOGO is Super).
+QUICK_POST_TRIGGER = 'LOGO+SHIFT+m'
+
+# Portal interface -> its version (0: missing), as first answered.
+_portal_versions = {}
 
 
 def _swallow(finish, result):
@@ -1719,40 +2136,71 @@ def _swallow(finish, result):
         pass
 
 
-def _background_finish(window_ref, allowed):
-    window = window_ref()
-    if window is None:
-        return
-    if allowed is None:  # no portal: nothing to ask, nothing to undo
-        window._background_failed()
-    else:
-        window._background_done(allowed)
+def _swallow_call(connection, result):
+    _swallow(connection.call_finish, result)
 
 
-def _on_background_bus(_source, result, window_ref):
-    try:
-        bus = Gio.bus_get_finish(result)
-    except GLib.Error:
-        _background_finish(window_ref, None)
+def _session_bus(callback):
+    """Hand *callback* the session bus, or None when there is none."""
+    def done(_source, result):
+        try:
+            bus = Gio.bus_get_finish(result)
+        except GLib.Error:
+            bus = None
+        callback(bus)
+    Gio.bus_get(Gio.BusType.SESSION, None, done)
+
+
+def portal_version(interface, callback):
+    """Call *callback(version)* with the version of the portal
+    *interface*, 0 when the portal or that interface is missing. The
+    answer is cached; a missing session bus is not, it may come back."""
+    if interface in _portal_versions:
+        callback(_portal_versions[interface])
         return
-    if window_ref() is None:
-        return
+
+    def on_got(bus, result):
+        try:
+            version, = bus.call_finish(result).unpack()
+        except GLib.Error:
+            version = 0
+        _portal_versions[interface] = int(version)
+        callback(_portal_versions[interface])
+
+    def on_bus(bus):
+        if bus is None:
+            callback(0)
+            return
+        bus.call(_PORTAL_NAME, _PORTAL_PATH,
+                 'org.freedesktop.DBus.Properties', 'Get',
+                 GLib.Variant('(ss)', (interface, 'version')),
+                 GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, -1, None,
+                 on_got)
+    _session_bus(on_bus)
+
+
+def _portal_request(bus, interface, method, signature, args, options,
+                    on_response):
+    """Call the portal *method*, whose answer arrives later as the
+    ``org.freedesktop.portal.Request`` ``Response`` signal. *options*,
+    the trailing ``a{sv}`` of *signature*, gains the ``handle_token``.
+    *on_response(code, results)* runs once; *code* is None when the call
+    itself failed (no portal, D-Bus error)."""
     token = 'babble_%s' % secrets.token_hex(8)
     sender = (bus.get_unique_name() or '').lstrip(':').replace('.', '_')
     request_path = '/org/freedesktop/portal/desktop/request/%s/%s' % (
         sender, token)
     state = {'id': 0}
 
-    def on_response(connection, _sender, _path, _iface, _signal, params):
+    def on_signal(_connection, _sender, _path, _iface, _signal, params):
         unsubscribe()
         code, results = params.unpack()
-        _background_finish(
-            window_ref, code == 0 and bool(results.get('background')))
+        on_response(code, results)
 
     def subscribe(path):
         state['id'] = bus.signal_subscribe(
             _PORTAL_NAME, 'org.freedesktop.portal.Request', 'Response',
-            path, None, Gio.DBusSignalFlags.NONE, on_response)
+            path, None, Gio.DBusSignalFlags.NONE, on_signal)
 
     def unsubscribe():
         if state['id']:
@@ -1767,20 +2215,165 @@ def _on_background_bus(_source, result, window_ref):
             handle, = connection.call_finish(call_result).unpack()
         except GLib.Error:
             unsubscribe()
-            _background_finish(window_ref, None)
+            on_response(None, {})
             return
         if handle != request_path and state['id']:
             # Pre-0.9 portals pick their own request path.
             unsubscribe()
             subscribe(handle)
 
-    options = {
-        'handle_token': GLib.Variant('s', token),
-        'reason': GLib.Variant(
-            's', _('Deliver notifications while the window is closed')),
-        'autostart': GLib.Variant('b', False),
-    }
-    bus.call(_PORTAL_NAME, _PORTAL_PATH, 'org.freedesktop.portal.Background',
-             'RequestBackground', GLib.Variant('(sa{sv})', ('', options)),
+    options = dict(options, handle_token=GLib.Variant('s', token))
+    bus.call(_PORTAL_NAME, _PORTAL_PATH, interface, method,
+             GLib.Variant(signature, (*args, options)),
              GLib.VariantType('(o)'), Gio.DBusCallFlags.NONE, -1, None,
              on_called)
+
+
+def _background_finish(window_ref, allowed):
+    window = window_ref()
+    if window is None:
+        return
+    if allowed is None:  # no portal: nothing to ask, nothing to undo
+        window._background_failed()
+    else:
+        window._background_done(allowed)
+
+
+def _request_background(window_ref, bus):
+    if bus is None:
+        _background_finish(window_ref, None)
+        return
+    if window_ref() is None:
+        return
+
+    def on_response(code, results):
+        _background_finish(window_ref, None if code is None else
+                           code == 0 and bool(results.get('background')))
+
+    _portal_request(bus, _BACKGROUND, 'RequestBackground', '(sa{sv})',
+                    ('',), {
+                        'reason': GLib.Variant('s', _(
+                            'Deliver notifications while the window is '
+                            'closed')),
+                        'autostart': GLib.Variant('b', False),
+                    }, on_response)
+
+
+def _set_background_status(message):
+    """Best-effort ``Background.SetStatus``, which needs version 2 of
+    the portal; *message* '' clears the status."""
+    def on_bus(bus):
+        if bus is not None:
+            bus.call(_PORTAL_NAME, _PORTAL_PATH, _BACKGROUND, 'SetStatus',
+                     GLib.Variant('(a{sv})', (
+                         {'message': GLib.Variant('s', message)},)),
+                     None, Gio.DBusCallFlags.NONE, -1, None, _swallow_call)
+
+    def on_version(version):
+        if version >= 2:
+            _session_bus(on_bus)
+
+    portal_version(_BACKGROUND, on_version)
+
+
+class _ShortcutSession:
+    """A GlobalShortcuts session with the quick post shortcut bound.
+    Holds no window: activating the shortcut goes through the
+    application's ``compose`` action."""
+
+    def __init__(self, bus, handle, on_lost):
+        self.bus = bus
+        self.handle = handle
+        self._on_lost = on_lost
+        self._subscriptions = [
+            bus.signal_subscribe(_PORTAL_NAME, _SHORTCUTS, 'Activated',
+                                 _PORTAL_PATH, None,
+                                 Gio.DBusSignalFlags.NONE,
+                                 self._on_activated),
+            bus.signal_subscribe(_PORTAL_NAME, _SESSION, 'Closed', handle,
+                                 None, Gio.DBusSignalFlags.NONE,
+                                 self._on_closed),
+        ]
+
+    def _on_activated(self, _connection, _sender, _path, _iface, _signal,
+                      params):
+        session, shortcut_id = params.unpack()[:2]
+        if session != self.handle or shortcut_id != QUICK_POST_SHORTCUT:
+            return
+        app = Gio.Application.get_default()
+        if app is not None and app.has_action('compose'):
+            app.activate_action('compose', None)
+
+    def _on_closed(self, *_args):
+        # Ended by the portal (or the user, in the system settings).
+        self._unsubscribe()
+        on_lost, self._on_lost = self._on_lost, None
+        if on_lost is not None:
+            on_lost(self)
+
+    def _unsubscribe(self):
+        for subscription in self._subscriptions:
+            self.bus.signal_unsubscribe(subscription)
+        self._subscriptions = []
+
+    def close(self):
+        if not self._subscriptions:
+            return
+        self._unsubscribe()
+        self._on_lost = None
+        self.bus.call(_PORTAL_NAME, self.handle, _SESSION, 'Close', None,
+                      None, Gio.DBusCallFlags.NONE, -1, None, _swallow_call)
+
+
+def _shortcut_finish(window_ref, session, refused=False):
+    window = window_ref()
+    if window is None:
+        if session is not None:
+            session.close()
+        return
+    window._shortcut_ready(session, refused)
+
+
+def _shortcut_lost(window_ref, session):
+    window = window_ref()
+    if window is not None and window._shortcut_session is session:
+        window._shortcut_session = None
+
+
+def _create_shortcut_session(window_ref, bus):
+    """CreateSession, then BindShortcuts on the session it answers."""
+    if bus is None:
+        _shortcut_finish(window_ref, None)
+        return
+
+    def on_created(code, results):
+        handle = results.get('session_handle') if code == 0 else None
+        if not handle:
+            _shortcut_finish(window_ref, None)
+            return
+        session = _ShortcutSession(
+            bus, handle, lambda lost: _shortcut_lost(window_ref, lost))
+        if window_ref() is None:
+            session.close()
+            return
+
+        def on_bound(code, _results):
+            if code == 0:
+                _shortcut_finish(window_ref, session)
+                return
+            session.close()
+            # 1 is the user saying no; 2 or a failed call refused nothing.
+            _shortcut_finish(window_ref, None, refused=code == 1)
+
+        shortcut = (QUICK_POST_SHORTCUT, {
+            'description': GLib.Variant('s', _('New Post')),
+            'preferred_trigger': GLib.Variant('s', QUICK_POST_TRIGGER),
+        })
+        _portal_request(bus, _SHORTCUTS, 'BindShortcuts',
+                        '(oa(sa{sv})sa{sv})', (handle, [shortcut], ''), {},
+                        on_bound)
+
+    _portal_request(bus, _SHORTCUTS, 'CreateSession', '(a{sv})', (), {
+        'session_handle_token': GLib.Variant(
+            's', 'babble_%s' % secrets.token_hex(8)),
+    }, on_created)

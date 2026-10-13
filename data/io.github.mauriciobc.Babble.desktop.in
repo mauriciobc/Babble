@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Babble
 Comment=Follow your Mastodon timelines
-Exec=babble %u
-MimeType=x-scheme-handler/babble;
+Exec=babble %U
+MimeType=x-scheme-handler/babble;x-scheme-handler/web+ap;x-scheme-handler/web+mastodon;image/png;image/jpeg;image/gif;image/webp;image/avif;video/mp4;video/webm;video/quicktime;audio/mpeg;audio/ogg;audio/opus;audio/flac;audio/x-wav;audio/mp4;
 Icon=io.github.mauriciobc.Babble
 Terminal=false
 Type=Application
@@ -10,3 +10,14 @@ Categories=Network;Chat;
 # Translators: Search terms to find this application. Do NOT translate or localize the semicolons. The list MUST also end with a semicolon.
 Keywords=Mastodon;Fediverse;Social;Toot;Post;
 StartupNotify=true
+DBusActivatable=true
+# The action ids are the application actions D-Bus activation runs.
+Actions=compose;show-notifications;
+
+[Desktop Action compose]
+Name=New Post
+Exec=babble
+
+[Desktop Action show-notifications]
+Name=Notifications
+Exec=babble

@@ -25,6 +25,7 @@ from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
+from .statustext import clock_format  # noqa: E402
 
 # Tuba: scheduled statuses dated in a year after this one are drafts.
 # NOTE: revisit in the year 3000.
@@ -68,14 +69,21 @@ def draft_scheduled_at():
 
 
 def format_scheduled_at(iso):
-    """Localized date and time of *iso* in the local time zone."""
+    """Localized date and time of *iso* in the local time zone, the time
+    in the desktop's clock format."""
     date_time = _parse(iso)
     if date_time is None:
         return ''
     local = date_time.to_local()
-    # Translators: strftime format of a scheduled date and time, e.g.
-    # "October 9, 2026 · 14:30".
-    formatted = local.format(_('%B %-e, %Y · %H:%M'))
+    if clock_format() == '12h':
+        # Translators: strftime format of a scheduled date and 12-hour
+        # time, e.g. "October 9, 2026 · 2:30 PM".
+        fmt = _('%B %-e, %Y · %-I:%M %p')
+    else:
+        # Translators: strftime format of a scheduled date and time, e.g.
+        # "October 9, 2026 · 14:30".
+        fmt = _('%B %-e, %Y · %H:%M')
+    formatted = local.format(fmt)
     return formatted if formatted is not None else local.format('%c')
 
 

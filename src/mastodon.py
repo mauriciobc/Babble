@@ -103,6 +103,17 @@ def new_state():
 OAUTH_REDIRECT = 'babble://oauth/callback'
 OOB_REDIRECT = 'urn:ietf:wg:oauth:2.0:oob'
 REDIRECT_URIS = OAUTH_REDIRECT + ' ' + OOB_REDIRECT
+# Where a loopback listener answers the redirect. Mastodon accepts a
+# plain-http redirect URI and compares it exactly against the registered
+# set, so the port the listener got is registered for that one login.
+LOOPBACK_CALLBACK_PATH = '/callback'
+
+
+def loopback_redirect(port):
+    """The redirect URI of a listener on 127.0.0.1 *port*."""
+    return 'http://127.0.0.1:%d%s' % (port, LOOPBACK_CALLBACK_PATH)
+
+
 OAUTH_SCOPES = 'read write follow'
 
 # The moderation scopes, asked for only by the admin dashboard and only
@@ -273,6 +284,9 @@ class MastodonClient(GObject.Object):
         self.instance_info = None
         self._code_verifier = None
         self._state = None
+        # The redirect the authorization in flight named; only a callback
+        # on that one answers it.
+        self._redirect_uri = OAUTH_REDIRECT
         self._rate_limited_until = 0.0
         self._session = Soup.Session()
         try:
@@ -456,19 +470,25 @@ class MastodonClient(GObject.Object):
 
     # OAuth
 
-    def register_app_async(self, scopes=OAUTH_SCOPES, *,
+    def register_app_async(self, scopes=OAUTH_SCOPES, *, loopback=None,
                            callback=None, cancellable=None):
         """POST /api/v1/apps. *scopes* becomes the ceiling every later
         authorization may ask for: Mastodon refuses to authorize a scope
         the registration did not declare.
 
+        *loopback*, a :func:`loopback_redirect` URI, is registered ahead
+        of the ``babble://`` and out-of-band redirects, which stay as the
+        fallbacks an authorization can still name.
+
         *callback* is keyword-only: passing the handler positionally used
         to bind it to *scopes*, which silently left the registration with
         no completion handler and the browser step never opened.
         """
+        redirect_uris = REDIRECT_URIS if loopback is None \
+            else loopback + ' ' + REDIRECT_URIS
         return self._request_async('POST', '/apps',
                                    form={'client_name': 'Babble',
-                                         'redirect_uris': REDIRECT_URIS,
+                                         'redirect_uris': redirect_uris,
                                          'scopes': scopes,
                                          'website': APP_WEBSITE},
                                    callback=callback, cancellable=cancellable)
@@ -583,6 +603,7 @@ class MastodonClient(GObject.Object):
         """
         self._code_verifier = generate_code_verifier()
         self._state = new_state()
+        self._redirect_uri = redirect_uri
         query = urllib.parse.urlencode({
             'client_id': self.client_id,
             'redirect_uri': redirect_uri,
@@ -609,14 +630,14 @@ class MastodonClient(GObject.Object):
         the code directly and :meth:`request_token_async` binds it to
         the verifier on its own.
 
-        Only the registered redirect itself is read: a ``babble://`` URL
-        with another host or path is not an answer to this authorization.
+        Only the redirect this authorization named is read: a URL with
+        another scheme, host, port or path is not an answer to it.
         """
         try:
             parts = urllib.parse.urlsplit(uri)
         except ValueError:  # a malformed authority, such as an unmatched '['
             return None
-        expected = urllib.parse.urlsplit(OAUTH_REDIRECT)
+        expected = urllib.parse.urlsplit(self._redirect_uri)
         # The scheme and host are case-insensitive (urlsplit already
         # lowercases the scheme); the path is not.
         if (parts.scheme, parts.netloc.lower(), parts.path) \

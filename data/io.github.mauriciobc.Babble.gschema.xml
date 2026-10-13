@@ -144,6 +144,11 @@
       <default>true</default>
       <summary>Open links to posts and profiles on other servers inside Babble</summary>
     </key>
+    <key name="offer-copied-links" type="b">
+      <default>true</default>
+      <summary>Offer to open post and profile links found on the clipboard</summary>
+      <description>When the window gains focus, check the clipboard for a link to a post, profile or hashtag and offer to open it in Babble.</description>
+    </key>
     <key name="reply-to-old-post-reminder" type="b">
       <default>true</default>
       <summary>Warn before replying to a post older than three months</summary>
@@ -159,6 +164,11 @@
     <key name="work-in-background" type="b">
       <default>false</default>
       <summary>Keep running after the window closes to deliver notifications</summary>
+    </key>
+    <key name="global-shortcut" type="b">
+      <default>false</default>
+      <summary>Bind a system-wide shortcut that opens the composer</summary>
+      <description>Registered through the XDG GlobalShortcuts portal; the key combination is chosen in the system settings.</description>
     </key>
     <key name="live-updates" type="b">
       <default>true</default>

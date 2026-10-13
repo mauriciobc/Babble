@@ -501,6 +501,233 @@ check('a duplicated dispatch is delivered once',
 check('a later dispatch reuses that window',
       app.props.active_window is win)
 
+# --- Open With: local files go to the composer, web URIs nowhere --------
+
+composed = []
+win.compose_with_files = lambda paths=(): composed.append(list(paths))
+delivered.clear()
+png = Gio.File.new_for_uri('file:///tmp/babble-open-with/picture.png')
+app.on_open(None, [png], 1, None)
+check('an opened image is handed to the composer',
+      composed == [['/tmp/babble-open-with/picture.png']] and delivered == [])
+composed.clear()
+app.on_open(None, [Gio.File.new_for_uri('http://example.com/x.png')], 1, None)
+check('a web URI handed to open is ignored',
+      composed == [] and delivered == [])
+app.on_open(None, [uri, png], 2, None)
+check('a redirect next to a file still reaches the OAuth handler',
+      delivered == [REDIRECT_URI]
+      and composed == [['/tmp/babble-open-with/picture.png']])
+
+# --- The jump-list and routing actions ---------------------------------
+
+check('the application exports the desktop actions',
+      all(app.lookup_action(name) is not None
+          for name in ('compose', 'show-notifications', 'open-uri',
+                       'open-notifications')))
+composed.clear()
+# Activated on the action itself: through the application, a Babble
+# already running on the session bus would be the one to receive it.
+app.lookup_action('compose').activate(None)
+check('app.compose opens the composer', composed == [[]])
+routed = []
+real_open_link = pages.open_link
+pages.open_link = lambda widget, link: routed.append((widget, link))
+try:
+    app.lookup_action('open-uri').activate(
+        GLib.Variant('s', 'https://example.social/@me/1'))
+finally:
+    pages.open_link = real_open_link
+check('app.open-uri routes the link through the window',
+      routed == [(win, 'https://example.social/@me/1')])
+
+# --- web+ap and web+mastodon links open inside the window --------------
+
+import src.main as main_module  # noqa: E402
+
+
+class SearchClient:
+    """A session whose /api/v2/search answers *answer*, recording each
+    query it is asked."""
+
+    def __init__(self, answer):
+        self.answer = answer
+        self.searches = []
+
+    def request_async(self, method, path, params=None, callback=None, **_kw):
+        self.searches.append((method, path, dict(params or {})))
+        callback(self, StubTask(json.dumps(self.answer)))
+
+    def request_finish(self, result):
+        return json.loads(result.propagate_value()[1].get_string())
+
+
+class PrefillView:
+    def __init__(self):
+        self.texts = []
+
+    def prefill_text(self, text):
+        self.texts.append(text)
+
+
+parse = main_module.parse_web_uri
+check('web+ap names the object at its https address',
+      parse('web+ap://mastodon.social/@Gargron/1')
+      == ('resolve', 'https://mastodon.social/@Gargron/1'))
+check('the web+ap scheme and host match in any case, the query is kept',
+      parse('WEB+AP://Mastodon.Social/@Gargron/1?x=1#top')
+      == ('resolve', 'https://mastodon.social/@Gargron/1?x=1'))
+check('a follow intent names the account',
+      parse('web+mastodon://follow?uri=acct:a@b.c') == ('account', 'a@b.c'))
+check('a follow intent may name a profile by its https address',
+      parse('web+mastodon://follow?uri=https://b.c/@a')
+      == ('resolve', 'https://b.c/@a'))
+check('a share intent carries its text',
+      parse('web+mastodon://share?text=hi%20there')
+      == ('share', 'hi there'))
+malformed = ('web+ap:///@Gargron/1', 'web+ap:@Gargron/1',
+             'web+ap://user@evil.example/@a/1', 'web+ap://[bad/@a',
+             'web+ap://javascript:alert(1)', 'web+ap:javascript:alert(1)',
+             # What GVfs makes of the line above.
+             'web+ap://javascript:0/', 'web+ap://localhost/@a/1',
+             'web+ap://evil.example:99999/@a',
+             'web+mastodon://follow?uri=javascript:alert(1)',
+             'web+mastodon://follow?uri=http://plain.example/@a',
+             'web+mastodon://follow?uri=https://u@evil.example/@a',
+             'web+mastodon://follow', 'web+mastodon://evil?uri=acct:a@b.c',
+             'web+mastodon:share?text=hi', 'https://mastodon.social/@a/1')
+check('malformed links name nothing',
+      [u for u in malformed if parse(u) is not None] == [])
+
+launched_links = []
+real_launch_external = pages.launch_external
+pages.launch_external = lambda widget, link: launched_links.append(link)
+real_open_link, real_open_profile = pages.open_link, pages.open_profile
+linked, profiles = [], []
+pages.open_link = lambda w, link, resolve=False: linked.append(
+    (w, link, resolve))
+pages.open_profile = lambda w, c, account=None, acct=None: profiles.append(
+    (w, c, account, acct))
+app_toasts = []
+win.show_toast = app_toasts.append
+win.account = {'id': '42', 'acct': 'me', 'instance': 'https://example.social'}
+win.client = SearchClient({})
+try:
+    app.on_open(None, [Gio.File.new_for_uri(
+        'web+ap://mastodon.social/@Gargron/1')], 1, None)
+    check('web+ap reaches the resolver with the https address',
+          linked == [(win, 'https://mastodon.social/@Gargron/1', True)])
+    linked.clear()
+    app.on_open(None, [Gio.File.new_for_uri(
+        'web+mastodon://follow?uri=acct:a@b.c')], 1, None)
+    check('a follow intent resolves the account',
+          profiles == [(win, win.client, None, 'a@b.c')] and linked == [])
+    profiles.clear()
+    app.on_open(None, [Gio.File.new_for_uri(
+        'web+mastodon://follow?uri=https://b.c/@a')], 1, None)
+    check('a follow intent by address resolves it',
+          linked == [(win, 'https://b.c/@a', True)])
+    linked.clear()
+    delivered.clear()
+    composed.clear()
+    app.on_open(None, [Gio.File.new_for_uri(u) for u in malformed], 1, None)
+    check('malformed links are ignored',
+          linked == [] and profiles == [] and app_toasts == []
+          and delivered == [] and composed == [] and launched_links == [])
+    app.on_open(None, [uri, Gio.File.new_for_uri(
+        'web+ap://mastodon.social/@Gargron/1'), png], 3, None)
+    check('babble:// and file:// still work next to a web+ap link',
+          delivered == [REDIRECT_URI]
+          and composed == [['/tmp/babble-open-with/picture.png']]
+          and len(linked) == 1)
+finally:
+    pages.open_link, pages.open_profile = real_open_link, real_open_profile
+
+prefill = PrefillView()
+win.present_composer = lambda: types.SimpleNamespace(view=prefill)
+app.on_open(None, [Gio.File.new_for_uri('web+mastodon://share?text=hi')],
+            1, None)
+check('a share intent opens the composer with its text',
+      prefill.texts == ['hi'])
+
+# End to end: a web+ap post is looked up on the instance even with
+# aggressive resolving off, and opened in the app.
+opened = []
+real_open_status = pages.open_status
+pages.open_status = lambda w, c, status: opened.append(status)
+resolving = pages.settings().get_boolean('aggressive-resolving')
+pages.settings().set_boolean('aggressive-resolving', False)
+try:
+    win.client = SearchClient({'statuses': [{'id': '1'}]})
+    app.on_open(None, [Gio.File.new_for_uri(
+        'web+ap://mastodon.social/@Gargron/1')], 1, None)
+    check('a web+ap link is searched for with resolve',
+          [s[2] for s in win.client.searches]
+          == [{'q': 'https://mastodon.social/@Gargron/1', 'resolve': 'true',
+               'limit': 1}])
+    check('the found post is opened in the app',
+          opened == [{'id': '1'}] and launched_links == [])
+finally:
+    pages.open_status = real_open_status
+    pages.settings().set_boolean('aggressive-resolving', resolving)
+    pages.launch_external = real_launch_external
+
+# Before a session exists the link waits, and is opened once signed in.
+app_toasts.clear()
+prefill.texts.clear()
+win.client = win.account = None
+win.main_stack.set_visible_child_name('login')
+app.on_open(None, [Gio.File.new_for_uri('web+mastodon://share?text=hi')],
+            1, None)
+check('a link opened while signed out waits for a session',
+      prefill.texts == [] and app_toasts == [_('Sign in to open this link')])
+win.client = SearchClient({})
+win.account = {'id': '42', 'acct': 'me', 'instance': 'https://example.social'}
+win.main_stack.set_visible_child_name('shell')
+check('signing in opens the waiting link', prefill.texts == ['hi'])
+win.main_stack.set_visible_child_name('login')
+win.main_stack.set_visible_child_name('shell')
+check('the waiting link is opened once', prefill.texts == ['hi'])
+win.client = win.account = None
+win.main_stack.set_visible_child_name('login')
+
+# --- Files opened before signing in wait for the session ----------------
+
+
+class FakeComposeView:
+    """Records what reaches the composer's intake; its filtering and
+    limit are the compose test's to check."""
+
+    def __init__(self):
+        self.batches = []
+
+    def add_attachment_files(self, files):
+        self.batches.append(list(files))
+        return []
+
+
+win, toasts = fresh_window()
+fake_view = FakeComposeView()
+presented = []
+win.present_composer = lambda: (presented.append(True)
+                                or types.SimpleNamespace(view=fake_view))
+win.compose_with_files(['/tmp/a.png', '/tmp/b.png'])
+win.compose_with_files(['/tmp/b.png', '/tmp/c.mp4'])
+check('files opened while signed out wait for a session',
+      presented == [] and fake_view.batches == []
+      and toasts == [_('Sign in to post the files')] * 2)
+toasts.clear()
+client = start_attempt(win, StubClient())
+win.on_oauth_callback(REDIRECT_URI)
+pump()
+check('signing in hands the waiting files to the composer, once each',
+      presented == [True]
+      and fake_view.batches == [['/tmp/a.png', '/tmp/b.png',
+                                  '/tmp/c.mp4']])
+presented.clear()
+win.show_shell()
+check('the waiting files are handed over once', presented == [])
+
 # --- A stale keyring reply must not touch the session -------------------
 
 # Reading the token is an out-of-process round trip, so a switch can be
@@ -519,8 +746,8 @@ class AdminScopeClient(StubClient):
         self.registered_with = None
         AdminScopeClient.created.append(self)
 
-    def register_app_async(self, scopes=None, callback=None,
-                           cancellable=None):
+    def register_app_async(self, scopes=None, *, loopback=None,
+                           callback=None, cancellable=None):
         self.registered_with = scopes
         self.reply(callback, StubTask(
             '{"client_id": "admin-client", "client_secret": "admin-secret"}'))

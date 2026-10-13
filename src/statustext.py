@@ -6,10 +6,11 @@ them.
 Split out of ``timeline.py`` because none of this builds a widget: it is
 plain text in, plain data out, and six modules need it (announcements,
 conversations, reports, textemoji, the notifications row and the
-timeline itself) without dragging in the row and the list view. The one
-dependency is GLib, for ``DateTime`` -- so a post older than a year is
-formatted in the reader's timezone -- which needs no display, leaving
-the whole module readable and testable headless.
+timeline itself) without dragging in the row and the list view. The
+dependencies are GLib, for ``DateTime`` -- so a post older than a year
+is formatted in the reader's timezone -- and Gio, to read the desktop's
+12/24-hour clock setting; neither needs a display, leaving the whole
+module readable and testable headless.
 """
 
 import datetime
@@ -20,13 +21,14 @@ from html.parser import HTMLParser
 import gi
 
 gi.require_version('GLib', '2.0')
+gi.require_version('Gio', '2.0')
 
 try:
     from .i18n import gettext as _
 except ImportError:  # loaded as a top-level module by the standalone tests
     from i18n import gettext as _
 
-from gi.repository import GLib  # noqa: E402
+from gi.repository import Gio, GLib  # noqa: E402
 
 
 class _ContentParser(HTMLParser):
@@ -155,6 +157,150 @@ def parse_content(html_text):
     while segments and segments[-1]['text'] == '\n':
         segments.pop()
     return segments
+
+
+_INTERFACE_SCHEMA = 'org.gnome.desktop.interface'
+_CLOCK_KEY = 'clock-format'
+_PORTAL_NAME = 'org.freedesktop.portal.Desktop'
+_PORTAL_PATH = '/org/freedesktop/portal/desktop'
+_PORTAL_SETTINGS = 'org.freedesktop.portal.Settings'
+# The first timestamp rendered waits on this read; a portal that is slow
+# to answer must not stall the window, so it gets the GSettings fallback.
+_PORTAL_TIMEOUT_MS = 200
+
+_clock_format = None
+# What keeps the clock setting live: the bus subscription to the
+# portal's SettingChanged, and the GSettings object when it is the source.
+_clock_subscription = None
+_clock_settings = None
+
+
+def _clock_value(value):
+    return value if value in ('12h', '24h') else None
+
+
+def _session_bus():
+    try:
+        return Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    except GLib.Error:
+        return None
+
+
+def _schema_source():
+    return Gio.SettingsSchemaSource.get_default()
+
+
+def _portal_read(bus, method):
+    reply = bus.call_sync(
+        _PORTAL_NAME, _PORTAL_PATH, _PORTAL_SETTINGS, method,
+        GLib.Variant('(ss)', (_INTERFACE_SCHEMA, _CLOCK_KEY)),
+        GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE,
+        _PORTAL_TIMEOUT_MS, None)
+    # unpack() opens nested variants too, so the doubly wrapped value
+    # the old Read returns comes out as the plain string ReadOne gives.
+    return _clock_value(reply.unpack()[0])
+
+
+def _read_portal(bus):
+    try:
+        return _portal_read(bus, 'ReadOne')
+    except GLib.Error as error:
+        # ReadOne is Settings version 2; a version 1 portal only has Read.
+        if (Gio.DBusError.get_remote_error(error)
+                != 'org.freedesktop.DBus.Error.UnknownMethod'):
+            return None
+    try:
+        return _portal_read(bus, 'Read')
+    except GLib.Error:
+        return None
+
+
+def _on_portal_setting_changed(_bus, _sender, _path, _interface, _signal,
+                               parameters):
+    global _clock_format
+    namespace, key, value = parameters.unpack()
+    if namespace == _INTERFACE_SCHEMA and key == _CLOCK_KEY:
+        _clock_format = _clock_value(value) or '24h'
+
+
+def _on_gsettings_changed(settings, key):
+    global _clock_format
+    _clock_format = _clock_value(settings.get_string(key)) or '24h'
+
+
+def _read_gsettings():
+    """The clock format from GSettings, None when the schema (or its
+    key) is not installed -- Gio aborts on an unknown schema."""
+    global _clock_settings
+    source = _schema_source()
+    schema = source.lookup(_INTERFACE_SCHEMA, True) if source else None
+    if schema is None or not schema.has_key(_CLOCK_KEY):
+        return None
+    settings = Gio.Settings.new_full(schema, None, None)
+    settings.connect('changed::' + _CLOCK_KEY, _on_gsettings_changed)
+    _clock_settings = settings
+    return _clock_value(settings.get_string(_CLOCK_KEY))
+
+
+def _load_clock_format():
+    global _clock_subscription
+    bus = _session_bus()
+    value = None
+    if bus is not None:
+        # Subscribed before the read, so a change in between is not lost.
+        _clock_subscription = (bus, bus.signal_subscribe(
+            _PORTAL_NAME, _PORTAL_SETTINGS, 'SettingChanged', _PORTAL_PATH,
+            _INTERFACE_SCHEMA, Gio.DBusSignalFlags.NONE,
+            _on_portal_setting_changed))
+        value = _read_portal(bus)
+    return value or _read_gsettings() or '24h'
+
+
+def clock_format():
+    """'12h' or '24h', the desktop's clock format.
+
+    Read once, on first use, from the Settings portal (which answers in
+    and out of a sandbox), else from GSettings when the GNOME schema is
+    installed, else '24h'; later changes update it, so the next time
+    formatted follows the setting."""
+    global _clock_format
+    if _clock_format is None:
+        _clock_format = _load_clock_format()
+    return _clock_format
+
+
+def format_time(moment, with_date=True):
+    """*moment* -- a GLib.DateTime or an aware datetime -- in local time
+    and the desktop's clock format: '9 Oct 2026, 14:30' or
+    '9 Oct 2026, 2:30 PM', only the time without *with_date*. '' for
+    None."""
+    if moment is None:
+        return ''
+    if not isinstance(moment, GLib.DateTime):
+        moment = GLib.DateTime.new_from_unix_utc(int(moment.timestamp()))
+    local = moment.to_local()
+    if clock_format() == '12h':
+        if with_date:
+            # Translators: date and 12-hour time, a GDateTime format
+            # string, e.g. "9 Oct 2026, 2:47 PM"; see the
+            # g_date_time_format() docs
+            fmt = _('%-d %b %Y, %-I:%M %p')
+        else:
+            # Translators: 12-hour time, a GDateTime format string, e.g.
+            # "2:47 PM"; see the g_date_time_format() docs
+            fmt = _('%-I:%M %p')
+    elif with_date:
+        # Translators: a GDateTime format string, e.g. "9 Oct 2026, 10:47";
+        # see the g_date_time_format() docs
+        fmt = _('%-d %b %Y, %H:%M')
+    else:
+        # Translators: 24-hour time, a GDateTime format string, e.g.
+        # "14:47"; see the g_date_time_format() docs
+        fmt = _('%H:%M')
+    formatted = local.format(fmt)
+    if formatted is None:  # a broken translation
+        formatted = local.format('%c' if with_date else '%X')
+    return formatted or ''
 
 
 def relative_time(iso_timestamp):

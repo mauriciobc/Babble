@@ -27,6 +27,7 @@ src/relations.py
 src/report.py
 src/scheduled.py
 src/search.py
+src/searchprovider.py
 src/shortcuts-dialog.ui
 src/statustext.py
 src/statusviews.py
