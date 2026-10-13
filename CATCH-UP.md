@@ -594,8 +594,56 @@ bottom. The visual reference is the mockup "Destaques das últimas 24 horas".
   the `StatusItem` emits `changed`. Activating the tile elsewhere opens the
   thread.
 
-News and hashtag tiles use the same card, header-less, with the content of
-§5.2 and the same corner badge position.
+### 5.4 News and hashtag tiles in the mockup's style
+
+The mockup shows post tiles only. News and hashtag tiles follow the same
+visual language (same card, corner radius, header height, type scale,
+badge position and action-bar height), so they line up with post tiles in a
+row. They keep the content and helpers of §5.2. Each has a small **kind
+label** where a post tile has its author, because there is no avatar to
+identify it.
+
+**News Link tile**
+
+- *Kind label* (the header row): a `caption-heading` "News" with a newspaper
+  icon, then `provider_name` (or the domain) · relative `published_at` when
+  the card has one, `dimmed`. Top-right: the Trending pill when the link came
+  from `/trends/links` (§3.5), as on the hero. In the fallback, no pill.
+- *2 × 2, with an image* (image-led, like the hero): the cover image fills
+  the top ~55 % full bleed, `COVER`, `darkenable`. Below it: the title as
+  `title-3`, up to 3 lines; the description, `body`, up to 2 lines.
+- *2 × 1, no image*: title as `heading`, up to 2 lines; description, 1 line.
+- *Footer* (where a post tile has its action bar, same height):
+  - When people in your timeline shared it: up to five 24 px sharer avatars,
+    overlapping, then "Shared by *Name* and *N* others".
+  - Otherwise: `people_talking` as "*N* people talking", and "By *author*"
+    when the card has `author_name`.
+  - At the right end, where post tiles have the bookmark: an "Open in
+    browser" icon button, so the link can be opened directly even where the
+    tile itself opens the link timeline.
+- Activating the tile: `explore.open_link_timeline`, as the News tab.
+
+**Topic/Hashtag tile**
+
+- *Kind label*: `hash_badge()` and "Hashtag" (`caption-heading`). Top-right:
+  the Trending pill when the tag came from `/trends/tags`; a "Following"
+  pill instead when you follow it.
+- *Name*: `#name` as `title-3` (1 × 1) or `title-2` (2 × 1), ellipsized.
+- *Counts*: the `stats_text(history)` line, `caption`, `dimmed` ("*N* people
+  in the past 2 days"), and, when the tag is used in your timeline, "*N*
+  posts in your timeline" (`ngettext`) in the accent colour. This is the
+  draft's "post count within timeframe".
+- *Sparkline*: `hashtags.Sparkline` across the tile's full width at the
+  bottom, in the accent colour, taller than in `HashtagRow` (the tile's
+  remaining height). 1 × 1 tiles without enough history show the counts
+  only.
+- *2 × 1 extra*: up to three 24 px avatars of accounts in your timeline
+  that used the tag, on the right of the counts.
+- Activating the tile: `push_hashtag`, as the Hashtags tab.
+
+**In a page**: with the budget of §6.2, a 4-column page is typically one
+hero (2 × 2), one or two news tiles (2 × 2 or 2 × 1), one hashtag tile
+(1 × 1 or 2 × 1), and post tiles filling the rest.
 
 ---
 
