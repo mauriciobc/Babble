@@ -47,6 +47,20 @@ MAX_PAYLOAD = 4 * 1024 * 1024
 # connection and then goes quiet.
 STREAMING_TIMEOUT_SECONDS = 30
 
+# The "View live and topic feeds" role permission (docs.joinmastodon.org/
+# entities/Role): it lets a user read the public, hashtag and link feeds
+# even when the instance has disabled them.
+VIEW_LIVE_FEEDS_PERMISSION = 0x100000
+
+# How an instance serves one of its public feeds to the signed-in
+# account, from ``configuration.timelines_access.live_feeds`` (Mastodon
+# 4.5+): a feed is either open (``public``/``authenticated``), closed to
+# everyone but the accounts holding the permission above, or closed to
+# this account for good.
+FEED_AVAILABLE = 'available'
+FEED_RESTRICTED = 'restricted'
+FEED_UNAVAILABLE = 'unavailable'
+
 USER = ('user',)
 DIRECT = ('direct',)
 LOCAL = ('public:local',)
@@ -85,6 +99,42 @@ def streaming_url(client):
         parts = urllib.parse.urlsplit(client.instance)
     return urllib.parse.urlunsplit(
         ('wss', parts.netloc, parts.path.rstrip('/'), '', ''))
+
+
+def public_feed_access(client, account):
+    """How the signed-in *account* may read each public feed.
+
+    Returns ``{'local': …, 'federated': …}``, each one of the ``FEED_*``
+    values. The restriction is Mastodon 4.5+ only and lives in
+    ``configuration.timelines_access.live_feeds``; an instance that does
+    not advertise it keeps its feeds open, which is also the reading for
+    anything but ``disabled``. ``disabled`` still lets an account with
+    the "View live and topic feeds" role permission through, so for such
+    an account the feed is only *restricted* and may be offered behind an
+    explicit opt-in rather than hidden outright."""
+    info = getattr(client, 'instance_info', None) or {}
+    feeds = ((info.get('configuration') or {}).get('timelines_access')
+             or {}).get('live_feeds') or {}
+    access = {}
+    for place, which in (('local', 'local'), ('federated', 'remote')):
+        if feeds.get(which) != 'disabled':
+            access[place] = FEED_AVAILABLE
+        elif _can_view_live_feeds(account):
+            access[place] = FEED_RESTRICTED
+        else:
+            access[place] = FEED_UNAVAILABLE
+    return access
+
+
+def _can_view_live_feeds(account):
+    """Whether *account*'s role carries the live-feeds permission. An
+    account whose role we cannot read is not denied what we cannot
+    prove it lacks."""
+    permissions = ((account or {}).get('role') or {}).get('permissions')
+    try:
+        return bool(int(permissions) & VIEW_LIVE_FEEDS_PERMISSION)
+    except (TypeError, ValueError):
+        return True
 
 
 def subscribe_message(stream, kind='subscribe'):

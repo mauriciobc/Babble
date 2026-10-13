@@ -11,8 +11,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from src.mastodon import MastodonClient, parse_link_header  # noqa: E402
 from src.streaming import (  # noqa: E402
+    FEED_AVAILABLE, FEED_RESTRICTED, FEED_UNAVAILABLE,
     FEDERATED, LOCAL, USER, hashtag_stream, list_stream,
-    subscribe_message, streaming_url,
+    public_feed_access, subscribe_message, streaming_url,
 )
 
 failures = 0
@@ -62,6 +63,45 @@ check('streaming url fallback', streaming_url(client)
       == 'wss://social.example')
 
 check('stream tuples', LOCAL == ('public:local',) and FEDERATED == ('public',))
+
+# --- Public feed access: Mastodon 4.5+ advertises in /api/v2/instance
+# which of its public timelines it serves, and to whom.
+
+
+def access(live_local=None, live_remote=None, permissions=None):
+    info = {}
+    if live_local is not None or live_remote is not None:
+        info = {'configuration': {'timelines_access': {'live_feeds': {
+            'local': live_local, 'remote': live_remote}}}}
+    client.instance_info = info
+    account = {} if permissions is None else {
+        'role': {'permissions': permissions}}
+    return public_feed_access(client, account)
+
+
+check('an instance that says nothing keeps both feeds',
+      access() == {'local': FEED_AVAILABLE, 'federated': FEED_AVAILABLE})
+check('an open feed is available',
+      access('public', 'public') == {'local': FEED_AVAILABLE,
+                                     'federated': FEED_AVAILABLE})
+check('an authenticated feed is available to the signed-in account',
+      access('authenticated', 'authenticated')
+      == {'local': FEED_AVAILABLE, 'federated': FEED_AVAILABLE})
+check('a disabled feed is unavailable without the permission',
+      access('disabled', 'disabled', '0')
+      == {'local': FEED_UNAVAILABLE, 'federated': FEED_UNAVAILABLE})
+check('the live-feeds permission turns a disabled feed into a restricted one',
+      access('disabled', 'disabled', str(0x100000))
+      == {'local': FEED_RESTRICTED, 'federated': FEED_RESTRICTED})
+check('an unrelated permission does not count',
+      access('disabled', 'disabled', str(0x200000))
+      == {'local': FEED_UNAVAILABLE, 'federated': FEED_UNAVAILABLE})
+check('each feed is decided on its own',
+      access('disabled', 'public', '0')
+      == {'local': FEED_UNAVAILABLE, 'federated': FEED_AVAILABLE})
+check('an unknown role is not denied the feed',
+      access('disabled', 'disabled')
+      == {'local': FEED_RESTRICTED, 'federated': FEED_RESTRICTED})
 
 # --- Rate limiting: a 429 must pause this client, not just fail one call.
 

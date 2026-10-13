@@ -377,10 +377,26 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Show posts from your server'), invert=True)
         self._switch(sidebar, 'hide-federated', _('_Federated Timeline'),
                      _('Show posts from all known servers'), invert=True)
+        from .window import SHOW_RESTRICTED_KEY
+        self._restricted_row = self._switch(
+            sidebar, SHOW_RESTRICTED_KEY, _('Show _Disabled Timelines'),
+            _('Your server has turned these timelines off, but this '
+              'account may still read them'))
+        self._restricted_row.set_visible(self._restricted_feeds_available())
         page.add(live)
         page.add(refresh)
         page.add(sidebar)
         return page
+
+    def _restricted_feeds_available(self):
+        """Whether the server closed a public timeline this account may
+        still read, the only case the opt-in above applies to."""
+        from .streaming import FEED_RESTRICTED, public_feed_access
+        client = getattr(self.window, 'client', None)
+        if client is None:
+            return False
+        access = public_feed_access(client, self.window.account)
+        return FEED_RESTRICTED in access.values()
 
     def _posting_page(self):
         page = Adw.PreferencesPage(title=_('Posting'),
