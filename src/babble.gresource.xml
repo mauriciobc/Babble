@@ -9,6 +9,9 @@
     <file alias="icons/scalable/actions/babble-compose-poll-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-compose-poll-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-compose-globe-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-compose-globe-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-notifications-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-notifications-symbolic.svg</file>
+    <file alias="icons/scalable/actions/babble-catch-up-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-catch-up-symbolic.svg</file>
+    <file alias="icons/scalable/actions/babble-trending-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-trending-symbolic.svg</file>
+    <file alias="icons/scalable/actions/babble-news-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-news-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-explore-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-explore-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-bookmarks-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-bookmarks-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-hashtag-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-hashtag-symbolic.svg</file>

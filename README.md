@@ -171,3 +171,5 @@ in `src/preferences.py`.
 
 Babble is free software, released under the
 [GNU General Public License v3.0 or later](LICENSE).
+
+<sub>German uses the plain form for person nouns — *Autor*, *Alle Autoren* — rather than a gender-inclusive or gender-star form. The catalogue had no convention for them, so this is a default rather than a decision, and German reviewers are welcome to change it.</sub>

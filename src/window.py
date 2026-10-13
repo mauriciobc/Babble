@@ -70,6 +70,7 @@ AUTH_ADMIN = 'admin'
 # up at runtime so they translate.
 PLACES = (
     ('home', 'user-home-symbolic', 0),
+    ('catch-up', 'babble-catch-up-symbolic', 0),
     ('notifications', 'babble-notifications-symbolic', 0),
     ('conversations', 'mail-unread-symbolic', 0),
     ('search', 'system-search-symbolic', 0),
@@ -83,13 +84,14 @@ PLACES = (
 )
 
 # Settings that hide a place from the sidebar.
-HIDE_KEYS = {'explore': 'hide-trending', 'local': 'hide-local',
-             'federated': 'hide-federated'}
+HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
+             'local': 'hide-local', 'federated': 'hide-federated'}
 
 
 def place_title(tag):
     return {
-        'home': _('Home'), 'notifications': _('Notifications'),
+        'home': _('Home'), 'catch-up': _('Catch Up'),
+        'notifications': _('Notifications'),
         'conversations': _('Conversations'), 'search': _('Search'),
         'favourites': _('Favorites'), 'bookmarks': _('Bookmarks'),
         'hashtags': _('Hashtags'), 'explore': _('Explore'),
@@ -579,6 +581,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         if self.compose_dialog is not None:
             self.compose_dialog.close()
         self.compose_dialog = None
+        catch_up = self._place_children.get('catch-up')
+        if catch_up is not None:
+            catch_up.cancel()           # a catch-up in flight stops here
         self.timeline_page = None
         self.timeline_model = None
         self.home_bin.set_child(None)
@@ -1097,6 +1102,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         if tag == 'conversations':
             from .conversations import ConversationsPage
             return ConversationsPage(client)
+        if tag == 'catch-up':
+            from .catchup import CatchUpPage
+            return CatchUpPage(client, account=self.account)
         if tag == 'search':
             from .search import SearchPage
             return SearchPage(client)

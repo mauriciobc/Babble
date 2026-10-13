@@ -154,6 +154,47 @@
     </child>
     <child>
       <object class="AdwShortcutsSection">
+        <property name="title" translatable="yes">Catch Up</property>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Next Post</property>
+            <property name="accelerator">j</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Previous Post</property>
+            <property name="accelerator">k</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Next Author</property>
+            <property name="accelerator">l</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Previous Author</property>
+            <property name="accelerator">h</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Open Post</property>
+            <property name="accelerator">Return</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Scroll to Top</property>
+            <property name="accelerator">period</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="AdwShortcutsSection">
         <property name="title" translatable="yes">Composer</property>
         <child>
           <object class="AdwShortcutsItem">

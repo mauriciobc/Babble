@@ -361,6 +361,66 @@ del row
 settle()
 check('a dragged status row is freed', freed(row_ref))
 
+# The action bar and the overflow menu work without a StatusRow, and are
+# freed with the widget that holds them, menu opened or not.
+tile = Gtk.Box()
+bar = timeline.StatusActions(quote=False, button_classes=('osd', 'pill'),
+                             tinted=True)
+menu = timeline.StatusMenuButton(actions=bar,
+                                 button_classes=('osd', 'pill'))
+tile.append(bar)
+tile.append(menu)
+tile_item = timeline.StatusItem(dict(status(5), favourites_count=3))
+bar.bind(tile_item, _Client())
+menu.bind(tile_item, _Client())
+menu.prepare()
+check('a standalone bar shows the counts',
+      bar.favourite_button.get_child().get_label() == '3'
+      and bar.quote_button is None and bar.has_css_class('status-actions')
+      and bar.boost_button.has_css_class('osd')
+      and bar.boost_button.get_child().has_css_class('tint-success'))
+check('a standalone menu builds on demand',
+      menu.get_menu_model() is not None)
+tile_item.status['favourites_count'] = 4
+tile_item.emit('changed')
+check('a standalone bar follows its item',
+      bar.favourite_button.get_child().get_label() == '4')
+tile_refs = [bar.weak_ref(), menu.weak_ref(), tile_item.weak_ref()]
+del tile, bar, menu, tile_item
+settle()
+check('a standalone bar and menu are freed',
+      all(freed(ref) for ref in tile_refs))
+
+row = timeline.StatusRow()
+row.bind(timeline.StatusItem(status(6)), _Client())
+row._overflow.prepare()
+row_ref = row.weak_ref()
+del row
+check('a status row with its menu opened is freed', freed(row_ref))
+
+# A translated post rebuilds its row with the translation box, whose
+# "Show _Original" button shares the menu's action. Both call sites moved
+# with the menu split; binding must not raise and the button must still
+# toggle.
+translated = timeline.StatusItem(status(7))
+translated.translation = {'content': '<p>traducido</p>'}
+row = timeline.StatusRow()
+try:
+    row.bind(translated, _Client())
+    check('a row binds a translated post and shows its translation box',
+          row.translation_box is not None and row.translation_box.get_visible())
+    button = row.translation_box.get_last_child()
+    while button is not None and not isinstance(button, Gtk.Button):
+        button = button.get_next_sibling()
+    button.emit('clicked')
+    check('Show _Original drops the translation',
+          translated.translation is None
+          and not row.translation_box.get_visible())
+except Exception as error:                          # noqa: BLE001
+    check('a row binds a translated post and shows its translation box',
+          False)
+    print('  %s: %s' % (type(error).__name__, error))
+
 # Hosted in an Adw window, like the app's: over a plain Gtk.Window the
 # dialog floats as a window of its own, and force_close() did not emit
 # 'closed' there.
@@ -411,6 +471,54 @@ held.new_pill.emit('clicked')
 check('a page held only by GTK still handles its signals',
       held._pill_count == 0
       and not held.new_posts_revealer.get_reveal_child())
+
+# Catch Up: a page with a populated snapshot, its rows and its items are
+# freed once it is dropped, and a run in flight is cancelled with it.
+import datetime  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+from src import catchup, catchupstore  # noqa: E402
+
+_cu_dir = tempfile.mkdtemp(prefix='babble-catchup-mem-')
+catchupstore.set_root(_cu_dir)
+_cu_now = datetime.datetime.now(datetime.timezone.utc)
+_cu_posts = [dict(status(n), created_at=catchup.iso(
+    _cu_now - datetime.timedelta(minutes=n)), account=dict(
+        status(n)['account'], display_name='User %d' % (n % 4), id=str(n % 4)),
+    media_attachments=[], tags=[], reblog=None, in_reply_to_id=None)
+    for n in range(1, 40)]
+catchupstore.write_snapshot({
+    'version': 1, 'id': 'mem', 'account': 'https://m.example#1',
+    'start_at': None, 'end_at': catchup.iso(_cu_now), 'period': '24h',
+    'stopped': 'complete', 'count': len(_cu_posts), 'oldest_at': None,
+    'posts': _cu_posts, 'relationships': {}, 'followed_tags': [],
+    'trends': {'links': None, 'tags': None, 'statuses': None}})
+
+
+class _CatchUpClient(_Client):
+    instance = 'https://m.example'
+
+    def rate_limited(self):
+        return False
+
+
+cu = [catchup.CatchUpPage(_CatchUpClient(), account={
+    'id': '1', 'instance': 'https://m.example'})]
+box.append(cu[0])
+settle(lambda: cu[0].state == 'results')
+check('a catch-up page opens its newest snapshot',
+      cu[0].state == 'results' and cu[0].sorted.get_n_items() == 40)
+settle(lambda: cu[0].list_view.get_first_child() is not None)
+cu_refs = [cu[0].weak_ref(), cu[0].store.get_item(1).weak_ref(),
+           cu[0].top_item.weak_ref()]
+box.remove(cu[0])
+cu[0].cancel()
+cu.clear()
+settle()
+check('a closed catch-up page and its items are freed',
+      all(freed(ref) for ref in cu_refs))
+shutil.rmtree(_cu_dir, ignore_errors=True)
 
 if failures:
     print('%d checks failed' % len(failures))

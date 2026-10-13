@@ -73,6 +73,17 @@
   color: var(--accent-color);
 }
 
+/* Action bars that tint the boost and favourite icons whatever the
+   state (StatusActions(tinted=True)); the filled icon and the pressed
+   button still say whether you did it. */
+.tint-success {
+  color: var(--success-color);
+}
+
+.tint-error {
+  color: var(--error-color);
+}
+
 .status-media {
   border-radius: 12px;
 }
@@ -523,4 +534,82 @@ label.just-toggled {
 
 .compose-counter {
   transition: color 150ms ease;
+}
+
+/* Catch Up highlights */
+.catchup-tile:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+/* Text over a picture sits on a dark gradient: that is content, not theme,
+   so it is the same in light and dark. */
+.catchup-scrim {
+  background-image: linear-gradient(to top, rgba(0, 0, 0, 0.78),
+                                    rgba(0, 0, 0, 0.5) 65%, transparent);
+  padding-top: 32px;
+}
+
+.catchup-on-image {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.catchup-on-image .dimmed {
+  opacity: 0.8;
+}
+
+.catchup-cover {
+  border-radius: 0;
+}
+
+.catchup-pill {
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.catchup-pill-trending {
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}
+
+.catchup-pill-following {
+  background-color: var(--success-bg-color);
+  color: var(--success-fg-color);
+}
+
+.catchup-accent {
+  color: var(--accent-color);
+}
+
+.catchup-cw {
+  font-style: italic;
+}
+
+.catchup-play {
+  border-radius: 999px;
+  padding: 10px;
+}
+
+.catchup-stack {
+  box-shadow: 0 0 0 2px var(--card-bg-color);
+}
+
+/* The action bar has to fit a 180 px tile with a count on each button. */
+.catchup-tile .catchup-actions button {
+  padding: 0 4px;
+  min-height: 28px;
+  min-width: 24px;
+}
+
+.catchup-tile .catchup-actions button.pill {
+  padding: 0 12px;
+  min-height: 32px;
+}
+
+.catchup-tile .catchup-actions buttoncontent > box {
+  border-spacing: 3px;
+}
+
+.catchup-tile .catchup-actions buttoncontent image {
+  -gtk-icon-size: 14px;
 }
