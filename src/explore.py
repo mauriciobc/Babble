@@ -119,6 +119,92 @@ class LinkTimelinePage(Adw.Bin):
         pages.launch_external(self, self.link['url'])
 
 
+def link_card_labels(link):
+    """The (title, provider) a link card shows, as plain text."""
+    title = link.get('title') or link.get('url', '') or ''
+    provider = link.get('provider_name') or _domain(link.get('url', ''))
+    return title, provider
+
+
+def _shared_by(sharers, name_of):
+    """"Shared by Ana" or "Shared by Ana and 2 others" for the accounts
+    in *sharers*, a non-empty list."""
+    first = name_of(sharers[0])
+    rest = len(sharers) - 1
+    if not rest:
+        # Translators: a link shared by one person in the user's timeline;
+        # %s is that person's name, e.g. "Shared by Ana".
+        return _('Shared by %s') % first
+    # Translators: a link shared by several people in the user's timeline;
+    # the first %s is the first sharer's name, %d the number of others,
+    # e.g. "Shared by Ana and 2 others".
+    return ngettext('Shared by %s and %d other',
+                    'Shared by %s and %d others', rest) % (first, rest)
+
+
+def link_card_content(link, sharers=None):
+    """The box a link card shows: image, provider, title, description and
+    a footer line.
+
+    *sharers* -- Mastodon accounts from the user's timeline who shared the
+    link -- replace the "N people talking" count with "Shared by ..."; the
+    author stays. Without them the footer is the count, as in the News
+    tab."""
+    from .accounts import plain_name
+    from .timeline import _TextureCache
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+
+    image_url = link.get('image')
+    if image_url:
+        picture = Gtk.Picture(
+            content_fit=Gtk.ContentFit.COVER, height_request=160,
+            can_shrink=True, alternative_text=link.get(
+                'image_description') or '',
+            accessible_role=Gtk.AccessibleRole.PRESENTATION)
+        picture.add_css_class('link-card-image')
+        picture.add_css_class('darkenable')
+        box.append(picture)
+        _TextureCache.load(image_url, picture)
+
+    text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
+                   margin_top=10, margin_bottom=12, margin_start=14,
+                   margin_end=14)
+    box.append(text)
+    title, provider = link_card_labels(link)
+    meta = Gtk.Label(label=provider, xalign=0.0,
+                     ellipsize=Pango.EllipsizeMode.END)
+    meta.add_css_class('caption-heading')
+    meta.add_css_class('dimmed')
+    text.append(meta)
+    title_label = Gtk.Label(label=title, xalign=0.0, wrap=True, lines=3,
+                            ellipsize=Pango.EllipsizeMode.END)
+    title_label.add_css_class('heading')
+    text.append(title_label)
+    if link.get('description'):
+        description = Gtk.Label(
+            label=link['description'], xalign=0.0, wrap=True, lines=2,
+            ellipsize=Pango.EllipsizeMode.END)
+        description.add_css_class('body')
+        text.append(description)
+    footer = []
+    author = link.get('author_name')
+    if author:
+        footer.append(_('By %s') % author)
+    if sharers:
+        footer.append(_shared_by(sharers, plain_name))
+    else:
+        people = people_talking(link)
+        if people:
+            footer.append(ngettext('%d person talking',
+                                   '%d people talking', people) % people)
+    if footer:
+        line = Gtk.Label(label=' · '.join(footer), xalign=0.0, wrap=True)
+        line.add_css_class('caption')
+        line.add_css_class('dimmed')
+        text.append(line)
+    return box
+
+
 class LinkCard(Gtk.ListBoxRow):
     """Trending news card: image, provider, title, description and how
     many people are talking about it."""
@@ -127,61 +213,13 @@ class LinkCard(Gtk.ListBoxRow):
 
     def __init__(self, client, link):
         super().__init__(activatable=True)
-        from .timeline import _TextureCache
         self.client = client
         self.link = link
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.set_child(box)
-
-        image_url = link.get('image')
-        if image_url:
-            picture = Gtk.Picture(
-                content_fit=Gtk.ContentFit.COVER, height_request=160,
-                can_shrink=True, alternative_text=link.get(
-                    'image_description') or '',
-                accessible_role=Gtk.AccessibleRole.PRESENTATION)
-            picture.add_css_class('link-card-image')
-            picture.add_css_class('darkenable')
-            box.append(picture)
-            _TextureCache.load(image_url, picture)
-
-        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
-                       margin_top=10, margin_bottom=12, margin_start=14,
-                       margin_end=14)
-        box.append(text)
-        provider = link.get('provider_name') or _domain(link.get('url', ''))
-        meta = Gtk.Label(label=provider, xalign=0.0,
-                         ellipsize=Pango.EllipsizeMode.END)
-        meta.add_css_class('caption-heading')
-        meta.add_css_class('dimmed')
-        text.append(meta)
-        title = Gtk.Label(label=link.get('title') or link.get('url', ''),
-                          xalign=0.0, wrap=True, lines=3,
-                          ellipsize=Pango.EllipsizeMode.END)
-        title.add_css_class('heading')
-        text.append(title)
-        if link.get('description'):
-            description = Gtk.Label(
-                label=link['description'], xalign=0.0, wrap=True, lines=2,
-                ellipsize=Pango.EllipsizeMode.END)
-            description.add_css_class('body')
-            text.append(description)
-        footer = []
-        author = link.get('author_name')
-        if author:
-            footer.append(_('By %s') % author)
-        people = people_talking(link)
-        if people:
-            footer.append(ngettext('%d person talking',
-                                   '%d people talking', people) % people)
-        if footer:
-            line = Gtk.Label(label=' · '.join(footer), xalign=0.0, wrap=True)
-            line.add_css_class('caption')
-            line.add_css_class('dimmed')
-            text.append(line)
+        self.set_child(link_card_content(link))
+        title, provider = link_card_labels(link)
         self.update_property(
             [Gtk.AccessibleProperty.LABEL],
-            ['%s, %s' % (title.get_label(), provider)])
+            ['%s, %s' % (title, provider)])
 
     def on_activate(self):
         open_link_timeline(self, self.client, self.link)

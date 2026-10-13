@@ -87,6 +87,12 @@ def hash_badge():
     return label
 
 
+def hashtag_summary(tag):
+    """(title, subtitle) a hashtag row shows: '#name' and its usage line,
+    which is '' without history."""
+    return ('#' + tag.get('name', ''), stats_text(tag.get('history')))
+
+
 def default_title(tags):
     return ' '.join('#' + tag for tag in tags)
 
@@ -533,12 +539,17 @@ def present_multi_hashtag_editor(parent, definition=None, on_saved=None,
 class Sparkline(Gtk.DrawingArea):
     """Tiny usage chart of a tag's history (oldest to newest)."""
 
-    def __init__(self, history, width=72, height=28):
+    def __init__(self, history, width=72, height=28, values=None):
+        """*values* -- plain numbers, oldest first -- are drawn instead of
+        the ``uses`` of *history* when given."""
         super().__init__(content_width=width, content_height=height,
                          valign=Gtk.Align.CENTER,
                          accessible_role=Gtk.AccessibleRole.PRESENTATION)
-        self.values = [int(e.get('uses') or 0)
-                       for e in reversed(history or [])]
+        if values is not None:
+            self.values = [int(value or 0) for value in values]
+        else:
+            self.values = [int(e.get('uses') or 0)
+                           for e in reversed(history or [])]
         self.set_draw_func(self._draw)
 
     def _draw(self, _area, cr, width, height):
@@ -571,8 +582,9 @@ class HashtagRow(Adw.ActionRow):
         super().__init__(activatable=True, use_markup=False, **kwargs)
         self.client = client
         self.tag = tag
-        self.set_title('#' + tag.get('name', ''))
-        self.set_subtitle(stats_text(tag.get('history')))
+        title, subtitle = hashtag_summary(tag)
+        self.set_title(title)
+        self.set_subtitle(subtitle)
         self.add_prefix(hash_badge())
         if sparkline and tag.get('history'):
             self.add_suffix(Sparkline(tag['history']))

@@ -7,6 +7,7 @@ standing up a window to reach them.
 """
 
 import datetime
+import locale
 import os
 import re
 import shutil
@@ -24,9 +25,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src import statustext  # noqa: E402
-from src.statustext import (clock_format, format_time,  # noqa: E402
-                            is_hashtag, is_web_link, parse_content,
-                            relative_time, shorten_url_text)
+from src.statustext import (clock_format, compact_count,  # noqa: E402
+                            format_time, is_hashtag, is_web_link,
+                            parse_content, relative_time,
+                            shorten_url_text)
 
 from gi.repository import Gio, GLib  # noqa: E402
 
@@ -289,6 +291,58 @@ class TestClockFormat(ClockState):
         self.assertEqual(clock_format(), '12h')
         changed('org.gnome.desktop.interface', 'clock-format', 'bogus')
         self.assertEqual(clock_format(), '24h')
+
+
+class TestCompactCount(unittest.TestCase):
+    def setUp(self):
+        self._numeric = locale.setlocale(locale.LC_NUMERIC)
+        locale.setlocale(locale.LC_NUMERIC, 'C')
+
+    def tearDown(self):
+        locale.setlocale(locale.LC_NUMERIC, self._numeric)
+
+    def test_small_counts_are_the_plain_number(self):
+        self.assertEqual(compact_count(0), '0')
+        self.assertEqual(compact_count(7), '7')
+        self.assertEqual(compact_count(999), '999')
+
+    def test_thousands_drop_a_zero_decimal(self):
+        self.assertEqual(compact_count(1000), '1K')
+        self.assertEqual(compact_count(1049), '1K')
+        self.assertEqual(compact_count(12000), '12K')
+
+    def test_thousands_keep_one_decimal(self):
+        self.assertEqual(compact_count(3400), '3.4K')
+        self.assertEqual(compact_count(12345), '12.3K')
+
+    def test_a_half_decimal_rounds_by_python_round(self):
+        # 1050 / 1000 is 1.05, which is a little above the midpoint as a
+        # float, so round(x, 1) gives 1.1; it must not crash either way.
+        self.assertEqual(compact_count(1050), '1.1K')
+
+    def test_rounding_up_to_1000_K_moves_to_the_next_unit(self):
+        self.assertEqual(compact_count(999950), '1M')
+        self.assertEqual(compact_count(999949), '999.9K')
+
+    def test_millions_and_billions(self):
+        self.assertEqual(compact_count(1000000), '1M')
+        self.assertEqual(compact_count(2100000), '2.1M')
+        self.assertEqual(compact_count(1000000000), '1B')
+        self.assertEqual(compact_count(1200000000), '1.2B')
+
+    def test_none_and_negatives_count_as_zero(self):
+        self.assertEqual(compact_count(None), '0')
+        self.assertEqual(compact_count(-5), '0')
+
+    def test_pt_BR_uses_the_decimal_comma(self):
+        try:
+            locale.setlocale(locale.LC_NUMERIC, 'pt_BR.UTF-8')
+        except locale.Error:
+            self.skipTest('pt_BR.UTF-8 locale is not installed')
+        self.assertEqual(compact_count(3400), '3,4K')
+        self.assertEqual(compact_count(2100000), '2,1M')
+        self.assertEqual(compact_count(999), '999')
+
 
 
 if __name__ == '__main__':

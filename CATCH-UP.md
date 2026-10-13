@@ -804,8 +804,8 @@ copying them:
   run `timeline memory` and `timeline render` after the move.
 - `src/statustext.py`: `compact_count(n)`, localized: below 1,000 the number
   with the locale's grouping; above, one decimal with the locale's decimal
-  separator (dropped when it is 0) and a translatable suffix (`_('%s K')`,
-  `_('%s M')`, with `# Translators:` comments, so pt_BR can say "3,4 mil" and
+  separator (dropped when it is 0) and a translatable suffix (`_('%sK')`,
+  `_('%sM')`, `_('%sB')`, with `# Translators:` comments, so pt_BR can say "3,4 mil" and
   "1,2 mi"). It needs no display, like the rest of the module.
   `wrapped.shorten`, `search.compact_number` and `profile.format_count` stay
   as they are; moving them onto it is a separate change.

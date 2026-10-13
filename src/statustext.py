@@ -15,6 +15,7 @@ module readable and testable headless.
 
 import datetime
 import html as html_module
+import locale
 import urllib.parse
 from html.parser import HTMLParser
 
@@ -332,6 +333,40 @@ def relative_time(iso_timestamp):
     # Translators: date of a post older than a year, a GDateTime format
     # string, e.g. "Oct 2025"; see the g_date_time_format() docs
     return moment.to_local().format(_('%b %Y'))
+
+
+def compact_count(n):
+    """An interaction count for a counter: '42', '999', '3.4K', '2.1M'.
+
+    Below 1,000 the number with the locale's digit grouping. From 1,000
+    up, one decimal with the locale's decimal separator, the decimal
+    dropped when it is 0, and a suffix. A value that rounds up to 1,000
+    of one unit moves to the next (999,950 is '1M', not '1000K'). None
+    and negatives count as 0."""
+    n = max(n or 0, 0)
+    if n < 1000:
+        return locale.format_string('%d', n, grouping=True)
+    for size in (1000, 1000000, 1000000000):
+        value = round(n / size, 1)
+        if value < 1000 or size == 1000000000:
+            break
+    if value == int(value):
+        number = locale.format_string('%d', int(value), grouping=True)
+    else:
+        number = locale.format_string('%.1f', value, grouping=True)
+    if size == 1000:
+        # Translators: compact count in thousands, e.g. "3.4K"; %s is the
+        # number. Portuguese uses '%s mil'.
+        text = _('%sK')
+    elif size == 1000000:
+        # Translators: compact count in millions, e.g. "2.1M"; %s is the
+        # number. Portuguese uses '%s mi'.
+        text = _('%sM')
+    else:
+        # Translators: compact count in billions, e.g. "1.2B"; %s is the
+        # number. Portuguese uses '%s bi'.
+        text = _('%sB')
+    return text.replace('%s', number)
 
 
 def split_url(uri):
