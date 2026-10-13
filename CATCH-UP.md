@@ -6,12 +6,25 @@ Sources this spec ports from:
 
 - **Phanpy** `src/pages/catchup.jsx` at `cheeaun/phanpy@7180c00` (2026-10-13):
   the fetch loop, post categories, link grouping, the posts bar, snapshots, the
-  start screen and the post list. MIT, © Lim Chee Aun.
+  "since last catch-up" and "until the max" ranges, and the post list. MIT, © Lim Chee Aun.
 - **Elk (fork)** `app/composables/for-you/{ranking,diversity}.ts` at
   `mauriciobc/elk@9597db5`: the relevance model. MIT, © Elk contributors.
   That code is in turn a transcription of xai-org/x-algorithm `home-mixer`.
 - The **original Catch Up draft**: the bento grid layout and tile allocation
-  (§5 and §6), kept as written apart from the changes marked *GTK* or *Fix*.
+  (§5 and §6), kept as written apart from the changes marked *GTK*, *Fix* or
+  *Reference*.
+- The **visual reference** (mockup "Destaques das últimas 24 horas", 2026-10-13):
+  the results header and the tile anatomy (§2.4, §5.3). Changes it makes to
+  the draft are marked *Reference*.
+
+Decisions taken on the first draft of this spec:
+
+1. The category, author, sort and group controls act on the **All posts list
+   only**. The Highlights grid is computed once per catch-up and recomputed
+   only when a new period is chosen.
+2. Elk's **new-author boost is not used**.
+3. Elk's **calibration values are kept as they are** (saturation points,
+   federation coverage, content priors, weights, base rates).
 
 Ported code keeps the MIT notice of its source in the module docstring, next
 to Babble's `SPDX-License-Identifier: GPL-3.0-or-later`.
@@ -30,7 +43,8 @@ result as an unchanging **snapshot**. The snapshot is shown two ways:
    Hashtags tabs (§3.5). Tiles are sized and packed by the original draft's
    allocation rules (§6).
 2. **All posts**: Phanpy's compact, email-like list of every post in the
-   snapshot, with category and author filters, sorting and grouping.
+   snapshot, with category and author filters, sorting and grouping. These
+   controls never change the grid.
 
 Everything is computed on the client. Nothing beyond the Mastodon client API is
 called.
@@ -51,25 +65,33 @@ called.
 - The place is a `pages.make_nav_page` like every other place. It does not
   replace Home.
 
-### 2.2 Start screen (Phanpy)
+### 2.2 Period menu and first run
 
-An `Adw.StatusPage`-style screen titled "Catch Up", with a short "What is
-this?" expander ("A separate timeline for your followings, offering a
-high-level view at a glance…").
+*Reference*: the period is picked from a dropdown-style button in the header
+("Last 24 hours ⌄"), not from Phanpy's slider. It is a `Gtk.MenuButton`
+styled like a `Gtk.DropDown`, with a popover menu:
 
-- **Range**: a `Gtk.Scale` with 13 marked steps: *last 1 hour* … *last 12
-  hours*, then *beyond 12 hours*. Under it, the absolute start time through
-  `statustext.format_time()`, or "until the max" on the last step.
-- **Beyond 12 hours**: when an earlier snapshot exists, an `Adw.SwitchRow`,
-  "Until the last catch-up (*time*)", on by default. On, the range ends at the
-  last snapshot's `end_at`; off, paging goes as far as the server allows.
-- **Overlap note**: when the chosen range reaches back past the last
-  snapshot's `end_at`, show "Overlaps with your last catch-up".
-- **Server note**: "Your server might only show a maximum of 800 posts in the
-  Home timeline regardless of the time range."
-- **Catch Up** button (`suggested-action`).
-- **Previously…**: the account's last three snapshots, each as
-  "*start – end* · *N posts*" with a remove button (`pages.confirm`).
+- **Periods** (radio items): Last hour, Last 3 hours, Last 6 hours, Last 12
+  hours, **Last 24 hours** (default), Since the last catch-up (only when an
+  earlier snapshot exists: the range ends at its `end_at`, as Phanpy's
+  "until the last catch-up" switch does), As far back as possible (paging goes
+  until the server stops, Phanpy's "until the max").
+- **Choosing a period runs a new catch-up** and saves a new snapshot. This is
+  the only thing that recomputes the grid. Choosing the period already shown
+  does nothing; there is no separate Refresh button.
+- **Previous catch-ups** (a second section): the account's last three
+  snapshots, each as "*start – end* · *N posts*". Choosing one shows it.
+  Each can be removed from the list (`pages.confirm`).
+- A footnote item, insensitive: "Your server might only show a maximum of 800
+  posts in the Home timeline regardless of the time range." (Phanpy).
+
+**First run**: when the account has no snapshot yet, the page shows an
+`Adw.StatusPage` ("Catch Up"; description from Phanpy: "A separate timeline
+for your followings, offering a high-level view at a glance") with the period
+menu and a **Catch Up** button (`suggested-action`). Nothing is fetched until
+it is pressed, because a catch-up costs up to ~30 requests.
+
+**Later visits** open the newest snapshot directly.
 
 ### 2.3 Loading
 
@@ -79,30 +101,44 @@ An `Adw.Spinner` with live text, kept from the original draft:
 
 The post count uses `ngettext`; the hours come from the oldest `created_at`
 seen so far. A **Cancel** button stops paging and shows whatever was gathered,
-exactly like a 429 (§7).
+exactly like a 429 (§8).
 
 ### 2.4 Results layout
 
 Top to bottom, in one `Gtk.ScrolledWindow`:
 
-1. **Header bar**: snapshot range ("Oct 13, 08:00 – 14:00"), a "New catch-up"
-   button that returns to the start screen, and a **Refresh** button that runs
-   a new catch-up over the same range and saves it as a new snapshot.
-2. **Posts bar** (Phanpy): one dot per post in time order. Above 160 posts it
-   becomes 320 time buckets (Phanpy's `binByTime`). Dots of posts matching the
-   current filter are highlighted. A `Gtk.DrawingArea`, following
-   `MonthlyChart` in `src/wrapped.py`.
-3. **Filters** (Phanpy, §3.3): an `Adw.ToggleGroup` of categories with counts,
-   and below it a horizontally scrolling row of author chips (avatar + count,
-   most active first). A "Reset filters" button appears while any filter is set.
-4. **Highlights**: the bento grid (§5, §6). It reacts to the category and
-   author filters.
-5. **All posts**: the Phanpy list (§2.5).
+1. **Header** (*Reference*), inside the scrolled content, not the header bar:
+   - Title, `title-1`: "Highlights of the last 24 hours". It follows the
+     period: "Highlights of the last hour", "… of the last 6 hours", "…
+     since your last catch-up", "Highlights" for as far back as possible. Each
+     is its own translatable string, not a concatenation; the hour counts use
+     `ngettext`.
+   - Subtitle, `dimmed`: "The most relevant posts from your network, chosen
+     by an algorithm that weighs engagement, reach and relevance."
+   - On the right: the period menu (§2.2), then a **list options** button
+     (sliders icon) whose popover holds the All posts controls (§2.5):
+     category, author, sort, group, and "Reset filters". It is insensitive
+     while the list is empty.
+   - Under the subtitle when the snapshot did not finish (§8): a short note,
+     e.g. "Covers the last 7 hours (400 posts)".
+2. **Highlights**: the bento grid (§5, §6). Fixed for the snapshot.
+3. **All posts**, a section heading, then:
+   - **Posts bar** (Phanpy): one dot per post in time order; above 160 posts,
+     320 time buckets (Phanpy's `binByTime`). Dots of posts matching the list
+     filters are highlighted. A `Gtk.DrawingArea`, following `MonthlyChart`
+     in `src/wrapped.py`.
+   - **Author chips** (Phanpy): a horizontally scrolling row (avatar + count,
+     most active first), the same filter as the popover's author item.
+   - The list (§2.5).
 
 ### 2.5 All posts list (Phanpy)
 
 - A `Gtk.ListView` over the snapshot's `StatusItem`s, wrapped in a
   `Gtk.FilterListModel` (category, author) and a `Gtk.SortListModel`.
+  Changing a filter, sort or grouping only changes these models; the grid and
+  the scores are untouched.
+- **Categories** (§3.3) are shown with their counts, in an `Adw.ToggleGroup`
+  inside the list options popover.
 - **Sort**: Time (default, oldest first, as in Phanpy), Replies, Likes, Boosts,
   Density, plus **Relevance** (the §4 score). Each with ascending/descending.
   Non-time sorts compare the boosted post (`reblog`) when there is one; ties
@@ -128,7 +164,8 @@ Top to bottom, in one `Gtk.ScrolledWindow`:
   next/previous author, `Enter` open, `.` scroll to top. Register them in
   `shortcuts-dialog.ui`.
 - Bento tiles are focusable and announce author, excerpt and counts. Focus
-  order follows score rank, not visual position.
+  order follows score rank, not visual position. The tile's own buttons
+  (§5.3) are reachable with `Tab` inside the tile.
 
 ---
 
@@ -155,8 +192,9 @@ GET /api/v1/timelines/home?limit=40[&max_id=…]
 - Check `client.rate_limited()` before each request; if set, stop as for a 429.
 - One `Gio.Cancellable` per run. Cancel it when the page is destroyed, the
   window closes, or the active account changes.
-- `start_at` is `end_at − hours` for ranges 1–12; for *beyond 12 hours* it is
-  the last snapshot's `end_at` (switch on) or unbounded (switch off).
+- `start_at` is `end_at − hours` for the hour periods (§2.2), the last
+  snapshot's `end_at` for "Since the last catch-up", and unbounded for "As far
+  back as possible".
 
 ### 3.2 Post-processing (Phanpy)
 
@@ -228,9 +266,12 @@ tabs already show (`src/explore.py` `NewsPage`, `HashtagsPage`):
     `PreviewCard`s with `history` (per-day `uses` and `accounts`).
   - `GET /api/v1/trends/tags?limit=20`: the Hashtags tab's data. `Tag`s with
     `history`.
+  - `GET /api/v1/trends/statuses?limit=40`: the Posts tab's data. Only the
+    ids and URIs are kept; they drive the **Trending** badge on post tiles
+    (§5.3).
 
-  Both go into the snapshot (§7), so reopening it shows the trends as they
-  were then.
+  All three go into the snapshot (§7), so reopening it shows the trends as
+  they were then.
 - **News order**: the server's trending order, with one adjustment: links
   that people in your timeline shared (matched against the §3.4 timeline links
   on the URL with the trailing `/` removed) move to the front, ordered by
@@ -265,8 +306,8 @@ candidates (deduplicated posts, Filtered category excluded)
   → extract features            (extractRankingFeatures)
   → predict action probabilities (predictActionsFrom)
   → weighted sum + offset        (scoreCandidate)
-  → slate adjustments            (applyAdjustments: new-author boost,
-                                  author diversity, out-of-network discount)
+  → slate adjustments            (applyAdjustments: author diversity,
+                                  out-of-network discount)
   → sort by score
   → dedupeConversations          (max 3 per conversation)
   → diversityRerank              (hashed-feature DPP, reorders, never drops)
@@ -359,21 +400,20 @@ popover on tiles (§9 phase 3).
 **Freshness**: Elk's `recencyMultiplier`,
 `(1 − 0.12) · 0.5^(age / 12 h) + 0.12`.
 *Deviation*: Elk returns 0 past 48 h (`AgeFilter`). Catch Up's range already
-bounds the candidates, and a "beyond 12 hours" run can legitimately go past
+bounds the candidates, and an "as far back as possible" run can go past
 48 h, so the hard cut is **off** (`CATCHUP_MAX_POST_AGE = None`). The floor
 still makes old posts need roughly 3× the score of new ones after a day.
 
 ### 4.6 Slate adjustments (`applyAdjustments`)
 
-1. **New-author boost**: as Elk (author ≤ 1,000 followers, original post,
-   ≤ 24 h old, impression proxy `followers + 25 · engagement` < 5,000, not in
-   the bottom 15 %). The candidate is lifted to the score at a rank drawn from
-   [15, 16).
-   *Deviation*: Elk draws that rank with `Math.random()`. Seed the RNG from the
-   snapshot id so the grid is stable across reopenings.
-2. **Author diversity**: walking in score order, the k-th post of the same
+*Deviation*: Elk's **new-author boost is not ported** (decision 2):
+`enableNewAuthorBoost = False`. It is exploration for an endless feed; in a
+fixed digest it would promote one small account to about rank 15 by a random
+draw. Without it the whole pipeline is deterministic.
+
+1. **Author diversity**: walking in score order, the k-th post of the same
    author is multiplied by `(1 − 0.25) · 0.5^k + 0.25`.
-3. **Out-of-network discount**: × 0.75 for followed-tag posts, and for
+2. **Out-of-network discount**: × 0.75 for followed-tag posts, and for
    in-network boosts and replies (Elk's `oonRescoreInNetworkRepliesReblogs`).
 
 ### 4.7 Conversations and diversity (`diversity.ts`)
@@ -443,17 +483,27 @@ in `src/catchup.py`:
 | Tile type | Size (cols × rows) | Content | Visual elements |
 |---|---|---|---|
 | Hero Card | 3 × 2 or 2 × 2 | Top 10 % scored posts, or rich news cards | Large image preview, author avatar, engagement badges, excerpt text |
-| Medium Post | 2 × 1 | Posts scored in the top 10–30 %, or media posts | Avatar, text cut to 3 lines, image thumbnail or video preview |
+| Medium Post | 2 × 1 or 1 × 2 | Posts scored in the top 10–30 %, or media posts | Avatar, text cut to 3 lines, image thumbnail or video preview |
 | Compact Highlight | 1 × 1 | Lower-scored top posts, or single media items | Compact post snippet, boost indicator |
 | Topic/Hashtag Tile | 1 × 1 or 2 × 1 | Trending hashtags (§3.5) | Hashtag name, post count within timeframe, mini sparkline/trend indicator |
 | News Link Tile | 2 × 2 or 2 × 1 | Trending links (§3.5) | Domain favicon, article cover image, headline, publisher domain |
 
 Tile rules:
 
-- **Spans are clamped** to the column count (*Fix*): a 3 × 2 hero is 3 × 2
-  with ≥ 3 columns, 2 × 2 with 2, and 1 × 2 with 1.
-- Hero: 3 × 2 for the first hero on each 12-unit page when it fits, 2 × 2
-  for the others.
+- **Spans are clamped** to the column count (*Fix*): a 2-column tile is
+  1 column wide in a 1-column grid, and so on.
+- **Hero** (*Reference*): 2 × 2, as in the mockup at 4 columns. 3 × 2 only for
+  the first hero of a page when the grid has 6 or more columns, so a hero
+  never takes more than half the width.
+- **Medium** (*Reference*): the draft's 2 × 1, plus a 1 × 2 portrait form,
+  chosen by content (§6.1): 2 × 1 for a post led by one landscape image with
+  short text (the mockup's "Fotografia" tile); 1 × 2 for every other medium
+  post, i.e. posts with media and text, with a link card, or with long text
+  (the mockup's "Ciência Hoje", "Bruno Rocha", "Arte Brasileira",
+  "Tecnologia e Sociedade" and "Viagens e Lugares" tiles).
+- **Compact**: text-only posts that fit in 1 × 1 (the mockup's "Linux Brasil"
+  and "Design Livre" tiles). A compact post with media uses the image-led
+  form of §5.3 at 1 × 1.
 - News: the content of Explore's `LinkCard`: cover image, provider (or
   domain), title, description, "By *author*", "*N* people talking". 2 × 2 when
   the card has an image, else 2 × 1. When people in your timeline shared it,
@@ -482,6 +532,71 @@ Tile rules:
   `AvatarCache`.
 - Activating a post tile opens its thread.
 
+### 5.3 Tile anatomy (*Reference*)
+
+Every post tile, from 1 × 1 to hero, is built from the same parts, top to
+bottom. The visual reference is the mockup "Destaques das últimas 24 horas".
+
+- **Card**: libadwaita's `card` style (rounded, `var(--card-bg-color)`,
+  `var(--border-color)`), clipping its children (`overflow: hidden`). Light and
+  dark styles come from the palette; nothing is hardcoded.
+- **Boost line** (only for boosts): "*Name* boosted", `caption`, `dimmed`,
+  above the header. It is the draft's "boost indicator". With several
+  boosters (§3.4): "*Name* and *N* others boosted".
+- **Header**: avatar (32 px; 40 px on a hero), display name (`heading`, with
+  custom emoji), then `@acct · 6h` (`caption`, `dimmed`, ellipsized in the
+  middle of the handle as the mockup does). At the right end, the overflow
+  "⋯" button with the same menu as `StatusRow`.
+- **Trending badge**: a pill reading "Trending", with a flame icon, in the
+  accent colour, when the post's id or URI is in the snapshot's
+  `/trends/statuses` set (§3.5). It sits in the top-right corner of image-led
+  tiles (the mockup's "Em alta" on the hero) and at the end of the header line
+  otherwise. Trends hidden or unavailable: no badge.
+- **Text**: when the first paragraph of the plain text is at most 80
+  characters and more text follows, the first paragraph is a **headline**
+  (`title-2` on a hero, `heading` elsewhere) and the rest is the body (the
+  mockup's "Fim de tarde no Rio de Janeiro." and "IA e o futuro do trabalho:
+  cenários e caminhos"). Otherwise it is all body. Body lines are limited by
+  the tile's height (`lines=` plus ellipsis). The text is rendered from
+  `statustext.parse_content` segments into a `Gtk.Label` with markup, not an
+  `InlineEmojiText`, so tiles stay light; custom emoji are shown as in
+  `CatchUpRow`. Links in the text are not clickable in a tile; the tile opens
+  the thread.
+- **Media**:
+  - *Image-led* form, for a hero with an image, the 2 × 1 medium form and
+    compact posts with media: the first image fills the tile (`COVER`). The
+    header (hero only), headline and body are drawn over it on a dark gradient
+    at the bottom, in light text. On a hero the image is full bleed; on 1 × 2
+    tiles it is inset with rounded corners under the header (the mockup's
+    "Ciência Hoje" and "Viagens e Lugares").
+  - *Inline* form, for everything else: up to 2 images side by side under
+    the text (the mockup's "Bruno Rocha"), or one image above the text (the
+    mockup's "Arte Brasileira").
+  - Image-led tiles get the small media badge in the top-right corner (an
+    image icon, or a play icon for video and GIFV); with more than one
+    attachment it also shows the count.
+  - Images carry the `darkenable` class, as `LinkCard` does, so
+    `darken-images-on-dark-mode` applies.
+- **Link card**: a post with a card and no media shows a compact card under
+  the text: thumbnail on the left, title and domain on the right (the mockup's
+  "Tecnologia e Sociedade"). Reuse `timeline.CardPreview`. Hidden when
+  `show-preview-cards` is off.
+- **Action bar**: reply, boost and favourite buttons, each with its count,
+  and the bookmark button at the right end. On a hero they are pill buttons
+  (`osd`) over the image. Boost and favourite icons are tinted green
+  (`var(--success-color)`) and red (`var(--error-color)`) as in the mockup;
+  whether *you* boosted or favourited is shown by the filled icon, not by the
+  colour. Counts use `statustext.compact_count()` (§9.1), which gives "3,4 mil"
+  in pt_BR and "3.4K" in English. With `show-interaction-counters` off, the
+  numbers are hidden and the buttons stay.
+- **Behaviour**: the buttons act exactly as `StatusRow`'s (reply opens the
+  composer; boost, favourite and bookmark toggle), and the tile updates when
+  the `StatusItem` emits `changed`. Activating the tile elsewhere opens the
+  thread.
+
+News and hashtag tiles use the same card, header-less, with the content of
+§5.2 and the same corner badge position.
+
 ---
 
 ## 6. Tile allocation (original draft)
@@ -498,8 +613,14 @@ Tile rules:
    - `P70 ≤ S < P90` → Medium
    - `S < P70` → Compact
    With fewer than 10 posts, only the first is a Hero.
-4. Medium is also used for a Compact-tier post with media when there is room
-   in the page's budget; Compact with a single image shows the image.
+4. **Size within the tier** (*Reference*), from the content:
+   - Hero → 2 × 2 (3 × 2 per §5.2 on very wide grids).
+   - Medium → 2 × 1 when the post is led by one landscape image (aspect
+     ratio ≥ 1.3 from `meta.original`) and its text is at most 140
+     characters; otherwise 1 × 2.
+   - Compact → 1 × 1; text-only posts whose plain text exceeds ~180
+     characters are promoted to 1 × 2 when the page budget has room, since
+     1 × 1 shows only about three lines.
 
 ### 6.2 Budget per 12-unit page
 
@@ -568,7 +689,7 @@ Phanpy's snapshots.
 
   Scores, categories, links, hashtags and the layout are **not** stored. They
   are recomputed when the snapshot opens: that is cheap, and deterministic
-  because `now = end_at` and the RNG is seeded by `id`.
+  because `now = end_at` and nothing in the pipeline is random.
 - **Retention**: the 3 newest per account; older ones are deleted after a new
   one is saved. "Remove" deletes one. All of an account's snapshots are
   deleted when the account is removed (`accounts.forget_account`).
@@ -627,6 +748,19 @@ copying them:
 - `src/hashtags.py`: likewise, factor what `HashtagRow` shows into a helper
   the Hashtag tile can lay out in a grid cell. Let `Sparkline` also take plain
   values (for the fallback buckets) besides a `history` list.
+- `src/timeline.py`: move `StatusRow`'s action buttons and overflow menu
+  (`_action_button`, `_on_reply`/`_on_boost`/`_on_favourite`/`_on_bookmark`,
+  `_overflow_button`, `_build_menu`) into a component both `StatusRow` and the
+  post tiles use, bound to a `StatusItem`. It keeps building the menu lazily
+  and connecting with `connect_weak`. `StatusRow`'s behaviour does not change;
+  run `timeline memory` and `timeline render` after the move.
+- `src/statustext.py`: `compact_count(n)`, localized: below 1,000 the number
+  with the locale's grouping; above, one decimal with the locale's decimal
+  separator (dropped when it is 0) and a translatable suffix (`_('%s K')`,
+  `_('%s M')`, with `# Translators:` comments, so pt_BR can say "3,4 mil" and
+  "1,2 mi"). It needs no display, like the rest of the module.
+  `wrapped.shorten`, `search.compact_number` and `profile.format_count` stay
+  as they are; moving them onto it is a separate change.
 - `src/mastodon.py`: optional `trends_links_async`/`trends_tags_async` pairs,
   next to the existing `trends_statuses_async`, if `pages.call()` is not
   enough.
@@ -656,7 +790,10 @@ copying them:
     numbers.
   - Phanpy behaviour: categories, link grouping and trimming, boost dedupe,
     density, `binByTime`.
-  - Trends: matching trending links to timeline sharers, the front-moving
+  - Tiles: size within the tier (§6.1 step 4), the headline split (§5.3),
+    `compact_count` for en and pt_BR (`test-statustext.py`).
+  - Trends: matching trending links to timeline sharers, the Trending badge
+    set from `/trends/statuses`, the front-moving
     order for links and tags, and the fallback when trends are empty, failed
     or `hide-trending` is on.
   - Fetch stop logic against a fake client: the per-page stop check, cap,
@@ -673,7 +810,7 @@ copying them:
 
 ## 10. Phases
 
-1. **Phanpy port**: place, start screen, fetch loop, snapshots, categories,
+1. **Phanpy port**: place, period menu and first-run page, fetch loop, snapshots, categories,
    author chips, posts bar, All posts list with Phanpy's sorts.
 2. **Highlights**: `catchuprank.py` with no affinity (§4.8 phase 1),
    `catchupdigest.py`, `BentoGrid`, the five tile types (news and hashtag
@@ -681,14 +818,11 @@ copying them:
 3. **Affinity and explanations**: server-bootstrapped affinity (§4.8 phase 2),
    and the "Why is this here?" popover from the score's `reasons`.
 
-## 11. Open questions
+## 11. Decided
 
-- Should the category and author filters re-run allocation on the grid
-  (current spec) or only filter the list and leave Highlights fixed?
-- Is Elk's new-author boost wanted in a digest? It is exploration for an
-  endless feed; in a fixed snapshot it promotes one small account to rank ~15.
-  Keeping it is the faithful port; dropping it is one parameter
-  (`enable_new_author_boost`).
-- Elk's calibration (`CALIBRATION.md`) was measured on public and trending
-  timelines. A home timeline is all in-network and has fewer bots; whether
-  the bot and link priors still hold there is untested.
+- **Filters act on the list only** (§2.4, §2.5). The grid is recomputed only
+  when a new period is chosen (§2.2).
+- **No new-author boost** (§4.6).
+- **Elk's calibration values are kept.** They were measured on public and
+  trending timelines (`CALIBRATION.md` in the fork), and are used unchanged
+  for the home timeline. The parity tests (§9.3) pin them.
