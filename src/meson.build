@@ -31,8 +31,10 @@ install_data(
   'accounts.py',
   'admin.py',
   'announcements.py',
+  'catchup.py',
   'catchupdigest.py',
   'catchuprank.py',
+  'catchupstore.py',
   'compose.py',
   'conversations.py',
   'desktopnotify.py',
@@ -203,4 +205,15 @@ test('search provider', python,
   args: [files('test-searchprovider.py')],
   env: searchprovider_test_env,
   timeout: 60,
+)
+
+catchup_page_test_env = environment()
+catchup_page_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+catchup_page_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+catchup_page_test_env.set('GSETTINGS_BACKEND', 'memory')
+catchup_page_test_env.set('G_DEBUG', 'fatal-criticals')
+test('catchup page', python,
+  args: [files('test-catchup.py')],
+  env: catchup_page_test_env,
+  timeout: 120,
 )

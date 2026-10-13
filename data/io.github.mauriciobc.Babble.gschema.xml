@@ -47,6 +47,10 @@
       <default>'public'</default>
       <summary>Visibility preset used for new posts</summary>
     </key>
+    <key name="hide-catch-up" type="b">
+      <default>false</default>
+      <summary>Hide the Catch Up page from the sidebar</summary>
+    </key>
     <key name="hide-trending" type="b">
       <default>false</default>
       <summary>Hide the Explore page from the sidebar</summary>

@@ -368,6 +368,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
         sidebar = Adw.PreferencesGroup(
             title=_('Sidebar'),
             description=_('Choose which timelines the sidebar offers'))
+        self._switch(sidebar, 'hide-catch-up', _('_Catch Up'),
+                     _('Summarize what you missed in your home timeline'),
+                     invert=True)
         self._switch(sidebar, 'hide-trending', _('_Explore'),
                      _('Show posts trending on your server'), invert=True)
         self._switch(sidebar, 'hide-local', _('_Local Timeline'),

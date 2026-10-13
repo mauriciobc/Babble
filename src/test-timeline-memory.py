@@ -449,6 +449,54 @@ check('a page held only by GTK still handles its signals',
       held._pill_count == 0
       and not held.new_posts_revealer.get_reveal_child())
 
+# Catch Up: a page with a populated snapshot, its rows and its items are
+# freed once it is dropped, and a run in flight is cancelled with it.
+import datetime  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+from src import catchup, catchupstore  # noqa: E402
+
+_cu_dir = tempfile.mkdtemp(prefix='babble-catchup-mem-')
+catchupstore.set_root(_cu_dir)
+_cu_now = datetime.datetime.now(datetime.timezone.utc)
+_cu_posts = [dict(status(n), created_at=catchup.iso(
+    _cu_now - datetime.timedelta(minutes=n)), account=dict(
+        status(n)['account'], display_name='User %d' % (n % 4), id=str(n % 4)),
+    media_attachments=[], tags=[], reblog=None, in_reply_to_id=None)
+    for n in range(1, 40)]
+catchupstore.write_snapshot({
+    'version': 1, 'id': 'mem', 'account': 'https://m.example#1',
+    'start_at': None, 'end_at': catchup.iso(_cu_now), 'period': '24h',
+    'stopped': 'complete', 'count': len(_cu_posts), 'oldest_at': None,
+    'posts': _cu_posts, 'relationships': {}, 'followed_tags': [],
+    'trends': {'links': None, 'tags': None, 'statuses': None}})
+
+
+class _CatchUpClient(_Client):
+    instance = 'https://m.example'
+
+    def rate_limited(self):
+        return False
+
+
+cu = [catchup.CatchUpPage(_CatchUpClient(), account={
+    'id': '1', 'instance': 'https://m.example'})]
+box.append(cu[0])
+settle(lambda: cu[0].state == 'results')
+check('a catch-up page opens its newest snapshot',
+      cu[0].state == 'results' and cu[0].sorted.get_n_items() == 40)
+settle(lambda: cu[0].list_view.get_first_child() is not None)
+cu_refs = [cu[0].weak_ref(), cu[0].store.get_item(1).weak_ref(),
+           cu[0].top_item.weak_ref()]
+box.remove(cu[0])
+cu[0].cancel()
+cu.clear()
+settle()
+check('a closed catch-up page and its items are freed',
+      all(freed(ref) for ref in cu_refs))
+shutil.rmtree(_cu_dir, ignore_errors=True)
+
 if failures:
     print('%d checks failed' % len(failures))
     sys.exit(1)
