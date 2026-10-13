@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 09:39+0000\n"
+"POT-Creation-Date: 2026-10-13 10:18+0000\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -1254,7 +1254,7 @@ msgid "CW: %s"
 msgstr "AC: %s"
 
 #. Translators: %s is the name of the person who boosted the post
-#: src/catchup.py:803 src/timeline.py:3844
+#: src/catchup.py:803 src/catchupgrid.py:638 src/timeline.py:3844
 #, python-format
 msgid "%s boosted"
 msgstr "%s impulsó"
@@ -1460,6 +1460,84 @@ msgstr "Todas las ubicaciones"
 #, fuzzy, python-format
 msgid "%(name)s (%(count)d)"
 msgstr "%(name)s, %(count)d"
+
+#: src/catchupgrid.py:204
+#, fuzzy
+msgid "Trending"
+msgstr "Pendiente"
+
+#: src/catchupgrid.py:607 src/thread.py:75
+#, python-format
+msgid "%d reply"
+msgid_plural "%d replies"
+msgstr[0] "%d respuesta"
+msgstr[1] "%d respuestas"
+
+#: src/catchupgrid.py:609
+#, fuzzy, python-format
+msgid "%d boost"
+msgid_plural "%d boosts"
+msgstr[0] "%d impulso"
+msgstr[1] "%d impulsos"
+
+#: src/catchupgrid.py:611
+#, fuzzy, python-format
+msgid "%d favorite"
+msgid_plural "%d favorites"
+msgstr[0] "Marcar como favorito"
+msgstr[1] "Marcar como favorito"
+
+#. Translators: shown above a post boosted by several people;
+#. the first %s is the first booster's name, %d the number of
+#. others, e.g. "Ana and 2 others boosted".
+#: src/catchupgrid.py:634
+#, fuzzy, python-format
+msgid "%s and %d other boosted"
+msgid_plural "%s and %d others boosted"
+msgstr[0] "Seguida por %(names)s y %(count)d más"
+msgstr[1] "Seguida por %(names)s y %(count)d más"
+
+#: src/catchupgrid.py:883 src/catchupgrid.py:902 src/explore.py:382
+msgid "News"
+msgstr "Noticias"
+
+#: src/catchupgrid.py:921 src/explore.py:198
+#, python-format
+msgid "%d person talking"
+msgid_plural "%d people talking"
+msgstr[0] "%d persona hablando"
+msgstr[1] "%d personas hablando"
+
+#: src/catchupgrid.py:924 src/explore.py:192 src/fedicollections.py:303
+#, python-format
+msgid "By %s"
+msgstr "Por %s"
+
+#: src/catchupgrid.py:929 src/explore.py:107 src/profile.py:1321
+msgid "Open in Browser"
+msgstr "Abrir en el navegador"
+
+#: src/catchupgrid.py:1020
+#, fuzzy, python-format
+msgid "%d post in your timeline"
+msgid_plural "%d posts in your timeline"
+msgstr[0] "Cronología _local"
+msgstr[1] "Cronología _local"
+
+#: src/catchupgrid.py:1028 src/catchupgrid.py:1041 src/searchprovider.py:567
+#, fuzzy
+msgid "Hashtag"
+msgstr "Etiquetas"
+
+#: src/catchupgrid.py:1047 src/explore.py:278 src/notifications.py:1112
+#: src/profile.py:820
+msgid "Following"
+msgstr "Siguiendo"
+
+#: src/catchupgrid.py:1234 src/profile.py:850 src/profile.py:898
+#: src/timeline.py:3626 src/timeline.py:4028
+msgid "Show More"
+msgstr "Mostrar más"
 
 #: src/compose.py:74 src/fedicollections.py:491 src/fedicollections.py:691
 #: src/preferences.py:55 src/profileedit.py:33 src/scheduled.py:388
@@ -2054,10 +2132,6 @@ msgstr "Ninguna publicación comparte este enlace"
 msgid "Posts mentioning the link will appear here"
 msgstr "Las publicaciones que mencionen el enlace aparecerán aquí"
 
-#: src/explore.py:107 src/profile.py:1321
-msgid "Open in Browser"
-msgstr "Abrir en el navegador"
-
 #. Translators: a link shared by one person in the user's timeline;
 #. %s is that person's name, e.g. "Shared by Ana".
 #: src/explore.py:137
@@ -2075,18 +2149,6 @@ msgid_plural "Shared by %s and %d others"
 msgstr[0] "Seguida por %(names)s y %(count)d más"
 msgstr[1] "Seguida por %(names)s y %(count)d más"
 
-#: src/explore.py:192 src/fedicollections.py:303
-#, python-format
-msgid "By %s"
-msgstr "Por %s"
-
-#: src/explore.py:198
-#, python-format
-msgid "%d person talking"
-msgid_plural "%d people talking"
-msgstr[0] "%d persona hablando"
-msgstr[1] "%d personas hablando"
-
 #: src/explore.py:250 src/hashtags.py:168 src/hashtags.py:200
 msgid "_Follow"
 msgstr "_Seguir"
@@ -2102,10 +2164,6 @@ msgstr "No se pudo seguir"
 #: src/explore.py:277 src/profile.py:951
 msgid "Requested"
 msgstr "Solicitado"
-
-#: src/explore.py:278 src/notifications.py:1112 src/profile.py:820
-msgid "Following"
-msgstr "Siguiendo"
 
 #: src/explore.py:293
 msgid "Could not dismiss the suggestion"
@@ -2130,10 +2188,6 @@ msgstr "Sin noticias en tendencia"
 #: src/explore.py:381 src/hashtags.py:460 src/search.py:485 src/window.py:97
 msgid "Hashtags"
 msgstr "Etiquetas"
-
-#: src/explore.py:382
-msgid "News"
-msgstr "Noticias"
 
 #: src/explore.py:383
 msgid "For You"
@@ -4280,11 +4334,6 @@ msgstr "Este usuario aún no sigue a nadie"
 msgid "Profile Fields"
 msgstr "Campos del perfil"
 
-#: src/profile.py:850 src/profile.py:898 src/timeline.py:3626
-#: src/timeline.py:4028
-msgid "Show More"
-msgstr "Mostrar más"
-
 #: src/profile.py:870
 #, python-format
 msgid "Ownership of this link was verified on %s"
@@ -5427,11 +5476,6 @@ msgstr "Busca cuentas, etiquetas y publicaciones"
 msgid "Followed hashtag"
 msgstr "Etiquetas seguidas"
 
-#: src/searchprovider.py:567
-#, fuzzy
-msgid "Hashtag"
-msgstr "Etiquetas"
-
 #: src/searchprovider.py:689
 #, fuzzy
 msgid "Could not open the profile"
@@ -5703,13 +5747,6 @@ msgstr "Historial de ediciones"
 #: src/textemoji.py:75 src/textemoji.py:89
 msgid "Could not open link"
 msgstr "No se pudo abrir el enlace"
-
-#: src/thread.py:75
-#, python-format
-msgid "%d reply"
-msgid_plural "%d replies"
-msgstr[0] "%d respuesta"
-msgstr[1] "%d respuestas"
 
 #: src/thread.py:115
 msgid "Loading Thread"

@@ -1,6 +1,6 @@
 # Catch Up — feature specification
 
-Status: draft, not implemented.
+Status: phases 1 and 2 implemented (`catchup.py`, `catchupstore.py`, `catchupgrid.py`, `catchupdigest.py`, `catchuprank.py`); phase 3 (affinity, "Why is this here?") not started.
 
 Sources this spec ports from:
 

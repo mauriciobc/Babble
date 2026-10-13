@@ -10,6 +10,7 @@ account is removed. Also the pieces under the page that need no widget
 Exits 77 (skip) without a display."""
 
 import datetime
+import gc
 import json
 import os
 import shutil
@@ -775,6 +776,50 @@ check('removing an account deletes its snapshots',
       not os.path.exists(catchupstore.account_dir('https://test.example#56')))
 check('and only its own',
       catchupstore.list_snapshots('https://test.example#55'))
+
+# --------------------------------------------------------------------------
+# The real Highlights grid under the page
+
+sys.modules.pop('src.catchupgrid', None)      # the page imports it lazily
+from src import catchupgrid  # noqa: E402
+
+page8, host8 = make_page(FakeClient(), dict(ACCOUNT, id='60'))
+window8 = Gtk.Window(default_width=700, default_height=900, child=host8)
+window8.present()
+settle(lambda: page8.state == 'first-run')
+page8.catch_up_button.emit('clicked')
+settle(lambda: page8.state == 'results')
+view8 = page8._highlights
+check('the Highlights slot holds a real HighlightsView',
+      isinstance(view8, catchupgrid.HighlightsView))
+grid8 = view8.grid
+settle(lambda: any(p.kind == 'post' for p in grid8.placed)
+       and len(grid8.tiles) > 0)
+tiles = list(grid8.tiles.values())
+children = []
+child = grid8.get_first_child()
+while child is not None:
+    children.append(child)
+    child = child.get_next_sibling()
+check('the grid has a placed post tile',
+      any(p.kind == 'post' for p in grid8.placed) and any(
+          isinstance(t, catchupgrid.PostTile) for t in tiles))
+check('the tiles are children of the grid',
+      tiles and all(t.get_parent() is grid8 for t in tiles))
+check('no tile is the same widget twice',
+      len({id(w) for w in children}) == len(children) == len(tiles))
+
+page8.cancel()
+refs = [page8.weak_ref(), host8.weak_ref(), view8.weak_ref(),
+        grid8.weak_ref()] + [t.weak_ref() for t in tiles]
+window8.set_child(None)
+window8.destroy()
+settle(lambda: False, timeout=0.5)
+tiles = children = child = view8 = grid8 = page8 = host8 = None
+window8 = None
+gc.collect()
+check('a dropped page frees its Highlights view, grid and tiles',
+      all(ref() is None for ref in refs))
 
 shutil.rmtree(CACHE, ignore_errors=True)
 

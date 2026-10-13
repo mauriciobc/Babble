@@ -33,6 +33,7 @@ install_data(
   'announcements.py',
   'catchup.py',
   'catchupdigest.py',
+  'catchupgrid.py',
   'catchuprank.py',
   'catchupstore.py',
   'compose.py',
@@ -215,5 +216,16 @@ catchup_page_test_env.set('G_DEBUG', 'fatal-criticals')
 test('catchup page', python,
   args: [files('test-catchup.py')],
   env: catchup_page_test_env,
+  timeout: 120,
+)
+
+catchup_grid_test_env = environment()
+catchup_grid_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+catchup_grid_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+catchup_grid_test_env.set('GSETTINGS_BACKEND', 'memory')
+catchup_grid_test_env.set('G_DEBUG', 'fatal-criticals')
+test('catchup grid', python,
+  args: [files('test-catchup-grid.py')],
+  env: catchup_grid_test_env,
   timeout: 120,
 )

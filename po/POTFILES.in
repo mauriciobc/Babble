@@ -6,6 +6,7 @@ src/accounts.py
 src/admin.py
 src/announcements.py
 src/catchup.py
+src/catchupgrid.py
 src/compose.py
 src/conversations.py
 src/desktopnotify.py

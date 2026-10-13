@@ -15,7 +15,7 @@ meson test -C build -v 'compose widgets'  # -v shows the test's ok/FAIL lines
 python3 build/src/babble                  # uninstalled run; not executable until installed, and only works with the build dir directly inside the source tree (it resolves ../../src)
 ```
 
-Test names (besides the `validate …` and `po check <lang>` tests): `timeline render`, `timeline memory`, `thread profile render`, `compose widgets`, `notifications render`, `oauth callback`, `oauth loopback`, `error summary`, `streaming helpers`, `account store`, `status text`, `search provider`.
+Test names (besides the `validate …` and `po check <lang>` tests): `timeline render`, `timeline memory`, `thread profile render`, `compose widgets`, `notifications render`, `oauth callback`, `oauth loopback`, `error summary`, `streaming helpers`, `account store`, `status text`, `search provider`, `catchup digest`, `catchup rank`, `catchup page`, `catchup grid`.
 
 - Each test is a standalone script, `src/test-*.py`, that prints `ok - …` / `FAIL - …` lines. It exits 77 (a Meson skip) when there is no `DISPLAY` or, for `timeline render` and `thread profile render`, no network: those two fetch live public data from mastodon.social. To run one headless, use `xvfb-run -a meson test -C build '<name>'`.
 - Tests import modules as `src.<module>` through `BABBLE_SRCDIR`. Several need `GSETTINGS_SCHEMA_DIR=build/data`, so they need a compiled build tree. They also run with `G_DEBUG=fatal-criticals`, so any GTK critical fails the test.

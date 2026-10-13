@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 09:39+0000\n"
+"POT-Creation-Date: 2026-10-13 10:18+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1214,7 +1214,7 @@ msgid "CW: %s"
 msgstr ""
 
 #. Translators: %s is the name of the person who boosted the post
-#: src/catchup.py:803 src/timeline.py:3844
+#: src/catchup.py:803 src/catchupgrid.py:638 src/timeline.py:3844
 #, python-format
 msgid "%s boosted"
 msgstr ""
@@ -1405,6 +1405,82 @@ msgstr ""
 #: src/catchup.py:2007
 #, python-format
 msgid "%(name)s (%(count)d)"
+msgstr ""
+
+#: src/catchupgrid.py:204
+msgid "Trending"
+msgstr ""
+
+#: src/catchupgrid.py:607 src/thread.py:75
+#, python-format
+msgid "%d reply"
+msgid_plural "%d replies"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/catchupgrid.py:609
+#, python-format
+msgid "%d boost"
+msgid_plural "%d boosts"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/catchupgrid.py:611
+#, python-format
+msgid "%d favorite"
+msgid_plural "%d favorites"
+msgstr[0] ""
+msgstr[1] ""
+
+#. Translators: shown above a post boosted by several people;
+#. the first %s is the first booster's name, %d the number of
+#. others, e.g. "Ana and 2 others boosted".
+#: src/catchupgrid.py:634
+#, python-format
+msgid "%s and %d other boosted"
+msgid_plural "%s and %d others boosted"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/catchupgrid.py:883 src/catchupgrid.py:902 src/explore.py:382
+msgid "News"
+msgstr ""
+
+#: src/catchupgrid.py:921 src/explore.py:198
+#, python-format
+msgid "%d person talking"
+msgid_plural "%d people talking"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/catchupgrid.py:924 src/explore.py:192 src/fedicollections.py:303
+#, python-format
+msgid "By %s"
+msgstr ""
+
+#: src/catchupgrid.py:929 src/explore.py:107 src/profile.py:1321
+msgid "Open in Browser"
+msgstr ""
+
+#: src/catchupgrid.py:1020
+#, python-format
+msgid "%d post in your timeline"
+msgid_plural "%d posts in your timeline"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/catchupgrid.py:1028 src/catchupgrid.py:1041 src/searchprovider.py:567
+msgid "Hashtag"
+msgstr ""
+
+#: src/catchupgrid.py:1047 src/explore.py:278 src/notifications.py:1112
+#: src/profile.py:820
+msgid "Following"
+msgstr ""
+
+#: src/catchupgrid.py:1234 src/profile.py:850 src/profile.py:898
+#: src/timeline.py:3626 src/timeline.py:4028
+msgid "Show More"
 msgstr ""
 
 #: src/compose.py:74 src/fedicollections.py:491 src/fedicollections.py:691
@@ -1981,10 +2057,6 @@ msgstr ""
 msgid "Posts mentioning the link will appear here"
 msgstr ""
 
-#: src/explore.py:107 src/profile.py:1321
-msgid "Open in Browser"
-msgstr ""
-
 #. Translators: a link shared by one person in the user's timeline;
 #. %s is that person's name, e.g. "Shared by Ana".
 #: src/explore.py:137
@@ -2002,18 +2074,6 @@ msgid_plural "Shared by %s and %d others"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/explore.py:192 src/fedicollections.py:303
-#, python-format
-msgid "By %s"
-msgstr ""
-
-#: src/explore.py:198
-#, python-format
-msgid "%d person talking"
-msgid_plural "%d people talking"
-msgstr[0] ""
-msgstr[1] ""
-
 #: src/explore.py:250 src/hashtags.py:168 src/hashtags.py:200
 msgid "_Follow"
 msgstr ""
@@ -2028,10 +2088,6 @@ msgstr ""
 
 #: src/explore.py:277 src/profile.py:951
 msgid "Requested"
-msgstr ""
-
-#: src/explore.py:278 src/notifications.py:1112 src/profile.py:820
-msgid "Following"
 msgstr ""
 
 #: src/explore.py:293
@@ -2056,10 +2112,6 @@ msgstr ""
 
 #: src/explore.py:381 src/hashtags.py:460 src/search.py:485 src/window.py:97
 msgid "Hashtags"
-msgstr ""
-
-#: src/explore.py:382
-msgid "News"
 msgstr ""
 
 #: src/explore.py:383
@@ -4147,11 +4199,6 @@ msgstr ""
 msgid "Profile Fields"
 msgstr ""
 
-#: src/profile.py:850 src/profile.py:898 src/timeline.py:3626
-#: src/timeline.py:4028
-msgid "Show More"
-msgstr ""
-
 #: src/profile.py:870
 #, python-format
 msgid "Ownership of this link was verified on %s"
@@ -5269,10 +5316,6 @@ msgstr ""
 msgid "Followed hashtag"
 msgstr ""
 
-#: src/searchprovider.py:567
-msgid "Hashtag"
-msgstr ""
-
 #: src/searchprovider.py:689
 msgid "Could not open the profile"
 msgstr ""
@@ -5528,13 +5571,6 @@ msgstr ""
 #: src/textemoji.py:75 src/textemoji.py:89
 msgid "Could not open link"
 msgstr ""
-
-#: src/thread.py:75
-#, python-format
-msgid "%d reply"
-msgid_plural "%d replies"
-msgstr[0] ""
-msgstr[1] ""
 
 #: src/thread.py:115
 msgid "Loading Thread"
