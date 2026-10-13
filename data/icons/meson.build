@@ -29,6 +29,16 @@ install_data(
 )
 
 install_data(
+  'hicolor/symbolic/actions/babble-trending-symbolic.svg',
+  install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'symbolic' / 'actions',
+)
+
+install_data(
+  'hicolor/symbolic/actions/babble-news-symbolic.svg',
+  install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'symbolic' / 'actions',
+)
+
+install_data(
   'hicolor/symbolic/actions/babble-explore-symbolic.svg',
   install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'symbolic' / 'actions',
 )
