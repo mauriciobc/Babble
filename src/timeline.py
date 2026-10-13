@@ -1971,7 +1971,7 @@ class MediaBox(Gtk.Box):
                     accessible_role=Gtk.AccessibleRole.PRESENTATION)
                 play.add_css_class('osd')
                 overlay.add_overlay(play)
-            click = Gtk.GestureClick()
+            click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
             connect_weak(click, 'released', self._on_tile_clicked, index)
             overlay.add_controller(click)
             overlay.set_cursor_from_name('pointer')
@@ -1998,7 +1998,7 @@ class MediaBox(Gtk.Box):
                 label.add_css_class('caption')
                 label.add_css_class('dimmed')
                 label.set_cursor_from_name('pointer')
-                click = Gtk.GestureClick()
+                click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
                 connect_weak(click, 'released', self._on_footnote_clicked,
                              label)
                 label.add_controller(click)
@@ -2027,7 +2027,10 @@ class MediaBox(Gtk.Box):
     def _on_file_clicked(self, _button, index):
         self._open(index)
 
-    def _on_tile_clicked(self, _gesture, _n_press, _x, _y, index):
+    def _on_tile_clicked(self, gesture, _n_press, _x, _y, index):
+        # Claim the click: otherwise the ListView's single-click
+        # activation opens the thread of the containing row too.
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
         self._open(index)
 
     def _open(self, index):
@@ -2045,9 +2048,12 @@ class MediaBox(Gtk.Box):
             button.set_label(_('Show Sensitive Content'))
             button.remove_css_class('flat')
 
-    def _on_footnote_clicked(self, _gesture, _n_press, _x, _y, label):
+    def _on_footnote_clicked(self, gesture, _n_press, _x, _y, label):
         """A description cut at two lines opens on click and closes on
         the next one."""
+        # Claim the click: otherwise the ListView's single-click
+        # activation opens the thread of the containing row too.
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
         if label.get_lines() == FOOTNOTE_LINES:
             label.set_lines(-1)
             label.set_ellipsize(Pango.EllipsizeMode.NONE)

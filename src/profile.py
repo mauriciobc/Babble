@@ -730,8 +730,7 @@ class ProfilePage(Adw.Bin):
         return text
 
     def _open_image_on_click(self, widget, url, description):
-        click = Gtk.GestureClick.new()
-        click.set_button(1)
+        click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
         connect_weak(click, 'released', self._on_image_clicked, url,
                      description)
         widget.add_controller(click)
