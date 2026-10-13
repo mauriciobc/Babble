@@ -22,7 +22,7 @@ gi.require_version('Graphene', '1.0')
 
 from .i18n import gettext as _, ngettext  # noqa: E402
 
-from gi.repository import Adw, Gio, GLib, Graphene, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
 from .mastodon import (summarize_error,  # noqa: E402
@@ -596,7 +596,7 @@ class WrappedDialog(Adw.Dialog):
             widget = getattr(row, name, None)
             if widget is not None:
                 widget.set_visible(False)
-        click = Gtk.GestureClick()
+        click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
         pages.connect_weak(click, 'released', self._on_status_released,
                            status)
         row.add_controller(click)

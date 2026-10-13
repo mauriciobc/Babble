@@ -965,7 +965,7 @@ class MediaViewer(Adw.Dialog):
             view.add_css_class('media-viewer-gifv')
             view.update_property([Gtk.AccessibleProperty.LABEL],
                                  [self._description(attachment)])
-            click = Gtk.GestureClick()
+            click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
             pages.connect_weak(click, 'pressed', self._on_gifv_pressed, stream)
             view.add_controller(click)
             autoplay = animations

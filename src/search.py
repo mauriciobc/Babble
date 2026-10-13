@@ -18,7 +18,7 @@ gi.require_version('Adw', '1')
 
 from .i18n import gettext as _  # noqa: E402
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .lists import ToastDialog, error_text_markup  # noqa: E402
@@ -232,9 +232,9 @@ def make_post_row(client, status):
     item = StatusItem(status)
     row = StatusRow()
     row.bind(item, client)
-    gesture = Gtk.GestureClick()
-    gesture.connect('released',
-                    lambda *_a: row.activate_status(item))
+    gesture = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
+    pages.connect_weak(gesture, 'released',
+                       lambda *_a: row.activate_status(item))
     row.add_controller(gesture)
     return row
 
