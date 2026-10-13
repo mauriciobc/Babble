@@ -2411,12 +2411,1035 @@ def _display_name_uses_custom_emoji(account, display_name):
     return False
 
 
-def _open_row_menu(_button, row_ref):
-    """Gtk.MenuButton create-popup callback of a StatusRow's overflow
-    button; holds the row weakly so the button does not keep it alive."""
-    row = row_ref()
-    if row is not None:
-        row._prepare_menu()
+def _open_status_menu(_button, menu_ref):
+    """Gtk.MenuButton create-popup callback of a StatusMenuButton; holds
+    the button weakly so it does not keep itself alive."""
+    menu = menu_ref()
+    if menu is not None:
+        menu.prepare()
+
+
+# Passed to ``bind()`` for "ask the window", as opposed to None, which
+# means signed out.
+WINDOW_CLIENT = object()
+
+
+def _merge_status(item, data):
+    """Copy the fields a status action changes into *item*."""
+    if not isinstance(data, dict):
+        return
+    fresh = data.get('reblog') or data
+    if fresh.get('id') != item.status_id:
+        return
+    for key in MERGE_KEYS:
+        if key in fresh:
+            item.status[key] = fresh[key]
+
+
+def _open_composer(widget, method, status):
+    window = pages.window_of(widget)
+    if window is None:
+        return
+    dialog = window.ensure_composer()
+    if dialog is None:
+        return
+    getattr(dialog, method)(status)
+    window.present_composer()
+
+
+def _open_thread(widget, client, item):
+    window = pages.window_of(widget)
+    if window is None:
+        return
+    from .thread import push_thread
+    push_thread(window.navigation_view, client, item)
+
+
+class _PostBound:
+    """What the action bar and the overflow menu share: the bound
+    StatusItem, the client acting on it, and what the signed-in account
+    may do with the post."""
+
+    item = None
+    _client = None
+    # A host that wants the notifications below as plain method calls
+    # (StatusRow) sets this to its ``weak_ref()``: no signal handler, so
+    # no closure per row. Without one they are emitted as signals.
+    host = None
+
+    def _notify(self, name):
+        """Tell the host (or the signal's listeners) that the post
+        changed in place, was translated or was deleted."""
+        if self.host is None:
+            self.emit(name)
+            return
+        owner = self.host()
+        if owner is not None:
+            owner.on_post_event(name)
+
+    @property
+    def client(self):
+        if self._client is WINDOW_CLIENT:
+            return pages.client_of(self)
+        return self._client
+
+    def _can_act(self):
+        client = self.client
+        return client is not None and bool(getattr(client, 'token', None))
+
+    def _is_own(self):
+        own = _own_account_id(self)
+        account = self.item.status['account'] if self.item else {}
+        return bool(own) and account.get('id') == own
+
+    def can_be_boosted(self, item):
+        visibility = item.status.get('visibility')
+        return visibility != 'direct' and (
+            visibility != 'private' or self._is_own())
+
+
+class StatusActions(_PostBound, Adw.WrapBox):
+    """The reply, boost, quote, favourite and bookmark buttons of a post,
+    each with its count, bound to a StatusItem: StatusRow's action bar,
+    usable on its own.
+
+    *quote* adds the quote button. *button_classes* are the CSS classes
+    of every button ('osd', 'pill' for buttons over an image); *tinted*
+    colours the boost and favourite icons whatever the state. The counts
+    follow ``show-interaction-counters`` and are written by
+    *count_format*, which must not hold the widget that owns the bar.
+
+    A host that redraws the whole post (StatusRow) passes *standalone*
+    False and either connects ``refresh`` or sets ``host``; it is told
+    after a toggle changed the post in place. Standalone, the bar
+    follows the item's ``changed`` signal and redraws itself on
+    ``refresh``."""
+
+    __gtype_name__ = 'BabbleStatusActions'
+    __gsignals__ = {'refresh': (GObject.SignalFlags.RUN_FIRST, None, ())}
+
+    ICON_REPLY = 'mail-reply-sender-symbolic'
+    ICON_BOOST = 'media-playlist-repeat-symbolic'
+    ICON_QUOTE = 'format-indent-more-symbolic'
+    ICON_FAVOURITE = ('non-starred-symbolic', 'starred-symbolic')
+    ICON_BOOKMARK = ('bookmark-new-symbolic', 'user-bookmarks-symbolic')
+
+    def __init__(self, quote=True, button_classes=('flat',), tinted=False,
+                 count_format=str, standalone=True, **kwargs):
+        # WrapBox, not Box: with a count next to each icon the five
+        # actions need ~314 px, which overflows the 360 px window
+        # minimum (350 px of content) instead of flowing to a second
+        # line.
+        super().__init__(child_spacing=4, line_spacing=4,
+                         halign=Gtk.Align.START, **kwargs)
+        self.add_css_class('status-actions')
+        self.busy = False
+        self._button_classes = button_classes
+        self._tinted = tinted
+        self._count_format = count_format
+        self._standalone = standalone
+        self._item_watch = None
+        if standalone:
+            connect_weak(self, 'refresh', self._on_refresh)
+        self.reply_button = self._action_button(
+            self.ICON_REPLY, _('Reply'), self._on_reply,
+            nouns=('%d reply', '%d replies'))
+        self.boost_button = self._action_button(
+            (self.ICON_BOOST,) * 2, _('Boost'), self._on_boost,
+            nouns=('%d boost', '%d boosts'), toggle=True,
+            tint='tint-success')
+        self.quote_button = self._action_button(
+            self.ICON_QUOTE, _('Quote'), self._on_quote,
+            nouns=('%d quote', '%d quotes')) if quote else None
+        self.favourite_button = self._action_button(
+            self.ICON_FAVOURITE, _('Favorite'), self._on_favourite,
+            nouns=('%d favorite', '%d favorites'), toggle=True,
+            tint='tint-error')
+        self.bookmark_button = self._action_button(
+            self.ICON_BOOKMARK, _('Bookmark'), self._on_bookmark,
+            toggle=True)
+        self.append(self.reply_button)
+        self.append(self.boost_button)
+        if self.quote_button is not None:
+            self.append(self.quote_button)
+        self.append(self.favourite_button)
+        self.append(self.bookmark_button)
+
+    # What the overflow menu's icon row runs, so reminders, the boost
+    # dialog and the optimistic rollback stay in one place.
+
+    def reply(self):
+        self._on_reply(self.reply_button)
+
+    def quote(self):
+        self._on_quote(self.quote_button)
+
+    def boost(self):
+        self._on_boost(self.boost_button)
+
+    def favourite(self):
+        self._on_favourite(self.favourite_button)
+
+    def bookmark(self):
+        self._on_bookmark(self.bookmark_button)
+
+    def clear_flashes(self):
+        """End a pop still playing for the post this bar showed before."""
+        for button in (self.favourite_button, self.boost_button,
+                       self.bookmark_button):
+            button.remove_css_class('just-toggled')
+
+    def _refresh(self):
+        self._notify('refresh')
+
+    def _on_refresh(self, _actions):
+        if self.item is not None:
+            self.bind(self.item, self._client)
+
+    def _watch(self, item):
+        if self._item_watch is not None and self._item_watch[0] is not item:
+            watched, handler = self._item_watch
+            watched.disconnect(handler)
+            self._item_watch = None
+        if self._item_watch is None:
+            self._item_watch = (item, connect_weak(
+                item, 'changed', self._on_item_changed))
+
+    def _on_item_changed(self, item):
+        if item is self.item:
+            self.bind(item, self._client)
+
+    # Buttons
+
+    def _action_button(self, icons, tooltip, callback, nouns=None,
+                       toggle=False, tint=None):
+        if isinstance(icons, str):
+            icons = (icons, icons)
+        button = Gtk.ToggleButton() if toggle else Gtk.Button()
+        for css in self._button_classes:
+            button.add_css_class(css)
+        content = Adw.ButtonContent(icon_name=icons[0])
+        if tint and self._tinted:
+            content.add_css_class(tint)
+        button.set_child(content)
+        button.set_tooltip_text(tooltip)
+        button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+        connect_weak(button, 'clicked', callback)
+        button.icons = icons
+        button.action_name_text = tooltip
+        button.nouns = nouns
+        return button
+
+    def bind(self, item, client=WINDOW_CLIENT):
+        """Show *item*'s counts and state. *client* defaults to the
+        window's, looked up when an action runs."""
+        if self._standalone:
+            self._watch(item)
+        self.item = item
+        self._client = client
+        status = item.status
+        can_act = self._can_act()
+        counters = _flag('show-interaction-counters')
+        self._set_count(self.reply_button,
+                        item.reply_count if counters else 0)
+        self._set_count(self.boost_button,
+                        item.boost_count if counters else 0)
+        self._set_count(self.favourite_button,
+                        item.favourite_count if counters else 0)
+        self._set_count(self.bookmark_button, 0)
+        self._set_active(self.boost_button, item.reblogged)
+        self._set_active(self.favourite_button, item.favourited)
+        self._set_active(self.bookmark_button, item.bookmarked)
+        if self.quote_button is not None:
+            quotable = 'quote_approval' in status
+            self.quote_button.set_visible(quotable)
+            if quotable:
+                self._set_count(self.quote_button,
+                                (status.get('quotes_count') or 0)
+                                if counters else 0)
+                allowed = can_quote(status)
+                self.quote_button.set_sensitive(can_act and allowed)
+                self.quote_button.set_tooltip_text(
+                    _('Quote') if allowed
+                    else _('This post can’t be quoted'))
+        boostable = item.reblogged or self.can_be_boosted(item)
+        self.boost_button.set_tooltip_text(
+            _('Boost') if boostable else _('This post can’t be boosted'))
+        self.favourite_button.set_sensitive(can_act and not self.busy)
+        self.bookmark_button.set_sensitive(can_act and not self.busy)
+        self.boost_button.set_sensitive(
+            can_act and boostable and not self.busy)
+
+    def _set_active(self, button, active):
+        button.set_active(active)
+        child = button.get_child()
+        child.set_icon_name(button.icons[bool(active)])
+        if button is self.boost_button:
+            # add/remove rather than set_css_classes: the icon may
+            # carry other classes on it.
+            if active:
+                child.add_css_class('boost-accent')
+            else:
+                child.remove_css_class('boost-accent')
+
+    def _set_count(self, button, count):
+        """Show *count* next to the icon and name it in the accessible
+        label, so the button reads as 'Boost, 12 boosts'."""
+        button.get_child().set_label(
+            self._count_format(count) if count else '')
+        label = button.action_name_text
+        if count and button.nouns:
+            label = '%s, %s' % (label, ngettext(
+                button.nouns[0], button.nouns[1], count) % count)
+        button.update_property([Gtk.AccessibleProperty.LABEL], [label])
+
+    def _on_reply(self, _button):
+        item = self.item
+        if item is None:
+            return
+        window = pages.window_of(self)
+        if window is None or not hasattr(window, 'open_compose_reply'):
+            _open_thread(self, self.client, item)
+            return
+        status = item.status
+
+        def reply():
+            window.open_compose_reply(
+                item.status_id, status['account'].get('acct', ''),
+                status.get('visibility') or 'public')
+
+        age = days_since(status.get('created_at'))
+        if age > OLD_POST_DAYS and _flag('reply-to-old-post-reminder'):
+            self._confirm_old_reply(age, reply)
+        else:
+            reply()
+
+    def _confirm_old_reply(self, days, reply):
+        dialog = Adw.AlertDialog(
+            heading=_('Reply to an Old Post?'),
+            body=_('This post is %(age)s old. You can still reply, but it '
+                   'may no longer be relevant.') % {
+                'age': ngettext('%d day', '%d days', days) % days})
+        dialog.add_response('cancel', _('_Cancel'))
+        dialog.add_response('never', _('_Don’t Remind Me Again'))
+        dialog.add_response('reply', _('_Reply'))
+        dialog.set_response_appearance('reply',
+                                       Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response('reply')
+        dialog.set_close_response('cancel')
+
+        def on_response(_dialog, response):
+            if response == 'never':
+                pages.settings().set_boolean('reply-to-old-post-reminder',
+                                             False)
+            if response in ('never', 'reply'):
+                reply()
+
+        dialog.connect('response', on_response)
+        dialog.present(self)
+
+    def _on_quote(self, _button):
+        if self.item is not None:
+            _open_composer(self, 'start_quote', self.item.status)
+
+    def _set_busy(self, busy):
+        self.busy = busy
+        if self.item is not None and not isinstance(
+                self.item, BoostCarouselItem):
+            can_act = self._can_act()
+            self.favourite_button.set_sensitive(can_act and not busy)
+            self.bookmark_button.set_sensitive(can_act and not busy)
+            self.boost_button.set_sensitive(
+                can_act and not busy
+                and (self.item.reblogged or self.can_be_boosted(self.item)))
+
+    def _send_toggle(self, kind, active, form=None):
+        """Set favourite/reblog/bookmark to *active* with the matching
+        do/undo endpoint, optimistic with rollback on failure."""
+        item, client = self.item, self.client
+        flag = {'favourite': 'favourited', 'reblog': 'reblogged',
+                'bookmark': 'bookmarked'}[kind]
+        count_key = {'favourite': 'favourites_count',
+                     'reblog': 'reblogs_count'}.get(kind)
+        verb = kind if active else {'favourite': 'unfavourite',
+                                    'reblog': 'unreblog',
+                                    'bookmark': 'unbookmark'}[kind]
+        previous = {flag: item.status.get(flag)}
+        item.status[flag] = active
+        if count_key:
+            previous[count_key] = item.status.get(count_key)
+            item.status[count_key] = max(
+                0, (item.status.get(count_key) or 0) + (1 if active else -1))
+        self._set_busy(True)
+        self._refresh()
+
+        def finished(_client, result, _data=None):
+            self._set_busy(False)
+            try:
+                data = client.request_finish(result)
+            except GLib.Error as error:
+                item.status.update(previous)
+                pages.report_error(self, _('Action failed'), error)
+            else:
+                _merge_status(item, data)
+            if self.item is item:
+                self._refresh()
+
+        client.request_async(
+            'POST', '/statuses/%s/%s' % (item.status_id, verb), form=form,
+            callback=finished)
+
+    def _on_favourite(self, button):
+        item = self.item
+        self._set_active(button, item.favourited)
+        if not item.favourited:
+            pages.flash_class(button, 'just-toggled')
+        self._send_toggle('favourite', not item.favourited)
+
+    def _on_bookmark(self, button):
+        item = self.item
+        self._set_active(button, item.bookmarked)
+        if not item.bookmarked:
+            pages.flash_class(button, 'just-toggled')
+        self._send_toggle('bookmark', not item.bookmarked)
+
+    def _missing_alt(self):
+        return any(
+            a.get('type') in ('image', 'video', 'gifv', 'audio')
+            and not a.get('description')
+            for a in self.item.status.get('media_attachments') or [])
+
+    def _on_boost(self, button):
+        item = self.item
+        # The toggle flipped itself; the request decides the real state.
+        self._set_active(button, item.reblogged)
+        if item.reblogged:
+            self._send_toggle('reblog', False)
+            return
+
+        def proceed():
+            if _flag('advanced-boost-dialog'):
+                self._present_boost_dialog()
+            else:
+                pages.flash_class(button, 'just-toggled')
+                self._send_toggle('reblog', True)
+
+        if _flag('boost-alt-text-reminder') and self._missing_alt():
+            self._present_alt_reminder(proceed)
+        else:
+            proceed()
+
+    def _present_alt_reminder(self, proceed):
+        dialog = Adw.AlertDialog(
+            heading=_('This Post Has Media Without Alt Text'),
+            body=_('Some of your followers might not be able to '
+                   'understand it.'))
+        never = Gtk.CheckButton(label=_('Don’t _remind me again'),
+                                use_underline=True, halign=Gtk.Align.CENTER)
+        dialog.set_extra_child(never)
+        dialog.add_response('cancel', _('_Cancel'))
+        dialog.add_response('boost', _('_Boost'))
+        dialog.set_response_appearance('boost',
+                                       Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response('cancel')
+        dialog.set_close_response('cancel')
+
+        def on_response(_dialog, response):
+            if never.get_active():
+                pages.settings().set_boolean('boost-alt-text-reminder',
+                                             False)
+            if response == 'boost':
+                proceed()
+
+        dialog.connect('response', on_response)
+        dialog.present(self)
+
+    def _present_boost_dialog(self):
+        """Boost with a visibility choice and the option to quote."""
+        item = self.item
+        status = item.status
+        original = status.get('visibility')
+        allowed = {'public': ['public', 'unlisted', 'private'],
+                   'unlisted': ['unlisted', 'private']}.get(
+                       original, ['private'])
+        descriptions = {
+            'public': _('Visible for all'),
+            'unlisted': _('Visible for all, but not in public timelines'),
+            'private': _('Visible for your followers only')}
+        preferred = pages.settings().get_string('default-visibility') \
+            if _has_schema() else 'public'
+        default = preferred if preferred in allowed else allowed[0]
+        listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        listbox.add_css_class('boxed-list')
+        checks = {}
+        group = None
+        for value in allowed:
+            title, icon = VISIBILITY_INFO[value]
+            check = Gtk.CheckButton(active=value == default,
+                                    valign=Gtk.Align.CENTER)
+            if group is None:
+                group = check
+            else:
+                check.set_group(group)
+            checks[value] = check
+            row = Adw.ActionRow(title=title, subtitle=descriptions[value],
+                                activatable_widget=check)
+            row.add_prefix(Gtk.Image(icon_name=icon))
+            row.add_prefix(check)
+            listbox.append(row)
+        dialog = Adw.AlertDialog(heading=_('Boost With Visibility'))
+        dialog.set_extra_child(listbox)
+        dialog.add_response('cancel', _('_Cancel'))
+        if can_quote(status):
+            dialog.add_response('quote', _('_Quote'))
+        dialog.add_response('boost', _('_Boost'))
+        dialog.set_response_appearance('boost',
+                                       Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response('boost')
+        dialog.set_close_response('cancel')
+
+        def on_response(_dialog, response):
+            if response == 'boost':
+                chosen = next((v for v, c in checks.items()
+                               if c.get_active()), default)
+                pages.flash_class(self.boost_button, 'just-toggled')
+                self._send_toggle('reblog', True,
+                                  form={'visibility': chosen})
+            elif response == 'quote':
+                self._on_quote(None)
+
+        dialog.connect('response', on_response)
+        dialog.present(self)
+
+
+class StatusMenuButton(_PostBound, Gtk.MenuButton):
+    """The '⋯' button of a post and its menu, bound to a StatusItem:
+    StatusRow's overflow menu, usable on its own.
+
+    The actions and the menu are built when the menu opens: a list binds
+    rows far more often than anyone opens their menu. *actions* is the
+    post's StatusActions; its buttons carry the toggle state, the menu's
+    icon row runs their handlers and shows when that bar is hidden.
+
+    Actions that change the post in place emit ``refresh`` (the host
+    redraws it); ``translated`` follows it once a translation arrived,
+    and ``deleted`` when the post is gone."""
+
+    __gtype_name__ = 'BabbleStatusMenuButton'
+    __gsignals__ = {
+        'refresh': (GObject.SignalFlags.RUN_FIRST, None, ()),
+        'translated': (GObject.SignalFlags.RUN_FIRST, None, ()),
+        'deleted': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+
+    MENU_ACTIONS = (
+        'reply', 'quote', 'view', 'open-browser', 'copy', 'stats',
+        'history', 'translate', 'mute-conversation', 'pin', 'edit',
+        'delete', 'redraft', 'revoke-quote', 'report', 'mention', 'mute',
+        'block')
+    # Stateful: the menu's icon row shows them pressed when set.
+    MENU_TOGGLES = ('boost', 'favourite', 'bookmark')
+
+    def __init__(self, actions=None, button_classes=('flat',), **kwargs):
+        super().__init__(icon_name='view-more-symbolic',
+                         tooltip_text=_('More Options'),
+                         valign=Gtk.Align.CENTER, **kwargs)
+        for css in button_classes:
+            self.add_css_class(css)
+        self.update_property([Gtk.AccessibleProperty.LABEL],
+                             [_('More Options')])
+        self.actions = actions
+        self._menu_actions = None
+        self.set_create_popup_func(_open_status_menu, self.weak_ref())
+
+    def bind(self, item, client=WINDOW_CLIENT):
+        self.item = item
+        self._client = client
+        if self.get_menu_model() is not None:
+            # Rebuilt for this post the next time the menu opens.
+            self.set_menu_model(None)
+
+    def _refresh(self):
+        self._notify('refresh')
+
+    def _ensure_menu_actions(self):
+        if self._menu_actions is not None:
+            return
+        group = Gio.SimpleActionGroup()
+        self._menu_actions = {}
+        for name in self.MENU_ACTIONS:
+            action = Gio.SimpleAction.new(name, None)
+            handler = getattr(self, '_menu_' + name.replace('-', '_'))
+            connect_weak(action, 'activate', handler)
+            group.add_action(action)
+            self._menu_actions[name] = action
+        for name in self.MENU_TOGGLES:
+            action = Gio.SimpleAction.new_stateful(
+                name, None, GLib.Variant.new_boolean(False))
+            connect_weak(action, 'activate',
+                         getattr(self, '_menu_' + name))
+            group.add_action(action)
+            self._menu_actions[name] = action
+        policy = Gio.SimpleAction.new_stateful(
+            'quote-policy', GLib.VariantType.new('s'),
+            GLib.Variant.new_string('public'))
+        connect_weak(policy, 'activate', self._menu_quote_policy)
+        group.add_action(policy)
+        self._menu_actions['quote-policy'] = policy
+        self.insert_action_group('row', group)
+
+    def prepare(self):
+        """Actions and menu for the bound post, as the menu opens."""
+        if self.item is None:
+            return
+        self._ensure_menu_actions()
+        self._sync_menu_state(self.item)
+        self.set_menu_model(self._build_menu(self.item))
+
+    def _can_mute_conversation(self):
+        status = self.item.status
+        own = _own_account_id(self)
+        if not own or not self._can_act():
+            return False
+        if self._is_own():
+            return True
+        return any(m.get('id') == own for m in status.get('mentions') or [])
+
+    def _can_translate(self):
+        status = self.item.status
+        language = status.get('language')
+        return bool(
+            self._can_act() and not self._is_own() and language
+            and language.lower().split('-')[0] != ui_language()
+            and status.get('visibility') in ('public', 'unlisted')
+            and _translation_enabled(self.client))
+
+    def _revocable_quote(self):
+        quote = self.item.status.get('quote') or {}
+        quoted = quote.get('quoted_status')
+        own = _own_account_id(self)
+        return bool(
+            quote.get('state') == 'accepted' and quoted and own
+            and (quoted.get('account') or {}).get('id') == own
+            and not self._is_own())
+
+    def _build_menu(self, item):
+        status = item.status
+        own = self._is_own()
+        signed_in = self._can_act()
+        # Underscores in a handle would read as access keys.
+        handle = item.handle.replace('_', '__')
+        menu = Gio.Menu()
+        # Phanpy keeps the post actions in this menu when the card has
+        # no action bar: an icon row above the rest.
+        if signed_in and self.actions is not None \
+                and not self.actions.get_visible():
+            menu.append_item(self._action_section(status))
+
+        links = Gio.Menu()
+        links.append(_('_View Post'), 'row.view')
+        links.append(_('Open in _Browser'), 'row.open-browser')
+        links.append(_('_Copy Link'), 'row.copy')
+        if status.get('visibility') != 'direct' or own:
+            links.append(_('View S_tats'), 'row.stats')
+        if status.get('edited_at'):
+            links.append(_('View Edit _History'), 'row.history')
+        menu.append_section(None, links)
+
+        post = Gio.Menu()
+        if self._can_translate():
+            post.append(_('Show _Original') if item.translation
+                        else _('_Translate'), 'row.translate')
+        if self._can_mute_conversation():
+            post.append(_('Un_mute Conversation') if status.get('muted')
+                        else _('_Mute Conversation'),
+                        'row.mute-conversation')
+        if own and status.get('visibility') in ('public', 'unlisted'):
+            post.append(_('_Unpin From Profile') if status.get('pinned')
+                        else _('_Pin to Profile'), 'row.pin')
+        if own and status.get('quote_approval') \
+                and status.get('visibility') in ('public', 'unlisted'):
+            submenu = Gio.Menu()
+            for value, title in QUOTE_POLICIES:
+                entry = Gio.MenuItem.new(title, None)
+                entry.set_action_and_target_value(
+                    'row.quote-policy', GLib.Variant.new_string(value))
+                submenu.append_item(entry)
+            post.append_submenu(_('Who Can _Quote'), submenu)
+        if signed_in and self._revocable_quote():
+            post.append(_('_Remove My Post From Quote'), 'row.revoke-quote')
+        if post.get_n_items():
+            menu.append_section(None, post)
+
+        if own:
+            mine = Gio.Menu()
+            mine.append(_('_Edit'), 'row.edit')
+            mine.append(_('Delete and _Redraft'), 'row.redraft')
+            mine.append(_('_Delete'), 'row.delete')
+            menu.append_section(None, mine)
+        elif signed_in:
+            account = Gio.Menu()
+            account.append(_('Mention %s') % handle, 'row.mention')
+            account.append(_('_Mute %s') % handle, 'row.mute')
+            account.append(_('_Block %s') % handle, 'row.block')
+            account.append(_('_Report Post…'), 'row.report')
+            menu.append_section(None, account)
+        return menu
+
+    def _action_section(self, status):
+        """Reply/Boost/(Quote)/Favorite/Bookmark as a row of icon
+        buttons; the toggles render pressed from their action state."""
+        section = Gio.Menu()
+        icons = StatusActions
+        entries = [(_('Reply'), 'row.reply', icons.ICON_REPLY),
+                   (_('Boost'), 'row.boost', icons.ICON_BOOST)]
+        if 'quote_approval' in status:
+            entries.append((_('Quote'), 'row.quote', icons.ICON_QUOTE))
+        entries += [(_('Favorite'), 'row.favourite', icons.ICON_FAVOURITE[0]),
+                    (_('Bookmark'), 'row.bookmark', icons.ICON_BOOKMARK[0])]
+        for label, action, icon in entries:
+            entry = Gio.MenuItem.new(label, action)
+            entry.set_attribute_value('verb-icon',
+                                      GLib.Variant.new_string(icon))
+            section.append_item(entry)
+        item = Gio.MenuItem.new_section(None, section)
+        item.set_attribute_value(
+            'display-hint', GLib.Variant.new_string('horizontal-buttons'))
+        return item
+
+    def _author(self):
+        if self.item is None or not self._can_act():
+            return None
+        account = self.item.status['account']
+        return account if account.get('id') else None
+
+    def _toast(self, text, undo=None):
+        pages.show_toast(self, text, undo=undo)
+
+    # The menu's icon row runs the action bar's handlers, so reminders,
+    # the boost dialog and the optimistic rollback stay in one place.
+    # The bar's (possibly hidden) buttons carry the toggle state.
+
+    def _menu_reply(self, *_args):
+        if self.actions is not None:
+            self.actions.reply()
+
+    def _menu_quote(self, *_args):
+        if self.actions is not None:
+            self.actions.quote()
+
+    def _menu_boost(self, *_args):
+        if self.item is not None and self.actions is not None:
+            self.actions.boost()
+
+    def _menu_favourite(self, *_args):
+        if self.item is not None and self.actions is not None:
+            self.actions.favourite()
+
+    def _menu_bookmark(self, *_args):
+        if self.item is not None and self.actions is not None:
+            self.actions.bookmark()
+
+    def _menu_view(self, *_args):
+        if self.item is not None:
+            _open_thread(self, self.client, self.item)
+
+    def _menu_open_browser(self, *_args):
+        if self.item is not None and self.item.status_url:
+            launch_uri(self, self.item.status_url)
+
+    def _menu_copy(self, *_args):
+        if self.item is None or not self.item.status_url:
+            return
+        status = self.item.status
+        visibility = status.get('visibility')
+        if visibility in ('direct', 'private') \
+                and _flag('copy-private-link-reminder'):
+            self._confirm_copy(status)
+            return
+        self._copy_url()
+
+    def _copy_url(self):
+        clipboard = self.get_clipboard()
+        if clipboard and self.item is not None:
+            clipboard.set(self.item.status_url)
+            self._toast(_('Link copied'))
+
+    def _confirm_copy(self, status):
+        visibility = status.get('visibility')
+        label = VISIBILITY_INFO[visibility][0]
+        if visibility == 'direct':
+            detail = _('Only mentioned people will be able to view it.')
+        elif self._is_own():
+            detail = _('Only mentioned people and your followers will be '
+                       'able to view it.')
+        else:
+            detail = _('Only mentioned people and people that follow %s '
+                       'will be able to view it.') % self.item.handle
+        dialog = Adw.AlertDialog(
+            heading=_('Copy “%s” Post Link?') % label, body=detail)
+        dialog.add_response('cancel', _('_Cancel'))
+        dialog.add_response('never', _('_Don’t Remind Me Again'))
+        dialog.add_response('copy', _('_Copy'))
+        dialog.set_response_appearance('copy',
+                                       Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response('copy')
+        dialog.set_close_response('cancel')
+
+        def on_response(_dialog, response):
+            if response == 'never':
+                pages.settings().set_boolean('copy-private-link-reminder',
+                                             False)
+            if response in ('never', 'copy'):
+                self._copy_url()
+
+        dialog.connect('response', on_response)
+        dialog.present(self)
+
+    def _menu_stats(self, *_args):
+        if self.item is None or self.client is None:
+            return
+        from .statusviews import push_status_stats
+        push_status_stats(self, self.client, self.item.status,
+                          'favourites')
+
+    def show_history(self):
+        if self.item is None or self.client is None:
+            return
+        from .statusviews import push_edit_history
+        push_edit_history(self, self.client, self.item.status)
+
+    def _menu_history(self, *_args):
+        self.show_history()
+
+    def _menu_translate(self, *_args):
+        item = self.item
+        if item is None:
+            return
+        if item.translation:
+            item.translation = None
+            self._refresh()
+            return
+
+        def translated(data):
+            item.translation = data
+            if self.item is item:
+                self._refresh()
+                self._notify('translated')
+
+        pages.call(self, self.client, 'POST',
+                   '/statuses/%s/translate' % item.status_id, translated,
+                   _('Could not translate'),
+                   form={'lang': ui_language()})
+
+    def _post_action(self, action, heading):
+        """POST /statuses/:id/<action> and merge the returned status."""
+        item = self.item
+
+        def done(data):
+            _merge_status(item, data)
+            if self.item is item:
+                self._refresh()
+
+        pages.call(self, self.client, 'POST',
+                   '/statuses/%s/%s' % (item.status_id, action), done,
+                   heading)
+
+    def _menu_mute_conversation(self, *_args):
+        if self.item is None:
+            return
+        muted = bool(self.item.status.get('muted'))
+        self._post_action(
+            'unmute' if muted else 'mute',
+            _('Could not unmute conversation') if muted
+            else _('Could not mute conversation'))
+
+    def _menu_pin(self, *_args):
+        if self.item is None:
+            return
+        pinned = bool(self.item.status.get('pinned'))
+        self._post_action('unpin' if pinned else 'pin',
+                          _('Could not unpin post') if pinned
+                          else _('Could not pin post'))
+
+    def _menu_quote_policy(self, action, parameter):
+        item = self.item
+        if item is None or parameter is None:
+            return
+        value = parameter.get_string()
+
+        def done(data):
+            _merge_status(item, data)
+            if self.item is item:
+                self._refresh()
+
+        pages.call(self, self.client, 'PUT',
+                   '/statuses/%s/interaction_policy' % item.status_id, done,
+                   _('Could not change quote policy'),
+                   form={'quote_approval_policy': value})
+
+    def _menu_revoke_quote(self, *_args):
+        item = self.item
+        if item is None:
+            return
+        quoted = item.status['quote']['quoted_status']
+
+        def revoke():
+            def done(data):
+                _merge_status(item, data)
+                if self.item is item:
+                    self._refresh()
+                self._toast(_('Your post was removed from the quote'))
+
+            pages.call(self, self.client, 'POST',
+                       '/statuses/%s/quotes/%s/revoke'
+                       % (quoted['id'], item.status_id), done,
+                       _('Could not remove your post'))
+
+        pages.confirm(self, _('Remove Your Post From the Quote?'),
+                      _('The quote will no longer show your post.'),
+                      _('_Remove'), revoke)
+
+    def _menu_edit(self, *_args):
+        item = self.item
+        if item is None:
+            return
+
+        def loaded(source):
+            status = dict(item.status)
+            status['text'] = source.get('text', '')
+            if 'spoiler_text' in source:
+                status['spoiler_text'] = source['spoiler_text']
+            _open_composer(self, 'start_edit', status)
+
+        pages.call(self, self.client, 'GET',
+                   '/statuses/%s/source' % item.status_id, loaded,
+                   _('Could not load post for editing'))
+
+    def _menu_delete(self, *_args):
+        item = self.item
+        if item is None:
+            return
+        pages.confirm(
+            self, _('Delete Post?'),
+            _('This post will be removed from your profile and from the '
+              'timelines of other servers.'),
+            _('_Delete'), lambda: self._delete(item, None))
+
+    def _menu_redraft(self, *_args):
+        item = self.item
+        if item is None:
+            return
+        pages.confirm(
+            self, _('Delete and Redraft?'),
+            _('This post will be deleted and its text, attachments and '
+              'poll copied into a new draft.'),
+            _('_Delete and Redraft'),
+            lambda: self._delete(item, 'start_redraft'))
+
+    def _delete(self, item, composer_method):
+        """DELETE the post; for a redraft hand the returned source to
+        the composer."""
+
+        def done(data):
+            self._after_deleted(item)
+            if composer_method:
+                status = dict(item.status)
+                if isinstance(data, dict):
+                    status.update(data)
+                _open_composer(self, composer_method, status)
+            else:
+                self._toast(_('Post deleted'))
+
+        pages.call(self, self.client, 'DELETE',
+                   '/statuses/%s' % item.status_id, done,
+                   _('Could not delete post'))
+
+    def _after_deleted(self, item):
+        widget = self.get_parent()
+        while widget is not None and not isinstance(widget, TimelinePage):
+            widget = widget.get_parent()
+        if widget is not None:
+            widget.on_stream_delete(item.status_id)
+        self._notify('deleted')
+
+    def _menu_report(self, *_args):
+        account = self._author()
+        if account is None:
+            return
+        from .report import present_report
+        present_report(self, self.client, account, self.item.status)
+
+    def _menu_mention(self, *_args):
+        account = self._author()
+        if account is None:
+            return
+        window = pages.window_of(self)
+        if window is None:
+            return
+        dialog = window.ensure_composer()
+        if dialog is None:
+            return
+        dialog.start_mention(account)
+        window.present_composer()
+
+    def _menu_mute(self, *_args):
+        account = self._author()
+        if account is None:
+            return
+        client, handle = self.client, self.item.handle
+
+        def muted(_data):
+            def undo():
+                pages.call(self, client, 'POST',
+                           '/accounts/%s/unmute' % account['id'], None,
+                           _('Unmute failed'))
+
+            self._toast(_('Muted %s') % handle, undo)
+
+        pages.call(self, client, 'POST', '/accounts/%s/mute' % account['id'],
+                   muted, _('Mute failed'))
+
+    def _menu_block(self, *_args):
+        account = self._author()
+        if account is None:
+            return
+        client, handle = self.client, self.item.handle
+
+        def block():
+            pages.call(self, client, 'POST',
+                       '/accounts/%s/block' % account['id'],
+                       lambda _data: self._toast(_('Blocked %s') % handle),
+                       _('Block failed'))
+
+        pages.confirm(
+            self, _('Block %s?') % handle,
+            _('They will no longer be able to follow your account or '
+              'see your posts, and their posts will be hidden.'),
+            _('_Block'), block)
+
+    def _sync_menu_state(self, item):
+        status = item.status
+        can_act = self._can_act()
+        self._menu_actions['open-browser'].set_enabled(
+            bool(item.status_url))
+        self._menu_actions['copy'].set_enabled(bool(item.status_url))
+        for name in ('mute', 'block', 'report', 'mention'):
+            self._menu_actions[name].set_enabled(can_act)
+        self._menu_actions['quote-policy'].set_state(
+            GLib.Variant.new_string(quote_policy_of(status)))
+        idle = can_act and not (self.actions is not None
+                                and self.actions.busy)
+        boostable = item.reblogged or self.can_be_boosted(item)
+        for name, active, enabled in (
+                ('boost', item.reblogged, idle and boostable),
+                ('favourite', item.favourited, idle),
+                ('bookmark', item.bookmarked, idle)):
+            action = self._menu_actions[name]
+            action.set_state(GLib.Variant.new_boolean(bool(active)))
+            action.set_enabled(enabled)
+        self._menu_actions['quote'].set_enabled(
+            can_act and can_quote(status))
 
 
 class StatusRow(Gtk.Overlay):
@@ -2427,19 +3450,14 @@ class StatusRow(Gtk.Overlay):
 
     __gtype_name__ = 'BabbleStatusRow'
 
-    ICON_REPLY = 'mail-reply-sender-symbolic'
-    ICON_BOOST = 'media-playlist-repeat-symbolic'
-    ICON_QUOTE = 'format-indent-more-symbolic'
-    ICON_FAVOURITE = ('non-starred-symbolic', 'starred-symbolic')
-    ICON_BOOKMARK = ('bookmark-new-symbolic', 'user-bookmarks-symbolic')
+    ICON_REPLY = StatusActions.ICON_REPLY
+    ICON_BOOST = StatusActions.ICON_BOOST
+    ICON_QUOTE = StatusActions.ICON_QUOTE
+    ICON_FAVOURITE = StatusActions.ICON_FAVOURITE
+    ICON_BOOKMARK = StatusActions.ICON_BOOKMARK
 
-    MENU_ACTIONS = (
-        'reply', 'quote', 'view', 'open-browser', 'copy', 'stats',
-        'history', 'translate', 'mute-conversation', 'pin', 'edit',
-        'delete', 'redraft', 'revoke-quote', 'report', 'mention', 'mute',
-        'block')
-    # Stateful: the menu's icon row shows them pressed when set.
-    MENU_TOGGLES = ('boost', 'favourite', 'bookmark')
+    MENU_ACTIONS = StatusMenuButton.MENU_ACTIONS
+    MENU_TOGGLES = StatusMenuButton.MENU_TOGGLES
 
     def __init__(self, detail=False, **kwargs):
         super().__init__(accessible_role=Gtk.AccessibleRole.ARTICLE,
@@ -2454,7 +3472,6 @@ class StatusRow(Gtk.Overlay):
         self.client = None
         self.detail = detail
         self.media_blur = False
-        self._busy = False
         self._emoji_bank = {}
         self._body_animation = None
         self._body_tick = None
@@ -2575,7 +3592,9 @@ class StatusRow(Gtk.Overlay):
         header.append(meta)
         # Overflow menu sits with the timestamp, the way the bar keeps it
         # in the post header rather than in the action row.
-        self._overflow = self._overflow_button()
+        self._overflow = StatusMenuButton()
+        host = self.weak_ref()
+        self._overflow.host = host
         header.append(self._overflow)
         main.append(header)
 
@@ -2634,38 +3653,38 @@ class StatusRow(Gtk.Overlay):
         self.media_box = MediaBox()
         guarded.append(self.media_box)
 
-        # WrapBox, not Box: with a count next to each icon the five
-        # actions need ~314 px, which overflows the 360 px window
-        # minimum (350 px of content) instead of flowing to a second
-        # line.
-        actions = Adw.WrapBox(child_spacing=4, line_spacing=4,
-                              halign=Gtk.Align.START)
-        self.reply_button = self._action_button(
-            self.ICON_REPLY, _('Reply'), self._on_reply,
-            nouns=('%d reply', '%d replies'))
-        self.boost_button = self._action_button(
-            (self.ICON_BOOST,) * 2, _('Boost'), self._on_boost,
-            nouns=('%d boost', '%d boosts'), toggle=True)
-        self.quote_button = self._action_button(
-            self.ICON_QUOTE, _('Quote'), self._on_quote,
-            nouns=('%d quote', '%d quotes'))
-        self.favourite_button = self._action_button(
-            self.ICON_FAVOURITE, _('Favorite'), self._on_favourite,
-            nouns=('%d favorite', '%d favorites'), toggle=True)
-        self.bookmark_button = self._action_button(
-            self.ICON_BOOKMARK, _('Bookmark'), self._on_bookmark,
-            toggle=True)
-        actions.append(self.reply_button)
-        actions.append(self.boost_button)
-        actions.append(self.quote_button)
-        actions.append(self.favourite_button)
-        actions.append(self.bookmark_button)
+        # The row redraws itself whole after a toggle (refresh), so the
+        # bar does not follow the item on its own.
+        actions = StatusActions(standalone=False)
+        actions.host = host
         self.actions = actions
-        actions.add_css_class('status-actions')
+        self._overflow.actions = actions
         main.append(actions)
 
         self.carousel = None
         self._item_watch = None
+
+    # The action buttons live in the bar; kept as attributes of the row.
+
+    @property
+    def reply_button(self):
+        return self.actions.reply_button
+
+    @property
+    def boost_button(self):
+        return self.actions.boost_button
+
+    @property
+    def quote_button(self):
+        return self.actions.quote_button
+
+    @property
+    def favourite_button(self):
+        return self.actions.favourite_button
+
+    @property
+    def bookmark_button(self):
+        return self.actions.bookmark_button
 
     # Parts built on first use
 
@@ -2750,511 +3769,25 @@ class StatusRow(Gtk.Overlay):
             self.body.append(self.carousel)
         return self.carousel
 
-    # Overflow menu
+    # Overflow menu and action bar
 
-    def _overflow_button(self):
-        button = Gtk.MenuButton(icon_name='view-more-symbolic',
-                                tooltip_text=_('More Options'),
-                                valign=Gtk.Align.CENTER)
-        button.add_css_class('flat')
-        button.update_property([Gtk.AccessibleProperty.LABEL],
-                               [_('More Options')])
-        # The actions and the menu are built when the menu opens: a list
-        # binds rows far more often than anyone opens their menu.
-        self._menu_actions = None
-        button.set_create_popup_func(_open_row_menu, self.weak_ref())
-        return button
-
-    def _ensure_menu_actions(self):
-        if self._menu_actions is not None:
-            return
-        group = Gio.SimpleActionGroup()
-        self._menu_actions = {}
-        for name in self.MENU_ACTIONS:
-            action = Gio.SimpleAction.new(name, None)
-            handler = getattr(self, '_menu_' + name.replace('-', '_'))
-            connect_weak(action, 'activate', handler)
-            group.add_action(action)
-            self._menu_actions[name] = action
-        for name in self.MENU_TOGGLES:
-            action = Gio.SimpleAction.new_stateful(
-                name, None, GLib.Variant.new_boolean(False))
-            connect_weak(action, 'activate',
-                         getattr(self, '_menu_' + name))
-            group.add_action(action)
-            self._menu_actions[name] = action
-        policy = Gio.SimpleAction.new_stateful(
-            'quote-policy', GLib.VariantType.new('s'),
-            GLib.Variant.new_string('public'))
-        connect_weak(policy, 'activate', self._menu_quote_policy)
-        group.add_action(policy)
-        self._menu_actions['quote-policy'] = policy
-        self._overflow.insert_action_group('row', group)
-
-    def _prepare_menu(self):
-        """Actions and menu for the bound post, as the menu opens."""
-        if self.item is None:
-            return
-        self._ensure_menu_actions()
-        self._sync_menu_state(self.item)
-        self._overflow.set_menu_model(self._build_menu(self.item))
-
-    def _is_own(self):
-        own = _own_account_id(self)
-        account = self.item.status['account'] if self.item else {}
-        return bool(own) and account.get('id') == own
-
-    def _can_mute_conversation(self):
-        status = self.item.status
-        own = _own_account_id(self)
-        if not own or not self._can_act():
-            return False
-        if self._is_own():
-            return True
-        return any(m.get('id') == own for m in status.get('mentions') or [])
-
-    def _can_translate(self):
-        status = self.item.status
-        language = status.get('language')
-        return bool(
-            self._can_act() and not self._is_own() and language
-            and language.lower().split('-')[0] != ui_language()
-            and status.get('visibility') in ('public', 'unlisted')
-            and _translation_enabled(self.client))
-
-    def _revocable_quote(self):
-        quote = self.item.status.get('quote') or {}
-        quoted = quote.get('quoted_status')
-        own = _own_account_id(self)
-        return bool(
-            quote.get('state') == 'accepted' and quoted and own
-            and (quoted.get('account') or {}).get('id') == own
-            and not self._is_own())
-
-    def _build_menu(self, item):
-        status = item.status
-        own = self._is_own()
-        signed_in = self._can_act()
-        # Underscores in a handle would read as access keys.
-        handle = item.handle.replace('_', '__')
-        menu = Gio.Menu()
-        # Phanpy keeps the post actions in this menu when the card has
-        # no action bar: an icon row above the rest.
-        if signed_in and not self.actions.get_visible():
-            menu.append_item(self._action_section(status))
-
-        links = Gio.Menu()
-        links.append(_('_View Post'), 'row.view')
-        links.append(_('Open in _Browser'), 'row.open-browser')
-        links.append(_('_Copy Link'), 'row.copy')
-        if status.get('visibility') != 'direct' or own:
-            links.append(_('View S_tats'), 'row.stats')
-        if status.get('edited_at'):
-            links.append(_('View Edit _History'), 'row.history')
-        menu.append_section(None, links)
-
-        post = Gio.Menu()
-        if self._can_translate():
-            post.append(_('Show _Original') if item.translation
-                        else _('_Translate'), 'row.translate')
-        if self._can_mute_conversation():
-            post.append(_('Un_mute Conversation') if status.get('muted')
-                        else _('_Mute Conversation'),
-                        'row.mute-conversation')
-        if own and status.get('visibility') in ('public', 'unlisted'):
-            post.append(_('_Unpin From Profile') if status.get('pinned')
-                        else _('_Pin to Profile'), 'row.pin')
-        if own and status.get('quote_approval') \
-                and status.get('visibility') in ('public', 'unlisted'):
-            submenu = Gio.Menu()
-            for value, title in QUOTE_POLICIES:
-                entry = Gio.MenuItem.new(title, None)
-                entry.set_action_and_target_value(
-                    'row.quote-policy', GLib.Variant.new_string(value))
-                submenu.append_item(entry)
-            post.append_submenu(_('Who Can _Quote'), submenu)
-        if signed_in and self._revocable_quote():
-            post.append(_('_Remove My Post From Quote'), 'row.revoke-quote')
-        if post.get_n_items():
-            menu.append_section(None, post)
-
-        if own:
-            mine = Gio.Menu()
-            mine.append(_('_Edit'), 'row.edit')
-            mine.append(_('Delete and _Redraft'), 'row.redraft')
-            mine.append(_('_Delete'), 'row.delete')
-            menu.append_section(None, mine)
-        elif signed_in:
-            account = Gio.Menu()
-            account.append(_('Mention %s') % handle, 'row.mention')
-            account.append(_('_Mute %s') % handle, 'row.mute')
-            account.append(_('_Block %s') % handle, 'row.block')
-            account.append(_('_Report Post…'), 'row.report')
-            menu.append_section(None, account)
-        return menu
-
-    def _action_section(self, status):
-        """Reply/Boost/(Quote)/Favorite/Bookmark as a row of icon
-        buttons; the toggles render pressed from their action state."""
-        section = Gio.Menu()
-        entries = [(_('Reply'), 'row.reply', self.ICON_REPLY),
-                   (_('Boost'), 'row.boost', self.ICON_BOOST)]
-        if 'quote_approval' in status:
-            entries.append((_('Quote'), 'row.quote', self.ICON_QUOTE))
-        entries += [(_('Favorite'), 'row.favourite', self.ICON_FAVOURITE[0]),
-                    (_('Bookmark'), 'row.bookmark', self.ICON_BOOKMARK[0])]
-        for label, action, icon in entries:
-            entry = Gio.MenuItem.new(label, action)
-            entry.set_attribute_value('verb-icon',
-                                      GLib.Variant.new_string(icon))
-            section.append_item(entry)
-        item = Gio.MenuItem.new_section(None, section)
-        item.set_attribute_value(
-            'display-hint', GLib.Variant.new_string('horizontal-buttons'))
-        return item
-
-    def _can_act(self):
-        return self.client is not None \
-            and bool(getattr(self.client, 'token', None))
-
-    def _author(self):
-        if self.item is None or not self._can_act():
-            return None
-        account = self.item.status['account']
-        return account if account.get('id') else None
-
-    def _toast(self, text, undo=None):
-        pages.show_toast(self, text, undo=undo)
-
-    # The menu's icon row runs the action bar's handlers, so reminders,
-    # the boost dialog and the optimistic rollback stay in one place.
-    # The bar's (possibly hidden) buttons carry the toggle state.
-
-    def _menu_reply(self, *_args):
-        self._on_reply(self.reply_button)
-
-    def _menu_quote(self, *_args):
-        self._on_quote(self.quote_button)
-
-    def _menu_boost(self, *_args):
-        if self.item is not None:
-            self._on_boost(self.boost_button)
-
-    def _menu_favourite(self, *_args):
-        if self.item is not None:
-            self._on_favourite(self.favourite_button)
-
-    def _menu_bookmark(self, *_args):
-        if self.item is not None:
-            self._on_bookmark(self.bookmark_button)
-
-    def _menu_view(self, *_args):
-        if self.item is not None:
-            self.activate_status(self.item)
-
-    def _menu_open_browser(self, *_args):
-        if self.item is not None and self.item.status_url:
-            launch_uri(self, self.item.status_url)
-
-    def _menu_copy(self, *_args):
-        if self.item is None or not self.item.status_url:
-            return
-        status = self.item.status
-        visibility = status.get('visibility')
-        if visibility in ('direct', 'private') \
-                and _flag('copy-private-link-reminder'):
-            self._confirm_copy(status)
-            return
-        self._copy_url()
-
-    def _copy_url(self):
-        clipboard = self.get_clipboard()
-        if clipboard and self.item is not None:
-            clipboard.set(self.item.status_url)
-            self._toast(_('Link copied'))
-
-    def _confirm_copy(self, status):
-        visibility = status.get('visibility')
-        label = VISIBILITY_INFO[visibility][0]
-        if visibility == 'direct':
-            detail = _('Only mentioned people will be able to view it.')
-        elif self._is_own():
-            detail = _('Only mentioned people and your followers will be '
-                       'able to view it.')
-        else:
-            detail = _('Only mentioned people and people that follow %s '
-                       'will be able to view it.') % self.item.handle
-        dialog = Adw.AlertDialog(
-            heading=_('Copy “%s” Post Link?') % label, body=detail)
-        dialog.add_response('cancel', _('_Cancel'))
-        dialog.add_response('never', _('_Don’t Remind Me Again'))
-        dialog.add_response('copy', _('_Copy'))
-        dialog.set_response_appearance('copy',
-                                       Adw.ResponseAppearance.SUGGESTED)
-        dialog.set_default_response('copy')
-        dialog.set_close_response('cancel')
-
-        def on_response(_dialog, response):
-            if response == 'never':
-                pages.settings().set_boolean('copy-private-link-reminder',
-                                             False)
-            if response in ('never', 'copy'):
-                self._copy_url()
-
-        dialog.connect('response', on_response)
-        dialog.present(self)
-
-    def _menu_stats(self, *_args):
-        if self.item is None or self.client is None:
-            return
-        from .statusviews import push_status_stats
-        push_status_stats(self, self.client, self.item.status,
-                          'favourites')
-
-    def _menu_history(self, *_args):
-        if self.item is None or self.client is None:
-            return
-        from .statusviews import push_edit_history
-        push_edit_history(self, self.client, self.item.status)
+    def on_post_event(self, name):
+        """What the action bar and the menu report: ``refresh`` (a
+        toggle or a menu action changed the post in place),
+        ``translated`` and ``deleted``."""
+        if name == 'refresh':
+            if self.item is not None:
+                self.bind(self.item, self.client)
+        elif name == 'translated':
+            # A post collapsed by a filter binds no translation box.
+            if self.translation_box is not None:
+                pages.flash_class(self.translation_box, 'fade-in')
+            pages.flash_class(self.content, 'fade-in')
+        elif name == 'deleted':
+            self.set_visible(False)
 
     def _on_edited_clicked(self, _button):
-        self._menu_history()
-
-    def _menu_translate(self, *_args):
-        item = self.item
-        if item is None:
-            return
-        if item.translation:
-            item.translation = None
-            self.bind(item, self.client)
-            return
-
-        def translated(data):
-            item.translation = data
-            if self.item is item:
-                self.bind(item, self.client)
-                # A post collapsed by a filter binds no translation box.
-                if self.translation_box is not None:
-                    pages.flash_class(self.translation_box, 'fade-in')
-                pages.flash_class(self.content, 'fade-in')
-
-        pages.call(self, self.client, 'POST',
-                   '/statuses/%s/translate' % item.status_id, translated,
-                   _('Could not translate'),
-                   form={'lang': ui_language()})
-
-    def _post_action(self, action, heading):
-        """POST /statuses/:id/<action> and merge the returned status."""
-        item = self.item
-
-        def done(data):
-            self._merge_status(item, data)
-            if self.item is item:
-                self.bind(item, self.client)
-
-        pages.call(self, self.client, 'POST',
-                   '/statuses/%s/%s' % (item.status_id, action), done,
-                   heading)
-
-    def _menu_mute_conversation(self, *_args):
-        if self.item is None:
-            return
-        muted = bool(self.item.status.get('muted'))
-        self._post_action(
-            'unmute' if muted else 'mute',
-            _('Could not unmute conversation') if muted
-            else _('Could not mute conversation'))
-
-    def _menu_pin(self, *_args):
-        if self.item is None:
-            return
-        pinned = bool(self.item.status.get('pinned'))
-        self._post_action('unpin' if pinned else 'pin',
-                          _('Could not unpin post') if pinned
-                          else _('Could not pin post'))
-
-    def _menu_quote_policy(self, action, parameter):
-        item = self.item
-        if item is None or parameter is None:
-            return
-        value = parameter.get_string()
-
-        def done(data):
-            self._merge_status(item, data)
-            if self.item is item:
-                self.bind(item, self.client)
-
-        pages.call(self, self.client, 'PUT',
-                   '/statuses/%s/interaction_policy' % item.status_id, done,
-                   _('Could not change quote policy'),
-                   form={'quote_approval_policy': value})
-
-    def _menu_revoke_quote(self, *_args):
-        item = self.item
-        if item is None:
-            return
-        quoted = item.status['quote']['quoted_status']
-
-        def revoke():
-            def done(data):
-                self._merge_status(item, data)
-                if self.item is item:
-                    self.bind(item, self.client)
-                self._toast(_('Your post was removed from the quote'))
-
-            pages.call(self, self.client, 'POST',
-                       '/statuses/%s/quotes/%s/revoke'
-                       % (quoted['id'], item.status_id), done,
-                       _('Could not remove your post'))
-
-        pages.confirm(self, _('Remove Your Post From the Quote?'),
-                      _('The quote will no longer show your post.'),
-                      _('_Remove'), revoke)
-
-    def _menu_edit(self, *_args):
-        item = self.item
-        if item is None:
-            return
-
-        def loaded(source):
-            status = dict(item.status)
-            status['text'] = source.get('text', '')
-            if 'spoiler_text' in source:
-                status['spoiler_text'] = source['spoiler_text']
-            self._open_composer('start_edit', status)
-
-        pages.call(self, self.client, 'GET',
-                   '/statuses/%s/source' % item.status_id, loaded,
-                   _('Could not load post for editing'))
-
-    def _menu_delete(self, *_args):
-        item = self.item
-        if item is None:
-            return
-        pages.confirm(
-            self, _('Delete Post?'),
-            _('This post will be removed from your profile and from the '
-              'timelines of other servers.'),
-            _('_Delete'), lambda: self._delete(item, None))
-
-    def _menu_redraft(self, *_args):
-        item = self.item
-        if item is None:
-            return
-        pages.confirm(
-            self, _('Delete and Redraft?'),
-            _('This post will be deleted and its text, attachments and '
-              'poll copied into a new draft.'),
-            _('_Delete and Redraft'),
-            lambda: self._delete(item, 'start_redraft'))
-
-    def _delete(self, item, composer_method):
-        """DELETE the post; for a redraft hand the returned source to
-        the composer."""
-
-        def done(data):
-            self._after_deleted(item)
-            if composer_method:
-                status = dict(item.status)
-                if isinstance(data, dict):
-                    status.update(data)
-                self._open_composer(composer_method, status)
-            else:
-                self._toast(_('Post deleted'))
-
-        pages.call(self, self.client, 'DELETE',
-                   '/statuses/%s' % item.status_id, done,
-                   _('Could not delete post'))
-
-    def _after_deleted(self, item):
-        widget = self.get_parent()
-        while widget is not None and not isinstance(widget, TimelinePage):
-            widget = widget.get_parent()
-        if widget is not None:
-            widget.on_stream_delete(item.status_id)
-        self.set_visible(False)
-
-    def _open_composer(self, method, status):
-        window = pages.window_of(self)
-        if window is None:
-            return
-        dialog = window.ensure_composer()
-        if dialog is None:
-            return
-        getattr(dialog, method)(status)
-        window.present_composer()
-
-    def _menu_report(self, *_args):
-        account = self._author()
-        if account is None:
-            return
-        from .report import present_report
-        present_report(self, self.client, account, self.item.status)
-
-    def _menu_mention(self, *_args):
-        account = self._author()
-        if account is None:
-            return
-        window = pages.window_of(self)
-        if window is None:
-            return
-        dialog = window.ensure_composer()
-        if dialog is None:
-            return
-        dialog.start_mention(account)
-        window.present_composer()
-
-    def _menu_mute(self, *_args):
-        account = self._author()
-        if account is None:
-            return
-        client, handle = self.client, self.item.handle
-
-        def muted(_data):
-            def undo():
-                pages.call(self, client, 'POST',
-                           '/accounts/%s/unmute' % account['id'], None,
-                           _('Unmute failed'))
-
-            self._toast(_('Muted %s') % handle, undo)
-
-        pages.call(self, client, 'POST', '/accounts/%s/mute' % account['id'],
-                   muted, _('Mute failed'))
-
-    def _menu_block(self, *_args):
-        account = self._author()
-        if account is None:
-            return
-        client, handle = self.client, self.item.handle
-
-        def block():
-            pages.call(self, client, 'POST',
-                       '/accounts/%s/block' % account['id'],
-                       lambda _data: self._toast(_('Blocked %s') % handle),
-                       _('Block failed'))
-
-        pages.confirm(
-            self, _('Block %s?') % handle,
-            _('They will no longer be able to follow your account or '
-              'see your posts, and their posts will be hidden.'),
-            _('_Block'), block)
-
-    # Buttons
-
-    def _action_button(self, icons, tooltip, callback, nouns=None,
-                       toggle=False):
-        if isinstance(icons, str):
-            icons = (icons, icons)
-        button = Gtk.ToggleButton() if toggle else Gtk.Button()
-        button.add_css_class('flat')
-        button.set_child(Adw.ButtonContent(icon_name=icons[0]))
-        button.set_tooltip_text(tooltip)
-        button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
-        connect_weak(button, 'clicked', callback)
-        button.icons = icons
-        button.action_name_text = tooltip
-        button.nouns = nouns
-        return button
+        self._overflow.show_history()
 
     def set_run(self, position, total):
         """Lay this post out as part of a run of same-thread posts by
@@ -3285,9 +3818,7 @@ class StatusRow(Gtk.Overlay):
             self._clear_flashes()
         self.item = item
         self.client = client
-        if self._overflow.get_menu_model() is not None:
-            # Rebuilt for this post the next time the menu opens.
-            self._overflow.set_menu_model(None)
+        self._overflow.bind(item, client)
         if isinstance(item, BoostCarouselItem):
             self._bind_carousel(item, client)
             return
@@ -3298,13 +3829,10 @@ class StatusRow(Gtk.Overlay):
     def _clear_flashes(self):
         """End a pop or fade still playing for the post this recycled row
         showed before, so the next post does not inherit it."""
-        for widget, css in ((self.favourite_button, 'just-toggled'),
-                            (self.boost_button, 'just-toggled'),
-                            (self.bookmark_button, 'just-toggled'),
-                            (self.content, 'fade-in'),
-                            (self.translation_box, 'fade-in')):
+        self.actions.clear_flashes()
+        for widget in (self.content, self.translation_box):
             if widget is not None:
-                widget.remove_css_class(css)
+                widget.remove_css_class('fade-in')
 
     def _bind_status(self, item):
         status = item.status
@@ -3414,7 +3942,7 @@ class StatusRow(Gtk.Overlay):
         show_card = _flag('show-preview-cards') and not poll and not quote \
             and not attachments
         self._show_card(status.get('card') if show_card else None)
-        self._bind_actions(item)
+        self.actions.bind(item, self.client)
 
     def _bind_translation(self, item):
         """The 'Translated from …' note above the body, when shown."""
@@ -3506,65 +4034,6 @@ class StatusRow(Gtk.Overlay):
         self.quote_box.set_visible(bool(quote))
         if quote:
             self.quote_box.append(QuoteCard(quote, self.client))
-
-    def _bind_actions(self, item):
-        status = item.status
-        can_act = self._can_act()
-        counters = _flag('show-interaction-counters')
-        self._set_count(self.reply_button,
-                        item.reply_count if counters else 0)
-        self._set_count(self.boost_button,
-                        item.boost_count if counters else 0)
-        self._set_count(self.favourite_button,
-                        item.favourite_count if counters else 0)
-        self._set_count(self.bookmark_button, 0)
-        self._set_active(self.boost_button, item.reblogged)
-        self._set_active(self.favourite_button, item.favourited)
-        self._set_active(self.bookmark_button, item.bookmarked)
-        quotable = 'quote_approval' in status
-        self.quote_button.set_visible(quotable)
-        if quotable:
-            self._set_count(self.quote_button,
-                            (status.get('quotes_count') or 0)
-                            if counters else 0)
-            allowed = can_quote(status)
-            self.quote_button.set_sensitive(can_act and allowed)
-            self.quote_button.set_tooltip_text(
-                _('Quote') if allowed else _('This post can’t be quoted'))
-        boostable = item.reblogged or self.can_be_boosted(item)
-        self.boost_button.set_tooltip_text(
-            _('Boost') if boostable else _('This post can’t be boosted'))
-        self.favourite_button.set_sensitive(can_act and not self._busy)
-        self.bookmark_button.set_sensitive(can_act and not self._busy)
-        self.boost_button.set_sensitive(
-            can_act and boostable and not self._busy)
-
-    def can_be_boosted(self, item):
-        visibility = item.status.get('visibility')
-        return visibility != 'direct' and (
-            visibility != 'private' or self._is_own())
-
-    def _sync_menu_state(self, item):
-        status = item.status
-        can_act = self._can_act()
-        self._menu_actions['open-browser'].set_enabled(
-            bool(item.status_url))
-        self._menu_actions['copy'].set_enabled(bool(item.status_url))
-        for name in ('mute', 'block', 'report', 'mention'):
-            self._menu_actions[name].set_enabled(can_act)
-        self._menu_actions['quote-policy'].set_state(
-            GLib.Variant.new_string(quote_policy_of(status)))
-        idle = can_act and not self._busy
-        boostable = item.reblogged or self.can_be_boosted(item)
-        for name, active, enabled in (
-                ('boost', item.reblogged, idle and boostable),
-                ('favourite', item.favourited, idle),
-                ('bookmark', item.bookmarked, idle)):
-            action = self._menu_actions[name]
-            action.set_state(GLib.Variant.new_boolean(bool(active)))
-            action.set_enabled(enabled)
-        self._menu_actions['quote'].set_enabled(
-            can_act and can_quote(status))
 
     def _set_time(self, item):
         self.time_label.set_text(item.timestamp)
@@ -3703,79 +4172,6 @@ class StatusRow(Gtk.Overlay):
         self.card_box.set_visible(True)
         self.card_box.append(CardPreview(card))
 
-    def _set_active(self, button, active):
-        button.set_active(active)
-        child = button.get_child()
-        child.set_icon_name(button.icons[bool(active)])
-        if button is self.boost_button:
-            # add/remove rather than set_css_classes: the icon may
-            # carry other classes on it.
-            if active:
-                child.add_css_class('boost-accent')
-            else:
-                child.remove_css_class('boost-accent')
-
-    def _set_count(self, button, count):
-        """Show *count* next to the icon and name it in the accessible
-        label, so the button reads as 'Boost, 12 boosts'."""
-        button.get_child().set_label(str(count) if count else '')
-        label = button.action_name_text
-        if count and button.nouns:
-            label = '%s, %s' % (label, ngettext(
-                button.nouns[0], button.nouns[1], count) % count)
-        button.update_property([Gtk.AccessibleProperty.LABEL], [label])
-
-    # Actions
-
-    def _on_reply(self, _button):
-        item = self.item
-        if item is None:
-            return
-        window = pages.window_of(self)
-        if window is None or not hasattr(window, 'open_compose_reply'):
-            self.activate_status(item)
-            return
-        status = item.status
-
-        def reply():
-            window.open_compose_reply(
-                item.status_id, status['account'].get('acct', ''),
-                status.get('visibility') or 'public')
-
-        age = days_since(status.get('created_at'))
-        if age > OLD_POST_DAYS and _flag('reply-to-old-post-reminder'):
-            self._confirm_old_reply(age, reply)
-        else:
-            reply()
-
-    def _confirm_old_reply(self, days, reply):
-        dialog = Adw.AlertDialog(
-            heading=_('Reply to an Old Post?'),
-            body=_('This post is %(age)s old. You can still reply, but it '
-                   'may no longer be relevant.') % {
-                'age': ngettext('%d day', '%d days', days) % days})
-        dialog.add_response('cancel', _('_Cancel'))
-        dialog.add_response('never', _('_Don’t Remind Me Again'))
-        dialog.add_response('reply', _('_Reply'))
-        dialog.set_response_appearance('reply',
-                                       Adw.ResponseAppearance.SUGGESTED)
-        dialog.set_default_response('reply')
-        dialog.set_close_response('cancel')
-
-        def on_response(_dialog, response):
-            if response == 'never':
-                pages.settings().set_boolean('reply-to-old-post-reminder',
-                                             False)
-            if response in ('never', 'reply'):
-                reply()
-
-        dialog.connect('response', on_response)
-        dialog.present(self)
-
-    def _on_quote(self, _button):
-        if self.item is not None:
-            self._open_composer('start_quote', self.item.status)
-
     def _on_profile_clicked(self, _button):
         if self.item is not None:
             self.activate_profile(self.item)
@@ -3791,192 +4187,8 @@ class StatusRow(Gtk.Overlay):
                             self.avatar.get_height() // 2)
         return link_provider(url)
 
-    def _merge_status(self, item, data):
-        """Copy the fields a status action changes into *item*."""
-        if not isinstance(data, dict):
-            return
-        fresh = data.get('reblog') or data
-        if fresh.get('id') != item.status_id:
-            return
-        for key in MERGE_KEYS:
-            if key in fresh:
-                item.status[key] = fresh[key]
-
-    def _set_busy(self, busy):
-        self._busy = busy
-        if self.item is not None and not isinstance(
-                self.item, BoostCarouselItem):
-            can_act = self._can_act()
-            self.favourite_button.set_sensitive(can_act and not busy)
-            self.bookmark_button.set_sensitive(can_act and not busy)
-            self.boost_button.set_sensitive(
-                can_act and not busy
-                and (self.item.reblogged or self.can_be_boosted(self.item)))
-
-    def _send_toggle(self, kind, active, form=None):
-        """Set favourite/reblog/bookmark to *active* with the matching
-        do/undo endpoint, optimistic with rollback on failure."""
-        item, client = self.item, self.client
-        flag = {'favourite': 'favourited', 'reblog': 'reblogged',
-                'bookmark': 'bookmarked'}[kind]
-        count_key = {'favourite': 'favourites_count',
-                     'reblog': 'reblogs_count'}.get(kind)
-        verb = kind if active else {'favourite': 'unfavourite',
-                                    'reblog': 'unreblog',
-                                    'bookmark': 'unbookmark'}[kind]
-        previous = {flag: item.status.get(flag)}
-        item.status[flag] = active
-        if count_key:
-            previous[count_key] = item.status.get(count_key)
-            item.status[count_key] = max(
-                0, (item.status.get(count_key) or 0) + (1 if active else -1))
-        self._set_busy(True)
-        self.bind(item, client)
-
-        def finished(_client, result, _data=None):
-            self._set_busy(False)
-            try:
-                data = client.request_finish(result)
-            except GLib.Error as error:
-                item.status.update(previous)
-                pages.report_error(self, _('Action failed'), error)
-            else:
-                self._merge_status(item, data)
-            if self.item is item:
-                self.bind(item, client)
-
-        client.request_async(
-            'POST', '/statuses/%s/%s' % (item.status_id, verb), form=form,
-            callback=finished)
-
-    def _on_favourite(self, button):
-        item = self.item
-        self._set_active(button, item.favourited)
-        if not item.favourited:
-            pages.flash_class(button, 'just-toggled')
-        self._send_toggle('favourite', not item.favourited)
-
-    def _on_bookmark(self, button):
-        item = self.item
-        self._set_active(button, item.bookmarked)
-        if not item.bookmarked:
-            pages.flash_class(button, 'just-toggled')
-        self._send_toggle('bookmark', not item.bookmarked)
-
-    def _missing_alt(self):
-        return any(
-            a.get('type') in ('image', 'video', 'gifv', 'audio')
-            and not a.get('description')
-            for a in self.item.status.get('media_attachments') or [])
-
-    def _on_boost(self, button):
-        item = self.item
-        # The toggle flipped itself; the request decides the real state.
-        self._set_active(button, item.reblogged)
-        if item.reblogged:
-            self._send_toggle('reblog', False)
-            return
-
-        def proceed():
-            if _flag('advanced-boost-dialog'):
-                self._present_boost_dialog()
-            else:
-                pages.flash_class(button, 'just-toggled')
-                self._send_toggle('reblog', True)
-
-        if _flag('boost-alt-text-reminder') and self._missing_alt():
-            self._present_alt_reminder(proceed)
-        else:
-            proceed()
-
-    def _present_alt_reminder(self, proceed):
-        dialog = Adw.AlertDialog(
-            heading=_('This Post Has Media Without Alt Text'),
-            body=_('Some of your followers might not be able to '
-                   'understand it.'))
-        never = Gtk.CheckButton(label=_('Don’t _remind me again'),
-                                use_underline=True, halign=Gtk.Align.CENTER)
-        dialog.set_extra_child(never)
-        dialog.add_response('cancel', _('_Cancel'))
-        dialog.add_response('boost', _('_Boost'))
-        dialog.set_response_appearance('boost',
-                                       Adw.ResponseAppearance.SUGGESTED)
-        dialog.set_default_response('cancel')
-        dialog.set_close_response('cancel')
-
-        def on_response(_dialog, response):
-            if never.get_active():
-                pages.settings().set_boolean('boost-alt-text-reminder',
-                                             False)
-            if response == 'boost':
-                proceed()
-
-        dialog.connect('response', on_response)
-        dialog.present(self)
-
-    def _present_boost_dialog(self):
-        """Boost with a visibility choice and the option to quote."""
-        item = self.item
-        status = item.status
-        original = status.get('visibility')
-        allowed = {'public': ['public', 'unlisted', 'private'],
-                   'unlisted': ['unlisted', 'private']}.get(
-                       original, ['private'])
-        descriptions = {
-            'public': _('Visible for all'),
-            'unlisted': _('Visible for all, but not in public timelines'),
-            'private': _('Visible for your followers only')}
-        preferred = pages.settings().get_string('default-visibility') \
-            if _has_schema() else 'public'
-        default = preferred if preferred in allowed else allowed[0]
-        listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        listbox.add_css_class('boxed-list')
-        checks = {}
-        group = None
-        for value in allowed:
-            title, icon = VISIBILITY_INFO[value]
-            check = Gtk.CheckButton(active=value == default,
-                                    valign=Gtk.Align.CENTER)
-            if group is None:
-                group = check
-            else:
-                check.set_group(group)
-            checks[value] = check
-            row = Adw.ActionRow(title=title, subtitle=descriptions[value],
-                                activatable_widget=check)
-            row.add_prefix(Gtk.Image(icon_name=icon))
-            row.add_prefix(check)
-            listbox.append(row)
-        dialog = Adw.AlertDialog(heading=_('Boost With Visibility'))
-        dialog.set_extra_child(listbox)
-        dialog.add_response('cancel', _('_Cancel'))
-        if can_quote(status):
-            dialog.add_response('quote', _('_Quote'))
-        dialog.add_response('boost', _('_Boost'))
-        dialog.set_response_appearance('boost',
-                                       Adw.ResponseAppearance.SUGGESTED)
-        dialog.set_default_response('boost')
-        dialog.set_close_response('cancel')
-
-        def on_response(_dialog, response):
-            if response == 'boost':
-                chosen = next((v for v, c in checks.items()
-                               if c.get_active()), default)
-                pages.flash_class(self.boost_button, 'just-toggled')
-                self._send_toggle('reblog', True,
-                                  form={'visibility': chosen})
-            elif response == 'quote':
-                self._on_quote(None)
-
-        dialog.connect('response', on_response)
-        dialog.present(self)
-
     def activate_status(self, item):
-        window = pages.window_of(self)
-        if window is None:
-            return
-        from .thread import push_thread
-        push_thread(window.navigation_view, self.client, item)
+        _open_thread(self, self.client, item)
 
     def activate_profile(self, item):
         window = pages.window_of(self)

@@ -361,6 +361,43 @@ del row
 settle()
 check('a dragged status row is freed', freed(row_ref))
 
+# The action bar and the overflow menu work without a StatusRow, and are
+# freed with the widget that holds them, menu opened or not.
+tile = Gtk.Box()
+bar = timeline.StatusActions(quote=False, button_classes=('osd', 'pill'),
+                             tinted=True)
+menu = timeline.StatusMenuButton(actions=bar,
+                                 button_classes=('osd', 'pill'))
+tile.append(bar)
+tile.append(menu)
+tile_item = timeline.StatusItem(dict(status(5), favourites_count=3))
+bar.bind(tile_item, _Client())
+menu.bind(tile_item, _Client())
+menu.prepare()
+check('a standalone bar shows the counts',
+      bar.favourite_button.get_child().get_label() == '3'
+      and bar.quote_button is None and bar.has_css_class('status-actions')
+      and bar.boost_button.has_css_class('osd')
+      and bar.boost_button.get_child().has_css_class('tint-success'))
+check('a standalone menu builds on demand',
+      menu.get_menu_model() is not None)
+tile_item.status['favourites_count'] = 4
+tile_item.emit('changed')
+check('a standalone bar follows its item',
+      bar.favourite_button.get_child().get_label() == '4')
+tile_refs = [bar.weak_ref(), menu.weak_ref(), tile_item.weak_ref()]
+del tile, bar, menu, tile_item
+settle()
+check('a standalone bar and menu are freed',
+      all(freed(ref) for ref in tile_refs))
+
+row = timeline.StatusRow()
+row.bind(timeline.StatusItem(status(6)), _Client())
+row._overflow.prepare()
+row_ref = row.weak_ref()
+del row
+check('a status row with its menu opened is freed', freed(row_ref))
+
 # Hosted in an Adw window, like the app's: over a plain Gtk.Window the
 # dialog floats as a window of its own, and force_close() did not emit
 # 'closed' there.

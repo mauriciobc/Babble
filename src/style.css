@@ -73,6 +73,17 @@
   color: var(--accent-color);
 }
 
+/* Action bars that tint the boost and favourite icons whatever the
+   state (StatusActions(tinted=True)); the filled icon and the pressed
+   button still say whether you did it. */
+.tint-success {
+  color: var(--success-color);
+}
+
+.tint-error {
+  color: var(--error-color);
+}
+
 .status-media {
   border-radius: 12px;
 }
