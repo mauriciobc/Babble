@@ -680,6 +680,12 @@ Per page:
 
 - At most **2** News Link tiles, taken in §3.5 news order.
 - At most **1** Hashtag tile, taken in §3.5 hashtag order.
+- These are caps, not quotas: news and hashtag tiles together take at most
+  **a third of the page's cells** (4 of 12), so Highlights stays a digest of
+  posts, as in the visual reference. Pages alternate which kind gets first
+  claim on that allowance (news on the first page, hashtag on the second, …).
+  A news tile that does not fit the allowance at 2 × 2 drops to 2 × 1, or
+  waits for the next page. At 1 column, at most one non-post tile per page.
 - Fill the remaining units with post tiles in score order.
 
 The grid shows **3 pages** at first; a "Show more" button adds 3 at a time
