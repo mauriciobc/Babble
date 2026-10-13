@@ -63,6 +63,10 @@
       <default>false</default>
       <summary>Hide the Federated timeline from the sidebar</summary>
     </key>
+    <key name="show-restricted-feeds" type="b">
+      <default>false</default>
+      <summary>Show local and federated timelines the server disabled but this account may still read</summary>
+    </key>
     <key name="color-scheme" type="s">
       <choices>
         <choice value="system"/>

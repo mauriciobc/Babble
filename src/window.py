@@ -87,6 +87,10 @@ PLACES = (
 HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
 
+# Opt-in for public timelines the server has closed to most accounts but
+# still serves to this one (the "View live and topic feeds" permission).
+SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
+
 
 def place_title(tag):
     return {
@@ -294,7 +298,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         elif key == 'auto-refresh':
             self._apply_auto_refresh()
         elif key in HIDE_KEYS.values() \
-                or key in ('favorite-lists-ids', 'favorite-tags-ids'):
+                or key in ('favorite-lists-ids', 'favorite-tags-ids',
+                           SHOW_RESTRICTED_KEY):
             self._refresh_sidebar()
         elif key in ('live-updates', 'public-live-updates'):
             self._sync_streaming()
@@ -767,6 +772,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 pass
             if client is self.client:
                 self._update_session_actions()
+                self._refresh_sidebar()
                 self._sync_streaming()
 
         client.instance_info_async(callback=info_done)
@@ -783,6 +789,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             self.account = fresh
             account_store.save_account(self.settings, fresh, activate=False)
             self._update_session_actions()
+            self._refresh_sidebar()
 
         client.verify_credentials_async(callback=account_done)
 
@@ -1125,6 +1132,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             from .explore import ExplorePage
             return ExplorePage(client)
         if tag in ('local', 'federated'):
+            if tag in self._restricted_public_places():
+                return None
             params = {'local': 'true'} if tag == 'local' else None
             page = self._timeline_place(
                 '/timelines/public', params, 'network-server-symbolic',
@@ -1230,6 +1239,27 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     # Sidebar
 
+    def _restricted_public_places(self):
+        """The public timelines this account must not see in the sidebar.
+
+        A feed the server closes to everyone but privileged accounts is
+        hidden unless the reader turned the opt-in on; a feed it closes
+        to this account outright is always hidden."""
+        client = self.client
+        if client is None:
+            return set()
+        from .streaming import (FEED_RESTRICTED, FEED_UNAVAILABLE,
+                                public_feed_access)
+        access = public_feed_access(client, self.account)
+        opted_in = self.settings.get_boolean(SHOW_RESTRICTED_KEY)
+        closed = set()
+        for place in ('local', 'federated'):
+            state = access.get(place)
+            if state == FEED_UNAVAILABLE \
+                    or (state == FEED_RESTRICTED and not opted_in):
+                closed.add(place)
+        return closed
+
     def _refresh_sidebar(self, *_args):
         """Rebuild the sidebar: the built-in places (minus the ones the
         preferences hide), then the lists and hashtags pinned for the
@@ -1241,6 +1271,14 @@ class BabbleWindow(Adw.ApplicationWindow):
         sections = {}
         hidden = {tag for tag, key in HIDE_KEYS.items()
                   if self.settings.get_boolean(key)}
+        closed = self._restricted_public_places()
+        hidden |= closed
+        for tag in closed:
+            # A feed the server will not serve, or the reader has not
+            # opted into, keeps neither a page nor a stream.
+            self.public_pages.pop(tag, None)
+            self._place_pages.pop(tag, None)
+            self._place_children.pop(tag, None)
         for tag, icon, group in PLACES:
             if tag in hidden:
                 continue
