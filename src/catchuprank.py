@@ -546,7 +546,11 @@ def recency_multiplier(age_ms, params=DEFAULT_RANKING_PARAMS):
     age = max(0, age_ms)
     if params.max_post_age_ms is not None and age > params.max_post_age_ms:
         return 0.0
-    half_lives = age / params.recency_half_life_ms
+    half_life = params.recency_half_life_ms
+    # A zero (or negative) half-life is Infinity in the TypeScript, which
+    # floors the multiplier; dividing by it here would raise and take the
+    # whole ranking down instead.
+    half_lives = age / half_life if half_life > 0 else math.inf
     return ((1 - params.recency_floor) * 0.5 ** half_lives
             + params.recency_floor)
 
@@ -1301,10 +1305,17 @@ def _tree_to_text(node):
 # htmlToText in content-parse.ts: status HTML to plain text, with the
 # markdown-ish marks Elk's version adds for code, bold, italic and strike.
 def html_to_text(html):
-    builder = _TreeBuilder()
-    builder.feed(html)
-    builder.close()
-    text = ''.join(_tree_to_text(child) for child in builder.root.children)
+    # Elk wraps the parse and the walk in try/catch and returns '' on
+    # failure. The walk recurses once per nesting level, so deeply nested
+    # status HTML raises RecursionError here; one pathological post must
+    # not abort the ranking of the whole snapshot.
+    try:
+        builder = _TreeBuilder()
+        builder.feed(html)
+        builder.close()
+        text = ''.join(_tree_to_text(child) for child in builder.root.children)
+    except (RecursionError, ValueError):
+        return ''
     return text.strip(_JS_WHITESPACE)
 
 

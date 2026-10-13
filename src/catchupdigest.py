@@ -523,6 +523,7 @@ def timeline_links(posts, trim=True):
     the tenth shared only once. Pass ``trim=False`` to match trending links
     against every shared link."""
     links = {}
+    counted = {}
     for post in posts:
         if is_filtered_post(post):
             continue
@@ -539,12 +540,16 @@ def timeline_links(posts, trim=True):
                           'card': card, 'shared': 1,
                           'sharers': [post['account']],
                           'likes': likes, 'boosts': boosts}
+            counted[key] = {content['id']}
             continue
         if any(a['id'] == post['account']['id'] for a in entry['sharers']):
             continue
         entry['shared'] += 1
         entry['sharers'].append(post['account'])
-        if entry['post_id'] != content['id']:
+        # The counts are summed over different posts, so one post that
+        # several people boosted adds them once, not once per boost.
+        if content['id'] not in counted[key]:
+            counted[key].add(content['id'])
             entry['likes'] += likes
             entry['boosts'] += boosts
     top = sorted(links.values(),
@@ -826,7 +831,8 @@ def bin_by_time(data, num_bins, now, key='created_at'):
     at ``now``). Items dated after ``now`` go into the last bin. Where
     Phanpy would divide by zero (all items at one instant) or index with NaN,
     everything not in the future goes in bin 0. Items without a parseable
-    time are put in bin 0."""
+    time are put in bin 0, and an unparseable ``now`` caps at the latest
+    item instead of raising."""
     if num_bins < 1:
         return []
     bins = [[] for _ in range(num_bins)]
@@ -836,7 +842,8 @@ def bin_by_time(data, num_bins, now, key='created_at'):
         if data:
             bins[0].extend(data)
         return bins
-    now_ms = _ms(parse_time(now))
+    now_stamp = parse_time(now)
+    now_ms = _ms(now_stamp) if now_stamp is not None else max(valid)
     low = min(valid)
     span = min(max(valid), now_ms) - low
     for item, stamp in zip(data, stamps, strict=True):

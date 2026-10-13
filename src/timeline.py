@@ -2348,7 +2348,7 @@ class QuoteCard(Gtk.Button):
         avatar = Adw.Avatar(size=22, show_initials=True, text=name or '?')
         AvatarCache.load(avatar, account)
         head.append(avatar)
-        title = InlineEmojiText(emoji_size=14)
+        title = InlineEmojiText(emoji_size=14, single_line=True)
         title.add_css_class('caption-heading')
         title.set_can_target(False)
         title.set_segments([{'text': name or '?', 'href': None}],
@@ -3090,6 +3090,9 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         """Reply/Boost/(Quote)/Favorite/Bookmark as a row of icon
         buttons; the toggles render pressed from their action state."""
         section = Gio.Menu()
+        # Pinned here rather than looked up in the module globals at call
+        # time, like StatusRow pins its own: the menu must not depend on
+        # the name still resolving when the user opens it.
         icons = StatusActions
         entries = [(_('Reply'), 'row.reply', icons.ICON_REPLY),
                    (_('Boost'), 'row.boost', icons.ICON_BOOST)]
@@ -3212,7 +3215,12 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
     def _menu_history(self, *_args):
         self.show_history()
 
-    def _menu_translate(self, *_args):
+    def toggle_translation(self, *_args):
+        """Translate the post, or drop the translation. Public because
+        StatusRow's translation box has a "Show _Original" button that
+        does the same thing; the refresh and the ``translated`` note go
+        to the host through ``_notify``, so both callers redraw. Takes
+        and ignores arguments so it can be connected as a handler."""
         item = self.item
         if item is None:
             return
@@ -3231,6 +3239,9 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                    '/statuses/%s/translate' % item.status_id, translated,
                    _('Could not translate'),
                    form={'lang': ui_language()})
+
+    def _menu_translate(self, *_args):
+        self.toggle_translation()
 
     def _post_action(self, action, heading):
         """POST /statuses/:id/<action> and merge the returned status."""
@@ -3755,7 +3766,8 @@ class StatusRow(Gtk.Overlay):
                                   use_underline=True)
             original.add_css_class('flat')
             original.add_css_class('caption')
-            connect_weak(original, 'clicked', self._menu_translate)
+            connect_weak(original, 'clicked',
+                         self._overflow.toggle_translation)
             box.append(original)
             self.translation_box = box
             self.guarded.insert_child_after(box, self.post_meta)

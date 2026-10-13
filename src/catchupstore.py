@@ -36,7 +36,9 @@ META_KEYS = ('version', 'id', 'account', 'start_at', 'end_at', 'period',
              'stopped', 'count', 'oldest_at')
 
 _POSTS_OPEN = ', "posts": [\n'
-_POSTS_CLOSE = '\n], '
+# No trailing comma: the writer only adds ", " when something follows the
+# posts, so a snapshot with no other keys still ends in a valid "]}".
+_POSTS_CLOSE = '\n]'
 _META_PEEK = 8192
 
 _root = None
@@ -77,10 +79,13 @@ def _dump(snapshot):
     meta = {key: snapshot.get(key) for key in META_KEYS if key in snapshot}
     rest = {key: value for key, value in snapshot.items()
             if key not in meta and key != 'posts'}
-    head = json.dumps(meta)[:-1]
-    tail = json.dumps(rest)[1:]
+    # Both halves drop their braces, and the tail is only appended when
+    # there is one, so the file is always valid JSON.
+    head = json.dumps(meta)[1:-1].rstrip(', ')
+    tail = json.dumps(rest)[1:-1].rstrip(', ')
     lines = ',\n'.join(json.dumps(post) for post in snapshot.get('posts', ()))
-    return head + _POSTS_OPEN + lines + _POSTS_CLOSE + tail
+    return ('{' + head + _POSTS_OPEN + lines + _POSTS_CLOSE
+            + (', ' + tail if tail else '') + '}')
 
 
 def _private_dir(path):
@@ -147,7 +152,10 @@ def read_snapshot(path):
         if not found:
             raise ValueError('truncated')
         snapshot = json.loads(head + '}')
-        snapshot.update(json.loads('{' + tail))
+        # Snapshots written before the marker lost its trailing comma
+        # still carry ", " here; a JSON member starts with '"', so
+        # stripping it cannot eat anything of the value.
+        snapshot.update(json.loads('{' + tail.lstrip(', ') + '}'))
         # One post at a time: other threads run between the calls.
         snapshot['posts'] = ([json.loads(line.rstrip(','))
                               for line in body.split('\n')]

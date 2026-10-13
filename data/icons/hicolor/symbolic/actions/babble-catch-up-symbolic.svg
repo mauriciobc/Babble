@@ -1,6 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-  <rect x="1" y="1" width="8" height="9" rx="2" fill="#222"/>
-  <rect x="11" y="1" width="4" height="5" rx="2" fill="#222"/>
-  <rect x="11" y="8" width="4" height="7" rx="2" fill="#222"/>
-  <rect x="1" y="12" width="8" height="3" rx="1.5" fill="#222"/>
+<svg xmlns='http://www.w3.org/2000/svg'
+        xmlns:gpa='https://www.gtk.org/grappa'
+        gpa:rendering='symbolic'
+        width='16' height='16' viewBox='0 0 16 16'>
+  <rect x='1' y='1' width='8' height='9' rx='2'
+        fill='url(#gpa:foreground) rgb(0,0,0)'/>
+  <rect x='11' y='1' width='4' height='5' rx='2'
+        fill='url(#gpa:foreground) rgb(0,0,0)'/>
+  <rect x='11' y='8' width='4' height='7' rx='2'
+        fill='url(#gpa:foreground) rgb(0,0,0)'/>
+  <rect x='1' y='12' width='8' height='3' rx='1.5'
+        fill='url(#gpa:foreground) rgb(0,0,0)'/>
 </svg>

@@ -814,6 +814,17 @@ class TestRecencyMultiplier(Base):
     def test_treats_a_future_dated_post_as_brand_new(self):
         self.assertClose(cr.recency_multiplier(-HOUR), 1)
 
+    def test_a_zero_half_life_floors_instead_of_raising(self):
+        # Infinity in the TypeScript, where 0.5 ** Infinity is 0.
+        p = dataclasses.replace(cr.DEFAULT_RANKING_PARAMS,
+                                recency_half_life_ms=0)
+        self.assertClose(cr.recency_multiplier(HOUR, p),
+                         cr.DEFAULT_RANKING_PARAMS.recency_floor)
+        negative = dataclasses.replace(cr.DEFAULT_RANKING_PARAMS,
+                                       recency_half_life_ms=-HOUR)
+        self.assertClose(cr.recency_multiplier(HOUR, negative),
+                         cr.DEFAULT_RANKING_PARAMS.recency_floor)
+
     def test_matches_the_typescript_values(self):
         golden = GOLDEN['recency']
         cut = dataclasses.replace(cr.DEFAULT_RANKING_PARAMS,
@@ -2657,6 +2668,11 @@ class TestHtmlToText(Base):
             '<p><b>b</b> <strong>s</strong> <i>i</i> <em>e</em> '
             '<del>d</del> <code>c</code></p>'),
             '**b** **s** *i* *e* ~~d~~ `c`')
+
+    def test_deeply_nested_html_returns_empty_instead_of_raising(self):
+        # One pathological post must not abort the ranking of the whole
+        # snapshot; Elk's try/catch returns '' here.
+        self.assertEqual(cr.html_to_text('<div>' * 5000 + 'x'), '')
         self.assertEqual(
             cr.html_to_text('<pre><code class="language-py">x = 1</code>'
                             '</pre>'), '```py\nx = 1\n```')

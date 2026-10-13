@@ -50,7 +50,7 @@ INSET_TEXT_CHARS = 140
 SHARER_AVATARS = 5
 TAG_AVATARS = 3
 FOOTER_HEIGHT = 34
-NEWS_IMAGE_SHARE = 0.48
+NEWS_IMAGE_SHARE = 0.55
 ACTION_ICONS = ('mail-reply-sender-symbolic',
                 'media-playlist-repeat-symbolic', 'non-starred-symbolic')
 
@@ -150,6 +150,21 @@ def split_headline(segments):
     return [], list(segments)
 
 
+def _soft_breaks(text):
+    """Hard line breaks in a tile's text become spaces.
+
+    Mastodon sends ``<br>`` for the line breaks in a list, and
+    ``statustext.parse_content`` hands them on as ``\\n``. Pango counts a
+    hard break as a line whatever ``set_height`` says, so a post with
+    many of them measures far taller than the card no matter how few
+    lines the tile asked for: one line of the sample post measures 305 px
+    against a 232 px card, and the text is dropped rather than shown
+    short. A tile re-flows its text to the card anyway, so the breaks
+    are handed to the wrap instead.
+    """
+    return re.sub(r'[ \t]*\n[ \t]*', ' ', text).strip()
+
+
 def _markup(text):
     return GLib.markup_escape_text(text)
 
@@ -220,10 +235,15 @@ class _FitText(Gtk.Widget):
                  markup=False):
         super().__init__(accessible_role=Gtk.AccessibleRole.PRESENTATION,
                          halign=Gtk.Align.FILL)
-        self._text = text or ''
+        self._text = _soft_breaks(text or '')
         self._markup = markup
         self._max_lines = max_lines
         self._min_lines = min_lines
+        # The chosen layout, keyed by the size it was shaped for. A tile
+        # is snapshotted every frame while the grid scrolls, and re-shaping
+        # Pango up to max_lines times per tile per frame is exactly the
+        # main-loop work PERFORMANCE.md tracks. The text is set once here.
+        self._shaped = None
         for name in css:
             self.add_css_class(name)
 
@@ -261,6 +281,10 @@ class _FitText(Gtk.Widget):
         width, height = self.get_width(), self.get_height()
         if not self._text or width <= 0 or height <= 0:
             return
+        shaped = self._shaped
+        if shaped is not None and shaped[0] == width and shaped[1] == height:
+            snapshot.append_layout(shaped[2], self.get_color())
+            return
         layout = self._layout(width)
         # Fewer lines until it fits; Pango's own height limit is picky
         # about a pixel and would drop a line that does fit.
@@ -268,6 +292,13 @@ class _FitText(Gtk.Widget):
         while layout.get_pixel_size()[1] > height + 3 and lines > 1:
             lines -= 1
             layout = self._layout(width, lines)
+        # Not even one line fits: the tile is over-subscribed and there is
+        # no room for the text. Drawing the line anyway puts it on top of
+        # whatever is below, which is what "Body lines are limited by the
+        # tile's height" (5.3) rules out.
+        if layout.get_pixel_size()[1] > height + 3:
+            return
+        self._shaped = (width, height, layout)
         snapshot.append_layout(layout, self.get_color())
 
 
@@ -461,9 +492,17 @@ class _Tile(Gtk.Widget):
     def set_label(self, text):
         self.update_property([Gtk.AccessibleProperty.LABEL], [text])
 
+    def _refresh_prefs(self):
+        """Re-read the preferences a tile reads while it is on screen.
+        Only the post tiles show spoiler-hidden and blurred content."""
+
     def set_placed(self, placed):
         before = self.span_key()
         self.placed = placed
+        # A re-pack is also when the spoiler/media preferences get read
+        # again, so turning them on in Preferences shows on the tiles
+        # already on screen.
+        self._refresh_prefs()
         if self._child is not None and self.span_key() != before:
             self._drop_content()
             if self.get_mapped():
@@ -512,9 +551,27 @@ class _Tile(Gtk.Widget):
 
     # Activation
 
+    # What under a point handles its own click: the action bar, the
+    # overflow menu, a link card's button. Labels and other non-target
+    # widgets are skipped by pick() and so land on the tile itself,
+    # which is what we want: clicking the text opens the thread.
+    _CONTROLS = (Gtk.Button,)
+
     def _on_released(self, _gesture, _n_press, x, y):
-        if self.contains(x, y):
-            self.open()
+        if not self.contains(x, y):
+            return
+        # GtkButton claims the sequence in its own *release* handler,
+        # which runs after this one, so the sequence is still unclaimed
+        # here and the claim cannot be relied on to keep the tile shut.
+        # Claiming from the tile would be worse still: GTK cancels the
+        # gestures underneath, which would stop the control working at
+        # all. Ask what is under the point instead.
+        target = self.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while target is not None and target is not self:
+            if isinstance(target, self._CONTROLS):
+                return
+            target = target.get_parent()
+        self.open()
 
     def _on_key(self, _controller, keyval, _keycode, _state):
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
@@ -547,17 +604,23 @@ class PostTile(_Tile):
 
     __gtype_name__ = 'BabbleCatchUpPostTile'
 
+    def _refresh_prefs(self):
+        flag = timeline._flag
+        self.cw_hidden = bool(self.spoiler) and not flag('show-spoilers')
+        self.blur = self.cw_hidden or (
+            bool(self.item.status.get('sensitive'))
+            and not flag('show-sensitive-media'))
+
     def __init__(self, context, placed):
         self.post = placed.ref
         self.item = context.item_for(self.post)
         super().__init__(context, placed)
         status = self.item.status
-        flag = timeline._flag
         self.spoiler = (status.get('spoiler_text') or '').strip()
-        self.cw_hidden = bool(self.spoiler) and not flag('show-spoilers')
-        self.blur = self.cw_hidden or (
-            bool(status.get('sensitive'))
-            and not flag('show-sensitive-media'))
+        # Read in _refresh_prefs, not frozen here: tiles survive a re-pack
+        # and a Preferences change must take effect without a new digest,
+        # the way show-preview-cards already does.
+        self._refresh_prefs()
         self.media = [a for a in status.get('media_attachments') or []
                       if a.get('type') in ('image', 'video', 'gifv')]
         self.trending = catchupdigest.is_trending_post(
@@ -808,6 +871,9 @@ class PostTile(_Tile):
         actions = _build_actions(self.item, False, self.context.client)
         box.append(self._header(40 if hero else 32, False, actions))
         card = self.item.status.get('card')
+        # A 1x1 cell is 160 px: header, card and action bar fill it, and
+        # the text would be squeezed out entirely. Cards are for the
+        # taller tiles, where there is room for both.
         show_card = (not self.media and not self.cw_hidden and card
                      and card.get('url') and card.get('title')
                      and placed.rowspan > 1
@@ -841,7 +907,14 @@ class PostTile(_Tile):
             frame.add_overlay(badge)
             box.append(frame)
         else:
-            for part in texts:
+            # A text-only tile is header, text, action bar; without this
+            # the text keeps to the top of whatever is left and the card
+            # shows a gap above the bar. The group takes the slack and
+            # sits centred in it, which is also what _texts' "centred
+            # when short" is about. The image forms keep the text where
+            # it belongs against the picture instead.
+            for part in (self._text_group(texts) if quote
+                         else self._spread(texts)):
                 box.append(part)
             if form == 'inline':
                 box.append(self._inline_media(96))
@@ -851,6 +924,23 @@ class PostTile(_Tile):
             box.append(timeline.CardPreview(card))
         box.append(actions)
         return box
+
+    def _text_group(self, texts):
+        """The headline and body as one centred block that takes the room
+        the text does not need, so a text-only card has no gap above the
+        action bar. The parts are centred too: the group being centred
+        would otherwise leave the slack inside it, under the last line."""
+        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
+                        valign=Gtk.Align.CENTER, vexpand=True)
+        for part in texts:
+            part.set_valign(Gtk.Align.CENTER)
+            group.append(part)
+        return [group]
+
+    def _spread(self, texts):
+        """The text as it is, each block on its own, for the tiles where
+        the text belongs against the top of the card."""
+        return texts
 
     def _inline_media(self, height):
         row = Gtk.Box(spacing=4, homogeneous=True)
@@ -885,7 +975,7 @@ class NewsTile(_Tile):
             parts.append(self.card['description'])
         sharers = self.entry.get('sharers')
         if sharers:
-            parts.append(explore._shared_by(sharers, plain_name))
+            parts.append(explore.shared_by(sharers, plain_name))
         return '. '.join(part for part in parts if part)
 
     def open(self):
@@ -913,7 +1003,7 @@ class NewsTile(_Tile):
         sharers = self.entry.get('sharers') or []
         if sharers:
             footer.append(_AvatarStack(sharers[:SHARER_AVATARS]))
-            text = explore._shared_by(sharers, plain_name)
+            text = explore.shared_by(sharers, plain_name)
         else:
             parts = []
             people = explore.people_talking(self.card)
@@ -966,7 +1056,7 @@ class NewsTile(_Tile):
                            margin_end=12, vexpand=True)
             text.append(_FitText(title, 3, 1, ('title-3',)))
             if description:
-                text.append(_FitText(description, 3, 0, ('body',)))
+                text.append(_FitText(description, 2, 0, ('body',)))
             root.append(text)
         else:
             text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
@@ -977,9 +1067,9 @@ class NewsTile(_Tile):
             if self.entry.get('trending'):
                 top.append(_trending_pill())
             text.append(top)
-            text.append(_FitText(title, 2, 1, ('title-3',)))
+            text.append(_FitText(title, 2, 1, ('heading',)))
             if description:
-                text.append(_FitText(description, 3, 0, ('body',)))
+                text.append(_FitText(description, 1, 0, ('body',)))
             root.append(text)
         footer = self._footer()
         footer.set_margin_start(12)
@@ -1162,7 +1252,8 @@ class BentoGrid(Gtk.Widget):
     def _sync(self):
         """Tiles for the current packing: keep the ones still placed
         (their widgets survive a resize), make the new ones, drop the
-        rest, and order the children by position for the focus chain."""
+        rest, and order the children by score rank for the focus
+        chain."""
         wanted = {tile_key(p): p for p in self._placed}
         for key in [k for k in self._tiles if k not in wanted]:
             self._tiles.pop(key).unparent()
@@ -1174,8 +1265,12 @@ class BentoGrid(Gtk.Widget):
                 self._tiles[key] = tile
             else:
                 tile.set_placed(placed)
+        # Focus order follows score rank (2.6), and the children are in
+        # the order pack() emitted, which is score rank: it fills holes
+        # with later compact posts, so sorting by (row, col) here would
+        # replace it with visual order.
         previous = None
-        for placed in sorted(self._placed, key=lambda p: (p.row, p.col)):
+        for placed in self._placed:
             tile = self._tiles[tile_key(placed)]
             if tile.get_prev_sibling() is not previous:
                 tile.insert_after(self, previous)
@@ -1229,6 +1324,8 @@ class HighlightsView(Gtk.Box):
         self.context = None
         self.eligible = 0
         self._digest = None
+        # Set by the page, which keeps the expanded pages per snapshot.
+        self.on_pages_changed = None
         self.grid = BentoGrid(weak_method(self._make_tile))
         self.more_button = Gtk.Button(
             label=_('Show More'), halign=Gtk.Align.CENTER, visible=False)
@@ -1238,7 +1335,7 @@ class HighlightsView(Gtk.Box):
         self.append(self.grid)
         self.append(self.more_button)
 
-    def set_digest(self, digest):
+    def set_digest(self, digest, pages=None):
         self.grid.clear()
         self._digest = digest
         self.context = None
@@ -1257,9 +1354,20 @@ class HighlightsView(Gtk.Box):
             return
         self.context = _Context(self.client, digest)
         self.grid.set_content(posts, scores, news, tags)
+        if pages and pages > 1:
+            # Reopening a snapshot starts again at the first pages unless
+            # it says otherwise; CATCH-UP.md 7 keeps the show-more pages
+            # per snapshot id.
+            self.grid.set_pages(pages)
 
     def show_more(self):
         self.grid.set_pages(self.grid.pages_shown + catchupdigest.MORE_PAGES)
+        if self.on_pages_changed is not None:
+            self.on_pages_changed(self.pages_shown)
+
+    @property
+    def pages_shown(self):
+        return self.grid.pages_shown
 
     def build_all(self):
         """Build every tile's content now (tests and screenshots)."""

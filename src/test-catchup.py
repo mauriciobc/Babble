@@ -457,10 +457,13 @@ class StubHighlights(Gtk.Box):
     def __init__(self, client):
         super().__init__()
         self.digests = []
+        self.pages = []
+        self.on_pages_changed = None
         StubHighlights.instances.append(self)
 
-    def set_digest(self, digest):
+    def set_digest(self, digest, pages=None):
         self.digests.append(digest)
+        self.pages.append(pages)
 
 
 class StubModule:
@@ -536,6 +539,10 @@ check('the Highlights slot got the digest once',
       len(StubHighlights.instances) == 1
       and len(StubHighlights.instances[0].digests) == 1)
 digest = StubHighlights.instances[0].digests[0]
+# 7: the expanded pages are kept per snapshot id.
+check('the Highlights starts at the first pages',
+      StubHighlights.instances[0].pages[-1] == 1)
+
 check('the digest is ranked, filtered and shares the list\'s items',
       isinstance(digest, catchup.Digest)
       and all(not catchupdigest.is_filtered_post(p) for p in digest.posts)
@@ -667,15 +674,81 @@ check('the previous catch-ups are in the menu',
       page._metas[0]['id'] == page._snapshot_id)
 
 # Showing an older one, removing one
+shown_pages = page._snapshot_id
 older = page._metas[1]['id']
+# 7: the pages the user had expanded come back with the snapshot, and
+# another snapshot's do not leak into it.
+page._on_pages_changed(4)
+check('expanding the Highlights is remembered for the snapshot',
+      page._view_state.pages == 4
+      and page._view_states[shown_pages].pages == 4)
 page._on_show_snapshot(None, GLib.Variant('s', older))
 settle(lambda: page.state == 'results' and page._snapshot_id == older)
 check('a previous catch-up can be shown', page._snapshot_id == older)
+check('the older one starts at its own pages',
+      StubHighlights.instances[0].pages[-1] == 1)
+page._on_show_snapshot(None, GLib.Variant('s', shown_pages))
+settle(lambda: page.state == 'results' and page._snapshot_id == shown_pages)
+check('and they come back when that snapshot is shown again',
+      StubHighlights.instances[0].pages[-1] == 4)
+page._on_pages_changed(1)
 page._remove_snapshot(older)
 settle(lambda: page.state == 'results' and page._snapshot_id != older)
 check('removing the shown one opens the newest left',
       len(catchupstore.list_snapshots(KEY)) == 2
       and page._snapshot_id == page._metas[0]['id'])
+
+# A snapshot that will not open is the one dropped from the menu, not the
+# one still on screen.
+shown = page._snapshot_id
+broken = [m['id'] for m in page._metas if m['id'] != shown][0]
+with open(catchupstore.snapshot_path(KEY, broken), 'w') as handle:
+    handle.write('{ this is not a snapshot')
+before = [m['id'] for m in page._metas]
+page._on_show_snapshot(None, GLib.Variant('s', broken))
+settle(lambda: page.state == 'error')
+after = [m['id'] for m in page._metas]
+check('a snapshot that will not open drops itself, not the shown one',
+      shown in after and broken not in after
+      and set(before) - set(after) == {broken})
+page._on_show_snapshot(None, GLib.Variant('s', shown))
+settle(lambda: page.state == 'results' and page._snapshot_id == shown)
+
+# What is on disk is JSON a third party can read, including the minimal
+# snapshot with nothing but metadata and posts.
+import json                                            # noqa: E402
+
+minimal = {'version': 1, 'id': 'min', 'account': KEY,
+           'posts': [{'id': '1'}, {'id': '2'}]}
+minimal_path = catchupstore.write_snapshot(minimal)
+try:
+    json.loads(open(minimal_path, encoding='utf-8').read())
+    parses = True
+except ValueError:
+    parses = False
+check('a minimal snapshot on disk is valid JSON', parses)
+check('and reads back unchanged',
+      catchupstore.read_snapshot(minimal_path) == minimal)
+
+# A catch-up that cannot be written still shows, and says so.
+write_failed = catchupstore.write_snapshot
+
+
+def refuse(_snapshot):
+    raise OSError(28, 'No space left on device')
+
+
+page4, host4 = make_page(FakeClient(), dict(ACCOUNT, id='77'))
+settle(lambda: page4.state == 'first-run')
+catchupstore.write_snapshot = refuse
+try:
+    page4.catch_up_button.emit('clicked')
+    settle(lambda: page4.state == 'results')
+finally:
+    catchupstore.write_snapshot = write_failed
+check('a catch-up that could not be saved says so, and still shows',
+      page4._save_failed and page4.save_banner.get_revealed()
+      and page4.store.get_n_items() > 1)
 
 # Cancel in the middle of a run
 client = FakeClient(page_size=10)

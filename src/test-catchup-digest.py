@@ -411,6 +411,24 @@ class LinksTest(unittest.TestCase):
         # The sharers are the boosters, not the author.
         self.assertEqual([x['id'] for x in links[0]['sharers']], ['1', '2'])
 
+    def test_second_post_boosted_is_summed_once_and_order_free(self):
+        # The guard is per post, not per boost wrapper: a second post on
+        # the same URL adds its counts once however many times it was
+        # boosted, and the result must not depend on fetch order.
+        first = self.shared(1, 9, 'https://e.com/a', likes=10, boosts=5)
+        second = self.shared(2, 8, 'https://e.com/a', likes=100, boosts=50)
+        b1 = boost(1, 2, second)
+        b2 = boost(2, 3, second)
+        expected = (110, 55)
+        for order in ([first, b1, b2, second], [b1, second, b2, first]):
+            link = cd.timeline_links(order)[0]
+            # Four accounts share it: the two posts' authors and the two.
+            self.assertEqual(link['shared'], 4)
+            self.assertEqual((link['likes'], link['boosts']), expected)
+        # post_id still names the first post seen on the URL.
+        self.assertEqual(cd.timeline_links([first, b1, b2, second])[0]
+                         ['post_id'], '1')
+
     def test_filters(self):
         no_image = status(1, card=link_card('https://e.com/1', image=None))
         video = status(2, card={'type': 'video', 'url': 'https://e.com/2',
@@ -784,6 +802,13 @@ class BinByTimeTest(unittest.TestCase):
         bad = status(1)
         bad['created_at'] = 'x'
         self.assertEqual(cd.bin_by_time([bad], 3, BASE)[0], [bad])
+
+    def test_an_unparseable_now_caps_at_the_latest_post(self):
+        posts = [status(1, minutes_ago=100), status(2, minutes_ago=10)]
+        for now in (None, 'not a date'):
+            bins = cd.bin_by_time(posts, 4, now)
+            self.assertEqual(sum(len(b) for b in bins), len(posts))
+            self.assertEqual(bins[0], [posts[0]])
 
     def test_every_item_lands_once(self):
         posts = [status(i, minutes_ago=(i * 37) % 500) for i in range(200)]

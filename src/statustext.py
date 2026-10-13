@@ -356,17 +356,22 @@ def compact_count(n):
         number = locale.format_string('%.1f', value, grouping=True)
     if size == 1000:
         # Translators: compact count in thousands, e.g. "3.4K"; %s is the
-        # number. Portuguese uses '%s mil'.
+        # number. Write it as "3.4 Tsd." in German, "3,4 mil" in Spanish
+        # and "3,4 mil" in Brazilian Portuguese. Keep the %s.
         text = _('%sK')
     elif size == 1000000:
         # Translators: compact count in millions, e.g. "2.1M"; %s is the
-        # number. Portuguese uses '%s mi'.
+        # number. German uses "Mio.", French "M" is fine, Portuguese
+        # uses "mi". Keep the %s.
         text = _('%sM')
     else:
         # Translators: compact count in billions, e.g. "1.2B"; %s is the
-        # number. Portuguese uses '%s bi'.
+        # number. German uses "Mrd.", French "Md", Portuguese "bi".
+        # Keep the %s.
         text = _('%sB')
-    return text.replace('%s', number)
+    # %-formatting, not str.replace: a translator who changes the
+    # specifier then fails loudly here instead of rendering "3.4ds".
+    return text % number
 
 
 def split_url(uri):

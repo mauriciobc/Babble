@@ -126,7 +126,7 @@ def link_card_labels(link):
     return title, provider
 
 
-def _shared_by(sharers, name_of):
+def shared_by(sharers, name_of):
     """"Shared by Ana" or "Shared by Ana and 2 others" for the accounts
     in *sharers*, a non-empty list."""
     first = name_of(sharers[0])
@@ -191,7 +191,7 @@ def link_card_content(link, sharers=None):
     if author:
         footer.append(_('By %s') % author)
     if sharers:
-        footer.append(_shared_by(sharers, plain_name))
+        footer.append(shared_by(sharers, plain_name))
     else:
         people = people_talking(link)
         if people:

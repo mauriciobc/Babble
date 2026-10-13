@@ -6,6 +6,7 @@ Exits 77 (skip) without a display."""
 
 import datetime
 import gc
+import locale
 import os
 import sys
 import types
@@ -248,6 +249,33 @@ check('grid height is rows * 160 + 12 * (rows - 1)',
 # --------------------------------------------------------------------------
 # Text
 
+# 5.3: "Body lines are limited by the tile's height". A tile squeezed
+# below one line used to draw that line anyway, on top of the action bar.
+_fit = catchupgrid._FitText('word ' * 80, max_lines=6, min_lines=1,
+                            css=('body',))
+_fit.allocate(240, 40, -1, None)
+_fit.do_snapshot(Gtk.Snapshot())
+check('text fits a short allocation by dropping lines',
+      _fit._shaped is not None
+      and _fit._shaped[2].get_pixel_size()[1] <= 43)
+_fit._shaped = None
+_fit.allocate(240, 6, -1, None)
+_fit.do_snapshot(Gtk.Snapshot())
+check('and draws nothing at all when even one line will not fit',
+      _fit._shaped is None)
+
+# A post whose <br>s arrive as newlines: Pango counts a hard break as a
+# line whatever the height limit says, so such a post used to measure far
+# taller than its card and was dropped instead of shown short.
+_breaks = catchupgrid._FitText('one\ntwo\nthree\nfour\nfive', max_lines=4,
+                                min_lines=1, css=('body',))
+_breaks.allocate(200, 120, -1, None)
+_breaks.do_snapshot(Gtk.Snapshot())
+check('hard line breaks do not defeat the line budget',
+      _breaks._shaped is not None
+      and _breaks._shaped[2].get_pixel_size()[1] <= 123
+      and '\n' not in _breaks._text)
+
 segments = catchupgrid.statustext.parse_content(
     '<p>Fim de tarde.</p><p>Mais texto aqui.</p>')
 head, rest = catchupgrid.split_headline(segments)
@@ -333,6 +361,19 @@ check('tile kinds and spans match catchupdigest.layout',
 kinds = {type(t).__name__ for t in grid.tiles.values()}
 check('there are post, news and hashtag tiles',
       kinds == {'PostTile', 'NewsTile', 'HashtagTile'})
+
+# 2.6: the focus chain follows score rank, not visual position. pack()
+# fills holes with later compact posts, so the two orders differ here.
+_children = []
+_child = grid.get_first_child()
+while _child is not None:
+    _children.append((_child.placed.row, _child.placed.col))
+    _child = _child.get_next_sibling()
+_score_rank = [(p.row, p.col) for p in grid.placed]
+check('the tiles are in score order for the focus chain',
+      _children == _score_rank)
+check('and that is not the same as visual order',
+      _score_rank != sorted(_score_rank))
 
 # Re-packing only when the column count changes, tiles survive.
 packs = grid.pack_count
@@ -504,6 +545,19 @@ def pictures(widget):
     return found
 
 
+def find_of(widget, kind):
+    """The first widget of *kind* in the tree under *widget*, or None."""
+    child = widget.get_first_child()
+    while child is not None:
+        if isinstance(child, kind):
+            return child
+        found = find_of(child, kind)
+        if found is not None:
+            return found
+        child = child.get_next_sibling()
+    return None
+
+
 def texts(widget):
     found = []
     child = widget.get_first_child()
@@ -541,6 +595,17 @@ check('show-spoilers and show-sensitive-media lift both',
 settings.set_boolean('show-spoilers', False)
 settings.set_boolean('show-sensitive-media', False)
 
+# A tile already on screen follows the preference, the way
+# show-preview-cards does, instead of keeping what it was built with.
+tile = make(cw, 1, 1)
+hidden_first = tile.cw_hidden
+settings.set_boolean('show-spoilers', True)
+tile.set_placed(tile.placed)
+check('a tile already on screen follows the spoiler preference',
+      hidden_first and not tile.cw_hidden)
+settings.set_boolean('show-spoilers', False)
+tile.set_placed(tile.placed)
+
 nasty = post(303, '<p>&lt;b&gt;bold&lt;/b&gt; &amp;amp; &lt;span foreground='
              '"red"&gt; x</p><p>second &amp; &lt;i&gt;</p>')
 tile = make(nasty, 1, 2)
@@ -575,6 +640,46 @@ check('show-preview-cards off hides the link card',
       not any(isinstance(w, timeline.CardPreview)
               for w in [carded.get_first_child()]))
 settings.set_boolean('show-preview-cards', True)
+
+# The action bar counts are locale-aware; the expectations below are
+# written in the C locale, so pin it the way test-statustext.py does.
+_numeric = locale.setlocale(locale.LC_NUMERIC)
+locale.setlocale(locale.LC_NUMERIC, 'C')
+
+# A click on one of the tile's own controls is the control's, not the
+# tile's: GtkButton claims the sequence in its own release handler, which
+# runs after the tile's, so the tile has to check what is under the point
+# itself. Clicking the text still opens the post.
+if hasattr(timeline, 'StatusActions'):
+    clickable = make(post(340, '<p>a post worth opening</p>'), 2, 2)
+    host_window = Gtk.Window(default_width=400, default_height=300,
+                             child=clickable)
+    host_window.present()
+    settle()
+    opened = []
+    clickable.open = lambda: opened.append(1)
+
+    def point_over(widget):
+        ok, area = widget.compute_bounds(clickable)
+        return area.get_x() + area.get_width() / 2, \
+            area.get_y() + area.get_height() / 2
+
+    bx, by = point_over(find_of(clickable, timeline.StatusActions)
+                        .boost_button)
+    clickable._on_released(None, 1, bx, by)
+    check('a click on a tile control does not also open the tile',
+          not opened)
+    # The tile's own background and its text are not controls, so they
+    # still open the post.
+    clickable._on_released(None, 1, 6, 6)
+    text_point = find_of(clickable, catchupgrid._FitText)
+    if text_point is not None:
+        tx, ty = point_over(text_point)
+        clickable._on_released(None, 1, tx, ty)
+    check('a click on the tile itself still opens the post',
+          len(opened) >= 1)
+    window.set_child(host)
+    host_window.set_child(None)
 
 # The action bar comes from the timeline component when it exists.
 if hasattr(timeline, 'StatusActions'):
@@ -623,5 +728,6 @@ check('a highlights view, its grid and its tiles are freed',
       all(freed(ref) for ref in refs))
 
 if failures:
+    locale.setlocale(locale.LC_NUMERIC, _numeric)
     print('%d failed' % len(failures))
     sys.exit(1)

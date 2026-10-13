@@ -398,6 +398,29 @@ row_ref = row.weak_ref()
 del row
 check('a status row with its menu opened is freed', freed(row_ref))
 
+# A translated post rebuilds its row with the translation box, whose
+# "Show _Original" button shares the menu's action. Both call sites moved
+# with the menu split; binding must not raise and the button must still
+# toggle.
+translated = timeline.StatusItem(status(7))
+translated.translation = {'content': '<p>traducido</p>'}
+row = timeline.StatusRow()
+try:
+    row.bind(translated, _Client())
+    check('a row binds a translated post and shows its translation box',
+          row.translation_box is not None and row.translation_box.get_visible())
+    button = row.translation_box.get_last_child()
+    while button is not None and not isinstance(button, Gtk.Button):
+        button = button.get_next_sibling()
+    button.emit('clicked')
+    check('Show _Original drops the translation',
+          translated.translation is None
+          and not row.translation_box.get_visible())
+except Exception as error:                          # noqa: BLE001
+    check('a row binds a translated post and shows its translation box',
+          False)
+    print('  %s: %s' % (type(error).__name__, error))
+
 # Hosted in an Adw window, like the app's: over a plain Gtk.Window the
 # dialog floats as a window of its own, and force_close() did not emit
 # 'closed' there.

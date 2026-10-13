@@ -94,6 +94,10 @@ class Digest:
 PERIOD_HOURS = {'1h': 1, '3h': 3, '6h': 6, '12h': 12, '24h': 24}
 DEFAULT_PERIOD = '24h'
 FETCH_PAUSE_SECONDS = 1           # between two pages (3.1)
+# Mastodon takes at most 40 ids per /accounts/relationships call, so a
+# long run is several calls; CATCH-UP.md 3.2 says "one batched" and 2.2
+# budgets "~30 requests" for the whole catch-up. Batching is what the API
+# allows, so this is a deliberate deviation from both.
 RELATIONSHIP_BATCH = 40
 TREND_LIMITS = (('links', '/trends/links', 20), ('tags', '/trends/tags', 20),
                 ('statuses', '/trends/statuses', 40))
@@ -301,6 +305,10 @@ def compute(snapshot, viewer_languages=None, hide_trending=False):
              score))
 
     trends = snapshot.get('trends') or {}
+    # Untrimmed, so a trending link is matched against every shared link.
+    # CATCH-UP.md 3.5 also calls this the fallback news source, and 3.4
+    # trims to at least 10 links; using the trimmed list there would give
+    # fewer tiles. Kept untrimmed on purpose — say so if that changes.
     links = timeline_links(posts, trim=False)
     tl_tags = timeline_hashtags(posts, now=end_at)
     news = merge_news(trends.get('links'), links, hide_trending)
@@ -331,6 +339,9 @@ class ViewState:
     sort: str = 'time'
     order: str = 'asc'
     group: bool = False
+    # Highlight pages the user had expanded with "Show more", kept per
+    # snapshot so reopening one does not collapse it again (7).
+    pages: int = 1
 
     def is_default(self):
         return self == ViewState()
@@ -1108,6 +1119,7 @@ class CatchUpPage(Adw.Bin):
         self._generation = 0
         self._metas = []
         self._snapshot_id = None
+        self._save_failed = False
         self._period = DEFAULT_PERIOD
         self._run = None
         self._run_period = DEFAULT_PERIOD
@@ -1449,14 +1461,18 @@ class CatchUpPage(Adw.Bin):
         self._set_state('scanning')
         self.cancel_button.set_visible(False)
         run_in_thread(work, functools.partial(
-            pages.weak_method(self._on_snapshot_opened), generation))
+            pages.weak_method(self._on_snapshot_opened), generation,
+            snapshot_id))
 
-    def _on_snapshot_opened(self, generation, computed, error):
+    def _on_snapshot_opened(self, generation, snapshot_id, computed, error):
         if self._disposed or generation != self._generation:
             return
+        self._save_failed = False
         if error is not None:
+            # Drop the snapshot that would not open, not the one on
+            # screen, which is still readable.
             self._metas = [m for m in self._metas
-                           if m['id'] != self._snapshot_id]
+                           if m['id'] != snapshot_id]
             self._show_error(str(error))
             return
         self._begin_present(computed)
@@ -1533,7 +1549,7 @@ class CatchUpPage(Adw.Bin):
                 saved = False
             metas = catchupstore.prune(snapshot['account']) if saved \
                 else None
-            return (metas, compute(snapshot, languages, hide))
+            return (saved, metas, compute(snapshot, languages, hide))
 
         run_in_thread(work, functools.partial(
             pages.weak_method(self._on_run_saved), generation))
@@ -1544,7 +1560,10 @@ class CatchUpPage(Adw.Bin):
         if error is not None:
             self._show_error(str(error))
             return
-        metas, computed = value
+        saved, metas, computed = value
+        # A catch-up that could not be written is still worth showing;
+        # the banner says it will not come back.
+        self._save_failed = not saved
         if metas is not None:
             self._metas = metas
         self._begin_present(computed)
@@ -1674,6 +1693,11 @@ class CatchUpPage(Adw.Bin):
         top.append(self.low_banner)
         self.limit_banner = Adw.Banner(revealed=False)
         top.append(self.limit_banner)
+        self.save_banner = Adw.Banner(revealed=False)
+        self.save_banner.set_title(_(
+            'This catch-up could not be saved, so it will not be here '
+            'next time.'))
+        top.append(self.save_banner)
 
         self.highlights_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         top.append(self.highlights_slot)
@@ -1882,13 +1906,27 @@ class CatchUpPage(Adw.Bin):
                 self._highlights = None
             if self._highlights is not None:
                 self.highlights_slot.append(self._highlights)
+                self._highlights.on_pages_changed = pages.weak_method(
+                    self._on_pages_changed)
         if self._highlights is None:
             return
         self._highlights.set_digest(Digest(
             posts=computed.ranked, scores=computed.scores,
             items=self._items, news=computed.news, tags=computed.tags,
             trending_keys=computed.trending_keys,
-            boosters=computed.boosters, end_at=computed.end_at))
+            boosters=computed.boosters, end_at=computed.end_at),
+            pages=self._view_state.pages)
+
+    def _on_pages_changed(self, pages):
+        """The user expanded the Highlights with "Show More"; remember how
+        far, so reopening this snapshot starts where they left it (7)."""
+        if self._snapshot_id is None:
+            return
+        # Both: _apply_view copies the live state back over the stored one,
+        # so updating only the dict would be undone on the next change.
+        self._view_state.pages = pages
+        self._view_states[self._snapshot_id] = dataclasses.replace(
+            self._view_state)
 
     def _update_header(self):
         computed = self._computed
@@ -1948,6 +1986,7 @@ class CatchUpPage(Adw.Bin):
                     'The server limited requests, so this catch-up is '
                     'incomplete.'))
         self.limit_banner.set_revealed(limited)
+        self.save_banner.set_revealed(self._save_failed)
         self.options_button.set_sensitive(count > 0)
 
     # ----------------------------------------------------------------------
@@ -2156,6 +2195,9 @@ class CatchUpPage(Adw.Bin):
     # Keyboard (2.6)
 
     def _add_keys(self):
+        # Return is not here: the Gtk.ListView opens the focused post on
+        # Enter itself, which is why the results header is activatable
+        # False. Binding it here as well would fight that.
         controller = Gtk.ShortcutController(scope=Gtk.ShortcutScope.LOCAL)
         for key, handler in (('j', self._key_next_post),
                              ('k', self._key_previous_post),
