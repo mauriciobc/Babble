@@ -1,0 +1,78 @@
+# Mastodon API compatibility
+
+*Where Babble gates on the server's capabilities, and why.*
+
+Verified against Mastodon **4.7.3** (stable) and `mastodon/mastodon@main`
+(4.8.0-alpha.3, `api_versions.mastodon` **12**). The published docs at
+docs.joinmastodon.org document up to API version 11; individual pages
+annotate the version a feature was added in.
+
+The rules from `docs.joinmastodon.org/api/guidelines/`: prefer
+`api_versions.mastodon` from `GET /api/v2/instance` over parsing version
+strings, treat ids as opaque strings, follow the `Link` header for
+paging, and honour the `Deprecation` header (RFC 9745, sent since
+Mastodon 4.4.0). Babble does all four.
+
+## Capability gates
+
+| Feature | Introduced | Gate | Where |
+|---|---|---|---|
+| `api_versions.mastodon` | 4.3.0 | read once per instance | `mastodon.py instance_info_*` |
+| Collections | 4.6.0 (v10) | `>= 10` | `window._update_session_actions` |
+| Profile tabs (`PATCH /api/v1/profile`, `GET /profile`) | 4.6.0 (v8) | `>= 8` | `profileedit.PROFILE_TABS_VERSION` |
+| Avatar/header alt text (`PATCH /profile`) | 4.6.0 (v9) | `>= 9` | `profileedit.PROFILE_ALT_TEXT_VERSION` |
+| Avatar/header alt text (`PATCH /accounts/update_credentials`) | 4.6.1 (v11) | not used; carried by `/profile` instead | `profileedit.collect` |
+| `endorse`/`unendorse` aliases | 4.4.0 | `< 6` uses `pin`/`unpin`, else endorse; a 404 retries the other spelling | `profile._set_endorsed` |
+| Translation (`POST /statuses/:id/translate`) | 4.0.0 | `configuration.translation.enabled` | `timeline._translation_enabled` |
+| Live feed access (`live_feeds`) | 4.5.0 | `configuration.timelines_access` | `streaming.public_feed_access` |
+| Trending-link timeline | 4.3.0 | instance version | `explore.supports_link_timeline` |
+
+## `configuration.timelines_access` (4.5+)
+
+Three settings, each with `local`/`remote` sides. Only `live_feeds`
+covers the two sidebar timelines Babble hides; the two *topic* settings
+do **not** gate anything in Babble, by design (see below). They read
+from the same two admin settings (`*_topic_feed_access`), so
+`hashtag_feeds` and `trending_link_feeds` always carry identical values.
+
+| Setting | Server-side effect on a signed-in account |
+|---|---|
+| `live_feeds` (`local`/`remote`) | A side set to `disabled` closes that side: `GET /timelines/public` returns empty (or is left to the other side) unless the role has "View live and topic feeds" (`0x100000`). |
+| `hashtag_feeds` (`remote`; `local` is only `public`/`authenticated`) | When `remote` is `disabled`, `TagFeed` **falls back to local-only** — `GET /timelines/tag/:hashtag` answers with local posts, never an error. |
+| `trending_link_feeds` (`remote`; `local` likewise) | Same local-only fallback for `LinkFeed` (`GET /timelines/link`). It does **not** affect `GET /trends/links`. |
+
+`streaming.public_feed_access` therefore returns only `local`/`federated`
+(the two feeds the sidebar can hide). The topic settings are
+informational for a future capability matrix — see `Docs/ROADMAP.MD`
+Phase 5 — and must not be used to hide hashtag or trending pages, because
+the account can still read their local content.
+
+## Deliberately not deprecated
+
+- **Media upload** uses `POST /api/v2/media` (v1 was deprecated in
+  3.1.3). Small images process synchronously (HTTP 200, `url` present);
+  large ones return 202 with `url: null`, and the composer polls
+  `GET /api/v1/media/:id` until it appears. OAuth scope `write:media`.
+- **Filters** use the v2 API (server-side `filtered` results), never the
+  client-side v1 matching.
+- **OAuth scopes** are `read write` + `admin:read admin:write` for the
+  moderation authorization only. The `follow` scope has been deprecated
+  since Mastodon 3.5; `read`/`write` grant every granular scope Babble
+  needs, collections included.
+
+## Notification types
+
+Babble renders the documented types including the 4.5 additions (`quote`,
+`quoted_update`) and the 4.6 additions (`added_to_collection`,
+`collection_update`, both v10), and ignores the server's grouped-
+notifications API (a deliberate choice: it clusters client-side). New
+streaming events handled: `status.update`, `filters_changed` (2.4.3, no
+payload) and `notifications_merged` (4.3.0, payload ignored). Both arrive
+on the `user` stream.
+
+## Deprecation watch
+
+`mastodon.log_deprecation` logs any RFC 9745 `Deprecation` header (and a
+matching `Sunset`, when present) under `G_MESSAGES_DEBUG=Babble`, so a
+route Mastodon retires shows up in development before it breaks in the
+field.
