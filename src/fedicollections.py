@@ -46,6 +46,14 @@ def _items(data):
     return data or []
 
 
+def _is_member(item):
+    """Whether a Collection item should be shown as a member: everything
+    but ``rejected`` and ``revoked`` (``pending`` members are shown with
+    a badge). ``state`` is documented as always present; an entry that
+    omits it is treated as a member rather than hidden."""
+    return item.get('state') not in ('rejected', 'revoked')
+
+
 def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
     def finished(_client, result, _data=None):
         try:
@@ -150,7 +158,7 @@ class CollectionActions:
         self.my_item = next(
             (item for item in collection.get('items') or []
              if item.get('account_id') == self.me
-             and item.get('state') != 'revoked'), None)
+             and _is_member(item)), None)
 
     def menu_button(self):
         group = Gio.SimpleActionGroup()
@@ -160,6 +168,8 @@ class CollectionActions:
             entries.append(('edit', _('Edit')))
         if self.my_item is not None and not self.is_owner:
             entries.append(('remove-me', _('Remove Myself')))
+        if not self.is_owner:
+            entries.append(('report', _('Report Collection')))
         if self.is_owner:
             entries.append(('delete', _('Delete')))
         # The widget owns the button and keeps this object as
@@ -198,6 +208,26 @@ class CollectionActions:
         dialog = CollectionEditDialog(self.client, self.collection,
                                       on_saved=self.on_changed)
         dialog.present(self.widget)
+
+    def report(self):
+        """Report the Collection to its owner's server.
+
+        The reported account is the Collection's owner; the Collection
+        itself rides along as ``collection_ids[]`` evidence (Mastodon
+        4.6+)."""
+        from .report import present_report
+        owner_id = self.collection.get('account_id')
+        if not owner_id:
+            return
+
+        def with_owner(accounts):
+            owner = accounts.get(owner_id)
+            if owner is None:
+                return
+            present_report(self.widget, self.client, owner,
+                           collection=self.collection)
+
+        fetch_accounts(self.client, [owner_id], with_owner)
 
     def remove_me(self):
         def go():
@@ -244,7 +274,7 @@ class AvatarStack(Gtk.Box):
                          accessible_role=Gtk.AccessibleRole.PRESENTATION,
                          **kwargs)
         items = [item for item in collection.get('items') or []
-                 if item.get('state') != 'revoked']
+                 if _is_member(item)]
         shown = items[:3]
         if collection.get('sensitive'):
             icon = Gtk.Image(icon_name='dialog-warning-symbolic',
@@ -526,10 +556,16 @@ class CollectionPage(Adw.Bin):
             pages.connect_weak(leave, 'clicked', self._on_action_clicked,
                                'remove_me')
             buttons.append(leave)
+        if not actions.is_owner:
+            report = Gtk.Button(label=_('_Report'), use_underline=True)
+            report.add_css_class('pill')
+            pages.connect_weak(report, 'clicked', self._on_action_clicked,
+                               'report')
+            buttons.append(report)
         column.append(buttons)
 
         members = [item for item in collection.get('items') or []
-                   if item.get('state') != 'revoked']
+                   if _is_member(item)]
         group = Adw.PreferencesGroup(title=ngettext(
             '%d Member', '%d Members', len(members)) % len(members))
         for item in members:
@@ -775,7 +811,7 @@ class CollectionEditDialog(Adw.Dialog):
             owner = (data.get('collection') or {}).get('account_id')
             for item in (data.get('collection') or {}).get('items') or []:
                 account = by_id.get(item.get('account_id'))
-                if account is None or item.get('state') == 'revoked' \
+                if account is None or not _is_member(item) \
                         or account['id'] == owner:
                     continue
                 self._add_member(account, item)
