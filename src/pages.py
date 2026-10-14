@@ -520,6 +520,14 @@ class AccountRow(Adw.ActionRow):
         AvatarCache.load(avatar, account)
         self.add_prefix(avatar)
         self.avatar = avatar
+        if account.get('invalid_handle'):
+            # Mastodon 4.7: the handle cannot be verified (a remote actor
+            # that changed handles); the acct shown is server-unique.
+            warning = Gtk.Image(icon_name='dialog-warning-symbolic')
+            warning.add_css_class('dimmed')
+            warning.set_tooltip_text(
+                _('This account’s handle could not be verified'))
+            self.add_suffix(warning)
 
     def on_activate(self):
         open_profile(self, self.client, self.account)
@@ -583,11 +591,14 @@ _FEDI_PATH = re.compile(
 # The profile shapes among _FEDI_PATH; every other match is a post.
 _PROFILE_PATH = re.compile(r'^/(?:web/)?(?:@[^/]+|users/[^/]+|u/[^/]+)/?$')
 _TAG_PATH = re.compile(r'^/(?:tags|tag)/([^/?#]+)/?$')
+# A Collection URL (Mastodon 4.6+): https://host/collections/:id
+_COLLECTION_PATH = re.compile(r'^/collections/([^/?#]+)/?$')
 
 
 def fedi_link_kind(uri):
-    """``'post'``, ``'profile'`` or ``'tag'`` when *uri* is an http(s)
-    link shaped like one on a fediverse server, else None."""
+    """``'post'``, ``'profile'``, ``'tag'`` or ``'collection'`` when
+    *uri* is an http(s) link shaped like one on a fediverse server, else
+    None."""
     if not is_web_link(uri):
         return None
     parts = split_url(uri)
@@ -595,6 +606,8 @@ def fedi_link_kind(uri):
         return None
     if _TAG_PATH.match(parts.path):
         return 'tag'
+    if _COLLECTION_PATH.match(parts.path):
+        return 'collection'
     if _PROFILE_PATH.match(parts.path):
         return 'profile'
     if _FEDI_PATH.match(parts.path):
@@ -621,11 +634,11 @@ def open_link(widget, uri, mentions=None, tags=None, resolve=False):
     """Route a link clicked in post or profile text.
 
     Mentions (matched against the status ``mentions`` payload) open the
-    profile, hashtags open the hashtag timeline, other post/profile
-    URLs are resolved through the instance's search when the
-    ``aggressive-resolving`` setting is on, or always with *resolve*;
-    everything else goes to the browser, minus tracking parameters when
-    ``strip-tracking`` is on."""
+    profile, hashtags open the hashtag timeline, Collection URLs open the
+    Collection, other post/profile URLs are resolved through the
+    instance's search when the ``aggressive-resolving`` setting is on, or
+    always with *resolve*; everything else goes to the browser, minus
+    tracking parameters when ``strip-tracking`` is on."""
     if not is_web_link(uri):
         launch_external(widget, uri)  # refuses it, with a toast
         return
@@ -648,6 +661,16 @@ def open_link(widget, uri, mentions=None, tags=None, resolve=False):
             from .hashtags import push_hashtag
             push_hashtag(widget, client, name)
             return
+    if _COLLECTION_PATH.match(parts.path):
+        # A Collection link (Mastodon 4.6+). Resolution goes through the
+        # instance's search, which returns the local Collection entity
+        # only on a server that supports Collections; otherwise the link
+        # falls back to the browser.
+        if resolve or settings().get_boolean('aggressive-resolving'):
+            resolve_uri(widget, client, uri)
+        else:
+            launch_external(widget, uri)
+        return
     if (resolve or settings().get_boolean('aggressive-resolving')) \
             and _FEDI_PATH.match(parts.path):
         resolve_uri(widget, client, uri)
@@ -655,9 +678,23 @@ def open_link(widget, uri, mentions=None, tags=None, resolve=False):
     launch_external(widget, uri)
 
 
+def open_collection(widget, client, collection):
+    """Open a Collection in-app (Mastodon 4.6+). *collection* is a
+    Collection entity; its ``id`` is server-local, as the entity came
+    from this instance."""
+    collection_id = collection.get('id')
+    if not collection_id:
+        launch_external(widget, collection.get('url') or '')
+        return
+    from .fedicollections import CollectionPage
+    push_page(widget, collection.get('name') or _('Collection'),
+              CollectionPage(client, collection_id, collection),
+              tag='collection-%s' % collection_id)
+
+
 def resolve_uri(widget, client, uri):
     """Look *uri* up with ``/api/v2/search?resolve=true`` and open the
-    post or profile it names; fall back to the browser."""
+    post, profile or collection it names; fall back to the browser."""
 
     def resolved(_client, result, _data=None):
         try:
@@ -669,6 +706,8 @@ def resolve_uri(widget, client, uri):
             open_status(widget, client, data['statuses'][0])
         elif data.get('accounts'):
             open_profile(widget, client, data['accounts'][0])
+        elif data.get('collections'):
+            open_collection(widget, client, data['collections'][0])
         else:
             launch_external(widget, uri)
 
