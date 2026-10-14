@@ -120,17 +120,15 @@ jobs:
         # no longer apply. This builds the whole thing, so the manifest
         # cannot go quietly stale between releases.
         #
-        # The GNOME 51 runtime is pre-release, so it comes from the
-        # nightly remote rather than Flathub stable. A red run here is
-        # therefore either a broken manifest or an unavailable nightly
-        # SDK -- check which before assuming the first.
+        # The 51 SDK comes from Flathub, not from the nightly remote: it
+        # is listed there and the nightly remote answers GPG verification
+        # with "no summary found" when it is added from a bare URL, which
+        # reads as an SDK problem that is not one.
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak-builder
           flatpak remote-add --user --if-not-exists flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak remote-add --user --if-not-exists nightly \
-            https://nightly.gnome.org/gnome
           flatpak install --user -y \
             org.gnome.Sdk//51 org.gnome.Platform//51
           # rofiles-fuse is unavailable in the runner's kernel namespace;
