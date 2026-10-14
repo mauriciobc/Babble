@@ -56,18 +56,19 @@ def check(name, condition):
         print('FAIL - %s' % name)
 
 
-# The composer reaches the desktop portals through window.py's helpers,
-# imported as it is built. The window module needs its resources.
+# The composer reaches the desktop portals through portals.py, which
+# needs nothing from the window. The test still loads the resource bundle,
+# because the composer's widgets live in it.
 builddir = os.environ.get('BABBLE_BUILDDIR') or os.path.dirname(
     os.environ.get('GSETTINGS_SCHEMA_DIR')
     or os.path.join(srcroot, 'build', 'data'))
 Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))._register()
-import src.window as window_module  # noqa: E402
+import src.portals as portals_module  # noqa: E402
 
 SCREENSHOT = 'org.freedesktop.portal.Screenshot'
 #: Portal interface -> version the stub portal_version answers.
 portal_versions = {SCREENSHOT: 1}
-#: What _session_bus hands over; None plays a missing session bus.
+#: What session_bus hands over; None plays a missing session bus.
 session_bus = [object()]
 #: (interface, method, signature, args, options) of each portal call.
 portal_calls = []
@@ -76,11 +77,11 @@ portal_calls = []
 portal_answers = []
 held_responses = []
 
-check('window.py keeps the portal helpers the composer uses',
-      all(callable(getattr(window_module, name, None))
-          for name in ('portal_version', '_session_bus', '_portal_request'))
+check('portals.py keeps the helpers the composer uses',
+      all(callable(getattr(portals_module, name, None))
+          for name in ('portal_version', 'session_bus', 'portal_request'))
       and list(inspect.signature(
-          window_module._portal_request).parameters) == [
+          portals_module.portal_request).parameters) == [
               'bus', 'interface', 'method', 'signature', 'args', 'options',
               'on_response'])
 
@@ -107,9 +108,9 @@ def stub_portal_request(bus, interface, method, signature, args, options,
         held_responses.append(on_response)
 
 
-window_module.portal_version = stub_portal_version
-window_module._session_bus = stub_session_bus
-window_module._portal_request = stub_portal_request
+portals_module.portal_version = stub_portal_version
+portals_module.session_bus = stub_session_bus
+portals_module.portal_request = stub_portal_request
 
 # A 1x1 PNG so attachment thumbnails render for real.
 PNG_BYTES = bytes.fromhex(

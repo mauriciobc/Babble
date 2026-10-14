@@ -52,6 +52,7 @@ install_data(
   'mentioncompleter.py',
   'notifications.py',
   'pages.py',
+  'portals.py',
   'preferences.py',
   'profile.py',
   'profileedit.py',

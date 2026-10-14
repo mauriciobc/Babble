@@ -24,7 +24,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Spelling)
 
-from . import emojichooser, pages  # noqa: E402
+from . import emojichooser, pages, portals  # noqa: E402
 from .mentioncompleter import MentionCompleter  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 # The same list Preferences offers as the default post language.
@@ -620,9 +620,8 @@ class BabbleComposeView(Adw.Bin):
         self.screenshot_button.set_visible(False)
         pages.connect_weak(self.screenshot_button, 'clicked',
                            self.on_screenshot_clicked)
-        from .window import portal_version
-        portal_version(SCREENSHOT_PORTAL,
-                       pages.weak_method(self._on_screenshot_portal))
+        portals.portal_version(SCREENSHOT_PORTAL,
+                               pages.weak_method(self._on_screenshot_portal))
         self.cw_toggle = icon_button('dialog-warning-symbolic',
                                      _('Content Warning'), toggle=True)
         pages.connect_weak(self.cw_toggle, 'toggled', self.on_cw_toggled)
@@ -1094,8 +1093,7 @@ class BabbleComposeView(Adw.Bin):
     def on_screenshot_clicked(self, _button):
         """Take a screenshot through the portal, which lets the user
         pick what to capture, and attach it."""
-        from .window import _session_bus
-        _session_bus(pages.weak_method(self._on_screenshot_bus))
+        portals.session_bus(pages.weak_method(self._on_screenshot_bus))
 
     def _on_screenshot_portal(self, version):
         self.screenshot_button.set_visible(version > 0)
@@ -1104,12 +1102,12 @@ class BabbleComposeView(Adw.Bin):
         if bus is None:
             self._toast(_('Could not take a screenshot'))
             return
-        from .window import _portal_request
-        _portal_request(bus, SCREENSHOT_PORTAL, 'Screenshot', '(sa{sv})',
-                        ('',), {
-                            'interactive': GLib.Variant('b', True),
-                            'modal': GLib.Variant('b', True),
-                        }, pages.weak_method(self._on_screenshot_response))
+        portals.portal_request(bus, SCREENSHOT_PORTAL, 'Screenshot',
+                               '(sa{sv})',
+                               ('',), {
+                                   'interactive': GLib.Variant('b', True),
+                                   'modal': GLib.Variant('b', True),
+                               }, pages.weak_method(self._on_screenshot_response))
 
     def _on_screenshot_response(self, code, results):
         if code == 1:  # cancelled by the user
