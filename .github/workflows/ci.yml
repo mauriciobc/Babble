@@ -54,12 +54,17 @@ jobs:
         run: meson compile -C build
 
       - name: Test
-        # dbus-run-session supplies the bus the keyring tests need;
-        # --print-errorlogs puts a failing test's own output in the
-        # console rather than only in meson-logs/testlog.txt.
+        # Serialized, deliberately. The widget suites share one Xvfb
+        # display, and several of them pump the same main context; run
+        # concurrently, they race against each other and flake on a
+        # perfectly clean tree (roughly 1 run in 3). A condition-wait in
+        # a test cannot cancel that, because the contention is between
+        # tests, not inside one. Priced at about a minute of wall clock.
+        # -j1 is meson's serial switch, not a retry knob: the run stays
+        # honest, one test at a time.
         run: |
           xvfb-run -a dbus-run-session -- \
-            meson test -C build --print-errorlogs 2>&1 | tee ci.log
+            meson test -C build -j1 --print-errorlogs 2>&1 | tee ci.log
 
       - name: Check the suite ran
         # A test that exits 77 is skipped, and meson still exits 0, so a
