@@ -195,6 +195,13 @@ test('catchup digest', python,
   timeout: 60,
 )
 
+# Needs no display and no server: all it reads is line counts.
+test('file size rule', python,
+  args: [files('test-file-size.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
 # Needs no display and no server: it only checks how a client reads
 # api_versions.mastodon.
 test('capability gates', python,
