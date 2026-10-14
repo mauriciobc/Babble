@@ -2400,6 +2400,50 @@ class QuoteCard(Gtk.Button):
             _('Could not open quoted post'))
 
 
+class CollectionCard(Gtk.Button):
+    """Compact card for a Collection shared in a post (Mastodon 4.6+,
+    ``Status#tagged_collections``): name, member count, and a click that
+    opens the Collection in-app."""
+
+    __gtype_name__ = 'BabbleCollectionCard'
+
+    def __init__(self, collection, client):
+        super().__init__()
+        self.collection = collection
+        self.client = client
+        self.add_css_class('card')
+        self.add_css_class('collection-card')
+        box = Gtk.Box(spacing=10, margin_top=8, margin_bottom=8,
+                      margin_start=10, margin_end=10)
+        self.set_child(box)
+        icon = Gtk.Image(icon_name='view-list-symbolic', pixel_size=22)
+        icon.add_css_class('dimmed')
+        box.append(icon)
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0,
+                       hexpand=True)
+        box.append(text)
+        name = Gtk.Label(label=collection.get('name') or _('Collection'),
+                         xalign=0.0, ellipsize=Pango.EllipsizeMode.END)
+        name.add_css_class('heading')
+        text.append(name)
+        count = collection.get('item_count')
+        if count is None:
+            count = len(collection.get('items') or [])
+        detail = Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)
+        detail.add_css_class('caption')
+        detail.add_css_class('dimmed')
+        detail.set_text(ngettext('%d account', '%d accounts', count) % count)
+        text.append(detail)
+        box.append(Gtk.Image(icon_name='go-next-symbolic'))
+        self.update_property([Gtk.AccessibleProperty.LABEL],
+                             [_('Collection %s')
+                              % (collection.get('name') or '')])
+        pages.connect_weak(self, 'clicked', self._open)
+
+    def _open(self, _button):
+        pages.open_collection(self, self.client, self.collection)
+
+
 def _display_name_uses_custom_emoji(account, display_name):
     """True when the visible name contains a custom emoji shortcode."""
     bank = emoji_bank(account)
@@ -3657,6 +3701,10 @@ class StatusRow(Gtk.Overlay):
         self.quote_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         guarded.append(self.quote_box)
 
+        self.collections_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                                       spacing=6)
+        guarded.append(self.collections_box)
+
         self.card_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                 spacing=0)
         guarded.append(self.card_box)
@@ -3947,6 +3995,7 @@ class StatusRow(Gtk.Overlay):
                                lambda new: status.__setitem__('poll', new))
         quote = status.get('quote')
         self._show_quote(quote)
+        self._show_collections(status.get('tagged_collections'))
         attachments = status.get('media_attachments') or []
         self.media_box.set_media(
             attachments, bool(status.get('sensitive')) and not has_cw, ui,
@@ -4046,6 +4095,18 @@ class StatusRow(Gtk.Overlay):
         self.quote_box.set_visible(bool(quote))
         if quote:
             self.quote_box.append(QuoteCard(quote, self.client))
+
+    def _show_collections(self, collections):
+        """Cards for the Collections a post links to (Mastodon 4.6+,
+        ``Status#tagged_collections``). Hidden when the post shares
+        none."""
+        while (child := self.collections_box.get_first_child()) is not None:
+            self.collections_box.remove(child)
+        known = [c for c in collections or [] if c.get('id')]
+        self.collections_box.set_visible(bool(known))
+        for collection in known:
+            self.collections_box.append(CollectionCard(collection,
+                                                       self.client))
 
     def _set_time(self, item):
         self.time_label.set_text(item.timestamp)
