@@ -93,6 +93,12 @@ class TestSummarizedAtTheSource(unittest.TestCase):
             def get_response_headers(self):
                 return _FakeHeaders()
 
+            def get_method(self):
+                return 'GET'
+
+            def get_uri(self):
+                return _FakeURI()
+
         task = _FakeTask()
         client._pending[task] = _Message()
         client._on_response(None, None, task)
@@ -162,6 +168,13 @@ class _FakeBytes:
 class _FakeHeaders:
     def get_one(self, _name):
         return None
+
+
+class _FakeURI:
+    """Just enough of GUri for the deprecation log line."""
+
+    def get_path(self):
+        return '/api/v1/statuses'
 
 
 if __name__ == '__main__':

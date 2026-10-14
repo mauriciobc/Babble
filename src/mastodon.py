@@ -85,6 +85,26 @@ def summarize_error_markup(text):
     return GLib.markup_escape_text(summarize_error(text))
 
 
+def log_deprecation(method, path, headers):
+    """Surface an RFC 9745 ``Deprecation`` notice in development.
+
+    Mastodon 4.4+ marks endpoints it intends to retire with a
+    ``Deprecation`` header (and sometimes ``Sunset``). Pointing them out
+    under ``G_MESSAGES_DEBUG=Babble`` lets the client be migrated before
+    a release removes the route; an ordinary run stays quiet. Returns
+    the message it logged, or None when the response carried no notice.
+    """
+    notice = headers.get_one('Deprecation')
+    if not notice:
+        return None
+    message = '%s %s is deprecated by the server (migrate before %s)' % (
+        method, path, headers.get_one('Sunset') or notice)
+    GLib.log_variant('Babble', GLib.LogLevelFlags.LEVEL_DEBUG,
+                     GLib.Variant('a{sv}', {'MESSAGE': GLib.Variant(
+                         's', message)}))
+    return message
+
+
 def generate_code_verifier():
     """A fresh RFC 7636 ``code_verifier`` (43 chars, unreserved set)."""
     return _secrets.token_urlsafe(CODE_VERIFIER_BYTES)
@@ -114,7 +134,12 @@ def loopback_redirect(port):
     return 'http://127.0.0.1:%d%s' % (port, LOOPBACK_CALLBACK_PATH)
 
 
-OAUTH_SCOPES = 'read write follow'
+# The one scope set the ordinary login asks for. ``follow`` was the
+# third member until Mastodon 3.5 deprecated it: every granular scope it
+# granted (read/write of follows, blocks and mutes) is reached through
+# ``read``/``write``, so naming it now only puts a deprecated scope on
+# the instance's consent screen.
+OAUTH_SCOPES = 'read write'
 
 # The moderation scopes, asked for only by the admin dashboard and only
 # once the account's role says it could use them. A registration that
@@ -355,6 +380,8 @@ class MastodonClient(GObject.Object):
             data = {'error': text}
         status = message.get_status()
         headers = message.get_response_headers()
+        log_deprecation(message.get_method(), message.get_uri().get_path(),
+                        headers)
         if 200 <= status < 300 and status != Soup.Status.NONE:
             link = headers.get_one('Link') or ''
             task.return_value(GLib.Variant('s', json.dumps(
@@ -850,12 +877,17 @@ class MastodonClient(GObject.Object):
     def media_upload_async(self, file_bytes, filename, content_type,
                            description=None, callback=None,
                            cancellable=None):
-        """Upload one attachment to ``POST /api/v1/media`` (docs.
+        """Upload one attachment to ``POST /api/v2/media`` (docs.
         joinmastodon.org/methods/media), multipart/form-data with a
-        ``file`` part and optional ``description`` alt text."""
+        ``file`` part and optional ``description`` alt text.
+
+        The v2 route answers HTTP 202 with a ``url`` of null while the
+        full-size file is processed in the background; the composer polls
+        ``GET /api/v1/media/:id`` until it appears. The v1 route it
+        replaced has been deprecated since Mastodon 3.1.3."""
         fields = {'description': description} if description else None
         return self.multipart_async(
-            'POST', '/media', fields=fields,
+            'POST', '/api/v2/media', fields=fields,
             files={'file': (file_bytes, filename, content_type)},
             callback=callback, cancellable=cancellable)
 
