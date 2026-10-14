@@ -40,6 +40,7 @@ install_data(
   'compose.py',
   'conversations.py',
   'desktopnotify.py',
+  'drafts.py',
   'emojichooser.py',
   'explore.py',
   'fedicollections.py',
@@ -181,6 +182,17 @@ statustext_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test('status text', python,
   args: [files('test-statustext.py')],
   env: statustext_test_env,
+  timeout: 60,
+)
+
+collections_test_env = environment()
+collections_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+collections_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+collections_test_env.set('GSETTINGS_BACKEND', 'memory')
+collections_test_env.set('G_DEBUG', 'fatal-criticals')
+test('collections', python,
+  args: [files('test-collections.py')],
+  env: collections_test_env,
   timeout: 60,
 )
 

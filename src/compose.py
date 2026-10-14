@@ -24,7 +24,9 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Spelling)
 
+from . import drafts as drafts_module  # noqa: E402
 from . import emojichooser, pages, portals  # noqa: E402
+from .drafts import Attachment, Draft, Poll  # noqa: E402
 from .mentioncompleter import MentionCompleter  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 # The same list Preferences offers as the default post language.
@@ -670,46 +672,45 @@ class BabbleComposeView(Adw.Bin):
                                     self.buffer.get_end_iter(), False)
 
     def snapshot(self):
-        return {
-            'text': self.text(),
-            'visibility': self.visibility_row.get_selected(),
-            'cw_visible': self.cw_toggle.get_active(),
-            'cw_text': self.spoiler_entry.get_text(),
-            'attachments': [{'path': row.path,
-                             'alt': row.alt_entry.get_text()}
-                            for row in self.attachments()],
-            'language': self.language_row.get_selected(),
-            'poll': self.poll_state(),
-            'in_reply_to_id': self.in_reply_to_id,
-        }
+        return Draft(
+            text=self.text(),
+            visibility=self.visibility_row.get_selected(),
+            language=self.language_row.get_selected(),
+            cw_visible=self.cw_toggle.get_active(),
+            cw_text=self.spoiler_entry.get_text(),
+            attachments=[Attachment(path=row.path,
+                                    alt=row.alt_entry.get_text())
+                         for row in self.attachments()],
+            poll=self.poll_state(),
+            in_reply_to_id=self.in_reply_to_id)
 
     def poll_state(self):
-        return {'active': self.poll_toggle.get_active(),
-                'options': [entry.get_text() for entry in self.poll_entries],
-                'expires': self.poll_expiry.get_selected()}
+        return Poll(active=self.poll_toggle.get_active(),
+                    options=[entry.get_text()
+                             for entry in self.poll_entries],
+                    expires=self.poll_expiry.get_selected())
 
     def _poll_options(self):
         return [entry.get_text().strip() for entry in self.poll_entries
                 if entry.get_text().strip()]
 
     def restore(self, draft):
-        self.buffer.set_text(draft['text'])
-        self.visibility_row.set_selected(draft['visibility'])
-        self.language_row.set_selected(draft['language'])
-        self.cw_toggle.set_active(draft['cw_visible'])
-        self.spoiler_entry.set_text(draft['cw_text'])
+        """Put *draft*, a :class:`drafts.Draft`, back into the composer."""
+        self.buffer.set_text(draft.text)
+        self.visibility_row.set_selected(draft.visibility)
+        self.language_row.set_selected(draft.language)
+        self.cw_toggle.set_active(draft.cw_visible)
+        self.spoiler_entry.set_text(draft.cw_text)
         self.clear_attachments()
-        for attachment in draft['attachments']:
-            self.add_attachment_path(attachment['path'],
-                                     alt=attachment['alt'])
-        self.in_reply_to_id = draft['in_reply_to_id']
-        poll = draft['poll']
-        self.poll_toggle.set_active(poll['active'])
-        for index, text in enumerate(poll['options']):
+        for attachment in draft.attachments:
+            self.add_attachment_path(attachment.path, alt=attachment.alt)
+        self.in_reply_to_id = draft.in_reply_to_id
+        self.poll_toggle.set_active(draft.poll.active)
+        for index, text in enumerate(draft.poll.options):
             while index >= len(self.poll_entries):
                 self.on_poll_add_choice(self.poll_add)
             self.poll_entries[index].set_text(text or '')
-        self.poll_expiry.set_selected(poll['expires'])
+        self.poll_expiry.set_selected(draft.poll.expires)
         self.update_compose_state()
 
     def is_empty(self):
@@ -730,19 +731,19 @@ class BabbleComposeView(Adw.Bin):
             # Closing again without touching anything must not fill the
             # list with copies of one draft.
             return
-        draft = dict(content, key=self.local_draft_key,
-                     saved_at=datetime.datetime.now(
-                         datetime.timezone.utc).isoformat())
         # A changed draft replaces its earlier saved version, so posting
         # it later leaves no stale copy behind to restore.
         previous = self._saved_local_raw
-        self._saved_local_raw = json.dumps(draft)
+        self._saved_local_raw = content.as_stored(
+            self.local_draft_key,
+            datetime.datetime.now(datetime.timezone.utc).isoformat())
         self._saved_local_content = content
         settings = pages.settings()
-        drafts = [self._saved_local_raw] + [
+        stored = [self._saved_local_raw] + [
             raw for raw in settings.get_strv('local-drafts')
             if raw != previous]
-        settings.set_strv('local-drafts', drafts[:MAX_LOCAL_DRAFTS])
+        settings.set_strv('local-drafts',
+                          stored[:drafts_module.MAX_LOCAL_DRAFTS])
 
     def drop_saved_local_draft(self):
         """The saved copy of a draft that was just sent has to stop

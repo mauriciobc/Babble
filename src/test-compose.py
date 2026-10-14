@@ -42,6 +42,7 @@ sys.path.insert(0, srcdir)
 from src.compose import (MAX_ATTACHMENTS, VISIBILITIES,  # noqa: E402
                          BabbleComposeView, ComposeDialog, countable_length)
 from src import compose, emojichooser  # noqa: E402
+from src.drafts import Attachment, Draft  # noqa: E402
 from src.mentioncompleter import mention_query  # noqa: E402
 from gettext import gettext as _, ngettext  # noqa: E402
 
@@ -490,7 +491,8 @@ row.alt_entry.set_text('red pixel for testing')
 row.alt_entry.emit('changed')
 check('alt change recorded', row.description == 'red pixel for testing')
 check('media shows up in snapshot',
-      view.snapshot()['attachments'][0]['alt'] == 'red pixel for testing')
+      isinstance(view.snapshot().attachments[0], Attachment)
+      and view.snapshot().attachments[0].alt == 'red pixel for testing')
 
 pump(50)
 
@@ -765,17 +767,17 @@ check('a changed draft replaces its earlier version',
 dialog.present(app_window)
 pump(50)
 dialog.view.buffer.set_text('in progress')
-dialog.view.restore_stashing({
+dialog.view.restore_stashing(Draft.parse({
     'text': 'recovered draft', 'visibility': 0, 'language': 0,
     'cw_visible': False, 'cw_text': '', 'attachments': [],
     'poll': {'active': False, 'options': ['', ''], 'expires': 0},
-    'in_reply_to_id': None, 'key': 'mastodon.social#11', 'saved_at': 'x'})
+    'in_reply_to_id': None, 'key': 'mastodon.social#11', 'saved_at': 'x'}))
 pump(50)
 check('restore replaces the buffer',
       dialog.view.text() == 'recovered draft')
 check('restore stashes the content in progress',
       bool(dialog.view._draft_stack)
-      and dialog.view._draft_stack[0]['text'] == 'in progress')
+      and dialog.view._draft_stack[0].text == 'in progress')
 
 # The draft that was just posted is no longer offered for restoring.
 dialog.present(app_window)

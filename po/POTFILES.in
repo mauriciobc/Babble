@@ -11,6 +11,7 @@ src/catchupgrid.py
 src/compose.py
 src/conversations.py
 src/desktopnotify.py
+src/drafts.py
 src/emojichooser.py
 src/explore.py
 src/fedicollections.py

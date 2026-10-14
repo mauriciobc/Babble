@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import json
 import urllib.parse
 
 import gi
@@ -14,6 +13,7 @@ from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import auth  # noqa: E402
+from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from . import portals  # noqa: E402
@@ -394,49 +394,18 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._refresh_draft_banner()
 
     def _local_drafts(self):
-        """Restorable drafts of the signed-in account, newest first, as
-        ``(raw, draft)`` pairs: the raw string is what gets removed from
-        the setting, so no entry depends on re-serializing the same way.
-        Drafts stay keyed with the account because ids like
-        ``in_reply_to_id`` inside them are server-local; restoring one on
-        another instance would answer an unrelated post. Malformed
-        entries are skipped here, not deleted, and age out of the list."""
+        """The signed-in account's restorable drafts, newest first, as
+        ``(raw, draft)`` pairs."""
         if self.account is None or self.client is None:
             return []
-        key = account_store.account_key(self.account)
-        drafts = []
-        for raw in pages.settings().get_strv('local-drafts'):
-            try:
-                entry = json.loads(raw)
-            except ValueError:
-                continue
-            if isinstance(entry, dict) and entry.get('key') == key \
-                    and self._valid_draft(entry):
-                drafts.append((raw, entry))
-        return drafts
-
-    DRAFT_TYPES = {'text': str, 'visibility': int, 'language': int,
-                   'cw_visible': bool, 'cw_text': str, 'attachments': list,
-                   'poll': dict}
-    POLL_TYPES = {'active': bool, 'options': list, 'expires': int}
-
-    def _valid_draft(self, draft):
-        """Everything ``BabbleComposeView.restore`` reads is there and of
-        the right type."""
-        def typed(mapping, types):
-            return all(isinstance(mapping.get(k), t)
-                       for k, t in types.items())
-        return (typed(draft, self.DRAFT_TYPES)
-                and 'in_reply_to_id' in draft
-                and typed(draft['poll'], self.POLL_TYPES)
-                and all(isinstance(a, dict) and isinstance(a.get('path'), str)
-                        and isinstance(a.get('alt'), str)
-                        for a in draft['attachments']))
+        return drafts.stored_drafts(
+            pages.settings().get_strv('local-drafts'),
+            account_store.account_key(self.account))
 
     def _refresh_draft_banner(self, *_args):
-        drafts = self._local_drafts()
-        self.draft_banner.set_revealed(bool(drafts))
-        when = relative_time(drafts[0][1].get('saved_at')) if drafts else ''
+        drafts_ = self._local_drafts()
+        self.draft_banner.set_revealed(bool(drafts_))
+        when = relative_time(drafts_[0][1].saved_at) if drafts_ else ''
         if when:
             # Translators: a draft saved earlier is offered for
             # restoring; %s is a compact age like "5m"
@@ -520,7 +489,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.copied_link_banner.set_title({
             'post': _('Open copied post?'),
             'profile': _('Open copied profile?'),
-            'tag': _('Open copied hashtag?')}[kind])
+            'tag': _('Open copied hashtag?'),
+            'collection': _('Open copied collection?')}[kind])
         self.copied_link_banner.set_revealed(True)
 
     def _on_copied_link_open(self, _banner):
@@ -1140,12 +1110,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             return FollowedHashtagsPage(client)
         if tag == 'explore':
             from .explore import ExplorePage
-            from .streaming import FEED_RESTRICTED, FEED_UNAVAILABLE
-            state = self._public_feed_access().get('trending_link')
-            opted_in = self.settings.get_boolean(SHOW_RESTRICTED_KEY)
-            news = state != FEED_UNAVAILABLE \
-                and (state != FEED_RESTRICTED or opted_in)
-            return ExplorePage(client, news=news)
+            return ExplorePage(client)
         if tag in ('local', 'federated'):
             if tag in self._restricted_public_places():
                 return None
@@ -1167,8 +1132,6 @@ class BabbleWindow(Adw.ApplicationWindow):
                 'id': list_id,
                 'title': self._pinned_lists.get(list_id, _('List'))})
         if tag.startswith('tag:'):
-            if 'hashtag' in self._restricted_public_places():
-                return None
             from .hashtags import HashtagPage
             return HashtagPage(client, [tag[4:]])
         return None
@@ -1256,28 +1219,26 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     # Sidebar
 
-    def _public_feed_access(self):
-        """The state of every restricted feed, or an empty map with no
-        session. One fetch shared by the sidebar, the pinned hashtags and
-        the Explore tabs so they cannot disagree."""
-        if self.client is None:
-            return {}
-        from .streaming import public_feed_access
-        return public_feed_access(self.client, self.account)
-
     def _restricted_public_places(self):
-        """The timelines this account must not see in the sidebar.
+        """The public timelines this account must not see in the sidebar.
 
         A feed the server closes to everyone but privileged accounts is
         hidden unless the reader turned the opt-in on; a feed it closes
-        to this account outright is always hidden. ``hashtag`` and
-        ``trending_link`` are not sidebar places themselves: they gate
-        the pinned hashtags and the Explore News tab."""
-        from .streaming import FEED_RESTRICTED, FEED_UNAVAILABLE
-        access = self._public_feed_access()
+        to this account outright is always hidden.
+
+        The topic settings (``hashtag_feeds``/``trending_link_feeds``)
+        are deliberately not consulted here: the server never closes them
+        to a signed-in account, it just drops the remote posts, so the
+        page still has local content and hiding it would lose read."""
+        client = self.client
+        if client is None:
+            return set()
+        from .streaming import (FEED_RESTRICTED, FEED_UNAVAILABLE,
+                                public_feed_access)
+        access = public_feed_access(client, self.account)
         opted_in = self.settings.get_boolean(SHOW_RESTRICTED_KEY)
         closed = set()
-        for place in ('local', 'federated', 'hashtag', 'trending_link'):
+        for place in ('local', 'federated'):
             state = access.get(place)
             if state == FEED_UNAVAILABLE \
                     or (state == FEED_RESTRICTED and not opted_in):
@@ -1316,21 +1277,17 @@ class BabbleWindow(Adw.ApplicationWindow):
             section.append(item)
             self._items[tag] = item
         if self.account is not None:
-            self._append_pinned(sidebar, closed)
+            self._append_pinned(sidebar)
         if current is not None and current in hidden:
             self.show_page('home')
         elif current is not None:
             self._select_item(current)
 
-    def _append_pinned(self, sidebar, closed=()):
+    def _append_pinned(self, sidebar):
         account_id = self.account['id']
         list_ids = pinned_entries(self.settings, 'favorite-lists-ids',
                                   account_id)
         tags = pinned_entries(self.settings, 'favorite-tags-ids', account_id)
-        if 'hashtag' in closed:
-            # The server will not serve the hashtag feeds: a pinned tag
-            # would open a page that never fills.
-            tags = []
         if not list_ids and not tags:
             return
         section = Adw.SidebarSection(title=_('Pinned'))
