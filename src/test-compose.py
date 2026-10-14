@@ -1094,20 +1094,32 @@ check('drops are taken again after posting',
 clipboard = view.text_view.get_clipboard()
 
 
-def paste(content, settle_ms=300):
+def paste(content, settle_ms=300, attachments=False):
+    """Set the clipboard to *content* and paste into the composer.
+
+    A file or image has to ride an async read before an attachment row
+    shows up, so ``attachments=True`` waits for the count to go up rather
+    than a fixed time: a pump that is merely long enough is exactly what
+    a busy machine cannot rely on.
+    """
     if isinstance(content, Gdk.ContentProvider):
         clipboard.set_content(content)
     else:
         clipboard.set(content)
     pump(50)
     view.text_view.emit('paste-clipboard')
-    pump(settle_ms)
+    if not attachments:
+        pump(settle_ms)
+        return
+    count_on_entry = len(view.attachments())
+    settle_until(settle_ms / 1000.0,
+                 lambda: len(view.attachments()) > count_on_entry)
 
 
 texture = Gdk.MemoryTexture.new(2, 2, Gdk.MemoryFormat.R8G8B8A8,
                                 GLib.Bytes.new(bytes(range(16))), 8)
 collect_toasts()
-paste(texture)
+paste(texture, attachments=True)
 rows = view.attachments()
 pasted = rows[0].path if rows else ''
 check('pasting an image adds one attachment', len(rows) == 1)
@@ -1132,14 +1144,15 @@ check('pasting images raised no toast of its own',
       collect_toasts() == [_('Attachment removed')])
 view.reset()
 
-paste(Gdk.ContentProvider.new_for_value(file_list([png_a, notes])))
+paste(Gdk.ContentProvider.new_for_value(file_list([png_a, notes])),
+      attachments=True)
 check('pasting files copied in Files attaches the media among them',
       [row.path for row in view.attachments()] == [png_a]
       and view.text() == '' and collect_toasts() == [ONLY_MEDIA])
 view.reset()
 
 view._posting = True
-paste(texture)
+paste(texture, attachments=True)
 check('an image pasted while posting is refused with a toast',
       view.attachments() == [] and collect_toasts() == [BUSY_POSTING])
 paste('pasted words')
