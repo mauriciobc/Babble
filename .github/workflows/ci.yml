@@ -94,3 +94,48 @@ jobs:
         with:
           # The whole repository, not just src/: bench/ is checked too.
           args: check .
+
+  flatpak:
+    name: Flatpak manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the manifest parses
+        # Cheapest possible rot check, and the one that needs no
+        # network: a manifest that is not valid JSON fails here in a
+        # second instead of after a ten-minute SDK download.
+        run: |
+          python3 -m json.tool \
+            build-aux/flatpak/io.github.mauriciobc.Babble.json > /dev/null
+
+      - name: Build against the GNOME 51 SDK
+        # The manifest rot the meson suite cannot see: a renamed source
+        # URL, a bumped tarball that moved, a module whose build options
+        # no longer apply. This builds the whole thing, so the manifest
+        # cannot go quietly stale between releases.
+        #
+        # The GNOME 51 runtime is pre-release, so it comes from the
+        # nightly remote rather than Flathub stable. A red run here is
+        # therefore either a broken manifest or an unavailable nightly
+        # SDK -- check which before assuming the first.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak remote-add --user --if-not-exists nightly \
+            https://nightly.gnome.org/gnome
+          flatpak install --user -y \
+            org.gnome.Sdk//51 org.gnome.Platform//51
+          # rofiles-fuse is unavailable in the runner's kernel namespace;
+          # without this every app install step hangs on it.
+          flatpak-builder --user --force-clean \
+            --disable-rofiles-fuse \
+            build-flatpak \
+            build-aux/flatpak/io.github.mauriciobc.Babble.json
+
+      - name: Report where the build landed
+        # Not an assertion, just the artifact the run would be judged
+        # from: the installed tree under /app.
+        run: ls -1 build-flatpak/files/bin build-flatpak/files/share
