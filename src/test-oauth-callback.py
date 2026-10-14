@@ -139,6 +139,14 @@ class StubClient:
     TOKEN = '{"access_token": "test-token"}'
     ACCOUNT = ('{"id": "42", "acct": "me@example.social",'
                ' "display_name": "Me"}')
+
+    def mastodon_api_version(self):
+        """What the stand-in answers about api_versions: nothing."""
+        return None
+
+    def is_supported(self, min_version, when_unknown=False):
+        """The capability policy a real instance would also honour."""
+        return when_unknown
     EMOJIS = ('[{"shortcode": "blobwave", "visible_in_picker": true,'
               ' "url": "https://example.social/custom/blobwave.png"},'
               ' {"shortcode": "hushpup", "visible_in_picker": false,'
