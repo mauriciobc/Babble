@@ -223,6 +223,14 @@ test('catchup page', python,
   timeout: 120,
 )
 
+# The Collections helpers and their tests import no widgets, and only
+# read the source dir.
+test('collections', python,
+  args: [files('test-collections.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
 catchup_grid_test_env = environment()
 catchup_grid_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 catchup_grid_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
