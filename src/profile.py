@@ -937,6 +937,9 @@ class ProfilePage(Adw.Bin):
             chips.append((_('In Memoriam'), None))
         if account.get('suspended'):
             chips.append((_('Suspended'), 'danger'))
+        if account.get('invalid_handle'):
+            # Mastodon 4.7: the handle cannot be verified.
+            chips.append((_('Unverified Handle'), 'danger'))
         if account.get('locked'):
             chips.append((_('Locked'), None))
         if account.get('bot'):

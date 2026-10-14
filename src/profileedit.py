@@ -2,8 +2,8 @@
 
 """Edit-your-profile dialog: PATCH /api/v1/accounts/update_credentials
 (display name, bio, avatar, header, fields, privacy flags and posting
-defaults) plus PATCH /api/v1/profile for the profile-tab switches newer
-Mastodon servers offer."""
+defaults) plus PATCH /api/v1/profile for the profile-tab switches and
+the avatar/header alt text newer Mastodon servers (4.6+) offer."""
 
 import gi
 
@@ -28,6 +28,25 @@ DEFAULT_LIMITS = {
 }
 
 IMAGE_TYPES = ('image/png', 'image/jpeg', 'image/gif', 'image/webp')
+
+# API versions of the pieces of this dialog that do not travel in
+# update_credentials: the profile-tab switches through PATCH
+# /api/v1/profile (Mastodon 4.6.0, `mastodon` API version 8) and the
+# avatar/header alt text through the same route (4.6.0, version 9).
+PROFILE_TABS_VERSION = 8
+PROFILE_ALT_TEXT_VERSION = 9
+
+
+def mastodon_api_version(client):
+    """The instance's ``api_versions.mastodon``, or 0 when it says
+    nothing at all (a server older than Mastodon 4.3)."""
+    versions = ((getattr(client, 'instance_info', None) or {})
+                .get('api_versions') or {})
+    try:
+        return int(versions.get('mastodon') or 0)
+    except (TypeError, ValueError):
+        return 0
+
 
 VISIBILITIES = (
     ('public', _('Public')),
@@ -56,7 +75,8 @@ FLAGS = (
     ('bot', _('Automated Account'),
      _('Mark this account as mainly performing automated actions')),
     ('discoverable', _('Suggest Account to Others'),
-     _('Let your profile appear in discovery features')),
+     _('Let your profile appear in discovery features and be featured in '
+       'Collections')),
     ('indexable', _('Include Public Posts in Search Results'),
      _('Let search engines and others find your public posts')),
     ('hide_collections', _('Hide Followers and Following'),
@@ -202,6 +222,7 @@ class ProfileEditDialog(Adw.Dialog):
         self.fields = []
         self._saving = False
         self._discarding = False
+        self._profile_form = {}
 
         page = Adw.PreferencesPage()
         self._build_images(page)
@@ -275,7 +296,8 @@ class ProfileEditDialog(Adw.Dialog):
         self.avatar_row.add_suffix(self._choose_button(False))
         listbox.add(self.avatar_row)
         self.avatar_alt = None
-        if 'avatar_description' in self.account:
+        if mastodon_api_version(self.client) >= PROFILE_ALT_TEXT_VERSION \
+                and 'avatar_description' in self.account:
             self.avatar_alt = Adw.EntryRow(
                 title=_('Avatar Description'),
                 text=self.account.get('avatar_description') or '')
@@ -287,7 +309,8 @@ class ProfileEditDialog(Adw.Dialog):
         self.header_row.add_suffix(self._choose_button(True))
         listbox.add(self.header_row)
         self.header_alt = None
-        if 'header_description' in self.account:
+        if mastodon_api_version(self.client) >= PROFILE_ALT_TEXT_VERSION \
+                and 'header_description' in self.account:
             self.header_alt = Adw.EntryRow(
                 title=_('Header Description'),
                 text=self.account.get('header_description') or '')
@@ -489,6 +512,11 @@ class ProfileEditDialog(Adw.Dialog):
 
     def _build_tabs(self, page):
         self.tab_rows = {}
+        # PATCH /api/v1/profile arrived with Mastodon 4.6 (API version
+        # 8). Asking an older server for it is a 404, so the switches
+        # stay out of the dialog and nothing is sent.
+        if mastodon_api_version(self.client) < PROFILE_TABS_VERSION:
+            return
         if not any(key in self.account for key, _t in TAB_FLAGS):
             return
         group = Adw.PreferencesGroup(title=_('Profile Tabs'))
@@ -514,11 +542,14 @@ class ProfileEditDialog(Adw.Dialog):
         return self.bio_buffer.get_text(start, end, False)
 
     def collect(self):
-        """``(fields, files, tab_changes)``: the multipart form fields
+        """``(fields, files, profile_form)``: the multipart form fields
         and files for update_credentials (only what differs from the
-        server's values) and the form for PATCH /profile."""
+        server's values), and the form for PATCH /profile (the profile
+        tabs and the avatar/header alt text, which that route carries
+        from Mastodon 4.6)."""
         account, source = self.account, self.source
         fields, files = {}, {}
+        profile = {}
 
         def set_if_changed(key, new, old):
             if new != old:
@@ -528,11 +559,13 @@ class ProfileEditDialog(Adw.Dialog):
                        account.get('display_name') or '')
         set_if_changed('note', self.bio_text(), source.get('note') or '')
         if self.avatar_alt is not None:
-            set_if_changed('avatar_description', self.avatar_alt.get_text(),
-                           account.get('avatar_description') or '')
+            value = self.avatar_alt.get_text()
+            if value != (account.get('avatar_description') or ''):
+                profile['avatar_description'] = value
         if self.header_alt is not None:
-            set_if_changed('header_description', self.header_alt.get_text(),
-                           account.get('header_description') or '')
+            value = self.header_alt.get_text()
+            if value != (account.get('header_description') or ''):
+                profile['header_description'] = value
         for key, row in self.flag_rows.items():
             if row.get_active() != self._flag_value(key):
                 fields[key] = 'true' if row.get_active() else 'false'
@@ -563,11 +596,10 @@ class ProfileEditDialog(Adw.Dialog):
         if self.new_header is not None:
             files['header'] = self.new_header
 
-        tab_changes = {}
         for key, row in self.tab_rows.items():
             if row.get_active() != bool(account.get(key)):
-                tab_changes[key] = 'true' if row.get_active() else 'false'
-        return fields, files, tab_changes
+                profile[key] = 'true' if row.get_active() else 'false'
+        return fields, files, profile
 
     def validate(self):
         """True when every length limit holds."""
@@ -596,8 +628,8 @@ class ProfileEditDialog(Adw.Dialog):
         return valid and all(field.valid for field in self.fields)
 
     def has_changes(self):
-        fields, files, tab_changes = self.collect()
-        return bool(fields or files or tab_changes)
+        fields, files, profile_form = self.collect()
+        return bool(fields or files or profile_form)
 
     def _on_cancel_clicked(self, _button):
         self.close()
@@ -648,18 +680,18 @@ class ProfileEditDialog(Adw.Dialog):
     def on_save_clicked(self, _button):
         if not self.validate():
             return
-        fields, files, tab_changes = self.collect()
-        if not (fields or files or tab_changes):
+        fields, files, profile_form = self.collect()
+        if not (fields or files or profile_form):
             self.force_close()
             return
         self.set_saving(True)
-        self._tab_changes = tab_changes
+        self._profile_form = profile_form
         if fields or files:
             self.client.multipart_async(
                 'PATCH', '/accounts/update_credentials', fields=fields,
                 files=files, callback=self.on_credentials_saved)
         else:
-            self.save_tabs()
+            self.save_profile()
 
     def _finish_saving(self, client, result):
         """True on success; failure toasts and stops saving."""
@@ -672,17 +704,17 @@ class ProfileEditDialog(Adw.Dialog):
 
     def on_credentials_saved(self, client, result, _data=None):
         if self._finish_saving(client, result):
-            self.save_tabs()
+            self.save_profile()
 
-    def save_tabs(self):
-        if not self._tab_changes:
+    def save_profile(self):
+        if not self._profile_form:
             self.reload()
             return
         self.client.request_async('PATCH', '/profile',
-                                  form=self._tab_changes,
-                                  callback=self.on_tabs_saved)
+                                  form=self._profile_form,
+                                  callback=self.on_profile_saved)
 
-    def on_tabs_saved(self, client, result, _data=None):
+    def on_profile_saved(self, client, result, _data=None):
         if self._finish_saving(client, result):
             self.reload()
 
