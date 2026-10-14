@@ -31,6 +31,7 @@ install_data(
   'accounts.py',
   'admin.py',
   'announcements.py',
+  'auth.py',
   'catchup.py',
   'catchupdigest.py',
   'catchupgrid.py',

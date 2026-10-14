@@ -44,7 +44,7 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
 resource = Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))
 resource._register()
 
-from src import window as window_module  # noqa: E402
+from src import auth as auth_module  # noqa: E402
 from src.main import BabbleApplication  # noqa: E402, F401
 from src.mastodon import (MastodonClient, OAUTH_REDIRECT,  # noqa: E402
                           OOB_REDIRECT)
@@ -152,14 +152,14 @@ def closed(server):
 
 Adw.init()
 Gtk.init()
-window_module.MastodonClient = StubClient
+auth_module.MastodonClient = StubClient
 
 # --- A login registers and names the loopback redirect -----------------
 
 win, opened = fresh_window()
 client = start_login(win)
-server = win._loopback
-redirect = win._loopback_uri
+server = win.auth.loopback
+redirect = win.auth.loopback_uri
 check('the login listens on loopback', server is not None and redirect)
 port = urllib.parse.urlsplit(redirect or '').port
 check('the redirect is http://127.0.0.1:<port>/callback',
@@ -171,7 +171,7 @@ query = urllib.parse.parse_qs(urllib.parse.urlsplit(opened[0]).query) \
     if opened else {}
 check('the authorize URL names the loopback redirect',
       query.get('redirect_uri') == [redirect])
-check('a timeout is armed', win._loopback_timeout > 0)
+check('a timeout is armed', win.auth.loopback_timeout > 0)
 state = client._state
 base = 'http://127.0.0.1:%d' % port
 
@@ -188,7 +188,7 @@ check('a foreign state is answered 400', reply and reply[0] == 400)
 reply = get(base + '/callback?code=x')
 check('a missing state is answered 400', reply and reply[0] == 400)
 check('a bad state starts no exchange', client.exchanges == [])
-check('a bad state keeps the listener', win._loopback is server
+check('a bad state keeps the listener', win.auth.loopback is server
       and not closed(server))
 
 reply = get(base + '/callback?code=x&state=' + state)
@@ -202,8 +202,8 @@ check('the page is not cached',
 pump()
 check('the callback exchanges the code once, on the loopback redirect',
       client.exchanges == [('x', redirect)])
-check('the listener is dropped', win._loopback is None
-      and win._loopback_timeout == 0)
+check('the listener is dropped', win.auth.loopback is None
+      and win.auth.loopback_timeout == 0)
 check('the listener is closed after answering', closed(server))
 reply = get(base + '/callback?code=x&state=' + state)
 pump()
@@ -214,28 +214,28 @@ check('a second hit starts no exchange', client.exchanges == [('x', redirect)])
 
 win.on_cancel_login_clicked(None)
 client = start_login(win)
-server = win._loopback
+server = win.auth.loopback
 win.on_cancel_login_clicked(None)
-check('cancel closes the listener', win._loopback is None and closed(server))
+check('cancel closes the listener', win.auth.loopback is None and closed(server))
 
 client = start_login(win)
-server = win._loopback
+server = win.auth.loopback
 win.on_login_back_clicked(None)
 check('leaving the login page closes the listener',
-      win._loopback is None and closed(server))
+      win.auth.loopback is None and closed(server))
 
 client = start_login(win)
-server = win._loopback
-win._on_loopback_expired()
+server = win.auth.loopback
+win.auth._on_loopback_expired()
 check('the timeout closes the listener',
-      win._loopback is None and win._loopback_timeout == 0 and closed(server))
+      win.auth.loopback is None and win.auth.loopback_timeout == 0 and closed(server))
 win.on_cancel_login_clicked(None)
 
 client = start_login(win)
-server = win._loopback
+server = win.auth.loopback
 win.on_paste_code_clicked(None)
 check('switching to a pasted code closes the listener',
-      win._loopback is None and closed(server))
+      win.auth.loopback is None and closed(server))
 query = urllib.parse.parse_qs(urllib.parse.urlsplit(opened[-1]).query)
 check('a pasted code asks for the out of band redirect',
       query.get('redirect_uri') == [OOB_REDIRECT])
@@ -252,18 +252,18 @@ win.client = StubClient('https://example.social')
 win.authorize_admin(outcomes.append)
 pump()
 admin = StubClient.instances[-1]
-server = win._loopback
+server = win.auth.loopback
 registered = admin.forms[0]['redirect_uris'].split() if admin.forms else []
 check('a moderation authorization registers its loopback redirect',
-      server is not None and registered[:1] == [win._loopback_uri]
+      server is not None and registered[:1] == [win.auth.loopback_uri]
       and 'admin:read' in admin.forms[0]['scopes'])
 query = urllib.parse.parse_qs(urllib.parse.urlsplit(opened[0]).query) \
     if opened else {}
 check('a moderation authorization names it',
-      query.get('redirect_uri') == [win._loopback_uri])
+      query.get('redirect_uri') == [win.auth.loopback_uri])
 win.on_cancel_login_clicked(None)
 check('a cancelled moderation authorization closes the listener',
-      win._loopback is None and closed(server) and outcomes == [False])
+      win.auth.loopback is None and closed(server) and outcomes == [False])
 win.account = win.client = None
 
 # --- No port: the login stays on babble:// ------------------------------
@@ -281,7 +281,7 @@ try:
     client = start_login(win)
 finally:
     Soup.Server.listen_local = real_listen
-check('a refused bind leaves no listener', win._loopback is None)
+check('a refused bind leaves no listener', win.auth.loopback is None)
 check('a refused bind registers only babble:// and out of band',
       client is not None and client.forms
       and client.forms[0]['redirect_uris'].split()

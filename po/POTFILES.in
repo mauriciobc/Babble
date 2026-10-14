@@ -5,6 +5,7 @@ data/io.github.mauriciobc.Babble.metainfo.xml.in
 src/accounts.py
 src/admin.py
 src/announcements.py
+src/auth.py
 src/catchup.py
 src/catchupgrid.py
 src/compose.py
@@ -22,6 +23,7 @@ src/mediaviewer.py
 src/mentioncompleter.py
 src/notifications.py
 src/pages.py
+src/portals.py
 src/preferences.py
 src/profile.py
 src/profileedit.py

@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import html
 import json
 import urllib.parse
 
@@ -10,31 +9,22 @@ from .i18n import gettext as _, ngettext
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, GLib, GObject, Gio, Gtk, Soup  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
+from . import auth  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from . import portals  # noqa: E402
-from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
-                       MastodonClient, OAUTH_REDIRECT, OAUTH_SCOPES,
-                       OOB_REDIRECT, clear_secret_async, loopback_redirect,
-                       normalize_instance, summarize_error)
+from .mastodon import (OAUTH_REDIRECT, MastodonClient,  # noqa: E402
+                       clear_secret_async, normalize_instance,
+                       summarize_error)
 from .statustext import relative_time  # noqa: E402
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
 
 # How long the loopback listener waits for the browser to come back.
 LOOPBACK_TIMEOUT_SECONDS = 10 * 60
-
-
-def _close_loopback(_msg, server):
-    """Close a spent loopback listener once its last page is out.
-
-    Closing it from the request handler would drop the page the browser
-    is still waiting for."""
-    server.disconnect()
 
 
 COPIED_LINK_MAX = 2048
@@ -183,32 +173,22 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._status_source = 0
         self._shortcut_session = None
         self._shortcut_pending = False
-        self._auth_client = None
-        # The 127.0.0.1 listener the login in flight is redirected to.
-        self._loopback = None
-        self._loopback_uri = None
-        self._loopback_timeout = 0
-        self._fallback = False
-        # What the authorization in flight is for. A login installs a new
-        # account; a moderation authorization replaces the token of the
-        # one already signed in, asking for the admin scopes on top.
-        self._auth_mode = AUTH_LOGIN
-        self._auth_admin_callback = None
-        # The account a moderation authorization was started for, so a
-        # reply arriving after an account switch is refused.
-        self._admin_owner = None
-        # One authorization attempt is one click on the login button and
-        # the redirect (or pasted code) that answers it. The attempt id
-        # tells replies apart, the ledger spends each code exactly once.
-        self._auth_attempt = 0
-        self._settled_attempt = -1
-        self._pending_code = None
-        self._consumed_codes = {}
         # Reading the keyring is an out-of-process round trip, so a
         # restore or switch can still be in flight when the next one
         # starts. This id tells the replies apart: only the newest
         # lookup is allowed to touch the session.
         self._session_lookup = 0
+        # The OAuth state machine. It owns the attempt bookkeeping, the
+        # loopback listener and the keyring writes, and answers in
+        # signals; the window keeps only the widgets.
+        self.auth = auth.LoginFlow(
+            current_account=pages.weak_method(self._signed_in_account))
+        self.auth.connect('succeeded', self._on_auth_succeeded)
+        self.auth.connect('failed', self._on_auth_failed)
+        self.auth.connect('message', self._on_auth_message)
+        self.auth.connect('browser', self._on_auth_browser)
+        self.auth.connect('changed', self._on_auth_changed)
+        self.auth.connect('attended', self._on_auth_attended)
         self.settings = pages.settings()
         self.settings.bind('window-width', self, 'default-width',
                             Gio.SettingsBindFlags.DEFAULT)
@@ -589,6 +569,10 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _teardown_session(self):
         """Drop every page, stream and dialog tied to the current
         client, before another account takes over."""
+        # An authorization in flight belongs to the session being
+        # dropped, so its requests are cancelled rather than left to
+        # land on the account replacing this one.
+        self.auth.cancel()
         self.streaming.stop()
         self._stream_dropped = False
         emojichooser.deactivate_instance_emojis()
@@ -625,16 +609,14 @@ class BabbleWindow(Adw.ApplicationWindow):
     def begin_add_account(self):
         """Show the login page on top of the running session; Back
         returns to it."""
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.restart()
         self.login_back_button.set_visible(self.client is not None)
         self.main_stack.set_visible_child_name('login')
         self._grab_focus(self.instance_entry)
 
     @Gtk.Template.Callback()
     def on_login_back_clicked(self, _button):
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.restart()
         if self.client is not None and self.account is not None:
             self.main_stack.set_visible_child_name('shell')
 
@@ -731,8 +713,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.account_avatar.set_custom_image(None)
         self._update_session_actions()
         self.login_back_button.set_visible(False)
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.cancel()
         self.main_stack.set_visible_child_name('login')
 
     def show_shell(self):
@@ -877,6 +858,21 @@ class BabbleWindow(Adw.ApplicationWindow):
         if name == 'status.update':
             for page in self._timeline_pages():
                 page.on_stream_status_update(payload)
+            return
+        if name == 'filters_changed':
+            # Filters were changed (here or in another client). Their
+            # effect is baked into each status's `filtered` list by the
+            # server, so only a refetch shows it.
+            if self.timeline_page is not None:
+                self.timeline_page.refresh()
+            if self.notifications_page is not None:
+                self.notifications_page.refresh()
+            return
+        if name == 'notifications_merged':
+            # Accepted notification requests finished merging into the
+            # stream: the loaded list is stale.
+            if self.notifications_page is not None:
+                self.notifications_page.refresh()
             return
         if name == 'notification':
             if self.notifications_page is not None:
@@ -1144,7 +1140,12 @@ class BabbleWindow(Adw.ApplicationWindow):
             return FollowedHashtagsPage(client)
         if tag == 'explore':
             from .explore import ExplorePage
-            return ExplorePage(client)
+            from .streaming import FEED_RESTRICTED, FEED_UNAVAILABLE
+            state = self._public_feed_access().get('trending_link')
+            opted_in = self.settings.get_boolean(SHOW_RESTRICTED_KEY)
+            news = state != FEED_UNAVAILABLE \
+                and (state != FEED_RESTRICTED or opted_in)
+            return ExplorePage(client, news=news)
         if tag in ('local', 'federated'):
             if tag in self._restricted_public_places():
                 return None
@@ -1166,6 +1167,8 @@ class BabbleWindow(Adw.ApplicationWindow):
                 'id': list_id,
                 'title': self._pinned_lists.get(list_id, _('List'))})
         if tag.startswith('tag:'):
+            if 'hashtag' in self._restricted_public_places():
+                return None
             from .hashtags import HashtagPage
             return HashtagPage(client, [tag[4:]])
         return None
@@ -1253,21 +1256,28 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     # Sidebar
 
+    def _public_feed_access(self):
+        """The state of every restricted feed, or an empty map with no
+        session. One fetch shared by the sidebar, the pinned hashtags and
+        the Explore tabs so they cannot disagree."""
+        if self.client is None:
+            return {}
+        from .streaming import public_feed_access
+        return public_feed_access(self.client, self.account)
+
     def _restricted_public_places(self):
-        """The public timelines this account must not see in the sidebar.
+        """The timelines this account must not see in the sidebar.
 
         A feed the server closes to everyone but privileged accounts is
         hidden unless the reader turned the opt-in on; a feed it closes
-        to this account outright is always hidden."""
-        client = self.client
-        if client is None:
-            return set()
-        from .streaming import (FEED_RESTRICTED, FEED_UNAVAILABLE,
-                                public_feed_access)
-        access = public_feed_access(client, self.account)
+        to this account outright is always hidden. ``hashtag`` and
+        ``trending_link`` are not sidebar places themselves: they gate
+        the pinned hashtags and the Explore News tab."""
+        from .streaming import FEED_RESTRICTED, FEED_UNAVAILABLE
+        access = self._public_feed_access()
         opted_in = self.settings.get_boolean(SHOW_RESTRICTED_KEY)
         closed = set()
-        for place in ('local', 'federated'):
+        for place in ('local', 'federated', 'hashtag', 'trending_link'):
             state = access.get(place)
             if state == FEED_UNAVAILABLE \
                     or (state == FEED_RESTRICTED and not opted_in):
@@ -1306,17 +1316,21 @@ class BabbleWindow(Adw.ApplicationWindow):
             section.append(item)
             self._items[tag] = item
         if self.account is not None:
-            self._append_pinned(sidebar)
+            self._append_pinned(sidebar, closed)
         if current is not None and current in hidden:
             self.show_page('home')
         elif current is not None:
             self._select_item(current)
 
-    def _append_pinned(self, sidebar):
+    def _append_pinned(self, sidebar, closed=()):
         account_id = self.account['id']
         list_ids = pinned_entries(self.settings, 'favorite-lists-ids',
                                   account_id)
         tags = pinned_entries(self.settings, 'favorite-tags-ids', account_id)
+        if 'hashtag' in closed:
+            # The server will not serve the hashtag feeds: a pinned tag
+            # would open a page that never fills.
+            tags = []
         if not list_ids and not tags:
             return
         section = Adw.SidebarSection(title=_('Pinned'))
@@ -1510,7 +1524,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         authorization is in flight the button shows a spinner and a
         Cancel button offers a way out.
         """
-        waiting = self._auth_client is not None
+        waiting = self.auth.waiting
         domain = self._instance_domain(self.instance_entry.get_text())
         self.instance_entry.set_sensitive(not waiting)
         self.login_button.set_sensitive(not waiting and bool(domain))
@@ -1580,38 +1594,75 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.refresh_login_widgets()
         self._grab_focus(self.login_button)
 
-    def begin_auth_attempt(self):
-        """Open the next authorization attempt.
+    # The OAuth flow
 
-        Ids increase monotonically, which both labels the redirect that
-        answers this attempt and invalidates any reply still in flight
-        for a superseded one.
+    # LoginFlow owns the attempt bookkeeping, the loopback listener and
+    # the keyring writes. What arrives here is a handful of things to
+    # show, plus the one event that matters: an account is signed in.
+
+    def _signed_in_account(self):
+        """The account this window has signed in, or None.
+
+        Handed to the login flow as a weak method, so a moderation
+        authorization can tell whether the session it was started for is
+        still the current one without the flow holding the window.
         """
-        self._auth_attempt += 1
-        self._pending_code = None
-        self._stop_loopback()
-        return self._auth_attempt
+        return self.account
 
-    def consume_code(self, code):
-        """Spend an authorization code, returning False if already spent.
+    def _on_auth_succeeded(self, _flow, account):
+        """Adopt the account a completed authorization belongs to."""
+        client = self.auth.client
+        if self.auth.admin:
+            # A moderation authorization replaces the token of the
+            # account already signed in, asking for the admin scopes on
+            # top, instead of installing a second session.
+            if self.client is not None and client is not None:
+                self.client.token = client.token
+                self.client.client_id = client.client_id
+                self.client.client_secret = client.client_secret
+        else:
+            self.client = client
+            self.instance_entry.set_text('')
+        self.account = account
+        self.store_account(account)
+        if not self.auth.admin:
+            self.show_shell()
+        else:
+            self._update_session_actions()
 
-        The instance accepts a code once, so a redelivered redirect must
-        not start a second exchange: doing so raced the success of the
-        first one against an ``invalid_grant`` toast. The ledger only
-        has to outlive the retries of the redirect it is answering.
+    def _on_auth_failed(self, _flow, heading, body):
+        # The pending "finish in the browser" toast gives way to the
+        # outcome instead of queueing behind it.
+        self.toast_overlay.dismiss_all()
+        self.show_error(heading, body)
+
+    def _on_auth_message(self, _flow, text):
+        self.toast_overlay.dismiss_all()
+        self.show_toast(text)
+
+    def _on_auth_browser(self, _flow, uri):
+        self.open_url(uri)
+
+    def _on_auth_attended(self, _flow):
+        self.present()
+
+    def _on_auth_changed(self, _flow):
+        """The login widgets follow the flow.
+
+        The code-entry affordances belong to an authorization nobody is
+        running any more once the flow is idle and has not fallen back to
+        a pasted code, so they go away with it.
         """
-        if code in self._consumed_codes:
-            return False
-        self._consumed_codes[code] = self._auth_attempt
-        while len(self._consumed_codes) > MAX_CONSUMED_CODES:
-            del self._consumed_codes[next(iter(self._consumed_codes))]
-        return True
+        if not self.auth.waiting and not self.auth.fallback:
+            self.paste_code_button.set_visible(False)
+            self._hide_code_entry()
+        self.refresh_login_widgets()
 
     @Gtk.Template.Callback()
     def on_login_clicked(self, _widget):
         typed = self.instance_entry.get_text()
         domain = self._instance_domain(typed)
-        if self._auth_client is not None:
+        if self.auth.waiting:
             return
         if not domain:
             if '://' in (typed or '') \
@@ -1622,222 +1673,21 @@ class BabbleWindow(Adw.ApplicationWindow):
                     _('Babble only connects over HTTPS. Enter the server '
                       'address without a scheme, or with https://.'))
             return
-        self._auth_client = MastodonClient(normalize_instance(domain))
-        self._auth_mode = AUTH_LOGIN
-        self.begin_auth_attempt()
-        self.refresh_login_widgets()
-        self._auth_client.register_app_async(
-            loopback=self._start_loopback(), callback=self.on_app_registered)
+        self.auth.start_login(normalize_instance(domain))
 
     @Gtk.Template.Callback()
     def on_cancel_login_clicked(self, _button):
         # A reply still in flight for the abandoned attempt is ignored.
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.restart()
         self.toast_overlay.dismiss_all()
         self._grab_focus(self.instance_entry)
 
-    def _reset_login(self):
-        self._stop_loopback()
-        self._auth_client = None
-        self._fallback = False
-        self.paste_code_button.set_visible(False)
-        self._hide_code_entry()
-        # A cancelled moderation authorization still owes its caller an
-        # outcome, or the dashboard waits on a button that will never
-        # answer.
-        pending, self._auth_admin_callback = self._auth_admin_callback, None
-        self._auth_mode = AUTH_LOGIN
-        self.refresh_login_widgets()
-        if pending is not None:
-            pending(False)
-
-    def on_app_registered(self, client, result):
-        if client is not self._auth_client:
-            self.discard_reply(client.register_app_finish, result)
-            return
-        try:
-            client.register_app_finish(result)
-        except GLib.Error as e:
-            self._fail_attempt(self._auth_attempt,
-                               _('Could not register with %s')
-                               % client.instance, e.message)
-            return
-        redirect = OOB_REDIRECT if self._fallback \
-            else self._loopback_uri or OAUTH_REDIRECT
-        scopes = ADMIN_SCOPES if self._auth_mode == AUTH_ADMIN else OAUTH_SCOPES
-        self.open_url(client.get_authorize_url(redirect, scopes))
-        if not self._fallback:
-            self.show_toast(
-                _('Finish authorizing moderation in the web browser')
-                if self._auth_mode == AUTH_ADMIN
-                else _('Finish logging in with the web browser'))
-
-    def open_url(self, uri):
-        def launched(launcher, result):
-            try:
-                launcher.launch_finish(result)
-            except GLib.Error:
-                self.open_url_fallback(uri)
-                return
-            self.on_url_opened()
-
-        launcher = Gtk.UriLauncher.new(uri)
-        launcher.launch(self, None, launched)
-
-    def open_url_fallback(self, uri):
-        def opened(source, result):
-            try:
-                source.launch_default_for_uri_finish(result, None)
-            except GLib.Error as e:
-                self.show_error(_('Could not open the web browser'), e.message)
-                return
-            self.on_url_opened()
-
-        app_info = Gio.AppInfo.get_default_for_uri(uri)
-        if app_info is None:
-            self.show_error(_('Could not open the web browser'),
-                            _('No app is set to open web links'))
-            return
-        app_info.launch_default_for_uri_async(uri, None, None, opened)
-
-    def on_url_opened(self):
-        if self._fallback:
-            self._show_code_entry()
-        else:
-            self.paste_code_button.set_visible(True)
-
-    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
-        """Exchange the code a redirect to *redirect_uri* carries.
-
-        Returns whether the exchange started. *uri* arrives on the
-        ``babble://`` scheme or, rebuilt from the request, on the
-        loopback listener; either way it must answer the authorization
-        in flight.
-        """
-        client = self._auth_client
-        if client is None:
-            return False
-        # parse_callback_uri drops a callback whose state belongs to a
-        # different authorization than the one in flight.
-        code = client.parse_callback_uri(uri)
-        if code is None:
-            return False
-        return self.start_token_exchange(code, redirect_uri)
-
-    # Loopback redirect
-
-    def _start_loopback(self):
-        """Listen on 127.0.0.1 for the redirect of the authorization
-        starting now, returning its ``http://127.0.0.1:<port>/callback``
-        URI.
-
-        The browser hands a loopback redirect straight back, so the login
-        needs no ``babble://`` handler registered on the desktop. When no
-        port can be bound this returns None and the authorization names
-        ``babble://`` as before.
-        """
-        self._stop_loopback()
-        server = Soup.Server()
-        try:
-            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY)
-        except GLib.Error:
-            return None
-        uris = server.get_uris()
-        if not uris or uris[0].get_port() <= 0:
-            server.disconnect()
-            return None
-        # Held weakly: the window owns the server, and a strong handler
-        # would close a cycle through C that the collector cannot see.
-        server.add_handler(None, pages.weak_method(self._on_loopback_request))
-        self._loopback = server
-        self._loopback_uri = loopback_redirect(uris[0].get_port())
-        self._loopback_timeout = GLib.timeout_add_seconds(
-            LOOPBACK_TIMEOUT_SECONDS,
-            pages.weak_method(self._on_loopback_expired))
-        return self._loopback_uri
-
-    def _detach_loopback(self):
-        """Forget the listener without closing it, returning it."""
-        server, self._loopback = self._loopback, None
-        self._loopback_uri = None
-        if self._loopback_timeout:
-            GLib.source_remove(self._loopback_timeout)
-            self._loopback_timeout = 0
-        return server
-
-    def _stop_loopback(self):
-        server = self._detach_loopback()
-        if server is not None:
-            server.disconnect()
-
-    def _on_loopback_expired(self):
-        self._loopback_timeout = 0
-        self._stop_loopback()
-        return GLib.SOURCE_REMOVE
-
-    def _on_loopback_request(self, server, msg, path, _query):
-        """Answer one request to the loopback listener.
-
-        Only ``GET /callback`` answering the authorization in flight is
-        taken, through the same state check a ``babble://`` redirect
-        gets. The first one to start the exchange spends the listener:
-        it closes as soon as the browser has the page.
-        """
-        if server is not self._loopback or path != LOOPBACK_CALLBACK_PATH:
-            msg.set_status(404, None)
-            return
-        if msg.get_method() != 'GET':
-            msg.get_response_headers().replace('Allow', 'GET')
-            msg.set_status(405, None)
-            return
-        redirect = self._loopback_uri
-        query = msg.get_uri().get_query()
-        uri = redirect + '?' + query if query else redirect
-        if not self.on_oauth_callback(uri, redirect):
-            self._loopback_reply(
-                msg, 400,
-                _('Babble could not use this login'),
-                _('Return to Babble and try logging in again.'))
-            return
-        self._loopback_reply(
-            msg, 200,
-            # Translators: heading of the web page the browser shows
-            # once it has handed the login back to the app
-            _('Logged in with Babble'),
-            _('You can close this tab and return to Babble.'))
-        self._detach_loopback()
-        msg.connect('finished', _close_loopback, server)
-        msg.connect('disconnected', _close_loopback, server)
-        # No activation token comes back from the browser, so this may
-        # only mark the window as wanting attention.
-        self.present()
-
-    @staticmethod
-    def _loopback_reply(msg, status, heading, body):
-        page = ('<!DOCTYPE html>\n<html><head><meta charset="utf-8">'
-                '<meta name="viewport" content="width=device-width">'
-                '<title>%s</title><style>body{font-family:system-ui,'
-                'sans-serif;text-align:center;margin:4em 1em}</style>'
-                '</head><body><h1>%s</h1><p>%s</p></body></html>\n'
-                % (html.escape(heading), html.escape(heading),
-                   html.escape(body)))
-        msg.set_status(status, None)
-        msg.get_response_headers().replace('Cache-Control', 'no-store')
-        msg.set_response('text/html; charset=utf-8', Soup.MemoryUse.COPY,
-                         page.encode('utf-8'))
-
     @Gtk.Template.Callback()
-    def on_paste_code_clicked(self, button):
+    def on_paste_code_clicked(self, _button):
         # The authorization is named again for the out-of-band redirect,
         # so nothing can answer on the loopback listener any more.
-        self._stop_loopback()
-        self._fallback = True
         self.paste_code_button.set_visible(False)
-        if self._auth_client is not None and self._auth_client.client_id is not None:
-            self.open_url(
-                self._auth_client.get_authorize_url(OOB_REDIRECT))
-        else:
+        if not self.auth.use_pasted_code():
             self._show_code_entry()
 
     def _show_code_entry(self):
@@ -1850,268 +1700,36 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def on_code_entered(self, entry):
-        code = self.code_entry.get_text().strip()
-        if not code:
-            return
-        self.start_token_exchange(code, OOB_REDIRECT)
+        self.auth.enter_code(entry.get_text())
 
-    def start_token_exchange(self, code, redirect_uri):
-        """Run the single token exchange this authorization allows.
+    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
+        """Exchange the code a redirect to *redirect_uri* carries."""
+        return self.auth.on_oauth_callback(uri, redirect_uri)
 
-        The code is spent and the exchange is marked in flight *before*
-        the request leaves, so a redirect that arrives again -- in the
-        same main loop turn or long after the browser retried it --
-        finds this attempt busy and does nothing at all.
-        """
-        if self._auth_client is None or self._pending_code is not None:
-            return False
-        if not self.consume_code(code):
-            return False
-        attempt = self._auth_attempt
-        self._pending_code = code
-        self.refresh_login_widgets()
-        self._auth_client.request_token_async(
-            code, self.replying(self.on_token_received, attempt),
-            redirect_uri=redirect_uri)
-        return True
-
-    def replying(self, handler, attempt):
-        """Wrap a Gio callback so the handler learns its attempt.
-
-        Gio calls the callback as ``(source, result, *user_data)``, so
-        the attempt travels as user data and arrives last.
-        """
-        return lambda client, result: handler(client, result, attempt)
-
-    @staticmethod
-    def discard_reply(finish, result):
-        """Take delivery of a reply nobody is waiting for, silently."""
-        try:
-            finish(result)
-        except GLib.Error:
-            pass
-
-    def settle_auth_attempt(self, attempt, heading=None, body=None,
-                            message=None):
-        """Close out one authorization attempt with a single outcome.
-
-        The first outcome wins, so a late failure can neither follow the
-        success toast nor replace it, and a duplicate reply for the same
-        attempt stays silent.
-        """
-        if attempt != self._auth_attempt or attempt <= self._settled_attempt:
-            return False
-        self._settled_attempt = attempt
-        self._pending_code = None
-        self._stop_loopback()
-        # The pending "finish in the browser" toast gives way to the
-        # outcome instead of queueing behind it.
-        self.toast_overlay.dismiss_all()
-        if heading is not None:
-            self._auth_client = None
-            self._fallback = False
-            # What the authorization in flight is for. A login installs a new
-            # account; a moderation authorization replaces the token of the
-            # one already signed in, asking for the admin scopes on top.
-            self._auth_mode = AUTH_LOGIN
-            self._auth_admin_callback = None
-            self.refresh_login_widgets()
-            self.show_error(heading, body)
-        elif message is not None:
-            self.show_toast(message)
-        return True
-
-    def _fail_attempt(self, attempt, heading, body):
-        """Close out a failed authorization on the channel it started on.
-
-        A moderation authorization owes its caller an outcome, so it must
-        not settle through the login path -- that one reports to a toast
-        and would leave the dashboard waiting forever.
-        """
-        if self._auth_mode == AUTH_ADMIN:
-            self._settle_admin_authorization(
-                False, _('Authorization failed: %s') % body)
+    def on_url_opened(self):
+        if self.auth.fallback:
+            self._show_code_entry()
         else:
-            self.settle_auth_attempt(attempt, heading, body)
-
-    def on_token_received(self, client, result, attempt):
-        if attempt != self._auth_attempt:
-            self.discard_reply(client.request_token_finish, result)
-            return
-        try:
-            token = client.request_token_finish(result)
-        except GLib.Error as e:
-            self._fail_attempt(attempt, _('Authorization failed'),
-                               e.message)
-            return
-        client.token = token
-        client.verify_credentials_async(
-            self.replying(self.on_credentials_verified, attempt))
-
-    def on_credentials_verified(self, client, result, attempt):
-        if attempt != self._auth_attempt:
-            self.discard_reply(client.verify_credentials_finish, result)
-            return
-        try:
-            account = client.verify_credentials_finish(result)
-        except GLib.Error as e:
-            self._fail_attempt(attempt, _('Could not verify the account'),
-                               e.message)
-            return
-        account['instance'] = client.instance
-        if self._auth_mode == AUTH_ADMIN:
-            self._on_admin_token(client, account, attempt)
-            return
-        client.store_secret_token(
-            account['id'], client.token,
-            lambda error: self.on_token_stored(client, account, attempt,
-                                               error))
-
-    # Moderation authorization
+            self.paste_code_button.set_visible(True)
 
     def authorize_admin(self, callback=None):
         """Ask the instance for the admin scopes on the signed-in account.
 
-        The scopes are not part of the login the app asks for by default:
-        Mastodon lists every requested scope on its consent screen, and
-        "all administrative functions" is not something to ask of
-        everyone. When the role says the account moderates and the token
-        does not carry the scopes, this runs one extra authorization that
-        asks for exactly those and keeps the result as the account's
-        token. *callback(granted)* runs with the outcome.
+        *callback(granted)* runs with the outcome. A refusal is the
+        dashboard's cue to go back to plain moderation, so it always
+        gets one, even when there was nothing to authorize.
         """
         if self.account is None or self.client is None:
             if callback is not None:
                 callback(False)
             return
-        self._auth_admin_callback = callback
-        # Bound the authorization to the account that asked for it: a
-        # switch or a logout while the browser step is open must not let
-        # the reply install a token for the account that replaced it.
-        self._admin_owner = account_store.account_key(self.account)
-        self._auth_client = MastodonClient(self.account['instance'])
-        self._auth_mode = AUTH_ADMIN
-        self.begin_auth_attempt()
-        self.refresh_login_widgets()
-        self._auth_client.register_app_async(
-            scopes=ADMIN_SCOPES, loopback=self._start_loopback(),
-            callback=self.on_app_registered)
+        # Bound to the account that asked for it: a switch or a logout
+        # while the browser step is open must not let the reply install a
+        # token for the account that replaced it.
+        self.auth.start_admin(self.account['instance'],
+                              account_store.account_key(self.account),
+                              callback)
 
-    def _on_admin_token(self, client, account, attempt):
-        """Keep the moderation token as the signed-in account's token."""
-        client.store_secret_token(
-            account['id'], client.token,
-            lambda error: self._on_admin_token_stored(client, account,
-                                                      attempt, error))
-
-    def _on_admin_token_stored(self, client, account, attempt, error):
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._settle_admin_authorization(
-                False, _('The system keyring refused to store the login.'))
-            return
-        # The session must still be the one that asked for moderation.
-        # The attempt id alone cannot tell: switching accounts does not
-        # bump it, so a reply from the previous session would still match.
-        if self.account is None or self._admin_owner != \
-                account_store.account_key(self.account):
-            self._settle_admin_authorization(
-                False, _('The account changed before moderation was '
-                         'authorized.'))
-            return
-        # The freshly verified entity carries no role, and losing it
-        # would take the admin action with it; keep the one we have.
-        account['role'] = self.account.get('role')
-        # The credentials have to land before the token does, or a
-        # restart leaves an account that cannot be revoked on logout.
-        client.store_client_credentials(
-            account['id'], client.client_id, client.client_secret,
-            lambda cred_error: self._on_admin_credentials_stored(
-                client, account, attempt, cred_error))
-
-    def _on_admin_credentials_stored(self, client, account, attempt, error):
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._settle_admin_authorization(
-                False, _('The system keyring refused to store the login.'))
-            return
-        if self.account is None or self._admin_owner != \
-                account_store.account_key(self.account):
-            self._settle_admin_authorization(
-                False, _('The account changed before moderation was '
-                         'authorized.'))
-            return
-        if self.client is not None:
-            self.client.token = client.token
-            self.client.client_id = client.client_id
-            self.client.client_secret = client.client_secret
-        self.account = account
-        self.store_account(account)
-        self._settle_admin_authorization(True, _('Moderation access granted'))
-
-    def _settle_admin_authorization(self, granted, message=None):
-        """Report the outcome once, and clear the admin attempt."""
-        callback = self._auth_admin_callback
-        self._auth_admin_callback = None
-        self._admin_owner = None
-        self._auth_attempt += 1
-        self._stop_loopback()
-        self._auth_client = None
-        self._auth_mode = AUTH_LOGIN
-        self._fallback = False
-        self.paste_code_button.set_visible(False)
-        self._hide_code_entry()
-        self.refresh_login_widgets()
-        if callback is not None:
-            callback(granted)
-        if message is not None:
-            self.show_toast(message)
-
-    def on_token_stored(self, client, account, attempt, error):
-        """Commit the login once the token is really in the keyring.
-
-        Recording an account whose token never landed leaves an entry
-        that signs the user out on the next start, with no explanation
-        here or then. A keyring that refuses the secret is reported
-        instead, and nothing is stored.
-        """
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._report_keyring_failure(attempt, account)
-            return
-        # The client credentials have to land before the account does.
-        # Without them a later logout cannot authenticate the revoke, so
-        # it drops the local account while the server token stays live.
-        client.store_client_credentials(
-            account['id'], client.client_id, client.client_secret,
-            lambda cred_error: self.on_credentials_stored(
-                client, account, attempt, cred_error))
-
-    def on_credentials_stored(self, client, account, attempt, error):
-        """The last keyring write answered: commit, or report."""
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._report_keyring_failure(attempt, account)
-            return
-        self.account = account
-        self.store_account(account)
-        self.client = client
-        self.instance_entry.set_text('')
-        self._reset_login()
-        self.show_shell()
-        self.settle_auth_attempt(attempt, message=_('Logged in as @%s')
-                                 % account.get('acct', ''))
-
-    def _report_keyring_failure(self, attempt, account):
-        self.settle_auth_attempt(
-            attempt, _('Could not save the login'),
-            _('The system keyring refused to store the login for '
-              '@%s. Check that a keyring service is running, then '
-              'try again.') % account.get('acct', ''))
 
     def on_logout_requested(self, _action, _param):
         if self.account is None:
