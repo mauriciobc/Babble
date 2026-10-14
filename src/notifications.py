@@ -64,6 +64,8 @@ TYPE_ICONS = {
     'severed_relationships': 'network-wired-disconnected-symbolic',
     'moderation_warning': 'dialog-warning-symbolic',
     'annual_report': 'emoji-symbols-symbolic',
+    'added_to_collection': 'list-add-symbolic',
+    'collection_update': 'view-list-symbolic',
 }
 
 # One actor: '%s'. Two actors: names joined. More: two names plus
@@ -82,6 +84,8 @@ TEMPLATES = {
     'quote': _('%s quoted your post'),
     'quoted_update': _('%s edited a post you quoted'),
     'admin.sign_up': _('%s signed up'),
+    'added_to_collection': _('%s added you to a collection'),
+    'collection_update': _('%s updated a collection you are in'),
 }
 DEFAULT_TEMPLATE = _('%s interacted with you')
 
@@ -89,7 +93,8 @@ DEFAULT_TEMPLATE = _('%s interacted with you')
 # per-notification actions or payload.
 UNGROUPED_TYPES = frozenset({
     'follow_request', 'admin.report', 'severed_relationships',
-    'moderation_warning', 'annual_report'})
+    'moderation_warning', 'annual_report',
+    'added_to_collection', 'collection_update'})
 
 # Types rendered dimmed when the dim-trivial-notifications setting is on.
 TRIVIAL_TYPES = frozenset({'favourite', 'reblog', 'follow'})
@@ -114,6 +119,8 @@ NOTIFICATION_TYPES = [
     ('severed_relationships', _('Severed Relationships')),
     ('moderation_warning', _('Moderation Warnings')),
     ('annual_report', _('Annual Reports')),
+    ('added_to_collection', _('Added to Collections')),
+    ('collection_update', _('Collection Updates')),
 ]
 
 REPORT_CATEGORIES = {
@@ -187,6 +194,14 @@ def _special_title(item):
         if year:
             return _('Your %s #Wrapstodon is here!') % year
         return _('Your #Wrapstodon is here!')
+    if kind in ('added_to_collection', 'collection_update'):
+        name = (payload.get('collection') or {}).get('name')
+        if name:
+            if kind == 'added_to_collection':
+                return _('%(actor)s added you to %(collection)s') % {
+                    'actor': _subject(item.actors), 'collection': name}
+            return _('%(actor)s updated %(collection)s') % {
+                'actor': _subject(item.actors), 'collection': name}
     return None
 
 
@@ -260,6 +275,12 @@ def notification_detail(item, instance=None):
         if text:
             lines.append(text)
         return '\n'.join(lines)
+    if kind in ('added_to_collection', 'collection_update'):
+        collection = payload.get('collection') or {}
+        description = (collection.get('description') or '').strip()
+        if collection.get('sensitive') and description:
+            return _('Sensitive collection') + '\n' + description
+        return description or None
     return None
 
 

@@ -18,7 +18,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import pages, portals  # noqa: E402
 
 
 COLOR_SCHEMES = (
@@ -331,9 +331,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
               'shortcut, which can be changed in the system settings'))
         # Shown only once the GlobalShortcuts portal is known to exist.
         self._shortcut_row.set_visible(False)
-        from .window import portal_version
-        portal_version('org.freedesktop.portal.GlobalShortcuts',
-                       pages.weak_method(self._on_shortcut_portal))
+        portals.portal_version(portals.SHORTCUTS,
+                               pages.weak_method(self._on_shortcut_portal))
         page.add(behavior)
         return page
 

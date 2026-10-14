@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import html
-import json
-import secrets
 import urllib.parse
 
 import gi
@@ -11,43 +8,21 @@ from .i18n import gettext as _, ngettext
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, GLib, GObject, Gio, Gtk, Soup  # noqa: E402
+from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
+from . import auth  # noqa: E402
+from . import clipboard  # noqa: E402
+from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
-from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
-                       MastodonClient, OAUTH_REDIRECT, OAUTH_SCOPES,
-                       OOB_REDIRECT, clear_secret_async, loopback_redirect,
+from . import portals  # noqa: E402
+from .mastodon import (COLLECTIONS_API_VERSION, OAUTH_REDIRECT,  # noqa: E402
+                       MastodonClient, clear_secret_async,
                        normalize_instance, summarize_error)
 from .statustext import relative_time  # noqa: E402
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
-
-# How long the loopback listener waits for the browser to come back.
-LOOPBACK_TIMEOUT_SECONDS = 10 * 60
-
-
-def _close_loopback(_msg, server):
-    """Close a spent loopback listener once its last page is out.
-
-    Closing it from the request handler would drop the page the browser
-    is still waiting for."""
-    server.disconnect()
-
-
-COPIED_LINK_MAX = 2048
-
-
-def copied_link_kind(text):
-    """``'post'``, ``'profile'`` or ``'tag'`` when *text* (already
-    stripped) is a single fediverse link, else None."""
-    if not text or len(text) > COPIED_LINK_MAX or any(
-            c.isspace() for c in text):
-        return None
-    return pages.fedi_link_kind(text)
-
 
 # One-click alternatives for the login suggestions row, ranked from the
 # public JoinMastodon server directory (api.joinmastodon.org/servers)
@@ -56,15 +31,6 @@ SUGGESTED_SERVERS = (
     'mastodon.social', 'mstdn.social', 'infosec.exchange', 'mstdn.jp',
     'hachyderm.io', 'piaille.fr', 'mastodon.world', 'social.vivaldi.net',
     'epsilon.social', 'troet.cafe', 'mastodon.uno', 'mathstodon.xyz')
-
-# Authorization codes are handed out by the instance and spent by
-# /oauth/token, so a ledger of this many recent codes outlives every
-# redelivery a browser can be trusted to make of one redirect.
-MAX_CONSUMED_CODES = 32
-
-# What an authorization in flight is for.
-AUTH_LOGIN = 'login'
-AUTH_ADMIN = 'admin'
 
 # Sidebar places in Tuba's order: (tag, icon, group). Titles are looked
 # up at runtime so they translate.
@@ -110,6 +76,16 @@ def pinned_entries(settings, key, account_id):
     prefix = '%s/' % account_id
     return [entry[len(prefix):] for entry in settings.get_strv(key)
             if entry.startswith(prefix)]
+
+
+def _swallow(finish, result):
+    """Take delivery of a reply nobody is waiting for, discarding any
+    failure. Used where the outcome is already decided and the request
+    was only ever best-effort."""
+    try:
+        finish(result)
+    except GLib.Error:
+        pass
 
 
 @Gtk.Template(resource_path='/io/github/mauriciobc/Babble/window.ui')
@@ -173,32 +149,22 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._status_source = 0
         self._shortcut_session = None
         self._shortcut_pending = False
-        self._auth_client = None
-        # The 127.0.0.1 listener the login in flight is redirected to.
-        self._loopback = None
-        self._loopback_uri = None
-        self._loopback_timeout = 0
-        self._fallback = False
-        # What the authorization in flight is for. A login installs a new
-        # account; a moderation authorization replaces the token of the
-        # one already signed in, asking for the admin scopes on top.
-        self._auth_mode = AUTH_LOGIN
-        self._auth_admin_callback = None
-        # The account a moderation authorization was started for, so a
-        # reply arriving after an account switch is refused.
-        self._admin_owner = None
-        # One authorization attempt is one click on the login button and
-        # the redirect (or pasted code) that answers it. The attempt id
-        # tells replies apart, the ledger spends each code exactly once.
-        self._auth_attempt = 0
-        self._settled_attempt = -1
-        self._pending_code = None
-        self._consumed_codes = {}
         # Reading the keyring is an out-of-process round trip, so a
         # restore or switch can still be in flight when the next one
         # starts. This id tells the replies apart: only the newest
         # lookup is allowed to touch the session.
         self._session_lookup = 0
+        # The OAuth state machine. It owns the attempt bookkeeping, the
+        # loopback listener and the keyring writes, and answers in
+        # signals; the window keeps only the widgets.
+        self.auth = auth.LoginFlow(
+            current_account=pages.weak_method(self._signed_in_account))
+        self.auth.connect('succeeded', self._on_auth_succeeded)
+        self.auth.connect('failed', self._on_auth_failed)
+        self.auth.connect('message', self._on_auth_message)
+        self.auth.connect('browser', self._on_auth_browser)
+        self.auth.connect('changed', self._on_auth_changed)
+        self.auth.connect('attended', self._on_auth_attended)
         self.settings = pages.settings()
         self.settings.bind('window-width', self, 'default-width',
                             Gio.SettingsBindFlags.DEFAULT)
@@ -394,59 +360,31 @@ class BabbleWindow(Adw.ApplicationWindow):
                      'announcements', 'follow-requests', 'mutes-blocks',
                      'drafts', 'scheduled', 'wrapped', 'goto-place'):
             self.lookup_action(name).set_enabled(signed_in)
-        info = (getattr(self.client, 'instance_info', None)
-                if signed_in else None) or {}
-        versions = info.get('api_versions') or {}
+        # A server that is not Mastodon, or an older one, is told no
+        # rather than being assumed yes: Collections is Mastodon API
+        # version 10, and an unproven server is not evidence that it has
+        # it. The admin switch is about the signed-in role, not the
+        # server's version.
         self.lookup_action('collections').set_enabled(
-            signed_in and (versions.get('mastodon') or 0) >= 10)
+            signed_in and self.client.is_supported(
+                COLLECTIONS_API_VERSION))
         self.lookup_action('admin').set_enabled(
             signed_in and account_store.role_is_admin(self.account))
         self._refresh_draft_banner()
 
     def _local_drafts(self):
-        """Restorable drafts of the signed-in account, newest first, as
-        ``(raw, draft)`` pairs: the raw string is what gets removed from
-        the setting, so no entry depends on re-serializing the same way.
-        Drafts stay keyed with the account because ids like
-        ``in_reply_to_id`` inside them are server-local; restoring one on
-        another instance would answer an unrelated post. Malformed
-        entries are skipped here, not deleted, and age out of the list."""
+        """The signed-in account's restorable drafts, newest first, as
+        ``(raw, draft)`` pairs."""
         if self.account is None or self.client is None:
             return []
-        key = account_store.account_key(self.account)
-        drafts = []
-        for raw in pages.settings().get_strv('local-drafts'):
-            try:
-                entry = json.loads(raw)
-            except ValueError:
-                continue
-            if isinstance(entry, dict) and entry.get('key') == key \
-                    and self._valid_draft(entry):
-                drafts.append((raw, entry))
-        return drafts
-
-    DRAFT_TYPES = {'text': str, 'visibility': int, 'language': int,
-                   'cw_visible': bool, 'cw_text': str, 'attachments': list,
-                   'poll': dict}
-    POLL_TYPES = {'active': bool, 'options': list, 'expires': int}
-
-    def _valid_draft(self, draft):
-        """Everything ``BabbleComposeView.restore`` reads is there and of
-        the right type."""
-        def typed(mapping, types):
-            return all(isinstance(mapping.get(k), t)
-                       for k, t in types.items())
-        return (typed(draft, self.DRAFT_TYPES)
-                and 'in_reply_to_id' in draft
-                and typed(draft['poll'], self.POLL_TYPES)
-                and all(isinstance(a, dict) and isinstance(a.get('path'), str)
-                        and isinstance(a.get('alt'), str)
-                        for a in draft['attachments']))
+        return drafts.stored_drafts(
+            pages.settings().get_strv('local-drafts'),
+            account_store.account_key(self.account))
 
     def _refresh_draft_banner(self, *_args):
-        drafts = self._local_drafts()
-        self.draft_banner.set_revealed(bool(drafts))
-        when = relative_time(drafts[0][1].get('saved_at')) if drafts else ''
+        drafts_ = self._local_drafts()
+        self.draft_banner.set_revealed(bool(drafts_))
+        when = relative_time(drafts_[0][1].saved_at) if drafts_ else ''
         if when:
             # Translators: a draft saved earlier is offered for
             # restoring; %s is a compact age like "5m"
@@ -457,88 +395,12 @@ class BabbleWindow(Adw.ApplicationWindow):
     # Copied link banner
 
     def _setup_copied_link_banner(self):
-        """Add the 'Open copied post?' banner below the draft banner and
-        watch focus and the clipboard for links worth offering."""
-        self.copied_link_banner = Adw.Banner(button_label=_('_Open'),
-                                             use_markup=False)
+        """Add the 'Open copied post?' banner below the draft banner."""
+        self.copied_link_banner = clipboard.CopiedLinkBanner(self)
         self.draft_banner.get_parent().insert_child_after(
             self.copied_link_banner, self.draft_banner)
-        pages.connect_weak(self.copied_link_banner, 'button-clicked',
-                           self._on_copied_link_open)
-        # Links already offered, opened or not: none is offered twice.
-        self._offered_links = set()
-        self._copied_link = None
-        self._clipboard_read = 0
-        pages.connect_weak(self, 'notify::is-active',
-                           self._on_active_changed)
-        pages.connect_weak(self.get_clipboard(), 'changed',
-                           self._on_clipboard_changed)
 
-    def _on_active_changed(self, *_args):
-        if self.is_active():
-            self._check_clipboard()
-
-    def _on_clipboard_changed(self, *_args):
-        if self.is_active():
-            self._check_clipboard()
-        elif self.copied_link_banner.get_revealed():
-            self._hide_copied_link()
-
-    def _hide_copied_link(self):
-        self._clipboard_read += 1
-        self._copied_link = None
-        self.copied_link_banner.set_revealed(False)
-
-    def _check_clipboard(self):
-        if (not self.is_active() or self.client is None
-                or not self.settings.get_boolean('offer-copied-links')):
-            self._hide_copied_link()
-            return
-        clipboard = self.get_clipboard()
-        formats = clipboard.get_formats()
-        if not (formats.contain_gtype(GObject.TYPE_STRING)
-                or formats.contain_mime_type('text/plain')
-                or formats.contain_mime_type('text/plain;charset=utf-8')):
-            self._hide_copied_link()
-            return
-        self._clipboard_read += 1
-        clipboard.read_text_async(None, pages.weak_method(
-            self._on_clipboard_text), self._clipboard_read)
-
-    def _on_clipboard_text(self, clipboard, result, serial):
-        try:
-            text = clipboard.read_text_finish(result)
-        except GLib.Error:
-            text = None
-        if serial != self._clipboard_read:
-            return  # a newer read (or a hide) superseded this one
-        if not self.is_active() or self.client is None \
-                or not self.settings.get_boolean('offer-copied-links'):
-            self._hide_copied_link()
-            return
-        url = (text or '').strip()
-        kind = copied_link_kind(url)
-        if kind is None:
-            self._hide_copied_link()
-            return
-        if url in self._offered_links:
-            if url != self._copied_link:
-                self._hide_copied_link()
-            return  # already offered: never nag twice for the same link
-        self._offered_links.add(url)
-        self._copied_link = url
-        self.copied_link_banner.set_title({
-            'post': _('Open copied post?'),
-            'profile': _('Open copied profile?'),
-            'tag': _('Open copied hashtag?')}[kind])
-        self.copied_link_banner.set_revealed(True)
-
-    def _on_copied_link_open(self, _banner):
-        url = self._copied_link
-        self._hide_copied_link()
-        if url:
-            pages.open_link(self, url, resolve=True)
-
+    # Offline banner
     # Offline banner
 
     def _setup_offline_banner(self):
@@ -579,6 +441,10 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _teardown_session(self):
         """Drop every page, stream and dialog tied to the current
         client, before another account takes over."""
+        # An authorization in flight belongs to the session being
+        # dropped, so its requests are cancelled rather than left to
+        # land on the account replacing this one.
+        self.auth.cancel()
         self.streaming.stop()
         self._stream_dropped = False
         emojichooser.deactivate_instance_emojis()
@@ -615,16 +481,14 @@ class BabbleWindow(Adw.ApplicationWindow):
     def begin_add_account(self):
         """Show the login page on top of the running session; Back
         returns to it."""
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.restart()
         self.login_back_button.set_visible(self.client is not None)
         self.main_stack.set_visible_child_name('login')
         self._grab_focus(self.instance_entry)
 
     @Gtk.Template.Callback()
     def on_login_back_clicked(self, _button):
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.restart()
         if self.client is not None and self.account is not None:
             self.main_stack.set_visible_child_name('shell')
 
@@ -721,8 +585,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.account_avatar.set_custom_image(None)
         self._update_session_actions()
         self.login_back_button.set_visible(False)
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.cancel()
         self.main_stack.set_visible_child_name('login')
 
     def show_shell(self):
@@ -868,6 +731,21 @@ class BabbleWindow(Adw.ApplicationWindow):
             for page in self._timeline_pages():
                 page.on_stream_status_update(payload)
             return
+        if name == 'filters_changed':
+            # Filters were changed (here or in another client). Their
+            # effect is baked into each status's `filtered` list by the
+            # server, so only a refetch shows it.
+            if self.timeline_page is not None:
+                self.timeline_page.refresh()
+            if self.notifications_page is not None:
+                self.notifications_page.refresh()
+            return
+        if name == 'notifications_merged':
+            # Accepted notification requests finished merging into the
+            # stream: the loaded list is stale.
+            if self.notifications_page is not None:
+                self.notifications_page.refresh()
+            return
         if name == 'notification':
             if self.notifications_page is not None:
                 self.notifications_page.on_stream_notification(payload)
@@ -908,7 +786,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._background_pending = True
         self._background_asked = True
         ref = self.weak_ref()
-        _session_bus(lambda bus: _request_background(ref, bus))
+        portals.session_bus(
+            lambda bus: portals.request_background(ref, bus))
 
     def _background_done(self, allowed):
         self._background_pending = False
@@ -963,7 +842,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._status_source = 0
         if self._background_status:
             self._background_status = ''
-            _set_background_status('')
+            portals.set_background_status('')
 
     def _schedule_background_status(self):
         """Refresh the line GNOME Shell shows for the app running in the
@@ -972,15 +851,17 @@ class BabbleWindow(Adw.ApplicationWindow):
                 or self._status_source:
             return
         self._status_source = GLib.timeout_add(
-            STATUS_DELAY_MS, pages.weak_method(self._flush_background_status))
+            portals.STATUS_DELAY_MS,
+            pages.weak_method(self._flush_background_status))
 
     def _flush_background_status(self):
         self._status_source = 0
         if self._background_allowed and not self.get_visible():
-            message = self._background_status_text()[:STATUS_MAX_CHARS]
+            message = self._background_status_text()[
+                :portals.STATUS_MAX_CHARS]
             if message != self._background_status:
                 self._background_status = message
-                _set_background_status(message)
+                portals.set_background_status(message)
         return GLib.SOURCE_REMOVE
 
     def _background_status_text(self):
@@ -1012,7 +893,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         self._shortcut_pending = True
         ref = self.weak_ref()
-        _session_bus(lambda bus: _create_shortcut_session(ref, bus))
+        portals.session_bus(
+            lambda bus: portals.create_shortcut_session(ref, bus))
 
     def _shortcut_ready(self, session, refused):
         self._shortcut_pending = False
@@ -1244,7 +1126,12 @@ class BabbleWindow(Adw.ApplicationWindow):
 
         A feed the server closes to everyone but privileged accounts is
         hidden unless the reader turned the opt-in on; a feed it closes
-        to this account outright is always hidden."""
+        to this account outright is always hidden.
+
+        The topic settings (``hashtag_feeds``/``trending_link_feeds``)
+        are deliberately not consulted here: the server never closes them
+        to a signed-in account, it just drops the remote posts, so the
+        page still has local content and hiding it would lose read."""
         client = self.client
         if client is None:
             return set()
@@ -1496,7 +1383,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         authorization is in flight the button shows a spinner and a
         Cancel button offers a way out.
         """
-        waiting = self._auth_client is not None
+        waiting = self.auth.waiting
         domain = self._instance_domain(self.instance_entry.get_text())
         self.instance_entry.set_sensitive(not waiting)
         self.login_button.set_sensitive(not waiting and bool(domain))
@@ -1566,38 +1453,75 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.refresh_login_widgets()
         self._grab_focus(self.login_button)
 
-    def begin_auth_attempt(self):
-        """Open the next authorization attempt.
+    # The OAuth flow
 
-        Ids increase monotonically, which both labels the redirect that
-        answers this attempt and invalidates any reply still in flight
-        for a superseded one.
+    # LoginFlow owns the attempt bookkeeping, the loopback listener and
+    # the keyring writes. What arrives here is a handful of things to
+    # show, plus the one event that matters: an account is signed in.
+
+    def _signed_in_account(self):
+        """The account this window has signed in, or None.
+
+        Handed to the login flow as a weak method, so a moderation
+        authorization can tell whether the session it was started for is
+        still the current one without the flow holding the window.
         """
-        self._auth_attempt += 1
-        self._pending_code = None
-        self._stop_loopback()
-        return self._auth_attempt
+        return self.account
 
-    def consume_code(self, code):
-        """Spend an authorization code, returning False if already spent.
+    def _on_auth_succeeded(self, _flow, account):
+        """Adopt the account a completed authorization belongs to."""
+        client = self.auth.client
+        if self.auth.admin:
+            # A moderation authorization replaces the token of the
+            # account already signed in, asking for the admin scopes on
+            # top, instead of installing a second session.
+            if self.client is not None and client is not None:
+                self.client.token = client.token
+                self.client.client_id = client.client_id
+                self.client.client_secret = client.client_secret
+        else:
+            self.client = client
+            self.instance_entry.set_text('')
+        self.account = account
+        self.store_account(account)
+        if not self.auth.admin:
+            self.show_shell()
+        else:
+            self._update_session_actions()
 
-        The instance accepts a code once, so a redelivered redirect must
-        not start a second exchange: doing so raced the success of the
-        first one against an ``invalid_grant`` toast. The ledger only
-        has to outlive the retries of the redirect it is answering.
+    def _on_auth_failed(self, _flow, heading, body):
+        # The pending "finish in the browser" toast gives way to the
+        # outcome instead of queueing behind it.
+        self.toast_overlay.dismiss_all()
+        self.show_error(heading, body)
+
+    def _on_auth_message(self, _flow, text):
+        self.toast_overlay.dismiss_all()
+        self.show_toast(text)
+
+    def _on_auth_browser(self, _flow, uri):
+        self.open_url(uri)
+
+    def _on_auth_attended(self, _flow):
+        self.present()
+
+    def _on_auth_changed(self, _flow):
+        """The login widgets follow the flow.
+
+        The code-entry affordances belong to an authorization nobody is
+        running any more once the flow is idle and has not fallen back to
+        a pasted code, so they go away with it.
         """
-        if code in self._consumed_codes:
-            return False
-        self._consumed_codes[code] = self._auth_attempt
-        while len(self._consumed_codes) > MAX_CONSUMED_CODES:
-            del self._consumed_codes[next(iter(self._consumed_codes))]
-        return True
+        if not self.auth.waiting and not self.auth.fallback:
+            self.paste_code_button.set_visible(False)
+            self._hide_code_entry()
+        self.refresh_login_widgets()
 
     @Gtk.Template.Callback()
     def on_login_clicked(self, _widget):
         typed = self.instance_entry.get_text()
         domain = self._instance_domain(typed)
-        if self._auth_client is not None:
+        if self.auth.waiting:
             return
         if not domain:
             if '://' in (typed or '') \
@@ -1608,222 +1532,21 @@ class BabbleWindow(Adw.ApplicationWindow):
                     _('Babble only connects over HTTPS. Enter the server '
                       'address without a scheme, or with https://.'))
             return
-        self._auth_client = MastodonClient(normalize_instance(domain))
-        self._auth_mode = AUTH_LOGIN
-        self.begin_auth_attempt()
-        self.refresh_login_widgets()
-        self._auth_client.register_app_async(
-            loopback=self._start_loopback(), callback=self.on_app_registered)
+        self.auth.start_login(normalize_instance(domain))
 
     @Gtk.Template.Callback()
     def on_cancel_login_clicked(self, _button):
         # A reply still in flight for the abandoned attempt is ignored.
-        self.begin_auth_attempt()
-        self._reset_login()
+        self.auth.restart()
         self.toast_overlay.dismiss_all()
         self._grab_focus(self.instance_entry)
 
-    def _reset_login(self):
-        self._stop_loopback()
-        self._auth_client = None
-        self._fallback = False
-        self.paste_code_button.set_visible(False)
-        self._hide_code_entry()
-        # A cancelled moderation authorization still owes its caller an
-        # outcome, or the dashboard waits on a button that will never
-        # answer.
-        pending, self._auth_admin_callback = self._auth_admin_callback, None
-        self._auth_mode = AUTH_LOGIN
-        self.refresh_login_widgets()
-        if pending is not None:
-            pending(False)
-
-    def on_app_registered(self, client, result):
-        if client is not self._auth_client:
-            self.discard_reply(client.register_app_finish, result)
-            return
-        try:
-            client.register_app_finish(result)
-        except GLib.Error as e:
-            self._fail_attempt(self._auth_attempt,
-                               _('Could not register with %s')
-                               % client.instance, e.message)
-            return
-        redirect = OOB_REDIRECT if self._fallback \
-            else self._loopback_uri or OAUTH_REDIRECT
-        scopes = ADMIN_SCOPES if self._auth_mode == AUTH_ADMIN else OAUTH_SCOPES
-        self.open_url(client.get_authorize_url(redirect, scopes))
-        if not self._fallback:
-            self.show_toast(
-                _('Finish authorizing moderation in the web browser')
-                if self._auth_mode == AUTH_ADMIN
-                else _('Finish logging in with the web browser'))
-
-    def open_url(self, uri):
-        def launched(launcher, result):
-            try:
-                launcher.launch_finish(result)
-            except GLib.Error:
-                self.open_url_fallback(uri)
-                return
-            self.on_url_opened()
-
-        launcher = Gtk.UriLauncher.new(uri)
-        launcher.launch(self, None, launched)
-
-    def open_url_fallback(self, uri):
-        def opened(source, result):
-            try:
-                source.launch_default_for_uri_finish(result, None)
-            except GLib.Error as e:
-                self.show_error(_('Could not open the web browser'), e.message)
-                return
-            self.on_url_opened()
-
-        app_info = Gio.AppInfo.get_default_for_uri(uri)
-        if app_info is None:
-            self.show_error(_('Could not open the web browser'),
-                            _('No app is set to open web links'))
-            return
-        app_info.launch_default_for_uri_async(uri, None, None, opened)
-
-    def on_url_opened(self):
-        if self._fallback:
-            self._show_code_entry()
-        else:
-            self.paste_code_button.set_visible(True)
-
-    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
-        """Exchange the code a redirect to *redirect_uri* carries.
-
-        Returns whether the exchange started. *uri* arrives on the
-        ``babble://`` scheme or, rebuilt from the request, on the
-        loopback listener; either way it must answer the authorization
-        in flight.
-        """
-        client = self._auth_client
-        if client is None:
-            return False
-        # parse_callback_uri drops a callback whose state belongs to a
-        # different authorization than the one in flight.
-        code = client.parse_callback_uri(uri)
-        if code is None:
-            return False
-        return self.start_token_exchange(code, redirect_uri)
-
-    # Loopback redirect
-
-    def _start_loopback(self):
-        """Listen on 127.0.0.1 for the redirect of the authorization
-        starting now, returning its ``http://127.0.0.1:<port>/callback``
-        URI.
-
-        The browser hands a loopback redirect straight back, so the login
-        needs no ``babble://`` handler registered on the desktop. When no
-        port can be bound this returns None and the authorization names
-        ``babble://`` as before.
-        """
-        self._stop_loopback()
-        server = Soup.Server()
-        try:
-            server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY)
-        except GLib.Error:
-            return None
-        uris = server.get_uris()
-        if not uris or uris[0].get_port() <= 0:
-            server.disconnect()
-            return None
-        # Held weakly: the window owns the server, and a strong handler
-        # would close a cycle through C that the collector cannot see.
-        server.add_handler(None, pages.weak_method(self._on_loopback_request))
-        self._loopback = server
-        self._loopback_uri = loopback_redirect(uris[0].get_port())
-        self._loopback_timeout = GLib.timeout_add_seconds(
-            LOOPBACK_TIMEOUT_SECONDS,
-            pages.weak_method(self._on_loopback_expired))
-        return self._loopback_uri
-
-    def _detach_loopback(self):
-        """Forget the listener without closing it, returning it."""
-        server, self._loopback = self._loopback, None
-        self._loopback_uri = None
-        if self._loopback_timeout:
-            GLib.source_remove(self._loopback_timeout)
-            self._loopback_timeout = 0
-        return server
-
-    def _stop_loopback(self):
-        server = self._detach_loopback()
-        if server is not None:
-            server.disconnect()
-
-    def _on_loopback_expired(self):
-        self._loopback_timeout = 0
-        self._stop_loopback()
-        return GLib.SOURCE_REMOVE
-
-    def _on_loopback_request(self, server, msg, path, _query):
-        """Answer one request to the loopback listener.
-
-        Only ``GET /callback`` answering the authorization in flight is
-        taken, through the same state check a ``babble://`` redirect
-        gets. The first one to start the exchange spends the listener:
-        it closes as soon as the browser has the page.
-        """
-        if server is not self._loopback or path != LOOPBACK_CALLBACK_PATH:
-            msg.set_status(404, None)
-            return
-        if msg.get_method() != 'GET':
-            msg.get_response_headers().replace('Allow', 'GET')
-            msg.set_status(405, None)
-            return
-        redirect = self._loopback_uri
-        query = msg.get_uri().get_query()
-        uri = redirect + '?' + query if query else redirect
-        if not self.on_oauth_callback(uri, redirect):
-            self._loopback_reply(
-                msg, 400,
-                _('Babble could not use this login'),
-                _('Return to Babble and try logging in again.'))
-            return
-        self._loopback_reply(
-            msg, 200,
-            # Translators: heading of the web page the browser shows
-            # once it has handed the login back to the app
-            _('Logged in with Babble'),
-            _('You can close this tab and return to Babble.'))
-        self._detach_loopback()
-        msg.connect('finished', _close_loopback, server)
-        msg.connect('disconnected', _close_loopback, server)
-        # No activation token comes back from the browser, so this may
-        # only mark the window as wanting attention.
-        self.present()
-
-    @staticmethod
-    def _loopback_reply(msg, status, heading, body):
-        page = ('<!DOCTYPE html>\n<html><head><meta charset="utf-8">'
-                '<meta name="viewport" content="width=device-width">'
-                '<title>%s</title><style>body{font-family:system-ui,'
-                'sans-serif;text-align:center;margin:4em 1em}</style>'
-                '</head><body><h1>%s</h1><p>%s</p></body></html>\n'
-                % (html.escape(heading), html.escape(heading),
-                   html.escape(body)))
-        msg.set_status(status, None)
-        msg.get_response_headers().replace('Cache-Control', 'no-store')
-        msg.set_response('text/html; charset=utf-8', Soup.MemoryUse.COPY,
-                         page.encode('utf-8'))
-
     @Gtk.Template.Callback()
-    def on_paste_code_clicked(self, button):
+    def on_paste_code_clicked(self, _button):
         # The authorization is named again for the out-of-band redirect,
         # so nothing can answer on the loopback listener any more.
-        self._stop_loopback()
-        self._fallback = True
         self.paste_code_button.set_visible(False)
-        if self._auth_client is not None and self._auth_client.client_id is not None:
-            self.open_url(
-                self._auth_client.get_authorize_url(OOB_REDIRECT))
-        else:
+        if not self.auth.use_pasted_code():
             self._show_code_entry()
 
     def _show_code_entry(self):
@@ -1836,268 +1559,36 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def on_code_entered(self, entry):
-        code = self.code_entry.get_text().strip()
-        if not code:
-            return
-        self.start_token_exchange(code, OOB_REDIRECT)
+        self.auth.enter_code(entry.get_text())
 
-    def start_token_exchange(self, code, redirect_uri):
-        """Run the single token exchange this authorization allows.
+    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
+        """Exchange the code a redirect to *redirect_uri* carries."""
+        return self.auth.on_oauth_callback(uri, redirect_uri)
 
-        The code is spent and the exchange is marked in flight *before*
-        the request leaves, so a redirect that arrives again -- in the
-        same main loop turn or long after the browser retried it --
-        finds this attempt busy and does nothing at all.
-        """
-        if self._auth_client is None or self._pending_code is not None:
-            return False
-        if not self.consume_code(code):
-            return False
-        attempt = self._auth_attempt
-        self._pending_code = code
-        self.refresh_login_widgets()
-        self._auth_client.request_token_async(
-            code, self.replying(self.on_token_received, attempt),
-            redirect_uri=redirect_uri)
-        return True
-
-    def replying(self, handler, attempt):
-        """Wrap a Gio callback so the handler learns its attempt.
-
-        Gio calls the callback as ``(source, result, *user_data)``, so
-        the attempt travels as user data and arrives last.
-        """
-        return lambda client, result: handler(client, result, attempt)
-
-    @staticmethod
-    def discard_reply(finish, result):
-        """Take delivery of a reply nobody is waiting for, silently."""
-        try:
-            finish(result)
-        except GLib.Error:
-            pass
-
-    def settle_auth_attempt(self, attempt, heading=None, body=None,
-                            message=None):
-        """Close out one authorization attempt with a single outcome.
-
-        The first outcome wins, so a late failure can neither follow the
-        success toast nor replace it, and a duplicate reply for the same
-        attempt stays silent.
-        """
-        if attempt != self._auth_attempt or attempt <= self._settled_attempt:
-            return False
-        self._settled_attempt = attempt
-        self._pending_code = None
-        self._stop_loopback()
-        # The pending "finish in the browser" toast gives way to the
-        # outcome instead of queueing behind it.
-        self.toast_overlay.dismiss_all()
-        if heading is not None:
-            self._auth_client = None
-            self._fallback = False
-            # What the authorization in flight is for. A login installs a new
-            # account; a moderation authorization replaces the token of the
-            # one already signed in, asking for the admin scopes on top.
-            self._auth_mode = AUTH_LOGIN
-            self._auth_admin_callback = None
-            self.refresh_login_widgets()
-            self.show_error(heading, body)
-        elif message is not None:
-            self.show_toast(message)
-        return True
-
-    def _fail_attempt(self, attempt, heading, body):
-        """Close out a failed authorization on the channel it started on.
-
-        A moderation authorization owes its caller an outcome, so it must
-        not settle through the login path -- that one reports to a toast
-        and would leave the dashboard waiting forever.
-        """
-        if self._auth_mode == AUTH_ADMIN:
-            self._settle_admin_authorization(
-                False, _('Authorization failed: %s') % body)
+    def on_url_opened(self):
+        if self.auth.fallback:
+            self._show_code_entry()
         else:
-            self.settle_auth_attempt(attempt, heading, body)
-
-    def on_token_received(self, client, result, attempt):
-        if attempt != self._auth_attempt:
-            self.discard_reply(client.request_token_finish, result)
-            return
-        try:
-            token = client.request_token_finish(result)
-        except GLib.Error as e:
-            self._fail_attempt(attempt, _('Authorization failed'),
-                               e.message)
-            return
-        client.token = token
-        client.verify_credentials_async(
-            self.replying(self.on_credentials_verified, attempt))
-
-    def on_credentials_verified(self, client, result, attempt):
-        if attempt != self._auth_attempt:
-            self.discard_reply(client.verify_credentials_finish, result)
-            return
-        try:
-            account = client.verify_credentials_finish(result)
-        except GLib.Error as e:
-            self._fail_attempt(attempt, _('Could not verify the account'),
-                               e.message)
-            return
-        account['instance'] = client.instance
-        if self._auth_mode == AUTH_ADMIN:
-            self._on_admin_token(client, account, attempt)
-            return
-        client.store_secret_token(
-            account['id'], client.token,
-            lambda error: self.on_token_stored(client, account, attempt,
-                                               error))
-
-    # Moderation authorization
+            self.paste_code_button.set_visible(True)
 
     def authorize_admin(self, callback=None):
         """Ask the instance for the admin scopes on the signed-in account.
 
-        The scopes are not part of the login the app asks for by default:
-        Mastodon lists every requested scope on its consent screen, and
-        "all administrative functions" is not something to ask of
-        everyone. When the role says the account moderates and the token
-        does not carry the scopes, this runs one extra authorization that
-        asks for exactly those and keeps the result as the account's
-        token. *callback(granted)* runs with the outcome.
+        *callback(granted)* runs with the outcome. A refusal is the
+        dashboard's cue to go back to plain moderation, so it always
+        gets one, even when there was nothing to authorize.
         """
         if self.account is None or self.client is None:
             if callback is not None:
                 callback(False)
             return
-        self._auth_admin_callback = callback
-        # Bound the authorization to the account that asked for it: a
-        # switch or a logout while the browser step is open must not let
-        # the reply install a token for the account that replaced it.
-        self._admin_owner = account_store.account_key(self.account)
-        self._auth_client = MastodonClient(self.account['instance'])
-        self._auth_mode = AUTH_ADMIN
-        self.begin_auth_attempt()
-        self.refresh_login_widgets()
-        self._auth_client.register_app_async(
-            scopes=ADMIN_SCOPES, loopback=self._start_loopback(),
-            callback=self.on_app_registered)
+        # Bound to the account that asked for it: a switch or a logout
+        # while the browser step is open must not let the reply install a
+        # token for the account that replaced it.
+        self.auth.start_admin(self.account['instance'],
+                              account_store.account_key(self.account),
+                              callback)
 
-    def _on_admin_token(self, client, account, attempt):
-        """Keep the moderation token as the signed-in account's token."""
-        client.store_secret_token(
-            account['id'], client.token,
-            lambda error: self._on_admin_token_stored(client, account,
-                                                      attempt, error))
-
-    def _on_admin_token_stored(self, client, account, attempt, error):
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._settle_admin_authorization(
-                False, _('The system keyring refused to store the login.'))
-            return
-        # The session must still be the one that asked for moderation.
-        # The attempt id alone cannot tell: switching accounts does not
-        # bump it, so a reply from the previous session would still match.
-        if self.account is None or self._admin_owner != \
-                account_store.account_key(self.account):
-            self._settle_admin_authorization(
-                False, _('The account changed before moderation was '
-                         'authorized.'))
-            return
-        # The freshly verified entity carries no role, and losing it
-        # would take the admin action with it; keep the one we have.
-        account['role'] = self.account.get('role')
-        # The credentials have to land before the token does, or a
-        # restart leaves an account that cannot be revoked on logout.
-        client.store_client_credentials(
-            account['id'], client.client_id, client.client_secret,
-            lambda cred_error: self._on_admin_credentials_stored(
-                client, account, attempt, cred_error))
-
-    def _on_admin_credentials_stored(self, client, account, attempt, error):
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._settle_admin_authorization(
-                False, _('The system keyring refused to store the login.'))
-            return
-        if self.account is None or self._admin_owner != \
-                account_store.account_key(self.account):
-            self._settle_admin_authorization(
-                False, _('The account changed before moderation was '
-                         'authorized.'))
-            return
-        if self.client is not None:
-            self.client.token = client.token
-            self.client.client_id = client.client_id
-            self.client.client_secret = client.client_secret
-        self.account = account
-        self.store_account(account)
-        self._settle_admin_authorization(True, _('Moderation access granted'))
-
-    def _settle_admin_authorization(self, granted, message=None):
-        """Report the outcome once, and clear the admin attempt."""
-        callback = self._auth_admin_callback
-        self._auth_admin_callback = None
-        self._admin_owner = None
-        self._auth_attempt += 1
-        self._stop_loopback()
-        self._auth_client = None
-        self._auth_mode = AUTH_LOGIN
-        self._fallback = False
-        self.paste_code_button.set_visible(False)
-        self._hide_code_entry()
-        self.refresh_login_widgets()
-        if callback is not None:
-            callback(granted)
-        if message is not None:
-            self.show_toast(message)
-
-    def on_token_stored(self, client, account, attempt, error):
-        """Commit the login once the token is really in the keyring.
-
-        Recording an account whose token never landed leaves an entry
-        that signs the user out on the next start, with no explanation
-        here or then. A keyring that refuses the secret is reported
-        instead, and nothing is stored.
-        """
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._report_keyring_failure(attempt, account)
-            return
-        # The client credentials have to land before the account does.
-        # Without them a later logout cannot authenticate the revoke, so
-        # it drops the local account while the server token stays live.
-        client.store_client_credentials(
-            account['id'], client.client_id, client.client_secret,
-            lambda cred_error: self.on_credentials_stored(
-                client, account, attempt, cred_error))
-
-    def on_credentials_stored(self, client, account, attempt, error):
-        """The last keyring write answered: commit, or report."""
-        if attempt != self._auth_attempt:
-            return
-        if error is not None:
-            self._report_keyring_failure(attempt, account)
-            return
-        self.account = account
-        self.store_account(account)
-        self.client = client
-        self.instance_entry.set_text('')
-        self._reset_login()
-        self.show_shell()
-        self.settle_auth_attempt(attempt, message=_('Logged in as @%s')
-                                 % account.get('acct', ''))
-
-    def _report_keyring_failure(self, attempt, account):
-        self.settle_auth_attempt(
-            attempt, _('Could not save the login'),
-            _('The system keyring refused to store the login for '
-              '@%s. Check that a keyring service is running, then '
-              'try again.') % account.get('acct', ''))
 
     def on_logout_requested(self, _action, _param):
         if self.account is None:
@@ -2148,278 +1639,3 @@ class BabbleWindow(Adw.ApplicationWindow):
         # them to one short plain line.
         self.show_toast('%s: %s' % (heading, summarize_error(body)))
 
-
-# XDG portal plumbing: Background (running with the window closed, and
-# the status line shown for it) and GlobalShortcuts (quick post). The
-# callbacks hold the window only through a GObject weak reference, so a
-# pending request never keeps a closed window alive.
-
-_PORTAL_NAME = 'org.freedesktop.portal.Desktop'
-_PORTAL_PATH = '/org/freedesktop/portal/desktop'
-_BACKGROUND = 'org.freedesktop.portal.Background'
-_SHORTCUTS = 'org.freedesktop.portal.GlobalShortcuts'
-_SESSION = 'org.freedesktop.portal.Session'
-
-# The Background portal refuses status messages longer than this.
-STATUS_MAX_CHARS = 96
-# Status changes arriving within this many milliseconds share one call.
-STATUS_DELAY_MS = 1000
-QUICK_POST_SHORTCUT = 'quick-post'
-# A trigger as the XDG shortcuts specification writes it (LOGO is Super).
-QUICK_POST_TRIGGER = 'LOGO+SHIFT+m'
-
-# Portal interface -> its version (0: missing), as first answered.
-_portal_versions = {}
-
-
-def _swallow(finish, result):
-    """Take delivery of a reply nobody is waiting for, discarding any
-    failure. Used where the outcome is already decided and the request
-    was only ever best-effort."""
-    try:
-        finish(result)
-    except GLib.Error:
-        pass
-
-
-def _swallow_call(connection, result):
-    _swallow(connection.call_finish, result)
-
-
-def _session_bus(callback):
-    """Hand *callback* the session bus, or None when there is none."""
-    def done(_source, result):
-        try:
-            bus = Gio.bus_get_finish(result)
-        except GLib.Error:
-            bus = None
-        callback(bus)
-    Gio.bus_get(Gio.BusType.SESSION, None, done)
-
-
-def portal_version(interface, callback):
-    """Call *callback(version)* with the version of the portal
-    *interface*, 0 when the portal or that interface is missing. The
-    answer is cached; a missing session bus is not, it may come back."""
-    if interface in _portal_versions:
-        callback(_portal_versions[interface])
-        return
-
-    def on_got(bus, result):
-        try:
-            version, = bus.call_finish(result).unpack()
-        except GLib.Error:
-            version = 0
-        _portal_versions[interface] = int(version)
-        callback(_portal_versions[interface])
-
-    def on_bus(bus):
-        if bus is None:
-            callback(0)
-            return
-        bus.call(_PORTAL_NAME, _PORTAL_PATH,
-                 'org.freedesktop.DBus.Properties', 'Get',
-                 GLib.Variant('(ss)', (interface, 'version')),
-                 GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, -1, None,
-                 on_got)
-    _session_bus(on_bus)
-
-
-def _portal_request(bus, interface, method, signature, args, options,
-                    on_response):
-    """Call the portal *method*, whose answer arrives later as the
-    ``org.freedesktop.portal.Request`` ``Response`` signal. *options*,
-    the trailing ``a{sv}`` of *signature*, gains the ``handle_token``.
-    *on_response(code, results)* runs once; *code* is None when the call
-    itself failed (no portal, D-Bus error)."""
-    token = 'babble_%s' % secrets.token_hex(8)
-    sender = (bus.get_unique_name() or '').lstrip(':').replace('.', '_')
-    request_path = '/org/freedesktop/portal/desktop/request/%s/%s' % (
-        sender, token)
-    state = {'id': 0}
-
-    def on_signal(_connection, _sender, _path, _iface, _signal, params):
-        unsubscribe()
-        code, results = params.unpack()
-        on_response(code, results)
-
-    def subscribe(path):
-        state['id'] = bus.signal_subscribe(
-            _PORTAL_NAME, 'org.freedesktop.portal.Request', 'Response',
-            path, None, Gio.DBusSignalFlags.NONE, on_signal)
-
-    def unsubscribe():
-        if state['id']:
-            bus.signal_unsubscribe(state['id'])
-            state['id'] = 0
-
-    # Subscribe before calling so the response cannot slip past.
-    subscribe(request_path)
-
-    def on_called(connection, call_result):
-        try:
-            handle, = connection.call_finish(call_result).unpack()
-        except GLib.Error:
-            unsubscribe()
-            on_response(None, {})
-            return
-        if handle != request_path and state['id']:
-            # Pre-0.9 portals pick their own request path.
-            unsubscribe()
-            subscribe(handle)
-
-    options = dict(options, handle_token=GLib.Variant('s', token))
-    bus.call(_PORTAL_NAME, _PORTAL_PATH, interface, method,
-             GLib.Variant(signature, (*args, options)),
-             GLib.VariantType('(o)'), Gio.DBusCallFlags.NONE, -1, None,
-             on_called)
-
-
-def _background_finish(window_ref, allowed):
-    window = window_ref()
-    if window is None:
-        return
-    if allowed is None:  # no portal: nothing to ask, nothing to undo
-        window._background_failed()
-    else:
-        window._background_done(allowed)
-
-
-def _request_background(window_ref, bus):
-    if bus is None:
-        _background_finish(window_ref, None)
-        return
-    if window_ref() is None:
-        return
-
-    def on_response(code, results):
-        _background_finish(window_ref, None if code is None else
-                           code == 0 and bool(results.get('background')))
-
-    _portal_request(bus, _BACKGROUND, 'RequestBackground', '(sa{sv})',
-                    ('',), {
-                        'reason': GLib.Variant('s', _(
-                            'Deliver notifications while the window is '
-                            'closed')),
-                        'autostart': GLib.Variant('b', False),
-                    }, on_response)
-
-
-def _set_background_status(message):
-    """Best-effort ``Background.SetStatus``, which needs version 2 of
-    the portal; *message* '' clears the status."""
-    def on_bus(bus):
-        if bus is not None:
-            bus.call(_PORTAL_NAME, _PORTAL_PATH, _BACKGROUND, 'SetStatus',
-                     GLib.Variant('(a{sv})', (
-                         {'message': GLib.Variant('s', message)},)),
-                     None, Gio.DBusCallFlags.NONE, -1, None, _swallow_call)
-
-    def on_version(version):
-        if version >= 2:
-            _session_bus(on_bus)
-
-    portal_version(_BACKGROUND, on_version)
-
-
-class _ShortcutSession:
-    """A GlobalShortcuts session with the quick post shortcut bound.
-    Holds no window: activating the shortcut goes through the
-    application's ``compose`` action."""
-
-    def __init__(self, bus, handle, on_lost):
-        self.bus = bus
-        self.handle = handle
-        self._on_lost = on_lost
-        self._subscriptions = [
-            bus.signal_subscribe(_PORTAL_NAME, _SHORTCUTS, 'Activated',
-                                 _PORTAL_PATH, None,
-                                 Gio.DBusSignalFlags.NONE,
-                                 self._on_activated),
-            bus.signal_subscribe(_PORTAL_NAME, _SESSION, 'Closed', handle,
-                                 None, Gio.DBusSignalFlags.NONE,
-                                 self._on_closed),
-        ]
-
-    def _on_activated(self, _connection, _sender, _path, _iface, _signal,
-                      params):
-        session, shortcut_id = params.unpack()[:2]
-        if session != self.handle or shortcut_id != QUICK_POST_SHORTCUT:
-            return
-        app = Gio.Application.get_default()
-        if app is not None and app.has_action('compose'):
-            app.activate_action('compose', None)
-
-    def _on_closed(self, *_args):
-        # Ended by the portal (or the user, in the system settings).
-        self._unsubscribe()
-        on_lost, self._on_lost = self._on_lost, None
-        if on_lost is not None:
-            on_lost(self)
-
-    def _unsubscribe(self):
-        for subscription in self._subscriptions:
-            self.bus.signal_unsubscribe(subscription)
-        self._subscriptions = []
-
-    def close(self):
-        if not self._subscriptions:
-            return
-        self._unsubscribe()
-        self._on_lost = None
-        self.bus.call(_PORTAL_NAME, self.handle, _SESSION, 'Close', None,
-                      None, Gio.DBusCallFlags.NONE, -1, None, _swallow_call)
-
-
-def _shortcut_finish(window_ref, session, refused=False):
-    window = window_ref()
-    if window is None:
-        if session is not None:
-            session.close()
-        return
-    window._shortcut_ready(session, refused)
-
-
-def _shortcut_lost(window_ref, session):
-    window = window_ref()
-    if window is not None and window._shortcut_session is session:
-        window._shortcut_session = None
-
-
-def _create_shortcut_session(window_ref, bus):
-    """CreateSession, then BindShortcuts on the session it answers."""
-    if bus is None:
-        _shortcut_finish(window_ref, None)
-        return
-
-    def on_created(code, results):
-        handle = results.get('session_handle') if code == 0 else None
-        if not handle:
-            _shortcut_finish(window_ref, None)
-            return
-        session = _ShortcutSession(
-            bus, handle, lambda lost: _shortcut_lost(window_ref, lost))
-        if window_ref() is None:
-            session.close()
-            return
-
-        def on_bound(code, _results):
-            if code == 0:
-                _shortcut_finish(window_ref, session)
-                return
-            session.close()
-            # 1 is the user saying no; 2 or a failed call refused nothing.
-            _shortcut_finish(window_ref, None, refused=code == 1)
-
-        shortcut = (QUICK_POST_SHORTCUT, {
-            'description': GLib.Variant('s', _('New Post')),
-            'preferred_trigger': GLib.Variant('s', QUICK_POST_TRIGGER),
-        })
-        _portal_request(bus, _SHORTCUTS, 'BindShortcuts',
-                        '(oa(sa{sv})sa{sv})', (handle, [shortcut], ''), {},
-                        on_bound)
-
-    _portal_request(bus, _SHORTCUTS, 'CreateSession', '(a{sv})', (), {
-        'session_handle_token': GLib.Variant(
-            's', 'babble_%s' % secrets.token_hex(8)),
-    }, on_created)

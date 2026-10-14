@@ -47,13 +47,14 @@ def _unique(values):
 
 
 def build_report_payload(account_id, category, status_ids=(), rule_ids=(),
-                         comment='', forward=None):
+                         collection_ids=(), comment='', forward=None):
     """Form fields for POST /api/v1/reports.
 
     Array fields use the ``name[]`` key Rails needs to read several
     values; ``urlencode(doseq=True)`` turns the lists into repeated keys.
     ``rule_ids`` are sent for the ``violation`` category only (and then
-    at least one is required), ``comment`` only when non-blank and at
+    at least one is required), ``collection_ids`` attach Collection
+    evidence (Mastodon 4.6+), ``comment`` only when non-blank and at
     most COMMENT_MAX characters, ``forward`` only when given (remote
     accounts) as the string 'true'/'false' (Rails would read 'False' as
     true). Raises ValueError for input the server would refuse."""
@@ -63,6 +64,9 @@ def build_report_payload(account_id, category, status_ids=(), rule_ids=(),
     seen = _unique(status_ids)
     if seen:
         payload['status_ids[]'] = seen
+    collections = _unique(collection_ids)
+    if collections:
+        payload['collection_ids[]'] = collections
     if category == 'violation':
         rules = _unique(rule_ids)
         if not rules:
@@ -135,12 +139,15 @@ class ReportDialog(Adw.Dialog):
 
     __gtype_name__ = 'BabbleReportDialog'
 
-    def __init__(self, client, account, status=None, parent_widget=None):
+    def __init__(self, client, account, status=None, parent_widget=None,
+                 collection=None):
         super().__init__(content_width=480, content_height=600,
                          title=_('Report @%s') % account.get('acct', ''))
         self.client = client
         self.account = account
         self.status = status
+        self.collection = collection
+        self.collection_ids = [str(collection['id'])] if collection else []
         self.parent_widget = parent_widget
         self.domain = account_domain(account)
         self.category = None
@@ -209,13 +216,24 @@ class ReportDialog(Adw.Dialog):
         AvatarCache.load(avatar, self.account)
         who.add_prefix(avatar)
         group.add(who)
+        if self.collection is not None:
+            collection = Adw.ActionRow(
+                title=self.collection.get('name') or _('Collection'),
+                subtitle=_('Collection'), title_lines=1, subtitle_lines=1,
+                use_markup=False)
+            collection.add_prefix(
+                Gtk.Image(icon_name='view-list-symbolic'))
+            group.add(collection)
         page.add(group)
 
+        if self.collection is not None:
+            subject = _('Tell us what’s going on with this collection')
+        elif self.status is not None:
+            subject = _('Tell us what’s going on with this post')
+        else:
+            subject = _('Tell us what’s going on with this account')
         choices = Adw.PreferencesGroup(
-            title=(_('Tell us what’s going on with this post')
-                   if self.status else
-                   _('Tell us what’s going on with this account')),
-            description=_('Choose the best match'))
+            title=subject, description=_('Choose the best match'))
         first = None
         for category in CATEGORIES:
             title, subtitle = category_info(category)
@@ -414,6 +432,7 @@ class ReportDialog(Adw.Dialog):
             self.account['id'], self.category,
             status_ids=self.selected_statuses(),
             rule_ids=self.selected_rules(),
+            collection_ids=self.collection_ids,
             comment=self.comment_text(),
             forward=(self.forward_row.get_active()
                      if self.forward_row is not None else None))
@@ -446,10 +465,12 @@ class ReportDialog(Adw.Dialog):
         pages.show_toast(parent, _('Report sent'))
 
 
-def present_report(parent_widget, client, account, status=None):
-    """Open the report wizard for *account* (and *status* when given,
-    preselected as evidence). Returns the dialog."""
+def present_report(parent_widget, client, account, status=None,
+                   collection=None):
+    """Open the report wizard for *account* (and *status* or *collection*
+    when given, preselected as evidence). Returns the dialog."""
     dialog = ReportDialog(client, account, status=status,
+                          collection=collection,
                           parent_widget=parent_widget)
     host = pages.window_of(parent_widget) or parent_widget
     dialog.present(host)

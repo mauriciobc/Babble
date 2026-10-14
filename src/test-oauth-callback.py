@@ -139,6 +139,14 @@ class StubClient:
     TOKEN = '{"access_token": "test-token"}'
     ACCOUNT = ('{"id": "42", "acct": "me@example.social",'
                ' "display_name": "Me"}')
+
+    def mastodon_api_version(self):
+        """What the stand-in answers about api_versions: nothing."""
+        return None
+
+    def is_supported(self, min_version, when_unknown=False):
+        """The capability policy a real instance would also honour."""
+        return when_unknown
     EMOJIS = ('[{"shortcode": "blobwave", "visible_in_picker": true,'
               ' "url": "https://example.social/custom/blobwave.png"},'
               ' {"shortcode": "hushpup", "visible_in_picker": false,'
@@ -190,7 +198,8 @@ class StubClient:
     def verify_credentials_finish(self, result):
         return self._finish(result)
 
-    def store_secret_token(self, account_id, token, callback=None):
+    def store_secret_token(self, account_id, token, callback=None,
+                           cancellable=None):
         self.stored = (account_id, token)
         # The real client reports a keyring that refused the secret
         # instead of swallowing it; the login only commits once this
@@ -199,7 +208,7 @@ class StubClient:
             callback(None)
 
     def store_client_credentials(self, account_id, client_id, client_secret,
-                                 callback=None):
+                                 callback=None, cancellable=None):
         # Keyed by account: each authorization registers its own app, so
         # two accounts on one instance hold different credentials.
         self.client_credentials = (account_id, client_id, client_secret)
@@ -268,8 +277,8 @@ def fresh_window():
 def start_attempt(win, client):
     """What a click on the login button leaves behind: a client waiting
     for the redirect that answers it."""
-    win._auth_client = client
-    win.begin_auth_attempt()
+    win.auth._client = client
+    win.auth.begin()
     return client
 
 
@@ -366,7 +375,7 @@ check('an abandoned attempt never signs the account back in',
 win, toasts = fresh_window()
 first = start_attempt(win, StubClient(deferred=True))
 win.on_oauth_callback(REDIRECT_URI)
-win.begin_auth_attempt()
+win.auth.begin()
 first.flush()
 pump()
 check('a reply from a superseded attempt is silent',
@@ -390,7 +399,7 @@ check('the second login settles one toast', len(toasts) == 2)
 
 win, toasts = fresh_window()
 client = start_attempt(win, StubClient())
-win._fallback = True
+win.auth._fallback = True
 win.code_entry.set_text('pasted-code')
 win.on_code_entered(win.code_entry)
 win.on_code_entered(win.code_entry)
@@ -479,7 +488,7 @@ win.instance_entry.set_text('http://plain.example')
 win.on_login_clicked(None)
 pump()
 check('a plaintext login never starts an attempt',
-      win._auth_client is None
+      win.auth.client is None
       and win.main_stack.get_visible_child_name() == 'login')
 
 # --- The application delivers a duplicated dispatch once ---------------
@@ -758,16 +767,17 @@ class AdminScopeClient(StubClient):
         self.client_secret = data['client_secret']
         return data
 
-    def store_secret_token(self, account_id, token, callback=None):
+    def store_secret_token(self, account_id, token, callback=None,
+                           cancellable=None):
         self.stored = (account_id, token)
         if callback is not None:
             callback(None)
 
 
 win, toasts = fresh_window()
-import src.window as window_module  # noqa: E402
-_real_client_class = window_module.MastodonClient
-window_module.MastodonClient = AdminScopeClient
+import src.auth as auth_module  # noqa: E402
+_real_client_class = auth_module.MastodonClient
+auth_module.MastodonClient = AdminScopeClient
 try:
     # Sign in, so there is an account whose token the moderation
     # authorization has to replace.
@@ -800,7 +810,7 @@ try:
           admin.stored == ('42', 'test-token'))
     check('the caller is told it was granted', granted == [True])
     check('a granted attempt leaves no authorization in flight',
-          win._auth_client is None and win._auth_mode == 'login')
+          win.auth.client is None and not win.auth.admin)
 
     # A second attempt that fails must still answer its caller, or the
     # dashboard waits on a button that will never reply.
@@ -809,16 +819,15 @@ try:
     pump()
     retry = AdminScopeClient.created[-1]
     retry.fail_token = True
-    win._auth_client = retry
-    win.begin_auth_attempt()
-    attempt = win._auth_attempt
-    retry.request_token_async('bad', win.replying(win.on_token_received,
-                                                  attempt))
+    win.auth._client = retry
+    attempt = win.auth.begin()
+    retry.request_token_async(
+        'bad', auth_module._replying(win.auth._on_token_received, attempt))
     pump()
     check('a refused moderation attempt answers its caller',
           refused == [False])
 finally:
-    window_module.MastodonClient = _real_client_class
+    auth_module.MastodonClient = _real_client_class
 
 
 class DeferredTokenClient(StubClient):

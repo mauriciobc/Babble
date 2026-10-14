@@ -42,6 +42,7 @@ sys.path.insert(0, srcdir)
 from src.compose import (MAX_ATTACHMENTS, VISIBILITIES,  # noqa: E402
                          BabbleComposeView, ComposeDialog, countable_length)
 from src import compose, emojichooser  # noqa: E402
+from src.drafts import Attachment, Draft  # noqa: E402
 from src.mentioncompleter import mention_query  # noqa: E402
 from gettext import gettext as _, ngettext  # noqa: E402
 
@@ -56,18 +57,19 @@ def check(name, condition):
         print('FAIL - %s' % name)
 
 
-# The composer reaches the desktop portals through window.py's helpers,
-# imported as it is built. The window module needs its resources.
+# The composer reaches the desktop portals through portals.py, which
+# needs nothing from the window. The test still loads the resource bundle,
+# because the composer's widgets live in it.
 builddir = os.environ.get('BABBLE_BUILDDIR') or os.path.dirname(
     os.environ.get('GSETTINGS_SCHEMA_DIR')
     or os.path.join(srcroot, 'build', 'data'))
 Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))._register()
-import src.window as window_module  # noqa: E402
+import src.portals as portals_module  # noqa: E402
 
 SCREENSHOT = 'org.freedesktop.portal.Screenshot'
 #: Portal interface -> version the stub portal_version answers.
 portal_versions = {SCREENSHOT: 1}
-#: What _session_bus hands over; None plays a missing session bus.
+#: What session_bus hands over; None plays a missing session bus.
 session_bus = [object()]
 #: (interface, method, signature, args, options) of each portal call.
 portal_calls = []
@@ -76,11 +78,11 @@ portal_calls = []
 portal_answers = []
 held_responses = []
 
-check('window.py keeps the portal helpers the composer uses',
-      all(callable(getattr(window_module, name, None))
-          for name in ('portal_version', '_session_bus', '_portal_request'))
+check('portals.py keeps the helpers the composer uses',
+      all(callable(getattr(portals_module, name, None))
+          for name in ('portal_version', 'session_bus', 'portal_request'))
       and list(inspect.signature(
-          window_module._portal_request).parameters) == [
+          portals_module.portal_request).parameters) == [
               'bus', 'interface', 'method', 'signature', 'args', 'options',
               'on_response'])
 
@@ -107,9 +109,9 @@ def stub_portal_request(bus, interface, method, signature, args, options,
         held_responses.append(on_response)
 
 
-window_module.portal_version = stub_portal_version
-window_module._session_bus = stub_session_bus
-window_module._portal_request = stub_portal_request
+portals_module.portal_version = stub_portal_version
+portals_module.session_bus = stub_session_bus
+portals_module.portal_request = stub_portal_request
 
 # A 1x1 PNG so attachment thumbnails render for real.
 PNG_BYTES = bytes.fromhex(
@@ -489,7 +491,8 @@ row.alt_entry.set_text('red pixel for testing')
 row.alt_entry.emit('changed')
 check('alt change recorded', row.description == 'red pixel for testing')
 check('media shows up in snapshot',
-      view.snapshot()['attachments'][0]['alt'] == 'red pixel for testing')
+      isinstance(view.snapshot().attachments[0], Attachment)
+      and view.snapshot().attachments[0].alt == 'red pixel for testing')
 
 pump(50)
 
@@ -764,17 +767,17 @@ check('a changed draft replaces its earlier version',
 dialog.present(app_window)
 pump(50)
 dialog.view.buffer.set_text('in progress')
-dialog.view.restore_stashing({
+dialog.view.restore_stashing(Draft.parse({
     'text': 'recovered draft', 'visibility': 0, 'language': 0,
     'cw_visible': False, 'cw_text': '', 'attachments': [],
     'poll': {'active': False, 'options': ['', ''], 'expires': 0},
-    'in_reply_to_id': None, 'key': 'mastodon.social#11', 'saved_at': 'x'})
+    'in_reply_to_id': None, 'key': 'mastodon.social#11', 'saved_at': 'x'}))
 pump(50)
 check('restore replaces the buffer',
       dialog.view.text() == 'recovered draft')
 check('restore stashes the content in progress',
       bool(dialog.view._draft_stack)
-      and dialog.view._draft_stack[0]['text'] == 'in progress')
+      and dialog.view._draft_stack[0].text == 'in progress')
 
 # The draft that was just posted is no longer offered for restoring.
 dialog.present(app_window)
@@ -1091,20 +1094,32 @@ check('drops are taken again after posting',
 clipboard = view.text_view.get_clipboard()
 
 
-def paste(content, settle_ms=300):
+def paste(content, settle_ms=300, attachments=False):
+    """Set the clipboard to *content* and paste into the composer.
+
+    A file or image has to ride an async read before an attachment row
+    shows up, so ``attachments=True`` waits for the count to go up rather
+    than a fixed time: a pump that is merely long enough is exactly what
+    a busy machine cannot rely on.
+    """
     if isinstance(content, Gdk.ContentProvider):
         clipboard.set_content(content)
     else:
         clipboard.set(content)
     pump(50)
     view.text_view.emit('paste-clipboard')
-    pump(settle_ms)
+    if not attachments:
+        pump(settle_ms)
+        return
+    count_on_entry = len(view.attachments())
+    settle_until(settle_ms / 1000.0,
+                 lambda: len(view.attachments()) > count_on_entry)
 
 
 texture = Gdk.MemoryTexture.new(2, 2, Gdk.MemoryFormat.R8G8B8A8,
                                 GLib.Bytes.new(bytes(range(16))), 8)
 collect_toasts()
-paste(texture)
+paste(texture, attachments=True)
 rows = view.attachments()
 pasted = rows[0].path if rows else ''
 check('pasting an image adds one attachment', len(rows) == 1)
@@ -1129,14 +1144,15 @@ check('pasting images raised no toast of its own',
       collect_toasts() == [_('Attachment removed')])
 view.reset()
 
-paste(Gdk.ContentProvider.new_for_value(file_list([png_a, notes])))
+paste(Gdk.ContentProvider.new_for_value(file_list([png_a, notes])),
+      attachments=True)
 check('pasting files copied in Files attaches the media among them',
       [row.path for row in view.attachments()] == [png_a]
       and view.text() == '' and collect_toasts() == [ONLY_MEDIA])
 view.reset()
 
 view._posting = True
-paste(texture)
+paste(texture, attachments=True)
 check('an image pasted while posting is refused with a toast',
       view.attachments() == [] and collect_toasts() == [BUSY_POSTING])
 paste('pasted words')

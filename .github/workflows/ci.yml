@@ -54,12 +54,17 @@ jobs:
         run: meson compile -C build
 
       - name: Test
-        # dbus-run-session supplies the bus the keyring tests need;
-        # --print-errorlogs puts a failing test's own output in the
-        # console rather than only in meson-logs/testlog.txt.
+        # Serialized, deliberately. The widget suites share one Xvfb
+        # display, and several of them pump the same main context; run
+        # concurrently, they race against each other and flake on a
+        # perfectly clean tree (roughly 1 run in 3). A condition-wait in
+        # a test cannot cancel that, because the contention is between
+        # tests, not inside one. Priced at about a minute of wall clock.
+        # -j1 is meson's serial switch, not a retry knob: the run stays
+        # honest, one test at a time.
         run: |
           xvfb-run -a dbus-run-session -- \
-            meson test -C build --print-errorlogs 2>&1 | tee ci.log
+            meson test -C build -j1 --print-errorlogs 2>&1 | tee ci.log
 
       - name: Check the suite ran
         # A test that exits 77 is skipped, and meson still exits 0, so a
@@ -94,3 +99,46 @@ jobs:
         with:
           # The whole repository, not just src/: bench/ is checked too.
           args: check .
+
+  flatpak:
+    name: Flatpak manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the manifest parses
+        # Cheapest possible rot check, and the one that needs no
+        # network: a manifest that is not valid JSON fails here in a
+        # second instead of after a ten-minute SDK download.
+        run: |
+          python3 -m json.tool \
+            build-aux/flatpak/io.github.mauriciobc.Babble.json > /dev/null
+
+      - name: Build against the GNOME 51 SDK
+        # The manifest rot the meson suite cannot see: a renamed source
+        # URL, a bumped tarball that moved, a module whose build options
+        # no longer apply. This builds the whole thing, so the manifest
+        # cannot go quietly stale between releases.
+        #
+        # The 51 SDK comes from Flathub, not from the nightly remote: it
+        # is listed there and the nightly remote answers GPG verification
+        # with "no summary found" when it is added from a bare URL, which
+        # reads as an SDK problem that is not one.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y \
+            org.gnome.Sdk//51 org.gnome.Platform//51
+          # rofiles-fuse is unavailable in the runner's kernel namespace;
+          # without this every app install step hangs on it.
+          flatpak-builder --user --force-clean \
+            --disable-rofiles-fuse \
+            build-flatpak \
+            build-aux/flatpak/io.github.mauriciobc.Babble.json
+
+      - name: Report where the build landed
+        # Not an assertion, just the artifact the run would be judged
+        # from: the installed tree under /app.
+        run: ls -1 build-flatpak/files/bin build-flatpak/files/share

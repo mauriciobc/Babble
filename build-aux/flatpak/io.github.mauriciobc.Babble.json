@@ -23,8 +23,10 @@
 			"config-opts": [
 				"-Ddocs=false",
 				"-Dvapi=false",
-				"-Dsysprof=false"
+				"-Dsysprof=false",
+				"-Dlibdir=lib"
 			],
+			"x-comment-libdir": "Pin libdir to lib, not the meson default for this platform. flatpak-builder's pkg-config path inside the SDK covers /app/lib/pkgconfig; meson's default resolved to /app/lib64 on CI's Sdk, so the .pc landed where pkg-config never looks and Babble configured without spell checking. On a host Sdk it resolved to lib and built fine, which is why the manifest did not look broken locally.",
 			"sources": [
 				{
 					"type": "archive",

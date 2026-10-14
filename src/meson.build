@@ -31,6 +31,7 @@ install_data(
   'accounts.py',
   'admin.py',
   'announcements.py',
+  'auth.py',
   'catchup.py',
   'catchupdigest.py',
   'catchupgrid.py',
@@ -39,6 +40,8 @@ install_data(
   'compose.py',
   'conversations.py',
   'desktopnotify.py',
+  'drafts.py',
+  'clipboard.py',
   'emojichooser.py',
   'explore.py',
   'fedicollections.py',
@@ -52,6 +55,7 @@ install_data(
   'mentioncompleter.py',
   'notifications.py',
   'pages.py',
+  'portals.py',
   'preferences.py',
   'profile.py',
   'profileedit.py',
@@ -191,6 +195,29 @@ test('catchup digest', python,
   timeout: 60,
 )
 
+# Needs no display and no server: all it reads is line counts.
+test('file size rule', python,
+  args: [files('test-file-size.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
+# Needs no display and no server: it only checks how a client reads
+# api_versions.mastodon.
+test('capability gates', python,
+  args: [files('test-capability.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
+# Needs no display and no server: it only reads source, looking for a
+# comparison written against the accessor instead of the seam.
+test('version gate call sites', python,
+  args: [files('test-version-gates.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
 test('catchup rank', python,
   args: [files('test-catchup-rank.py')],
   env: catchup_test_env,
@@ -217,6 +244,14 @@ test('catchup page', python,
   args: [files('test-catchup.py')],
   env: catchup_page_test_env,
   timeout: 120,
+)
+
+# The Collections helpers and their tests import no widgets, and only
+# read the source dir.
+test('collections', python,
+  args: [files('test-collections.py')],
+  env: catchup_test_env,
+  timeout: 60,
 )
 
 catchup_grid_test_env = environment()

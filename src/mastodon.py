@@ -85,6 +85,26 @@ def summarize_error_markup(text):
     return GLib.markup_escape_text(summarize_error(text))
 
 
+def log_deprecation(method, path, headers):
+    """Surface an RFC 9745 ``Deprecation`` notice in development.
+
+    Mastodon 4.4+ marks endpoints it intends to retire with a
+    ``Deprecation`` header (and sometimes ``Sunset``). Pointing them out
+    under ``G_MESSAGES_DEBUG=Babble`` lets the client be migrated before
+    a release removes the route; an ordinary run stays quiet. Returns
+    the message it logged, or None when the response carried no notice.
+    """
+    notice = headers.get_one('Deprecation')
+    if not notice:
+        return None
+    message = '%s %s is deprecated by the server (migrate before %s)' % (
+        method, path, headers.get_one('Sunset') or notice)
+    GLib.log_variant('Babble', GLib.LogLevelFlags.LEVEL_DEBUG,
+                     GLib.Variant('a{sv}', {'MESSAGE': GLib.Variant(
+                         's', message)}))
+    return message
+
+
 def generate_code_verifier():
     """A fresh RFC 7636 ``code_verifier`` (43 chars, unreserved set)."""
     return _secrets.token_urlsafe(CODE_VERIFIER_BYTES)
@@ -114,7 +134,12 @@ def loopback_redirect(port):
     return 'http://127.0.0.1:%d%s' % (port, LOOPBACK_CALLBACK_PATH)
 
 
-OAUTH_SCOPES = 'read write follow'
+# The one scope set the ordinary login asks for. ``follow`` was the
+# third member until Mastodon 3.5 deprecated it: every granular scope it
+# granted (read/write of follows, blocks and mutes) is reached through
+# ``read``/``write``, so naming it now only puts a deprecated scope on
+# the instance's consent screen.
+OAUTH_SCOPES = 'read write'
 
 # The moderation scopes, asked for only by the admin dashboard and only
 # once the account's role says it could use them. A registration that
@@ -123,6 +148,11 @@ OAUTH_SCOPES = 'read write follow'
 # puts "All administrative functions" on the consent screen, so every
 # ordinary login must stay on OAUTH_SCOPES.
 ADMIN_SCOPES = OAUTH_SCOPES + ' admin:read admin:write'
+
+# The API version the Collections feature rides in on (Mastodon 4.6.0),
+# and the only one a UI access gate asks for today. Every other feature
+# version lives next to the dialog that uses it.
+COLLECTIONS_API_VERSION = 10
 
 # Shown as the application's own homepage on the instance's consent
 # screen. It is Babble's address, never the server the user is signing
@@ -355,6 +385,8 @@ class MastodonClient(GObject.Object):
             data = {'error': text}
         status = message.get_status()
         headers = message.get_response_headers()
+        log_deprecation(message.get_method(), message.get_uri().get_path(),
+                        headers)
         if 200 <= status < 300 and status != Soup.Status.NONE:
             link = headers.get_one('Link') or ''
             task.return_value(GLib.Variant('s', json.dumps(
@@ -467,6 +499,42 @@ class MastodonClient(GObject.Object):
         info = self.instance_info or {}
         statuses = (info.get('configuration') or {}).get('statuses') or {}
         return statuses.get('max_characters') or 500
+
+    def mastodon_api_version(self):
+        """The instance's ``api_versions.mastodon``, or None when it says
+        nothing at all.
+
+        Three things are conflated by reading this as an int and getting
+        0 on a server that does not carry the key: a Mastodon older than
+        4.3 (where the key first appears), a Mastodon that old and then
+        some, and a server that is not Mastodon at all. A None keeps
+        those apart -- "no answer" versus "answered 0".
+        """
+        versions = (self.instance_info or {}).get('api_versions') or {}
+        try:
+            return int(versions.get('mastodon'))
+        except (TypeError, ValueError):
+            return None
+
+    def is_supported(self, min_version, when_unknown=False):
+        """Whether the instance has the Mastodon *min_version* and later
+        feature the caller is about to use.
+
+        The answer is None when the server says nothing about
+        api_versions.mastodon: without it, the feature is unproven rather
+        than absent. *when_unknown* is what a caller does with that, and
+        lives here rather than at every call site so a caller states its
+        policy once, in the natural reading order, instead of spelling
+        out ``is True`` and a comment.
+
+        A Mastodon feature a fork does not ship, a fork feature Mastodon
+        does not, and an old Mastodon are three different answers, and
+        only the first two are ones the instance can tell us about.
+        """
+        version = self.mastodon_api_version()
+        if version is None:
+            return when_unknown
+        return version >= min_version
 
     # OAuth
 
@@ -850,12 +918,17 @@ class MastodonClient(GObject.Object):
     def media_upload_async(self, file_bytes, filename, content_type,
                            description=None, callback=None,
                            cancellable=None):
-        """Upload one attachment to ``POST /api/v1/media`` (docs.
+        """Upload one attachment to ``POST /api/v2/media`` (docs.
         joinmastodon.org/methods/media), multipart/form-data with a
-        ``file`` part and optional ``description`` alt text."""
+        ``file`` part and optional ``description`` alt text.
+
+        The v2 route answers HTTP 202 with a ``url`` of null while the
+        full-size file is processed in the background; the composer polls
+        ``GET /api/v1/media/:id`` until it appears. The v1 route it
+        replaced has been deprecated since Mastodon 3.1.3."""
         fields = {'description': description} if description else None
         return self.multipart_async(
-            'POST', '/media', fields=fields,
+            'POST', '/api/v2/media', fields=fields,
             files={'file': (file_bytes, filename, content_type)},
             callback=callback, cancellable=cancellable)
 
