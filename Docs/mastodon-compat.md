@@ -47,6 +47,28 @@ informational for a future capability matrix — see `Docs/ROADMAP.MD`
 Phase 5 — and must not be used to hide hashtag or trending pages, because
 the account can still read their local content.
 
+## Collections (4.6+, API v10)
+
+The full method surface is implemented in `fedicollections.py`: CRUD,
+membership items, consent and the creation limit. The client-guide
+integration points:
+
+- **Consent** — `Account#feature_approval.current_user`; only
+  `automatic`/`manual` may be added (`can_invite`), `denied`/`unknown`/
+  `missing` are refused.
+- **Member states** — `pending`/`accepted` are members; `rejected`/
+  `revoked` are hidden (`_is_member`).
+- **Sharing** — a post's `Status#tagged_collections` renders as a
+  `CollectionCard` under the body (`timeline._show_collections`), and a
+  `/collections/:id` URL resolves through `/api/v2/search?resolve=true`
+  and opens `CollectionPage` in-app (`pages.fedi_link_kind`,
+  `pages.open_collection`, `pages.resolve_uri`).
+- **Reporting** — `POST /reports` carries `collection_ids[]`
+  (`report.build_report_payload`), offered by the "Report" action on a
+  Collection (`fedicollections.CollectionActions.report`).
+- **Account handle** — `Account#invalid_handle` (4.7.0) shows a warning
+  icon on account rows and an "Unverified Handle" chip on the profile.
+
 ## Deliberately not deprecated
 
 - **Media upload** uses `POST /api/v2/media` (v1 was deprecated in
