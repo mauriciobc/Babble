@@ -37,17 +37,6 @@ PROFILE_TABS_VERSION = 8
 PROFILE_ALT_TEXT_VERSION = 9
 
 
-def mastodon_api_version(client):
-    """The instance's ``api_versions.mastodon``, or 0 when it says
-    nothing at all (a server older than Mastodon 4.3)."""
-    versions = ((getattr(client, 'instance_info', None) or {})
-                .get('api_versions') or {})
-    try:
-        return int(versions.get('mastodon') or 0)
-    except (TypeError, ValueError):
-        return 0
-
-
 VISIBILITIES = (
     ('public', _('Public')),
     ('unlisted', _('Quiet public')),
@@ -296,7 +285,7 @@ class ProfileEditDialog(Adw.Dialog):
         self.avatar_row.add_suffix(self._choose_button(False))
         listbox.add(self.avatar_row)
         self.avatar_alt = None
-        if mastodon_api_version(self.client) >= PROFILE_ALT_TEXT_VERSION \
+        if self.client.mastodon_api_version() >= PROFILE_ALT_TEXT_VERSION \
                 and 'avatar_description' in self.account:
             self.avatar_alt = Adw.EntryRow(
                 title=_('Avatar Description'),
@@ -309,7 +298,7 @@ class ProfileEditDialog(Adw.Dialog):
         self.header_row.add_suffix(self._choose_button(True))
         listbox.add(self.header_row)
         self.header_alt = None
-        if mastodon_api_version(self.client) >= PROFILE_ALT_TEXT_VERSION \
+        if self.client.mastodon_api_version() >= PROFILE_ALT_TEXT_VERSION \
                 and 'header_description' in self.account:
             self.header_alt = Adw.EntryRow(
                 title=_('Header Description'),
@@ -515,7 +504,7 @@ class ProfileEditDialog(Adw.Dialog):
         # PATCH /api/v1/profile arrived with Mastodon 4.6 (API version
         # 8). Asking an older server for it is a 404, so the switches
         # stay out of the dialog and nothing is sent.
-        if mastodon_api_version(self.client) < PROFILE_TABS_VERSION:
+        if self.client.mastodon_api_version() < PROFILE_TABS_VERSION:
             return
         if not any(key in self.account for key, _t in TAB_FLAGS):
             return

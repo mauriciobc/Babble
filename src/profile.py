@@ -1591,11 +1591,16 @@ class ProfilePage(Adw.Bin):
     def set_endorsed(self, endorse):
         """Feature or unfeature the account on your own profile. Servers
         that predate the ``endorse`` aliases only know ``pin``/``unpin``,
-        so a 404 retries with the other spelling."""
-        version = ((self.client.instance_info or {}).get('api_versions')
-                   or {}).get('mastodon', 0)
+        so a 404 retries with the other spelling.
+
+        The switch is a range, not a threshold: both ends matter, since
+        version 6 is when ``endorse`` appeared and any server before it
+        needs the old names. A server that says nothing about
+        api_versions.mastodon keeps the modern spelling, which is what a
+        404 and the fallback before that already tried."""
+        version = self.client.mastodon_api_version()
         names = ('endorse', 'pin') if endorse else ('unendorse', 'unpin')
-        if 0 < version < 6:
+        if version is not None and version < 6:
             names = names[::-1]
         done = _('Featured %s on your profile') if endorse \
             else _('Removed %s from your featured profiles')

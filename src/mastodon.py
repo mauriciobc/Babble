@@ -149,6 +149,11 @@ OAUTH_SCOPES = 'read write'
 # ordinary login must stay on OAUTH_SCOPES.
 ADMIN_SCOPES = OAUTH_SCOPES + ' admin:read admin:write'
 
+# The API version the Collections feature rides in on (Mastodon 4.6.0),
+# and the only one a UI access gate asks for today. Every other feature
+# version lives next to the dialog that uses it.
+COLLECTIONS_API_VERSION = 10
+
 # Shown as the application's own homepage on the instance's consent
 # screen. It is Babble's address, never the server the user is signing
 # in to.
@@ -494,6 +499,42 @@ class MastodonClient(GObject.Object):
         info = self.instance_info or {}
         statuses = (info.get('configuration') or {}).get('statuses') or {}
         return statuses.get('max_characters') or 500
+
+    def mastodon_api_version(self):
+        """The instance's ``api_versions.mastodon``, or None when it says
+        nothing at all.
+
+        Three things are conflated by reading this as an int and getting
+        0 on a server that does not carry the key: a Mastodon older than
+        4.3 (where the key first appears), a Mastodon that old and then
+        some, and a server that is not Mastodon at all. A None keeps
+        those apart -- "no answer" versus "answered 0".
+        """
+        versions = (self.instance_info or {}).get('api_versions') or {}
+        try:
+            return int(versions.get('mastodon'))
+        except (TypeError, ValueError):
+            return None
+
+    def is_supported(self, min_version, when_unknown=False):
+        """Whether the instance has the Mastodon *min_version* and later
+        feature the caller is about to use.
+
+        The answer is None when the server says nothing about
+        api_versions.mastodon: without it, the feature is unproven rather
+        than absent. *when_unknown* is what a caller does with that, and
+        lives here rather than at every call site so a caller states its
+        policy once, in the natural reading order, instead of spelling
+        out ``is True`` and a comment.
+
+        A Mastodon feature a fork does not ship, a fork feature Mastodon
+        does not, and an old Mastodon are three different answers, and
+        only the first two are ones the instance can tell us about.
+        """
+        version = self.mastodon_api_version()
+        if version is None:
+            return when_unknown
+        return version >= min_version
 
     # OAuth
 

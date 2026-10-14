@@ -18,9 +18,9 @@ from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from . import portals  # noqa: E402
-from .mastodon import (OAUTH_REDIRECT, MastodonClient,  # noqa: E402
-                       clear_secret_async, normalize_instance,
-                       summarize_error)
+from .mastodon import (COLLECTIONS_API_VERSION, OAUTH_REDIRECT,  # noqa: E402
+                       MastodonClient, clear_secret_async,
+                       normalize_instance, summarize_error)
 from .statustext import relative_time  # noqa: E402
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
 
@@ -360,11 +360,14 @@ class BabbleWindow(Adw.ApplicationWindow):
                      'announcements', 'follow-requests', 'mutes-blocks',
                      'drafts', 'scheduled', 'wrapped', 'goto-place'):
             self.lookup_action(name).set_enabled(signed_in)
-        info = (getattr(self.client, 'instance_info', None)
-                if signed_in else None) or {}
-        versions = info.get('api_versions') or {}
+        # A server that is not Mastodon, or an older one, is told no
+        # rather than being assumed yes: Collections is Mastodon API
+        # version 10, and an unproven server is not evidence that it has
+        # it. The admin switch is about the signed-in role, not the
+        # server's version.
         self.lookup_action('collections').set_enabled(
-            signed_in and (versions.get('mastodon') or 0) >= 10)
+            signed_in and self.client.is_supported(
+                COLLECTIONS_API_VERSION))
         self.lookup_action('admin').set_enabled(
             signed_in and account_store.role_is_admin(self.account))
         self._refresh_draft_banner()

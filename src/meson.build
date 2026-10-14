@@ -195,6 +195,14 @@ test('catchup digest', python,
   timeout: 60,
 )
 
+# Needs no display and no server: it only checks how a client reads
+# api_versions.mastodon.
+test('capability gates', python,
+  args: [files('test-capability.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
 test('catchup rank', python,
   args: [files('test-catchup-rank.py')],
   env: catchup_test_env,
