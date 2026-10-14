@@ -28,11 +28,15 @@ LIMIT = 800
 SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py')
 
 # Recorded in CLAUDE.md, not silently tolerated. The reason is stated
-# here, where a future reader will meet it, and mirrored in CLAUDE.md.
+# here, where a future reader will meet it, and mirrored in CLAUDE.md;
+# the line count itself is what this test prints above, so it is not
+# repeated here to go stale.
 EXCEPTIONS = {
-    'window.py': '1638 lines, four of five seams extracted; the '
-                 'remaining lines are view routing over page containers '
-                 'the window owns.',
+    'window.py': 'four of five seams extracted (portals, auth, drafts, '
+                 'clipboard); the remaining lines are view routing over '
+                 'page containers the window owns, and extracting them '
+                 'would invert streaming.py\'s dependency on that state '
+                 'rather than cut a seam.',
 }
 
 failures = 0
