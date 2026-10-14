@@ -210,6 +210,14 @@ test('capability gates', python,
   timeout: 60,
 )
 
+# Needs no display and no server: it only reads source, looking for a
+# comparison written against the accessor instead of the seam.
+test('version gate call sites', python,
+  args: [files('test-version-gates.py')],
+  env: catchup_test_env,
+  timeout: 60,
+)
+
 test('catchup rank', python,
   args: [files('test-catchup-rank.py')],
   env: catchup_test_env,

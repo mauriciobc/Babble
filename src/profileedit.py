@@ -285,7 +285,7 @@ class ProfileEditDialog(Adw.Dialog):
         self.avatar_row.add_suffix(self._choose_button(False))
         listbox.add(self.avatar_row)
         self.avatar_alt = None
-        if self.client.mastodon_api_version() >= PROFILE_ALT_TEXT_VERSION \
+        if self.client.is_supported(PROFILE_ALT_TEXT_VERSION) \
                 and 'avatar_description' in self.account:
             self.avatar_alt = Adw.EntryRow(
                 title=_('Avatar Description'),
@@ -298,7 +298,7 @@ class ProfileEditDialog(Adw.Dialog):
         self.header_row.add_suffix(self._choose_button(True))
         listbox.add(self.header_row)
         self.header_alt = None
-        if self.client.mastodon_api_version() >= PROFILE_ALT_TEXT_VERSION \
+        if self.client.is_supported(PROFILE_ALT_TEXT_VERSION) \
                 and 'header_description' in self.account:
             self.header_alt = Adw.EntryRow(
                 title=_('Header Description'),
@@ -503,8 +503,12 @@ class ProfileEditDialog(Adw.Dialog):
         self.tab_rows = {}
         # PATCH /api/v1/profile arrived with Mastodon 4.6 (API version
         # 8). Asking an older server for it is a 404, so the switches
-        # stay out of the dialog and nothing is sent.
-        if self.client.mastodon_api_version() < PROFILE_TABS_VERSION:
+        # stay out of the dialog and nothing is sent. A server that says
+        # nothing about its version keeps the same answer, by the policy
+        # `is_supported` defaults to: an unproven server is not evidence
+        # that it has the route, which is also how the Collections
+        # switch reads.
+        if not self.client.is_supported(PROFILE_TABS_VERSION):
             return
         if not any(key in self.account for key, _t in TAB_FLAGS):
             return

@@ -27,6 +27,14 @@ Mastodon 4.4.0). Babble does all four.
 | Live feed access (`live_feeds`) | 4.5.0 | `configuration.timelines_access` | `streaming.public_feed_access` |
 | Trending-link timeline | 4.3.0 | instance version | `explore.supports_link_timeline` |
 
+A gate is answered through `client.is_supported(min_version)`, never by
+comparing `mastodon_api_version()` at the call site: that accessor
+returns `None` when the instance says nothing, and `None` does not
+compare. `is_supported` defaults to `when_unknown=False`, so an unproven
+server is told no — the versioned part stays out of the UI instead of
+being asked for and 404ing. `profile._set_endorsed` is the one caller
+that wants the other policy, and states it.
+
 ## `configuration.timelines_access` (4.5+)
 
 Three settings, each with `local`/`remote` sides. Only `live_feeds`
