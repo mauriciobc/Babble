@@ -35,7 +35,8 @@ sys.path.insert(0, srcdir)
 from src.mastodon import MastodonClient  # noqa: E402
 from src.notifications import (NotificationItem, NotificationModel,  # noqa: E402
                                NotificationPost, NotificationRow,
-                               NotificationsPage, notification_title)
+                               NotificationsPage, notification_detail,
+                               notification_title)
 
 failures = []
 
@@ -93,6 +94,16 @@ SIGNUP = make_notification('91', 'admin.sign_up', ACTOR,
                            '2026-10-05T10:00:00.000Z')
 MYSTERY = make_notification('90', 'future.mystery', ACTOR,
                             '2026-10-05T09:00:00.000Z')
+
+# Mastodon 4.6 notification types that carry a `collection` object.
+COLLECTION = {'id': '300', 'name': 'Nice accounts',
+              'description': 'These accounts are very nice'}
+COLLECTION_ADD = make_notification('89', 'added_to_collection', ACTOR,
+                                   '2026-10-05T08:00:00.000Z')
+COLLECTION_ADD['collection'] = COLLECTION
+COLLECTION_UPDATE = make_notification('88', 'collection_update', ACTOR2,
+                                      '2026-10-05T07:00:00.000Z')
+COLLECTION_UPDATE['collection'] = COLLECTION
 
 FIXTURES = [MENTION, FOLLOW, FAV_A, FAV_B, FAV_C, REBLOG, POLL, EDIT,
             REQUEST, SIGNUP, MYSTERY]
@@ -172,6 +183,19 @@ check('follow title', notification_title(
 check('unknown type falls back to generic title',
       notification_title(
           NotificationItem(MYSTERY)) == 'Alice Doe interacted with you')
+check('added to collection names the collection',
+      notification_title(NotificationItem(COLLECTION_ADD))
+      == 'Alice Doe added you to Nice accounts')
+check('collection update names the collection',
+      notification_title(NotificationItem(COLLECTION_UPDATE))
+      == 'Bob updated Nice accounts')
+check('a collection notification carries its description',
+      notification_detail(NotificationItem(COLLECTION_ADD), '')
+      == 'These accounts are very nice')
+collection_model = NotificationModel()
+collection_model.append_page([COLLECTION_ADD, COLLECTION_UPDATE])
+check('collection notifications stay separate rows',
+      collection_model.get_n_items() == 2)
 check('timestamp rendered',
       NotificationItem(FAV_A).timestamp != '')
 
