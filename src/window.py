@@ -9,10 +9,11 @@ from .i18n import gettext as _, ngettext
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import auth  # noqa: E402
+from . import clipboard  # noqa: E402
 from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
@@ -23,22 +24,6 @@ from .mastodon import (OAUTH_REDIRECT, MastodonClient,  # noqa: E402
 from .statustext import relative_time  # noqa: E402
 from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
 
-# How long the loopback listener waits for the browser to come back.
-LOOPBACK_TIMEOUT_SECONDS = 10 * 60
-
-
-COPIED_LINK_MAX = 2048
-
-
-def copied_link_kind(text):
-    """``'post'``, ``'profile'`` or ``'tag'`` when *text* (already
-    stripped) is a single fediverse link, else None."""
-    if not text or len(text) > COPIED_LINK_MAX or any(
-            c.isspace() for c in text):
-        return None
-    return pages.fedi_link_kind(text)
-
-
 # One-click alternatives for the login suggestions row, ranked from the
 # public JoinMastodon server directory (api.joinmastodon.org/servers)
 # by weekly active users, largest communities first.
@@ -46,15 +31,6 @@ SUGGESTED_SERVERS = (
     'mastodon.social', 'mstdn.social', 'infosec.exchange', 'mstdn.jp',
     'hachyderm.io', 'piaille.fr', 'mastodon.world', 'social.vivaldi.net',
     'epsilon.social', 'troet.cafe', 'mastodon.uno', 'mathstodon.xyz')
-
-# Authorization codes are handed out by the instance and spent by
-# /oauth/token, so a ledger of this many recent codes outlives every
-# redelivery a browser can be trusted to make of one redirect.
-MAX_CONSUMED_CODES = 32
-
-# What an authorization in flight is for.
-AUTH_LOGIN = 'login'
-AUTH_ADMIN = 'admin'
 
 # Sidebar places in Tuba's order: (tag, icon, group). Titles are looked
 # up at runtime so they translate.
@@ -416,89 +392,12 @@ class BabbleWindow(Adw.ApplicationWindow):
     # Copied link banner
 
     def _setup_copied_link_banner(self):
-        """Add the 'Open copied post?' banner below the draft banner and
-        watch focus and the clipboard for links worth offering."""
-        self.copied_link_banner = Adw.Banner(button_label=_('_Open'),
-                                             use_markup=False)
+        """Add the 'Open copied post?' banner below the draft banner."""
+        self.copied_link_banner = clipboard.CopiedLinkBanner(self)
         self.draft_banner.get_parent().insert_child_after(
             self.copied_link_banner, self.draft_banner)
-        pages.connect_weak(self.copied_link_banner, 'button-clicked',
-                           self._on_copied_link_open)
-        # Links already offered, opened or not: none is offered twice.
-        self._offered_links = set()
-        self._copied_link = None
-        self._clipboard_read = 0
-        pages.connect_weak(self, 'notify::is-active',
-                           self._on_active_changed)
-        pages.connect_weak(self.get_clipboard(), 'changed',
-                           self._on_clipboard_changed)
 
-    def _on_active_changed(self, *_args):
-        if self.is_active():
-            self._check_clipboard()
-
-    def _on_clipboard_changed(self, *_args):
-        if self.is_active():
-            self._check_clipboard()
-        elif self.copied_link_banner.get_revealed():
-            self._hide_copied_link()
-
-    def _hide_copied_link(self):
-        self._clipboard_read += 1
-        self._copied_link = None
-        self.copied_link_banner.set_revealed(False)
-
-    def _check_clipboard(self):
-        if (not self.is_active() or self.client is None
-                or not self.settings.get_boolean('offer-copied-links')):
-            self._hide_copied_link()
-            return
-        clipboard = self.get_clipboard()
-        formats = clipboard.get_formats()
-        if not (formats.contain_gtype(GObject.TYPE_STRING)
-                or formats.contain_mime_type('text/plain')
-                or formats.contain_mime_type('text/plain;charset=utf-8')):
-            self._hide_copied_link()
-            return
-        self._clipboard_read += 1
-        clipboard.read_text_async(None, pages.weak_method(
-            self._on_clipboard_text), self._clipboard_read)
-
-    def _on_clipboard_text(self, clipboard, result, serial):
-        try:
-            text = clipboard.read_text_finish(result)
-        except GLib.Error:
-            text = None
-        if serial != self._clipboard_read:
-            return  # a newer read (or a hide) superseded this one
-        if not self.is_active() or self.client is None \
-                or not self.settings.get_boolean('offer-copied-links'):
-            self._hide_copied_link()
-            return
-        url = (text or '').strip()
-        kind = copied_link_kind(url)
-        if kind is None:
-            self._hide_copied_link()
-            return
-        if url in self._offered_links:
-            if url != self._copied_link:
-                self._hide_copied_link()
-            return  # already offered: never nag twice for the same link
-        self._offered_links.add(url)
-        self._copied_link = url
-        self.copied_link_banner.set_title({
-            'post': _('Open copied post?'),
-            'profile': _('Open copied profile?'),
-            'tag': _('Open copied hashtag?'),
-            'collection': _('Open copied collection?')}[kind])
-        self.copied_link_banner.set_revealed(True)
-
-    def _on_copied_link_open(self, _banner):
-        url = self._copied_link
-        self._hide_copied_link()
-        if url:
-            pages.open_link(self, url, resolve=True)
-
+    # Offline banner
     # Offline banner
 
     def _setup_offline_banner(self):

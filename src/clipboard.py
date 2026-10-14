@@ -125,7 +125,8 @@ class CopiedLinkBanner(Gtk.Box):
         self.banner.set_title({
             'post': _('Open copied post?'),
             'profile': _('Open copied profile?'),
-            'tag': _('Open copied hashtag?')}[kind])
+            'tag': _('Open copied hashtag?'),
+            'collection': _('Open copied collection?')}[kind])
         self.banner.set_revealed(True)
 
     def _on_opened(self, _banner):
