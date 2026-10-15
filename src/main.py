@@ -105,6 +105,30 @@ def open_web_target(win, target):
         pages.open_link(win, value, resolve=True)
 
 
+STYLESHEET = '/io/github/mauriciobc/Babble/style.css'
+
+
+def load_stylesheet():
+    """Apply ``style.css`` to every window.
+
+    GTK does not read a stylesheet out of the application resource by
+    itself, so without this the whole file is inert and the widgets fall
+    back to plain libadwaita styling.
+    """
+    display = Gdk.Display.get_default()
+    if display is None:
+        return
+    provider = Gtk.CssProvider()
+    try:
+        provider.load_from_resource(STYLESHEET)
+    except GLib.Error as error:
+        print('could not load %s: %s' % (STYLESHEET, error.message),
+              file=sys.stderr)
+        return
+    Gtk.StyleContext.add_provider_for_display(
+        display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+
 class BabbleApplication(Adw.Application):
     def __init__(self, version):
         super().__init__(application_id='io.github.mauriciobc.Babble',
@@ -122,6 +146,7 @@ class BabbleApplication(Adw.Application):
         self.set_inactivity_timeout(10000)
         # Buttons on desktop notifications activate these app actions.
         desktopnotify.install_app_actions(self)
+        load_stylesheet()
         self.connect('open', self.on_open)
         self.create_action('quit', lambda *args: self.quit(), ['<primary>q'])
         self.create_action('about', self.on_about_action)

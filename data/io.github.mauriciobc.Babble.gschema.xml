@@ -112,6 +112,14 @@
       <default>false</default>
       <summary>Letterbox media instead of cropping it to the preview frame</summary>
     </key>
+    <key name="media-viewer-mode" type="s">
+      <choices>
+        <choice value="box"/>
+        <choice value="fullscreen"/>
+      </choices>
+      <default>'box'</default>
+      <summary>How the media viewer opens photos: as a box over the window, or filling it</summary>
+    </key>
     <key name="show-sensitive-media" type="b">
       <default>false</default>
       <summary>Reveal media marked as sensitive without a click</summary>

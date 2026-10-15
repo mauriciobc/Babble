@@ -3,12 +3,13 @@
 """Full-size viewer for post attachments, in the spirit of Tuba's
 MediaViewer and Phanpy's media modal.
 
-:func:`present_media` opens a dark dialog over the window showing the
+:func:`present_media` covers the window with a dark viewer showing the
 attachments of one post: images with zoom, pinch and pan, videos with
 playback controls, muted looping GIFVs and audio with a cover. Left and
 Right (or the side buttons) move between attachments, the alt text sits
-below the media, and the header offers Save As, Copy URL, Copy Image,
-Open in Browser and Fullscreen.
+below the media, and the header offers Close, Save As, Copy URL, Copy
+Image, Open in Browser and Fullscreen. It is an overlay of the window
+rather than a dialog, so Fullscreen really does fill the screen.
 
 Media can be dragged out. An image that fits the window drags as the
 picture itself (plus the file, once saved or opened with an app); zoomed
@@ -43,8 +44,6 @@ from gi.repository import (  # noqa: E402
 from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
 
-DIALOG_WIDTH = 1100
-DIALOG_HEIGHT = 760
 ZOOM_STEP = 1.25
 MAX_SCALE = 8.0
 CHUNK_SIZE = 64 * 1024
@@ -52,6 +51,18 @@ CHUNK_SIZE = 64 * 1024
 # than the timeline's media cache -- and must not share it, or opening a
 # viewer would evict the timeline's thumbnails.
 TEXTURE_CACHE_SIZE = 6
+
+# Free space kept on each side of the viewer while it is a box over the
+# window. It fills the window when fullscreen, or when the preference
+# asks for that.
+VIEWER_MARGIN = 64
+VIEWER_FALLBACK_WIDTH = 1100
+VIEWER_FALLBACK_HEIGHT = 760
+
+# The viewer currently on screen, if any. Opening another attachment
+# replaces it: stacked overlays would each keep the whole window
+# redrawing behind the other.
+_open_viewer = None
 
 
 def _http_session():
@@ -584,15 +595,19 @@ class ZoomPicture(Gtk.Widget):
         return self.pan_by(-dx * 40, -dy * 40)
 
 
-class MediaViewer(Adw.Dialog):
-    """Dialog browsing a list of Mastodon media attachments."""
+class MediaViewer(Adw.Bin):
+    """Browsing a list of Mastodon media attachments.
+
+    An overlay of the window, not an :class:`Adw.Dialog`: a dialog floats
+    inside the window and can never grow past it, so a fullscreen
+    attachment would keep a margin on every side. Here the viewer *is* the
+    window's content, and filling it means filling the screen.
+    """
 
     __gtype_name__ = 'BabbleMediaViewer'
 
     def __init__(self, parent, attachments, index=0):
-        super().__init__(title=_('Media'), content_width=DIALOG_WIDTH,
-                         content_height=DIALOG_HEIGHT,
-                         follows_content_size=False)
+        super().__init__()
         self.attachments = [a for a in attachments if isinstance(a, dict)]
         self.index = 0
         self.window = pages.window_of(parent)
@@ -604,6 +619,8 @@ class MediaViewer(Adw.Dialog):
         self._temp_media = None
         self._closed = False
         self._we_fullscreened = False
+        self._fullscreen_handler = None
+        self._maximized_handler = None
         self._first_focus = True
         self._downloads = Gio.Cancellable()
         # Kind of the attachment the current stream plays.
@@ -616,20 +633,37 @@ class MediaViewer(Adw.Dialog):
         self._local_files = {}
 
         self._build()
-        self.connect('closed', self._on_closed)
         if self.window is not None:
             self._fullscreen_handler = pages.connect_weak(
                 self.window, 'notify::fullscreened',
                 self._on_fullscreen_changed)
+            self._maximized_handler = pages.connect_weak(
+                self.window, 'notify::maximized',
+                self._on_maximized_changed)
         self.show_index(index)
 
     # Construction
 
     def _build(self):
+        self.set_focusable(True)
         self.header = Adw.HeaderBar()
         self.header.add_css_class('media-viewer-header')
+        # The viewer is an overlay, so its header sits where the window's
+        # own is: without this both draw a set of controls and there are
+        # two close buttons.
+        self.header.set_show_start_title_buttons(False)
+        self.header.set_show_end_title_buttons(False)
         self.window_title = Adw.WindowTitle(title=_('Media'))
         self.header.set_title_widget(self.window_title)
+
+        # A dialog brings its own close button; an overlay needs one.
+        self.close_button = Gtk.Button(icon_name='window-close-symbolic',
+                                       tooltip_text=_('Close'))
+        self.close_button.add_css_class('circular')
+        _label(self.close_button, _('Close'))
+        pages.connect_weak(self.close_button, 'clicked',
+                           self._on_close_clicked)
+        self.header.pack_end(self.close_button)
 
         self.fullscreen_button = _icon_button(
             'view-fullscreen-symbolic', _('Fullscreen'))
@@ -805,11 +839,27 @@ class MediaViewer(Adw.Dialog):
         self.toolbar.set_bottom_bar_style(Adw.ToolbarStyle.FLAT)
 
         self.toasts = Adw.ToastOverlay(child=self.toolbar)
-        self.set_child(self.toasts)
+        # The viewer fills the window as an overlay, so the black box is
+        # kept smaller by an inner card: Gtk.Overlay honours the alignment
+        # of an overlay child, which a plain container would swallow.
+        self._stage = Gtk.Overlay()
+        # Transparent, but it fills the window and so takes the clicks
+        # that land beside the box instead of letting them reach the app.
+        self._backdrop = Gtk.Box()
+        self._stage.set_child(self._backdrop)
+        self._card = Gtk.Box(halign=Gtk.Align.CENTER,
+                            valign=Gtk.Align.CENTER)
+        self._card.add_css_class('media-viewer-box')
+        self._card.append(self.toasts)
+        self._stage.add_overlay(self._card)
+        self.set_child(self._stage)
 
         keys = Gtk.EventControllerKey()
         pages.connect_weak(keys, 'key-pressed', self._on_key_pressed)
         self.add_controller(keys)
+
+    def _on_close_clicked(self, _button):
+        self.close()
 
     def _on_fullscreen_clicked(self, _button):
         self.toggle_fullscreen()
@@ -1351,19 +1401,42 @@ class MediaViewer(Adw.Dialog):
             self._we_fullscreened = True
 
     def _on_fullscreen_changed(self, window, _pspec):
+        self._sync_viewer_to_window(window)
+
+    def _on_maximized_changed(self, window, _pspec):
+        # A maximized window keeps the box, but the box is sized from the
+        # window, so it has to be laid out again for the new space.
+        self._sync_viewer_to_window(window)
+
+    def _sync_viewer_to_window(self, window):
+        """Fill the window when it is fullscreen, or when the preference
+        asks photos to open that way; otherwise sit as a box over it."""
         fullscreen = window.is_fullscreen()
+        expanded = fullscreen or _opens_fullscreen()
         self.fullscreen_button.set_icon_name(
             'view-restore-symbolic' if fullscreen
             else 'view-fullscreen-symbolic')
         label = _('Exit Fullscreen') if fullscreen else _('Fullscreen')
         self.fullscreen_button.set_tooltip_text(label)
         _label(self.fullscreen_button, label)
-        if fullscreen:
-            self.set_content_width(max(window.get_width(), DIALOG_WIDTH))
-            self.set_content_height(max(window.get_height(), DIALOG_HEIGHT))
+        if expanded:
+            self._card.set_halign(Gtk.Align.FILL)
+            self._card.set_valign(Gtk.Align.FILL)
+            self._card.set_size_request(-1, -1)
+            self._card.remove_css_class('media-viewer-box')
         else:
-            self.set_content_width(DIALOG_WIDTH)
-            self.set_content_height(DIALOG_HEIGHT)
+            # A box inset from the window on every side, like the dialog
+            # this replaced: fixed pixels would swallow a small window
+            # whole and leave a large one mostly empty.
+            width, height = window.get_width(), window.get_height()
+            width = width - 2 * VIEWER_MARGIN if width > 0 \
+                else VIEWER_FALLBACK_WIDTH
+            height = height - 2 * VIEWER_MARGIN if height > 0 \
+                else VIEWER_FALLBACK_HEIGHT
+            self._card.set_halign(Gtk.Align.CENTER)
+            self._card.set_valign(Gtk.Align.CENTER)
+            self._card.set_size_request(max(width, 1), max(height, 1))
+            self._card.add_css_class('media-viewer-box')
 
     def save_as(self):
         attachment = self.current()
@@ -1495,6 +1568,9 @@ class MediaViewer(Adw.Dialog):
         if keyval in (Gdk.KEY_f, Gdk.KEY_F):
             self.toggle_fullscreen()
             return True
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
         if self.stack.get_visible_child_name() == 'image':
             if keyval in (Gdk.KEY_plus, Gdk.KEY_equal, Gdk.KEY_KP_Add):
                 self.picture.zoom_in()
@@ -1507,22 +1583,65 @@ class MediaViewer(Adw.Dialog):
                 return True
         return False
 
-    def _on_closed(self, _dialog):
+    def close(self):
+        """Take the viewer off the window and release everything it holds."""
+        global _open_viewer
+        if self._closed:
+            return
         self._closed = True
+        if _open_viewer is self:
+            _open_viewer = None
         self._cancel_loads()
         self._unload_media()
         if self.window is not None:
             self.window.disconnect(self._fullscreen_handler)
+            self.window.disconnect(self._maximized_handler)
             if self._we_fullscreened:
                 self.window.unfullscreen()
                 self._we_fullscreened = False
+        if self.get_parent() is not None:
+            self.unparent()
+        self.set_visible(False)
+
+    def force_close(self):
+        self.close()
+
+
+def _opens_fullscreen():
+    """Whether a photo should open filling the window rather than as a
+    box over it, per the preference."""
+    return pages.settings().get_string('media-viewer-mode') == 'fullscreen'
+
+
+def media_overlay(window):
+    """The :class:`Gtk.Overlay` covering *window*'s content, or None when
+    the window has none. The shell wraps its content in one so a
+    fullscreen attachment can fill the window instead of floating in a
+    dialog."""
+    content = window.get_content() if window is not None else None
+    return content if isinstance(content, Gtk.Overlay) else None
 
 
 def present_media(parent_widget, attachments, index=0):
     """Open the media viewer on *attachments* (Mastodon media_attachments
-    dicts) at *index* over the window of *parent_widget*; returns the
-    dialog."""
+    dicts) at *index* as an overlay of the window of *parent_widget*;
+    returns the viewer."""
+    global _open_viewer
+    if _open_viewer is not None:
+        _open_viewer.close()
     viewer = MediaViewer(parent_widget, attachments, index)
-    window = pages.window_of(parent_widget)
-    viewer.present(window if window is not None else parent_widget)
+    window = viewer.window
+    overlay = media_overlay(window)
+    if overlay is None:
+        # A window without one (a test's, say): give the viewer a window of
+        # its own so it is still on screen and still usable.
+        host = Gtk.Window()
+        host.set_child(viewer)
+        host.present()
+        return viewer
+    overlay.add_overlay(viewer)
+    viewer.set_visible(True)
+    viewer._sync_viewer_to_window(window)
+    viewer.grab_focus()
+    _open_viewer = viewer
     return viewer

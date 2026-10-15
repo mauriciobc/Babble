@@ -311,6 +311,11 @@ window.darken-media .darkenable:hover {
    are an intentional exemption from the palette: a fullscreen photo
    overlay reads as a lightbox in both color schemes, like the HIG
    media viewer. */
+/* The box the viewer sits in while it does not fill the window. */
+.media-viewer-box {
+  border-radius: 18px;
+}
+
 .media-viewer-content {
   background-color: #000;
   color: #fff;

@@ -471,15 +471,13 @@ except Exception as error:                          # noqa: BLE001
           False)
     print('  %s: %s' % (type(error).__name__, error))
 
-# Hosted in an Adw window, like the app's: over a plain Gtk.Window the
-# dialog floats as a window of its own, and force_close() did not emit
-# 'closed' there.
-host = Adw.Window(content=Gtk.Box())
+# The shell wraps its content in a Gtk.Overlay for the media viewer; a
+# bare window here would take the viewer out as its own top-level.
+host = Adw.Window(content=Gtk.Overlay())
 host.present()
-viewer = mediaviewer.MediaViewer(
+viewer = mediaviewer.present_media(
     host.get_content(),
     [{'type': 'unknown', 'url': 'https://example.org/media/a.bin'}])
-viewer.present(host)
 settle()
 viewer._on_texture(texture, None)
 check('Copy Image accepts the displayed texture', viewer.copy_image())

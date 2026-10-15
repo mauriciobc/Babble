@@ -47,6 +47,10 @@ AUTO_REFRESH_CHOICES = (
     ('0', _('Off')), ('30', _('Every 30 Seconds')),
     ('60', _('Every Minute')), ('300', _('Every 5 Minutes')))
 
+MEDIA_VIEWER_MODES = (
+    ('box', _('As a Box over the Window')),
+    ('fullscreen', _('Fill the Window')))
+
 # Labels are this page's; the codes belong to the entity, shared with
 # the composer's visibility menu.
 _QUOTE_LABELS = {
@@ -275,6 +279,11 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._switch(posts, 'letterbox-media', _('_Letterbox Media'),
                      _('Scale down and letterbox media to fill the '
                        'image containers instead of cropping them'))
+        self._combo_string(
+            posts, 'media-viewer-mode', _('_Open Photos'),
+            MEDIA_VIEWER_MODES,
+            subtitle=_('How a photo opens in the viewer: as a box over '
+                       'the window, or filling it'))
         self._switch(posts, 'show-sensitive-media',
                      _('Reveal Sensitive _Media by Default'))
         self._switch(posts, 'show-spoilers',
