@@ -1200,7 +1200,10 @@ check('the pasted image uploads as image/png',
       bool(rows) and rows[0].content_type == 'image/png')
 check('pasting an image inserts no text', view.text() == '')
 view.text_view.emit('paste-clipboard')
-pump(300)
+# The paste reads the clipboard asynchronously; wait for the row it
+# produces rather than a fixed 300 ms, which a busy machine outlasts.
+settle_until(PASTE_WAIT_S, lambda: len(view.attachments()) >= 2)
+pump(50)
 rows = view.attachments()
 check('a second paste gets a file of its own',
       len(rows) == 2 and rows[1].path != pasted

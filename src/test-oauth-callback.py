@@ -1025,6 +1025,49 @@ try:
 finally:
     textemoji.Gtk = real_gtk
 
+# --- The login opens the browser through the window's own open_url -----
+#
+# Every other test here replaces win.open_url, so the method itself went
+# missing without a single failure and a login never left the app.
+
+uris = []
+
+
+class BrowserLauncher:
+    refuse = False
+
+    @staticmethod
+    def new(uri):
+        uris.append(uri)
+        return BrowserLauncher()
+
+    def launch(self, _parent, _cancellable, callback):
+        callback(self, None)
+
+    def launch_finish(self, _result):
+        if BrowserLauncher.refuse:
+            raise GLib.Error('no portal')
+
+
+win, toasts = fresh_window()
+fallbacks = []
+win._open_url_fallback = fallbacks.append
+real_window_gtk = window_module.Gtk
+window_module.Gtk = types.SimpleNamespace(UriLauncher=BrowserLauncher)
+try:
+    check('the window has an open_url for the login to call',
+          callable(getattr(BabbleWindow, 'open_url', None)))
+    BabbleWindow.open_url(win, 'https://example.social/oauth/authorize?x=1')
+    check('the authorization page is handed to the launcher',
+          uris == ['https://example.social/oauth/authorize?x=1']
+          and fallbacks == [])
+    BrowserLauncher.refuse = True
+    BabbleWindow.open_url(win, 'https://example.social/oauth/authorize?x=2')
+    check('a refusing portal falls back to the default handler',
+          fallbacks == ['https://example.social/oauth/authorize?x=2'])
+finally:
+    window_module.Gtk = real_window_gtk
+
 if failures:
     print('%d checks failed' % len(failures))
     sys.exit(1)

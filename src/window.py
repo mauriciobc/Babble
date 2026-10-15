@@ -1569,6 +1569,35 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_auth_browser(self, _flow, uri):
         self.open_url(uri)
 
+    def open_url(self, uri):
+        """Open *uri* in the web browser through the portal, falling back
+        to the default handler. The login depends on this: without it the
+        authorization page never opens. It was dropped when the flow moved
+        into auth.py, which still emits the URI for the window to open."""
+
+        def launched(launcher, result):
+            try:
+                launcher.launch_finish(result)
+            except GLib.Error:
+                self._open_url_fallback(uri)
+
+        Gtk.UriLauncher.new(uri).launch(self, None, launched)
+
+    def _open_url_fallback(self, uri):
+        def opened(source, result):
+            try:
+                source.launch_default_for_uri_finish(result)
+            except GLib.Error as error:
+                self.show_error(_('Could not open the web browser'),
+                                error.message)
+
+        app_info = Gio.AppInfo.get_default_for_uri(uri)
+        if app_info is None:
+            self.show_error(_('Could not open the web browser'),
+                            _('No app is set to open web links'))
+            return
+        app_info.launch_default_for_uri_async(uri, None, None, opened)
+
     def _on_auth_attended(self, _flow):
         self.present()
 

@@ -160,6 +160,39 @@ for name in stale:
 check('install_data names no module that is gone (%d stale)' % len(stale),
       not stale)
 
+# po/POTFILES.in is maintained by hand too. A module that translates but is
+# not listed loses its strings from the catalogue on the next regeneration,
+# and a listed file that is gone stops xgettext altogether. Splitting
+# timeline.py did both: the file was deleted while still listed, and nine
+# new modules were never added.
+
+potfiles_path = os.path.join(os.path.dirname(os.path.abspath(srcdir)),
+                             'po', 'POTFILES.in')
+with open(potfiles_path, encoding='utf-8') as potfiles:
+    listed = {line.strip() for line in potfiles
+              if line.strip() and not line.startswith('#')}
+root = os.path.dirname(os.path.abspath(srcdir))
+gone = sorted(path for path in listed
+              if not os.path.exists(os.path.join(root, path)))
+for path in gone:
+    print('    %s is in POTFILES.in but does not exist' % path)
+check('POTFILES.in names no file that is gone (%d missing)' % len(gone),
+      not gone)
+translates = re.compile(r'(?<![A-Za-z0-9_.])_\(|\bngettext\(')
+# i18n.py defines the gettext helpers; it has no strings of its own.
+unlisted = []
+for name in modules:
+    if name in ('__init__.py', 'i18n.py'):
+        continue
+    with open(os.path.join(srcdir, name), encoding='utf-8') as module:
+        if translates.search(module.read()) \
+                and 'src/' + name not in listed:
+            unlisted.append(name)
+for name in unlisted:
+    print('    %s translates but is not in POTFILES.in' % name)
+check('every module that translates is in POTFILES.in (%d unlisted)'
+      % len(unlisted), not unlisted)
+
 if failures:
     print('%d checks failed' % failures)
     sys.exit(1)
