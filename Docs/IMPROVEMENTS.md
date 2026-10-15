@@ -508,7 +508,7 @@ Run alongside Tier 1 and Tier 2. Without these, both tiers are unverifiable.
 | TEST-06 | **done** | **`compact_number` delegates to `compact_count`.** The advanced-search dialog round-trips a query, and `_resolve_url` opens a status or a profile and does not ask twice for the same URL. | `test-search.py` |
 | TEST-07 | **done** | **Four different error presentations in one module.** Page-1 failure shows an error page; page-2 failure is swallowed entirely; the policy dialog distinguishes a 404; the policy summary fetch swallows every error. Pinned by `test-notifications-errors.py`, which also requires refresh and clear to go through `pages.report_error`. | `notifications.py` `on_page_loaded`, `on_older_loaded`, `on_loaded`, `on_policy_loaded` |
 | TEST-08 | **done** | **The version-gate scan now catches version-*string* parsing**, not just `mastodon_api_version()` comparisons, so BUG-04 cannot come back. | `test-version-gates.py` — reads `instance_info['version']` only where it is *parsed* (a `re.*` or `int()` call fed it, directly or through a name bound to it), so `profile.py` and `admin.py` may still show a version to the reader. Verified against a throwaway file holding the old `explore.py` shape, the inline shape, and two innocent version readers: it flags the first two and leaves the other two alone. |
-| TEST-09 | **done** | **The suite was load-sensitive.** Four tests were fixed; the last two (`compose widgets`, `timeline memory`) now pass with every core saturated. | see below | Closed 2026-10-15 by a run under CPU load, not by a quiet re-run; see the note below. |
+| TEST-09 | **partial** | **The suite is load-sensitive.** Four tests were fixed and `compose widgets` and `timeline memory` pass with every core saturated, but `timeline memory` failed two height checks once in a parallel full-suite run, so this is not closed. | see below | Reopened 2026-10-15; see the recurrence note below. |
 
 ### TEST-09 resolutions, and a correction
 
@@ -540,7 +540,7 @@ that load was low. Compare by stashing and re-running on a clean tree,
 which is what actually distinguishes a pre-existing flake from a
 regression.
 
-**Closed under load (2026-10-15).** The last race was `clipboard_owns`,
+**Passed under load (2026-10-15).** The last race was `clipboard_owns`,
 which matched on the *type* on offer. After the first paste the previous
 owner is also a text or a texture, so on a busy machine the wait returned
 at once and the paste read the old content. It now waits for the clipboard
@@ -550,6 +550,15 @@ set. Checked with one busy-loop per core running throughout:
 already passed quiet. The widened-post check still allows about a line of
 font-dependent difference rather than a fixed 16 px; a stuck narrow-column
 height is several times that and fails.
+
+**Recurrence (2026-10-15).** After the run above, one parallel
+`meson test` of the whole suite failed `a shown run is as tall as its
+card, not its placeholder` and `an allocated body is as tall as its text`
+in `timeline memory`. The same test passed three times straight on its
+own, so the heights still depend on how many other GTK tests are laying
+out beside it. A run under synthetic CPU load did not reproduce this,
+which is why it was not caught; parallel suite load is the case to
+reproduce next.
 
 **`catchup grid` (2026-10-15).** `at_width()` forces a measure/allocate
 pass and waits until ``grid.columns`` matches ``columns_for(width)``.
@@ -680,9 +689,9 @@ test that makes it trustworthy.
 | Tier 1 — Correctness | 14 | 0 | 0 | 14 | 0 |
 | Tier 2 — Consolidation | 42 | 0 | 0 | 36 | 6 partial/rejected |
 | Tier 3 — Structural | 11 | 0 | 0 | 10 | 1 partial |
-| Test hardening | 9 | 0 | 0 | 9 | 0 |
+| Test hardening | 9 | 0 | 0 | 8 | 1 partial |
 | Documentation | 5 | 0 | 0 | 5 | 0 |
-| **Total** | **81** | **0** | **0** | **74** | **7 partial/rejected** |
+| **Total** | **81** | **0** | **0** | **73** | **8 partial/rejected** |
 
 **Tier 1 and Tier 2.1 are complete.** 14/14 bugs fixed, the suite made
 trustworthy, and the `pages.py` adoption sweep landed.
@@ -733,7 +742,8 @@ it, which is the test doing its job.
 All tiers are done; what follows is the order the work was done in.
 
 1. ~~**Tier 1, bug by bug**~~ — done, 14/14.
-2. ~~**TEST-09, the flaky suite**~~ — done, confirmed under CPU load.
+2. ~~**TEST-09, the flaky suite**~~ — **partial.** Passes alone and under
+   CPU load; failed once in a parallel full-suite run.
 3. ~~**Tier 2.1 — the `pages.py` adoption sweep**~~ — done, CLEAN-01…06
    plus TEST-01 and TEST-02.
 4. ~~**Tier 2.2 — shared infrastructure** (CLEAN-07…13)~~ — done, except
