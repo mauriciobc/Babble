@@ -566,11 +566,8 @@ already passed quiet. The widened-post check still allows about a line of
 font-dependent difference rather than a fixed 16 px; a stuck narrow-column
 height is several times that and fails.
 
-**Recurrence (2026-10-15).** After the run above, one parallel
-`meson test` of the whole suite failed `a shown run is as tall as its
-
-**Root causes, named (2026-10-15).** The recurrence and one more full
-parallel run reproduced both `timeline memory` checks with values:
+**Root causes, named (2026-10-15).** One more full parallel run
+reproduced both `timeline memory` checks again, this time with values:
 the shell check read the *placeholder's* 700 px — the `height > 0`
 wait was satisfied by the very thing the check says must be gone — and
 the body check read an intermediate layout, 267 px against a real 315.
@@ -578,24 +575,22 @@ Neither is widget state; both are a wait that lets through the wrong
 value. The waits now require the row's cards and the exact comparison
 the check later makes, so a genuinely stuck height still fails, after
 the deadline. Diagnostic notes stay so a future failure names its
-values. Separate finding from the same work: `compose widgets`' second
-paste failed whenever the clipboard had already dropped the image
-(formats empty, not local), which a bare X server can do; the test now
-sets the clipboard afresh. Three consecutive parallel full-suite runs
-(36 passed, 1 skipped) after both fixes.
-card, not its placeholder` and `an allocated body is as tall as its text`
-in `timeline memory`. The same test passed three times straight on its
-own, so the heights still depend on how many other GTK tests are laying
-out beside it. A run under synthetic CPU load did not reproduce this,
-which is why it was not caught; parallel suite load is the case to
-reproduce next.
+values.
+
+Separate finding from the same work: `compose widgets`' second paste
+failed whenever the clipboard had already dropped the image (formats
+empty, not local), which a bare X server can do; the test now sets the
+clipboard afresh before that second paste.
+
+Three consecutive parallel full-suite runs (36 passed, 1 skipped) after
+both fixes.
 
 **`catchup grid` (2026-10-15).** `at_width()` forces a measure/allocate
 pass and waits until ``grid.columns`` matches ``columns_for(width)``.
 ``wait_show_more()`` waits for pages and tiles after invalidation.
 ``BentoGrid._apply_pending_layout()`` re-packs at fixed width when
 ``set_pages()`` runs (Show more). Five consecutive Meson runs green;
-treat this slice as **done** for TEST-09.
+treat this slice as done for TEST-09.
 
 **`search provider` (2026-10-15).** It timed out at the per-test limit
 after every check had passed. Meson recorded `exit status 0` and still

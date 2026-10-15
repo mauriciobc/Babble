@@ -274,7 +274,12 @@ statusrun.StatusRunRow._typical_height = 700
 shell = statusrun.StatusRunRow()
 shell.bind(grouped.get_item(0), _Client())
 box.append(shell)
-settle(lambda: shell.get_mapped() and shell.get_height() > 0)
+# Wait for the cards, not just for a height: the placeholder is already
+# taller than zero, so "height > 0" is satisfied by the very thing this
+# check says must be gone. Under load the cards are built a frame or two
+# after the shell maps, and the check read 700 (the placeholder) for it.
+settle(lambda: shell.get_mapped() and bool(shell.rows)
+       and shell.get_height() > 0)
 check('a shown run is as tall as its card, not its placeholder',
       shell.get_mapped() and shell.get_height() < 400)
 if not (shell.get_mapped() and shell.get_height() < 400):
@@ -339,11 +344,22 @@ body = mediacache.StatusBody()
 body.set_segments(statustext.parse_content(
     ''.join('<p>paragraph %d</p>' % n for n in range(8))))
 box.append(body)
-# Wait for the height, not just the width. A width lands first, and the
-# height for it is allocated on the next frame; measuring in between read
-# back a 0 against a real 255 and failed on a machine that was merely
-# busy.
-settle(lambda: body.get_width() > 0 and body.get_height() > 0)
+# Wait for the height this body will end up with, not just for some
+# height. A width lands first and the height for it on a later frame, and
+# an intermediate layout at another width is also "greater than zero":
+# the check read 267 against a real 315 for that reason. Waiting on the
+# very comparison the check makes keeps its meaning (a body that never
+# reaches its text height still fails, after the deadline) and drops the
+# dependence on which frame the final layout lands on.
+def body_is_laid_out():
+    if body.get_width() <= 0 or body.get_height() <= 0:
+        return False
+    needed = Gtk.TextView.do_measure(body, Gtk.Orientation.VERTICAL,
+                                     body.get_width())[1]
+    return needed > 0 and abs(body.get_height() - needed) <= needed * 0.1
+
+
+settle(body_is_laid_out)
 real = Gtk.TextView.do_measure(body, Gtk.Orientation.VERTICAL,
                                body.get_width())[1]
 check('an allocated body is as tall as its text',

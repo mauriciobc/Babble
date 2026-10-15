@@ -403,10 +403,18 @@ def emoji_chooser_shown():
 
 settle_until(10.0, emoji_chooser_shown)
 chooser = view.emoji_chooser
-check('emoji button opens the emoji chooser',
-      isinstance(chooser, emojichooser.CustomEmojiChooser)
-      and chooser.get_parent() is view.emoji_button
-      and chooser.get_visible())
+chooser_ok = (isinstance(chooser, emojichooser.CustomEmojiChooser)
+              and chooser.get_parent() is view.emoji_button
+              and chooser.get_visible())
+check('emoji button opens the emoji chooser', chooser_ok)
+if not chooser_ok:
+    print('note - emoji chooser: type=%s parent_ok=%s visible=%s mapped=%s '
+          'window_mapped=%s window_active=%s'
+          % (type(chooser).__name__,
+             chooser is not None and chooser.get_parent() is view.emoji_button,
+             chooser is not None and chooser.get_visible(),
+             chooser is not None and chooser.get_mapped(),
+             window.get_mapped(), window.is_active()))
 check('it opens on the standard tab with its groups',
       chooser.tabs.get_visible() and chooser.mode == 'emoji'
       and chooser.category_store.get_n_items() == 9)
