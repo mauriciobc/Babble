@@ -9,6 +9,11 @@
   background-color: color-mix(in srgb,
                               var(--window-bg-color) 92%,
                               var(--window-fg-color));
+  background-image: url('resource:///io/github/mauriciobc/Babble/babble_bg.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-blend-mode: overlay;
 }
 
 .status-row {
