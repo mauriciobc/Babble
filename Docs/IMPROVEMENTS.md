@@ -77,6 +77,10 @@ Nothing here needs a design decision.
 | BUG-12 | **done** | **One `/accounts/relationships?id[]=<single>` per notification row.** The endpoint accepts up to 40. A page of 40 fresh follow notifications costs up to 40 requests. | `notifications.py:1150-1164` | The correct pattern already exists: `catchup.py:670-685` batches in 40s, with a test at `test-catchup.py:375-379`. |
 | BUG-13 | **done** | **Pull-to-refresh on link-paged timelines discards the cursor.** `paging='link'` forwards only `limit`, so `since_id` is dropped and page 1 is re-downloaded. Relatedly, the two link-paged paths are hard-coded in the window. | `timeline.py:4316-4328`; `window.py:981` | |
 | BUG-14 | **done** | **Untranslated UI string** in the admin account-search flow — `'IP'` is both the `placeholder_text` and the accessible label of a `Gtk.Entry`, sitting in the same tuple as three translated entries. | `admin.py:1024` | One-line fix. |
+| BUG-15 | **done** | **Notifications never loaded.** `NotificationController` called `self._request_relationships`, which was never defined, so the first page load raised `AttributeError` and the list stayed empty. The per-row relationship queue also read state that only `NotificationsPage` initialised. Introduced by ARCH-03 / BUG-12. | `notificationctrl.py` `on_page_loaded`, `on_older_loaded`; `notifications.py` `NotificationRow._fetch_relationship` | Found by running the app, not by a test: no test loaded a page containing a follower. |
+| BUG-16 | **done** | **Search stuck on its loading state** whenever a result set held a post. `make_post_row` passed a lambda to `pages.connect_weak`, which accepts only a bound method, so building the row raised. Present at `da2eeab`, before this register. | `search.py` `make_post_row`; `pages.py:46-64` | The other 258 `connect_weak` / `weak_method` call sites were checked; this was the only non-method. |
+| BUG-17 | **done** | **Adding an account never opened the browser.** `BabbleWindow.open_url` was deleted when the OAuth flow moved into `auth.py` (`8ae87cd`) while `_on_auth_browser` still called it. Every login test replaced `win.open_url`, so nothing failed. | `window.py` `_on_auth_browser`; `test-oauth-callback.py:798`, `test-oauth-loopback.py:110` | Restored with the portal launch plus a default-handler fallback; a test now calls the real method. |
+| BUG-18 | **done** | **`po/POTFILES.in` listed the deleted `src/timeline.py` and omitted the nine modules split out of it.** `xgettext` could not run, and a regeneration would have dropped those modules' strings. | `po/POTFILES.in` | `test-file-size.py` now checks that every listed file exists and every module that translates is listed. |
 
 ### Resolutions
 
@@ -192,6 +196,17 @@ The two link-paged paths moved out of `window.py` into `timeline.link_paged`.
 
 **BUG-14.** `'IP'` → `_('IP')` in the admin search tuple, where it was the
 untranslated member of a translated four.
+
+**BUG-15…18 (found by running the app, 2026-10-15).** All four were in
+code paths no test reached, and three of them hid behind a test that
+replaced or skipped the broken piece: the login tests substituted
+`open_url`, and no notifications test fed the page a follower. Each now
+has a regression test that fails on the old code. A scan of every
+`self.name` use across the extracted seams, and of every
+`connect_weak` / `weak_method` call, found no further instance of these
+two patterns. The lesson for the seams (ARCH-01…03, 06) is that a green
+suite said less than it appeared to: the split moved code that was never
+exercised, and "done" was recorded before the app was run.
 
 ### Accepted, documented — do not "fix"
 
@@ -686,14 +701,15 @@ test that makes it trustworthy.
 
 | Tier | Total | todo | doing | done | deferred / skip |
 |---|---|---|---|---|---|
-| Tier 1 — Correctness | 14 | 0 | 0 | 14 | 0 |
+| Tier 1 — Correctness | 18 | 0 | 0 | 18 | 0 |
 | Tier 2 — Consolidation | 42 | 0 | 0 | 36 | 6 partial/rejected |
 | Tier 3 — Structural | 11 | 0 | 0 | 10 | 1 partial |
 | Test hardening | 9 | 0 | 0 | 8 | 1 partial |
 | Documentation | 5 | 0 | 0 | 5 | 0 |
-| **Total** | **81** | **0** | **0** | **73** | **8 partial/rejected** |
+| **Total** | **85** | **0** | **0** | **77** | **8 partial/rejected** |
 
-**Tier 1 and Tier 2.1 are complete.** 14/14 bugs fixed, the suite made
+**Tier 1 and Tier 2.1 are complete.** 18/18 bugs fixed (BUG-15…18 were
+found by running the app, after the rest), the suite made
 trustworthy, and the `pages.py` adoption sweep landed.
 
 **CLEAN-08 is also complete now**: one `pages.PagedPosts` state machine
@@ -741,7 +757,7 @@ it, which is the test doing its job.
 
 All tiers are done; what follows is the order the work was done in.
 
-1. ~~**Tier 1, bug by bug**~~ — done, 14/14.
+1. ~~**Tier 1, bug by bug**~~ — done, 18/18.
 2. ~~**TEST-09, the flaky suite**~~ — **partial.** Passes alone and under
    CPU load; failed once in a parallel full-suite run.
 3. ~~**Tier 2.1 — the `pages.py` adoption sweep**~~ — done, CLEAN-01…06
