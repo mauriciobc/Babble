@@ -56,22 +56,26 @@ class NotificationController:
 
     # Follow Back
 
-    def _request_relationships(self, notifications):
-        """Ask for the relationship of every new follower, in batches.
+    def _request_relationships(self):
+        """Ask for the relationship of every single-follower row, in
+        batches.
 
         Rows bind faster than a request returns, so a page of follow
-        notifications would otherwise open one request per row. The page
-        asks once, before the rows exist, and re-emits the rows whose
-        answer arrived so each one rebinds with its Follow Back state.
+        notifications would otherwise open one request per row. This runs
+        after the model has merged the page, so only rows that will show
+        a Follow Back button are asked about: several followers merged
+        into one row never do. The answer re-emits the rows it covers so
+        each one rebinds with its state.
         """
         client = self.client
         if not getattr(client, 'token', None):
             return
         instance = getattr(client, 'instance', '')
-        for notification in notifications:
-            if notification.get('type') != 'follow':
+        for position in range(self.model.get_n_items()):
+            item = self.model.get_item(position)
+            if item.kind != 'follow' or len(item.actors) != 1:
                 continue
-            actor = notification.get('account') or {}
+            actor = item.actors[0]
             key = (instance, actor.get('id'))
             if actor.get('id') is None or key in _RELATIONSHIPS \
                     or key in _RELATIONSHIPS_PENDING:
@@ -150,7 +154,6 @@ class NotificationController:
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
             return
-        self._request_relationships(notifications)
         if not notifications:
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
@@ -161,6 +164,7 @@ class NotificationController:
             self._pin_top = True
             GLib.timeout_add(500, self._unpin_top)
         self.model.append_page(notifications)
+        self._request_relationships()
         self.stack.set_visible_child_name('list')
         if self._is_visible():
             self.mark_read()
@@ -175,8 +179,9 @@ class NotificationController:
             notifications = self._finish(result)
         except GLib.Error:
             return
-        self._request_relationships(notifications)
-        if not self.model.append_page(notifications):
+        added = self.model.append_page(notifications)
+        self._request_relationships()
+        if not added:
             self.model.exhausted = True
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
@@ -208,8 +213,8 @@ class NotificationController:
             pages.report_error(self, _('Refresh failed'), e)
             return
         if notifications:
-            self._request_relationships(notifications)
             self.model.prepend_page(notifications)
+            self._request_relationships()
             self._marked_read = False
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('empty')
@@ -247,8 +252,9 @@ class NotificationController:
             return
         if self.model.loading and self.model.get_n_items() == 0:
             return
-        self._request_relationships([notification])
-        if not self.model.prepend_page([notification]):
+        added = self.model.prepend_page([notification])
+        self._request_relationships()
+        if not added:
             return
         self.stack.set_visible_child_name('list')
         self._marked_read = False

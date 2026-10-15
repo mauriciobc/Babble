@@ -465,11 +465,23 @@ check('only the follow rows are rebound by the answer',
       sorted(rebound) == [i for i, k in enumerate(follow_kinds)
                           if k == 'follow'] and len(rebound) == 2)
 follow_client.requests.clear()
+# A follow that lands on top of another follow merges into one
+# multi-actor row, which never shows Follow Back, so it is not asked for.
 follow_page.on_stream_notification(
-    make_notification('f3', 'follow', ACTOR3, '2026-10-05T12:10:00.000Z'))
-check('a streamed follower is asked for too',
-      len(follow_client.asked()) == 1
-      and follow_client.asked()[0][2]['id[]'] == ['11'])
+    make_notification('f3', 'follow', ACTOR3, '2026-10-05T12:20:00.000Z'))
+check('a follower merged into a group is not asked for',
+      follow_client.asked() == [])
+# Between two mentions it stands alone, and is asked for.
+follow_page.on_stream_notification(
+    {**MENTION, 'id': 'm2', 'created_at': '2026-10-05T12:30:00.000Z'})
+follow_page.on_stream_notification(
+    make_notification('f4', 'follow', ACTOR, '2026-10-05T12:40:00.000Z'))
+follow_page.on_stream_notification(
+    {**MENTION, 'id': 'm3', 'created_at': '2026-10-05T12:50:00.000Z'})
+follow_page.on_stream_notification(
+    make_notification('f5', 'follow', ACTOR3, '2026-10-05T12:55:00.000Z'))
+check('a streamed follower standing alone is asked for',
+      [r[2]['id[]'] for r in follow_client.asked()] == [['11']])
 
 # Filter switch clears and reloads through the client path: stub the
 # client transport so the page's filter injection actually runs.
