@@ -12,9 +12,12 @@ from .i18n import gettext as _, ngettext
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
+from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
-from .timeline import COLUMN_WIDTH, StatusItem, StatusRow  # noqa: E402
+from .timelinebase import COLUMN_WIDTH  # noqa: E402
+from .timelinedata import StatusItem  # noqa: E402
+from .statusrow import StatusRow  # noqa: E402
 
 MAX_NESTING = 5
 # Per-level nesting indent. Kept at 12 px so a full-depth thread still
@@ -35,6 +38,9 @@ def push_thread(view, client, item):
 
 def _thread_row(item, client):
     row = StatusRow(detail=True)
+    # A thread is its own Filter#context: a rule scoped to one does not
+    # reach into the conversation a post is read in.
+    row.filter_context = filterrules.THREAD
     row.bind(item, client)
     row.set_focusable(True)
     return row
@@ -148,7 +154,7 @@ class ThreadPage(Adw.Bin):
             ancestors, descendants = client.status_context_finish(result)
         except GLib.Error as e:
             self.error_page.set_description(
-                summarize_error_markup(e.message))
+                summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
             return
         self.build(ancestors, descendants)

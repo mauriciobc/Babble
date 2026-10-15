@@ -223,7 +223,7 @@ class MentionCompleter(Gtk.Popover):
             self.list_box.remove(row)
 
     def _fill(self, accounts):
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         self._clear_rows()
         self.hint_label.set_visible(False)
         for account in accounts[:MAX_SUGGESTIONS]:

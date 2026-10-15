@@ -512,9 +512,11 @@ class SearchProvider:
         """Image bytes for *url*: the texture a row already decoded when
         there is one, the download otherwise. *done* runs either way."""
         # timeline first: it pins the Soup version before the import.
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         from gi.repository import Soup
-        texture = AvatarCache._textures.get(url)
+        # Through the store's getter, not its dict: this reads another
+        # module's cache, and its internals are not this module's to know.
+        texture = AvatarCache.store.get(url)
         if texture is not None:
             self._store_avatar(url, texture.save_to_png_bytes())
             done()

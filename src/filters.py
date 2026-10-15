@@ -8,7 +8,6 @@ keywords (each optionally whole-word), the contexts it applies to, an
 action (warn, hide, blur media) and an optional expiry.
 """
 
-import datetime
 
 import gi
 
@@ -20,7 +19,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
-from .statustext import format_time  # noqa: E402
+from .statustext import format_time, parse_time  # noqa: E402
 
 FILTERS_PATH = '/api/v2/filters'
 
@@ -109,12 +108,7 @@ def _date_and_time(moment):
 
 
 def _parse_time(value):
-    if not value:
-        return None
-    try:
-        return datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
-    except ValueError:
-        return None
+    return parse_time(value)
 
 
 # Editor
@@ -402,7 +396,7 @@ class FiltersList(Adw.Bin):
             self.items = client.request_finish(result)
         except GLib.Error as error:
             self.error_page.set_description(
-                pages.summarize_error_markup(error.message))
+                pages.summarize_error_markup(error))
             self.stack.set_visible_child_name('error')
             return
         self._populate()

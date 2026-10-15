@@ -153,7 +153,7 @@ def run(port, anchor):
         Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     from src.mastodon import MastodonClient
-    from src import timeline
+    from src import statusrow, statusrun, timelinedata, timelinepage
 
     client = MastodonClient('https://bench.invalid')
     # The client refuses plain http by design; the fixture instance is
@@ -176,14 +176,14 @@ def run(port, anchor):
 
     window = Gtk.Window()
     window.set_default_size(700, 1000)
-    page = timeline.TimelinePage(client, mode='public')
+    page = timelinepage.TimelinePage(client, mode='public')
     window.set_child(page)
     window.present()
     frames = [0, 0]
 
     def on_after_paint(_clock, root):
         frames[0] += 1
-        if has_empty_shell(root, timeline.StatusRunRow):
+        if has_empty_shell(root, statusrun.StatusRunRow):
             frames[1] += 1
 
     clock = window.get_frame_clock()
@@ -204,7 +204,7 @@ def run(port, anchor):
         settle()
     # A boosts carousel is one list row for several posts, so the row
     # count is lower than the fixture size whenever a page groups.
-    loaded = count_loaded(page.model, timeline.BoostCarouselItem)
+    loaded = count_loaded(page.model, timelinedata.BoostCarouselItem)
     if not page.model.exhausted or loaded != TOTAL:
         fail('loaded %d of %d statuses (exhausted=%s, rows=%d)'
              % (loaded, TOTAL, page.model.exhausted,
@@ -256,9 +256,9 @@ def run(port, anchor):
 
     gc.collect()
     live_rows = sum(1 for o in gc.get_objects()
-                    if isinstance(o, timeline.StatusRow))
+                    if isinstance(o, statusrow.StatusRow))
     live_items = sum(1 for o in gc.get_objects()
-                     if isinstance(o, timeline.StatusItem))
+                     if isinstance(o, timelinedata.StatusItem))
     rss_end = rss_kb()
     print(json.dumps({
         'cpu_ms': round(cpu_total, 1),

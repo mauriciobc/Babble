@@ -22,6 +22,7 @@ from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .lists import ToastDialog, error_text_markup  # noqa: E402
+from .statustext import compact_count  # noqa: E402
 
 RECENT_KEY = 'recent-searches'
 RECENT_MAX = 10
@@ -56,12 +57,13 @@ def clear_recent():
 
 
 def compact_number(value):
-    value = int(value or 0)
-    if value >= 1_000_000:
-        return '%.1fM' % (value / 1_000_000)
-    if value >= 1_000:
-        return '%.1fK' % (value / 1_000)
-    return str(value)
+    """An interaction count, in the reader's locale.
+
+    Was its own formatter with hardcoded 'K' and 'M', which put an
+    English suffix and an English decimal point in front of a German or
+    Brazilian Portuguese reader. statustext.compact_count is the one the
+    rest of the app uses and is translated."""
+    return compact_count(value)
 
 
 def account_subtitle(account):
@@ -228,7 +230,8 @@ def make_result_widget(client, kind, item):
 
 def make_post_row(client, status):
     """A timeline post card that opens the thread when clicked."""
-    from .timeline import StatusItem, StatusRow
+    from .timelinedata import StatusItem
+    from .statusrow import StatusRow
     item = StatusItem(status)
     row = StatusRow()
     row.bind(item, client)

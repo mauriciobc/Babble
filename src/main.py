@@ -157,7 +157,13 @@ class BabbleApplication(Adw.Application):
         self.set_accels_for_action('window.close', ['<primary>w'])
         self.set_accels_for_action('win.compose', ['<primary>n'])
         self.set_accels_for_action('win.reload', ['<primary>r', 'F5'])
-        self.set_accels_for_action('win.back', ['<alt>Left', 'Escape'])
+        # Escape is deliberately not here. As an application accelerator
+        # it is matched ahead of the focused widget, so it swallowed the
+        # Escape that closes a dialog, the one that dismisses the
+        # mention list, and every other handler in the app, only to run
+        # go_back() -- a no-op unless a page is stacked. Go Back is
+        # documented as Alt+Left and stays that way.
+        self.set_accels_for_action('win.back', ['<alt>Left'])
         self.set_accels_for_action('win.back-home', ['<alt>Home'])
         self.set_accels_for_action('win.search',
                                    ['<primary>f', '<primary>k'])

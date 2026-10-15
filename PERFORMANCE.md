@@ -77,3 +77,20 @@ Wall time fell less than CPU time because the harness waits 80 ms of idle after 
 - **Replacing `Gtk.TextView` was not done.** Only 11 of the 92 fixture posts are plain text; 79 have links, custom emoji, or both. A `Gtk.Label` hybrid would have saved little and broken link focus, inline emoji images, and the tests that read the text buffer. A custom drawing widget would have been a new text, hit-testing, and accessibility implementation. The remaining per-row cost is still that text view.
 
 `src/test-timeline-memory.py` is wired into Meson as `timeline memory`. It checks in-place edits, that a dropped page is actually freed, and that an unallocated body measures a sane height.
+
+## After the improvement register (2026-10-15)
+
+Same harness, median of 3, HEAD (`da2eeab`) against this tree, including the timeline shim deletion. Single runs of this workload spread about ±14%, so a difference inside that band is noise. The 2705 ms CPU figure above was measured on another machine and is not comparable to these.
+
+| | HEAD | This tree |
+|---|---:|---:|
+| `cpu_ms` | 6135 | 5653 |
+| `main_ms` | 3929 | 3724 |
+| `stall_p99_ms` | 22.4 | 20.9 |
+| `stalls_over_16ms` | 62 | 52 |
+| `peak_rss_mb` | 404.4 | 403.4 |
+| `rss_growth_mb` | 78.6 | 84.5 |
+| `frames` | 298 | 306 |
+| `frames_with_empty_shell` | 102 | 100 |
+
+No measurable regression. The empty-shell frames are the same cost the section above already records (a run shows empty for a frame while its card is built), not a new bug. The +5 MB of RSS growth is inside the noise.

@@ -13,9 +13,17 @@ unrecorded for the next reader to re-litigate.
 
 This is number of lines, which ruff covers through E501 (characters per
 line), not module length -- ruff has no rule for the latter.
+
+Every module over the limit is in one of the two lists below, with the
+reason stated rather than left unrecorded. That closure is the newer half
+of this test: before it, nine modules were over the limit and in neither
+list, so the rule held for five of them and the rest could grow without
+anyone being told. A module that is over the limit and undeclared now
+fails the test, which is the point.
 """
 
 import os
+import re
 import sys
 
 srcdir = os.environ.get('BABBLE_SRCDIR') \
@@ -32,11 +40,50 @@ SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py')
 # the line count itself is what this test prints above, so it is not
 # repeated here to go stale.
 EXCEPTIONS = {
+    'pages.py': 'the shared page toolkit: navigation, feedback, the toast '
+                'and error surfaces, the paged list and the paging state '
+                'machine every status list shares (CLEAN-08). It grew by '
+                'carrying the paging base. ARCH-06 split the timeline '
+                'around it; the state machine stays here because every '
+                'status list uses it.',
     'window.py': 'four of five seams extracted (portals, auth, drafts, '
                  'clipboard); the remaining lines are view routing over '
                  'page containers the window owns, and extracting them '
                  'would invert streaming.py\'s dependency on that state '
                  'rather than cut a seam.',
+    'compose.py': 'the composer widget. ARCH-01 moved the upload round '
+                  'to composeupload.py; what remains is the draft, the '
+                  'options and the post itself, which is one dialog.',
+    'profile.py': 'the profile header and tabs. ARCH-02 moved the '
+                  'relationship commands to profileactions.py; the '
+                  'header, fields and tabs are the page that is left.',
+    'notifications.py': 'the notification rows and the policy dialog. '
+                        'ARCH-03 moved paging, filter, unread and clear '
+                        'to notificationctrl.py.',
+    'admin.py': 'the moderation dashboard: seven tools, each a page of '
+                'its own, behind one authorization. Splitting it buys '
+                'readability, not a seam, so it is declared.',
+    'mediaviewer.py': 'the picture viewer: zoom and pan geometry, '
+                      'video and audio playback, drag sources and temp '
+                      'file pruning. One widget, one concern.',
+    'catchup.py': 'Catch Up is a feature port (CATCH-UP.md), and its '
+                  'page is one piece of work at a time. CatchUpPage '
+                  'is large for the same reason the port is kept intact: '
+                  'it is meant to stay legible as a port.',
+    'catchuprank.py': 'a faithful port of Elk\'s ranker, kept legible '
+                      'as a port. Its golden scores are generated from '
+                      'the original TypeScript, so refactoring it for '
+                      'Babble idiom would break the diff that makes it '
+                      'trustworthy (see D-02, SKIP-06).',
+    'catchupgrid.py': 'part of the Catch Up port; see catchup.py.',
+    'catchupdigest.py': 'part of the Catch Up port; see catchup.py.',
+    'fedicollections.py': 'Collections (Mastodon 4.6+): page, CRUD and '
+                          'membership.',
+    'mastodon.py': 'the API client: OAuth, the keyring, the transport, '
+                   'and one method per endpoint the app calls.',
+    'hashtags.py': 'the followed-tag list plus a hashtag timeline. '
+                   'The timeline is TimelinePage (ARCH-06); the list '
+                   'and the saved-definition editor are this module.',
 }
 
 failures = 0
@@ -59,11 +106,59 @@ for name in SEAMS:
 
 for name, reason in EXCEPTIONS.items():
     path = os.path.join(srcdir, name)
+    if not os.path.exists(path):
+        # A module that has been split since this list was written: the
+        # declaration was right to be removed, not left to rot.
+        print('    %s: declared but gone -- drop this entry' % name)
+        continue
     lines = open(path, encoding='utf-8').read().count('\n')
-    check('%s is the declared exception (%d lines over the limit)' % (
-        name, max(0, lines - LIMIT)),
-        name in EXCEPTIONS and lines > LIMIT and bool(reason))
-    print('    %s: %s' % (name, reason))
+    # A declared exception that no longer exceeds the limit is stale: the
+    # split happened, or the file shrank, and the entry should follow.
+    check('%s is declared while over the limit' % name, lines > LIMIT)
+    check('%s declares a reason' % name, bool(reason))
+    if lines > LIMIT:
+        print('    %s: %d lines. %s' % (name, lines, reason))
+
+# The rule cannot drift back for a module that is in neither list, so
+# every module has to be in one of them or under the limit. Before this,
+# nine modules were over the limit and unlisted: the test passed, and a
+# God class could reappear in any of them unnoticed.
+modules = sorted(name for name in os.listdir(srcdir)
+                 if name.endswith('.py') and not name.startswith('test-'))
+undeclared = []
+for name in modules:
+    lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count(
+        '\n')
+    if lines > LIMIT and name not in EXCEPTIONS:
+        undeclared.append((name, lines))
+
+for name, lines in undeclared:
+    print('    %s is %d lines and is in neither SEAMS nor EXCEPTIONS'
+          % (name, lines))
+check('every module over the limit declares why (%d undeclared)'
+      % len(undeclared), not undeclared)
+
+# install_data (src/meson.build) is maintained by hand and nothing checked
+# it: a module left off it is missing from the installed app, and the
+# failure appears only at runtime, on a user's machine, as an ImportError.
+# The rule was in CLAUDE.md as prose while its siblings -- module length
+# and gate spelling -- each had a test.
+
+build_path = os.path.join(srcdir, 'meson.build')
+with open(build_path, encoding='utf-8') as build_file:
+    build_source = build_file.read()
+installed = set(re.findall(r"'([a-z0-9_]+\.py)'", build_source))
+missing = sorted(name for name in modules
+                 if name not in installed and name != '__init__.py')
+for name in missing:
+    print('    %s is not in src/meson.build install_data' % name)
+check('every module is installed (%d missing)' % len(missing), not missing)
+stale = sorted(name for name in installed
+               if name not in modules and name != 'meson.build')
+for name in stale:
+    print('    %s is in install_data but no longer exists' % name)
+check('install_data names no module that is gone (%d stale)' % len(stale),
+      not stale)
 
 if failures:
     print('%d checks failed' % failures)

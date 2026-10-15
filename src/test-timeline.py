@@ -9,6 +9,12 @@ import os
 import sys
 import time as time_module
 
+# Same session bus as every other widget test; see test-searchprovider.py.
+os.environ['GDK_DEBUG'] = ','.join(
+    filter(None, (os.environ.get('GDK_DEBUG'), 'no-portals')))
+os.environ.setdefault('NO_AT_BRIDGE', '1')
+os.environ.setdefault('GTK_A11Y', 'none')
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -27,10 +33,15 @@ sys.path.insert(0, srcdir)
 
 from src.mastodon import MastodonClient  # noqa: E402
 from src.textemoji import InlineEmojiText, status_emoji_bank  # noqa: E402
-from src.timeline import (BlurredPicture, BoostCarouselItem, StatusItem,  # noqa: E402
-                          StatusRow, TimelineModel, TimelinePage, group_boosts,
-                          snap_carousel_offset,
-                          COLUMN_WIDTH, parse_content, relative_time)
+from src.mediabox import BlurredPicture, snap_carousel_offset  # noqa: E402
+from src.timelinedata import (BoostCarouselItem, StatusItem,  # noqa: E402
+                              TimelineModel, group_boosts,
+                              filter_replies_from_non_follows)
+from src.statusrow import StatusRow  # noqa: E402
+from src.timelinepage import TimelinePage  # noqa: E402
+from src.timelinebase import (decodable_attachment_url,  # noqa: E402
+                              COLUMN_WIDTH)
+from src.statustext import parse_content, relative_time  # noqa: E402
 
 failures = []
 
@@ -55,6 +66,19 @@ check('carousel snap rounds to card columns',
       snap_carousel_offset(290, 280, 1000) == 280)
 check('carousel snap clamps to the end',
       snap_carousel_offset(950, 280, 840) == 840)
+check('image attachment decodes from url',
+      decodable_attachment_url({'type': 'image', 'url': 'a', 'preview_url': 'b'})
+      == 'a')
+check('video attachment decodes from preview',
+      decodable_attachment_url({'type': 'video', 'url': 'a', 'preview_url': 'b'})
+      == 'b')
+reply = {'id': '2', 'in_reply_to_id': '1',
+         'account': {'id': '9', 'acct': 'stranger'}}
+top = {'id': '3', 'account': {'id': '9'}}
+check('reply filter keeps originals',
+      filter_replies_from_non_follows([top, reply], '1', {'1'}) == [top])
+check('reply filter keeps followed authors',
+      filter_replies_from_non_follows([reply], None, {'9'}) == [reply])
 
 model = TimelineModel()
 items = model.append_old([{'id': '2', 'content': 'b',

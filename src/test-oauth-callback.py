@@ -229,6 +229,12 @@ class StubClient:
                                          cancellable=None):
         return StubTask('{"count": 0}')
 
+    def markers_async(self, timelines, callback=None, cancellable=None):
+        self.reply(callback, StubTask('{}'))
+
+    def markers_finish(self, result):
+        return self._finish(result)
+
     def request_async(self, method, path, params=None, form=None,
                       json_body=None, callback=None, cancellable=None):
         self.reply(callback, StubTask(
@@ -907,6 +913,12 @@ finally:
 
 # --- Logging out revokes the token, not just forgets it ----------------
 
+# Removal also clears the keyring. This section stubs that call: the
+# checks are about revoke-then-forget, and a session with no secret
+# service raises out of the real clear before the window can finish.
+_real_clear_secret = window_module.clear_secret_async
+window_module.clear_secret_async = lambda *args, **kwargs: None
+
 # Deleting the keyring entry leaves the token valid on the instance: a
 # copy of it, from a backup or a shared machine, would keep working. So
 # the removal has to ask the server, and must not wait for the answer --
@@ -946,31 +958,34 @@ class RevokeClient(StubClient):
         return self._finish(result)
 
 
-win.account = {'id': '42', 'acct': 'me@example.social',
-               'instance': 'https://example.social'}
-win.client = RevokeClient()
-win.store_account(win.account)
-win._remove_account_now(win.account)
-pump()
-check('logging out revokes the token it was using',
-      RevokeClient.revokes == [('live-token', 'cid', 'csecret')])
-check('logging out forgets the account',
-      win.account is None
-      and win.main_stack.get_visible_child_name() == 'login')
+try:
+    win.account = {'id': '42', 'acct': 'me@example.social',
+                   'instance': 'https://example.social'}
+    win.client = RevokeClient()
+    win.store_account(win.account)
+    win._remove_account_now(win.account)
+    pump()
+    check('logging out revokes the token it was using',
+          RevokeClient.revokes == [('live-token', 'cid', 'csecret')])
+    check('logging out forgets the account',
+          win.account is None
+          and win.main_stack.get_visible_child_name() == 'login')
 
-# A server that cannot be reached must not strand the window signed in.
-RevokeClient.revokes = []
-RevokeClient.unreachable = True
-win, toasts = fresh_window()
-win.account = {'id': '43', 'acct': 'other@example.social',
-               'instance': 'https://example.social'}
-win.client = RevokeClient()
-win.store_account(win.account)
-win._remove_account_now(win.account)
-pump()
-check('an unreachable server does not keep the window signed in',
-      win.account is None
-      and win.main_stack.get_visible_child_name() == 'login')
+    # A server that cannot be reached must not strand the window signed in.
+    RevokeClient.revokes = []
+    RevokeClient.unreachable = True
+    win, toasts = fresh_window()
+    win.account = {'id': '43', 'acct': 'other@example.social',
+                   'instance': 'https://example.social'}
+    win.client = RevokeClient()
+    win.store_account(win.account)
+    win._remove_account_now(win.account)
+    pump()
+    check('an unreachable server does not keep the window signed in',
+          win.account is None
+          and win.main_stack.get_visible_child_name() == 'login')
+finally:
+    window_module.clear_secret_async = _real_clear_secret
 
 # --- Only web links reach the system launcher -------------------------
 #

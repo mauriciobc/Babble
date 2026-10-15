@@ -142,6 +142,47 @@ class TestShortenUrl(unittest.TestCase):
         self.assertEqual(shorten_url_text('not a url'), 'not a url')
 
 
+class TestParseTime(unittest.TestCase):
+    """The one ISO-8601 reader.
+
+    Four modules had their own before this, and two disagreed about
+    whether a stamp with no offset was an error or UTC. Every timestamp
+    the API sends is UTC, so the shared answer is: read a naive one as
+    UTC, and never raise on anything.
+    """
+
+    def test_a_zulu_stamp(self):
+        self.assertEqual(
+            statustext.parse_time('2026-10-13T12:00:00.000Z'),
+            datetime.datetime(2026, 10, 13, 12, 0,
+                               tzinfo=datetime.timezone.utc))
+
+    def test_an_offset_is_kept(self):
+        moment = statustext.parse_time('2026-10-13T08:00:00-04:00')
+        self.assertIsNotNone(moment)
+        self.assertEqual(moment.utcoffset(), datetime.timedelta(hours=-4))
+
+    def test_a_stamp_with_no_offset_is_utc(self):
+        # The disagreement this replaced: filters.py returned None here
+        # while timeline.py assumed UTC.
+        self.assertEqual(
+            statustext.parse_time('2026-10-13T12:00:00'),
+            datetime.datetime(2026, 10, 13, 12, 0,
+                               tzinfo=datetime.timezone.utc))
+
+    def test_nonsense_is_none_rather_than_an_exception(self):
+        for value in ('not a time', '', None, 42, [], '2026-13-45'):
+            self.assertIsNone(statustext.parse_time(value), value)
+
+    def test_the_dependent_readers_agree(self):
+        # relative_time and the timeline's own helpers all go through
+        # this now; a stamp none of them can read is a bug in one place.
+        self.assertEqual(
+            statustext.parse_time('2026-10-13T12:00:00Z'),
+            datetime.datetime(2026, 10, 13, 12, 0,
+                               tzinfo=datetime.timezone.utc))
+
+
 class TestRelativeTime(unittest.TestCase):
     """The unit suffixes are part of the string, but the digits are not:
     the result is translated, so assert the shape, never an exact text."""

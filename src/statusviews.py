@@ -1,7 +1,6 @@
 """Status detail views: who favourited / boosted / quoted a post, and
 the edit history of a post."""
 
-import datetime
 from .i18n import gettext as _
 
 import gi
@@ -12,7 +11,7 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
-from .statustext import format_time  # noqa: E402
+from .statustext import format_time, parse_time  # noqa: E402
 
 STATS_TABS = (
     ('favourites', 'favourites_count', '/statuses/%s/favourited_by'),
@@ -78,11 +77,10 @@ class StatusStatsView(Adw.Bin):
         if kind == 'boosts':
             return pages.AccountListPage(
                 self.client, path, empty_title=_('No Boosts Yet'))
-        from . import timeline
-        return timeline.TimelinePage(
+        from .timelinepage import ApiTimelineSource, TimelinePage
+        return TimelinePage(
             self.client, mode='home',
-            source=timeline.ApiTimelineSource(self.client, path,
-                                              paging='link'))
+            source=ApiTimelineSource(self.client, path, paging='link'))
 
     def _ensure_built(self, kind):
         if kind in self._built or kind not in self._builders:
@@ -116,10 +114,7 @@ def push_status_stats(widget, client, status, kind):
 # Edit history
 
 def _parse_time(iso):
-    try:
-        return datetime.datetime.fromisoformat(iso.replace('Z', '+00:00'))
-    except (ValueError, AttributeError, TypeError):
-        return None
+    return parse_time(iso)
 
 
 def _absolute_time(iso):
@@ -195,7 +190,7 @@ class EditHistoryView(Adw.Bin):
             # Adw.StatusPage parses its description as markup, so the
             # server body has to be escaped or a bare '&' blanks it.
             self.error_page.set_description(
-                summarize_error_markup(error.message))
+                summarize_error_markup(error))
             self.stack.set_visible_child_name('error')
             return
         while (child := self.content.get_first_child()) is not None:
@@ -208,7 +203,10 @@ class EditHistoryView(Adw.Bin):
         self.stack.set_visible_child_name('list')
 
     def _make_card(self, index, revision, previous):
-        from . import textemoji, timeline
+        from . import textemoji
+        from .mediabox import MediaBox
+        from .mediacache import StatusBody
+        from .statustext import parse_content, relative_time
 
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         card.add_css_class('card')
@@ -228,7 +226,7 @@ class EditHistoryView(Adw.Bin):
         created = revision.get('created_at')
         when = Gtk.Label(
             label='%s · %s' % (_absolute_time(created),
-                               _('%s ago') % timeline.relative_time(created)),
+                               _('%s ago') % relative_time(created)),
             xalign=1)
         when.add_css_class('dimmed')
         when.add_css_class('caption')
@@ -252,14 +250,14 @@ class EditHistoryView(Adw.Bin):
             warning.add_css_class('heading')
             inner.append(warning)
 
-        body = timeline.StatusBody()
-        body.set_segments(timeline.parse_content(revision.get('content')),
+        body = StatusBody()
+        body.set_segments(parse_content(revision.get('content')),
                           textemoji.status_emoji_bank(revision))
         inner.append(body)
 
         attachments = revision.get('media_attachments') or []
         if attachments:
-            media = timeline.MediaBox()
+            media = MediaBox()
             media.set_media(attachments, bool(revision.get('sensitive')))
             inner.append(media)
 

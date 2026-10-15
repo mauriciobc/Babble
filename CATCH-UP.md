@@ -795,10 +795,10 @@ Each new module goes in the `install_data` list in `src/meson.build`.
 Changes to existing modules, so the tiles share Explore's widgets instead of
 copying them:
 
-- `src/explore.py`: move the body of `LinkCard.__init__` into
-  `link_card_content(link, sharers=None)`, which returns the `Gtk.Box`. Both
-  `LinkCard` (a `Gtk.ListBoxRow`) and the News Link tile wrap it. `LinkCard`'s
-  appearance does not change.
+- `src/explore.py`: `link_card_content(link)` is the News tab card body.
+  Catch-Up news tiles do not wrap that box; they call
+  `link_card_footer_text`, which is where a sharer list replaces the
+  "N people talking" count. `LinkCard`'s appearance does not change.
 - `src/hashtags.py`: likewise, factor what `HashtagRow` shows into a helper
   the Hashtag tile can lay out in a grid cell. Let `Sparkline` also take plain
   values (for the fallback buckets) besides a `history` list.

@@ -52,7 +52,8 @@ from src.mastodon import MastodonClient  # noqa: E402
 from src.profile import (AccountStatuses, ProfilePage,  # noqa: E402
                          format_count)
 from src.thread import ThreadPage, ThreadReply  # noqa: E402
-from src.timeline import StatusItem, TimelinePage  # noqa: E402
+from src.timelinedata import StatusItem  # noqa: E402
+from src.timelinepage import TimelinePage  # noqa: E402
 
 failures = []
 
@@ -301,11 +302,26 @@ else:
     check('real posts loaded', False)
 check('pinned tab present', pinned_page is not None)
 check('media tab present', media_page is not None)
-if pinned_page is not None and pinned_page.model.get_n_items() == 0:
-    check('pinned tab shows empty state',
-          pinned_page.stack.get_visible_child_name() == 'empty')
+if pinned_page is not None:
+    profile_page.view_stack.set_visible_child_name('pinned')
+    pinned_page.ensure_loaded()
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        state = pinned_page.stack.get_visible_child_name()
+        items = pinned_page.model.get_n_items()
+        if state == 'empty' and items == 0:
+            break
+        if state == 'list' and items > 0:
+            break
+        pump(0.2)
+    items = pinned_page.model.get_n_items()
+    state = pinned_page.stack.get_visible_child_name()
+    if items > 0:
+        check('pinned tab shows empty state', state == 'list')
+    else:
+        check('pinned tab shows empty state', state == 'empty')
 else:
-    check('pinned tab shows empty state', True)
+    check('pinned tab shows empty state', False)
 
 pump(2.0)
 screenshot(window, 'babble-profile.png')

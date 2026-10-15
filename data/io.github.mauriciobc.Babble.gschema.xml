@@ -140,6 +140,10 @@
       <default>true</default>
       <summary>Show only the first boost of a post that several people boosted</summary>
     </key>
+    <key name="hide-replies-non-follows" type="b">
+      <default>false</default>
+      <summary>Hide reply posts on the home timeline from people you do not follow</summary>
+    </key>
     <key name="advanced-boost-dialog" type="b">
       <default>false</default>
       <summary>Ask for visibility (and offer quoting) before boosting</summary>
@@ -197,11 +201,11 @@
         <choice value="nobody"/>
       </choices>
       <default>'public'</default>
-      <summary>Who may quote new posts</summary>
+      <summary>Default quote policy on your server account (not per post in Babble)</summary>
     </key>
     <key name="default-sensitive" type="b">
       <default>false</default>
-      <summary>Mark media of new posts as sensitive by default</summary>
+      <summary>Mark new posts sensitive in the composer and on your server</summary>
     </key>
     <key name="desktop-notification-types" type="as">
       <default>['mention', 'follow', 'follow_request', 'favourite', 'reblog', 'poll', 'status', 'update', 'quote', 'quoted_update', 'admin.sign_up', 'admin.report']</default>

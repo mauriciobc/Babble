@@ -822,6 +822,16 @@ class BinByTimeTest(unittest.TestCase):
         posts.append(status(999, minutes_ago=1))
         self.assertEqual(len(cd.posts_bar_bins(posts, BASE)), 320)
 
+    def test_posts_bar_ids(self):
+        posts = [status(i, minutes_ago=i) for i in range(3)]
+        dots, bins = cd.posts_bar_ids(posts, BASE)
+        self.assertEqual(dots, [p['id'] for p in posts])
+        self.assertIsNone(bins)
+        many = [status(i, minutes_ago=i) for i in range(161)]
+        dots, bins = cd.posts_bar_ids(many, BASE)
+        self.assertIsNone(dots)
+        self.assertEqual(len(bins), 320)
+
 
 def ranked_posts(n, with_media_every=4, long_every=5):
     """``n`` posts in display order with descending scores."""

@@ -16,14 +16,25 @@ gi.require_version('Soup', '3.0')
 
 from .i18n import gettext as _, ngettext
 
-from gi.repository import (Adw, Gdk, GLib, Gio, GObject, Gtk,  # noqa: E402
-                           Pango, Soup)
+from gi.repository import (Adw, Gdk, GLib, GObject, Gtk,  # noqa: E402
+                           Pango)
 
+from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
+from .profileactions import (ProfileActions,  # noqa: E402
+                              endorse_action_names)  # noqa: F401
 from .mastodon import summarize_error_markup  # noqa: E402
-from .timeline import (AvatarCache, TimelinePage, COLUMN_WIDTH,  # noqa: E402
-                       log_media_failure)
+from .mediacache import AvatarCache, _decode_async, log_media_failure  # noqa: E402
+from .timelinepage import TimelinePage  # noqa: E402
+from .timelinebase import COLUMN_WIDTH  # noqa: E402
+
+
+def _decode_banner(data, cancellable, done):
+    """Decode a profile banner whole, at whatever size it is."""
+    _decode_async(data, None, cancellable,
+                  lambda texture, error: done(texture,
+                                              error and error.message))
 
 
 def push_profile(view, client, account, acct=None):
@@ -153,64 +164,35 @@ class ProfileTimeline(TimelinePage):
 
 
 class HeaderCache:
-    """Profile-banner cache: downloads each header once per URL and hands
-    the decoded texture to every picture waiting for it."""
+    """Profile-banner cache: one request per URL, shared with the other
+    image caches.
 
-    _textures = {}
-    _inflight = {}
+    Was the odd one out: its own unbounded dict, its own in-flight table
+    and its own fetch, so a session over many profiles grew without limit
+    while its siblings were capped. Now it is the same store, so a banner
+    costs at most BANNER_CACHE_SIZE decoded textures like everything else.
+    """
+
+    store = imagecache.Store(imagecache.BANNER_CACHE_SIZE)
+    fetcher = imagecache.Fetcher(
+        store,
+        # A banner fills a fixed-width strip, so it decodes whole rather
+        # than being scaled to a box that never changes.
+        lambda data, key, cancellable, done: _decode_banner(
+            data, cancellable, done),
+        on_failure=log_media_failure)
 
     @classmethod
     def apply(cls, picture, url):
         """Show *url*'s image in *picture*, fetching it when needed."""
-        texture = cls._textures.get(url)
-        if texture is not None:
-            picture.set_paintable(texture)
-            return
-        if url in cls._inflight:
-            cls._inflight[url].append(picture)
-            return
-        message = Soup.Message.new('GET', url)
-        if message is None:
-            log_media_failure(url, 'invalid URL')
-            return
-        cls._inflight[url] = [picture]
-        AvatarCache.session().send_and_read_async(
-            message, GLib.PRIORITY_DEFAULT_IDLE, None, cls._on_loaded,
-            (url, message))
-
-    @classmethod
-    def _on_loaded(cls, session, result, extra):
         # A failure leaves the banner empty and uncached for a retry.
-        url, message = extra
-        waiting = cls._inflight.pop(url, [])
-        try:
-            data = session.send_and_read_finish(result)
-        except GLib.Error as error:
-            log_media_failure(url, error.message)
-            return
-        status = message.get_status()
-        if not 200 <= status < 300:
-            # A 404 page can be an image too; never show or cache it.
-            log_media_failure(url, 'HTTP %d' % status)
-            return
-        try:
-            texture = Gdk.Texture.new_from_bytes(data)
-        except (GLib.Error, TypeError) as error:
-            log_media_failure(url, str(error))
-            return
-        cls._textures[url] = texture
-        for picture in waiting:
-            picture.set_paintable(texture)
+        cls.fetcher.fetch(
+            url, lambda texture, _reason: None if texture is None
+            else picture.set_paintable(texture))
 
 
-from . import textemoji  # noqa: E402
-
-# Shared machinery now lives in textemoji.py; the profile sheet keeps
-# using the very same emoji bank and renderer.
-EMOJI_RE = textemoji.EMOJI_RE
-emoji_bank = textemoji.emoji_bank
-content_segments = textemoji.content_segments
-InlineEmojiText = textemoji.InlineEmojiText
+from .textemoji import (EMOJI_RE, InlineEmojiText, content_segments,  # noqa: E402
+                        emoji_bank)
 
 VISIBLE_FIELDS = 4
 BANNER_HEIGHT = 100
@@ -218,6 +200,9 @@ ENDORSEMENT_PREVIEW = 3
 FAMILIAR_NAMES = 3
 NOTE_LIMIT = 2000
 # Seconds, as Mastodon's ``duration`` parameter wants them.
+# The api_versions.mastodon value that introduced the ``endorse`` and
+# ``unendorse`` aliases. Before it the route only answered ``pin`` and
+# ``unpin``. See set_endorsed, which falls back on a 404 as well.
 MUTE_DURATIONS = (0, 3600, 6 * 3600, 24 * 3600, 7 * 24 * 3600,
                   30 * 24 * 3600)
 
@@ -386,15 +371,33 @@ class PrivateNoteDialog(Adw.Dialog):
         self._on_save(self.text())
 
 
-def _request_result(client, result):
-    """Decoded body of *result*, or None when the request failed."""
+
+def _request_result(client, result, widget=None, what=None):
+    """Decoded body of *result*, or None when the request failed.
+
+    Used for the extras that decorate a profile -- familiar followers,
+    featured hashtags, endorsements -- and for reloading the account
+    itself. A failure there used to vanish completely: no toast, no log,
+    no sign the card was short of something it should have shown. When
+    the caller names *widget* and *what*, the failure is reported, the
+    same way a relationship failure is.
+    """
     try:
         return client.request_finish(result)
-    except GLib.Error:
+    except GLib.Error as error:
+        if widget is not None and what is not None:
+            pages.report_error(widget, what, error)
+        else:
+            # Nothing to report it on: still leave a trace, or the next
+            # person to wonder why a card is missing a section cannot.
+            GLib.log_variant('Babble', GLib.LogLevelFlags.LEVEL_DEBUG,
+                             GLib.Variant('a{sv}', {'MESSAGE': GLib.Variant(
+                                 's', 'profile: request failed: %s'
+                                 % error.message)}))
         return None
 
 
-class ProfilePage(Adw.Bin):
+class ProfilePage(ProfileActions, Adw.Bin):
     """Account header plus Posts / Posts & Replies / Media tabs.
 
     The header bar carries the tab switcher; below 550sp the switcher
@@ -444,20 +447,11 @@ class ProfilePage(Adw.Bin):
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
 
-        self.loading_page = Adw.StatusPage(title=_('Loading Profile'))
-        self.loading_page.set_paintable(
-            Adw.SpinnerPaintable.new(self.loading_page))
+        self.loading_page = pages.make_loading_page(_('Loading Profile'))
         self.stack.add_named(self.loading_page, 'loading')
 
-        self.error_page = Adw.StatusPage(
-            icon_name='network-error-symbolic',
-            title=_('Could Not Load Profile'))
-        retry = Gtk.Button(label=_('_Try Again'), use_underline=True,
-                           halign=Gtk.Align.CENTER)
-        retry.add_css_class('pill')
-        retry.add_css_class('suggested-action')
-        connect_weak(retry, 'clicked', self.on_retry)
-        self.error_page.set_child(retry)
+        self.error_page = pages.make_error_page(
+            _('Could Not Load Profile'), self.on_retry)
         self.stack.add_named(self.error_page, 'error')
 
         self.scrolled = Gtk.ScrolledWindow(vexpand=True)
@@ -546,7 +540,13 @@ class ProfilePage(Adw.Bin):
 
     def on_account_ready(self):
         """The account dict is complete: build everything that hangs off
-        it (header, tabs, relationship, fresh copy of the account)."""
+        it (header, tabs, relationship, fresh copy of the account).
+
+        Opening a profile currently costs about eight REST calls:
+        relationship, account refresh, familiar followers (when signed in),
+        featured tags, endorsements, and the three tab timelines each
+        fetch their first page even when ``Adw.ViewStack`` is still on
+        Posts (ARCH-10)."""
         self.refresh_header(self.account)
         self.open_tabs()
         self.load_relationship()
@@ -627,11 +627,10 @@ class ProfilePage(Adw.Bin):
         # Display name keeps the title typography; custom emoji from the
         # account bank are rendered inline as images instead of literal
         # :shortcodes:.
-        self.emoji_bank_map = emoji_bank(account)
         display = account.get('display_name') or account.get('acct', '')
+        bank = emoji_bank(account)
         name = InlineEmojiText(emoji_size=18)
-        name.set_segments([{'text': display, 'href': None}],
-                          self.emoji_bank_map)
+        name.set_segments([{'text': display, 'href': None}], bank)
         name.set_wrap_mode(Gtk.WrapMode.WORD)
         name.add_css_class('title-2')
         identity.append(name)
@@ -741,11 +740,7 @@ class ProfilePage(Adw.Bin):
 
     def _on_image_clicked(self, _gesture, _n_press, _x, _y, url,
                           description):
-        try:
-            from .mediaviewer import present_media
-        except ImportError:
-            pages.launch_external(self, url)
-            return
+        from .mediaviewer import present_media
         present_media(self, [{'type': 'image', 'url': url,
                               'preview_url': url,
                               'description': description or ''}], 0)
@@ -1010,7 +1005,8 @@ class ProfilePage(Adw.Bin):
             params={'limit': 80}, callback=handler(self._on_endorsements))
 
     def _on_familiar(self, client, result, _data=None):
-        data = _request_result(client, result)
+        data = _request_result(client, result, self,
+                              _('Could not load familiar followers'))
         accounts = (data[0].get('accounts') or []) if data else []
         if not accounts:
             return
@@ -1063,7 +1059,8 @@ class ProfilePage(Adw.Bin):
         self.push_subpage(_('Followers You Know'), page)
 
     def _on_featured_tags(self, client, result, _data=None):
-        tags = _request_result(client, result)
+        tags = _request_result(client, result, self,
+                               _('Could not load featured hashtags'))
         if not tags:
             return
         self.tags_box.append(pages.section_label(_('Featured Hashtags')))
@@ -1087,7 +1084,8 @@ class ProfilePage(Adw.Bin):
         push_hashtag(self, self.client, name)
 
     def _on_endorsements(self, client, result, _data=None):
-        accounts = _request_result(client, result)
+        accounts = _request_result(client, result, self,
+                                   _('Could not load featured profiles'))
         if not accounts:
             return
         self.endorse_box.append(pages.section_label(_('Featured Profiles')))
@@ -1133,7 +1131,8 @@ class ProfilePage(Adw.Bin):
         for name, title, icon, source in tabs:
             page = ProfileTimeline(
                 self.client, mode='account', source=source,
-                boosts_carousel=not self._is_self())
+                boosts_carousel=not self._is_self(),
+                autoload=(name == 'posts'))
             page.set_hexpand(True)
             page.set_vexpand(True)
             self.view_stack.add_titled(page, name, title)
@@ -1141,7 +1140,14 @@ class ProfilePage(Adw.Bin):
             timeline_pages.append(page)
         if self.account.get('show_media') is False:
             self.view_stack.get_page(timeline_pages[2]).set_visible(False)
+        pages.connect_weak(self.view_stack, 'notify::visible-child',
+                           self._on_profile_tab_visible)
         self.set_stack_state('content')
+
+    def _on_profile_tab_visible(self, stack, _pspec):
+        page = stack.get_visible_child()
+        if isinstance(page, ProfileTimeline):
+            page.ensure_loaded()
 
     def refresh(self):
         """Reload account, relationship and the tabs (Ctrl+R)."""
@@ -1162,7 +1168,8 @@ class ProfilePage(Adw.Bin):
         def loaded(client, result, _data=None):
             if generation != self._generation:
                 return
-            fresh = _request_result(client, result)
+            fresh = _request_result(
+                client, result, self, _('Could not reload the profile'))
             if isinstance(fresh, dict) and fresh.get('id') == account_id \
                     and fresh != self.account:
                 self.account = dict(self.account, **fresh)
@@ -1193,8 +1200,9 @@ class ProfilePage(Adw.Bin):
         self.update_relationship_ui()
 
     def set_relationship(self, relationship):
+        from .entities import lift
         if isinstance(relationship, dict) and 'id' in relationship:
-            self.relationship = relationship
+            self.relationship = lift(relationship)
         self.update_relationship_ui()
 
     def update_relationship_ui(self):
@@ -1255,410 +1263,6 @@ class ProfilePage(Adw.Bin):
             self.confirm_domain_block(False)
 
     # Menu and actions
-
-    # Action name -> (method, arguments); dispatched by name so the
-    # actions, which the page owns, hold the page only weakly.
-    _PLAIN_ACTIONS = {
-        'mention': ('on_mention', False),
-        'direct': ('on_mention', True),
-        'copy-handle': ('on_copy_handle',),
-        'copy-link': ('on_copy_link',),
-        'open-browser': ('on_open_browser',),
-        'private-note': ('edit_private_note',),
-        'lists': ('on_lists',),
-        'hide-boosts': ('set_boosts', False),
-        'show-boosts': ('set_boosts', True),
-        'remove-follower': ('confirm_remove_follower',),
-        'mute': ('on_mute',),
-        'unmute': ('on_unmute',),
-        'block': ('confirm_block', True),
-        'unblock': ('confirm_block', False),
-        'block-domain': ('confirm_domain_block', True),
-        'unblock-domain': ('confirm_domain_block', False),
-        'report': ('on_report',),
-    }
-    _STATEFUL_ACTIONS = {
-        'notify': 'set_notifying',
-        'endorse': 'set_endorsed',
-    }
-
-    def _build_actions(self):
-        self.actions = Gio.SimpleActionGroup()
-        for name in self._PLAIN_ACTIONS:
-            action = Gio.SimpleAction.new(name, None)
-            connect_weak(action, 'activate', self._on_plain_action)
-            self.actions.add_action(action)
-        for name in self._STATEFUL_ACTIONS:
-            action = Gio.SimpleAction.new_stateful(
-                name, None, GLib.Variant.new_boolean(False))
-            connect_weak(action, 'change-state', self._on_stateful_action)
-            self.actions.add_action(action)
-        self.insert_action_group('profile', self.actions)
-
-    def _on_plain_action(self, action, _param):
-        method, *args = self._PLAIN_ACTIONS[action.get_name()]
-        getattr(self, method)(*args)
-
-    def _on_stateful_action(self, action, value):
-        getattr(self, self._STATEFUL_ACTIONS[action.get_name()])(
-            value.get_boolean())
-
-    def update_menu(self):
-        """Rebuild the overflow menu for the current relationship."""
-        if self.menu_button is None:
-            return
-        rs = self.relationship
-        mine = self._is_self()
-        following = bool(rs.get('following'))
-        menu = Gio.Menu()
-
-        compose = Gio.Menu()
-        compose.append(_('Mention'), 'profile.mention')
-        if not mine:
-            compose.append(_('Direct Message'), 'profile.direct')
-        menu.append_section(None, compose)
-
-        share = Gio.Menu()
-        share.append(_('Copy Handle'), 'profile.copy-handle')
-        share.append(_('Copy Link'), 'profile.copy-link')
-        share.append(_('Open in Browser'), 'profile.open-browser')
-        menu.append_section(None, share)
-
-        if not mine:
-            relation = Gio.Menu()
-            if following:
-                relation.append(_('Receive Post Notifications'),
-                                'profile.notify')
-                relation.append(_('Feature on Profile'), 'profile.endorse')
-                relation.append(
-                    _('Show Boosts') if rs.get('showing_reblogs') is False
-                    else _('Hide Boosts'),
-                    'profile.show-boosts'
-                    if rs.get('showing_reblogs') is False
-                    else 'profile.hide-boosts')
-                relation.append(_('Add or Remove from Lists…'),
-                                'profile.lists')
-            relation.append(_('Private Note…'), 'profile.private-note')
-            if rs.get('followed_by'):
-                relation.append(_('Remove from Followers'),
-                                'profile.remove-follower')
-            menu.append_section(None, relation)
-
-            moderation = Gio.Menu()
-            moderation.append(
-                _('Unmute') if rs.get('muting') else _('Mute…'),
-                'profile.unmute' if rs.get('muting') else 'profile.mute')
-            moderation.append(
-                _('Unblock') if rs.get('blocking') else _('Block…'),
-                'profile.unblock' if rs.get('blocking')
-                else 'profile.block')
-            if self._remote_domain():
-                moderation.append(
-                    _('Unblock Domain') if rs.get('domain_blocking')
-                    else _('Block Domain…'),
-                    'profile.unblock-domain' if rs.get('domain_blocking')
-                    else 'profile.block-domain')
-            moderation.append(_('Report…'), 'profile.report')
-            menu.append_section(_('Moderation'), moderation)
-
-        for name, key in (('notify', 'notifying'), ('endorse', 'endorsed')):
-            self.actions.lookup_action(name).set_state(
-                GLib.Variant.new_boolean(bool(rs.get(key))))
-        self.menu_button.set_menu_model(menu)
-        self.menu_button.set_sensitive(not self._busy)
-
-    def _close_sheet(self):
-        dialog = self.get_ancestor(Adw.Dialog)
-        if dialog is not None:
-            dialog.close()
-
-    def on_mention(self, direct):
-        window = pages.window_of(self)
-        if window is None:
-            return
-        dialog = window.ensure_composer()
-        if dialog is None:
-            return
-        self._close_sheet()
-        dialog.start_mention(self.account, direct=direct)
-        window.present_composer()
-
-    def on_copy_handle(self):
-        self.get_clipboard().set(self._full_handle())
-        pages.show_toast(self, _('Copied handle to clipboard'))
-
-    def on_copy_link(self):
-        url = self.account.get('url') or ''
-        self.get_clipboard().set(url)
-        pages.show_toast(self, _('Copied link to clipboard'))
-
-    def on_open_browser(self):
-        url = self.account.get('url')
-        if url:
-            pages.launch_external(self, url)
-
-    def on_lists(self):
-        from .lists import present_list_membership
-        present_list_membership(self, self.client, self.account)
-
-    def on_report(self):
-        from .report import present_report
-        present_report(self, self.client, self.account)
-
-    def on_edit_profile(self):
-        from .profileedit import present_profile_edit
-        present_profile_edit(self, self.client, self.account,
-                             on_saved=self.on_profile_saved)
-
-    def on_profile_saved(self, account):
-        self.account = dict(self.account, **account)
-        self.refresh_header(self.account)
-
-    # Confirmations
-
-    def confirm_unfollow(self):
-        """Reversible: act at once and offer Undo, unless the account is
-        locked (a fresh request would need approval again)."""
-        if self.account.get('locked'):
-            pages.confirm(
-                self, _('Unfollow %s?') % self._acct(),
-                _('Their posts will no longer appear in your home '
-                  'timeline.'),
-                _('_Unfollow'),
-                lambda: self.send_relationship(
-                    'unfollow', done=_('Unfollowed %s'),
-                    failed=_('Could not unfollow %s')))
-            return
-        self.send_relationship(
-            'unfollow', done=_('Unfollowed %s'),
-            failed=_('Could not unfollow %s'),
-            undo=('follow', None, _('_Undo')))
-
-    def confirm_cancel_request(self):
-        self.send_relationship(
-            'unfollow', done=_('Withdrew follow request to %s'),
-            failed=_('Could not withdraw follow request to %s'),
-            undo=('follow', None, _('_Undo')))
-
-    def confirm_remove_follower(self):
-        pages.confirm(
-            self, _('Remove %s from Followers?') % self._acct(),
-            _('They will stop following you and will not be told.'),
-            _('_Remove'),
-            lambda: self.send_relationship(
-                'remove_from_followers',
-                done=_('Removed %s from your followers'),
-                failed=_('Could not remove %s from your followers')))
-
-    def confirm_block(self, block):
-        if block:
-            pages.confirm(
-                self, _('Block %s?') % self._acct(),
-                _('They will not be able to follow you or see your posts, '
-                  'and their posts will be hidden from you.'),
-                _('_Block'),
-                lambda: self.send_relationship(
-                    'block', done=_('Blocked %s'),
-                    failed=_('Could not block %s')))
-            return
-        self.send_relationship(
-            'unblock', done=_('Unblocked %s'),
-            failed=_('Could not unblock %s'),
-            undo=('block', None, _('_Undo')))
-
-    def confirm_domain_block(self, block):
-        domain = self._remote_domain()
-        if not domain:
-            return
-        if block:
-            pages.confirm(
-                self, _('Block Entire %s?') % domain,
-                _('Blocking a domain will:\n\n'
-                  '• Remove its public posts and notifications from '
-                  'your timelines\n'
-                  '• Remove its followers from your account\n'
-                  '• Prevent you from following its users'),
-                _('_Block'),
-                lambda: self.send_domain_block(block, domain),
-                destructive=True)
-            return
-        self.send_domain_block(block, domain, undo=_('_Undo'))
-
-    # Requests
-
-    def _set_busy(self, busy):
-        self._busy = busy
-        self.update_follow_button()
-        if self.menu_button is not None:
-            self.menu_button.set_sensitive(not busy)
-
-    def send_relationship(self, operation, form=None, done=None,
-                          failed=None, on_failed=None, undo=None):
-        """POST /accounts/:id/<operation>; the response is the new
-        Relationship. *undo* is ``(operation, form, label)`` for a
-        reversible action, offered as a button on the success toast."""
-        self._set_busy(True)
-        handle = self._acct()
-
-        def finished(client, result, _data=None):
-            try:
-                relationship = client.request_finish(result)
-            except GLib.Error as error:
-                self._set_busy(False)
-                pages.report_error(
-                    self, (failed or _('Action failed: %s')) % handle,
-                    error)
-                if on_failed is not None:
-                    on_failed(error)
-                self.update_menu()
-                return
-            self._busy = False
-            self.set_relationship(relationship)
-            if not done:
-                return
-            undo_action = None
-            if undo is not None:
-                undo_op, undo_form, undo_label = undo
-                undo_action = lambda: self.send_relationship(  # noqa: E731
-                    undo_op, form=undo_form,
-                    done=_('Restored %s'), failed=failed, undo=None)
-            pages.show_toast(self, done % handle, undo=undo_action,
-                             undo_label=undo[2] if undo else None)
-
-        self.client.request_async(
-            'POST', '/accounts/%s/%s' % (self.account['id'], operation),
-            form=form, callback=finished)
-
-    def send_domain_block(self, block, domain, undo_label=None):
-        self._set_busy(True)
-
-        def finished(client, result, _data=None):
-            try:
-                client.request_finish(result)
-            except GLib.Error as error:
-                self._set_busy(False)
-                pages.report_error(
-                    self, _('Could not block domain') if block
-                    else _('Could not unblock domain'), error)
-                return
-            self._busy = False
-            self.relationship = dict(self.relationship,
-                                     domain_blocking=block)
-            self.update_relationship_ui()
-            undo_action = (lambda: self.send_domain_block(not block, domain)) \
-                if undo_label else None
-            pages.show_toast(
-                self, (_('Blocked %s') if block else _('Unblocked %s'))
-                % domain, undo=undo_action, undo_label=undo_label)
-            self.load_relationship()
-
-        if block:
-            self.client.request_async('POST', '/domain_blocks',
-                                      form={'domain': domain},
-                                      callback=finished)
-        else:
-            self.client.request_async('DELETE', '/domain_blocks',
-                                      params={'domain': domain},
-                                      callback=finished)
-
-    def on_mute(self):
-        present_mute_dialog(
-            self, self._acct(),
-            lambda duration, notifications: self.send_relationship(
-                'mute',
-                form={'notifications': str(notifications).lower(),
-                      'duration': str(duration)},
-                done=_('Muted %s'), failed=_('Could not mute %s')))
-
-    def on_unmute(self):
-        self.send_relationship('unmute', done=_('Unmuted %s'),
-                               failed=_('Could not unmute %s'))
-
-    def set_boosts(self, show):
-        self.send_relationship(
-            'follow', form={'reblogs': str(show).lower()},
-            done=_('Showing boosts from %s') if show
-            else _('Hiding boosts from %s'),
-            failed=_('Could not change boosts from %s'))
-
-    def set_notifying(self, notify):
-        self.send_relationship(
-            'follow', form={'notify': str(notify).lower()},
-            done=_('You will be notified when %s posts') if notify
-            else _('You will no longer be notified when %s posts'),
-            failed=_('Could not change notifications for %s'))
-
-    def set_endorsed(self, endorse):
-        """Feature or unfeature the account on your own profile. Servers
-        that predate the ``endorse`` aliases only know ``pin``/``unpin``,
-        so a 404 retries with the other spelling.
-
-        The switch is a range, not a threshold: both ends matter, since
-        version 6 is when ``endorse`` appeared and any server before it
-        needs the old names. A server that says nothing about
-        api_versions.mastodon keeps the modern spelling, which is what a
-        404 and the fallback before that already tried."""
-        version = self.client.mastodon_api_version()
-        names = ('endorse', 'pin') if endorse else ('unendorse', 'unpin')
-        if version is not None and version < 6:
-            names = names[::-1]
-        done = _('Featured %s on your profile') if endorse \
-            else _('Removed %s from your featured profiles')
-        failed = _('Could not feature %s') if endorse \
-            else _('Could not unfeature %s')
-
-        self._set_busy(True)
-        handle = self._acct()
-
-        def finished(client, result, attempt):
-            try:
-                relationship = client.request_finish(result)
-            except GLib.Error as error:
-                if getattr(error, 'code', 0) == 404 and attempt == 0:
-                    send(1)
-                    return
-                self._set_busy(False)
-                pages.report_error(self, failed % handle, error)
-                self.update_menu()
-                return
-            self._busy = False
-            self.set_relationship(relationship)
-            pages.show_toast(self, done % handle)
-
-        def send(attempt):
-            self.client.request_async(
-                'POST', '/accounts/%s/%s' % (self.account['id'],
-                                             names[attempt]),
-                callback=lambda c, r, _d=None: finished(c, r, attempt))
-
-        send(0)
-
-    # Private note
-
-    def edit_private_note(self, text=None):
-        note = self.relationship.get('note') if text is None else text
-        dialog = PrivateNoteDialog(
-            self._acct(), note,
-            lambda value: self.save_private_note(dialog, value))
-        dialog.present(self)
-
-    def save_private_note(self, dialog, text):
-        def finished(client, result, _data=None):
-            try:
-                relationship = client.request_finish(result)
-            except GLib.Error as error:
-                dialog.save_button.set_sensitive(True)
-                pages.report_error(self, _('Could not save note'), error)
-                return
-            dialog.close()
-            self.set_relationship(relationship)
-            pages.show_toast(self, _('Private note saved'))
-
-        self.client.request_async(
-            'POST', '/accounts/%s/note' % self.account['id'],
-            form={'comment': text}, callback=finished)
-
-    # State helpers
 
     def set_stack_state(self, name):
         self.stack.set_visible_child_name(name)
@@ -1731,7 +1335,7 @@ class LookupProfilePage(ProfilePage):
 
     def show_lookup_error(self, error):
         self.error_page.set_description(
-            summarize_error_markup(error.message))
+            summarize_error_markup(error))
         self.set_stack_state('error')
 
     def show_account(self, account):

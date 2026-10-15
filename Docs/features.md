@@ -18,6 +18,14 @@ The full feature inventory. The [README](../README.md) has the short version.
 - Instance announcements, with reactions.
 - Your yearly #Wrapstodon, if your server has one for you.
 
+## Catch Up
+
+- From its own sidebar place: pick a time range, page back through the home
+  timeline to it, and read the result two ways — a bento grid of the most
+  relevant posts, links and hashtags, or a compact list of every post.
+- A run is saved as an unchanging snapshot that is only rebuilt when you
+  choose a new period.
+
 ![A thread](../data/screenshots/thread.png)
 
 ## Writing

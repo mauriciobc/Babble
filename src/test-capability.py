@@ -18,8 +18,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
-from src.mastodon import (  # noqa: E402
-    COLLECTIONS_API_VERSION, MastodonClient)
+from src.capabilities import COLLECTIONS_API_VERSION  # noqa: E402
+from src.mastodon import MastodonClient  # noqa: E402
 
 failures = 0
 

@@ -67,9 +67,15 @@ LOCAL = ('public:local',)
 FEDERATED = ('public',)
 
 # Events whose payload is a JSON document; everything else carries a
-# bare id (``delete``, ``announcement.delete``) or nothing.
+# bare id (``delete``, ``announcement.delete``) or nothing. ``add`` and
+# ``remove`` are Mastodon 4.3's collection-membership events, and the
+# Streams API sends them as the bare string ``"collection"`` on the user
+# stream -- so they are decoded here, and window decides they need no
+# timeline work of their own. ``encrypted_message`` carries an
+# end-to-end encrypted conversation Babble cannot open.
 JSON_EVENTS = {'update', 'status.update', 'notification', 'conversation',
-               'announcement', 'announcement.reaction'}
+               'announcement', 'announcement.reaction', 'report', 'add',
+               'remove', 'encrypted_message'}
 
 
 def list_stream(list_id):
@@ -389,5 +395,7 @@ class StreamingManager(GObject.Object):
                 payload = json.loads(payload)
             except ValueError:
                 return
+        from .entities import lift
+        payload = lift(payload)
         stream = tuple(frame.get('stream') or ())
         self.emit('event', stream, event, payload)

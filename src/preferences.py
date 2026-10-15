@@ -19,6 +19,9 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
 from . import pages, portals  # noqa: E402
+from .notificationcopy import DESKTOP_NOTIFICATION_TYPES  # noqa: E402
+from .entities import (QUOTE_POLICIES as QUOTE_POLICY_CODES,  # noqa: E402
+                       VISIBILITIES as VISIBILITY_CODES)
 
 
 COLOR_SCHEMES = (
@@ -44,16 +47,24 @@ AUTO_REFRESH_CHOICES = (
     ('0', _('Off')), ('30', _('Every 30 Seconds')),
     ('60', _('Every Minute')), ('300', _('Every 5 Minutes')))
 
-QUOTE_POLICIES = (
-    ('public', _('Everyone')),
-    ('followers', _('Followers')),
-    ('nobody', _('Only Me')),
-)
+# Labels are this page's; the codes belong to the entity, shared with
+# the composer's visibility menu.
+_QUOTE_LABELS = {
+    'public': _('Everyone'),
+    'followers': _('Followers'),
+    'nobody': _('Only Me'),
+}
+QUOTE_POLICIES = tuple(
+    (code, _QUOTE_LABELS[code]) for code in QUOTE_POLICY_CODES)
 
-# Visibility nicks of the PostVisibility enum, as the server names them.
-VISIBILITIES = (
-    ('public', _('Public')), ('unlisted', _('Unlisted')),
-    ('private', _('Followers only')), ('direct', _('Direct')))
+_VISIBILITY_LABELS = {
+    'public': _('Public'),
+    'unlisted': _('Unlisted'),
+    'private': _('Followers only'),
+    'direct': _('Direct'),
+}
+VISIBILITIES = tuple(
+    (code, _VISIBILITY_LABELS[code]) for code in VISIBILITY_CODES)
 
 # Native names of the languages Mastodon servers commonly offer.
 LANGUAGES = (
@@ -77,21 +88,8 @@ LANGUAGES = (
 )
 
 # Notification types announced on the desktop; the order is the order
-# of the rows.
-NOTIFICATION_TYPES = (
-    ('mention', _('Mentions'), None),
-    ('follow', _('New Followers'), None),
-    ('follow_request', _('Follow Requests'), None),
-    ('favourite', _('Favorites'), None),
-    ('reblog', _('Boosts'), None),
-    ('poll', _('Poll Results'), _('Polls you voted in or created')),
-    ('status', _('New Posts'), _('From accounts you turned notifications on for')),
-    ('update', _('Edits'), _('Posts you boosted that were edited')),
-    ('quote', _('Quotes'), None),
-    ('quoted_update', _('Quote Edits'), _('Posts you quoted that were edited')),
-    ('admin.sign_up', _('New Sign-Ups'), _('Server administrators only')),
-    ('admin.report', _('New Reports'), _('Server administrators only')),
-)
+# of the rows. Labels live in notificationcopy.py.
+NOTIFICATION_TYPES = DESKTOP_NOTIFICATION_TYPES
 
 # CSS classes the window carries for the appearance toggles.
 STYLE_CLASSES = {
@@ -297,6 +295,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Show only the first boost of a post that several '
                        'people boosted. Applies to timelines opened '
                        'afterwards'))
+        self._switch(posts, 'hide-replies-non-follows',
+                     _('Hide Replies From Non-_Follows'),
+                     _('On the home timeline, hide posts that are replies '
+                       'from accounts you do not follow'))
         page.add(posts)
 
         behavior = Adw.PreferencesGroup(title=_('Behavior'))
@@ -409,7 +411,14 @@ class PreferencesDialog(Adw.PreferencesDialog):
                            sync=True)
         self._combo_string(group, 'default-quote-policy',
                            _('Default _Quote Policy'), QUOTE_POLICIES,
-                           subtitle=_('Who can quote your new posts'),
+                           # There is no per-post quote policy in the API:
+                           # the only place it is set is the account's own
+                           # source preferences, which is where this is
+                           # sent. Say so, rather than letting the row
+                           # read as a Babble-side switch.
+                           subtitle=_('Saved to your server preferences; '
+                                       'the API sets it per account, not '
+                                       'per post'),
                            sync=True)
         self._language_row(group)
         row = self._switch(group, 'default-sensitive',
@@ -502,11 +511,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self.settings.set_strv('desktop-notification-types', enabled)
 
     def _on_policy_activated(self, _row):
-        try:
-            from .notifications import present_notification_policy
-        except ImportError:
-            pages.show_toast(self, _('Notification filtering is not available'))
-            return
+        from .notifications import present_notification_policy
         present_notification_policy(self, self.window.client)
 
     def _filters_page(self):

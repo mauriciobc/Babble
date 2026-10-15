@@ -17,15 +17,24 @@ import re  # noqa: E402
 import time as _time  # noqa: E402
 
 from .mastodon import summarize_error_markup  # noqa: E402
-from .pages import (PagedList, connect_weak, launch_external,  # noqa: E402
-                    push_page, report_error, reveal, settings)
+from . import pages  # noqa: E402
+from .pages import (PagedList, PagedPosts, connect_weak,  # noqa: E402
+                    launch_external,
+                    push_page, report_error, reveal, settings, show_toast)
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
-from .timeline import (StatusItem, AvatarCache, _RefreshGesture,  # noqa: E402
-                       _TextureCache, parse_content, relative_time,
-                       shorten_url_text, COLUMN_WIDTH)
+from .notificationcopy import (FILTER_NOTIFICATION_TYPES,  # noqa: E402
+                               LIST_TITLE_DEFAULT, LIST_TITLES)
+from .notificationctrl import NotificationController  # noqa: E402
+from .timelinedata import StatusItem  # noqa: E402
+from .mediacache import AvatarCache, _TextureCache  # noqa: E402
+from .timelinepage import _RefreshGesture  # noqa: E402
+from .statustext import parse_content, relative_time, shorten_url_text  # noqa: E402
+from .timelinebase import COLUMN_WIDTH  # noqa: E402
 
-PAGE_SIZE = 20
-PRELOAD_THRESHOLD = 800
+
+# How many account ids one /accounts/relationships call carries. The
+# endpoint's documented cap; catchup.py batches by the same number.
+RELATIONSHIP_BATCH = 40
 
 # Most avatars drawn in a cluster's stacked strip before the rest
 # collapse into a "+N" counter. Each is 32 px and a row must stay inside
@@ -72,22 +81,8 @@ TYPE_ICONS = {
 # ngettext-chosen 'other(s)' count. Types with their own wording
 # (reports, severed relationships, warnings, annual reports) are
 # handled by _special_title.
-TEMPLATES = {
-    'favourite': _('%s favorited your post'),
-    'reblog': _('%s boosted your post'),
-    'follow': _('%s followed you'),
-    'follow_request': _('%s requested to follow you'),
-    'mention': _('%s mentioned you'),
-    'poll': _('%s’s poll has ended'),
-    'update': _('%s edited a post you interacted with'),
-    'status': _('%s posted'),
-    'quote': _('%s quoted your post'),
-    'quoted_update': _('%s edited a post you quoted'),
-    'admin.sign_up': _('%s signed up'),
-    'added_to_collection': _('%s added you to a collection'),
-    'collection_update': _('%s updated a collection you are in'),
-}
-DEFAULT_TEMPLATE = _('%s interacted with you')
+TEMPLATES = LIST_TITLES
+DEFAULT_TEMPLATE = LIST_TITLE_DEFAULT
 
 # Types that never fold into a cluster: each one carries its own
 # per-notification actions or payload.
@@ -103,25 +98,7 @@ EXCLUDED_TYPES_KEY = 'notification-excluded-types'
 
 # (type, label) entries of the header Filter submenu and the settings
 # dialog.
-NOTIFICATION_TYPES = [
-    ('mention', _('Mentions')),
-    ('status', _('New Posts')),
-    ('reblog', _('Boosts')),
-    ('favourite', _('Favorites')),
-    ('follow', _('Follows')),
-    ('follow_request', _('Follow Requests')),
-    ('poll', _('Polls')),
-    ('update', _('Post Edits')),
-    ('quote', _('Quotes')),
-    ('quoted_update', _('Quote Edits')),
-    ('admin.sign_up', _('Sign-Ups')),
-    ('admin.report', _('Reports')),
-    ('severed_relationships', _('Severed Relationships')),
-    ('moderation_warning', _('Moderation Warnings')),
-    ('annual_report', _('Annual Reports')),
-    ('added_to_collection', _('Added to Collections')),
-    ('collection_update', _('Collection Updates')),
-]
+NOTIFICATION_TYPES = FILTER_NOTIFICATION_TYPES
 
 REPORT_CATEGORIES = {
     'spam': _('Spam'),
@@ -895,6 +872,9 @@ class NotificationRow(ColumnBox):
         self.set_margin_bottom(ROW_MARGIN)
         self.item = None
         self.client = None
+        # Recycle state, cleared by _clear_actions on every rebind.
+        self._request_buttons = ()
+        self._follow_button = None
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                           margin_top=12, margin_bottom=12,
@@ -1023,8 +1003,18 @@ class NotificationRow(ColumnBox):
     # Inline actions
 
     def _clear_actions(self):
+        """Empty the actions box and forget the buttons it held.
+
+        Clearing the box is not enough: this row is recycled, and the
+        buttons remembered here outlived their removal. ``_request_buttons``
+        and ``_follow_button`` were then found again on the *next* item --
+        greyed out and, for a follow request, wired to a request that is
+        no longer on screen.
+        """
         while (child := self.actions_box.get_first_child()) is not None:
             self.actions_box.remove(child)
+        self._request_buttons = ()
+        self._follow_button = None
 
     def _action_button(self, label, callback, *extra, css=None):
         button = Gtk.Button(label=label, use_underline=True)
@@ -1101,14 +1091,18 @@ class NotificationRow(ColumnBox):
     def _answer_request(self, item, action):
         """POST /api/v1/follow_requests/:account_id/(authorize|reject)."""
         client = self.client
-        for button in getattr(self, '_request_buttons', ()):
+        # Held locally: by the time the reply lands the row may have been
+        # rebound, and re-enabling a button that belongs to a different
+        # item is worse than leaving this one greyed.
+        buttons = self._request_buttons
+        for button in buttons:
             button.set_sensitive(False)
 
         def done(_client, result, _data=None):
             try:
                 client.request_finish(result)
             except GLib.Error as error:
-                for button in getattr(self, '_request_buttons', ()):
+                for button in buttons:
                     button.set_sensitive(True)
                 report_error(self, _('Could not answer the request'), error)
                 return
@@ -1120,6 +1114,7 @@ class NotificationRow(ColumnBox):
         client.request_async(
             'POST', '/follow_requests/%s/%s' % (item.actors[0]['id'],
                                                 action), callback=done)
+
 
     def _add_follow_back(self, item):
         actor = item.actors[0]
@@ -1144,29 +1139,69 @@ class NotificationRow(ColumnBox):
         self._follow_back(item, actor, key)
 
     def _fetch_relationship(self, item, actor, key):
-        client = self.client
-        if not getattr(client, 'token', None) or key in _RELATIONSHIPS_PENDING:
-            return
-        _RELATIONSHIPS_PENDING.add(key)
+        """Note that *actor* is unknown, and batch the asking.
 
-        def done(_client, result, _data=None):
-            _RELATIONSHIPS_PENDING.discard(key)
+        Rows bind faster than a request returns, so a page of follow
+        notifications would otherwise open a request per row -- up to 40
+        of them, for an endpoint that takes 40 ids in one. Ids queue here
+        and go out together; the reply rebinds the row on screen, which
+        is the one whose Follow Back button was waiting.
+        """
+        client = self.client
+        if not getattr(client, 'token', None):
+            return
+        if key not in _RELATIONSHIPS and key not in _RELATIONSHIPS_PENDING:
+            self._relationship_queue[key] = actor
+            self._drain_relationship_queue()
+
+    def _drain_relationship_queue(self):
+        client = self.client
+        if client is None or self._relationship_busy \
+                or not self._relationship_queue:
+            return
+        batch = [(key, actor) for key, actor
+                 in self._relationship_queue.items()][:RELATIONSHIP_BATCH]
+        for key, _actor in batch:
+            del self._relationship_queue[key]
+        instance = getattr(client, 'instance', '')
+        self._relationship_busy = True
+        for key, _actor in batch:
+            _RELATIONSHIPS_PENDING.add(key)
+
+        def done(client, result, _data=None):
+            self._relationship_busy = False
             try:
                 data = client.request_finish(result)
             except GLib.Error:
-                return
-            if data:
-                _RELATIONSHIPS[key] = data[0]
-            if self.item is item and self.client is client:
-                self._bind_extras(item, client)
+                data = None
+            for key, _actor in batch:
+                _RELATIONSHIPS_PENDING.discard(key)
+            for entry in data or []:
+                if isinstance(entry, dict) and entry.get('id') is not None:
+                    _RELATIONSHIPS[(instance, str(entry['id']))] = entry
+            # Ids queued while this was in flight go out now.
+            self._drain_relationship_queue()
+            self._rebind_relationship_row()
 
         client.request_async('GET', '/accounts/relationships',
-                             params={'id[]': [actor['id']]}, callback=done)
+                             params={'id[]': [str(actor['id'])
+                                              for _key, actor in batch]},
+                             callback=done)
+
+    def _rebind_relationship_row(self):
+        """Re-bind the row on screen, so its Follow Back catches up."""
+        if self.item is None or self.client is None:
+            return
+        self._bind_extras(self.item, self.client)
 
     def _follow_back(self, item, actor, key):
         """POST /api/v1/accounts/:id/follow."""
         client = self.client
-        self._follow_button.set_sensitive(False)
+        # Held locally for the same reason as _answer_request.
+        button = self._follow_button
+        if button is None:
+            return
+        button.set_sensitive(False)
 
         def done(_client, result, _data=None):
             try:
@@ -1209,7 +1244,7 @@ def _slug(kind):
     return re.sub(r'[^a-z0-9]+', '-', kind)
 
 
-class NotificationsPage(Adw.Bin):
+class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
     """Scrollable notifications list with all/mentions chips, a header
     menu (type filter, notification settings, announcements), infinite
     scroll, refresh, clear, unread badge signal, streaming and status
@@ -1238,25 +1273,25 @@ class NotificationsPage(Adw.Bin):
         self.account_id = account_id
         self.filter = 'all'
         self.model = model if model is not None else NotificationModel()
-        self._loading_older = False
-        self._generation = 0
+        # Paging flags and cursors; min_id is what this endpoint wants
+        # for "newer than". See PagedPosts.
+        self._paging_init(newer_cursor='min_id')
         self._shown = False
         self._marked_read = False
         self._pin_top = False
         self._unread = 0
         self._applied_excluded = self._excluded_key()
+        # Accounts whose relationship is unknown, waiting to be asked for
+        # in one batch. See NotificationRow._fetch_relationship.
+        self._relationship_queue = {}
+        self._relationship_busy = False
 
-        self.loading_page = Adw.StatusPage(title=_('Loading Notifications'))
-        self.loading_page.set_paintable(
-            Adw.SpinnerPaintable.new(self.loading_page))
-        self.error_page = Adw.StatusPage(
-            icon_name='network-error-symbolic',
-            title=_('Could Not Load Notifications'))
-        retry = Gtk.Button(label=_('Try Again'), halign=Gtk.Align.CENTER)
-        retry.add_css_class('pill')
-        retry.add_css_class('suggested-action')
-        connect_weak(retry, 'clicked', self.refresh)
-        self.error_page.set_child(retry)
+        self.loading_page = pages.make_loading_page(_('Loading Notifications'))
+        # pages' own button says "_Try Again" with a mnemonic; this one
+        # did not, so the same action read as two different strings in
+        # the catalogue and only one of them had an underline.
+        self.error_page = pages.make_error_page(
+            _('Could Not Load Notifications'), self.refresh)
         self.empty_page = Adw.StatusPage(
             icon_name='babble-notifications-symbolic',
             title=_('No Notifications'),
@@ -1414,363 +1449,6 @@ class NotificationsPage(Adw.Bin):
     def on_open_policy(self, *_args):
         present_notification_policy(self, self.client)
 
-    # Data
-
-    def _fetch(self, params, callback):
-        # Bind the request to the current generation: a response that
-        # arrives after a filter switch or reload must be dropped, or it
-        # writes rows of the old filter into the new model.
-        generation = self._generation
-
-        def guarded(client, result, user_data=None):
-            if generation != self._generation:
-                return
-            callback(client, result, user_data)
-
-        self.client.notifications_async(params=params, callback=guarded)
-
-    def _fetch_params(self, base):
-        """Merge the quick filter's ``types[]`` and the persisted
-        ``exclude_types[]`` (docs.joinmastodon.org/methods/
-        notifications); a request for one account also asks for the
-        filtered notifications held back from the main list."""
-        params = dict(base)
-        types = self.FILTERS[self.filter]
-        if types:
-            params['types[]'] = types
-        excluded = [t for t in self._applied_excluded
-                    if t not in (types or ())]
-        if excluded:
-            params['exclude_types[]'] = excluded
-        if self.account_id is not None:
-            params['account_id'] = self.account_id
-            params['include_filtered'] = 'true'
-        return params
-
-    def _finish(self, result):
-        return self.client.notifications_finish(result)
-
-    def load(self):
-        if self.model.loading:
-            return
-        self.model.loading = True
-        if self.model.get_n_items() == 0:
-            self.stack.set_visible_child_name('loading')
-        self._fetch(self._fetch_params({'limit': PAGE_SIZE}),
-                    self.on_page_loaded)
-
-    def on_page_loaded(self, client, result, _user_data=None):
-        self.model.loading = False
-        try:
-            notifications = self._finish(result)
-        except GLib.Error as e:
-            self.error_page.set_description(
-                summarize_error_markup(e.message))
-            self.stack.set_visible_child_name('error')
-            return
-        if not notifications:
-            if self.model.get_n_items() == 0:
-                self.stack.set_visible_child_name('empty')
-            else:
-                self.model.exhausted = True
-            return
-        if self.model.get_n_items() == 0:
-            self._pin_top = True
-            GLib.timeout_add(500, self._unpin_top)
-        self.model.append_page(notifications)
-        self.stack.set_visible_child_name('list')
-        if self._is_visible():
-            self.mark_read()
-
-    def load_older(self):
-        if self._loading_older or self.model.exhausted \
-                or self.model.oldest_id is None:
-            return
-        self._loading_older = True
-        self._fetch(self._fetch_params(
-            {'limit': PAGE_SIZE, 'max_id': self.model.oldest_id}),
-            self.on_older_loaded)
-
-    def on_older_loaded(self, client, result, _user_data=None):
-        self._loading_older = False
-        try:
-            notifications = self._finish(result)
-        except GLib.Error:
-            return
-        if not self.model.append_page(notifications):
-            self.model.exhausted = True
-            if self.model.get_n_items() == 0:
-                self.stack.set_visible_child_name('empty')
-
-    def refresh(self, _button=None):
-        """Reload the newest notifications; an empty list reloads from
-        scratch, which also recovers from the error page."""
-        if self.client.token and self.account_id is None:
-            self.fetch_policy()
-            self.load_announcements()
-        if self.model.get_n_items() == 0:
-            self.load()
-        else:
-            self.on_refresh()
-
-    def on_refresh(self, _button=None):
-        self._generation += 1
-        self.model.exhausted = False
-        params = {'limit': PAGE_SIZE}
-        if self.model.newest_id is not None:
-            params['min_id'] = self.model.newest_id
-        self.model.loading = True
-        self._fetch(self._fetch_params(params), self.on_refresh_loaded)
-
-    def on_refresh_loaded(self, client, result, _user_data=None):
-        self.model.loading = False
-        try:
-            notifications = self._finish(result)
-        except GLib.Error as e:
-            root = self.get_root()
-            if root is not None and hasattr(root, 'show_error'):
-                root.show_error(_('Refresh failed'), e.message)
-            return
-        if notifications:
-            self.model.prepend_page(notifications)
-            self._marked_read = False
-        if self.model.get_n_items() == 0:
-            self.stack.set_visible_child_name('empty')
-        if self._is_visible():
-            self.mark_read()
-        self.fetch_unread()
-
-    def _unpin_top(self):
-        self._pin_top = False
-        return GLib.SOURCE_REMOVE
-
-    def on_scroll_position(self, adjustment):
-        # The list view scrolls its first row into view when it is first
-        # populated, which hides the leading date heading.
-        if self._pin_top and adjustment.get_value() > 0:
-            adjustment.set_value(0)
-            return
-        upper = adjustment.get_upper()
-        bottom = adjustment.get_value() + adjustment.get_page_size()
-        if upper > 0 and bottom >= upper - PRELOAD_THRESHOLD:
-            self.load_older()
-
-    # Streaming
-
-    def on_stream_notification(self, notification):
-        """A notification arrived on the user stream: merge it into the
-        list (honouring the type filters) and bump the unread badge
-        unless the list is on screen."""
-        if self.account_id is not None or not isinstance(notification, dict) \
-                or 'id' not in notification or 'account' not in notification:
-            return
-        kind = notification.get('type', '')
-        if kind in self._applied_excluded:
-            return
-        types = self.FILTERS[self.filter]
-        if types and kind not in types:
-            return
-        if self.model.loading and self.model.get_n_items() == 0:
-            return
-        if not self.model.prepend_page([notification]):
-            return
-        self.stack.set_visible_child_name('list')
-        self._marked_read = False
-        if self._shown and self.get_mapped():
-            self.mark_read()
-        else:
-            self._unread += 1
-            self.emit('unread-changed', self._unread)
-
-    # Filtering
-
-    def _reload(self):
-        # Supersede anything in flight for the previous filter or
-        # exclusion set.
-        self._generation += 1
-        self.model.clear()
-        self.model.loading = False
-        # A filter switch re-enters pagination from the top; released
-        # from a pending page fetch, pagination delegates to the new
-        # cursor.
-        self._loading_older = False
-        self.load()
-
-    def set_filter(self, name):
-        if name == self.filter:
-            return
-        self.filter = name
-        self._reload()
-
-    def on_filter_changed(self, group, _pspec):
-        self.set_filter(group.get_active_name())
-
-    # Filtered notification requests
-
-    def fetch_policy(self):
-        """GET /api/v2/notifications/policy: its summary says how many
-        filtered-notification requests are waiting."""
-        if not self.client.token:
-            return
-        request_async = getattr(self.client, 'request_async', None)
-        if request_async is None:
-            return
-        request_async('GET', '/api/v2/notifications/policy',
-                      callback=self.on_policy_loaded)
-
-    def on_policy_loaded(self, client, result, _user_data=None):
-        try:
-            policy = client.request_finish(result)
-        except GLib.Error:
-            # Servers before Mastodon 4.3 have no policy endpoint.
-            self.requests_banner.set_revealed(False)
-            return
-        count = int(((policy or {}).get('summary') or {})
-                    .get('pending_requests_count') or 0)
-        if count:
-            self.requests_banner.set_title(ngettext(
-                '%d filtered notification request',
-                '%d filtered notification requests', count) % count)
-        self.requests_banner.set_revealed(count > 0)
-
-    def on_requests_banner_clicked(self, _banner):
-        push_page(self, _('Filtered Notifications'),
-                  NotificationRequestsPage(self.client,
-                                           on_changed=self.fetch_policy),
-                  tag='notification-requests')
-
-    # Instance announcements
-
-    def load_announcements(self):
-        """Fetch /api/v1/announcements for the banner; failures are
-        silent (a banner is never worth an error dialog)."""
-        if not self.client.token:
-            return
-        # Client stubs in the OAuth tests run login without the generic
-        # request API.
-        request_async = getattr(self.client, 'request_async', None)
-        if request_async is None:
-            return
-        request_async('GET', '/announcements',
-                      callback=self.on_announcements_loaded)
-
-    def on_announcements_loaded(self, client, result, _user_data=None):
-        try:
-            announcements = client.request_finish(result)
-        except GLib.Error:
-            return
-        unread = next((a for a in announcements or []
-                       if not a.get('read')), None)
-        self.banner.set_revealed(unread is not None)
-        if unread is None:
-            return
-        domain = _instance_domain(self.client.instance)
-        text = ' '.join(
-            segment['text'] for segment
-            in parse_content(unread.get('content') or '')
-            if segment['text'] != '\n') or unread.get('title') or ''
-        self.banner.set_title(_('%(domain)s: %(text)s')
-                              % {'domain': domain, 'text': text})
-
-    def on_announcement_view(self, *_args):
-        from .announcements import AnnouncementsPage
-        page = AnnouncementsPage(self.client)
-        page.connect('unread-changed', self._on_announcements_unread)
-        push_page(self, _('Announcements'), page, tag='announcements')
-
-    def _on_announcements_unread(self, _page, _count):
-        self.load_announcements()
-
-    # Unread badge
-
-    def fetch_unread(self):
-        if not self.client.token:
-            return
-        # Match the list's exclusions: an excluded type must not keep the
-        # badge above zero forever, since the list can never clear it.
-        params = None
-        if self._applied_excluded:
-            params = {'exclude_types[]': sorted(self._applied_excluded)}
-        self.client.notifications_unread_count_async(
-            params=params, callback=self.on_unread_count)
-
-    def on_unread_count(self, client, result):
-        try:
-            count = client.notifications_unread_count_finish(result)
-        except GLib.Error:
-            return
-        self._unread = count
-        self.emit('unread-changed', count)
-
-    def on_shown(self):
-        """The window calls this when the page becomes visible."""
-        self._shown = True
-        self._marked_read = False
-        self.mark_read()
-
-    def on_hidden(self):
-        """The window calls this when another page replaces this one;
-        notifications streaming in afterwards count as unread."""
-        self._shown = False
-
-    def _is_visible(self):
-        """True while this page is the one on screen: a reload triggered
-        from elsewhere (a changed filter, a stream event) must not mark
-        unseen notifications as read."""
-        return self._shown and self.get_mapped()
-
-    def mark_read(self):
-        if not self.client.token or self._marked_read \
-                or self.account_id is not None \
-                or self.model.newest_id is None:
-            return
-        self.client.notifications_mark_read_async(
-            self.model.newest_id, self.on_marked_read)
-
-    def on_marked_read(self, client, result):
-        try:
-            client.notifications_mark_read_finish(result)
-        except GLib.Error:
-            return
-        self._marked_read = True
-        self._unread = 0
-        self.emit('unread-changed', 0)
-
-    # Clear
-
-    def on_clear_requested(self, _button):
-        if not self.client.token:
-            return
-        dialog = Adw.AlertDialog.new(
-            _('Clear All Notifications?'),
-            _('All notifications will be permanently deleted'))
-        dialog.add_response('cancel', _('_Cancel'))
-        dialog.add_response('clear', _('_Clear'))
-        dialog.set_response_appearance('clear',
-                                       Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.set_default_response('cancel')
-        dialog.set_close_response('cancel')
-        dialog.choose(self.get_root() or self, None, self.on_clear_chosen)
-
-    def on_clear_chosen(self, dialog, result):
-        if dialog.choose_finish(result) != 'clear':
-            return
-        self.client.notifications_clear_async(self.on_cleared)
-
-    def on_cleared(self, client, result):
-        try:
-            client.notifications_clear_finish(result)
-        except GLib.Error as e:
-            root = self.get_root()
-            if root is not None and hasattr(root, 'show_error'):
-                root.show_error(_('Clear failed'), e.message)
-            return
-        self._marked_read = True
-        self._unread = 0
-        self.model.clear()
-        self.stack.set_visible_child_name('empty')
-        self.emit('unread-changed', 0)
-
     # Activation
 
     def on_row_activated(self, _view, position):
@@ -1844,13 +1522,10 @@ class NotificationRequestRow(Adw.ActionRow):
 
     def _answer_button(self, icon_name, label, action):
         """Flat circular suffix button answering the request."""
-        button = Gtk.Button(icon_name=icon_name, valign=Gtk.Align.CENTER)
-        button.add_css_class('flat')
-        button.add_css_class('circular')
-        button.set_tooltip_text(label)
-        button.update_property([Gtk.AccessibleProperty.LABEL], [label])
-        connect_weak(button, 'clicked', self._on_answer_clicked, action)
-        self.add_suffix(button)
+        self.add_suffix(pages.icon_button(
+            icon_name, label,
+            callback=lambda *_: self._on_answer_clicked(None, action),
+            css=('circular',)))
 
     def _on_answer_clicked(self, _button, action):
         self.answer(action)
@@ -1876,23 +1551,17 @@ class NotificationRequestRow(Adw.ActionRow):
                                            self.answer))
 
     def answer(self, action):
-        """POST /api/v1/notifications/requests/:id/(accept|dismiss)."""
-        self.set_sensitive(False)
-        client = self.page.client
+        """POST /api/v1/notifications/requests/:id/(accept|dismiss).
 
-        def done(_client, result, _data=None):
-            try:
-                client.request_finish(result)
-            except GLib.Error as error:
-                self.set_sensitive(True)
-                report_error(self, _('Could not update the request'), error)
-                return
-            self.page.request_answered(self, action)
-
-        client.request_async(
-            'POST', '/notifications/requests/%s/%s' % (self.request['id'],
-                                                       action),
-            callback=done)
+        mutate_row with remove=False: the page decides what leaving the
+        list means here (a toast, and the request list refreshes), so the
+        row stays until request_answered takes it.
+        """
+        self.page.mutate_row(
+            self, 'POST',
+            '/notifications/requests/%s/%s' % (self.request['id'], action),
+            on_done=lambda: self.page.request_answered(self, action),
+            error_heading=_('Could not update the request'), remove=False)
 
 
 class NotificationRequestsPage(PagedList):
@@ -1941,17 +1610,12 @@ class RequestNotificationsPage(Adw.Bin):
         self.inner = NotificationsPage(
             client, account_id=request['account']['id'])
         self.set_child(self.inner)
-        dismiss = Gtk.Button(icon_name='user-trash-symbolic')
-        dismiss.add_css_class('flat')
-        dismiss.set_tooltip_text(_('Dismiss'))
-        dismiss.update_property([Gtk.AccessibleProperty.LABEL],
-                                [_('Dismiss')])
-        connect_weak(dismiss, 'clicked', self._on_answer_clicked, 'dismiss')
-        accept = Gtk.Button(icon_name='object-select-symbolic')
-        accept.add_css_class('flat')
-        accept.set_tooltip_text(_('Accept'))
-        accept.update_property([Gtk.AccessibleProperty.LABEL], [_('Accept')])
-        connect_weak(accept, 'clicked', self._on_answer_clicked, 'accept')
+        dismiss = pages.icon_button(
+            'user-trash-symbolic', _('Dismiss'),
+            callback=lambda *_: self._on_answer_clicked(None, 'dismiss'))
+        accept = pages.icon_button(
+            'object-select-symbolic', _('Accept'),
+            callback=lambda *_: self._on_answer_clicked(None, 'accept'))
         self.header_widgets = [dismiss, accept]
 
     def _on_answer_clicked(self, _button, action):
@@ -2057,7 +1721,7 @@ class NotificationPolicyDialog(Adw.Dialog):
             self.filters_group.set_description(
                 _('This server does not support filtering notifications')
                 if getattr(error, 'code', 0) == 404
-                else summarize_error_markup(error.message))
+                else summarize_error_markup(error))
             return
         self.policy = policy
         self.filters_group.set_description(_(
@@ -2092,21 +1756,17 @@ class NotificationPolicyDialog(Adw.Dialog):
             return
         parent = self._parent
 
-        def done(_client, result, _data=None):
-            try:
-                self.client.request_finish(result)
-            except GLib.Error as error:
-                if parent is not None:
-                    report_error(parent,
-                                 _('Could not save notification settings'),
-                                 error)
-                return
+        def saved(_data=None):
+            # Reported on the window behind the dialog: a toast raised on
+            # the dialog itself would be covered when it closes.
             if parent is not None:
-                from .pages import show_toast
                 show_toast(parent, _('Notification settings updated'))
 
-        self.client.request_async('PATCH', '/api/v2/notifications/policy',
-                                  json_body=payload, callback=done)
+        pages.call(self, self.client, 'PATCH',
+                   '/api/v2/notifications/policy',
+                   on_done=saved,
+                   error_heading=_('Could not save notification settings'),
+                   json_body=payload)
 
     # Visible types
 

@@ -18,6 +18,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
 FAVORITE_LISTS_KEY = 'favorite-lists-ids'
 SEARCH_DELAY_MS = 300
@@ -112,8 +113,7 @@ def policy_label(policy):
 # Dialog helpers
 
 def error_text(error):
-    from .mastodon import summarize_error
-    return summarize_error(getattr(error, 'message', None) or str(error))
+    return summarize_error(error)
 
 
 def error_text_markup(error):
@@ -122,7 +122,7 @@ def error_text_markup(error):
     :func:`error_text` is for plain-text widgets; a status page parses
     its description as markup and blanks the label on a bare ``&``.
     """
-    return GLib.markup_escape_text(error_text(error))
+    return summarize_error_markup(error)
 
 
 class ToastDialog(Adw.Dialog):
@@ -153,7 +153,7 @@ class AvatarRow(Adw.ActionRow):
         super().__init__(use_markup=False, title_lines=1, subtitle_lines=1)
         import re
 
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         self.account = account
         name = re.sub(r':[A-Za-z0-9_+\-]+:', '',
                       pages.display_name(account)).strip() \
@@ -461,15 +461,15 @@ class ListTimelinePage(Adw.Bin):
 
     def __init__(self, client, list_json):
         super().__init__()
-        from .timeline import ApiTimelineSource, TimelinePage
+        from .timelinepage import ApiTimelineSource, TimelinePage
         self.client = client
         self.list = list_json
         self.timeline = TimelinePage(
             client, source=ApiTimelineSource(
                 client, '/timelines/list/%s' % list_json['id']))
-        self.timeline.empty_page.set_icon_name('view-list-symbolic')
-        self.timeline.empty_page.set_title(_('No Posts in This List'))
-        self.timeline.empty_page.set_description(
+        pages.configure_empty_page(
+            self.timeline.empty_page, 'view-list-symbolic',
+            _('No Posts in This List'),
             _('Add members to the list to see their posts'))
         self.set_child(self.timeline)
         self.pin_button = make_pin_button(

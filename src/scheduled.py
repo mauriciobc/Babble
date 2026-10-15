@@ -356,7 +356,7 @@ class ScheduledRow(Gtk.ListBoxRow):
 
     @staticmethod
     def _make_thumbnails(attachments):
-        from .timeline import _TextureCache
+        from .mediacache import _TextureCache
         box = Gtk.Box(spacing=6, halign=Gtk.Align.START)
         for attachment in attachments[:MAX_THUMBNAILS]:
             picture = _Thumbnail(
@@ -536,7 +536,7 @@ class _FilteredList(pages.PagedList):
         except GLib.Error as error:
             if not self.rows:
                 self.error_page.set_description(
-                    summarize_error_markup(error.message))
+                    summarize_error_markup(error))
                 self.stack.set_visible_child_name('error')
             else:
                 pages.report_error(self, _('Could not load more'), error)

@@ -130,6 +130,12 @@ def parse_timestamp_ms(value):
 
     Returns epoch milliseconds, or ``None`` where JavaScript yields ``NaN``.
     A stamp without an offset is read as UTC.
+
+    Deliberately *not* statustext.parse_time, despite the two agreeing on
+    every input: this one is pinned to the original JavaScript by
+    test-catchup-rank.py's golden scores, and a change here that altered
+    a score would mean the port had drifted rather than been fixed. It
+    keeps its own reader, and the docstring is why.
     """
     if not isinstance(value, str):
         return None
@@ -753,6 +759,8 @@ def extract_ranking_features(candidate, ctx):
 
 # predictActions in ranking.ts: P(action) for every head, as a dict in the
 # order of ACTIONS.
+# ACC-04 / CLEAN-32: test-only scaffolding for the golden TypeScript diff;
+# production Catch-Up does not call this — do not delete or "simplify".
 def predict_actions(candidate, ctx):
     return _predict_actions_from(
         candidate, extract_ranking_features(candidate, ctx), ctx)

@@ -27,6 +27,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E40
 from . import pages  # noqa: E402
 from .mastodon import (summarize_error,  # noqa: E402
                        summarize_error_markup)
+from .statustext import compact_count  # noqa: E402
 
 # (name, description), the way Mastodon's own report words them.
 ARCHETYPES = {
@@ -61,14 +62,12 @@ STYLES = (
 
 
 def shorten(value):
-    """1234 -> '1.2k'."""
-    value = int(value or 0)
-    for limit, suffix in ((1_000_000_000, 'B'), (1_000_000, 'M'),
-                          (1_000, 'k')):
-        if value >= limit:
-            text = '%.1f' % (value / limit)
-            return text.rstrip('0').rstrip('.') + suffix
-    return str(value)
+    """A count for a Wrapped stat card: 1234 -> '1.2K'.
+
+    Delegates to statustext.compact_count, which is the app's one count
+    formatter: this used to be a second one with a hardcoded 'k', so a
+    translated reader saw a suffix no other counter used."""
+    return compact_count(value)
 
 
 def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
@@ -277,7 +276,7 @@ class WrappedDialog(Adw.Dialog):
                 self._check_state(self.year or default_year())
                 return
             self.error_page.set_description(
-                summarize_error_markup(error.message))
+                summarize_error_markup(error))
             self.stack.set_visible_child_name('error')
 
         _send(self.client, 'GET', path, ok, failed)
@@ -359,7 +358,7 @@ class WrappedDialog(Adw.Dialog):
 
         def failed(error):
             self._check_state(year)
-            self.toast(summarize_error(error.message))
+            self.toast(summarize_error(error))
 
         _send(self.client, 'POST', '/annual_reports/%d/generate' % year, ok,
               failed)
@@ -411,7 +410,7 @@ class WrappedDialog(Adw.Dialog):
         return getattr(window, 'account', None) or {}
 
     def _build(self, report):
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         data = report.get('data') or {}
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
                        margin_top=18, margin_bottom=18, margin_start=12,
@@ -535,7 +534,7 @@ class WrappedDialog(Adw.Dialog):
         return box
 
     def _people_card(self, heading, accounts):
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
                       margin_top=12, margin_bottom=12)
         box.add_css_class('card')
@@ -588,7 +587,8 @@ class WrappedDialog(Adw.Dialog):
         return box
 
     def _put_status(self, holder, status):
-        from .timeline import StatusItem, StatusRow
+        from .timelinedata import StatusItem
+        from .statusrow import StatusRow
         row = StatusRow()
         row.bind(StatusItem(status), self.client)
         row.set_hexpand(True)

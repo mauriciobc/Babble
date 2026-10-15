@@ -20,7 +20,7 @@ from gi.repository import Adw, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
 from .pages import (PagedList, confirm, connect_weak,  # noqa: E402
                     open_status, report_error, show_toast, window_of)
 from .statustext import parse_content, relative_time  # noqa: E402
-from .timeline import AvatarCache  # noqa: E402
+from .mediacache import AvatarCache  # noqa: E402
 
 MAX_AVATARS = 3
 

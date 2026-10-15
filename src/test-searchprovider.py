@@ -2,15 +2,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The GNOME Shell search provider answers over D-Bus.
 
-Registers ``searchprovider.SearchProvider`` on a private bus
-(``Gio.TestDBus``) for a stub application whose window holds a stub
-client with canned answers, then calls it through a second connection
-the way Shell does: result ordering and caps, the debounce, the local
-index of followed accounts and hashtags, result metas, and where
-ActivateResult and LaunchSearch send the window.
+Registers ``searchprovider.SearchProvider`` on the session bus the runner
+already started (``dbus-run-session`` in CI, the desktop bus otherwise)
+for a stub application whose window holds a stub client with canned
+answers, then calls it through a second connection the way Shell does:
+result ordering and caps, the debounce, the local index of followed
+accounts and hashtags, result metas, and where ActivateResult and
+LaunchSearch send the window.
 
-Exits 77 (skip) when no display is available: the routes and the avatar
-texture are GTK's."""
+A private ``Gio.TestDBus`` is deliberately not used. Its ``dbus-daemon``
+is a child of this process, inherits meson's stdout pipe, and outlives
+the interpreter, so meson waits for EOF until the per-test timeout even
+though every check passed.
+
+Exits 77 (skip) when no display or no session bus is available: the
+routes and the avatar texture are GTK's."""
 
 import os
 import sys
@@ -19,8 +25,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
-# The private bus becomes the session bus; GDK's settings portal client
-# would hold the bus singleton and stall Gio.TestDBus.down() for 30 s.
+# Keep GDK off the settings portal. A portal client on this bus is not
+# what the checks measure, and its teardown has stalled the runner.
 os.environ['GDK_DEBUG'] = ','.join(
     filter(None, (os.environ.get('GDK_DEBUG'), 'no-portals')))
 os.environ['NO_AT_BRIDGE'] = '1'
@@ -39,7 +45,7 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
     sys.exit(77)
 
 from src import hashtags, pages, searchprovider  # noqa: E402
-from src.timeline import AvatarCache  # noqa: E402
+from src.mediacache import AvatarCache  # noqa: E402
 
 failures = []
 PATH = searchprovider.OBJECT_PATH
@@ -225,18 +231,33 @@ def call_sync(connection, method, args, signature):
     return box.get('value')
 
 
-bus = Gio.TestDBus.new(Gio.TestDBusFlags.NONE)
-connections = []
-bus.up()
+def session_connection():
+    """A private client of the bus the runner already started.
+
+    Not ``Gio.bus_get_sync``: that returns one shared connection, and the
+    second provider has to export the same object path under its own
+    unique name. Not ``Gio.TestDBus``: that spawns a ``dbus-daemon`` which
+    inherits meson's stdout pipe and outlives this process.
+    """
+    address = os.environ.get('DBUS_SESSION_BUS_ADDRESS')
+    if not address:
+        return None
+    flags = (Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT
+             | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION)
+    return Gio.DBusConnection.new_for_address_sync(
+        address, flags, None, None)
+
+
 try:
-    address = bus.get_bus_address()
-    flags = Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT \
-        | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION
-    service = Gio.DBusConnection.new_for_address_sync(
-        address, flags, None, None)
-    shell = Gio.DBusConnection.new_for_address_sync(
-        address, flags, None, None)
-    connections.extend((service, shell))
+    service = session_connection()
+    shell = session_connection()
+except GLib.Error:
+    service = shell = None
+if service is None or shell is None:
+    print('SKIP - no session bus available')
+    sys.exit(77)
+connections = [service, shell]
+try:
     destination = service.get_unique_name()
 
     window = StubWindow()
@@ -287,7 +308,7 @@ try:
     # Metas
     texture = Gdk.MemoryTexture.new(
         1, 1, Gdk.MemoryFormat.R8G8B8A8, GLib.Bytes.new(b'\xff\0\0\xff'), 4)
-    AvatarCache._textures[AVATAR_URL] = texture
+    AvatarCache.store.put(AVATAR_URL, texture)
     ids = ['acct:1', 'acct:3', 'tag:alife', 'tag:alisa', 'status:s1',
            'status:s2', 'search:ali', 'acct:unknown']
     box = wait_for(call(shell, 'GetResultMetas', (ids,), '(as)'))
@@ -366,8 +387,7 @@ try:
     settings.set_strv('accounts', [])
     settings.set_string('active-account', '')
     lonely = searchprovider.SearchProvider(StubApp([]))
-    other = Gio.DBusConnection.new_for_address_sync(
-        address, flags, None, None)
+    other = session_connection()
     connections.append(other)
     check(lonely.register(other, PATH), 'second provider registers')
     destination = other.get_unique_name()
@@ -381,12 +401,16 @@ try:
     check(box.get('error', 'timed out') != 'timed out',
           'unregister removes the object')
 finally:
+    code = 1 if failures else 0
     for connection in connections:
         try:
             connection.close_sync(None)
         except GLib.Error:
             pass
     connections.clear()
-    bus.down()
-
-sys.exit(1 if failures else 0)
+    # Leave without GObject teardown. It is not what this test measures,
+    # and a stalled finalizer holds the runner the same way the private
+    # bus daemon did. Flush first: under meson stdout is a pipe, and
+    # os._exit discards the buffer.
+    sys.stdout.flush()
+    os._exit(code)

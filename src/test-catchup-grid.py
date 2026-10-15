@@ -9,7 +9,6 @@ import gc
 import locale
 import os
 import sys
-import types
 
 # No accessibility bus in a test run; GTK would warn about it.
 os.environ.setdefault('GTK_A11Y', 'none')
@@ -30,7 +29,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src import catchupdigest as cd  # noqa: E402
-from src import catchupgrid, explore, hashtags, pages, timeline  # noqa: E402
+from src import (catchupgrid, explore, hashtags, mediacache, mediabox,  # noqa: E402
+                  pages, statusactions, statusmenu, timelinedata)
+from src.catchup import Digest  # noqa: E402
 
 failures = []
 
@@ -79,8 +80,8 @@ def fake_avatar(avatar, account):
     loads.append(('avatar', account.get('id')))
 
 
-timeline._TextureCache.load = staticmethod(fake_media)
-timeline.AvatarCache.load = staticmethod(fake_avatar)
+mediacache._TextureCache.load = staticmethod(fake_media)
+mediacache.AvatarCache.load = staticmethod(fake_avatar)
 
 NOW = datetime.datetime.now(datetime.timezone.utc)
 
@@ -163,13 +164,12 @@ def fixture(count=60):
             {'key': 'a', 'name': 'A', 'trending': True, 'following': False,
              'tag': {'name': 'A', 'history': []}, 'timeline_posts': 0,
              'timeline_accounts': 0, 'accounts': [], 'buckets': None}]
-    digest = types.SimpleNamespace(
+    return Digest(
         posts=posts, scores=scores,
-        items={p['id']: timeline.StatusItem(p) for p in posts},
+        items={p['id']: timelinedata.StatusItem(p) for p in posts},
         news=news, tags=tags,
         trending_keys=frozenset(['1', 'https://e.example/2']),
         boosters={'900': [account(78), account(79)]}, end_at=NOW)
-    return digest
 
 
 class Client:
@@ -201,10 +201,53 @@ class Host(Gtk.Widget):
         Gtk.Widget.do_dispose(self)
 
 
-def at_width(host, width):
+def layout_host(host):
+    """Run a full measure/allocate pass at ``host.width`` (headless tests)."""
+    width = host.width
+    child = host.child
+    height = child.measure(Gtk.Orientation.VERTICAL, width)[1]
+    child.allocate(width, max(height, 1), -1, None)
+
+
+def at_width(host, width, grid=None):
+    """Put *host* at *width* and wait until the grid re-packed for it.
+
+    ``BentoGrid`` updates ``columns`` in ``do_size_allocate``, which can
+    run a frame after the host's width lands — assertions that only waited
+    on ``get_width()`` read the previous column count under load.
+    """
     host.width = width
     host.queue_resize()
-    settle(lambda: host.child.get_width() == width, 3.0, 0.05)
+    target_cols = catchupgrid.columns_for(width)
+    context = GLib.MainContext.default()
+
+    def ready():
+        layout_host(host)
+        while context.iteration(False):
+            pass
+        if host.child.get_width() != width:
+            return False
+        if grid is None:
+            return True
+        return grid.get_width() == width and grid.columns == target_cols
+
+    settle(ready, 10.0, 0.05)
+
+
+def wait_show_more(view, grid, tiles_before, host=None):
+    """``show_more()`` invalidates the packing; wait for pages and tiles."""
+    target_pages = grid.pages_shown + cd.MORE_PAGES
+    view.show_more()
+    if host is not None:
+        layout_host(host)
+
+    def ready():
+        if host is not None:
+            layout_host(host)
+        return grid.pages_shown == target_pages \
+            and len(grid.tiles) > tiles_before
+
+    settle(ready, 10.0, 0.05)
 
 
 # --------------------------------------------------------------------------
@@ -313,7 +356,7 @@ window.present()
 view.set_digest(digest)
 check('a digest with enough tiles shows the view',
       view.get_visible() and view.eligible >= catchupgrid.MIN_TILES)
-at_width(host, 1000)
+at_width(host, 1000, view.grid)
 check('1000 px gives 5 columns', view.grid.columns == 5)
 settle(lambda: view.grid.get_height() > 0)
 
@@ -378,26 +421,26 @@ check('and that is not the same as visual order',
 # Re-packing only when the column count changes, tiles survive.
 packs = grid.pack_count
 tiles_before = dict(grid.tiles)
-at_width(host, 1050)
+at_width(host, 1050, grid)
 check('a width change inside one column count does not re-pack',
       grid.columns == 5 and grid.pack_count == packs)
-at_width(host, 1300)
+at_width(host, 1300, grid)
 check('a new column count re-packs once',
       grid.columns == 6 and grid.pack_count == packs + 1)
 shared = [k for k in grid.tiles if k in tiles_before]
 check('tiles shared by both packings are the same widgets',
       shared and all(grid.tiles[k] is tiles_before[k] for k in shared))
 check_layout('6 columns')
-at_width(host, 1000)
+at_width(host, 1000, grid)
 check('going back reuses the cached packing',
       grid.columns == 5 and grid.pack_count == packs + 1)
-at_width(host, 400)
+at_width(host, 400, grid)
 check('400 px gives 2 columns', grid.columns == 2)
 check_layout('2 columns')
-at_width(host, 180)
+at_width(host, 180, grid)
 check('180 px gives one column', grid.columns == 1)
 check_layout('1 column')
-at_width(host, 400)
+at_width(host, 400, grid)
 
 # Heights: height for width.
 natural = grid.measure(Gtk.Orientation.VERTICAL, 400)[0]
@@ -408,19 +451,19 @@ check('height for width matches the packing',
       and grid.get_request_mode() == Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH)
 
 # Content is built lazily, one tile per idle dispatch, then complete.
-at_width(host, 1000)
+at_width(host, 1000, grid)
 settle(lambda: all(t._child is not None for t in grid.tiles.values()), 20)
 check('every tile builds its content when shown',
       all(t._child is not None for t in grid.tiles.values()))
 check_layout('built, 5 columns')
 
 # A span change after a re-pack rebuilds only that tile.
-at_width(host, 180)
+at_width(host, 180, grid)
 settle(lambda: all(t._child is not None for t in grid.tiles.values()), 20)
 check('tiles rebuild after a span change',
       all(t._child is not None for t in grid.tiles.values()))
 check_layout('built, 1 column')
-at_width(host, 1000)
+at_width(host, 1000, grid)
 
 # Accessible labels.
 post_tiles = [t for t in grid.tiles.values()
@@ -443,7 +486,7 @@ check('tiles are focusable cards',
 
 # Activation.
 opened = []
-timeline._open_thread = lambda w, c, item: opened.append(('thread', item))
+statusactions._open_thread = lambda w, c, item: opened.append(('thread', item))
 explore.open_link_timeline = lambda w, c, card: opened.append(('news', card))
 hashtags.push_hashtag = lambda w, c, name: opened.append(('tag', name))
 first.open()
@@ -481,17 +524,23 @@ check('a trending post is flagged', any(t.trending for t in post_tiles)
 shown = len(grid.tiles)
 check('Show more is offered while posts remain',
       grid.has_more and view.more_button.get_visible())
-view.show_more()
-settle(lambda: len(grid.tiles) > shown)
+wait_show_more(view, grid, shown, host)
 check('Show more adds three pages',
       grid.pages_shown == cd.INITIAL_PAGES + cd.MORE_PAGES
       and len(grid.tiles) > shown)
 for _ in range(20):
     if not grid.has_more:
         break
-    view.show_more()
-    settle(lambda: True, 1.0, 0.02)
-settle()
+    before = len(grid.tiles)
+    wait_show_more(view, grid, before, host)
+
+
+def no_more_posts():
+    layout_host(host)
+    return not grid.has_more
+
+
+settle(no_more_posts, 10.0, 0.05)
 check('Show more hides when everything is shown',
       not grid.has_more and not view.more_button.get_visible()
       and sum(1 for p in grid.placed if p.kind == 'post')
@@ -523,8 +572,9 @@ cw = post(300, '<p>Secret body</p>', [media(300)],
           spoiler_text='Spoilers', sensitive=True)
 sensitive = post(301, '<p>Open text</p>', [media(301)], sensitive=True)
 plain = post(302, '<p>Fine</p>', [media(302)])
-context = catchupgrid._Context(client, types.SimpleNamespace(
-    items={}, boosters={}, trending_keys=frozenset()))
+context = catchupgrid._Context(client, Digest(
+    posts=[], scores={}, items={}, news=[], tags=[],
+    trending_keys=frozenset(), boosters={}, end_at=NOW))
 
 
 def make(status, colspan=2, rowspan=1, tier='compact'):
@@ -576,7 +626,7 @@ check('a content warning shows its text instead of the post',
       and not any('Secret' in t for t in texts(tile)))
 check('its media is blurred',
       tile.blur and pictures(tile)
-      and all(isinstance(p, timeline.BlurredPicture) for p in pictures(tile)))
+      and all(isinstance(p, mediabox.BlurredPicture) for p in pictures(tile)))
 tile = make(sensitive)
 check('sensitive media is blurred by default',
       tile.blur and not tile.cw_hidden
@@ -584,7 +634,7 @@ check('sensitive media is blurred by default',
 tile = make(plain)
 check('ordinary media is not blurred',
       not tile.blur and pictures(tile)
-      and not any(isinstance(p, timeline.BlurredPicture)
+      and not any(isinstance(p, mediabox.BlurredPicture)
                   for p in pictures(tile)))
 settings.set_boolean('show-spoilers', True)
 settings.set_boolean('show-sensitive-media', True)
@@ -637,7 +687,7 @@ carded = make(post(321, '<p>x</p>', card={
     'url': 'https://e.example/c', 'title': 'T', 'image': None,
     'description': '', 'type': 'link'}), 1, 2, 'medium')
 check('show-preview-cards off hides the link card',
-      not any(isinstance(w, timeline.CardPreview)
+      not any(isinstance(w, mediabox.CardPreview)
               for w in [carded.get_first_child()]))
 settings.set_boolean('show-preview-cards', True)
 
@@ -650,68 +700,52 @@ locale.setlocale(locale.LC_NUMERIC, 'C')
 # tile's: GtkButton claims the sequence in its own release handler, which
 # runs after the tile's, so the tile has to check what is under the point
 # itself. Clicking the text still opens the post.
-if hasattr(timeline, 'StatusActions'):
-    clickable = make(post(340, '<p>a post worth opening</p>'), 2, 2)
-    host_window = Gtk.Window(default_width=400, default_height=300,
-                             child=clickable)
-    host_window.present()
-    settle()
-    opened = []
-    clickable.open = lambda: opened.append(1)
+clickable = make(post(340, '<p>a post worth opening</p>'), 2, 2)
+host_window = Gtk.Window(default_width=400, default_height=300,
+                         child=clickable)
+host_window.present()
+settle()
+opened = []
+clickable.open = lambda: opened.append(1)
 
-    def point_over(widget):
-        ok, area = widget.compute_bounds(clickable)
-        return area.get_x() + area.get_width() / 2, \
-            area.get_y() + area.get_height() / 2
+def point_over(widget):
+    ok, area = widget.compute_bounds(clickable)
+    return area.get_x() + area.get_width() / 2, \
+        area.get_y() + area.get_height() / 2
 
-    bx, by = point_over(find_of(clickable, timeline.StatusActions)
-                        .boost_button)
-    clickable._on_released(None, 1, bx, by)
-    check('a click on a tile control does not also open the tile',
-          not opened)
-    # The tile's own background and its text are not controls, so they
-    # still open the post.
-    clickable._on_released(None, 1, 6, 6)
-    text_point = find_of(clickable, catchupgrid._FitText)
-    if text_point is not None:
-        tx, ty = point_over(text_point)
-        clickable._on_released(None, 1, tx, ty)
-    check('a click on the tile itself still opens the post',
-          len(opened) >= 1)
-    window.set_child(host)
-    host_window.set_child(None)
+bx, by = point_over(find_of(clickable, statusactions.StatusActions)
+                    .boost_button)
+clickable._on_released(None, 1, bx, by)
+check('a click on a tile control does not also open the tile',
+      not opened)
+# The tile's own background and its text are not controls, so they
+# still open the post.
+clickable._on_released(None, 1, 6, 6)
+text_point = find_of(clickable, catchupgrid._FitText)
+if text_point is not None:
+    tx, ty = point_over(text_point)
+    clickable._on_released(None, 1, tx, ty)
+check('a click on the tile itself still opens the post',
+      len(opened) >= 1)
+window.set_child(host)
+host_window.set_child(None)
 
 # The action bar comes from the timeline component when it exists.
-if hasattr(timeline, 'StatusActions'):
-    bar = catchupgrid._build_actions(first.item, False, client)
-    check('the action bar is the timeline component',
-          isinstance(bar, timeline.StatusActions)
-          and bar.favourite_button.get_child().get_label() == '7'
-          and bar.boost_button.get_child().get_label() == '1.2K')
-    check('the menu button is the timeline component',
-          isinstance(catchupgrid._build_menu_button(first.item, bar, False,
-                                                    client),
-                     timeline.StatusMenuButton))
-saved = {n: getattr(timeline, n, None)
-         for n in ('StatusActions', 'StatusMenuButton')}
-del timeline.StatusActions
-del timeline.StatusMenuButton
-fallback = catchupgrid._build_actions(first.item, False, client)
-check('without the component the bar is a read-only row of counts',
-      isinstance(fallback, catchupgrid._ReadOnlyActions)
-      and catchupgrid._build_menu_button(first.item, fallback, False)
-      is None)
-fallback_tile = make(post(330, '<p>fallback</p>'), 1, 1)
-check('a tile builds with the fallback bar', fallback_tile._child is not None)
-for name, value in saved.items():
-    if value is not None:
-        setattr(timeline, name, value)
+bar = catchupgrid._build_actions(first.item, False, client)
+check('the action bar is the timeline component',
+      isinstance(bar, statusactions.StatusActions)
+      and bar.favourite_button.get_child().get_label() == '7'
+      and bar.boost_button.get_child().get_label() == '1.2K')
+check('the menu button is the timeline component',
+      isinstance(catchupgrid._build_menu_button(first.item, bar, False,
+                                                client),
+                 statusmenu.StatusMenuButton))
 
 # --------------------------------------------------------------------------
 # Freeing
 
 view.set_digest(fixture(30))
-at_width(host, 1000)
+at_width(host, 1000, grid)
 settle(lambda: all(t._child is not None for t in grid.tiles.values()), 20)
 refs = [view.weak_ref(), grid.weak_ref()]
 refs += [t.weak_ref() for t in grid.tiles.values()]
@@ -720,7 +754,7 @@ view.more_button.emit('clicked')
 settle()
 refs += [t.weak_ref() for t in grid.tiles.values()]
 del tile, first, news_tile, tag_tile, post_tiles, boost_tile, video, carded
-del fallback_tile, fallback, bar, tiles_before, shared
+del bar, tiles_before, shared
 window.set_child(None)
 host = grid = view = window = None
 settle()

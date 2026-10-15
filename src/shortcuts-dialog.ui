@@ -135,19 +135,19 @@
         <child>
           <object class="AdwShortcutsItem">
             <property name="title" translatable="yes">Increase Text Size</property>
-            <property name="accelerator">&lt;primary&gt;plus</property>
+            <property name="accelerator">&lt;primary&gt;plus &lt;primary&gt;equal &lt;primary&gt;KP_Add</property>
           </object>
         </child>
         <child>
           <object class="AdwShortcutsItem">
             <property name="title" translatable="yes">Decrease Text Size</property>
-            <property name="accelerator">&lt;primary&gt;minus</property>
+            <property name="accelerator">&lt;primary&gt;minus &lt;primary&gt;KP_Subtract</property>
           </object>
         </child>
         <child>
           <object class="AdwShortcutsItem">
             <property name="title" translatable="yes">Reset Text Size</property>
-            <property name="accelerator">&lt;primary&gt;0</property>
+            <property name="accelerator">&lt;primary&gt;0 &lt;primary&gt;KP_0</property>
           </object>
         </child>
       </object>

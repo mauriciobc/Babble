@@ -211,7 +211,7 @@ class ReportDialog(Adw.Dialog):
         who = Adw.ActionRow(title=GLib.markup_escape_text(name),
                             subtitle='@' + self.account.get('acct', ''),
                             title_lines=1, subtitle_lines=1)
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         avatar = Adw.Avatar(size=40, text=name, show_initials=True)
         AvatarCache.load(avatar, self.account)
         who.add_prefix(avatar)
@@ -458,7 +458,7 @@ class ReportDialog(Adw.Dialog):
             self.next_buttons['comment'].set_sensitive(True)
             self._toast('%s: %s' % (
                 _('Could not send report'),
-                summarize_error(error.message)))
+                summarize_error(error)))
             return
         parent = self.parent_widget
         self.force_close()

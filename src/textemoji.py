@@ -14,7 +14,6 @@ declares, and the signed-in instance's whole custom-emoji set published
 here by :mod:`emojichooser`.
 """
 
-import collections
 import re
 from .i18n import gettext as _
 
@@ -24,8 +23,9 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Soup', '3.0')
 
-from gi.repository import Adw, Gdk, GLib, Gtk, Pango, Soup  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
+from . import imagecache  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 
 EMOJI_RE = re.compile(r':([A-Za-z0-9_+\-]+):')
@@ -132,53 +132,37 @@ def status_emoji_bank(status):
 
 
 class EmojiTextures:
-    """Async custom-emoji texture cache keyed by image URL."""
+    """Async custom-emoji texture cache keyed by image URL.
 
-    # Bounded LRU: a server instance can define thousands of emoji and a
-    # long reading session would keep every one of them decoded.
-    _textures = collections.OrderedDict()
-    _inflight = {}
+    Bounded because an instance can define thousands of emoji and a long
+    reading session would otherwise keep every one of them decoded. The
+    fetch, the coalescing and the LRU are the shared imagecache's.
+    """
+
+    store = imagecache.Store(EMOJI_TEXTURE_CACHE_SIZE)
+    fetcher = None
+
+    @classmethod
+    def _fetch(cls):
+        if cls.fetcher is None:
+            from .mediacache import _decode_async
+            cls.fetcher = imagecache.Fetcher(
+                cls.store,
+                # An inline emoji is drawn at 20-32 px; the server's file
+                # is usually that size already, so decode it whole rather
+                # than scaling a header down to nothing.
+                lambda data, key, cancellable, done: _decode_async(
+                    data, None, cancellable,
+                    lambda texture, error: done(texture,
+                                                error and error.message)))
+        return cls.fetcher
 
     @classmethod
     def bind(cls, image, url):
         """Load *url* into *image* through the shared decoded cache."""
-        texture = cls._textures.get(url)
-        if texture is not None:
-            image.set_from_paintable(texture)
-            return
-        waiting = cls._inflight.setdefault(url, [])
-        if image not in waiting:
-            waiting.append(image)
-        if len(waiting) > 1:
-            # Another bind for the same URL already started the request.
-            return
-        message = Soup.Message.new('GET', url)
-        if message is None:
-            cls._inflight.pop(url, None)
-            return
-        from .timeline import AvatarCache
-        AvatarCache.session().send_and_read_async(
-            message, GLib.PRIORITY_DEFAULT_IDLE, None, cls._on_loaded, url)
-
-    @classmethod
-    def _on_loaded(cls, session, result, url):
-        waiting = cls._inflight.pop(url, [])
-        try:
-            data = session.send_and_read_finish(result)
-        except GLib.Error:
-            return
-        if not data or data.get_size() == 0:
-            return
-        try:
-            texture = Gdk.Texture.new_from_bytes(data)
-        except GLib.Error:
-            return
-        cls._textures[url] = texture
-        cls._textures.move_to_end(url)
-        while len(cls._textures) > EMOJI_TEXTURE_CACHE_SIZE:
-            cls._textures.popitem(last=False)
-        for image in waiting:
-            image.set_from_paintable(texture)
+        cls._fetch().fetch(
+            url, lambda texture, _reason: None if texture is None
+            else image.set_from_paintable(texture))
 
 
 class InlineEmojiText(Gtk.TextView):
@@ -335,10 +319,11 @@ class InlineEmojiText(Gtk.TextView):
         return layout
 
     def _context(self):
-        """Shared link/URL helpers that still live in the timeline
-        module (imported lazily to avoid an import cycle)."""
-        from . import timeline
-        return timeline
+        """URL shortening. Imported lazily: statustext imports Gio,
+        and this module is imported while gi versions are still being
+        required."""
+        from . import statustext
+        return statustext
 
     def _on_map(self, _widget):
         manager = Adw.StyleManager.get_default()

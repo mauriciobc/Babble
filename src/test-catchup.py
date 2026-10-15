@@ -470,6 +470,7 @@ class StubModule:
     HighlightsView = StubHighlights
 
 
+_catchupgrid_saved = sys.modules.get('src.catchupgrid')
 sys.modules['src.catchupgrid'] = StubModule
 
 
@@ -808,17 +809,6 @@ check('a cancelled page asks for nothing more and saves nothing',
       and '/followed_tags' not in client.paths()
       and not catchupstore.list_snapshots('https://test.example#58'))
 
-# Without catchupgrid the slot stays empty
-sys.modules['src.catchupgrid'] = None
-page7, host7 = make_page(FakeClient(), dict(ACCOUNT, id='59'))
-settle(lambda: page7.state == 'first-run')
-page7.catch_up_button.emit('clicked')
-settle(lambda: page7.state == 'results')
-check('a missing Highlights module leaves the slot empty',
-      page7.state == 'results' and page7._highlights is None
-      and page7.highlights_slot.get_first_child() is None)
-page7.cancel()
-
 # --------------------------------------------------------------------------
 # Account removal
 
@@ -853,7 +843,7 @@ check('and only its own',
 # --------------------------------------------------------------------------
 # The real Highlights grid under the page
 
-sys.modules.pop('src.catchupgrid', None)      # the page imports it lazily
+sys.modules.pop('src.catchupgrid', None)
 from src import catchupgrid  # noqa: E402
 
 page8, host8 = make_page(FakeClient(), dict(ACCOUNT, id='60'))
@@ -864,7 +854,8 @@ page8.catch_up_button.emit('clicked')
 settle(lambda: page8.state == 'results')
 view8 = page8._highlights
 check('the Highlights slot holds a real HighlightsView',
-      isinstance(view8, catchupgrid.HighlightsView))
+      isinstance(view8, catchupgrid.HighlightsView)
+      and hasattr(view8, 'grid'))
 grid8 = view8.grid
 settle(lambda: any(p.kind == 'post' for p in grid8.placed)
        and len(grid8.tiles) > 0)
@@ -895,6 +886,11 @@ check('a dropped page frees its Highlights view, grid and tiles',
       all(ref() is None for ref in refs))
 
 shutil.rmtree(CACHE, ignore_errors=True)
+
+if _catchupgrid_saved is not None:
+    sys.modules['src.catchupgrid'] = _catchupgrid_saved
+else:
+    sys.modules.pop('src.catchupgrid', None)
 
 if failures:
     print('%d checks failed' % len(failures))

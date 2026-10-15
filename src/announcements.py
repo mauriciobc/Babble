@@ -21,7 +21,7 @@ from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 from .pages import PagedList, connect_weak, report_error  # noqa: E402
 from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
 from .statustext import format_time, parse_content  # noqa: E402
-from .timeline import AvatarCache  # noqa: E402
+from .mediacache import AvatarCache  # noqa: E402
 
 
 def _local(iso):

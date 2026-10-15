@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.mastodon import MastodonClient  # noqa: E402
+from src import notificationcopy  # noqa: E402
 from src.notifications import (NotificationItem, NotificationModel,  # noqa: E402
                                NotificationPost, NotificationRow,
                                NotificationsPage, notification_detail,
@@ -180,6 +181,9 @@ check('mention title', notification_title(
     NotificationItem(MENTION)) == 'Carol mentioned you')
 check('follow title', notification_title(
     NotificationItem(FOLLOW)) == 'Carol followed you')
+check('every list title has a desktop pair',
+      set(notificationcopy.LIST_TITLES)
+      <= set(notificationcopy.DESKTOP_TITLES))
 check('unknown type falls back to generic title',
       notification_title(
           NotificationItem(MYSTERY)) == 'Alice Doe interacted with you')
@@ -682,6 +686,23 @@ else:
     check('live notifications fetched', isinstance(live['data'], list))
     print('note - unexpected anonymous success: %d notifications'
           % len(live['data']))
+
+# Notification body text. This used to be its own HTML parser, and the two
+# parsers disagreed on the one case a notification exists for: a content
+# warning. Over statustext.parse_content now, which drops script and style.
+check('a plain body becomes plain text',
+      desktopnotify.html_to_text('<p>hello</p>').strip() == 'hello')
+check('a body keeps its paragraph breaks',
+      desktopnotify.html_to_text('<p>one</p><p>two</p>').count('\n') >= 1)
+check('a script body is not read aloud',
+      'alert' not in desktopnotify.html_to_text(
+          '<script>alert(1)</script><p>text</p>'))
+check('a malformed body still yields text',
+      bool(desktopnotify.html_to_text('<p>unclosed <b>bold')))
+check('a content warning stands in for the body it hides',
+      desktopnotify.notification_body(
+          {'status': {'spoiler_text': 'spoiler',
+                      'content': '<p>hidden body</p>'}}) == 'spoiler')
 
 if failures:
     print('%d checks failed' % len(failures))

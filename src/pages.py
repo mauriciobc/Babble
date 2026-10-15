@@ -4,7 +4,7 @@
 
 * navigation: :func:`push_page`, :func:`make_nav_page`, :func:`window_of`
 * feedback: :func:`show_toast`, :func:`report_error`, :func:`confirm`,
-  :func:`announce`
+  :func:`confirm_remind`, :func:`announce`
 * settings: :func:`settings`
 * lists: :class:`PagedList` (any Link-paginated endpoint rendered as a
   boxed list of rows), :class:`AccountRow`, :class:`AccountListPage`
@@ -126,6 +126,110 @@ def flash_class(widget, css_class, ms=300):
                 owner.remove_css_class(css_class)
         return GLib.SOURCE_REMOVE
     GLib.timeout_add(ms, done)
+
+
+class PagedPosts:
+    """The paging state machine every status list runs.
+
+    Three copies existed -- ``TimelinePage``, ``NotificationsPage`` and
+    ``pages.PagedList`` -- and they had drifted: two page sizes, three
+    preload distances, ``since_id`` in one and ``min_id`` in another, and
+    a generation guard present in two of the three. A list that pages
+    wrongly does not look wrong, so the fix is one implementation.
+
+    Subclasses supply the model and how to put items in it; this owns the
+    flags, the cursors and the three requests:
+
+    * :meth:`load` fills an empty list, falling back to :meth:`load_older`
+      while pages come back empty of visible rows;
+    * :meth:`load_older` pages back, stopping when the model says so;
+    * :meth:`refresh` asks for what is newer than what is shown.
+
+    Which cursor each uses is a constructor argument rather than a
+    difference between two copies: ``min_id`` for the notification list
+    (Mastodon requires it there), ``since_id`` for a timeline.
+    """
+
+    # One page size for every status list. These were 20, 20 and 40.
+    PAGE_SIZE = 20
+    # How close to the bottom a list gets before fetching the next page.
+    # These were 800, 800 and 600.
+    PRELOAD = 800
+
+    model = None
+
+    def _paging_init(self, newer_cursor='since_id'):
+        self._generation = 0
+        self._loading_older = False
+        self._newer_cursor = newer_cursor
+
+    # Requests
+
+    def _request(self, params, on_done):
+        """Queue one page request, tagged with its generation.
+
+        A response that outlived its request is dropped rather than
+        spliced into the model -- a superseded refresh would otherwise
+        land stale posts in a list the reader is looking at. Dropping it
+        also clears the busy flags, or a discarded first page would leave
+        the list reading as loading forever.
+        """
+        self._generation += 1
+        generation = self._generation
+
+        def finished(client, result, _data=None):
+            on_done(client, result, generation)
+        return self._paging_fetch(params, finished, generation)
+
+    def _paging_fetch(self, params, callback, generation):
+        raise NotImplementedError
+
+    def _superseded(self, generation):
+        if generation == self._generation:
+            return False
+        self.model.loading = False
+        self._loading_older = False
+        return True
+
+    # The three requests
+
+    def load(self):
+        if self.model.loading:
+            return
+        self.model.loading = True
+        if self.model.get_n_items() == 0:
+            self.stack.set_visible_child_name('loading')
+        self._request({'limit': self.PAGE_SIZE}, self.on_page_loaded)
+
+    def load_older(self):
+        if self._loading_older or self.model.exhausted \
+                or self.model.oldest_id is None:
+            return
+        self._loading_older = True
+        self._request({'limit': self.PAGE_SIZE,
+                       'max_id': self.model.oldest_id},
+                      self.on_older_loaded)
+
+    def refresh(self):
+        """Load what is newer than the newest item shown."""
+        if self.model.loading:
+            return
+        if self.model.get_n_items() == 0:
+            self.load()
+            return
+        self.model.exhausted = False
+        params = {'limit': self.PAGE_SIZE}
+        if self.model.newest_id is not None:
+            params[self._newer_cursor] = self.model.newest_id
+        self.model.loading = True
+        self._request(params, self.on_refresh_loaded)
+
+    # Scroll
+
+    def on_scroll_near_end(self, adjustment):
+        """Whether the list is within ``PRELOAD`` of the bottom."""
+        bottom = adjustment.get_value() + adjustment.get_page_size()
+        return bottom >= adjustment.get_upper() - self.PRELOAD
 
 
 # Navigation
@@ -262,6 +366,33 @@ def confirm(widget, heading, body, action_label, callback,
     return dialog
 
 
+def confirm_remind(widget, heading, body, action, action_label, setting,
+                   callback):
+    """Cancel, "Don't Remind Me Again", and *action_label*.
+
+    The reminder turns the boolean *setting* off and still runs
+    *callback()*, the same as choosing the action. Cancel does neither.
+    The alt-text boost reminder is not this dialog: it is a checkbox on
+    the extra child, and its default is Cancel."""
+    dialog = Adw.AlertDialog(heading=heading, body=body)
+    dialog.add_response('cancel', _('_Cancel'))
+    dialog.add_response('never', _('_Don’t Remind Me Again'))
+    dialog.add_response(action, action_label)
+    dialog.set_response_appearance(action, Adw.ResponseAppearance.SUGGESTED)
+    dialog.set_default_response(action)
+    dialog.set_close_response('cancel')
+
+    def on_response(_dialog, response):
+        if response == 'never':
+            settings().set_boolean(setting, False)
+        if response in ('never', action):
+            callback()
+
+    dialog.connect('response', on_response)
+    dialog.present(widget)
+    return dialog
+
+
 def call(widget, client, method, path, on_done=None, error_heading=None,
          **kwargs):
     """Fire one request and hand the decoded body to *on_done(data)*;
@@ -280,6 +411,19 @@ def call(widget, client, method, path, on_done=None, error_heading=None,
 
 
 # Status pages
+
+def configure_empty_page(page, icon_name, title, description):
+    """Fill the three fields every timeline wrapper sets on ``empty_page``."""
+    page.set_icon_name(icon_name)
+    page.set_title(title)
+    page.set_description(description)
+
+
+def clear_children(widget):
+    """Remove every child of *widget* before it is filled again."""
+    while (child := widget.get_first_child()) is not None:
+        widget.remove(child)
+
 
 def make_loading_page(title, description=None):
     page = Adw.StatusPage(title=title, description=description)
@@ -307,7 +451,7 @@ def make_error_page(title, on_retry):
 
 # Paged list
 
-class PagedList(Adw.Bin):
+class PagedList(PagedPosts, Adw.Bin):
     """Infinite boxed list over a Link-paginated endpoint.
 
     ``fetch_path``/``params`` describe the request; ``make_row(item)``
@@ -315,7 +459,11 @@ class PagedList(Adw.Bin):
     ``extract(data)`` maps the response to the item list (default: the
     response itself). Loading, empty and error states are built in;
     ``refresh()`` reloads from the top, ``remove_row(row)`` drops a row
-    (and shows the empty state when it was the last one)."""
+    (and shows the empty state when it was the last one).
+
+    Inherits the paging flags and cursors from PagedPosts, but follows
+    ``Link: rel=next`` rather than a status id, so it keeps its own
+    ``load_more`` where a timeline has ``load_older``."""
 
     __gtype_name__ = 'BabblePagedList'
 
@@ -323,6 +471,7 @@ class PagedList(Adw.Bin):
                  empty_title=None, empty_icon='edit-find-symbolic',
                  empty_description=None, extract=None, paginated=True,
                  header=None, method='GET', **kwargs):
+        PagedPosts.__init__(self)
         super().__init__(**kwargs)
         self.client = client
         self.fetch_path = fetch_path
@@ -396,8 +545,7 @@ class PagedList(Adw.Bin):
             cancellable=None)
 
     def _on_scroll(self, adjustment):
-        if adjustment.get_value() + adjustment.get_page_size() \
-                >= adjustment.get_upper() - 600:
+        if self.on_scroll_near_end(adjustment):
             self.load_more()
 
     def load_more(self):
@@ -424,7 +572,7 @@ class PagedList(Adw.Bin):
         except GLib.Error as error:
             if not self.rows:
                 self.error_page.set_description(
-                    summarize_error_markup(error.message))
+                    summarize_error_markup(error))
                 self.stack.set_visible_child_name('error')
             else:
                 report_error(self, _('Could not load more'), error)
@@ -447,7 +595,7 @@ class PagedList(Adw.Bin):
 
     def _maybe_fill(self):
         adjustment = self.scrolled.get_vadjustment()
-        if adjustment.get_upper() <= adjustment.get_page_size() + 600:
+        if adjustment.get_upper() <= adjustment.get_page_size() + self.PRELOAD:
             self.load_more()
         return GLib.SOURCE_REMOVE
 
@@ -468,11 +616,18 @@ class PagedList(Adw.Bin):
             return
         self.stack.set_visible_child_name('empty')
 
-    def mutate_row(self, row, method, path, on_done=None,
-                   error_heading=None, **kwargs):
+    def mutate_row(self, row, method, path, on_done=None, error_heading=None,
+                   remove=True, **kwargs):
         """Fire a row-scoped request: *row* is disabled while it runs and
         dropped on success; failure re-enables it and toasts
-        *error_heading* (default 'Action failed')."""
+        *error_heading* (default 'Action failed').
+
+        *remove* False keeps the row on success, for the actions that
+        update it in place rather than taking it off the list -- a
+        notification answered where it stands, for instance, whose state
+        the caller's *on_done* then writes. Everything else -- disable,
+        report, drop -- is the same.
+        """
         row.set_sensitive(False)
 
         def finished(_client, result, _data=None):
@@ -483,7 +638,8 @@ class PagedList(Adw.Bin):
                 report_error(self, error_heading or _('Action failed'),
                              error)
                 return
-            self.remove_row(row)
+            if remove:
+                self.remove_row(row)
             if on_done is not None:
                 on_done()
 
@@ -506,7 +662,7 @@ class AccountRow(Adw.ActionRow):
 
     def __init__(self, client, account, subtitle=None, **kwargs):
         super().__init__(activatable=True, use_markup=False, **kwargs)
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         self.client = client
         self.account = account
         name = re.sub(r':[A-Za-z0-9_+\-]+:', '', display_name(account)) \
@@ -543,7 +699,7 @@ def open_profile(widget, client, account=None, acct=None):
 
 def open_status(widget, client, status):
     from .thread import push_thread
-    from .timeline import StatusItem
+    from .timelinedata import StatusItem
     window = window_of(widget)
     if window is None:
         return
@@ -725,11 +881,21 @@ def section_label(text):
     return label
 
 
-def icon_button(icon_name, tooltip, callback=None, flat=True):
+def icon_button(icon_name, tooltip, callback=None, flat=True,
+                valign=Gtk.Align.CENTER, css=()):
+    """A flat icon button with *tooltip* as its accessible label.
+
+    *css* adds classes beyond the flat one, for the shapes this is
+    otherwise re-created for: 'circular' for the round accept/dismiss
+    buttons on a request, for instance. *valign* is here because the same
+    button sits centred in a header bar and stretched in a row.
+    """
     button = Gtk.Button(icon_name=icon_name, tooltip_text=tooltip,
-                        valign=Gtk.Align.CENTER)
+                        valign=valign)
     if flat:
         button.add_css_class('flat')
+    for name in css:
+        button.add_css_class(name)
     button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
     if callback is not None:
         button.connect('clicked', lambda *_a: callback())

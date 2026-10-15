@@ -33,8 +33,8 @@ IMAGE_TYPES = ('image/png', 'image/jpeg', 'image/gif', 'image/webp')
 # update_credentials: the profile-tab switches through PATCH
 # /api/v1/profile (Mastodon 4.6.0, `mastodon` API version 8) and the
 # avatar/header alt text through the same route (4.6.0, version 9).
-PROFILE_TABS_VERSION = 8
-PROFILE_ALT_TEXT_VERSION = 9
+from .capabilities import (PROFILE_ALT_TEXT_API_VERSION as PROFILE_ALT_TEXT_VERSION,
+                           PROFILE_TABS_API_VERSION as PROFILE_TABS_VERSION)
 
 
 VISIBILITIES = (
@@ -272,7 +272,7 @@ class ProfileEditDialog(Adw.Dialog):
         group.add(overlay)
 
         from .profile import HeaderCache
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         header_url = self.account.get('header')
         if header_url and not header_url.endswith('/missing.png'):
             HeaderCache.apply(self.header_picture, header_url)
@@ -735,4 +735,4 @@ class ProfileEditDialog(Adw.Dialog):
     def save_failed(self, error):
         self.set_saving(False)
         self.toast(_('Could not save profile: %s')
-                   % summarize_error(error.message))
+                   % summarize_error(error))

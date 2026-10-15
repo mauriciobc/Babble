@@ -335,9 +335,15 @@ check('the real monitor exposes the contract properties',
 # to the proxy that started it.
 
 done = []
-mastodon_module.store_secret_async(
-    'babble-selftest.example', 'probe', 'round-trip-value',
-    lambda error: done.append(error))
+try:
+    mastodon_module.store_secret_async(
+        'babble-selftest.example', 'probe', 'round-trip-value',
+        lambda error: done.append(error))
+except GLib.Error:
+    # get_sync raises before the callback when the session has no
+    # secret service at all. That is the same "nothing to read back"
+    # the callback path skips on below.
+    done.append(GLib.Error('no secret service'))
 check('storing a secret completes its callback',
       pump_until(lambda: len(done) == 1))
 

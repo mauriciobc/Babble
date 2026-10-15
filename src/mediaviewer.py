@@ -20,7 +20,7 @@ and GIFVs are not downloaded until asked; in power saver mode GIFVs do
 not start on their own.
 """
 
-import collections
+import locale
 import os
 import time
 import urllib.parse
@@ -40,6 +40,7 @@ from gi.repository import (  # noqa: E402
     Adw, Gdk, Gio, GLib, GObject, Graphene, Gsk, Gtk, Pango, Soup,
 )
 
+from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
 
 DIALOG_WIDTH = 1100
@@ -47,18 +48,15 @@ DIALOG_HEIGHT = 760
 ZOOM_STEP = 1.25
 MAX_SCALE = 8.0
 CHUNK_SIZE = 64 * 1024
+# A full-screen attachment at every zoom step, so this keeps far fewer
+# than the timeline's media cache -- and must not share it, or opening a
+# viewer would evict the timeline's thumbnails.
 TEXTURE_CACHE_SIZE = 6
-
-_session = None
-_textures = collections.OrderedDict()
 
 
 def _http_session():
-    global _session
-    if _session is None:
-        _session = Soup.Session()
-        _session.set_timeout(30)
-    return _session
+    """The session every media request shares, with the app's timeout."""
+    return imagecache.session()
 
 
 def _check_status(message):
@@ -72,51 +70,52 @@ def _check_status(message):
             Gio.IOErrorEnum.FAILED)
 
 
+def _texture_error(reason):
+    """A GLib.Error for a failure *reason* from the shared fetcher.
+
+    The fetcher reports 'HTTP %d' for a status; the viewer has always
+    shown that as a translated sentence, and a raw reason would be a
+    regression a user could see.
+    """
+    if reason == 'invalid URL':
+        return GLib.Error.new_literal(
+            Gio.io_error_quark(), _('Invalid media address'),
+            Gio.IOErrorEnum.INVALID_ARGUMENT)
+    if reason.startswith('HTTP '):
+        return GLib.Error.new_literal(
+            Gio.io_error_quark(),
+            _('The server answered with HTTP {status}').format(
+                status=reason[5:]),
+            Gio.IOErrorEnum.FAILED)
+    return GLib.Error.new_literal(
+        Gio.io_error_quark(), reason, Gio.IOErrorEnum.FAILED)
+
+
+# The viewer's own store: a full-screen attachment at every zoom step, so
+# a handful is all it keeps. Shared machinery, separate budget -- it is
+# not the timeline's media cache and must not evict it.
+_viewer_store = imagecache.Store(TEXTURE_CACHE_SIZE)
+_viewer_fetcher = imagecache.Fetcher(
+    _viewer_store,
+    lambda data, key, cancellable, done: done(
+        Gdk.Texture.new_from_bytes(data), None))
+
+
 def load_texture(url, callback, cancellable=None):
     """Fetch and decode *url* to a Gdk.Texture; ``callback(texture, error)``
     runs on the main loop (never when *cancellable* was cancelled)."""
-    texture = _textures.get(url)
-    if texture is not None:
-        _textures.move_to_end(url)
-        GLib.idle_add(_deliver_texture, callback, texture, cancellable)
-        return
-    message = Soup.Message.new('GET', url)
-    if message is None:
-        error = GLib.Error.new_literal(
-            Gio.io_error_quark(), _('Invalid media address'),
-            Gio.IOErrorEnum.INVALID_ARGUMENT)
-        GLib.idle_add(_deliver_error, callback, error, cancellable)
-        return
 
-    def on_read(session, result):
+    def arrived(texture, reason):
+        # Delivered on the main loop, and dropped when the caller has
+        # moved on -- a cancelled load must not call back.
         if cancellable is not None and cancellable.is_cancelled():
             return
-        try:
-            data = session.send_and_read_finish(result)
-            _check_status(message)
-            decoded = Gdk.Texture.new_from_bytes(data)
-        except GLib.Error as error:
-            callback(None, error)
+        if texture is None:
+            callback(None, _texture_error(reason))
             return
-        _textures[url] = decoded
-        while len(_textures) > TEXTURE_CACHE_SIZE:
-            _textures.popitem(last=False)
-        callback(decoded, None)
-
-    _http_session().send_and_read_async(
-        message, GLib.PRIORITY_DEFAULT, cancellable, on_read)
-
-
-def _deliver_texture(callback, texture, cancellable):
-    if cancellable is None or not cancellable.is_cancelled():
         callback(texture, None)
-    return GLib.SOURCE_REMOVE
 
-
-def _deliver_error(callback, error, cancellable):
-    if cancellable is None or not cancellable.is_cancelled():
-        callback(None, error)
-    return GLib.SOURCE_REMOVE
+    _viewer_fetcher.fetch(url, arrived, cancellable=cancellable)
 
 
 def download(url, destination, on_progress=None, on_done=None,
@@ -145,7 +144,12 @@ class _Download:
         self.finished = False
 
     def start(self):
-        self.message = Soup.Message.new('GET', self.url)
+        try:
+            self.message = Soup.Message.new('GET', self.url)
+        except TypeError:
+            # An address Soup will not parse comes back as NULL, which
+            # PyGObject raises rather than returning None.
+            self.message = None
         if self.message is None:
             self.fail(GLib.Error.new_literal(
                 Gio.io_error_quark(), _('Invalid media address'),
@@ -288,11 +292,10 @@ def _label(widget, text):
 
 
 def _icon_button(icon, tooltip, css=()):
-    button = Gtk.Button(icon_name=icon, tooltip_text=tooltip)
-    _label(button, tooltip)
-    for name in css:
-        button.add_css_class(name)
-    return button
+    # Not flat by default: these sit over the picture in a header bar or
+    # an overlay, where pages.icon_button's flat would flatten a button
+    # that is meant to read as a control on top of media.
+    return pages.icon_button(icon, tooltip, flat=False, css=css)
 
 
 # Drag and drop
@@ -355,10 +358,7 @@ def set_drag_icon_name(source, widget, icon_name):
 def _system_state(name):
     """The ``sysstate`` monitor's boolean property *name* ('metered',
     'power-saver'); False when the monitor is unavailable."""
-    try:
-        from . import sysstate
-    except ImportError:
-        return False
+    from . import sysstate
     return bool(sysstate.monitor().get_property(name))
 
 
@@ -1058,7 +1058,10 @@ class MediaViewer(Adw.Dialog):
 
     def _update_zoom_controls(self):
         scale = self.picture.scale
-        self.zoom_label_button.set_label('{:d}%'.format(round(scale * 100)))
+        self.zoom_label_button.set_label(
+            # %d is locale-formatted: '100 %' in French, which is how a
+            # percentage is written there, not '100%'.
+            locale.format_string('%d%%', round(scale * 100)))
         self.zoom_in_button.set_sensitive(self.picture.can_zoom_in())
         self.zoom_out_button.set_sensitive(self.picture.can_zoom_out())
         self.zoom_fit_button.set_sensitive(not self.picture.fitted)

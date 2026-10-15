@@ -6,7 +6,6 @@ Tuba: Views/Explore.vala, Views/Link.vala, Widgets/PreviewCardExplore.vala,
 Widgets/AccountSuggestions.vala. Phanpy: pages/trending.jsx.
 """
 
-import re
 import urllib.parse
 from .i18n import gettext as _, ngettext
 
@@ -19,7 +18,8 @@ from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
 
-LINK_TIMELINE_MIN_VERSION = (4, 3)
+from .capabilities import LINK_TIMELINE_API_VERSION
+
 PEOPLE_DAYS = 2
 
 SOURCE_REASONS = {
@@ -44,14 +44,19 @@ def people_talking(link):
 
 
 def supports_link_timeline(client):
-    """True when the server is Mastodon 4.3+ (GET /timelines/link). An
-    unknown version is optimistically accepted."""
-    version = (getattr(client, 'instance_info', None) or {}).get('version')
-    match = re.match(r'^(\d+)\.(\d+)', version or '')
-    if not match:
-        return True
-    return (int(match.group(1)), int(match.group(2))) \
-        >= LINK_TIMELINE_MIN_VERSION
+    """True when the server can answer GET /timelines/link.
+
+    That arrived in Mastodon 4.3.0, which is ``api_versions.mastodon`` 2
+    -- asked through the same seam as every other gate rather than by
+    reading the human version string, which is what this used to do and
+    which cannot tell a fork's 4.3 from Mastodon's.
+
+    A server that says nothing is told no: the fallback
+    :func:`open_link_timeline` already opens the link in the browser,
+    which is the right answer anyway, so an unproven server should not be
+    asked for a route it may not have.
+    """
+    return client.is_supported(LINK_TIMELINE_API_VERSION)
 
 
 def open_link_timeline(widget, client, link):
@@ -78,14 +83,14 @@ class LinkTimelinePage(Adw.Bin):
 
     def __init__(self, client, link):
         super().__init__()
-        from .timeline import ApiTimelineSource, TimelinePage
+        from .timelinepage import ApiTimelineSource, TimelinePage
         self.link = link
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
             client, '/timelines/link', params={'url': link['url']}))
         self.timeline.set_vexpand(True)
-        self.timeline.empty_page.set_icon_name('edit-find-symbolic')
-        self.timeline.empty_page.set_title(_('No Posts Share This Link'))
-        self.timeline.empty_page.set_description(
+        pages.configure_empty_page(
+            self.timeline.empty_page, 'edit-find-symbolic',
+            _('No Posts Share This Link'),
             _('Posts mentioning the link will appear here'))
 
         summary = Adw.ActionRow(
@@ -142,16 +147,32 @@ def shared_by(sharers, name_of):
                     'Shared by %s and %d others', rest) % (first, rest)
 
 
-def link_card_content(link, sharers=None):
-    """The box a link card shows: image, provider, title, description and
-    a footer line.
+def link_card_footer_text(link, sharers=None):
+    """One footer line for a link card or Catch-Up news tile.
 
-    *sharers* -- Mastodon accounts from the user's timeline who shared the
-    link -- replace the "N people talking" count with "Shared by ..."; the
-    author stays. Without them the footer is the count, as in the News
-    tab."""
+    *sharers* -- accounts from the reader's timeline who shared the link;
+    when set, "Shared by …" replaces the "N people talking" count."""
     from .accounts import plain_name
-    from .timeline import _TextureCache
+    footer = []
+    author = link.get('author_name')
+    if author:
+        footer.append(_('By %s') % author)
+    if sharers:
+        footer.append(shared_by(sharers, plain_name))
+    else:
+        people = people_talking(link)
+        if people:
+            footer.append(ngettext('%d person talking',
+                                   '%d people talking', people) % people)
+    return ' · '.join(footer)
+
+
+def link_card_content(link):
+    """The box a link card shows: image, provider, title, description and
+    a footer line. Catch-Up news tiles draw their own box; they share
+    :func:`link_card_footer_text`, which is where a sharer list replaces
+    the "N people talking" count."""
+    from .mediacache import _TextureCache
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
     image_url = link.get('image')
@@ -186,19 +207,9 @@ def link_card_content(link, sharers=None):
             ellipsize=Pango.EllipsizeMode.END)
         description.add_css_class('body')
         text.append(description)
-    footer = []
-    author = link.get('author_name')
-    if author:
-        footer.append(_('By %s') % author)
-    if sharers:
-        footer.append(shared_by(sharers, plain_name))
-    else:
-        people = people_talking(link)
-        if people:
-            footer.append(ngettext('%d person talking',
-                                   '%d people talking', people) % people)
+    footer = link_card_footer_text(link)
     if footer:
-        line = Gtk.Label(label=' · '.join(footer), xalign=0.0, wrap=True)
+        line = Gtk.Label(label=footer, xalign=0.0, wrap=True)
         line.add_css_class('caption')
         line.add_css_class('dimmed')
         text.append(line)
@@ -394,12 +405,12 @@ class ExplorePage(Adw.Bin):
         self._populate('posts')
 
     def _build_posts(self):
-        from .timeline import ApiTimelineSource, TimelinePage
+        from .timelinepage import ApiTimelineSource, TimelinePage
         page = TimelinePage(self.client, source=ApiTimelineSource(
             self.client, '/trends/statuses', paging='link'))
-        page.empty_page.set_icon_name('edit-find-symbolic')
-        page.empty_page.set_title(_('No Trending Posts'))
-        page.empty_page.set_description(
+        pages.configure_empty_page(
+            page.empty_page, 'edit-find-symbolic',
+            _('No Trending Posts'),
             _('This server has no trending posts right now'))
         return page
 

@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import random
 import re
 import secrets as _secrets
 import time
@@ -50,6 +51,26 @@ MAX_RATE_LIMIT_SECONDS = 3600
 # libsoup 3 does not name HTTP 429, so the wire value is spelled out.
 HTTP_TOO_MANY_REQUESTS = 429
 
+# Transient REST failures: same backoff shape as streaming.py.
+REST_RETRY_MAX = 3
+REST_BACKOFF_START = 1.0
+REST_BACKOFF_MAX = 30.0
+
+
+def rest_should_retry(status, transport_error=False):
+    """Whether a failed request may be retried automatically."""
+    if transport_error:
+        return True
+    if status is None:
+        return False
+    return 500 <= status < 600
+
+
+def rest_backoff_seconds(attempt):
+    """Seconds to wait before retry *attempt* (0-based), with jitter."""
+    delay = min(REST_BACKOFF_START * 2 ** attempt, REST_BACKOFF_MAX)
+    return delay + random.uniform(0, delay / 4)
+
 # <script>/<style> payloads first: stripping only the tags would leave
 # their source in the middle of the sentence.
 _UNPRINTABLE_BLOCK = re.compile(r'(?is)<(script|style)\b.*?</\1\s*>')
@@ -57,8 +78,14 @@ _TAG = re.compile(r'(?s)<[^>]*>')
 _SPACES = re.compile(r'\s+')
 
 
-def summarize_error(text):
-    """HTML from a server response to a safe, bounded plain-text line.
+def summarize_error(error):
+    """A server failure as a safe, bounded plain-text line.
+
+    Takes either a :class:`GLib.Error` or the raw response text, because
+    both are what callers have: a failed request arrives as an error, and
+    a body that could not be parsed arrives as a string. The four
+    ``error_text`` helpers in lists.py and admin.py were each doing this
+    unwrapping themselves.
 
     The result is literal text: tags are stripped and it is truncated,
     but every other character is left as the server sent it. Consumers
@@ -67,7 +94,9 @@ def summarize_error(text):
     :func:`summarize_error_markup`, or a bare ``&`` in the body fails
     the markup parse and blanks the label.
     """
-    text = _UNPRINTABLE_BLOCK.sub(' ', text or '')
+    if error is not None and not isinstance(error, str):
+        error = getattr(error, 'message', None) or str(error)
+    text = _UNPRINTABLE_BLOCK.sub(' ', error or '')
     text = _TAG.sub(' ', text)
     text = _SPACES.sub(' ', text).strip()
     if len(text) > MAX_ERROR_SUMMARY:
@@ -75,14 +104,14 @@ def summarize_error(text):
     return text
 
 
-def summarize_error_markup(text):
+def summarize_error_markup(error):
     """:func:`summarize_error` escaped for a markup-rendering widget.
 
     ``Adw.StatusPage`` descriptions and descriptions built on them are
     Pango markup, so an unescaped ``&`` makes the parse fail and the
     whole label come out empty -- an error the user cannot see.
     """
-    return GLib.markup_escape_text(summarize_error(text))
+    return GLib.markup_escape_text(summarize_error(error))
 
 
 def log_deprecation(method, path, headers):
@@ -148,11 +177,6 @@ OAUTH_SCOPES = 'read write'
 # puts "All administrative functions" on the consent screen, so every
 # ordinary login must stay on OAUTH_SCOPES.
 ADMIN_SCOPES = OAUTH_SCOPES + ' admin:read admin:write'
-
-# The API version the Collections feature rides in on (Mastodon 4.6.0),
-# and the only one a UI access gate asks for today. Every other feature
-# version lives next to the dialog that uses it.
-COLLECTIONS_API_VERSION = 10
 
 # Shown as the application's own homepage on the instance's consent
 # screen. It is Babble's address, never the server the user is signing
@@ -312,6 +336,8 @@ class MastodonClient(GObject.Object):
         self.client_id = None
         self.client_secret = None
         self.instance_info = None
+        self._instance_info_waiters = []
+        self._instance_info_in_flight = False
         self._code_verifier = None
         self._state = None
         # The redirect the authorization in flight named; only a callback
@@ -371,11 +397,71 @@ class MastodonClient(GObject.Object):
                                     + seconds)
         return seconds
 
+    def _build_message(self, method, path, params=None, form=None, auth=True,
+                       json_body=None):
+        if path.startswith('http'):
+            uri = path
+        elif path.startswith(('/api/', '/oauth/')):
+            uri = self.instance + path
+        else:
+            uri = self.api_base + path
+        if params:
+            uri += ('&' if '?' in uri else '?') + urllib.parse.urlencode(
+                params, doseq=True)
+        message = Soup.Message.new(method, uri)
+        if message is None:
+            return None
+        if auth and self.token:
+            message.get_request_headers().append('Authorization',
+                                                 'Bearer ' + self.token)
+        if json_body is not None:
+            message.set_request_body_from_bytes(
+                'application/json',
+                GLib.Bytes.new(json.dumps(json_body).encode()))
+        elif form is not None:
+            body = urllib.parse.urlencode(form, doseq=True)
+            message.set_request_body_from_bytes(
+                'application/x-www-form-urlencoded',
+                GLib.Bytes.new(body.encode()))
+        return message
+
+    def _rest_retry(self, task):
+        spec = getattr(task, '_rest_spec', None)
+        if spec is None:
+            task.return_error(GLib.Error(_('Request failed'),
+                                         'mastodon-http-error-quark', 0))
+            return GLib.SOURCE_REMOVE
+        method, path, params, form, auth, json_body = spec
+        message = self._build_message(method, path, params, form, auth,
+                                      json_body)
+        if message is None:
+            task.return_error(GLib.Error(
+                _('Invalid address'), 'mastodon-http-error-quark', 0))
+            return GLib.SOURCE_REMOVE
+        self._spawn(task, message)
+        return GLib.SOURCE_REMOVE
+
+    def _maybe_retry(self, task, status=None, transport_error=False):
+        # Only real Gio.Tasks from _request_async carry a spec; fakes in
+        # unit tests must fail through without a scheduled retry.
+        if getattr(task, '_rest_spec', None) is None:
+            return False
+        attempt = getattr(task, '_rest_attempt', 0)
+        if not rest_should_retry(status, transport_error) \
+                or attempt >= REST_RETRY_MAX:
+            return False
+        task._rest_attempt = attempt + 1
+        delay_ms = int(rest_backoff_seconds(attempt) * 1000)
+        GLib.timeout_add(delay_ms, self._rest_retry, task)
+        return True
+
     def _on_response(self, _session, result, task):
         message = self._pending.pop(task, None)
         try:
             body = self._session.send_and_read_finish(result)
         except GLib.Error as e:
+            if self._maybe_retry(task, transport_error=True):
+                return
             task.return_error(e)
             return
         text = body.get_data().decode('utf-8', 'replace')
@@ -409,6 +495,8 @@ class MastodonClient(GObject.Object):
             # that renders it as markup blanks its label or renders the
             # server's markup. summarize_error is idempotent, so the
             # consumers that still sanitize are unaffected.
+            if self._maybe_retry(task, status=status):
+                return
             task.return_error(GLib.Error(
                 summarize_error(error) or Soup.status_get_phrase(status),
                 'mastodon-http-error-quark', status))
@@ -420,7 +508,8 @@ class MastodonClient(GObject.Object):
         return json.loads(value.get_string())
 
     def _finish(self, result):
-        return self._envelope(result)['data']
+        from .entities import lift
+        return lift(self._envelope(result)['data'])
 
     def _request_async(self, method, path, params=None, form=None,
                        auth=True, callback=None, cancellable=None,
@@ -430,33 +519,14 @@ class MastodonClient(GObject.Object):
         The bearer token goes along whenever one is set, so every
         response carries the viewer's state (favourited, filtered…)."""
         task = Gio.Task.new(self, cancellable, callback)
-        if path.startswith('http'):
-            uri = path
-        elif path.startswith(('/api/', '/oauth/')):
-            uri = self.instance + path
-        else:
-            uri = self.api_base + path
-        if params:
-            uri += ('&' if '?' in uri else '?') + urllib.parse.urlencode(
-                params, doseq=True)
-        message = Soup.Message.new(method, uri)
+        task._rest_spec = (method, path, params, form, auth, json_body)
+        task._rest_attempt = 0
+        message = self._build_message(method, path, params, form, auth,
+                                      json_body)
         if message is None:
-            task.return_error(GLib.Error(_('Invalid address: %s') % uri,
+            task.return_error(GLib.Error(_('Invalid address: %s') % path,
                                          'mastodon-http-error-quark', 0))
             return task
-        if auth and self.token:
-            message.get_request_headers().append('Authorization',
-                                                 'Bearer ' + self.token)
-        if json_body is not None:
-            message.set_request_body_from_bytes(
-                'application/json',
-                GLib.Bytes.new(json.dumps(json_body).encode()))
-        elif form is not None:
-            # doseq=True encodes list values (e.g. media_ids) as
-            # repeated keys, the format Mastodon expects for arrays.
-            body = urllib.parse.urlencode(form, doseq=True)
-            message.set_request_body_from_bytes(
-                'application/x-www-form-urlencoded', GLib.Bytes.new(body.encode()))
         self._spawn(task, message)
         return task
 
@@ -480,19 +550,63 @@ class MastodonClient(GObject.Object):
         """``(data, next_params, prev_params)``: the JSON body plus the
         query parameters of the ``Link`` header's ``rel="next"`` (older
         page) and ``rel="prev"`` (newer page) URLs, None when absent."""
+        from .entities import lift
         envelope = self._envelope(result)
         links = parse_link_header(envelope.get('link', ''))
-        return envelope['data'], links.get('next'), links.get('prev')
+        return lift(envelope['data']), links.get('next'), links.get('prev')
 
     def instance_info_async(self, callback=None, cancellable=None):
         """GET /api/v2/instance; the result is kept on
-        ``self.instance_info`` by :meth:`instance_info_finish`."""
+        ``self.instance_info`` by :meth:`instance_info_finish`.
+
+        Concurrent callers share one in-flight request (ARCH-09)."""
+        if callback is not None:
+            self._instance_info_waiters.append((callback, cancellable))
+        if self.instance_info is not None:
+            self._complete_instance_info_waiters(None)
+            return None
+        if self._instance_info_in_flight:
+            return None
+        self._instance_info_in_flight = True
+
+        def loaded(client, result, _user_data=None):
+            error = None
+            try:
+                client.instance_info_finish(result)
+            except GLib.Error as failure:
+                error = failure
+            client._instance_info_in_flight = False
+            client._complete_instance_info_waiters(error)
+
         return self._request_async('GET', '/api/v2/instance',
-                                   callback=callback, cancellable=cancellable)
+                                   callback=loaded, cancellable=cancellable)
+
+    def _complete_instance_info_waiters(self, error):
+        waiters = self._instance_info_waiters
+        self._instance_info_waiters = []
+        payload = None
+        if error is None and self.instance_info is not None:
+            payload = GLib.Variant(
+                's', json.dumps({'data': self.instance_info, 'link': ''}))
+        for callback, cancellable in waiters:
+            task = Gio.Task.new(self, cancellable, callback)
+            if error is not None:
+                task.return_error(error)
+            else:
+                task.return_value(payload)
 
     def instance_info_finish(self, result):
         self.instance_info = self._finish(result)
         return self.instance_info
+
+    def markers_async(self, timelines, callback=None, cancellable=None):
+        """GET /api/v1/markers for the named timelines."""
+        params = [('timeline[]', name) for name in timelines]
+        return self._request_async('GET', '/markers', params=params,
+                                   callback=callback, cancellable=cancellable)
+
+    def markers_finish(self, result):
+        return self._finish(result)
 
     def max_characters(self):
         """Post length limit of the instance, 500 until it is known."""

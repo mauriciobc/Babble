@@ -26,7 +26,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.i18n import gettext as _  # noqa: E402
-from src import mediaviewer, notifications, profile, timeline  # noqa: E402
+from src import mediaviewer, notifications, profile  # noqa: E402
+from src import (mediacache, statusactions, statusmenu, statusrow,  # noqa: E402
+                  statusrun, statustext, timelinebase, timelinedata,
+                  timelinepage)
+
 
 failures = []
 
@@ -48,8 +52,23 @@ def status(number, text='post', thread=None):
     return data
 
 
-def freed(ref):
-    gc.collect()
+def freed(ref, attempts=5):
+    """Whether *ref* is gone after collection.
+
+    Collect more than once. One pass frees whatever is on plain
+    reference counts, but a widget that was only just dropped can still
+    need a second to break a cycle, and a collect that runs while GTK is
+    mid-finalize can leave the reference to be taken on the next. Retrying
+    costs nothing -- the reference is either freed or it never will be --
+    and it removes a class of failure that says "leaked" when the code was
+    merely slow.
+    """
+    for _attempt in range(attempts):
+        if gc.collect() is not None:
+            # Cyclic garbage went this pass; there may be more behind it.
+            gc.collect()
+        if ref() is None:
+            return True
     return ref() is None
 
 
@@ -57,9 +76,9 @@ Adw.init()
 
 # A streamed post is one inserted run; every other run object survives,
 # so the list view keeps the widgets bound to them.
-model = timeline.TimelineModel()
+model = timelinedata.TimelineModel()
 model.append_old([status(n) for n in range(30, 0, -1)])
-runs = timeline.RunModel(model)
+runs = statusrun.RunModel(model)
 kept = [runs.get_item(i) for i in range(runs.get_n_items())]
 changes = []
 runs.connect('items-changed', lambda _m, *change: changes.append(change))
@@ -74,7 +93,7 @@ changes.clear()
 check('an edit changes the post in place',
       model.replace_status({'id': '00020', 'content': '<p>edited</p>'})
       and changes == [])
-carousel = timeline.BoostCarouselItem([status(5)], [])
+carousel = timelinedata.BoostCarouselItem([status(5)], [])
 model._store.insert(0, carousel)
 changes.clear()
 carousel.set_boosts([status(6)])
@@ -84,10 +103,10 @@ check('the boosts carousel is updated in place',
 
 # Trimming keeps the newest posts and pages from the oldest one left,
 # so infinite scroll can fetch the dropped posts again.
-long = timeline.TimelineModel()
+long = timelinedata.TimelineModel()
 long.append_old([status(n) for n in range(30, 0, -1)])
 long.exhausted = True
-long_runs = timeline.RunModel(long)
+long_runs = statusrun.RunModel(long)
 check('trim drops the oldest posts', long.trim(10)
       and long.get_n_items() == 10 and long_runs.get_n_items() == 10
       and long.get_item(0).status_id == '00030')
@@ -97,7 +116,7 @@ check('dropped posts can be loaded again',
       long.append_old([status(n) for n in range(20, 15, -1)])
       and long.get_n_items() == 15)
 check('trim within the limit does nothing', not long.trim(40))
-boosted = timeline.TimelineModel()
+boosted = timelinedata.TimelineModel()
 original = status(9)
 boost = dict(status(8), reblog=original)
 boosted.append_old([status(10), original, status(7), boost])
@@ -106,11 +125,11 @@ check('a post still shown stays seen after its boost is dropped',
       not boosted.insert_new([status(9)]))
 
 # Same-thread posts by one author still group into one run.
-threaded = timeline.TimelineModel()
+threaded = timelinedata.TimelineModel()
 threaded.append_old([status(3), status(2, thread='t'), status(1, thread='t')])
 for item in (threaded.get_item(1), threaded.get_item(2)):
     item.status['account']['acct'] = 'same'
-grouped = timeline.RunModel(threaded)
+grouped = statusrun.RunModel(threaded)
 check('same-thread posts form one run',
       [len(grouped.get_item(i).items)
        for i in range(grouped.get_n_items())] == [1, 2])
@@ -130,15 +149,15 @@ class _Source:
 
 # Rows, their text views and the page are freed once dropped: signal
 # handlers into a widget's own methods must not keep it alive.
-row = timeline.StatusRow()
-row.bind(timeline.StatusItem(status(1, 'see <a href="https://e.org">'
+row = statusrow.StatusRow()
+row.bind(timelinedata.StatusItem(status(1, 'see <a href="https://e.org">'
                                        'e.org</a>')), _Client())
 row_ref, body_ref = row.weak_ref(), row.content.weak_ref()
 del row
 check('a dropped status row is freed', freed(row_ref))
 check('its text view is freed', freed(body_ref))
 
-page = timeline.TimelinePage(None, source=_Source())
+page = timelinepage.TimelinePage(None, source=_Source())
 page_ref, model_ref = page.weak_ref(), page.model.weak_ref()
 del page
 check('a dropped timeline page is freed', freed(page_ref))
@@ -220,8 +239,8 @@ check('its notification model is freed', freed(model_ref))
 window = Gtk.Window()
 box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 window.set_child(box)
-body = timeline.StatusBody()
-body.set_segments(timeline.parse_content('<p>%s</p>' % ('word ' * 40)))
+body = mediacache.StatusBody()
+body.set_segments(statustext.parse_content('<p>%s</p>' % ('word ' * 40)))
 box.append(body)
 natural = box.measure(Gtk.Orientation.VERTICAL, 600).natural
 check('an unallocated body is not one character per line',
@@ -250,29 +269,29 @@ def settle(ready=lambda: True, seconds=5.0, quiet=0.1):
 box.remove(body)
 window.set_default_size(660, 900)
 window.present()
-typical = timeline.StatusRunRow._typical_height
-timeline.StatusRunRow._typical_height = 700
-shell = timeline.StatusRunRow()
+typical = statusrun.StatusRunRow._typical_height
+statusrun.StatusRunRow._typical_height = 700
+shell = statusrun.StatusRunRow()
 shell.bind(grouped.get_item(0), _Client())
 box.append(shell)
 settle(lambda: shell.get_mapped() and shell.get_height() > 0)
 check('a shown run is as tall as its card, not its placeholder',
       shell.get_mapped() and shell.get_height() < 400)
-timeline.StatusRunRow._typical_height = typical
+statusrun.StatusRunRow._typical_height = typical
 box.remove(shell)
 
 # A height remembered for an off-screen run must not stay as a minimum
 # once the run is shown again: after the column widens, a post that got
 # shorter would otherwise keep a blank gap every time it comes back.
 def long_run():
-    model = timeline.TimelineModel()
+    model = timelinedata.TimelineModel()
     model.append_old([status(1, 'word ' * 120)])
-    return timeline.RunModel(model).get_item(0)
+    return statusrun.RunModel(model).get_item(0)
 
 
 def clamped_shell(width):
     clamp = Adw.Clamp(maximum_size=width, tightening_threshold=width)
-    shell = timeline.StatusRunRow()
+    shell = statusrun.StatusRunRow()
     shell.bind(long_run(), _Client())
     clamp.set_child(shell)
     box.append(clamp)
@@ -290,11 +309,15 @@ for visible in (False, True):
 fresh_clamp, fresh = clamped_shell(640)
 settle(lambda: fresh.get_mapped() and fresh.get_height() > 64)
 # A re-shown shell can settle a few pixels off a fresh one (it did so
-# before the height cache existed); a stuck height is the whole
-# narrow-column difference.
+# before the height cache existed). How many depends on the font: the
+# same face that lays a body out 255 or 285 pixels tall moves this pair
+# by about one line, and a fresh shell can be allocated a line short of
+# the height it measures. A stuck height is the whole narrow-column
+# difference, which is several times that.
+gap = abs(shell.get_height() - fresh.get_height())
 check('a widened post shown again has no blank gap',
       fresh.get_height() < narrow - 32
-      and abs(shell.get_height() - fresh.get_height()) < 16)
+      and gap < max(16, fresh.get_height() // 8))
 box.remove(clamp)
 box.remove(fresh_clamp)
 
@@ -308,11 +331,15 @@ box.remove(fresh_clamp)
 # to a static Noto Sans, a container to the variable font, and the two
 # lay this body out 255 and 285 pixels tall. Pinning exact pixels would
 # fail a correct build on whichever machine disagrees.
-body = timeline.StatusBody()
-body.set_segments(timeline.parse_content(
+body = mediacache.StatusBody()
+body.set_segments(statustext.parse_content(
     ''.join('<p>paragraph %d</p>' % n for n in range(8))))
 box.append(body)
-settle(lambda: body.get_width() > 0)
+# Wait for the height, not just the width. A width lands first, and the
+# height for it is allocated on the next frame; measuring in between read
+# back a 0 against a real 255 and failed on a machine that was merely
+# busy.
+settle(lambda: body.get_width() > 0 and body.get_height() > 0)
 real = Gtk.TextView.do_measure(body, Gtk.Orientation.VERTICAL,
                                body.get_width())[1]
 check('an allocated body is as tall as its text',
@@ -342,13 +369,13 @@ def drag_sources(widget):
 texture = Gdk.MemoryTexture.new(4, 4, Gdk.MemoryFormat.R8G8B8A8,
                                 GLib.Bytes.new(b'\x80' * 64), 16)
 picture_url = 'https://example.org/media/a.png'
-timeline._TextureCache._textures[
-    (picture_url, (timeline.COLUMN_WIDTH, 260))] = texture
+mediacache._TextureCache.store.put(
+    (picture_url, (timelinebase.COLUMN_WIDTH, 260)), texture)
 pictured = dict(status(2, 'pictured'), url='https://example.org/@user2/2',
                 media_attachments=[{'id': '1', 'type': 'image',
                                     'url': picture_url}])
-row = timeline.StatusRow()
-row.bind(timeline.StatusItem(pictured), _Client())
+row = statusrow.StatusRow()
+row.bind(timelinedata.StatusItem(pictured), _Client())
 box.append(row)
 settle(lambda row=row: row.get_mapped() and row.avatar.get_mapped())
 prepared = [source.emit('prepare', 1.0, 1.0) for source in drag_sources(row)]
@@ -364,13 +391,13 @@ check('a dragged status row is freed', freed(row_ref))
 # The action bar and the overflow menu work without a StatusRow, and are
 # freed with the widget that holds them, menu opened or not.
 tile = Gtk.Box()
-bar = timeline.StatusActions(quote=False, button_classes=('osd', 'pill'),
+bar = statusactions.StatusActions(quote=False, button_classes=('osd', 'pill'),
                              tinted=True)
-menu = timeline.StatusMenuButton(actions=bar,
+menu = statusmenu.StatusMenuButton(actions=bar,
                                  button_classes=('osd', 'pill'))
 tile.append(bar)
 tile.append(menu)
-tile_item = timeline.StatusItem(dict(status(5), favourites_count=3))
+tile_item = timelinedata.StatusItem(dict(status(5), favourites_count=3))
 bar.bind(tile_item, _Client())
 menu.bind(tile_item, _Client())
 menu.prepare()
@@ -391,8 +418,8 @@ settle()
 check('a standalone bar and menu are freed',
       all(freed(ref) for ref in tile_refs))
 
-row = timeline.StatusRow()
-row.bind(timeline.StatusItem(status(6)), _Client())
+row = statusrow.StatusRow()
+row.bind(timelinedata.StatusItem(status(6)), _Client())
 row._overflow.prepare()
 row_ref = row.weak_ref()
 del row
@@ -402,9 +429,9 @@ check('a status row with its menu opened is freed', freed(row_ref))
 # "Show _Original" button shares the menu's action. Both call sites moved
 # with the menu split; binding must not raise and the button must still
 # toggle.
-translated = timeline.StatusItem(status(7))
+translated = timelinedata.StatusItem(status(7))
 translated.translation = {'content': '<p>traducido</p>'}
-row = timeline.StatusRow()
+row = statusrow.StatusRow()
 try:
     row.bind(translated, _Client())
     check('a row binds a translated post and shows its translation box',
@@ -450,17 +477,18 @@ check('metered video waits for an explicit load',
       and viewer.load_button.get_label() == _('Load _Video'))
 mediaviewer._system_state = system_state
 viewer.force_close()
-settle(lambda viewer=viewer: viewer._closed)
+settle(lambda viewer=viewer: viewer._closed and not viewer.get_mapped(),
+       seconds=10.0)
 check('a closed media viewer ran its teardown', viewer._closed)
 viewer_ref = viewer.weak_ref()
 del viewer
-check('a closed media viewer is freed', freed(viewer_ref))
+check('a closed media viewer is freed', freed(viewer_ref, attempts=12))
 host.destroy()
-timeline._TextureCache._textures.clear()
+mediacache._TextureCache.store.clear()
 
 # Weak hookups must survive PyGObject dropping and re-creating the Python
 # wrapper of a widget that only GTK holds.
-held = timeline.TimelinePage(None, source=_Source())
+held = timelinepage.TimelinePage(None, source=_Source())
 box.append(held)
 held._pill_count = 5
 held.new_posts_revealer.set_reveal_child(True)

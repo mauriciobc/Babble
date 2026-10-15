@@ -24,9 +24,10 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Spelling)
 
-from . import drafts as drafts_module  # noqa: E402
 from . import emojichooser, pages, portals  # noqa: E402
-from .drafts import Attachment, Draft, Poll  # noqa: E402
+from .composeupload import UploadRound  # noqa: E402
+from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
+                     store_local_draft)
 from .mentioncompleter import MentionCompleter  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 # The same list Preferences offers as the default post language.
@@ -41,21 +42,8 @@ DEFAULT_CHAR_LIMIT = 500
 URL_PLACEHOLDER_CHARS = 23
 MAX_ATTACHMENTS = 4
 MAX_POLL_CHOICES = 4
-MAX_LOCAL_DRAFTS = 5
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 SCREENSHOT_PORTAL = 'org.freedesktop.portal.Screenshot'
-
-# An instance may take a few seconds to transcode an upload. Poll
-# GET /media/:id until it is ready, but never longer than this: a post
-# blocked on a stuck upload is worse than a clear failure.
-PROCESSING_INTERVAL_MS = 1500
-PROCESSING_ATTEMPTS = 80
-
-
-def _cancelled(error):
-    """True when *error* is the cancellation of a request we abandoned."""
-    return error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED)
-
 
 # Mastodon's Extractor: URLs (scheme optional) and remote mentions.
 _URL_RE = re.compile(
@@ -353,7 +341,6 @@ class AttachmentRow(Gtk.ListBox):
         self.add_css_class('boxed-list')
         self.path = path
         self.uploaded_id = None
-        self.description = ''
 
         self.content_type = media_type(path) or 'application/octet-stream'
         # Audio has no picture to decode: its icon, without reading the
@@ -409,10 +396,6 @@ class BabbleComposeView(Adw.Bin):
         # Logout and suspend are held back while a post is on its way:
         # the application that took the cookie, and the cookie.
         self._inhibition = {'app': None, 'cookie': 0}
-        self._upload_results = []
-        self._upload_failures = 0
-        self._upload_generation = 0
-        self._upload_expected = 0
         self.editing_id = None
         self.quoted_status_id = None
         self.scheduled_id = None
@@ -422,11 +405,10 @@ class BabbleComposeView(Adw.Bin):
         self.scheduled_at = None
         self.scheduled_on_done = None
         self._pending_media_ids = []
-        # One cancellable per posting round: abandoning the dialog or
-        # starting a new post stops the uploads still in flight instead
-        # of leaving them to finish against a client that has moved on.
-        self._upload_cancellable = None
-        self._processing_poll = {}
+        # One round per click of Post: abandoning the dialog or starting
+        # a new post stops the uploads still in flight.
+        self.uploads = UploadRound(
+            client, self._on_upload_failed, self.send_status)
         # Set while the text view's own paste runs, re-emitted by
         # on_paste_clipboard when the clipboard holds nothing to attach.
         self._paste_through = False
@@ -641,6 +623,8 @@ class BabbleComposeView(Adw.Bin):
         self.thread_toggle = icon_button('view-list-symbolic',
                                          _('Keep Open for a Thread'),
                                          toggle=True)
+        pages.connect_weak(self.thread_toggle, 'toggled',
+                           self.on_draft_changed)
 
         options = Gtk.Box(spacing=6)
         self.visibility_row = _make_dropdown(VISIBILITIES,
@@ -738,23 +722,14 @@ class BabbleComposeView(Adw.Bin):
             self.local_draft_key,
             datetime.datetime.now(datetime.timezone.utc).isoformat())
         self._saved_local_content = content
-        settings = pages.settings()
-        stored = [self._saved_local_raw] + [
-            raw for raw in settings.get_strv('local-drafts')
-            if raw != previous]
-        settings.set_strv('local-drafts',
-                          stored[:drafts_module.MAX_LOCAL_DRAFTS])
+        store_local_draft(pages.settings(), self._saved_local_raw, previous)
 
     def drop_saved_local_draft(self):
         """The saved copy of a draft that was just sent has to stop
         being offered as something to restore."""
         if self._saved_local_raw is None:
             return
-        settings = pages.settings()
-        settings.set_strv(
-            'local-drafts',
-            [raw for raw in settings.get_strv('local-drafts')
-             if raw != self._saved_local_raw])
+        drop_local_draft(pages.settings(), self._saved_local_raw)
         self._saved_local_raw = None
         self._saved_local_content = None
 
@@ -769,6 +744,10 @@ class BabbleComposeView(Adw.Bin):
     def clear_attachments(self):
         for row in self.attachments():
             self.attachments_box.remove(row)
+
+    def _finish_begin(self):
+        self.update_compose_state()
+        self.text_view.grab_focus()
 
     def start_reply(self, status_id, handle, visibility='public'):
         """Push the current draft (if any) and prefill a reply; only one
@@ -789,8 +768,7 @@ class BabbleComposeView(Adw.Bin):
             self._draft_stack = [previous]
         self.in_reply_to_id = str(status_id) if status_id is not None else None
         self._select_visibility(visibility)
-        self.update_compose_state()
-        self.text_view.grab_focus()
+        self._finish_begin()
 
     def start_mention(self, account, direct=False):
         """Prefill a mention of *account* (``direct`` for a DM)."""
@@ -802,8 +780,7 @@ class BabbleComposeView(Adw.Bin):
         if direct:
             self._select_visibility('direct')
         self._draft_stack = [previous]
-        self.update_compose_state()
-        self.text_view.grab_focus()
+        self._finish_begin()
 
     def prefill_text(self, text):
         """Start a post with *text*, as shared from outside the app. A
@@ -815,8 +792,7 @@ class BabbleComposeView(Adw.Bin):
         self.buffer.set_text(text)
         self.buffer.place_cursor(self.buffer.get_end_iter())
         self.in_reply_to_id = None
-        self.update_compose_state()
-        self.text_view.grab_focus()
+        self._finish_begin()
 
     def start_edit(self, status):
         """Load an existing post into the composer for a PUT."""
@@ -844,16 +820,14 @@ class BabbleComposeView(Adw.Bin):
         self._select_visibility(source.get('visibility') or 'public')
         self.in_reply_to_id = None
         self._draft_stack = []
-        self.update_compose_state()
-        self.text_view.grab_focus()
+        self._finish_begin()
 
     def start_quote(self, status):
         """Quote *status*: the server prepends the quoted post."""
         self.quoted_status_id = str(status.get('id') or '') or None
         self.in_reply_to_id = None
         self._draft_stack = []
-        self.update_compose_state()
-        self.text_view.grab_focus()
+        self._finish_begin()
 
     def start_scheduled(self, scheduled, draft=False, on_done=None):
         """Load a scheduled post or draft into the composer. Editing the
@@ -877,8 +851,7 @@ class BabbleComposeView(Adw.Bin):
         self._select_visibility(params.get('visibility') or 'public')
         self.in_reply_to_id = params.get('in_reply_to_id')
         self._draft_stack = []
-        self.update_compose_state()
-        self.text_view.grab_focus()
+        self._finish_begin()
 
     def _select_visibility(self, visibility):
         codes = [code for code, _label in VISIBILITIES]
@@ -926,11 +899,14 @@ class BabbleComposeView(Adw.Bin):
                                           and not self.is_empty())
         self.emit('changed')
 
+    def _within_char_limit(self):
+        return self.counted_length() <= self.char_limit
+
     def can_post(self):
         """A post needs text, media, a quote or reused media: Mastodon
         only requires text when none of the others are present."""
         return (not self._posting
-                and self.counted_length() <= self.char_limit
+                and self._within_char_limit()
                 and bool(self.text() or self.attachments()
                          or self.quoted_status_id
                          or self._pending_media_ids))
@@ -1337,25 +1313,35 @@ class BabbleComposeView(Adw.Bin):
     def _on_row_alt_changed(self, entry):
         self.on_alt_changed(entry, entry.get_ancestor(AttachmentRow))
 
-    def on_alt_changed(self, _entry, row):
-        row.description = row.alt_entry.get_text()
+    def on_alt_changed(self, _entry, _row):
+        self.update_compose_state()
 
     def _add_toast(self, toast):
         """Toasts raised inside the composer go on its own overlay: the
         dialog covers the window's, where they would be invisible and
-        unusable."""
+        unusable. Both fallbacks exist -- pages.show_toast reaches for the
+        window when a widget is not under an overlay, and this same
+        lookup is what it would do."""
         overlay = self.get_ancestor(Adw.ToastOverlay)
         if overlay is not None:
             overlay.add_toast(toast)
             return
-        root = self.get_root()
-        if root is not None and hasattr(root, 'add_toast'):
-            root.add_toast(toast)
+        window = pages.window_of(self)
+        if window is not None:
+            window.add_toast(toast)
 
     def _toast(self, text):
+        # Toasts raised inside the composer go on its own overlay: the
+        # dialog covers the window's, where they would be invisible. The
+        # composer is a dialog, so pages.show_toast's window_of() lands on
+        # the active window rather than on this dialog -- which is the one
+        # case where the lookup has to be the composer's own.
         self._add_toast(Adw.Toast(title=text, use_markup=False))
 
     def _show_error(self, heading, body):
+        # The same '<heading>: <message>' pages.report_error builds, over
+        # the same overlay as _toast, so the summary bound and the toast
+        # text are each the one implementation rather than a second copy.
         detail = summarize_error(body)
         self._toast(heading + ': ' + detail if detail else heading)
 
@@ -1377,23 +1363,19 @@ class BabbleComposeView(Adw.Bin):
             return
         self._posting = True
         self._inhibit_session()
-        self._cancel_uploads()
-        self._upload_generation += 1
-        self._upload_results = []
-        self._upload_failures = 0
-        self.set_posting_ui(True)
         pending = [row for row in self.attachments()
                    if row.uploaded_id is None]
-        self._upload_expected = len(pending)
+        self.uploads.begin(len(pending))
+        self.set_posting_ui(True)
         for row in pending:
-            self.upload_one(row)
+            self.uploads.upload_one(row)
         if not pending:
             self.send_status()
 
     def _validate_before_upload(self):
         """Refuse an invalid draft before anything is uploaded, so a
         rejected post never leaves orphaned media behind."""
-        if self.counted_length() > self.char_limit:
+        if not self._within_char_limit():
             self._toast(_('Post is too long'))
             return False
         if self.cw_toggle.get_active() and not self.spoiler_entry.get_text():
@@ -1451,118 +1433,8 @@ class BabbleComposeView(Adw.Bin):
         if cookie:
             self._inhibition.update(app=app, cookie=cookie)
 
-    def _cancel_uploads(self):
-        """Stop whatever the previous posting round still had in flight."""
-        if self._upload_cancellable is not None:
-            self._upload_cancellable.cancel()
-        self._upload_cancellable = None
-        for source in self._processing_poll.values():
-            GLib.source_remove(source)
-        self._processing_poll.clear()
-
-    def upload_one(self, row):
-        try:
-            with open(row.path, 'rb') as f:
-                data = f.read()
-        except OSError as e:
-            self.on_upload_failed(row, e.strerror or str(e))
-            return
-        generation = self._upload_generation
-        if self._upload_cancellable is None:
-            self._upload_cancellable = Gio.Cancellable()
-        self.client.media_upload_async(
-            data, GLib.path_get_basename(row.path), row.content_type,
-            description=row.description or None,
-            callback=self.on_uploaded_context(row, generation),
-            cancellable=self._upload_cancellable)
-
-    def on_uploaded_context(self, row, generation):
-        def _on_uploaded(client, result, _user_data=None):
-            if generation != self._upload_generation:
-                return  # superseded by a later posting round
-            self.on_uploaded(row, result)
-        return _on_uploaded
-
-    def on_uploaded(self, row, result):
-        try:
-            data = self.client.media_upload_finish(result)
-        except GLib.Error as e:
-            # A cancelled upload belongs to a round the user abandoned,
-            # not to a failure worth a toast.
-            if _cancelled(e):
-                return
-            self.on_upload_failed(row, e.message)
-            return
-        media_id = data.get('id')
-        if not data.get('url'):
-            # Nothing decoded yet: the instance would reject the post,
-            # so wait for the attachment to finish processing first.
-            self.await_processing(row, media_id)
-            return
-        row.uploaded_id = media_id
-        self._upload_results.append(data)
-        self._maybe_send_after_uploads()
-
-    def await_processing(self, row, media_id, attempt=0):
-        """Poll GET /media/:id until the instance finishes processing."""
-        if media_id is None:
-            self.on_upload_failed(row, _('The server did not accept the media'))
-            return
-        generation = self._upload_generation
-
-        def check(client, result, _user_data=None):
-            if generation != self._upload_generation:
-                return
-            try:
-                media = client.media_status_finish(result)
-            except GLib.Error as e:
-                # A cancelled request is this round going away, not the
-                # instance being slow: retrying it would keep polling a
-                # draft the user already discarded, on a cancellable
-                # that no longer exists.
-                if _cancelled(e):
-                    return
-                if attempt + 1 >= PROCESSING_ATTEMPTS:
-                    self.on_upload_failed(row, e.message)
-                    return
-                self._schedule_processing_check(row, media_id,
-                                                 attempt + 1, generation)
-                return
-            if media.get('url'):
-                row.uploaded_id = media_id
-                self._upload_results.append(media)
-                self._maybe_send_after_uploads()
-                return
-            if attempt + 1 >= PROCESSING_ATTEMPTS:
-                self.on_upload_failed(
-                    row, _('The server is still processing the media'))
-                return
-            self._schedule_processing_check(row, media_id, attempt + 1,
-                                             generation)
-
-        self.client.media_status_async(media_id, callback=check,
-                                       cancellable=self._upload_cancellable)
-
-    def _schedule_processing_check(self, row, media_id, attempt, generation):
-        source = GLib.timeout_add(
-            PROCESSING_INTERVAL_MS,
-            self._run_processing_check, row, media_id, attempt, generation)
-        self._processing_poll[media_id] = source
-
-    def _run_processing_check(self, row, media_id, attempt, generation):
-        self._processing_poll.pop(media_id, None)
-        if generation != self._upload_generation:
-            return False
-        self.await_processing(row, media_id, attempt)
-        return False
-
-    def _maybe_send_after_uploads(self):
-        if len(self._upload_results) + self._upload_failures \
-                == self._upload_expected and not self._upload_failures:
-            self.send_status()
-
-    def on_upload_failed(self, row, message):
-        self._upload_failures += 1
+    def _on_upload_failed(self, message):
+        """Toast half of an upload failure. The round already counted it."""
         self._finish_posting()
         self._show_error(_('Could not upload media'), message)
 
@@ -1576,12 +1448,16 @@ class BabbleComposeView(Adw.Bin):
             if cw_text:
                 params['spoiler_text'] = cw_text
                 params['sensitive'] = True
+        elif _has_setting('default-sensitive') \
+                and pages.settings().get_boolean('default-sensitive'):
+            # The preference is mirrored to the account's server defaults,
+            # but a client that leaves the field out inherits whatever the
+            # server's web client happened to send last -- and Babble is
+            # not it. So the setting that is already in Preferences
+            # decides here too.
+            params['sensitive'] = True
         if self.poll_toggle.get_active():
             options = self._poll_options()
-            if len(options) < 2:
-                self._finish_posting()
-                self._toast(_('Add at least two poll choices'))
-                return
             params['poll'] = {
                 'options': options,
                 'expires_in': POLL_DURATIONS[
@@ -1634,8 +1510,7 @@ class BabbleComposeView(Adw.Bin):
             self.clear_attachments()
             self._set_attach_sensitive(True)
             self.poll_toggle.set_active(False)
-            self._upload_results = []
-            self._upload_failures = 0
+            self.uploads.clear_results()
             self.update_compose_state()
         else:
             self.reset()
@@ -1659,8 +1534,27 @@ class BabbleComposeView(Adw.Bin):
     def _discard_scheduled(self, scheduled_id, on_done):
         """Drop the scheduled entry this composer replaced, then let the
         list refresh. Its failure is not worth an error toast: the new
-        entry exists and the old one is only a duplicate."""
-        def finished(_client, _result, _data=None):
+        entry exists and the old one is only a duplicate.
+
+        The result is consumed -- every other callback here finishes its
+        task -- because leaving it unclaimed keeps the Gio.Task and this
+        whole closure alive until the client drops it.
+
+        The generation guard matches its siblings: a ``reset()`` that
+        abandons the draft must also stop this reply from refreshing a
+        list for a draft the user no longer has.
+        """
+        generation = self.uploads.generation
+
+        def finished(client, result, _data=None):
+            # Neither the error nor the body is wanted, but the task has
+            # to be finished or the reply is never released.
+            try:
+                client.request_finish(result)
+            except GLib.Error:
+                pass
+            if generation != self.uploads.generation:
+                return
             if on_done is not None:
                 on_done()
 
@@ -1673,8 +1567,7 @@ class BabbleComposeView(Adw.Bin):
         # generation bump is what tells a still-in-flight reply that it
         # belongs to a round that no longer exists; cancelling alone only
         # turns the request into an error the reply would still act on.
-        self._upload_generation += 1
-        self._cancel_uploads()
+        self.uploads.abandon()
         # With its uploads gone, a posting round in flight is over.
         if self._posting:
             self._finish_posting()
@@ -1683,11 +1576,9 @@ class BabbleComposeView(Adw.Bin):
         self.spoiler_entry.set_text('')
         self.cw_toggle.set_active(False)
         self.poll_toggle.set_active(False)
+        self.thread_toggle.set_active(False)
         self.clear_attachments()
         self._set_attach_sensitive(True)
-        self._upload_results = []
-        self._upload_failures = 0
-        self._upload_expected = 0
         self.editing_id = None
         self.quoted_status_id = None
         self.scheduled_id = None

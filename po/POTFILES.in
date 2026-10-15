@@ -23,6 +23,7 @@ src/main.py
 src/mastodon.py
 src/mediaviewer.py
 src/mentioncompleter.py
+src/notificationcopy.py
 src/notifications.py
 src/pages.py
 src/portals.py

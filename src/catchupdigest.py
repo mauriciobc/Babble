@@ -46,11 +46,15 @@ grouping, boost deduplication, post density, ``binByTime``) and
 Ambiguities of the spec are resolved in comments marked ``Reading:``.
 """
 
-import datetime
 import math
 import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
+
+try:
+    from . import filterrules  # noqa: E402
+except ImportError:  # loaded as a top-level module by the standalone tests
+    import filterrules  # noqa: E402
 
 # --------------------------------------------------------------------------
 # Constants
@@ -94,22 +98,14 @@ _VOID = frozenset(('br', 'hr', 'img', 'wbr', 'input', 'meta', 'link', 'area',
 
 def parse_time(value):
     """Aware ``datetime`` from an ISO-8601 string (or a datetime), else None.
-    A naive result is taken as UTC."""
-    if isinstance(value, datetime.datetime):
-        dt = value
-    elif isinstance(value, str) and value:
-        text = value.strip()
-        if text.endswith(('Z', 'z')):
-            text = text[:-1] + '+00:00'
-        try:
-            dt = datetime.datetime.fromisoformat(text)
-        except ValueError:
-            return None
-    else:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
-    return dt
+    A naive result is taken as UTC.
+
+    Delegates to ``filterrules.parse_time`` (reached through
+    ``statustext.parse_time``, which is the app-wide reader), because
+    filter expiry needs it too and the Catch-Up digest must agree with
+    the timeline about when a rule lapsed -- that agreement is BUG-01.
+    """
+    return filterrules.parse_time(value)
 
 
 def _ts(value):
@@ -211,7 +207,20 @@ def plain_text(html):
 
 def extract_hashtags(html):
     """Hashtag names (without ``#``) of the ``a.hashtag`` links in HTML,
-    as Phanpy's ``extractTagsFromStatus``."""
+    as Phanpy's ``extractTagsFromStatus``.
+
+    Keeps its own parser rather than calling :func:`statustext.
+    parse_content`, which answers the same question. ``statustext``
+    imports ``gi`` (for the GNOME 12/24-hour preference behind
+    ``clock_format``), and this module must stay importable without it --
+    ``test-catchup-digest.py`` asserts ``gi`` never enters
+    ``sys.modules``. So the choice is a duplicated parser or a gi import
+    the digest was specifically built not to have.
+
+    The parser is narrower than statustext's on purpose: it looks for the
+    ``hashtag`` class, not a ``/tags/`` href, because Phanpy does and the
+    two disagree on markup that has one without the other.
+    """
     if not html or '#' not in html:
         return []
 
@@ -301,33 +310,12 @@ def fetch_progress(page, start_at, kept_total, pages_done):
 def filter_info(status, context='home', now=None):
     """Strongest filter hit as ``{'action', 'titles'}``, or None.
 
-    A pure copy of the logic of ``timeline.status_filter`` and Phanpy's
-    ``isFiltered``: the wrapper's and the boosted post's ``filtered`` lists
-    are both read; ``hide`` wins, then ``warn`` (any action that is not
-    ``blur``, unknown ones count as warn), and ``blur`` only when every hit
-    blurs. Filters that do not cover ``context`` (when they say) or that have
-    expired by ``now`` (when given) are ignored."""
-    now = parse_time(now)
-    hits = []
-    for source in (status, status.get('reblog') or {}):
-        for result in source.get('filtered') or []:
-            rule = result.get('filter') or {}
-            ctx = rule.get('context')
-            if ctx and context not in ctx:
-                continue
-            expires = parse_time(rule.get('expires_at'))
-            if now and expires and expires <= now:
-                continue
-            hits.append(rule)
-    if not hits:
-        return None
-    actions = [r.get('filter_action') or 'warn' for r in hits]
-    if 'hide' in actions:
-        return {'action': 'hide', 'titles': []}
-    titles = [r.get('title') or '' for r in hits]
-    if all(a == 'blur' for a in actions):
-        return {'action': 'blur', 'titles': titles}
-    return {'action': 'warn', 'titles': titles}
+    ``filterrules`` owns the answer; this is the name Catch Up calls it
+    by, and the shape it stores on a post as ``_filtered``. The wrapper's
+    and the boosted post's ``filtered`` lists are both read; ``hide``
+    wins, then ``blur`` only when every hit blurs.
+    """
+    return filterrules.resolve(status, context, now)
 
 
 def apply_filters(statuses, self_ids=(), context='home', now=None):
@@ -737,6 +725,17 @@ def post_density(post):
 SORTS = ('time', 'replies', 'likes', 'boosts', 'density', 'relevance')
 
 
+def post_info_values(post, ts, score):
+    """The ``PostInfo.values`` tuple: one entry per :data:`SORTS` slot."""
+    content = content_of(post)
+    return (ts,
+            content.get('replies_count') or 0,
+            content.get('favourites_count') or 0,
+            content.get('reblogs_count') or 0,
+            post_density(content),
+            score)
+
+
 def sort_value(post, sort_by, scores=None):
     """The number a post is sorted by. Everything but time compares the
     boosted post when there is one. ``relevance`` reads ``scores`` by the
@@ -822,6 +821,22 @@ def sort_posts(posts, sort_by='time', order='asc', group_by_author=False,
     return out
 
 
+def sort_info_ids(infos, sort_by='time', order='asc', group=False,
+                  author_index=None):
+    """Like :func:`sort_posts`, on :class:`catchup.PostInfo` rows with
+    precomputed sort keys (no HTML re-parsing on the main loop)."""
+    out = sorted(infos, key=lambda i: (i.ts, str(i.id)))
+    if sort_by != 'time':
+        slot = SORTS.index(sort_by)
+        out.sort(key=lambda i: i.values[slot], reverse=(order == 'desc'))
+    elif order == 'desc':
+        out.reverse()
+    if group:
+        index = author_index or {}
+        out.sort(key=lambda i: index.get(i.author, len(index)))
+    return [i.id for i in out]
+
+
 # --------------------------------------------------------------------------
 # Posts bar
 
@@ -867,6 +882,17 @@ def posts_bar_bins(posts, now):
     if len(posts) <= POSTS_BAR_THRESHOLD:
         return None
     return bin_by_time(posts, POSTS_BAR_BINS, now)
+
+
+def posts_bar_ids(sorted_posts, now):
+    """``(bar_dots, bar_bins)`` for :class:`catchup.PostsBar`.
+
+    Exactly one of the two is non-``None``: dots for up to
+    :data:`POSTS_BAR_THRESHOLD` posts, otherwise 320 time buckets of ids."""
+    bins = posts_bar_bins(sorted_posts, now)
+    if bins is None:
+        return [post['id'] for post in sorted_posts], None
+    return None, [[post['id'] for post in bucket] for bucket in bins]
 
 
 # --------------------------------------------------------------------------

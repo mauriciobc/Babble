@@ -291,7 +291,7 @@ class AvatarStack(Gtk.Box):
             fetch_accounts(client, list(self.avatars), self._fill)
 
     def _fill(self, accounts):
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         for account_id, avatar in self.avatars.items():
             account = accounts.get(account_id)
             if account is None:
@@ -479,7 +479,7 @@ class CollectionPage(Adw.Bin):
 
         def failed(error):
             self.error_page.set_description(
-                summarize_error_markup(error.message))
+                summarize_error_markup(error))
             self.stack.set_visible_child_name('error')
 
         _send(self.client, 'GET', '/collections/%s' % self.collection_id,
@@ -643,7 +643,7 @@ class MemberRow(Adw.ActionRow):
 
     def __init__(self, account, **kwargs):
         super().__init__(activatable=False, use_markup=False, **kwargs)
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         name = pages.display_name(account)
         self.set_title(name)
         self.set_subtitle('@' + account.get('acct', ''))

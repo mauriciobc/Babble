@@ -45,12 +45,14 @@ from .catchupdigest import (  # noqa: E402
     author_order, categorize, content_of, dedupe_boosts, fetch_progress,
     filter_posts, followed_tag_hits, is_filtered_post, mark_followed_tags,
     mark_threads, merge_hashtags, merge_news, parse_time, plain_text,
-    post_density, posts_bar_bins, relationship_ids, timeline_hashtags,
-    timeline_links, trending_status_keys)
+    post_info_values, posts_bar_ids, relationship_ids,
+    sort_info_ids,
+    timeline_hashtags, timeline_links, trending_status_keys)
 from .mastodon import summarize_error_markup  # noqa: E402
 from .statustext import compact_count, format_time, relative_time  # noqa: E402
-from .timeline import AvatarCache, StatusItem, ui_language  # noqa: E402
-from .timeline import _TextureCache  # noqa: E402
+from .mediacache import AvatarCache, _TextureCache  # noqa: E402
+from .timelinedata import StatusItem  # noqa: E402
+from .timelinebase import ui_language  # noqa: E402
 
 
 @dataclasses.dataclass
@@ -112,7 +114,6 @@ TOAST_DELAY_MS = 450
 COLUMN_WIDTH = 1000
 
 STOPPED_COMPLETE = 'complete'
-STOPPED_CAP = 'cap'
 STOPPED_RATE_LIMITED = 'rate-limited'
 STOPPED_CANCELLED = 'cancelled'
 STOPPED_ERROR = 'error'
@@ -299,10 +300,7 @@ def compute(snapshot, viewer_languages=None, hide_trending=False):
         counts[category] += 1
         info[post['id']] = PostInfo(
             post['id'], category, str(author.get('id', '')), ts,
-            (ts, content.get('replies_count') or 0,
-             content.get('favourites_count') or 0,
-             content.get('reblogs_count') or 0, post_density(content),
-             score))
+            post_info_values(post, ts, score))
 
     trends = snapshot.get('trends') or {}
     # Untrimmed, so a trending link is matched against every shared link.
@@ -317,15 +315,13 @@ def compute(snapshot, viewer_languages=None, hide_trending=False):
     keys = trending_status_keys(trends.get('statuses'), hide_trending)
 
     by_time = sorted(posts, key=_when)
-    bins = posts_bar_bins(by_time, end_at)
+    bar_dots, bar_bins = posts_bar_ids(by_time, end_at)
     return Computed(
         snapshot=snapshot, end_at=end_at, visible=visible,
         boosters=boosters, dup_of=dup_of, info=info, counts=counts,
         ranked=ranked, scores=scores, news=news, tags=tags,
         trending_keys=keys, accounts=accounts,
-        bar_dots=None if bins is not None else [p['id'] for p in by_time],
-        bar_bins=([[p['id'] for p in b] for b in bins]
-                  if bins is not None else None),
+        bar_dots=bar_dots, bar_bins=bar_bins,
         total=len(posts))
 
 
@@ -361,20 +357,9 @@ class View:
 
 def order_ids(infos, sort_by='time', order='asc', group=False,
               author_index=None):
-    """Post ids in display order. The same ordering as
-    ``catchupdigest.sort_posts`` (time ascending first, ties by id, then a
-    stable sort on the key, then the grouping), over precomputed keys so a
-    density sort does not parse every post's HTML on the main loop."""
-    out = sorted(infos, key=lambda i: (i.ts, str(i.id)))
-    if sort_by != 'time':
-        slot = SORTS.index(sort_by)
-        out.sort(key=lambda i: i.values[slot], reverse=(order == 'desc'))
-    elif order == 'desc':
-        out.reverse()
-    if group:
-        index = author_index or {}
-        out.sort(key=lambda i: index.get(i.author, len(index)))
-    return [i.id for i in out]
+    """Post ids in display order; delegates to
+    :func:`catchupdigest.sort_info_ids`."""
+    return sort_info_ids(infos, sort_by, order, group, author_index)
 
 
 def derive_view(computed, state):
@@ -522,6 +507,9 @@ class CatchUpRun:
         self._relationships = {}
         self._trends = {}
         self._trends_left = 0
+        # Cursor for the next page of a Link-paginated endpoint, by path.
+        # See _get.
+        self._more = {}
 
     # Control
 
@@ -650,10 +638,16 @@ class CatchUpRun:
         def finished(_client, result, _data=None):
             if self.aborted:
                 return
+            # request_finish_paged also returns the Link header's cursors.
+            # A single page is all this ever asked for before, which
+            # silently capped the endpoints Mastodon pages -- followed
+            # tags most visibly, at 200 of them.
             try:
-                data = self.client.request_finish(result)
+                data, next_params, _prev = \
+                    self.client.request_finish_paged(result)
             except GLib.Error:
-                data = None
+                data, next_params = None, None
+            self._more[path] = next_params
             done(data)
 
         self.client.request_async('GET', path, params=params,
@@ -661,8 +655,16 @@ class CatchUpRun:
                                   cancellable=self.cancellable)
 
     def _on_followed_tags(self, data):
-        self._followed = [t.get('name') for t in data or []
-                          if isinstance(t, dict) and t.get('name')]
+        # An account may follow more tags than one page holds, and the
+        # cursor is the only record of where the next one starts.
+        for tag in data or []:
+            if isinstance(tag, dict) and tag.get('name'):
+                self._followed.append(tag['name'])
+        more = self._more.get('/followed_tags')
+        if more:
+            self._get('/followed_tags', more, self._on_followed_tags)
+            return
+        self._followed = list(dict.fromkeys(self._followed))
         self._hits = followed_tag_hits(self.kept, self._followed)
         self._pending_ids = relationship_ids(self.kept, self._hits)
         self._next_relationships()
@@ -1899,15 +1901,11 @@ class CatchUpPage(Adw.Bin):
     def _present_highlights(self, computed):
         if not self._highlights_tried:
             self._highlights_tried = True
-            try:
-                from .catchupgrid import HighlightsView
-                self._highlights = HighlightsView(self.client)
-            except ImportError:
-                self._highlights = None
-            if self._highlights is not None:
-                self.highlights_slot.append(self._highlights)
-                self._highlights.on_pages_changed = pages.weak_method(
-                    self._on_pages_changed)
+            from .catchupgrid import HighlightsView
+            self._highlights = HighlightsView(self.client)
+            self.highlights_slot.append(self._highlights)
+            self._highlights.on_pages_changed = pages.weak_method(
+                self._on_pages_changed)
         if self._highlights is None:
             return
         self._highlights.set_digest(Digest(
@@ -1971,8 +1969,7 @@ class CatchUpPage(Adw.Bin):
         limited = stopped == STOPPED_RATE_LIMITED
         if limited:
             client = self.client
-            wait = client.retry_after_seconds() \
-                if hasattr(client, 'retry_after_seconds') else 0
+            wait = client.retry_after_seconds()
             if wait > 0:
                 minutes = max(1, int(math.ceil(wait / 60)))
                 self.limit_banner.set_title(ngettext(

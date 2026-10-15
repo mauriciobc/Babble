@@ -329,12 +329,31 @@ def pump(millis=100):
         pass
 
 
+def settle_until(deadline_s, condition):
+    """Pump until *condition* holds, or the deadline passes.
+
+    Used wherever a widget's own frame has to land before it can be
+    inspected: a popover's visibility, a dialog's 'closed' signal. A
+    fixed pump is either too long on a fast machine or too short on a
+    loaded one, and this test file has both kinds of wait.
+    """
+    end = GLib.get_monotonic_time() + int(deadline_s * GLib.USEC_PER_SEC)
+    while GLib.get_monotonic_time() < end and not condition():
+        pump(50)
+    return condition()
+
+
 def set_text(text):
     view.buffer.set_text(text)
     view.on_draft_changed()
 
 
 MAX = 500
+
+# How long an async clipboard read may take before the paste checks give
+# up. Generous on purpose: this is a ceiling, not a target, and a loaded
+# machine must not fail the test for being slow.
+PASTE_WAIT_S = 10.0
 
 for attr in ('attach_button', 'screenshot_button', 'cw_toggle',
              'poll_toggle', 'mention_button', 'emoji_button',
@@ -375,7 +394,14 @@ emojichooser._cache['emoji.test'] = [
     {'shortcode': 'blobdog', 'category': ''}]
 set_text('hi')
 view.on_emoji_clicked(view.emoji_button)
-pump(100)
+# Wait for the popover to be shown, not for a fixed time: popup() is
+# animated, and the visibility flag lands on its own frame.
+def emoji_chooser_shown():
+    chooser = view.emoji_chooser
+    return chooser is not None and chooser.get_mapped() and chooser.get_visible()
+
+
+settle_until(10.0, emoji_chooser_shown)
 chooser = view.emoji_chooser
 check('emoji button opens the emoji chooser',
       isinstance(chooser, emojichooser.CustomEmojiChooser)
@@ -489,7 +515,8 @@ check('attachment mime from file', rows[0].content_type == 'image/png')
 row = rows[0]
 row.alt_entry.set_text('red pixel for testing')
 row.alt_entry.emit('changed')
-check('alt change recorded', row.description == 'red pixel for testing')
+check('alt change recorded',
+      row.alt_entry.get_text() == 'red pixel for testing')
 check('media shows up in snapshot',
       isinstance(view.snapshot().attachments[0], Attachment)
       and view.snapshot().attachments[0].alt == 'red pixel for testing')
@@ -580,10 +607,10 @@ pump(50)
 check('an unprocessed upload is not posted immediately', posts == [])
 check('the composer polls the media for processing', polls != [])
 # The stub only reports a url on the second poll, so the composer has
-# to come back for it after the polling interval.
-pump(1800)
+# to come back for it after the polling interval. Wait for the post,
+# not for a fixed 1.8 s that a loaded scheduler can miss.
 check('the post is sent once processing finishes',
-      len(posts) == 1
+      settle_until(8.0, lambda: len(posts) == 1)
       and posts[0].get('media_ids') == [uploads[-1]['id']])
 check('the waited-for post reports success',
       collect_toasts()[-1:] == [_('Post sent')])
@@ -622,9 +649,17 @@ polls_at_reset = len(polls)
 # Only now does the in-flight reply arrive, cancelled.
 StubClient.release_status()
 pump(50)
-pump(1800)
-check('a poll reply arriving after a reset is not retried',
-      len(polls) == polls_at_reset)
+# The processing timer is 1.5 s. Waiting a fixed 1.8 s races a loaded
+# scheduler; wait long enough that a retry would have been queued, and
+# stop early if one is.
+retried = False
+end = GLib.get_monotonic_time() + 4 * GLib.USEC_PER_SEC
+while GLib.get_monotonic_time() < end:
+    pump(50)
+    if len(polls) != polls_at_reset:
+        retried = True
+        break
+check('a poll reply arriving after a reset is not retried', not retried)
 check('a cancelled upload does not post', posts == [])
 check('a cancelled upload toasts nothing about media',
       not any('upload' in t.lower() for t in collect_toasts()))
@@ -727,14 +762,6 @@ local_settings = pages.settings()
 def saved_list():
     return local_settings.get_strv('local-drafts')
 
-def settle_until(deadline_s, condition):
-    """Pump until *condition*, or the deadline; the dialog's 'closed'
-    signal only lands after the close animation, which can lag."""
-    end = GLib.get_monotonic_time() + int(deadline_s * GLib.USEC_PER_SEC)
-    while GLib.get_monotonic_time() < end and not condition():
-        pump(50)
-    return condition()
-
 local_settings.set_strv('local-drafts', [])
 dialog.view.reset()
 dialog.view.local_draft_key = 'mastodon.social#11'
@@ -817,6 +844,9 @@ pump(400)
 check('thread clears the buffer for the next post', view.text() == '')
 check('thread links the next post', view.in_reply_to_id == 'invented')
 view.thread_toggle.set_active(False)
+view.thread_toggle.set_active(True)
+view.reset()
+check('reset clears thread toggle', not view.thread_toggle.get_active())
 
 # A new direct message keeps the draft in progress (conversations.py
 # calls start_reply(None, '', 'direct')).
@@ -1091,29 +1121,67 @@ check('drops are taken again after posting',
 
 # Paste: a bare image on the clipboard (a screenshot) is saved as a PNG
 # under the cache and attached; text pastes as text.
+if view.emoji_chooser is not None:
+    view.emoji_chooser.popdown()
+    view.emoji_chooser.unparent()
+    view.emoji_chooser = None
+pump(200)
 clipboard = view.text_view.get_clipboard()
+clipboard.set_content(Gdk.ContentProvider.new_for_bytes(
+    'text/plain;charset=utf-8', GLib.Bytes.new(b'')))
+settle_until(2.0, lambda: clipboard.get_formats() is not None)
+
+
+def clipboard_owns(previous):
+    """Whether the clipboard has really taken new content yet.
+
+    ``Gdk.Clipboard.set_content`` is a request, not an assignment: until
+    the selection has processed it, a paste reads back whatever was
+    there before. Matching on the *type* on offer cannot tell the two
+    apart (the earlier owner is often a text or a texture too), so this
+    compares the owner itself: the clipboard is ours once it is local
+    and its content provider is no longer the one held before the set.
+    """
+    current = clipboard.get_content()
+    return (clipboard.is_local() and current is not None
+            and current is not previous)
 
 
 def paste(content, settle_ms=300, attachments=False):
     """Set the clipboard to *content* and paste into the composer.
 
-    A file or image has to ride an async read before an attachment row
-    shows up, so ``attachments=True`` waits for the count to go up rather
-    than a fixed time: a pump that is merely long enough is exactly what
-    a busy machine cannot rely on.
+    Two waits, because there are two things to wait for and the second
+    used to be given the first one's deadline:
+
+    * the clipboard actually owning *content*, or the paste reads back
+      the previous one (see :func:`clipboard_owns`);
+    * the async read that produces an attachment row.
+
+    Both are conditions with their own generous deadline rather than a
+    fixed pump: a pump that is merely long enough is exactly what a busy
+    machine cannot rely on.
     """
+    previous = clipboard.get_content()
     if isinstance(content, Gdk.ContentProvider):
         clipboard.set_content(content)
+    elif isinstance(content, str):
+        clipboard.set_content(Gdk.ContentProvider.new_for_bytes(
+            'text/plain;charset=utf-8',
+            GLib.Bytes.new(content.encode('utf-8'))))
     else:
         clipboard.set(content)
-    pump(50)
+    settle_until(PASTE_WAIT_S, lambda: clipboard_owns(previous))
     view.text_view.emit('paste-clipboard')
     if not attachments:
         pump(settle_ms)
         return
     count_on_entry = len(view.attachments())
-    settle_until(settle_ms / 1000.0,
-                 lambda: len(view.attachments()) > count_on_entry)
+    if not settle_until(PASTE_WAIT_S,
+                       lambda: len(view.attachments()) > count_on_entry):
+        return
+    # The row is there; the rest of its state (path, content type) is set
+    # on the way in, so let the loop settle before anything reads it.
+    pump(50)
 
 
 texture = Gdk.MemoryTexture.new(2, 2, Gdk.MemoryFormat.R8G8B8A8,

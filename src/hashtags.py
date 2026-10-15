@@ -93,6 +93,17 @@ def hashtag_summary(tag):
     return ('#' + tag.get('name', ''), stats_text(tag.get('history')))
 
 
+def catchup_hashtag_lines(entry):
+    """Usage and timeline-count lines for a Catch-Up hashtag tile."""
+    tag = entry.get('tag') or {}
+    usage = stats_text(tag.get('history'))
+    posts = entry.get('timeline_posts') or 0
+    mine = ngettext('%d post in your timeline',
+                    '%d posts in your timeline', posts) % posts \
+        if posts else ''
+    return usage, mine
+
+
 def default_title(tags):
     return ' '.join('#' + tag for tag in tags)
 
@@ -109,7 +120,7 @@ class HashtagPage(Adw.Bin):
 
     def __init__(self, client, tags, definition=None):
         super().__init__()
-        from .timeline import ApiTimelineSource, TimelinePage
+        from .timelinepage import ApiTimelineSource, TimelinePage
         self.client = client
         self.tags = [clean_name(t) for t in tags if clean_name(t)]
         self.definition = definition
@@ -128,9 +139,9 @@ class HashtagPage(Adw.Bin):
                 params['local'] = 'true'
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
             client, _tag_path(self.tags[0]), params=params))
-        self.timeline.empty_page.set_icon_name('edit-find-symbolic')
-        self.timeline.empty_page.set_title(_('No Posts With This Hashtag'))
-        self.timeline.empty_page.set_description(
+        pages.configure_empty_page(
+            self.timeline.empty_page, 'edit-find-symbolic',
+            _('No Posts With This Hashtag'),
             _('No one has posted anything with this tag yet'))
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)

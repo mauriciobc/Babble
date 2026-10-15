@@ -13,6 +13,9 @@ built with GTK 4 and libadwaita, so it feels at home on your GNOME desktop.
   notifications, direct messages, quotes, edit history, bookmarks, lists,
   followed hashtags, and your yearly #Wrapstodon if your server has one for
   you — all without losing your scroll position.
+- **Catch Up.** A separate sidebar place that pages back through the home
+  timeline for a window you choose, ranks the posts you missed, and keeps that
+  run frozen as a snapshot.
 - **Writing.** A composer with spell checking, `@mention` suggestions,
   media uploads, polls, drafts, and scheduled posts.
 - **At home on GNOME.** Paste or drag media straight into the composer,

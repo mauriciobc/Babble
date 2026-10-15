@@ -18,11 +18,12 @@ from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from . import portals  # noqa: E402
-from .mastodon import (COLLECTIONS_API_VERSION, OAUTH_REDIRECT,  # noqa: E402
-                       MastodonClient, clear_secret_async,
+from .capabilities import COLLECTIONS_API_VERSION  # noqa: E402
+from .mastodon import (OAUTH_REDIRECT, MastodonClient, clear_secret_async,  # noqa: E402
                        normalize_instance, summarize_error)
 from .statustext import relative_time  # noqa: E402
-from .timeline import ApiTimelineSource, AvatarCache, TimelinePage  # noqa: E402
+from .timelinepage import ApiTimelineSource, TimelinePage  # noqa: E402
+from .mediacache import AvatarCache  # noqa: E402
 
 # One-click alternatives for the login suggestions row, ranked from the
 # public JoinMastodon server directory (api.joinmastodon.org/servers)
@@ -194,6 +195,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         # The stream went down after it had been up: whatever was posted
         # meanwhile never came through it.
         self._stream_dropped = False
+        # The open admin dashboard, so a streaming report can refresh it.
+        self._admin_dialog = None
 
         actions = (
             ('logout', self.on_logout_requested),
@@ -433,10 +436,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         if dialog is None:
             return
         dialog.view.restore_stashing(draft)
-        settings = pages.settings()
-        settings.set_strv('local-drafts',
-                          [r for r in settings.get_strv('local-drafts')
-                           if r != raw])
+        from .drafts import drop_local_draft
+        drop_local_draft(pages.settings(), raw)
 
     def _teardown_session(self):
         """Drop every page, stream and dialog tied to the current
@@ -746,6 +747,34 @@ class BabbleWindow(Adw.ApplicationWindow):
             if self.notifications_page is not None:
                 self.notifications_page.refresh()
             return
+        if name == 'follow_request':
+            # A new request. It arrives on the user stream and becomes a
+            # notification only once the server has written it, so the
+            # list is refetched rather than patched -- the same reason
+            # notifications_merged reloads.
+            if self.notifications_page is not None:
+                self.notifications_page.refresh()
+            return
+        if name in ('announcement', 'announcement.delete'):
+            # A new announcement, or one withdrawn. The banner counts
+            # unread ones, so it has to be asked again.
+            if self.notifications_page is not None:
+                self.notifications_page.load_announcements()
+            return
+        if name == 'announcement.reaction':
+            # Someone else's reaction on an announcement. Babble shows
+            # only your own reactions, which are applied optimistically,
+            # so there is nothing here to redraw.
+            return
+        if name == 'report':
+            # A new report, for a moderator with the dashboard open.
+            self._refresh_admin_tool('reports')
+            return
+        if name in ('add', 'remove'):
+            # Collection membership (Mastodon 4.6+). The payload is the
+            # bare string "collection": membership changes a Collection
+            # page's member list, which it refetches when reopened.
+            return
         if name == 'notification':
             if self.notifications_page is not None:
                 self.notifications_page.on_stream_notification(payload)
@@ -756,6 +785,16 @@ class BabbleWindow(Adw.ApplicationWindow):
             conversations = self._place_children.get('conversations')
             if conversations is not None:
                 conversations.on_stream_conversation(payload)
+            return
+        if name == 'encrypted_message':
+            # An end-to-end encrypted direct message. Babble reads
+            # conversations over /conversations and holds no keys for
+            # them, so there is nothing to open -- but the event says a
+            # message arrived, and the list refetches to show it.
+            conversations = self._place_children.get('conversations')
+            if conversations is not None:
+                conversations.refresh()
+            return
 
     def _on_close_request(self, _window):
         """With background mode on, closing hides the window and keeps
@@ -976,12 +1015,11 @@ class BabbleWindow(Adw.ApplicationWindow):
             [Gtk.AccessibleProperty.LABEL], [description])
 
     def _timeline_place(self, path, params, icon, title, description):
+        from .timelinepage import link_paged
         page = TimelinePage(self.client, source=ApiTimelineSource(
             self.client, path, params,
-            paging='link' if path in ('/favourites', '/bookmarks') else 'id'))
-        page.empty_page.set_icon_name(icon)
-        page.empty_page.set_title(title)
-        page.empty_page.set_description(description)
+            paging='link' if link_paged(path) else 'id'))
+        pages.configure_empty_page(page.empty_page, icon, title, description)
         return page
 
     def _build_place(self, tag):
@@ -1267,9 +1305,13 @@ class BabbleWindow(Adw.ApplicationWindow):
         session, which keeps their scroll position and loaded items."""
         if self.client is None:
             return
+        previous = self.visible_tag()
         page = self._nav_page_for(tag)
         if page is None:
             return
+        if previous == 'notifications' and tag != 'notifications' \
+                and self.notifications_page is not None:
+            self.notifications_page.on_hidden()
         self.navigation_view.replace([page])
         self.content_page.set_title(page.get_title())
         self._select_item(tag)
@@ -1331,7 +1373,25 @@ class BabbleWindow(Adw.ApplicationWindow):
     def on_admin(self, _action, _param):
         from .admin import present_admin
         if self.client is not None:
-            present_admin(self, self.client)
+            self._track_admin(present_admin(self, self.client))
+
+    def _track_admin(self, dialog):
+        """Remember the open admin dashboard so a streaming ``report``
+        can refresh its reports list. Forgotten when it closes, so the
+        window never keeps a closed dialog alive."""
+        self._admin_dialog = None
+        if dialog is None:
+            return
+        pages.connect_weak(dialog, 'close-request', self._on_admin_closed)
+        self._admin_dialog = dialog
+
+    def _on_admin_closed(self, _dialog):
+        self._admin_dialog = None
+
+    def _refresh_admin_tool(self, tag):
+        dialog = self._admin_dialog
+        if dialog is not None:
+            dialog.refresh_tool(tag)
 
     def on_view_profile(self, _action, _param):
         from .profile import push_profile
@@ -1398,6 +1458,13 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.login_button_label.set_label(label)
         self.instance_hint.set_visible(not domain and not waiting)
         self.suggestions_section.set_visible(bool(domain) and not waiting)
+        # The manual-code escape hatch belongs to an authorization in
+        # flight, because that is the only state a pasted code can be
+        # redeemed against -- and the only state where a browser that
+        # never came back leaves the user stuck. It disappears once the
+        # flow has already been switched to a pasted code.
+        self.paste_code_button.set_visible(waiting
+                                           and not self.auth.fallback)
         self._update_suggestions(domain)
         if domain:
             self.sign_up_link.set_uri('https://%s/auth/sign_up' % domain)
@@ -1508,12 +1575,12 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_auth_changed(self, _flow):
         """The login widgets follow the flow.
 
-        The code-entry affordances belong to an authorization nobody is
-        running any more once the flow is idle and has not fallen back to
-        a pasted code, so they go away with it.
+        The code entry belongs to an authorization nobody is running any
+        more once the flow is idle and has not fallen back to a pasted
+        code, so it goes away with it. The manual-code button has its
+        own rule, in :meth:`refresh_login_widgets`, which runs next.
         """
         if not self.auth.waiting and not self.auth.fallback:
-            self.paste_code_button.set_visible(False)
             self._hide_code_entry()
         self.refresh_login_widgets()
 
@@ -1546,8 +1613,12 @@ class BabbleWindow(Adw.ApplicationWindow):
         # The authorization is named again for the out-of-band redirect,
         # so nothing can answer on the loopback listener any more.
         self.paste_code_button.set_visible(False)
-        if not self.auth.use_pasted_code():
-            self._show_code_entry()
+        self.auth.use_pasted_code()
+        # The field is shown either way: when the authorization could be
+        # renamed the browser is on its way to showing a code, and when
+        # it could not the user is still here holding one. Hiding it on
+        # the first branch left them with a code and nowhere to put it.
+        self._show_code_entry()
 
     def _show_code_entry(self):
         self.code_entry.set_visible(True)
@@ -1564,12 +1635,6 @@ class BabbleWindow(Adw.ApplicationWindow):
     def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
         """Exchange the code a redirect to *redirect_uri* carries."""
         return self.auth.on_oauth_callback(uri, redirect_uri)
-
-    def on_url_opened(self):
-        if self.auth.fallback:
-            self._show_code_entry()
-        else:
-            self.paste_code_button.set_visible(True)
 
     def authorize_admin(self, callback=None):
         """Ask the instance for the admin scopes on the signed-in account.

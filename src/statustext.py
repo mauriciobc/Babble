@@ -304,11 +304,36 @@ def format_time(moment, with_date=True):
     return formatted or ''
 
 
-def relative_time(iso_timestamp):
+def parse_time(value):
+    """An aware ``datetime`` from an ISO-8601 string, or None.
+
+    Mastodon sends UTC with a ``Z``; ``fromisoformat`` did not learn to
+    read that until Python 3.11, so the suffix is normalised first. A
+    result with no offset is taken as UTC, which is what every timestamp
+    in the API is.
+
+    The one reader of ISO-8601 in the app: timeline.py, statusviews.py,
+    filters.py and the Catch-Up port each had their own, and two of them
+    disagreed about whether a naive value was an error. The two exceptions
+    are deliberate and say so where they are found: ``catchuprank`` keeps
+    its own reader because its golden scores pin it to the original
+    JavaScript, and ``catchupdigest.parse_time`` keeps the name as an
+    alias because its own test calls it that way.
+    """
+    if not isinstance(value, str) or not value:
+        return None
     try:
-        then = datetime.datetime.fromisoformat(
-            iso_timestamp.replace('Z', '+00:00'))
-    except (ValueError, AttributeError, TypeError):
+        moment = datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    return moment
+
+
+def relative_time(iso_timestamp):
+    then = parse_time(iso_timestamp)
+    if then is None:
         return ''
     delta = datetime.datetime.now(datetime.timezone.utc) - then
     seconds = int(delta.total_seconds())

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
 import sys
 import unittest
 
@@ -7,9 +8,13 @@ import gi
 
 gi.require_version('Pango', '1.0')
 
-sys.path.insert(0, '.')
+srcdir = os.environ.get('BABBLE_SRCDIR') \
+    or os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
-from mastodon import summarize_error, summarize_error_markup  # noqa: E402
+from gi.repository import Gio, GLib  # noqa: E402
+
+from src.mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
 # The exact nginx 403 page ursal.zone served to the default libsoup
 # session: markup parsing of this body left the Adw.Toast empty, which is
@@ -59,6 +64,21 @@ class TestErrorSummary(unittest.TestCase):
         # would see a literal '&amp;'.
         self.assertEqual(summarize_error('Tom & Jerry'), 'Tom & Jerry')
 
+    def test_takes_a_glib_error_too(self):
+        # Every consumer past the transport has a GLib.Error in hand, not
+        # a string; the four error_text helpers used to unwrap it
+        # themselves, which is how they drifted.
+        error = GLib.Error.new_literal(
+            Gio.io_error_quark(), '<b>Tom & Jerry</b>', -1)
+        self.assertEqual(summarize_error(error), 'Tom & Jerry')
+        self.assertEqual(summarize_error_markup(error), 'Tom &amp; Jerry')
+
+    def test_an_error_without_a_message_still_produces_a_line(self):
+        # A plain object standing in for an error: no .message, so the
+        # fallback is its own text. Nothing should raise here.
+        self.assertEqual(summarize_error(RuntimeError('boom')), 'boom')
+        self.assertEqual(summarize_error(None), '')
+
     def test_long_bodies_truncated(self):
         out = summarize_error('x' * 500)
         self.assertLessEqual(len(out), 240)
@@ -81,7 +101,7 @@ class TestSummarizedAtTheSource(unittest.TestCase):
 
     def _error_for(self, status, body):
         """The GLib.Error ``_on_response`` would raise for *body*."""
-        from mastodon import MastodonClient
+        from src.mastodon import MastodonClient
 
         client = MastodonClient('https://example.test')
         client._session = _FakeSession(body)

@@ -208,7 +208,7 @@ class AccountSwitcher(Gtk.Popover):
         self.connect('show', lambda *_a: self.refresh())
 
     def refresh(self):
-        from .timeline import AvatarCache
+        from .mediacache import AvatarCache
         while (child := self._box.get_first_child()) is not None:
             self._box.remove(child)
         active = self.settings.get_string('active-account')

@@ -47,7 +47,7 @@ PERM_USERS = 1024
 def _admin_line(error):
     """One readable line for a GLib.Error from an admin call."""
     code = getattr(error, 'code', 0)
-    message = summarize_error(getattr(error, 'message', None) or str(error))
+    message = summarize_error(error)
     if code in (401, 403):
         return _('%s. This login is not authorized for moderation on this '
                  'server.') % message.rstrip('.')
@@ -55,7 +55,13 @@ def _admin_line(error):
 
 
 def error_text(error):
-    """*error* as one plain-text line, for a ``use_markup=False`` toast."""
+    """*error* as one plain-text line, for a ``use_markup=False`` toast.
+
+    Goes through ``_admin_line`` rather than summarize_error directly:
+    a 401/403 from a moderation call means the login lacks the admin
+    scopes, and that is worth saying in words rather than leaving the
+    reader with a bare status code.
+    """
     return _admin_line(error)
 
 
@@ -301,7 +307,7 @@ def delete_button(tooltip, method, *extra):
 
 
 def avatar_for(account, size=48):
-    from .timeline import AvatarCache
+    from .mediacache import AvatarCache
     name = account.get('display_name') or account.get('username') or '?'
     avatar = Adw.Avatar(size=size, text=name, show_initials=True)
     AvatarCache.load(avatar, account)
@@ -701,7 +707,8 @@ class ReportDialog(AdminDialogBase):
             self.page.add(group)
 
     def _status_row(self, status):
-        from .timeline import StatusItem, StatusRow
+        from .timelinedata import StatusItem
+        from .statusrow import StatusRow
         row = StatusRow()
         row.bind(StatusItem(status), self.client)
         row.set_focusable(False)
@@ -1021,7 +1028,8 @@ class AccountsPage(CtxRef, Adw.Bin):
         flow.append(self.status)
         for key, placeholder in (('username', _('Username')),
                                  ('display_name', _('Display Name')),
-                                 ('email', _('E-mail')), ('ip', 'IP')):
+                                 ('email', _('E-mail')),
+                                 ('ip', _('IP'))):
             entry = Gtk.Entry(placeholder_text=placeholder)
             entry.update_property([Gtk.AccessibleProperty.LABEL],
                                   [placeholder])
@@ -1679,6 +1687,23 @@ class AdminDialog(Adw.Dialog):
 
     def error(self, heading, error):
         self.toast('%s: %s' % (heading, error_text(error)))
+
+    def refresh_tool(self, tag):
+        """Reload a tool page that has already been built.
+
+        For a streaming event that changed what a tool would show -- a
+        new report, say. A no-op before the dashboard is authorized, and
+        for a tool that was never opened: a page builds when it is first
+        shown and fetches for itself then.
+        """
+        if not self._authorized:
+            return
+        page = self._pages.get(tag)
+        if page is None:
+            return
+        refresh = getattr(getattr(page, 'content', None), 'refresh', None)
+        if refresh is not None:
+            refresh()
 
     def _on_row_activated(self, _list, row):
         self.show_tool(row.entry[0])

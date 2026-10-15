@@ -37,15 +37,20 @@ install_data(
   'catchupgrid.py',
   'catchuprank.py',
   'catchupstore.py',
+  'capabilities.py',
   'compose.py',
+  'composeupload.py',
   'conversations.py',
   'desktopnotify.py',
   'drafts.py',
   'clipboard.py',
   'emojichooser.py',
+  'entities.py',
   'explore.py',
   'fedicollections.py',
+  'filterrules.py',
   'filters.py',
+  'imagecache.py',
   'hashtags.py',
   'i18n.py',
   'lists.py',
@@ -53,11 +58,14 @@ install_data(
   'mastodon.py',
   'mediaviewer.py',
   'mentioncompleter.py',
+  'notificationcopy.py',
+  'notificationctrl.py',
   'notifications.py',
   'pages.py',
   'portals.py',
   'preferences.py',
   'profile.py',
+  'profileactions.py',
   'profileedit.py',
   'relations.py',
   'report.py',
@@ -70,197 +78,197 @@ install_data(
   'sysstate.py',
   'textemoji.py',
   'thread.py',
-  'timeline.py',
+  'timelinebase.py',
+  'timelinedata.py',
+  'timelinepage.py',
+  'statusrun.py',
+  'statusactions.py',
+  'statusmenu.py',
+  'statusrow.py',
+  'mediacache.py',
+  'mediabox.py',
   'window.py',
   'wrapped.py',
   install_dir: moduledir,
 )
 
-timeline_test_env = environment()
-timeline_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-timeline_test_env.set('GSETTINGS_SCHEMA_DIR',
-                      meson.project_build_root() / 'data')
-timeline_test_env.set('GSETTINGS_BACKEND', 'memory')
+# One environment for every test. GTK_A11Y=none is what stops a missing
+# AT-SPI registry from aborting the tests that run under
+# G_DEBUG=fatal-criticals; NO_AT_BRIDGE alone does not. no-portals keeps
+# the first GTK import from starting xdg-desktop-portal and stalling the
+# later D-Bus tests. fatal_test_env is the same plus fatal criticals.
+test_env = environment()
+test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+test_env.set('GSETTINGS_BACKEND', 'memory')
+test_env.set('GDK_DEBUG', 'no-portals')
+test_env.set('NO_AT_BRIDGE', '1')
+test_env.set('GTK_A11Y', 'none')
+
+fatal_test_env = environment()
+fatal_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+fatal_test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+fatal_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+fatal_test_env.set('GSETTINGS_BACKEND', 'memory')
+fatal_test_env.set('GDK_DEBUG', 'no-portals')
+fatal_test_env.set('NO_AT_BRIDGE', '1')
+fatal_test_env.set('GTK_A11Y', 'none')
+fatal_test_env.set('G_DEBUG', 'fatal-criticals')
+
 test('timeline render', python,
   args: [files('test-timeline.py')],
-  env: timeline_test_env,
+  env: test_env,
   timeout: 120,
 )
 
-timeline_memory_test_env = environment()
-timeline_memory_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-timeline_memory_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
-timeline_memory_test_env.set('GSETTINGS_BACKEND', 'memory')
-timeline_memory_test_env.set('G_DEBUG', 'fatal-criticals')
+# 'timeline memory' and 'compose widgets' wait on GTK frames and the
+# garbage collector. Meson 1.12 has no per-test retries; the waits are
+# conditions (TEST-09).
 test('timeline memory', python,
   args: [files('test-timeline-memory.py')],
-  env: timeline_memory_test_env,
+  env: fatal_test_env,
   timeout: 60,
 )
-
-thread_profile_test_env = environment()
-thread_profile_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-thread_profile_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
-thread_profile_test_env.set('GSETTINGS_BACKEND', 'memory')
-thread_profile_test_env.set('G_DEBUG', 'fatal-criticals')
 test('thread profile render', python,
   args: [files('test-thread-profile.py')],
-  env: thread_profile_test_env,
+  env: fatal_test_env,
   timeout: 180,
 )
-
-compose_test_env = environment()
-compose_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-compose_test_env.set('GSETTINGS_SCHEMA_DIR',
-                     meson.project_build_root() / 'data')
-compose_test_env.set('GSETTINGS_BACKEND', 'memory')
 test('compose widgets', python,
   args: [files('test-compose.py')],
-  env: compose_test_env,
+  env: test_env,
   timeout: 120,
 )
-
-notifications_test_env = environment()
-notifications_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-notifications_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
-notifications_test_env.set('GSETTINGS_BACKEND', 'memory')
-notifications_test_env.set('G_DEBUG', 'fatal-criticals')
 test('notifications render', python,
   args: [files('test-notifications.py')],
-  env: notifications_test_env,
+  env: fatal_test_env,
   timeout: 120,
 )
-
-oauth_test_env = environment()
-oauth_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-oauth_test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
-oauth_test_env.set('G_DEBUG', 'fatal-criticals')
 test('oauth callback', python,
   args: [files('test-oauth-callback.py')],
-  env: oauth_test_env,
+  env: fatal_test_env,
   timeout: 120,
 )
-
-loopback_test_env = environment()
-loopback_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-loopback_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
-loopback_test_env.set('GSETTINGS_BACKEND', 'memory')
-loopback_test_env.set('G_DEBUG', 'fatal-criticals')
 test('oauth loopback', python,
   args: [files('test-oauth-loopback.py')],
-  env: loopback_test_env,
+  env: fatal_test_env,
   timeout: 120,
 )
-
-error_summary_test_env = environment()
-error_summary_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-error_summary_test_env.set('G_DEBUG', 'fatal-criticals')
 test('error summary', python,
   args: [files('test-error-summary.py')],
-  env: error_summary_test_env,
+  env: fatal_test_env,
   timeout: 120,
 )
-
-streaming_test_env = environment()
-streaming_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+test('admin permissions', python,
+  args: [files('test-admin.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('entities', python,
+  args: [files('test-entities.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('profile relationship helpers', python,
+  args: [files('test-profile-relationship.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('mastodon rest retry', python,
+  args: [files('test-mastodon-retry.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('mediaviewer helpers', python,
+  args: [files('test-mediaviewer.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('notifications error policy', python,
+  args: [files('test-notifications-errors.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('search helpers', python,
+  args: [files('test-search.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('streaming helpers', python,
   args: [files('test-streaming.py')],
-  env: streaming_test_env,
+  env: test_env,
   timeout: 60,
 )
-
-account_store_test_env = environment()
-account_store_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test('account store', python,
   args: [files('test-account-store.py')],
-  env: account_store_test_env,
+  env: test_env,
   timeout: 60,
 )
-
+test('local drafts', python,
+  args: [files('test-drafts-local.py')],
+  env: test_env,
+  timeout: 60,
+)
 # Needs no display: the text layer is deliberately widget-free.
-statustext_test_env = environment()
-statustext_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test('status text', python,
   args: [files('test-statustext.py')],
-  env: statustext_test_env,
+  env: test_env,
   timeout: 60,
 )
-
 # Needs no display: the Catch Up data layer imports no gi at all.
-catchup_test_env = environment()
-catchup_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test('catchup digest', python,
   args: [files('test-catchup-digest.py')],
-  env: catchup_test_env,
+  env: test_env,
   timeout: 60,
 )
-
-# Needs no display and no server: all it reads is line counts.
 test('file size rule', python,
   args: [files('test-file-size.py')],
-  env: catchup_test_env,
+  env: test_env,
   timeout: 60,
 )
-
-# Needs no display and no server: it only checks how a client reads
-# api_versions.mastodon.
 test('capability gates', python,
   args: [files('test-capability.py')],
-  env: catchup_test_env,
+  env: test_env,
   timeout: 60,
 )
-
-# Needs no display and no server: it only reads source, looking for a
-# comparison written against the accessor instead of the seam.
 test('version gate call sites', python,
   args: [files('test-version-gates.py')],
-  env: catchup_test_env,
+  env: test_env,
   timeout: 60,
 )
-
+test('filter rules', python,
+  args: [files('test-filter-rules.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('stream events', python,
+  args: [files('test-stream-events.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('catchup rank', python,
   args: [files('test-catchup-rank.py')],
-  env: catchup_test_env,
+  env: test_env,
   timeout: 60,
 )
-
-searchprovider_test_env = environment()
-searchprovider_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-searchprovider_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
-searchprovider_test_env.set('GSETTINGS_BACKEND', 'memory')
-searchprovider_test_env.set('G_DEBUG', 'fatal-criticals')
 test('search provider', python,
   args: [files('test-searchprovider.py')],
-  env: searchprovider_test_env,
-  timeout: 60,
+  env: fatal_test_env,
+  timeout: 180,
 )
-
-catchup_page_test_env = environment()
-catchup_page_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-catchup_page_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
-catchup_page_test_env.set('GSETTINGS_BACKEND', 'memory')
-catchup_page_test_env.set('G_DEBUG', 'fatal-criticals')
 test('catchup page', python,
   args: [files('test-catchup.py')],
-  env: catchup_page_test_env,
+  env: fatal_test_env,
   timeout: 120,
 )
-
-# The Collections helpers and their tests import no widgets, and only
-# read the source dir.
 test('collections', python,
   args: [files('test-collections.py')],
-  env: catchup_test_env,
+  env: test_env,
   timeout: 60,
 )
-
-catchup_grid_test_env = environment()
-catchup_grid_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
-catchup_grid_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
-catchup_grid_test_env.set('GSETTINGS_BACKEND', 'memory')
-catchup_grid_test_env.set('G_DEBUG', 'fatal-criticals')
 test('catchup grid', python,
   args: [files('test-catchup-grid.py')],
-  env: catchup_grid_test_env,
+  env: fatal_test_env,
   timeout: 120,
 )

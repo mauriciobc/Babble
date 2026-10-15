@@ -14,7 +14,6 @@ one type about one post replace each other instead of piling up.
 
 import html
 import re
-from html.parser import HTMLParser
 
 import gi
 
@@ -27,52 +26,33 @@ from gi.repository import GLib, Gio, GObject  # noqa: E402
 from . import sysstate  # noqa: E402
 from .accounts import plain_name, strip_shortcodes  # noqa: E402
 from .pages import connect_weak  # noqa: E402
+from .notificationcopy import (DESKTOP_TITLE_DEFAULT,  # noqa: E402
+                               DESKTOP_TITLES)
+from .statustext import parse_content  # noqa: E402
 
 POLL_SECONDS = 60
 BODY_LIMIT = 200
-_BLOCK_TAGS = {'p', 'br', 'div', 'li'}
 
-# type -> (one actor, several actors); '%s' is the actor list.
-TITLES = {
-    'mention': (_('%s mentioned you'), _('%s mentioned you')),
-    'reblog': (_('%s boosted your post'), _('%s boosted your post')),
-    'favourite': (_('%s favorited your post'), _('%s favorited your post')),
-    'follow': (_('%s now follows you'), _('%s now follow you')),
-    'follow_request': (_('%s wants to follow you'),
-                       _('%s want to follow you')),
-    'poll': (_('%s’s poll has ended'), _('%s’s polls have ended')),
-    'status': (_('%s posted'), _('%s posted')),
-    'update': (_('%s edited a post'), _('%s edited a post')),
-    'quote': (_('%s quoted your post'), _('%s quoted your post')),
-    'quoted_update': (_('%s edited a post you quoted'),
-                      _('%s edited a post you quoted')),
-    'admin.sign_up': (_('%s signed up'), _('%s signed up')),
-    'admin.report': (_('%s reported a post'), _('%s reported posts')),
-}
-
-
-class _TextExtractor(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.parts = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag in _BLOCK_TAGS and self.parts:
-            self.parts.append('\n')
-
-    def handle_data(self, data):
-        self.parts.append(data)
+TITLES = DESKTOP_TITLES
 
 
 def html_to_text(markup):
-    """Plain text of a status ``content`` fragment."""
-    parser = _TextExtractor()
+    """Plain text of a status ``content`` fragment.
+
+    Over :func:`statustext.parse_content`, which already turns this HTML
+    into text segments. This had its own HTMLParser for the same job,
+    and the two disagreed on exactly the case that matters in a
+    notification: a content warning. This one kept the *body* as well as
+    the warning text, so a notify about a hidden post could leak a line
+    of it -- ``notification_body`` prefers ``spoiler_text``, but only
+    after this had already read the body it was trying to hide.
+    """
     try:
-        parser.feed(markup or '')
-        parser.close()
-    except Exception:
+        segments = parse_content(markup)
+    except Exception:  # a malformed body must not silence the notify
         return html.unescape(re.sub(r'<[^>]+>', ' ', markup or ''))
-    return re.sub(r'[ \t]*\n[ \t\n]*', '\n', ''.join(parser.parts)).strip()
+    return re.sub(r'[ \t]*\n[ \t\n]*', '\n',
+                  ''.join(s['text'] for s in segments)).strip()
 
 
 def notification_body(notification):
@@ -103,7 +83,7 @@ def actor_list(names):
 def notification_title(kind, names):
     """Title for a notification about *names*; the plural form is chosen
     with ngettext so languages with more than two forms work."""
-    one, many = TITLES.get(kind, (_('%s sent a notification'),) * 2)
+    one, many = TITLES.get(kind, DESKTOP_TITLE_DEFAULT)
     template = ngettext(one, many, len(names)) if one != many else one
     return template % actor_list(names)
 
@@ -235,9 +215,15 @@ class DesktopNotifier(GObject.Object):
 
     @staticmethod
     def _avatar_icon(account):
-        from .timeline import AvatarCache
+        """The avatar a notification row already decoded, if any.
+
+        Through the store's own getter, not a private dict: reading
+        another module's internals is what made this break silently when
+        the avatar cache moved to imagecache.
+        """
+        from .mediacache import AvatarCache
         url = account.get('avatar') or account.get('avatar_static') or ''
-        return getattr(AvatarCache, '_textures', {}).get(url)
+        return AvatarCache.store.get(url) if url else None
 
     # Polling (stream fallback)
 

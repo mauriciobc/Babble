@@ -31,7 +31,8 @@ from gi.repository import (  # noqa: E402
     Adw, Gdk, GLib, GObject, Graphene, Gsk, Gtk, Pango)
 
 from . import catchupdigest, explore, hashtags, pages, statustext  # noqa: E402
-from . import timeline  # noqa: E402
+from . import mediacache, mediabox, statusactions, statusmenu  # noqa: E402
+from . import timelinedata, timelinebase  # noqa: E402
 from .accounts import plain_name  # noqa: E402
 from .pages import connect_weak, weak_method  # noqa: E402
 from .textemoji import status_emoji_bank  # noqa: E402
@@ -51,8 +52,6 @@ SHARER_AVATARS = 5
 TAG_AVATARS = 3
 FOOTER_HEIGHT = 34
 NEWS_IMAGE_SHARE = 0.55
-ACTION_ICONS = ('mail-reply-sender-symbolic',
-                'media-playlist-repeat-symbolic', 'non-starred-symbolic')
 
 
 # --------------------------------------------------------------------------
@@ -317,7 +316,7 @@ class _AvatarStack(Gtk.Widget):
             avatar = Adw.Avatar(size=size, show_initials=True,
                                 text=plain_name(account))
             avatar.add_css_class('catchup-stack')
-            timeline.AvatarCache.load(avatar, account)
+            mediacache.AvatarCache.load(avatar, account)
             avatar.set_parent(self)
 
     def _count(self):
@@ -355,36 +354,15 @@ class _AvatarStack(Gtk.Widget):
 # --------------------------------------------------------------------------
 # Action bar and menu: the only place that knows the timeline components
 
-class _ReadOnlyActions(Gtk.Box):
-    """Fallback bar when ``timeline`` has no ``StatusActions``: reply,
-    boost and favourite counts, nothing to press."""
-
-    __gtype_name__ = 'BabbleCatchUpReadOnlyActions'
-
-    def __init__(self, item):
-        super().__init__(spacing=10, halign=Gtk.Align.START)
-        for icon, count in zip(ACTION_ICONS, (
-                item.reply_count, item.boost_count, item.favourite_count),
-                strict=True):
-            cell = Gtk.Box(spacing=4)
-            cell.append(_icon(icon, 14))
-            cell.append(_label(statustext.compact_count(count),
-                               ('caption',)))
-            self.append(cell)
-
-
 def _build_actions(item, on_image, client=None, large=False):
     """The action bar of a post tile, bound to *item*: reply, boost,
     favourite and bookmark with their counts. Pill buttons over an image
-    on a hero, ``osd`` buttons over any other image. Without
-    ``timeline.StatusActions``, a read-only row of counts."""
-    component = getattr(timeline, 'StatusActions', None)
-    if component is None:
-        return _ReadOnlyActions(item)
+    on a hero, ``osd`` buttons over any other image."""
     classes = (('osd', 'pill') if large else ('osd',)) if on_image \
         else ('flat',)
-    bar = component(quote=False, button_classes=classes, tinted=True,
-                    count_format=statustext.compact_count)
+    bar = statusactions.StatusActions(
+        quote=False, button_classes=classes, tinted=True,
+        count_format=statustext.compact_count)
     bar.add_css_class('catchup-actions')
     bar.set_child_spacing(2)
     bar.set_line_spacing(0)
@@ -396,12 +374,8 @@ def _build_actions(item, on_image, client=None, large=False):
 
 
 def _build_menu_button(item, actions, on_image, client=None):
-    """The "⋯" button of a post tile with StatusRow's menu, or None
-    without ``timeline.StatusMenuButton``."""
-    component = getattr(timeline, 'StatusMenuButton', None)
-    if component is None:
-        return None
-    button = component(actions=actions, button_classes=(
+    """The "⋯" button of a post tile with StatusRow's menu."""
+    button = statusmenu.StatusMenuButton(actions=actions, button_classes=(
         ('osd', 'circular') if on_image else ('flat', 'circular')))
     if client is None:
         button.bind(item)
@@ -440,16 +414,19 @@ class _Context:
     """What tiles need from the digest, with no widget in it."""
 
     def __init__(self, client, digest):
+        from .catchup import Digest
         self.client = client
-        self.items = dict(getattr(digest, 'items', None) or {})
-        self.boosters = getattr(digest, 'boosters', None) or {}
-        self.trending_keys = getattr(digest, 'trending_keys', None) \
-            or frozenset()
+        if not isinstance(digest, Digest):
+            raise TypeError('expected catchup.Digest, got %s'
+                            % type(digest).__name__)
+        self.items = dict(digest.items)
+        self.boosters = digest.boosters
+        self.trending_keys = digest.trending_keys
 
     def item_for(self, post):
         item = self.items.get(post['id'])
         if item is None:
-            item = self.items[post['id']] = timeline.StatusItem(post)
+            item = self.items[post['id']] = timelinedata.StatusItem(post)
         return item
 
 
@@ -582,7 +559,7 @@ class _Tile(Gtk.Widget):
     # Helpers for the three kinds
 
     def picture(self, url, blur=False, alt='', cover=None):
-        picture = (timeline.BlurredPicture(alternative_text=alt) if blur
+        picture = (mediabox.BlurredPicture(alternative_text=alt) if blur
                    else Gtk.Picture(alternative_text=alt,
                                     accessible_role=Gtk.AccessibleRole
                                     .PRESENTATION))
@@ -592,7 +569,7 @@ class _Tile(Gtk.Widget):
         picture.set_hexpand(True)
         picture.set_vexpand(True)
         if url:
-            timeline._TextureCache.load(
+            mediacache._TextureCache.load(
                 url, picture,
                 cover or span_cover(self.placed.colspan,
                                     self.placed.rowspan))
@@ -605,7 +582,7 @@ class PostTile(_Tile):
     __gtype_name__ = 'BabbleCatchUpPostTile'
 
     def _refresh_prefs(self):
-        flag = timeline._flag
+        flag = timelinebase._flag
         self.cw_hidden = bool(self.spoiler) and not flag('show-spoilers')
         self.blur = self.cw_hidden or (
             bool(self.item.status.get('sensitive'))
@@ -677,7 +654,7 @@ class PostTile(_Tile):
             plain_name(account), excerpt, ', '.join(counts)) if part)
 
     def open(self):
-        timeline._open_thread(self, self.context.client, self.item)
+        statusactions._open_thread(self, self.context.client, self.item)
 
     def _on_item_changed(self, _item):
         self.set_label(self.describe())
@@ -700,9 +677,7 @@ class PostTile(_Tile):
         else:
             text = _('%s boosted') % name
         box = Gtk.Box(spacing=6)
-        icon = _icon(timeline.StatusActions.ICON_BOOST
-                     if hasattr(timeline, 'StatusActions')
-                     else 'media-playlist-repeat-symbolic')
+        icon = _icon(statusactions.StatusActions.ICON_BOOST)
         icon.add_css_class('boost-accent')
         box.append(icon)
         box.append(_label(text, ('caption-heading', 'dimmed')))
@@ -714,7 +689,7 @@ class PostTile(_Tile):
         box = Gtk.Box(spacing=8)
         avatar = Adw.Avatar(size=size, show_initials=True,
                             text=plain_name(account))
-        timeline.AvatarCache.load(avatar, account)
+        mediacache.AvatarCache.load(avatar, account)
         box.append(avatar)
         names = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                         valign=Gtk.Align.CENTER, hexpand=True)
@@ -877,7 +852,7 @@ class PostTile(_Tile):
         show_card = (not self.media and not self.cw_hidden and card
                      and card.get('url') and card.get('title')
                      and placed.rowspan > 1
-                     and timeline._flag('show-preview-cards'))
+                     and timelinebase._flag('show-preview-cards'))
         tall = placed.rowspan > 1
         quote = form == 'plain' and tall and not show_card
         texts = self._texts(2 if tall else 1, 10 if tall else 6, quote)
@@ -921,7 +896,7 @@ class PostTile(_Tile):
         if not texts and form == 'plain':
             box.append(Gtk.Box(vexpand=True))
         if show_card:
-            box.append(timeline.CardPreview(card))
+            box.append(mediabox.CardPreview(card))
         box.append(actions)
         return box
 
@@ -1003,16 +978,8 @@ class NewsTile(_Tile):
         sharers = self.entry.get('sharers') or []
         if sharers:
             footer.append(_AvatarStack(sharers[:SHARER_AVATARS]))
-            text = explore.shared_by(sharers, plain_name)
-        else:
-            parts = []
-            people = explore.people_talking(self.card)
-            if people:
-                parts.append(ngettext('%d person talking',
-                                      '%d people talking', people) % people)
-            if self.card.get('author_name'):
-                parts.append(_('By %s') % self.card['author_name'])
-            text = ' · '.join(parts)
+        text = explore.link_card_footer_text(
+            self.card, sharers if sharers else None)
         label = _label(text, ('caption', 'dimmed'), hexpand=True)
         footer.append(label)
         button = pages.icon_button('web-browser-symbolic',
@@ -1105,12 +1072,7 @@ class HashtagTile(_Tile):
     def lines(self):
         """The counts the tile writes under the name: the usage line and
         the posts in the reader's timeline."""
-        usage = hashtags.stats_text(self.tag.get('history'))
-        posts = self.entry.get('timeline_posts') or 0
-        mine = ngettext('%d post in your timeline',
-                        '%d posts in your timeline', posts) % posts \
-            if posts else ''
-        return usage, mine
+        return hashtags.catchup_hashtag_lines(self.entry)
 
     def describe(self):
         usage, mine = self.lines()
@@ -1212,6 +1174,7 @@ class BentoGrid(Gtk.Widget):
         if pages_shown != self._pages:
             self._pages = pages_shown
             self._invalidate()
+            self._apply_pending_layout()
 
     @property
     def pages_shown(self):
@@ -1226,6 +1189,18 @@ class BentoGrid(Gtk.Widget):
     def _invalidate(self):
         self._layouts.clear()
         self._dirty = True
+        self.queue_resize()
+
+    def _apply_pending_layout(self):
+        """Re-pack when already allocated (e.g. Show more at fixed width)."""
+        width = self.get_width()
+        if width <= 0 or not self._dirty:
+            return
+        columns = columns_for(width)
+        self._columns = columns
+        self._dirty = False
+        self._placed = self._layout_for(columns)
+        self._sync()
         self.queue_resize()
 
     def _drop_all(self):
@@ -1368,11 +1343,6 @@ class HighlightsView(Gtk.Box):
     @property
     def pages_shown(self):
         return self.grid.pages_shown
-
-    def build_all(self):
-        """Build every tile's content now (tests and screenshots)."""
-        for tile in self.grid.tiles.values():
-            tile.ensure_built()
 
     def _make_tile(self, placed):
         kind = {'post': PostTile, 'news': NewsTile,

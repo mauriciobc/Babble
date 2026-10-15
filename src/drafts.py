@@ -172,3 +172,21 @@ def stored_drafts(raws, key):
         if draft is not None and draft.key == key:
             drafts.append((raw, draft))
     return drafts
+
+
+def store_local_draft(settings, raw, previous_raw=None):
+    """Prepend *raw* to ``local-drafts``, drop *previous_raw*, cap the list."""
+    kept = [raw]
+    for entry in settings.get_strv('local-drafts'):
+        if entry not in (previous_raw, raw):
+            kept.append(entry)
+    settings.set_strv('local-drafts', kept[:MAX_LOCAL_DRAFTS])
+
+
+def drop_local_draft(settings, raw):
+    """Remove one stored draft string from ``local-drafts``."""
+    if raw is None:
+        return
+    settings.set_strv(
+        'local-drafts',
+        [entry for entry in settings.get_strv('local-drafts') if entry != raw])
