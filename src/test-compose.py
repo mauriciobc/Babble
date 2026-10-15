@@ -1199,11 +1199,12 @@ with open(pasted or os.devnull, 'rb') as f:
 check('the pasted image uploads as image/png',
       bool(rows) and rows[0].content_type == 'image/png')
 check('pasting an image inserts no text', view.text() == '')
-view.text_view.emit('paste-clipboard')
-# The paste reads the clipboard asynchronously; wait for the row it
-# produces rather than a fixed 300 ms, which a busy machine outlasts.
-settle_until(PASTE_WAIT_S, lambda: len(view.attachments()) >= 2)
-pump(50)
+# The same image pasted again. The clipboard is set afresh rather than
+# assumed to still hold the first paste: under a bare X server nothing
+# keeps the selection once it has been read, and by this point it can
+# have lost the image (it reported no formats at all), which made a
+# correct "nothing to paste" look like a dropped second paste.
+paste(texture, attachments=True)
 rows = view.attachments()
 check('a second paste gets a file of its own',
       len(rows) == 2 and rows[1].path != pasted

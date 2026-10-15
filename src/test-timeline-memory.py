@@ -277,6 +277,10 @@ box.append(shell)
 settle(lambda: shell.get_mapped() and shell.get_height() > 0)
 check('a shown run is as tall as its card, not its placeholder',
       shell.get_mapped() and shell.get_height() < 400)
+if not (shell.get_mapped() and shell.get_height() < 400):
+    print('note - shell mapped=%s height=%d width=%d typical=%d'
+          % (shell.get_mapped(), shell.get_height(), shell.get_width(),
+             typical))
 statusrun.StatusRunRow._typical_height = typical
 box.remove(shell)
 
@@ -344,6 +348,9 @@ real = Gtk.TextView.do_measure(body, Gtk.Orientation.VERTICAL,
                                body.get_width())[1]
 check('an allocated body is as tall as its text',
       real > 0 and abs(body.get_height() - real) <= real * 0.1)
+if not (real > 0 and abs(body.get_height() - real) <= real * 0.1):
+    print('note - body width=%d height=%d measured=%d'
+          % (body.get_width(), body.get_height(), real))
 box.remove(body)
 
 
