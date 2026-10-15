@@ -26,6 +26,7 @@ from .notificationcopy import (FILTER_NOTIFICATION_TYPES,  # noqa: E402
                                LIST_TITLE_DEFAULT, LIST_TITLES)
 from .notificationctrl import (NotificationController,  # noqa: E402
                                _RELATIONSHIPS)
+from .entities import lift
 from .timelinedata import StatusItem  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .timelinepage import _RefreshGesture  # noqa: E402
@@ -312,16 +313,19 @@ class NotificationItem(GObject.Object):
 
     def __init__(self, notification):
         super().__init__()
+        # Entities at the boundary: the payload and every Account inside
+        # it are typed once; the read sites downstream keep working.
+        notification = lift(notification)
         self._section_title = None
         self._section_weekday = None
-        self.kind = notification.get('type', '')
+        self.kind = notification.type
         self._kinds_by_actor = [self._kind]
         self._date_keys = [_date_key_of(notification)]
         self._group_key = group_key_of(notification)
-        self.actors = [notification['account']]
+        self.actors = [notification.account]
         self.notifications = [notification]
         self.request_state = None
-        self.status = notification.get('status')
+        self.status = notification.status
         if self.status is not None:
             self._status_item = StatusItem(self.status)
         else:
@@ -405,11 +409,13 @@ class NotificationItem(GObject.Object):
 
     def merge(self, notification):
         """Fold another notification (same status/type cluster) into
-        this row."""
+        this row. Typed the moment it arrives, so the Account inside is
+        the same object the row's own payload holds."""
+        notification = lift(notification)
         self.notifications.append(notification)
-        self._kinds_by_actor.append(notification.get('type', ''))
+        self._kinds_by_actor.append(notification.type)
         self._date_keys.append(_date_key_of(notification))
-        self.actors = self.actors + [notification['account']]
+        self.actors = self.actors + [notification.account]
         self._recompute_date_key()
         self.notify('title')
         self.notify('timestamp')

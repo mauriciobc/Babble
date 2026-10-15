@@ -18,6 +18,7 @@ from .statustext import (relative_time)
 
 """Status rows' data: StatusItem, boost grouping and TimelineModel."""
 from .timelinebase import status_filter, GROUP_BOOSTS_MIN_PAGE, BOOST_DEDUPE_LIMIT
+from .entities import lift
 
 
 class StatusItem(GObject.Object):
@@ -38,10 +39,16 @@ class StatusItem(GObject.Object):
         self.translation = None
 
     def _set_data(self, data):
-        boost = data.get('reblog')
+        # The entity types live on the data itself, so every reader
+        # downstream of an item (rows, boosts, the carousel, Catch-Up)
+        # is typed without having to lift again at each read. Lift is a
+        # no-op on values it has already typed.
+        data = lift(data) if isinstance(data, dict) else data
+        boost = data.get('reblog') if isinstance(data, dict) else None
         self.raw = data
         self.status = boost if boost else data
-        self.boosted_by = data['account'] if boost else None
+        self.boosted_by = (self.status['account']
+                           if boost else None)
 
     def update(self, data):
         """Take *data*, a newer payload of the same post (an edit): the

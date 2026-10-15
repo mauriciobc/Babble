@@ -781,10 +781,15 @@ All tiers are done; what follows is the order the work was done in.
     done.
 12. ~~**ARCH-04, scoped.**~~ — **partial.** `entities.py` lifts Status,
     Account, Notification and Relationship at the API and streaming
-    boundary, and `test-entities.py` pins the codes. About eight
-    production modules call `lift`. Raw `.get('…')` is still about
-    1,333, so adopting the four types is the work that remains. A
-    fifth entity is not part of this item.
+    boundary (`mastodon._finish`, `mastodon.request_finish_paged`,
+    `streaming`, `profile.set_relationship`), and into the list items
+    the read paths already build (`StatusItem._set_data`,
+    `NotificationItem.__init__` and `NotificationItem.merge`, and
+    `statusactions._merge_status`). `test-entities.py` pins the codes.
+    Raw `.get('…')` reads are still about 1,330, most of them on
+    Catch-Up's own fixtures and in `admin.py`; adopting the four types
+    there is the work that remains. A fifth entity is not part of this
+    item.
 13. ~~**ARCH-01…03, 06**~~ — done. `composeupload.UploadRound`,
     `profileactions.ProfileActions`, `notificationctrl.NotificationController`,
     and the timeline seams (`timelinedata`, `statusrun`, `mediacache`,

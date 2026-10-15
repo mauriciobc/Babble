@@ -199,11 +199,15 @@ WINDOW_CLIENT = object()
 
 
 def _merge_status(item, data):
-    """Copy the fields a status action changes into *item*."""
+    """Copy the fields a status action changes into *item*.
+
+    *data* was typed by lift at the API boundary. ``reblog`` is the
+    Status the reader actually acted on, when the action went through a
+    boost; it inherits the reader's own state from the server."""
     if not isinstance(data, dict):
         return
-    fresh = data.get('reblog') or data
-    if fresh.get('id') != item.status_id:
+    fresh = data.reblog or data
+    if fresh.id != item.status_id:
         return
     for key in MERGE_KEYS:
         if key in fresh:
