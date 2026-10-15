@@ -236,8 +236,18 @@ def make_post_row(client, status):
     row = StatusRow()
     row.bind(item, client)
     gesture = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-    pages.connect_weak(gesture, 'released',
-                       lambda *_a: row.activate_status(item))
+    # The gesture belongs to the row, so a handler that holds the row
+    # strongly is the cycle through C that pages.connect_weak exists to
+    # prevent. connect_weak takes a bound method; this is a closure, so
+    # hold the row by a GObject weak reference instead.
+    row_ref = row.weak_ref()
+
+    def open_thread(*_args):
+        owner = row_ref()
+        if owner is not None:
+            owner.activate_status(item)
+
+    gesture.connect('released', open_thread)
     row.add_controller(gesture)
     return row
 

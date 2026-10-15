@@ -71,6 +71,18 @@ if os.environ.get('DISPLAY'):
     page._resolve_url('https://example.social/@ada', force=True)
     check('a resolved account opens the profile',
           opened[-1][0] == 'profile' and opened[-1][1]['id'] == 'a1')
+
+    # Posts in the results used to raise while the row was built, so the
+    # search stayed on its loading page forever.
+    client.body = {'statuses': [{
+        'id': 's2', 'content': '<p>a post about ferns</p>',
+        'created_at': '2026-10-01T10:00:00.000Z', 'visibility': 'public',
+        'account': {'id': '7', 'acct': 'fern', 'display_name': 'Fern'}}]}
+    page._request({'q': 'ferns'}, page._show_results)
+    check('a search with posts leaves the loading page',
+          page.stack.get_visible_child_name() == 'results')
+    check('the post is shown as a result row',
+          page.results_box.get_first_child() is not None)
 else:
     print('SKIP - advanced search dialog (no display)')
 
