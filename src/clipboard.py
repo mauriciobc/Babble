@@ -17,7 +17,7 @@ try:
 except ImportError:  # loaded as a top-level module by the standalone tests
     from i18n import gettext as _  # noqa: E402
 
-from gi.repository import Adw, GLib, GObject  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 
@@ -36,20 +36,21 @@ def copied_link_kind(text):
     return pages.fedi_link_kind(text)
 
 
-class CopiedLinkBanner(Adw.Banner):
+class CopiedLinkBanner(Gtk.Box):
     """A banner that offers to open the fediverse link on the clipboard.
 
     It sits on the window and follows it weakly, so a closed window's
-    pending clipboard read resolves to nothing. The widget *is* the
-    banner, so there is no wrapper box to carry an inner child.
+    pending clipboard read resolves to nothing.
     """
 
     __gtype_name__ = 'BabbleCopiedLinkBanner'
 
     def __init__(self, window, **kwargs):
-        super().__init__(button_label=_('_Open'), use_markup=False, **kwargs)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, **kwargs)
         self._window = window.weak_ref()
-        pages.connect_weak(self, 'button-clicked', self._on_opened)
+        self.banner = Adw.Banner(button_label=_('_Open'), use_markup=False)
+        self.append(self.banner)
+        pages.connect_weak(self.banner, 'button-clicked', self._on_opened)
         # Links already offered, opened or not: none is offered twice.
         self._offered = set()
         self._offering = None
@@ -69,13 +70,13 @@ class CopiedLinkBanner(Adw.Banner):
             return
         if window.is_active():
             self._check()
-        elif self.get_revealed():
+        elif self.banner.get_revealed():
             self._hide()
 
     def _hide(self):
         self._read_serial += 1
         self._offering = None
-        self.set_revealed(False)
+        self.banner.set_revealed(False)
 
     def _check(self):
         window = self._window()
@@ -121,12 +122,12 @@ class CopiedLinkBanner(Adw.Banner):
             return  # already offered: never nag twice for the same link
         self._offered.add(url)
         self._offering = url
-        self.set_title({
+        self.banner.set_title({
             'post': _('Open copied post?'),
             'profile': _('Open copied profile?'),
             'tag': _('Open copied hashtag?'),
             'collection': _('Open copied collection?')}[kind])
-        self.set_revealed(True)
+        self.banner.set_revealed(True)
 
     def _on_opened(self, _banner):
         url = self._offering
