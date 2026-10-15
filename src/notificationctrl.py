@@ -21,6 +21,15 @@ from .pages import PagedPosts, push_page  # noqa: E402
 from .statustext import parse_content  # noqa: E402
 
 
+# Relationships fetched for "Follow Back", shared by every notifications
+# page and keyed by (instance, account id) so recycled rows and a second
+# page do not ask again. The endpoint takes 40 ids; catchup.py batches by
+# the same number.
+RELATIONSHIP_BATCH = 40
+_RELATIONSHIPS = {}
+_RELATIONSHIPS_PENDING = set()
+
+
 class NotificationController:
     # Data
 
@@ -44,6 +53,77 @@ class NotificationController:
 
     def _finish(self, result):
         return self.client.notifications_finish(result)
+
+    # Follow Back
+
+    def _request_relationships(self, notifications):
+        """Ask for the relationship of every new follower, in batches.
+
+        Rows bind faster than a request returns, so a page of follow
+        notifications would otherwise open one request per row. The page
+        asks once, before the rows exist, and re-emits the rows whose
+        answer arrived so each one rebinds with its Follow Back state.
+        """
+        client = self.client
+        if not getattr(client, 'token', None):
+            return
+        instance = getattr(client, 'instance', '')
+        for notification in notifications:
+            if notification.get('type') != 'follow':
+                continue
+            actor = notification.get('account') or {}
+            key = (instance, actor.get('id'))
+            if actor.get('id') is None or key in _RELATIONSHIPS \
+                    or key in _RELATIONSHIPS_PENDING:
+                continue
+            self._relationship_queue[key] = actor
+        self._drain_relationship_queue()
+
+    def _drain_relationship_queue(self):
+        client = self.client
+        if client is None or self._relationship_busy \
+                or not self._relationship_queue:
+            return
+        batch = list(self._relationship_queue.items())[:RELATIONSHIP_BATCH]
+        for key, _actor in batch:
+            del self._relationship_queue[key]
+            _RELATIONSHIPS_PENDING.add(key)
+        instance = getattr(client, 'instance', '')
+        self._relationship_busy = True
+
+        def done(client, result, _data=None):
+            self._relationship_busy = False
+            try:
+                data = client.request_finish(result)
+            except GLib.Error:
+                data = None
+            for key, _actor in batch:
+                _RELATIONSHIPS_PENDING.discard(key)
+            arrived = set()
+            for entry in data or []:
+                if isinstance(entry, dict) and entry.get('id') is not None:
+                    key = (instance, str(entry['id']))
+                    _RELATIONSHIPS[key] = entry
+                    arrived.add(key)
+            # Ids queued while this was in flight go out now.
+            self._drain_relationship_queue()
+            self._relationships_arrived(instance, arrived)
+
+        client.request_async('GET', '/accounts/relationships',
+                             params={'id[]': [str(actor['id'])
+                                              for _key, actor in batch]},
+                             callback=done)
+
+    def _relationships_arrived(self, instance, keys):
+        """Re-emit the follow rows whose answer just came, so the ones
+        on screen rebind; the rest pick it up when they are built."""
+        if not keys:
+            return
+        for position in range(self.model.get_n_items()):
+            item = self.model.get_item(position)
+            if item.kind == 'follow' and len(item.actors) == 1 \
+                    and (instance, str(item.actors[0].get('id'))) in keys:
+                self.model.items_changed(position, 1, 1)
 
     def _paging_fetch(self, params, callback, generation):
         """One page request, with the type filters merged in.
@@ -128,6 +208,7 @@ class NotificationController:
             pages.report_error(self, _('Refresh failed'), e)
             return
         if notifications:
+            self._request_relationships(notifications)
             self.model.prepend_page(notifications)
             self._marked_read = False
         if self.model.get_n_items() == 0:
@@ -166,6 +247,7 @@ class NotificationController:
             return
         if self.model.loading and self.model.get_n_items() == 0:
             return
+        self._request_relationships([notification])
         if not self.model.prepend_page([notification]):
             return
         self.stack.set_visible_child_name('list')

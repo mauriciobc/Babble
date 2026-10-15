@@ -24,17 +24,14 @@ from .pages import (PagedList, PagedPosts, connect_weak,  # noqa: E402
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .notificationcopy import (FILTER_NOTIFICATION_TYPES,  # noqa: E402
                                LIST_TITLE_DEFAULT, LIST_TITLES)
-from .notificationctrl import NotificationController  # noqa: E402
+from .notificationctrl import (NotificationController,  # noqa: E402
+                               _RELATIONSHIPS)
 from .timelinedata import StatusItem  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .timelinepage import _RefreshGesture  # noqa: E402
 from .statustext import parse_content, relative_time, shorten_url_text  # noqa: E402
 from .timelinebase import COLUMN_WIDTH  # noqa: E402
 
-
-# How many account ids one /accounts/relationships call carries. The
-# endpoint's documented cap; catchup.py batches by the same number.
-RELATIONSHIP_BATCH = 40
 
 # Most avatars drawn in a cluster's stacked strip before the rest
 # collapse into a "+N" counter. Each is 32 px and a row must stay inside
@@ -636,11 +633,6 @@ class ColumnBox(Gtk.Box):
 
 ROW_MARGIN = 12
 
-# Follow Back state: (instance, account id) -> Relationship, shared by
-# every row so recycled rows do not refetch it.
-_RELATIONSHIPS = {}
-_RELATIONSHIPS_PENDING = set()
-
 
 def make_date_heading():
     """Date group heading: title ('Today' / 'Oct 4') beside a dimmed
@@ -1122,7 +1114,8 @@ class NotificationRow(ColumnBox):
         key = (getattr(client, 'instance', ''), actor.get('id'))
         relationship = _RELATIONSHIPS.get(key)
         if relationship is None:
-            self._fetch_relationship(item, actor, key)
+            # The page asked for it when the notification arrived; the
+            # row is re-emitted once the answer is in.
             return
         if relationship.get('following'):
             self._action_note(_('Following'))
@@ -1137,62 +1130,6 @@ class NotificationRow(ColumnBox):
 
     def _on_follow_back_clicked(self, _button, item, actor, key):
         self._follow_back(item, actor, key)
-
-    def _fetch_relationship(self, item, actor, key):
-        """Note that *actor* is unknown, and batch the asking.
-
-        Rows bind faster than a request returns, so a page of follow
-        notifications would otherwise open a request per row -- up to 40
-        of them, for an endpoint that takes 40 ids in one. Ids queue here
-        and go out together; the reply rebinds the row on screen, which
-        is the one whose Follow Back button was waiting.
-        """
-        client = self.client
-        if not getattr(client, 'token', None):
-            return
-        if key not in _RELATIONSHIPS and key not in _RELATIONSHIPS_PENDING:
-            self._relationship_queue[key] = actor
-            self._drain_relationship_queue()
-
-    def _drain_relationship_queue(self):
-        client = self.client
-        if client is None or self._relationship_busy \
-                or not self._relationship_queue:
-            return
-        batch = [(key, actor) for key, actor
-                 in self._relationship_queue.items()][:RELATIONSHIP_BATCH]
-        for key, _actor in batch:
-            del self._relationship_queue[key]
-        instance = getattr(client, 'instance', '')
-        self._relationship_busy = True
-        for key, _actor in batch:
-            _RELATIONSHIPS_PENDING.add(key)
-
-        def done(client, result, _data=None):
-            self._relationship_busy = False
-            try:
-                data = client.request_finish(result)
-            except GLib.Error:
-                data = None
-            for key, _actor in batch:
-                _RELATIONSHIPS_PENDING.discard(key)
-            for entry in data or []:
-                if isinstance(entry, dict) and entry.get('id') is not None:
-                    _RELATIONSHIPS[(instance, str(entry['id']))] = entry
-            # Ids queued while this was in flight go out now.
-            self._drain_relationship_queue()
-            self._rebind_relationship_row()
-
-        client.request_async('GET', '/accounts/relationships',
-                             params={'id[]': [str(actor['id'])
-                                              for _key, actor in batch]},
-                             callback=done)
-
-    def _rebind_relationship_row(self):
-        """Re-bind the row on screen, so its Follow Back catches up."""
-        if self.item is None or self.client is None:
-            return
-        self._bind_extras(self.item, self.client)
 
     def _follow_back(self, item, actor, key):
         """POST /api/v1/accounts/:id/follow."""
@@ -1282,7 +1219,7 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         self._unread = 0
         self._applied_excluded = self._excluded_key()
         # Accounts whose relationship is unknown, waiting to be asked for
-        # in one batch. See NotificationRow._fetch_relationship.
+        # in one batch. See NotificationController._request_relationships.
         self._relationship_queue = {}
         self._relationship_busy = False
 

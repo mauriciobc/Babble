@@ -404,6 +404,73 @@ page.on_row_activated(page.list_view, follow_index)
 check('follow row opens the actor profile', profile_calls == ['carol'])
 check('thread page tracks activated status', mention_id == '50')
 
+# A page of new followers asks for their relationships once, and the rows
+# whose answer comes back are re-emitted so they rebind with Follow Back.
+# The first page load used to call a method that did not exist.
+class FollowClient(MastodonClient):
+    """A signed-in client that records its requests and never leaves the
+    machine."""
+
+    def __init__(self):
+        super().__init__('https://fosstodon.org')
+        self.token = 'token'
+        self.requests = []
+        self.reply = None
+
+    def markers_async(self, *args, **kwargs):
+        pass
+
+    def notifications_unread_count_async(self, *args, **kwargs):
+        pass
+
+    def notifications_async(self, *args, **kwargs):
+        pass
+
+    def notifications_finish(self, result):
+        return result
+
+    def request_async(self, method, path, callback=None, params=None, **kw):
+        self.requests.append((method, path, params))
+        if path == '/accounts/relationships':
+            self.reply = callback
+
+    def asked(self):
+        """The relationship lookups made so far."""
+        return [r for r in self.requests
+                if r[1] == '/accounts/relationships']
+
+    def request_finish(self, result):
+        return result
+
+
+follow_client = FollowClient()
+follow_page = NotificationsPage(follow_client)
+follow_page.on_page_loaded(follow_client, [
+    make_notification('f1', 'follow', ACTOR, '2026-10-05T12:09:00.000Z'),
+    MENTION,
+    make_notification('f2', 'follow', ACTOR2, '2026-10-05T12:03:00.000Z')])
+check('a page of followers asks for their relationships in one request',
+      len(follow_client.asked()) == 1
+      and follow_client.asked()[0][0] == 'GET'
+      and sorted(follow_client.asked()[0][2]['id[]']) == ['10', '9'])
+rebound = []
+follow_page.model.connect(
+    'items-changed', lambda _m, position, _r, _a: rebound.append(position))
+follow_client.reply(follow_client, [
+    {'id': '9', 'following': False, 'requested': False},
+    {'id': '10', 'following': True, 'requested': False}])
+follow_kinds = [follow_page.model.get_item(i).kind
+                for i in range(follow_page.model.get_n_items())]
+check('only the follow rows are rebound by the answer',
+      sorted(rebound) == [i for i, k in enumerate(follow_kinds)
+                          if k == 'follow'] and len(rebound) == 2)
+follow_client.requests.clear()
+follow_page.on_stream_notification(
+    make_notification('f3', 'follow', ACTOR3, '2026-10-05T12:10:00.000Z'))
+check('a streamed follower is asked for too',
+      len(follow_client.asked()) == 1
+      and follow_client.asked()[0][2]['id[]'] == ['11'])
+
 # Filter switch clears and reloads through the client path: stub the
 # client transport so the page's filter injection actually runs.
 relay = {}
