@@ -50,6 +50,7 @@ from .catchupdigest import (  # noqa: E402
     timeline_hashtags, timeline_links, trending_status_keys)
 from .mastodon import summarize_error_markup  # noqa: E402
 from .statustext import compact_count, format_time, relative_time  # noqa: E402
+from .entities import lift  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .timelinedata import StatusItem  # noqa: E402
 from .timelinebase import ui_language  # noqa: E402
@@ -1422,7 +1423,7 @@ class CatchUpPage(Adw.Bin):
             found = catchupstore.list_snapshots(key)
             for path, _meta in found:
                 try:
-                    snapshot = catchupstore.read_snapshot(path)
+                    snapshot = lift(catchupstore.read_snapshot(path))
                 except (OSError, ValueError):
                     continue
                 return ([m for _p, m in found],
@@ -1457,7 +1458,8 @@ class CatchUpPage(Adw.Bin):
         generation = self._generation
 
         def work():
-            return compute(catchupstore.read_snapshot(path), languages, hide)
+            return compute(
+                lift(catchupstore.read_snapshot(path)), languages, hide)
 
         self._scan_label(_('Opening the catch-up…'))
         self._set_state('scanning')
