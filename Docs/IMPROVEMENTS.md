@@ -378,7 +378,7 @@ Two readers stayed, each documented where it is found:
 |---|---|---|---|---|
 | CLEAN-07 | **done** | **One image cache, implemented six times** — LRU + Soup session + in-flight coalescing. `HeaderCache` is additionally **unbounded** (no LRU cap, unlike the other two), and `desktopnotify` reaches into another module's *private* `_textures` dict. | `timeline.py:912-994` (`AvatarCache`), `timeline.py:1255-1336` (`_TextureCache`, ~80% identical body), `profile.py:155-204` (`HeaderCache`, unbounded), `textemoji.py:~135-181`, `mediaviewer.py:52-107`, `desktopnotify.py:240` | ~250 lines |
 | CLEAN-08 | **done** | **The paging state machine, implemented three times** plus a fourth protocol — they had drifted: `PAGE_SIZE` 20/20/**40**; preload threshold 800/800/**600**; refresh cursor `since_id` vs `min_id`. `profile.AccountStatuses` duck-typed via `getattr(self.source, 'paging', None)`. | one `pages.PagedPosts`: page size and preload are 20 and 800 everywhere; the newline cursor differs by argument (`since_id` for timelines, `min_id` for the notification endpoint). `TimelinePage` and `NotificationsPage` now inherit it; `PagedList` keeps its own Link-cursor path because a Link cursor is not a status id. Generation guards exist on all three responses. | ~120 lines |
-| CLEAN-09 | **partial** | **Four HTML parsers in one repo.** | one gone: `desktopnotify.html_to_text` over `statustext.parse_content`. Two kept on purpose (see resolutions), which is why this is partial and not done. | ~40 lines |
+| CLEAN-09 | **done** | **Four HTML parsers in one repo.** | one gone: `desktopnotify.html_to_text` over `statustext.parse_content`. The other two stay on purpose and are documented where they are found (`catchupdigest` must stay free of `gi`; `catchuprank` is pinned to golden scores), the same shape as CLEAN-10. | ~40 lines |
 | CLEAN-10 | **done** | **Six ISO-8601 parsers.** | one `statustext.parse_time`; the Catch-Up port keeps its own on purpose (see resolutions) | ~80 lines |
 | CLEAN-11 | **rejected** | **The `client.rate_limited()` gate, "copied three times".** | `timeline.py:4487`, `catchup.py:558`, `:649`, `desktopnotify.py:285`, `:302` | **Not duplication.** The *method* was always shared; what repeats is a two-to-four-line `if`, and each site reacts differently on purpose — the timeline just returns, Catch-Up records a stop reason it shows the user, the notifier keeps a timer alive. A helper wrapping five genuinely different reactions would be indirection, not consolidation. Recorded so this is not re-investigated. |
 | CLEAN-12 | **done** | **Four number formatters, two unlocalised.** | three now delegate to `statustext.compact_count`; the zoom counter uses `locale.format_string`. `profile.format_count` stays: it is deliberately uncompacted (an exact follower count), which is a different job, not a duplicate. |
@@ -702,11 +702,11 @@ test that makes it trustworthy.
 | Tier | Total | todo | doing | done | deferred / skip |
 |---|---|---|---|---|---|
 | Tier 1 — Correctness | 18 | 0 | 0 | 18 | 0 |
-| Tier 2 — Consolidation | 42 | 0 | 0 | 36 | 6 partial/rejected |
+| Tier 2 — Consolidation | 42 | 0 | 0 | 37 | 5 rejected |
 | Tier 3 — Structural | 11 | 0 | 0 | 10 | 1 partial |
 | Test hardening | 9 | 0 | 0 | 8 | 1 partial |
 | Documentation | 5 | 0 | 0 | 5 | 0 |
-| **Total** | **85** | **0** | **0** | **77** | **8 partial/rejected** |
+| **Total** | **85** | **0** | **0** | **78** | **7 partial/rejected** |
 
 **Tier 1 and Tier 2.1 are complete.** 18/18 bugs fixed (BUG-15…18 were
 found by running the app, after the rest), the suite made
@@ -763,7 +763,7 @@ All tiers are done; what follows is the order the work was done in.
 3. ~~**Tier 2.1 — the `pages.py` adoption sweep**~~ — done, CLEAN-01…06
    plus TEST-01 and TEST-02.
 4. ~~**Tier 2.2 — shared infrastructure** (CLEAN-07…13)~~ — done, except
-   **CLEAN-09** (partial on purpose: two HTML parsers stay) and
+   **CLEAN-09** (done: one parser removed, two stay on purpose) and
    **CLEAN-11** (rejected: not duplication).
 5. ~~**Tier 2.3 — the translated-string tables** (CLEAN-14…16)~~ — done;
    `notificationcopy.py` plus one `babble-pot` run.
