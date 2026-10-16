@@ -30,6 +30,7 @@ src/notificationcopy.py
 src/notificationctrl.py
 src/notifications.py
 src/pages.py
+src/pollbox.py
 src/portals.py
 src/preferences.py
 src/profile.py

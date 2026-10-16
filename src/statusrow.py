@@ -20,8 +20,8 @@ from .statusactions import (CollectionCard, QuoteCard, StatusActions,
                             _display_name_uses_custom_emoji, _open_thread)
 from .statusmenu import StatusMenuButton
 from .mediacache import AvatarCache, StatusBody
-from .mediabox import (BoostCarousel, CardPreview, MediaBox, PollBox,
-                       _rewatch)
+from .mediabox import BoostCarousel, CardPreview, MediaBox, _rewatch
+from .pollbox import PollBox
 from .timelinedata import BoostCarouselItem
 from .timelinebase import (VISIBILITY_INFO, _collapse_view, _flag,
                            absolute_time, status_filter, ui_language)

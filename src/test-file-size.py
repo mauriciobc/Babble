@@ -66,9 +66,6 @@ EXCEPTIONS = {
     'mediaviewer.py': 'the picture viewer: zoom and pan geometry, '
                       'video and audio playback, drag sources and temp '
                       'file pruning. One widget, one concern.',
-    'mediabox.py': 'attachment tiles, alt text, link cards and the '
-                   'keyboard focus path that opens them. One media '
-                   'surface for every status row.',
     'catchup.py': 'Catch Up is a feature port (CATCH-UP.md), and its '
                   'page is one piece of work at a time. CatchUpPage '
                   'is large for the same reason the port is kept intact: '

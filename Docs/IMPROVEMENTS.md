@@ -339,7 +339,7 @@ revision.
 |---|---|---|---|---|
 | ARCH-10 | **done** | After account switch/sign-out, login fails until restart: one cancelled `GCancellable` is reused. | `auth.py` `LoginFlow.begin`/`cancel` | Recreate cancellable in `begin()`. Covered by `oauth loopback`. |
 | ARCH-11 | **done** | Unreadable keyring at startup deletes the account and Catch-Up snapshots. | `mastodon.py` `load_secret_async`; `window.py` `_activate_account` | Propagate `GError`; delete only on a genuine absence. Covered by `oauth callback`. |
-| A11Y-10 | **done** | Attachment tiles are pointer-only (no focus, key, or menu route). | `mediabox.py` grid tiles | Focusable button role + key controller. Covered by `mediabox keyboard`. |
+| A11Y-10 | **done** | Attachment tiles are pointer-only (no focus, key, or menu route). | `mediabox.py` grid tiles | Focusable button role + key controller, and a `:focus-visible` ring on `.media-tile` — a tab stop with nothing drawn on it is not keyboard access. Covered by `mediabox keyboard`. |
 | PKG-10 | **done** | Suite `| tee` without `pipefail` makes a red suite report green. | `.github/workflows/ci.yml` | `set -o pipefail` in the run block. |
 | PKG-11 | **done** | Flatpak `builddir` lint fails on external screenshot URLs (and main had no lint step). | `ci.yml`, `metainfo.xml.in` | Mirror screenshots on build; add `flatpak-builder-lint`. |
 
@@ -352,7 +352,7 @@ revision.
 | A11Y-11 | **done** | Page Up/Down app accelerators steal keys from every text view. | `main.py` / `window.py` local `ShortcutController` |
 | UI-10 | **done** | Composer options row clips at 360 px with 1.5× text. | `compose.py` `build_action_bar` wraps |
 | A11Y-12 | **done** | Account switcher button: tooltip, no accessible name. | `window.ui` `account_button` |
-| A11Y-13 | **done** | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, `conversations.py`, `hashtags.py`, `catchup.py`, `notifications.py`; primary-menu `D` and post-menu `T` duplicates fixed |
+| A11Y-13 | **done** | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, `conversations.py`, `hashtags.py`, `catchup.py`, `notifications.py`; primary-menu `D` and post-menu `T` duplicates fixed | Keys are unique across a whole open menu, not per section: `statusmenu` moved `Ment_ion`, `M_ute`, `Bloc_k` and `Remove My Post _From Quote` for that reason. The two *section titles* that gained one were reverted — GTK draws those as plain labels and the underscore showed. |
 | UI-11 | **done** | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
 | ARCH-14 | **done** | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings/style/close-request via `connect_weak` |
 
@@ -372,6 +372,18 @@ revision.
 | OBS-10 | **observe** | `gdk_frame_timings_submitted` once per process after first primary menu | GDK warning under Xvfb | No Python call site; suite stays `fatal-criticals` only. Leave for upstream / local `fatal-warnings` bisect. |
 
 Duplicate access keys (review 14–15) landed with A11Y-13.
+
+Three follow-ups from the review of this list:
+
+- `PKG-11` mirrors the screenshots without `--compose-url-policy`: the
+  runner's flatpak-builder (1.4.2 on noble) does not have that flag, and the
+  builddir check reads the mirror-rewritten metainfo anyway.
+- `mediabox.py` crossed 800 lines with the keyboard path, so `PollBox` moved
+  to `src/pollbox.py` (a poll is a body widget, not an attachment one)
+  instead of the module being declared an exception.
+- The `dim opacity` work left `style.css`'s `color-mix(… 55% …)` alone, and
+  the access keys re-word about 55 strings: both catalogues' fuzzy counts are
+  in `Docs/localization.md`.
 
 ---
 

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-16 13:20-0300\n"
+"POT-Creation-Date: 2026-10-16 13:26-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -1372,60 +1372,60 @@ msgstr "Nachrichten der Server-Administratoren werden hier angezeigt"
 msgid "Mark All as Read"
 msgstr "Alle als gelesen markieren"
 
-#: src/auth.py:288
+#: src/auth.py:292
 #, python-format
 msgid "Could not register with %s"
 msgstr "Registrierung bei %s fehlgeschlagen"
 
-#: src/auth.py:297
+#: src/auth.py:301
 msgid "Finish authorizing moderation in the web browser"
 msgstr "Schließen Sie die Moderationsautorisierung im Webbrowser ab"
 
-#: src/auth.py:299
+#: src/auth.py:303
 msgid "Finish logging in with the web browser"
 msgstr "Schließen Sie die Anmeldung im Webbrowser ab"
 
-#: src/auth.py:421
+#: src/auth.py:425
 msgid "Babble could not use this login"
 msgstr "Babble konnte diese Anmeldung nicht verwenden"
 
-#: src/auth.py:422
+#: src/auth.py:426
 msgid "Return to Babble and try logging in again."
 msgstr "Zur Babble zurückkehren und erneut anmelden."
 
 #. Translators: heading of the web page the browser shows
 #. once it has handed the login back to the app
-#: src/auth.py:427
+#: src/auth.py:431
 msgid "Logged in with Babble"
 msgstr "Mit Babble angemeldet"
 
-#: src/auth.py:428
+#: src/auth.py:432
 msgid "You can close this tab and return to Babble."
 msgstr "Du kannst dieses Tab schließen und zu Babble zurückkehren."
 
-#: src/auth.py:508
+#: src/auth.py:512
 #, python-format
 msgid "Authorization failed: %s"
 msgstr "Autorisierung fehlgeschlagen: %s"
 
-#: src/auth.py:519
+#: src/auth.py:523
 msgid "Authorization failed"
 msgstr "Autorisierung fehlgeschlagen"
 
-#: src/auth.py:533
+#: src/auth.py:537
 msgid "Could not verify the account"
 msgstr "Das Konto konnte nicht überprüft werden"
 
-#: src/auth.py:585
+#: src/auth.py:589
 #, python-format
 msgid "Logged in as @%s"
 msgstr "Angemeldet als @%s"
 
-#: src/auth.py:590
+#: src/auth.py:594
 msgid "Could not save the login"
 msgstr "Die Anmeldung konnte nicht gespeichert werden"
 
-#: src/auth.py:591
+#: src/auth.py:595
 #, python-format
 msgid ""
 "The system keyring refused to store the login for @%s. Check that a keyring "
@@ -1434,11 +1434,11 @@ msgstr ""
 "Der System-Schlüsselbund hat die Anmeldung für @%s nicht gespeichert. Prüfen "
 "Sie, ob ein Schlüsselbunddienst läuft, und versuchen Sie es erneut."
 
-#: src/auth.py:610 src/auth.py:626
+#: src/auth.py:614 src/auth.py:630
 msgid "The system keyring refused to store the login."
 msgstr "Der System-Schlüsselbund hat die Anmeldung nicht gespeichert."
 
-#: src/auth.py:634
+#: src/auth.py:638
 msgid "Moderation access granted"
 msgstr "Moderationszugriff erteilt"
 
@@ -3417,135 +3417,79 @@ msgstr "Ungültige Serveradresse: %s"
 msgid "Babble only connects over HTTPS: %s"
 msgstr "Babble verbindet sich nur über HTTPS: %s"
 
-#: src/mastodon.py:608
+#: src/mastodon.py:607
 #, fuzzy
 msgid "Operation canceled"
 msgstr "Unterhaltung gelöscht"
 
-#: src/mastodon.py:613
+#: src/mastodon.py:612
 msgid "Request failed"
 msgstr "Aktualisierung fehlgeschlagen"
 
-#: src/mastodon.py:621
+#: src/mastodon.py:620
 msgid "Invalid address"
 msgstr "Ungültige Adresse"
 
-#: src/mastodon.py:676
+#: src/mastodon.py:675
 #, python-format
 msgid "Rate limited by this server. Trying again in %d second."
 msgid_plural "Rate limited by this server. Trying again in %d seconds."
 msgstr[0] "Dieser Server begrenzt Anfragen. Neuer Versuch in %d Sekunde."
 msgstr[1] "Dieser Server begrenzt Anfragen. Neuer Versuch in %d Sekunden."
 
-#: src/mastodon.py:718
+#: src/mastodon.py:717
 #, python-format
 msgid "Invalid address: %s"
 msgstr "Ungültige Adresse: %s"
 
-#: src/mastodon.py:939
+#: src/mastodon.py:938
 msgid "The server did not return an application id."
 msgstr "Der Server gab keine Anwendungs-ID zurück."
 
-#: src/mastodon.py:1022
+#: src/mastodon.py:1021
 msgid "This login cannot be signed out on the server."
 msgstr "Diese Anmeldung kann nicht auf dem Server abgemeldet werden."
 
-#: src/mediabox.py:127 src/mediabox.py:128 src/statusviews.py:271
-#: src/statusviews.py:272
-msgid "Your vote"
-msgstr "Ihre Stimme"
-
-#: src/mediabox.py:158
-msgid "_Vote"
-msgstr "_Abstimmen"
-
-#: src/mediabox.py:165
-msgid "Show _Results"
-msgstr "_Ergebnisse anzeigen"
-
-#: src/mediabox.py:171
-msgid "_Back to Voting"
-msgstr "_Zurück zur Abstimmung"
-
-#: src/mediabox.py:182
-#, python-format
-msgid "%d voter"
-msgid_plural "%d voters"
-msgstr[0] "%d Teilnehmer"
-msgstr[1] "%d Teilnehmende"
-
-#: src/mediabox.py:184 src/notifications.py:813
-#, python-format
-msgid "%d vote"
-msgid_plural "%d votes"
-msgstr[0] "%d Stimme"
-msgstr[1] "%d Stimmen"
-
-#: src/mediabox.py:186
-msgid "Closed"
-msgstr "Beendet"
-
-#: src/mediabox.py:189
-#, python-format
-msgid "%s left"
-msgstr "Noch %s"
-
-#: src/mediabox.py:189 src/scheduled.py:288
-msgid "Open"
-msgstr "Öffnen"
-
-#: src/mediabox.py:194
-msgid "Refresh Results"
-msgstr "Ergebnisse aktualisieren"
-
-#: src/mediabox.py:219
-msgid "Vote failed"
-msgstr "Abstimmung fehlgeschlagen"
-
-#: src/mediabox.py:230 src/notificationctrl.py:213 src/timelinepage.py:523
-msgid "Refresh failed"
-msgstr "Aktualisierung fehlgeschlagen"
-
-#: src/mediabox.py:421
+#: src/mediabox.py:220
 msgid "Show Previous Boosts"
 msgstr "Vorherige geteilte Beiträge anzeigen"
 
-#: src/mediabox.py:423
+#: src/mediabox.py:222
 msgid "Show Next Boosts"
 msgstr "Nächste geteilte Beiträge anzeigen"
 
-#: src/mediabox.py:486
+#: src/mediabox.py:285
 #, python-format
 msgid "%d Boost"
 msgid_plural "%d Boosts"
 msgstr[0] "%d-mal geteilt"
 msgstr[1] "%d-mal geteilt"
 
-#: src/mediabox.py:575 src/mediabox.py:665 src/mediaviewer.py:984
+#: src/mediabox.py:374 src/mediabox.py:464 src/mediaviewer.py:984
 msgid "Image"
 msgstr "Bild"
 
-#: src/mediabox.py:575 src/mediaviewer.py:984
+#: src/mediabox.py:374 src/mediaviewer.py:984
 msgid "Video"
 msgstr "Video"
 
-#: src/mediabox.py:576
+#: src/mediabox.py:375
 msgid "Animated Image"
 msgstr "Animiertes Bild"
 
-#: src/mediabox.py:576 src/mediaviewer.py:985
+#: src/mediabox.py:375 src/mediaviewer.py:985
 msgid "Audio"
 msgstr "Audio"
 
-#: src/mediabox.py:634 src/mediabox.py:802
+#: src/mediabox.py:433 src/mediabox.py:601
 msgid "Show Sensitive Content"
 msgstr "Heiklen Inhalt anzeigen"
 
-#: src/mediabox.py:641 src/mediabox.py:799
+#: src/mediabox.py:440 src/mediabox.py:598
 msgid "Hide Sensitive Content"
 msgstr "Heiklen Inhalt ausblenden"
 
-#: src/mediabox.py:740 src/mediaviewer.py:986 src/notifications.py:839
+#: src/mediabox.py:539 src/mediaviewer.py:986 src/notifications.py:839
 msgid "Attachment"
 msgstr "Anhang"
 
@@ -3923,6 +3867,10 @@ msgstr "Von Ihnen zitierte Beiträge, die bearbeitet wurden"
 msgid "Server administrators only"
 msgstr "Nur Server-Administratoren"
 
+#: src/notificationctrl.py:213 src/pollbox.py:226 src/timelinepage.py:523
+msgid "Refresh failed"
+msgstr "Aktualisierung fehlgeschlagen"
+
 #: src/notificationctrl.py:311
 #, python-format
 msgid "%d filtered notification request"
@@ -4233,6 +4181,13 @@ msgstr "%(day)d. %(month)s"
 msgid "Read More"
 msgstr "Weiterlesen"
 
+#: src/notifications.py:813 src/pollbox.py:180
+#, python-format
+msgid "%d vote"
+msgid_plural "%d votes"
+msgstr[0] "%d Stimme"
+msgstr[1] "%d Stimmen"
+
 #: src/notifications.py:826
 #, python-format
 msgid "%d sensitive attachment"
@@ -4497,6 +4452,51 @@ msgstr "Weitere konnten nicht geladen werden"
 #: src/pages.py:685
 msgid "This account’s handle could not be verified"
 msgstr "Der Handle dieses Kontos konnte nicht verifiziert werden"
+
+#: src/pollbox.py:123 src/pollbox.py:124 src/statusviews.py:271
+#: src/statusviews.py:272
+msgid "Your vote"
+msgstr "Ihre Stimme"
+
+#: src/pollbox.py:154
+msgid "_Vote"
+msgstr "_Abstimmen"
+
+#: src/pollbox.py:161
+msgid "Show _Results"
+msgstr "_Ergebnisse anzeigen"
+
+#: src/pollbox.py:167
+msgid "_Back to Voting"
+msgstr "_Zurück zur Abstimmung"
+
+#: src/pollbox.py:178
+#, python-format
+msgid "%d voter"
+msgid_plural "%d voters"
+msgstr[0] "%d Teilnehmer"
+msgstr[1] "%d Teilnehmende"
+
+#: src/pollbox.py:182
+msgid "Closed"
+msgstr "Beendet"
+
+#: src/pollbox.py:185
+#, python-format
+msgid "%s left"
+msgstr "Noch %s"
+
+#: src/pollbox.py:185 src/scheduled.py:288
+msgid "Open"
+msgstr "Öffnen"
+
+#: src/pollbox.py:190
+msgid "Refresh Results"
+msgstr "Ergebnisse aktualisieren"
+
+#: src/pollbox.py:215
+msgid "Vote failed"
+msgstr "Abstimmung fehlgeschlagen"
 
 #: src/portals.py:157
 msgid "Deliver notifications while the window is closed"

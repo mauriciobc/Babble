@@ -63,6 +63,7 @@ install_data(
   'notificationctrl.py',
   'notifications.py',
   'pages.py',
+  'pollbox.py',
   'portals.py',
   'preferences.py',
   'profile.py',
