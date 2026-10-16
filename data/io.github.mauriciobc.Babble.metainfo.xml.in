@@ -17,11 +17,11 @@
       <li>Posts with media, content warnings and polls</li>
     </ul>
   </description>
-  <url type="homepage">https://github.com/mauriciobc/babble</url>
-  <url type="bugtracker">https://github.com/mauriciobc/babble/issues</url>
-  <url type="vcs-browser">https://github.com/mauriciobc/babble</url>
-  <url type="contribute">https://github.com/mauriciobc/babble/graphs/contributors</url>
-  <url type="translate">https://github.com/mauriciobc/babble/blob/main/Docs/localization.md</url>
+  <url type="homepage">https://github.com/mauriciobc/Babble</url>
+  <url type="bugtracker">https://github.com/mauriciobc/Babble/issues</url>
+  <url type="vcs-browser">https://github.com/mauriciobc/Babble</url>
+  <url type="contribute">https://github.com/mauriciobc/Babble/graphs/contributors</url>
+  <url type="translate">https://github.com/mauriciobc/Babble/blob/main/Docs/localization.md</url>
   <launchable type="desktop-id">io.github.mauriciobc.Babble.desktop</launchable>
   <update_contact>mauriciobc_AT_github.com</update_contact>
   <content_rating type="oars-1.1">
@@ -30,11 +30,11 @@
   </content_rating>
   <screenshots>
     <screenshot type="default">
-      <image type="source">https://raw.githubusercontent.com/mauriciobc/babble/main/data/screenshots/timeline.png</image>
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/c8167680e235726189f949fb3de7cea27c8be75b/data/screenshots/timeline.png</image>
       <caption>Home timeline with posts, media and the action bar</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/mauriciobc/babble/main/data/screenshots/thread.png</image>
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/c8167680e235726189f949fb3de7cea27c8be75b/data/screenshots/thread.png</image>
       <caption>A thread, with the focused post and its replies</caption>
     </screenshot>
   </screenshots>
@@ -80,6 +80,10 @@
         </p>
       </description>
     </release>
-    <release version="0.1.0" date="2026-10-10"/>
+    <release version="0.1.0" date="2026-10-10">
+      <description>
+        <p>Initial public release.</p>
+      </description>
+    </release>
   </releases>
 </component>

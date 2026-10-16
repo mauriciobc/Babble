@@ -633,7 +633,9 @@ class BabbleComposeView(Adw.Bin):
         pages.connect_weak(self.thread_toggle, 'toggled',
                            self.on_draft_changed)
 
-        options = Gtk.Box(spacing=6)
+        # Own WrapBox: a non-wrapping Gtk.Box of visibility + language +
+        # counter overflowed the bottom sheet at 360 px with 1.5× text.
+        options = Adw.WrapBox(child_spacing=6, line_spacing=6)
         self.visibility_row = _make_dropdown(VISIBILITIES,
                                              _('Post Visibility'))
         self.language_row = _make_dropdown(LANGUAGES, _('Post Language'))

@@ -209,9 +209,40 @@ class PreferencesDialog(Adw.PreferencesDialog):
         group.add(row)
         return row
 
-    def _combo_string(self, group, key, title, choices, subtitle=None,
-                      sync=False):
-        """ComboRow over a string key; *choices* is (nick, label)…"""
+    def _combo_enum(self, group, key, title, choices, subtitle=None,
+                    sync=False):
+        """ComboRow over an enum GSettings key; *choices* is
+        (nick, label)… in schema order (0-based).
+
+        ``settings.bind`` cannot attach an enum key to ``selected``
+        (GIO treats the key as type ``s``), and PyGObject's
+        ``bind_with_mapping`` does not marshal the ``GValue`` out-param,
+        so the index is synced with ``get_enum`` / ``set_enum``.
+        """
+        row = Adw.ComboRow(
+            title=title, subtitle=subtitle or '', use_underline=True,
+            model=Gtk.StringList.new([choice[1] for choice in choices]))
+        row.set_selected(self.settings.get_enum(key))
+        pages.connect_weak(row, 'notify::selected', self._on_enum_selected,
+                           key, sync)
+        pages.connect_weak(self.settings, 'changed::' + key,
+                           self._on_enum_setting_changed, row)
+        group.add(row)
+        return row
+
+    def _on_enum_selected(self, row, _pspec, key, sync):
+        index = row.get_selected()
+        if index != self.settings.get_enum(key):
+            self.settings.set_enum(key, index)
+            if sync:
+                self._sync(key)
+
+    def _on_enum_setting_changed(self, settings, key, row):
+        row.set_selected(settings.get_enum(key))
+
+    def _combo_string(self, group, key, title, choices, subtitle=None):
+        """ComboRow over a plain string key; *choices* is (nick, label)…
+        Used when the value set is open-ended (e.g. interface language)."""
         nicks = [choice[0] for choice in choices]
         row = Adw.ComboRow(
             title=title, subtitle=subtitle or '', use_underline=True,
@@ -220,19 +251,17 @@ class PreferencesDialog(Adw.PreferencesDialog):
         row.set_selected(nicks.index(current) if current in nicks else 0)
 
         pages.connect_weak(row, 'notify::selected', self._on_combo_selected,
-                           key, nicks, sync)
-        # Follow outside changes (e.g. the keyboard font-size shortcuts).
+                           key, nicks)
+        # Follow outside changes (e.g. dconf-editor).
         pages.connect_weak(self.settings, 'changed::' + key,
                            self._on_combo_setting_changed, row, nicks)
         group.add(row)
         return row
 
-    def _on_combo_selected(self, row, _pspec, key, nicks, sync):
+    def _on_combo_selected(self, row, _pspec, key, nicks):
         value = nicks[row.get_selected()]
         if value != self.settings.get_string(key):
             self.settings.set_string(key, value)
-            if sync:
-                self._sync(key)
 
     def _on_combo_setting_changed(self, settings, key, row, nicks):
         if settings.get_string(key) in nicks:
@@ -252,9 +281,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
             subtitle=_('Takes effect the next time Babble starts'))
         pages.connect_weak(row, 'notify::selected',
                            self._on_interface_language_selected)
-        self._combo_string(appearance, 'color-scheme', _('_Color Scheme'),
-                           [(n, label) for n, label, _v in COLOR_SCHEMES])
-        self._combo_string(
+        self._combo_enum(appearance, 'color-scheme', _('_Color Scheme'),
+                         [(n, label) for n, label, _v in COLOR_SCHEMES])
+        self._combo_enum(
             appearance, 'text-size', _('_Text Size'), TEXT_SIZES,
             subtitle=_('Set the text size used in the interface'))
         self._switch(appearance, 'larger-line-height', _('Large _Line Height'),
@@ -281,7 +310,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._switch(posts, 'letterbox-media', _('_Letterbox Media'),
                      _('Scale down and letterbox media to fill the '
                        'image containers instead of cropping them'))
-        self._combo_string(
+        self._combo_enum(
             posts, 'media-viewer-mode', _('_Open Photos'),
             MEDIA_VIEWER_MODES,
             subtitle=_('How a photo opens in the viewer: as a box over '
@@ -417,20 +446,20 @@ class PreferencesDialog(Adw.PreferencesDialog):
         group = Adw.PreferencesGroup(
             title=_('Defaults for New Posts'),
             description=_('Changes are also saved to your server preferences'))
-        self._combo_string(group, 'default-visibility',
-                           _('Default _Visibility'), VISIBILITIES,
-                           sync=True)
-        self._combo_string(group, 'default-quote-policy',
-                           _('Default _Quote Policy'), QUOTE_POLICIES,
-                           # There is no per-post quote policy in the API:
-                           # the only place it is set is the account's own
-                           # source preferences, which is where this is
-                           # sent. Say so, rather than letting the row
-                           # read as a Babble-side switch.
-                           subtitle=_('Saved to your server preferences; '
-                                       'the API sets it per account, not '
-                                       'per post'),
-                           sync=True)
+        self._combo_enum(group, 'default-visibility',
+                         _('Default _Visibility'), VISIBILITIES,
+                         sync=True)
+        self._combo_enum(group, 'default-quote-policy',
+                         _('Default _Quote Policy'), QUOTE_POLICIES,
+                         # There is no per-post quote policy in the API:
+                         # the only place it is set is the account's own
+                         # source preferences, which is where this is
+                         # sent. Say so, rather than letting the row
+                         # read as a Babble-side switch.
+                         subtitle=_('Saved to your server preferences; '
+                                     'the API sets it per account, not '
+                                     'per post'),
+                         sync=True)
         self._language_row(group)
         row = self._switch(group, 'default-sensitive',
                            _('Mark Media as _Sensitive'))

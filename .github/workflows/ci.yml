@@ -67,6 +67,9 @@ jobs:
           NO_AT_BRIDGE: 1
           GTK_A11Y: none
         run: |
+          # Without pipefail the pipeline's status is tee's, so a failing
+          # suite still leaves this step green. The suite is the gate.
+          set -o pipefail
           xvfb-run -a dbus-run-session -- \
             meson test -C build -j1 --print-errorlogs 2>&1 | tee ci.log
 
@@ -137,8 +140,17 @@ jobs:
             org.gnome.Sdk//51 org.gnome.Platform//51
           # rofiles-fuse is unavailable in the runner's kernel namespace;
           # without this every app install step hangs on it.
+          # Mirror the screenshots into the Flathub media URL space:
+          # without that, flatpak-builder-lint's builddir check fails on
+          # appstream-external-screenshot-url (the metainfo points at
+          # raw.githubusercontent.com). No --compose-url-policy: the
+          # runner's flatpak-builder (1.4.2 on noble) predates that flag,
+          # and the builddir check reads the mirror-rewritten metainfo
+          # anyway. Do not use --user-exceptions; linter exceptions are
+          # human-only material.
           flatpak-builder --user --force-clean \
             --disable-rofiles-fuse \
+            --mirror-screenshots-url=https://dl.flathub.org/media \
             build-flatpak \
             build-aux/flatpak/io.github.mauriciobc.Babble.json
 
@@ -169,10 +181,9 @@ jobs:
         # read it with. The flathub remote is already added by the build
         # step above, which is why this only installs.
         #
-        # Unverified locally: flatpak-builder-lint is not installed on
-        # a development machine, so this step's first real run is CI's.
         # A wrong tool invocation fails loudly here rather than passing
-        # quietly.
+        # quietly: this builddir check is what caught the screenshots
+        # that were not mirrored.
         run: |
           flatpak install --user -y flathub org.flatpak.Builder
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \

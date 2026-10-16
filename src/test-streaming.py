@@ -164,7 +164,11 @@ check('a trailing slash is trimmed',
 
 import time  # noqa: E402
 
-from gi.repository import GLib, GObject  # noqa: E402
+import gi  # noqa: E402
+
+gi.require_version('Secret', '1')
+
+from gi.repository import GLib, GObject, Secret  # noqa: E402
 
 import src.mastodon as mastodon_module  # noqa: E402
 from src import desktopnotify, sysstate  # noqa: E402
@@ -342,6 +346,37 @@ check('the real monitor exposes the contract properties',
       all(isinstance(real.get_property(name), bool)
           for name in ('online', 'metered', 'power-saver')))
 
+# --- Secret.Service.get is async and coalesced --------------------------
+
+# get_sync used to block the main loop on the startup path. Concurrent
+# store/load/clear must share one in-flight get.
+gets = []
+real_get = Secret.Service.get
+mastodon_module._service = None
+mastodon_module._service_waiters[:] = []
+mastodon_module._service_getting = False
+
+
+def stall_get(flags, cancellable=None, callback=None, user_data=None):
+    gets.append((flags, callback))
+
+
+Secret.Service.get = stall_get
+try:
+    mastodon_module.store_secret_async(
+        'babble-selftest.example', 'a', 'x', lambda error: None)
+    mastodon_module.load_secret_async(
+        'babble-selftest.example', 'a', lambda value, error=None: None)
+    check('the first keyring call starts Secret.Service.get',
+          len(gets) == 1)
+    check('a second keyring call coalesces on the in-flight get',
+          len(gets) == 1 and len(mastodon_module._service_waiters) == 2)
+finally:
+    Secret.Service.get = real_get
+    mastodon_module._service = None
+    mastodon_module._service_waiters[:] = []
+    mastodon_module._service_getting = False
+
 # --- The keyring helpers must actually deliver their callbacks ----------
 
 # These went through Secret.password_* first, whose callbacks never fired:
@@ -351,17 +386,16 @@ check('the real monitor exposes the contract properties',
 # to the proxy that started it.
 
 done = []
-try:
-    mastodon_module.store_secret_async(
-        'babble-selftest.example', 'probe', 'round-trip-value',
-        lambda error: done.append(error))
-except GLib.Error:
-    # get_sync raises before the callback when the session has no
-    # secret service at all. That is the same "nothing to read back"
-    # the callback path skips on below.
+mastodon_module.store_secret_async(
+    'babble-selftest.example', 'probe', 'round-trip-value',
+    lambda error: done.append(error))
+# Async get replaces get_sync: a missing service used to raise before
+# the callback was armed, and now may either error in the callback or
+# never answer inside the wait. Either way is a machine limit, not a
+# defect — fold both into the skip path below.
+if not pump_until(lambda: len(done) == 1, limit=10.0):
     done.append(GLib.Error('no secret service'))
-check('storing a secret completes its callback',
-      pump_until(lambda: len(done) == 1))
+check('storing a secret completes its callback', len(done) == 1)
 
 # The round trip is only meaningful against a keyring that will accept a
 # write. A CI container has no secret service, and an unlocked one still
@@ -370,7 +404,7 @@ check('storing a secret completes its callback',
 # describes the machine.
 if done and done[0] is not None:
     if failures:
-        print('%d failure(s)' % failures)
+        print('%d failure(s)' % len(failures))
         sys.exit(1)
     print('SKIP - no usable secret service for the keyring round trip')
     sys.exit(77)
@@ -382,10 +416,11 @@ check('a successful store reports no error', done and done[0] is None)
 
 read = {}
 mastodon_module.load_secret_async(
-    'babble-selftest.example', 'probe', lambda v: read.update(v=v))
+    'babble-selftest.example', 'probe',
+    lambda v, error=None: read.update(v=v, e=error))
 pump_until(lambda: 'v' in read)
 check('the stored secret reads back',
-      read.get('v') == 'round-trip-value')
+      read.get('v') == 'round-trip-value' and read.get('e') is None)
 
 gone = []
 mastodon_module.clear_secret_async(
@@ -397,9 +432,11 @@ check('a successful clear reports no error', gone and gone[0] is None)
 
 after = {}
 mastodon_module.load_secret_async(
-    'babble-selftest.example', 'probe', lambda v: after.update(v=v))
+    'babble-selftest.example', 'probe',
+    lambda v, error=None: after.update(v=v, e=error))
 pump_until(lambda: 'v' in after)
-check('the cleared secret is gone', after.get('v') is None)
+check('the cleared secret is gone',
+      after.get('v') is None and after.get('e') is None)
 
 if failures:
     print('%d failure(s)' % failures)

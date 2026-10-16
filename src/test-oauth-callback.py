@@ -854,8 +854,8 @@ class DeferredTokenClient(StubClient):
     def load_secret_token(self, account_id, callback, cancellable=None):
         self.pending.append(callback)
 
-    def answer(self, token):
-        self.pending.pop(0)(token)
+    def answer(self, token, error=None):
+        self.pending.pop(0)(token, error)
 
 
 win, toasts = fresh_window()
@@ -908,6 +908,25 @@ try:
           win.main_stack.get_visible_child_name() == 'shell')
     check('a stale empty reply does not forget the account',
           forgotten == [])
+
+    # A locked or unreachable keyring is not "no login". Deleting the
+    # account (and its Catch-Up snapshots) on GError was the bug.
+    forgotten.clear()
+    toast_count = len(toasts)
+    win._activate_account(
+        {'id': '9', 'instance': 'https://k.example', 'acct': 'kept'},
+        login_only=True)
+    DeferredTokenClient.created[-1].answer(
+        None,
+        GLib.Error('keyring locked', 'g-io-error-quark',
+                   int(Gio.IOErrorEnum.FAILED)))
+    pump()
+    check('a keyring error does not forget the account',
+          forgotten == [])
+    check('a keyring error reports that the keyring failed',
+          any('keyring' in t.lower() for t in toasts[toast_count:]))
+    check('a keyring error leaves the login page up',
+          win.main_stack.get_visible_child_name() == 'login')
 finally:
     window_module.MastodonClient = _real_client_class
 

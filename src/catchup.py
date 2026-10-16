@@ -135,6 +135,26 @@ def period_label(period):
         % (hours or 24)
 
 
+def period_menu_label(period):
+    """``period_label`` with a unique access key for the period menu."""
+    hours = PERIOD_HOURS.get(period)
+    if period == 'since':
+        return _('Since the _last catch-up')
+    if period == 'max':
+        return _('As _far back as possible')
+    if hours == 1:
+        return _('Last _hour')
+    if hours == 3:
+        return _('Last _3 hours')
+    if hours == 6:
+        return _('Last _6 hours')
+    if hours == 12:
+        return _('Last 1_2 hours')
+    if hours == 24:
+        return _('Last 2_4 hours')
+    return period_label(period)
+
+
 def period_title(period):
     """The results title, one translatable string per period."""
     hours = PERIOD_HOURS.get(period)
@@ -1282,7 +1302,7 @@ class CatchUpPage(Adw.Bin):
         menu = Gio.Menu()
         periods = Gio.Menu()
         for period in self._period_choices():
-            item = Gio.MenuItem.new(period_label(period), None)
+            item = Gio.MenuItem.new(period_menu_label(period), None)
             item.set_action_and_target_value(
                 'catchup.period', GLib.Variant('s', period))
             periods.append_item(item)
@@ -1294,7 +1314,7 @@ class CatchUpPage(Adw.Bin):
                 item.set_attribute_value(
                     'custom', GLib.Variant('s', 'snapshot:' + meta['id']))
                 previous.append_item(item)
-            menu.append_section(_('Previous catch-ups'), previous)
+            menu.append_section(_('_Previous catch-ups'), previous)
         footer = Gio.Menu()
         item = Gio.MenuItem.new(None, None)
         item.set_attribute_value('custom', GLib.Variant('s', 'footnote'))

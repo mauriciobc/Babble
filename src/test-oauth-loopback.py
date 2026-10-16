@@ -96,6 +96,14 @@ class StubClient(MastodonClient):
         else:
             return None
         task = Gio.Task.new(self, cancellable, callback)
+        # Honour the cancellable the way a real Gio call would: a
+        # cancelled object must not deliver a successful registration,
+        # or a stuck LoginFlow cancellable looks fine in this suite.
+        if cancellable is not None and cancellable.is_cancelled():
+            task.return_error(GLib.Error(
+                'Operation was cancelled', 'g-io-error-quark',
+                int(Gio.IOErrorEnum.CANCELLED)))
+            return task
         task.return_value(GLib.Variant('s', json.dumps(
             {'data': data, 'link': ''})))
         return task
@@ -294,6 +302,27 @@ win.on_oauth_callback(OAUTH_REDIRECT + '?code=y&state=' + client._state)
 pump()
 check('the babble:// callback still exchanges on babble://',
       client.exchanges == [('y', OAUTH_REDIRECT)])
+
+# --- cancel then login again must use a fresh cancellable --------------
+
+# The window cancels LoginFlow on every account switch and sign-out. A
+# cancelled GCancellable stays cancelled, so begin() has to install a
+# new one or the next POST /apps fails instantly.
+win, opened = fresh_window()
+client = start_login(win)
+check('a first login registers', client is not None and bool(client.forms))
+dead = win.auth._cancellable
+win.auth.cancel()
+check('cancel marks the previous cancellable', dead.is_cancelled())
+check('cancel installs a fresh cancellable',
+      win.auth._cancellable is not dead
+      and not win.auth._cancellable.is_cancelled())
+opened.clear()
+StubClient.instances.clear()
+client = start_login(win)
+check('login after cancel registers again',
+      client is not None and bool(client.forms))
+check('login after cancel opens the browser', bool(opened))
 
 if failures:
     print('%d checks failed' % len(failures))

@@ -357,7 +357,8 @@ try:
     # Activation
     call_sync(shell, 'ActivateResult', ('acct:1', ['ali'], 42), '(sasu)')
     spin(20)
-    check(window.presented[-1] == 42, 'window presented with the timestamp')
+    # GTK 4.14 dropped present_with_time; the D-Bus timestamp is ignored.
+    check(window.presented[-1] is None, 'window presented')
     check(routes and routes[-1][0] == 'profile'
           and routes[-1][1] is window and routes[-1][2] is window.client
           and routes[-1][3]['id'] == '1',
@@ -376,10 +377,12 @@ try:
     page = window._place_children.get('search')
     check(page is not None and page.queries[-1] == ('#ali', True),
           'search: opens the search page with the terms submitted')
+    before = len(window.presented)
     call_sync(shell, 'LaunchSearch', (['foo', 'bar'], 46), '(asu)')
     spin(20)
     check(page.queries[-1] == ('foo bar', True)
-          and window.presented[-1] == 46,
+          and len(window.presented) == before + 1
+          and window.presented[-1] is None,
           'LaunchSearch passes the joined terms to the search page')
 
     # Ensure this process-local settings backend has no active account.
