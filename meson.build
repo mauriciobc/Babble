@@ -1,4 +1,4 @@
-project('babble', version: '0.1.0', meson_version: '>= 1.0.0')
+project('babble', version: '0.2.0', meson_version: '>= 1.0.0')
 
 dependency('gtk4', version: '>= 4.24')
 dependency('libadwaita-1', version: '>= 1.10')

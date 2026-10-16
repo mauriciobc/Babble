@@ -52,6 +52,28 @@
   </supports>
   <translation type="gettext">babble</translation>
   <releases>
+    <release version="0.2.0" date="2026-10-16">
+      <description>
+        <p>
+          Babble now has a Help menu item and a F1 shortcut that open a
+          help viewer on pages shipped with the app, falling back to the
+          online documentation when no viewer is installed.
+        </p>
+        <p>
+          Preferences can be searched, and opening them again brings the
+          dialog you already have up instead of a second copy.
+        </p>
+        <p>Other changes:</p>
+        <ul>
+          <li>The attachment viewer no longer overflows a narrow window.</li>
+          <li>Text size and line height now apply to every kind of text, not just labels.</li>
+          <li>Charts and buttons stay readable in high contrast.</li>
+          <li>The Catch-Up chart and filter controls are announced by screen readers.</li>
+          <li>One emphasised button per view in the list, hashtag and report editors.</li>
+          <li>US spelling, and "for example" instead of "e.g.", in the interface text.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-10"/>
   </releases>
 </component>
