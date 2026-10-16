@@ -12,7 +12,7 @@ meson compile -C build                    # builds the gresource bundle, the lau
 meson test -C build                       # all tests
 meson test -C build 'timeline memory'     # one test, by the name given in src/meson.build
 meson test -C build -v 'compose widgets'  # -v shows the test's ok/FAIL lines
-python3 build/src/babble                  # uninstalled run; not executable until installed, and only works with the build dir directly inside the source tree (it resolves ../../src)
+GSETTINGS_SCHEMA_DIR=$PWD/build/data python3 build/src/babble  # uninstalled run; not executable until installed, and only works with the build dir directly inside the source tree (it resolves ../../src). Without the schema dir it aborts: "Settings schema … is not installed"
 ```
 
 Test names (besides the `validate …` and `po check <lang>` tests): `timeline render`, `timeline memory`, `thread profile render`, `compose widgets`, `notifications render`, `oauth callback`, `oauth loopback`, `error summary`, `streaming helpers`, `account store`, `status text`, `search provider`, `catchup digest`, `catchup rank`, `catchup page`, `catchup grid`, `app lifecycle`, `schedule dialog`, `style css`, `ui strings`.
