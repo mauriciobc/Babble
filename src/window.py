@@ -58,6 +58,14 @@ HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
 # still serves to this one (the "View live and topic feeds" permission).
 SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
 
+# The help pages, and where they live when no help viewer answers. The
+# Mallard pages are installed under share/help/<lang>/<app id>/, which is
+# where Yelp looks for a yelp:// URI naming this id.
+HELP_URI = 'yelp://io.github.mauriciobc.Babble'
+PROJECT_URL = 'https://github.com/mauriciobc/babble'
+ISSUES_URL = PROJECT_URL + '/issues'
+DOCS_URL = PROJECT_URL + '/blob/main/Docs/README.md'
+
 
 def place_title(tag):
     return {
@@ -386,6 +394,10 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _refresh_draft_banner(self, *_args):
         drafts_ = self._local_drafts()
+        # The banner exists to offer this, so its button is the
+        # suggested one (AdwBanner:button-style, since 1.7).
+        self.draft_banner.set_button_style(
+            Adw.BannerButtonStyle.SUGGESTED)
         self.draft_banner.set_revealed(bool(drafts_))
         when = relative_time(drafts_[0][1].saved_at) if drafts_ else ''
         if when:
@@ -1568,6 +1580,23 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _on_auth_browser(self, _flow, uri):
         self.open_url(uri)
+
+    def open_help(self):
+        """Open the installed help pages (F1, or the primary menu).
+
+        The Mallard pages ship in the bundle and are found by any help
+        viewer at ``HELP_URI``. A viewer is not guaranteed -- an
+        unsandboxed host may have none, and a Flatpak cannot see the
+        host's viewer at all -- so a refusal opens the online copy of the
+        documentation instead of doing nothing."""
+        def launched(launcher, result):
+            try:
+                launcher.launch_finish(result)
+            except GLib.Error:
+                self.open_url(DOCS_URL)
+
+        launcher = Gtk.UriLauncher.new(HELP_URI)
+        launcher.launch(self, None, launched)
 
     def open_url(self, uri):
         """Open *uri* in the web browser through the portal, falling back

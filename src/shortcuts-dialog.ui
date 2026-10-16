@@ -21,6 +21,12 @@
         </child>
         <child>
           <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Help</property>
+            <property name="action-name">app.help</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
             <property name="title" translatable="yes">Main Menu</property>
             <property name="accelerator">F10</property>
           </object>

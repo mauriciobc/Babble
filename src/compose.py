@@ -161,8 +161,10 @@ def countable_length(text, spoiler_text='', url_chars=URL_PLACEHOLDER_CHARS):
 def _make_dropdown(options, label):
     dropdown = Gtk.DropDown(model=Gtk.StringList.new(
         [text for _code, text in options]))
+    # .flat on the DropDown is the documented way to do this; reaching
+    # into its child to add the class again styled libadwaita's internals,
+    # which is not ours to keep in step with.
     dropdown.add_css_class('flat')
-    dropdown.get_first_child().add_css_class('flat')
     dropdown.set_valign(Gtk.Align.CENTER)
     _set_label(dropdown, label)
     return dropdown

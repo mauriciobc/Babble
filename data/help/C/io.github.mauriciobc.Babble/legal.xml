@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<license xmlns="http://projectmallard.org/1.0/">
+  <info>
+    <title type="link">Legal</title>
+    <title type="text">Legal</title>
+  </info>
+  <section id="license" style="2column">
+    <title>License</title>
+    <p>
+      Babble is free software: you can redistribute it and modify it under
+      the terms of the GNU General Public License as published by the Free
+      Software Foundation, either version 3 of the License, or (at your
+      option) any later version.
+    </p>
+    <p>
+      Babble is distributed in the hope that it will be useful, but WITHOUT
+      ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+      FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+      more details.
+    </p>
+    <p>
+      You should have received a copy of the GNU General Public License along
+      with this program. If not, see the license in the About dialog.
+    </p>
+  </section>
+</license>

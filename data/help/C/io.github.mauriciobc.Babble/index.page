@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      xmlns:its="http://www.w3.org/2005/11/its"
+      xmlns:mal="http://projectmallard.org/1.0/"
+      type="guide" id="index" xml:lang="C">
+
+  <info>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Babble Help</title>
+    <title type="link">Babble Help</title>
+    <credit type="author">
+      <name>Mauricio BC</name>
+    </credit>
+    <include xmlns="http://www.w3.org/2001/XInclude" href="legal.xml"/>
+  </info>
+
+  <title>Babble Help</title>
+
+  <section id="start" style="2column">
+    <title>Getting Started</title>
+    <p>
+      Babble is a Mastodon client. It reads and posts on any Mastodon
+      server, and on the other servers that server federates with. Start by
+      typing your server's address on the welcome screen and choosing
+      <guiseq><gui>Continue</gui><gui>Continue with…</gui></guiseq>.
+    </p>
+    <p>
+      Your browser opens the server's own sign-in page. Babble never sees
+      your password: the server hands back a token, and only that token is
+      stored, in your system keyring.
+    </p>
+    <note style="important">
+      <title>Ask only once</title>
+      <p>
+        Babble asks for the <sys>read write</sys> scopes. Moderation
+        permissions are requested separately, and only when you open the
+        Admin Dashboard.
+      </p>
+    </note>
+    <p>
+      If the browser does not come back on its own, Babble offers an
+      <gui>Enter Authorization Code…</gui> button so you can paste the code
+      the server shows you by hand.
+    </p>
+  </section>
+
+  <section id="reading" style="2column">
+    <title>Reading</title>
+    <p>
+      The places in the sidebar are the feeds you read. <gui>Home</gui> is
+      the timeline of the accounts you follow, <gui>Notifications</gui>
+      collects mentions and the rest, and <gui>Conversations</gui> holds
+      direct messages. <gui>Local</gui> and <gui>Federated</gui> are your
+      server's public timelines.
+    </p>
+    <p>
+      With live updates on, new posts arrive as they are posted. When the
+      stream cannot connect, Babble keeps polling and catches up on what it
+      missed when the connection returns.
+    </p>
+    <p>
+      <gui>Catch Up</gui> is the reading-back feature: pick a window of time,
+      and it ranks the posts you missed by how much they are worth your
+      attention, keeping that run frozen as a snapshot you can page through.
+    </p>
+    <p>
+      Every list keeps its place: scrolling position and loaded posts
+      survive switching away and coming back.
+    </p>
+  </section>
+
+  <section id="writing" style="2column">
+    <title>Writing</title>
+    <p>
+      <gui>New Post</gui>, or Ctrl+N, opens the composer. It checks spelling,
+      completes <guiseq><gui>@mentions</gui></guiseq> and hashtags as you
+      type, and accepts images, video and audio up to what your server
+      allows.
+    </p>
+    <p>
+      Attach media by choosing it in the composer, by pasting or dragging
+      it in, or by taking a screenshot from the clipboard. Posts can be
+      scheduled, and drafts are kept for you: close the composer with
+      something half-written and Babble offers it back on the next launch.
+    </p>
+    <p>
+      Ctrl+Enter sends. Escape closes the composer without sending.
+    </p>
+  </section>
+
+  <section id="desktop" style="2column">
+    <title>Desktop Integration</title>
+    <p>
+      Babble registers as a handler for <sys>babble://</sys> login
+      redirects, for <sys>web+ap://</sys> object links and for
+      <sys>web+mastodon://</sys> intents, so a link from another
+      application opens here instead of in the browser.
+    </p>
+    <p>
+      Files handed to Babble — an image chosen in your file manager, say —
+      open in the composer, ready to post.
+    </p>
+    <p>
+      Babble appears in the Activities overview search as a search provider,
+      where you can look up a post without opening the window first.
+    </p>
+    <p>
+      With <gui>Keep Running in the Background</gui> on, closing the window
+      leaves Babble running so notifications still arrive; the dock icon
+      brings the window back.
+    </p>
+  </section>
+
+  <section id="settings" style="2column">
+    <title>Settings</title>
+    <p>
+      Preferences opens with Ctrl+, and can be searched by typing. It covers
+      the interface text size and line height, how posts refresh, desktop and
+      server notifications, and the defaults a new post starts from.
+    </p>
+    <p>
+      A few settings only reach as far as your server: default visibility,
+      language and content warnings are stored in your server preferences,
+      so they follow you to any other Mastodon client.
+    </p>
+    <p>
+      Changing the interface language takes effect the next time Babble
+      starts.
+    </p>
+  </section>
+
+  <section id="problems" style="2column">
+    <title>Common Problems</title>
+    <p>
+      If the computer has no network, Babble says so in a banner and keeps
+      trying; the banner goes away by itself once the network is back.
+    </p>
+    <p>
+      If a login disappears from the keyring, Babble forgets that account
+      rather than retrying forever. Sign in again from the welcome screen.
+    </p>
+    <p>
+      A server that does not support a feature hides it: Collections and the
+      Admin Dashboard appear only where the server has them, so an older
+      Mastodon shows a smaller menu rather than an error.
+    </p>
+  </section>
+
+  <section id="keys" style="2column">
+    <title>Keyboard</title>
+    <p>
+      Ctrl+N writes, Ctrl+F searches, Ctrl+R reloads, Ctrl+1 through Ctrl+9
+      jump between places, Alt+Left goes back and Ctrl+, opens Preferences.
+      Press <key>F1</key> for this help, or Ctrl+? to list every shortcut.
+    </p>
+  </section>
+
+</page>

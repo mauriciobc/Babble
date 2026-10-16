@@ -184,7 +184,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
     __gtype_name__ = 'BabblePreferencesDialog'
 
     def __init__(self, window):
-        super().__init__(title=_('Preferences'))
+        # Six pages of settings: searchable, so a row can be found by its
+        # name instead of hunted for down the list.
+        super().__init__(title=_('Preferences'), search_enabled=True)
         self.window = window
         self.settings = window.settings
         self.add(self._general_page())
@@ -454,8 +456,20 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._sync('default-sensitive')
 
     def _on_server_activated(self, _row, instance):
-        Gtk.UriLauncher.new('%s/settings/preferences' % instance).launch(
-            self.window, None, None)
+        uri = '%s/settings/preferences' % instance
+
+        def launched(launcher, result):
+            try:
+                launcher.launch_finish(result)
+            except GLib.Error as error:
+                # Without a callback the refusal is silent, and the row
+                # looks like it did nothing. The wording is the one
+                # window.open_url already uses, so it is one string.
+                pages.report_error(self, _('Could not open the web browser'),
+                                   error)
+
+        launcher = Gtk.UriLauncher.new(uri)
+        launcher.launch(self.window, None, launched)
 
     def _language_row(self, group):
         codes = [''] + [code for code, _n in LANGUAGES]
@@ -548,6 +562,16 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
 
 def present_preferences(window):
+    """The preferences dialog for *window*, reusing the open one.
+
+    ``app.preferences`` can be activated while the dialog is already up.
+    A second instance would be a second window over the first, with two
+    views writing the same settings, so the visible one is raised
+    instead."""
+    visible = window.get_visible_dialog()
+    if isinstance(visible, PreferencesDialog):
+        visible.present(window)
+        return visible
     dialog = PreferencesDialog(window)
     dialog.present(window)
     return dialog
