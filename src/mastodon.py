@@ -287,7 +287,7 @@ def _with_secret_service(callback):
         for waiter in waiters:
             waiter(service, error)
 
-    Secret.Service.get(Secret.ServiceFlags.NONE, None, done)
+    Secret.Service.get(Secret.ServiceFlags.NONE, None, done, None)
 
 
 def store_secret_async(instance, kind, payload, callback=None,
