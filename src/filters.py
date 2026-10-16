@@ -152,6 +152,8 @@ class FilterEditPage(Adw.NavigationPage):
     __gtype_name__ = 'BabbleFilterEditPage'
 
     def __init__(self, client, item=None, on_saved=None):
+        # The tag is what edit() looks the page up by, so it stays here
+        # rather than on the push.
         super().__init__(title=_('Edit Filter') if item else _('New Filter'),
                          tag='filter-edit')
         self.client = client
@@ -425,7 +427,17 @@ class FiltersList(Adw.Bin):
         self.edit(None)
 
     def edit(self, item=None):
-        self.navigation_view.push(
+        view = self.navigation_view
+        # The editor is already an AdwNavigationPage, so it cannot go
+        # through pages.push_page (that wraps its child in another one).
+        # The guard is the same one push_page does: an editor already on
+        # the stack is popped back to instead of being stacked twice,
+        # which is also what keeps one tag to one page.
+        existing = view.find_page('filter-edit')
+        if existing is not None:
+            view.pop_to_page(existing)
+            return
+        view.push(
             FilterEditPage(self.client, item, on_saved=self._on_saved))
 
     def _on_saved(self, _item):

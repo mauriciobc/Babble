@@ -431,8 +431,12 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self.follow_button = Gtk.Button(valign=Gtk.Align.CENTER)
         self.follow_button.add_css_class('pill')
         connect_weak(self.follow_button, 'clicked', self.on_follow_clicked)
-        self.action_bar = Gtk.ActionBar(revealed=self._signed_in())
-        self.action_bar.pack_end(self.follow_button)
+        # A plain box, not a GtkActionBar: the bar is only ever
+        # constructed with revealed=self._signed_in() and never animated
+        # after, and the switcher bar above goes into the same slot as a
+        # bare widget. One bar type for one slot.
+        self.action_bar = Gtk.Box(spacing=6, halign=Gtk.Align.END)
+        self.action_bar.append(self.follow_button)
         if self._signed_in():
             label = _('More Options')
             self.menu_button = Gtk.MenuButton(
@@ -441,7 +445,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
             self.menu_button.add_css_class('flat')
             self.menu_button.update_property(
                 [Gtk.AccessibleProperty.LABEL], [label])
-            self.action_bar.pack_end(self.menu_button)
+            self.action_bar.append(self.menu_button)
 
         self._build_actions()
 

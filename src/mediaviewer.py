@@ -757,7 +757,6 @@ class MediaViewer(Adw.Bin):
 
         self.error_page = Adw.StatusPage(
             icon_name='dialog-error-symbolic', vexpand=True)
-        self.error_page.add_css_class('compact')
         self.error_buttons = Gtk.Box(halign=Gtk.Align.CENTER, spacing=12)
         self.retry_button = Gtk.Button(label=_('_Try Again'),
                                        use_underline=True)
@@ -1239,14 +1238,19 @@ class MediaViewer(Adw.Bin):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18,
                       halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
         box.add_css_class('media-viewer-audio')
+        # No width-request anywhere in this pane. The window declares a
+        # 360 px floor (window.ui), and a hard minimum above it is not
+        # something the clamp can shrink: the control bar was asking for
+        # 420 px and was simply clipped on a narrow window. Letting the
+        # cover and the icon size from their paintable, and the controls
+        # from the clamp's maximum, is what makes the pane fit 360 px and
+        # still fill a wide one.
         cover = Gtk.Picture(
             content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True,
-            width_request=320, height_request=320,
             accessible_role=Gtk.AccessibleRole.IMG)
         cover.add_css_class('media-viewer-cover')
         icon = Gtk.Image(icon_name='audio-x-generic-symbolic',
-                         pixel_size=128, width_request=320,
-                         height_request=320)
+                         pixel_size=128)
         icon.add_css_class('media-viewer-audio-icon')
         icon.set_visible(True)
         cover.set_visible(False)
@@ -1258,8 +1262,9 @@ class MediaViewer(Adw.Bin):
                     cover.set_visible(True)
                     icon.set_visible(False)
             load_texture(preview, on_cover, self._cancellable)
-        controls = Gtk.MediaControls(media_stream=stream, width_request=420)
-        clamp = Adw.Clamp(maximum_size=520, child=controls)
+        controls = Gtk.MediaControls(media_stream=stream)
+        clamp = Adw.Clamp(maximum_size=520, tightening_threshold=400,
+                          child=controls)
         box.append(cover)
         box.append(icon)
         box.append(clamp)
