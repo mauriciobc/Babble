@@ -760,7 +760,7 @@ view.on_remove_attachment(row.remove_button, row)
 check('attachment removed', len(view.attachments()) == 0)
 
 # Dialog: draft survives close and re-present, title follows reply state.
-app_window = Adw.ApplicationWindow()
+app_window = Adw.ApplicationWindow(default_width=1000, default_height=900)
 app_window.present()
 dialog = ComposeDialog(client)
 dialog.present(app_window)
@@ -768,6 +768,42 @@ pump(200)
 check('dialog title new post', dialog.get_title() == _('New Post'))
 check('dialog focus widget is text view',
       dialog.get_focus() is dialog.view.text_view)
+# The dialog follows the composer's natural height: no blank below
+# the text area, and it grows when the toolbar reveals the poll.
+natural = dialog.view.measure(Gtk.Orientation.VERTICAL,
+                             dialog.view.get_width())[1]
+# The width asked for is COMPOSE_WIDTH whatever the toolbar's labels
+# say; how much of it is granted depends on the window, which Xvfb may
+# not give its default size.
+sizer = dialog.view.get_parent()
+check('dialog keeps its width',
+      sizer.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+      == compose.COMPOSE_WIDTH
+      and dialog.view.get_width() <= compose.COMPOSE_WIDTH,
+      '%d' % dialog.view.get_width())
+del sizer
+check('dialog height fits its content',
+      abs(dialog.view.get_height() - natural) <= 1,
+      '%d vs natural %d' % (dialog.view.get_height(), natural))
+plain_height = dialog.view.get_height()
+dialog.view.poll_toggle.set_active(True)
+pump(600)
+check('dialog grows with the poll',
+      dialog.view.get_height() > plain_height,
+      '%d vs %d' % (dialog.view.get_height(), plain_height))
+dialog.view.poll_toggle.set_active(False)
+pump(600)
+check('dialog shrinks back without the poll',
+      dialog.view.get_height() == plain_height,
+      '%d vs %d' % (dialog.view.get_height(), plain_height))
+# A narrow window still fits it: only the natural width is pinned.
+app_window.set_default_size(360, 900)
+pump(400)
+check('dialog fits a narrow window',
+      dialog.view.get_width() <= 360,
+      '%d' % dialog.view.get_width())
+app_window.set_default_size(1000, 900)
+pump(400)
 dialog.view.buffer.set_text('kept draft')
 dialog.close()
 pump(200)

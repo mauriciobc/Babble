@@ -16,6 +16,13 @@
   background-blend-mode: overlay;
 }
 
+/* The list paints the view background by default, which would cover
+   the canvas with a plain column behind the cards. */
+.timeline-list listview,
+.notification-list-scroller listview {
+  background: none;
+}
+
 /* The wallpaper is decoration, not content: at high contrast the
    canvas is the window/foreground mix on its own, and a picture
    behind it only muddies the text it is meant to sit under. The mix

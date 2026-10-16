@@ -473,12 +473,41 @@ except Exception as error:                          # noqa: BLE001
 
 # The shell wraps its content in a Gtk.Overlay for the media viewer; a
 # bare window here would take the viewer out as its own top-level.
-host = Adw.Window(content=Gtk.Overlay())
+host = Adw.Window(content=Gtk.Overlay(), default_width=1000,
+                  default_height=800)
 host.present()
+# The shell itself is an Adw.ApplicationWindow, which is not an
+# Adw.Window: it has to be overlaid too, not given a window of its own.
+app_host = Adw.ApplicationWindow(content=Gtk.Overlay())
+check('the viewer overlays an application window',
+      mediaviewer.media_overlay(app_host) is app_host.get_content())
+app_host.destroy()
 viewer = mediaviewer.present_media(
     host.get_content(),
     [{'type': 'unknown', 'url': 'https://example.org/media/a.bin'}])
 settle()
+# The box is inset from the window, follows it as it is resized, and
+# gives the inset back when the window is too small for it.
+card = viewer._card
+inset = mediaviewer.VIEWER_MARGIN
+settle(lambda: card.get_width() == host.get_width() - 2 * inset)
+check('the viewer box is inset from the window',
+      card.has_css_class('media-viewer-box')
+      and card.get_width() == host.get_width() - 2 * inset)
+host.set_default_size(800, 700)
+settle(lambda: card.get_width() == host.get_width() - 2 * inset)
+check('the viewer box follows the window as it is resized',
+      card.get_width() == host.get_width() - 2 * inset)
+host.set_default_size(360, 700)
+settle(lambda: card.get_width() == host.get_width())
+check('a narrow window gives the photo the whole window',
+      viewer.compact and not card.has_css_class('media-viewer-box')
+      and card.get_width() == host.get_width())
+host.set_default_size(1000, 800)
+settle(lambda: card.has_css_class('media-viewer-box'))
+check('a wide window brings the box back',
+      not viewer.compact and card.has_css_class('media-viewer-box'))
+card = None
 viewer._on_texture(texture, None)
 check('Copy Image accepts the displayed texture', viewer.copy_image())
 check('Copy Image puts a texture on the clipboard',

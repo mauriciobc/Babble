@@ -47,6 +47,8 @@ URL_PLACEHOLDER_CHARS = 23
 # instance-aware one.
 MAX_ATTACHMENTS = 4
 MAX_POLL_CHOICES = 4
+# The composer dialog's width when the window has room for it.
+COMPOSE_WIDTH = 600
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 SCREENSHOT_PORTAL = 'org.freedesktop.portal.Screenshot'
 
@@ -1632,6 +1634,34 @@ class BabbleComposeView(Adw.Bin):
         self.update_compose_state()
 
 
+class _ComposeWidth(Gtk.Widget):
+    """Holds the composer at COMPOSE_WIDTH wide where the window allows
+    it. A dialog that follows its content takes the natural width too,
+    and the composer's own would change with the toolbar's labels; the
+    minimum is left alone, so a narrow window still fits it."""
+
+    __gtype_name__ = 'BabbleComposeWidth'
+
+    def __init__(self, child):
+        super().__init__(accessible_role=Gtk.AccessibleRole.PRESENTATION)
+        child.set_parent(self)
+
+    def do_measure(self, orientation, for_size):
+        minimum, natural, _, _ = self.get_first_child().measure(
+            orientation, for_size)
+        if orientation == Gtk.Orientation.HORIZONTAL:
+            natural = max(minimum, COMPOSE_WIDTH)
+        return (minimum, natural, -1, -1)
+
+    def do_size_allocate(self, width, height, baseline):
+        self.get_first_child().allocate(width, height, baseline, None)
+
+    def do_dispose(self):
+        while (child := self.get_first_child()) is not None:
+            child.unparent()
+        Gtk.Widget.do_dispose(self)
+
+
 class ComposeDialog(Adw.Dialog):
     """Composer dialog. Keep one instance per client and present it
     repeatedly: closing keeps the draft."""
@@ -1639,12 +1669,16 @@ class ComposeDialog(Adw.Dialog):
     __gtype_name__ = 'BabbleComposeDialog'
 
     def __init__(self, client, **kwargs):
-        super().__init__(content_width=600, content_height=480, **kwargs)
+        # The dialog follows the composer's size rather than a fixed
+        # content size: no blank below the text area, and it grows and
+        # shrinks with the warning, poll and attachments the toolbar
+        # reveals. The width is pinned by _ComposeWidth.
+        super().__init__(follows_content_size=True, **kwargs)
         self.view = BabbleComposeView(client)
         self.view._select_visibility(default_visibility())
         pages.connect_weak(self.view, 'changed', self._on_view_changed)
         pages.connect_weak(self, 'closed', self.view.save_local_draft)
-        self.set_child(self.view)
+        self.set_child(_ComposeWidth(self.view))
         self.set_focus(self.view.text_view)
         self._on_view_changed(self.view)
 
