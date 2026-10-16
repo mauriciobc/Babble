@@ -82,10 +82,12 @@ def operator_hints():
     return (
         ('from:', _('From a User'),
          # Translators: keep the "from:" operator and the examples as-is
-         _('Posts by one account, e.g. from:me or from:user@example.social')),
+         _('Posts by one account, for example from:me or '
+           'from:user@example.social')),
         ('has:', _('Containing'), _('has:media, has:poll or has:embed')),
         ('is:', _('Kind of Post'), _('is:reply or is:sensitive')),
-        ('language:', _('Language'), _('Two-letter code, e.g. language:pt')),
+        ('language:', _('Language'),
+         _('Two-letter code, for example language:pt')),
         ('before:', _('Before a Date'), _('before:2025-01-31')),
         ('after:', _('After a Date'), _('after:2025-01-31')),
         ('during:', _('On a Date'), _('during:2025-01-31')),
@@ -343,8 +345,8 @@ class SearchPage(Adw.Bin):
         self.tips_group = Adw.PreferencesGroup(
             title=_('Search Tips'),
             description=_('Add operators to narrow posts down. Prefix one '
-                          'with “-” to exclude it, e.g. -is:reply. Search '
-                          'operators may not work on every server.'))
+                          'with “-” to exclude it, for example -is:reply. '
+                          'Search operators may not work on every server.'))
         for operator, title, description in operator_hints():
             row = Adw.ActionRow(title=title, subtitle=description,
                                 activatable=True, use_markup=False)
@@ -586,8 +588,8 @@ class AdvancedSearchDialog(ToastDialog):
 
         intro = Adw.PreferencesGroup(
             description=_('Advanced search may not work on every server. '
-                          'Invert an option by prefixing it with “-”, e.g. '
-                          '-is:reply hides replies.'))
+                          'Invert an option by prefixing it with “-”, for '
+                          'example -is:reply hides replies.'))
         self.query_row = Adw.EntryRow(title=_('Query'))
         self.user_row = Adw.EntryRow(title=_('From User'))
         self.reply_row = Adw.SwitchRow(title=_('Only Replies'))
@@ -614,7 +616,8 @@ class AdvancedSearchDialog(ToastDialog):
                 _('Library (Favorites, Bookmarks, Own Posts)'),
                 _('Public')]))
         where.add(self.scope_row)
-        self.language_row = Adw.EntryRow(title=_('Language Code (e.g. pt)'))
+        self.language_row = Adw.EntryRow(
+            title=_('Language Code (for example pt)'))
         self.language_row.set_max_length(8)
         where.add(self.language_row)
         self.page.add(where)
