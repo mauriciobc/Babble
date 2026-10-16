@@ -16,6 +16,13 @@
   background-blend-mode: overlay;
 }
 
+/* The list paints the view background by default, which would cover
+   the canvas with a plain column behind the cards. */
+.timeline-list listview,
+.notification-list-scroller listview {
+  background: none;
+}
+
 .status-row {
   background-color: var(--card-bg-color);
   color: var(--card-fg-color);
