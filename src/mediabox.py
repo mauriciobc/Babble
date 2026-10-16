@@ -101,7 +101,8 @@ class CardPreview(Gtk.Button):
         description.add_css_class('caption')
         description.add_css_class('dimmed')
         parts = split_url(self._href)
-        info = Gtk.Label(label=url_host(parts) if parts else '', xalign=0.0)
+        info = Gtk.Label(label=url_host(parts) if parts else '', xalign=0.0,
+                         ellipsize=Pango.EllipsizeMode.END)
         info.add_css_class('caption')
         info.add_css_class('dimmed')
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
@@ -391,6 +392,14 @@ class BlurredPicture(Gtk.Picture):
 
 FOOTNOTE_LINES = 2
 
+
+def _one_paragraph(text):
+    """*text* with its line breaks as spaces. A label's line limit is per
+    paragraph (Pango counts a negative height that way), so a description
+    with breaks, such as a quoted email, would show two lines of each."""
+    return ' '.join(text.split())
+
+
 class MediaBox(Gtk.Box):
     """Adaptive attachment grid: 1 full / 2 side-by-side / 3-4 in a 2x2
     grid, with ALT and GIF badges. Clicking a tile opens the media
@@ -511,7 +520,8 @@ class MediaBox(Gtk.Box):
         if footnotes:
             notes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             for note in footnotes:
-                label = Gtk.Label(label=note, xalign=0.0, wrap=True,
+                label = Gtk.Label(label=_one_paragraph(note), xalign=0.0,
+                                  wrap=True,
                                   wrap_mode=Pango.WrapMode.WORD_CHAR,
                                   hexpand=True, lines=FOOTNOTE_LINES,
                                   ellipsize=Pango.EllipsizeMode.END)
@@ -521,11 +531,11 @@ class MediaBox(Gtk.Box):
                 label.set_cursor_from_name('pointer')
                 click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
                 connect_weak(click, 'released', self._on_footnote_clicked,
-                             label)
+                             label, note)
                 label.add_controller(click)
                 keys = Gtk.EventControllerKey()
                 connect_weak(keys, 'key-pressed',
-                             self._on_footnote_key, label)
+                             self._on_footnote_key, label, note)
                 label.add_controller(keys)
                 notes.append(label)
             box.append(notes)
@@ -564,9 +574,10 @@ class MediaBox(Gtk.Box):
             return True
         return False
 
-    def _on_footnote_key(self, _controller, keyval, _keycode, _state, label):
+    def _on_footnote_key(self, _controller, keyval, _keycode, _state, label,
+                         note):
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
-            self._toggle_footnote(label)
+            self._toggle_footnote(label, note)
             return True
         return False
 
@@ -601,21 +612,23 @@ class MediaBox(Gtk.Box):
             button.set_label(_('Show Sensitive Content'))
             button.remove_css_class('flat')
 
-    def _on_footnote_clicked(self, gesture, _n_press, _x, _y, label):
+    def _on_footnote_clicked(self, gesture, _n_press, _x, _y, label, note):
         """A description cut at two lines opens on click and closes on
         the next one."""
         # Claim the click: otherwise the ListView's single-click
         # activation opens the thread of the containing row too.
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
-        self._toggle_footnote(label)
+        self._toggle_footnote(label, note)
 
-    def _toggle_footnote(self, label):
+    def _toggle_footnote(self, label, note):
         if label.get_lines() == FOOTNOTE_LINES:
             label.set_lines(-1)
             label.set_ellipsize(Pango.EllipsizeMode.NONE)
+            label.set_label(note)
         else:
             label.set_lines(FOOTNOTE_LINES)
             label.set_ellipsize(Pango.EllipsizeMode.END)
+            label.set_label(_one_paragraph(note))
 
 
 # Settings, locale and status helpers

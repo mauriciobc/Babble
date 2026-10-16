@@ -26,7 +26,7 @@ gi.require_version('Soup', '3.0')
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import imagecache  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .pages import connect_weak, weak_method  # noqa: E402
 
 EMOJI_RE = re.compile(r':([A-Za-z0-9_+\-]+):')
 
@@ -192,6 +192,8 @@ class InlineEmojiText(Gtk.TextView):
         self._style_ids = []
         # Pango layout of the current text for do_measure's estimate.
         self._estimate_layout = None
+        # Width the height was last checked against in do_size_allocate.
+        self._checked_width = 0
         # Height forced by the show more / less animation.
         self._height_override = None
         self.set_editable(False)
@@ -305,6 +307,30 @@ class InlineEmojiText(Gtk.TextView):
         height = layout.get_pixel_size()[1] + self.get_top_margin() \
             + self.get_bottom_margin()
         return height, height, -1, -1
+
+    def do_size_allocate(self, width, height, baseline):
+        Gtk.TextView.do_size_allocate(self, width, height, baseline)
+        if width == self._checked_width \
+                or self._height_override is not None \
+                or self.get_wrap_mode() == Gtk.WrapMode.NONE:
+            return
+        self._checked_width = width
+        # The height this was allocated was measured at another width:
+        # do_measure's plain-text estimate before the first allocation
+        # (no inline images, no taller emoji lines), or the previous
+        # width, which Gtk.TextView answers with whatever width it is
+        # asked about. A list view measures its rows again; a plain box
+        # (the thread view) keeps the stale height and clips the text.
+        real = Gtk.TextView.do_measure(
+            self, Gtk.Orientation.VERTICAL, width)[1]
+        if real != height:
+            # A resize queued during allocation is dropped; queue it for
+            # the next frame.
+            self.add_tick_callback(weak_method(self._requeue_resize))
+
+    def _requeue_resize(self, _widget, _clock):
+        self.queue_resize()
+        return GLib.SOURCE_REMOVE
 
     def _estimate(self):
         """Pango layout of the plain text, for measuring before (or
