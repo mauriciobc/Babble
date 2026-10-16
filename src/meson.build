@@ -63,6 +63,7 @@ install_data(
   'notificationctrl.py',
   'notifications.py',
   'pages.py',
+  'pollbox.py',
   'portals.py',
   'preferences.py',
   'profile.py',
@@ -196,6 +197,11 @@ test('mediaviewer helpers', python,
   env: test_env,
   timeout: 60,
 )
+test('mediabox keyboard', python,
+  args: [files('test-mediabox.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('notifications error policy', python,
   args: [files('test-notifications-errors.py')],
   env: test_env,
@@ -218,6 +224,11 @@ test('account store', python,
 )
 test('local drafts', python,
   args: [files('test-drafts-local.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('preferences schema', python,
+  args: [files('test-preferences-schema.py')],
   env: test_env,
   timeout: 60,
 )

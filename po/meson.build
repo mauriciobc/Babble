@@ -5,7 +5,7 @@
 # come from the build. (Meson's own msgid_bugs_address would say this
 # more directly; it is not in the i18n module before 1.13.)
 i18n.gettext('babble', preset: 'glib',
-  args: ['--msgid-bugs-address=https://github.com/mauriciobc/babble/issues'],
+  args: ['--msgid-bugs-address=https://github.com/mauriciobc/Babble/issues'],
 )
 
 # A msgstr whose format specifiers do not match its msgid raises at

@@ -1,10 +1,15 @@
 /build
 /build-flatpak
+/builddir
 /.flatpak-builder
 /repo
 
 __pycache__/
 *.pyc
+
+# Compiled catalogues are build output: meson writes them under the build
+# directory, and a stray one made by hand must not be committed.
+*.mo
 
 # Local design references (Phanpy comparison screenshots)
 .reference/

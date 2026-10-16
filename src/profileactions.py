@@ -88,53 +88,59 @@ class ProfileActions:
         following = bool(rs.get('following'))
         menu = Gio.Menu()
 
+        # Access keys are unique across the whole menu (not per section).
         compose = Gio.Menu()
-        compose.append(_('Mention'), 'profile.mention')
+        compose.append(_('_Mention'), 'profile.mention')
         if not mine:
-            compose.append(_('Direct Message'), 'profile.direct')
+            compose.append(_('_Direct Message'), 'profile.direct')
         menu.append_section(None, compose)
 
         share = Gio.Menu()
-        share.append(_('Copy Handle'), 'profile.copy-handle')
-        share.append(_('Copy Link'), 'profile.copy-link')
-        share.append(_('Open in Browser'), 'profile.open-browser')
+        share.append(_('Copy _Handle'), 'profile.copy-handle')
+        share.append(_('_Copy Link'), 'profile.copy-link')
+        share.append(_('Open in _Browser'), 'profile.open-browser')
         menu.append_section(None, share)
 
         if not mine:
             relation = Gio.Menu()
             if following:
-                relation.append(_('Receive Post Notifications'),
+                relation.append(_('Receive Post _Notifications'),
                                 'profile.notify')
-                relation.append(_('Feature on Profile'), 'profile.endorse')
+                relation.append(_('_Feature on Profile'), 'profile.endorse')
                 relation.append(
-                    _('Show Boosts') if rs.get('showing_reblogs') is False
-                    else _('Hide Boosts'),
+                    _('Show Boo_sts') if rs.get('showing_reblogs') is False
+                    else _('Hide Boo_sts'),
                     'profile.show-boosts'
                     if rs.get('showing_reblogs') is False
                     else 'profile.hide-boosts')
-                relation.append(_('Add or Remove from Lists…'),
+                relation.append(_('Add or Remove from _Lists…'),
                                 'profile.lists')
-            relation.append(_('Private Note…'), 'profile.private-note')
+            relation.append(_('_Private Note…'), 'profile.private-note')
             if rs.get('followed_by'):
-                relation.append(_('Remove from Followers'),
+                relation.append(_('_Remove from Followers'),
                                 'profile.remove-follower')
             menu.append_section(None, relation)
 
             moderation = Gio.Menu()
+            # Not _Mute: _Mention already takes M. Not U_nmute: Receive
+            # Post _Notifications already takes N when that row is shown.
             moderation.append(
-                _('Unmute') if rs.get('muting') else _('Mute…'),
+                _('Unmu_te') if rs.get('muting') else _('M_ute…'),
                 'profile.unmute' if rs.get('muting') else 'profile.mute')
+            # Not _Block: Open in _Browser already takes B.
             moderation.append(
-                _('Unblock') if rs.get('blocking') else _('Block…'),
+                _('Unbloc_k') if rs.get('blocking') else _('Bloc_k…'),
                 'profile.unblock' if rs.get('blocking')
                 else 'profile.block')
             if self._remote_domain():
                 moderation.append(
-                    _('Unblock Domain') if rs.get('domain_blocking')
-                    else _('Block Domain…'),
+                    _('Unblock Dom_ain') if rs.get('domain_blocking')
+                    else _('Block Dom_ain…'),
                     'profile.unblock-domain' if rs.get('domain_blocking')
                     else 'profile.block-domain')
-            moderation.append(_('Report…'), 'profile.report')
+            moderation.append(_('R_eport…'), 'profile.report')
+            # A section title is drawn as a plain label: an underscore in
+            # it shows up as an underscore.
             menu.append_section(_('Moderation'), moderation)
 
         for name, key in (('notify', 'notifying'), ('endorse', 'endorsed')):

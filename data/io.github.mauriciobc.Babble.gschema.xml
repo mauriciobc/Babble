@@ -1,15 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="babble">
+  <!-- Enum integer values match AdwComboRow selected indices (0-based). -->
   <enum id="io.github.mauriciobc.Babble.TextSize">
-    <value nick="small" value="1"/>
-    <value nick="normal" value="2"/>
-    <value nick="large" value="3"/>
+    <value nick="small" value="0"/>
+    <value nick="normal" value="1"/>
+    <value nick="large" value="2"/>
   </enum>
   <enum id="io.github.mauriciobc.Babble.PostVisibility">
-    <value nick="public" value="1"/>
-    <value nick="unlisted" value="2"/>
-    <value nick="private" value="3"/>
-    <value nick="direct" value="4"/>
+    <value nick="public" value="0"/>
+    <value nick="unlisted" value="1"/>
+    <value nick="private" value="2"/>
+    <value nick="direct" value="3"/>
+  </enum>
+  <enum id="io.github.mauriciobc.Babble.ColorScheme">
+    <value nick="system" value="0"/>
+    <value nick="light" value="1"/>
+    <value nick="dark" value="2"/>
+  </enum>
+  <enum id="io.github.mauriciobc.Babble.MediaViewerMode">
+    <value nick="box" value="0"/>
+    <value nick="fullscreen" value="1"/>
+  </enum>
+  <enum id="io.github.mauriciobc.Babble.QuotePolicy">
+    <value nick="public" value="0"/>
+    <value nick="followers" value="1"/>
+    <value nick="nobody" value="2"/>
   </enum>
   <schema id="io.github.mauriciobc.Babble" path="/io/github/mauriciobc/Babble/">
     <key name="window-width" type="i">
@@ -28,6 +43,8 @@
       <default>''</default>
       <summary>ID of the active account</summary>
     </key>
+    <!-- String choices (not an enum): nick "0" is under GSettings' 2-char
+         minimum for enum nicks, and callers parse the value as seconds. -->
     <key name="auto-refresh" type="s">
       <choices>
         <choice value="0"/>
@@ -70,12 +87,7 @@
       <default>false</default>
       <summary>Show local and federated timelines the server disabled but this account may still read</summary>
     </key>
-    <key name="color-scheme" type="s">
-      <choices>
-        <choice value="system"/>
-        <choice value="light"/>
-        <choice value="dark"/>
-      </choices>
+    <key name="color-scheme" enum="io.github.mauriciobc.Babble.ColorScheme">
       <default>'system'</default>
       <summary>Style preference: follow the system, light or dark</summary>
     </key>
@@ -115,11 +127,7 @@
       <default>false</default>
       <summary>Letterbox media instead of cropping it to the preview frame</summary>
     </key>
-    <key name="media-viewer-mode" type="s">
-      <choices>
-        <choice value="box"/>
-        <choice value="fullscreen"/>
-      </choices>
+    <key name="media-viewer-mode" enum="io.github.mauriciobc.Babble.MediaViewerMode">
       <default>'box'</default>
       <summary>How the media viewer opens photos: as a box over the window, or filling it</summary>
     </key>
@@ -205,12 +213,7 @@
       <default>''</default>
       <summary>ISO 639-1 language of new posts; empty follows the system locale</summary>
     </key>
-    <key name="default-quote-policy" type="s">
-      <choices>
-        <choice value="public"/>
-        <choice value="followers"/>
-        <choice value="nobody"/>
-      </choices>
+    <key name="default-quote-policy" enum="io.github.mauriciobc.Babble.QuotePolicy">
       <default>'public'</default>
       <summary>Default quote policy on your server account (not per post in Babble)</summary>
     </key>

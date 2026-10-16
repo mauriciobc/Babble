@@ -819,11 +819,11 @@ class ReportDialog(AdminDialogBase):
         pages.confirm(self, heading, body, label, go, destructive=False)
 
     def _on_resolve(self, _button):
-        self._transition('resolve', _('Mark this Report as Resolved?'),
+        self._transition('resolve', _('Mark This Report as Resolved?'),
                          None, _('_Resolve'))
 
     def _on_reopen(self, _button):
-        self._transition('reopen', _('Reopen this Report?'), None,
+        self._transition('reopen', _('Reopen This Report?'), None,
                          _('_Reopen'))
 
     def _on_take_action(self, _button):
@@ -1120,7 +1120,7 @@ class UndoRow(Adw.ActionRow):
         return self._dialog()
 
     def _on_clicked(self, _button):
-        pages.confirm(self.dialog, _('Undo this Action?'), None,
+        pages.confirm(self.dialog, _('Undo This Action?'), None,
                       _('_Undo'), self._undo)
 
     def _undo(self):

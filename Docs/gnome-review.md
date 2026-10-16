@@ -167,7 +167,7 @@ $ flatpak run --command=flatpak-builder-lint org.flatpak.Builder builddir build-
 ```
 
 Cause: the metainfo screenshot URLs point at
-`raw.githubusercontent.com/mauriciobc/babble/main/data/screenshots/…`
+`raw.githubusercontent.com/mauriciobc/Babble/main/data/screenshots/…`
 (`metainfo.xml.in:33,37`) and the CI builds with bare `flatpak-builder`, which
 does not mirror them; the composed catalogue keeps the upstream URLs and the
 linter requires `https://dl.flathub.org/media`. The `manifest` check passes

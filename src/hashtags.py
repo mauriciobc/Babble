@@ -202,8 +202,8 @@ class HashtagPage(Adw.Bin):
 
     def _build_menu(self):
         menu = Gio.Menu()
-        menu.append(_('Remove from Featured Tags') if self.featured_id
-                    else _('Feature on Profile'), 'tag.feature')
+        menu.append(_('_Remove from Featured Tags') if self.featured_id
+                    else _('_Feature on Profile'), 'tag.feature')
         self.more_button.set_menu_model(menu)
 
     def _set_following(self, following):

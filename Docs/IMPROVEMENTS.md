@@ -324,6 +324,69 @@ and the rules are checked, the pixels are not.
 
 ---
 
+## GNOME review 2026-10-16 (third pass — login, keyring, media, menus)
+
+A second audit of the same tree, at `1c0bfcb` (`Docs/gnome-review.md`), after
+the work above had landed. Source and remediation plan:
+`Docs/gnome-review.md`, `Docs/gnome-review-remediation-plan.md`. Its fixes
+ride along with the 0.2.0 work on this branch rather than on a branch of their
+own. Re-check each anchor before acting; the audit's line numbers are for that
+revision.
+
+### Blockers
+
+| ID | Status | Finding | Evidence | Notes |
+|---|---|---|---|---|
+| ARCH-10 | **done** | After account switch/sign-out, login fails until restart: one cancelled `GCancellable` is reused. | `auth.py` `LoginFlow.begin`/`cancel` | Recreate cancellable in `begin()`. Covered by `oauth loopback`. |
+| ARCH-11 | **done** | Unreadable keyring at startup deletes the account and Catch-Up snapshots. | `mastodon.py` `load_secret_async`; `window.py` `_activate_account` | Propagate `GError`; delete only on a genuine absence. Covered by `oauth callback`. |
+| A11Y-10 | **done** | Attachment tiles are pointer-only (no focus, key, or menu route). | `mediabox.py` grid tiles | Focusable button role + key controller, and a `:focus-visible` ring on `.media-tile` — a tab stop with nothing drawn on it is not keyboard access. Covered by `mediabox keyboard`. |
+| PKG-10 | **done** | Suite `| tee` without `pipefail` makes a red suite report green. | `.github/workflows/ci.yml` | `set -o pipefail` in the run block. |
+| PKG-11 | **done** | Flatpak `builddir` lint fails on external screenshot URLs (and main had no lint step). | `ci.yml`, `metainfo.xml.in` | Mirror screenshots on build; add `flatpak-builder-lint`. |
+
+### Should fix (queued)
+
+| ID | Status | Finding | Evidence |
+|---|---|---|---|
+| ARCH-12 | **done** | Cancelled HTTP requests are retried before cancellation surfaces. | `mastodon.py` `_on_response` / `_rest_retry`; `mastodon rest retry` |
+| ARCH-13 | **done** | `Secret.Service.get_sync()` blocks the main loop on startup. | `mastodon.py` `_with_secret_service`; coalesced in `streaming helpers` |
+| A11Y-11 | **done** | Page Up/Down app accelerators steal keys from every text view. | `main.py` / `window.py` local `ShortcutController` |
+| UI-10 | **done** | Composer options row clips at 360 px with 1.5× text. | `compose.py` `build_action_bar` wraps |
+| A11Y-12 | **done** | Account switcher button: tooltip, no accessible name. | `window.ui` `account_button` |
+| A11Y-13 | **done** | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, `conversations.py`, `hashtags.py`, `catchup.py`, `notifications.py`; primary-menu `D` and post-menu `T` duplicates fixed | Keys are unique across a whole open menu, not per section: `statusmenu` moved `Ment_ion`, `M_ute`, `Bloc_k` and `Remove My Post _From Quote` for that reason. The two *section titles* that gained one were reverted — GTK draws those as plain labels and the underscore showed. |
+| UI-11 | **done** | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
+| ARCH-14 | **done** | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings/style/close-request via `connect_weak` |
+
+### Nice to have
+
+| ID | Status | Finding | Evidence | Notes |
+|---|---|---|---|---|
+| COPY-10 | **done** | Header-case `This` in admin confirmations | `admin.py` resolve/reopen/undo | |
+| CSS-10 | **done** | Literal opacities / absolute px in media viewer, emoji picker, Catch-Up | `style.css` | `--dim-opacity` / `--disabled-opacity`; `em` sizes; Catch-Up actions 32 px |
+| A11Y-14 | **done** | Poll vote mark lacks accessible name | `statusviews.py` | |
+| A11Y-15 | **done** | Account switcher tooltip drops instance | `window.py` `show_shell` / `_sign_out_to_login` | |
+| UI-12 | **done** | Media viewer test host used bare `Gtk.Window` | `mediaviewer.py` `present_media` | `Adw.Window` + `set_content` |
+| ARCH-15 | **deferred** | App icon in GResource *and* hicolor | `babble.gresource.xml:8-9` | Uninstalled runs resolve the logo through `IconTheme.add_resource_path`; no `meson devenv` yet. Dropping the aliases risks a missing logo outside an install prefix. Action icons stay in the resource. |
+| NOTIFY-10 | **done** | Desktop notifications never withdrawn | `desktopnotify.py` | Track ids; `withdraw_all` on reset; clear `babble-action-failed` on success |
+| PKG-12 | **done** | Metainfo screenshots on `main`; empty 0.1.0 notes; repo URL casing | `metainfo.xml.in`, `mastodon.py` | Pin screenshot commit; release description; `mauriciobc/Babble` |
+| PREF-10 | **done** | Combo rows hand-roll GSettings sync | `preferences.py`, `gschema.xml` | Enum keys 0-based; `_combo_enum` syncs via `get_enum`/`set_enum` (GIO `bind` sees enums as `s`; PyGObject `bind_with_mapping` does not marshal `GValue`). `auto-refresh` stays a string choice (enum nick `0` is illegal). Covered by `preferences schema`. |
+| OBS-10 | **observe** | `gdk_frame_timings_submitted` once per process after first primary menu | GDK warning under Xvfb | No Python call site; suite stays `fatal-criticals` only. Leave for upstream / local `fatal-warnings` bisect. |
+
+Duplicate access keys (review 14–15) landed with A11Y-13.
+
+Three follow-ups from the review of this list:
+
+- `PKG-11` mirrors the screenshots without `--compose-url-policy`: the
+  runner's flatpak-builder (1.4.2 on noble) does not have that flag, and the
+  builddir check reads the mirror-rewritten metainfo anyway.
+- `mediabox.py` crossed 800 lines with the keyboard path, so `PollBox` moved
+  to `src/pollbox.py` (a poll is a body widget, not an attachment one)
+  instead of the module being declared an exception.
+- The `dim opacity` work left `style.css`'s `color-mix(… 55% …)` alone, and
+  the access keys re-word about 55 strings: both catalogues' fuzzy counts are
+  in `Docs/localization.md`.
+
+---
+
 ## Tier 2 — Consolidation
 
 "Less code for the same behaviour." Every item is mechanical and testable.

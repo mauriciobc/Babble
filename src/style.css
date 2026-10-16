@@ -555,7 +555,8 @@ window.darken-media .darkenable:hover {
 /* Dim favourite, boost and follow rows when the setting is on; hover or
    keyboard focus restores them. */
 .dim-enabled .notification-row.can-be-dimmed {
-  opacity: 0.6;
+  /* Follow libadwaita's helper so high contrast can raise it. */
+  opacity: var(--dim-opacity);
   transition: opacity 150ms ease;
 }
 
@@ -585,7 +586,7 @@ window.darken-media .darkenable:hover {
 
 /* Standard emoji in the composer's emoji chooser. */
 .emoji-picker .emoji-glyph {
-  font-size: 24px;
+  font-size: 1.5em;
 }
 
 /* Opt-in translucent sidebar (window class set from Python). The window
@@ -695,6 +696,13 @@ label.just-toggled {
   outline-offset: -2px;
 }
 
+/* Attachment tiles are tab stops too: the ring is the only cue that the
+   keyboard is on one. */
+.media-tile:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
 /* Text over a picture sits on a dark gradient: that is content, not theme,
    so it is the same in light and dark. */
 .catchup-scrim {
@@ -708,7 +716,9 @@ label.just-toggled {
 }
 
 .catchup-on-image .dimmed {
-  opacity: 0.8;
+  /* Slightly above the theme dim so captions stay readable on the
+     photo scrim; still tracks --dim-opacity under high contrast. */
+  opacity: max(0.8, var(--dim-opacity));
 }
 
 .catchup-cover {
@@ -747,11 +757,12 @@ label.just-toggled {
   box-shadow: 0 0 0 2px var(--card-bg-color);
 }
 
-/* The action bar has to fit a 180 px tile with a count on each button. */
+/* The action bar has to fit a 180 px tile with a count on each button.
+   Keep the 32 px target the neighbouring pill rule already uses. */
 .catchup-tile .catchup-actions button {
   padding: 0 4px;
-  min-height: 28px;
-  min-width: 24px;
+  min-height: 32px;
+  min-width: 32px;
 }
 
 .catchup-tile .catchup-actions button.pill {
@@ -764,5 +775,5 @@ label.just-toggled {
 }
 
 .catchup-tile .catchup-actions buttoncontent image {
-  -gtk-icon-size: 14px;
+  -gtk-icon-size: 0.875em;
 }

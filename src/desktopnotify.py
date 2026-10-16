@@ -101,6 +101,7 @@ class DesktopNotifier(GObject.Object):
         self._application = application
         self._groups = {}
         self._seen = set()
+        self._sent_ids = set()
         self._last_id = None
         self._poll_source = 0
         self._polling_client = None
@@ -117,9 +118,20 @@ class DesktopNotifier(GObject.Object):
 
     def reset(self):
         self.stop_polling()
+        self.withdraw_all()
         self._groups.clear()
         self._seen.clear()
         self._last_id = None
+
+    def withdraw_all(self):
+        """Drop every desktop notification this notifier still owns."""
+        app = self.application()
+        if app is None:
+            self._sent_ids.clear()
+            return
+        for platform_id in self._sent_ids:
+            app.withdraw_notification(platform_id)
+        self._sent_ids.clear()
 
     # Policy
 
@@ -183,6 +195,7 @@ class DesktopNotifier(GObject.Object):
         if len(names) == 1:
             self._add_buttons(note, kind, notification, status)
         app.send_notification(platform_id, note)
+        self._sent_ids.add(platform_id)
         return note
 
     def _add_buttons(self, note, kind, notification, status):
@@ -461,7 +474,13 @@ def _on_activate(action, parameter, app):
         return
     client = MastodonClient(account['instance'])
 
-    def loaded(token):
+    def loaded(token, error=None):
+        if error is not None:
+            if error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                return
+            _report_failure(app, name,
+                            _('Could not read the login from the keyring'))
+            return
         if token is None:
             _report_failure(app, name,
                             _('The login for that account is gone from the '
@@ -482,6 +501,7 @@ def _run(app, client, name, target_id):
         except GLib.Error as error:
             _report_failure(app, name, error.message)
             return
+        app.withdraw_notification('babble-action-failed')
         win = _main_window(app)
         if win is not None and win.get_visible():
             from .pages import show_toast

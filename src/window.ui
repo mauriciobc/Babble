@@ -328,6 +328,9 @@
                                   <property name="prefix">
                                     <object class="GtkMenuButton" id="account_button">
                                       <property name="tooltip-text" translatable="yes">Switch Account</property>
+                                      <accessibility>
+                                        <property name="label" translatable="yes">Switch Account</property>
+                                      </accessibility>
                                       <property name="margin-start">6</property>
                                       <property name="margin-end">6</property>
                                       <property name="margin-top">6</property>
@@ -513,7 +516,7 @@
         <attribute name="action">win.wrapped</attribute>
       </item>
       <item>
-        <attribute name="label" translatable="yes">Admin _Dashboard</attribute>
+        <attribute name="label" translatable="yes">Admin Dash_board</attribute>
         <attribute name="action">win.admin</attribute>
         <attribute name="hidden-when">action-disabled</attribute>
       </item>

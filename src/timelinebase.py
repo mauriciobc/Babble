@@ -168,9 +168,9 @@ _VISIBILITY_LABELS = {
 VISIBILITY_INFO = {code: _VISIBILITY_LABELS[code] for code in VISIBILITIES}
 
 _QUOTE_LABELS = {
-    'public': _('Anyone'),
-    'followers': _('My Followers'),
-    'nobody': _('Nobody'),
+    'public': _('_Anyone'),
+    'followers': _('My _Followers'),
+    'nobody': _('_Nobody'),
 }
 QUOTE_POLICIES = tuple((code, _QUOTE_LABELS[code]) for code in QUOTE_POLICY_CODES)
 
