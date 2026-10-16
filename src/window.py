@@ -160,12 +160,12 @@ class BabbleWindow(Adw.ApplicationWindow):
         # signals; the window keeps only the widgets.
         self.auth = auth.LoginFlow(
             current_account=pages.weak_method(self._signed_in_account))
-        self.auth.connect('succeeded', self._on_auth_succeeded)
-        self.auth.connect('failed', self._on_auth_failed)
-        self.auth.connect('message', self._on_auth_message)
-        self.auth.connect('browser', self._on_auth_browser)
-        self.auth.connect('changed', self._on_auth_changed)
-        self.auth.connect('attended', self._on_auth_attended)
+        pages.connect_weak(self.auth, 'succeeded', self._on_auth_succeeded)
+        pages.connect_weak(self.auth, 'failed', self._on_auth_failed)
+        pages.connect_weak(self.auth, 'message', self._on_auth_message)
+        pages.connect_weak(self.auth, 'browser', self._on_auth_browser)
+        pages.connect_weak(self.auth, 'changed', self._on_auth_changed)
+        pages.connect_weak(self.auth, 'attended', self._on_auth_attended)
         # Local scope: a focused TextView/Editable keeps Page Up/Down.
         # An application accelerator would steal them first.
         page_keys = Gtk.ShortcutController()
@@ -199,9 +199,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         from .streaming import StreamingManager
         self.notifier = DesktopNotifier(self)
         self.streaming = StreamingManager()
-        self.streaming.connect('event', self._on_stream_event)
-        self.streaming.connect('connection-changed',
-                               self._on_stream_connection_changed)
+        pages.connect_weak(self.streaming, 'event', self._on_stream_event)
+        pages.connect_weak(self.streaming, 'connection-changed',
+                           self._on_stream_connection_changed)
         # The stream went down after it had been up: whatever was posted
         # meanwhile never came through it.
         self._stream_dropped = False
@@ -244,24 +244,23 @@ class BabbleWindow(Adw.ApplicationWindow):
 
         self.switcher = account_store.AccountSwitcher(self.settings)
         self.account_button.set_popover(self.switcher)
-        self.switcher.connect('switch', lambda _s, account_id:
-                              self.switch_account(account_id))
-        self.switcher.connect('remove', self.on_remove_account_requested)
-        self.switcher.connect('add', lambda _s: self.begin_add_account())
+        pages.connect_weak(self.switcher, 'switch', self._on_switcher_switch)
+        pages.connect_weak(self.switcher, 'remove',
+                           self.on_remove_account_requested)
+        pages.connect_weak(self.switcher, 'add', self._on_switcher_add)
 
         from . import preferences
         self._preferences = preferences
-        self.settings.connect('changed', self._on_setting_changed)
-        Adw.StyleManager.get_default().connect(
-            'notify::dark', lambda *a: preferences.apply_style(
-                self, self.settings))
+        pages.connect_weak(self.settings, 'changed', self._on_setting_changed)
+        pages.connect_weak(Adw.StyleManager.get_default(), 'notify::dark',
+                           self._on_dark_changed)
         preferences.apply_style(self, self.settings)
         pages.connect_weak(self.split_view, 'notify::collapsed',
                            self._sync_translucent_sidebar)
         pages.connect_weak(self.main_stack, 'notify::visible-child-name',
                            self._sync_translucent_sidebar)
         self._sync_translucent_sidebar()
-        self.connect('close-request', self._on_close_request)
+        pages.connect_weak(self, 'close-request', self._on_close_request)
         pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
         self._sync_global_shortcut()
 
@@ -270,6 +269,15 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.restore_account()
 
     # Settings
+
+    def _on_switcher_switch(self, _switcher, account_id):
+        self.switch_account(account_id)
+
+    def _on_switcher_add(self, _switcher):
+        self.begin_add_account()
+
+    def _on_dark_changed(self, *_args):
+        self._preferences.apply_style(self, self.settings)
 
     def _on_setting_changed(self, settings, key):
         if key in self._preferences.STYLE_KEYS:

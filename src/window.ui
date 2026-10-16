@@ -516,7 +516,7 @@
         <attribute name="action">win.wrapped</attribute>
       </item>
       <item>
-        <attribute name="label" translatable="yes">Admin _Dashboard</attribute>
+        <attribute name="label" translatable="yes">Admin Dash_board</attribute>
         <attribute name="action">win.admin</attribute>
         <attribute name="hidden-when">action-disabled</attribute>
       </item>

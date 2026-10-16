@@ -164,7 +164,11 @@ check('a trailing slash is trimmed',
 
 import time  # noqa: E402
 
-from gi.repository import GLib, GObject  # noqa: E402
+import gi  # noqa: E402
+
+gi.require_version('Secret', '1')
+
+from gi.repository import GLib, GObject, Secret  # noqa: E402
 
 import src.mastodon as mastodon_module  # noqa: E402
 from src import desktopnotify, sysstate  # noqa: E402
@@ -342,6 +346,37 @@ check('the real monitor exposes the contract properties',
       all(isinstance(real.get_property(name), bool)
           for name in ('online', 'metered', 'power-saver')))
 
+# --- Secret.Service.get is async and coalesced --------------------------
+
+# get_sync used to block the main loop on the startup path. Concurrent
+# store/load/clear must share one in-flight get.
+gets = []
+real_get = Secret.Service.get
+mastodon_module._service = None
+mastodon_module._service_waiters[:] = []
+mastodon_module._service_getting = False
+
+
+def stall_get(flags, cancellable=None, callback=None, user_data=None):
+    gets.append((flags, callback))
+
+
+Secret.Service.get = stall_get
+try:
+    mastodon_module.store_secret_async(
+        'babble-selftest.example', 'a', 'x', lambda error: None)
+    mastodon_module.load_secret_async(
+        'babble-selftest.example', 'a', lambda value, error=None: None)
+    check('the first keyring call starts Secret.Service.get',
+          len(gets) == 1)
+    check('a second keyring call coalesces on the in-flight get',
+          len(gets) == 1 and len(mastodon_module._service_waiters) == 2)
+finally:
+    Secret.Service.get = real_get
+    mastodon_module._service = None
+    mastodon_module._service_waiters[:] = []
+    mastodon_module._service_getting = False
+
 # --- The keyring helpers must actually deliver their callbacks ----------
 
 # These went through Secret.password_* first, whose callbacks never fired:
@@ -351,17 +386,14 @@ check('the real monitor exposes the contract properties',
 # to the proxy that started it.
 
 done = []
-try:
-    mastodon_module.store_secret_async(
-        'babble-selftest.example', 'probe', 'round-trip-value',
-        lambda error: done.append(error))
-except GLib.Error:
-    # get_sync raises before the callback when the session has no
-    # secret service at all. That is the same "nothing to read back"
-    # the callback path skips on below.
-    done.append(GLib.Error('no secret service'))
+mastodon_module.store_secret_async(
+    'babble-selftest.example', 'probe', 'round-trip-value',
+    lambda error: done.append(error))
+# Secret.Service.get is async and may wait on the session bus; a missing
+# or slow keyring used to raise from get_sync immediately and is now a
+# callback error, so allow the portal's usual start timeout.
 check('storing a secret completes its callback',
-      pump_until(lambda: len(done) == 1))
+      pump_until(lambda: len(done) == 1, limit=30.0))
 
 # The round trip is only meaningful against a keyring that will accept a
 # write. A CI container has no secret service, and an unlocked one still

@@ -164,8 +164,9 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
 
         post = Gio.Menu()
         if self._can_translate():
+            # Not _Translate: View S_tats already takes T in this menu.
             post.append(_('Show _Original') if item.translation
-                        else _('_Translate'), 'row.translate')
+                        else _('Tr_anslate'), 'row.translate')
         if self._can_mute_conversation():
             post.append(_('Un_mute Conversation') if status.get('muted')
                         else _('_Mute Conversation'),
@@ -195,7 +196,8 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             menu.append_section(None, mine)
         elif signed_in:
             account = Gio.Menu()
-            account.append(_('Mention %s') % handle, 'row.mention')
+            # Not _Mention: _Mute already takes M in this section.
+            account.append(_('Menti_on %s') % handle, 'row.mention')
             account.append(_('_Mute %s') % handle, 'row.mute')
             account.append(_('_Block %s') % handle, 'row.block')
             account.append(_('_Report Post…'), 'row.report')

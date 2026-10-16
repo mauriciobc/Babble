@@ -241,16 +241,16 @@ the audit's line numbers are for that revision.
 | ID | Status | Finding | Evidence |
 |---|---|---|---|
 | ARCH-12 | **done** | Cancelled HTTP requests are retried before cancellation surfaces. | `mastodon.py` `_on_response` / `_rest_retry`; `mastodon rest retry` |
-| ARCH-13 | todo | `Secret.Service.get_sync()` blocks the main loop on startup. | `mastodon.py` `_secret_service` |
+| ARCH-13 | **done** | `Secret.Service.get_sync()` blocks the main loop on startup. | `mastodon.py` `_with_secret_service`; coalesced in `streaming helpers` |
 | A11Y-11 | **done** | Page Up/Down app accelerators steal keys from every text view. | `main.py` / `window.py` local `ShortcutController` |
 | UI-10 | **done** | Composer options row clips at 360 px with 1.5× text. | `compose.py` `build_action_bar` wraps |
 | A11Y-12 | **done** | Account switcher button: tooltip, no accessible name. | `window.ui` `account_button` |
-| A11Y-13 | todo | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, … |
+| A11Y-13 | **done** | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, `conversations.py`, `hashtags.py`, `catchup.py`, `notifications.py`; primary-menu `D` and post-menu `T` duplicates fixed |
 | UI-11 | **done** | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
-| ARCH-14 | todo | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings |
+| ARCH-14 | **done** | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings/style/close-request via `connect_weak` |
 
-Nice-to-have findings 14–26 stay in `Docs/gnome-review.md` until the
-Should-fix queue clears; do not mix them into blocker commits.
+Nice-to-have findings 16–26 stay in `Docs/gnome-review.md`; 14–15
+(duplicate access keys) landed with A11Y-13.
 
 ---
 

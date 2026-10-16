@@ -247,22 +247,47 @@ def normalize_instance(url):
         raise ValueError(_('Babble only connects over HTTPS: %s') % url)
     return url
 
-# Lazily built by _secret_service(); see there for why one proxy is
-# shared rather than created per call.
+# Lazily built by _with_secret_service(); see there for why one proxy is
+# shared rather than created per call. Waiters coalesce on the in-flight
+# Secret.Service.get the way instance_info_async coalesces.
 _service = None
+_service_waiters = []
+_service_getting = False
 
 
-def _secret_service():
-    """The session-wide keyring proxy.
+def _with_secret_service(callback):
+    """Run *callback(service, error)* once the session keyring proxy is
+    ready, without blocking the main loop.
 
-    Built once and reused: the async calls must be finished on the very
-    proxy that started them, and the module-level ``Secret.password_*``
-    helpers hide theirs, so the calls go through the service directly.
+    Concurrent callers share one ``Secret.Service.get``. The proxy is
+    reused afterwards: async store/lookup/clear must finish on the same
+    proxy that started them.
     """
-    global _service
-    if _service is None:
-        _service = Secret.Service.get_sync(Secret.ServiceFlags.NONE, None)
-    return _service
+    global _service_getting
+    if _service is not None:
+        callback(_service, None)
+        return
+    _service_waiters.append(callback)
+    if _service_getting:
+        return
+    _service_getting = True
+
+    def done(_source, result, _user_data=None):
+        global _service, _service_getting
+        _service_getting = False
+        error = None
+        try:
+            service = Secret.Service.get_finish(result)
+        except GLib.Error as failure:
+            service = None
+            error = failure
+        else:
+            _service = service
+        waiters, _service_waiters[:] = list(_service_waiters), []
+        for waiter in waiters:
+            waiter(service, error)
+
+    Secret.Service.get(Secret.ServiceFlags.NONE, None, done)
 
 
 def store_secret_async(instance, kind, payload, callback=None,
@@ -276,22 +301,30 @@ def store_secret_async(instance, kind, payload, callback=None,
     signs the user out on the next start.
     """
 
-    def done(service, result, _user_data):
-        error = None
-        try:
-            service.store_finish(result)
-        except GLib.Error as failure:
-            error = failure
-        if callback is not None:
-            callback(error)
+    def ready(service, error):
+        if error is not None:
+            if callback is not None:
+                callback(error)
+            return
 
-    _secret_service().store(SECRET_SCHEMA,
-                            {'instance': instance, 'kind': kind},
-                            Secret.COLLECTION_DEFAULT,
-                            'Babble: %s' % instance,
-                            Secret.Value.new(payload, len(payload),
-                                              'text/plain'),
-                            cancellable, done, None)
+        def done(_service, result, _user_data):
+            failure = None
+            try:
+                service.store_finish(result)
+            except GLib.Error as err:
+                failure = err
+            if callback is not None:
+                callback(failure)
+
+        service.store(SECRET_SCHEMA,
+                      {'instance': instance, 'kind': kind},
+                      Secret.COLLECTION_DEFAULT,
+                      'Babble: %s' % instance,
+                      Secret.Value.new(payload, len(payload),
+                                        'text/plain'),
+                      cancellable, done, None)
+
+    _with_secret_service(ready)
 
 
 def load_secret_async(instance, kind, callback, cancellable=None):
@@ -305,17 +338,24 @@ def load_secret_async(instance, kind, callback, cancellable=None):
     None when omitted by a stub.
     """
 
-    def done(service, result, _user_data):
-        try:
-            secret = service.lookup_finish(result)
-        except GLib.Error as failure:
-            callback(None, failure)
+    def ready(service, error):
+        if error is not None:
+            callback(None, error)
             return
-        callback(secret.get_text() if secret is not None else None, None)
 
-    _secret_service().lookup(SECRET_SCHEMA,
-                             {'instance': instance, 'kind': kind},
-                             cancellable, done, None)
+        def done(_service, result, _user_data):
+            try:
+                secret = service.lookup_finish(result)
+            except GLib.Error as failure:
+                callback(None, failure)
+                return
+            callback(secret.get_text() if secret is not None else None, None)
+
+        service.lookup(SECRET_SCHEMA,
+                       {'instance': instance, 'kind': kind},
+                       cancellable, done, None)
+
+    _with_secret_service(ready)
 
 
 def clear_secret_async(instance, kind, callback=None, cancellable=None):
@@ -326,18 +366,26 @@ def clear_secret_async(instance, kind, callback=None, cancellable=None):
     is told rather than left to assume the removal took.
     """
 
-    def done(service, result, _user_data):
-        error = None
-        try:
-            service.clear_finish(result)
-        except GLib.Error as failure:
-            error = failure
-        if callback is not None:
-            callback(error)
+    def ready(service, error):
+        if error is not None:
+            if callback is not None:
+                callback(error)
+            return
 
-    _secret_service().clear(SECRET_SCHEMA,
-                            {'instance': instance, 'kind': kind},
-                            cancellable, done, None)
+        def done(_service, result, _user_data):
+            failure = None
+            try:
+                service.clear_finish(result)
+            except GLib.Error as err:
+                failure = err
+            if callback is not None:
+                callback(failure)
+
+        service.clear(SECRET_SCHEMA,
+                      {'instance': instance, 'kind': kind},
+                      cancellable, done, None)
+
+    _with_secret_service(ready)
 
 
 

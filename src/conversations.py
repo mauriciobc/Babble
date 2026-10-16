@@ -124,8 +124,8 @@ class ConversationRow(Gtk.ListBoxRow):
             actions.add_action(action)
         self.read_action = actions.lookup_action('read')
         menu = Gio.Menu()
-        menu.append(_('Mark as Read'), 'conv.read')
-        menu.append(_('Delete Conversation'), 'conv.delete')
+        menu.append(_('_Mark as Read'), 'conv.read')
+        menu.append(_('_Delete Conversation'), 'conv.delete')
         self.menu_button = Gtk.MenuButton(
             icon_name='view-more-symbolic', menu_model=menu,
             valign=Gtk.Align.CENTER)
