@@ -399,6 +399,10 @@ def compact_count(n):
     return text % number
 
 
+_C0_AND_SPACE = "".join(map(chr, range(0x21)))
+_DROP_TAB_NEWLINE = {ord(c): None for c in '\t\n\r'}
+
+
 def split_url(uri):
     """*uri* split the way a browser reads it, or None when malformed.
 
@@ -407,7 +411,10 @@ def split_url(uri):
     alone would read ``evil.test\\`` as credentials and bank.test as the
     host. A malformed authority (an unmatched ``[``) makes ``urlsplit``
     raise; servers can send one, so it is None here instead."""
-    uri = uri or ''
+    # The WHATWG URL parser drops leading and trailing C0 controls and
+    # spaces and every tab and newline before it looks at the scheme, so
+    # the scheme test below has to see the same string a browser does.
+    uri = (uri or '').strip(_C0_AND_SPACE).translate(_DROP_TAB_NEWLINE)
     if uri[:8].lower().startswith(('http:', 'https:')):
         uri = uri.replace('\\', '/')
     try:

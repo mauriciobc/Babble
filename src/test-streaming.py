@@ -32,6 +32,22 @@ check('parse_link next', parse_link_header(
     '<https://x.test/api/v1/favourites?max_id=1>; rel="next"').get('next')
     == {'max_id': '1'})
 
+_paged = parse_link_header(
+    '<https://x.test/a?max_id=7>; rel="next", '
+    '<https://x.test/a?min_id=9>; rel="prev"')
+check('parse_link next and prev', _paged == {'next': {'max_id': '7'},
+                                              'prev': {'min_id': '9'}})
+# RFC 8288: rel is case-insensitive and may follow other parameters.
+check('parse_link rel is case-insensitive', parse_link_header(
+    '<https://x.test/a?max_id=7>; rel="NEXT"') == {'next': {'max_id': '7'}})
+check('parse_link rel after another parameter', parse_link_header(
+    '<https://x.test/a?max_id=7>; title="x"; rel="next"')
+    == {'next': {'max_id': '7'}})
+check('parse_link rel next-page is not next', 'next' not in parse_link_header(
+    '<https://x.test/a?max_id=7>; rel="next-page"'))
+check('parse_link without rel is skipped',
+      parse_link_header('<https://x.test/a?max_id=7>') == {})
+
 check('user subscribe', json.loads(subscribe_message(USER)) == {
     'type': 'subscribe', 'stream': 'user'})
 check('list subscribe', json.loads(subscribe_message(list_stream('9'))) == {

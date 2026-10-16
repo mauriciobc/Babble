@@ -24,7 +24,7 @@ from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
     AUTO_REFRESH_SCROLLED_TICKS, COLUMN_WIDTH,
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
-    _EMPTY_PAGED_ENVELOPE, _own_account_id)
+    _EMPTY_PAGED_ENVELOPE, _own_account_id, id_key)
 from .timelinedata import (
     BoostCarouselItem, TimelineModel, filter_replies_from_non_follows)
 
@@ -449,8 +449,10 @@ class TimelinePage(PagedPosts, Adw.Bin):
             return
         if self.model.get_n_items() == 0:
             self.model.append_old(statuses)
-            self.model.oldest_id = min(s['id'] for s in statuses)
-            self.model.newest_id = max(s['id'] for s in statuses)
+            self.model.oldest_id = min((s['id'] for s in statuses),
+                                         key=id_key)
+            self.model.newest_id = max((s['id'] for s in statuses),
+                                         key=id_key)
         else:
             added = self.model.insert_new(statuses)
             if added and self._scrolled.get_vadjustment().get_value() > 24:

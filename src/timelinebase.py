@@ -26,6 +26,19 @@ from .statustext import (format_time, is_hashtag, parse_content,  # noqa: E402
 
 """Shared timeline constants and the small helpers every seam uses."""
 
+def id_key(value):
+    """Sort key for Mastodon ids.
+
+    Ids are strings "cast from an integer, but not guaranteed to be a
+    number" (docs.joinmastodon.org/entities/Status), so a plain
+    string comparison orders '99999999' after '100000001'. Numeric
+    values sort numerically, anything else after them as text."""
+    try:
+        return (0, int(value))
+    except (TypeError, ValueError):
+        return (1, str(value))
+
+
 PAGE_SIZE = 20
 AUTO_REFRESH_SCROLLED_TICKS = 2  # 30s when the user is scrolled away
 # Screen readers hear about posts arriving at the top of a timeline at

@@ -31,26 +31,13 @@ from .timelinedata import StatusItem  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .timelinepage import _RefreshGesture  # noqa: E402
 from .statustext import parse_content, relative_time, shorten_url_text  # noqa: E402
-from .timelinebase import COLUMN_WIDTH  # noqa: E402
+from .timelinebase import COLUMN_WIDTH, id_key  # noqa: E402
 
 
 # Most avatars drawn in a cluster's stacked strip before the rest
 # collapse into a "+N" counter. Each is 32 px and a row must stay inside
 # the column at the 360 px minimum window width.
 AVATAR_STRIP_MAX = 6
-
-
-def id_key(value):
-    """Sort key for Mastodon ids.
-
-    Ids are strings "cast from an integer, but not guaranteed to be a
-    number" (docs.joinmastodon.org/entities/Notification), so a plain
-    string comparison orders '99999999' after '100000001'. Numeric
-    values sort numerically, anything else after them as text."""
-    try:
-        return (0, int(value))
-    except (TypeError, ValueError):
-        return (1, str(value))
 
 
 # Icon for each Mastodon notification type; unknown types fall back to
