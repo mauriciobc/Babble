@@ -51,6 +51,7 @@ sys.path.insert(0, srcdir)
 from src.mastodon import MastodonClient  # noqa: E402
 from src.profile import (AccountStatuses, ProfilePage,  # noqa: E402
                          format_count)
+from src.statusrow import StatusRow  # noqa: E402
 from src.thread import ThreadPage, ThreadReply  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
 from src.timelinepage import TimelinePage  # noqa: E402
@@ -183,8 +184,7 @@ def collect(widget, target):
 
 collect(thread_page.thread_box, widgets)
 
-thread_rows = [w for w in widgets
-               if getattr(w, '__gtype_name__', None) == 'BabbleStatusRow']
+thread_rows = [w for w in widgets if isinstance(w, StatusRow)]
 check('thread rows rendered', len(thread_rows) >= 1)
 check('focused post highlighted',
       any('thread-focused' in list(w.get_css_classes())
@@ -192,11 +192,17 @@ check('focused post highlighted',
 check('focused post is the requested status',
       any(r.item is thread_page.item for r in thread_rows))
 replies = [w for w in widgets if isinstance(w, ThreadReply)]
+focused_index = next(i for i, r in enumerate(thread_rows)
+                     if r.item is thread_page.item)
 if focused.get('replies_count'):
-    check('descendant replies rendered', len(replies) > 0)
+    # A single line of replies continues in the focused post's card;
+    # only a branch becomes ThreadReply groups.
+    check('descendant replies rendered',
+          len(thread_rows) > focused_index + 1)
     nested = [w for w in replies
               if w.children_box.get_margin_start() > 0]
-    check('replies indented by depth', len(nested) > 0)
+    if any(w.children_box.get_first_child() is not None for w in replies):
+        check('replies indented by depth', len(nested) > 0)
     branching = [w for w in replies
                  if w.children_box.get_first_child() is not None]
     collapsed = [w for w in replies

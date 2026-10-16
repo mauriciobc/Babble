@@ -36,8 +36,98 @@ def push_thread(view, client, item):
     view.push(nav)
 
 
-def _thread_row(item, client):
-    row = StatusRow(detail=True)
+class ThreadPost(StatusRow):
+    """A post laid out the way a thread reads it: the avatar in a column
+    of its own, with a line under it down to the next post of the chain,
+    and the text beside it rather than under it. Several of these share
+    one card (``.thread-card``)."""
+
+    __gtype_name__ = 'BabbleThreadPost'
+
+    def __init__(self, focused=False, **kwargs):
+        # Only the selected post keeps its action bar on regardless of
+        # the setting, as in the timeline.
+        super().__init__(detail=focused, **kwargs)
+        self.add_css_class('thread-post')
+        # Shown when the parent post sits right above, where the line
+        # says what "Replying to" would.
+        self.parent_shown = False
+
+        main = self.main
+        for margin in ('top', 'bottom', 'start', 'end'):
+            getattr(main, 'set_margin_' + margin)(0)
+        self.avatar.get_parent().remove(self.avatar)
+        self.avatar.set_size(40)
+        self.avatar.set_valign(Gtk.Align.START)
+        self.avatar.set_cursor_from_name('pointer')
+        # The name button is the keyboard path to the profile; the
+        # avatar is only a larger pointer target for it.
+        click = Gtk.GestureClick()
+        pages.connect_weak(click, 'released', self._on_avatar_released)
+        self.avatar.add_controller(click)
+
+        # Name and handle on one line, the handle wrapping below the
+        # name when both do not fit.
+        names = self._name_line.get_parent()
+        names.remove(self._name_line)
+        names.remove(self.handle_label)
+        self._name_line.set_hexpand(False)
+        self.handle_label.set_hexpand(False)
+        self.handle_label.set_valign(Gtk.Align.CENTER)
+        wrap = Adw.WrapBox(child_spacing=6)
+        wrap.append(self._name_line)
+        wrap.append(self.handle_label)
+        names.append(wrap)
+
+        self.column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                              spacing=4, hexpand=True)
+        self.column.add_css_class('thread-post-column')
+        while (child := main.get_first_child()) is not None:
+            main.remove(child)
+            self.column.append(child)
+
+        # The line runs through the space between two posts: from below
+        # one avatar, through that post's bottom padding (a negative
+        # margin) and the next post's top padding (its lead-in), to the
+        # next avatar.
+        gutter = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.lead_in = Gtk.Box(
+            halign=Gtk.Align.CENTER,
+            accessible_role=Gtk.AccessibleRole.PRESENTATION)
+        self.lead_in.add_css_class('thread-line-in')
+        gutter.append(self.lead_in)
+        gutter.append(self.avatar)
+        self.line = Gtk.Box(vexpand=True, halign=Gtk.Align.CENTER,
+                            visible=False,
+                            accessible_role=Gtk.AccessibleRole.PRESENTATION)
+        self.line.add_css_class('thread-line')
+        gutter.append(self.line)
+
+        layout = Gtk.Box(spacing=12)
+        layout.append(gutter)
+        layout.append(self.column)
+        main.append(layout)
+
+    def set_linked(self, linked):
+        """Draw the line down to the next post of the chain."""
+        self.line.set_visible(linked)
+        if linked:
+            self.add_css_class('linked')
+        else:
+            self.remove_css_class('linked')
+
+    def _bind_reply_line(self, item):
+        super()._bind_reply_line(item)
+        if self.parent_shown:
+            self.reply_box.set_visible(False)
+
+    def _on_avatar_released(self, _gesture, _n, _x, _y):
+        self._on_profile_clicked(None)
+
+
+def _thread_row(item, client, parent_shown=False, focused=False):
+    row = ThreadPost(focused=focused)
+    row.parent_shown = parent_shown
     # A thread is its own Filter#context: a rule scoped to one does not
     # reach into the conversation a post is read in.
     row.filter_context = filterrules.THREAD
@@ -63,10 +153,13 @@ class ThreadReply(Gtk.Box):
 
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
         self.append(column)
-        row = _thread_row(item, client)
-        # Nested replies sit flush inside their parent column; the card
-        # margins would otherwise eat the depth budget.
-        row.add_css_class('thread-reply')
+        # A top-level reply is a card of its own; deeper ones sit inside
+        # it, stepped right along the rail.
+        if depth == 0:
+            self.add_css_class('thread-card')
+            rail.set_visible(False)
+        # Every reply's parent is the post above its card or column.
+        row = _thread_row(item, client, parent_shown=True)
         column.append(row)
 
         self.children_box = Gtk.Box(
@@ -167,20 +260,39 @@ class ThreadPage(Adw.Bin):
             self.thread_box.remove(child)
 
         # Ancestors form a single chain, oldest first, up to the focused
-        # post.
+        # post, all in one card with a line from avatar to avatar.
+        chain = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        chain.add_css_class('thread-card')
         for status in ancestors:
-            self.thread_box.append(
-                _thread_row(StatusItem(status), self.client))
+            row = _thread_row(StatusItem(status), self.client,
+                              parent_shown=chain.get_first_child() is not None)
+            row.set_linked(True)
+            chain.append(row)
 
-        focused = _thread_row(self.item, self.client)
+        focused = _thread_row(self.item, self.client,
+                              parent_shown=bool(ancestors), focused=True)
         focused.add_css_class('thread-focused')
         focused.update_property([Gtk.AccessibleProperty.DESCRIPTION],
                                 [_('Selected post')])
-        self.thread_box.append(focused)
+        chain.append(focused)
+        self.thread_box.append(chain)
 
-        self.append_descendants(self.thread_box, descendants)
+        # While a post has a single reply the conversation goes on in the
+        # same card; where it branches, the replies nest below it.
+        children_of = self.children_of(descendants)
+        parent_id, tail = None, focused
+        while len(children_of.get(parent_id, ())) == 1:
+            status = children_of[parent_id][0]
+            tail.set_linked(True)
+            tail = _thread_row(StatusItem(status), self.client,
+                               parent_shown=True)
+            chain.append(tail)
+            parent_id = status['id']
+        self.append_children(self.thread_box, parent_id, 0, children_of)
 
-    def append_descendants(self, parent_box, descendants):
+    def children_of(self, descendants):
+        """Descendants by the id they reply to; replies to the focused
+        post are under None, each list oldest first."""
         focused_id = self.status['id']
         children_of = {}
         for status in descendants:
@@ -190,7 +302,7 @@ class ThreadPage(Adw.Bin):
             children_of.setdefault(parent, []).append(status)
         for children in children_of.values():
             children.sort(key=lambda s: s.get('created_at') or '')
-        self.append_children(parent_box, None, 0, children_of)
+        return children_of
 
     def append_children(self, parent_box, parent_id, depth, children_of):
         for status in children_of.get(parent_id, []):

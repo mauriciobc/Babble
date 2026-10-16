@@ -55,14 +55,83 @@
   outline-offset: 2px;
 }
 
-/* The selected post of a thread stands out by border weight as well as
-   by colour. */
-.status-row.thread-focused {
-  border-width: 2px;
-  border-color: var(--accent-color);
+/* Thread view: a chain of posts shares one card, the avatars joined by
+   a line, the way Phanpy draws a conversation. */
+.thread-card {
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  margin: 8px 12px;
+  padding: 14px 16px;
+}
+
+.status-row.thread-post {
+  background: none;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.thread-line,
+.thread-line-in {
+  min-width: 2px;
+  border-radius: 1px;
+  background-color: var(--border-color);
+}
+
+.thread-line {
+  margin-top: 4px;
+}
+
+/* A post after the first of a card is spaced by its own top padding,
+   which its lead-in line spans so the chain stays unbroken. */
+.thread-card > .status-row.thread-post:not(:first-child) {
+  padding-top: 16px;
+}
+
+.thread-card > .status-row.thread-post:not(:first-child) .thread-line-in {
+  margin: -16px 0 4px;
+  min-height: 12px;
+}
+
+/* The selected post stands out by size as well as by the accent tint,
+   which runs out to the card's edges. */
+.thread-card > .status-row.thread-focused {
+  margin: 0 -16px;
+  padding: 14px 16px;
+  border-radius: 0;
   background-color: color-mix(in srgb,
-                              var(--accent-bg-color) 8%,
-                              var(--card-bg-color));
+                              var(--accent-bg-color) 10%,
+                              transparent);
+}
+
+.thread-card > .status-row.thread-focused:not(:first-child) .thread-line-in {
+  margin-top: -14px;
+  min-height: 10px;
+}
+
+/* The minimum height keeps the margin from making the size negative. */
+.thread-card > .status-row.thread-focused .thread-line {
+  margin-bottom: -14px;
+  min-height: 10px;
+}
+
+.thread-card > .status-row.thread-focused:first-child {
+  margin-top: -14px;
+  border-top-left-radius: 15px;
+  border-top-right-radius: 15px;
+}
+
+.thread-card > .status-row.thread-focused:last-child {
+  margin-bottom: -14px;
+  border-bottom-left-radius: 15px;
+  border-bottom-right-radius: 15px;
+}
+
+.status-row.thread-focused .status-content {
+  font-size: 1.15em;
 }
 
 /* Thread branch rail drawn down the left of every reply. */
@@ -129,10 +198,6 @@ picture.broken-image {
   padding: 4px;
   margin: -4px 0 -4px -4px;
   border-radius: 9999px;
-}
-
-.thread-reply.status-row {
-  margin-left: 0;
 }
 
 .thread-expander {
