@@ -37,6 +37,7 @@ install_data(
   'catchupgrid.py',
   'catchuprank.py',
   'catchupstore.py',
+  'charts.py',
   'capabilities.py',
   'compose.py',
   'composeupload.py',
@@ -281,4 +282,42 @@ test('catchup grid', python,
   args: [files('test-catchup-grid.py')],
   env: fatal_test_env,
   timeout: 120,
+)
+
+# Rules and shell-level behaviour that have no widget to look at: the
+# action set (app.shortcuts is libadwaita's, F1 is Help), the stylesheet
+# (a CSS parse error is otherwise invisible headlessly), the UI strings
+# (a button labelled "Done" is otherwise a review finding), and the
+# schedule picker's spin rows.
+test('app lifecycle', python,
+  args: [files('test-lifecycle.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('schedule dialog', python,
+  args: [files('test-scheduled-dialog.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+test('ui strings', python,
+  args: [files('test-ui-strings.py')],
+  env: test_env,
+  timeout: 60,
+)
+# The test collects GtkCssProvider's parsing-error signal, which is what
+# catches a malformed rule. Fatal warnings are the second net, for the
+# warnings GTK raises outside that signal.
+css_env = environment()
+css_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+css_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+css_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+css_env.set('GSETTINGS_BACKEND', 'memory')
+css_env.set('GDK_DEBUG', 'no-portals')
+css_env.set('NO_AT_BRIDGE', '1')
+css_env.set('GTK_A11Y', 'none')
+css_env.set('G_DEBUG', 'fatal-warnings')
+test('style css', python,
+  args: [files('test-style-css.py')],
+  env: css_env,
+  timeout: 60,
 )

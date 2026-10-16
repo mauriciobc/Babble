@@ -20,6 +20,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
+from . import charts  # noqa: E402
 from . import pages  # noqa: E402
 from .lists import ToastDialog, make_pin_button  # noqa: E402
 
@@ -486,7 +487,9 @@ class MultiHashtagEditor(ToastDialog):
             danger = Adw.PreferencesGroup()
             delete = Gtk.Button(label=_('_Delete Timeline'),
                                 use_underline=True, halign=Gtk.Align.CENTER)
-            delete.add_css_class('destructive-action')
+            # Plain pill, like the list editor's Delete: the header's
+            # Save keeps the one emphasis, and Delete is already rare,
+            # isolated below the editors, verb-named and confirmed.
             delete.add_css_class('pill')
             pages.connect_weak(delete, 'clicked', self._on_delete)
             danger.add(delete)
@@ -554,13 +557,25 @@ class Sparkline(Gtk.DrawingArea):
         """*values* -- plain numbers, oldest first -- are drawn instead of
         the ``uses`` of *history* when given."""
         super().__init__(content_width=width, content_height=height,
-                         valign=Gtk.Align.CENTER,
-                         accessible_role=Gtk.AccessibleRole.PRESENTATION)
+                         valign=Gtk.Align.CENTER)
         if values is not None:
             self.values = [int(value or 0) for value in values]
         else:
             self.values = [int(e.get('uses') or 0)
                            for e in reversed(history or [])]
+        # An informative chart, so it is named rather than hidden: the
+        # role below used to be PRESENTATION, which took the whole
+        # series out of the accessibility tree. The description carries
+        # the numbers, since a sparkline has no text to read.
+        total = sum(self.values)
+        peak = max(self.values) if self.values else 0
+        self.update_property(
+            [Gtk.AccessibleProperty.LABEL,
+             Gtk.AccessibleProperty.DESCRIPTION],
+            [_('Usage over time'),
+             ngettext('%(total)d use, peaking at %(peak)d',
+                      '%(total)d uses, peaking at %(peak)d', total)
+             % {'total': total, 'peak': peak}])
         self.set_draw_func(self._draw)
 
     def _draw(self, _area, cr, width, height):
@@ -571,7 +586,8 @@ class Sparkline(Gtk.DrawingArea):
         step = width / (len(values) - 1)
         pad = 3
         color = self.get_color()
-        cr.set_source_rgba(color.red, color.green, color.blue, 0.75)
+        cr.set_source_rgba(color.red, color.green, color.blue,
+                          charts.alpha(0.75))
         cr.set_line_width(1.8)
         cr.set_line_join(1)
         for index, value in enumerate(values):

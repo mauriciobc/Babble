@@ -203,12 +203,12 @@ class DesktopNotifier(GObject.Object):
         if not status.get('id') or kind not in _STATUS_BUTTON_KINDS:
             return
         target = GLib.Variant('(ss)', (key, str(status['id'])))
-        # The shell shows at most three buttons: Reply, Favourite, Boost.
+        # The shell shows at most three buttons: Reply, Favorite, Boost.
         if kind == 'mention':
             _remember_status(key, status)
             note.add_button_with_target(_('Reply'), 'app.reply', target)
         note.add_button_with_target(
-            _('Favourite'), 'app.favourite', target)
+            _('Favorite'), 'app.favourite', target)
         if status.get('visibility') not in ('direct', 'private'):
             note.add_button_with_target(
                 _('Boost'), 'app.boost', target)
@@ -331,7 +331,7 @@ _STATUS_BUTTON_KINDS = ('mention', 'status')
 # action name -> (HTTP method, path template, failure title)
 _ACTIONS = {
     'favourite': ('POST', '/statuses/%s/favourite',
-                  lambda: _('Could not favourite post')),
+                  lambda: _('Could not favorite post')),
     'boost': ('POST', '/statuses/%s/reblog',
               lambda: _('Could not boost post')),
     'follow-back': ('POST', '/accounts/%s/follow',
@@ -340,7 +340,7 @@ _ACTIONS = {
 
 
 def _confirmation(name):
-    return {'favourite': _('Post favourited'),
+    return {'favourite': _('Post favorited'),
             'boost': _('Post boosted'),
             'follow-back': _('Followed back')}[name]
 

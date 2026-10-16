@@ -58,6 +58,20 @@ HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
 # still serves to this one (the "View live and topic feeds" permission).
 SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
 
+# The help pages, and where they live when no help viewer answers.
+#
+# The scheme is `help:`, from the Desktop Help System Specification, and
+# not `yelp://`: Yelp registers x-scheme-handler/{ghelp,help,info,man}
+# and no yelp handler at all, so a yelp:// URI is dispatched to nothing
+# and the launch always fails. Yelp's URI resolver likewise dispatches
+# only on those four plus help-list:, file: and xref:, so `yelp:` would
+# not be understood either. The document id is the application id, which
+# is what share/help/<lang>/<app id>/ is keyed by.
+HELP_URI = 'help:io.github.mauriciobc.Babble'
+PROJECT_URL = 'https://github.com/mauriciobc/babble'
+ISSUES_URL = PROJECT_URL + '/issues'
+DOCS_URL = PROJECT_URL + '/blob/main/Docs/README.md'
+
 
 def place_title(tag):
     return {
@@ -177,6 +191,11 @@ class BabbleWindow(Adw.ApplicationWindow):
         # live instead of waiting for the next account sync.
         pages.connect_weak(self.settings, 'changed::local-drafts',
                            self._refresh_draft_banner)
+        # The banners exist to offer their action, so their buttons are
+        # the suggested ones (AdwBanner:button-style, since 1.7). Set
+        # once, here: it never changes, so doing it on every draft
+        # change was work for nothing.
+        self.draft_banner.set_button_style(Adw.BannerButtonStyle.SUGGESTED)
         self._setup_copied_link_banner()
         self._setup_offline_banner()
 
@@ -1568,6 +1587,33 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _on_auth_browser(self, _flow, uri):
         self.open_url(uri)
+
+    def open_help(self):
+        """Open the installed help pages (F1, or the primary menu).
+
+        The Mallard pages ship in the bundle, under
+        share/help/<lang>/<app id>/, which is where ``HELP_URI`` points.
+
+        Inside a Flatpak that does not work, and it fails quietly: the
+        ``help:`` URI is resolved host-side by the OpenURI portal, so the
+        viewer's lookup misses ``/app/share/help`` and shows "document
+        not found" -- a successful launch, so the fallback never fires.
+        Hence the explicit check: sandboxed, go straight to the online
+        documentation rather than open a viewer that cannot find
+        anything. Unsandboxed, try the installed pages first and fall
+        back when no viewer answers at all."""
+        if GLib.getenv('FLATPAK_ID'):
+            self.open_url(DOCS_URL)
+            return
+
+        def launched(launcher, result):
+            try:
+                launcher.launch_finish(result)
+            except GLib.Error:
+                self.open_url(DOCS_URL)
+
+        launcher = Gtk.UriLauncher.new(HELP_URI)
+        launcher.launch(self, None, launched)
 
     def open_url(self, uri):
         """Open *uri* in the web browser through the portal, falling back

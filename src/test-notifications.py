@@ -619,9 +619,9 @@ recorded_buttons.clear()
 notifier.handle(make_notification('d1', 'mention', ACTOR, CREATED,
                                   dict(STATUS, visibility='public')),
                 force=True)
-check('mention notification offers reply, favourite and boost',
+check('mention notification offers reply, favorite and boost',
       recorded_buttons == [('Reply', 'app.reply', (ME_KEY, '42')),
-                           ('Favourite', 'app.favourite', (ME_KEY, '42')),
+                           ('Favorite', 'app.favourite', (ME_KEY, '42')),
                            ('Boost', 'app.boost', (ME_KEY, '42'))])
 
 recorded_buttons.clear()

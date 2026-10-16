@@ -1251,11 +1251,14 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         # Filtered notifications (Mastodon 4.3+): pending requests.
         self.requests_banner = Adw.Banner(button_label=_('View'),
                                           use_markup=False)
+        self.requests_banner.set_button_style(
+            Adw.BannerButtonStyle.SUGGESTED)
         connect_weak(self.requests_banner, 'button-clicked',
                      self.on_requests_banner_clicked)
 
         # Instance announcements: the button opens the Announcements page.
         self.banner = Adw.Banner(button_label=_('View'), use_markup=False)
+        self.banner.set_button_style(Adw.BannerButtonStyle.SUGGESTED)
         connect_weak(self.banner, 'button-clicked', self.on_announcement_view)
 
         self.filter_group = Adw.ToggleGroup(
