@@ -67,6 +67,9 @@ jobs:
           NO_AT_BRIDGE: 1
           GTK_A11Y: none
         run: |
+          # Without pipefail the pipeline's status is tee's, so a failing
+          # suite still leaves this step green. The suite is the gate.
+          set -o pipefail
           xvfb-run -a dbus-run-session -- \
             meson test -C build -j1 --print-errorlogs 2>&1 | tee ci.log
 
@@ -137,10 +140,46 @@ jobs:
             org.gnome.Sdk//51 org.gnome.Platform//51
           # rofiles-fuse is unavailable in the runner's kernel namespace;
           # without this every app install step hangs on it.
+          # Mirror screenshots into the Flathub media URL space and
+          # rewrite the composed catalogue to match: without that,
+          # flatpak-builder-lint's builddir check fails on
+          # appstream-external-screenshot-url (metainfo points at
+          # raw.githubusercontent.com). Do not use --user-exceptions;
+          # linter exceptions are human-only material.
           flatpak-builder --user --force-clean \
             --disable-rofiles-fuse \
+            --mirror-screenshots-url=https://dl.flathub.org/media \
+            --compose-url-policy=full \
             build-flatpak \
             build-aux/flatpak/io.github.mauriciobc.Babble.json
+
+      - name: Lint the bundle
+        # The build step only proves the manifest builds. This is what
+        # says the artifact is shippable: the same linter Flathub runs
+        # on a submission, twice over. The `manifest` check reads the
+        # manifest itself; the `builddir` check reads the tree
+        # flatpak-builder left behind -- the metainfo, the desktop file,
+        # the finish-args, the icons and the permissions as they were
+        # actually installed, not as the manifest merely declares them.
+        # Those are its four targets: appstream, manifest, builddir,
+        # repo. There is no appdir, and builddir wants the build
+        # directory itself, not the files/ inside it.
+        #
+        # --gha-format on both: these run as GitHub Actions steps, so
+        # the findings arrive as annotations on the diff instead of
+        # scrollback nobody reads.
+        #
+        # Run through the org.flatpak.Builder flatpak rather than a
+        # distro package: the linter is only as current as the Builder
+        # it ships in, and the builder's version is what Flathub will
+        # read it with. The flathub remote is already added by the build
+        # step above, which is why this only installs.
+        run: |
+          flatpak install --user -y flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            --gha-format manifest build-aux/flatpak/io.github.mauriciobc.Babble.json
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            --gha-format builddir build-flatpak
 
       - name: Report where the build landed
         # Not an assertion, just the artifact the run would be judged
