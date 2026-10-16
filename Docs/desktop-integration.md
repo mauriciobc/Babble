@@ -36,6 +36,13 @@ What Babble uses from GNOME, and what each feature needs.
   composer through the GlobalShortcuts portal.
 - **Running in background.** Babble can keep streaming with its window
   closed, through the Background portal, and show a status line for it.
+- **Help.** F1, or Help in the primary menu, opens the Mallard pages under
+  `share/help/C/io.github.mauriciobc.Babble/` — the path a `yelp://<app id>`
+  URI resolves to. When no help viewer answers, the online documentation opens
+  instead (`window.open_help`). The pages are plain installed data, and they are
+  not translated through `po/`: a Mallard page is a document, so a translation
+  is a translated page beside the English one, added to `help_languages` in
+  `data/meson.build`.
 
 ## What needs an installed build
 
