@@ -398,7 +398,8 @@ def _request_result(client, result, widget=None, what=None):
 
 
 class ProfilePage(ProfileActions, Adw.Bin):
-    """Account header plus Posts / Posts & Replies / Media tabs.
+    """Profile / Posts / Pinned / Media tabs: the account header, then
+    the account's timelines.
 
     The header bar carries the tab switcher; below 550sp the switcher
     moves to a bottom bar. A second bottom bar holds the relationship
@@ -463,16 +464,21 @@ class ProfilePage(ProfileActions, Adw.Bin):
                                  Gtk.PolicyType.AUTOMATIC)
         self.scrolled.add_css_class('profile-page-scroller')
         # 660px content column, centered in the pane and narrowing with
-        # it; the header hero and the tab pages fill it.
+        # it. The header is a tab of its own rather than a hero above the
+        # timelines: each timeline scrolls itself, so under a shared
+        # scroller a long bio or many fields left the posts a sliver
+        # below the fold.
         self.holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                               spacing=12)
         self.scrolled.set_child(Adw.Clamp(maximum_size=COLUMN_WIDTH,
                                           tightening_threshold=COLUMN_WIDTH,
                                           child=self.holder))
+        self.view_stack.add_titled(self.scrolled, 'profile', _('Profile'))
+        self.view_stack.get_page(self.scrolled).set_icon_name(
+            'avatar-default-symbolic')
         self.view_stack.set_vexpand(True)
         self.view_stack.set_hexpand(True)
-        self.holder.append(self.view_stack)
-        self.stack.add_named(self.scrolled, 'content')
+        self.stack.add_named(self.view_stack, 'content')
 
         toolbar = Adw.ToolbarView(content=self.stack)
         toolbar.add_top_bar(self.header_bar)
@@ -572,7 +578,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self._generation += 1
         while True:
             old = self.holder.get_first_child()
-            if old is None or old is self.view_stack:
+            if old is None:
                 break
             self.holder.remove(old)
 
@@ -716,7 +722,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self.update_follow_button()
         self.update_menu()
 
-        # Header goes above the tab stack inside the scrolled viewport.
+        # The header is the whole of the Profile tab's column.
         self.holder.prepend(header)
         self.load_extras()
 
@@ -1129,8 +1135,11 @@ class ProfilePage(ProfileActions, Adw.Bin):
              AccountStatuses(self.client, account_id, media=True,
                              exclude_replies=not show_media_replies)),
         )
-        while (child := self.view_stack.get_first_child()) is not None:
-            self.view_stack.remove(child)
+        model = self.view_stack.get_pages()
+        for page in [model.get_item(i).get_child()
+                     for i in range(model.get_n_items())]:
+            if isinstance(page, ProfileTimeline):
+                self.view_stack.remove(page)
         timeline_pages = []
         for name, title, icon, source in tabs:
             page = ProfileTimeline(

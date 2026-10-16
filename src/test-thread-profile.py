@@ -285,7 +285,10 @@ check('tab switcher lives in the header bar',
 pages_model = profile_page.view_stack.get_pages()
 page_names = sorted(pages_model.get_item(i).get_name()
                     for i in range(pages_model.get_n_items()))
-check('posts pinned media tabs', page_names == ['media', 'pinned', 'posts'])
+check('profile posts pinned media tabs',
+      page_names == ['media', 'pinned', 'posts', 'profile'])
+check('profile tab opens first',
+      profile_page.view_stack.get_visible_child_name() == 'profile')
 posts_page = profile_page.view_stack.get_child_by_name('posts')
 pinned_page = profile_page.view_stack.get_child_by_name('pinned')
 media_page = profile_page.view_stack.get_child_by_name('media')
