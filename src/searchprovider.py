@@ -251,11 +251,13 @@ class SearchProvider:
         self._own_client = None
         self._client_waiters = [callback]
 
-        def loaded(token):
+        def loaded(token, error=None):
             if self._own_key != key:
                 return
             waiters, self._client_waiters = self._client_waiters or [], None
-            if token is None:
+            # A keyring failure is treated like a missing token here: no
+            # client, no results. The account itself is left alone.
+            if error is not None or token is None:
                 self._own_key = None
                 for waiter in waiters:
                     waiter(None, None)

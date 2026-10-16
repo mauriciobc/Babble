@@ -666,7 +666,13 @@ class MediaBox(Gtk.Box):
             picture = status_picture(
                 -1, tile_height, alternative_text=caption, fit=fit,
                 kind=BlurredPicture if blur else Gtk.Picture, hexpand=True)
-            overlay = Gtk.Overlay()
+            # Focusable like catchupgrid._Tile: a bare Overlay with only
+            # GestureClick is unreachable from the keyboard.
+            overlay = Gtk.Overlay(
+                focusable=True,
+                accessible_role=Gtk.AccessibleRole.BUTTON)
+            overlay.update_property(
+                [Gtk.AccessibleProperty.LABEL], [caption])
             overlay.set_child(picture)
             if description:
                 mark = '¹²³⁴'[slot]
@@ -686,6 +692,9 @@ class MediaBox(Gtk.Box):
             click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
             connect_weak(click, 'released', self._on_tile_clicked, index)
             overlay.add_controller(click)
+            keys = Gtk.EventControllerKey()
+            connect_weak(keys, 'key-pressed', self._on_tile_key, index)
+            overlay.add_controller(keys)
             if not blur:
                 # Dragging a tile out drops the attachment; a blurred one
                 # stays put until the reader chooses to see it.
@@ -708,11 +717,16 @@ class MediaBox(Gtk.Box):
                                   ellipsize=Pango.EllipsizeMode.END)
                 label.add_css_class('caption')
                 label.add_css_class('dimmed')
+                label.set_focusable(True)
                 label.set_cursor_from_name('pointer')
                 click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
                 connect_weak(click, 'released', self._on_footnote_clicked,
                              label)
                 label.add_controller(click)
+                keys = Gtk.EventControllerKey()
+                connect_weak(keys, 'key-pressed',
+                             self._on_footnote_key, label)
+                label.add_controller(keys)
                 notes.append(label)
             box.append(notes)
         return box
@@ -743,6 +757,18 @@ class MediaBox(Gtk.Box):
         # activation opens the thread of the containing row too.
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
         self._open(index)
+
+    def _on_tile_key(self, _controller, keyval, _keycode, _state, index):
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
+            self._open(index)
+            return True
+        return False
+
+    def _on_footnote_key(self, _controller, keyval, _keycode, _state, label):
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
+            self._toggle_footnote(label)
+            return True
+        return False
 
     def _on_tile_drag_prepare(self, source, _x, _y, index):
         if index >= len(self._attachments):
@@ -781,6 +807,9 @@ class MediaBox(Gtk.Box):
         # Claim the click: otherwise the ListView's single-click
         # activation opens the thread of the containing row too.
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        self._toggle_footnote(label)
+
+    def _toggle_footnote(self, label):
         if label.get_lines() == FOOTNOTE_LINES:
             label.set_lines(-1)
             label.set_ellipsize(Pango.EllipsizeMode.NONE)

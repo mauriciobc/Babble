@@ -382,10 +382,11 @@ check('a successful store reports no error', done and done[0] is None)
 
 read = {}
 mastodon_module.load_secret_async(
-    'babble-selftest.example', 'probe', lambda v: read.update(v=v))
+    'babble-selftest.example', 'probe',
+    lambda v, error=None: read.update(v=v, e=error))
 pump_until(lambda: 'v' in read)
 check('the stored secret reads back',
-      read.get('v') == 'round-trip-value')
+      read.get('v') == 'round-trip-value' and read.get('e') is None)
 
 gone = []
 mastodon_module.clear_secret_async(
@@ -397,9 +398,11 @@ check('a successful clear reports no error', gone and gone[0] is None)
 
 after = {}
 mastodon_module.load_secret_async(
-    'babble-selftest.example', 'probe', lambda v: after.update(v=v))
+    'babble-selftest.example', 'probe',
+    lambda v, error=None: after.update(v=v, e=error))
 pump_until(lambda: 'v' in after)
-check('the cleared secret is gone', after.get('v') is None)
+check('the cleared secret is gone',
+      after.get('v') is None and after.get('e') is None)
 
 if failures:
     print('%d failure(s)' % failures)

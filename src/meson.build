@@ -195,6 +195,11 @@ test('mediaviewer helpers', python,
   env: test_env,
   timeout: 60,
 )
+test('mediabox keyboard', python,
+  args: [files('test-mediabox.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('notifications error policy', python,
   args: [files('test-notifications-errors.py')],
   env: test_env,

@@ -295,19 +295,23 @@ def store_secret_async(instance, kind, payload, callback=None,
 
 
 def load_secret_async(instance, kind, callback, cancellable=None):
-    """Read a keyring entry; *callback* receives the value or None.
+    """Read a keyring entry on the main loop.
 
-    The value arrives on the main loop. It is deliberately None when the
-    keyring is unreachable: an unreadable keyring means no session, which
-    the login flow already handles as a signed-out window.
+    *callback* is ``callback(value, error=None)``. ``value`` is the secret
+    text, or None when the entry is absent. A keyring that cannot be read
+    (locked, missing service, D-Bus failure) is not an absence: *error* is
+    the ``GLib.Error`` and *value* is None. Callers that only care about
+    the value may keep a one-argument callback; the error defaults to
+    None when omitted by a stub.
     """
 
     def done(service, result, _user_data):
         try:
             secret = service.lookup_finish(result)
-        except GLib.Error:
-            secret = None
-        callback(secret.get_text() if secret is not None else None)
+        except GLib.Error as failure:
+            callback(None, failure)
+            return
+        callback(secret.get_text() if secret is not None else None, None)
 
     _secret_service().lookup(SECRET_SCHEMA,
                              {'instance': instance, 'kind': kind},
@@ -550,6 +554,12 @@ class MastodonClient(GObject.Object):
         return message
 
     def _rest_retry(self, task):
+        cancellable = task.get_cancellable()
+        if cancellable is not None and cancellable.is_cancelled():
+            task.return_error(GLib.Error(
+                _('Operation was cancelled'), 'g-io-error-quark',
+                int(Gio.IOErrorEnum.CANCELLED)))
+            return GLib.SOURCE_REMOVE
         spec = getattr(task, '_rest_spec', None)
         if spec is None:
             task.return_error(GLib.Error(_('Request failed'),
@@ -571,6 +581,9 @@ class MastodonClient(GObject.Object):
         spec = getattr(task, '_rest_spec', None)
         if spec is None:
             return False
+        cancellable = task.get_cancellable()
+        if cancellable is not None and cancellable.is_cancelled():
+            return False
         attempt = getattr(task, '_rest_attempt', 0)
         if not rest_should_retry(spec[0], status, transport_error) \
                 or attempt >= REST_RETRY_MAX:
@@ -585,6 +598,11 @@ class MastodonClient(GObject.Object):
         try:
             body = self._session.send_and_read_finish(result)
         except GLib.Error as e:
+            # Cancellation is not a transport blip: retrying only delays
+            # the error while each attempt aborts instantly.
+            if e.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                task.return_error(e)
+                return
             if self._maybe_retry(task, transport_error=True):
                 return
             task.return_error(e)
@@ -882,7 +900,7 @@ class MastodonClient(GObject.Object):
                            cancellable)
 
     def load_secret_token(self, account_id, callback, cancellable=None):
-        """Read the stored token; *callback* receives it, or None."""
+        """Read the stored token; *callback(value, error=None)*."""
         load_secret_async(self.instance, account_id, callback, cancellable)
 
     def store_client_credentials(self, account_id, client_id, client_secret,
@@ -908,7 +926,10 @@ class MastodonClient(GObject.Object):
         """Read the stored client credentials for *account_id* into
         ``client_id`` and ``client_secret``; *callback* receives None
         when there are none."""
-        def loaded(text):
+        def loaded(text, error=None):
+            if error is not None:
+                callback(False)
+                return
             if text:
                 try:
                     stored = json.loads(text)

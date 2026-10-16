@@ -461,7 +461,13 @@ def _on_activate(action, parameter, app):
         return
     client = MastodonClient(account['instance'])
 
-    def loaded(token):
+    def loaded(token, error=None):
+        if error is not None:
+            if error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                return
+            _report_failure(app, name,
+                            _('Could not read the login from the keyring'))
+            return
         if token is None:
             _report_failure(app, name,
                             _('The login for that account is gone from the '

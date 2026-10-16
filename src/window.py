@@ -311,8 +311,20 @@ class BabbleWindow(Adw.ApplicationWindow):
         client = MastodonClient(account['instance'])
         lookup = self._session_lookup = self._session_lookup + 1
 
-        def loaded(token):
+        def loaded(token, error=None):
             if lookup != self._session_lookup:
+                return
+            if error is not None:
+                # A locked or unreachable keyring is not a signed-out
+                # account. Keep the stored entry (and its Catch-Up
+                # snapshots) and ask the user to try again.
+                if error.matches(Gio.io_error_quark(),
+                                 Gio.IOErrorEnum.CANCELLED):
+                    return
+                self.main_stack.set_visible_child_name('login')
+                self.show_toast(
+                    _('Could not read the login for @%s from the keyring')
+                    % account.get('acct', ''))
                 return
             if token is None:
                 if login_only:
@@ -547,8 +559,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         def on_credentials(_known):
             revoke_then_forget()
 
-        def on_token(token):
-            client.token = token
+        def on_token(token, error=None):
+            if error is None:
+                client.token = token
             client.load_client_credentials(account_id, on_credentials)
 
         if have_token and have_credentials:

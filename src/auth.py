@@ -206,10 +206,17 @@ class LoginFlow(GObject.Object):
     # Starting and stopping
 
     def begin(self):
-        """Open the next authorization attempt, returning its id."""
+        """Open the next authorization attempt, returning its id.
+
+        Each attempt gets its own ``GCancellable``. A cancelled
+        cancellable stays cancelled, and the window calls ``cancel()`` on
+        every account switch and sign-out; reusing that object would make
+        the next login fail instantly with "Operation was cancelled".
+        """
         self._attempt += 1
         self._pending_code = None
         self.stop_loopback()
+        self._cancellable = Gio.Cancellable()
         return self._attempt
 
     def restart(self):
@@ -229,13 +236,13 @@ class LoginFlow(GObject.Object):
             pending(False)
 
     def cancel(self):
-        """Abandon the flow for good: no further request may start, and
-        the ones in flight are cancelled.
+        """Cancel requests in flight, then stand ready for a new login.
 
         The window calls this when it tears the session down. Cancelling
         is what makes a late reply harmless rather than merely ignored:
-        the callback fires with ``G_IO_ERROR_CANCELLED`` and the attempt
-        id is gone with it.
+        the callback fires with ``G_IO_ERROR_CANCELLED``. ``restart()``
+        (via ``begin()``) then installs a fresh cancellable so the next
+        login is not stuck on the cancelled one.
         """
         self._cancellable.cancel()
         self.restart()
