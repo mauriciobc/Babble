@@ -261,7 +261,9 @@ def _with_secret_service(callback):
 
     Concurrent callers share one ``Secret.Service.get``. The proxy is
     reused afterwards: async store/lookup/clear must finish on the same
-    proxy that started them.
+    proxy that started them. A failed get is not remembered as a failure:
+    the keyring can be unlocked a moment later, so the next call is
+    allowed to find it.
     """
     global _service_getting
     if _service is not None:
@@ -272,22 +274,32 @@ def _with_secret_service(callback):
         return
     _service_getting = True
 
-    def done(_source, result, _user_data=None):
-        global _service, _service_getting
-        _service_getting = False
-        error = None
-        try:
-            service = Secret.Service.get_finish(result)
-        except GLib.Error as failure:
-            service = None
-            error = failure
-        else:
+    def dispatch(service, error):
+        global _service
+        if service is not None:
             _service = service
         waiters, _service_waiters[:] = list(_service_waiters), []
         for waiter in waiters:
             waiter(service, error)
 
-    Secret.Service.get(Secret.ServiceFlags.NONE, None, done, None)
+    def done(_source, result, _user_data=None):
+        global _service_getting
+        _service_getting = False
+        try:
+            service = Secret.Service.get_finish(result)
+        except GLib.Error as failure:
+            dispatch(None, failure)
+            return
+        dispatch(service, None)
+
+    try:
+        Secret.Service.get(Secret.ServiceFlags.NONE, None, done, None)
+    except Exception as failure:  # arming the call is all that can fail here
+        # A waiter list nobody empties would hang every later caller, so
+        # a synchronous failure has to reach them as a keyring error.
+        _service_getting = False
+        dispatch(None, GLib.Error(
+            str(failure), 'mastodon-keyring-error-quark', 0))
 
 
 def store_secret_async(instance, kind, payload, callback=None,
