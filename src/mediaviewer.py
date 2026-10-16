@@ -855,9 +855,10 @@ class MediaViewer(Adw.Bin):
         compact = Adw.Breakpoint.new(
             Adw.BreakpointCondition.parse(VIEWER_COMPACT))
         compact.add_setter(self, 'compact', True)
-        # The window's own floor (window.ui), so the bin never raises it.
+        # Under the window's 360 px floor (window.ui) by its own padding,
+        # as the profile page does: asking for 360 overflowed by 10 px.
         stage_bin = Adw.BreakpointBin(child=self._stage,
-                                      width_request=360, height_request=294)
+                                      width_request=340, height_request=294)
         stage_bin.add_breakpoint(compact)
         self.set_child(stage_bin)
         pages.connect_weak(self, 'notify::compact',
