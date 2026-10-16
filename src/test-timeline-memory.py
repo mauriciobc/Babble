@@ -475,6 +475,12 @@ except Exception as error:                          # noqa: BLE001
 # bare window here would take the viewer out as its own top-level.
 host = Adw.Window(content=Gtk.Overlay())
 host.present()
+# The shell itself is an Adw.ApplicationWindow, which is not an
+# Adw.Window: it has to be overlaid too, not given a window of its own.
+app_host = Adw.ApplicationWindow(content=Gtk.Overlay())
+check('the viewer overlays an application window',
+      mediaviewer.media_overlay(app_host) is app_host.get_content())
+app_host.destroy()
 viewer = mediaviewer.present_media(
     host.get_content(),
     [{'type': 'unknown', 'url': 'https://example.org/media/a.bin'}])

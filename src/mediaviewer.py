@@ -1623,8 +1623,9 @@ def media_overlay(window):
     """The :class:`Gtk.Overlay` covering *window*'s content, or None when
     the window has none. The shell wraps its content in one so a
     fullscreen attachment can fill the window instead of floating in a
-    dialog. Only an Adw window has content to look at."""
-    if not isinstance(window, Adw.Window):
+    dialog. Only an Adw window has content to look at, and the shell's
+    is an Adw.ApplicationWindow, which is not an Adw.Window."""
+    if not isinstance(window, (Adw.Window, Adw.ApplicationWindow)):
         return None
     content = window.get_content()
     return content if isinstance(content, Gtk.Overlay) else None
