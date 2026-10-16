@@ -869,6 +869,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
             emoji_size=14)
         title.add_css_class('caption-heading')
         title.add_css_class('dimmed')
+        # Wrapped text asks for no width of its own, so beside the check
+        # in a horizontal box the name was allocated none and vanished.
+        title.set_hexpand(True)
         title_row.append(title)
         verified = field.get('verified_at')
         if verified:
