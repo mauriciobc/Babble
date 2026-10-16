@@ -219,6 +219,41 @@ exercised, and "done" was recorded before the app was run.
 
 ---
 
+## GNOME review 2026-10-16 (third pass)
+
+Source: `Docs/gnome-review.md` (audit at `1c0bfcb` on `gnome-HIG-polish`).
+Remediation plan: `Docs/gnome-review-remediation-plan.md`. Work lands on
+`fix/gnome-review-findings` from `main`. Re-check each anchor before acting;
+the audit's line numbers are for that revision.
+
+### Blockers
+
+| ID | Status | Finding | Evidence | Notes |
+|---|---|---|---|---|
+| ARCH-10 | **done** | After account switch/sign-out, login fails until restart: one cancelled `GCancellable` is reused. | `auth.py` `LoginFlow.begin`/`cancel` | Recreate cancellable in `begin()`. Covered by `oauth loopback`. |
+| ARCH-11 | **done** | Unreadable keyring at startup deletes the account and Catch-Up snapshots. | `mastodon.py` `load_secret_async`; `window.py` `_activate_account` | Propagate `GError`; delete only on a genuine absence. Covered by `oauth callback`. |
+| A11Y-10 | **done** | Attachment tiles are pointer-only (no focus, key, or menu route). | `mediabox.py` grid tiles | Focusable button role + key controller. Covered by `mediabox keyboard`. |
+| PKG-10 | **done** | Suite `| tee` without `pipefail` makes a red suite report green. | `.github/workflows/ci.yml` | `set -o pipefail` in the run block. |
+| PKG-11 | **done** | Flatpak `builddir` lint fails on external screenshot URLs (and main had no lint step). | `ci.yml`, `metainfo.xml.in` | Mirror screenshots on build; add `flatpak-builder-lint`. |
+
+### Should fix (queued)
+
+| ID | Status | Finding | Evidence |
+|---|---|---|---|
+| ARCH-12 | **done** | Cancelled HTTP requests are retried before cancellation surfaces. | `mastodon.py` `_on_response` / `_rest_retry`; `mastodon rest retry` |
+| ARCH-13 | todo | `Secret.Service.get_sync()` blocks the main loop on startup. | `mastodon.py` `_secret_service` |
+| A11Y-11 | todo | Page Up/Down app accelerators steal keys from every text view. | `main.py` `scroll-page-*` |
+| UI-10 | todo | Composer options row clips at 360 px with 1.5× text. | `compose.py` `build_action_bar` |
+| A11Y-12 | todo | Account switcher button: tooltip, no accessible name. | `window.ui` `account_button` |
+| A11Y-13 | todo | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, … |
+| UI-11 | todo | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
+| ARCH-14 | todo | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings |
+
+Nice-to-have findings 14–26 stay in `Docs/gnome-review.md` until the
+Should-fix queue clears; do not mix them into blocker commits.
+
+---
+
 ## Tier 2 — Consolidation
 
 "Less code for the same behaviour." Every item is mechanical and testable.

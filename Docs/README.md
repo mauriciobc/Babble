@@ -18,6 +18,9 @@ Everything else is here.
 |---|---|
 | [Localization](localization.md) | Languages, translation status, and how to add one |
 | [Mastodon API compatibility](mastodon-compat.md) | Where Babble gates on server capabilities, and why |
+| [Improvement register](IMPROVEMENTS.md) | Open findings, decisions, and what was deferred |
+| [GNOME review (2026-10-16)](gnome-review.md) | HIG / GTK4 / architecture / packaging audit |
+| [GNOME review remediation plan](gnome-review-remediation-plan.md) | Phased fixes for that audit |
 | [Roadmap](ROADMAP.MD) | What the project is betting on |
 
 `CLAUDE.md` in the repository root is the working notes for AI agents
