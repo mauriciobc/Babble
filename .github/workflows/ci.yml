@@ -141,8 +141,13 @@ jobs:
         # Relative paths are correct here: flatpak-builder runs in the
         # container itself, whose working directory is the checkout, so
         # builddir and repo land in the workspace for the linter below.
+        #
+        # --disable-rofiles-fuse: the container has no machine-id, so the
+        # helper dies with "Cannot spawn a message bus without a
+        # machine-id" before the first module builds. The flag drops an
+        # optimization, not a check.
         run: |
-          flatpak-builder --force-clean \
+          flatpak-builder --force-clean --disable-rofiles-fuse \
             --mirror-screenshots-url=https://dl.flathub.org/media \
             --compose-url-policy=full \
             --repo=repo builddir \
