@@ -9,7 +9,7 @@ from .i18n import gettext as _, ngettext
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gio, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import auth  # noqa: E402
@@ -166,6 +166,16 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.auth.connect('browser', self._on_auth_browser)
         self.auth.connect('changed', self._on_auth_changed)
         self.auth.connect('attended', self._on_auth_attended)
+        # Local scope: a focused TextView/Editable keeps Page Up/Down.
+        # An application accelerator would steal them first.
+        page_keys = Gtk.ShortcutController()
+        for action, keyval in (
+                ('app.scroll-page-down', Gdk.KEY_Page_Down),
+                ('app.scroll-page-up', Gdk.KEY_Page_Up)):
+            page_keys.add_shortcut(Gtk.Shortcut(
+                trigger=Gtk.KeyvalTrigger(keyval=keyval, modifiers=0),
+                action=Gtk.NamedAction(action_name=action)))
+        self.add_controller(page_keys)
         self.settings = pages.settings()
         self.settings.bind('window-width', self, 'default-width',
                             Gio.SettingsBindFlags.DEFAULT)

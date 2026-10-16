@@ -164,10 +164,13 @@ class BabbleApplication(Adw.Application):
         self.create_action('reset-font-size',
                            lambda *a: self.step_text_size(0),
                            ['<primary>0', '<primary>KP_0'])
+        # No application accelerators: those match before the focused
+        # widget, so Page Up/Down never reached a TextView (or the
+        # composer). The window installs a local ShortcutController.
         self.create_action('scroll-page-down',
-                           lambda *a: self.scroll_page(1), ['Page_Down'])
+                           lambda *a: self.scroll_page(1))
         self.create_action('scroll-page-up',
-                           lambda *a: self.scroll_page(-1), ['Page_Up'])
+                           lambda *a: self.scroll_page(-1))
         opener = Gio.SimpleAction.new('open-notifications',
                                       GLib.VariantType.new('s'))
         opener.connect('activate', self.on_open_notifications)

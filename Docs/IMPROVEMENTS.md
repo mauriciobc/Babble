@@ -242,11 +242,11 @@ the audit's line numbers are for that revision.
 |---|---|---|---|
 | ARCH-12 | **done** | Cancelled HTTP requests are retried before cancellation surfaces. | `mastodon.py` `_on_response` / `_rest_retry`; `mastodon rest retry` |
 | ARCH-13 | todo | `Secret.Service.get_sync()` blocks the main loop on startup. | `mastodon.py` `_secret_service` |
-| A11Y-11 | todo | Page Up/Down app accelerators steal keys from every text view. | `main.py` `scroll-page-*` |
-| UI-10 | todo | Composer options row clips at 360 px with 1.5× text. | `compose.py` `build_action_bar` |
-| A11Y-12 | todo | Account switcher button: tooltip, no accessible name. | `window.ui` `account_button` |
+| A11Y-11 | **done** | Page Up/Down app accelerators steal keys from every text view. | `main.py` / `window.py` local `ShortcutController` |
+| UI-10 | **done** | Composer options row clips at 360 px with 1.5× text. | `compose.py` `build_action_bar` wraps |
+| A11Y-12 | **done** | Account switcher button: tooltip, no accessible name. | `window.ui` `account_button` |
 | A11Y-13 | todo | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, … |
-| UI-11 | todo | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
+| UI-11 | **done** | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
 | ARCH-14 | todo | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings |
 
 Nice-to-have findings 14–26 stay in `Docs/gnome-review.md` until the

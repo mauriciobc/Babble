@@ -597,11 +597,11 @@ class SearchProvider:
     # Activation
 
     def _present(self, timestamp):
+        # timestamp is kept for the D-Bus ActivateResult / LaunchSearch
+        # signatures; gtk_window_present_with_time() was deprecated in
+        # GTK 4.14 with no timestamp-taking successor.
         window = self.app.ensure_window()
-        if timestamp:
-            window.present_with_time(timestamp)
-        else:
-            window.present()
+        window.present()
         return window
 
     @staticmethod
