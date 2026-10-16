@@ -56,6 +56,9 @@ endforeach
 
 install_data(
   'screenshots/timeline.png',
+  'screenshots/catch-up.png',
+  'screenshots/hashtag.png',
+  'screenshots/composer.png',
   'screenshots/thread.png',
   install_dir: get_option('datadir') / 'metainfo' / 'io.github.mauriciobc.Babble' / 'screenshots',
 )
