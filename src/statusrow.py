@@ -14,7 +14,7 @@ from gi.repository import (Adw, Gdk, GLib, Gtk, Pango)
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
-from .statustext import format_time, parse_content
+from .statustext import parse_content
 from .textemoji import InlineEmojiText, emoji_bank, status_emoji_bank
 from .statusactions import (CollectionCard, QuoteCard, StatusActions,
                             _display_name_uses_custom_emoji, _open_thread)
@@ -638,10 +638,9 @@ class StatusRow(Gtk.Overlay):
 
     def _set_time(self, item):
         self.time_label.set_text(item.timestamp)
-        created = GLib.DateTime.new_from_iso8601(
-            item.status.get('created_at') or '', None)
-        full = format_time(created) if created else None
-        self.time_label.set_tooltip_text(full)
+        # absolute_time, which answers '' rather than raising.
+        full = absolute_time(item.status.get('created_at'))
+        self.time_label.set_tooltip_text(full or None)
         if full:
             self.time_label.update_property([Gtk.AccessibleProperty.LABEL],
                                             [full])

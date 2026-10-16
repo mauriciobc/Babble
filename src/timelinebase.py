@@ -120,7 +120,14 @@ def ui_language():
 def absolute_time(iso_timestamp):
     """'9 Oct 2026, 10:47' (or '…, 10:47 AM' on a 12-hour desktop) in
     local time, '' when unparsable."""
-    moment = GLib.DateTime.new_from_iso8601(iso_timestamp or '', None)
+    # GLib returns NULL for a string it cannot read, which PyGObject
+    # surfaces as a TypeError from the constructor rather than as None --
+    # so the guard has to catch the raise, not the value, or a status
+    # with no created_at takes the row down with it.
+    try:
+        moment = GLib.DateTime.new_from_iso8601(iso_timestamp or '', None)
+    except TypeError:
+        return ''
     if moment is None:
         return ''
     return format_time(moment)
