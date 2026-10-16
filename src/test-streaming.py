@@ -390,11 +390,16 @@ mastodon_module.store_secret_async(
     'babble-selftest.example', 'probe', 'round-trip-value',
     lambda error: done.append(error))
 # Async get replaces get_sync: a missing service used to raise before
-# the callback was armed, and now may either error in the callback or
-# never answer inside the wait. Either way is a machine limit, not a
-# defect — fold both into the skip path below.
+# the callback was armed, and an async get may instead never answer
+# inside the wait. Either way it is the machine, and any earlier failure
+# is reported first. The check below is not reached in that case, so it
+# cannot pass on a store that never completed.
 if not pump_until(lambda: len(done) == 1, limit=10.0):
-    done.append(GLib.Error('no secret service'))
+    if failures:
+        print('%d failure(s)' % failures)
+        sys.exit(1)
+    print('SKIP - no usable secret service for the keyring round trip')
+    sys.exit(77)
 check('storing a secret completes its callback', len(done) == 1)
 
 # The round trip is only meaningful against a keyring that will accept a
@@ -404,7 +409,7 @@ check('storing a secret completes its callback', len(done) == 1)
 # describes the machine.
 if done and done[0] is not None:
     if failures:
-        print('%d failure(s)' % len(failures))
+        print('%d failure(s)' % failures)
         sys.exit(1)
     print('SKIP - no usable secret service for the keyring round trip')
     sys.exit(77)

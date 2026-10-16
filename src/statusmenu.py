@@ -184,7 +184,8 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                 submenu.append_item(entry)
             post.append_submenu(_('Who Can _Quote'), submenu)
         if signed_in and self._revocable_quote():
-            post.append(_('_Remove My Post From Quote'), 'row.revoke-quote')
+            # Not _Remove…: Delete and _Redraft takes R in the same menu.
+            post.append(_('Remove My Post _From Quote'), 'row.revoke-quote')
         if post.get_n_items():
             menu.append_section(None, post)
 
@@ -196,10 +197,12 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             menu.append_section(None, mine)
         elif signed_in:
             account = Gio.Menu()
-            # Not _Mention: _Mute already takes M in this section.
-            account.append(_('Menti_on %s') % handle, 'row.mention')
-            account.append(_('_Mute %s') % handle, 'row.mute')
-            account.append(_('_Block %s') % handle, 'row.block')
+            # Access keys are unique across the whole open menu, not per
+            # section: _Mute Conversation (M), Open in _Browser (B) and
+            # Show _Original (O) already hold those letters in it.
+            account.append(_('Ment_ion %s') % handle, 'row.mention')
+            account.append(_('M_ute %s') % handle, 'row.mute')
+            account.append(_('Bloc_k %s') % handle, 'row.block')
             account.append(_('_Report Post…'), 'row.report')
             menu.append_section(None, account)
         return menu

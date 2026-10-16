@@ -13,14 +13,16 @@ counts below are a sign of that, not of four careful translations.
 
 | Language | Translated | Fuzzy | Untranslated |
 |---|---|---|---|
-| `de` | 1431 | 52 | 29 |
-| `es` | 1431 | 52 | 29 |
-| `fr` | 1431 | 52 | 29 |
-| `pt_BR` | 1431 | 52 | 29 |
+| `de` | 1576 | 62 | 1 |
+| `es` | 1576 | 62 | 1 |
+| `fr` | 1576 | 62 | 1 |
+| `pt_BR` | 1576 | 62 | 1 |
 
 Fuzzy entries are machine guesses carried over from an earlier run of
 `babble-update-po`. They are not used at runtime, and they are the highest
-value thing for a reviewer to look at.
+value thing for a reviewer to look at. The current batch is mostly the menu
+access keys: a mnemonic is part of the string, so adding one re-words it and
+leaves `msgmerge`'s guess for the old wording behind.
 
 ## Flatpak
 

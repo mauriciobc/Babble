@@ -671,6 +671,7 @@ class MediaBox(Gtk.Box):
             overlay = Gtk.Overlay(
                 focusable=True,
                 accessible_role=Gtk.AccessibleRole.BUTTON)
+            overlay.add_css_class('media-tile')
             overlay.update_property(
                 [Gtk.AccessibleProperty.LABEL], [caption])
             overlay.set_child(picture)

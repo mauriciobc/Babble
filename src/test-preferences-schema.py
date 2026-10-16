@@ -56,29 +56,28 @@ for key, nicks in ENUM_KEYS.items():
         check('%s set_enum(%d) → get_string == %s' % (key, index, nick),
               settings.get_string(key) == nick)
 
-prefs_path = os.path.join(srcdir, 'preferences.py')
-with open(prefs_path, encoding='utf-8') as handle:
-    prefs = handle.read()
-check('preferences defines _combo_enum', 'def _combo_enum(' in prefs)
-check('preferences syncs enums via get_enum/set_enum',
-      'get_enum(key)' in prefs and 'set_enum(key, index)' in prefs)
-check('preferences does not claim broken settings.bind for enums',
-      "self.settings.bind(key, row, 'selected'," not in prefs)
-for key in ENUM_KEYS:
-    check('preferences uses _combo_enum for %s' % key,
-          "_combo_enum(" in prefs and ("'%s'" % key) in prefs)
-    check('preferences does not _combo_string %s' % key,
-          ('_combo_string(appearance, %r' % key) not in prefs
-          and ('_combo_string(posts, %r' % key) not in prefs
-          and ('_combo_string(group, %r' % key) not in prefs)
+# The combo's own order is what Adw.ComboRow.selected indexes, so it has
+# to be the schema's order: compare the nicks the preferences page lists
+# against the ones the schema enumerates above.
+from src import preferences  # noqa: E402
+
+CHOICE_LISTS = {
+    'color-scheme': preferences.COLOR_SCHEMES,
+    'text-size': preferences.TEXT_SIZES,
+    'media-viewer-mode': preferences.MEDIA_VIEWER_MODES,
+    'default-visibility': preferences.VISIBILITIES,
+    'default-quote-policy': preferences.QUOTE_POLICIES,
+}
+for key, choices in CHOICE_LISTS.items():
+    listed = [choice[0] for choice in choices]
+    check('%s: the page lists the schema order' % key,
+          listed == list(ENUM_KEYS[key]), str(listed))
 
 # auto-refresh stays a string key (enum nick "0" is illegal).
 settings.reset('auto-refresh')
 settings.set_string('auto-refresh', '30')
 check('auto-refresh string choice round-trips',
       settings.get_string('auto-refresh') == '30')
-check('preferences keeps _combo_string for auto-refresh',
-      "_combo_string(refresh, 'auto-refresh'" in prefs)
 
 if os.environ.get('DISPLAY'):
     gi.require_version('Gtk', '4.0')

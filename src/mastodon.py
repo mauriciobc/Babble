@@ -333,9 +333,8 @@ def load_secret_async(instance, kind, callback, cancellable=None):
     *callback* is ``callback(value, error=None)``. ``value`` is the secret
     text, or None when the entry is absent. A keyring that cannot be read
     (locked, missing service, D-Bus failure) is not an absence: *error* is
-    the ``GLib.Error`` and *value* is None. Callers that only care about
-    the value may keep a one-argument callback; the error defaults to
-    None when omitted by a stub.
+    the ``GLib.Error`` and *value* is None. Every callback takes both
+    arguments; the stubs in the tests were updated with it.
     """
 
     def ready(service, error):
@@ -605,7 +604,7 @@ class MastodonClient(GObject.Object):
         cancellable = task.get_cancellable()
         if cancellable is not None and cancellable.is_cancelled():
             task.return_error(GLib.Error(
-                _('Operation was cancelled'), 'g-io-error-quark',
+                _('Operation canceled'), 'g-io-error-quark',
                 int(Gio.IOErrorEnum.CANCELLED)))
             return GLib.SOURCE_REMOVE
         spec = getattr(task, '_rest_spec', None)

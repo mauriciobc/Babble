@@ -139,7 +139,9 @@ class ProfileActions:
                     'profile.unblock-domain' if rs.get('domain_blocking')
                     else 'profile.block-domain')
             moderation.append(_('R_eport…'), 'profile.report')
-            menu.append_section(_('Moderati_on'), moderation)
+            # A section title is drawn as a plain label: an underscore in
+            # it shows up as an underscore.
+            menu.append_section(_('Moderation'), moderation)
 
         for name, key in (('notify', 'notifying'), ('endorse', 'endorsed')):
             self.actions.lookup_action(name).set_state(

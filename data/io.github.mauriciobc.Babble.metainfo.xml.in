@@ -74,9 +74,11 @@
         </ul>
         <p>
           Translations: nothing already translated was lost. This release
-          adds 89 new strings to translate — chiefly the GSettings
-          summaries, which only now entered the translation template.
-          They are shown in English until a translator gets to them.
+          adds 35 strings to the template — chiefly the GSettings
+          summaries, which had never reached a translator — and re-words
+          about 55 menu labels that gained an access key, a mnemonic being
+          part of the string. The new and re-worded entries show in
+          English until a translator gets to them.
         </p>
       </description>
     </release>

@@ -211,8 +211,12 @@ class LoginFlow(GObject.Object):
         Each attempt gets its own ``GCancellable``. A cancelled
         cancellable stays cancelled, and the window calls ``cancel()`` on
         every account switch and sign-out; reusing that object would make
-        the next login fail instantly with "Operation was cancelled".
+        the next login fail instantly with "Operation canceled".
         """
+        # The outgoing cancellable is cancelled rather than dropped: a
+        # request armed with it must not outlive the attempt it was
+        # started for, and ``cancel()`` only ever sees the current one.
+        self._cancellable.cancel()
         self._attempt += 1
         self._pending_code = None
         self.stop_loopback()

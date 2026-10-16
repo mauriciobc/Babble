@@ -1314,7 +1314,7 @@ class CatchUpPage(Adw.Bin):
                 item.set_attribute_value(
                     'custom', GLib.Variant('s', 'snapshot:' + meta['id']))
                 previous.append_item(item)
-            menu.append_section(_('_Previous catch-ups'), previous)
+            menu.append_section(_('Previous catch-ups'), previous)
         footer = Gio.Menu()
         item = Gio.MenuItem.new(None, None)
         item.set_attribute_value('custom', GLib.Variant('s', 'footnote'))

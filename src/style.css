@@ -696,6 +696,13 @@ label.just-toggled {
   outline-offset: -2px;
 }
 
+/* Attachment tiles are tab stops too: the ring is the only cue that the
+   keyboard is on one. */
+.media-tile:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
 /* Text over a picture sits on a dark gradient: that is content, not theme,
    so it is the same in light and dark. */
 .catchup-scrim {
