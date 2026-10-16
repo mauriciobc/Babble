@@ -145,9 +145,23 @@ jobs:
       - name: Lint the bundle
         # The build step only proves the manifest builds. This is what
         # says the artifact is shippable: the same linter Flathub runs
-        # on a submission, over the manifest and over the tree that
-        # actually landed in /app -- the metainfo, the desktop file, the
-        # finish-args, the icons and the permissions.
+        # on a submission, twice over. The `manifest` check reads the
+        # manifest itself; the `builddir` check reads the tree
+        # flatpak-builder left behind -- the metainfo, the desktop file,
+        # the finish-args, the icons and the permissions as they were
+        # actually installed, not as the manifest merely declares them.
+        # Those are its four targets: appstream, manifest, builddir,
+        # repo. There is no appdir, and builddir wants the build
+        # directory itself, not the files/ inside it.
+        #
+        # --gha-format on both: these run as GitHub Actions steps, so
+        # the findings arrive as annotations on the diff instead of
+        # scrollback nobody reads.
+        #
+        # If the manifest check ever reports an error that only
+        # Flathub's own linter can grant an exception for, --exceptions
+        # is the flag that points at an exceptions.json. Not here: this
+        # manifest is for local development, not a Flathub submission.
         #
         # Run through the org.flatpak.Builder flatpak rather than a
         # distro package: the linter is only as current as the Builder
@@ -162,9 +176,9 @@ jobs:
         run: |
           flatpak install --user -y flathub org.flatpak.Builder
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-            manifest build-aux/flatpak/io.github.mauriciobc.Babble.json
+            --gha-format manifest build-aux/flatpak/io.github.mauriciobc.Babble.json
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-            appdir build-flatpak/files
+            --gha-format builddir build-flatpak
 
       - name: Report where the build landed
         # Not an assertion, just the artifact the run would be judged

@@ -37,12 +37,18 @@ What Babble uses from GNOME, and what each feature needs.
 - **Running in background.** Babble can keep streaming with its window
   closed, through the Background portal, and show a status line for it.
 - **Help.** F1, or Help in the primary menu, opens the Mallard pages under
-  `share/help/C/io.github.mauriciobc.Babble/` — the path a `yelp://<app id>`
-  URI resolves to. When no help viewer answers, the online documentation opens
-  instead (`window.open_help`). The pages are plain installed data, and they are
-  not translated through `po/`: a Mallard page is a document, so a translation
-  is a translated page beside the English one, added to `help_languages` in
-  `data/meson.build`.
+  `share/help/C/io.github.mauriciobc.Babble/`, through a
+  `help:io.github.mauriciobc.Babble` URI — the scheme Yelp registers, and the
+  form the Desktop Help System Specification gives. (`yelp://` is not a
+  scheme anything handles: Yelp declares `ghelp`, `help`, `info` and `man`
+  only.) When no viewer answers, the online documentation opens instead
+  (`window.open_help`). Inside a Flatpak the pages are deliberately skipped and
+  the online copy is used directly, because the `help:` URI is resolved
+  host-side by the OpenURI portal: the viewer would look in the host's
+  directories, not `/app/share/help`, and report the document as missing. The
+  pages are plain installed data, and they are not translated through `po/`:
+  a Mallard page is a document, so a translation is a translated page beside
+  the English one, added to `help_languages` in `data/meson.build`.
 
 ## What needs an installed build
 

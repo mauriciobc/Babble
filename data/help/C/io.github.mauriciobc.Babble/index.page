@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <page xmlns="http://projectmallard.org/1.0/"
-      xmlns:its="http://www.w3.org/2005/11/its"
-      xmlns:mal="http://projectmallard.org/1.0/"
       type="guide" id="index" xml:lang="C">
 
   <info>
@@ -12,6 +10,7 @@
     <credit type="author">
       <name>Mauricio BC</name>
     </credit>
+    <revision date="2026-10-16" version="0.2.0"/>
     <include xmlns="http://www.w3.org/2001/XInclude" href="legal.xml"/>
   </info>
 
@@ -23,7 +22,7 @@
       Babble is a Mastodon client. It reads and posts on any Mastodon
       server, and on the other servers that server federates with. Start by
       typing your server's address on the welcome screen and choosing
-      <guiseq><gui>Continue</gui><gui>Continue with…</gui></guiseq>.
+      <gui>Continue</gui> or <gui>Continue with…</gui>.
     </p>
     <p>
       Your browser opens the server's own sign-in page. Babble never sees
@@ -74,7 +73,7 @@
     <title>Writing</title>
     <p>
       <gui>New Post</gui>, or Ctrl+N, opens the composer. It checks spelling,
-      completes <guiseq><gui>@mentions</gui></guiseq> and hashtags as you
+      completes <gui>@mentions</gui> and hashtags as you
       type, and accepts images, video and audio up to what your server
       allows.
     </p>

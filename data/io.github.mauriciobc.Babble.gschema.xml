@@ -81,7 +81,7 @@
     </key>
     <key name="interface-language" type="s">
       <default>''</default>
-      <summary>Language of the interface, as a gettext locale name (e.g. pt_BR); empty follows the system. Applied on the next start</summary>
+      <summary>Language of the interface, as a gettext locale name such as pt_BR; empty follows the system. Applied on the next start</summary>
     </key>
     <key name="larger-line-height" type="b">
       <default>false</default>

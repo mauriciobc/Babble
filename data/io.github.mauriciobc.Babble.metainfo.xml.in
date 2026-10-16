@@ -21,7 +21,7 @@
   <url type="bugtracker">https://github.com/mauriciobc/babble/issues</url>
   <url type="vcs-browser">https://github.com/mauriciobc/babble</url>
   <url type="contribute">https://github.com/mauriciobc/babble/graphs/contributors</url>
-  <url type="translate">https://github.com/mauriciobc/babble</url>
+  <url type="translate">https://github.com/mauriciobc/babble/blob/main/Docs/localization.md</url>
   <launchable type="desktop-id">io.github.mauriciobc.Babble.desktop</launchable>
   <update_contact>mauriciobc_AT_github.com</update_contact>
   <content_rating type="oars-1.1">
@@ -55,9 +55,9 @@
     <release version="0.2.0" date="2026-10-16">
       <description>
         <p>
-          Babble now has a Help menu item and a F1 shortcut that open a
-          help viewer on pages shipped with the app, falling back to the
-          online documentation when no viewer is installed.
+          Babble now has a Help menu item and a F1 shortcut that open the
+          help pages shipped with the app, falling back to the online
+          documentation when no help viewer can see them.
         </p>
         <p>
           Preferences can be searched, and opening them again brings the
@@ -70,8 +70,14 @@
           <li>Charts and buttons stay readable in high contrast.</li>
           <li>The Catch-Up chart and filter controls are announced by screen readers.</li>
           <li>One emphasised button per view in the list, hashtag and report editors.</li>
-          <li>US spelling, and "for example" instead of "e.g.", in the interface text.</li>
+          <li>US spelling, and spelled-out examples in place of Latin abbreviations, in the interface text.</li>
         </ul>
+        <p>
+          Translations: nothing already translated was lost. This release
+          adds 89 new strings to translate — chiefly the GSettings
+          summaries, which only now entered the translation template.
+          They are shown in English until a translator gets to them.
+        </p>
       </description>
     </release>
     <release version="0.1.0" date="2026-10-10"/>

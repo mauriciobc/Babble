@@ -304,10 +304,9 @@ test('ui strings', python,
   env: test_env,
   timeout: 60,
 )
-# The stylesheet is checked with fatal warnings so a malformed rule
-# fails the build: GtkCssProvider has no parsing-error signal in GTK
-# 4.24, and a bad rule otherwise only shows up as a silently ignored
-# declaration.
+# The test collects GtkCssProvider's parsing-error signal, which is what
+# catches a malformed rule. Fatal warnings are the second net, for the
+# warnings GTK raises outside that signal.
 css_env = environment()
 css_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 css_env.set('BABBLE_BUILDDIR', meson.project_build_root())

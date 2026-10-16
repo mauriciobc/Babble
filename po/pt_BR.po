@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/babble/issues\n"
-"POT-Creation-Date: 2026-10-16 10:38-0300\n"
+"POT-Creation-Date: 2026-10-16 11:12-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -39,7 +39,7 @@ msgid "New Post"
 msgstr "Nova publicação"
 
 #: data/io.github.mauriciobc.Babble.desktop.in:22 src/filters.py:28
-#: src/preferences.py:496 src/window.py:73 src/window.ui:417 src/window.ui:419
+#: src/preferences.py:496 src/window.py:79 src/window.ui:417 src/window.ui:419
 #: src/window.ui:434
 msgid "Notifications"
 msgstr "Notificações"
@@ -108,7 +108,7 @@ msgstr ""
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:84
 msgid ""
-"Language of the interface, as a gettext locale name (e.g. pt_BR); empty "
+"Language of the interface, as a gettext locale name such as pt_BR; empty "
 "follows the system. Applied on the next start"
 msgstr ""
 
@@ -353,6 +353,58 @@ msgstr "Linha do tempo inicial com publicações, mídia e a barra de ações"
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:38
 msgid "A thread, with the focused post and its replies"
 msgstr "Uma conversa, com a publicação em foco e suas respostas"
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:57
+msgid ""
+"Babble now has a Help menu item and a F1 shortcut that open the help pages "
+"shipped with the app, falling back to the online documentation when no help "
+"viewer can see them."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:62
+msgid ""
+"Preferences can be searched, and opening them again brings the dialog you "
+"already have up instead of a second copy."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:66
+msgid "Other changes:"
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:68
+msgid "The attachment viewer no longer overflows a narrow window."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:69
+msgid ""
+"Text size and line height now apply to every kind of text, not just labels."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:70
+msgid "Charts and buttons stay readable in high contrast."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:71
+msgid "The Catch-Up chart and filter controls are announced by screen readers."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:72
+msgid "One emphasised button per view in the list, hashtag and report editors."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:73
+msgid ""
+"US spelling, and spelled-out examples in place of Latin abbreviations, in "
+"the interface text."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:75
+msgid ""
+"Translations: nothing already translated was lost. This release adds 89 new "
+"strings to translate — chiefly the GSettings summaries, which only now "
+"entered the translation template. They are shown in English until a "
+"translator gets to them."
+msgstr ""
 
 #: src/accounts.py:218 src/admin.py:1627 src/search.py:499
 msgid "Accounts"
@@ -702,7 +754,7 @@ msgstr "Tomar ação"
 #: src/lists.py:185 src/notificationctrl.py:441 src/pages.py:350
 #: src/pages.py:378 src/profile.py:281 src/profile.py:311
 #: src/profileedit.py:226 src/scheduled.py:123 src/search.py:580
-#: src/statusactions.py:597 src/statusactions.py:649 src/window.py:1724
+#: src/statusactions.py:597 src/statusactions.py:649 src/window.py:1741
 msgid "_Cancel"
 msgstr "_Cancelar"
 
@@ -736,7 +788,7 @@ msgstr "Não foi possível tomar a ação"
 msgid "All Locations"
 msgstr "Todos os locais"
 
-#: src/admin.py:1012 src/window.py:77
+#: src/admin.py:1012 src/window.py:83
 msgid "Local"
 msgstr "Local"
 
@@ -757,7 +809,7 @@ msgid "Pending"
 msgstr "Pendente"
 
 #: src/admin.py:1022 src/admin.py:1025 src/search.py:274
-#: src/shortcuts-dialog.ui:71 src/window.py:74
+#: src/shortcuts-dialog.ui:71 src/window.py:80
 msgid "Search"
 msgstr "Pesquisar"
 
@@ -1008,7 +1060,7 @@ msgstr "Remover federação com %s?"
 
 #: src/admin.py:1435 src/admin.py:1543 src/catchup.py:1384
 #: src/fedicollections.py:246 src/profileactions.py:223 src/statusmenu.py:412
-#: src/window.py:516
+#: src/window.py:523
 msgid "_Remove"
 msgstr "_Remover"
 
@@ -1617,7 +1669,7 @@ msgstr "%(shown)s de %(total)s"
 msgid "Could Not Catch Up"
 msgstr "Não foi possível atualizar"
 
-#: src/catchup.py:1226 src/shortcuts-dialog.ui:163 src/window.py:72
+#: src/catchup.py:1226 src/shortcuts-dialog.ui:163 src/window.py:78
 msgid "Catch Up"
 msgstr "Catch Up"
 
@@ -2466,7 +2518,7 @@ msgstr "Nenhuma hashtag em alta"
 msgid "No Trending News"
 msgstr "Nenhuma notícia em alta"
 
-#: src/explore.py:392 src/hashtags.py:472 src/search.py:500 src/window.py:76
+#: src/explore.py:392 src/hashtags.py:472 src/search.py:500 src/window.py:82
 msgid "Hashtags"
 msgstr "Hashtags"
 
@@ -2564,7 +2616,7 @@ msgstr "Coleção"
 msgid "New Collection"
 msgstr "Nova coleção"
 
-#: src/fedicollections.py:385 src/window.py:230
+#: src/fedicollections.py:385 src/window.py:241
 msgid "Collections"
 msgstr "Coleções"
 
@@ -2749,7 +2801,7 @@ msgstr "Início e listas"
 msgid "Public Timelines"
 msgstr "Linhas do tempo públicas"
 
-#: src/filters.py:30 src/window.py:74
+#: src/filters.py:30 src/window.py:80
 msgid "Conversations"
 msgstr "Conversas"
 
@@ -2826,7 +2878,7 @@ msgstr "Remover palavra-chave"
 msgid "Edit Filter"
 msgstr "Editar filtro"
 
-#: src/filters.py:157 src/filters.py:453 src/filters.py:454
+#: src/filters.py:157 src/filters.py:462 src/filters.py:463
 msgid "New Filter"
 msgstr "Novo filtro"
 
@@ -2899,7 +2951,7 @@ msgstr "Nenhum filtro"
 msgid "Hide or warn about posts that match keywords"
 msgstr "Ocultar ou avisar sobre publicações que correspondem a palavras-chave"
 
-#: src/filters.py:378 src/filters.py:461 src/filters.py:465
+#: src/filters.py:378 src/filters.py:470 src/filters.py:474
 #: src/preferences.py:541 src/preferences.py:545
 msgid "Filters"
 msgstr "Filtros"
@@ -3225,7 +3277,7 @@ msgstr "Nenhuma publicação nesta lista"
 msgid "Add members to the list to see their posts"
 msgstr "Adicione membros à lista para ver as publicações deles"
 
-#: src/lists.py:511 src/window.py:1085 src/window.py:1108 src/window.py:1249
+#: src/lists.py:511 src/window.py:1092 src/window.py:1115 src/window.py:1256
 msgid "List"
 msgstr "Lista"
 
@@ -3264,7 +3316,7 @@ msgstr "_Nova lista"
 msgid "Add to Lists"
 msgstr "Adicionar às listas"
 
-#: src/lists.py:647 src/window.py:78
+#: src/lists.py:647 src/window.py:84
 msgid "Lists"
 msgstr "Listas"
 
@@ -3723,7 +3775,7 @@ msgid "New Posts"
 msgstr "Novas publicações"
 
 #: src/notificationcopy.py:63 src/statusviews.py:24 src/statusviews.py:108
-#: src/statusviews.py:110 src/window.py:75
+#: src/statusviews.py:110 src/window.py:81
 msgid "Favorites"
 msgstr "Favoritos"
 
@@ -3731,7 +3783,7 @@ msgstr "Favoritos"
 msgid "Follows"
 msgstr "Seguidores"
 
-#: src/notificationcopy.py:65 src/window.py:222
+#: src/notificationcopy.py:65 src/window.py:233
 msgid "Follow Requests"
 msgstr "Pedidos para seguir"
 
@@ -3831,7 +3883,7 @@ msgstr "Notificações filtradas"
 msgid "%(domain)s: %(text)s"
 msgstr "%(domain)s: %(text)s"
 
-#: src/notificationctrl.py:357 src/notifications.py:1331 src/window.py:220
+#: src/notificationctrl.py:357 src/notifications.py:1331 src/window.py:231
 msgid "Announcements"
 msgstr "Anúncios"
 
@@ -4730,7 +4782,7 @@ msgstr "Preferências do _servidor"
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:468 src/window.py:1620 src/window.py:1625
+#: src/preferences.py:468 src/window.py:1637 src/window.py:1642
 msgid "Could not open the web browser"
 msgstr "Não foi possível abrir o navegador"
 
@@ -5004,7 +5056,7 @@ msgstr[1] "Mostrar todos os %d perfis"
 msgid "No Featured Profiles"
 msgstr "Nenhum perfil em destaque"
 
-#: src/profile.py:1126 src/statusrow.py:150 src/window.py:1245
+#: src/profile.py:1126 src/statusrow.py:150 src/window.py:1252
 msgid "Pinned"
 msgstr "Fixadas"
 
@@ -6706,7 +6758,7 @@ msgstr "%s mi"
 msgid "%sB"
 msgstr "%s bi"
 
-#: src/statusviews.py:76 src/window.py:1053
+#: src/statusviews.py:76 src/window.py:1060
 msgid "No Favorites Yet"
 msgstr "Nenhum favorito ainda"
 
@@ -6797,11 +6849,11 @@ msgstr "Buscando as publicações mais recentes"
 msgid "Could Not Load Timeline"
 msgstr "Não foi possível carregar a linha do tempo"
 
-#: src/timelinepage.py:255 src/window.py:1072
+#: src/timelinepage.py:255 src/window.py:1079
 msgid "No Posts Yet"
 msgstr "Nenhuma publicação ainda"
 
-#: src/timelinepage.py:256 src/window.py:1072
+#: src/timelinepage.py:256 src/window.py:1079
 msgid "New posts will appear here"
 msgstr "Novas publicações aparecerão aqui"
 
@@ -6821,72 +6873,72 @@ msgid_plural "%d new posts"
 msgstr[0] "%d publicação"
 msgstr[1] "%d publicações"
 
-#: src/window.py:72 src/window.ui:391 src/window.ui:397
+#: src/window.py:78 src/window.ui:391 src/window.ui:397
 msgid "Home"
 msgstr "Início"
 
-#: src/window.py:75
+#: src/window.py:81
 msgid "Bookmarks"
 msgstr "Itens salvos"
 
-#: src/window.py:76
+#: src/window.py:82
 msgid "Explore"
 msgstr "Explorar"
 
-#: src/window.py:77
+#: src/window.py:83
 msgid "Federated"
 msgstr "Federada"
 
-#: src/window.py:224
+#: src/window.py:235
 msgid "Mutes & Blocks"
 msgstr "Silenciados e bloqueados"
 
-#: src/window.py:226
+#: src/window.py:237
 msgid "Draft Posts"
 msgstr "Rascunhos"
 
-#: src/window.py:228
+#: src/window.py:239
 msgid "Scheduled Posts"
 msgstr "Publicações agendadas"
 
-#: src/window.py:333
+#: src/window.py:344
 #, python-format
 msgid "The login for @%s is gone from the keyring"
 msgstr "O login de @%s não está mais no chaveiro"
 
 #. Translators: a draft saved earlier is offered for
 #. restoring; %s is a compact age like "5m"
-#: src/window.py:406
+#: src/window.py:413
 #, fuzzy, python-format
 msgid "Draft from %s"
 msgstr "Rascunhos"
 
-#: src/window.py:408
+#: src/window.py:415
 #, fuzzy
 msgid "You have an unsent draft"
 msgstr "Você ainda não tem listas"
 
 #. Translators: banner shown while the computer has no network.
-#: src/window.py:426
+#: src/window.py:433
 msgid "You’re offline"
 msgstr ""
 
-#: src/window.py:513
+#: src/window.py:520
 msgid "Remove Account?"
 msgstr "Remover conta?"
 
-#: src/window.py:514
+#: src/window.py:521
 #, python-format
 msgid "The login for %s will be removed from this device."
 msgstr "O login de %s será removido deste dispositivo."
 
-#: src/window.py:850
+#: src/window.py:857
 msgid "Running in the background was not allowed"
 msgstr "A execução em segundo plano não foi permitida"
 
 #. Translators: status GNOME Shell shows for Babble running in
 #. the background with its window closed.
-#: src/window.py:923
+#: src/window.py:930
 #, fuzzy, python-format
 msgid "%d new mention"
 msgid_plural "%d new mentions"
@@ -6894,69 +6946,69 @@ msgstr[0] "%d notificação não lida"
 msgstr[1] "%d notificações não lidas"
 
 #. Translators: background status: live updates are streaming.
-#: src/window.py:927
+#: src/window.py:934
 msgid "Connected"
 msgstr ""
 
 #. Translators: background status: no live stream, so Babble polls
 #. the server for new notifications.
-#: src/window.py:930
+#: src/window.py:937
 #, fuzzy
 msgid "Checking for notifications"
 msgstr "Limpar notificações"
 
-#: src/window.py:955
+#: src/window.py:962
 msgid "The quick post shortcut was not allowed"
 msgstr ""
 
-#: src/window.py:1023
+#: src/window.py:1030
 #, python-format
 msgid "%d unread notification"
 msgid_plural "%d unread notifications"
 msgstr[0] "%d notificação não lida"
 msgstr[1] "%d notificações não lidas"
 
-#: src/window.py:1054
+#: src/window.py:1061
 msgid "Posts you favorite will appear here"
 msgstr "As publicações que você favoritar aparecerão aqui"
 
-#: src/window.py:1058
+#: src/window.py:1065
 msgid "No Bookmarks Yet"
 msgstr "Nenhum item salvo ainda"
 
-#: src/window.py:1059
+#: src/window.py:1066
 msgid "Posts you bookmark will appear here"
 msgstr "As publicações que você salvar aparecerão aqui"
 
-#: src/window.py:1154
+#: src/window.py:1161
 msgid "Sign in to post the file"
 msgid_plural "Sign in to post the files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/window.py:1465
+#: src/window.py:1472
 msgid "Waiting for Authorization"
 msgstr "Aguardando autorização"
 
-#: src/window.py:1467
+#: src/window.py:1474
 #, python-format
 msgid "_Continue with %s"
 msgstr "_Continuar com %s"
 
-#: src/window.py:1469 src/window.ui:210
+#: src/window.py:1476 src/window.ui:210
 msgid "_Continue"
 msgstr "_Continuar"
 
-#: src/window.py:1626
+#: src/window.py:1643
 msgid "No app is set to open web links"
 msgstr "Nenhum aplicativo está definido para abrir links da web"
 
-#: src/window.py:1655
+#: src/window.py:1672
 msgid "Could not connect to the server"
 msgstr "Não foi possível conectar ao servidor"
 
 #. Translators: keep "https://" untranslated
-#: src/window.py:1657
+#: src/window.py:1674
 msgid ""
 "Babble only connects over HTTPS. Enter the server address without a scheme, "
 "or with https://."
@@ -6964,11 +7016,11 @@ msgstr ""
 "O Babble só se conecta por HTTPS. Digite o endereço do servidor sem esquema "
 "ou com https://."
 
-#: src/window.py:1720
+#: src/window.py:1737
 msgid "Log Out?"
 msgstr "Sair da conta?"
 
-#: src/window.py:1721
+#: src/window.py:1738
 #, python-format
 msgid ""
 "The login for @%s will be signed out on the server and removed from this "
@@ -6976,7 +7028,7 @@ msgid ""
 msgstr ""
 "A sessão de @%s será encerrada no servidor e removida deste dispositivo."
 
-#: src/window.py:1725
+#: src/window.py:1742
 msgid "_Log Out"
 msgstr "_Sair da conta"
 

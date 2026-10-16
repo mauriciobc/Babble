@@ -101,8 +101,17 @@ check('F1 is not also bound to the shortcuts dialog',
       'F1' not in ' '.join(app.get_accels_for_action('app.shortcuts')))
 
 # --- the help pages ---------------------------------------------------
-check('the help URI names the application id',
-      HELP_URI == 'yelp://io.github.mauriciobc.Babble', HELP_URI)
+# The scheme is asserted, not the whole literal: a pinned string only
+# says that some URI was chosen, and the one I first chose (`yelp://`)
+# was handled by nothing at all -- Yelp registers ghelp/help/info/man
+# and no yelp handler, so the launch always failed and the pages were
+# dead weight while the suite stayed green. Naming the scheme is what
+# makes that failure a test failure.
+check('the help URI uses a scheme a viewer registers',
+      HELP_URI.startswith('help:'), HELP_URI)
+check('the help document id is the application id',
+      HELP_URI.split(':', 1)[1].split('/')[0]
+      == 'io.github.mauriciobc.Babble', HELP_URI)
 check('the fallback is the online documentation',
       DOCS_URL.startswith('https://'), DOCS_URL)
 page = os.path.join(srcdir, '..', 'data', 'help', 'C',

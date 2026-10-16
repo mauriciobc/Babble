@@ -20,7 +20,7 @@ Test names (besides the `validate …` and `po check <lang>` tests): `timeline r
 Four of those are rules rather than behaviour, and each exists because the rule was broken once or is invisible otherwise:
 
 - **`ui strings`** reads every translatable string (via `ast`, so comments and docstrings are never read) and fails on a generic action label ("OK", "Yes", "No", "Done"), a British spelling, `e.g.`/`i.e.`, and `...` where `…` belongs. A value use of a generic word is excepted by the exact source snippet it appears in, so an exception cannot outlive its reason.
-- **`style css`** loads `src/style.css` through a real `Gtk.CssProvider` and runs under `G_DEBUG=fatal-warnings` — `GtkCssProvider` has no parsing-error signal in GTK 4.24, so fatal warnings are the only thing that makes a malformed rule fail instead of being silently ignored.
+- **`style css`** loads `src/style.css` through a real `Gtk.CssProvider` and collects its `parsing-error` signal — which GTK 4.24 does emit, and which is the only way to see a malformed rule, since a bad declaration is otherwise just ignored. It also runs under `G_DEBUG=fatal-warnings`, as a second net for warnings GTK raises outside that signal.
 - **`app lifecycle`** asserts the action set: that the app registers no `app.shortcuts` of its own (AdwApplication builds it from the `shortcuts-dialog.ui` resource), that F1 is `app.help` and not the shortcuts dialog, and that `app.preferences` reuses the open dialog.
 - **`schedule dialog`** reads back the picker's spin rows' ranges and values, because `AdwSpinRow` is a row that owns a spin button rather than one: it has `get_value` and no `get_value_as_int`, and no `value-changed` signal (`notify::value` instead).
 

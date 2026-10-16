@@ -257,7 +257,7 @@ next reviewer does not re-derive it.
 | PKG-01 | **done** | Two screenshots were both `type="default"`; only one may be. | metainfo |
 | PKG-02 | **done** | The Flatpak manifest had no `cleanup`, so nine kinds of build leftovers shipped in the bundle; and `build-options` came before `finish-args`. | manifest |
 | PKG-03 | **done** | CI never linted the artifact it built. Added `flatpak-builder-lint` over the manifest and the built appdir, through `org.flatpak.Builder` so the linter version is Flathub's. **Unverified locally** — the tool is not installed here, so CI is its first real run. | `ci.yml` |
-| PKG-04 | **done** | The gschema's 58 `<summary>` strings never reached a translator: it was absent from `POTFILES.in` despite declaring `gettext-domain="babble"`. Added, and three keys that had no summary got one. | gschema, `POTFILES.in` |
+| PKG-04 | **done** | The gschema's `<summary>` strings never reached a translator: it was absent from `POTFILES.in` despite declaring `gettext-domain="babble"`. Added, and three keys that had no summary got one. 57 strings come from it — 55 `<summary>` and 2 `<description>`. | gschema, `POTFILES.in` |
 | PKG-05 | **done** | `Report-Msgid-Bugs-To` was empty and xgettext rewrites that header on every regeneration, so it is now passed as `--msgid-bugs-address` from `po/meson.build`. The descriptive comment lines in the header are still xgettext's placeholders: meson's `i18n.gettext()` only grew `msgid_bugs_address` after 1.13, and there is no other hook for them. | `po/meson.build` |
 | PKG-06 | **done** | Three symbolic icons had no `viewBox`; at 24 px the notifications one touched both edges. | `data/icons/` |
 | UI-06 | **done** | `_make_dropdown` reached into `Gtk.DropDown`'s child to restyle libadwaita internals. | `compose.py` |
@@ -275,6 +275,44 @@ next reviewer does not re-derive it.
 | DEF-06 | deferred | The app icon uses eleven gradients, three baked specular strokes and a black outline; the HIG asks for flat fills. | The artwork must be redrawn, not edited, and an icon is not a review finding a code change can settle. |
 | DEF-07 | deferred | No `-Dprofile=Devel`, so the app id is hard-coded in 24 places across the meson files. | Real and mechanical, and worth doing before a devel install is needed; it touches every installed filename, which is a bad pairing with a release. |
 | DEF-08 | deferred | Screenshots are 1090×790; the curation guidance says ≤1000×700. | Only matters when curating for Flathub. |
+
+### Second pass: what a review of the first pass caught
+
+Reviewing the branch above found one thing that shipped broken and several
+that were merely wrong. The broken one is the reason this section exists:
+**the help pages could never open.** `HELP_URI` was `yelp://`, and no such
+scheme exists — Yelp registers `ghelp`, `help`, `info` and `man`, and its URI
+resolver dispatches only on those, so every F1 press failed the launch and
+fell through to the online docs, with the installed Mallard pages doing
+nothing. `test-lifecycle.py` had pinned that exact literal, so the suite was
+green on a feature that could not work.
+
+| ID | Status | Finding | Evidence |
+|---|---|---|---|
+| FIX-01 | **done** | `HELP_URI` was `yelp://…`, handled by nothing. Now `help:io.github.mauriciobc.Babble`: the scheme Yelp registers, and the form the Desktop Help System Specification gives, with the document id being the app id that `share/help/<lang>/<id>/` is keyed by. | `window.py`, verified against yelp's `org.gnome.Yelp.desktop.in` and `libyelp/yelp-uri.c` |
+| FIX-02 | **done** | The test asserted the whole URI literal, so it confirmed the wrong scheme rather than the right one. It now asserts the *scheme* and the document id separately — a planted `yelp://` fails it. | `test-lifecycle.py` |
+| FIX-03 | **done** | In a Flatpak the `help:` URI is resolved host-side by the OpenURI portal, so the viewer looks in host directories, not `/app/share/help`, and reports the document missing — a *successful* launch, so the fallback never fires. Sandboxed, F1 now goes straight to the online documentation instead of opening a viewer that cannot find anything. | `window.py:open_help` |
+| FIX-04 | **done** | The CI lint step used `appdir`, which is not one of the linter's four targets (`appstream`, `manifest`, `builddir`, `repo`), and pointed at `build-flatpak/files` when `builddir` wants the build directory. Now `manifest` and `builddir build-flatpak`, both with `--gha-format`. Verified against the linter's `cli.py`, not from memory this time. | `ci.yml` |
+| FIX-05 | **done** | `ui strings` could not see the strings it exists to police: `POTFILES.in` feeds the gschema and the metainfo too, and both are runtime-translated. `collect()` now reads every data file `POTFILES.in` lists, so the list cannot drift. It immediately caught a violation in this branch's own release notes. | `test-ui-strings.py` |
+| FIX-06 | **done** | The gschema summary for the interface language contained `e.g.`. Reworded. The JSON sample `{"title", "tags": [...]}` keeps its three dots — they are JSON notation, not a typo — under a snippet-keyed exception that reports itself when the snippet changes. | gschema, `test-ui-strings.py` |
+| FIX-07 | **done** | Two claims about `GtkCssProvider` were wrong in the project's own words: it *does* have a `parsing-error` signal in GTK 4.24, and the stylesheet test collects it. Fatal warnings stay as a second net, but the stated reason was fiction. | `CLAUDE.md`, `src/meson.build` |
+| FIX-08 | **done** | `set_button_style` on the draft banner was set inside the refresh handler — a constant property, re-applied on every draft change. Set once at construction, as the notification banners already were. | `window.py` |
+| FIX-09 | **done** | `edit()` in the filters list popped *back to* an open editor, so clicking a second filter (or "New Filter") quietly showed the first one. The user chose a destination; it now pops the stale editor and pushes the one asked for, and makes sure the split view shows its content. | `filters.py` |
+| FIX-10 | **done** | The help page wrapped a single `<gui>` in a `<guiseq>`, declared two namespaces it never used, and had no `<revision>` for a translator to work from. | `data/help/` |
+| FIX-11 | **done** | `<url type="translate">` pointed at the repository root; it now points at `Docs/localization.md`, which is the page a translator actually wants. | metainfo |
+
+**Translations after this release.** Each locale reports 1411 translated, 108
+fuzzy, 75 untranslated, against 1419 / 73 / 34 before. Diffed against the
+previous commit, **nothing that was translated lost its translation**: the 79
+new untranslated strings are all brand new — 56 of them gschema summaries
+that no one has translated — and the fuzzy count grew by 38 because msgmerge
+attached translations from renamed strings. Several of those suggestions are
+wrong, which is what the fuzzy marker exists for: gettext omits fuzzy entries
+from the compiled catalogue, so the user sees English rather than the wrong
+translation. `msgattrib --clear-fuzzy` must not be used to tidy the numbers —
+it promotes unverified text, and because some suggestions carry format
+specifiers that do not match their new original it makes `msgfmt --check`, and
+CI, fail outright.
 
 ### Not verifiable headlessly — needs a real session
 
