@@ -225,6 +225,11 @@ test('local drafts', python,
   env: test_env,
   timeout: 60,
 )
+test('preferences schema', python,
+  args: [files('test-preferences-schema.py')],
+  env: test_env,
+  timeout: 60,
+)
 # Needs no display: the text layer is deliberately widget-free.
 test('status text', python,
   args: [files('test-statustext.py')],

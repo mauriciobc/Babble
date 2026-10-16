@@ -27,7 +27,7 @@ from gi.repository import GLib, GObject, Gio, Secret, Soup  # noqa: E402
 # with 403 to it while the very same request carrying an application
 # User-Agent returns 200. Announcing the client on the session fixes every
 # call at once, uploads included, since they share the one session.
-USER_AGENT = 'Babble/%s (+https://github.com/mauriciobc/babble)'
+USER_AGENT = 'Babble/%s (+https://github.com/mauriciobc/Babble)'
 
 # Adw.Toast renders its title as plain text, so an untrusted server body
 # must reach it with nothing that Pango or a widget could interpret and
@@ -214,7 +214,7 @@ ADMIN_SCOPES = OAUTH_SCOPES + ' admin:read admin:write'
 # Shown as the application's own homepage on the instance's consent
 # screen. It is Babble's address, never the server the user is signing
 # in to.
-APP_WEBSITE = 'https://github.com/mauriciobc/babble'
+APP_WEBSITE = 'https://github.com/mauriciobc/Babble'
 
 # Keyring kind of the OAuth client credentials. They are keyed per
 # account as well as per instance: every authorization registers its own

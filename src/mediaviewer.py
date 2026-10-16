@@ -1638,8 +1638,8 @@ def present_media(parent_widget, attachments, index=0):
     if overlay is None:
         # A window without one (a test's, say): give the viewer a window of
         # its own so it is still on screen and still usable.
-        host = Gtk.Window()
-        host.set_child(viewer)
+        host = Adw.Window()
+        host.set_content(viewer)
         host.present()
         return viewer
     overlay.add_overlay(viewer)

@@ -249,8 +249,22 @@ the audit's line numbers are for that revision.
 | UI-11 | **done** | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
 | ARCH-14 | **done** | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings/style/close-request via `connect_weak` |
 
-Nice-to-have findings 16–26 stay in `Docs/gnome-review.md`; 14–15
-(duplicate access keys) landed with A11Y-13.
+### Nice to have
+
+| ID | Status | Finding | Evidence | Notes |
+|---|---|---|---|---|
+| COPY-10 | **done** | Header-case `This` in admin confirmations | `admin.py` resolve/reopen/undo | |
+| CSS-10 | **done** | Literal opacities / absolute px in media viewer, emoji picker, Catch-Up | `style.css` | `--dim-opacity` / `--disabled-opacity`; `em` sizes; Catch-Up actions 32 px |
+| A11Y-14 | **done** | Poll vote mark lacks accessible name | `statusviews.py` | |
+| A11Y-15 | **done** | Account switcher tooltip drops instance | `window.py` `show_shell` / `_sign_out_to_login` | |
+| UI-12 | **done** | Media viewer test host used bare `Gtk.Window` | `mediaviewer.py` `present_media` | `Adw.Window` + `set_content` |
+| ARCH-15 | **deferred** | App icon in GResource *and* hicolor | `babble.gresource.xml:8-9` | Uninstalled runs resolve the logo through `IconTheme.add_resource_path`; no `meson devenv` yet. Dropping the aliases risks a missing logo outside an install prefix. Action icons stay in the resource. |
+| NOTIFY-10 | **done** | Desktop notifications never withdrawn | `desktopnotify.py` | Track ids; `withdraw_all` on reset; clear `babble-action-failed` on success |
+| PKG-12 | **done** | Metainfo screenshots on `main`; empty 0.1.0 notes; repo URL casing | `metainfo.xml.in`, `mastodon.py` | Pin screenshot commit; release description; `mauriciobc/Babble` |
+| PREF-10 | **done** | Combo rows hand-roll GSettings sync | `preferences.py`, `gschema.xml` | Enum keys 0-based; `_combo_enum` syncs via `get_enum`/`set_enum` (GIO `bind` sees enums as `s`; PyGObject `bind_with_mapping` does not marshal `GValue`). `auto-refresh` stays a string choice (enum nick `0` is illegal). Covered by `preferences schema`. |
+| OBS-10 | **observe** | `gdk_frame_timings_submitted` once per process after first primary menu | GDK warning under Xvfb | No Python call site; suite stays `fatal-criticals` only. Leave for upstream / local `fatal-warnings` bisect. |
+
+Duplicate access keys (review 14–15) landed with A11Y-13.
 
 ---
 

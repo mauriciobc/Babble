@@ -615,6 +615,7 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _sign_out_to_login(self):
         self.account_avatar.set_custom_image(None)
+        self.account_button.set_tooltip_text(_('Switch Account'))
         self._update_session_actions()
         self.login_back_button.set_visible(False)
         self.auth.cancel()
@@ -622,9 +623,12 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def show_shell(self):
         name = account_store.plain_name(self.account)
+        handle = account_store.full_handle(self.account)
         self.account_name_label.set_label(name)
-        self.account_handle_label.set_label(
-            account_store.full_handle(self.account))
+        self.account_handle_label.set_label(handle)
+        # The label ellipsizes when narrow or large-text; keep the full
+        # handle (with instance) on the button for hover and Orca.
+        self.account_button.set_tooltip_text(handle)
         self.account_avatar.set_text(name)
         AvatarCache.load(self.account_avatar, self.account)
         self._update_session_actions()
