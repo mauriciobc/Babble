@@ -322,8 +322,14 @@ class LoginFlow(GObject.Object):
         self._fallback = True
         self.emit('changed')
         if self._client is not None and self._client.client_id is not None:
-            self.emit('browser',
-                      self._client.get_authorize_url(OOB_REDIRECT))
+            # The scopes the client was registered for, not the default:
+            # an admin authorization that falls back to the pasted code
+            # must still ask for the admin scopes, or Mastodon grants a
+            # token that cannot moderate and the dashboard reports the
+            # authorization as having succeeded.
+            self.emit('browser', self._client.get_authorize_url(
+                OOB_REDIRECT,
+                ADMIN_SCOPES if self.admin else OAUTH_SCOPES))
             return True
         return False
 
