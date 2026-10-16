@@ -1,6 +1,7 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
 data/io.github.mauriciobc.Babble.desktop.in
+data/io.github.mauriciobc.Babble.gschema.xml
 data/io.github.mauriciobc.Babble.metainfo.xml.in
 src/accounts.py
 src/admin.py
@@ -8,11 +9,11 @@ src/announcements.py
 src/auth.py
 src/catchup.py
 src/catchupgrid.py
+src/clipboard.py
 src/compose.py
 src/composeupload.py
 src/conversations.py
 src/desktopnotify.py
-src/clipboard.py
 src/drafts.py
 src/emojichooser.py
 src/explore.py

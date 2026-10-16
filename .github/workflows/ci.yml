@@ -142,6 +142,30 @@ jobs:
             build-flatpak \
             build-aux/flatpak/io.github.mauriciobc.Babble.json
 
+      - name: Lint the bundle
+        # The build step only proves the manifest builds. This is what
+        # says the artifact is shippable: the same linter Flathub runs
+        # on a submission, over the manifest and over the tree that
+        # actually landed in /app -- the metainfo, the desktop file, the
+        # finish-args, the icons and the permissions.
+        #
+        # Run through the org.flatpak.Builder flatpak rather than a
+        # distro package: the linter is only as current as the Builder
+        # it ships in, and the builder's version is what Flathub will
+        # read it with. The flathub remote is already added by the build
+        # step above, which is why this only installs.
+        #
+        # Unverified locally: flatpak-builder-lint is not installed on
+        # a development machine, so this step's first real run is CI's.
+        # A wrong tool invocation fails loudly here rather than passing
+        # quietly.
+        run: |
+          flatpak install --user -y flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            manifest build-aux/flatpak/io.github.mauriciobc.Babble.json
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            appdir build-flatpak/files
+
       - name: Report where the build landed
         # Not an assertion, just the artifact the run would be judged
         # from: the installed tree under /app.

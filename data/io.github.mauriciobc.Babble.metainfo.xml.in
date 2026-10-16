@@ -21,6 +21,7 @@
   <url type="bugtracker">https://github.com/mauriciobc/babble/issues</url>
   <url type="vcs-browser">https://github.com/mauriciobc/babble</url>
   <url type="contribute">https://github.com/mauriciobc/babble/graphs/contributors</url>
+  <url type="translate">https://github.com/mauriciobc/babble</url>
   <launchable type="desktop-id">io.github.mauriciobc.Babble.desktop</launchable>
   <update_contact>mauriciobc_AT_github.com</update_contact>
   <content_rating type="oars-1.1">
@@ -32,7 +33,7 @@
       <image type="source">https://raw.githubusercontent.com/mauriciobc/babble/main/data/screenshots/timeline.png</image>
       <caption>Home timeline with posts, media and the action bar</caption>
     </screenshot>
-    <screenshot type="default">
+    <screenshot>
       <image type="source">https://raw.githubusercontent.com/mauriciobc/babble/main/data/screenshots/thread.png</image>
       <caption>A thread, with the focused post and its replies</caption>
     </screenshot>
