@@ -143,16 +143,25 @@ jobs:
         #
         # Absolute paths, because inside the sandbox the working
         # directory is the home directory: relative ones resolve there.
+        #
+        # The SDK goes into the *system* installation: /var/lib/flatpak is
+        # the one org.flatpak.Builder's sandbox has mounted, and the
+        # flatpak-builder inside it resolves runtimes there. Installed per
+        # user instead, the build dies with "Unable to find sdk
+        # org.gnome.Sdk version 51" — the sandbox's view of the user
+        # installation holds no refs.
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak
           flatpak remote-add --user --if-not-exists flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y \
+          sudo flatpak remote-add --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install --system -y flathub \
             org.gnome.Sdk//51 org.gnome.Platform//51
           flatpak install --user -y flathub org.flatpak.Builder
           flatpak run --command=flatpak-builder org.flatpak.Builder \
-            --user --force-clean \
+            --force-clean \
             --mirror-screenshots-url=https://dl.flathub.org/media \
             --compose-url-policy=full \
             --repo="$PWD/repo" \
