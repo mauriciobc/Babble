@@ -29,6 +29,7 @@ from urllib.parse import urlsplit  # noqa: E402
 
 from gi.repository import Adw, GLib, GObject, Gtk, Pango  # noqa: E402
 
+from . import charts  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
@@ -194,7 +195,8 @@ class Sparkline(Gtk.DrawingArea):
         low, high = min(self.values), max(self.values)
         span = (high - low) or 1
         color = area.get_color()
-        cr.set_source_rgba(color.red, color.green, color.blue, 0.8)
+        cr.set_source_rgba(color.red, color.green, color.blue,
+                          charts.alpha(0.8))
         cr.set_line_width(1.5)
         step = width / (len(self.values) - 1)
         for index, value in enumerate(self.values):
@@ -637,16 +639,23 @@ class ReportDialog(AdminDialogBase):
             self.resolve_button, 'clicked',
             self._on_reopen if resolved else self._on_resolve)
         self.header.pack_start(self.resolve_button)
+        # Take Action opens a moderation dialog; it is not the other half
+        # of this page's one decision, so it does not sit beside Resolve
+        # in the header bar competing with it. It goes with the account
+        # summary it acts on, as a plain button: the moderation choices
+        # it leads to are destructive in their own right and each is
+        # confirmed there, which is where that emphasis belongs.
         self.action_button = Gtk.Button(label=_('Take _Action'),
                                         use_underline=True,
+                                        halign=Gtk.Align.CENTER,
                                         sensitive=not resolved)
-        self.action_button.add_css_class('destructive-action')
         pages.connect_weak(self.action_button, 'clicked',
                            self._on_take_action)
-        self.header.pack_end(self.action_button)
+        self.action_button.add_css_class('pill')
 
         profile = Adw.PreferencesGroup()
         profile.add(AccountSummary(self.client, target))
+        profile.set_header_suffix(self.action_button)
         self.page.add(profile)
 
         info = Adw.PreferencesGroup()

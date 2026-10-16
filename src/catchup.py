@@ -1734,12 +1734,24 @@ class CatchUpPage(Adw.Bin):
                       margin_end=12, width_request=320)
 
         def heading(text):
+            """A visible heading that also names the control below it.
+
+            The relation is what gives the control its accessible name:
+            a toggle group and two drop-downs carry no label of their
+            own, so without it they are three unlabelled controls in a
+            popover."""
             label = Gtk.Label(label=text, xalign=0.0)
             label.add_css_class('caption-heading')
             return label
 
-        box.append(heading(_('Category')))
-        self.category_group = Adw.ToggleGroup()
+        def labelled(control, label):
+            control.update_relation(
+                [Gtk.AccessibleRelation.LABELLED_BY], [label])
+            return control
+
+        category_heading = heading(_('Category'))
+        box.append(category_heading)
+        self.category_group = labelled(Adw.ToggleGroup(), category_heading)
         scroll = Gtk.ScrolledWindow(
             hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
             vscrollbar_policy=Gtk.PolicyType.NEVER,
@@ -1749,21 +1761,26 @@ class CatchUpPage(Adw.Bin):
         pages.connect_weak(self.category_group, 'notify::active-name',
                            self._on_category_changed)
 
-        box.append(heading(_('Author')))
+        author_heading = heading(_('Author'))
+        box.append(author_heading)
         self.author_model = Gtk.StringList()
-        self.author_dropdown = Gtk.DropDown(model=self.author_model,
-                                            enable_search=True)
+        self.author_dropdown = labelled(
+            Gtk.DropDown(model=self.author_model, enable_search=True),
+            author_heading)
         self.author_dropdown.set_expression(Gtk.PropertyExpression.new(
             Gtk.StringObject.__gtype__, None, 'string'))
         pages.connect_weak(self.author_dropdown, 'notify::selected',
                            self._on_author_changed)
         box.append(self.author_dropdown)
 
-        box.append(heading(_('Sort by')))
+        sort_heading = heading(_('Sort by'))
+        box.append(sort_heading)
         sort_row = Gtk.Box(spacing=6)
-        self.sort_dropdown = Gtk.DropDown(
-            model=Gtk.StringList.new([sort_name(s) for s in SORTS]),
-            hexpand=True)
+        self.sort_dropdown = labelled(
+            Gtk.DropDown(
+                model=Gtk.StringList.new([sort_name(s) for s in SORTS]),
+                hexpand=True),
+            sort_heading)
         pages.connect_weak(self.sort_dropdown, 'notify::selected',
                            self._on_sort_changed)
         sort_row.append(self.sort_dropdown)

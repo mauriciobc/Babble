@@ -24,6 +24,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E402
 
+from . import charts  # noqa: E402
 from . import pages  # noqa: E402
 from .mastodon import (summarize_error,  # noqa: E402
                        summarize_error_markup)
@@ -132,10 +133,11 @@ class MonthlyChart(Gtk.DrawingArea):
         for index, value in enumerate(values):
             x = index * slot + (slot - bar_w) / 2
             bar_h = max(plot_h * value / peak, 2 if value else 0)
-            cr.set_source_rgba(bar.red, bar.green, bar.blue, 0.9)
+            cr.set_source_rgba(bar.red, bar.green, bar.blue, charts.alpha(0.9))
             cr.rectangle(x, top + plot_h - bar_h, bar_w, bar_h)
             cr.fill()
-            cr.set_source_rgba(text.red, text.green, text.blue, 0.65)
+            cr.set_source_rgba(text.red, text.green, text.blue,
+                               charts.alpha(charts.DIMMED))
             name = self.month_names[index]
             extents = cr.text_extents(name)
             cr.move_to(index * slot + (slot - extents.width) / 2,
@@ -209,8 +211,12 @@ class WrappedDialog(Adw.Dialog):
             label=_('Style'), direction=Gtk.ArrowType.NONE, visible=False)
         self.style_button.set_menu_model(self._style_menu())
         self.header.pack_start(self.style_button)
-        self.year_dropdown = Gtk.DropDown(visible=False,
-                                          tooltip_text=_('Year'))
+        self.year_dropdown = Gtk.DropDown(visible=False)
+        # A tooltip does not set the accessible name, and this control
+        # has no text of its own, so it needs both.
+        self.year_dropdown.set_tooltip_text(_('Year'))
+        self.year_dropdown.update_property([Gtk.AccessibleProperty.LABEL],
+                                           [_('Year')])
         pages.connect_weak(self.year_dropdown, 'notify::selected',
                            self._on_year)
         self.header.pack_start(self.year_dropdown)
