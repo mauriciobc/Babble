@@ -1,11 +1,13 @@
 import base64
 import hashlib
 import json
+import math
 import random
 import re
 import secrets as _secrets
 import time
 import urllib.parse
+from email.utils import parsedate_to_datetime
 
 
 import gi
@@ -48,6 +50,10 @@ HTTP_TIMEOUT_SECONDS = 30
 DEFAULT_RATE_LIMIT_SECONDS = 60
 MAX_RATE_LIMIT_SECONDS = 3600
 
+# Mastodon's own default per-post attachment count, used when an
+# instance does not advertise one (Status::MEDIA_ATTACHMENTS_LIMIT).
+DEFAULT_MAX_MEDIA_ATTACHMENTS = 4
+
 # libsoup 3 does not name HTTP 429, so the wire value is spelled out.
 HTTP_TOO_MANY_REQUESTS = 429
 
@@ -56,9 +62,36 @@ REST_RETRY_MAX = 3
 REST_BACKOFF_START = 1.0
 REST_BACKOFF_MAX = 30.0
 
+# RFC 9110 9.2.2: PUT, DELETE and the safe methods (GET, HEAD, OPTIONS,
+# TRACE) are idempotent -- repeating one has the same effect on the server
+# as sending it once. POST is neither, and the same section says a client
+# SHOULD NOT retry a non-idempotent request automatically. That is the
+# difference between a harmless repeat and a duplicate: a
+# POST /statuses whose response was lost *after* the server committed it
+# looked exactly like a failure, so retrying asked for the post a second
+# time and the reader got one status while the instance held two.
+IDEMPOTENT_METHODS = ('GET', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE')
 
-def rest_should_retry(status, transport_error=False):
-    """Whether a failed request may be retried automatically."""
+# A parsed number below this is not an instant: 2000-01-01T00:00:00Z. It
+# rejects the handful of strings that read as floats without being times
+# -- 'nan', 'inf', '-1', '0' -- which would otherwise reach int() in the
+# error path and raise there.
+EARLIEST_PLAUSIBLE_EPOCH = 946684800
+
+# How far the server's Date header may claim to run from ours before it
+# is ignored (RFC 9110 6.6.1 does not require a server's Date to be
+# true). Two days is far past any real skew and far short of letting a
+# broken header stall the client for hours.
+MAX_CLOCK_SKEW_SECONDS = 172800
+
+
+def rest_should_retry(method, status, transport_error=False):
+    """Whether a failed request may be retried automatically.
+
+    *method* decides it first; see :data:`IDEMPOTENT_METHODS`.
+    """
+    if str(method).upper() not in IDEMPOTENT_METHODS:
+        return False
     if transport_error:
         return True
     if status is None:
@@ -326,6 +359,64 @@ def parse_link_header(value):
     return links
 
 
+def parse_reset_instant(value):
+    """``X-RateLimit-Reset`` as a POSIX timestamp, or None.
+
+    Mastodon builds it with ``(request_time + reset_period_offset)
+    .iso8601(6)`` -- app/controllers/concerns/api/rate_limit_headers.rb --
+    so it arrives as an ISO-8601 instant (``2026-10-16T11:20:00.701542Z``,
+    the form observed on mastodon.social), which ``int()`` can never read.
+    Every 429 therefore fell through to :data:`DEFAULT_RATE_LIMIT_SECONDS`,
+    and a client that ignored the server's real window deepened the limit
+    it had just been told about. Older servers and forks send a Unix epoch
+    and some send a fractional one, so both are read; the docs call this
+    only "Timestamp when your rate limit will reset" and never say which
+    format. None means the header was absent or is not a timestamp.
+    """
+    text = (value or '').strip()
+    if not text:
+        return None
+    try:
+        epoch = float(text)
+    except ValueError:
+        pass
+    else:
+        # 'nan' and 'inf' are floats and not instants; math.isfinite keeps
+        # both out, and int(inf) would raise inside the error path.
+        return epoch if math.isfinite(epoch) \
+            and epoch >= EARLIEST_PLAUSIBLE_EPOCH else None
+    # PyGObject raises TypeError from the constructor when GLib returns
+    # NULL, rather than handing back None, so an unparsable string has to
+    # be caught: this runs on a header a server chose, inside the error
+    # path of _on_response, where an exception escapes into libsoup and
+    # leaves the caller's Gio.Task unfinished.
+    try:
+        stamp = GLib.DateTime.new_from_iso8601(text)
+    except TypeError:
+        return None
+    return stamp.to_unix() if stamp is not None else None
+
+
+def server_clock_offset(date_header, now):
+    """Seconds the server's clock runs ahead of ours, from its ``Date``.
+
+    RFC 9110 6.6.1 requires an origin server to send ``Date`` on every
+    2xx, 3xx and 4xx, and the rate-limit reset is an instant on the
+    *server's* clock, so the difference between the two is one
+    subtraction. Zero when the header is missing or unparsable, and zero
+    when it claims more than :data:`MAX_CLOCK_SKEW_SECONDS` of drift,
+    both of which leave the caller no worse off than not correcting.
+    """
+    try:
+        server_now = parsedate_to_datetime(date_header).timestamp()
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    offset = server_now - now
+    if abs(offset) > MAX_CLOCK_SKEW_SECONDS:
+        return 0.0
+    return offset
+
+
 class MastodonClient(GObject.Object):
     """Async Mastodon REST client for a single instance.
 
@@ -389,18 +480,38 @@ class MastodonClient(GObject.Object):
                                           task)
 
     def _note_rate_limit(self, headers):
-        """Record how long a 429 says to stop asking for."""
+        """Record how long a 429 says to stop asking for.
+
+        Mastodon's throttled_responder
+        (config/initializers/rack_attack.rb) builds the 429 from
+        Content-Type and the three X-RateLimit-* headers and nothing
+        else, so ``Retry-After`` never arrives and the reset branch is
+        the only one that runs. That branch used to read an ISO-8601
+        instant as an integer, which never parses, so the wait was
+        always :data:`DEFAULT_RATE_LIMIT_SECONDS` whatever the server
+        said. :func:`parse_reset_instant` takes either spelling, and
+        :func:`server_clock_offset` corrects the instant against the
+        response's own ``Date``, without which a clock two hours out
+        turns a ten-minute window into a one-second one.
+        """
+        now = time.time()
         retry = headers.get_one('Retry-After') or ''
-        seconds = DEFAULT_RATE_LIMIT_SECONDS
+        seconds = None
         try:
+            # RFC 9110 10.2.3 also allows an HTTP-date here. Mastodon's
+            # throttled_responder never sends the header at all, so the
+            # date form is not read: an unparsable value falls through
+            # to the reset Mastodon does send, which is the more precise
+            # of the two anyway.
             seconds = max(1, min(int(retry.strip()), MAX_RATE_LIMIT_SECONDS))
         except (TypeError, ValueError):
-            remaining = headers.get_one('X-RateLimit-Reset')
-            try:
-                reset = int(remaining) - int(time.time())
-                seconds = max(1, min(reset, MAX_RATE_LIMIT_SECONDS))
-            except (TypeError, ValueError):
-                pass
+            reset = parse_reset_instant(headers.get_one('X-RateLimit-Reset'))
+            if reset is not None:
+                offset = server_clock_offset(headers.get_one('Date'), now)
+                seconds = int(reset - offset - now)
+                seconds = max(1, min(seconds, MAX_RATE_LIMIT_SECONDS))
+        if seconds is None:
+            seconds = DEFAULT_RATE_LIMIT_SECONDS
         self._rate_limited_until = (GLib.get_monotonic_time() / 1000000.0
                                     + seconds)
         return seconds
@@ -427,7 +538,12 @@ class MastodonClient(GObject.Object):
                 'application/json',
                 GLib.Bytes.new(json.dumps(json_body).encode()))
         elif form is not None:
-            body = urllib.parse.urlencode(form, doseq=True)
+            # None is dropped rather than encoded: urlencode renders it as
+            # the four letters "None", which a server reads as a secret
+            # that happens to be that word.
+            body = urllib.parse.urlencode(
+                {name: value for name, value in form.items()
+                 if value is not None}, doseq=True)
             message.set_request_body_from_bytes(
                 'application/x-www-form-urlencoded',
                 GLib.Bytes.new(body.encode()))
@@ -452,10 +568,11 @@ class MastodonClient(GObject.Object):
     def _maybe_retry(self, task, status=None, transport_error=False):
         # Only real Gio.Tasks from _request_async carry a spec; fakes in
         # unit tests must fail through without a scheduled retry.
-        if getattr(task, '_rest_spec', None) is None:
+        spec = getattr(task, '_rest_spec', None)
+        if spec is None:
             return False
         attempt = getattr(task, '_rest_attempt', 0)
-        if not rest_should_retry(status, transport_error) \
+        if not rest_should_retry(spec[0], status, transport_error) \
                 or attempt >= REST_RETRY_MAX:
             return False
         task._rest_attempt = attempt + 1
@@ -622,6 +739,62 @@ class MastodonClient(GObject.Object):
         statuses = (info.get('configuration') or {}).get('statuses') or {}
         return statuses.get('max_characters') or 500
 
+    def _media_configuration(self):
+        """``configuration.media_attachments`` or {} when unsaid."""
+        config = (self.instance_info or {}).get('configuration') or {}
+        return config.get('media_attachments') or {}
+
+    def max_media_attachments(self):
+        """How many attachments one post may carry here.
+
+        Mastodon's own default when the instance is silent about it:
+        Status::MEDIA_ATTACHMENTS_LIMIT is 4, so an instance that raises
+        or lowers it is honoured and one that says nothing is not
+        blocked.
+        """
+        statuses = (self.instance_info or {}).get('configuration') or {}
+        statuses = (statuses.get('statuses') or {})
+        try:
+            limit = int(statuses.get('max_media_attachments'))
+        except (TypeError, ValueError):
+            return DEFAULT_MAX_MEDIA_ATTACHMENTS
+        return limit if limit > 0 else DEFAULT_MAX_MEDIA_ATTACHMENTS
+
+    def media_size_limits(self):
+        """``(image_bytes, video_bytes)`` from the instance, either None
+        where it advertised nothing.
+
+        Both are enforced server-side: MediaAttachment validates a file
+        against VIDEO_LIMIT for video, gifv and audio and IMAGE_LIMIT
+        otherwise, and strictly, so a file of exactly the limit is
+        refused. None means no limit to enforce, which is the safe
+        direction to fail in.
+        """
+        media = self._media_configuration()
+
+        def limit(name):
+            try:
+                value = int(media[name])
+            except (KeyError, TypeError, ValueError):
+                return None
+            return value if value > 0 else None
+        return limit('image_size_limit'), limit('video_size_limit')
+
+    def supported_media_types(self):
+        """``configuration.media_attachments.supported_mime_types``, or
+        None when there is nothing worth filtering a file chooser on.
+
+        None also covers the instance that advertises the single type
+        ``application/octet-stream``: as a chooser filter that hides
+        every file a reader actually has.
+        """
+        advertised = self._media_configuration().get('supported_mime_types')
+        if not isinstance(advertised, list):
+            return None
+        types = [t for t in advertised
+                 if isinstance(t, str) and t != 'application/octet-stream']
+        return types or None
+
     def mastodon_api_version(self):
         """The instance's ``api_versions.mastodon``, or None when it says
         nothing at all.
@@ -685,8 +858,22 @@ class MastodonClient(GObject.Object):
 
     def register_app_finish(self, result):
         data = self._finish(result)
-        self.client_id = data['client_id']
-        self.client_secret = data['client_secret']
+        client_id = data.get('client_id')
+        # A GLib.Error, not a KeyError: the contract this class documents
+        # is that every finish raises GLib.Error, and an index into the
+        # payload raised through the GObject callback instead, leaving
+        # the login waiting on a browser step that was never going to
+        # arrive. REST::CredentialApplicationSerializer declares
+        # client_id, client_secret and client_secret_expires_at and
+        # fills them from Doorkeeper's uid and secret, and the docs say
+        # "Mastodon only supports provisioning confidential clients, i.e.,
+        # you will always receive a client_secret" -- so this guards
+        # against a server that does not, not a shape to expect.
+        if not client_id:
+            raise GLib.Error(_('The server did not return an application id.'),
+                             'mastodon-http-error-quark', 0)
+        self.client_id = client_id
+        self.client_secret = data.get('client_secret')
         return data
 
     def store_secret_token(self, account_id, token, callback=None,
@@ -988,7 +1175,17 @@ class MastodonClient(GObject.Object):
     def post_status_async(self, text, params=None, callback=None,
                           cancellable=None):
         """POST /api/v1/statuses as JSON, so nested values (``poll``
-        options, ``media_ids`` arrays) keep their structure."""
+        options, ``media_ids`` arrays) keep their structure.
+
+        No ``Idempotency-Key`` is sent, and that is deliberate.
+        Mastodon reads one (api/v1/statuses_controller.rb) and keys it
+        per account in Redis for an hour (PostStatusService
+        #with_idempotency), but on a repeat it raises IdempotencyError
+        carrying the *id string*, which the controller then hands to
+        the status serializer. So the dedup does not make a retry safe --
+        it makes the retry return something that is not a status. The
+        reply is left to :data:`IDEMPOTENT_METHODS` instead.
+        """
         body = {'status': text}
         if params:
             body.update(params)
@@ -1017,20 +1214,36 @@ class MastodonClient(GObject.Object):
         """multipart/form-data request: ``fields`` maps names to strings
         (lists repeat the key), ``files`` maps names to
         ``(bytes, filename, content_type)``. Finish with
-        :meth:`request_finish`."""
+        :meth:`request_finish`.
+
+        A file's bytes may be given as a :class:`GLib.Bytes` as well as a
+        ``bytes``, which is what an attachment read by the caller should
+        be: :meth:`GLib.Bytes.new` copies, so passing raw bytes holds the
+        payload twice before libsoup makes its own copy."""
         task = Gio.Task.new(self, cancellable, callback)
         uri = self.instance + path if path.startswith('/api/') \
             else self.api_base + path
         message = Soup.Message.new(method, uri)
         multipart = Soup.Multipart.new('multipart/form-data')
         for name, (data, filename, content_type) in (files or {}).items():
-            multipart.append_form_file(name, filename, content_type,
-                                       GLib.Bytes.new(data))
+            multipart.append_form_file(
+                name, filename, content_type,
+                data if isinstance(data, GLib.Bytes) else GLib.Bytes.new(data))
         for name, value in (fields or {}).items():
             for item in value if isinstance(value, (list, tuple)) \
                     else [value]:
                 multipart.append_form_string(name, str(item))
-        multipart.finish_message(message)
+        # libsoup 3 names this to_message, and it returns the encoded
+        # body rather than attaching it. It writes the chosen boundary
+        # into the headers it is handed, so the Content-Type has to be
+        # read back off them: handing it the bare type strips the
+        # boundary, and a server cannot split a part it has no boundary
+        # for. (Calling it finish_message, as this did, raised
+        # AttributeError on every attachment and nothing caught it: the
+        # composer tests replace this whole method.)
+        body = multipart.to_message(message.get_request_headers())
+        message.set_request_body_from_bytes(
+            message.get_request_headers().get_one('Content-Type'), body)
         if self.token:
             message.get_request_headers().append('Authorization',
                                                  'Bearer ' + self.token)
@@ -1043,6 +1256,10 @@ class MastodonClient(GObject.Object):
         """Upload one attachment to ``POST /api/v2/media`` (docs.
         joinmastodon.org/methods/media), multipart/form-data with a
         ``file`` part and optional ``description`` alt text.
+
+        *file_bytes* may be a :class:`GLib.Bytes` or a ``bytes``; pass
+        the former when the caller already holds one, so the attachment
+        is not copied twice on the way out.
 
         The v2 route answers HTTP 202 with a ``url`` of null while the
         full-size file is processed in the background; the composer polls
