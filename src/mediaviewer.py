@@ -56,8 +56,9 @@ TEXTURE_CACHE_SIZE = 6
 # window. It fills the window when fullscreen, or when the preference
 # asks for that.
 VIEWER_MARGIN = 64
-VIEWER_FALLBACK_WIDTH = 1100
-VIEWER_FALLBACK_HEIGHT = 760
+# Below this the box gives its inset back and the photo takes the whole
+# window: the window's own narrow layout starts at the same width.
+VIEWER_COMPACT = 'max-width: 600sp or max-height: 400sp'
 
 # The viewer currently on screen, if any. Opening another attachment
 # replaces it: stacked overlays would each keep the whole window
@@ -606,6 +607,9 @@ class MediaViewer(Adw.Bin):
 
     __gtype_name__ = 'BabbleMediaViewer'
 
+    # Set by a breakpoint while the window is too small for the box.
+    compact = GObject.Property(type=bool, default=False)
+
     def __init__(self, parent, attachments, index=0):
         super().__init__()
         self.attachments = [a for a in attachments if isinstance(a, dict)]
@@ -620,7 +624,6 @@ class MediaViewer(Adw.Bin):
         self._closed = False
         self._we_fullscreened = False
         self._fullscreen_handler = None
-        self._maximized_handler = None
         self._first_focus = True
         self._downloads = Gio.Cancellable()
         # Kind of the attachment the current stream plays.
@@ -637,9 +640,6 @@ class MediaViewer(Adw.Bin):
             self._fullscreen_handler = pages.connect_weak(
                 self.window, 'notify::fullscreened',
                 self._on_fullscreen_changed)
-            self._maximized_handler = pages.connect_weak(
-                self.window, 'notify::maximized',
-                self._on_maximized_changed)
         self.show_index(index)
 
     # Construction
@@ -846,13 +846,22 @@ class MediaViewer(Adw.Bin):
         # that land beside the box instead of letting them reach the app.
         self._backdrop = Gtk.Box()
         self._stage.set_child(self._backdrop)
-        self._card = Gtk.Box(halign=Gtk.Align.CENTER,
-                            valign=Gtk.Align.CENTER)
+        # The box is inset from the window by margins rather than sized
+        # from it, so it follows every resize of the window.
+        self._card = Gtk.Box()
         self._card.add_css_class('media-viewer-card')
-        self._card.add_css_class('media-viewer-box')
         self._card.append(self.toasts)
         self._stage.add_overlay(self._card)
-        self.set_child(self._stage)
+        compact = Adw.Breakpoint.new(
+            Adw.BreakpointCondition.parse(VIEWER_COMPACT))
+        compact.add_setter(self, 'compact', True)
+        # The window's own floor (window.ui), so the bin never raises it.
+        stage_bin = Adw.BreakpointBin(child=self._stage,
+                                      width_request=360, height_request=294)
+        stage_bin.add_breakpoint(compact)
+        self.set_child(stage_bin)
+        pages.connect_weak(self, 'notify::compact',
+                           self._on_compact_changed)
 
         keys = Gtk.EventControllerKey()
         pages.connect_weak(keys, 'key-pressed', self._on_key_pressed)
@@ -1409,39 +1418,30 @@ class MediaViewer(Adw.Bin):
     def _on_fullscreen_changed(self, window, _pspec):
         self._sync_viewer_to_window(window)
 
-    def _on_maximized_changed(self, window, _pspec):
-        # A maximized window keeps the box, but the box is sized from the
-        # window, so it has to be laid out again for the new space.
-        self._sync_viewer_to_window(window)
+    def _on_compact_changed(self, _viewer, _pspec):
+        if self.window is not None:
+            self._sync_viewer_to_window(self.window)
 
     def _sync_viewer_to_window(self, window):
-        """Fill the window when it is fullscreen, or when the preference
-        asks photos to open that way; otherwise sit as a box over it."""
+        """Fill the window when it is fullscreen, too small for the box,
+        or when the preference asks photos to open that way; otherwise
+        sit as a box inset from it."""
         fullscreen = window.is_fullscreen()
-        expanded = fullscreen or _opens_fullscreen()
+        expanded = fullscreen or self.compact or _opens_fullscreen()
         self.fullscreen_button.set_icon_name(
             'view-restore-symbolic' if fullscreen
             else 'view-fullscreen-symbolic')
         label = _('Exit Fullscreen') if fullscreen else _('Fullscreen')
         self.fullscreen_button.set_tooltip_text(label)
         _label(self.fullscreen_button, label)
+        margin = 0 if expanded else VIEWER_MARGIN
+        self._card.set_margin_top(margin)
+        self._card.set_margin_bottom(margin)
+        self._card.set_margin_start(margin)
+        self._card.set_margin_end(margin)
         if expanded:
-            self._card.set_halign(Gtk.Align.FILL)
-            self._card.set_valign(Gtk.Align.FILL)
-            self._card.set_size_request(-1, -1)
             self._card.remove_css_class('media-viewer-box')
         else:
-            # A box inset from the window on every side, like the dialog
-            # this replaced: fixed pixels would swallow a small window
-            # whole and leave a large one mostly empty.
-            width, height = window.get_width(), window.get_height()
-            width = width - 2 * VIEWER_MARGIN if width > 0 \
-                else VIEWER_FALLBACK_WIDTH
-            height = height - 2 * VIEWER_MARGIN if height > 0 \
-                else VIEWER_FALLBACK_HEIGHT
-            self._card.set_halign(Gtk.Align.CENTER)
-            self._card.set_valign(Gtk.Align.CENTER)
-            self._card.set_size_request(max(width, 1), max(height, 1))
             self._card.add_css_class('media-viewer-box')
 
     def save_as(self):
@@ -1601,7 +1601,6 @@ class MediaViewer(Adw.Bin):
         self._unload_media()
         if self.window is not None:
             self.window.disconnect(self._fullscreen_handler)
-            self.window.disconnect(self._maximized_handler)
             if self._we_fullscreened:
                 self.window.unfullscreen()
                 self._we_fullscreened = False
