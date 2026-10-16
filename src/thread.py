@@ -107,6 +107,8 @@ class ThreadPost(StatusRow):
         layout.append(gutter)
         layout.append(self.column)
         main.append(layout)
+        self._focused = focused
+        self._place_actions(False)
 
     def set_linked(self, linked):
         """Draw the line down to the next post of the chain."""
@@ -115,6 +117,17 @@ class ThreadPost(StatusRow):
             self.add_css_class('linked')
         else:
             self.remove_css_class('linked')
+        self._place_actions(linked)
+
+    def _place_actions(self, linked):
+        # The selected post's bar takes the card's whole width, so its
+        # counts still fit one line at the narrowest window; when the
+        # chain goes on below, it stays beside the line instead of
+        # cutting through it.
+        parent = self.column if linked or not self._focused else self.main
+        if self.actions.get_parent() is not parent:
+            self.actions.get_parent().remove(self.actions)
+            parent.append(self.actions)
 
     def _bind_reply_line(self, item):
         super()._bind_reply_line(item)
@@ -158,8 +171,13 @@ class ThreadReply(Gtk.Box):
         if depth == 0:
             self.add_css_class('thread-card')
             rail.set_visible(False)
+        else:
+            self.add_css_class('thread-nested')
         # Every reply's parent is the post above its card or column.
         row = _thread_row(item, client, parent_shown=True)
+        if depth:
+            # Smaller avatars leave nested replies more of the width.
+            row.avatar.set_size(32)
         column.append(row)
 
         self.children_box = Gtk.Box(
@@ -175,7 +193,10 @@ class ThreadReply(Gtk.Box):
                 % reply_count,
                 expanded=depth < AUTO_COLLAPSE_DEPTH)
             self.expander.add_css_class('thread-expander')
-            self.expander.get_label_widget().add_css_class('caption-heading')
+            label = self.expander.get_label_widget()
+            label.add_css_class('caption-heading')
+            # The title row is a pill sized to its text, not the width.
+            label.get_parent().set_halign(Gtk.Align.START)
             self.expander.set_child(self.children_box)
             pages.connect_weak(self.expander, 'notify::expanded',
                                self._sync_expander_child)

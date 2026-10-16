@@ -101,7 +101,8 @@ class CardPreview(Gtk.Button):
         description.add_css_class('caption')
         description.add_css_class('dimmed')
         parts = split_url(self._href)
-        info = Gtk.Label(label=url_host(parts) if parts else '', xalign=0.0)
+        info = Gtk.Label(label=url_host(parts) if parts else '', xalign=0.0,
+                         ellipsize=Pango.EllipsizeMode.END)
         info.add_css_class('caption')
         info.add_css_class('dimmed')
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
