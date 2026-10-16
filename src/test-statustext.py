@@ -100,6 +100,19 @@ class TestWebLink(unittest.TestCase):
                     'data:text/html,x', 'https:no-host', '', None):
             self.assertFalse(is_web_link(uri), uri)
 
+    def test_a_backslash_is_a_slash_whatever_surrounds_the_scheme(self):
+        # A browser strips leading spaces and every tab before it reads
+        # the scheme, then treats the backslash as a slash: all three
+        # open evil.test, so the gate must not see bank.test.
+        for uri in ('https://evil.test\\@bank.test',
+                    ' https://evil.test\\@bank.test',
+                    'https\t://evil.test\\@bank.test',
+                    '\x01\nhttps://evil.test\\@bank.test'):
+            self.assertTrue(is_web_link(uri), repr(uri))
+            self.assertEqual(
+                statustext.url_host(statustext.split_url(uri)),
+                'evil.test', repr(uri))
+
     def test_a_malformed_address_is_refused_not_raised(self):
         # urlsplit raises ValueError on an unmatched '['.
         self.assertFalse(is_web_link('https://[oops/x'))

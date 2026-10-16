@@ -17,7 +17,8 @@ from .pages import connect_weak  # noqa: E402
 from .statustext import (relative_time)
 
 """Status rows' data: StatusItem, boost grouping and TimelineModel."""
-from .timelinebase import status_filter, GROUP_BOOSTS_MIN_PAGE, BOOST_DEDUPE_LIMIT
+from .timelinebase import (status_filter, GROUP_BOOSTS_MIN_PAGE,
+                           BOOST_DEDUPE_LIMIT, id_key)
 from .entities import lift
 
 
@@ -47,8 +48,10 @@ class StatusItem(GObject.Object):
         boost = data.get('reblog') if isinstance(data, dict) else None
         self.raw = data
         self.status = boost if boost else data
-        self.boosted_by = (self.status['account']
-                           if boost else None)
+        # The wrapper status is the boost, authored by the booster; the
+        # reblog is the post that was boosted (docs.joinmastodon.org/
+        # entities/Status), so the booster is the wrapper's account.
+        self.boosted_by = data['account'] if boost else None
 
     def update(self, data):
         """Take *data*, a newer payload of the same post (an edit): the
@@ -365,8 +368,9 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             self._store.insert(0, item)
             self._register_seen(item)
         if fresh:
-            newest = max(s['id'] for s in statuses)
-            if self.newest_id is None or newest > self.newest_id:
+            newest = max((s['id'] for s in statuses), key=id_key)
+            if self.newest_id is None \
+                    or id_key(newest) > id_key(self.newest_id):
                 self.newest_id = newest
         return len(fresh)
 
@@ -378,14 +382,15 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         if not statuses:
             self.exhausted = True
             return False
-        oldest = min(s['id'] for s in statuses)
+        oldest = min((s['id'] for s in statuses), key=id_key)
         items = self._statuses_to_items(self._filter_unseen(statuses))
         if items:
             start = self._store.get_n_items()
             self._store.splice(start, 0, items)
             for item in items:
                 self._register_seen(item)
-        elif self.oldest_id is not None and oldest >= self.oldest_id:
+        elif self.oldest_id is not None \
+                and id_key(oldest) >= id_key(self.oldest_id):
             return False
         self.oldest_id = oldest
         return True
@@ -472,7 +477,7 @@ class TimelineModel(GObject.Object, Gio.ListModel):
                            if wrapper.get('id'))
             else:
                 ids.append(item.raw['id'])
-        self.oldest_id = min(ids) if ids else None
+        self.oldest_id = min(ids, key=id_key) if ids else None
         self.exhausted = False
         return True
 

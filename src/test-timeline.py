@@ -127,6 +127,23 @@ check('a boost of a deleted post goes too',
       all(model.get_item(i).status_id != '3'
           for i in range(model.get_n_items())))
 
+# A boost is the booster's own status wrapping the post that was boosted.
+_boost_item = StatusItem({
+    'id': '20', 'account': {'acct': 'booster', 'display_name': 'Booster'},
+    'created_at': '2026-01-01T00:00:00.000Z',
+    'reblog': {'id': '19', 'content': 'x',
+               'account': {'acct': 'author', 'display_name': 'Author'}}})
+check('a boost names the booster, not the author',
+      _boost_item.boost_line == 'Booster'
+      and _boost_item.display_name == 'Author')
+
+# Ids are opaque strings: '99999999' sorts after '100000001' as text.
+_idmodel = TimelineModel()
+_idmodel.append_old([{'id': '100000001', 'account': {'acct': 'a'}, 'content': ''},
+                     {'id': '99999999', 'account': {'acct': 'a'}, 'content': ''}])
+check('the oldest id is chosen by value, not as text',
+      _idmodel.oldest_id == '99999999')
+
 _posts = [{'id': str(i), 'account': {'acct': 'a'}, 'content': ''}
           for i in range(9)]
 _trailing = _posts + [

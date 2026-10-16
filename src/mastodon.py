@@ -304,7 +304,9 @@ def clear_secret_async(instance, kind, callback=None, cancellable=None):
 
 
 
-_LINK_PART = re.compile(r'<([^>]*)>\s*;\s*rel="?([a-z]+)"?')
+_LINK_PART = re.compile(r'<([^>]*)>([^<]*)')
+_LINK_REL = re.compile(r'(?:^|[;\s])rel\s*=\s*(?:"([^"]*)"|([^\s;,]+))',
+                       re.IGNORECASE)
 
 
 def parse_link_header(value):
@@ -312,9 +314,15 @@ def parse_link_header(value):
     Link header, the way Mastodon paginates bookmarks, favourites,
     follow lists and everything else not keyed by status id."""
     links = {}
-    for url, rel in _LINK_PART.findall(value or ''):
+    for url, params in _LINK_PART.findall(value or ''):
+        found = _LINK_REL.search(params)
+        if not found:
+            continue
         query = urllib.parse.urlsplit(url).query
-        links[rel] = dict(urllib.parse.parse_qsl(query))
+        # RFC 8288: rel is case-insensitive, may sit after other
+        # parameters, and may hold several space-separated relations.
+        for rel in (found.group(1) or found.group(2)).lower().split():
+            links[rel] = dict(urllib.parse.parse_qsl(query))
     return links
 
 
