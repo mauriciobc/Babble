@@ -219,6 +219,174 @@ exercised, and "done" was recorded before the app was run.
 
 ---
 
+## GNOME review 2026-10-16 (branch `gnome-HIG-polish`, shipped as 0.2.0)
+
+A review of the app against the GNOME app-architecture, GTK4/libadwaita,
+HIG and packaging skills, done before any code was touched. No Blocker was
+found: no deprecated widget, no deprecated CSS, no invented API, no app-id
+mismatch. What follows is what the review found and what became of it, so the
+next reviewer does not re-derive it.
+
+### Fixed in 0.2.0
+
+| ID | Status | Finding | Evidence |
+|---|---|---|---|
+| HIG-01 | **done** | F1 opened the shortcuts dialog and nothing opened the help. Added `app.help` (F1), a Help item in both menus before About, and the Mallard pages under `data/help/C/`. `yelp://<app id>` with a fallback to the online docs, reusing `window.open_url`. `app lifecycle` asserts the binding. | `main.py`, `window.py:open_help`, `data/help/` |
+| HIG-02 | **done** | `load_stylesheet()` duplicated `AdwApplication`'s automatic `style.css` load, through a deprecated `Gtk.StyleContext`, with a docstring that said libadwaita does not do this. Removed. | `main.py` (deleted) |
+| HIG-03 | **done** | `app.shortcuts` was hand-built from the same resource `AdwApplication` reads. Removed; Ctrl+? comes from libadwaita. | `main.py` (deleted) |
+| HIG-04 | **done** | `app.preferences` built a new dialog per activation, stacking windows over one another. Reuses the open one, as `profile.py` already did. `app lifecycle` asserts it. | `preferences.py:present_preferences` |
+| HIG-05 | **done** | `AdwPreferencesDialog` across five pages had no search. `search_enabled=True`. | `preferences.py` |
+| HIG-06 | **done** | The About dialog carried no links although the metainfo declares four. Now takes the homepage and issue URL, and reuses the open dialog. | `main.py:on_about_action` |
+| HIG-07 | **done** | Three views had both a suggested and a destructive button. Save/Resolve keeps the emphasis in the list and hashtag editors; in the report page "Take Action" moved out of the header bar into the account summary it acts on, because it opens a moderation dialog rather than answering the same question as Resolve. | `lists.py`, `hashtags.py`, `admin.py` |
+| HIG-08 | **done** | A header-bar button labelled "Done" in a dialog that commits nothing (the rows commit as they are toggled). Now "Close". | `lists.py:638` |
+| HIG-09 | **done** | British spellings in notification strings and `e.g.` in search hints. `ui strings` fails on either from now on. | `desktopnotify.py`, `search.py` |
+| A11Y-01 | **done** | The Cairo charts multiplied their alpha by a constant, putting back the contrast high contrast had taken away, and no media query reaches a `draw_func`. One `charts.alpha()` helper, with the flag injectable so it is testable without touching the a11y setting. | `charts.py` (new), `admin.py`, `wrapped.py`, `hashtags.py` |
+| A11Y-02 | **done** | The tag-usage sparkline was `PRESENTATION`, which hid an informative chart from screen readers entirely. Now named, with the series in its description. | `hashtags.py:Sparkline` |
+| A11Y-03 | **done** | Three Catch-Up filter controls (a toggle group, two drop-downs) had no accessible name, while a fourth control in the same function had one. Related to their visible headings now, as `window.ui` already does for the server suggestions. | `catchup.py:_build_options` |
+| A11Y-04 | **done** | The wrapped year drop-down had a tooltip but no accessible label. | `wrapped.py` |
+| UI-01 | **done** | The attachment viewer asked its audio pane for 420 px inside a window that declares a 360 px floor, so the control bar was clipped. The hard minimums are gone and the clamp sizes it. | `mediaviewer.py:_audio_view` |
+| UI-02 | **done** | Two `AdwStatusPage`s were hand-styled `.compact`, which libadwaita applies itself. | `mediaviewer.py`, `emojichooser.py` |
+| UI-03 | **done** | Two `Gtk.SpinButton`s hung off an `AdwActionRow`. Now two `AdwSpinRow`s. Note `AdwSpinRow` is a row that *owns* a spin button: `get_value` not `get_value_as_int`, and `notify::value` because there is no `value-changed`. `schedule dialog` covers both. | `scheduled.py`, `test-scheduled-dialog.py` |
+| UI-04 | **done** | `profile.py` built a `GtkActionBar` and then used `add_bottom_bar` for the switcher above it. One bar type for one slot. Not deprecated, only inconsistent. | `profile.py` |
+| UI-05 | **done** | The filter editor pushed a page with a fixed tag straight onto the navigation view, bypassing the dedup guard in `pages.push_page` — safe only because the editor always popped itself. Same guard, written out. (It cannot go through `push_page`: that wraps its child in another `AdwNavigationPage`, and the editor already is one.) | `filters.py:edit` |
+| CSS-01 | **done** | The text-size preference scaled `label` nodes only, so entries, post bodies, the composer's source buffer and status-page descriptions ignored it. Moved to the window node in `em`, so it inherits and composes with GTK text scaling. | `style.css` |
+| CSS-02 | **done** | A literal `opacity` on disabled viewer buttons overrode the `--disabled-opacity` helper that high contrast raises. | `style.css` |
+| CSS-03 | **done** | Six CSS animations and transitions with no reduced-motion companion, although the file already used `prefers-contrast`. | `style.css` |
+| CSS-04 | **done** | The lightbox hard-coded twelve white foregrounds with no high-contrast companion. Kept the `#000` surface (content, and the file argues it), hoisted the whites into `--viewer-fg` with a contrast companion. | `style.css` |
+| CSS-05 | **done** | The decorative wallpaper survived into high contrast. | `style.css` |
+| PKG-01 | **done** | Two screenshots were both `type="default"`; only one may be. | metainfo |
+| PKG-02 | **done** | The Flatpak manifest had no `cleanup`, so nine kinds of build leftovers shipped in the bundle; and `build-options` came before `finish-args`. | manifest |
+| PKG-03 | **done** | CI never linted the artifact it built. Added `flatpak-builder-lint` over the manifest and the built appdir, through `org.flatpak.Builder` so the linter version is Flathub's. **Unverified locally** — the tool is not installed here, so CI is its first real run. | `ci.yml` |
+| PKG-04 | **done** | The gschema's `<summary>` strings never reached a translator: it was absent from `POTFILES.in` despite declaring `gettext-domain="babble"`. Added, and three keys that had no summary got one. 57 strings come from it — 55 `<summary>` and 2 `<description>`. | gschema, `POTFILES.in` |
+| PKG-05 | **done** | `Report-Msgid-Bugs-To` was empty and xgettext rewrites that header on every regeneration, so it is now passed as `--msgid-bugs-address` from `po/meson.build`. The descriptive comment lines in the header are still xgettext's placeholders: meson's `i18n.gettext()` only grew `msgid_bugs_address` after 1.13, and there is no other hook for them. | `po/meson.build` |
+| PKG-06 | **done** | Three symbolic icons had no `viewBox`; at 24 px the notifications one touched both edges. | `data/icons/` |
+| UI-06 | **done** | `_make_dropdown` reached into `Gtk.DropDown`'s child to restyle libadwaita internals. | `compose.py` |
+| UI-07 | **done** | The banners' own action was styled as the default rather than the suggested one (`AdwBanner:button-style`, since 1.7). | `window.py`, `notifications.py` |
+
+### Deferred, with the reason
+
+| ID | Status | Finding | Why deferred |
+|---|---|---|---|
+| DEF-01 | deferred | `pages.py`'s `PagedList` is a `GtkListBox` over an unbounded paginated endpoint, and `search.py` appends whole `StatusRow`s to a `Gtk.Box`, so search results are never recycled. | Real, and the one structural item. 14 modules consume `PagedList` and four of them manipulate row widgets directly, so it is its own branch (`pagedlist-listview`): extract to `src/pagedlist.py`, keep the name, migrate those four call sites to item-level operations. A boxed list is also what makes `COLUMN_WIDTH` clamping work there today. |
+| DEF-02 | deferred | ~20 decorative `Gtk.Image`s sit next to a text label without `accessible-role="presentation"`. | Mechanical, but two of the listed sites (`statusrow.py:160`, `pages.py:682`) are informative rather than decorative and need a label, not a role — so this is a judgement per site, not a sweep. |
+| DEF-03 | deferred | The banners sit in a plain `Gtk.Box` rather than an `AdwToolbarView` top bar. | Works; the cost is the seam with the header bar below. Fixing it means restructuring `window.ui`'s shell page and `notifications.py`'s column, which is real regression risk for a cosmetic seam. |
+| DEF-04 | deferred | An `AdwSpinner` sits in two header bars where an `AdwSpinnerPaintable` sizes itself to its button. | Not wrong, and the conversion rewrites both button children for no user-visible gain. |
+| DEF-05 | **won't** | "D_raft Posts" and "A_nnouncements" take their access key from a non-initial letter. | Tried it: making them initial (`_Draft Posts`, `Admin _Dashboard`) collides with About and Help, and the next spelling collides too. The non-initial letters are what keep all twelve keys unique. Not worth churning four translated strings for. |
+| DEF-06 | deferred | The app icon uses eleven gradients, three baked specular strokes and a black outline; the HIG asks for flat fills. | The artwork must be redrawn, not edited, and an icon is not a review finding a code change can settle. |
+| DEF-07 | deferred | No `-Dprofile=Devel`, so the app id is hard-coded in 24 places across the meson files. | Real and mechanical, and worth doing before a devel install is needed; it touches every installed filename, which is a bad pairing with a release. |
+| DEF-08 | deferred | Screenshots are 1090×790; the curation guidance says ≤1000×700. | Only matters when curating for Flathub. |
+
+### Second pass: what a review of the first pass caught
+
+Reviewing the branch above found one thing that shipped broken and several
+that were merely wrong. The broken one is the reason this section exists:
+**the help pages could never open.** `HELP_URI` was `yelp://`, and no such
+scheme exists — Yelp registers `ghelp`, `help`, `info` and `man`, and its URI
+resolver dispatches only on those, so every F1 press failed the launch and
+fell through to the online docs, with the installed Mallard pages doing
+nothing. `test-lifecycle.py` had pinned that exact literal, so the suite was
+green on a feature that could not work.
+
+| ID | Status | Finding | Evidence |
+|---|---|---|---|
+| FIX-01 | **done** | `HELP_URI` was `yelp://…`, handled by nothing. Now `help:io.github.mauriciobc.Babble`: the scheme Yelp registers, and the form the Desktop Help System Specification gives, with the document id being the app id that `share/help/<lang>/<id>/` is keyed by. | `window.py`, verified against yelp's `org.gnome.Yelp.desktop.in` and `libyelp/yelp-uri.c` |
+| FIX-02 | **done** | The test asserted the whole URI literal, so it confirmed the wrong scheme rather than the right one. It now asserts the *scheme* and the document id separately — a planted `yelp://` fails it. | `test-lifecycle.py` |
+| FIX-03 | **done** | In a Flatpak the `help:` URI is resolved host-side by the OpenURI portal, so the viewer looks in host directories, not `/app/share/help`, and reports the document missing — a *successful* launch, so the fallback never fires. Sandboxed, F1 now goes straight to the online documentation instead of opening a viewer that cannot find anything. | `window.py:open_help` |
+| FIX-04 | **done** | The CI lint step used `appdir`, which is not one of the linter's four targets (`appstream`, `manifest`, `builddir`, `repo`), and pointed at `build-flatpak/files` when `builddir` wants the build directory. Now `manifest` and `builddir build-flatpak`, both with `--gha-format`. Verified against the linter's `cli.py`, not from memory this time. | `ci.yml` |
+| FIX-05 | **done** | `ui strings` could not see the strings it exists to police: `POTFILES.in` feeds the gschema and the metainfo too, and both are runtime-translated. `collect()` now reads every data file `POTFILES.in` lists, so the list cannot drift. It immediately caught a violation in this branch's own release notes. | `test-ui-strings.py` |
+| FIX-06 | **done** | The gschema summary for the interface language contained `e.g.`. Reworded. The JSON sample `{"title", "tags": [...]}` keeps its three dots — they are JSON notation, not a typo — under a snippet-keyed exception that reports itself when the snippet changes. | gschema, `test-ui-strings.py` |
+| FIX-07 | **done** | Two claims about `GtkCssProvider` were wrong in the project's own words: it *does* have a `parsing-error` signal in GTK 4.24, and the stylesheet test collects it. Fatal warnings stay as a second net, but the stated reason was fiction. | `CLAUDE.md`, `src/meson.build` |
+| FIX-08 | **done** | `set_button_style` on the draft banner was set inside the refresh handler — a constant property, re-applied on every draft change. Set once at construction, as the notification banners already were. | `window.py` |
+| FIX-09 | **done** | `edit()` in the filters list popped *back to* an open editor, so clicking a second filter (or "New Filter") quietly showed the first one. The user chose a destination; it now pops the stale editor and pushes the one asked for, and makes sure the split view shows its content. | `filters.py` |
+| FIX-10 | **done** | The help page wrapped a single `<gui>` in a `<guiseq>`, declared two namespaces it never used, and had no `<revision>` for a translator to work from. | `data/help/` |
+| FIX-11 | **done** | `<url type="translate">` pointed at the repository root; it now points at `Docs/localization.md`, which is the page a translator actually wants. | metainfo |
+
+**Translations after this release.** Each locale reports 1411 translated, 108
+fuzzy, 75 untranslated, against 1419 / 73 / 34 before. Diffed against the
+previous commit, **nothing that was translated lost its translation**: the 79
+new untranslated strings are all brand new — 56 of them gschema summaries
+that no one has translated — and the fuzzy count grew by 38 because msgmerge
+attached translations from renamed strings. Several of those suggestions are
+wrong, which is what the fuzzy marker exists for: gettext omits fuzzy entries
+from the compiled catalogue, so the user sees English rather than the wrong
+translation. `msgattrib --clear-fuzzy` must not be used to tidy the numbers —
+it promotes unverified text, and because some suggestions carry format
+specifiers that do not match their new original it makes `msgfmt --check`, and
+CI, fail outright.
+
+### Not verifiable headlessly — needs a real session
+
+These were the review's Blockers-to-check and could not be run here: dark mode,
+high contrast, 1.5× text, a 360 px-wide window, Orca on the charts and the
+Catch-Up popover, the help page opening in GNOME Help and its fallback. CSS-01
+through CSS-05 and A11Y-01 through A11Y-04 are all in this category: the code
+and the rules are checked, the pixels are not.
+
+---
+
+## GNOME review 2026-10-16 (third pass — login, keyring, media, menus)
+
+A second audit of the same tree, at `1c0bfcb` (`Docs/gnome-review.md`), after
+the work above had landed. Source and remediation plan:
+`Docs/gnome-review.md`, `Docs/gnome-review-remediation-plan.md`. Its fixes
+ride along with the 0.2.0 work on this branch rather than on a branch of their
+own. Re-check each anchor before acting; the audit's line numbers are for that
+revision.
+
+### Blockers
+
+| ID | Status | Finding | Evidence | Notes |
+|---|---|---|---|---|
+| ARCH-10 | **done** | After account switch/sign-out, login fails until restart: one cancelled `GCancellable` is reused. | `auth.py` `LoginFlow.begin`/`cancel` | Recreate cancellable in `begin()`. Covered by `oauth loopback`. |
+| ARCH-11 | **done** | Unreadable keyring at startup deletes the account and Catch-Up snapshots. | `mastodon.py` `load_secret_async`; `window.py` `_activate_account` | Propagate `GError`; delete only on a genuine absence. Covered by `oauth callback`. |
+| A11Y-10 | **done** | Attachment tiles are pointer-only (no focus, key, or menu route). | `mediabox.py` grid tiles | Focusable button role + key controller, and a `:focus-visible` ring on `.media-tile` — a tab stop with nothing drawn on it is not keyboard access. Covered by `mediabox keyboard`. |
+| PKG-10 | **done** | Suite `| tee` without `pipefail` makes a red suite report green. | `.github/workflows/ci.yml` | `set -o pipefail` in the run block. |
+| PKG-11 | **done** | Flatpak `builddir` lint fails on external screenshot URLs (and main had no lint step). | `ci.yml`, `metainfo.xml.in` | Mirror screenshots on build; add `flatpak-builder-lint`. |
+
+### Should fix (queued)
+
+| ID | Status | Finding | Evidence |
+|---|---|---|---|
+| ARCH-12 | **done** | Cancelled HTTP requests are retried before cancellation surfaces. | `mastodon.py` `_on_response` / `_rest_retry`; `mastodon rest retry` |
+| ARCH-13 | **done** | `Secret.Service.get_sync()` blocks the main loop on startup. | `mastodon.py` `_with_secret_service`; coalesced in `streaming helpers` |
+| A11Y-11 | **done** | Page Up/Down app accelerators steal keys from every text view. | `main.py` / `window.py` local `ShortcutController` |
+| UI-10 | **done** | Composer options row clips at 360 px with 1.5× text. | `compose.py` `build_action_bar` wraps |
+| A11Y-12 | **done** | Account switcher button: tooltip, no accessible name. | `window.ui` `account_button` |
+| A11Y-13 | **done** | Access keys missing from programmatically built menus (~40 items). | `profileactions.py`, `statusmenu.py`, `conversations.py`, `hashtags.py`, `catchup.py`, `notifications.py`; primary-menu `D` and post-menu `T` duplicates fixed | Keys are unique across a whole open menu, not per section: `statusmenu` moved `Ment_ion`, `M_ute`, `Bloc_k` and `Remove My Post _From Quote` for that reason. The two *section titles* that gained one were reverted — GTK draws those as plain labels and the underscore showed. |
+| UI-11 | **done** | Deprecated `present_with_time()` (GTK 4.14). | `searchprovider.py` |
+| ARCH-14 | **done** | Plain `connect()` on process-lifetime emitters. | `window.py` LoginFlow/streaming/settings/style/close-request via `connect_weak` |
+
+### Nice to have
+
+| ID | Status | Finding | Evidence | Notes |
+|---|---|---|---|---|
+| COPY-10 | **done** | Header-case `This` in admin confirmations | `admin.py` resolve/reopen/undo | |
+| CSS-10 | **done** | Literal opacities / absolute px in media viewer, emoji picker, Catch-Up | `style.css` | `--dim-opacity` / `--disabled-opacity`; `em` sizes; Catch-Up actions 32 px |
+| A11Y-14 | **done** | Poll vote mark lacks accessible name | `statusviews.py` | |
+| A11Y-15 | **done** | Account switcher tooltip drops instance | `window.py` `show_shell` / `_sign_out_to_login` | |
+| UI-12 | **done** | Media viewer test host used bare `Gtk.Window` | `mediaviewer.py` `present_media` | `Adw.Window` + `set_content` |
+| ARCH-15 | **deferred** | App icon in GResource *and* hicolor | `babble.gresource.xml:8-9` | Uninstalled runs resolve the logo through `IconTheme.add_resource_path`; no `meson devenv` yet. Dropping the aliases risks a missing logo outside an install prefix. Action icons stay in the resource. |
+| NOTIFY-10 | **done** | Desktop notifications never withdrawn | `desktopnotify.py` | Track ids; `withdraw_all` on reset; clear `babble-action-failed` on success |
+| PKG-12 | **done** | Metainfo screenshots on `main`; empty 0.1.0 notes; repo URL casing | `metainfo.xml.in`, `mastodon.py` | Pin screenshot commit; release description; `mauriciobc/Babble` |
+| PREF-10 | **done** | Combo rows hand-roll GSettings sync | `preferences.py`, `gschema.xml` | Enum keys 0-based; `_combo_enum` syncs via `get_enum`/`set_enum` (GIO `bind` sees enums as `s`; PyGObject `bind_with_mapping` does not marshal `GValue`). `auto-refresh` stays a string choice (enum nick `0` is illegal). Covered by `preferences schema`. |
+| OBS-10 | **observe** | `gdk_frame_timings_submitted` once per process after first primary menu | GDK warning under Xvfb | No Python call site; suite stays `fatal-criticals` only. Leave for upstream / local `fatal-warnings` bisect. |
+
+Duplicate access keys (review 14–15) landed with A11Y-13.
+
+Three follow-ups from the review of this list:
+
+- `PKG-11` mirrors the screenshots without `--compose-url-policy`: the
+  runner's flatpak-builder (1.4.2 on noble) does not have that flag, and the
+  builddir check reads the mirror-rewritten metainfo anyway.
+- `mediabox.py` crossed 800 lines with the keyboard path, so `PollBox` moved
+  to `src/pollbox.py` (a poll is a body widget, not an attachment one)
+  instead of the module being declared an exception.
+- The `dim opacity` work left `style.css`'s `color-mix(… 55% …)` alone, and
+  the access keys re-word about 55 strings: both catalogues' fuzzy counts are
+  in `Docs/localization.md`.
+
+---
+
 ## Tier 2 — Consolidation
 
 "Less code for the same behaviour." Every item is mechanical and testable.

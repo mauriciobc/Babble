@@ -23,6 +23,18 @@
   background: none;
 }
 
+/* The wallpaper is decoration, not content: at high contrast the
+   canvas is the window/foreground mix on its own, and a picture
+   behind it only muddies the text it is meant to sit under. The mix
+   above is left alone -- it is what keeps the cards a step away from
+   the canvas in every scheme, including this one. */
+@media (prefers-contrast: more) {
+  .timeline-list,
+  .notification-list-scroller {
+    background-image: none;
+  }
+}
+
 .status-row {
   background-color: var(--card-bg-color);
   color: var(--card-fg-color);
@@ -184,21 +196,33 @@ picture.broken-image {
 }
 
 /* Interface text size preference: three presets toggled as window
-   classes; Adw's default ('normal') is used when no class is set. */
-window.text-small label,
-window.text-small .inline-emoji-text {
-  font-size: 90%;
+   classes; Adw's default ('normal') is used when no class is set.
+
+   The properties go on the window node, which is what makes them
+   reach every text node instead of only the labels: entries, the
+   GtkTextView post bodies, the composer's GtkSource.Buffer, spin
+   buttons and Adw.StatusPage descriptions all inherit from it, so the
+   preset is the same size everywhere the interface sets one. No
+   .inline-emoji-text selector is listed any more because
+   inheritance covers it (and every other text node it would have
+   missed); nothing left needs naming.
+
+   The sizes are in em rather than percent so they compose with GTK's
+   own text scaling (large-text): the window node scales the font the
+   text nodes resolve against, and a percentage would have been
+   resolved once against an unscaled parent. */
+window.text-small {
+  font-size: 0.9em;
 }
 
-window.text-large label,
-window.text-large .inline-emoji-text {
-  font-size: 110%;
+window.text-large {
+  font-size: 1.1em;
 }
 
 /* Large Line Height preference: GtkTextView honours CSS line-height,
-   so post bodies take it the same way plain labels do. */
-window.large-line-height label,
-window.large-line-height .inline-emoji-text {
+   so post bodies take it the same way plain labels do. line-height
+   inherits like font-size, hence the window node again. */
+window.large-line-height {
   line-height: 1.4;
 }
 
@@ -317,7 +341,10 @@ window.darken-media .darkenable:hover {
 /* mediaviewer.py: dark attachment viewer. The hard-coded #000/#fff
    are an intentional exemption from the palette: a fullscreen photo
    overlay reads as a lightbox in both color schemes, like the HIG
-   media viewer. */
+   media viewer. The #fff side of the exemption is hoisted into
+   --viewer-fg below rather than repeated, so high contrast has one
+   property to swap for the whole set; see the companion block after
+   the viewer rules. */
 /* The black sits on the card, not on the toolbar: GTK CSS rounds a
    widget's own background and never a child's, so a radius on the card
    with the toolbar still painting black would keep square corners. */
@@ -330,8 +357,17 @@ window.darken-media .darkenable:hover {
   border-radius: 18px;
 }
 
+/* Every foreground and every white tint inside the lightbox resolves
+   through this one property, so the tint alphas are written once as
+   color-mix against it. It is declared here because everything the
+   viewer paints -- the header, the zoom bar, the dots, the alt text --
+   hangs off the ToolbarView that carries the class. --viewer-bg is the
+   surface it is read against, kept beside it so the inverse pair (the
+   checked ALT badge) follows the same swap. */
 .media-viewer-content {
-  color: #fff;
+  --viewer-bg: #000;
+  --viewer-fg: #fff;
+  color: var(--viewer-fg);
 }
 
 .media-viewer-content > .top-bar,
@@ -341,7 +377,7 @@ window.darken-media .darkenable:hover {
 .media-viewer-content .media-viewer-bottom {
   background-color: transparent;
   background-image: none;
-  color: #fff;
+  color: var(--viewer-fg);
   box-shadow: none;
 }
 
@@ -361,37 +397,40 @@ window.darken-media .darkenable:hover {
 .media-viewer-content button.osd,
 .media-viewer-zoom {
   background-color: rgba(30, 30, 30, 0.85);
-  color: #fff;
+  color: var(--viewer-fg);
 }
 
+/* The libadwaita helper rather than a literal alpha: it is what
+   libadwaita raises in high contrast, and a fixed opacity here would
+   override it. */
 .media-viewer-content button.osd:disabled {
-  opacity: 0.35;
+  opacity: var(--disabled-opacity);
 }
 
 .media-viewer-zoom button {
-  color: #fff;
+  color: var(--viewer-fg);
 }
 
 .media-viewer-zoom button:disabled {
-  opacity: 0.4;
+  opacity: var(--disabled-opacity);
 }
 
 .media-viewer-content headerbar button:hover,
 .media-viewer-content headerbar button:checked,
 .media-viewer-content headerbar menubutton > button:hover {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: color-mix(in srgb, var(--viewer-fg) 15%, transparent);
 }
 
 .media-viewer-content headerbar button {
-  color: #fff;
+  color: var(--viewer-fg);
 }
 
 .media-viewer-content headerbar .subtitle {
-  color: rgba(255, 255, 255, 0.7);
+  color: color-mix(in srgb, var(--viewer-fg) 70%, transparent);
 }
 
 .media-viewer-content statuspage {
-  color: #fff;
+  color: var(--viewer-fg);
 }
 
 .media-viewer-bottom {
@@ -405,28 +444,31 @@ window.darken-media .darkenable:hover {
   border-radius: 6px;
   font-size: 0.8em;
   font-weight: bold;
-  color: #fff;
-  background-color: rgba(255, 255, 255, 0.18);
+  color: var(--viewer-fg);
+  background-color: color-mix(in srgb, var(--viewer-fg) 18%, transparent);
 }
 
+/* The checked state is the inverse pair, so it reads off the same
+   property: foreground on the lightbox surface, surface on
+   foreground. */
 .media-viewer-alt-badge:checked {
-  color: #000;
-  background-color: #fff;
+  color: var(--viewer-bg);
+  background-color: var(--viewer-fg);
 }
 
 .media-viewer-alt-text {
-  color: #fff;
+  color: var(--viewer-fg);
 }
 
 .media-viewer-dot {
   min-width: 8px;
   min-height: 8px;
   border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.35);
+  background-color: color-mix(in srgb, var(--viewer-fg) 35%, transparent);
 }
 
 .media-viewer-dot.active {
-  background-color: #fff;
+  background-color: var(--viewer-fg);
 }
 
 .media-viewer-zoom {
@@ -437,12 +479,56 @@ window.darken-media .darkenable:hover {
 .media-viewer-audio-icon,
 .media-viewer-cover {
   border-radius: 12px;
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: color-mix(in srgb, var(--viewer-fg) 8%, transparent);
 }
 
 .media-viewer-picture:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: -4px;
+}
+
+/* High contrast companion for the lightbox: the exempt #000 backdrop
+   above is a fixed surface, and a themed foreground on a fixed black
+   card is unreadable, so here the pair swaps for the palette's and the
+   OSD controls get a real surface instead of a near-black tint. Every
+   rule below is the inverse of one above, which is why the swap is two
+   properties rather than a second list of literals. */
+@media (prefers-contrast: more) {
+  .media-viewer-card {
+    background-color: var(--window-bg-color);
+  }
+
+  .media-viewer-content {
+    --viewer-bg: var(--window-bg-color);
+    --viewer-fg: var(--window-fg-color);
+  }
+
+  .media-viewer-content button.osd,
+  .media-viewer-zoom {
+    background-color: var(--card-bg-color);
+  }
+
+  /* The 15% tint that carried the hover on the dark surface is too
+     close to the surface itself once the surface is themed; mixing
+     into the card instead keeps the state visible. */
+  .media-viewer-content headerbar button:hover,
+  .media-viewer-content headerbar button:checked,
+  .media-viewer-content headerbar menubutton > button:hover {
+    background-color: color-mix(in srgb, var(--window-fg-color) 15%,
+                                var(--card-bg-color));
+  }
+
+  /* A translucent tint of the foreground is not a shape; at high
+     contrast it gets the card surface and a border. */
+  .media-viewer-alt-badge {
+    background-color: var(--card-bg-color);
+    border: 1px solid var(--border-color);
+  }
+
+  .media-viewer-alt-badge:checked {
+    color: var(--window-bg-color);
+    background-color: var(--window-fg-color);
+  }
 }
 
 /* Profile slice: badges under the profile name (account type and
@@ -476,7 +562,8 @@ window.darken-media .darkenable:hover {
 /* Dim favourite, boost and follow rows when the setting is on; hover or
    keyboard focus restores them. */
 .dim-enabled .notification-row.can-be-dimmed {
-  opacity: 0.6;
+  /* Follow libadwaita's helper so high contrast can raise it. */
+  opacity: var(--dim-opacity);
   transition: opacity 150ms ease;
 }
 
@@ -506,7 +593,7 @@ window.darken-media .darkenable:hover {
 
 /* Standard emoji in the composer's emoji chooser. */
 .emoji-picker .emoji-glyph {
-  font-size: 24px;
+  font-size: 1.5em;
 }
 
 /* Opt-in translucent sidebar (window class set from Python). The window
@@ -572,8 +659,53 @@ label.just-toggled {
   transition: color 150ms ease;
 }
 
+/* Reduced motion: GTK honours gtk-enable-animations for CSS animations
+   and transitions itself, and the libadwaita animations (toasts, page
+   transitions, the status page icon) read the setting where they are
+   created rather than through CSS -- so this block only has to cover
+   the rules above, which are the ones CSS animates on its own.
+
+   What stays is the state the motion carried: images are still dimmed
+   in dark mode, notification rows are still dimmable, and the compose
+   counter still changes colour when it crosses the limit. Only the
+   moving part is taken out. */
+@media (prefers-reduced-motion: reduce) {
+  window.scale-emoji-hover .custom-emoji {
+    transition: none;
+  }
+
+  window.scale-emoji-hover .custom-emoji:hover {
+    transform: none;
+  }
+
+  window.darken-media .darkenable {
+    transition: none;
+  }
+
+  .dim-enabled .notification-row.can-be-dimmed {
+    transition: none;
+  }
+
+  .compose-counter {
+    transition: none;
+  }
+
+  .just-toggled > *,
+  label.just-toggled,
+  .fade-in {
+    animation: none;
+  }
+}
+
 /* Catch Up highlights */
 .catchup-tile:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+/* Attachment tiles are tab stops too: the ring is the only cue that the
+   keyboard is on one. */
+.media-tile:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: -2px;
 }
@@ -591,7 +723,9 @@ label.just-toggled {
 }
 
 .catchup-on-image .dimmed {
-  opacity: 0.8;
+  /* Slightly above the theme dim so captions stay readable on the
+     photo scrim; still tracks --dim-opacity under high contrast. */
+  opacity: max(0.8, var(--dim-opacity));
 }
 
 .catchup-cover {
@@ -630,11 +764,12 @@ label.just-toggled {
   box-shadow: 0 0 0 2px var(--card-bg-color);
 }
 
-/* The action bar has to fit a 180 px tile with a count on each button. */
+/* The action bar has to fit a 180 px tile with a count on each button.
+   Keep the 32 px target the neighbouring pill rule already uses. */
 .catchup-tile .catchup-actions button {
   padding: 0 4px;
-  min-height: 28px;
-  min-width: 24px;
+  min-height: 32px;
+  min-width: 32px;
 }
 
 .catchup-tile .catchup-actions button.pill {
@@ -647,5 +782,5 @@ label.just-toggled {
 }
 
 .catchup-tile .catchup-actions buttoncontent image {
-  -gtk-icon-size: 14px;
+  -gtk-icon-size: 0.875em;
 }

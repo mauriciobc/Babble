@@ -152,6 +152,8 @@ class FilterEditPage(Adw.NavigationPage):
     __gtype_name__ = 'BabbleFilterEditPage'
 
     def __init__(self, client, item=None, on_saved=None):
+        # The tag is what edit() looks the page up by, so it stays here
+        # rather than on the push.
         super().__init__(title=_('Edit Filter') if item else _('New Filter'),
                          tag='filter-edit')
         self.client = client
@@ -425,8 +427,27 @@ class FiltersList(Adw.Bin):
         self.edit(None)
 
     def edit(self, item=None):
-        self.navigation_view.push(
+        view = self.navigation_view
+        # The editor is already an AdwNavigationPage, so it cannot go
+        # through pages.push_page (that wraps its child in another one).
+        # One tag, one page: an editor already on the stack is popped off
+        # before the requested one goes on.
+        #
+        # Popping *to* it, the way push_page's guard does, was wrong here
+        # even though it is the house behaviour: it makes clicking a
+        # second filter, or "New Filter", quietly show the first editor
+        # instead of the one that was asked for. The user chose a
+        # destination; take them there.
+        existing = view.find_page('filter-edit')
+        if existing is not None:
+            view.pop_to_page(existing)
+        view.push(
             FilterEditPage(self.client, item, on_saved=self._on_saved))
+        # push_page also makes sure the split view shows the content
+        # pane, which a raw push() does not.
+        split = getattr(self, 'split_view', None)
+        if split is not None:
+            split.set_show_content(True)
 
     def _on_saved(self, _item):
         self.refresh()

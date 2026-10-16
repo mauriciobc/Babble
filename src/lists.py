@@ -223,7 +223,11 @@ class ListEditor(ToastDialog):
             danger = Adw.PreferencesGroup()
             delete = Gtk.Button(label=_('_Delete List'), use_underline=True,
                                 halign=Gtk.Align.CENTER)
-            delete.add_css_class('destructive-action')
+            # One emphasised button per view: the header's Save/Create
+            # keeps suggested-action, so Delete stays a plain pill. It
+            # is rare, isolated below the members, verb-named and behind
+            # a confirmation, which is what makes it safe -- louder
+            # styling would only compete with the button that saves.
             delete.add_css_class('pill')
             pages.connect_weak(delete, 'clicked', self._on_delete)
             danger.add(delete)
@@ -631,10 +635,13 @@ class _MembershipDialog(ToastDialog):
         self._lists = []
         self._member_of = set()
 
-        done = Gtk.Button(label=_('_Done'), use_underline=True)
-        done.add_css_class('suggested-action')
-        pages.connect_weak(done, 'clicked', self._on_close_clicked)
-        self.header.pack_end(done)
+        # The check rows commit as they are toggled, so this commits
+        # nothing: it only dismisses the dialog. "Close" names that,
+        # where "Done" named nothing at all and the HIG forbids it.
+        close = Gtk.Button(label=_('_Close'), use_underline=True)
+        close.add_css_class('suggested-action')
+        pages.connect_weak(close, 'clicked', self._on_close_clicked)
+        self.header.pack_end(close)
 
         self.group = Adw.PreferencesGroup(
             title=_('Lists'),

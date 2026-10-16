@@ -15,7 +15,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import desktopnotify
 from .statustext import is_web_link
-from .window import BabbleWindow
+from .window import BabbleWindow, ISSUES_URL, PROJECT_URL
 
 # Links the desktop hands over by scheme: FEP-07d7 ``web+ap://`` object
 # links, and the ``web+mastodon://`` intents Mastodon's web UI registers
@@ -105,30 +105,6 @@ def open_web_target(win, target):
         pages.open_link(win, value, resolve=True)
 
 
-STYLESHEET = '/io/github/mauriciobc/Babble/style.css'
-
-
-def load_stylesheet():
-    """Apply ``style.css`` to every window.
-
-    GTK does not read a stylesheet out of the application resource by
-    itself, so without this the whole file is inert and the widgets fall
-    back to plain libadwaita styling.
-    """
-    display = Gdk.Display.get_default()
-    if display is None:
-        return
-    provider = Gtk.CssProvider()
-    try:
-        provider.load_from_resource(STYLESHEET)
-    except GLib.Error as error:
-        print('could not load %s: %s' % (STYLESHEET, error.message),
-              file=sys.stderr)
-        return
-    Gtk.StyleContext.add_provider_for_display(
-        display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-
-
 class BabbleApplication(Adw.Application):
     def __init__(self, version):
         super().__init__(application_id='io.github.mauriciobc.Babble',
@@ -146,14 +122,15 @@ class BabbleApplication(Adw.Application):
         self.set_inactivity_timeout(10000)
         # Buttons on desktop notifications activate these app actions.
         desktopnotify.install_app_actions(self)
-        load_stylesheet()
         self.connect('open', self.on_open)
         self.create_action('quit', lambda *args: self.quit(), ['<primary>q'])
         self.create_action('about', self.on_about_action)
         self.create_action('preferences', self.on_preferences_action,
                            ['<primary>comma'])
-        self.create_action('shortcuts', self.on_shortcuts_action,
-                           ['<primary>question', '<primary>F1'])
+        # ``app.shortcuts`` and its Ctrl+? accelerator come from
+        # AdwApplication, which builds them from the shortcuts-dialog.ui
+        # resource; registering one here would replace it.
+        self.create_action('help', self.on_help_action, ['F1'])
         self.create_action('increase-font-size',
                            lambda *a: self.step_text_size(1),
                            ['<primary>plus', '<primary>equal',
@@ -164,10 +141,13 @@ class BabbleApplication(Adw.Application):
         self.create_action('reset-font-size',
                            lambda *a: self.step_text_size(0),
                            ['<primary>0', '<primary>KP_0'])
+        # No application accelerators: those match before the focused
+        # widget, so Page Up/Down never reached a TextView (or the
+        # composer). The window installs a local ShortcutController.
         self.create_action('scroll-page-down',
-                           lambda *a: self.scroll_page(1), ['Page_Down'])
+                           lambda *a: self.scroll_page(1))
         self.create_action('scroll-page-up',
-                           lambda *a: self.scroll_page(-1), ['Page_Up'])
+                           lambda *a: self.scroll_page(-1))
         opener = Gio.SimpleAction.new('open-notifications',
                                       GLib.VariantType.new('s'))
         opener.connect('activate', self.on_open_notifications)
@@ -250,11 +230,10 @@ class BabbleApplication(Adw.Application):
         win.present()
         win.show_page('notifications')
 
-    def on_shortcuts_action(self, *args):
-        builder = Gtk.Builder.new_from_resource(
-            '/io/github/mauriciobc/Babble/shortcuts-dialog.ui')
-        builder.get_object('shortcuts_dialog').present(
-            self.props.active_window)
+    def on_help_action(self, *args):
+        win = self.props.active_window
+        if win is not None:
+            win.open_help()
 
     def step_text_size(self, direction):
         """Ctrl+plus/minus/0: move the text-size preference."""
@@ -364,6 +343,13 @@ class BabbleApplication(Adw.Application):
         pages.open_link(win, param.get_string())
 
     def on_about_action(self, *args):
+        parent = self.props.active_window
+        visible = parent.get_visible_dialog() if parent is not None else None
+        # The About dialog is modal and single-purpose: activating
+        # app.about again would stack a second one over the first.
+        if isinstance(visible, Adw.AboutDialog):
+            visible.present(parent)
+            return
         about = Adw.AboutDialog(application_name='Babble',
                                 application_icon='io.github.mauriciobc.Babble',
                                 developer_name='Mauricio BC',
@@ -371,8 +357,10 @@ class BabbleApplication(Adw.Application):
                                 version=self.version,
                                 copyright='© 2026 Mauricio BC',
                                 translator_credits=_('translator-credits'),
-                                license_type=Gtk.License.GPL_3_0)
-        about.present(self.props.active_window)
+                                license_type=Gtk.License.GPL_3_0,
+                                website=PROJECT_URL,
+                                issue_url=ISSUES_URL)
+        about.present(parent)
 
     def on_preferences_action(self, *args):
         win = self.props.active_window

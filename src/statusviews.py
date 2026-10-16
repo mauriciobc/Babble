@@ -266,8 +266,11 @@ class EditHistoryView(Adw.Bin):
             poll = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             for option in titles:
                 row = Gtk.Box(spacing=6)
-                row.append(Gtk.Image.new_from_icon_name(
-                    'object-select-symbolic'))
+                mark = Gtk.Image(icon_name='object-select-symbolic')
+                mark.update_property(
+                    [Gtk.AccessibleProperty.LABEL], [_('Your vote')])
+                mark.set_tooltip_text(_('Your vote'))
+                row.append(mark)
                 row.append(Gtk.Label(label=option, xalign=0, wrap=True,
                                      hexpand=True))
                 poll.append(row)

@@ -27,7 +27,7 @@ from gi.repository import GLib, GObject, Gio, Secret, Soup  # noqa: E402
 # with 403 to it while the very same request carrying an application
 # User-Agent returns 200. Announcing the client on the session fixes every
 # call at once, uploads included, since they share the one session.
-USER_AGENT = 'Babble/%s (+https://github.com/mauriciobc/babble)'
+USER_AGENT = 'Babble/%s (+https://github.com/mauriciobc/Babble)'
 
 # Adw.Toast renders its title as plain text, so an untrusted server body
 # must reach it with nothing that Pango or a widget could interpret and
@@ -214,7 +214,7 @@ ADMIN_SCOPES = OAUTH_SCOPES + ' admin:read admin:write'
 # Shown as the application's own homepage on the instance's consent
 # screen. It is Babble's address, never the server the user is signing
 # in to.
-APP_WEBSITE = 'https://github.com/mauriciobc/babble'
+APP_WEBSITE = 'https://github.com/mauriciobc/Babble'
 
 # Keyring kind of the OAuth client credentials. They are keyed per
 # account as well as per instance: every authorization registers its own
@@ -247,22 +247,59 @@ def normalize_instance(url):
         raise ValueError(_('Babble only connects over HTTPS: %s') % url)
     return url
 
-# Lazily built by _secret_service(); see there for why one proxy is
-# shared rather than created per call.
+# Lazily built by _with_secret_service(); see there for why one proxy is
+# shared rather than created per call. Waiters coalesce on the in-flight
+# Secret.Service.get the way instance_info_async coalesces.
 _service = None
+_service_waiters = []
+_service_getting = False
 
 
-def _secret_service():
-    """The session-wide keyring proxy.
+def _with_secret_service(callback):
+    """Run *callback(service, error)* once the session keyring proxy is
+    ready, without blocking the main loop.
 
-    Built once and reused: the async calls must be finished on the very
-    proxy that started them, and the module-level ``Secret.password_*``
-    helpers hide theirs, so the calls go through the service directly.
+    Concurrent callers share one ``Secret.Service.get``. The proxy is
+    reused afterwards: async store/lookup/clear must finish on the same
+    proxy that started them. A failed get is not remembered as a failure:
+    the keyring can be unlocked a moment later, so the next call is
+    allowed to find it.
     """
-    global _service
-    if _service is None:
-        _service = Secret.Service.get_sync(Secret.ServiceFlags.NONE, None)
-    return _service
+    global _service_getting
+    if _service is not None:
+        callback(_service, None)
+        return
+    _service_waiters.append(callback)
+    if _service_getting:
+        return
+    _service_getting = True
+
+    def dispatch(service, error):
+        global _service
+        if service is not None:
+            _service = service
+        waiters, _service_waiters[:] = list(_service_waiters), []
+        for waiter in waiters:
+            waiter(service, error)
+
+    def done(_source, result, _user_data=None):
+        global _service_getting
+        _service_getting = False
+        try:
+            service = Secret.Service.get_finish(result)
+        except GLib.Error as failure:
+            dispatch(None, failure)
+            return
+        dispatch(service, None)
+
+    try:
+        Secret.Service.get(Secret.ServiceFlags.NONE, None, done, None)
+    except Exception as failure:  # arming the call is all that can fail here
+        # A waiter list nobody empties would hang every later caller, so
+        # a synchronous failure has to reach them as a keyring error.
+        _service_getting = False
+        dispatch(None, GLib.Error(
+            str(failure), 'mastodon-keyring-error-quark', 0))
 
 
 def store_secret_async(instance, kind, payload, callback=None,
@@ -276,42 +313,60 @@ def store_secret_async(instance, kind, payload, callback=None,
     signs the user out on the next start.
     """
 
-    def done(service, result, _user_data):
-        error = None
-        try:
-            service.store_finish(result)
-        except GLib.Error as failure:
-            error = failure
-        if callback is not None:
-            callback(error)
+    def ready(service, error):
+        if error is not None:
+            if callback is not None:
+                callback(error)
+            return
 
-    _secret_service().store(SECRET_SCHEMA,
-                            {'instance': instance, 'kind': kind},
-                            Secret.COLLECTION_DEFAULT,
-                            'Babble: %s' % instance,
-                            Secret.Value.new(payload, len(payload),
-                                              'text/plain'),
-                            cancellable, done, None)
+        def done(_service, result, _user_data):
+            failure = None
+            try:
+                service.store_finish(result)
+            except GLib.Error as err:
+                failure = err
+            if callback is not None:
+                callback(failure)
+
+        service.store(SECRET_SCHEMA,
+                      {'instance': instance, 'kind': kind},
+                      Secret.COLLECTION_DEFAULT,
+                      'Babble: %s' % instance,
+                      Secret.Value.new(payload, len(payload),
+                                        'text/plain'),
+                      cancellable, done, None)
+
+    _with_secret_service(ready)
 
 
 def load_secret_async(instance, kind, callback, cancellable=None):
-    """Read a keyring entry; *callback* receives the value or None.
+    """Read a keyring entry on the main loop.
 
-    The value arrives on the main loop. It is deliberately None when the
-    keyring is unreachable: an unreadable keyring means no session, which
-    the login flow already handles as a signed-out window.
+    *callback* is ``callback(value, error=None)``. ``value`` is the secret
+    text, or None when the entry is absent. A keyring that cannot be read
+    (locked, missing service, D-Bus failure) is not an absence: *error* is
+    the ``GLib.Error`` and *value* is None. Every callback takes both
+    arguments; the stubs in the tests were updated with it.
     """
 
-    def done(service, result, _user_data):
-        try:
-            secret = service.lookup_finish(result)
-        except GLib.Error:
-            secret = None
-        callback(secret.get_text() if secret is not None else None)
+    def ready(service, error):
+        if error is not None:
+            callback(None, error)
+            return
 
-    _secret_service().lookup(SECRET_SCHEMA,
-                             {'instance': instance, 'kind': kind},
-                             cancellable, done, None)
+        def done(_service, result, _user_data):
+            try:
+                secret = service.lookup_finish(result)
+            except GLib.Error as failure:
+                callback(None, failure)
+                return
+            callback(secret.get_text() if secret is not None else None, None)
+
+        service.lookup(SECRET_SCHEMA,
+                       {'instance': instance, 'kind': kind},
+                       cancellable, done, None)
+
+    _with_secret_service(ready)
 
 
 def clear_secret_async(instance, kind, callback=None, cancellable=None):
@@ -322,18 +377,26 @@ def clear_secret_async(instance, kind, callback=None, cancellable=None):
     is told rather than left to assume the removal took.
     """
 
-    def done(service, result, _user_data):
-        error = None
-        try:
-            service.clear_finish(result)
-        except GLib.Error as failure:
-            error = failure
-        if callback is not None:
-            callback(error)
+    def ready(service, error):
+        if error is not None:
+            if callback is not None:
+                callback(error)
+            return
 
-    _secret_service().clear(SECRET_SCHEMA,
-                            {'instance': instance, 'kind': kind},
-                            cancellable, done, None)
+        def done(_service, result, _user_data):
+            failure = None
+            try:
+                service.clear_finish(result)
+            except GLib.Error as err:
+                failure = err
+            if callback is not None:
+                callback(failure)
+
+        service.clear(SECRET_SCHEMA,
+                      {'instance': instance, 'kind': kind},
+                      cancellable, done, None)
+
+    _with_secret_service(ready)
 
 
 
@@ -550,6 +613,12 @@ class MastodonClient(GObject.Object):
         return message
 
     def _rest_retry(self, task):
+        cancellable = task.get_cancellable()
+        if cancellable is not None and cancellable.is_cancelled():
+            task.return_error(GLib.Error(
+                _('Operation canceled'), 'g-io-error-quark',
+                int(Gio.IOErrorEnum.CANCELLED)))
+            return GLib.SOURCE_REMOVE
         spec = getattr(task, '_rest_spec', None)
         if spec is None:
             task.return_error(GLib.Error(_('Request failed'),
@@ -571,6 +640,9 @@ class MastodonClient(GObject.Object):
         spec = getattr(task, '_rest_spec', None)
         if spec is None:
             return False
+        cancellable = task.get_cancellable()
+        if cancellable is not None and cancellable.is_cancelled():
+            return False
         attempt = getattr(task, '_rest_attempt', 0)
         if not rest_should_retry(spec[0], status, transport_error) \
                 or attempt >= REST_RETRY_MAX:
@@ -585,6 +657,11 @@ class MastodonClient(GObject.Object):
         try:
             body = self._session.send_and_read_finish(result)
         except GLib.Error as e:
+            # Cancellation is not a transport blip: retrying only delays
+            # the error while each attempt aborts instantly.
+            if e.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                task.return_error(e)
+                return
             if self._maybe_retry(task, transport_error=True):
                 return
             task.return_error(e)
@@ -882,7 +959,7 @@ class MastodonClient(GObject.Object):
                            cancellable)
 
     def load_secret_token(self, account_id, callback, cancellable=None):
-        """Read the stored token; *callback* receives it, or None."""
+        """Read the stored token; *callback(value, error=None)*."""
         load_secret_async(self.instance, account_id, callback, cancellable)
 
     def store_client_credentials(self, account_id, client_id, client_secret,
@@ -908,7 +985,10 @@ class MastodonClient(GObject.Object):
         """Read the stored client credentials for *account_id* into
         ``client_id`` and ``client_secret``; *callback* receives None
         when there are none."""
-        def loaded(text):
+        def loaded(text, error=None):
+            if error is not None:
+                callback(False)
+                return
             if text:
                 try:
                     stored = json.loads(text)

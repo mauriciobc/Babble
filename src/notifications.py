@@ -85,6 +85,27 @@ EXCLUDED_TYPES_KEY = 'notification-excluded-types'
 # dialog.
 NOTIFICATION_TYPES = FILTER_NOTIFICATION_TYPES
 
+# Menu-only labels: SwitchRow titles keep the unadorned strings above.
+_FILTER_MENU_LABELS = {
+    'mention': _('_Mentions'),
+    'status': _('_New Posts'),
+    'reblog': _('_Boosts'),
+    'favourite': _('_Favorites'),
+    'follow': _('Foll_ows'),
+    'follow_request': _('Follow _Requests'),
+    'poll': _('_Polls'),
+    'update': _('Post _Edits'),
+    'quote': _('_Quotes'),
+    'quoted_update': _('Quote E_dits'),
+    'admin.sign_up': _('_Sign-Ups'),
+    'admin.report': _('Repor_ts'),
+    'severed_relationships': _('Se_vered Relationships'),
+    'moderation_warning': _('Moderation _Warnings'),
+    'annual_report': _('_Annual Reports'),
+    'added_to_collection': _('Added to _Collections'),
+    'collection_update': _('Collection _Updates'),
+}
+
 REPORT_CATEGORIES = {
     'spam': _('Spam'),
     'legal': _('Illegal content'),
@@ -1251,11 +1272,14 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         # Filtered notifications (Mastodon 4.3+): pending requests.
         self.requests_banner = Adw.Banner(button_label=_('View'),
                                           use_markup=False)
+        self.requests_banner.set_button_style(
+            Adw.BannerButtonStyle.SUGGESTED)
         connect_weak(self.requests_banner, 'button-clicked',
                      self.on_requests_banner_clicked)
 
         # Instance announcements: the button opens the Announcements page.
         self.banner = Adw.Banner(button_label=_('View'), use_markup=False)
+        self.banner.set_button_style(Adw.BannerButtonStyle.SUGGESTED)
         connect_weak(self.banner, 'button-clicked', self.on_announcement_view)
 
         self.filter_group = Adw.ToggleGroup(
@@ -1312,7 +1336,8 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
                 name, None, GLib.Variant.new_boolean(kind not in excluded))
             connect_weak(action, 'change-state', self._on_type_toggled, kind)
             self.actions.add_action(action)
-            filter_menu.append(label, 'notifs.' + name)
+            filter_menu.append(_FILTER_MENU_LABELS.get(kind, label),
+                               'notifs.' + name)
         for name, handler in (('policy', self.on_open_policy),
                               ('announcements', self.on_announcement_view)):
             action = Gio.SimpleAction.new(name, None)
@@ -1321,11 +1346,11 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
 
         menu = Gio.Menu()
         filters = Gio.Menu()
-        filters.append_submenu(_('Filter'), filter_menu)
+        filters.append_submenu(_('_Filter'), filter_menu)
         menu.append_section(None, filters)
         more = Gio.Menu()
-        more.append(_('Notification Settings'), 'notifs.policy')
-        more.append(_('Announcements'), 'notifs.announcements')
+        more.append(_('Notification _Settings'), 'notifs.policy')
+        more.append(_('_Announcements'), 'notifs.announcements')
         menu.append_section(None, more)
         self.menu_button = Gtk.MenuButton(icon_name='open-menu-symbolic',
                                           menu_model=menu)

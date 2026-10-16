@@ -67,6 +67,9 @@ jobs:
           NO_AT_BRIDGE: 1
           GTK_A11Y: none
         run: |
+          # Without pipefail the pipeline's status is tee's, so a failing
+          # suite still leaves this step green. The suite is the gate.
+          set -o pipefail
           xvfb-run -a dbus-run-session -- \
             meson test -C build -j1 --print-errorlogs 2>&1 | tee ci.log
 
@@ -107,16 +110,27 @@ jobs:
   flatpak:
     name: Flatpak manifest
     runs-on: ubuntu-latest
+    # Flathub's own build image: the GNOME 51 SDK and runtime installed
+    # system-wide, plus the flatpak-builder and flatpak-builder-lint
+    # Flathub builds with. The runner's flatpak-builder is 1.4.2, which
+    # has no --compose-url-policy, and without that flag the composed
+    # catalogue keeps the raw.githubusercontent.com URLs the linter
+    # rejects (appstream-external-screenshot-url and
+    # appstream-remote-icon-not-mirrored). --privileged is what
+    # flatpak-builder needs for the sandbox it builds modules in.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the manifest parses
-        # Cheapest possible rot check, and the one that needs no
-        # network: a manifest that is not valid JSON fails here in a
-        # second instead of after a ten-minute SDK download.
+      - name: Check the manifest
+        # The linter's own manifest check: it parses the manifest and
+        # validates it against the schema, so a broken one fails here in
+        # a second instead of after the build.
         run: |
-          python3 -m json.tool \
-            build-aux/flatpak/io.github.mauriciobc.Babble.json > /dev/null
+          flatpak-builder-lint --gha-format manifest \
+            build-aux/flatpak/io.github.mauriciobc.Babble.json
 
       - name: Build against the GNOME 51 SDK
         # The manifest rot the meson suite cannot see: a renamed source
@@ -124,25 +138,45 @@ jobs:
         # no longer apply. This builds the whole thing, so the manifest
         # cannot go quietly stale between releases.
         #
-        # The 51 SDK comes from Flathub, not from the nightly remote: it
-        # is listed there and the nightly remote answers GPG verification
-        # with "no summary found" when it is added from a bare URL, which
-        # reads as an SDK problem that is not one.
+        # Relative paths are correct here: flatpak-builder runs in the
+        # container itself, whose working directory is the checkout, so
+        # builddir and repo land in the workspace for the linter below.
+        #
+        # --disable-rofiles-fuse: the container has no machine-id, so the
+        # helper dies with "Cannot spawn a message bus without a
+        # machine-id" before the first module builds. The flag drops an
+        # optimization, not a check.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak-builder
-          flatpak remote-add --user --if-not-exists flathub \
-            https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y \
-            org.gnome.Sdk//51 org.gnome.Platform//51
-          # rofiles-fuse is unavailable in the runner's kernel namespace;
-          # without this every app install step hangs on it.
-          flatpak-builder --user --force-clean \
-            --disable-rofiles-fuse \
-            build-flatpak \
+          flatpak-builder --force-clean --disable-rofiles-fuse \
+            --mirror-screenshots-url=https://dl.flathub.org/media \
+            --compose-url-policy=full \
+            --repo=repo builddir \
             build-aux/flatpak/io.github.mauriciobc.Babble.json
+
+      - name: Lint the bundle
+        # The build step only proves the manifest builds. This is what
+        # says the artifact is shippable: the same linter Flathub runs
+        # on a submission, reading the tree flatpak-builder left behind
+        # -- the metainfo, the desktop file, the finish-args, the icons
+        # and the permissions as they were actually installed, not as
+        # the manifest merely declares them. Its four targets are
+        # appstream, manifest, builddir and repo; there is no appdir,
+        # and builddir wants the build directory itself, not the
+        # files/ inside it. The manifest target ran in the first step,
+        # before the build.
+        #
+        # --gha-format: this runs as a GitHub Actions step, so the
+        # findings arrive as annotations on the diff instead of
+        # scrollback nobody reads.
+        #
+        # If a check ever reports an error that only Flathub's own
+        # linter can grant an exception for, --exceptions is the flag
+        # that points at an exceptions.json. Not here: this manifest is
+        # for local development, not a Flathub submission.
+        run: |
+          flatpak-builder-lint --gha-format builddir builddir
 
       - name: Report where the build landed
         # Not an assertion, just the artifact the run would be judged
         # from: the installed tree under /app.
-        run: ls -1 build-flatpak/files/bin build-flatpak/files/share
+        run: ls -1 builddir/files/bin builddir/files/share

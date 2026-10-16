@@ -384,7 +384,6 @@ class CustomEmojiChooser(Gtk.Popover):
         self.stack.add_named(self.category_scroller, 'categories')
         self.stack.add_named(grid_box, 'grid')
         self.empty_page = Adw.StatusPage(icon_name='face-smile-symbolic')
-        self.empty_page.add_css_class('compact')
         self.stack.add_named(self.empty_page, 'empty')
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,

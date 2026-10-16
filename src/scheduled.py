@@ -141,16 +141,17 @@ class SchedulePickerDialog(Adw.Dialog):
         column.append(self.calendar)
 
         group = Adw.PreferencesGroup()
-        time_row = Adw.ActionRow(title=_('Time'))
-        time_box = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
-        self.hour_spin = self._make_spin(23, initial.get_hour(), _('Hour'))
+        # Two AdwSpinRows, not an ActionRow with two spin buttons hung
+        # off it: the row carries the number and its label, so the
+        # "Hour"/"Minute" titles and the access keys come from the row
+        # itself and the group needs no second widget to place them.
+        self.hour_spin = self._make_spin(23, initial.get_hour(), _('_Hour'),
+                                       _('Hour of the day'))
         self.minute_spin = self._make_spin(59, initial.get_minute(),
-                                           _('Minute'))
-        time_box.append(self.hour_spin)
-        time_box.append(Gtk.Label(label=':'))
-        time_box.append(self.minute_spin)
-        time_row.add_suffix(time_box)
-        group.add(time_row)
+                                           _('_Minute'),
+                                           _('Minute of the hour'))
+        group.add(self.hour_spin)
+        group.add(self.minute_spin)
 
         local_id = GLib.TimeZone.new_local().get_identifier() or 'UTC'
         self._zones = [local_id] + (['UTC'] if local_id != 'UTC' else [])
@@ -174,8 +175,10 @@ class SchedulePickerDialog(Adw.Dialog):
         self.set_default_widget(self.schedule_button)
 
         pages.connect_weak(self.calendar, 'day-selected', self._validate)
-        pages.connect_weak(self.hour_spin, 'value-changed', self._validate)
-        pages.connect_weak(self.minute_spin, 'value-changed', self._validate)
+        # notify::value, not value-changed: AdwSpinRow carries no such signal,
+# and a property notification is the one every GObject has.
+        pages.connect_weak(self.hour_spin, 'notify::value', self._validate)
+        pages.connect_weak(self.minute_spin, 'notify::value', self._validate)
         pages.connect_weak(self.zone_row, 'notify::selected', self._validate)
         self._validate()
 
@@ -188,18 +191,27 @@ class SchedulePickerDialog(Adw.Dialog):
             .add_seconds(-target.get_second())
 
     @staticmethod
-    def _make_spin(upper, value, label):
-        spin = Gtk.SpinButton.new_with_range(0, upper, 1)
-        spin.set_value(value)
-        spin.set_wrap(True)
+    def _make_spin(upper, value, label, unit):
+        """An AdwSpinRow for *label*, ranged 0..*upper* in whole steps.
+
+        AdwSpinRow is a row that owns a spin button rather than a
+        subclass of one, so the value API is the row's own
+        (``get_value``, no ``get_value_as_int``) and the title is the
+        label. *unit* is the spoken description of what the number is."""
+        spin = Adw.SpinRow(title=label, use_underline=True)
+        spin.set_adjustment(Gtk.Adjustment.new(0, 0, upper, 1, 10, 0))
         spin.set_numeric(True)
-        spin.update_property([Gtk.AccessibleProperty.LABEL], [label])
+        spin.set_snap_to_ticks(True)
+        spin.set_digits(0)
+        spin.set_value(value)
+        spin.update_property([Gtk.AccessibleProperty.DESCRIPTION], [unit])
         spin.connect('output', SchedulePickerDialog._on_output)
         return spin
 
     @staticmethod
     def _on_output(spin):
-        spin.set_text('%02d' % spin.get_value_as_int())
+        # Zero-padded, so the time reads as a time in the entry.
+        spin.set_text('%02d' % int(spin.get_value()))
         return True
 
     def _chosen(self):
@@ -210,8 +222,8 @@ class SchedulePickerDialog(Adw.Dialog):
             else GLib.TimeZone.new_local()
         return GLib.DateTime.new(
             zone, date.get_year(), date.get_month(),
-            date.get_day_of_month(), self.hour_spin.get_value_as_int(),
-            self.minute_spin.get_value_as_int(), 0)
+            date.get_day_of_month(), int(self.hour_spin.get_value()),
+            int(self.minute_spin.get_value()), 0)
 
     def _validate(self, *_args):
         self._result = self._chosen()

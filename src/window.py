@@ -9,7 +9,7 @@ from .i18n import gettext as _, ngettext
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gio, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import auth  # noqa: E402
@@ -57,6 +57,20 @@ HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
 # Opt-in for public timelines the server has closed to most accounts but
 # still serves to this one (the "View live and topic feeds" permission).
 SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
+
+# The help pages, and where they live when no help viewer answers.
+#
+# The scheme is `help:`, from the Desktop Help System Specification, and
+# not `yelp://`: Yelp registers x-scheme-handler/{ghelp,help,info,man}
+# and no yelp handler at all, so a yelp:// URI is dispatched to nothing
+# and the launch always fails. Yelp's URI resolver likewise dispatches
+# only on those four plus help-list:, file: and xref:, so `yelp:` would
+# not be understood either. The document id is the application id, which
+# is what share/help/<lang>/<app id>/ is keyed by.
+HELP_URI = 'help:io.github.mauriciobc.Babble'
+PROJECT_URL = 'https://github.com/mauriciobc/babble'
+ISSUES_URL = PROJECT_URL + '/issues'
+DOCS_URL = PROJECT_URL + '/blob/main/Docs/README.md'
 
 
 def place_title(tag):
@@ -160,12 +174,22 @@ class BabbleWindow(Adw.ApplicationWindow):
         # signals; the window keeps only the widgets.
         self.auth = auth.LoginFlow(
             current_account=pages.weak_method(self._signed_in_account))
-        self.auth.connect('succeeded', self._on_auth_succeeded)
-        self.auth.connect('failed', self._on_auth_failed)
-        self.auth.connect('message', self._on_auth_message)
-        self.auth.connect('browser', self._on_auth_browser)
-        self.auth.connect('changed', self._on_auth_changed)
-        self.auth.connect('attended', self._on_auth_attended)
+        pages.connect_weak(self.auth, 'succeeded', self._on_auth_succeeded)
+        pages.connect_weak(self.auth, 'failed', self._on_auth_failed)
+        pages.connect_weak(self.auth, 'message', self._on_auth_message)
+        pages.connect_weak(self.auth, 'browser', self._on_auth_browser)
+        pages.connect_weak(self.auth, 'changed', self._on_auth_changed)
+        pages.connect_weak(self.auth, 'attended', self._on_auth_attended)
+        # Local scope: a focused TextView/Editable keeps Page Up/Down.
+        # An application accelerator would steal them first.
+        page_keys = Gtk.ShortcutController()
+        for action, keyval in (
+                ('app.scroll-page-down', Gdk.KEY_Page_Down),
+                ('app.scroll-page-up', Gdk.KEY_Page_Up)):
+            page_keys.add_shortcut(Gtk.Shortcut(
+                trigger=Gtk.KeyvalTrigger(keyval=keyval, modifiers=0),
+                action=Gtk.NamedAction(action_name=action)))
+        self.add_controller(page_keys)
         self.settings = pages.settings()
         self.settings.bind('window-width', self, 'default-width',
                             Gio.SettingsBindFlags.DEFAULT)
@@ -177,6 +201,11 @@ class BabbleWindow(Adw.ApplicationWindow):
         # live instead of waiting for the next account sync.
         pages.connect_weak(self.settings, 'changed::local-drafts',
                            self._refresh_draft_banner)
+        # The banners exist to offer their action, so their buttons are
+        # the suggested ones (AdwBanner:button-style, since 1.7). Set
+        # once, here: it never changes, so doing it on every draft
+        # change was work for nothing.
+        self.draft_banner.set_button_style(Adw.BannerButtonStyle.SUGGESTED)
         self._setup_copied_link_banner()
         self._setup_offline_banner()
 
@@ -189,9 +218,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         from .streaming import StreamingManager
         self.notifier = DesktopNotifier(self)
         self.streaming = StreamingManager()
-        self.streaming.connect('event', self._on_stream_event)
-        self.streaming.connect('connection-changed',
-                               self._on_stream_connection_changed)
+        pages.connect_weak(self.streaming, 'event', self._on_stream_event)
+        pages.connect_weak(self.streaming, 'connection-changed',
+                           self._on_stream_connection_changed)
         # The stream went down after it had been up: whatever was posted
         # meanwhile never came through it.
         self._stream_dropped = False
@@ -234,24 +263,23 @@ class BabbleWindow(Adw.ApplicationWindow):
 
         self.switcher = account_store.AccountSwitcher(self.settings)
         self.account_button.set_popover(self.switcher)
-        self.switcher.connect('switch', lambda _s, account_id:
-                              self.switch_account(account_id))
-        self.switcher.connect('remove', self.on_remove_account_requested)
-        self.switcher.connect('add', lambda _s: self.begin_add_account())
+        pages.connect_weak(self.switcher, 'switch', self._on_switcher_switch)
+        pages.connect_weak(self.switcher, 'remove',
+                           self.on_remove_account_requested)
+        pages.connect_weak(self.switcher, 'add', self._on_switcher_add)
 
         from . import preferences
         self._preferences = preferences
-        self.settings.connect('changed', self._on_setting_changed)
-        Adw.StyleManager.get_default().connect(
-            'notify::dark', lambda *a: preferences.apply_style(
-                self, self.settings))
+        pages.connect_weak(self.settings, 'changed', self._on_setting_changed)
+        pages.connect_weak(Adw.StyleManager.get_default(), 'notify::dark',
+                           self._on_dark_changed)
         preferences.apply_style(self, self.settings)
         pages.connect_weak(self.split_view, 'notify::collapsed',
                            self._sync_translucent_sidebar)
         pages.connect_weak(self.main_stack, 'notify::visible-child-name',
                            self._sync_translucent_sidebar)
         self._sync_translucent_sidebar()
-        self.connect('close-request', self._on_close_request)
+        pages.connect_weak(self, 'close-request', self._on_close_request)
         pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
         self._sync_global_shortcut()
 
@@ -260,6 +288,15 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.restore_account()
 
     # Settings
+
+    def _on_switcher_switch(self, _switcher, account_id):
+        self.switch_account(account_id)
+
+    def _on_switcher_add(self, _switcher):
+        self.begin_add_account()
+
+    def _on_dark_changed(self, *_args):
+        self._preferences.apply_style(self, self.settings)
 
     def _on_setting_changed(self, settings, key):
         if key in self._preferences.STYLE_KEYS:
@@ -311,8 +348,20 @@ class BabbleWindow(Adw.ApplicationWindow):
         client = MastodonClient(account['instance'])
         lookup = self._session_lookup = self._session_lookup + 1
 
-        def loaded(token):
+        def loaded(token, error=None):
             if lookup != self._session_lookup:
+                return
+            if error is not None:
+                # A locked or unreachable keyring is not a signed-out
+                # account. Keep the stored entry (and its Catch-Up
+                # snapshots) and ask the user to try again.
+                if error.matches(Gio.io_error_quark(),
+                                 Gio.IOErrorEnum.CANCELLED):
+                    return
+                self.main_stack.set_visible_child_name('login')
+                self.show_toast(
+                    _('Could not read the login for @%s from the keyring')
+                    % account.get('acct', ''))
                 return
             if token is None:
                 if login_only:
@@ -547,8 +596,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         def on_credentials(_known):
             revoke_then_forget()
 
-        def on_token(token):
-            client.token = token
+        def on_token(token, error=None):
+            if error is None:
+                client.token = token
             client.load_client_credentials(account_id, on_credentials)
 
         if have_token and have_credentials:
@@ -584,6 +634,7 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _sign_out_to_login(self):
         self.account_avatar.set_custom_image(None)
+        self.account_button.set_tooltip_text(_('Switch Account'))
         self._update_session_actions()
         self.login_back_button.set_visible(False)
         self.auth.cancel()
@@ -591,9 +642,12 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def show_shell(self):
         name = account_store.plain_name(self.account)
+        handle = account_store.full_handle(self.account)
         self.account_name_label.set_label(name)
-        self.account_handle_label.set_label(
-            account_store.full_handle(self.account))
+        self.account_handle_label.set_label(handle)
+        # The label ellipsizes when narrow or large-text; keep the full
+        # handle (with instance) on the button for hover and Orca.
+        self.account_button.set_tooltip_text(handle)
         self.account_avatar.set_text(name)
         AvatarCache.load(self.account_avatar, self.account)
         self._update_session_actions()
@@ -1568,6 +1622,33 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _on_auth_browser(self, _flow, uri):
         self.open_url(uri)
+
+    def open_help(self):
+        """Open the installed help pages (F1, or the primary menu).
+
+        The Mallard pages ship in the bundle, under
+        share/help/<lang>/<app id>/, which is where ``HELP_URI`` points.
+
+        Inside a Flatpak that does not work, and it fails quietly: the
+        ``help:`` URI is resolved host-side by the OpenURI portal, so the
+        viewer's lookup misses ``/app/share/help`` and shows "document
+        not found" -- a successful launch, so the fallback never fires.
+        Hence the explicit check: sandboxed, go straight to the online
+        documentation rather than open a viewer that cannot find
+        anything. Unsandboxed, try the installed pages first and fall
+        back when no viewer answers at all."""
+        if GLib.getenv('FLATPAK_ID'):
+            self.open_url(DOCS_URL)
+            return
+
+        def launched(launcher, result):
+            try:
+                launcher.launch_finish(result)
+            except GLib.Error:
+                self.open_url(DOCS_URL)
+
+        launcher = Gtk.UriLauncher.new(HELP_URI)
+        launcher.launch(self, None, launched)
 
     def open_url(self, uri):
         """Open *uri* in the web browser through the portal, falling back
