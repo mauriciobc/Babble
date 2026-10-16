@@ -849,6 +849,7 @@ class MediaViewer(Adw.Bin):
         self._stage.set_child(self._backdrop)
         self._card = Gtk.Box(halign=Gtk.Align.CENTER,
                             valign=Gtk.Align.CENTER)
+        self._card.add_css_class('media-viewer-card')
         self._card.add_css_class('media-viewer-box')
         self._card.append(self.toasts)
         self._stage.add_overlay(self._card)
@@ -1617,8 +1618,10 @@ def media_overlay(window):
     """The :class:`Gtk.Overlay` covering *window*'s content, or None when
     the window has none. The shell wraps its content in one so a
     fullscreen attachment can fill the window instead of floating in a
-    dialog."""
-    content = window.get_content() if window is not None else None
+    dialog. Only an Adw window has content to look at."""
+    if not isinstance(window, Adw.Window):
+        return None
+    content = window.get_content()
     return content if isinstance(content, Gtk.Overlay) else None
 
 
