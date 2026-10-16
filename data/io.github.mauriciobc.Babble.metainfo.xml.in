@@ -30,12 +30,20 @@
   </content_rating>
   <screenshots>
     <screenshot type="default">
-      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/c8167680e235726189f949fb3de7cea27c8be75b/data/screenshots/timeline.png</image>
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/8c3e835025112cbd199e81e96110632a49531b1e/data/screenshots/timeline.png</image>
       <caption>Home timeline with posts, media and the action bar</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/c8167680e235726189f949fb3de7cea27c8be75b/data/screenshots/thread.png</image>
-      <caption>A thread, with the focused post and its replies</caption>
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/8c3e835025112cbd199e81e96110632a49531b1e/data/screenshots/catch-up.png</image>
+      <caption>Catch Up: the posts you missed over a window you choose, ranked as a grid</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/8c3e835025112cbd199e81e96110632a49531b1e/data/screenshots/hashtag.png</image>
+      <caption>A hashtag timeline, with a quoted post</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/mauriciobc/Babble/8c3e835025112cbd199e81e96110632a49531b1e/data/screenshots/composer.png</image>
+      <caption>Writing a post, with a poll and the language picker</caption>
     </screenshot>
   </screenshots>
   <branding>

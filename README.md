@@ -9,6 +9,12 @@ window: timelines that scroll smoothly, threads that unfold nicely, and a
 composer that stays out of your way until you have something to say. It's
 built with GTK 4 and libadwaita, so it feels at home on your GNOME desktop.
 
+| | |
+|---|---|
+| ![A hashtag timeline, with a quoted post](data/screenshots/hashtag.png) | ![Writing a post, with a poll](data/screenshots/composer.png) |
+
+![Catch Up, as a grid of the posts you missed](data/screenshots/catch-up.png)
+
 - **Reading.** Live-updating home, local and federated timelines, threads,
   notifications, direct messages, quotes, edit history, bookmarks, lists,
   followed hashtags, and your yearly #Wrapstodon if your server has one for
@@ -22,9 +28,16 @@ built with GTK 4 and libadwaita, so it feels at home on your GNOME desktop.
   take a screenshot through the portal, and open posts from Files — Babble
   integrates with the desktop rather than living beside it.
 
+## Status
+
+- **0.2.0** is the current version. **Not on Flathub yet** — build it from
+  source [below](#getting-it).
+- The interface is translated into German, Spanish, French and Brazilian
+  Portuguese. [Adding a language](Docs/localization.md) is a page of its own.
+
 ## Getting it
 
-Babble is **not on Flathub yet.** To run it, build it from source:
+To run Babble, build it from source:
 
 ```sh
 meson setup build && meson compile -C build
