@@ -40,6 +40,11 @@ Spelling.init()
 
 DEFAULT_CHAR_LIMIT = 500
 URL_PLACEHOLDER_CHARS = 23
+# The fallback, for an instance that advertises no
+# statuses.max_media_attachments; Mastodon's own default is 4, and its
+# Android client hardcodes this same number while parsing the field and
+# never reading it. See BabbleComposeView.attachment_limit for the
+# instance-aware one.
 MAX_ATTACHMENTS = 4
 MAX_POLL_CHOICES = 4
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
@@ -1047,13 +1052,40 @@ class BabbleComposeView(Adw.Bin):
             self.text_view.grab_focus()
 
     def on_attach_clicked(self, _button):
-        media_filter = Gtk.FileFilter(name=_('Images, Videos and Audio'))
-        media_filter.add_mime_type('image/*')
-        media_filter.add_mime_type('video/*')
-        media_filter.add_mime_type('audio/*')
         dialog = Gtk.FileDialog(title=_('Attach Media'),
-                                default_filter=media_filter)
+                                default_filter=self.media_filter())
         dialog.open_multiple(self.get_root(), None, self.on_files_selected)
+
+    def media_filter(self):
+        """The file chooser's media filter, narrowed to what this server
+        takes when it says what it takes.
+
+        An instance that advertises supported_mime_types is followed,
+        because the chooser is the only place where refusing a file
+        costs the reader nothing: the alternative is picking it, having
+        it turned away, and losing the selection. Nothing is advertised,
+        or only the useless application/octet-stream, and the three
+        broad types stand.
+        """
+        types = self.client.supported_media_types() \
+            if hasattr(self.client, 'supported_media_types') else None
+        media_filter = Gtk.FileFilter(
+            name=_('Media accepted by this server') if types
+            else _('Images, Videos and Audio'))
+        for mime in types or ('image/*', 'video/*', 'audio/*'):
+            media_filter.add_mime_type(mime)
+        return media_filter
+
+    def attachment_limit(self):
+        """How many attachments a post may carry here.
+
+        Read from the instance rather than assumed, so a server that
+        raised or lowered the limit is obeyed instead of refused at
+        four. Falls back to :data:`MAX_ATTACHMENTS` for a client that
+        cannot answer, which is only the test stubs.
+        """
+        reader = getattr(self.client, 'max_media_attachments', None)
+        return reader() if reader is not None else MAX_ATTACHMENTS
 
     def on_files_selected(self, dialog, result):
         try:
@@ -1111,7 +1143,7 @@ class BabbleComposeView(Adw.Bin):
         if self._posting:
             self._toast_busy_posting()
             return False
-        if len(self.attachments()) >= MAX_ATTACHMENTS:
+        if len(self.attachments()) >= self.attachment_limit():
             self._toast_attachment_limit()
             return False
         if self._has_lone_media():
@@ -1125,7 +1157,7 @@ class BabbleComposeView(Adw.Bin):
                    for row in self.attachments())
 
     def _can_attach_more(self):
-        return len(self.attachments()) < MAX_ATTACHMENTS \
+        return len(self.attachments()) < self.attachment_limit() \
             and not self._has_lone_media()
 
     def _set_attach_sensitive(self, sensitive):
@@ -1180,7 +1212,7 @@ class BabbleComposeView(Adw.Bin):
             elif self._has_lone_media() or (
                     must_be_alone(mime) and self.attachments()):
                 lone = True
-            elif len(self.attachments()) >= MAX_ATTACHMENTS:
+            elif len(self.attachments()) >= self.attachment_limit():
                 over_limit = True
             else:
                 added.append(self.add_attachment_path(path))
@@ -1200,10 +1232,11 @@ class BabbleComposeView(Adw.Bin):
 
     def _toast_attachment_limit(self):
         # Translators: %d is the most attachments a post can have.
+        limit = self.attachment_limit()
         text = ngettext('A post can have at most %d attachment',
                         'A post can have at most %d attachments',
-                        MAX_ATTACHMENTS)
-        self._toast(text % MAX_ATTACHMENTS)
+                        limit)
+        self._toast(text % limit)
 
     def on_drop(self, _target, value, _x, _y):
         # The value only lives through this emission: take the files out

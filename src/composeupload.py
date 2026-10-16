@@ -29,6 +29,65 @@ def _cancelled(error):
     return error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED)
 
 
+def uses_video_size_limit(mime):
+    """Whether *mime* is held to the instance's video size limit.
+
+    This is the server's own split: MediaAttachment validates the file
+    against VIDEO_LIMIT for anything it classes as video or audio and
+    IMAGE_LIMIT for an image, strictly, so a file of exactly the limit is
+    refused there too.
+
+    There is no third case hiding here. Mastodon makes an animated GIF a
+    gifv only *after* the upload -- the client sends ``image/gif`` and
+    the server transcodes it to mp4 -- so no client ever sends a gifv
+    MIME, and ``image/gif`` is an image here exactly as it is there. It
+    is worth saying because the enum reads like a third bucket, and
+    building a rule for it would be building for a request the server
+    rejects: content_type is validated against IMAGE_MIME_TYPES +
+    VIDEO_MIME_TYPES + AUDIO_MIME_TYPES, and image/gifv is in none.
+    """
+    return bool(mime) and mime.lower().startswith(('video/', 'audio/'))
+
+
+def size_limit_for(mime, limits):
+    """The limit *mime* of *limits* breaks, or None.
+
+    *limits* is :meth:`MastodonClient.media_size_limits`. The comparison
+    is ``>=`` because the server's validation is ``less_than``, so a
+    file of exactly the limit is refused there too.
+    """
+    image_limit, video_limit = limits
+    limit = video_limit if uses_video_size_limit(mime) else image_limit
+    return limit if limit is not None and limit > 0 else None
+
+
+def human_size(limit):
+    """*limit* bytes as the reader would say it, e.g. '16 MB'."""
+    mb = limit / (1024.0 * 1024.0)
+    if mb >= 1:
+        return '%.0f MB' % mb if mb == int(mb) else '%.2f MB' % mb
+    return '%.0f kB' % (limit / 1024.0)
+
+
+def attachment_refusal(client, mime, size, name=None, limits=None):
+    """Why *client* will not take this attachment, or None.
+
+    *size* is the file's length in bytes, from a metadata query rather
+    than a read: the point of asking before the upload is that an
+    oversized file is never pulled into memory only to earn a 422.
+    *name* is the basename to name in the message, *limits* is what the
+    client advertises unless a test passes its own.
+    """
+    limits = client.media_size_limits() if limits is None else limits
+    limit = size_limit_for(mime, limits)
+    if limit is None or size < limit:
+        return None
+    # Translators: %s is a file name, then the largest size this server
+    # accepts for this kind of file, e.g. "99 MB".
+    return _('“%s” is too large for this server (%s is the limit)') \
+        % (name or '', human_size(limit))
+
+
 class UploadRound:
     """Uploads for a single click of Post.
 
@@ -83,11 +142,32 @@ class UploadRound:
         self._processing_poll.clear()
 
     def upload_one(self, row):
+        # Ask the instance what it takes before touching the file: the
+        # size comes from a metadata query, so an attachment this server
+        # would refuse is refused here too, without ever being read into
+        # memory. It is up to a server to enforce it; doing it here only
+        # means the reader is told which file and why.
         try:
-            with open(row.path, 'rb') as handle:
-                data = handle.read()
-        except OSError as error:
-            self.fail(error.strerror or str(error))
+            info = Gio.File.new_for_path(row.path).query_info(
+                'standard::size,standard::content-type',
+                Gio.FileQueryInfoFlags.NONE)
+        except GLib.Error as error:
+            self.fail(error.message)
+            return
+        refusal = attachment_refusal(
+            self.client, row.content_type, info.get_size(),
+            GLib.path_get_basename(row.path))
+        if refusal is not None:
+            self.fail(refusal)
+            return
+        # Gio reads the file into a GLib.Bytes itself, in C. handle.read()
+        # plus the GLib.Bytes.new() inside the client would hold a second
+        # full copy of the attachment on the way out, and Mastodon lets a
+        # video be the better part of 100 MB.
+        try:
+            data = Gio.File.new_for_path(row.path).load_bytes(None)[0]
+        except GLib.Error as error:
+            self.fail(error.message)
             return
         generation = self.generation
         if self.cancellable is None:

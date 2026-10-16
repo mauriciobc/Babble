@@ -180,6 +180,16 @@ test('mastodon rest retry', python,
   env: test_env,
   timeout: 60,
 )
+test('client transport', python,
+  args: [files('test-client-transport.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('media limits', python,
+  args: [files('test-media-limits.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('mediaviewer helpers', python,
   args: [files('test-mediaviewer.py')],
   env: test_env,

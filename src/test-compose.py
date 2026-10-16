@@ -49,12 +49,12 @@ from gettext import gettext as _, ngettext  # noqa: E402
 failures = []
 
 
-def check(name, condition):
+def check(name, condition, detail=''):
     if condition:
         print('ok - %s' % name)
     else:
         failures.append(name)
-        print('FAIL - %s' % name)
+        print('FAIL - %s%s' % (name, (' :: %s' % detail) if detail else ''))
 
 
 # The composer reaches the desktop portals through portals.py, which
@@ -154,6 +154,11 @@ class StubClient:
     def __init__(self):
         self.token = None
 
+    def media_size_limits(self):
+        # No limit advertised, which is what most of these tests want:
+        # an instance that says nothing must not refuse anything.
+        return None, None
+
     def post_status_async(self, text, params=None, callback=None,
                           cancellable=None):
         form = {'status': text}
@@ -172,7 +177,11 @@ class StubClient:
     def media_upload_async(self, file_bytes, filename, content_type,
                            description=None, callback=None,
                            cancellable=None):
-        uploads.append({'bytes': len(file_bytes), 'filename': filename,
+        # media_upload_async takes the payload as bytes or as a
+        # GLib.Bytes, and the composer hands over whichever it has.
+        size = (file_bytes.get_size() if hasattr(file_bytes, 'get_size')
+                else len(file_bytes))
+        uploads.append({'bytes': size, 'filename': filename,
                         'content_type': content_type,
                         'description': description,
                         'id': '%d' % (9900 + len(uploads) + 1)})
@@ -308,6 +317,16 @@ def _capture_toast(toast):
 
 
 view._add_toast = _capture_toast
+
+
+def capture_toasts(target):
+    """Wrap another view's toast helper, so collect_toasts() sees it too."""
+    original = target._add_toast
+
+    def capture(toast):
+        toast_titles.append(toast.get_title())
+        original(toast)
+    target._add_toast = capture
 
 
 def collect_toasts():
@@ -1348,6 +1367,100 @@ check('the screenshot button is back below the limit',
       view.screenshot_button.get_sensitive())
 view.reset()
 collect_toasts()
+
+# --- the attachment limit and the file chooser's filter come from the
+# instance, not from a constant. Mastodon's own Android client hardcodes
+# four while parsing statuses.max_media_attachments and never reading it.
+
+check('a client that cannot answer falls back to four',
+      view.attachment_limit() == MAX_ATTACHMENTS,
+      str(view.attachment_limit()))
+
+
+class LimitsClient(StubClient):
+    """A client that answers what an instance would advertise."""
+
+    def max_media_attachments(self):
+        return 6
+
+    def supported_media_types(self):
+        return ['image/jpeg', 'video/mp4']
+
+
+def mime_types(filter_):
+    """The MIME patterns a Gtk.FileFilter carries.
+
+    Gtk.FileFilter has no getter for them, but it converts to the
+    ``(kind, patterns)`` pair the boxed type is built from, where kind 1
+    is a MIME type.
+    """
+    _kind, patterns = filter_.to_gvariant().unpack()
+    return sorted(pattern for _mime_kind, pattern in patterns)
+
+
+limits_view = BabbleComposeView(LimitsClient())
+limits_window = Gtk.Window()
+limits_window.set_child(limits_view)
+limits_window.present()
+capture_toasts(limits_view)
+check('the attachment limit is the one the instance advertises',
+      limits_view.attachment_limit() == 6, str(limits_view.attachment_limit()))
+check('the chooser offers only what the instance takes',
+      mime_types(limits_view.media_filter()) == ['image/jpeg', 'video/mp4'],
+      str(mime_types(limits_view.media_filter())))
+check('the narrowed filter says so in its name',
+      limits_view.media_filter().get_name() == _('Media accepted by this server'),
+      limits_view.media_filter().get_name())
+check('an instance that advertises nothing keeps the three broad types',
+      mime_types(view.media_filter()) == ['audio/*', 'image/*', 'video/*'],
+      str(mime_types(view.media_filter())))
+check('the broad filter keeps its name',
+      view.media_filter().get_name() == _('Images, Videos and Audio'),
+      view.media_filter().get_name())
+
+# --- an oversized attachment is refused before it is uploaded, let
+# alone read. PNG_BYTES is a few bytes, so the limit has to be below it.
+
+limits_client = LimitsClient()
+limits_client.media_size_limits = lambda: (2, 3)
+refused_view = BabbleComposeView(limits_client)
+refused_window = Gtk.Window()
+refused_window.set_child(refused_view)
+refused_window.present()
+capture_toasts(refused_view)
+before_uploads = len(uploads)
+collect_toasts()
+refused_view.add_attachment_files([media_file('toobig.png')])
+refused_view.on_post_clicked(refused_view.post_button)
+pump(400)
+check('an oversized file never reaches the upload',
+      len(uploads) == before_uploads,
+      '%d upload(s) added' % (len(uploads) - before_uploads))
+refusal_toasts = collect_toasts()
+check('and the reader is told why, naming the file',
+      len(refusal_toasts) == 1 and 'toobig.png' in refusal_toasts[0],
+      str(refusal_toasts))
+refused_view.reset()
+collect_toasts()
+del refused_view, refused_window
+limits_client.media_size_limits = lambda: (None, None)
+
+# Six attachments now fit, where four used to stop the composer.
+limits_view.add_attachment_files(
+    [media_file('m%d.png' % n) for n in range(6)])
+check('the advertised count is what the composer allows',
+      len(limits_view.attachments()) == 6,
+      str(len(limits_view.attachments())))
+limits_view.add_attachment_files([media_file('m6.png')])
+check('and the seventh is refused',
+      len(limits_view.attachments()) == 6
+      and collect_toasts() == [ngettext(
+          'A post can have at most %d attachment',
+          'A post can have at most %d attachments', 6) % 6],
+      str(collect_toasts()))
+limits_view.reset()
+collect_toasts()
+del limits_view, limits_window
 
 # A composer closed while the portal is open is not kept alive by it.
 gone = BabbleComposeView(client)
