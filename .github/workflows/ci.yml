@@ -110,16 +110,27 @@ jobs:
   flatpak:
     name: Flatpak manifest
     runs-on: ubuntu-latest
+    # Flathub's own build image: the GNOME 51 SDK and runtime installed
+    # system-wide, plus the flatpak-builder and flatpak-builder-lint
+    # Flathub builds with. The runner's flatpak-builder is 1.4.2, which
+    # has no --compose-url-policy, and without that flag the composed
+    # catalogue keeps the raw.githubusercontent.com URLs the linter
+    # rejects (appstream-external-screenshot-url and
+    # appstream-remote-icon-not-mirrored). --privileged is what
+    # flatpak-builder needs for the sandbox it builds modules in.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the manifest parses
-        # Cheapest possible rot check, and the one that needs no
-        # network: a manifest that is not valid JSON fails here in a
-        # second instead of after a ten-minute SDK download.
+      - name: Check the manifest
+        # The linter's own manifest check: it parses the manifest and
+        # validates it against the schema, so a broken one fails here in
+        # a second instead of after the build.
         run: |
-          python3 -m json.tool \
-            build-aux/flatpak/io.github.mauriciobc.Babble.json > /dev/null
+          flatpak-builder-lint --gha-format manifest \
+            build-aux/flatpak/io.github.mauriciobc.Babble.json
 
       - name: Build against the GNOME 51 SDK
         # The manifest rot the meson suite cannot see: a renamed source
@@ -127,81 +138,38 @@ jobs:
         # no longer apply. This builds the whole thing, so the manifest
         # cannot go quietly stale between releases.
         #
-        # The 51 SDK comes from Flathub, not from the nightly remote: it
-        # is listed there and the nightly remote answers GPG verification
-        # with "no summary found" when it is added from a bare URL, which
-        # reads as an SDK problem that is not one.
-        #
-        # The build runs through org.flatpak.Builder's own flatpak-builder,
-        # not the distro package. The runner's is 1.4.2, which predates
-        # --compose-url-policy, and without that flag the composed
-        # catalogue keeps the raw.githubusercontent.com URLs and the
-        # linter rejects both of them (appstream-external-screenshot-url
-        # and appstream-remote-icon-not-mirrored). Builder is also what
-        # Flathub builds with, so the tool versions here are the ones a
-        # submission would meet.
-        #
-        # Absolute paths, because inside the sandbox the working
-        # directory is the home directory: relative ones resolve there.
-        #
-        # The SDK goes into the *system* installation: /var/lib/flatpak is
-        # the one org.flatpak.Builder's sandbox has mounted, and the
-        # flatpak-builder inside it resolves runtimes there. Installed per
-        # user instead, the build dies with "Unable to find sdk
-        # org.gnome.Sdk version 51" — the sandbox's view of the user
-        # installation holds no refs.
+        # Relative paths are correct here: flatpak-builder runs in the
+        # container itself, whose working directory is the checkout, so
+        # builddir and repo land in the workspace for the linter below.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak
-          flatpak remote-add --user --if-not-exists flathub \
-            https://dl.flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak remote-add --if-not-exists flathub \
-            https://dl.flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install --system -y flathub \
-            org.gnome.Sdk//51 org.gnome.Platform//51
-          flatpak install --user -y flathub org.flatpak.Builder
-          flatpak run --command=flatpak-builder org.flatpak.Builder \
-            --force-clean \
+          flatpak-builder --force-clean \
             --mirror-screenshots-url=https://dl.flathub.org/media \
             --compose-url-policy=full \
-            --repo="$PWD/repo" \
-            "$PWD/builddir" \
-            "$PWD/build-aux/flatpak/io.github.mauriciobc.Babble.json"
+            --repo=repo builddir \
+            build-aux/flatpak/io.github.mauriciobc.Babble.json
 
       - name: Lint the bundle
         # The build step only proves the manifest builds. This is what
         # says the artifact is shippable: the same linter Flathub runs
-        # on a submission, twice over. The `manifest` check reads the
-        # manifest itself; the `builddir` check reads the tree
-        # flatpak-builder left behind -- the metainfo, the desktop file,
-        # the finish-args, the icons and the permissions as they were
-        # actually installed, not as the manifest merely declares them.
-        # Those are its four targets: appstream, manifest, builddir,
-        # repo. There is no appdir, and builddir wants the build
-        # directory itself, not the files/ inside it.
+        # on a submission, reading the tree flatpak-builder left behind
+        # -- the metainfo, the desktop file, the finish-args, the icons
+        # and the permissions as they were actually installed, not as
+        # the manifest merely declares them. Its four targets are
+        # appstream, manifest, builddir and repo; there is no appdir,
+        # and builddir wants the build directory itself, not the
+        # files/ inside it. The manifest target ran in the first step,
+        # before the build.
         #
-        # --gha-format on both: these run as GitHub Actions steps, so
-        # the findings arrive as annotations on the diff instead of
+        # --gha-format: this runs as a GitHub Actions step, so the
+        # findings arrive as annotations on the diff instead of
         # scrollback nobody reads.
         #
-        # If the manifest check ever reports an error that only
-        # Flathub's own linter can grant an exception for, --exceptions
-        # is the flag that points at an exceptions.json. Not here: this
-        # manifest is for local development, not a Flathub submission.
-        #
-        # Run through the org.flatpak.Builder flatpak rather than a
-        # distro package: the linter is only as current as the Builder
-        # it ships in, and the builder's version is what Flathub will
-        # read it with. The build step above installs it.
-        #
-        # A wrong tool invocation fails loudly here rather than passing
-        # quietly: this builddir check is what caught the screenshots
-        # that were not mirrored.
+        # If a check ever reports an error that only Flathub's own
+        # linter can grant an exception for, --exceptions is the flag
+        # that points at an exceptions.json. Not here: this manifest is
+        # for local development, not a Flathub submission.
         run: |
-          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-            --gha-format manifest build-aux/flatpak/io.github.mauriciobc.Babble.json
-          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-            --gha-format builddir builddir
+          flatpak-builder-lint --gha-format builddir builddir
 
       - name: Report where the build landed
         # Not an assertion, just the artifact the run would be judged
