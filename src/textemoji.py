@@ -226,8 +226,12 @@ class InlineEmojiText(Gtk.TextView):
         self.add_controller(click)
 
         # Links get the hand pointer; everything else keeps the text
-        # view's own cursor.
-        self._text_cursor = self.get_cursor()
+        # view's own cursor. That one is read on map, not here: setting
+        # the input module above drops the cursor to the "none" GTK
+        # hides the pointer with while typing, and only mapping gives
+        # the view "text" again. Cached here, it made leaving a link
+        # hide the mouse pointer over every body that has one.
+        self._text_cursor = None
         self._over_link = False
         motion = Gtk.EventControllerMotion.new()
         connect_weak(motion, 'motion', self._on_motion)
@@ -352,6 +356,8 @@ class InlineEmojiText(Gtk.TextView):
         return statustext
 
     def _on_map(self, _widget):
+        # GTK sets the text cursor itself as the view maps; see __init__.
+        self._text_cursor = self.get_cursor()
         manager = Adw.StyleManager.get_default()
         self._style_ids = [
             manager.connect('notify::dark', self._update_link_color),
