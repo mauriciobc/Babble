@@ -99,6 +99,9 @@ check('F1 opens the help', app.get_accels_for_action('app.help') == ['F1'],
       repr(app.get_accels_for_action('app.help')))
 check('F1 is not also bound to the shortcuts dialog',
       'F1' not in ' '.join(app.get_accels_for_action('app.shortcuts')))
+check('F9 toggles the sidebar',
+      app.get_accels_for_action('win.toggle-sidebar') == ['F9'],
+      repr(app.get_accels_for_action('win.toggle-sidebar')))
 
 # --- the help pages ---------------------------------------------------
 # The scheme is asserted, not the whole literal: a pinned string only

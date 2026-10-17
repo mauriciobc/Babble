@@ -10,13 +10,13 @@
     <property name="width-request">360</property>
     <property name="height-request">294</property>
     <child>
-      <!-- The compact layout is the default and the breakpoint widens it:
-           AdwSidebar page mode must be set before the first map, otherwise
-           libadwaita 1.10's scroll-restore idle spins the main loop. -->
+      <!-- The compact layout is the default and the breakpoints widen it.
+           The sidebar keeps AdwSidebar's sidebar mode at every width: when
+           the split view is collapsed it shows as an overlay, never as a
+           page, so the mode never has to change after the first map. -->
       <object class="AdwBreakpoint">
         <condition>min-width: 601sp</condition>
         <setter object="split_view" property="collapsed">False</setter>
-        <setter object="sidebar_list" property="mode">sidebar</setter>
         <setter object="home_compose_button" property="visible">False</setter>
         <setter object="notifications_bell" property="visible">False</setter>
       </object>
@@ -25,7 +25,6 @@
       <object class="AdwBreakpoint">
         <condition>min-width: 1100sp</condition>
         <setter object="split_view" property="collapsed">False</setter>
-        <setter object="sidebar_list" property="mode">sidebar</setter>
         <setter object="home_compose_button" property="visible">False</setter>
         <setter object="notifications_bell" property="visible">False</setter>
         <setter object="web_split" property="collapsed">False</setter>
@@ -311,24 +310,36 @@
                           <property name="max-sidebar-width">720</property>
                           <property name="sidebar-width-fraction">0.45</property>
                           <property name="content">
-                        <object class="AdwNavigationSplitView" id="split_view">
-                      <property name="vexpand">True</property>
-                      <property name="collapsed">True</property>
-                      <property name="sidebar">
-                        <object class="AdwNavigationPage">
-                          <property name="title" translatable="yes">Babble</property>
-                          <property name="tag">sidebar</property>
-                          <property name="child">
+                        <object class="AdwOverlaySplitView" id="split_view">
+                          <property name="vexpand">True</property>
+                          <property name="collapsed">True</property>
+                          <property name="pin-sidebar">True</property>
+                          <property name="show-sidebar">False</property>
+                          <property name="sidebar">
                             <object class="AdwToolbarView">
                               <child type="top">
-                                <object class="AdwHeaderBar">
+                                <object class="AdwHeaderBar" id="sidebar_header">
+                                  <property name="show-title">False</property>
+                                  <property name="show-start-title-buttons">False</property>
+                                  <property name="show-end-title-buttons">False</property>
                                   <child type="start">
-                                    <object class="GtkButton">
+                                    <object class="GtkButton" id="sidebar_compose_button">
                                       <property name="icon-name">document-edit-symbolic</property>
                                       <property name="action-name">win.compose</property>
                                       <property name="tooltip-text" translatable="yes">New Post</property>
                                       <accessibility>
                                         <property name="label" translatable="yes">New Post</property>
+                                      </accessibility>
+                                    </object>
+                                  </child>
+                                  <child type="start">
+                                    <object class="GtkMenuButton" id="sidebar_mode_button">
+                                      <property name="icon-name">sidebar-show-symbolic</property>
+                                      <property name="always-show-arrow">True</property>
+                                      <property name="tooltip-text" translatable="yes">Sidebar</property>
+                                      <property name="menu-model">sidebar_mode_menu</property>
+                                      <accessibility>
+                                        <property name="label" translatable="yes">Sidebar</property>
                                       </accessibility>
                                     </object>
                                   </child>
@@ -346,8 +357,16 @@
                                 </object>
                               </child>
                               <property name="content">
+                                <object class="GtkStack" id="sidebar_stack">
+                                  <property name="transition-type">none</property>
+                                  <property name="hhomogeneous">False</property>
+                                  <property name="vhomogeneous">False</property>
+                                  <child>
+                                    <object class="GtkStackPage">
+                                      <property name="name">full</property>
+                                      <property name="child">
                                 <object class="AdwSidebar" id="sidebar_list">
-                                  <property name="mode">page</property>
+                                  <property name="mode">sidebar</property>
                                   <signal name="activated" handler="on_sidebar_activated" swapped="no"/>
                                   <property name="prefix">
                                     <object class="GtkMenuButton" id="account_button">
@@ -369,7 +388,7 @@
                                             </object>
                                           </child>
                                           <child>
-                                            <object class="GtkBox">
+                                            <object class="GtkBox" id="account_text_box">
                                               <property name="orientation">vertical</property>
                                               <property name="valign">center</property>
                                               <property name="hexpand">True</property>
@@ -395,7 +414,7 @@
                                             </object>
                                           </child>
                                           <child>
-                                            <object class="GtkImage">
+                                            <object class="GtkImage" id="account_chevron">
                                               <property name="icon-name">pan-down-symbolic</property>
                                               <property name="accessible-role">presentation</property>
                                             </object>
@@ -408,17 +427,27 @@
                                     </object>
                                   </property>
                                 </object>
+                                      </property>
+                                    </object>
+                                  </child>
+                                  <child>
+                                    <object class="GtkStackPage">
+                                      <property name="name">icons</property>
+                                      <property name="child">
+                                        <object class="GtkBox" id="sidebar_rail_slot">
+                                          <property name="orientation">vertical</property>
+                                          <property name="vexpand">True</property>
+                                          <property name="hexpand">True</property>
+                                        </object>
+                                      </property>
+                                    </object>
+                                  </child>
+                                </object>
                               </property>
                             </object>
                           </property>
-                        </object>
-                      </property>
                       <property name="content">
-                        <object class="AdwNavigationPage" id="content_page">
-                          <property name="title" translatable="yes">Home</property>
-                          <property name="tag">content</property>
-                          <property name="child">
-                            <object class="AdwNavigationView" id="navigation_view">
+                        <object class="AdwNavigationView" id="navigation_view">
                               <child>
                                 <object class="AdwNavigationPage" id="page_home">
                                   <property name="title" translatable="yes">Home</property>
@@ -426,7 +455,7 @@
                                   <property name="child">
                                     <object class="AdwToolbarView">
                                       <child type="top">
-                                        <object class="AdwHeaderBar">
+                                        <object class="AdwHeaderBar" id="home_header">
                                           <child type="start">
                                             <object class="GtkButton" id="home_compose_button">
                                               <property name="icon-name">document-edit-symbolic</property>
@@ -463,7 +492,7 @@
                                   <property name="child">
                                     <object class="AdwToolbarView">
                                       <child type="top">
-                                        <object class="AdwHeaderBar">
+                                        <object class="AdwHeaderBar" id="notifications_header">
                                           <child type="end">
                                             <object class="GtkBox" id="notifications_header_slot">
                                               <property name="spacing">6</property>
@@ -480,8 +509,6 @@
                               </child>
                             </object>
                           </property>
-                        </object>
-                      </property>
                     </object>
                           </property>
                           <property name="sidebar">
@@ -500,6 +527,28 @@
       </object>
     </property>
   </template>
+  <!-- The three states the sidebar can be in. "Hidden" is the sidebar
+       taken off screen, not a third width. -->
+  <menu id="sidebar_mode_menu">
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">_Full Sidebar</attribute>
+        <attribute name="action">win.sidebar-mode</attribute>
+        <attribute name="target">full</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Icons _Only</attribute>
+        <attribute name="action">win.sidebar-mode</attribute>
+        <attribute name="target">icons</attribute>
+      </item>
+      <item>
+        <!-- Translators: the sidebar is hidden, not narrow. -->
+        <attribute name="label" translatable="yes">_Hidden</attribute>
+        <attribute name="action">win.sidebar-mode</attribute>
+        <attribute name="target">hidden</attribute>
+      </item>
+    </section>
+  </menu>
   <!-- New Post and Refresh are absent on purpose: both have headerbar
        buttons and accelerators (Ctrl+N, Ctrl+R and F5), and Quit is
        reachable through Ctrl+Q and the app icon menu, so the primary

@@ -74,6 +74,9 @@ install_data(
   'scheduled.py',
   'search.py',
   'searchprovider.py',
+  'sidebarcontrol.py',
+  'sidebarmode.py',
+  'sidebarrail.py',
   'statustext.py',
   'statusviews.py',
   'streaming.py',
@@ -327,6 +330,18 @@ test('app lifecycle', python,
 )
 test('schedule dialog', python,
   args: [files('test-scheduled-dialog.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+# The sidebar's derived state and the shell-shape rules need no display;
+# the rail and header-control widgets do, and run with fatal criticals.
+test('sidebar state', python,
+  args: [files('test-sidebar-state.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('sidebar widgets', python,
+  args: [files('test-sidebar.py')],
   env: fatal_test_env,
   timeout: 60,
 )

@@ -163,9 +163,9 @@ def _new_posts_announce_tick(page_ref):
 class TimelinePage(PagedPosts, Adw.Bin):
     """Scrollable timeline with infinite scroll, refresh and status pages.
 
-    mode: 'home' (authenticated) with automatic public fallback, or
-    'public'. A custom ``source`` (with fetch(params, callback) and
-    finish(result)) overrides both, e.g. account statuses on profiles.
+    mode: 'home' (authenticated) or 'public'. A custom ``source`` (with
+    fetch(params, callback) and finish(result)) overrides both, e.g.
+    account statuses on profiles.
     New posts arriving through a since_id refresh are announced with a
     'N new posts' pill instead of jumping the scroll position. Automatic
     polling is off until set_auto_refresh_interval() turns it on.
@@ -194,7 +194,6 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self.source = source
         # Paging flags and cursors. See PagedPosts.
         self._paging_init()
-        self._fallback_done = False
         self._auto_refresh_id = 0
         self._auto_refresh_ticks = 0
         self._pill_count = 0
@@ -423,14 +422,12 @@ class TimelinePage(PagedPosts, Adw.Bin):
         try:
             statuses = self._finish(result)
         except GLib.Error as e:
-            if self.mode == 'home' and self.source is None \
-                    and not self._fallback_done:
-                # Unauthenticated or private home timeline: fall back to
-                # the public timeline through the same rendering path.
-                self._fallback_done = True
-                self.mode = 'public'
-                self.load()
-                return
+            # A failed home request is shown as a failure. Falling back
+            # to the public timeline here silently replaced the reader's
+            # home with posts from accounts they do not follow: a 5xx,
+            # a rate limit or a network blip looked exactly like a
+            # private home timeline, and the wrong feed was worse than
+            # the error and its retry button.
             self.error_page.set_description(
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')

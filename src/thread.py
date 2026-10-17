@@ -28,7 +28,15 @@ AUTO_COLLAPSE_DEPTH = 3
 
 def push_thread(view, client, item):
     """Push a thread page for *item* (a StatusItem) onto *view*."""
-    page = ThreadPage(client, item)
+    window = pages.window_of(view)
+    # A thread opened inside the profile sheet has its own navigation
+    # view; the window's sidebar controls do not belong there.
+    in_window = window is not None and getattr(
+        window, 'navigation_view', None) is view
+    page = ThreadPage(
+        client, item,
+        sidebar_control=getattr(window, 'make_sidebar_control', None)
+        if in_window else None)
     nav = Adw.NavigationPage(
         title=_('Thread'),
         tag='thread-%s' % item.status_id,
@@ -220,7 +228,7 @@ class ThreadPage(Adw.Bin):
 
     __gtype_name__ = 'BabbleThreadPage'
 
-    def __init__(self, client, item, **kwargs):
+    def __init__(self, client, item, sidebar_control=None, **kwargs):
         super().__init__(**kwargs)
         self.client = client
         self.item = item
@@ -228,7 +236,10 @@ class ThreadPage(Adw.Bin):
 
         self.stack = Gtk.Stack()
         toolbar = Adw.ToolbarView()
-        toolbar.add_top_bar(Adw.HeaderBar())
+        header = Adw.HeaderBar()
+        if callable(sidebar_control):
+            header.pack_start(sidebar_control())
+        toolbar.add_top_bar(header)
         toolbar.set_content(self.stack)
         self.set_child(toolbar)
 

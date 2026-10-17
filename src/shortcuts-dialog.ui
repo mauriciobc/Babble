@@ -62,6 +62,12 @@
         </child>
         <child>
           <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Toggle Sidebar</property>
+            <property name="action-name">win.toggle-sidebar</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
             <property name="title" translatable="yes">Go Back</property>
             <property name="accelerator">&lt;Alt&gt;Left</property>
           </object>
