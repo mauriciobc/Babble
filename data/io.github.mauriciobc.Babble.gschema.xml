@@ -26,6 +26,10 @@
     <value nick="followers" value="1"/>
     <value nick="nobody" value="2"/>
   </enum>
+  <enum id="io.github.mauriciobc.Babble.SidebarStyle">
+    <value nick="full" value="0"/>
+    <value nick="icons" value="1"/>
+  </enum>
   <schema id="io.github.mauriciobc.Babble" path="/io/github/mauriciobc/Babble/">
     <key name="window-width" type="i">
       <default>800</default>
@@ -118,6 +122,14 @@
     <key name="translucent-sidebar" type="b">
       <default>false</default>
       <summary>Blur the desktop behind a translucent sidebar, where the compositor supports it</summary>
+    </key>
+    <key name="sidebar-style" enum="io.github.mauriciobc.Babble.SidebarStyle">
+      <default>'full'</default>
+      <summary>Sidebar presentation when it is expanded: full labels, or an icon rail</summary>
+    </key>
+    <key name="sidebar-hidden" type="b">
+      <default>false</default>
+      <summary>Hide the expanded sidebar; the content header keeps the shell controls</summary>
     </key>
     <key name="collapse-long-posts" type="b">
       <default>true</default>

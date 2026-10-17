@@ -749,6 +749,33 @@ window.translucent-sidebar .sidebar-pane:backdrop {
   }
 }
 
+/* Icon rail (sidebar-style 'icons'): a 64 px column of 36 px rows. The
+   list paints nothing of its own, so the sidebar pane's layer shows
+   through. The unread badge hangs off the icon's top-right corner
+   instead of making its row taller. */
+.sidebar-rail list {
+  background: none;
+}
+
+.sidebar-rail row {
+  min-height: 36px;
+}
+
+.sidebar-rail row.sidebar-separator,
+.sidebar-rail row.sidebar-separator:hover,
+.sidebar-rail row.sidebar-separator:selected {
+  min-height: 0;
+  background: none;
+}
+
+.sidebar-rail .notifications-badge {
+  min-width: 14px;
+  min-height: 14px;
+  padding: 0 2px;
+  margin: 2px 2px 0 0;
+  font-size: 0.65em;
+}
+
 /* Motion: one-shot animations played by pages.flash_class(). */
 @keyframes pop {
   from { transform: scale(1); }

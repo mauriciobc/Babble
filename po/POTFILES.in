@@ -42,6 +42,8 @@ src/scheduled.py
 src/search.py
 src/searchprovider.py
 src/shortcuts-dialog.ui
+src/sidebarcontrol.py
+src/sidebarrail.py
 src/statusactions.py
 src/statusmenu.py
 src/statusrow.py
