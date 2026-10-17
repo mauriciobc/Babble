@@ -96,6 +96,12 @@ def prop(obj, name):
     return None
 
 
+def iter_parents(node, parents):
+    while node in parents:
+        node = parents[node]
+        yield node
+
+
 split = by_id.get('split_view')
 check('the shell is an AdwOverlaySplitView',
       split is not None and split.get('class') == 'AdwOverlaySplitView',
@@ -122,6 +128,26 @@ for object_id in ('sidebar_stack', 'sidebar_mode_button', 'sidebar_list',
                   'home_header', 'notifications_header',
                   'account_text_box', 'account_chevron'):
     check('%s exists in window.ui' % object_id, object_id in by_id)
+
+# The mode button is one widget at the bottom of the sidebar's toolbar,
+# outside the stack that swaps the full sidebar for the rail.
+parents = {child: parent for parent in ui.iter() for child in parent}
+mode_nodes = [obj for obj in ui.iter('object')
+              if obj.get('id') == 'sidebar_mode_button']
+check('window.ui has exactly one sidebar_mode_button', len(mode_nodes) == 1,
+      repr(len(mode_nodes)))
+if len(mode_nodes) == 1:
+    slot = parents[mode_nodes[0]]
+    toolbar = parents[slot]
+    check('the mode button is a bottom bar child of the sidebar toolbar',
+          slot.tag == 'child' and slot.get('type') == 'bottom'
+          and toolbar.get('class') == 'AdwToolbarView'
+          and header is not None
+          and header in [o for c in toolbar.findall('child')
+                         for o in c.findall('object')],
+          repr((slot.get('type'), toolbar.get('class'))))
+    check('the mode button is not in the sidebar header',
+          header not in list(iter_parents(mode_nodes[0], parents)))
 
 menu = ui.find("menu[@id='sidebar_mode_menu']")
 targets = []

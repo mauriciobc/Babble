@@ -10,6 +10,20 @@
     <property name="width-request">360</property>
     <property name="height-request">294</property>
     <child>
+      <!-- The compact layout has a breakpoint of its own, whose only job
+           is to close the sidebar: libadwaita applies the setter in the
+           same pass that collapses the split view, so the first collapsed
+           frame never paints the wide sidebar as an overlay. Closing it
+           from the window's notify::collapsed handler would come a frame
+           late, and doing it inside that notification re-enters the split
+           view's allocation. Expanding is left to the window, which knows
+           whether the user hid the sidebar. -->
+      <object class="AdwBreakpoint">
+        <condition>max-width: 600sp</condition>
+        <setter object="split_view" property="show-sidebar">False</setter>
+      </object>
+    </child>
+    <child>
       <!-- The compact layout is the default and the breakpoints widen it.
            The sidebar keeps AdwSidebar's sidebar mode at every width: when
            the split view is collapsed it shows as an overlay, never as a
@@ -332,18 +346,10 @@
                                       </accessibility>
                                     </object>
                                   </child>
+                                  <!-- Start, after compose: the same order as the
+                                       header strip a hidden sidebar shows, and
+                                       the rail (compose hidden) keeps it left. -->
                                   <child type="start">
-                                    <object class="GtkMenuButton" id="sidebar_mode_button">
-                                      <property name="icon-name">sidebar-show-symbolic</property>
-                                      <property name="always-show-arrow">True</property>
-                                      <property name="tooltip-text" translatable="yes">Sidebar</property>
-                                      <property name="menu-model">sidebar_mode_menu</property>
-                                      <accessibility>
-                                        <property name="label" translatable="yes">Sidebar</property>
-                                      </accessibility>
-                                    </object>
-                                  </child>
-                                  <child type="end">
                                     <object class="GtkMenuButton" id="primary_menu_button">
                                       <property name="primary">True</property>
                                       <property name="icon-name">open-menu-symbolic</property>
@@ -444,6 +450,28 @@
                                   </child>
                                 </object>
                               </property>
+                              <child type="bottom">
+                                <!-- The one sidebar-mode control: it sits
+                                     outside sidebar_stack, so the full
+                                     sidebar and the icon rail share it. -->
+                                <object class="GtkMenuButton" id="sidebar_mode_button">
+                                  <property name="icon-name">sidebar-show-symbolic</property>
+                                  <property name="always-show-arrow">True</property>
+                                  <property name="halign">start</property>
+                                  <property name="margin-top">6</property>
+                                  <property name="margin-bottom">6</property>
+                                  <property name="margin-start">6</property>
+                                  <property name="margin-end">6</property>
+                                  <property name="tooltip-text" translatable="yes">Sidebar</property>
+                                  <property name="menu-model">sidebar_mode_menu</property>
+                                  <style>
+                                    <class name="flat"/>
+                                  </style>
+                                  <accessibility>
+                                    <property name="label" translatable="yes">Sidebar</property>
+                                  </accessibility>
+                                </object>
+                              </child>
                             </object>
                           </property>
                       <property name="content">

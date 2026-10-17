@@ -19,6 +19,7 @@ from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from . import portals  # noqa: E402
 from . import sidebarmode  # noqa: E402
+from . import sidebarrail  # noqa: E402
 from . import webcolumn  # noqa: E402
 from .capabilities import COLLECTIONS_API_VERSION  # noqa: E402
 from .mastodon import (OAUTH_REDIRECT, MastodonClient, clear_secret_async,  # noqa: E402
@@ -199,6 +200,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._rail_accounts = False
         self._applying_sidebar_visibility = False
         self._sidebar_visibility_id = 0
+        self._applying_sidebar_mode = False
         # The OAuth state machine. It owns the attempt bookkeeping, the
         # loopback listener and the keyring writes, and answers in
         # signals; the window keeps only the widgets.
@@ -312,8 +314,7 @@ class BabbleWindow(Adw.ApplicationWindow):
 
         # The icon rail is the narrow face of the sidebar, and shares
         # its mode menu and the account button.
-        self.sidebar_rail = SidebarRail(
-            self.sidebar_mode_button.get_menu_model())
+        self.sidebar_rail = SidebarRail()
         self.sidebar_rail_slot.append(self.sidebar_rail)
         pages.connect_weak(self.sidebar_rail, 'activated',
                            self._on_rail_activated)
@@ -342,6 +343,13 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._sync_sidebar_visibility()
         webcolumn.watch_split(self.web_split)
         pages.connect_weak(self, 'close-request', self._on_close_request)
+        # 'destroy' alone is not enough: PyGObject can keep the wrapper
+        # (and with it the window) alive past gtk_window_destroy(), and
+        # the signal only fires on dispose. Unrealize always comes first.
+        pages.connect_weak(self, 'destroy', self._cancel_sidebar_visibility)
+        pages.connect_weak(self, 'unrealize',
+                           self._cancel_sidebar_visibility)
+        pages.connect_weak(self, 'map', self._defer_sidebar_visibility)
         pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
         self._sync_global_shortcut()
 
@@ -384,9 +392,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         if self.settings.get_boolean('translucent-sidebar') \
                 and self.main_stack.get_visible_child_name() == 'shell' \
                 and not self.split_view.get_collapsed() \
-                and self.split_view.get_show_sidebar() \
-                and self.settings.get_string('sidebar-style') \
-                in sidebarmode.SIDEBAR_STYLES:
+                and self.split_view.get_show_sidebar():
             self.add_css_class('translucent-sidebar')
         else:
             self.remove_css_class('translucent-sidebar')
@@ -923,6 +929,7 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_close_request(self, _window):
         """With background mode on, closing hides the window and keeps
         the application (and its notifications) running."""
+        self._cancel_sidebar_visibility()
         if self.client is None or not self.settings.get_boolean(
                 'work-in-background'):
             # A hold left from an earlier hide would outlive the window.
@@ -1303,24 +1310,38 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.show_page(tag)
 
     def _on_sidebar_state_changed(self, _settings, _key):
+        if self._applying_sidebar_mode:
+            return
         self._sync_sidebar_mode()
         self._sync_sidebar_visibility()
 
     def _on_sidebar_collapsed(self, split_view, _param):
-        if split_view.get_collapsed():
+        collapsed = split_view.get_collapsed()
+        if collapsed:
             self._overlay_open = False
         self._sync_sidebar_mode()
-        # Changing show-sidebar from inside the breakpoint's collapsed
-        # notification re-enters the split view's allocation and makes
-        # libadwaita allocate the content pane with a negative width on
-        # the first shell map. Let the allocation settle first.
+        # Collapsing: the compact breakpoint has already closed the
+        # sidebar in this pass. Expanding: whether it comes back depends
+        # on the stored state, and setting show-sidebar from inside this
+        # notification re-enters the split view's allocation (libadwaita
+        # then allocates the content pane with a negative width), so the
+        # split view waits for an idle. The window's own properties only
+        # drive the header controls, so they can be right straight away.
+        self.props.sidebar_collapsed = collapsed
+        self.props.sidebar_visible = sidebarmode.sidebar_visible(
+            self.settings.get_boolean('sidebar-hidden'), collapsed,
+            self._overlay_open)
         self._defer_sidebar_visibility()
 
-    def _defer_sidebar_visibility(self):
-        if self._sidebar_visibility_id:
-            GLib.source_remove(self._sidebar_visibility_id)
+    def _defer_sidebar_visibility(self, *_args):
+        self._cancel_sidebar_visibility()
         self._sidebar_visibility_id = GLib.idle_add(
             self._apply_deferred_sidebar_visibility)
+
+    def _cancel_sidebar_visibility(self, *_args):
+        if self._sidebar_visibility_id:
+            GLib.source_remove(self._sidebar_visibility_id)
+            self._sidebar_visibility_id = 0
 
     def _apply_deferred_sidebar_visibility(self):
         self._sidebar_visibility_id = 0
@@ -1348,14 +1369,24 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _on_sidebar_mode_changed(self, action, value):
         state = value.get_string()
+        # The overlay flag first, so the syncs below already see it.
         if state == 'hidden':
-            self.settings.set_boolean('sidebar-hidden', True)
             self._overlay_open = False
         elif state in sidebarmode.SIDEBAR_STYLES:
-            self.settings.set_string('sidebar-style', state)
-            self.settings.set_boolean('sidebar-hidden', False)
             if self.split_view.get_collapsed():
                 self._overlay_open = True
+        # Each write emits its own changed:: signal, and an unchanged
+        # value emits one too, so the handler stands aside and the
+        # syncs run once, whichever keys actually changed.
+        self._applying_sidebar_mode = True
+        try:
+            if state == 'hidden':
+                self.settings.set_boolean('sidebar-hidden', True)
+            elif state in sidebarmode.SIDEBAR_STYLES:
+                self.settings.set_string('sidebar-style', state)
+                self.settings.set_boolean('sidebar-hidden', False)
+        finally:
+            self._applying_sidebar_mode = False
         self._sync_sidebar_mode()
         self._sync_sidebar_visibility()
         action.set_state(value)
@@ -1371,7 +1402,12 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.sidebar_list.set_mode(Adw.SidebarMode.SIDEBAR)
         self.sidebar_stack.set_visible_child_name('icons' if rail else 'full')
         self.sidebar_compose_button.set_visible(not rail)
-        self.sidebar_mode_button.set_visible(not rail)
+        # The mode button serves the full sidebar and the rail alike. A
+        # dropdown arrow adds about 16px, which a 64px rail has no room
+        # for, so the rail gets the bare icon, centred.
+        self.sidebar_mode_button.set_always_show_arrow(not rail)
+        self.sidebar_mode_button.set_halign(
+            Gtk.Align.CENTER if rail else Gtk.Align.START)
         minimum, maximum = sidebarmode.widths(style, collapsed)
         if maximum < self.split_view.get_max_sidebar_width():
             # Narrowing: lower the minimum first, so the pair is never
@@ -1389,13 +1425,10 @@ class BabbleWindow(Adw.ApplicationWindow):
             getattr(self.account_button, 'set_margin_' + edge)(0 if rail else 6)
         if rail and not self._rail_accounts:
             self.sidebar_list.set_prefix(None)
-            if self.account_button.get_parent() is not None:
-                self.account_button.unparent()
             self.sidebar_rail.set_account_button(self.account_button)
             self._rail_accounts = True
         elif not rail and self._rail_accounts:
-            if self.account_button.get_parent() is not None:
-                self.account_button.unparent()
+            sidebarrail.detach(self.account_button)
             self.sidebar_list.set_prefix(self.account_button)
             self._rail_accounts = False
         self.sidebar_rail.set_selected(self.visible_tag())
@@ -1414,8 +1447,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         the collapsed layout's overlay."""
         collapsed = self.split_view.get_collapsed()
         shown = sidebarmode.sidebar_visible(
-            self.settings.get_boolean('sidebar-hidden'), collapsed,
-            self._overlay_open)
+            self.settings.get_boolean('sidebar-hidden'),
+            collapsed, self._overlay_open)
         self._applying_sidebar_visibility = True
         try:
             self.split_view.set_show_sidebar(shown)

@@ -2,11 +2,12 @@
 
 """The icon-only rail a collapsed sidebar shows.
 
-The rail carries the account button and the composer at the top, one
-36px icon per sidebar section in the middle, and the sidebar-mode menu
-at the bottom. It knows no page: it reports the tag of an activated row
-through the ``activated`` signal, and whoever built the sections maps
-that tag to a page.
+The rail carries the account button and the composer at the top and
+one 36px icon per sidebar section below. The sidebar-mode menu is the
+window's own bottom-bar button, shared with the full sidebar. It knows
+no page: it reports the tag of an activated row through the
+``activated`` signal, and whoever built the sections maps that tag to
+a page.
 """
 
 import gi
@@ -23,8 +24,22 @@ _ROW_HEIGHT = 36
 _ICON_SIZE = 16
 
 
+def detach(widget):
+    """Take *widget* out of whatever container holds it, so it can be
+    adopted by another. The one detach path for the account button."""
+    parent = widget.get_parent()
+    if parent is None:
+        return
+    if hasattr(parent, 'remove'):
+        parent.remove(widget)
+    elif hasattr(parent, 'set_child'):
+        parent.set_child(None)
+    else:
+        widget.unparent()
+
+
 class SidebarRail(Gtk.Box):
-    """64px icon rail: account, compose, one row per section, mode menu.
+    """64px icon rail: account, compose, one row per section.
 
     :meth:`set_sections` is the only source of rows, so a page that
     changes its sidebar layout can rebuild the rail in place without
@@ -36,7 +51,7 @@ class SidebarRail(Gtk.Box):
         'activated': (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
-    def __init__(self, mode_menu, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6,
                          margin_top=6, margin_bottom=6,
                          margin_start=4, margin_end=4, **kwargs)
@@ -68,17 +83,6 @@ class SidebarRail(Gtk.Box):
             hscrollbar_policy=Gtk.PolicyType.NEVER,
             child=self.listbox)
         self.append(scrolled)
-
-        # No dropdown arrow here: it adds about 16px to the minimum
-        # width, which would push the rail past its 64px pane. The
-        # tooltip and the mode menu in the header carry the meaning.
-        self.mode_button = Gtk.MenuButton(
-            icon_name='sidebar-show-symbolic',
-            menu_model=mode_menu,
-            halign=Gtk.Align.CENTER)
-        self.mode_button.add_css_class('flat')
-        pages.set_accessible_label(self.mode_button, _('Sidebar'))
-        self.append(self.mode_button)
 
     # Sections
 
@@ -188,12 +192,5 @@ class SidebarRail(Gtk.Box):
     def set_account_button(self, widget):
         """Put *widget* above the composer, detaching it first when it
         already has a parent."""
-        parent = widget.get_parent()
-        if parent is not None:
-            if hasattr(parent, 'remove'):
-                parent.remove(widget)
-            elif hasattr(parent, 'set_child'):
-                parent.set_child(None)
-            else:
-                widget.unparent()
+        detach(widget)
         self.account_host.append(widget)

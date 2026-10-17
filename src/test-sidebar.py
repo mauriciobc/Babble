@@ -58,7 +58,7 @@ class FakeWindow(GObject.Object):
 
 # --- the rail ---------------------------------------------------------
 
-rail = SidebarRail(menu())
+rail = SidebarRail()
 rail.set_sections([
     [('home', 'user-home-symbolic', 'Home'),
      ('notifications', 'babble-notifications-symbolic', 'Notifications')],
@@ -85,11 +85,8 @@ check('the separator row cannot be selected or activated',
 check('the compose button targets win.compose',
       rail.compose_button.get_action_name() == 'win.compose',
       repr(rail.compose_button.get_action_name()))
-check('the rail mode button has the menu model',
-      rail.mode_button.get_menu_model() is not None)
-check('the rail mode button has an accessible tooltip',
-      rail.mode_button.get_tooltip_text() == 'Sidebar',
-      repr(rail.mode_button.get_tooltip_text()))
+check('the rail has no mode button of its own',
+      not hasattr(rail, 'mode_button'))
 
 activated = []
 rail.connect('activated', lambda _rail, tag: activated.append(tag))
@@ -114,6 +111,17 @@ check('the badge shows the count',
       repr(rail._badge.get_text() if rail._badge is not None else None))
 rail.set_badge(0)
 check('the badge hides at zero', not rail._badge.get_visible())
+
+# A count set before the rows are rebuilt must still be on the new row.
+rail.set_badge(3)
+rail.set_sections([[('home', 'user-home-symbolic', 'Home'),
+                    ('notifications', 'babble-notifications-symbolic',
+                     'Notifications')]])
+check('a non-zero badge survives set_sections',
+      rail._badge is not None and rail._badge.get_visible()
+      and rail._badge.get_text() == '3',
+      repr(rail._badge.get_text() if rail._badge is not None else None))
+rail.set_badge(0)
 
 account = Gtk.Button(icon_name='avatar-default-symbolic')
 rail.set_account_button(account)
@@ -161,15 +169,14 @@ no_bell = SidebarControl(fake, menu(), menu(), include_bell=False)
 check('include_bell=False creates no bell',
       no_bell.bell_button is None and no_bell.badge is None)
 
+first = control.get_first_child()
+second = first.get_next_sibling() if first is not None else None
+third = second.get_next_sibling() if second is not None else None
 check('the mode control is first, then compose, then the primary menu',
-      [child for child in (control.mode_button, control.compose_button,
-                           control.primary_button)]
-      == [control.get_first_child(),
-          control.compose_button,
-          control.primary_button],
-      repr([child.__class__.__name__
-            for child in (control.get_first_child(),
-                          control.get_first_child().get_next_sibling())]))
+      first is control.mode_button
+      and second is control.compose_button
+      and third is control.primary_button,
+      repr([child.__class__.__name__ for child in (first, second, third)]))
 
 if failures:
     print('\n%d checks failed' % len(failures))
