@@ -64,7 +64,7 @@ def open_link_timeline(widget, client, link):
     server supports it, the browser otherwise."""
     url = link.get('url', '')
     if not supports_link_timeline(client):
-        pages.launch_external(widget, url)
+        pages.open_web(widget, url)
         return
     pages.push_page(widget, link.get('title') or _('Link'),
                     LinkTimelinePage(client, link),

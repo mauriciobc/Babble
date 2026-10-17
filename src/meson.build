@@ -89,6 +89,7 @@ install_data(
   'statusrow.py',
   'mediacache.py',
   'mediabox.py',
+  'webcolumn.py',
   'window.py',
   'wrapped.py',
   install_dir: moduledir,
@@ -196,6 +197,25 @@ test('mediaviewer helpers', python,
   args: [files('test-mediaviewer.py')],
   env: test_env,
   timeout: 60,
+)
+# WebKit's sandbox (bubblewrap) cannot start inside a build sandbox or CI
+# container (GitHub's Ubuntu runners restrict the unprivileged user
+# namespaces it needs), so this test turns it off for its own web process
+# only.
+web_test_env = environment()
+web_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+web_test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+web_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+web_test_env.set('GSETTINGS_BACKEND', 'memory')
+web_test_env.set('GDK_DEBUG', 'no-portals')
+web_test_env.set('NO_AT_BRIDGE', '1')
+web_test_env.set('GTK_A11Y', 'none')
+web_test_env.set('WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS', '1')
+web_test_env.set('G_DEBUG', 'fatal-criticals')
+test('web column', python,
+  args: [files('test-webcolumn.py')],
+  env: web_test_env,
+  timeout: 120,
 )
 test('mediabox keyboard', python,
   args: [files('test-mediabox.py')],

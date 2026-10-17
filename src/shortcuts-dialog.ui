@@ -201,6 +201,35 @@
     </child>
     <child>
       <object class="AdwShortcutsSection">
+        <property name="title" translatable="yes">Web Column</property>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Hide Web Column</property>
+            <property name="accelerator">Escape &lt;primary&gt;w</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Back</property>
+            <property name="accelerator">&lt;Alt&gt;Left</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Forward</property>
+            <property name="accelerator">&lt;Alt&gt;Right</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes">Reload Page</property>
+            <property name="accelerator">&lt;primary&gt;r F5</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="AdwShortcutsSection">
         <property name="title" translatable="yes">Composer</property>
         <child>
           <object class="AdwShortcutsItem">

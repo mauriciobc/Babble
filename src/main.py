@@ -159,7 +159,7 @@ class BabbleApplication(Adw.Application):
         open_uri = Gio.SimpleAction.new('open-uri', GLib.VariantType.new('s'))
         open_uri.connect('activate', self.on_open_uri)
         self.add_action(open_uri)
-        self.set_accels_for_action('window.close', ['<primary>w'])
+        self.set_accels_for_action('win.close-pane', ['<primary>w'])
         self.set_accels_for_action('win.compose', ['<primary>n'])
         self.set_accels_for_action('win.reload', ['<primary>r', 'F5'])
         # Escape is deliberately not here. As an application accelerator

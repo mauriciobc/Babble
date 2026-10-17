@@ -52,6 +52,7 @@ src/textemoji.py
 src/thread.py
 src/timelinebase.py
 src/timelinepage.py
+src/webcolumn.py
 src/window.py
 src/window.ui
 src/wrapped.py
