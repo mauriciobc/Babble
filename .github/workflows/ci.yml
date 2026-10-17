@@ -41,8 +41,12 @@ jobs:
             meson ninja-build gettext desktop-file-utils appstream \
             glib2-devel \
             gtksourceview5-devel libspelling-devel hunspell-en-US \
+            webkitgtk6.0 \
             xorg-x11-server-Xvfb mesa-libGLES libglvnd-devel \
             dbus-daemon dbus-x11
+          # webkitgtk6.0 is a runtime dependency only (the web column
+          # imports it lazily), but without it `web column` skips, and
+          # the skip check below fails the run on purpose.
           # Secret needs a session bus to answer at all, and D-Bus
           # refuses to start without a machine id.
           [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
