@@ -364,6 +364,20 @@ window.darken-media .darkenable:hover {
   border-radius: 12px;
 }
 
+/* The banner and avatar open the image viewer, so they are tab stops. */
+.profile-image-button:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.profile-banner.profile-image-button:focus-visible {
+  outline-offset: -2px;
+}
+
+avatar.profile-image-button:focus-visible {
+  border-radius: 50%;
+}
+
 .profile-banner-fallback {
   background-image: linear-gradient(135deg,
                                     var(--accent-bg-color),

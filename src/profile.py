@@ -601,7 +601,12 @@ class ProfilePage(ProfileActions, Adw.Bin):
         overlay = Gtk.Overlay()
         hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         overlay.set_child(hero)
-        banner = Gtk.Overlay(overflow=Gtk.Overflow.HIDDEN)
+        # A banner picture opens the viewer, so it is a button to
+        # assistive tech; the role is fixed at construction.
+        banner = Gtk.Overlay(
+            overflow=Gtk.Overflow.HIDDEN,
+            accessible_role=(Gtk.AccessibleRole.BUTTON if header_url
+                             else Gtk.AccessibleRole.GENERIC))
         banner.add_css_class('profile-banner')
         backdrop = Gtk.Box()
         backdrop.set_size_request(-1, BANNER_HEIGHT)
@@ -614,7 +619,8 @@ class ProfilePage(ProfileActions, Adw.Bin):
             banner.add_overlay(picture)
             HeaderCache.apply(picture, header_url)
             self._open_image_on_click(
-                banner, header_url, account.get('header_description'))
+                banner, header_url, account.get('header_description'),
+                _('View Header Image'))
         hero.append(banner)
 
         # Identity row sits in the space under the banner, to the right
@@ -668,9 +674,12 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
         # The Avatar overlaps the banner: half of it sticks up over the
         # picture, half hangs below.
-        self.avatar = Adw.Avatar(size=64, show_initials=True,
-                                 halign=Gtk.Align.START,
-                                 valign=Gtk.Align.START)
+        avatar_url = account.get('avatar') or account.get('avatar_static')
+        self.avatar = Adw.Avatar(
+            size=64, show_initials=True, halign=Gtk.Align.START,
+            valign=Gtk.Align.START,
+            accessible_role=(Gtk.AccessibleRole.BUTTON if avatar_url
+                             else Gtk.AccessibleRole.IMG))
         self.avatar.set_text(display or '?')
         description = account.get('avatar_description')
         if description:
@@ -680,9 +689,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self.avatar.set_margin_top(BANNER_HEIGHT - 32)
         overlay.add_overlay(self.avatar)
         AvatarCache.load(self.avatar, account)
-        avatar_url = account.get('avatar') or account.get('avatar_static')
         if avatar_url:
-            self._open_image_on_click(self.avatar, avatar_url, description)
+            self._open_image_on_click(self.avatar, avatar_url, description,
+                                      _('View Avatar'))
         header.append(overlay)
 
         # Badges (account type and relationship) and the private note.
@@ -738,18 +747,29 @@ class ProfilePage(ProfileActions, Adw.Bin):
         text.link_tags = tags
         return text
 
-    def _open_image_on_click(self, widget, url, description):
+    def _open_image_on_click(self, widget, url, description, label=None):
+        """Make *widget* open the image viewer: on click, and from the
+        keyboard (Tab to it, Enter or space) with *label* as its name."""
         click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
         connect_weak(click, 'released', self._on_image_clicked, url,
                      description)
         widget.add_controller(click)
         widget.set_cursor_from_name('pointer')
+        widget.set_focusable(True)
+        widget.add_css_class('profile-image-button')
+        if label:
+            widget.update_property([Gtk.AccessibleProperty.LABEL], [label])
+        pages.activate_on_key(widget, pages.weak_method(self._present_image),
+                              url, description)
 
     def _on_note_activated(self, _listbox, _row):
         self.edit_private_note()
 
     def _on_image_clicked(self, _gesture, _n_press, _x, _y, url,
                           description):
+        self._present_image(url, description)
+
+    def _present_image(self, url, description):
         from .mediaviewer import present_media
         present_media(self, [{'type': 'image', 'url': url,
                               'preview_url': url,

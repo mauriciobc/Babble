@@ -23,7 +23,7 @@ gi.require_version('Adw', '1')
 
 from .i18n import gettext as _  # noqa: E402
 
-from gi.repository import Adw, GLib, Gio, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gio, Gtk, Pango  # noqa: E402
 
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 from .statustext import is_web_link, split_url  # noqa: E402
@@ -879,6 +879,30 @@ def section_label(text):
                       ellipsize=Pango.EllipsizeMode.NONE)
     label.add_css_class('heading')
     return label
+
+
+def activate_on_key(widget, callback, *args):
+    """Call ``callback(*args)`` when Enter or space is pressed while
+    *widget* itself has the keyboard focus: the keyboard half of a
+    ``GtkGestureClick`` on something that is not a button.
+
+    The caller makes *widget* focusable and gives it a focus ring. A key
+    that bubbles up from a button or text view inside *widget* is left
+    alone. *callback* must not hold *widget* strongly (use
+    :func:`weak_method` or a GObject weak reference): the controller
+    belongs to the widget, so that would be the cycle through C that
+    :func:`connect_weak` prevents.
+    """
+    def pressed(controller, keyval, _keycode, _state):
+        if (keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space)
+                and controller.get_widget().is_focus()):
+            callback(*args)
+            return True
+        return False
+
+    keys = Gtk.EventControllerKey()
+    keys.connect('key-pressed', pressed)
+    widget.add_controller(keys)
 
 
 def icon_button(icon_name, tooltip, flat=True, valign=Gtk.Align.CENTER,

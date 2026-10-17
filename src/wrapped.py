@@ -606,6 +606,10 @@ class WrappedDialog(Adw.Dialog):
         pages.connect_weak(click, 'released', self._on_status_released,
                            status)
         row.add_controller(click)
+        # The click's keyboard twin: Tab to the card, Enter or space.
+        row.set_focusable(True)
+        pages.activate_on_key(row, pages.weak_method(self._open_status),
+                              status)
         holder.append(row)
 
     def _on_status_released(self, _click, _n_press, _x, _y, status):
