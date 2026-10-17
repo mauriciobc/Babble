@@ -336,7 +336,7 @@
                                   <property name="show-title">False</property>
                                   <property name="show-start-title-buttons">False</property>
                                   <property name="show-end-title-buttons">False</property>
-                                  <child type="start">
+                                  <child type="end">
                                     <object class="GtkButton" id="sidebar_compose_button">
                                       <property name="icon-name">document-edit-symbolic</property>
                                       <property name="action-name">win.compose</property>
@@ -346,9 +346,10 @@
                                       </accessibility>
                                     </object>
                                   </child>
-                                  <!-- Start, after compose: the same order as the
-                                       header strip a hidden sidebar shows, and
-                                       the rail (compose hidden) keeps it left. -->
+                                  <!-- The menu at the start, compose at the
+                                       end: the full sidebar then reads compose
+                                       at its right edge, and the rail (compose
+                                       hidden) keeps the menu left. -->
                                   <child type="start">
                                     <object class="GtkMenuButton" id="primary_menu_button">
                                       <property name="primary">True</property>
