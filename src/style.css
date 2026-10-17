@@ -494,9 +494,11 @@ window.darken-media .darkenable:hover {
   border-bottom-right-radius: 18px;
 }
 
-.media-viewer-content button.osd,
+/* The round prev/next buttons keep libadwaita's own .osd look, which
+   already follows high contrast. Only the zoom bar is ours, so only it
+   needs a backdrop, drawn from the viewer surface rather than a literal. */
 .media-viewer-zoom {
-  background-color: rgba(30, 30, 30, 0.85);
+  background-color: color-mix(in srgb, var(--viewer-bg) 85%, transparent);
   color: var(--viewer-fg);
 }
 
@@ -590,7 +592,7 @@ window.darken-media .darkenable:hover {
 /* High contrast companion for the lightbox: the exempt #000 backdrop
    above is a fixed surface, and a themed foreground on a fixed black
    card is unreadable, so here the pair swaps for the palette's and the
-   OSD controls get a real surface instead of a near-black tint. Every
+   zoom bar gets a real surface instead of a translucent tint. Every
    rule below is the inverse of one above, which is why the swap is two
    properties rather than a second list of literals. */
 @media (prefers-contrast: more) {
@@ -603,7 +605,6 @@ window.darken-media .darkenable:hover {
     --viewer-fg: var(--window-fg-color);
   }
 
-  .media-viewer-content button.osd,
   .media-viewer-zoom {
     background-color: var(--card-bg-color);
   }
