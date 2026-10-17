@@ -56,6 +56,31 @@ def check(name, condition):
         print('FAIL - %s' % name)
 
 
+# A failed home request must stay an error. It used to fall back to the
+# public timeline, which replaced the reader's home with posts from
+# accounts they do not follow.
+class _HomeFailureClient:
+    def __init__(self):
+        self.public_requests = 0
+
+    def timelines_home_async(self, *_args, **_kwargs):
+        pass
+
+    def timelines_home_finish(self, _result):
+        raise GLib.Error('home failed', 'mastodon-http-error-quark', 500)
+
+    def timelines_public_async(self, *_args, **_kwargs):
+        self.public_requests += 1
+
+
+failure_client = _HomeFailureClient()
+failure_page = TimelinePage(failure_client, mode='home', autoload=False)
+failure_page.on_page_loaded(failure_client, None)
+check('a failed home request shows the error page',
+      failure_page.stack.get_visible_child_name() == 'error')
+check('a failed home request does not load the public timeline',
+      failure_client.public_requests == 0)
+
 # Unit checks (no display needed)
 segments = parse_content('<p>Hello <a href="https://example.org">'
                          'world</a> &amp; friends</p><p>Second</p>')

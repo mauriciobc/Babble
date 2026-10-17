@@ -162,6 +162,7 @@ class BabbleApplication(Adw.Application):
         self.set_accels_for_action('win.close-pane', ['<primary>w'])
         self.set_accels_for_action('win.compose', ['<primary>n'])
         self.set_accels_for_action('win.reload', ['<primary>r', 'F5'])
+        self.set_accels_for_action('win.toggle-sidebar', ['F9'])
         # Escape is deliberately not here. As an application accelerator
         # it is matched ahead of the focused widget, so it swallowed the
         # Escape that closes a dialog, the one that dismisses the

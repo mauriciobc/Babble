@@ -252,16 +252,20 @@ def client_of(widget):
     return getattr(window, 'client', None)
 
 
-def make_nav_page(title, child, tag=None):
+def make_nav_page(title, child, tag=None, sidebar_control=None):
     """An Adw.NavigationPage with a header bar around *child*.
 
     *child* may carry optional attributes the header picks up:
     ``header_start_widgets`` / ``header_widgets`` (end side) lists of
     widgets, ``title_widget`` (replaces the title), ``top_bar`` (an
     extra top bar, e.g. a view switcher or search bar) and
-    ``bottom_bar``."""
+    ``bottom_bar``. *sidebar_control*, when given, is a callable
+    returning the window's sidebar control, packed at the start of the
+    header before the page's own start widgets."""
     toolbar = Adw.ToolbarView()
     header = Adw.HeaderBar()
+    if sidebar_control is not None:
+        header.pack_start(sidebar_control())
     for widget in getattr(child, 'header_start_widgets', ()) or ():
         header.pack_start(widget)
     for widget in reversed(getattr(child, 'header_widgets', ()) or ()):
@@ -296,11 +300,13 @@ def push_page(widget, title, child, tag=None):
         if existing is not None:
             view.pop_to_page(existing)
             return existing
-    page = make_nav_page(title, child, tag)
+    page = make_nav_page(
+        title, child, tag,
+        sidebar_control=getattr(window, 'make_sidebar_control', None))
     view.push(page)
-    split = getattr(window, 'split_view', None)
-    if split is not None:
-        split.set_show_content(True)
+    dismiss = getattr(window, 'dismiss_sidebar_overlay', None)
+    if dismiss is not None:
+        dismiss()
     return page
 
 
@@ -705,9 +711,9 @@ def open_status(widget, client, status):
     if window is None:
         return
     push_thread(window.navigation_view, client, StatusItem(status))
-    split = getattr(window, 'split_view', None)
-    if split is not None:
-        split.set_show_content(True)
+    dismiss = getattr(window, 'dismiss_sidebar_overlay', None)
+    if dismiss is not None:
+        dismiss()
 
 
 class AccountListPage(PagedList):
