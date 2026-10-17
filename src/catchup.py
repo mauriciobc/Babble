@@ -866,7 +866,7 @@ class CatchUpRow(Gtk.Box):
     __gtype_name__ = 'BabbleCatchUpRow'
 
     def __init__(self):
-        super().__init__(spacing=12, margin_top=10, margin_bottom=10,
+        super().__init__(spacing=12, margin_top=12, margin_bottom=12,
                          margin_start=12, margin_end=12)
         self.item = None
         self.avatar = Adw.Avatar(size=40, valign=Gtk.Align.START,
@@ -1872,7 +1872,7 @@ class CatchUpPage(Adw.Bin):
             slot.row.unbind()
 
     def _on_header_setup(self, _factory, header):
-        box = Gtk.Box(spacing=8, margin_top=10, margin_bottom=4,
+        box = Gtk.Box(spacing=8, margin_top=12, margin_bottom=4,
                       margin_start=12, margin_end=12)
         avatar = Adw.Avatar(size=28, show_initials=True)
         name = Gtk.Label(xalign=0.0, hexpand=True,

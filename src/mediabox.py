@@ -110,7 +110,7 @@ class CardPreview(Gtk.Button):
         text.append(title)
         text.append(description)
         text.append(info)
-        content = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER,
+        content = Gtk.Box(spacing=12, valign=Gtk.Align.CENTER,
                           margin_top=8, margin_bottom=8, margin_start=8,
                           margin_end=8)
         if card.get('image'):

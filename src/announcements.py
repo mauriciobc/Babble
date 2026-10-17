@@ -195,7 +195,7 @@ class AnnouncementRow(Gtk.ListBoxRow):
         client = page.client
         self.add_css_class('announcement-row')
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                       margin_top=12, margin_bottom=12, margin_start=12,
                       margin_end=12)
         self.set_child(box)
@@ -204,7 +204,7 @@ class AnnouncementRow(Gtk.ListBoxRow):
         domain = client.instance.removeprefix('https://') \
             .removeprefix('http://')
         title = info.get('title') or domain
-        header = Gtk.Box(spacing=10)
+        header = Gtk.Box(spacing=12)
         avatar = Adw.Avatar(size=32, text=title, show_initials=True,
                             accessible_role=Gtk.AccessibleRole.PRESENTATION)
         thumbnail = (info.get('thumbnail') or {}).get('url')

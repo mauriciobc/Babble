@@ -537,7 +537,7 @@ class BabbleComposeView(Adw.Bin):
         self.placeholder = Gtk.Label(label=_('What’s on your mind?'),
                                      halign=Gtk.Align.START,
                                      valign=Gtk.Align.START,
-                                     margin_top=12, margin_start=14,
+                                     margin_top=12, margin_start=12,
                                      can_target=False)
         self.placeholder.add_css_class('dimmed')
         self.placeholder.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)

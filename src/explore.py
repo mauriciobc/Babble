@@ -188,8 +188,8 @@ def link_card_content(link):
         _TextureCache.load(image_url, picture)
 
     text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
-                   margin_top=10, margin_bottom=12, margin_start=14,
-                   margin_end=14)
+                   margin_top=12, margin_bottom=12, margin_start=12,
+                   margin_end=12)
     box.append(text)
     title, provider = link_card_labels(link)
     meta = Gtk.Label(label=provider, xalign=0.0,
