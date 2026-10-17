@@ -77,6 +77,7 @@ install_data(
   'sidebarcontrol.py',
   'sidebarmode.py',
   'sidebarrail.py',
+  'sourceline.py',
   'statustext.py',
   'statusviews.py',
   'streaming.py',

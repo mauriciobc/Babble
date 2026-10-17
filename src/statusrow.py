@@ -16,6 +16,7 @@ from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .statustext import parse_content
 from .textemoji import InlineEmojiText, emoji_bank, status_emoji_bank
+from .sourceline import SourceLine
 from .statusactions import (CollectionCard, QuoteCard, StatusActions,
                             _display_name_uses_custom_emoji, _open_thread)
 from .statusmenu import StatusMenuButton
@@ -71,12 +72,12 @@ class StatusRow(Gtk.Overlay):
         self.body = body
         self.set_child(body)
 
-        # The boost strip, display-name emoji text, content-warning bar,
+        # The source line, display-name emoji text, content-warning bar,
         # translation note and boosts carousel are built on first use:
         # most posts need none of them, and each costs a text view or a
         # scrolled window per row.
-        self.boost_strip = None
-        self.boost_label = None
+        self.source_line = None
+        self._has_source = False
 
         # Filtered posts collapse into this bar until shown anyway.
         self.filter_bar = Gtk.Box(spacing=8)
@@ -281,23 +282,12 @@ class StatusRow(Gtk.Overlay):
 
     # Parts built on first use
 
-    def _ensure_boost_strip(self):
-        if self.boost_strip is None:
-            strip = Gtk.Box(spacing=6)
-            icon = Gtk.Image(
-                icon_name=self.ICON_BOOST, pixel_size=12,
-                accessible_role=Gtk.AccessibleRole.PRESENTATION)
-            icon.add_css_class('boost-accent')
-            strip.append(icon)
-            self.boost_label = InlineEmojiText(emoji_size=14,
-                                               single_line=True)
-            self.boost_label.add_css_class('caption-heading')
-            self.boost_label.add_css_class('dimmed')
-            self.boost_label.set_can_target(False)
-            strip.append(self.boost_label)
-            self.boost_strip = strip
-            self.body.prepend(strip)
-        return self.boost_strip
+    def _ensure_source_line(self):
+        if self.source_line is None:
+            line = SourceLine(self.ICON_BOOST)
+            self.source_line = line
+            self.body.prepend(line)
+        return self.source_line
 
     def _ensure_name_label(self):
         if self.name_label is None:
@@ -393,6 +383,8 @@ class StatusRow(Gtk.Overlay):
                 'position': position, 'total': total}
             self.badge.set_text('%d/%d' % (position, total))
             pages.set_accessible_label(self.badge, text)
+        if self.source_line is not None:
+            self.source_line.set_visible(self._has_source and position == 1)
 
     # Binding
 
@@ -426,16 +418,16 @@ class StatusRow(Gtk.Overlay):
         account = status['account']
         ui = item.ui
         if item.is_boost:
-            self._ensure_boost_strip().set_visible(True)
-            self.boost_label.set_segments(
-                [{'text': _('%s boosted') % item.boost_line,
-                  'href': None}], emoji_bank(item.boosted_by))
+            self._has_source = True
             label = _('Post by %(author)s, boosted by %(booster)s') % {
                 'author': item.display_name, 'booster': item.boost_line}
         else:
-            if self.boost_strip is not None:
-                self.boost_strip.set_visible(False)
+            self._has_source = bool(item.ui.get('source_tag'))
             label = _('Post by %s') % item.display_name
+        if self._has_source:
+            self._ensure_source_line().show_for(item)
+        elif self.source_line is not None:
+            self.source_line.set_visible(False)
         self.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
         rule = status_filter(item.raw, self.filter_context,
@@ -657,7 +649,7 @@ class StatusRow(Gtk.Overlay):
         self.post_meta.set_tooltip_text(absolute or None)
 
     def _bind_carousel(self, item, client):
-        for widget in (self.boost_strip, self.filter_bar, self.main):
+        for widget in (self.source_line, self.filter_bar, self.main):
             if widget is not None:
                 widget.set_visible(False)
         self.update_property([Gtk.AccessibleProperty.LABEL], [_('Boosts')])

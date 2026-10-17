@@ -26,7 +26,8 @@ from .timelinebase import (
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
     _EMPTY_PAGED_ENVELOPE, _own_account_id, id_key)
 from .timelinedata import (
-    BoostCarouselItem, TimelineModel, filter_replies_from_non_follows)
+    BoostCarouselItem, TimelineModel, filter_replies_from_non_follows,
+    matching_tag)
 
 
 class TimelineFactory(Gtk.SignalListItemFactory):
@@ -194,6 +195,9 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self.source = source
         # Paging flags and cursors. See PagedPosts.
         self._paging_init()
+        self._followed_tags = None
+        self._followed_loading = False
+        self._followed_waiting = []
         self._auto_refresh_id = 0
         self._auto_refresh_ticks = 0
         self._pill_count = 0
@@ -374,6 +378,78 @@ class TimelinePage(PagedPosts, Adw.Bin):
     def _on_retry(self, _button):
         self.load()
 
+    def invalidate_followed_tags(self):
+        """Forget the followed tags, so the next page re-reads them."""
+        self._followed_tags = None
+
+    def _note_followed_tags(self, statuses):
+        """Mark posts that reached Home through a followed hashtag."""
+        if not (self.mode == 'home' and self.source is None and statuses):
+            return
+        if self.client.rate_limited():
+            return
+        if self._followed_tags is None:
+            self._followed_waiting.append(statuses)
+            if self._followed_loading:
+                return
+            self._followed_loading = True
+            self.client.request_async('GET', '/followed_tags', {'limit': 200},
+                                      callback=self._on_followed_tags)
+            return
+        self._apply_followed_tags(statuses)
+
+    def _on_followed_tags(self, client, result, _data=None):
+        self._followed_loading = False
+        try:
+            data = client.request_finish(result)
+        except GLib.Error:
+            self._followed_tags = []
+        else:
+            self._followed_tags = sorted(
+                {tag.get('name') for tag in data or () if tag.get('name')},
+                key=str.casefold)
+        waiting = self._followed_waiting
+        self._followed_waiting = []
+        for statuses in waiting:
+            self._apply_followed_tags(statuses)
+
+    def _apply_followed_tags(self, statuses):
+        names = self._followed_tags or ()
+        if not names:
+            return
+        hits = {}
+        authors = []
+        for status in statuses:
+            tag = matching_tag(status, names)
+            if tag is None:
+                continue
+            status_id = str(status.get('id') or '')
+            if not status_id:
+                continue
+            hits[status_id] = tag
+            author_id = str(
+                (status.get('account') or {}).get('id') or '')
+            if author_id and author_id not in authors:
+                authors.append(author_id)
+        if not hits:
+            return
+        if authors:
+            self.client.relationships_async(
+                authors[:40],
+                lambda client, result, _data=None:
+                    self._on_tag_relationships(client, result, hits))
+        else:
+            self.model.apply_source_tags(hits, ())
+
+    def _on_tag_relationships(self, client, result, hits):
+        try:
+            rels = client.request_finish(result)
+        except GLib.Error:
+            return
+        following = {str(rel.get('id')) for rel in rels or ()
+                     if rel.get('following')}
+        self.model.apply_source_tags(hits, following)
+
     def _with_home_reply_filter(self, statuses, on_done):
         """Apply the hide-replies-from-non-follows filter when enabled."""
         if not self._hide_replies_non_follows:
@@ -454,6 +530,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
             added = self.model.insert_new(statuses)
             if added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
+        self._note_followed_tags(statuses)
         if self.source is not None and not self.source.paginated:
             self.model.exhausted = True
         if self.model.get_n_items() == 0:
@@ -496,7 +573,9 @@ class TimelinePage(PagedPosts, Adw.Bin):
     def _finish_older_loaded(self, statuses, generation=None, before=0):
         if generation is not None and self._superseded(generation):
             return
-        if not self.model.append_old(statuses):
+        appended = self.model.append_old(statuses)
+        self._note_followed_tags(statuses)
+        if not appended:
             self.model.exhausted = True
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
@@ -529,6 +608,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
     def _finish_refresh_loaded(self, statuses):
         if statuses:
             added = self.model.insert_new(statuses)
+            self._note_followed_tags(statuses)
             if added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
             self._trim_old()
@@ -560,6 +640,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
         filters apply and a scrolled-away reader gets the new-posts
         pill instead of a jump."""
         added = self.model.insert_new([status])
+        self._note_followed_tags([status])
         if self.model.oldest_id is None:
             self.model.oldest_id = status['id']
         if not added:

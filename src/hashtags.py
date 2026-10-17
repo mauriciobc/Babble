@@ -31,6 +31,14 @@ TOTAL_TAGS_LIMIT = 5
 STATS_DAYS = 2
 
 
+def _invalidate_home_tags(widget):
+    """Forget Home's followed tags, so the next page re-reads them."""
+    window = pages.window_of(widget)
+    page = getattr(window, 'timeline_page', None)
+    if page is not None:
+        page.invalidate_followed_tags()
+
+
 def clean_name(name):
     return (name or '').strip().lstrip('#').strip()
 
@@ -263,6 +271,7 @@ class HashtagPage(Adw.Bin):
                     else _('Could not follow #%s') % name, error)
                 return
             self._set_following(bool(info.get('following', not self.following)))
+            _invalidate_home_tags(self)
             pages.show_toast(
                 self, _('Followed #%s') % name if self.following
                 else _('Unfollowed #%s') % name)
@@ -650,12 +659,17 @@ class TagRow(HashtagRow):
         button.set_sensitive(False)
 
         def undo():
+            def restored(_d):
+                _invalidate_home_tags(self.page)
+                self.page.refresh()
+
             pages.call(self.page, client, 'POST', '/tags/%s/follow' % quoted,
-                       on_done=lambda _d: self.page.refresh(),
+                       on_done=restored,
                        error_heading=_('Could not follow #%s') % name)
 
         def done(_data):
             self.page.paged.remove_row(self)
+            _invalidate_home_tags(self.page)
             pages.show_toast(self.page, _('Unfollowed #%s') % name,
                              undo=undo)
 

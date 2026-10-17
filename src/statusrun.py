@@ -43,6 +43,7 @@ def _shell_stamp(run):
             ui.get('cw_open'),
             bool(ui.get('media_revealed')),
             bool(ui.get('filter_shown')),
+            ui.get('source_tag'),
             item.translation is not None,
             len(getattr(item, 'boosts', ()) or ()),
         ))
