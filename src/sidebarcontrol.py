@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The header controls the window shows while the sidebar is out of the
-way: reveal/mode, compose, the primary menu, and optionally the
+way: reveal/mode, the primary menu, compose, and optionally the
 notifications bell.
 
 The control owns no state and connects no signals. The window exposes
@@ -54,15 +54,6 @@ class SidebarControl(Gtk.Box):
             [Gtk.AccessibleProperty.LABEL], [_('Sidebar')])
         self.append(self.mode_button)
 
-        self.compose_button = Gtk.Button(
-            icon_name='document-edit-symbolic',
-            action_name='win.compose',
-            tooltip_text=_('New Post'))
-        self.compose_button.add_css_class('flat')
-        self.compose_button.update_property(
-            [Gtk.AccessibleProperty.LABEL], [_('New Post')])
-        self.append(self.compose_button)
-
         self.primary_button = Gtk.MenuButton(
             icon_name='open-menu-symbolic',
             primary=True,
@@ -72,6 +63,15 @@ class SidebarControl(Gtk.Box):
         self.primary_button.update_property(
             [Gtk.AccessibleProperty.LABEL], [_('Main Menu')])
         self.append(self.primary_button)
+
+        self.compose_button = Gtk.Button(
+            icon_name='document-edit-symbolic',
+            action_name='win.compose',
+            tooltip_text=_('New Post'))
+        self.compose_button.add_css_class('flat')
+        self.compose_button.update_property(
+            [Gtk.AccessibleProperty.LABEL], [_('New Post')])
+        self.append(self.compose_button)
 
         self.bell_button = None
         self.badge = None

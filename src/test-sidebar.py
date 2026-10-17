@@ -172,10 +172,10 @@ check('include_bell=False creates no bell',
 first = control.get_first_child()
 second = first.get_next_sibling() if first is not None else None
 third = second.get_next_sibling() if second is not None else None
-check('the mode control is first, then compose, then the primary menu',
+check('the mode control is first, then the primary menu, then compose',
       first is control.mode_button
-      and second is control.compose_button
-      and third is control.primary_button,
+      and second is control.primary_button
+      and third is control.compose_button,
       repr([child.__class__.__name__ for child in (first, second, third)]))
 
 if failures:
