@@ -212,11 +212,7 @@ class WrappedDialog(Adw.Dialog):
         self.style_button.set_menu_model(self._style_menu())
         self.header.pack_start(self.style_button)
         self.year_dropdown = Gtk.DropDown(visible=False)
-        # A tooltip does not set the accessible name, and this control
-        # has no text of its own, so it needs both.
-        self.year_dropdown.set_tooltip_text(_('Year'))
-        self.year_dropdown.update_property([Gtk.AccessibleProperty.LABEL],
-                                           [_('Year')])
+        pages.set_accessible_label(self.year_dropdown, _('Year'))
         pages.connect_weak(self.year_dropdown, 'notify::selected',
                            self._on_year)
         self.header.pack_start(self.year_dropdown)
@@ -606,6 +602,10 @@ class WrappedDialog(Adw.Dialog):
         pages.connect_weak(click, 'released', self._on_status_released,
                            status)
         row.add_controller(click)
+        # The click's keyboard twin: Tab to the card, Enter or space.
+        row.set_focusable(True)
+        pages.activate_on_key(row, pages.weak_method(self._open_status),
+                              status)
         holder.append(row)
 
     def _on_status_released(self, _click, _n_press, _x, _y, status):

@@ -251,6 +251,10 @@ def make_post_row(client, status):
 
     gesture.connect('released', open_thread)
     row.add_controller(gesture)
+    # Tab reaches the card (the .status-row focus ring shows it), and
+    # Enter or space opens the thread, as the click does.
+    row.set_focusable(True)
+    pages.activate_on_key(row, open_thread)
     return row
 
 

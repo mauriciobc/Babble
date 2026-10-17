@@ -129,12 +129,10 @@ class _KeywordRow(Adw.EntryRow):
             valign=Gtk.Align.CENTER)
         self.add_suffix(self.whole_word)
         remove = Gtk.Button(icon_name='list-remove-symbolic',
-                            valign=Gtk.Align.CENTER,
-                            tooltip_text=_('Remove Keyword'))
+                            valign=Gtk.Align.CENTER)
         remove.add_css_class('flat')
         remove.add_css_class('circular')
-        remove.update_property([Gtk.AccessibleProperty.LABEL],
-                               [_('Remove Keyword')])
+        pages.set_accessible_label(remove, _('Remove Keyword'))
         pages.connect_weak(remove, 'clicked', self._on_remove_clicked)
         self.add_suffix(remove)
 
@@ -458,9 +456,8 @@ def present_filters(parent_widget, client):
     navigation_view = Adw.NavigationView()
     listing = FiltersList(client, navigation_view)
 
-    add = Gtk.Button(icon_name='list-add-symbolic',
-                     tooltip_text=_('New Filter'))
-    add.update_property([Gtk.AccessibleProperty.LABEL], [_('New Filter')])
+    add = Gtk.Button(icon_name='list-add-symbolic')
+    pages.set_accessible_label(add, _('New Filter'))
     pages.connect_weak(add, 'clicked', listing._on_add_clicked)
     header = Adw.HeaderBar()
     header.pack_start(add)

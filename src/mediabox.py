@@ -110,7 +110,7 @@ class CardPreview(Gtk.Button):
         text.append(title)
         text.append(description)
         text.append(info)
-        content = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER,
+        content = Gtk.Box(spacing=12, valign=Gtk.Align.CENTER,
                           margin_top=8, margin_bottom=8, margin_start=8,
                           margin_end=8)
         if card.get('image'):
@@ -244,10 +244,10 @@ class BoostCarousel(Gtk.Box):
         self.append(self.scroll)
 
     def _arrow(self, icon_name, tooltip, direction):
-        button = Gtk.Button(icon_name=icon_name, tooltip_text=tooltip)
+        button = Gtk.Button(icon_name=icon_name)
         button.add_css_class('flat')
         button.add_css_class('circular')
-        button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+        pages.set_accessible_label(button, tooltip)
         connect_weak(button, 'clicked', self._page_by, direction)
         return button
 

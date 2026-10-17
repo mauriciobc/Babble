@@ -251,8 +251,8 @@ companion = [body for body in media_bodies(css, 'prefers-contrast: more')
 check('the lightbox has a high-contrast companion',
       bool(companion)
       and '--viewer-fg: var(--window-fg-color)' in companion[0])
-check('the high-contrast lightbox gives button.osd a surface',
-      bool(companion) and 'button.osd' in companion[0]
+check('the high-contrast lightbox gives the zoom bar a surface',
+      bool(companion) and '.media-viewer-zoom' in companion[0]
       and 'var(--card-bg-color)' in companion[0])
 check('no literal white alpha is left in the lightbox rules',
       'rgba(255, 255, 255' not in strip_comments(viewer))

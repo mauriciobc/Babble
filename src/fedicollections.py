@@ -189,11 +189,9 @@ class CollectionActions:
             group.add_action(action)
             menu.append(label, 'collection.' + name)
         button = Gtk.MenuButton(icon_name='view-more-symbolic',
-                                tooltip_text=_('More Options'),
                                 valign=Gtk.Align.CENTER, menu_model=menu)
         button.add_css_class('flat')
-        button.update_property([Gtk.AccessibleProperty.LABEL],
-                               [_('More Options')])
+        pages.set_accessible_label(button, _('More Options'))
         button.insert_action_group('collection', group)
         return button
 

@@ -395,8 +395,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
         if tint and self._tinted:
             content.add_css_class(tint)
         button.set_child(content)
-        button.set_tooltip_text(tooltip)
-        button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+        pages.set_accessible_label(button, tooltip)
         connect_weak(button, 'clicked', callback)
         button.icons = icons
         button.action_name_text = tooltip
