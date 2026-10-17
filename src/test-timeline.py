@@ -36,8 +36,10 @@ from src.textemoji import InlineEmojiText, status_emoji_bank  # noqa: E402
 from src.mediabox import BlurredPicture, snap_carousel_offset  # noqa: E402
 from src.timelinedata import (BoostCarouselItem, StatusItem,  # noqa: E402
                               TimelineModel, group_boosts,
-                              filter_replies_from_non_follows)
+                              filter_replies_from_non_follows,
+                              matching_tag)
 from src.statusrow import StatusRow  # noqa: E402
+from src.statusrun import StatusRun, _shell_stamp  # noqa: E402
 from src.timelinepage import TimelinePage  # noqa: E402
 from src.timelinebase import (decodable_attachment_url,  # noqa: E402
                               COLUMN_WIDTH)
@@ -136,6 +138,60 @@ _boost_item = StatusItem({
 check('a boost names the booster, not the author',
       _boost_item.boost_line == 'Booster'
       and _boost_item.display_name == 'Author')
+
+# Home provenance: a post may reach the timeline through a followed
+# hashtag rather than through a follow. The tag is matched against the
+# status's own hashtag list, case-insensitively.
+check('hashtag match ignores case',
+      matching_tag({'tags': [{'name': 'catsofMastodon'}]},
+                   ['CatsofMastodon']) == 'CatsofMastodon')
+check('hashtag match needs a tag in the payload',
+      matching_tag({'tags': [{'name': 'Cats'}]}, ['Dogs']) is None)
+check('a boost does not carry hashtag provenance',
+      matching_tag({'reblog': {'id': 'inner'},
+                    'tags': [{'name': 'Cats'}]}, ['Cats']) is None)
+check('no followed tags matches nothing',
+      matching_tag({'tags': [{'name': 'Cats'}]}, []) is None)
+
+_tag_model = TimelineModel()
+_tag_model.group_boosts_enabled = False
+_tag_model.append_old([
+    {'id': 'tag1', 'content': '', 'created_at': '',
+     'account': {'acct': 'stranger', 'id': 's1'},
+     'tags': [{'name': 'CatsofMastodon'}]},
+    {'id': 'tag2', 'content': '', 'created_at': '',
+     'account': {'acct': 'friend', 'id': 'f1'}}])
+_tag_items = {_tag_model.get_item(i).status_id: _tag_model.get_item(i)
+              for i in range(_tag_model.get_n_items())}
+_tag_changed = []
+for _tag_item in _tag_items.values():
+    _tag_item.connect('changed', lambda *_: _tag_changed.append(True))
+_tag_hits = {'tag1': 'CatsofMastodon', 'tag2': 'CatsofMastodon'}
+_tag_model.apply_source_tags(_tag_hits, {'f1'})
+check('a post from a non-followed author keeps its source tag',
+      _tag_items['tag1'].ui.get('source_tag') == 'CatsofMastodon')
+check('a followed author gets no source tag',
+      _tag_items['tag2'].ui.get('source_tag') is None)
+check('marking a source tag emits exactly one change',
+      len(_tag_changed) == 1)
+_tag_model.apply_source_tags(_tag_hits, {'f1'})
+check('an unchanged source tag emits nothing',
+      len(_tag_changed) == 1)
+
+_tag_items['tag1'].ui['source_tag'] = 'CatsofMastodon'
+_tag_model.replace_status({'id': 'tag1', 'content': '<p>edited</p>',
+                           'account': {'acct': 'stranger', 'id': 's1'}})
+check('replace_status keeps the source tag',
+      _tag_items['tag1'].ui.get('source_tag') == 'CatsofMastodon')
+
+# The shell's cached height must miss when the provenance line appears:
+# it adds a row above the author header.
+_stamp_item = StatusItem({'id': 'stamp', 'content': '',
+                          'account': {'acct': 'a', 'id': 'a1'}})
+_stamp_before = _shell_stamp(StatusRun([_stamp_item]))
+_stamp_item.ui['source_tag'] = 'CatsofMastodon'
+check('the source tag invalidates the shell height',
+      _shell_stamp(StatusRun([_stamp_item])) != _stamp_before)
 
 # Ids are opaque strings: '99999999' sorts after '100000001' as text.
 _idmodel = TimelineModel()
@@ -440,6 +496,64 @@ check('remote handle keeps only the user',
       remote_row.handle_label.get_text() == '@alice')
 check('full handle stays in the tooltip',
       remote_row.handle_label.get_tooltip_text() == '@alice@other.social')
+
+# Home provenance line: a post pulled in by a followed hashtag names the
+# tag above the author header, while a boost keeps its own boost line.
+def collect_labels(widget, out):
+    if isinstance(widget, Gtk.Label):
+        out.append(widget)
+    child = widget.get_first_child()
+    while child is not None:
+        collect_labels(child, out)
+        child = child.get_next_sibling()
+    return out
+
+
+def tag_status(status_id, **extra):
+    return {'id': status_id, 'content': '<p>a photo of a cat</p>',
+            'account': {'acct': 'catposter', 'id': 'c1'},
+            'created_at': '2026-10-01T00:00:00.000Z', **extra}
+
+
+tag_item = StatusItem(tag_status('tagpost',
+                                 tags=[{'name': 'CatsofMastodon'}]))
+tag_item.ui['source_tag'] = 'CatsofMastodon'
+tag_row = StatusRow()
+tag_row.bind(tag_item, _DummyClient())
+check('the source hashtag line shows',
+      tag_row.source_line is not None and tag_row.source_line.get_visible())
+check('the source hashtag line names the tag',
+      any(label.get_text() == 'CatsofMastodon'
+          for label in collect_labels(tag_row, [])))
+
+plain_row = StatusRow()
+plain_row.bind(StatusItem(tag_status('plainpost')), _DummyClient())
+check('a post without provenance shows no source line',
+      plain_row.source_line is None
+      or not plain_row.source_line.get_visible())
+
+boost_row = StatusRow()
+boost_row.bind(StatusItem({
+    'id': 'boostpost',
+    'account': {'acct': 'booster', 'id': 'b1', 'display_name': 'Booster'},
+    'created_at': '2026-10-01T00:00:00.000Z',
+    'reblog': tag_status('innerpost', tags=[{'name': 'CatsofMastodon'}])}),
+    _DummyClient())
+check('a boost keeps a visible source line',
+      boost_row.source_line is not None
+      and boost_row.source_line.get_visible())
+check('a boost does not claim hashtag provenance',
+      not any(label.get_text() == 'CatsofMastodon'
+              for label in collect_labels(boost_row, [])))
+
+# Only the first post of a run carries the line: the card prints the
+# header (and the provenance) once.
+tag_row.set_run(2, 2)
+check('a later post of a run hides the source line',
+      not tag_row.source_line.get_visible())
+tag_row.set_run(1, 2)
+check('the first post of a run shows the source line again',
+      tag_row.source_line.get_visible())
 
 # Action bar: on timeline cards it is hidden by default (the actions
 # live in the post's menu) and always up on detail views.

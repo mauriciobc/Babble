@@ -160,6 +160,24 @@ def is_boost_status(status):
     return not (status.get('account') or {}).get('group')
 
 
+def matching_tag(status, names):
+    """The first of *names* that *status* carries as a hashtag, or None.
+
+    Names are compared case-insensitively, since a tag is stored with the
+    casing its author typed. A boost is skipped: the tags on the wrapper
+    belong to the boost, not to the post that arrived."""
+    if not names or status.get('reblog'):
+        return None
+    present = {str((tag or {}).get('name') or '').lower()
+               for tag in (status.get('tags') or ())}
+    if not present:
+        return None
+    for name in names:
+        if str(name).lower() in present:
+            return name
+    return None
+
+
 def sort_carousel_boosts(boost_wrappers):
     """Inner statuses for carousel cards; filter warnings sort last."""
     unfiltered, filtered = [], []
@@ -514,4 +532,26 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             item.update(raw)
             return True
         return False
+
+    def apply_source_tags(self, hits, following):
+        """Mark home posts that arrived through a followed hashtag.
+
+        *hits* maps a status id to the followed tag its post carries;
+        *following* holds the author ids the viewer already follows.
+        A followed author's post is not provenance: it would have been in
+        the timeline anyway, so it gets None."""
+        if not hits:
+            return
+        for position in range(self._store.get_n_items()):
+            item = self._store.get_item(position)
+            status = item.status
+            status_id = str(status.get('id') or '')
+            if status_id not in hits:
+                continue
+            author_id = str((status.get('account') or {}).get('id') or '')
+            value = None if author_id in following else hits[status_id]
+            if item.ui.get('source_tag') == value:
+                continue
+            item.ui['source_tag'] = value
+            item.emit('changed')
 

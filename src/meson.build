@@ -74,6 +74,7 @@ install_data(
   'scheduled.py',
   'search.py',
   'searchprovider.py',
+  'sourceline.py',
   'statustext.py',
   'statusviews.py',
   'streaming.py',

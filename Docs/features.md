@@ -4,7 +4,8 @@ The full feature inventory. The [README](../README.md) has the short version.
 
 ## Reading
 
-- Home, Local and Federated timelines, updated live over streaming.
+- Home, Local and Federated timelines, updated live over streaming; a post
+  that came in through a hashtag you follow says so above its header.
 - Explore: trending posts, hashtags and news, plus people you might want to
   follow.
 - Threads with the focused post in the middle, and profiles with their posts.

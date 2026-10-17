@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-17 09:02-0300\n"
+"POT-Creation-Date: 2026-10-17 12:04-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -813,11 +813,11 @@ msgid "Take Action"
 msgstr "Maßnahme ergreifen"
 
 #: src/admin.py:929 src/admin.py:1342 src/admin.py:1553 src/catchup.py:1271
-#: src/compose.py:1041 src/fedicollections.py:685 src/hashtags.py:451
+#: src/compose.py:1041 src/fedicollections.py:685 src/hashtags.py:460
 #: src/lists.py:184 src/notificationctrl.py:441 src/pages.py:351
 #: src/pages.py:379 src/profile.py:281 src/profile.py:311
 #: src/profileedit.py:226 src/scheduled.py:123 src/search.py:584
-#: src/statusactions.py:596 src/statusactions.py:648 src/window.py:1791
+#: src/statusactions.py:600 src/statusactions.py:652 src/window.py:1791
 msgid "_Cancel"
 msgstr "_Abbrechen"
 
@@ -1549,7 +1549,7 @@ msgid_plural "the last %d hours"
 msgstr[0] "die letzte %d Stunde"
 msgstr[1] "die letzten %d Stunden"
 
-#: src/catchup.py:180 src/filters.py:94 src/hashtags.py:57 src/profile.py:1107
+#: src/catchup.py:180 src/filters.py:94 src/hashtags.py:65 src/profile.py:1107
 #: src/wrapped.py:469
 #, python-format
 msgid "%d post"
@@ -1578,7 +1578,7 @@ msgid "Replies"
 msgstr "Antworten"
 
 #: src/catchup.py:414 src/catchup.py:432 src/notificationcopy.py:62
-#: src/statusrow.py:663 src/statusviews.py:25 src/statusviews.py:108
+#: src/statusrow.py:655 src/statusviews.py:25 src/statusviews.py:108
 msgid "Boosts"
 msgstr "Geteilte Beiträge"
 
@@ -1595,8 +1595,8 @@ msgstr "Gefolgte Schlagwörter"
 msgid "Groups"
 msgstr "Gruppen"
 
-#: src/catchup.py:416 src/catchup.py:820 src/statusrow.py:455
-#: src/statusrow.py:463
+#: src/catchup.py:416 src/catchup.py:820 src/statusrow.py:447
+#: src/statusrow.py:455
 msgid "Filtered"
 msgstr "Gefiltert"
 
@@ -1723,7 +1723,7 @@ msgstr "%s werden angezeigt"
 
 #. Translators: the row of a post hidden behind a filter; %s names
 #. the filter(s)
-#: src/catchup.py:819 src/statusrow.py:455 src/statusrow.py:463
+#: src/catchup.py:819 src/statusrow.py:447 src/statusrow.py:455
 #, python-format
 msgid "Filtered: %s"
 msgstr "Gefiltert: %s"
@@ -1738,7 +1738,7 @@ msgid "CW: %s"
 msgstr "IW: %s"
 
 #. Translators: %s is the name of the person who boosted the post
-#: src/catchup.py:837 src/catchupgrid.py:677 src/statusrow.py:431
+#: src/catchup.py:837 src/catchupgrid.py:677 src/sourceline.py:71
 #, python-format
 msgid "%s boosted"
 msgstr "%s hat geteilt"
@@ -1835,7 +1835,7 @@ msgid "Preparing your catch-up…"
 msgstr "Catch-up wird vorbereitet…"
 
 #: src/catchup.py:1661 src/explore.py:391 src/preferences.py:308
-#: src/profile.py:1151 src/search.py:505 src/timelinepage.py:217
+#: src/profile.py:1151 src/search.py:505 src/timelinepage.py:221
 msgid "Posts"
 msgstr "Beiträge"
 
@@ -2005,7 +2005,7 @@ msgid "Following"
 msgstr "Folge ich"
 
 #: src/catchupgrid.py:1305 src/profile.py:873 src/profile.py:924
-#: src/statusrow.py:215 src/statusrow.py:615
+#: src/statusrow.py:216 src/statusrow.py:607
 msgid "Show More"
 msgstr "Mehr anzeigen"
 
@@ -2088,7 +2088,7 @@ msgstr "Anhang entfernen"
 msgid "Description"
 msgstr "Beschreibung"
 
-#: src/compose.py:423 src/statusrow.py:595
+#: src/compose.py:423 src/statusrow.py:587
 msgid "Replying to a post"
 msgstr "Antwort auf einen Beitrag"
 
@@ -2287,7 +2287,7 @@ msgid "Quote Post"
 msgstr "Beitrag zitieren"
 
 #: src/compose.py:1710 src/desktopnotify.py:222 src/scheduled.py:421
-#: src/statusactions.py:323 src/statusmenu.py:216
+#: src/statusactions.py:327 src/statusmenu.py:216
 msgid "Reply"
 msgstr "Antworten"
 
@@ -2353,7 +2353,7 @@ msgstr ""
 "behalten ihre Kopie."
 
 #: src/conversations.py:212 src/fedicollections.py:257
-#: src/fedicollections.py:543 src/filters.py:346 src/hashtags.py:540
+#: src/fedicollections.py:543 src/filters.py:346 src/hashtags.py:549
 #: src/lists.py:282 src/lists.py:579 src/scheduled.py:497 src/statusmenu.py:194
 #: src/statusmenu.py:441
 msgid "_Delete"
@@ -2395,11 +2395,11 @@ msgstr[1] "%(first)s, %(second)s und %(count)d weitere"
 msgid "Follow Back"
 msgstr "Zurückfolgen"
 
-#: src/desktopnotify.py:224 src/statusactions.py:333 src/statusmenu.py:220
+#: src/desktopnotify.py:224 src/statusactions.py:337 src/statusmenu.py:220
 msgid "Favorite"
 msgstr "Favorisieren"
 
-#: src/desktopnotify.py:227 src/statusactions.py:326 src/statusactions.py:439
+#: src/desktopnotify.py:227 src/statusactions.py:330 src/statusactions.py:443
 #: src/statusmenu.py:217
 msgid "Boost"
 msgstr "Teilen"
@@ -2566,7 +2566,7 @@ msgid_plural "%d people talking"
 msgstr[0] "%d Person spricht darüber"
 msgstr[1] "%d Personen sprechen darüber"
 
-#: src/explore.py:261 src/hashtags.py:180 src/hashtags.py:211
+#: src/explore.py:261 src/hashtags.py:188 src/hashtags.py:219
 msgid "_Follow"
 msgstr "_Folgen"
 
@@ -2602,7 +2602,7 @@ msgstr "Keine angesagten Hashtags"
 msgid "No Trending News"
 msgstr "Keine angesagten Nachrichten"
 
-#: src/explore.py:392 src/hashtags.py:471 src/search.py:504 src/window.py:83
+#: src/explore.py:392 src/hashtags.py:480 src/search.py:504 src/window.py:83
 msgid "Hashtags"
 msgstr "Hashtags"
 
@@ -2638,7 +2638,7 @@ msgstr "Sammlung melden"
 msgid "Delete"
 msgstr "Löschen"
 
-#: src/fedicollections.py:194 src/hashtags.py:192 src/profile.py:442
+#: src/fedicollections.py:194 src/hashtags.py:200 src/profile.py:442
 #: src/statusmenu.py:64
 msgid "More Options"
 msgstr "Weitere Optionen"
@@ -2774,7 +2774,7 @@ msgstr "Inhalt _anzeigen"
 msgid "Edit Collection"
 msgstr "Sammlung bearbeiten"
 
-#: src/fedicollections.py:689 src/filters.py:164 src/hashtags.py:454
+#: src/fedicollections.py:689 src/filters.py:164 src/hashtags.py:463
 #: src/lists.py:188 src/mediaviewer.py:1454 src/profile.py:314
 #: src/profileedit.py:231
 msgid "_Save"
@@ -3040,156 +3040,156 @@ msgstr ""
 msgid "Filters"
 msgstr "Filter"
 
-#: src/hashtags.py:56
+#: src/hashtags.py:64
 #, python-format
 msgid "%(posts)s · %(people)s, last %(days)d days"
 msgstr "%(posts)s · %(people)s, letzte %(days)d Tage"
 
-#: src/hashtags.py:58 src/notifications.py:153
+#: src/hashtags.py:66 src/notifications.py:153
 #, python-format
 msgid "%d person"
 msgid_plural "%d people"
 msgstr[0] "%d Person"
 msgstr[1] "%d Personen"
 
-#: src/hashtags.py:102
+#: src/hashtags.py:110
 #, python-format
 msgid "%d post in your timeline"
 msgid_plural "%d posts in your timeline"
 msgstr[0] "%d Beitrag in deiner Zeitleiste"
 msgstr[1] "%d Beiträge in deiner Zeitleiste"
 
-#: src/hashtags.py:145
+#: src/hashtags.py:153
 msgid "No Posts With This Hashtag"
 msgstr "Keine Beiträge mit diesem Hashtag"
 
-#: src/hashtags.py:146
+#: src/hashtags.py:154
 msgid "No one has posted anything with this tag yet"
 msgstr "Bisher hat niemand etwas mit diesem Hashtag veröffentlicht"
 
-#: src/hashtags.py:169 src/hashtags.py:706
+#: src/hashtags.py:177 src/hashtags.py:720
 msgid "Edit Timeline"
 msgstr "Zeitleiste bearbeiten"
 
-#: src/hashtags.py:204
+#: src/hashtags.py:212
 #, fuzzy
 msgid "_Remove from Featured Tags"
 msgstr "Aus vorgestellten Hashtags entfernen"
 
-#: src/hashtags.py:205 src/profileactions.py:109
+#: src/hashtags.py:213 src/profileactions.py:109
 #, fuzzy
 msgid "_Feature on Profile"
 msgstr "Im Profil vorstellen"
 
-#: src/hashtags.py:210 src/hashtags.py:633 src/profileactions.py:209
+#: src/hashtags.py:218 src/hashtags.py:642 src/profileactions.py:209
 msgid "_Unfollow"
 msgstr "_Entfolgen"
 
-#: src/hashtags.py:261 src/hashtags.py:668
+#: src/hashtags.py:269 src/hashtags.py:682
 #, python-format
 msgid "Could not unfollow #%s"
 msgstr "#%s konnte nicht entfolgt werden"
 
-#: src/hashtags.py:263 src/hashtags.py:655
+#: src/hashtags.py:271 src/hashtags.py:668
 #, python-format
 msgid "Could not follow #%s"
 msgstr "#%s konnte nicht gefolgt werden"
 
-#: src/hashtags.py:267
+#: src/hashtags.py:276
 #, python-format
 msgid "Followed #%s"
 msgstr "Sie folgen #%s"
 
-#: src/hashtags.py:268 src/hashtags.py:659
+#: src/hashtags.py:277 src/hashtags.py:673
 #, python-format
 msgid "Unfollowed #%s"
 msgstr "Sie folgen #%s nicht mehr"
 
-#: src/hashtags.py:281
+#: src/hashtags.py:290
 msgid "Could not change the featured tags"
 msgstr "Die vorgestellten Hashtags konnten nicht geändert werden"
 
-#: src/hashtags.py:286
+#: src/hashtags.py:295
 msgid "Removed from featured tags"
 msgstr "Aus vorgestellten Hashtags entfernt"
 
-#: src/hashtags.py:289
+#: src/hashtags.py:298
 msgid "Featured on your profile"
 msgstr "In Ihrem Profil vorgestellt"
 
-#: src/hashtags.py:383
+#: src/hashtags.py:392
 msgid "Add Hashtag"
 msgstr "Hashtag hinzufügen"
 
-#: src/hashtags.py:405
+#: src/hashtags.py:414
 msgid "Remove Hashtag"
 msgstr "Hashtag entfernen"
 
-#: src/hashtags.py:430
+#: src/hashtags.py:439
 #, python-format
 msgid "At most %d hashtag can be combined"
 msgid_plural "At most %d hashtags can be combined"
 msgstr[0] "Höchstens %d Hashtag kann kombiniert werden"
 msgstr[1] "Höchstens %d Hashtags können kombiniert werden"
 
-#: src/hashtags.py:444
+#: src/hashtags.py:453
 msgid "Edit Multi-Hashtag Timeline"
 msgstr "Mehr-Hashtag-Zeitleiste bearbeiten"
 
-#: src/hashtags.py:445 src/hashtags.py:803
+#: src/hashtags.py:454 src/hashtags.py:817
 msgid "New Multi-Hashtag Timeline"
 msgstr "Neue Mehr-Hashtag-Zeitleiste"
 
-#: src/hashtags.py:460 src/lists.py:196
+#: src/hashtags.py:469 src/lists.py:196
 msgid "Title"
 msgstr "Titel"
 
-#: src/hashtags.py:464
+#: src/hashtags.py:473
 msgid "Local Only"
 msgstr "Nur lokal"
 
-#: src/hashtags.py:465
+#: src/hashtags.py:474
 msgid "Only posts from your server"
 msgstr "Nur Beiträge von Ihrem Server"
 
-#: src/hashtags.py:472
+#: src/hashtags.py:481
 msgid "Posts with any of these hashtags. The first one is the main hashtag."
 msgstr "Beiträge mit einem dieser Hashtags. Der erste ist der Haupt-Hashtag."
 
-#: src/hashtags.py:475
+#: src/hashtags.py:484
 msgid "Also Requiring"
 msgstr "Außerdem erforderlich"
 
-#: src/hashtags.py:475
+#: src/hashtags.py:484
 msgid "Posts must contain all of these too"
 msgstr "Beiträge müssen zusätzlich alle diese enthalten"
 
-#: src/hashtags.py:478
+#: src/hashtags.py:487
 msgid "Excluding"
 msgstr "Ausgenommen"
 
-#: src/hashtags.py:478
+#: src/hashtags.py:487
 msgid "Hide posts with any of these"
 msgstr "Beiträge mit einem davon ausblenden"
 
-#: src/hashtags.py:487
+#: src/hashtags.py:496
 msgid "_Delete Timeline"
 msgstr "Zeitleiste _löschen"
 
-#: src/hashtags.py:537
+#: src/hashtags.py:546
 msgid "Delete This Timeline?"
 msgstr "Diese Zeitleiste löschen?"
 
-#: src/hashtags.py:538
+#: src/hashtags.py:547
 #, python-format
 msgid "The saved timeline “%s” will be deleted."
 msgstr "Die gespeicherte Zeitleiste „%s“ wird gelöscht."
 
-#: src/hashtags.py:574
+#: src/hashtags.py:583
 msgid "Usage over time"
 msgstr "Nutzung über die Zeit"
 
-#: src/hashtags.py:575
+#: src/hashtags.py:584
 #, python-format
 msgid "%(total)d use, peaking at %(peak)d"
 msgid_plural "%(total)d uses, peaking at %(peak)d"
@@ -3197,33 +3197,33 @@ msgstr[0] "%(total)d Nutzung, Höchstwert bei %(peak)d"
 msgstr[1] "%(total)d Nutzungen, Höchstwert bei %(peak)d"
 
 #. weak: this group is its child
-#: src/hashtags.py:683
+#: src/hashtags.py:697
 msgid "Multi-Hashtag Timelines"
 msgstr "Mehr-Hashtag-Zeitleisten"
 
-#: src/hashtags.py:715
+#: src/hashtags.py:729
 msgid "New Multi-Hashtag Timeline…"
 msgstr "Neue Mehr-Hashtag-Zeitleiste…"
 
-#: src/hashtags.py:758
+#: src/hashtags.py:772
 msgid "No followed hashtags"
 msgstr "Keine gefolgten Hashtags"
 
-#: src/hashtags.py:759
+#: src/hashtags.py:773
 msgid "Follow a hashtag from its page to see its posts in Home"
 msgstr ""
 "Folgen Sie einem Hashtag auf seiner Seite, um seine Beiträge auf der "
 "Startseite zu sehen"
 
-#: src/hashtags.py:792
+#: src/hashtags.py:806
 msgid "Followed Hashtags"
 msgstr "Gefolgte Hashtags"
 
-#: src/hashtags.py:796
+#: src/hashtags.py:810
 msgid "No Followed Hashtags"
 msgstr "Keine gefolgten Hashtags"
 
-#: src/hashtags.py:798
+#: src/hashtags.py:812
 msgid "Follow a hashtag from its page to see its posts in your home timeline"
 msgstr ""
 "Folgen Sie einem Hashtag auf seiner Seite, um seine Beiträge auf Ihrer "
@@ -3889,7 +3889,7 @@ msgstr "Von Ihnen zitierte Beiträge, die bearbeitet wurden"
 msgid "Server administrators only"
 msgstr "Nur Server-Administratoren"
 
-#: src/notificationctrl.py:213 src/pollbox.py:224 src/timelinepage.py:523
+#: src/notificationctrl.py:213 src/pollbox.py:224 src/timelinepage.py:602
 msgid "Refresh failed"
 msgstr "Aktualisierung fehlgeschlagen"
 
@@ -4459,7 +4459,7 @@ msgid "_Don’t Remind Me Again"
 msgstr "_Nicht mehr erinnern"
 
 #: src/pages.py:406 src/pages.py:639 src/profileactions.py:301
-#: src/statusactions.py:538
+#: src/statusactions.py:542
 msgid "Action failed"
 msgstr "Aktion fehlgeschlagen"
 
@@ -5157,7 +5157,7 @@ msgstr "Der Besitz dieses Links wurde am %s bestätigt"
 msgid "Verified Link"
 msgstr "Bestätigter Link"
 
-#: src/profile.py:924 src/statusrow.py:615
+#: src/profile.py:924 src/statusrow.py:607
 msgid "Show Less"
 msgstr "Weniger anzeigen"
 
@@ -5268,7 +5268,7 @@ msgstr[1] "Alle %d Profile anzeigen"
 msgid "No Featured Profiles"
 msgstr "Keine vorgestellten Profile"
 
-#: src/profile.py:1153 src/statusrow.py:150 src/window.py:1292
+#: src/profile.py:1153 src/statusrow.py:151 src/window.py:1292
 msgid "Pinned"
 msgstr "Angeheftet"
 
@@ -6518,6 +6518,14 @@ msgstr "Beitrag senden"
 msgid "Close Composer"
 msgstr "Editor schließen"
 
+#. Translators: byline above a post that arrived through a
+#. followed hashtag; %s is the hashtag name without the leading
+#. '#'.
+#: src/sourceline.py:87
+#, python-format
+msgid "From hashtag %s"
+msgstr ""
+
 #: src/statusactions.py:37
 msgid "Quote Pending"
 msgstr "Zitat ausstehend"
@@ -6568,27 +6576,27 @@ msgstr "Zitierter Beitrag konnte nicht geöffnet werden"
 msgid "Collection %s"
 msgstr "Sammlung %s"
 
-#: src/statusactions.py:330 src/statusactions.py:435 src/statusmenu.py:219
+#: src/statusactions.py:334 src/statusactions.py:439 src/statusmenu.py:219
 msgid "Quote"
 msgstr "Zitieren"
 
-#: src/statusactions.py:337 src/statusmenu.py:221
+#: src/statusactions.py:341 src/statusmenu.py:221
 msgid "Bookmark"
 msgstr "Lesezeichen"
 
-#: src/statusactions.py:436
+#: src/statusactions.py:440
 msgid "This post can’t be quoted"
 msgstr "Dieser Beitrag kann nicht zitiert werden"
 
-#: src/statusactions.py:439
+#: src/statusactions.py:443
 msgid "This post can’t be boosted"
 msgstr "Dieser Beitrag kann nicht geteilt werden"
 
-#: src/statusactions.py:491
+#: src/statusactions.py:495
 msgid "Reply to an Old Post?"
 msgstr "Auf einen alten Beitrag antworten?"
 
-#: src/statusactions.py:492
+#: src/statusactions.py:496
 #, python-format
 msgid ""
 "This post is %(age)s old. You can still reply, but it may no longer be "
@@ -6597,50 +6605,50 @@ msgstr ""
 "Dieser Beitrag ist %(age)s alt. Sie können trotzdem antworten, aber er ist "
 "möglicherweise nicht mehr aktuell."
 
-#: src/statusactions.py:494
+#: src/statusactions.py:498
 #, python-format
 msgid "%d day"
 msgid_plural "%d days"
 msgstr[0] "%d Tag"
 msgstr[1] "%d Tage"
 
-#: src/statusactions.py:495
+#: src/statusactions.py:499
 msgid "_Reply"
 msgstr "_Antworten"
 
-#: src/statusactions.py:590
+#: src/statusactions.py:594
 msgid "This Post Has Media Without Alt Text"
 msgstr "Dieser Beitrag enthält Medien ohne Alternativtext"
 
-#: src/statusactions.py:591
+#: src/statusactions.py:595
 msgid "Some of your followers might not be able to understand it."
 msgstr "Einige Ihrer Follower können ihn möglicherweise nicht verstehen."
 
-#: src/statusactions.py:593
+#: src/statusactions.py:597
 msgid "Don’t _remind me again"
 msgstr "Nicht mehr _erinnern"
 
-#: src/statusactions.py:597 src/statusactions.py:651
+#: src/statusactions.py:601 src/statusactions.py:655
 msgid "_Boost"
 msgstr "_Teilen"
 
-#: src/statusactions.py:622
+#: src/statusactions.py:626
 msgid "Visible for all"
 msgstr "Für alle sichtbar"
 
-#: src/statusactions.py:623
+#: src/statusactions.py:627
 msgid "Visible for all, but not in public timelines"
 msgstr "Für alle sichtbar, aber nicht in öffentlichen Zeitleisten"
 
-#: src/statusactions.py:624
+#: src/statusactions.py:628
 msgid "Visible for your followers only"
 msgstr "Nur für Ihre Follower sichtbar"
 
-#: src/statusactions.py:646
+#: src/statusactions.py:650
 msgid "Boost With Visibility"
 msgstr "Mit Sichtbarkeit teilen"
 
-#: src/statusactions.py:650
+#: src/statusactions.py:654
 msgid "_Quote"
 msgstr "_Zitieren"
 
@@ -6657,7 +6665,7 @@ msgid "View Edit _History"
 msgstr "Bearbeitungs_verlauf anzeigen"
 
 #. Not _Translate: View S_tats already takes T in this menu.
-#: src/statusmenu.py:166 src/statusrow.py:347
+#: src/statusmenu.py:166 src/statusrow.py:337
 msgid "Show _Original"
 msgstr "_Original anzeigen"
 
@@ -6845,90 +6853,90 @@ msgstr ""
 "Die Person kann Ihrem Konto nicht mehr folgen oder Ihre Beiträge sehen, und "
 "ihre Beiträge werden ausgeblendet."
 
-#: src/statusrow.py:87
+#: src/statusrow.py:88
 msgid "Show _Anyway"
 msgstr "_Trotzdem anzeigen"
 
 #. Fills the header up to the time and menu, so its hover pill
 #. reads as the header's left side, not a box hugging the name.
-#: src/statusrow.py:106
+#: src/statusrow.py:107
 msgid "View Profile"
 msgstr "Profil anzeigen"
 
-#: src/statusrow.py:124
+#: src/statusrow.py:125
 msgid "Bot"
 msgstr "Bot"
 
-#: src/statusrow.py:164
+#: src/statusrow.py:165
 msgid "Edited"
 msgstr "Bearbeitet"
 
-#: src/statusrow.py:392
+#: src/statusrow.py:382
 #, python-format
 msgid "Post %(position)d of %(total)d in Thread"
 msgstr "Beitrag %(position)d von %(total)d in der Unterhaltung"
 
-#: src/statusrow.py:433
+#: src/statusrow.py:422
 #, python-format
 msgid "Post by %(author)s, boosted by %(booster)s"
 msgstr "Beitrag von %(author)s, geteilt von %(booster)s"
 
-#: src/statusrow.py:438
+#: src/statusrow.py:426
 #, python-format
 msgid "Post by %s"
 msgstr "Beitrag von %s"
 
-#: src/statusrow.py:547
+#: src/statusrow.py:539
 #, python-format
 msgid "Translated from %(language)s using %(provider)s"
 msgstr "Übersetzt aus %(language)s mit %(provider)s"
 
-#: src/statusrow.py:550
+#: src/statusrow.py:542
 #, python-format
 msgid "Translated using %s"
 msgstr "Übersetzt mit %s"
 
-#: src/statusrow.py:552
+#: src/statusrow.py:544
 msgid "Translated"
 msgstr "Übersetzt"
 
-#: src/statusrow.py:571
+#: src/statusrow.py:563
 #, python-format
 msgid "Language: %s"
 msgstr "Sprache: %s"
 
-#: src/statusrow.py:575
+#: src/statusrow.py:567
 #, python-format
 msgid "Edited %s"
 msgstr "Bearbeitet %s"
 
-#: src/statusrow.py:579
+#: src/statusrow.py:571
 msgid "Edited. Show edit history"
 msgstr "Bearbeitet. Bearbeitungsverlauf anzeigen"
 
-#: src/statusrow.py:590
+#: src/statusrow.py:582
 msgid "Replying to themselves"
 msgstr "Antwort an sich selbst"
 
-#: src/statusrow.py:594
+#: src/statusrow.py:586
 #, python-format
 msgid "Replying to @%s"
 msgstr "Antwort an @%s"
 
-#: src/statusrow.py:679
+#: src/statusrow.py:671
 msgid "Hide Content"
 msgstr "Inhalt ausblenden"
 
-#: src/statusrow.py:680
+#: src/statusrow.py:672
 msgid "Show Content"
 msgstr "Inhalt anzeigen"
 
-#: src/statusrow.py:683
+#: src/statusrow.py:675
 #, python-format
 msgid "Hide content warning: %s"
 msgstr "Inhaltswarnung ausblenden: %s"
 
-#: src/statusrow.py:684
+#: src/statusrow.py:676
 #, python-format
 msgid "Show content warning: %s"
 msgstr "Inhaltswarnung anzeigen: %s"
@@ -7098,27 +7106,27 @@ msgstr "Meine Follower"
 msgid "_Nobody"
 msgstr "Niemand"
 
-#: src/timelinepage.py:250
+#: src/timelinepage.py:254
 msgid "Loading Timeline"
 msgstr "Zeitleiste wird geladen"
 
-#: src/timelinepage.py:250
+#: src/timelinepage.py:254
 msgid "Fetching the latest posts"
 msgstr "Die neuesten Beiträge werden abgerufen"
 
-#: src/timelinepage.py:252
+#: src/timelinepage.py:256
 msgid "Could Not Load Timeline"
 msgstr "Zeitleiste konnte nicht geladen werden"
 
-#: src/timelinepage.py:255 src/window.py:1119
+#: src/timelinepage.py:259 src/window.py:1119
 msgid "No Posts Yet"
 msgstr "Noch keine Beiträge"
 
-#: src/timelinepage.py:256 src/window.py:1119
+#: src/timelinepage.py:260 src/window.py:1119
 msgid "New posts will appear here"
 msgstr "Neue Beiträge werden hier angezeigt"
 
-#: src/timelinepage.py:308
+#: src/timelinepage.py:312
 #, python-format
 msgid "%d New Post"
 msgid_plural "%d New Posts"
@@ -7127,7 +7135,7 @@ msgstr[1] "%d neue Beiträge"
 
 #. Translators: spoken by screen readers when posts arrive at the
 #. top of a timeline; %d is how many.
-#: src/timelinepage.py:340
+#: src/timelinepage.py:344
 #, python-format
 msgid "%d new post"
 msgid_plural "%d new posts"
