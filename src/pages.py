@@ -905,6 +905,17 @@ def activate_on_key(widget, callback, *args):
     widget.add_controller(keys)
 
 
+def set_accessible_label(widget, text):
+    """Give *widget* *text* as both its tooltip and its accessible label.
+
+    A tooltip does not set the accessible name, and an icon-only control
+    has no text of its own, so it needs both. Where the two should differ,
+    set them separately instead.
+    """
+    widget.set_tooltip_text(text)
+    widget.update_property([Gtk.AccessibleProperty.LABEL], [text])
+
+
 def icon_button(icon_name, tooltip, flat=True, valign=Gtk.Align.CENTER,
                 css=()):
     """A flat icon button with *tooltip* as its accessible label.
@@ -918,11 +929,10 @@ def icon_button(icon_name, tooltip, flat=True, valign=Gtk.Align.CENTER,
     :func:`connect_weak`, since a closure over the owner that the owner's
     own button holds is the cycle through C that helper prevents.
     """
-    button = Gtk.Button(icon_name=icon_name, tooltip_text=tooltip,
-                        valign=valign)
+    button = Gtk.Button(icon_name=icon_name, valign=valign)
     if flat:
         button.add_css_class('flat')
     for name in css:
         button.add_css_class(name)
-    button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+    set_accessible_label(button, tooltip)
     return button

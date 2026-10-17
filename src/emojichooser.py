@@ -19,7 +19,8 @@ from gi.repository import Adw, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import textemoji  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
-from .pages import connect_weak, weak_method  # noqa: E402
+from .pages import (connect_weak, set_accessible_label,  # noqa: E402
+                    weak_method)
 
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 RECENT_LIMIT = 24
@@ -359,9 +360,7 @@ class CustomEmojiChooser(Gtk.Popover):
         self.back_button = Gtk.Button(icon_name='go-previous-symbolic',
                                       valign=Gtk.Align.CENTER)
         self.back_button.add_css_class('flat')
-        self.back_button.set_tooltip_text(_('Back to Categories'))
-        self.back_button.update_property([Gtk.AccessibleProperty.LABEL],
-                                         [_('Back to Categories')])
+        set_accessible_label(self.back_button, _('Back to Categories'))
         connect_weak(self.back_button, 'clicked', self.on_back)
         self.grid_title = Gtk.Label(xalign=0, hexpand=True)
         self.grid_title.add_css_class('heading')
@@ -552,8 +551,7 @@ class CustomEmojiChooser(Gtk.Popover):
     def _bind_emoji(self, _factory, item):
         cell = item.get_child()
         tooltip = _show_emoji(cell, item.get_item().emoji)
-        cell.set_tooltip_text(tooltip)
-        cell.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+        set_accessible_label(cell, tooltip)
 
     def on_emoji_activated(self, _view, position):
         emoji = self.grid_store.get_item(position).emoji

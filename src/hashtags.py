@@ -186,11 +186,10 @@ class HashtagPage(Adw.Bin):
         self.pin_button = make_pin_button(
             self, FAVORITE_TAGS_KEY, name, '#' + name)
         self.more_button = Gtk.MenuButton(
-            icon_name='view-more-symbolic', tooltip_text=_('More Options'),
+            icon_name='view-more-symbolic',
             valign=Gtk.Align.CENTER, sensitive=False)
         self.more_button.add_css_class('flat')
-        self.more_button.update_property([Gtk.AccessibleProperty.LABEL],
-                                         [_('More Options')])
+        pages.set_accessible_label(self.more_button, _('More Options'))
         group = Gio.SimpleActionGroup()
         feature = Gio.SimpleAction.new('feature', None)
         pages.connect_weak(feature, 'activate', self._on_feature)

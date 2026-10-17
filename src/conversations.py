@@ -18,7 +18,8 @@ import re  # noqa: E402
 from gi.repository import Adw, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
 
 from .pages import (PagedList, confirm, connect_weak,  # noqa: E402
-                    open_status, report_error, show_toast, window_of)
+                    open_status, report_error, set_accessible_label,
+                    show_toast, window_of)
 from .statustext import parse_content, relative_time  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 
@@ -130,9 +131,7 @@ class ConversationRow(Gtk.ListBoxRow):
             icon_name='view-more-symbolic', menu_model=menu,
             valign=Gtk.Align.CENTER)
         self.menu_button.add_css_class('flat')
-        self.menu_button.set_tooltip_text(_('Conversation Options'))
-        self.menu_button.update_property(
-            [Gtk.AccessibleProperty.LABEL], [_('Conversation Options')])
+        set_accessible_label(self.menu_button, _('Conversation Options'))
         self.menu_button.insert_action_group('conv', actions)
         box.append(self.menu_button)
 
@@ -249,9 +248,7 @@ class ConversationsPage(PagedList):
             **kwargs)
         button = Gtk.Button(icon_name='mail-message-new-symbolic')
         button.add_css_class('flat')
-        button.set_tooltip_text(_('New Direct Message'))
-        button.update_property([Gtk.AccessibleProperty.LABEL],
-                               [_('New Direct Message')])
+        set_accessible_label(button, _('New Direct Message'))
         connect_weak(button, 'clicked', self._on_new_clicked)
         self.header_widgets = [button]
 

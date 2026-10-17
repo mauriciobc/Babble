@@ -168,13 +168,8 @@ def _make_dropdown(options, label):
     # which is not ours to keep in step with.
     dropdown.add_css_class('flat')
     dropdown.set_valign(Gtk.Align.CENTER)
-    _set_label(dropdown, label)
+    pages.set_accessible_label(dropdown, label)
     return dropdown
-
-
-def _set_label(widget, label):
-    widget.set_tooltip_text(label)
-    widget.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
 
 def media_type(path):
@@ -375,7 +370,7 @@ class AttachmentRow(Gtk.ListBox):
         self.remove_button = Gtk.Button(icon_name='user-trash-symbolic',
                                         valign=Gtk.Align.CENTER)
         self.remove_button.add_css_class('flat')
-        _set_label(self.remove_button, _('Remove Attachment'))
+        pages.set_accessible_label(self.remove_button, _('Remove Attachment'))
 
         header = Adw.ActionRow(title=GLib.markup_escape_text(
             GLib.path_get_basename(path)))
@@ -486,7 +481,7 @@ class BabbleComposeView(Adw.Bin):
     def build_header_bar(self):
         header = Adw.HeaderBar()
         self.discard_button = Gtk.Button(icon_name='user-trash-symbolic')
-        _set_label(self.discard_button, _('Discard Draft'))
+        pages.set_accessible_label(self.discard_button, _('Discard Draft'))
         pages.connect_weak(self.discard_button, 'clicked',
                            self.on_discard_clicked)
         header.pack_start(self.discard_button)
@@ -599,7 +594,7 @@ class BabbleComposeView(Adw.Bin):
             button = (Gtk.ToggleButton if toggle else Gtk.Button)(
                 icon_name=name)
             button.add_css_class('flat')
-            _set_label(button, label)
+            pages.set_accessible_label(button, label)
             tools.append(button)
             return button
 

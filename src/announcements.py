@@ -18,7 +18,8 @@ from .i18n import gettext as _
 
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
-from .pages import PagedList, connect_weak, report_error  # noqa: E402
+from .pages import (PagedList, connect_weak, report_error,  # noqa: E402
+                    set_accessible_label)
 from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
 from .statustext import format_time, parse_content  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
@@ -125,9 +126,7 @@ class ReactionsBar(Gtk.Box):
                                          popover=chooser,
                                          valign=Gtk.Align.START)
         self.add_button.add_css_class('circular')
-        self.add_button.set_tooltip_text(_('Add Reaction'))
-        self.add_button.update_property([Gtk.AccessibleProperty.LABEL],
-                                        [_('Add Reaction')])
+        set_accessible_label(self.add_button, _('Add Reaction'))
         self.append(self.add_button)
 
         for reaction in announcement.get('reactions') or []:
@@ -312,9 +311,7 @@ class AnnouncementsPage(PagedList):
             **kwargs)
         self.mark_all_button = Gtk.Button(icon_name='object-select-symbolic')
         self.mark_all_button.add_css_class('flat')
-        self.mark_all_button.set_tooltip_text(_('Mark All as Read'))
-        self.mark_all_button.update_property(
-            [Gtk.AccessibleProperty.LABEL], [_('Mark All as Read')])
+        set_accessible_label(self.mark_all_button, _('Mark All as Read'))
         self.mark_all_button.set_sensitive(False)
         connect_weak(self.mark_all_button, 'clicked',
                      self._on_mark_all_clicked)

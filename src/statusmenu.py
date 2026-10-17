@@ -58,12 +58,10 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
 
     def __init__(self, actions=None, button_classes=('flat',), **kwargs):
         super().__init__(icon_name='view-more-symbolic',
-                         tooltip_text=_('More Options'),
                          valign=Gtk.Align.CENTER, **kwargs)
         for css in button_classes:
             self.add_css_class(css)
-        self.update_property([Gtk.AccessibleProperty.LABEL],
-                             [_('More Options')])
+        pages.set_accessible_label(self, _('More Options'))
         self.actions = actions
         self._menu_actions = None
         self.set_create_popup_func(_open_status_menu, self.weak_ref())

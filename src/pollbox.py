@@ -119,9 +119,7 @@ class PollBox(Gtk.Box):
             if index in own:
                 mark = Gtk.Image(icon_name='object-select-symbolic',
                                  accessible_role=Gtk.AccessibleRole.IMG)
-                mark.update_property([Gtk.AccessibleProperty.LABEL],
-                                     [_('Your vote')])
-                mark.set_tooltip_text(_('Your vote'))
+                pages.set_accessible_label(mark, _('Your vote'))
                 line.append(mark)
             label = self._label(option)
             if index == winner:

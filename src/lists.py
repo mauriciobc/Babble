@@ -83,8 +83,7 @@ def make_pin_button(widget, key, item_id, what):
                              else 'non-starred-symbolic')
         tooltip = _('Unpin from Sidebar') if pinned \
             else _('Pin to Sidebar')
-        button.set_tooltip_text(tooltip)
-        button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+        pages.set_accessible_label(button, tooltip)
 
     def toggled(_button):
         widget = widget_ref()

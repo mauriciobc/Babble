@@ -212,11 +212,7 @@ class WrappedDialog(Adw.Dialog):
         self.style_button.set_menu_model(self._style_menu())
         self.header.pack_start(self.style_button)
         self.year_dropdown = Gtk.DropDown(visible=False)
-        # A tooltip does not set the accessible name, and this control
-        # has no text of its own, so it needs both.
-        self.year_dropdown.set_tooltip_text(_('Year'))
-        self.year_dropdown.update_property([Gtk.AccessibleProperty.LABEL],
-                                           [_('Year')])
+        pages.set_accessible_label(self.year_dropdown, _('Year'))
         pages.connect_weak(self.year_dropdown, 'notify::selected',
                            self._on_year)
         self.header.pack_start(self.year_dropdown)

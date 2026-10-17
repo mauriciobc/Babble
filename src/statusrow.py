@@ -392,9 +392,7 @@ class StatusRow(Gtk.Overlay):
             text = _('Post %(position)d of %(total)d in Thread') % {
                 'position': position, 'total': total}
             self.badge.set_text('%d/%d' % (position, total))
-            self.badge.set_tooltip_text(text)
-            self.badge.update_property([Gtk.AccessibleProperty.LABEL],
-                                       [text])
+            pages.set_accessible_label(self.badge, text)
 
     # Binding
 
@@ -562,9 +560,7 @@ class StatusRow(Gtk.Overlay):
         self.visibility_icon.set_visible(show_visibility)
         if show_visibility:
             self.visibility_icon.set_from_icon_name(info[1])
-            self.visibility_icon.set_tooltip_text(info[0])
-            self.visibility_icon.update_property(
-                [Gtk.AccessibleProperty.LABEL], [info[0]])
+            pages.set_accessible_label(self.visibility_icon, info[0])
         language = status.get('language')
         show_language = bool(language) \
             and language.lower().split('-')[0] != ui_language()

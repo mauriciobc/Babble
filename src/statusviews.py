@@ -267,9 +267,7 @@ class EditHistoryView(Adw.Bin):
             for option in titles:
                 row = Gtk.Box(spacing=6)
                 mark = Gtk.Image(icon_name='object-select-symbolic')
-                mark.update_property(
-                    [Gtk.AccessibleProperty.LABEL], [_('Your vote')])
-                mark.set_tooltip_text(_('Your vote'))
+                pages.set_accessible_label(mark, _('Your vote'))
                 row.append(mark)
                 row.append(Gtk.Label(label=option, xalign=0, wrap=True,
                                      hexpand=True))

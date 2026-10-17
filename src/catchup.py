@@ -1343,11 +1343,9 @@ class CatchUpPage(Adw.Bin):
         show.set_action_name('catchup.show')
         show.set_action_target_value(GLib.Variant('s', meta['id']))
         remove = Gtk.Button(icon_name='user-trash-symbolic',
-                            tooltip_text=_('Remove This Catch-Up'),
                             valign=Gtk.Align.CENTER)
         remove.add_css_class('flat')
-        remove.update_property([Gtk.AccessibleProperty.LABEL],
-                               [_('Remove This Catch-Up')])
+        pages.set_accessible_label(remove, _('Remove This Catch-Up'))
         remove.set_action_name('catchup.remove')
         remove.set_action_target_value(GLib.Variant('s', meta['id']))
         show.set_sensitive(meta['id'] != self._snapshot_id)
@@ -1699,9 +1697,8 @@ class CatchUpPage(Adw.Bin):
         controls.append(self._make_period_button())
         self.options_button = Gtk.MenuButton(
             icon_name='babble-filter-symbolic',
-            tooltip_text=_('List Options'), valign=Gtk.Align.CENTER)
-        self.options_button.update_property(
-            [Gtk.AccessibleProperty.LABEL], [_('List Options')])
+            valign=Gtk.Align.CENTER)
+        pages.set_accessible_label(self.options_button, _('List Options'))
         self.options_button.set_popover(self._build_options())
         controls.append(self.options_button)
         header.append(controls)

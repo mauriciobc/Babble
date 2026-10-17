@@ -581,11 +581,10 @@ class ReportsPage(CtxRef, Adw.Bin):
         super().__init__(**kwargs)
         self.ctx = ctx
         self.resolved_button = Gtk.ToggleButton(
-            icon_name='object-select-symbolic',
-            tooltip_text=_('Show Resolved Reports'))
+            icon_name='object-select-symbolic')
         self.resolved_button.add_css_class('flat')
-        self.resolved_button.update_property(
-            [Gtk.AccessibleProperty.LABEL], [_('Show Resolved Reports')])
+        pages.set_accessible_label(self.resolved_button,
+                                   _('Show Resolved Reports'))
         pages.connect_weak(self.resolved_button, 'toggled', self._on_toggled)
         self.header_widgets = [self.resolved_button]
         self.list = pages.PagedList(
@@ -1019,10 +1018,9 @@ class AccountsPage(CtxRef, Adw.Bin):
         super().__init__(**kwargs)
         self.ctx = ctx
         self.search_button = Gtk.ToggleButton(
-            icon_name='system-search-symbolic', tooltip_text=_('Search'))
+            icon_name='system-search-symbolic')
         self.search_button.add_css_class('flat')
-        self.search_button.update_property([Gtk.AccessibleProperty.LABEL],
-                                           [_('Search')])
+        pages.set_accessible_label(self.search_button, _('Search'))
         self.header_widgets = [self.search_button]
 
         self.origin = self._dropdown(self.ORIGINS, _('Location'))
@@ -1061,9 +1059,8 @@ class AccountsPage(CtxRef, Adw.Bin):
     @staticmethod
     def _dropdown(options, tooltip):
         dropdown = Gtk.DropDown(
-            model=Gtk.StringList.new([label for _k, label in options]),
-            tooltip_text=tooltip)
-        dropdown.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+            model=Gtk.StringList.new([label for _k, label in options]))
+        pages.set_accessible_label(dropdown, tooltip)
         dropdown.options = [key for key, _l in options]
         return dropdown
 
@@ -1166,17 +1163,14 @@ class AdminAccountDialog(AdminDialogBase):
         role = item.get('role') or {}
         info.add(info_row(_('Role'), role.get('name')))
         email = info_row(_('E-mail'), item.get('email'))
+        confirmed_text = _('Confirmed') if item.get('confirmed') \
+            else _('Not Confirmed')
         confirmed = Gtk.Image(
             icon_name='object-select-symbolic' if item.get('confirmed')
-            else 'dialog-warning-symbolic',
-            tooltip_text=_('Confirmed') if item.get('confirmed')
-            else _('Not Confirmed'), valign=Gtk.Align.CENTER)
+            else 'dialog-warning-symbolic', valign=Gtk.Align.CENTER)
         confirmed.add_css_class('success' if item.get('confirmed')
                                 else 'warning')
-        confirmed.update_property(
-            [Gtk.AccessibleProperty.LABEL],
-            [_('Confirmed') if item.get('confirmed')
-             else _('Not Confirmed')])
+        pages.set_accessible_label(confirmed, confirmed_text)
         email.add_suffix(confirmed)
         info.add(email)
         ips = [entry.get('ip') for entry in item.get('ips') or []

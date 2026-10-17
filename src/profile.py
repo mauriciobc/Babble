@@ -441,11 +441,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
         if self._signed_in():
             label = _('More Options')
             self.menu_button = Gtk.MenuButton(
-                icon_name='view-more-symbolic', tooltip_text=label,
-                valign=Gtk.Align.CENTER)
+                icon_name='view-more-symbolic', valign=Gtk.Align.CENTER)
             self.menu_button.add_css_class('flat')
-            self.menu_button.update_property(
-                [Gtk.AccessibleProperty.LABEL], [label])
+            pages.set_accessible_label(self.menu_button, label)
             self.action_bar.append(self.menu_button)
 
         self._build_actions()

@@ -205,8 +205,7 @@ def _pill(text, icon_name, css, compact=False):
     if icon_name:
         box.append(_icon(icon_name))
     if compact and icon_name:
-        box.set_tooltip_text(text)
-        box.update_property([Gtk.AccessibleProperty.LABEL], [text])
+        pages.set_accessible_label(box, text)
         return box
     label = Gtk.Label(label=text)
     label.add_css_class('caption-heading')

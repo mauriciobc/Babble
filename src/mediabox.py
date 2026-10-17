@@ -244,10 +244,10 @@ class BoostCarousel(Gtk.Box):
         self.append(self.scroll)
 
     def _arrow(self, icon_name, tooltip, direction):
-        button = Gtk.Button(icon_name=icon_name, tooltip_text=tooltip)
+        button = Gtk.Button(icon_name=icon_name)
         button.add_css_class('flat')
         button.add_css_class('circular')
-        button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
+        pages.set_accessible_label(button, tooltip)
         connect_weak(button, 'clicked', self._page_by, direction)
         return button
 

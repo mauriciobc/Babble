@@ -1002,9 +1002,7 @@ class NotificationRow(ColumnBox):
             names.append(name)
             self.people_box.append(self._person_row(name, kind))
         people = ', '.join(names)
-        self.cluster_expander.set_tooltip_text(people)
-        self.cluster_expander.update_property(
-            [Gtk.AccessibleProperty.LABEL], [people])
+        pages.set_accessible_label(self.cluster_expander, people)
 
     # Inline actions
 
@@ -1355,16 +1353,13 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         self.menu_button = Gtk.MenuButton(icon_name='open-menu-symbolic',
                                           menu_model=menu)
         self.menu_button.add_css_class('flat')
-        self.menu_button.set_tooltip_text(_('Notification Options'))
-        self.menu_button.update_property(
-            [Gtk.AccessibleProperty.LABEL], [_('Notification Options')])
+        pages.set_accessible_label(self.menu_button,
+                                   _('Notification Options'))
         self.menu_button.insert_action_group('notifs', self.actions)
 
         clear_button = Gtk.Button(icon_name='edit-clear-all-symbolic')
         clear_button.add_css_class('flat')
-        clear_button.set_tooltip_text(_('Clear Notifications'))
-        clear_button.update_property([Gtk.AccessibleProperty.LABEL],
-                                     [_('Clear Notifications')])
+        pages.set_accessible_label(clear_button, _('Clear Notifications'))
         connect_weak(clear_button, 'clicked', self.on_clear_requested)
 
         box = Gtk.Box(spacing=0)
