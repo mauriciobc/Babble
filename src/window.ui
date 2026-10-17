@@ -21,6 +21,16 @@
         <setter object="notifications_bell" property="visible">False</setter>
       </object>
     </child>
+    <child>
+      <object class="AdwBreakpoint">
+        <condition>min-width: 1100sp</condition>
+        <setter object="split_view" property="collapsed">False</setter>
+        <setter object="sidebar_list" property="mode">sidebar</setter>
+        <setter object="home_compose_button" property="visible">False</setter>
+        <setter object="notifications_bell" property="visible">False</setter>
+        <setter object="web_split" property="collapsed">False</setter>
+      </object>
+    </child>
     <property name="content">
       <!-- The media viewer is an overlay of this window rather
            than a dialog: an AdwDialog floats inside the window and
@@ -287,6 +297,20 @@
                         </object>
                       </child>
                       <child>
+                        <!-- Web links open in this end column (webcolumn.py).
+                             It overlays the content until the window is
+                             wide enough to pin it beside the timeline;
+                             the column itself is built on the first link. -->
+                        <object class="AdwOverlaySplitView" id="web_split">
+                          <property name="vexpand">True</property>
+                          <property name="collapsed">True</property>
+                          <property name="show-sidebar">False</property>
+                          <property name="sidebar-position">end</property>
+                          <property name="enable-show-gesture">False</property>
+                          <property name="min-sidebar-width">360</property>
+                          <property name="max-sidebar-width">720</property>
+                          <property name="sidebar-width-fraction">0.45</property>
+                          <property name="content">
                         <object class="AdwNavigationSplitView" id="split_view">
                       <property name="vexpand">True</property>
                       <property name="collapsed">True</property>
@@ -459,6 +483,11 @@
                         </object>
                       </property>
                     </object>
+                          </property>
+                          <property name="sidebar">
+                            <object class="AdwBin" id="web_slot"/>
+                          </property>
+                        </object>
                       </child>
                     </object>
                   </property>

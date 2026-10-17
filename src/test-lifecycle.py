@@ -153,6 +153,13 @@ check('the open preferences dialog is the visible one',
 check('the window has an open_help for the help action',
       callable(getattr(win, 'open_help', None)))
 
+# --- links open in a column without loading WebKit ---------------------
+# The web column is opt-in and WebKit is large, so nothing on the
+# startup path may import it; it is loaded on the first link opened in
+# the column, not before.
+check('WebKit is not loaded by the window or preferences',
+      'gi.repository.WebKit' not in sys.modules)
+
 if failures:
     print('\n%d lifecycle check(s) failed: %s'
           % (len(failures), ', '.join(failures)))

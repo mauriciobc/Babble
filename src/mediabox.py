@@ -17,7 +17,6 @@ from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .statustext import (parse_content,  # noqa: E402
                          shorten_url_text, split_url, url_host)
-from .textemoji import launch_uri  # noqa: E402
 
 """Link previews, the boost carousel and the media grid.
 
@@ -127,7 +126,11 @@ class CardPreview(Gtk.Button):
         content.append(text)
         self.set_child(content)
         if self._href:
-            self.connect('clicked', lambda _b: launch_uri(self, self._href))
+            # Through open_link, like a link in the post text: tracking
+            # stripped, posts and profiles opened in the app, and the
+            # web column when it is on.
+            self.connect('clicked',
+                         lambda _b: pages.open_link(self, self._href))
         else:
             self.set_sensitive(False)
 

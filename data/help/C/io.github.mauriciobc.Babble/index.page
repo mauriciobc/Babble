@@ -67,6 +67,20 @@
       Every list keeps its place: scrolling position and loaded posts
       survive switching away and coming back.
     </p>
+    <p>
+      Links normally open in your browser. Turn on <gui>Open Web Links
+      Beside the Timeline</gui> in Preferences and they open in a column
+      next to the timeline instead, or over it when the window is narrow.
+      Links to posts and profiles still open in Babble itself, and
+      Ctrl-click or a middle click sends a link to the browser.
+    </p>
+    <p>
+      Pages in the column keep no cookies or history once Babble closes,
+      cannot ask for your location, camera or microphone, and never
+      download files: a download is handed to your browser.
+      <gui>Open in Browser</gui> in the column's menu does the same for the
+      page you are reading.
+    </p>
   </section>
 
   <section id="writing" style="2column">
@@ -152,6 +166,11 @@
       Ctrl+N writes, Ctrl+F searches, Ctrl+R reloads, Ctrl+1 through Ctrl+9
       jump between places, Alt+Left goes back and Ctrl+, opens Preferences.
       Press <key>F1</key> for this help, or Ctrl+? to list every shortcut.
+    </p>
+    <p>
+      While a page in the web column has the focus, Ctrl+R and F5 reload
+      the page, Alt+Left and Alt+Right go back and forward, and Escape or
+      Ctrl+W hides the column.
     </p>
   </section>
 

@@ -18,6 +18,7 @@ from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from . import portals  # noqa: E402
+from . import webcolumn  # noqa: E402
 from .capabilities import COLLECTIONS_API_VERSION  # noqa: E402
 from .mastodon import (OAUTH_REDIRECT, MastodonClient, clear_secret_async,  # noqa: E402
                        normalize_instance, summarize_error)
@@ -121,6 +122,8 @@ class BabbleWindow(Adw.ApplicationWindow):
     paste_code_button = Gtk.Template.Child()
     sign_up_link = Gtk.Template.Child()
     login_back_button = Gtk.Template.Child()
+    web_split = Gtk.Template.Child()
+    web_slot = Gtk.Template.Child()
     split_view = Gtk.Template.Child()
     draft_banner = Gtk.Template.Child()
     sidebar_list = Gtk.Template.Child()
@@ -234,7 +237,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             ('compose', lambda *a: self.present_composer()),
             ('view-profile', self.on_view_profile),
             ('reload', self.on_reload),
-            ('back', lambda *a: self.go_back()),
+            ('back', self.on_back),
+            ('close-pane', self.on_close_pane),
             ('back-home', lambda *a: self.go_home()),
             ('search', lambda *a: self.open_search()),
             ('announcements', lambda *a: self._push_secondary(
@@ -279,6 +283,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         pages.connect_weak(self.main_stack, 'notify::visible-child-name',
                            self._sync_translucent_sidebar)
         self._sync_translucent_sidebar()
+        webcolumn.watch_split(self.web_split)
         pages.connect_weak(self, 'close-request', self._on_close_request)
         pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
         self._sync_global_shortcut()
@@ -1470,7 +1475,17 @@ class BabbleWindow(Adw.ApplicationWindow):
                 return None
         return None
 
+    def on_close_pane(self, _action, _param):
+        if not webcolumn.forward_action(self, 'close'):
+            self.close()
+
+    def on_back(self, _action, _param):
+        if not webcolumn.forward_action(self, 'back'):
+            self.go_back()
+
     def on_reload(self, _action, _param):
+        if webcolumn.forward_action(self, 'reload'):
+            return
         visible = self.navigation_view.get_visible_page()
         if visible is None:
             return

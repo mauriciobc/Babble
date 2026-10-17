@@ -175,6 +175,15 @@
       <default>true</default>
       <summary>Open links to posts and profiles on other servers inside Babble</summary>
     </key>
+    <key name="open-links-in-app" type="b">
+      <default>false</default>
+      <summary>Open web links in a column beside the timeline</summary>
+      <description>When off, or when WebKitGTK is not installed, web links open in the default browser.</description>
+    </key>
+    <key name="web-javascript" type="b">
+      <default>true</default>
+      <summary>Let pages opened in Babble run JavaScript</summary>
+    </key>
     <key name="offer-copied-links" type="b">
       <default>true</default>
       <summary>Offer to open post and profile links found on the clipboard</summary>

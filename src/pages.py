@@ -9,7 +9,8 @@
 * lists: :class:`PagedList` (any Link-paginated endpoint rendered as a
   boxed list of rows), :class:`AccountRow`, :class:`AccountListPage`
 * links: :func:`open_link` routes post, profile and hashtag URLs into the
-  app and everything else to the browser.
+  app and everything else to the web column (when ``open-links-in-app``
+  is on) or the browser, through :func:`open_web`.
 """
 
 import re
@@ -771,6 +772,13 @@ def fedi_link_kind(uri):
     return None
 
 
+def is_fediverse_link(uri):
+    """True when *uri* is an http(s) link to a post, profile, hashtag or
+    Collection on a fediverse server, the links :func:`open_link` can
+    resolve in-app."""
+    return fedi_link_kind(uri) is not None
+
+
 def strip_tracking(uri):
     parts = split_url(uri)
     if parts is None or not parts.query:
@@ -786,6 +794,22 @@ def launch_external(widget, uri):
     launch_uri(widget, uri)
 
 
+def open_web(widget, uri):
+    """Open an article or other web link: in the web column beside the
+    timeline when ``open-links-in-app`` is on and WebKit is available,
+    in the browser otherwise.
+
+    For article and web links only. OAuth, the explicit "Open in
+    Browser" actions and non-web schemes must keep using
+    :func:`launch_external`, which never opens the column."""
+    if settings().get_boolean('open-links-in-app'):
+        from . import webcolumn
+        if webcolumn.available():
+            webcolumn.present_web(widget, uri)
+            return
+    launch_external(widget, uri)
+
+
 def open_link(widget, uri, mentions=None, tags=None, resolve=False):
     """Route a link clicked in post or profile text.
 
@@ -793,8 +817,9 @@ def open_link(widget, uri, mentions=None, tags=None, resolve=False):
     profile, hashtags open the hashtag timeline, Collection URLs open the
     Collection, other post/profile URLs are resolved through the
     instance's search when the ``aggressive-resolving`` setting is on, or
-    always with *resolve*; everything else goes to the browser, minus
-    tracking parameters when ``strip-tracking`` is on."""
+    always with *resolve*; everything else goes to the web column when
+    ``open-links-in-app`` is on (see :func:`open_web`), else the browser,
+    minus tracking parameters when ``strip-tracking`` is on."""
     if not is_web_link(uri):
         launch_external(widget, uri)  # refuses it, with a toast
         return
@@ -831,7 +856,7 @@ def open_link(widget, uri, mentions=None, tags=None, resolve=False):
             and _FEDI_PATH.match(parts.path):
         resolve_uri(widget, client, uri)
         return
-    launch_external(widget, uri)
+    open_web(widget, uri)
 
 
 def open_collection(widget, client, collection):

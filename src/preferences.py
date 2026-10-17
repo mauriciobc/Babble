@@ -18,7 +18,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
-from . import pages, portals  # noqa: E402
+from . import pages, portals, webcolumn  # noqa: E402
 from .notificationcopy import DESKTOP_NOTIFICATION_TYPES  # noqa: E402
 from .entities import (QUOTE_POLICIES as QUOTE_POLICY_CODES,  # noqa: E402
                        VISIBILITIES as VISIBILITY_CODES)
@@ -352,6 +352,17 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Open Remote Links in _Babble'),
                      _('Open links to posts and profiles on other '
                        'servers inside the app'))
+        if webcolumn.available():
+            web = self._switch(behavior, 'open-links-in-app',
+                               _('Open _Web Links Beside the Timeline'),
+                               _('Show other links in a column instead of '
+                                 'the browser. Pages keep no cookies once '
+                                 'Babble closes'))
+            script = self._switch(behavior, 'web-javascript',
+                                  _('Allow _JavaScript on Web Pages'),
+                                  _('Many sites do not work without it'))
+            web.bind_property('active', script, 'sensitive',
+                              GObject.BindingFlags.SYNC_CREATE)
         self._switch(behavior, 'offer-copied-links',
                      _('Offer to Open _Copied Links'),
                      _('Check the clipboard for post and profile links '
