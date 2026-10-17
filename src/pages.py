@@ -881,14 +881,18 @@ def section_label(text):
     return label
 
 
-def icon_button(icon_name, tooltip, callback=None, flat=True,
-                valign=Gtk.Align.CENTER, css=()):
+def icon_button(icon_name, tooltip, flat=True, valign=Gtk.Align.CENTER,
+                css=()):
     """A flat icon button with *tooltip* as its accessible label.
 
     *css* adds classes beyond the flat one, for the shapes this is
     otherwise re-created for: 'circular' for the round accept/dismiss
     buttons on a request, for instance. *valign* is here because the same
     button sits centred in a header bar and stretched in a row.
+
+    It takes no handler: the caller connects ``clicked`` with
+    :func:`connect_weak`, since a closure over the owner that the owner's
+    own button holds is the cycle through C that helper prevents.
     """
     button = Gtk.Button(icon_name=icon_name, tooltip_text=tooltip,
                         valign=valign)
@@ -897,6 +901,4 @@ def icon_button(icon_name, tooltip, callback=None, flat=True,
     for name in css:
         button.add_css_class(name)
     button.update_property([Gtk.AccessibleProperty.LABEL], [tooltip])
-    if callback is not None:
-        button.connect('clicked', lambda *_a: callback())
     return button

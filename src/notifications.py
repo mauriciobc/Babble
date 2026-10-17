@@ -1477,10 +1477,9 @@ class NotificationRequestRow(Adw.ActionRow):
 
     def _answer_button(self, icon_name, label, action):
         """Flat circular suffix button answering the request."""
-        self.add_suffix(pages.icon_button(
-            icon_name, label,
-            callback=lambda *_: self._on_answer_clicked(None, action),
-            css=('circular',)))
+        button = pages.icon_button(icon_name, label, css=('circular',))
+        pages.connect_weak(button, 'clicked', self._on_answer_clicked, action)
+        self.add_suffix(button)
 
     def _on_answer_clicked(self, _button, action):
         self.answer(action)
@@ -1565,12 +1564,12 @@ class RequestNotificationsPage(Adw.Bin):
         self.inner = NotificationsPage(
             client, account_id=request['account']['id'])
         self.set_child(self.inner)
-        dismiss = pages.icon_button(
-            'user-trash-symbolic', _('Dismiss'),
-            callback=lambda *_: self._on_answer_clicked(None, 'dismiss'))
-        accept = pages.icon_button(
-            'object-select-symbolic', _('Accept'),
-            callback=lambda *_: self._on_answer_clicked(None, 'accept'))
+        dismiss = pages.icon_button('user-trash-symbolic', _('Dismiss'))
+        pages.connect_weak(dismiss, 'clicked', self._on_answer_clicked,
+                           'dismiss')
+        accept = pages.icon_button('object-select-symbolic', _('Accept'))
+        pages.connect_weak(accept, 'clicked', self._on_answer_clicked,
+                           'accept')
         self.header_widgets = [dismiss, accept]
 
     def _on_answer_clicked(self, _button, action):
