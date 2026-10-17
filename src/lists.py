@@ -80,7 +80,7 @@ def make_pin_button(widget, key, item_id, what):
         button.set_active(pinned)
         state['busy'] = False
         button.set_icon_name('starred-symbolic' if pinned
-                             else 'non-starred-symbolic')
+                             else 'babble-favorite-symbolic')
         tooltip = _('Unpin from Sidebar') if pinned \
             else _('Pin to Sidebar')
         pages.set_accessible_label(button, tooltip)

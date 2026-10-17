@@ -299,7 +299,11 @@ class StatusActions(_PostBound, Adw.WrapBox):
     ICON_REPLY = 'mail-reply-sender-symbolic'
     ICON_BOOST = 'media-playlist-repeat-symbolic'
     ICON_QUOTE = 'format-indent-more-symbolic'
-    ICON_FAVOURITE = ('non-starred-symbolic', 'starred-symbolic')
+    # Not Adwaita's non-starred-symbolic: that glyph is a fill-opacity
+    # 0.35 star, so an unfavorited post reads as a disabled button. The
+    # outline shape alone carries the state, so it is drawn at full
+    # strength here.
+    ICON_FAVOURITE = ('babble-favorite-symbolic', 'starred-symbolic')
     ICON_BOOKMARK = ('bookmark-new-symbolic', 'user-bookmarks-symbolic')
 
     def __init__(self, quote=True, button_classes=('flat',), tinted=False,
