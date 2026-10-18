@@ -1023,6 +1023,63 @@ unchanged; it is not JSON. What is left in the slow completions:
 building rows in the callback — `entities.lift` 5.3%, and
 `update_font_size` 16.9%, again through the notification rows' avatars.
 
+### 12. Boost cards built after the first three — target met, frames lost, reverted
+
+**Tried.** `BoostCarousel.set_boosts` built at most `BOOST_CARDS_EAGER`
+(3) new cards at once, about a column's width; the rest waited in a tail
+built one card per idle dispatch while the carousel was mapped (a
+module-level queue of GObject weak refs, like `statusrun`'s
+`_pending_shells`), reusing existing cards and keeping strip order. Two
+variants: (a) each card added to the strip as it was built; (b) the
+waiting cards built off the strip and added together once all were
+built. A widget test pinned the order, reuse, mapping and freeing.
+
+**Result.** Runs B40, B41, B44 for (a) and B47, B48 for (b). B42, B43
+and B46 were throttled by the compositor (see below) and are left out.
+
+| Metric | B10–B12 | B30–B32 (same day, no change) | (a) B40/41/44 | (b) B47/48 |
+|---|---|---|---|---|
+| Card-population idle p99 (ms) | 9.57 [9.56–10.33] | 9.98 [9.84–10.58] | **5.41** [5.19–6.21] | **5.25** [5.25–5.25] |
+| Over-budget idles (all runs) | 23 windows, 284 ms | | 12, 165 ms | |
+| `_BoostCard.__init__` in them | 30.0% | | 9.1% | |
+| Slow layout frames (all runs) | 45 | 39 | **61** | **41** (2 runs) |
+| Frame p99 (ms) | 6.19 [6.03–6.54] | 4.55 [4.52–4.91] | 6.27 [5.81–6.85] | 7.17, 8.32 |
+| Frames over 6.94 ms | 0.70% | 0.52% | 0.81% | 1.06%, 1.32% |
+
+The target moved: the idle p99 fell by 4 ms, below the frame budget. But
+the work moved into frames. With (a), 31 of the 61 slow layout frames
+start within 40 ms after a dispatch that added a card, against none when
+the same times are shifted by 300 ms; each costs 18–20 ms. A card added
+to a shown strip queues a resize, and the next frame lays the whole row
+out again — Pango measuring all its text. Over three runs that is about
+580 ms of frames over budget to save about 120 ms of idle time. With
+(b), one relayout per carousel instead of one per card, 5–7 slow frames
+per run still follow the dispatch that adds the cards, now about 36 ms
+each. Either way the reader gets dropped frames while scrolling in
+exchange for shorter idles they never see. Reverted.
+
+**What it changes.** Anything that adds widgets to a row already on
+screen pays for a relayout of that row in the next frame, and the row's
+text measurement is the dominant cost of layout (entry 7). Spreading
+card building over several dispatches is therefore not free: fix 4 —
+bounding `_populate_pending` to one `StatusRow` per dispatch — would add
+rows to a shown shell one at a time and is likely to make the same
+trade. A build that is cheaper, or finished before the row's first
+layout, does not have this problem; one that is deferred does.
+
+**Measurement: the compositor throttled some runs.** B42, B43 and B46
+had 880–1,360 frames instead of 2,300–3,700: from some point on, each
+flick got 5–13 frames instead of about 30 (about 39 fps), the waits for
+the compositor (`frameclock frozen` marks) were 30–60 ms instead of
+10–15 ms, and a 211 ms dispatch in B42 had no CPU samples at all. In B43
+it started at 0.7 s, before any timeline content existed, so it is not
+Babble. The screen dims when idle (`idle-dim`, `idle-delay` 300 s) and
+these runs ran unattended for longer than that, so B44–B48 were recorded
+under `gnome-session-inhibit --inhibit idle`; B46 was throttled
+nonetheless, so dimming is not the only cause — a window covering
+Babble's is another candidate. Check the frame count of every run before
+comparing its percentiles.
+
 ### Still open
 
 * **T1**: the slow layout frames are GTK measuring row text (entry 7).
