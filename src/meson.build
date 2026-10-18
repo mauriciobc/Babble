@@ -192,6 +192,15 @@ test('client transport', python,
   env: test_env,
   timeout: 120,
 )
+# Drives a real local HTTP server, because the behaviour it pins is what
+# the fetcher does when a request is cancelled mid-decode: the key must
+# not be stranded, and one caller's cancellation must not take the image
+# away from another caller sharing the request.
+test('image cache', python,
+  args: [files('test-imagecache.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('media limits', python,
   args: [files('test-media-limits.py')],
   env: test_env,
