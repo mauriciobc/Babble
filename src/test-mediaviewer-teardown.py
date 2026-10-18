@@ -39,6 +39,7 @@ fixture on disk.
 """
 
 import base64
+import faulthandler
 import os
 import sys
 import tempfile
@@ -225,8 +226,29 @@ class App(Gtk.Application):
         GLib.timeout_add(50, step)
 
 
+# A hang is the failure this test cannot otherwise report: Meson kills it
+# at its timeout with nothing printed. Dump every thread's stack well
+# before that, and give up on our own so the run ends as a FAIL.
+WATCHDOG_SECONDS = 90
+faulthandler.dump_traceback_later(WATCHDOG_SECONDS, exit=False)
+
+
+def watchdog():
+    print('FAIL - the teardown did not finish in %d s (state: %s, '
+          'cycle %d, events %r)' % (WATCHDOG_SECONDS, state['phase'],
+                                    state['n'], state['events']),
+          flush=True)
+    failures.append('timed out')
+    if app is not None:
+        app.quit()
+    return False
+
+
+GLib.timeout_add_seconds(WATCHDOG_SECONDS, watchdog)
+
 app = App(application_id='org.gnome.BabbleMediaTeardownTest', flags=0)
 app.run([])
+faulthandler.cancel_dump_traceback_later()
 
 if failures:
     print('\n%d media teardown check(s) failed: %s'
