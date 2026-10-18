@@ -8,7 +8,8 @@ name: CI
 # GTK >= 4.24 and libadwaita >= 1.10 (GNOME 51). No Ubuntu image carries
 # those: ubuntu-latest ships GTK 4.14, and Canonical's repositories have
 # nothing newer. The widget tests need a display, so the run is under
-# Xvfb, and a session bus, because the keyring tests talk to D-Bus.
+# headless mutter (a real Wayland compositor, as GNOME's own CI does), and
+# a session bus, because the keyring tests talk to D-Bus.
 
 on:
   push:
@@ -42,7 +43,7 @@ jobs:
             glib2-devel \
             gtksourceview5-devel libspelling-devel hunspell-en-US \
             webkitgtk6.0 \
-            xorg-x11-server-Xvfb mesa-libGLES libglvnd-devel \
+            mutter mesa-libGLES libglvnd-devel \
             dbus-daemon dbus-x11
           # webkitgtk6.0 is a runtime dependency only (the web column
           # imports it lazily), but without it `web column` skips, and
@@ -58,8 +59,8 @@ jobs:
         run: meson compile -C build
 
       - name: Test
-        # Serialized, deliberately. The widget suites share one Xvfb
-        # display, and several of them pump the same main context; run
+        # Serialized, deliberately. The widget suites share one display
+        # and several of them pump the same main context; run
         # concurrently, they race against each other and flake on a
         # perfectly clean tree (roughly 1 run in 3). A condition-wait in
         # a test cannot cancel that, because the contention is between
@@ -74,7 +75,21 @@ jobs:
           # Without pipefail the pipeline's status is tee's, so a failing
           # suite still leaves this step green. The suite is the gate.
           set -o pipefail
-          xvfb-run -a dbus-run-session -- \
+          # Headless mutter rather than Xvfb. A real Wayland compositor,
+          # and the only headless setup here with a frame clock and a GPU
+          # path -- which is also the honest way to measure first load
+          # (see PERFORMANCE.md). GNOME 40+ is required for --headless.
+          #
+          # --virtual-monitor has to be 1280x1024. The geometry-sensitive
+          # tests (compose widgets, timeline memory) assume a window
+          # that size; xvfb-run's default screen is 640x480, which is how
+          # they came to flake. The suite itself pins LANG, LC_ALL and
+          # GSK_RENDERER in src/meson.build.
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg-runtime"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          dbus-run-session -- \
+            mutter --headless --wayland --no-x11 --virtual-monitor 1280x1024 -- \
             meson test -C build -j1 --print-errorlogs 2>&1 | tee ci.log
 
       - name: Check the suite ran
