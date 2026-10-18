@@ -374,6 +374,32 @@ def _system_state(name):
     return bool(sysstate.monitor().get_property(name))
 
 
+def release_media(bin_widget, stream):
+    """Stop *stream* and take the media widget out of *bin_widget*.
+
+    A video widget owns a GstPlay pipeline, and the pipeline owns a
+    signal-adapter thread that watches it. The stream is one of the
+    things that thread watches, so freeing the stream while the widget
+    is still alive frees what the thread is using: the thread then
+    dereferences it and the process dies with SIGSEGV in
+    ``g_type_check_instance_is_fundamentally_a`` (coredumpctl 45798).
+
+    So the stream is not cleared here. It is released together with the
+    widget -- the widget holds it for as long as it plays it, and the
+    widget's own disposal is what takes the pipeline down, in the order
+    that was written to be taken down in. Clearing the file first is
+    what opens the window, and waiting for the pipeline to go quiet
+    does not close it: a paused GstPlay still has its adapter thread.
+    """
+    child = bin_widget.get_child()
+    if stream is not None:
+        stream.pause()
+    bin_widget.set_child(None)
+    # Dropping our reference to the widget disposes it when we hold the
+    # last one, and the pipeline goes down with it.
+    del child
+
+
 class ZoomPicture(Gtk.Widget):
     """Texture view with fit-to-window, zoom and pan.
 
@@ -1058,18 +1084,11 @@ class MediaViewer(Adw.Bin):
         stream = self._stream
         self._stream = None
         self._stream_kind = None
-        if stream is not None:
-            stream.pause()
-            if isinstance(stream, Gtk.MediaFile):
-                stream.clear()
+        release_media(self.media_bin, stream)
         media = self._temp_media
         self._temp_media = None
         if media is not None:
             self._discard_temp(media)
-        child = self.media_bin.get_child()
-        if isinstance(child, Gtk.Video):
-            child.set_media_stream(None)
-        self.media_bin.set_child(None)
         self.deferred_picture.set_paintable(None)
         self.picture.set_texture(None)
         self._actions['copy-image'].set_enabled(False)

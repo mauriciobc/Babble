@@ -202,6 +202,16 @@ test('mediaviewer helpers', python,
   env: test_env,
   timeout: 60,
 )
+# The media teardown test plays a video and tears it down again and
+# again: the crash it guards against is a race between the widget's
+# disposal and a thread inside GstPlay, so it needs the loop, and the
+# loop needs time. fatal criticals, because a GTK critical in the
+# teardown is as much a failure as the segfault is.
+test('mediaviewer teardown', python,
+  args: [files('test-mediaviewer-teardown.py')],
+  env: fatal_test_env,
+  timeout: 300,
+)
 # WebKit's sandbox (bubblewrap) cannot start inside a build sandbox or CI
 # container (GitHub's Ubuntu runners restrict the unprivileged user
 # namespaces it needs), so this test turns it off for its own web process
