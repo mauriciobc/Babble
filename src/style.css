@@ -9,11 +9,6 @@
   background-color: color-mix(in srgb,
                               var(--window-bg-color) 92%,
                               var(--window-fg-color));
-  background-image: url('resource:///io/github/mauriciobc/Babble/babble_bg.png');
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-blend-mode: overlay;
 }
 
 /* The list paints the view background by default, which would cover
@@ -21,18 +16,6 @@
 .timeline-list listview,
 .notification-list-scroller listview {
   background: none;
-}
-
-/* The wallpaper is decoration, not content: at high contrast the
-   canvas is the window/foreground mix on its own, and a picture
-   behind it only muddies the text it is meant to sit under. The mix
-   above is left alone -- it is what keeps the cards a step away from
-   the canvas in every scheme, including this one. */
-@media (prefers-contrast: more) {
-  .timeline-list,
-  .notification-list-scroller {
-    background-image: none;
-  }
 }
 
 .status-row {

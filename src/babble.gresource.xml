@@ -4,7 +4,6 @@
     <file>window.ui</file>
     <file>shortcuts-dialog.ui</file>
     <file>style.css</file>
-    <file>babble_bg.png</file>
     <file alias="icons/scalable/apps/io.github.mauriciobc.Babble.svg">../data/icons/hicolor/scalable/apps/io.github.mauriciobc.Babble.svg</file>
     <file alias="icons/symbolic/apps/io.github.mauriciobc.Babble-symbolic.svg">../data/icons/hicolor/symbolic/apps/io.github.mauriciobc.Babble-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-compose-poll-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-compose-poll-symbolic.svg</file>

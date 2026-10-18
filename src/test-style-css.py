@@ -260,15 +260,15 @@ check('the Catch Up scrim and on-image text are left alone',
       '.catchup-on-image' in css and '.catchup-scrim' in css
       and 'var(--viewer-fg)' not in css[css.index('.catchup-scrim'):])
 
-# -- Decorative wallpaper in high contrast -----------------------------
-wallpaper = re.search(
-    r'@media \(prefers-contrast: more\)\s*\{\s*\.timeline-list,\s*'
-    r'\.notification-list-scroller\s*\{\s*background-image:\s*none',
-    css)
-check('high contrast drops the decorative wallpaper', wallpaper is not None)
-check('the wallpaper is still there outside high contrast',
-      re.search(r'\.timeline-list,\s*\.notification-list-scroller\s*\{'
-                r'[^}]*background-image:\s*url\(', css) is not None)
+# -- The timeline canvas is a plain colour -----------------------------
+# A background picture or gradient is rasterised before the first card
+# (a full-size PNG decoded again on every stylesheet parse), so the
+# canvas stays a flat colour.
+canvas = re.search(r'\.timeline-list,\s*\.notification-list-scroller\s*\{'
+                   r'[^}]*\}', css)
+check('the timeline canvas has no background image',
+      canvas is not None and 'background-image' not in canvas.group(0)
+      and 'url(' not in canvas.group(0))
 check('the canvas mix is untouched',
       re.search(r'\.timeline-list,\s*\.notification-list-scroller\s*\{'
                 r'[^}]*color-mix\(in srgb,\s*var\(--window-bg-color\) 92%',

@@ -95,17 +95,17 @@ def _private_dir(path):
     os.chmod(path, 0o700)
 
 
-def write_snapshot(snapshot):
-    """Save *snapshot* (a dict with ``account`` and ``id``) atomically and
-    return its path. Raises OSError."""
-    root = cache_root()
-    directory = account_dir(snapshot['account'])
-    os.makedirs(root, mode=0o700, exist_ok=True)
-    _private_dir(root)
-    _private_dir(directory)
-    path = snapshot_path(snapshot['account'], snapshot['id'])
+def write_private(path, text, *directories):
+    """Write *text* to *path* atomically, as ``0600``, creating
+    *directories* (outermost first) as ``0700``. Raises OSError.
+
+    The text goes to a temporary name beside the target and is renamed
+    over it, so a reader never sees half a file. Shared with the home
+    timeline cache, which holds the same kind of private posts."""
+    for directory in directories:
+        os.makedirs(directory, mode=0o700, exist_ok=True)
+        _private_dir(directory)
     temporary = '%s.%s.tmp' % (path, uuid.uuid4().hex)
-    text = _dump(snapshot)
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as handle:
@@ -117,6 +117,15 @@ def write_snapshot(snapshot):
         except OSError:
             pass
         raise
+
+
+def write_snapshot(snapshot):
+    """Save *snapshot* (a dict with ``account`` and ``id``) atomically and
+    return its path. Raises OSError."""
+    root = cache_root()
+    directory = account_dir(snapshot['account'])
+    path = snapshot_path(snapshot['account'], snapshot['id'])
+    write_private(path, _dump(snapshot), root, directory)
     return path
 
 

@@ -260,10 +260,11 @@ def _with_secret_service(callback):
     ready, without blocking the main loop.
 
     Concurrent callers share one ``Secret.Service.get``. The proxy is
-    reused afterwards: async store/lookup/clear must finish on the same
-    proxy that started them. A failed get is not remembered as a failure:
-    the keyring can be unlocked a moment later, so the next call is
-    allowed to find it.
+    reused afterwards: async store/clear must finish on the same
+    proxy that started them. (Reads no longer use it; they run on a
+    worker thread, see :func:`load_secret_async`.) A failed get is not
+    remembered as a failure: the keyring can be unlocked a moment later,
+    so the next call is allowed to find it.
     """
     global _service_getting
     if _service is not None:
@@ -340,33 +341,45 @@ def store_secret_async(instance, kind, payload, callback=None,
 
 
 def load_secret_async(instance, kind, callback, cancellable=None):
-    """Read a keyring entry on the main loop.
+    """Read a keyring entry without blocking the main loop.
 
-    *callback* is ``callback(value, error=None)``. ``value`` is the secret
-    text, or None when the entry is absent. A keyring that cannot be read
-    (locked, missing service, D-Bus failure) is not an absence: *error* is
-    the ``GLib.Error`` and *value* is None. Every callback takes both
-    arguments; the stubs in the tests were updated with it.
+    *callback* is ``callback(value, error=None)``, called on the main
+    loop. ``value`` is the secret text, or None when the entry is absent.
+    A keyring that cannot be read (locked, missing service, D-Bus
+    failure) is not an absence: *error* is the ``GLib.Error`` and *value*
+    is None. Every callback takes both arguments; the stubs in the tests
+    were updated with it.
+
+    The read runs on a worker thread. Done as a chain of async D-Bus
+    calls on the main loop, it needs one loop iteration per step (the
+    service, its session, the lookup), and at launch each of those waited
+    behind a first-frame redraw: the token, and with it the first request,
+    arrived 130-580 ms after the window was up, for a lookup that takes
+    7 ms. A thread finishes while the window is still being built and
+    hands the result over in a single dispatch.
     """
+    attributes = {'instance': instance, 'kind': kind}
 
-    def ready(service, error):
-        if error is not None:
-            callback(None, error)
+    def work(task, _source, _data, token):
+        # Worker thread: the keyring only, no widget or GSettings access.
+        try:
+            secret = Secret.password_lookup_sync(SECRET_SCHEMA, attributes,
+                                                 token)
+        except GLib.Error as failure:
+            task.return_error(failure)
             return
+        task.return_value(GObject.Value(GObject.TYPE_PYOBJECT, (secret,)))
 
-        def done(_service, result, _user_data):
-            try:
-                secret = service.lookup_finish(result)
-            except GLib.Error as failure:
-                callback(None, failure)
-                return
-            callback(secret.get_text() if secret is not None else None, None)
+    def done(_source, task, _data):
+        try:
+            _ok, (secret,) = task.propagate_value()
+        except GLib.Error as failure:
+            callback(None, failure)
+            return
+        callback(secret, None)
 
-        service.lookup(SECRET_SCHEMA,
-                       {'instance': instance, 'kind': kind},
-                       cancellable, done, None)
-
-    _with_secret_service(ready)
+    task = Gio.Task.new(None, cancellable, done, None)
+    task.run_in_thread(work)
 
 
 def clear_secret_async(instance, kind, callback=None, cancellable=None):
