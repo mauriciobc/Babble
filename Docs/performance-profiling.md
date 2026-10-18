@@ -929,6 +929,100 @@ The working tree's `src/` and `data/` were identical to `81fa874` (`git
 diff HEAD origin/main -- src data` empty); only the profiling tools and
 this document had local changes.
 
+### 10. Avatars: a cached image before the initials — no effect, reverted
+
+**Tried.** libadwaita 1.10's `update_font_size` (`adw-avatar.c:199`) runs
+on `set_text`, `set_size`, `set_show_initials` and on every
+`notify::root` — each time an avatar is attached to the window — and
+returns early only when a custom image is already set;
+`set_custom_image` itself never measures. `AvatarCache.load` gained a
+`text` argument and applied a texture already in `AvatarCache.store`
+before setting it, and the 20 call sites that built
+`Adw.Avatar(text=…)` and then called `load` passed the text to `load`
+instead. A test confirmed that a cached avatar's internal label then
+carries no size attribute (the measurement never ran), and that the
+attribute is there with the old order. `StatusRow`'s own 46 px avatar
+was never affected: it is given no text.
+
+**Result.** Runs B20–B22 (`controlled-run.sh 20|21|22`), against B10–B12:
+
+| Metric | B10–B12 | B20 | B21 | B22 | After, median [min–max] |
+|---|---|---:|---:|---:|---|
+| Frame p95 (ms) | 4.60 [4.17–4.64] | 2.44 | 4.41 | 4.01 | 4.01 [2.44–4.41] |
+| Frame p99 (ms) | 6.19 [6.03–6.54] | 4.76 | 5.96 | 5.31 | 5.31 [4.76–5.96] |
+| Frames over 6.94 ms | 0.70% [0.70–0.84] | 0.56% | 0.66% | 0.78% | 0.66% [0.56–0.78] |
+| Card-population idle p99 (ms) | 9.57 [9.56–10.33] | 10.04 | 9.81 | 9.74 | 9.81 [9.74–10.04] |
+| Card-population idle max (ms) | 16.0–18.9 | 27.6 | 22.6 | 23.7 | |
+| `update_font_size` in over-budget idles | 23.6% | | | | **26.4%** (24 windows) |
+
+The target did not move: `update_font_size` is still a quarter of the
+over-budget card-population idles, `adw_avatar_set_text` 17.3% of them.
+When a boost card or a quote is built, its author's avatar is almost
+never cached yet — boosted authors are mostly new to the session — so
+the fallback path, text before image, is the common one. Reverted; the
+patch is not kept.
+
+**What it changes.** The initials are measured because they really are
+shown until the picture arrives. Avoiding the cost means not showing
+initials meanwhile (`show_initials=False` until a fetch fails — a
+visible change), or fewer avatars per card build (entry 3, boost cards).
+
+**Also found: a first-flick layout frame of 74–92 ms.** Every run of
+B20–B22 and B30–B32 has one frame-clock dispatch over 50 ms, 130–150 ms
+after the driver's first flick, while the list grows from 9 to 24
+items; B10–B12 have none (their equivalent is 32–33 ms, about 1 s after
+the flick). Layout is 92–93% of it, with repeated `Pango wait for
+FcFontSort` marks of about 3 ms each, and its samples are HarfBuzz
+shaping and fontconfig sorting with no Babble Python on the stack. It
+is font fallback for whatever the home timeline held that day, not
+either change. The "⇒ destroy" in the report's label is the frame-clock
+source's destroy notifier, on every frame-clock dispatch, not a widget
+being destroyed. The same content drift shows in frame counts (2,8xx–
+3,4xx against 3,5xx–3,7xx), so frame percentiles are compared with care
+from here on.
+
+### 11. JSON: each API response parsed once
+
+**Done.** `MastodonClient._on_response` returns the parsed envelope
+through the task as `GObject.Value(GObject.TYPE_PYOBJECT, …)`, as
+`mediacache._decode_async` returns its texture, instead of re-encoding it
+into a `GLib.Variant` string; `_envelope` returns it as is and still
+parses the string form, which the transport test's fake hands back. A new
+check in `client transport` drives `_on_response` through a real
+`Gio.Task` to `request_finish_paged` and counts `json.loads` calls: one,
+against two before.
+
+**Result.** Runs B30–B32 (`controlled-run.sh 30|31|32`). Shares are
+main-thread perf samples whose stack contains the function (inclusive);
+"JSON C" is any of the `json` accelerator's scanner or encoder
+functions.
+
+| Metric | B10–B12 | B30 | B31 | B32 | After, median [min–max] |
+|---|---|---:|---:|---:|---|
+| HTTP completions > 5 ms (all runs) | 30 windows, 304 ms | 5 | 4 | 4 | **13 windows, 201 ms** |
+| `_on_response` in them | 19.9% | 11.6% | 2.6% | 11.3% | **8.2%** |
+| `_envelope` in them | 6.2% | 0 | 0 | 0 | **0** |
+| JSON C in them | 19.9% | 4.3% | 1.3% | 3.2% | **2.9%** |
+| JSON C samples, whole session (3 runs) | 82 | 10 | 10 | 8 | **28 (−66%)** |
+| HTTP completion p99 (ms) | 0.18 [0.17–0.20] | 0.16 | 0.18 | 0.15 | 0.16 [0.15–0.18] |
+| HTTP completion max (ms) | 31.7–37.4 | 34.8 | 42.8 | 35.3 | |
+| Frame p95 (ms) | 4.60 [4.17–4.64] | 2.36 | 1.93 | 1.94 | 1.94 [1.93–2.36] |
+| Frame p99 (ms) | 6.19 [6.03–6.54] | 4.91 | 4.55 | 4.52 | 4.55 [4.52–4.91] |
+| Frames over 6.94 ms | 0.70% [0.70–0.84] | 0.57% | 0.48% | 0.52% | 0.52% [0.48–0.57] |
+| Card-population idle p99 (ms) | 9.57 [9.56–10.33] | 10.58 | 9.98 | 9.84 | 9.98 [9.84–10.58] |
+
+The redundant two thirds of the JSON work is gone, as entry 2
+predicted, and with it more than half of the HTTP completions over 5 ms.
+The frame percentiles are lower too, but that is not this change: JSON
+runs in the completion callback, not in the frame clock, and B20–B22 —
+on the old JSON path — already spread from 2.44 to 4.41 ms at p95 on
+the same day's content (entry 10). The worst completion, 35–43 ms, is
+unchanged; it is not JSON. What is left in the slow completions:
+`NotificationRow.__init__` 10.6%, `NotificationPost.__init__` 5.8%,
+`_stamp_sections` and `_build_header` 4.3% — the notifications page
+building rows in the callback — `entities.lift` 5.3%, and
+`update_font_size` 16.9%, again through the notification rows' avatars.
+
 ### Still open
 
 * **T1**: the slow layout frames are GTK measuring row text (entry 7).

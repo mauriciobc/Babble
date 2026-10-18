@@ -25,7 +25,7 @@ import gi  # noqa: E402
 
 gi.require_version('Soup', '3.0')
 
-from gi.repository import GLib  # noqa: E402
+from gi.repository import Gio, GLib  # noqa: E402
 
 from src.mastodon import (DEFAULT_RATE_LIMIT_SECONDS,  # noqa: E402
                           MastodonClient, parse_reset_instant,
@@ -355,6 +355,81 @@ client = MastodonClient('https://example.social')
 client.register_app_finish(Task({'client_id': 'a', 'client_secret': 'b'}))
 check('a normal registration still records the credentials',
       client.client_id == 'a' and client.client_secret == 'b')
+
+
+# --- a response is parsed once and handed through the task as is ---
+
+class Body:
+    def __init__(self, text):
+        self.text = text
+
+    def get_data(self):
+        return self.text.encode()
+
+
+class Session:
+    def __init__(self, text):
+        self.text = text
+
+    def send_and_read_finish(self, _result):
+        return Body(self.text)
+
+
+class ResponseHeaders:
+    def get_one(self, name):
+        return ('<https://example.social/api/v1/timelines/home?max_id=7>;'
+                ' rel="next"') if name == 'Link' else None
+
+
+class Path:
+    def get_path(self):
+        return '/api/v1/timelines/home'
+
+
+class Message:
+    def get_status(self):
+        return 200
+
+    def get_response_headers(self):
+        return ResponseHeaders()
+
+    def get_method(self):
+        return 'GET'
+
+    def get_uri(self):
+        return Path()
+
+
+loads = []
+real_loads = json.loads
+
+
+def counting_loads(*args, **kwargs):
+    loads.append(1)
+    return real_loads(*args, **kwargs)
+
+
+finished = []
+client = MastodonClient('https://example.social')
+client._session = Session(json.dumps([{'id': '9', 'content': '<p>hi</p>'}]))
+task = Gio.Task.new(client, None,
+                    lambda c, result: finished.append(
+                        c.request_finish_paged(result)))
+client._pending[task] = Message()
+json.loads = counting_loads
+try:
+    client._on_response(None, None, task)
+    context = GLib.MainContext.default()
+    while not finished and context.iteration(False):
+        pass
+finally:
+    json.loads = real_loads
+data, older, _newer = finished[0] if finished else (None, None, None)
+check('a page arrives through the task with its Link cursor',
+      bool(data) and data[0]['id'] == '9' and older == {'max_id': '7'},
+      repr(finished))
+check('a response body is parsed exactly once', len(loads) == 1,
+      '%d json.loads calls' % len(loads))
 
 if failures:
     print('%d failure(s): %s' % (len(failures), ', '.join(failures)))

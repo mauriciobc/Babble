@@ -690,8 +690,11 @@ class MastodonClient(GObject.Object):
                         headers)
         if 200 <= status < 300 and status != Soup.Status.NONE:
             link = headers.get_one('Link') or ''
-            task.return_value(GLib.Variant('s', json.dumps(
-                {'data': data, 'link': link})))
+            # The parsed object itself, not a re-encoded string: dumping
+            # it into a GLib.Variant only for _envelope to parse it again
+            # was two thirds of each response's JSON work.
+            task.return_value(GObject.Value(GObject.TYPE_PYOBJECT,
+                                            {'data': data, 'link': link}))
         else:
             error = data.get('error') if isinstance(data, dict) else None
             if status == HTTP_TOO_MANY_REQUESTS:
@@ -720,7 +723,10 @@ class MastodonClient(GObject.Object):
         value = result.propagate_value()
         if isinstance(value, tuple):
             value = value[1]
-        return json.loads(value.get_string())
+        # Test fakes still hand back the JSON string form.
+        if isinstance(value, GLib.Variant):
+            return json.loads(value.get_string())
+        return value
 
     def _finish(self, result):
         from .entities import lift

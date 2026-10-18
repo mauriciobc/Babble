@@ -116,3 +116,7 @@ What was done:
 - **The keyring is read on a worker thread.** As async D-Bus calls on the main loop, each hop (service, session, lookup) queued behind a first-frame redraw: 133-581 ms between `present()` and the token for a 7 ms lookup. On a thread it is 46-101 ms in the app.
 
 Measured and not worth it: preconnect (above), starting the other startup requests later (the first response is no slower with them: 818-1,024 ms in parallel, 818-938 alone), trimming imports (51 ms of self time in total), and building the first cards inside the first layout (more frames, no earlier card).
+
+## API responses parsed once (2026-10-18)
+
+`MastodonClient._on_response` used to parse each response body, re-encode the result into a `GLib.Variant` string to pass it through the `Gio.Task`, and parse that string again in `_envelope` — two thirds of all response JSON work. The task now carries the parsed object (`GObject.Value(GObject.TYPE_PYOBJECT, …)`, as `mediacache._decode_async` already did). Over three 66 s controlled timeline runs, JSON samples on the main thread fell from 82 to 28 and HTTP completions over 5 ms from 30 to 13; `client transport` checks that a response is parsed exactly once. Measurements and method are in `Docs/performance-profiling.md`, investigation log entry 11. Entry 10 there records an avatar change that was measured and dropped: setting a cached picture before an avatar's initials saves nothing on the timeline, because a card's avatars are almost never cached when it is built.
