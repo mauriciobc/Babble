@@ -135,8 +135,25 @@ class CardPreview(Gtk.Button):
             self.set_sensitive(False)
 
 
+class _SlotPicture(Gtk.Picture):
+    """A picture that asks for no size of its own, for an overlay slot of
+    fixed size: a container takes its request mode from all its
+    children, overlays included, and a plain picture is height-for-width.
+    """
+
+    def do_get_request_mode(self):
+        return Gtk.SizeRequestMode.CONSTANT_SIZE
+
+
 class _BoostCard(Gtk.Button):
-    """One numbered boost in the carousel; opens the boosted post."""
+    """One numbered boost in the carousel; opens the boosted post.
+
+    Every part of a card has a constant size, so GTK measures a card once
+    and never at a width: no text wraps by measurement, and a thumbnail
+    that arrives later does not change what the card asks for. Building
+    and laying out a page of these was the largest single cost of the
+    card-population idles (Docs/performance-profiling.md).
+    """
 
     def __init__(self, number, status, client):
         super().__init__(width_request=BOOST_CARD_WIDTH)
@@ -164,7 +181,10 @@ class _BoostCard(Gtk.Button):
         avatar = Adw.Avatar(size=24, show_initials=True, text=author or '?')
         AvatarCache.load(avatar, account)
         header.append(avatar)
+        # One character of natural width: the card's width is its own,
+        # not its author's name.
         name = Gtk.Label(label=author, xalign=0.0, hexpand=True,
+                         max_width_chars=1,
                          ellipsize=Pango.EllipsizeMode.END)
         name.add_css_class('caption-heading')
         header.append(name)
@@ -179,20 +199,30 @@ class _BoostCard(Gtk.Button):
             if len(texts) >= 3:
                 break
         summary = ' '.join(texts) or '…'
-        label = Gtk.Label(label=summary, xalign=0.0, wrap=True, lines=3,
-                          wrap_mode=Pango.WrapMode.WORD_CHAR,
-                          ellipsize=Pango.EllipsizeMode.END)
+        # An inscription, not a wrapping label: three lines measured from
+        # font metrics, where a label wraps its text at every width it is
+        # asked about. An inscription costs more to build (it makes its
+        # Pango layout up front), so the one-line name stays a label.
+        label = Gtk.Inscription(
+            text=summary, xalign=0.0, yalign=0.0, min_chars=0,
+            min_lines=1, nat_lines=3, wrap_mode=Pango.WrapMode.WORD_CHAR,
+            text_overflow=Gtk.InscriptionOverflow.ELLIPSIZE_END)
         box.append(label)
         self._author = author
         self._summary = summary
         self.set_number(number)
 
         if media:
-            picture = status_picture(-1, 96, presentation=True)
+            picture = status_picture(-1, 96, presentation=True,
+                                     kind=_SlotPicture)
             url = decodable_attachment_url(media[0])
             if url:
                 _TextureCache.load(url, picture, (BOOST_CARD_WIDTH, 96))
-            box.append(picture)
+            # Over a fixed slot rather than measured: a picture is sized
+            # height-for-width and asks again when its texture lands.
+            slot = Gtk.Overlay(child=Gtk.Box(height_request=96))
+            slot.add_overlay(picture)
+            box.append(slot)
         self.connect('clicked', self._on_clicked)
 
     def set_number(self, number):

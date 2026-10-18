@@ -236,6 +236,13 @@ test('client transport', python,
   env: test_env,
   timeout: 120,
 )
+# Boost card text is drawn by Gtk.Inscription, measured without laying
+# the text out.
+test('boost card', python,
+  args: [files('test-boost-card.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 # Drives a real local HTTP server, because the behaviour it pins is what
 # the fetcher does when a request is cancelled mid-decode: the key must
 # not be stranded, and one caller's cancellation must not take the image
