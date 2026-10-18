@@ -36,6 +36,10 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          # The suite runs under mutter (see Test below), but `thread
+          # profile render` and `oauth callback` deliberately spawn their
+          # own Xvfb for a deterministic X11 screen (screenshots, a real
+          # window), and crash rather than skip without the binary.
           sudo -E dnf install -y \
             gtk4-devel libadwaita-devel libsoup3-devel libsecret-devel \
             python3-gobject gobject-introspection \
@@ -44,6 +48,7 @@ jobs:
             gtksourceview5-devel libspelling-devel hunspell-en-US \
             webkitgtk6.0 \
             mutter mesa-libGLES libglvnd-devel \
+            xorg-x11-server-Xvfb \
             dbus-daemon dbus-x11
           # webkitgtk6.0 is a runtime dependency only (the web column
           # imports it lazily), but without it `web column` skips, and

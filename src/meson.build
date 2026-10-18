@@ -132,6 +132,8 @@ install_data(
 # suite can be run under a Wayland compositor without every widget test
 # reporting a skip. Under Xvfb (xvfb-run's default screen; ci.yml runs the
 # mutter line below): xvfb-run -a dbus-run-session -- meson test -C build -j1.
+# `thread profile render` and `oauth callback` spawn their own Xvfb and force
+# GDK_BACKEND=x11, so the Xvfb binary must be installed either way.
 # Under Wayland, GNOME 40+ mutter headless:
 #   XDG_RUNTIME_DIR=$(mktemp -d) dbus-run-session -- \
 #     mutter --headless --wayland --no-x11 --virtual-monitor 1280x1024 -- \

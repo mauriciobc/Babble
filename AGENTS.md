@@ -23,6 +23,12 @@ XDG_RUNTIME_DIR=$(mktemp -d) dbus-run-session -- \
 - Xvfb remains a fallback: `xvfb-run -a dbus-run-session -- meson test -C
   build -j1`. Both give 49 passed / 1 skipped (`streaming helpers`, which
   needs a secret service).
+- `thread profile render` (`src/test-thread-profile.py`) and `oauth
+  callback` (`src/test-oauth-callback.py`) are the exception: each spawns
+  its own Xvfb at 1280x1024 and forces `GDK_BACKEND=x11` for a
+  deterministic screen. The `Xvfb` binary must therefore be installed
+  even though the suite runs under mutter; without it they crash with
+  `FileNotFoundError`, they do not skip.
 - Display guards in `src/test-*.py` accept `DISPLAY` or `WAYLAND_DISPLAY`,
   so no test silently skips under either setup.
 - `src/meson.build` pins `LANG=C`, `LC_ALL=C` and `GSK_RENDERER=cairo` in
