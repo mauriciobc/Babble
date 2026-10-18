@@ -14,7 +14,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, Gio,  # noqa: E402
                            Gtk)
 
-from . import filterrules, homecache  # noqa: E402
+from . import accounts, filterrules, homecache  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
@@ -148,6 +148,10 @@ class ApiTimelineSource:
 
 def _write_home_cache(cache_key, statuses):
     try:
+        if accounts.find_account_by_key(pages.settings(), cache_key) is None:
+            # The login went away while this page was loading, and its
+            # cache is already deleted: do not put it back.
+            return GLib.SOURCE_REMOVE
         homecache.write(cache_key, statuses)
     except (OSError, TypeError, ValueError):
         # Best effort: the next launch just has no first paint.
@@ -306,10 +310,16 @@ class TimelinePage(PagedPosts, Adw.Bin):
         so posts are on screen before the network has answered."""
         if self.cache_key is None or self.model.get_n_items():
             return
-        statuses = homecache.read(self.cache_key)
-        if not statuses:
+        try:
+            statuses = homecache.read(self.cache_key)
+            if not statuses:
+                return
+            self._fill_first(statuses)
+        except Exception:
+            # A cache that cannot be shown must not stop the live page.
+            self.model.replace_all([])
+            self._drop_cache()
             return
-        self._fill_first(statuses)
         self._showing_cache = True
         self.stack.set_visible_child_name('list')
 
@@ -322,12 +332,17 @@ class TimelinePage(PagedPosts, Adw.Bin):
                                    key=id_key)
 
     def _save_cache(self, statuses):
-        """Keep *statuses* for the next launch's first paint."""
+        """Keep *statuses*, this launch's first page, for next time."""
         if self.cache_key is not None and statuses:
             # After the frame, not in the response's dispatch: the write
             # is for the next launch and must not delay this one.
             GLib.idle_add(_write_home_cache, self.cache_key, statuses,
                           priority=GLib.PRIORITY_LOW)
+
+    def _drop_cache(self):
+        """Forget the first paint; the live page superseded it."""
+        if self.cache_key is not None:
+            homecache.delete(self.cache_key)
 
     # New posts pill / auto refresh
 
@@ -547,11 +562,12 @@ class TimelinePage(PagedPosts, Adw.Bin):
 
     def on_page_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
+            self._showing_cache = False
             return
-        self.model.loading = False
         try:
             statuses = self._finish(result)
         except GLib.Error as e:
+            self.model.loading = False
             if self._showing_cache:
                 # The cached page is still a better answer than an error
                 # page; say the refresh failed and keep it as content.
@@ -570,21 +586,49 @@ class TimelinePage(PagedPosts, Adw.Bin):
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
             return
-        self._with_home_reply_filter(statuses, lambda filtered: self
-                                     ._finish_page_loaded(filtered, generation))
+        # Paging needs a cursor even if the reply filter hides it all.
+        raw_oldest = min((s['id'] for s in statuses), key=id_key) \
+            if statuses else None
+        self._with_home_reply_filter(
+            statuses, lambda filtered: self._finish_page_loaded(
+                filtered, generation, raw_oldest))
 
-    def _finish_page_loaded(self, statuses, generation=None):
+    def _finish_page_loaded(self, statuses, generation=None, raw_oldest=None):
         if generation is not None and self._superseded(generation):
+            # Never leave paging blocked on a cache that will not swap.
+            self._showing_cache = False
             return
+        # A refresh during the reply-filter lookup must not win.
+        self.model.loading = False
         if self._showing_cache:
             self._showing_cache = False
-            self.model.replace_all(statuses)
-            self._save_cache(statuses)
-            self._note_followed_tags(statuses)
-            self.stack.set_visible_child_name(
-                'list' if self.model.get_n_items() else 'empty')
+            if statuses:
+                self.model.replace_all(statuses)
+                self._save_cache(statuses)
+                self._note_followed_tags(statuses)
+                self.stack.set_visible_child_name(
+                    'list' if self.model.get_n_items() else 'empty')
+                return
+            if raw_oldest is not None:
+                # The filter hid every live post: the cache is the better
+                # content, and paging works from its cursor again.
+                self.stack.set_visible_child_name(
+                    'list' if self.model.get_n_items() else 'empty')
+                return
+            # Authoritative empty page: those cached posts are gone.
+            self._drop_cache()
+            self.model.replace_all([])
+            self.stack.set_visible_child_name('empty')
             return
         if not statuses:
+            if raw_oldest is not None:
+                # Every post was filtered: page past the id the server
+                # returned rather than stop with no way forward.
+                self.model.oldest_id = raw_oldest
+                if self.model.get_n_items() == 0:
+                    self.stack.set_visible_child_name('loading')
+                self.load_older()
+                return
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
             else:

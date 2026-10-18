@@ -260,10 +260,11 @@ def _with_secret_service(callback):
     ready, without blocking the main loop.
 
     Concurrent callers share one ``Secret.Service.get``. The proxy is
-    reused afterwards: async store/lookup/clear must finish on the same
-    proxy that started them. A failed get is not remembered as a failure:
-    the keyring can be unlocked a moment later, so the next call is
-    allowed to find it.
+    reused afterwards: async store/clear must finish on the same
+    proxy that started them. (Reads no longer use it; they run on a
+    worker thread, see :func:`load_secret_async`.) A failed get is not
+    remembered as a failure: the keyring can be unlocked a moment later,
+    so the next call is allowed to find it.
     """
     global _service_getting
     if _service is not None:

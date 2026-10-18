@@ -12,9 +12,14 @@ One file per account, ``<cache>/babble/home/<account key>.json``. It
 holds the account's followers-only and direct posts, so it is ``0700`` /
 ``0600`` like the Catch Up snapshots, written the same way (it shares
 :func:`catchupstore.write_private`), and goes with the login when the
-account is removed. A file that is unreadable, from another version or
-older than :data:`MAX_AGE_SECONDS` reads as no cache: a stale first paint
-is worse than the spinner it replaces.
+account is removed. A file that is unreadable, holds a status that cannot
+be shown, comes from another version or is older than
+:data:`MAX_AGE_SECONDS` reads as no cache: a stale first paint is worse
+than the spinner it replaces.
+
+The page it holds is the first page this launch loaded, not the latest
+page the reader saw: later refreshes and streamed posts correct it on
+screen, and will be in the live first page next launch.
 
 No widgets: ``GLib`` for the cache directory only, like ``catchupstore``.
 """
@@ -75,9 +80,33 @@ def read(account_key, now=None):
     if not isinstance(saved_at, (int, float)) \
             or not isinstance(statuses, list) or not statuses:
         return None
+    if not all(_showable(status) for status in statuses):
+        return None
     if (time.time() if now is None else now) - saved_at > MAX_AGE_SECONDS:
         return None
     return statuses
+
+
+def _showable(status):
+    """Whether *status* is enough of a Status entity for a row.
+
+    The cache is best effort, so a file whose entries cannot be shown is
+    treated like an unreadable one instead of raising during page
+    construction, where it would keep the live page from ever loading.
+    The checks are the keys rows read without a fallback: the id, the
+    account, and a boost's reblog and its account."""
+    if not isinstance(status, dict):
+        return False
+    if not isinstance(status.get('id'), str) or not status['id']:
+        return False
+    if not isinstance(status.get('account'), dict):
+        return False
+    reblog = status.get('reblog')
+    if reblog is None:
+        return True
+    return isinstance(reblog, dict) \
+        and isinstance(reblog.get('id'), str) and bool(reblog['id']) \
+        and isinstance(reblog.get('account'), dict)
 
 
 def delete(account_key):

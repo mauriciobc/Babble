@@ -95,11 +95,32 @@ with open(path, 'w') as handle:
                'statuses': []}, handle)
 check('an empty page is no first paint', homecache.read(KEY) is None)
 
+bad_page = {'version': homecache.VERSION, 'saved_at': time.time()}
+for name, entries in (
+        ('a cache entry that is not an object is ignored', [1]),
+        ('a cache entry without an id is ignored',
+         [{'content': 'x', 'account': {}}]),
+        ('a cache entry without an account is ignored', [{'id': '1'}]),
+        ('a cache entry with a malformed boost is ignored',
+         [{'id': '1', 'account': {}, 'reblog': 'x'}])):
+    with open(path, 'w') as handle:
+        json.dump(dict(bad_page, statuses=entries), handle)
+    check(name, homecache.read(KEY) is None)
+with open(path, 'w') as handle:
+    json.dump(dict(bad_page, statuses=[{'id': '1', 'account': {}}]),
+              handle)
+check('an entry with the fields a row reads is kept',
+      homecache.read(KEY)[0]['id'] == '1')
+
 homecache.write(KEY, posts)
 homecache.delete(KEY)
 check('delete forgets the page', homecache.read(KEY) is None)
-homecache.delete(KEY)
-check('deleting a page that is not there is fine', True)
+try:
+    homecache.delete(KEY)
+    gone = True
+except OSError:
+    gone = False
+check('deleting a page that is not there is fine', gone)
 
 # Removing the login takes the cached posts with it.
 homecache.write(KEY, posts)
@@ -168,18 +189,30 @@ check('older pages append after a swap without duplicating',
 
 # -- The page ----------------------------------------------------------
 
+if failures:
+    print('%d failure(s): %s' % (len(failures), ', '.join(failures)))
+    sys.exit(1)
+
 if not os.environ.get('DISPLAY'):
     print('SKIP - no display for the page checks')
+    sys.exit(77)
 else:
     from src import timelinepage  # noqa: E402
 
     Adw.init()
+
+    # The page writes only for a login that still exists (a late response
+    # after removal must not recreate the cache), so keep this one stored.
+    if settings is not None:
+        accounts.save_account(settings, {'id': '1',
+                                         'instance': 'https://one.example'})
 
     class FakeClient:
         """Holds the home request until the test answers it."""
 
         def __init__(self):
             self.requests = []
+            self.relationships = None
 
         def rate_limited(self):
             return True                     # no followed-tags traffic
@@ -193,9 +226,20 @@ else:
                 raise result
             return result
 
+        def relationships_async(self, ids, callback=None, cancellable=None):
+            self.relationships = (ids, callback)
+
+        def relationships_finish(self, result):
+            return result
+
         def answer(self, result, index=-1):
             _params, callback = self.requests[index]
             callback(self, result)
+
+        def answer_relationships(self, relationships):
+            _ids, callback = self.relationships
+            self.relationships = None
+            callback(self, relationships)
 
     def ids_of(page):
         return [page.model.get_item(i).raw['id']
@@ -238,6 +282,77 @@ else:
     check('the live page is kept for the next launch',
           saved is not None and saved[0]['id'] == '00025')
 
+    # A cache that parses but cannot be shown is ignored, not fatal.
+    homecache.set_root(os.path.join(work, 'page'))
+    with open(homecache.cache_path(KEY), 'w') as handle:
+        json.dump({'version': homecache.VERSION, 'saved_at': time.time(),
+                   'statuses': [1]}, handle)
+    client = FakeClient()
+    page = page_for(client)
+    check('a malformed cache does not stop the page',
+          page.stack.get_visible_child_name() == 'loading'
+          and len(client.requests) == 1)
+    client.answer(page_of(20, 10))
+    pump()
+    check('the live page replaces a malformed cache',
+          homecache.read(KEY) is not None
+          and homecache.read(KEY)[0]['id'] == '00020')
+
+    # An authoritative empty page removes the cached page, so the next
+    # launch does not paint posts the server no longer has.
+    homecache.write(KEY, page_of(20, 10))
+    client = FakeClient()
+    page = page_for(client)
+    client.answer([])
+    pump()
+    check('an empty live page drops the cache',
+          homecache.read(KEY) is None
+          and page.stack.get_visible_child_name() == 'empty')
+
+    # The reply filter hid every live post: the cache stays as content,
+    # and a refresh during the relationships lookup does not supersede
+    # the first page (which used to leave paging blocked for good).
+    homecache.write(KEY, page_of(20, 10))
+    client = FakeClient()
+    page = page_for(client)
+    page._hide_replies_non_follows = True
+    client.answer([status(25, in_reply_to_id='1'),
+                   status(24, in_reply_to_id='2')])
+    pump()
+    check('the first page is still loading while relationships resolve',
+          page.model.loading)
+    page.refresh()
+    check('a refresh cannot supersede the cached first page',
+          len(client.requests) == 1)
+    client.answer_relationships([
+        {'id': '25', 'following': False},
+        {'id': '24', 'following': False}])
+    pump()
+    check('a fully filtered live page keeps the cached content',
+          ids_of(page) == [s['id'] for s in page_of(20, 10)]
+          and page.stack.get_visible_child_name() == 'list')
+    check('and paging is unblocked after it',
+          (page.load_older() or True) and len(client.requests) == 2)
+    check('paging starts from the cached page',
+          client.requests[1][0].get('max_id') == '00011')
+
+    # The same fully filtered page without a cache pages past the raw
+    # page's oldest id instead of stopping on the empty page.
+    homecache.delete(KEY)
+    client = FakeClient()
+    page = timelinepage.TimelinePage(client, mode='home', cache_key=KEY)
+    page._hide_replies_non_follows = True
+    client.answer([status(25, in_reply_to_id='1'),
+                   status(24, in_reply_to_id='2')])
+    pump()
+    client.answer_relationships([
+        {'id': '25', 'following': False},
+        {'id': '24', 'following': False}])
+    pump()
+    check('a fully filtered page without a cache still pages older',
+          len(client.requests) == 2
+          and client.requests[1][0].get('max_id') == '00024')
+
     # Offline: the cache stays, as content, with the failure reported.
     homecache.write(KEY, page_of(20, 10))
     client = FakeClient()
@@ -279,6 +394,22 @@ else:
     pump()
     check('and leaves no cache',
           sorted(os.listdir(homecache.cache_root())) == before)
+
+    # Removing the login while the first page is in flight must not put
+    # the removed account's private page back on disk.
+    if settings is not None:
+        accounts.save_account(settings, {'id': '1',
+                                         'instance': 'https://one.example'})
+        homecache.write(KEY, page_of(20, 10))
+        client = FakeClient()
+        page = page_for(client)
+        accounts.forget_account(settings, '1', 'https://one.example')
+        client.answer(page_of(20, 10))
+        pump()
+        check('a removed login does not get its cache written back',
+              homecache.read(KEY) is None)
+    else:
+        print('SKIP - no GSettings schema for the removed-login check')
 
 if failures:
     print('%d failure(s): %s' % (len(failures), ', '.join(failures)))
