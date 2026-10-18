@@ -413,6 +413,41 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         self.oldest_id = oldest
         return True
 
+    def replace_all(self, statuses):
+        """Swap the whole list for *statuses*, a freshly loaded first
+        page, and move both cursors to it.
+
+        For a list that is showing a cached page: the live one is
+        authoritative, so what the cache held is dropped, posts deleted
+        since included. A post that is in both keeps its item, so its
+        view state survives and, when nothing about it changed, the run
+        it sits in is left alone by the list view instead of rebuilt."""
+        count = self._store.get_n_items()
+        known = {}
+        for position in range(count):
+            item = self._store.get_item(position)
+            if not isinstance(item, BoostCarouselItem):
+                known[str(item.raw.get('id') or '')] = item
+        self._seen.clear()
+        self._boosted_reblog_ids.clear()
+        items = self._statuses_to_items(self._filter_unseen(statuses))
+        for index, item in enumerate(items):
+            if isinstance(item, BoostCarouselItem):
+                continue
+            prior = known.get(str(item.raw.get('id') or ''))
+            if prior is None:
+                continue
+            if prior.raw != item.raw:
+                prior.update(item.raw)
+            items[index] = prior
+        self._store.splice(0, count, items)
+        for item in items:
+            self._register_seen(item)
+        ids = [status['id'] for status in statuses]
+        self.oldest_id = min(ids, key=id_key) if ids else None
+        self.newest_id = max(ids, key=id_key) if ids else None
+        self.exhausted = False
+
     def _forget_boost(self, status_id):
         """A deleted post or boost is no longer a reason to hide a later
         boost of the same post."""

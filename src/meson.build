@@ -53,6 +53,7 @@ install_data(
   'filters.py',
   'imagecache.py',
   'hashtags.py',
+  'homecache.py',
   'i18n.py',
   'lists.py',
   'main.py',
@@ -132,6 +133,11 @@ test('timeline render', python,
 # 'timeline memory' and 'compose widgets' wait on GTK frames and the
 # garbage collector. Meson 1.12 has no per-test retries; the waits are
 # conditions (TEST-09).
+test('home cache', python,
+  args: [files('test-homecache.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('timeline memory', python,
   args: [files('test-timeline-memory.py')],
   env: fatal_test_env,

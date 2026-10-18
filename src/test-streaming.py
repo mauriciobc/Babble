@@ -349,7 +349,8 @@ check('the real monitor exposes the contract properties',
 # --- Secret.Service.get is async and coalesced --------------------------
 
 # get_sync used to block the main loop on the startup path. Concurrent
-# store/load/clear must share one in-flight get.
+# store/clear must share one in-flight get. (A read does not use it at
+# all: see the worker-thread checks below.)
 gets = []
 real_get = Secret.Service.get
 mastodon_module._service = None
@@ -365,8 +366,8 @@ Secret.Service.get = stall_get
 try:
     mastodon_module.store_secret_async(
         'babble-selftest.example', 'a', 'x', lambda error: None)
-    mastodon_module.load_secret_async(
-        'babble-selftest.example', 'a', lambda value, error=None: None)
+    mastodon_module.clear_secret_async(
+        'babble-selftest.example', 'a', lambda error: None)
     check('the first keyring call starts Secret.Service.get',
           len(gets) == 1)
     check('a second keyring call coalesces on the in-flight get',
@@ -376,6 +377,56 @@ finally:
     mastodon_module._service = None
     mastodon_module._service_waiters[:] = []
     mastodon_module._service_getting = False
+
+# --- A keyring read runs off the main thread -----------------------------
+
+# At launch the read used to be a chain of async D-Bus calls on the main
+# loop, each hop queued behind a first-frame redraw, so the token arrived
+# 130-580 ms after the window for a 7 ms lookup. It must run on a worker
+# thread and answer on the main one.
+import threading  # noqa: E402
+
+main_thread = threading.get_ident()
+lookup_threads = []
+real_lookup = Secret.password_lookup_sync
+
+
+def fake_lookup(schema, attributes, cancellable=None):
+    lookup_threads.append(threading.get_ident())
+    if attributes.get('kind') == 'broken':
+        raise GLib.Error('locked', 'secret-error', 1)
+    return None if attributes.get('kind') == 'absent' else 'the-token'
+
+
+Secret.password_lookup_sync = fake_lookup
+Secret.Service.get = stall_get
+gets.clear()
+answers = {}
+try:
+    for kind in ('present', 'absent', 'broken'):
+        mastodon_module.load_secret_async(
+            'babble-selftest.example', kind,
+            lambda v, error=None, kind=kind: answers.update(
+                {kind: (v, error, threading.get_ident())}))
+    check('a read is not answered before the loop runs', not answers)
+    check('a read answers once the loop has run',
+          pump_until(lambda: len(answers) == 3))
+finally:
+    Secret.password_lookup_sync = real_lookup
+    Secret.Service.get = real_get
+check('the lookup runs on a worker thread',
+      len(lookup_threads) == 3 and main_thread not in lookup_threads)
+check('the answer is delivered on the main thread',
+      all(answers[k][2] == main_thread for k in answers))
+check('a stored secret arrives as its text',
+      answers['present'][:2] == ('the-token', None))
+check('an absent secret is None with no error',
+      answers['absent'][:2] == (None, None))
+check('a keyring failure is an error, not an absence',
+      answers['broken'][0] is None
+      and answers['broken'][1] is not None
+      and answers['broken'][1].message == 'locked')
+check('a read does not wait on Secret.Service.get', not gets)
 
 # --- The keyring helpers must actually deliver their callbacks ----------
 

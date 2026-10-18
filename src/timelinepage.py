@@ -14,7 +14,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, Gio,  # noqa: E402
                            Gtk)
 
-from . import filterrules  # noqa: E402
+from . import filterrules, homecache  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
@@ -146,6 +146,15 @@ class ApiTimelineSource:
         return statuses or []
 
 
+def _write_home_cache(cache_key, statuses):
+    try:
+        homecache.write(cache_key, statuses)
+    except (OSError, TypeError, ValueError):
+        # Best effort: the next launch just has no first paint.
+        pass
+    return GLib.SOURCE_REMOVE
+
+
 def _auto_refresh_tick(page_ref):
     page = page_ref()
     if page is None:
@@ -175,10 +184,18 @@ class TimelinePage(PagedPosts, Adw.Bin):
     __gtype_name__ = 'BabbleTimelinePage'
 
     def __init__(self, client, mode='home', model=None, source=None,
-                 boosts_carousel=None, autoload=True, **kwargs):
+                 boosts_carousel=None, autoload=True, cache_key=None,
+                 **kwargs):
         super().__init__(**kwargs)
         self.client = client
         self.mode = mode
+        # The account key whose last page this list shows on launch and
+        # keeps up to date (see homecache). Only the main home timeline
+        # passes one.
+        self.cache_key = cache_key
+        # Whether the list is still showing that cached page, which the
+        # first live page replaces whole instead of merging into.
+        self._showing_cache = False
         self._load_started = False
         self.model = model if model is not None else TimelineModel()
         settings = pages.settings()
@@ -273,7 +290,44 @@ class TimelinePage(PagedPosts, Adw.Bin):
         if self._load_started:
             return
         self._load_started = True
+        self._show_cached()
         self.load()
+
+    def load_older(self):
+        # While the cached page is showing, the live first page is still
+        # in flight, and a second request would supersede it (see
+        # PagedPosts._request) and leave the cache on screen for good.
+        if self._showing_cache:
+            return
+        PagedPosts.load_older(self)
+
+    def _show_cached(self):
+        """Fill the empty list from the page kept at the last launch,
+        so posts are on screen before the network has answered."""
+        if self.cache_key is None or self.model.get_n_items():
+            return
+        statuses = homecache.read(self.cache_key)
+        if not statuses:
+            return
+        self._fill_first(statuses)
+        self._showing_cache = True
+        self.stack.set_visible_child_name('list')
+
+    def _fill_first(self, statuses):
+        """Put *statuses* in the empty list as its first page."""
+        self.model.append_old(statuses)
+        self.model.oldest_id = min((s['id'] for s in statuses),
+                                   key=id_key)
+        self.model.newest_id = max((s['id'] for s in statuses),
+                                   key=id_key)
+
+    def _save_cache(self, statuses):
+        """Keep *statuses* for the next launch's first paint."""
+        if self.cache_key is not None and statuses:
+            # After the frame, not in the response's dispatch: the write
+            # is for the next launch and must not delay this one.
+            GLib.idle_add(_write_home_cache, self.cache_key, statuses,
+                          priority=GLib.PRIORITY_LOW)
 
     # New posts pill / auto refresh
 
@@ -498,6 +552,14 @@ class TimelinePage(PagedPosts, Adw.Bin):
         try:
             statuses = self._finish(result)
         except GLib.Error as e:
+            if self._showing_cache:
+                # The cached page is still a better answer than an error
+                # page; say the refresh failed and keep it as content.
+                self._showing_cache = False
+                root = self.get_root()
+                if root is not None and hasattr(root, 'show_error'):
+                    root.show_error(_('Refresh failed'), e.message)
+                return
             # A failed home request is shown as a failure. Falling back
             # to the public timeline here silently replaced the reader's
             # home with posts from accounts they do not follow: a 5xx,
@@ -514,6 +576,14 @@ class TimelinePage(PagedPosts, Adw.Bin):
     def _finish_page_loaded(self, statuses, generation=None):
         if generation is not None and self._superseded(generation):
             return
+        if self._showing_cache:
+            self._showing_cache = False
+            self.model.replace_all(statuses)
+            self._save_cache(statuses)
+            self._note_followed_tags(statuses)
+            self.stack.set_visible_child_name(
+                'list' if self.model.get_n_items() else 'empty')
+            return
         if not statuses:
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
@@ -521,11 +591,8 @@ class TimelinePage(PagedPosts, Adw.Bin):
                 self.model.exhausted = True
             return
         if self.model.get_n_items() == 0:
-            self.model.append_old(statuses)
-            self.model.oldest_id = min((s['id'] for s in statuses),
-                                         key=id_key)
-            self.model.newest_id = max((s['id'] for s in statuses),
-                                         key=id_key)
+            self._fill_first(statuses)
+            self._save_cache(statuses)
         else:
             added = self.model.insert_new(statuses)
             if added and self._scrolled.get_vadjustment().get_value() > 24:
