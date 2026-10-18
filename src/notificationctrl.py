@@ -173,11 +173,13 @@ class NotificationController:
         # A response from a superseded request must not write rows
         # of the old filter into the new model.
         if generation is not None and self._superseded(generation):
+            self._release_bottom()
             return
         self._loading_older = False
         try:
             notifications = self._finish(result)
         except GLib.Error:
+            self._release_bottom()
             return
         added = self.model.append_page(notifications)
         self._request_relationships()
@@ -185,6 +187,9 @@ class NotificationController:
             self.model.exhausted = True
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
+        # The page has landed (or there is none), so the bottom lock does
+        # not have to wait out its debounce before the next one can go out.
+        self._release_bottom()
 
     def refresh(self, _button=None):
         """Reload the newest notifications; an empty list reloads from
@@ -274,8 +279,10 @@ class NotificationController:
         self.model.loading = False
         # A filter switch re-enters pagination from the top; released
         # from a pending page fetch, pagination delegates to the new
-        # cursor.
+        # cursor. The bottom lock belongs to the superseded request, so
+        # it ends with it rather than holding the next scroll out.
         self._loading_older = False
+        self._release_bottom()
         self.load()
 
     def set_filter(self, name):

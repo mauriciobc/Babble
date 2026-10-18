@@ -251,14 +251,20 @@ class BoostCarouselItem(StatusItem):
 
 
 def filter_replies_from_non_follows(statuses, viewer_id, following_ids):
-    """Drop reply posts whose author is not in *following_ids*.
+    """Drop reply posts whose author the viewer does not follow.
+
+    *following_ids* maps an author id to whether the viewer follows them.
 
     *viewer_id* is kept visible on their own replies. Non-replies pass
     through unchanged."""
     if not statuses:
         return statuses
     viewer = str(viewer_id) if viewer_id is not None else None
-    following = following_ids or set()
+    # *following_ids* maps an author id to whether the viewer follows them.
+    # A mapping rather than a set of followers because the timeline has to
+    # remember "asked, and the answer is no" as well, or every page asks
+    # again about every author the viewer does not follow.
+    following = following_ids or {}
     kept = []
     for status in statuses:
         if not status.get('in_reply_to_id'):
@@ -267,7 +273,7 @@ def filter_replies_from_non_follows(statuses, viewer_id, following_ids):
         author_id = str((status.get('account') or {}).get('id') or '')
         if viewer and author_id == viewer:
             kept.append(status)
-        elif author_id in following:
+        elif following.get(author_id):
             kept.append(status)
     return kept
 
@@ -413,41 +419,6 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         self.oldest_id = oldest
         return True
 
-    def replace_all(self, statuses):
-        """Swap the whole list for *statuses*, a freshly loaded first
-        page, and move both cursors to it.
-
-        For a list that is showing a cached page: the live one is
-        authoritative, so what the cache held is dropped, posts deleted
-        since included. A post that is in both keeps its item, so its
-        view state survives and, when nothing about it changed, the run
-        it sits in is left alone by the list view instead of rebuilt."""
-        count = self._store.get_n_items()
-        known = {}
-        for position in range(count):
-            item = self._store.get_item(position)
-            if not isinstance(item, BoostCarouselItem):
-                known[str(item.raw.get('id') or '')] = item
-        self._seen.clear()
-        self._boosted_reblog_ids.clear()
-        items = self._statuses_to_items(self._filter_unseen(statuses))
-        for index, item in enumerate(items):
-            if isinstance(item, BoostCarouselItem):
-                continue
-            prior = known.get(str(item.raw.get('id') or ''))
-            if prior is None:
-                continue
-            if prior.raw != item.raw:
-                prior.update(item.raw)
-            items[index] = prior
-        self._store.splice(0, count, items)
-        for item in items:
-            self._register_seen(item)
-        ids = [status['id'] for status in statuses]
-        self.oldest_id = min(ids, key=id_key) if ids else None
-        self.newest_id = max(ids, key=id_key) if ids else None
-        self.exhausted = False
-
     def _forget_boost(self, status_id):
         """A deleted post or boost is no longer a reason to hide a later
         boost of the same post."""
@@ -572,11 +543,14 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         """Mark home posts that arrived through a followed hashtag.
 
         *hits* maps a status id to the followed tag its post carries;
-        *following* holds the author ids the viewer already follows.
+        *following* maps an author id to whether the viewer follows them.
         A followed author's post is not provenance: it would have been in
-        the timeline anyway, so it gets None."""
+        the timeline anyway, so it gets None. An author the server has not
+        answered for counts as not followed, which marks the post rather
+        than hiding it."""
         if not hits:
             return
+        following = following or {}
         for position in range(self._store.get_n_items()):
             item = self._store.get_item(position)
             status = item.status
@@ -584,7 +558,7 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             if status_id not in hits:
                 continue
             author_id = str((status.get('account') or {}).get('id') or '')
-            value = None if author_id in following else hits[status_id]
+            value = None if following.get(author_id) else hits[status_id]
             if item.ui.get('source_tag') == value:
                 continue
             item.ui['source_tag'] = value

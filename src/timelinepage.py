@@ -14,7 +14,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, Gio,  # noqa: E402
                            Gtk)
 
-from . import accounts, filterrules, homecache  # noqa: E402
+from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
@@ -22,7 +22,7 @@ from .mastodon import summarize_error_markup  # noqa: E402
 """The scrolling timeline page and its API source."""
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
-    AUTO_REFRESH_SCROLLED_TICKS, COLUMN_WIDTH,
+    AUTO_REFRESH_SCROLLED_TICKS, COLUMN_WIDTH, FOLLOW_CACHE_LIMIT,
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
     _EMPTY_PAGED_ENVELOPE, _own_account_id, id_key)
 from .timelinedata import (
@@ -146,19 +146,6 @@ class ApiTimelineSource:
         return statuses or []
 
 
-def _write_home_cache(cache_key, statuses):
-    try:
-        if accounts.find_account_by_key(pages.settings(), cache_key) is None:
-            # The login went away while this page was loading, and its
-            # cache is already deleted: do not put it back.
-            return GLib.SOURCE_REMOVE
-        homecache.write(cache_key, statuses)
-    except (OSError, TypeError, ValueError):
-        # Best effort: the next launch just has no first paint.
-        pass
-    return GLib.SOURCE_REMOVE
-
-
 def _auto_refresh_tick(page_ref):
     page = page_ref()
     if page is None:
@@ -188,18 +175,10 @@ class TimelinePage(PagedPosts, Adw.Bin):
     __gtype_name__ = 'BabbleTimelinePage'
 
     def __init__(self, client, mode='home', model=None, source=None,
-                 boosts_carousel=None, autoload=True, cache_key=None,
-                 **kwargs):
+                 boosts_carousel=None, autoload=True, **kwargs):
         super().__init__(**kwargs)
         self.client = client
         self.mode = mode
-        # The account key whose last page this list shows on launch and
-        # keeps up to date (see homecache). Only the main home timeline
-        # passes one.
-        self.cache_key = cache_key
-        # Whether the list is still showing that cached page, which the
-        # first live page replaces whole instead of merging into.
-        self._showing_cache = False
         self._load_started = False
         self.model = model if model is not None else TimelineModel()
         settings = pages.settings()
@@ -211,7 +190,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self._hide_replies_non_follows = (
             mode == 'home' and source is None
             and settings.get_boolean('hide-replies-non-follows'))
-        self._following_ids = set()
+        self._following_ids = {}
         self._reply_filter_generation = 0
         self.source = source
         # Paging flags and cursors. See PagedPosts.
@@ -294,34 +273,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
         if self._load_started:
             return
         self._load_started = True
-        self._show_cached()
         self.load()
-
-    def load_older(self):
-        # While the cached page is showing, the live first page is still
-        # in flight, and a second request would supersede it (see
-        # PagedPosts._request) and leave the cache on screen for good.
-        if self._showing_cache:
-            return
-        PagedPosts.load_older(self)
-
-    def _show_cached(self):
-        """Fill the empty list from the page kept at the last launch,
-        so posts are on screen before the network has answered."""
-        if self.cache_key is None or self.model.get_n_items():
-            return
-        try:
-            statuses = homecache.read(self.cache_key)
-            if not statuses:
-                return
-            self._fill_first(statuses)
-        except Exception:
-            # A cache that cannot be shown must not stop the live page.
-            self.model.replace_all([])
-            self._drop_cache()
-            return
-        self._showing_cache = True
-        self.stack.set_visible_child_name('list')
 
     def _fill_first(self, statuses):
         """Put *statuses* in the empty list as its first page."""
@@ -331,18 +283,24 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self.model.newest_id = max((s['id'] for s in statuses),
                                    key=id_key)
 
-    def _save_cache(self, statuses):
-        """Keep *statuses*, this launch's first page, for next time."""
-        if self.cache_key is not None and statuses:
-            # After the frame, not in the response's dispatch: the write
-            # is for the next launch and must not delay this one.
-            GLib.idle_add(_write_home_cache, self.cache_key, statuses,
-                          priority=GLib.PRIORITY_LOW)
+    def _fill_loop(self, before):
+        """Keep paging while a page left the list exactly as it was.
 
-    def _drop_cache(self):
-        """Forget the first paint; the live page superseded it."""
-        if self.cache_key is not None:
-            homecache.delete(self.cache_key)
+        One rule for the three ways a page can come back with nothing to
+        show: every post hidden by a filter, or every post already seen.
+        The cursor has still moved (or is moved to the raw page's oldest
+        id), so the only way forward is the next older page; when the
+        server has nothing more, the page says so and the loop ends.
+        """
+        if self.model.get_n_items() != before:
+            return
+        if self.model.exhausted:
+            if self.model.get_n_items() == 0:
+                self.stack.set_visible_child_name('empty')
+            return
+        if self.model.get_n_items() == 0:
+            self.stack.set_visible_child_name('loading')
+        self.load_older()
 
     # New posts pill / auto refresh
 
@@ -502,22 +460,51 @@ class TimelinePage(PagedPosts, Adw.Bin):
                 authors.append(author_id)
         if not hits:
             return
-        if authors:
-            self.client.relationships_async(
-                authors[:40],
-                lambda client, result, _data=None:
-                    self._on_tag_relationships(client, result, hits))
-        else:
-            self.model.apply_source_tags(hits, ())
+        # Only authors this page has not already been told about go back to
+        # the server. Paging down a boost-heavy timeline meets the same
+        # boosters over and over, and asking about them again on every page
+        # was a request per page, followed by a full synchronous rebuild of
+        # every row it touched when the answer arrived.
+        unknown = [a for a in authors if a not in self._following_ids]
+        if not unknown:
+            self.model.apply_source_tags(hits, self._following_ids)
+            return
+        self.client.relationships_async(
+            unknown[:40],
+            lambda client, result, _data=None:
+                self._on_tag_relationships(client, result, hits))
 
     def _on_tag_relationships(self, client, result, hits):
         try:
             rels = client.request_finish(result)
         except GLib.Error:
+            self.model.apply_source_tags(hits, self._following_ids)
             return
-        following = {str(rel.get('id')) for rel in rels or ()
-                     if rel.get('following')}
-        self.model.apply_source_tags(hits, following)
+        self._remember_follows(rels)
+        self.model.apply_source_tags(hits, self._following_ids)
+
+    def _remember_follows(self, relationships):
+        """Record what the server said about a batch of authors.
+
+        The table is shared with the reply filter: both consumers ask the
+        same question ("does the viewer follow this author"), both go to
+        /relationships for the answer, and a reader who has already paged
+        past an author does not make the app ask about them again.
+        """
+        for rel in relationships or ():
+            author_id = str(rel.get('id') or '')
+            if author_id:
+                self._remember_follow(author_id, bool(rel.get('following')))
+
+    def _remember_follow(self, author_id, following):
+        follows = self._following_ids
+        if author_id not in follows:
+            # Bounded like the boost dedupe table: a long session scrolls
+            # past thousands of authors, and the table only exists to save
+            # a request, not to be an archive.
+            while len(follows) >= FOLLOW_CACHE_LIMIT:
+                del follows[next(iter(follows))]
+        follows[author_id] = following
 
     def _with_home_reply_filter(self, statuses, on_done):
         """Apply the hide-replies-from-non-follows filter when enabled."""
@@ -552,9 +539,11 @@ class TimelinePage(PagedPosts, Adw.Bin):
                 on_done(filter_replies_from_non_follows(
                     statuses, viewer_id, self._following_ids))
                 return
-            for rel in rels or []:
-                if rel.get('following'):
-                    self._following_ids.add(str(rel.get('id')))
+            # Both answers are recorded, not just the following ones:
+            # "asked and the answer is no" has to be distinguishable from
+            # "never asked", or every page asks again about every author
+            # the viewer does not follow.
+            self._remember_follows(rels)
             on_done(filter_replies_from_non_follows(
                 statuses, viewer_id, self._following_ids))
 
@@ -562,20 +551,11 @@ class TimelinePage(PagedPosts, Adw.Bin):
 
     def on_page_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
-            self._showing_cache = False
             return
         try:
             statuses = self._finish(result)
         except GLib.Error as e:
             self.model.loading = False
-            if self._showing_cache:
-                # The cached page is still a better answer than an error
-                # page; say the refresh failed and keep it as content.
-                self._showing_cache = False
-                root = self.get_root()
-                if root is not None and hasattr(root, 'show_error'):
-                    root.show_error(_('Refresh failed'), e.message)
-                return
             # A failed home request is shown as a failure. Falling back
             # to the public timeline here silently replaced the reader's
             # home with posts from accounts they do not follow: a 5xx,
@@ -595,39 +575,15 @@ class TimelinePage(PagedPosts, Adw.Bin):
 
     def _finish_page_loaded(self, statuses, generation=None, raw_oldest=None):
         if generation is not None and self._superseded(generation):
-            # Never leave paging blocked on a cache that will not swap.
-            self._showing_cache = False
             return
         # A refresh during the reply-filter lookup must not win.
         self.model.loading = False
-        if self._showing_cache:
-            self._showing_cache = False
-            if statuses:
-                self.model.replace_all(statuses)
-                self._save_cache(statuses)
-                self._note_followed_tags(statuses)
-                self.stack.set_visible_child_name(
-                    'list' if self.model.get_n_items() else 'empty')
-                return
-            if raw_oldest is not None:
-                # The filter hid every live post: the cache is the better
-                # content, and paging works from its cursor again.
-                self.stack.set_visible_child_name(
-                    'list' if self.model.get_n_items() else 'empty')
-                return
-            # Authoritative empty page: those cached posts are gone.
-            self._drop_cache()
-            self.model.replace_all([])
-            self.stack.set_visible_child_name('empty')
-            return
         if not statuses:
             if raw_oldest is not None:
                 # Every post was filtered: page past the id the server
                 # returned rather than stop with no way forward.
                 self.model.oldest_id = raw_oldest
-                if self.model.get_n_items() == 0:
-                    self.stack.set_visible_child_name('loading')
-                self.load_older()
+                self._fill_loop(0)
                 return
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
@@ -636,7 +592,6 @@ class TimelinePage(PagedPosts, Adw.Bin):
             return
         if self.model.get_n_items() == 0:
             self._fill_first(statuses)
-            self._save_cache(statuses)
         else:
             added = self.model.insert_new(statuses)
             if added and self._scrolled.get_vadjustment().get_value() > 24:
@@ -646,11 +601,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
             self.model.exhausted = True
         if self.model.get_n_items() == 0:
             # Every post of this page was hidden by a filter: keep paging.
-            if self.model.exhausted:
-                self.stack.set_visible_child_name('empty')
-            else:
-                self.stack.set_visible_child_name('loading')
-                self.load_older()
+            self._fill_loop(0)
             return
         self.stack.set_visible_child_name('list')
 
@@ -671,32 +622,46 @@ class TimelinePage(PagedPosts, Adw.Bin):
 
     def on_older_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
+            self._release_bottom()
             return
-        self._loading_older = False
         try:
             statuses = self._finish(result)
         except GLib.Error:
+            # A failed page releases the lock, so the reader can try again
+            # instead of waiting out the debounce for nothing.
+            self._loading_older = False
+            self._release_bottom()
             return
+        # Nothing is released yet. Clearing the in-flight flag before the
+        # reply filter is what let a scroll at the bottom, during that
+        # round trip, start a second request: the newer one won the
+        # generation, and this page -- already paid for -- was discarded as
+        # superseded. The reader saw nothing, on every page, forever. The
+        # flag is therefore cleared where the page is actually applied.
+        # Captured now, not inside the callback: by the time it runs, this
+        # page may already be in the model and "what was there before" would
+        # be unanswerable.
+        before = self.model.get_n_items()
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_older_loaded(
-                filtered, generation, before=self.model.get_n_items()))
+                filtered, generation, before=before))
 
     def _finish_older_loaded(self, statuses, generation=None, before=0):
         if generation is not None and self._superseded(generation):
+            self._release_bottom()
             return
+        self._loading_older = False
         appended = self.model.append_old(statuses)
         self._note_followed_tags(statuses)
         if not appended:
             self.model.exhausted = True
-            if self.model.get_n_items() == 0:
-                self.stack.set_visible_child_name('empty')
-        else:
-            if self.model.get_n_items():
-                self.stack.set_visible_child_name('list')
-            if self.model.get_n_items() == before:
-                # Nothing new to show (all filtered or seen) but the
-                # cursor moved on: keep paging.
-                self.load_older()
+        elif self.model.get_n_items():
+            self.stack.set_visible_child_name('list')
+        # One rule for "this page showed the reader nothing new": all
+        # filtered, or all already seen. The cursor moved anyway, so the
+        # next older page is the way to fill the screen.
+        self._fill_loop(before)
+        self._release_bottom()
 
     def on_refresh_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):

@@ -103,9 +103,12 @@ reply = {'id': '2', 'in_reply_to_id': '1',
          'account': {'id': '9', 'acct': 'stranger'}}
 top = {'id': '3', 'account': {'id': '9'}}
 check('reply filter keeps originals',
-      filter_replies_from_non_follows([top, reply], '1', {'1'}) == [top])
+      filter_replies_from_non_follows([top, reply], '1', {'1': False})
+      == [top])
 check('reply filter keeps followed authors',
-      filter_replies_from_non_follows([reply], None, {'9'}) == [reply])
+      filter_replies_from_non_follows([reply], None, {'9': True}) == [reply])
+check('reply filter drops an author known not to be followed',
+      filter_replies_from_non_follows([reply], None, {'9': False}) == [])
 
 model = TimelineModel()
 items = model.append_old([{'id': '2', 'content': 'b',
@@ -192,14 +195,14 @@ _tag_changed = []
 for _tag_item in _tag_items.values():
     _tag_item.connect('changed', lambda *_: _tag_changed.append(True))
 _tag_hits = {'tag1': 'CatsofMastodon', 'tag2': 'CatsofMastodon'}
-_tag_model.apply_source_tags(_tag_hits, {'f1'})
+_tag_model.apply_source_tags(_tag_hits, {'f1': True})
 check('a post from a non-followed author keeps its source tag',
       _tag_items['tag1'].ui.get('source_tag') == 'CatsofMastodon')
 check('a followed author gets no source tag',
       _tag_items['tag2'].ui.get('source_tag') is None)
 check('marking a source tag emits exactly one change',
       len(_tag_changed) == 1)
-_tag_model.apply_source_tags(_tag_hits, {'f1'})
+_tag_model.apply_source_tags(_tag_hits, {'f1': True})
 check('an unchanged source tag emits nothing',
       len(_tag_changed) == 1)
 
