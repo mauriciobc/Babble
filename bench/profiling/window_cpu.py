@@ -21,14 +21,7 @@ PLUMBING = ('g_main', 'g_signal_emit', 'signal_emit', 'closure_invoke',
 
 
 def collect(path):
-    procs, counts = {}, collections.Counter()
-    for kind, _c, pid, _t, p in syscap.frames(path):
-        if kind == 4:
-            procs[pid] = syscap.cstr(p)
-        elif kind == 10:
-            counts[pid] += 1
-    pid = max((p for p in counts if procs.get(p, '').startswith('python')),
-              key=lambda p: counts[p])
+    pid = syscap.app_pid(path)
     maps, marks, samples = [], [], []
     for kind, _c, fpid, t, p in syscap.frames(path):
         if fpid != pid:

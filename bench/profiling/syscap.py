@@ -4,6 +4,7 @@
 Layout from libsysprof-capture/sysprof-capture-types.h (sysprof 51):
 256-byte file header, then 8-byte-aligned frames with a 24-byte header.
 """
+import collections
 import mmap
 import struct
 import sys
@@ -48,6 +49,22 @@ def mark(payload):
     duration, = struct.unpack_from('<q', payload, 0)
     return (duration, cstr(payload[8:32]), cstr(payload[32:72]),
             cstr(payload[72:]))
+
+
+def app_pid(path):
+    """The process that emitted the most GTK marks: the app under test.
+
+    Not the process whose command line says ``python``: with sysprof's
+    sampler off (``--no-perf``) there are no process frames for it, and
+    under ``perf record`` the recorded command line is perf's.
+    """
+    counts = collections.Counter()
+    for kind, _cpu, pid, _t, payload in frames(path):
+        if kind == 10 and cstr(payload[8:32]) == 'GTK':
+            counts[pid] += 1
+    if not counts:
+        raise SystemExit('%s: no GTK marks in this capture' % path)
+    return counts.most_common(1)[0][0]
 
 
 def sample(payload):
