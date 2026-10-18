@@ -243,6 +243,12 @@ test('boost card', python,
   env: fatal_test_env,
   timeout: 60,
 )
+# Off-screen runs get their cards built and measured before they are shown.
+test('card prefetch', python,
+  args: [files('test-prefetch.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 # Drives a real local HTTP server, because the behaviour it pins is what
 # the fetcher does when a request is cancelled mid-decode: the key must
 # not be stranded, and one caller's cancellation must not take the image

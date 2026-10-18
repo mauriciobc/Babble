@@ -86,7 +86,129 @@ def _populate_pending():
             shell._populate()
             return GLib.SOURCE_CONTINUE
     _pending_source = 0
+    _schedule_prefetch()
     return GLib.SOURCE_REMOVE
+
+
+# Prefetch: the shells just past the visible ones get their cards built
+# and measured while they are still off screen, so a run scrolling into
+# view shows cards it already has (the kept-cards path in _on_map) at a
+# height the list already knows. Building them after the shell is shown
+# lays the shown row out again on the next frame, which costs more than
+# the build saves (Docs/performance-profiling.md, entries 12-14).
+#
+# Like RecyclerView's GapWorker: low priority, below card population and
+# redraw, one step per dispatch, and a step only runs when its running
+# average cost fits before the next frame is due; otherwise it waits for
+# the frame to paint. Every StatusRunRow is listed here by GObject weak
+# ref, so the list never keeps a shell or its page alive.
+PREFETCH_AHEAD = 4
+PREFETCH_BEHIND = 2
+_shells = []
+_plan = []
+_plan_dirty = True
+_prefetch_source = None
+_prefetch_wait = None
+_step_ms = {'build': 4.0, 'warm': 6.0}
+
+
+def _schedule_prefetch():
+    global _prefetch_source
+    if _prefetch_source is not None or _prefetch_wait is not None \
+            or _pending_shells:
+        return
+    source = GLib.idle_source_new()
+    source.set_priority(GLib.PRIORITY_LOW)
+    source.set_name('babble-prefetch')
+    source.set_callback(_prefetch)
+    source.attach(None)
+    _prefetch_source = source
+
+
+def _replan():
+    """Order the off-screen shells worth preparing: up to PREFETCH_AHEAD
+    past the last shown run of each list, then PREFETCH_BEHIND before its
+    first."""
+    lists = {}
+    for ref in list(_shells):
+        shell = ref()
+        if shell is None:
+            _shells.remove(ref)
+            continue
+        position = shell._position()
+        view = shell.get_ancestor(Gtk.ListView)
+        if position is None or view is None or shell._run is None:
+            continue
+        lists.setdefault(view, []).append((position, shell))
+    plan = []
+    for entries in lists.values():
+        shown = [position for position, shell in entries if shell.get_mapped()]
+        if not shown:
+            continue
+        first, last = min(shown), max(shown)
+        below = sorted((position, shell) for position, shell in entries
+                       if last < position <= last + PREFETCH_AHEAD)
+        above = sorted(((position, shell) for position, shell in entries
+                        if first - PREFETCH_BEHIND <= position < first),
+                       reverse=True)
+        plan += [shell.weak_ref() for _position, shell in below + above]
+    return plan
+
+
+def _frame_gap_ms(shell):
+    """Milliseconds until the window's next frame is due, or None when
+    no frame is coming."""
+    root = shell.get_root()
+    clock = root.get_frame_clock() if root is not None else None
+    if clock is None:
+        return None, None
+    frame_time = clock.get_frame_time()
+    interval, _presentation = clock.get_refresh_info(frame_time)
+    interval = interval or 16667
+    now = GLib.get_monotonic_time()
+    if now - frame_time > 2 * interval:
+        return None, clock
+    return (frame_time + interval - now) / 1000, clock
+
+
+def _resume_after_paint(clock):
+    global _prefetch_wait
+    if _prefetch_wait is not None:
+        clock.disconnect(_prefetch_wait[1])
+        _prefetch_wait = None
+    _schedule_prefetch()
+
+
+def _prefetch():
+    global _plan, _plan_dirty, _prefetch_source, _prefetch_wait
+    if _plan_dirty:
+        _plan = _replan()
+        _plan_dirty = False
+    while _plan:
+        shell = _plan[0]()
+        kind = shell._next_step() if shell is not None else None
+        if kind is None:
+            _plan.pop(0)
+            continue
+        gap, clock = _frame_gap_ms(shell)
+        if gap is not None and gap < _step_ms[kind]:
+            _prefetch_source = None
+            _prefetch_wait = (clock, clock.connect(
+                'after-paint', _resume_after_paint))
+            return GLib.SOURCE_REMOVE
+        start = GLib.get_monotonic_time()
+        shell._prefetch_step(kind)
+        spent = (GLib.get_monotonic_time() - start) / 1000
+        _step_ms[kind] = _step_ms[kind] * 0.75 + spent * 0.25
+        return GLib.SOURCE_CONTINUE
+    _prefetch_source = None
+    return GLib.SOURCE_REMOVE
+
+
+def _replan_later():
+    global _plan_dirty
+    _plan_dirty = True
+    _schedule_prefetch()
 
 
 class StatusRunRow(Gtk.Box):
@@ -134,6 +256,14 @@ class StatusRunRow(Gtk.Box):
         kind._next_key += 1
         # Whether _pending_shells holds a ref to this shell.
         self._queued = False
+        # The Gtk.ListItem this shell is the child of, as a GObject weak
+        # ref, for its position in the list (prefetch). Set by the
+        # factory.
+        self.list_item_ref = None
+        # (run, width) prefetch last measured, so a run too short to pin
+        # is not measured again at every dispatch.
+        self._warmed = None
+        _shells.append(self.weak_ref())
         # Built cards, kept while this run is scrolled off screen.
         # Gtk.ListView still instantiates a child for every loaded post
         # (up to a couple of hundred) and lays that whole set out on
@@ -176,6 +306,7 @@ class StatusRunRow(Gtk.Box):
         # until the idle queue reaches it.
         if self.get_mapped():
             self._populate()
+        _replan_later()
 
     def _on_map(self, _widget):
         type(self)._kept.pop(self._key, None)
@@ -189,6 +320,7 @@ class StatusRunRow(Gtk.Box):
             self._populate()
         else:
             self._queue_populate()
+        _replan_later()
 
     def _queue_populate(self):
         global _pending_source
@@ -241,6 +373,59 @@ class StatusRunRow(Gtk.Box):
         self._detach()
         if self._cards:
             self._keep_cards()
+        _replan_later()
+
+    def _position(self):
+        item = self.list_item_ref() if self.list_item_ref else None
+        if item is None:
+            return None
+        position = item.get_position()
+        return None if position == Gtk.INVALID_LIST_POSITION else position
+
+    def _next_step(self):
+        """What prefetch still has to do for this off-screen shell:
+        'build' a missing card, 'warm' (measure) the run, or None."""
+        run = self._run
+        if run is None or self.get_mapped() or self.rows:
+            return None
+        if any(item not in self._cards for item in run.items):
+            return 'build'
+        width = type(self)._column_width
+        if width > 1 and self._warmed != (run, width) \
+                and not _known_shell_height(self, run):
+            return 'warm'
+        return None
+
+    def _prefetch_step(self, kind):
+        if kind == 'build':
+            from .statusrow import StatusRow
+            item = next(item for item in self._run.items
+                        if item not in self._cards)
+            row = StatusRow()
+            row.filter_context = self.filter_context
+            row.bind(item, self._client)
+            row.set_vexpand(False)
+            # Hidden from the start: a hidden child queues no resize up
+            # the tree, and it stays hidden until the run is shown.
+            row.set_visible(False)
+            self.column.append(row)
+            self._cards[item] = row
+            self._keep_cards()
+            return
+        # Shown for one measurement, at the width the list will give it,
+        # then hidden again. Showing a widget later queues a resize on
+        # its parent only, so the size caches filled here -- every text
+        # measurement in the run -- are still valid when it scrolls in.
+        width = type(self)._column_width
+        self._warmed = (self._run, width)
+        floor = self.get_size_request()[1]
+        self._populate()
+        height = self.measure(Gtk.Orientation.VERTICAL, width).natural
+        self._detach()
+        if height > 64:
+            self._store_height(height, width)
+        else:
+            self.set_size_request(-1, floor)
 
     def _keep_cards(self):
         """Count this unmapped shell's cards against CARD_SHELLS_KEPT,
