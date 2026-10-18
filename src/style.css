@@ -849,8 +849,11 @@ label.just-toggled {
 
 .catchup-on-image .dimmed {
   /* Slightly above the theme dim so captions stay readable on the
-     photo scrim; still tracks --dim-opacity under high contrast. */
-  opacity: max(0.8, var(--dim-opacity));
+     photo scrim; still tracks --dim-opacity under high contrast. Both
+     sides are percentages: --dim-opacity is one (55%, 90% in high
+     contrast), and max() rejects a number mixed with a percentage --
+     "Inconsistent types in 'max('" -- by dropping the declaration. */
+  opacity: max(80%, var(--dim-opacity));
 }
 
 .catchup-cover {

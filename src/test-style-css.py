@@ -259,6 +259,14 @@ check('no literal white alpha is left in the lightbox rules',
 check('the Catch Up scrim and on-image text are left alone',
       '.catchup-on-image' in css and '.catchup-scrim' in css
       and 'var(--viewer-fg)' not in css[css.index('.catchup-scrim'):])
+# opacity is a number or a percentage, never both: GTK drops a max()
+# that mixes the two -- "Inconsistent types in 'max('" -- and the
+# caption then keeps full strength on the photo scrim. --dim-opacity is
+# a percentage (55%, and 90% under high contrast), so the floor has to
+# be one too.
+check('the on-image caption dim compares like with like',
+      re.search(r'opacity:\s*max\(\s*\d+%\s*,\s*var\(--dim-opacity\)\s*\)',
+                strip_comments(css)) is not None)
 
 # -- The timeline canvas is a plain colour -----------------------------
 # A background picture or gradient is rasterised before the first card
