@@ -430,6 +430,20 @@ _rect = link_body.get_iter_location(_iter)
 check('a click on the link text resolves the href',
       link_body._href_at(_rect.x + 2, _rect.y + 2)
       == 'https://example.com/x')
+
+# Leaving a link restores the body's text cursor. It was cached at
+# construction, where the input-module swap leaves GTK's cursor as the
+# invisible "none" it uses while typing, so the pointer vanished over
+# any body that had a link to hover.
+check('a mapped body caches the text cursor, not none',
+      link_body._text_cursor is not None
+      and link_body._text_cursor.get_name() == 'text')
+link_body._set_over_link(True)
+check('a link hovers with the pointer cursor',
+      link_body.get_cursor().get_name() == 'pointer')
+link_body._set_over_link(False)
+check('leaving a link brings the text cursor back',
+      link_body.get_cursor().get_name() == 'text')
 link_window.set_child(None)
 
 # Fixture-render probe: a bound StatusRow (the same path used by new,
