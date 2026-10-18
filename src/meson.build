@@ -139,7 +139,7 @@ install_data(
 # The monitor size has to match the Xvfb screen: at 1024x768 the
 # geometry-sensitive tests (compose widgets, timeline memory) fail,
 # because the dialogs they measure get a smaller window. Both give
-# 50 passed / 1 skipped (streaming helpers, which needs a secret service).
+# 49 passed / 1 skipped (streaming helpers, which needs a secret service).
 test_env = environment()
 test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
