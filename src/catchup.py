@@ -1762,8 +1762,18 @@ class CatchUpPage(Adw.Bin):
             return label
 
         def labelled(control, label):
+            """Name *control* after *label* for assistive technologies.
+
+            The value has to be a GValue holding a Gtk.AccessibleList:
+            GTK reads a reference-list relation with g_value_get_pointer,
+            so a bare widget lands in a GValue of the wrong type, the
+            pointer read asserts, and the relation is dropped instead of
+            set. Gtk.AccessibleList.new_from_array passes a length of 0
+            through PyGObject, hence new_from_list."""
+            refs = Gtk.AccessibleList.new_from_list([label])
             control.update_relation(
-                [Gtk.AccessibleRelation.LABELLED_BY], [label])
+                [Gtk.AccessibleRelation.LABELLED_BY],
+                [GObject.Value(Gtk.AccessibleList, refs)])
             return control
 
         category_heading = heading(_('Category'))
