@@ -1095,8 +1095,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         # scroll position and items.
         self.home_bin.set_child(None)
         self.timeline_page = TimelinePage(
-            self.client, mode='home', model=self.timeline_model,
-            cache_key=account_store.account_key(self.account))
+            self.client, mode='home', model=self.timeline_model)
         self.timeline_model = self.timeline_page.model
         self.home_bin.set_child(self.timeline_page)
         self._apply_auto_refresh()

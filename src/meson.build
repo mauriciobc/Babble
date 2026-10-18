@@ -53,7 +53,6 @@ install_data(
   'filters.py',
   'imagecache.py',
   'hashtags.py',
-  'homecache.py',
   'i18n.py',
   'lists.py',
   'main.py',
@@ -105,6 +104,44 @@ install_data(
 # G_DEBUG=fatal-criticals; NO_AT_BRIDGE alone does not. no-portals keeps
 # the first GTK import from starting xdg-desktop-portal and stalling the
 # later D-Bus tests. fatal_test_env is the same plus fatal criticals.
+#
+# LC_ALL/LANG are pinned to C because the widget suites assert geometry,
+# and a translated string is a different length. `compose widgets` and
+# `timeline memory` fail under a pt_BR desktop and pass under C, purely
+# because the labels change the widths and heights they compare against.
+# GitHub runners already default to C.UTF-8, so CI never saw this; it only
+# ever appeared for whoever's desktop was not English, which is what made
+# it look like Xvfb contention. Pinning here means a local run matches CI.
+#
+# A test that genuinely wants a translation should set LANGUAGE itself
+# and restart -- see the interface-language path in babble.in -- rather
+# than rely on the ambient locale.
+#
+# GSK_RENDERER=cairo because none of these tests test rendering, and
+# letting GSK pick a GL renderer makes the suite depend on a working GL
+# context that a CI container has no reason to have. When it picks one and
+# cannot get a context, GDK logs "gdk_gl_context_make_current() failed" and
+# libepoxy then aborts the process on
+#   Assertion `0 && "Couldn't find current GLX or EGL context"' failed
+# which took `mediaviewer teardown` down with SIGABRT -- under Xvfb and
+# under headless mutter alike, so this was never a compositor problem.
+# GSK_DEBUG=fallback does not save it; the abort happens inside the GL
+# call. Cairo is what bench/ already pins for the same reason.
+#
+# The DISPLAY guards in the tests accept WAYLAND_DISPLAY as well, so the
+# suite can be run under a Wayland compositor without every widget test
+# reporting a skip. Under Xvfb (xvfb-run's default screen; ci.yml runs the
+# mutter line below): xvfb-run -a dbus-run-session -- meson test -C build -j1.
+# `thread profile render` and `oauth callback` spawn their own Xvfb and force
+# GDK_BACKEND=x11, so the Xvfb binary must be installed either way.
+# Under Wayland, GNOME 40+ mutter headless:
+#   XDG_RUNTIME_DIR=$(mktemp -d) dbus-run-session -- \
+#     mutter --headless --wayland --no-x11 --virtual-monitor 1280x1024 -- \
+#     meson test -C build -j1
+# The monitor size has to match the Xvfb screen: at 1024x768 the
+# geometry-sensitive tests (compose widgets, timeline memory) fail,
+# because the dialogs they measure get a smaller window. Both give
+# 49 passed / 1 skipped (streaming helpers, which needs a secret service).
 test_env = environment()
 test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
@@ -113,6 +150,9 @@ test_env.set('GSETTINGS_BACKEND', 'memory')
 test_env.set('GDK_DEBUG', 'no-portals')
 test_env.set('NO_AT_BRIDGE', '1')
 test_env.set('GTK_A11Y', 'none')
+test_env.set('LANG', 'C')
+test_env.set('LC_ALL', 'C')
+test_env.set('GSK_RENDERER', 'cairo')
 
 fatal_test_env = environment()
 fatal_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
@@ -122,6 +162,9 @@ fatal_test_env.set('GSETTINGS_BACKEND', 'memory')
 fatal_test_env.set('GDK_DEBUG', 'no-portals')
 fatal_test_env.set('NO_AT_BRIDGE', '1')
 fatal_test_env.set('GTK_A11Y', 'none')
+fatal_test_env.set('LANG', 'C')
+fatal_test_env.set('LC_ALL', 'C')
+fatal_test_env.set('GSK_RENDERER', 'cairo')
 fatal_test_env.set('G_DEBUG', 'fatal-criticals')
 
 test('timeline render', python,
@@ -133,11 +176,6 @@ test('timeline render', python,
 # 'timeline memory' and 'compose widgets' wait on GTK frames and the
 # garbage collector. Meson 1.12 has no per-test retries; the waits are
 # conditions (TEST-09).
-test('home cache', python,
-  args: [files('test-homecache.py')],
-  env: fatal_test_env,
-  timeout: 60,
-)
 test('timeline memory', python,
   args: [files('test-timeline-memory.py')],
   env: fatal_test_env,
@@ -196,6 +234,15 @@ test('mastodon rest retry', python,
 test('client transport', python,
   args: [files('test-client-transport.py')],
   env: test_env,
+  timeout: 120,
+)
+# Drives a real local HTTP server, because the behaviour it pins is what
+# the fetcher does when a request is cancelled mid-decode: the key must
+# not be stranded, and one caller's cancellation must not take the image
+# away from another caller sharing the request.
+test('image cache', python,
+  args: [files('test-imagecache.py')],
+  env: fatal_test_env,
   timeout: 120,
 )
 test('media limits', python,

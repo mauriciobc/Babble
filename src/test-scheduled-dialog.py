@@ -21,7 +21,8 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, GLib  # noqa: E402
 
-if not os.environ.get('DISPLAY'):
+if not os.environ.get('DISPLAY') \
+        and not os.environ.get('WAYLAND_DISPLAY'):
     print('SKIP - no display available')
     sys.exit(77)
 

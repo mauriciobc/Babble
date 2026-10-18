@@ -129,6 +129,18 @@ def flash_class(widget, css_class, ms=300):
     GLib.timeout_add(ms, done)
 
 
+def _unlock_bottom(page_ref):
+    """The bottom lock's deadline. A GObject weak ref, so a closed page is
+    never kept alive by the timeout that exists to release it."""
+    page = page_ref()
+    if page is None:
+        return GLib.SOURCE_REMOVE
+    page._bottom_lock_id = 0
+    page._bottom_locked = False
+    page._run_pending_older()
+    return GLib.SOURCE_REMOVE
+
+
 class PagedPosts:
     """The paging state machine every status list runs.
 
@@ -143,7 +155,8 @@ class PagedPosts:
 
     * :meth:`load` fills an empty list, falling back to :meth:`load_older`
       while pages come back empty of visible rows;
-    * :meth:`load_older` pages back, stopping when the model says so;
+    * :meth:`load_older` pages back, stopping when the model says so, behind
+      a debounce that always releases itself (see :meth:`_lock_bottom`);
     * :meth:`refresh` asks for what is newer than what is shown.
 
     Which cursor each uses is a constructor argument rather than a
@@ -156,6 +169,10 @@ class PagedPosts:
     # How close to the bottom a list gets before fetching the next page.
     # These were 800, 800 and 600.
     PRELOAD = 800
+    # How long the bottom lock is held after a page goes out. Long enough
+    # that one flick of the wheel cannot queue a second request, short
+    # enough that a reader who stops scrolling is never left waiting.
+    BOTTOM_LOCK_MS = 1000
 
     model = None
 
@@ -163,6 +180,9 @@ class PagedPosts:
         self._generation = 0
         self._loading_older = False
         self._newer_cursor = newer_cursor
+        self._bottom_locked = False
+        self._older_pending = False
+        self._bottom_lock_id = 0
 
     # Requests
 
@@ -203,13 +223,67 @@ class PagedPosts:
         self._request({'limit': self.PAGE_SIZE}, self.on_page_loaded)
 
     def load_older(self):
-        if self._loading_older or self.model.exhausted \
-                or self.model.oldest_id is None:
+        if self.model.exhausted or self.model.oldest_id is None:
+            # Nothing left to ask for, so a remembered request has no
+            # target either.
+            self._older_pending = False
             return
+        if self._bottom_locked:
+            # Remembered, not discarded. The reader is at the bottom of
+            # the list and wants this page; whichever request releases the
+            # lock is the one that runs it. Dropping it here is what left a
+            # reader at the bottom of a list that would not load.
+            self._older_pending = True
+            return
+        self._lock_bottom()
         self._loading_older = True
         self._request({'limit': self.PAGE_SIZE,
                        'max_id': self.model.oldest_id},
                       self.on_older_loaded)
+
+    def _lock_bottom(self):
+        """Hold the bottom lock, with a deadline.
+
+        The lock is a debounce, not a flag coupled to the request. It is
+        released when the page lands (so a fast response does not cost the
+        reader the whole debounce) *and* by the timeout whether or not the
+        response ever arrives. That second release is what makes it safe: a
+        dropped page, a superseded response, a cancelled request or a list
+        torn down mid-flight all end with the lock open, so no combination
+        of them can wedge a reader at the bottom of a list that will not
+        load. A mutex on request state cannot promise that -- it has no way
+        to run when the request it is waiting for is never answered.
+        """
+        self._bottom_locked = True
+        if not self._bottom_lock_id:
+            self._bottom_lock_id = GLib.timeout_add(
+                self.BOTTOM_LOCK_MS, _unlock_bottom, self.weak_ref())
+
+    def _release_bottom(self):
+        """Release the lock now rather than waiting out the debounce.
+
+        Every ending of an older page calls this. It deliberately leaves
+        ``_loading_older`` alone: that flag means "a request is still out",
+        which the deadline above cannot know, and :meth:`_trim_old` reads it
+        to avoid dropping the tail while a page is still in flight.
+        """
+        if self._bottom_lock_id:
+            GLib.source_remove(self._bottom_lock_id)
+            self._bottom_lock_id = 0
+        self._bottom_locked = False
+        self._run_pending_older()
+
+    def _run_pending_older(self):
+        """Ask for the page the reader asked for while the lock was held.
+
+        Skipped while a request is still out: that request will release the
+        lock when it ends, and starting a second one now would supersede it
+        and throw its page away.
+        """
+        if not self._older_pending or self._loading_older:
+            return
+        self._older_pending = False
+        self.load_older()
 
     def refresh(self):
         """Load what is newer than the newest item shown."""

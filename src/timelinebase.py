@@ -47,6 +47,12 @@ NEW_POSTS_ANNOUNCE_INTERVAL_US = 10 * 1000 * 1000
 COLUMN_WIDTH = pages.COLUMN_WIDTH
 BOOST_DEDUPE_LIMIT = 100
 GROUP_BOOSTS_MIN_PAGE = 11
+# How many "does the viewer follow this author" answers one timeline page
+# remembers. The reply filter and the followed-hashtag pass read the same
+# table, so a timeline that has met an author once does not ask the server
+# about them again on the next page. Bounded because a long session can
+# scroll through thousands of authors.
+FOLLOW_CACHE_LIMIT = 400
 
 # Decoded-texture budgets. Avatars repeat across a timeline so they are
 # cheap to keep; media are large, so far fewer stay resident.

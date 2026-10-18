@@ -28,7 +28,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GObject, Gtk  # noqa: E402
 
-from . import catchupstore, homecache  # noqa: E402
+from . import catchupstore  # noqa: E402
 
 _SHORTCODE = re.compile(r':[A-Za-z0-9_]{2,}:')
 
@@ -150,12 +150,11 @@ def forget_account(settings, account_id, instance=None):
     stored = read_accounts(settings)
     keep = [a for a in stored if not matches(a)]
     settings.set_strv('accounts', [json.dumps(a) for a in keep])
-    # The Catch Up snapshots and the cached home page hold the account's
-    # followers-only and direct posts: they go with the login.
+    # The Catch Up snapshots hold the account's posts: they go with the
+    # login.
     for account in stored:
         if matches(account):
             catchupstore.delete_account(account_key(account))
-            homecache.delete(account_key(account))
     # A bare id in active-account predates the pairing; compare on the
     # id alone when that is all it carries.
     active_instance, active_id = _split_key(

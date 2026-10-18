@@ -14,7 +14,8 @@ import tempfile
 import time
 import weakref
 
-if not os.environ.get('DISPLAY'):
+if not os.environ.get('DISPLAY') \
+        and not os.environ.get('WAYLAND_DISPLAY'):
     print('SKIP - no display available for widget rendering')
     sys.exit(77)
 

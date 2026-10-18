@@ -106,7 +106,7 @@ No measurable regression. The empty-shell frames are the same cost the section a
 | token read (was `present()` + 133-581) | 46-101 |
 | home request sent | ~700 |
 | home response | ~2,200 (1.2-1.5 s after it is sent) |
-| first card, no cache | 2,100-3,400 |
+| first card | 2,100-3,400 |
 
 The home request itself is the floor: TCP and TLS are about 3 round trips (~750 ms), the server another ~250 ms, and the body is only 21 KB (the client already negotiates zstd/gzip/br; 133 KB uncompressed). Preconnecting at launch does not help, because the main loop does not run during imports, window construction and `present()`, so the handshake cannot progress; run in a worker thread it finishes, but the main-thread request then never answers on that connection.
 
@@ -114,6 +114,5 @@ What was done:
 
 - **The timeline canvas is a flat colour.** The 2.5 MB wallpaper PNG was decoded on the main thread, again on every stylesheet parse, before the first card (37 ms to decode, 45-85 ms at the first card; response to first card 141-186 ms with it, 54-103 ms without). A gradient, or the SVG grain from css-tricks, costs the same kind of thing, so the canvas has no background image at all.
 - **The keyring is read on a worker thread.** As async D-Bus calls on the main loop, each hop (service, session, lookup) queued behind a first-frame redraw: 133-581 ms between `present()` and the token for a 7 ms lookup. On a thread it is 46-101 ms in the app.
-- **The home timeline paints the first page it loaded at the last launch** (`homecache.py`), then swaps in the live page whole. First card 949-1,198 ms against 2,100-3,400 ms. Later refreshes and streamed posts are not written back, so the cached page is as old as the last launch, not as old as the last post. The file holds the account's followers-only and direct posts, so it is `0700`/`0600`, goes with the login, and is ignored when unreadable, from another version, or older than a week.
 
 Measured and not worth it: preconnect (above), starting the other startup requests later (the first response is no slower with them: 818-1,024 ms in parallel, 818-938 alone), trimming imports (51 ms of self time in total), and building the first cards inside the first layout (more frames, no earlier card).
