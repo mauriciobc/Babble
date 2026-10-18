@@ -1,0 +1,494 @@
+{
+  "machine_note": "Absolute values are machine-specific. Compare only figures recorded on the same machine; the tolerances in gate.py are the contract.",
+  "note": "Reference figures for bench/v2, generated with BENCH_RECORD=1. See bench/v2/README.md.",
+  "scenarios": {
+    "concurrent": {
+      "budgets": {
+        "cpu_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 2685.6
+        },
+        "decode_avatar_slow": {
+          "floor": 42.400000000000006,
+          "value": 53
+        },
+        "duplicate_requests": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 0
+        },
+        "first_card_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 93.8
+        },
+        "frames_with_empty_shell": {
+          "direction": "lower",
+          "slack": 20.0,
+          "tolerance": 0.2,
+          "value": 78
+        },
+        "live_items": {
+          "max": 0,
+          "value": 0
+        },
+        "live_rows": {
+          "max": 0,
+          "value": 0
+        },
+        "load_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 217.9
+        },
+        "main_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 1533.6
+        },
+        "popin_ms_median": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 28.3
+        },
+        "popin_ms_p90": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 64.4
+        },
+        "retained_mb": {
+          "direction": "lower",
+          "slack": 5.0,
+          "tolerance": 0.2,
+          "value": 96.6
+        },
+        "scroll_down_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 2154.7
+        },
+        "stall_max_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 18.3
+        },
+        "stall_p99_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 9.6
+        },
+        "stalls_over_budget": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 1
+        },
+        "stream_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 240.5
+        },
+        "teardown_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 44.6
+        }
+      },
+      "conditions": {
+        "avatar_px": "400",
+        "frame_budget_ms": 16.67,
+        "image_format": "jpeg",
+        "latency_ms": 0.0,
+        "media_px": "1600x1200",
+        "posts": 500,
+        "renderer": "cairo",
+        "scroll_steps": 24,
+        "soak_pages": 3,
+        "soak_steps": 40,
+        "stream_events": 12
+      },
+      "recorded_at": {
+        "dirty": true,
+        "git": "559b074",
+        "runs": 3
+      },
+      "recorded_on": "2026-10-18"
+    },
+    "firstload": {
+      "budgets": {
+        "cpu_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 295.4
+        },
+        "decode_avatar_slow": {
+          "floor": 3.2,
+          "value": 4
+        },
+        "duplicate_requests": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 0
+        },
+        "first_card_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 84.4
+        },
+        "frames_with_empty_shell": {
+          "direction": "lower",
+          "slack": 20.0,
+          "tolerance": 0.2,
+          "value": 4
+        },
+        "live_items": {
+          "max": 0,
+          "value": 0
+        },
+        "live_rows": {
+          "max": 0,
+          "value": 0
+        },
+        "load_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 247.6
+        },
+        "main_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 139.9
+        },
+        "popin_ms_median": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 76.0
+        },
+        "popin_ms_p90": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 114.6
+        },
+        "retained_mb": {
+          "direction": "lower",
+          "slack": 5.0,
+          "tolerance": 0.2,
+          "value": 34.2
+        },
+        "stall_max_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 19.2
+        },
+        "stall_p99_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 15.0
+        },
+        "stalls_over_budget": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 1
+        },
+        "teardown_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 25.1
+        }
+      },
+      "conditions": {
+        "avatar_px": "400",
+        "frame_budget_ms": 16.67,
+        "image_format": "jpeg",
+        "latency_ms": 0.0,
+        "media_px": "1600x1200",
+        "posts": 500,
+        "renderer": "cairo",
+        "scroll_steps": 24,
+        "soak_pages": 3,
+        "soak_steps": 40,
+        "stream_events": 12
+      },
+      "recorded_at": {
+        "dirty": true,
+        "git": "559b074",
+        "runs": 3
+      },
+      "recorded_on": "2026-10-18"
+    },
+    "scroll": {
+      "budgets": {
+        "cpu_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 6837.7
+        },
+        "decode_avatar_slow": {
+          "floor": 51.2,
+          "value": 64
+        },
+        "duplicate_requests": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 10
+        },
+        "first_card_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 94.4
+        },
+        "frames_with_empty_shell": {
+          "direction": "lower",
+          "slack": 20.0,
+          "tolerance": 0.2,
+          "value": 165
+        },
+        "live_items": {
+          "max": 0,
+          "value": 0
+        },
+        "live_rows": {
+          "max": 0,
+          "value": 0
+        },
+        "load_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 225.5
+        },
+        "main_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 4052.5
+        },
+        "popin_ms_median": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 30.9
+        },
+        "popin_ms_p90": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 61.3
+        },
+        "retained_mb": {
+          "direction": "lower",
+          "slack": 5.0,
+          "tolerance": 0.2,
+          "value": 108.9
+        },
+        "scroll_down_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 3350.9
+        },
+        "scroll_up_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 2845.1
+        },
+        "stall_max_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 39.3
+        },
+        "stall_p99_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 9.9
+        },
+        "stalls_over_budget": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 6
+        },
+        "stream_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 309.8
+        },
+        "teardown_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 63.8
+        }
+      },
+      "conditions": {
+        "avatar_px": "400",
+        "frame_budget_ms": 16.67,
+        "image_format": "jpeg",
+        "latency_ms": 0.0,
+        "media_px": "1600x1200",
+        "posts": 500,
+        "renderer": "cairo",
+        "scroll_steps": 24,
+        "soak_pages": 3,
+        "soak_steps": 40,
+        "stream_events": 12
+      },
+      "recorded_at": {
+        "dirty": true,
+        "git": "559b074",
+        "runs": 3
+      },
+      "recorded_on": "2026-10-18"
+    },
+    "soak": {
+      "budgets": {
+        "cpu_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 10306.8
+        },
+        "decode_avatar_slow": {
+          "floor": 43.2,
+          "value": 54
+        },
+        "duplicate_requests": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 251
+        },
+        "first_card_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 128.3
+        },
+        "frames_with_empty_shell": {
+          "direction": "lower",
+          "slack": 20.0,
+          "tolerance": 0.2,
+          "value": 270
+        },
+        "live_items": {
+          "max": 0,
+          "value": 0
+        },
+        "live_rows": {
+          "max": 0,
+          "value": 0
+        },
+        "load_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 242.9
+        },
+        "main_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 6191.9
+        },
+        "popin_ms_median": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 31.5
+        },
+        "popin_ms_p90": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.25,
+          "value": 59.4
+        },
+        "retained_mb": {
+          "direction": "lower",
+          "slack": 5.0,
+          "tolerance": 0.2,
+          "value": 160.7
+        },
+        "scroll_down_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 9908.6
+        },
+        "stall_max_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 21.2
+        },
+        "stall_p99_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 9.6
+        },
+        "stalls_over_budget": {
+          "direction": "lower",
+          "slack": 2.0,
+          "tolerance": 0.2,
+          "value": 3
+        },
+        "teardown_ms": {
+          "direction": "lower",
+          "slack": 0.0,
+          "tolerance": 0.2,
+          "value": 125.8
+        }
+      },
+      "conditions": {
+        "avatar_px": "400",
+        "frame_budget_ms": 16.67,
+        "image_format": "jpeg",
+        "latency_ms": 0.0,
+        "media_px": "1600x1200",
+        "posts": 500,
+        "renderer": "cairo",
+        "scroll_steps": 24,
+        "soak_pages": 3,
+        "soak_steps": 40,
+        "stream_events": 12
+      },
+      "recorded_at": {
+        "dirty": true,
+        "git": "559b074",
+        "runs": 3
+      },
+      "recorded_on": "2026-10-18"
+    }
+  }
+}
