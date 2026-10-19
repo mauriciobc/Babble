@@ -21,6 +21,9 @@ Everything else is here.
 | [Improvement register](IMPROVEMENTS.md) | Open findings, decisions, and what was deferred |
 | [Profiling the running app](performance-profiling.md) | The scripted-UI baseline on `main`, how to record a comparison, and every finding so far |
 | [GNOME review](gnome-review.md) | HIG, GTK4/libadwaita, architecture and packaging audit of one revision |
+| [GTK 4/libadwaita UI patterns](gtk4-ui-patterns.md) | How eight GTK 4 apps (chosen for coverage, not popularity) build their UI, plus how Babble compares to them and to our internal skill |
+| [UI proposals: implementation study](ui-proposals-implementation-study.md) | How to implement each proposal from that report, with spike results and the order to do them in |
+| [UI proposals: task-level plan](ui-proposals-plan.md) | Work packages and tasks with files, acceptance criteria and order |
 | [GNOME review remediation plan](gnome-review-remediation-plan.md) | Phased fixes for that audit |
 | [Roadmap](ROADMAP.MD) | What the project is betting on |
 
