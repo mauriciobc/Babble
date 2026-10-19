@@ -3,10 +3,14 @@
 """The dialog bases keep their observable behaviour.
 
 Written before the two bases (lists.ToastDialog and admin.AdminDialogBase)
-are merged into pages.ToastDialog, so it passes on both the old and the
-new code. It pins what a caller can rely on: a header, a preferences
-page, an overlay above the page, a toast that lands on that overlay, and
-pages.show_toast routing to it rather than to the window.
+were merged into pages.ToastDialog, and run against both sides of that
+merge; the dialogs migrated afterwards are added here. Behaviour that
+does not depend on the base lives in dialog behaviour.
+
+It pins what a caller can rely on: a header, content directly under the
+dialog's own toast overlay, toasts that land there with the libadwaita
+default timeout, and pages.show_toast routing to that overlay rather
+than to the window.
 
 Exits 77 (skip) without a display or a compiled bundle."""
 
@@ -85,17 +89,19 @@ def exercise(dialog, label):
     pump()
     check('%s has a header bar' % label,
           isinstance(dialog.header, Adw.HeaderBar))
-    check('%s has content under the overlay' % label,
-          isinstance(dialog.page, Gtk.Widget))
-    overlay = dialog.page.get_ancestor(Adw.ToastOverlay)
-    check('%s keeps its page under an overlay' % label,
-          overlay is not None)
+    check('%s keeps its content directly under its own overlay' % label,
+          isinstance(dialog.toasts, Adw.ToastOverlay)
+          and dialog.toasts.get_child() is dialog.page)
+    overlay = dialog.toasts
 
     seen = []
     overlay.add_toast = lambda toast: seen.append(toast)
     dialog.toast('hello')
     check('%s toast() lands on its own overlay' % label,
           len(seen) == 1 and seen[0].get_title() == 'hello', seen)
+    check('%s toasts last the libadwaita default, 5 s' % label,
+          len(seen) == 1 and seen[0].get_timeout() == 5,
+          seen[0].get_timeout() if seen else None)
 
     seen.clear()
     pages.show_toast(dialog.page, 'routed')
