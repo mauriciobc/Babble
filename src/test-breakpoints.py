@@ -10,9 +10,14 @@ invariant is asserted around both boundaries at every pixel:
     split_view.collapsed == (width <= 600)
     web_split.collapsed  == (width < 1100)
 
-``width`` is the realised window width, not the requested one: under
-X11 the decoration shadow makes the window a constant number of pixels
-smaller, and that constant is the backend's business, not the test's.
+``width`` is the realised window width (``get_width()``), not the
+requested one: the backend may realise a different size (under X11 the
+decoration shadow subtracts a constant), and the invariants never use
+or assume that inset. Every width is read on the window's frame clock
+and only accepted once it holds across several painted frames; a width
+that never settles is a failure. The test also requires that 599, 600,
+601, 1099, 1100 and 1101 px were each realised, so both sides of both
+edges were really checked.
 
 The project is desktop-first for now, so a screen too small to exercise
 the wide branch skips rather than fails (exit 77).
@@ -75,23 +80,44 @@ def check(name, condition, detail=''):
         print('FAIL - %s%s' % (name, (': ' + str(detail)) if detail else ''))
 
 
+STABLE_FRAMES = 3
+DEADLINE_US = 3 * 1000 * 1000
+unsettled = []
+
+
 def settle(width, height=800):
-    """Resize and pump until the realised width stops changing."""
+    """Resize, then wait for real painted frames until the width holds.
+
+    Reading the width repeatedly inside one main-loop burst returns the
+    previous request's size, because the configure round-trip lands a
+    frame or more later. So every width sample is taken on the frame
+    clock's after-paint signal, a redraw is queued to keep frames coming,
+    and the width counts as settled once it is unchanged across
+    STABLE_FRAMES consecutive painted frames. A width that never settles
+    before the deadline is recorded as a failure rather than returned as
+    if it were good."""
     window.set_default_size(width, height)
     window.present()
     context = GLib.MainContext.default()
-    last, stable = None, 0
-    for _ in range(400):
-        while context.iteration(False):
-            pass
-        current = window.get_width()
-        if current == last:
-            stable += 1
-            if stable >= 5:
-                return current
-        else:
-            last, stable = current, 0
-        GLib.usleep(2000)
+    samples = []
+
+    def on_after_paint(_clock):
+        samples.append(window.get_width())
+        window.queue_draw()
+
+    clock = window.get_frame_clock()
+    handler = clock.connect('after-paint', on_after_paint)
+    window.queue_draw()
+    deadline = GLib.get_monotonic_time() + DEADLINE_US
+    try:
+        while GLib.get_monotonic_time() < deadline:
+            context.iteration(True)
+            tail = samples[-STABLE_FRAMES:]
+            if len(samples) > STABLE_FRAMES and len(set(tail)) == 1:
+                return tail[0]
+    finally:
+        clock.disconnect(handler)
+    unsettled.append((width, samples[-STABLE_FRAMES:]))
     return window.get_width()
 
 
@@ -100,10 +126,10 @@ app = Gio.Application.get_default()
 window = BabbleWindow(application=app)
 window.main_stack.set_visible_child_name('shell')
 
-# The requested size is not the realised one (the backend subtracts a
-# constant), so the constant is measured once while the window is small,
-# where its minimum size cannot mask the request.
-offset = 800 - settle(800)
+# The first present() maps the window; settle once so its frame clock
+# exists before the scan connects to it.
+window.present()
+settle(800)
 
 collapsed_mismatches = []
 web_mismatches = []
@@ -125,16 +151,17 @@ check('the sidebar collapses at exactly 600sp', not collapsed_mismatches,
 check('the web column pins at exactly 1100sp', not web_mismatches,
       web_mismatches[:3])
 
-# Both edges were crossed during the ascending scan (the window cannot be
-# asked to shrink once its content has grown, so the scan only grows).
-for edge in (600, 601, 1100):
+check('every requested width settled across %d frames' % STABLE_FRAMES,
+      not unsettled, unsettled[:3])
+
+# The first request shrinks the window from 800 to 590; from there the
+# scan grows one pixel at a time through 600/601 and 1099/1100. Each
+# side of each edge must have been realised, otherwise the invariants
+# above were never put to the test.
+for edge in (599, 600, 601, 1099, 1100, 1101):
     check('the scan realised %d px' % edge, edge in realised, edge)
-check('the scan sampled a collapsed web column',
-      any(width < 1100 for width in realised),
-      min(realised) if realised else None)
-check('the scan sampled a pinned web column',
-      any(width > 1100 for width in realised),
-      max(realised) if realised else None)
+print('# realised edges: %s' % sorted(
+    w for w in set(realised) if w in (599, 600, 601, 1099, 1100, 1101)))
 
 if failures:
     print('%d checks failed' % len(failures))
