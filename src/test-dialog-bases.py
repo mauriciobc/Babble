@@ -36,7 +36,9 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import admin, lists, main as babble_main, pages  # noqa: E402
+from src import (admin, fedicollections, lists,  # noqa: E402
+                 main as babble_main, notifications, pages, profile,
+                 profileedit, wrapped)
 from src.window import BabbleWindow  # noqa: E402
 
 failures = []
@@ -63,6 +65,12 @@ class _Client:
     instance_info = None
     instance = 'https://example.org'
 
+    def request_async(self, *_args, **_kwargs):
+        pass
+
+    def is_supported(self, *_args, **_kwargs):
+        return True
+
 
 Gio.Application.register(babble_main.BabbleApplication(version='test'), None)
 app = Gio.Application.get_default()
@@ -77,8 +85,8 @@ def exercise(dialog, label):
     pump()
     check('%s has a header bar' % label,
           isinstance(dialog.header, Adw.HeaderBar))
-    check('%s has a preferences page' % label,
-          isinstance(dialog.page, Adw.PreferencesPage))
+    check('%s has content under the overlay' % label,
+          isinstance(dialog.page, Gtk.Widget))
     overlay = dialog.page.get_ancestor(Adw.ToastOverlay)
     check('%s keeps its page under an overlay' % label,
           overlay is not None)
@@ -107,6 +115,39 @@ admin_dialog = admin.AddIPBlockDialog(_Ctx())
 exercise(admin_dialog, 'admin')
 check('the admin base still offers header buttons',
       isinstance(admin_dialog.save, Gtk.Button))
+
+collection_dialog = fedicollections.CollectionEditDialog(_Client())
+exercise(collection_dialog, 'collection')
+check('the collection dialog keeps its Save button',
+      isinstance(collection_dialog.save_button, Gtk.Button))
+
+policy_dialog = notifications.NotificationPolicyDialog(_Client())
+exercise(policy_dialog, 'policy')
+check('the policy dialog keeps its filter rows',
+      bool(policy_dialog.filter_rows))
+
+account = {'id': '1', 'acct': 'ada@example.org',
+           'display_name': 'Ada Lovelace', 'source': {}}
+profile_dialog = profileedit.ProfileEditDialog(_Client(), account, window)
+exercise(profile_dialog, 'profile')
+check('the profile editor hides its title buttons',
+      not profile_dialog.header.get_show_start_title_buttons()
+      and not profile_dialog.header.get_show_end_title_buttons())
+check('the profile editor keeps its Save button',
+      isinstance(profile_dialog.save_button, Gtk.Button))
+
+note_dialog = profile.PrivateNoteDialog('@ada@example.org', 'note',
+                                       lambda _text: None)
+exercise(note_dialog, 'private note')
+check('the private note hides its title buttons',
+      not note_dialog.header.get_show_start_title_buttons())
+
+wrapped_dialog = wrapped.WrappedDialog(window, _Client(), year=2026)
+check('wrapped keeps its stack under the overlay',
+      wrapped_dialog.stack.get_ancestor(Adw.ToastOverlay)
+      is wrapped_dialog.toasts)
+check('wrapped keeps its header buttons',
+      isinstance(wrapped_dialog.save_button, Gtk.Button))
 
 if failures:
     print('%d checks failed' % len(failures))

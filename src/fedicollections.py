@@ -661,13 +661,14 @@ def can_invite(account):
     return approval.get('current_user') in ('automatic', 'manual')
 
 
-class CollectionEditDialog(Adw.Dialog):
+class CollectionEditDialog(pages.ToastDialog):
     """Create (``collection`` None) or edit a collection. In edit mode the
     member changes are applied as they are made; the details are saved
     with the Save button."""
 
     def __init__(self, client, collection=None, on_saved=None, **kwargs):
-        super().__init__(content_width=520, content_height=720, **kwargs)
+        super().__init__(_('Edit Collection') if collection else
+                         _('New Collection'), 520, 720, **kwargs)
         self.client = client
         self.collection = collection
         self.edit_mode = collection is not None
@@ -675,24 +676,16 @@ class CollectionEditDialog(Adw.Dialog):
         self.members = {}
         self._search_id = 0
         self._search_results = []
-        self.set_title(_('Edit Collection') if self.edit_mode
-                       else _('New Collection'))
 
-        self.page = Adw.PreferencesPage()
-        self.toasts = Adw.ToastOverlay(child=self.page)
-        toolbar = Adw.ToolbarView(content=self.toasts)
-        header = Adw.HeaderBar()
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
         pages.connect_weak(cancel, 'clicked', self._on_cancel)
-        header.pack_start(cancel)
+        self.header.pack_start(cancel)
         self.save_button = Gtk.Button(
             label=_('_Save') if self.edit_mode else _('_Create'),
             use_underline=True)
         self.save_button.add_css_class('suggested-action')
         pages.connect_weak(self.save_button, 'clicked', self._on_save)
-        header.pack_end(self.save_button)
-        toolbar.add_top_bar(header)
-        self.set_child(toolbar)
+        self.header.pack_end(self.save_button)
 
         details = Adw.PreferencesGroup()
         self.name_row = Adw.EntryRow(title=_('Name'))

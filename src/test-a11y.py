@@ -84,6 +84,17 @@ def walk(widget):
     return found
 
 
+def has_text_descendant(widget):
+    """Whether *widget* draws its own text (a GtkButton with a label)."""
+    return any(isinstance(node, Gtk.Label) and node.get_label()
+               for node in walk(widget))
+
+
+def is_internal_toggle(widget):
+    """A MenuButton's own toggle is an implementation detail, not UI."""
+    return isinstance(widget.get_parent(), Gtk.MenuButton)
+
+
 def within_row(widget):
     """Whether *widget* sits inside a row that names it."""
     node = widget.get_parent()
@@ -155,17 +166,15 @@ check('a boosted post names the author and the booster',
       seen == ['Post by Ada Lovelace, boosted by Grace Hopper'], seen)
 
 for widget in walk(row):
-    if isinstance(widget, (Gtk.Button, Gtk.ToggleButton, Gtk.MenuButton)) \
-            and not has_label(widget) \
-            and not widget.get_tooltip_text() \
-            and not within_row(widget):
-        note('interactive widget without a name',
-             '%s.%s' % (type(widget).__name__,
-                        ' '.join(widget.get_css_classes()) or '-'))
-    elif isinstance(widget, Gtk.Button) and not has_label(widget) \
-            and not widget.get_tooltip_text():
-        note('interactive widget named only by its child',
-             type(widget).__name__)
+    if not isinstance(widget, (Gtk.Button, Gtk.ToggleButton,
+                               Gtk.MenuButton)):
+        continue
+    if has_label(widget) or widget.get_tooltip_text() \
+            or has_text_descendant(widget) or is_internal_toggle(widget):
+        continue
+    note('interactive widget without a name',
+         '%s.%s' % (type(widget).__name__,
+                    ' '.join(widget.get_css_classes()) or '-'))
 
 
 # -- dialogs: labels that may be read as static text -------------------

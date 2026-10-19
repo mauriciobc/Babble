@@ -180,12 +180,11 @@ def section_title(text):
     return label
 
 
-class WrappedDialog(Adw.Dialog):
+class WrappedDialog(pages.ToastDialog):
     """The dialog; renders ``GET /api/v1/annual_reports``."""
 
     def __init__(self, parent, client, year=None, **kwargs):
-        super().__init__(title=_('Wrapped'), content_width=560,
-                         content_height=760, **kwargs)
+        super().__init__(_('Wrapped'), 560, 760, **kwargs)
         self.parent = parent
         self.client = client
         self.year = year
@@ -195,11 +194,7 @@ class WrappedDialog(Adw.Dialog):
         self._generation = 0
 
         self.stack = Gtk.Stack()
-        self.toasts = Adw.ToastOverlay(child=self.stack)
-        self.toolbar = Adw.ToolbarView(content=self.toasts)
-        self.header = Adw.HeaderBar()
-        self.toolbar.add_top_bar(self.header)
-        self.set_child(self.toolbar)
+        self.set_content(self.stack)
 
         self.save_button = pages.icon_button(
             'document-save-symbolic', _('Save as Image…'))

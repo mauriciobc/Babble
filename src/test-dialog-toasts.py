@@ -35,6 +35,20 @@ ALLOWED = {
         'after the dialog closes',
 }
 
+# Dialogs that intentionally keep their own scaffold. They own an
+# overlay (so they are not in ALLOWED), but they are not on the shared
+# base because their content shape does not fit it. Each entry records
+# why; the check fails if one of them starts using the base without the
+# entry being removed.
+HAND_BUILT = {
+    ('admin', 'AdminDialog'):
+        'a NavigationSplitView of admin pages, not a preferences page',
+    ('profile', 'ProfileDialog'):
+        'a bottom sheet whose content is a NavigationView',
+    ('report', 'ReportDialog'):
+        'a NavigationView with a header per step',
+}
+
 EXTERNAL = {
     'Adw.Dialog', 'Adw.Window', 'Gtk.Dialog', 'Gtk.Window',
     'Gtk.Widget', 'Gtk.Box', 'Adw.Bin', 'Gtk.Overlay',
@@ -135,6 +149,22 @@ allowed_keys = set(ALLOWED)
 reported = [key for key in unowned if key not in allowed_keys]
 check('every dialog owns an overlay or is allowlisted', not reported,
       ', '.join('%s.%s' % key for key in reported))
+
+def uses_base(key):
+    for base in classes[key]['bases']:
+        target = resolve(key[0], base)
+        if target and (target == ('pages', 'ToastDialog')
+                       or uses_base(target)):
+            return True
+    return False
+
+
+for key, reason in sorted(HAND_BUILT.items()):
+    check('%s.%s has a reason' % key, bool(reason.strip()), reason)
+    check('%s.%s still exists and is a dialog' % key, key in dialogs, key)
+    check('%s.%s is hand-built and owns its overlay' % key,
+          key in dialogs and owns_overlay(key) and not uses_base(key),
+          'it now uses the base; move it out of HAND_BUILT')
 
 for key, reason in sorted(ALLOWED.items()):
     check('%s.%s has a reason' % key, bool(reason.strip()), reason)

@@ -12,9 +12,9 @@ this document says what to change, where, and how to know it is done.
 | WP2 a11y read-back | done | see log | `a11y readback` test and its own `GTK_A11Y=test` environment; inventories: 4 unnamed buttons on a post row, 0 unrelated labels in preferences/report |
 | WP3 toast ownership | done | see log | `dialog toasts`: 21 dialogs, two allowlisted with reasons; negative proofs for a new unowned dialog, a stale entry and a missing reason |
 | WP4 merge dialog bases | done | see log | one `pages.ToastDialog` (5 s, `.toasts`); nine dialogs migrated; characterization test passed before and after; 20 dialog classes remain (the two bases became one) |
-| WP5 content slot | pending | | |
+| WP5 content slot | done (T5.9 visual check open) | see log | `set_content`; five dialogs migrated; three hand-built dialogs recorded with reasons; ten acceptance tests green |
 | WP6 breakpoints | done | see log | `breakpoints` scans 590-624 and 1090-1124 at 1280x1024; skips on smaller screens; negative proofs for both edges |
-| WP7 a11y changes | pending | | |
+| WP7 a11y changes | automated part done, Orca validation open | see log | inventory is clean (0 unnamed controls, 0 unrelated labels) in the sampled row/dialogs; T7.5 needs an Orca machine |
 | WP8 closeout | pending | | |
 | WP9 deck prototype | pending | | optional |
 | WP10 one `.ui` extraction | pending | | optional |

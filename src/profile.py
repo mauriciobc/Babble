@@ -295,7 +295,7 @@ def present_mute_dialog(parent, handle, on_confirm):
     return dialog
 
 
-class PrivateNoteDialog(Adw.Dialog):
+class PrivateNoteDialog(pages.ToastDialog):
     """Editor for the private note kept on another account (visible to
     the viewer only). *on_save(text)* is called with the new text; the
     caller closes the dialog by calling :meth:`close` on success."""
@@ -303,11 +303,10 @@ class PrivateNoteDialog(Adw.Dialog):
     __gtype_name__ = 'BabblePrivateNoteDialog'
 
     def __init__(self, handle, text, on_save, **kwargs):
-        super().__init__(title=_('Private Note'), content_width=400,
-                         content_height=360, **kwargs)
+        super().__init__(_('Private Note'), 400, 360,
+                         title_buttons=False, **kwargs)
         self._on_save = on_save
-        header = Adw.HeaderBar(show_start_title_buttons=False,
-                               show_end_title_buttons=False)
+        header = self.header
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
         connect_weak(cancel, 'clicked', self._on_cancel_clicked)
         header.pack_start(cancel)
@@ -344,9 +343,7 @@ class PrivateNoteDialog(Adw.Dialog):
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         body.append(scrolled)
         body.append(hint)
-        toolbar = Adw.ToolbarView(content=body)
-        toolbar.add_top_bar(header)
-        self.set_child(Adw.ToastOverlay(child=toolbar))
+        self.set_content(body)
         self.set_focus(self.text_view)
         self._on_changed()
 

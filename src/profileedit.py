@@ -192,14 +192,14 @@ class FieldRow(Adw.ExpanderRow):
                 <= self._limits['profile_field_value_limit'])
 
 
-class ProfileEditDialog(Adw.Dialog):
+class ProfileEditDialog(pages.ToastDialog):
     """Preferences-style editor for the signed-in account."""
 
     __gtype_name__ = 'BabbleProfileEditDialog'
 
     def __init__(self, client, account, parent, on_saved=None, **kwargs):
-        super().__init__(title=_('Edit Profile'), content_width=560,
-                         content_height=760, **kwargs)
+        super().__init__(_('Edit Profile'), 560, 760,
+                         title_buttons=False, **kwargs)
         self.client = client
         self.account = account
         self.source = account.get('source') or {}
@@ -213,7 +213,7 @@ class ProfileEditDialog(Adw.Dialog):
         self._discarding = False
         self._profile_form = {}
 
-        page = Adw.PreferencesPage()
+        page = self.page
         self._build_images(page)
         self._build_about(page)
         self._build_fields(page)
@@ -221,8 +221,7 @@ class ProfileEditDialog(Adw.Dialog):
         self._build_defaults(page)
         self._build_tabs(page)
 
-        header = Adw.HeaderBar(show_start_title_buttons=False,
-                               show_end_title_buttons=False)
+        header = self.header
         self.cancel_button = Gtk.Button(label=_('_Cancel'),
                                         use_underline=True)
         pages.connect_weak(self.cancel_button, 'clicked',
@@ -233,10 +232,6 @@ class ProfileEditDialog(Adw.Dialog):
         pages.connect_weak(self.save_button, 'clicked', self.on_save_clicked)
         header.pack_end(self.save_button)
 
-        toolbar = Adw.ToolbarView(content=page)
-        toolbar.add_top_bar(header)
-        self.toast_overlay = Adw.ToastOverlay(child=toolbar)
-        self.set_child(self.toast_overlay)
         self.connect('close-attempt', self.on_close_attempt)
         self.update_state()
 
@@ -640,7 +635,7 @@ class ProfileEditDialog(Adw.Dialog):
         self.set_can_close(not dirty or self._discarding)
 
     def toast(self, text):
-        self.toast_overlay.add_toast(Adw.Toast(title=text, use_markup=False))
+        self.toasts.add_toast(Adw.Toast(title=text, use_markup=False))
 
     # Closing
 
@@ -666,7 +661,7 @@ class ProfileEditDialog(Adw.Dialog):
 
     def set_saving(self, saving):
         self._saving = saving
-        self.toast_overlay.set_sensitive(not saving)
+        self.toasts.set_sensitive(not saving)
         self.cancel_button.set_sensitive(not saving)
         self.update_state()
 

@@ -1615,7 +1615,7 @@ POLICY_CHOICES = [
 ]
 
 
-class NotificationPolicyDialog(Adw.Dialog):
+class NotificationPolicyDialog(pages.ToastDialog):
     """Edits ``GET/PATCH /api/v2/notifications/policy`` (what to do with
     notifications from each kind of sender: accept, filter into the
     requests inbox or drop) and the per-type visibility switches. The
@@ -1624,22 +1624,12 @@ class NotificationPolicyDialog(Adw.Dialog):
     __gtype_name__ = 'BabbleNotificationPolicyDialog'
 
     def __init__(self, client, parent=None):
-        super().__init__(title=_('Notification Settings'),
-                         content_width=480, content_height=620)
+        super().__init__(_('Notification Settings'), 480, 620)
         self.client = client
         self._parent = parent
         self.policy = None
         self.filter_rows = {}
         self.type_rows = {}
-
-        self.toasts = Adw.ToastOverlay()
-        toolbar = Adw.ToolbarView()
-        toolbar.add_top_bar(Adw.HeaderBar())
-        toolbar.set_content(self.toasts)
-        self.set_child(toolbar)
-
-        page = Adw.PreferencesPage()
-        self.toasts.set_child(page)
 
         self.filters_group = Adw.PreferencesGroup(
             title=_('Filter Notifications From'),
@@ -1651,7 +1641,7 @@ class NotificationPolicyDialog(Adw.Dialog):
                     [label for _code, label in POLICY_CHOICES]))
             self.filter_rows[key] = row
             self.filters_group.add(row)
-        page.add(self.filters_group)
+        self.page.add(self.filters_group)
 
         types_group = Adw.PreferencesGroup(
             title=_('Show Notifications For'))
@@ -1662,7 +1652,7 @@ class NotificationPolicyDialog(Adw.Dialog):
             connect_weak(row, 'notify::active', self._on_type_switched, kind)
             self.type_rows[kind] = row
             types_group.add(row)
-        page.add(types_group)
+        self.page.add(types_group)
 
         self.connect('closed', lambda _d: self.save())
         self.load()

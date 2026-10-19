@@ -500,6 +500,11 @@ class ToastDialog(Adw.Dialog):
         self.toolbar.set_content(self.toasts)
         self.set_child(self.toolbar)
 
+    def set_content(self, widget):
+        """Replace the preferences page, keeping the overlay above it."""
+        self.page = widget
+        self.toasts.set_child(widget)
+
     def toast(self, text):
         self.toasts.add_toast(
             Adw.Toast(title=text, timeout=5, use_markup=False))
