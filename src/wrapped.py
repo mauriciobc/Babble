@@ -238,10 +238,6 @@ class WrappedDialog(pages.ToastDialog):
 
     # Loading
 
-    def toast(self, text):
-        self.toasts.add_toast(Adw.Toast(title=text, use_markup=False,
-                                        timeout=5))
-
     def _style_menu(self):
         menu = Gio.Menu()
         for key, label in STYLES:

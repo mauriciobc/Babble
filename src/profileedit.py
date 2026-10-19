@@ -634,9 +634,6 @@ class ProfileEditDialog(pages.ToastDialog):
         self.save_button.set_sensitive(valid and dirty and not self._saving)
         self.set_can_close(not dirty or self._discarding)
 
-    def toast(self, text):
-        self.toasts.add_toast(Adw.Toast(title=text, use_markup=False))
-
     # Closing
 
     def on_close_attempt(self, _dialog):

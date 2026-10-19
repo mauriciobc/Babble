@@ -483,6 +483,14 @@ test('dialog bases', python,
   timeout: 60,
 )
 
+# Behaviour of the migrated dialogs, written against what each exposed
+# before the migration so it runs unchanged on both sides of it.
+test('dialog behaviour', python,
+  args: [files('test-dialog-behaviour.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
 # The sidebar and web-column breakpoints, at every pixel across both
 # edges. Needs a 1280x1024 screen to reach the wide layout and skips
 # (desktop-first) when the screen is smaller.

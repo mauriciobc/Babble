@@ -30,8 +30,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
 from .pages import weak_method  # noqa: E402
-from .mastodon import (summarize_error,  # noqa: E402
-                       summarize_error_markup)
+from .mastodon import summarize_error_markup  # noqa: E402
 
 MAX_MEMBERS = 25
 DEFAULT_LIMIT = 10
@@ -667,8 +666,8 @@ class CollectionEditDialog(pages.ToastDialog):
     with the Save button."""
 
     def __init__(self, client, collection=None, on_saved=None, **kwargs):
-        super().__init__(_('Edit Collection') if collection else
-                         _('New Collection'), 520, 720, **kwargs)
+        super().__init__(_('Edit Collection') if collection is not None
+                         else _('New Collection'), 520, 720, **kwargs)
         self.client = client
         self.collection = collection
         self.edit_mode = collection is not None
@@ -773,14 +772,6 @@ class CollectionEditDialog(pages.ToastDialog):
 
     def _on_cancel(self, _button):
         self.close()
-
-    def toast(self, text):
-        self.toasts.add_toast(Adw.Toast(title=text, use_markup=False,
-                                        timeout=5))
-
-    def error(self, heading, error):
-        self.toast('%s: %s' % (heading, summarize_error(
-            getattr(error, 'message', str(error)))))
 
     def _update_save(self, *_args):
         self.save_button.set_sensitive(
