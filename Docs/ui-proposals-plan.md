@@ -13,7 +13,7 @@ this document says what to change, where, and how to know it is done.
 | WP3 toast ownership | done | see log | `dialog toasts`: 21 dialogs, two allowlisted with reasons; negative proofs for a new unowned dialog, a stale entry and a missing reason |
 | WP4 merge dialog bases | done | see log | one `pages.ToastDialog` (5 s, `.toasts`); nine dialogs migrated; characterization test passed before and after; 20 dialog classes remain (the two bases became one) |
 | WP5 content slot | pending | | |
-| WP6 breakpoints | pending | | |
+| WP6 breakpoints | done | see log | `breakpoints` scans 590-624 and 1090-1124 at 1280x1024; skips on smaller screens; negative proofs for both edges |
 | WP7 a11y changes | pending | | |
 | WP8 closeout | pending | | |
 | WP9 deck prototype | pending | | optional |

@@ -482,3 +482,12 @@ test('dialog bases', python,
   env: fatal_test_env,
   timeout: 60,
 )
+
+# The sidebar and web-column breakpoints, at every pixel across both
+# edges. Needs a 1280x1024 screen to reach the wide layout and skips
+# (desktop-first) when the screen is smaller.
+test('breakpoints', python,
+  args: [files('test-breakpoints.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
