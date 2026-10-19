@@ -11,7 +11,8 @@ and proves nothing moved:
 - collection editor: title and Save/Create label follow the mode, and
   Save is only sensitive with a name;
 - notification policy: closing after a change sends the PATCH, closing
-  without one sends nothing;
+  without one sends nothing, and when it was opened from Preferences the
+  confirmation lands on the still-open Preferences dialog, not behind it;
 - Wrapped: the year and style controls sit at the start of the header,
   Save at the end;
 - profile editor: Save follows a real change, and closing with an unsaved
@@ -149,6 +150,40 @@ check('closing the policy after a change sends one PATCH',
 check('the PATCH carries only the changed field',
       bool(patches) and patches[0][2].get('json_body') == {first_key: 'filter'},
       patches[0][2].get('json_body') if patches else None)
+
+
+# The policy dialog opened from Preferences: its parent is the
+# Preferences dialog, which is still open when the policy closes. A
+# toast on the window would be covered by it, so the confirmation must
+# land on the Preferences dialog's own overlay.
+from src import preferences  # noqa: E402
+
+prefs = preferences.PreferencesDialog(window)
+prefs.present(window)
+pump()
+on_prefs, on_window = [], []
+prefs.add_toast = lambda toast: on_prefs.append(toast.get_title())
+window_add = window.add_toast
+window.add_toast = lambda toast: on_window.append(toast.get_title())
+client = _Client()
+nested = notifications.NotificationPolicyDialog(client, prefs)
+nested.on_loaded(client, {key: 'accept'
+                          for key, _t, _s in notifications.POLICY_FIELDS})
+nested.present(prefs)
+pump()
+nested.filter_rows[first_key].set_selected(1)
+nested.close()
+pump()
+patch = [r for r in client.requests if r[0] == 'PATCH']
+if patch:
+    patch[0][2]['callback'](client, {})
+pump()
+check('a policy change opened from Preferences toasts on Preferences',
+      on_prefs == ['Notification settings updated'] and not on_window,
+      'preferences %r, window %r' % (on_prefs, on_window))
+window.add_toast = window_add
+prefs.force_close()
+pump()
 
 
 # -- Wrapped header ----------------------------------------------------
