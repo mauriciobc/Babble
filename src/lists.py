@@ -18,6 +18,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .pages import ToastDialog  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
 FAVORITE_LISTS_KEY = 'favorite-lists-ids'
@@ -122,27 +123,6 @@ def error_text_markup(error):
     its description as markup and blanks the label on a bare ``&``.
     """
     return summarize_error_markup(error)
-
-
-class ToastDialog(Adw.Dialog):
-    """Adw.Dialog with a header bar, an inner toast overlay and a scrolled
-    Adw.PreferencesPage as content."""
-
-    def __init__(self, title, width=480, height=600):
-        super().__init__(title=title, content_width=width,
-                         content_height=height)
-        self.toolbar = Adw.ToolbarView()
-        self.header = Adw.HeaderBar()
-        self.toolbar.add_top_bar(self.header)
-        self.overlay = Adw.ToastOverlay()
-        self.page = Adw.PreferencesPage()
-        self.overlay.set_child(self.page)
-        self.toolbar.set_content(self.overlay)
-        self.set_child(self.toolbar)
-
-    def toast(self, text):
-        self.overlay.add_toast(
-            Adw.Toast(title=text, timeout=4, use_markup=False))
 
 
 class AvatarRow(Adw.ActionRow):

@@ -282,6 +282,21 @@ check('the canvas mix is untouched',
                 r'[^}]*color-mix\(in srgb,\s*var\(--window-bg-color\) 92%',
                 css) is not None)
 
+# -- Conventions that must stay absent ---------------------------------
+# These are the deprecated or fragile forms the stylesheet is not
+# allowed to grow back. Comments are stripped first because the file's
+# own explanations quote the forms they replaced.
+plain = strip_comments(css)
+for token in ('@define-color', 'shade(', 'alpha(', '.dim-label',
+              'overlay-split-view', 'widget.background'):
+    check('style.css does not use %s' % token, token not in plain)
+
+manifest = os.path.join(srcdir, 'babble.gresource.xml')
+with open(manifest, encoding='utf-8') as manifest_file:
+    bundled_files = manifest_file.read()
+for split_sheet in ('style-dark.css', 'style-hc.css', 'style-hc-dark.css'):
+    check('%s is not bundled' % split_sheet, split_sheet not in bundled_files)
+
 if failures:
     print('%d checks failed' % failures)
     sys.exit(1)

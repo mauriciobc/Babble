@@ -21,7 +21,8 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
-from .lists import ToastDialog, error_text_markup  # noqa: E402
+from .lists import error_text_markup  # noqa: E402
+from .pages import ToastDialog  # noqa: E402
 from .statustext import compact_count  # noqa: E402
 
 RECENT_KEY = 'recent-searches'

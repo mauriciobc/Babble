@@ -444,3 +444,74 @@ test('style css', python,
   env: css_env,
   timeout: 60,
 )
+
+# The accessibility test backend answers "what would an assistive
+# technology be given" without running one. Every other environment
+# disables accessibility (GTK_A11Y=none), so this is the only test that
+# reads attributes back.
+a11y_test_env = environment()
+a11y_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+a11y_test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+a11y_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+a11y_test_env.set('GSETTINGS_BACKEND', 'memory')
+a11y_test_env.set('GDK_DEBUG', 'no-portals')
+a11y_test_env.set('NO_AT_BRIDGE', '1')
+a11y_test_env.set('GTK_A11Y', 'test')
+a11y_test_env.set('LANG', 'C')
+a11y_test_env.set('LC_ALL', 'C')
+a11y_test_env.set('GSK_RENDERER', 'cairo')
+a11y_test_env.set('G_DEBUG', 'fatal-criticals')
+test('a11y readback', python,
+  args: [files('test-a11y.py')],
+  env: a11y_test_env,
+  timeout: 60,
+)
+
+# Static: every dialog owns a toast overlay or is allowlisted with a
+# reason. No display, bundle or network is needed.
+test('dialog toasts', python,
+  args: [files('test-dialog-toasts.py')],
+  env: test_env,
+  timeout: 30,
+)
+
+# The behaviour both dialog bases promise, pinned before they are merged
+# so the merge can be checked against it.
+test('dialog bases', python,
+  args: [files('test-dialog-bases.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
+# Behaviour of the migrated dialogs, written against what each exposed
+# before the migration so it runs unchanged on both sides of it.
+test('dialog behaviour', python,
+  args: [files('test-dialog-behaviour.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
+# The sidebar and web-column breakpoints, at every pixel across both
+# edges. Needs a 1280x1024 screen to reach the wide layout and skips
+# (desktop-first) when the screen is smaller.
+test('breakpoints', python,
+  args: [files('test-breakpoints.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+
+# The opt-in translucent sidebar, rendered and read back on both sides of
+# the web column's 1100sp edge. Needs 1280x1024; skips when smaller.
+test('translucent sidebar', python,
+  args: [files('test-translucent-sidebar.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
+# The Wrapped Style menu, rendered: each style must change the card that
+# Save as Image exports, and Accent must keep the chart bars visible.
+test('wrapped styles', python,
+  args: [files('test-wrapped-styles.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)

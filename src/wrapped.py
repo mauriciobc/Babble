@@ -115,9 +115,20 @@ class MonthlyChart(Gtk.DrawingArea):
             self.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
     def _color(self):
-        if self.accent:
+        # On the Accent card style the background is the accent itself,
+        # so the bars take the card's foreground (the accent foreground,
+        # style.css) instead of disappearing into it.
+        if self.accent and not self._on_accent_card():
             return Adw.StyleManager.get_default().get_accent_color_rgba()
         return self.get_color()
+
+    def _on_accent_card(self):
+        node = self.get_parent()
+        while node is not None:
+            if node.has_css_class('wrapped-style-accent'):
+                return True
+            node = node.get_parent()
+        return False
 
     def _draw(self, area, cr, width, height):
         text = area.get_color()
@@ -180,12 +191,11 @@ def section_title(text):
     return label
 
 
-class WrappedDialog(Adw.Dialog):
+class WrappedDialog(pages.ToastDialog):
     """The dialog; renders ``GET /api/v1/annual_reports``."""
 
     def __init__(self, parent, client, year=None, **kwargs):
-        super().__init__(title=_('Wrapped'), content_width=560,
-                         content_height=760, **kwargs)
+        super().__init__(_('Wrapped'), 560, 760, **kwargs)
         self.parent = parent
         self.client = client
         self.year = year
@@ -195,11 +205,7 @@ class WrappedDialog(Adw.Dialog):
         self._generation = 0
 
         self.stack = Gtk.Stack()
-        self.toasts = Adw.ToastOverlay(child=self.stack)
-        self.toolbar = Adw.ToolbarView(content=self.toasts)
-        self.header = Adw.HeaderBar()
-        self.toolbar.add_top_bar(self.header)
-        self.set_child(self.toolbar)
+        self.set_content(self.stack)
 
         self.save_button = pages.icon_button(
             'document-save-symbolic', _('Save as Image…'))
@@ -242,10 +248,6 @@ class WrappedDialog(Adw.Dialog):
         self._on_save()
 
     # Loading
-
-    def toast(self, text):
-        self.toasts.add_toast(Adw.Toast(title=text, use_markup=False,
-                                        timeout=5))
 
     def _style_menu(self):
         menu = Gio.Menu()
@@ -630,6 +632,17 @@ class WrappedDialog(Adw.Dialog):
         for key, _label in STYLES:
             card.remove_css_class('wrapped-style-' + key)
         card.add_css_class('wrapped-style-' + self.style)
+        # The charts are Cairo drawings: they pick their colour when they
+        # draw, so a style change has to ask them to draw again.
+        pending = [card]
+        while pending:
+            node = pending.pop()
+            if isinstance(node, MonthlyChart):
+                node.queue_draw()
+            child = node.get_first_child()
+            while child is not None:
+                pending.append(child)
+                child = child.get_next_sibling()
 
     def _on_save(self):
         texture = self._screenshot()

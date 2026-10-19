@@ -396,9 +396,9 @@ def announce(widget, text,
 
 
 def show_toast(widget, text, undo=None, undo_label=None):
-    """Toast on the nearest Adw.ToastOverlay holding *widget* (falling
-    back to the window's); *undo* adds a button calling it. *text* is
-    plain text."""
+    """Toast on the nearest Adw.ToastOverlay holding *widget*, else on the
+    Adw.PreferencesDialog holding it (or that it is), else on the window;
+    *undo* adds a button calling it. *text* is plain text."""
     window = window_of(widget)
     if window is None:
         return
@@ -413,6 +413,14 @@ def show_toast(widget, text, undo=None, undo_label=None):
         else None
     if overlay is not None and overlay is not window.toast_overlay:
         overlay.add_toast(toast)
+        return
+    # Adw.PreferencesDialog keeps its overlay inside itself, so it is not an
+    # ancestor of the dialog (or of a dialog presented over it); it offers
+    # add_toast instead. get_ancestor counts the widget itself.
+    preferences = widget.get_ancestor(Adw.PreferencesDialog) \
+        if widget is not None else None
+    if preferences is not None:
+        preferences.add_toast(toast)
     else:
         window.add_toast(toast)
 
@@ -472,6 +480,63 @@ def confirm_remind(widget, heading, body, action, action_label, setting,
     dialog.connect('response', on_response)
     dialog.present(widget)
     return dialog
+
+
+class ToastDialog(Adw.Dialog):
+    """Dialog with a header bar, its own toast overlay and a page.
+
+    A dialog covers the window's toast overlay, so a toast raised inside
+    one would land behind it; every dialog either subclasses this or
+    says why it cannot (``dialog toasts`` enforces the rule). Callers
+    that need something other than a preferences page replace it with
+    :meth:`set_content`.
+    """
+
+    def __init__(self, title, width=480, height=600, title_buttons=True,
+                 **kwargs):
+        super().__init__(title=title, content_width=width,
+                         content_height=height, **kwargs)
+        self.toolbar = Adw.ToolbarView()
+        self.header = Adw.HeaderBar()
+        if not title_buttons:
+            self.header.set_show_start_title_buttons(False)
+            self.header.set_show_end_title_buttons(False)
+        self.toolbar.add_top_bar(self.header)
+        self.toasts = Adw.ToastOverlay()
+        self.page = Adw.PreferencesPage()
+        self.toasts.set_child(self.page)
+        self.toolbar.set_content(self.toasts)
+        self.set_child(self.toolbar)
+
+    def set_content(self, widget):
+        """Replace the preferences page, keeping the overlay above it."""
+        self.page = widget
+        self.toasts.set_child(widget)
+
+    def toast(self, text):
+        self.toasts.add_toast(
+            Adw.Toast(title=text, timeout=5, use_markup=False))
+
+    def error(self, heading, error):
+        self.toast('%s: %s' % (heading, summarize_error(error)))
+
+    def add_header_buttons(self, cancel_label, action_label, callback,
+                           css=None, sensitive=True):
+        """Cancel button that closes the dialog plus an end-side action
+        button calling *callback*; returns the action button."""
+        cancel = Gtk.Button(label=cancel_label, use_underline=True)
+        connect_weak(cancel, 'clicked', self._on_cancel)
+        self.header.pack_start(cancel)
+        button = Gtk.Button(label=action_label, use_underline=True,
+                            sensitive=sensitive)
+        if css:
+            button.add_css_class(css)
+        connect_weak(button, 'clicked', callback)
+        self.header.pack_end(button)
+        return button
+
+    def _on_cancel(self, _button):
+        self.force_close()
 
 
 def call(widget, client, method, path, on_done=None, error_heading=None,
