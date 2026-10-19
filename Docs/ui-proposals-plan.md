@@ -14,10 +14,10 @@ this document says what to change, where, and how to know it is done.
 | WP4 merge dialog bases | done | see log | one `pages.ToastDialog` (5 s, `.toasts`); nine dialogs migrated; characterization test passed before and after; 20 dialog classes remain (the two bases became one) |
 | WP5 content slot | done (T5.9 visual check open) | see log | `set_content`; five dialogs migrated; three hand-built dialogs recorded with reasons; ten acceptance tests green |
 | WP6 breakpoints | done | see log | `breakpoints` scans 590-624 and 1090-1124 at 1280x1024; skips on smaller screens; negative proofs for both edges |
-| WP7 a11y changes | automated part done, Orca validation open | see log | inventory is clean (0 unnamed controls, 0 unrelated labels) in the sampled row/dialogs; T7.5 needs an Orca machine |
-| WP8 closeout | pending | | |
-| WP9 deck prototype | pending | | optional |
-| WP10 one `.ui` extraction | pending | | optional |
+| WP7 a11y changes | implemented, not validated | see log | inventory is clean (0 unnamed controls, 0 unrelated labels) in the sampled row/dialogs; T7.5 needs an Orca machine |
+| WP8 closeout | done | see log | CLAUDE.md and the report updated; full suite 55 passed, 1 skipped, 0 failed under headless mutter |
+| WP9 deck prototype | deferred | | optional; no decision yet on when to start |
+| WP10 one `.ui` extraction | deferred | | optional; stop rule recorded, not started |
 
 ## Decisions this plan assumes
 

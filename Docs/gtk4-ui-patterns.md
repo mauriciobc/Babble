@@ -1240,7 +1240,7 @@ project decision; decisions on record are listed in the next section.
 
 | # | Observation | Evidence | Not established |
 |---|---|---|---|
-| F1 | Two near-identical dialog bases exist; nine concrete dialogs use them | `ToastDialog(Adw.Dialog)` at `lists.py:127` (four users: `ListEditor`, `_MembershipDialog`, `AdvancedSearchDialog` `search.py:576`, `MultiHashtagEditor` `hashtags.py:448`) and `AdminDialogBase` at `admin.py:251` (five users). Both own a header, an `Adw.PreferencesPage` and an `Adw.ToastOverlay`; they differ in attribute name, toast timeout and one helper. AST walk: 21 `Adw.Dialog` classes = 2 bases + 9 on a base + 10 hand-built | Whether the hand-built dialogs fit a shared slot (see the implementation study) |
+| F1 | (Shipped in `ui/proposals-work`: the two bases are merged, so one base serves fourteen dialogs.) Two near-identical dialog bases existed; nine concrete dialogs used them | `ToastDialog(Adw.Dialog)` at `lists.py:127` (four users: `ListEditor`, `_MembershipDialog`, `AdvancedSearchDialog` `search.py:576`, `MultiHashtagEditor` `hashtags.py:448`) and `AdminDialogBase` at `admin.py:251` (five users). Both own a header, an `Adw.PreferencesPage` and an `Adw.ToastOverlay`; they differ in attribute name, toast timeout and one helper. AST walk: 21 `Adw.Dialog` classes = 2 bases + 9 on a base + 10 hand-built | Whether the hand-built dialogs fit a shared slot (see the implementation study) |
 | F2 | Ten dialogs build the scaffold by hand (eight modules contain both `Adw.ToolbarView` and `Adw.ToastOverlay`) | `report.py:164-196`, `profileedit.py:236-239`, `wrapped.py`, `fedicollections.py`, `admin.py`, `notifications.py`, `compose.py`, `profile.py` each contain both `Adw.ToolbarView` and `Adw.ToastOverlay` | Whether their content shapes (`NavigationView`, `follows_content_size`) fit a shared slot |
 | F3 | Toasts are routed by ancestor lookup, with one recorded exception | `pages.show_toast` prefers the overlay inside the dialog the widget lives in (`pages.py:398-425`); the composer keeps its own lookup (`compose.py:1359`) | Nothing checks that every dialog that raises a toast owns an overlay |
 | F4 | `window.py` is 2,099 lines and a declared test exception | `test-file-size.py` `EXCEPTIONS`; `CLAUDE.md` still says ~1650 | Whether the figure matters; the test deliberately prints no number |
@@ -1291,7 +1291,7 @@ checked: none exists yet. `capabilities.py` and `sysstate.py` do.
 These are this report's suggestions, ordered by how much evidence supports
 them. None is a project commitment.
 
-1. **Merge the two bases and add a content slot (F1, F2).** Combine
+1. **Merge the two bases and add a content slot (F1, F2).** *(Shipped in `ui/proposals-work`.)* Combine
    `ToastDialog` and `AdminDialogBase` into one class in `pages.py`, then make
    its content a slot rather than a fixed `PreferencesPage`. Fit analysis in
    the implementation study: `CollectionEditDialog`, `NotificationPolicyDialog`,
