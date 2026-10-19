@@ -444,3 +444,25 @@ test('style css', python,
   env: css_env,
   timeout: 60,
 )
+
+# The accessibility test backend answers "what would an assistive
+# technology be given" without running one. Every other environment
+# disables accessibility (GTK_A11Y=none), so this is the only test that
+# reads attributes back.
+a11y_test_env = environment()
+a11y_test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+a11y_test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+a11y_test_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+a11y_test_env.set('GSETTINGS_BACKEND', 'memory')
+a11y_test_env.set('GDK_DEBUG', 'no-portals')
+a11y_test_env.set('NO_AT_BRIDGE', '1')
+a11y_test_env.set('GTK_A11Y', 'test')
+a11y_test_env.set('LANG', 'C')
+a11y_test_env.set('LC_ALL', 'C')
+a11y_test_env.set('GSK_RENDERER', 'cairo')
+a11y_test_env.set('G_DEBUG', 'fatal-criticals')
+test('a11y readback', python,
+  args: [files('test-a11y.py')],
+  env: a11y_test_env,
+  timeout: 60,
+)
