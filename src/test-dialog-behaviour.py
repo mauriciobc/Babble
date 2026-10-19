@@ -15,7 +15,9 @@ and proves nothing moved:
 - Wrapped: the year and style controls sit at the start of the header,
   Save at the end;
 - profile editor: Save follows a real change, and closing with an unsaved
-  change asks before discarding instead of closing.
+  change asks before discarding instead of closing; an account that
+  carries the Mastodon 4.6 profile-tab flags builds, and its media-replies
+  switch follows the media switch.
 
 Exits 77 (skip) without a display or a compiled bundle."""
 
@@ -203,6 +205,36 @@ check('closing with a change asks before discarding',
 check('the editor is still open behind the prompt',
       editor in list(window.get_dialogs()) if hasattr(window, 'get_dialogs')
       else editor.get_mapped())
+
+editor.force_close()
+pump()
+
+# A Mastodon 4.6 account carries the profile-tab flags; the editor then
+# builds the Profile Tabs group and ties the media-replies switch to the
+# media switch. That path once raised (GLib.BindingFlags does not exist),
+# so Edit Profile did nothing on servers that send the flags.
+tabbed = dict(account, show_media=True, show_media_replies=True,
+              show_featured=True)
+try:
+    tabs = profileedit.ProfileEditDialog(_Client(), tabbed, window)
+except Exception as error:  # noqa: BLE001 - the failure is the finding
+    tabs = None
+    check('the editor builds for an account with profile tabs', False,
+          repr(error))
+else:
+    check('the editor builds for an account with profile tabs', True)
+if tabs is not None:
+    media = tabs.tab_rows.get('show_media')
+    replies = tabs.tab_rows.get('show_media_replies')
+    check('the profile tab switches are shown',
+          media is not None and replies is not None)
+    if media is not None and replies is not None:
+        media.set_active(False)
+        check('media replies is disabled while media is off',
+              not replies.get_sensitive())
+        media.set_active(True)
+        check('media replies is enabled again with media on',
+              replies.get_sensitive())
 
 if failures:
     print('%d checks failed' % len(failures))

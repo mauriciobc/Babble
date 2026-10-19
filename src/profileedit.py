@@ -520,7 +520,7 @@ class ProfileEditDialog(pages.ToastDialog):
         replies = self.tab_rows.get('show_media_replies')
         if media is not None and replies is not None:
             media.bind_property('active', replies, 'sensitive',
-                                GLib.BindingFlags.SYNC_CREATE)
+                                GObject.BindingFlags.SYNC_CREATE)
         page.add(group)
 
     # Change tracking
