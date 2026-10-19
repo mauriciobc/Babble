@@ -929,6 +929,157 @@ The working tree's `src/` and `data/` were identical to `81fa874` (`git
 diff HEAD origin/main -- src data` empty); only the profiling tools and
 this document had local changes.
 
+### 10. Avatars: a cached image before the initials — no effect, reverted
+
+**Tried.** libadwaita 1.10's `update_font_size` (`adw-avatar.c:199`) runs
+on `set_text`, `set_size`, `set_show_initials` and on every
+`notify::root` — each time an avatar is attached to the window — and
+returns early only when a custom image is already set;
+`set_custom_image` itself never measures. `AvatarCache.load` gained a
+`text` argument and applied a texture already in `AvatarCache.store`
+before setting it, and the 20 call sites that built
+`Adw.Avatar(text=…)` and then called `load` passed the text to `load`
+instead. A test confirmed that a cached avatar's internal label then
+carries no size attribute (the measurement never ran), and that the
+attribute is there with the old order. `StatusRow`'s own 46 px avatar
+was never affected: it is given no text.
+
+**Result.** Runs B20–B22 (`controlled-run.sh 20|21|22`), against B10–B12:
+
+| Metric | B10–B12 | B20 | B21 | B22 | After, median [min–max] |
+|---|---|---:|---:|---:|---|
+| Frame p95 (ms) | 4.60 [4.17–4.64] | 2.44 | 4.41 | 4.01 | 4.01 [2.44–4.41] |
+| Frame p99 (ms) | 6.19 [6.03–6.54] | 4.76 | 5.96 | 5.31 | 5.31 [4.76–5.96] |
+| Frames over 6.94 ms | 0.70% [0.70–0.84] | 0.56% | 0.66% | 0.78% | 0.66% [0.56–0.78] |
+| Card-population idle p99 (ms) | 9.57 [9.56–10.33] | 10.04 | 9.81 | 9.74 | 9.81 [9.74–10.04] |
+| Card-population idle max (ms) | 16.0–18.9 | 27.6 | 22.6 | 23.7 | |
+| `update_font_size` in over-budget idles | 23.6% | | | | **26.4%** (24 windows) |
+
+The target did not move: `update_font_size` is still a quarter of the
+over-budget card-population idles, `adw_avatar_set_text` 17.3% of them.
+When a boost card or a quote is built, its author's avatar is almost
+never cached yet — boosted authors are mostly new to the session — so
+the fallback path, text before image, is the common one. Reverted; the
+patch is not kept.
+
+**What it changes.** The initials are measured because they really are
+shown until the picture arrives. Avoiding the cost means not showing
+initials meanwhile (`show_initials=False` until a fetch fails — a
+visible change), or fewer avatars per card build (entry 3, boost cards).
+
+**Also found: a first-flick layout frame of 74–92 ms.** Every run of
+B20–B22 and B30–B32 has one frame-clock dispatch over 50 ms, 130–150 ms
+after the driver's first flick, while the list grows from 9 to 24
+items; B10–B12 have none (their equivalent is 32–33 ms, about 1 s after
+the flick). Layout is 92–93% of it, with repeated `Pango wait for
+FcFontSort` marks of about 3 ms each, and its samples are HarfBuzz
+shaping and fontconfig sorting with no Babble Python on the stack. It
+is font fallback for whatever the home timeline held that day, not
+either change. The "⇒ destroy" in the report's label is the frame-clock
+source's destroy notifier, on every frame-clock dispatch, not a widget
+being destroyed. The same content drift shows in frame counts (2,8xx–
+3,4xx against 3,5xx–3,7xx), so frame percentiles are compared with care
+from here on.
+
+### 11. JSON: each API response parsed once
+
+**Done.** `MastodonClient._on_response` returns the parsed envelope
+through the task as `GObject.Value(GObject.TYPE_PYOBJECT, …)`, as
+`mediacache._decode_async` returns its texture, instead of re-encoding it
+into a `GLib.Variant` string; `_envelope` returns it as is and still
+parses the string form, which the transport test's fake hands back. A new
+check in `client transport` drives `_on_response` through a real
+`Gio.Task` to `request_finish_paged` and counts `json.loads` calls: one,
+against two before.
+
+**Result.** Runs B30–B32 (`controlled-run.sh 30|31|32`). Shares are
+main-thread perf samples whose stack contains the function (inclusive);
+"JSON C" is any of the `json` accelerator's scanner or encoder
+functions.
+
+| Metric | B10–B12 | B30 | B31 | B32 | After, median [min–max] |
+|---|---|---:|---:|---:|---|
+| HTTP completions > 5 ms (all runs) | 30 windows, 304 ms | 5 | 4 | 4 | **13 windows, 201 ms** |
+| `_on_response` in them | 19.9% | 11.6% | 2.6% | 11.3% | **8.2%** |
+| `_envelope` in them | 6.2% | 0 | 0 | 0 | **0** |
+| JSON C in them | 19.9% | 4.3% | 1.3% | 3.2% | **2.9%** |
+| JSON C samples, whole session (3 runs) | 82 | 10 | 10 | 8 | **28 (−66%)** |
+| HTTP completion p99 (ms) | 0.18 [0.17–0.20] | 0.16 | 0.18 | 0.15 | 0.16 [0.15–0.18] |
+| HTTP completion max (ms) | 31.7–37.4 | 34.8 | 42.8 | 35.3 | |
+| Frame p95 (ms) | 4.60 [4.17–4.64] | 2.36 | 1.93 | 1.94 | 1.94 [1.93–2.36] |
+| Frame p99 (ms) | 6.19 [6.03–6.54] | 4.91 | 4.55 | 4.52 | 4.55 [4.52–4.91] |
+| Frames over 6.94 ms | 0.70% [0.70–0.84] | 0.57% | 0.48% | 0.52% | 0.52% [0.48–0.57] |
+| Card-population idle p99 (ms) | 9.57 [9.56–10.33] | 10.58 | 9.98 | 9.84 | 9.98 [9.84–10.58] |
+
+The redundant two thirds of the JSON work is gone, as entry 2
+predicted, and with it more than half of the HTTP completions over 5 ms.
+The frame percentiles are lower too, but that is not this change: JSON
+runs in the completion callback, not in the frame clock, and B20–B22 —
+on the old JSON path — already spread from 2.44 to 4.41 ms at p95 on
+the same day's content (entry 10). The worst completion, 35–43 ms, is
+unchanged; it is not JSON. What is left in the slow completions:
+`NotificationRow.__init__` 10.6%, `NotificationPost.__init__` 5.8%,
+`_stamp_sections` and `_build_header` 4.3% — the notifications page
+building rows in the callback — `entities.lift` 5.3%, and
+`update_font_size` 16.9%, again through the notification rows' avatars.
+
+### 12. Boost cards built after the first three — target met, frames lost, reverted
+
+**Tried.** `BoostCarousel.set_boosts` built at most `BOOST_CARDS_EAGER`
+(3) new cards at once, about a column's width; the rest waited in a tail
+built one card per idle dispatch while the carousel was mapped (a
+module-level queue of GObject weak refs, like `statusrun`'s
+`_pending_shells`), reusing existing cards and keeping strip order. Two
+variants: (a) each card added to the strip as it was built; (b) the
+waiting cards built off the strip and added together once all were
+built. A widget test pinned the order, reuse, mapping and freeing.
+
+**Result.** Runs B40, B41, B44 for (a) and B47, B48 for (b). B42, B43
+and B46 were throttled by the compositor (see below) and are left out.
+
+| Metric | B10–B12 | B30–B32 (same day, no change) | (a) B40/41/44 | (b) B47/48 |
+|---|---|---|---|---|
+| Card-population idle p99 (ms) | 9.57 [9.56–10.33] | 9.98 [9.84–10.58] | **5.41** [5.19–6.21] | **5.25** [5.25–5.25] |
+| Over-budget idles (all runs) | 23 windows, 284 ms | | 12, 165 ms | |
+| `_BoostCard.__init__` in them | 30.0% | | 9.1% | |
+| Slow layout frames (all runs) | 45 | 39 | **61** | **41** (2 runs) |
+| Frame p99 (ms) | 6.19 [6.03–6.54] | 4.55 [4.52–4.91] | 6.27 [5.81–6.85] | 7.17, 8.32 |
+| Frames over 6.94 ms | 0.70% | 0.52% | 0.81% | 1.06%, 1.32% |
+
+The target moved: the idle p99 fell by 4 ms, below the frame budget. But
+the work moved into frames. With (a), 31 of the 61 slow layout frames
+start within 40 ms after a dispatch that added a card, against none when
+the same times are shifted by 300 ms; each costs 18–20 ms. A card added
+to a shown strip queues a resize, and the next frame lays the whole row
+out again — Pango measuring all its text. Over three runs that is about
+580 ms of frames over budget to save about 120 ms of idle time. With
+(b), one relayout per carousel instead of one per card, 5–7 slow frames
+per run still follow the dispatch that adds the cards, now about 36 ms
+each. Either way the reader gets dropped frames while scrolling in
+exchange for shorter idles they never see. Reverted.
+
+**What it changes.** Anything that adds widgets to a row already on
+screen pays for a relayout of that row in the next frame, and the row's
+text measurement is the dominant cost of layout (entry 7). Spreading
+card building over several dispatches is therefore not free: fix 4 —
+bounding `_populate_pending` to one `StatusRow` per dispatch — would add
+rows to a shown shell one at a time and is likely to make the same
+trade. A build that is cheaper, or finished before the row's first
+layout, does not have this problem; one that is deferred does.
+
+**Measurement: the compositor throttled some runs.** B42, B43 and B46
+had 880–1,360 frames instead of 2,300–3,700: from some point on, each
+flick got 5–13 frames instead of about 30 (about 39 fps), the waits for
+the compositor (`frameclock frozen` marks) were 30–60 ms instead of
+10–15 ms, and a 211 ms dispatch in B42 had no CPU samples at all. In B43
+it started at 0.7 s, before any timeline content existed, so it is not
+Babble. The screen dims when idle (`idle-dim`, `idle-delay` 300 s) and
+these runs ran unattended for longer than that, so B44–B48 were recorded
+under `gnome-session-inhibit --inhibit idle`; B46 was throttled
+nonetheless, so dimming is not the only cause — a window covering
+Babble's is another candidate. Check the frame count of every run before
+comparing its percentiles.
+
 ### Still open
 
 * **T1**: the slow layout frames are GTK measuring row text (entry 7).
