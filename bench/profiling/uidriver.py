@@ -2,7 +2,7 @@
 """Run Babble and drive its UI through a fixed scenario, identically each time.
 
     python3 bench/profiling/uidriver.py [--scenario timeline] [--log FILE]
-                                        [--flicks 12] [--size 1280x900] ...
+                                        [--flicks 30] [--size 1280x900] ...
 
 The driver runs *inside* the app's process: this script schedules the
 scenario on the GLib main loop and then starts Babble exactly as
@@ -59,8 +59,8 @@ def parse(argv):
                    help='JSON-lines event log (default: stderr only)')
     p.add_argument('--size', default='1280x900',
                    help='window size WxH, applied before the scenario starts')
-    p.add_argument('--flicks', type=int, default=12,
-                   help='flicks down (default 12); the same number up')
+    p.add_argument('--flicks', type=int, default=30,
+                   help='flicks down (default 30); the same number up')
     p.add_argument('--flick-screens', type=float, default=0.9,
                    help='distance of one flick in viewport heights')
     p.add_argument('--flick-ms', type=float, default=250,
@@ -253,11 +253,19 @@ class TimelineScenario:
 
     def _after_dwell(self):
         # A flick near the end triggers a fetch; wait for that page so
-        # every run scrolls through the same number of loaded pages.
-        if getattr(self.page.model, 'loading', False):
+        # every run scrolls through the same number of loaded pages. The
+        # fetch may not have started yet when the list is already at the
+        # end of what is loaded, so on the way down that counts as
+        # waiting too, until the list grows (or the timeline is exhausted).
+        adj = self.scrolled.get_vadjustment()
+        model = self.page.model
+        at_end = adj.get_value() >= adj.get_upper() - adj.get_page_size() - 1
+        starved = (self.direction > 0 and at_end and self.flicks_left > 0
+                   and not getattr(model, 'exhausted', False))
+        if getattr(model, 'loading', False) or starved:
             if not hasattr(self, '_page_wait'):
                 self._page_wait = time.monotonic()
-                self.log('page-wait', **self.model_state())
+                self.log('page-wait', starved=starved, **self.model_state())
             if time.monotonic() - self._page_wait > self.o.page_timeout:
                 return self.fail('page did not arrive within %.0f s'
                                  % self.o.page_timeout)

@@ -37,8 +37,8 @@ around **new posts arriving**.
 
 | ID | Finding | Where | Evidence | Confidence | Status |
 |---|---|---|---|---|---|
-| T1 | Layout after new posts is the main source of slow frames | timeline | C1–C3 marks: 177 slow layout frames, 3.9 s; 72% of slow frames in C1 and C3. B stacks: Pango text measurement ~26% of layout, popover shape ~17% | high that it is layout; **the C1–C3 function breakdown is invalid** (see log, entry 1) | investigating |
-| T2 | Card-population idles (`_populate_pending`) run over the frame budget | timeline | C1–C3 marks: 81 over budget, p99 7.4–9.5 ms, max 22 ms; B: p95 37 ms, cost spread over per-widget setup (log, entry 3) | high | investigated; fix options listed |
+| T1 | Layout after new posts is the main source of slow frames: GTK measuring row text | timeline | D4–D6: layout dominates 67–75% of slow frames; inside them 98% GTK, ~55% Pango text measurement (log, entry 7). The C1–C3 function breakdown was an artefact (entry 1) | high | investigating which widgets |
+| T2 | Card-population idles (`_populate_pending`) run over the frame budget | timeline | D4–D6: idle p99 18.8 ms, max 26 ms; `_BoostCard.__init__` and avatar initials layout (`update_font_size`) lead (log, entries 3, 7) | high | investigated; fix options listed |
 | T3 | Slow HTTP completions (27–35 ms); every API response is JSON-parsed twice and serialised once | timeline | B: `json.dumps` 27% of `_on_response`; 2/3 of response JSON work redundant; completions are mostly image work (log, entry 2) | high | investigated; cheap fix identified |
 | T4 | One 530 ms freeze in layout, with the main thread mostly *off* CPU | timeline | C2 only, 69 CPU samples in 530 ms | high that it blocked; cause unknown | open |
 | T5 | The display is 144 Hz: the budget is 6.9 ms, not 16.7 ms | all | GTK `fps` counter peaks at 144.1 | high | documented |
@@ -137,7 +137,7 @@ is involved, so it works on Wayland and under any recorder. The
 1. waits for the home timeline's first page (up to 60 s) and sets the
    window to 1280×900 (unmaximising it first);
 2. settles 3 s;
-3. flicks down 12 times — each flick moves the list 0.9 of a screen over
+3. flicks down 30 times (D4–D6 used 12) — each flick moves the list 0.9 of a screen over
    250 ms on the frame clock with an ease-out curve, then pauses 700 ms;
    when a flick triggers a fetch, it waits for the page (up to 20 s) so
    every run scrolls through the same number of pages;
@@ -171,6 +171,17 @@ python3 timeline_report.py ~/babble-profiles/sysprof-run{1,2,3}.syscap
 DEBUGINFOD_URLS=https://debuginfod.archlinux.org \
     python3 window_cpu.py ~/babble-profiles/sysprof-run{1,2,3}.syscap
 ```
+
+For runs recorded with both layers (`runN.syscap` + `runN.perf.data`):
+
+```sh
+DEBUGINFOD_URLS=https://debuginfod.archlinux.org \
+    python3 perf_windows.py ~/babble-profiles/run{4,5,6}
+```
+
+finds the same three kinds of window in the marks and attributes the
+main thread's perf samples inside them to Babble Python functions and C
+functions. Both files share `CLOCK_MONOTONIC` and the process ID.
 
 `timeline_report.py` gives, per run and then across runs: frame
 percentiles against the 144 Hz budget, the dominant phase of each slow
@@ -267,7 +278,71 @@ assumed, including by `bench/v2`.
 
 ## Baseline: the controlled timeline runs
 
+### The reference baseline: `main` at `81fa874`
+
+Measure every change against this. Recorded with
+`bench/profiling/controlled-run.sh 10|11|12` on the code merged in PR #35
+(`81fa874`, "Revert the home cache, and make paging and image fetches
+reliable"): the scripted `timeline` scenario (30 flicks, waiting at the
+end of the loaded list for the next page), the stored account, the user
+stylesheet hidden, translucent sidebar off, `performance` power profile,
+sysprof marks plus perf stacks. Files: `~/babble-profiles/run1{0,1,2}.*`.
+
+| Metric | B10 | B11 | B12 | Median [min–max] |
+|---|---:|---:|---:|---|
+| Scenario length (s) | 68.1 | 67.3 | 66.2 | |
+| First page (s after the driver starts) | 1.50 | 1.81 | 1.69 | |
+| Posts loaded at the bottom | 82 | 83 | 76 | |
+| Frames | 3,728 | 3,697 | 3,574 | |
+| Frame p50 (ms) | 1.09 | 1.22 | 1.19 | |
+| Frame p95 (ms) | 4.64 | 4.17 | 4.60 | **4.60** [4.17–4.64] |
+| Frame p99 (ms) | 6.03 | 6.54 | 6.19 | **6.19** [6.03–6.54] |
+| Frame max (ms) | 44.6 | 44.0 | 42.7 | |
+| Frames over 6.94 ms | 0.70% | 0.70% | 0.84% | **0.70%** [0.70–0.84] |
+| Dispatches ≥ 50 ms | 0 | 0 | 0 | **0** |
+| Card-population idle p99 / max (ms) | 10.33 / 18.9 | 9.56 / 16.0 | 9.57 / 17.1 | p99 **9.57** [9.56–10.33] |
+| HTTP completion p99 / max (ms) | 0.18 / 31.7 | 0.20 / 37.1 | 0.17 / 37.4 | p99 **0.18** [0.17–0.20] |
+
+Slow frames were dominated by layout in 50–58% of cases, by
+unattributed time (no single phase over 40%) in 35–47%, and by CSS
+validation in 3–8%.
+
+Inside the slow windows (`perf_windows.py`, all three runs):
+
+* *Slow layout frames* — 45 windows, 1,076 ms, 765 main-thread samples:
+  98.8% with no Babble Python on the stack; Pango text measurement 61%
+  inclusive, height-for-width (`get_width_for_height`) 35%; CSS selector
+  matching leads the self time.
+* *Card-population idles over budget* — 23 windows, 284 ms, 237 samples:
+  `_BoostCard.__init__` 30.0%, `StatusRow.__init__` 9.7%,
+  `parse_content` 5.9%, `InlineEmojiText.__init__` 4.6%; C:
+  **`update_font_size` 23.6%** (`AdwAvatar.set_text` 16.0%), CSS style
+  creation about 17%, a Pango context per new widget 11%.
+* *HTTP completions over 5 ms* — 30 windows, 304 ms, 307 samples:
+  `_on_response` 19.9% (JSON parse 13%, re-encode 6.8%), `entities.lift`
+  6.8%, `_envelope` 6.2%; the notifications page building rows inside
+  completion callbacks (`NotificationRow`, `NotificationPost`,
+  `_stamp_sections`, `_build_header`) about 12%; list-factory `setup`
+  16% and `items-changed` handling 35.5% inclusive.
+
+Reproduce a comparison run with:
+
+```sh
+bench/profiling/controlled-run.sh N
+cd bench/profiling
+python3 timeline_report.py ~/babble-profiles/run{10,11,12,N}.syscap
+DEBUGINFOD_URLS=https://debuginfod.archlinux.org python3 perf_windows.py ~/babble-profiles/runN
+```
+
+Single runs agree closely here (frame p95 within 0.5 ms), but record
+three after a change and compare medians.
+
+### Earlier runs: C1–C3
+
 All figures from `timeline_report.py` on C1–C3. Budget 6.94 ms (144 Hz).
+These predate the scripted driver and PR #35, ran signed out (log,
+entry 6), and their CPU stacks are unusable (entry 1); they are kept for
+the record only.
 
 | Metric | C1 | C2 | C3 | Median [min–max] |
 |---|---:|---:|---:|---|
@@ -699,10 +774,167 @@ stored account through it. For the benchmark harness the advice stands
 as it was: it already uses `GSETTINGS_BACKEND=memory`, so hiding the
 user config there costs nothing.
 
+### 7. New baseline: scripted runs D4–D6, with marks and complete stacks
+
+**Done.** After the timeline cache was unwired and a loading issue fixed
+(by the maintainer, not part of this investigation), three runs were
+recorded with `controlled-run.sh 4|5|6`: the scripted `timeline` scenario,
+the stored account, sysprof marks plus perf stacks, 12 flicks. They
+supersede C1–C3 (manual steps, signed out, different code), and are in
+turn superseded as the baseline by the 30-flick D7–D9 (entry 8).
+
+The scenario repeated closely: first page at 1.10 / 1.30 / 1.30 s, the
+scroll-down phase ending at 15.51 / 15.74 / 15.70 s, 36 / 36 / 37 posts
+loaded at the bottom, the same scroll position there (8,544 px), complete
+at 31.35 / 31.54 / 31.49 s. The window came out 1373×838 (the compositor's
+choice, logged each run), not the 1280×900 requested.
+
+`timeline_report.py` (median [min–max] across the three):
+
+| Metric | D4 | D5 | D6 | Median [min–max] |
+|---|---:|---:|---:|---|
+| Frames | 1,666 | 1,450 | 1,492 | |
+| Frame p95 (ms) | 3.91 | 1.96 | 1.88 | 1.96 [1.88–3.91] |
+| Frame p99 (ms) | 6.93 | 5.27 | 4.90 | 5.27 [4.90–6.93] |
+| Frame max (ms) | 47.8 | 46.2 | 37.9 | |
+| Frames over 6.94 ms | 0.90% | 0.76% | 0.54% | 0.76% [0.54–0.90] |
+| Dispatches ≥ 50 ms | 0 | 0 | 0 | 0 |
+| Card-population idle p99 / max (ms) | 19.6 / 26.0 | 18.8 / 25.3 | 13.5 / 15.3 | p99 18.8 [13.5–19.6] |
+| HTTP completion p99 / max (ms) | 0.55 / 35.7 | 0.51 / 35.9 | 0.66 / 37.8 | p99 0.55 [0.51–0.66] |
+
+Slow frames were dominated by layout in 67–75% of cases.
+
+**Inside the slow windows** (`perf_windows.py`, all three runs):
+
+*Slow layout frames* — 24 windows, 567 ms, 396 main-thread samples.
+**98% have no Babble Python on the stack.** About 55% is Pango measuring
+text (`gtk_layout_manager_measure` → `pango_layout_get_extents_internal` /
+`pango_layout_get_size`), reached through the window-wide allocation chain;
+the top self-time functions are HarfBuzz positioning (`GPOS` pair
+adjustment) and CSS selector matching (`gtk_css_selector_tree_get_change`,
+`gtk_css_selector_tree_match`). `adw_clamp_layout_measure` is 35%
+inclusive as a pass-through to the list. `InlineEmojiText.do_measure` is
+1%. So the slow layout frames are GTK measuring the text of rows as they
+come into view.
+
+*Card-population idles over budget* — 10 windows, 155 ms, 102 samples.
+Innermost Babble functions: `_BoostCard.__init__` 23.5%,
+`StatusRow.__init__` 10.8%, `InlineEmojiText.__init__` 5.9%, and the first
+import of `statusrow` and `mediabox` (4.9% and 2.9%, once per session,
+because `_populate` imports `StatusRow` lazily). C: Pango text measurement
+29%, **`AdwAvatar.set_text` → `update_font_size` 20.6%**, and a read-only
+`Gtk.TextView` computing its input-method cursor spot when mapped
+(`gtk_text_view_update_im_spot_location` → `gtk_text_layout_get_cursor_locations`)
+17.6%.
+
+*HTTP completions over 5 ms* — 15 windows, 221 ms, 227 samples. These are
+mostly **not the timeline**: the notifications page builds its rows
+inside the completion callback (`NotificationRow.__init__` 11%,
+`NotificationModel._stamp_sections` 3%, `NotificationsPage._build_header`
+2.6%; the list factory's `setup` 35% inclusive). The API handling itself is
+`_on_response` 17.6% (JSON parsing 9.7%), `_envelope` 4.4%, `entities.lift`
+4.4%. `update_font_size` appears here too (15.4%).
+
+**`update_font_size`, read.** libadwaita 1.10's `update_font_size`
+(`adw-avatar.c:199`) measures the initials with Pango unless the avatar
+already has a custom image, initials are off, or the text is empty. Babble
+sets the text first and the image later on both paths: `_BoostCard`
+creates `Adw.Avatar(size=24, show_initials=True, text=author)`
+(`src/mediabox.py:164`), and `AvatarCache.load` (`src/mediacache.py:60-73`)
+starts with `set_custom_image(None)` and applies the texture from the
+fetch callback — even when it is already cached. Every card therefore
+lays out initials it may never show.
+
+**Fix options (not applied).**
+
+* Avatars: apply a cached texture *before* setting the text — look it up
+  in `AvatarCache.store` first, `set_custom_image(texture)`, then
+  `set_text()` — so `update_font_size` returns early; leave the fallback
+  order as it is for avatars that really have to be fetched.
+* Card building: split `_populate_pending`'s work so one dispatch builds
+  at most one `StatusRow` (or stops after about 4 ms), and build boost
+  cards lazily — `_BoostCard.__init__` is the single largest Babble
+  function in the over-budget idles.
+* Read-only bodies: check whether the read-only `InlineEmojiText` can
+  avoid the input-method spot update on map (it already pins
+  `gtk-im-context-simple`; see the conventions in `CLAUDE.md`).
+* Notifications: build rows outside the completion callback, the way the
+  timeline already does through `_populate_pending`.
+* JSON: return the parsed object through the task instead of a
+  re-encoded string (entry 2).
+
+### 8. Longer runs D7–D9 (30 flicks): the current baseline
+
+**Done.** The default scenario was lengthened from 12 to 30 flicks so a
+run reaches further down the timeline, and three runs were recorded
+(`controlled-run.sh 7|8|9`). D4–D6 stay as the 12-flick reference.
+
+All three completed in 65.5–65.7 s. They diverged at the bottom — 76, 82
+and 64 posts loaded — because in D9 the list ran out of loaded posts
+before the last flick and the next page arrived only during the scroll
+back up. The driver waited for a page only when a fetch was already in
+progress at the end of a pause. It now also waits, on the way down,
+whenever the list is at the end of what is loaded and the timeline is
+not exhausted, until the list grows or `--page-timeout` (20 s) fails the
+run. D7–D9 were recorded before that change.
+
+| Metric | D7 | D8 | D9 | Median [min–max] |
+|---|---:|---:|---:|---|
+| Posts at the bottom | 76 | 82 | 64 | |
+| Frames | 2,900 | 3,409 | 3,459 | |
+| Frame p95 (ms) | 2.00 | 4.84 | 4.63 | 4.63 [2.00–4.84] |
+| Frame p99 (ms) | 4.68 | 6.46 | 6.38 | 6.38 [4.68–6.46] |
+| Frame max (ms) | 44.4 | 46.1 | 44.3 | |
+| Frames over 6.94 ms | 0.62% | 0.88% | 0.87% | 0.87% [0.62–0.88] |
+| Dispatches ≥ 50 ms | 0 | 0 | 0 | 0 |
+| Card-population idle p99 / max (ms) | 9.97 / 15.9 | 9.50 / 16.8 | 10.53 / 16.7 | p99 9.97 [9.50–10.53] |
+| HTTP completion p99 / max (ms) | 0.19 / 33.5 | 0.16 / 33.2 | 0.19 / 33.2 | p99 0.19 [0.16–0.19] |
+
+Slow frames were dominated by layout in 50–83% of cases.
+
+Inside the slow windows, the same picture as D4–D6, over twice as many
+windows:
+
+* *Slow layout frames* (47 windows, 1,073 ms, 771 samples): 98% no Babble
+  Python; Pango text measurement about 60% inclusive
+  (`pango_layout_get_size`), height-for-width (`get_width_for_height`)
+  36%.
+* *Card-population idles over budget* (22 windows, 274 ms, 242 samples):
+  `_BoostCard.__init__` 24.8%, `StatusRow.__init__` 9.9%,
+  `parse_content` 9.5%, `InlineEmojiText.__init__` 3.7%; C:
+  `update_font_size` 18.2%, the read-only `TextView`'s input-method spot
+  update 8.7%.
+* *HTTP completions over 5 ms* (28 windows, 303 ms, 315 samples):
+  `_on_response` 18.7%, `_envelope` 8.3%, `entities.lift` 7.3%; the
+  notifications page building rows inside completion callbacks
+  (`NotificationRow`, `NotificationPost`, `_stamp_sections`) about 10%;
+  the list factory's `setup` 15% and `items-changed` handling 32%
+  inclusive.
+
+### 9. The reference baseline on `main` (`81fa874`)
+
+**Done.** PR #35 merged; with no other work in progress, runs B10–B12
+were recorded on it with the corrected driver. The tables are in
+[the reference baseline](#the-reference-baseline-main-at-81fa874).
+The end-of-list wait worked: B10 paused twice at the bottom of the loaded
+list (700 and 1,400 ms) until the next page arrived. The three runs
+reached 82, 83 and 76 posts; the remaining spread is content (posts of
+different heights over the same 30 flicks), not the driver. Run to run,
+frame p95 varied by under 0.5 ms and the over-budget share by 0.14
+points, so a change of a few tenths of a millisecond at p95 or p99 is
+within noise; the card-population and HTTP-completion maxima move by a
+few milliseconds between runs.
+
+The working tree's `src/` and `data/` were identical to `81fa874` (`git
+diff HEAD origin/main -- src data` empty); only the profiling tools and
+this document had local changes.
+
 ### Still open
 
-* **T1** needs a timeline-only recording with the new method to say what
-  runs inside the slow layout frames after posts arrive.
+* **T1**: the slow layout frames are GTK measuring row text (entry 7).
+  Which widgets' text — and whether some measurements repeat — needs a
+  per-widget count, for example with the GTK inspector's layout
+  statistics or a test that counts measure calls per row type.
 * **T4** (blocked layout) needs an off-CPU view: sysprof's `--scheduler`
   fails on this kernel (above), and perf's scheduler tracepoints need
   `perf_event_paranoid=-1` or root. Next recording:

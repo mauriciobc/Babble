@@ -47,15 +47,11 @@ def source_kind(message):
 
 
 def load(path):
-    procs, marks, counts = {}, [], collections.Counter()
+    marks = []
     for kind, _cpu, pid, t, p in syscap.frames(path):
-        if kind == 4:
-            procs[pid] = syscap.cstr(p)
-        elif kind == 10:
-            counts[pid] += 1
+        if kind == 10:
             marks.append((pid, t, p))
-    pid = max((p for p in counts if procs.get(p, '').startswith('python')),
-              key=lambda p: counts[p])
+    pid = syscap.app_pid(path)
     out = []
     for mpid, t, p in marks:
         if mpid == pid:
