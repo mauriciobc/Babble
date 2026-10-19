@@ -1080,6 +1080,63 @@ nonetheless, so dimming is not the only cause — a window covering
 Babble's is another candidate. Check the frame count of every run before
 comparing its percentiles.
 
+### 13. Constant-size boost cards
+
+**Why.** Entry 12 showed that deferring card building trades idle time
+for layout frames. The other lever is making cards cheaper to lay out.
+In GTK 4.24.1 a resize always propagates to the window
+(`gtk_widget_queue_resize`, `gtkwidget.c:3741`); nothing stops it when
+the measured size is unchanged. But each ancestor that has to measure
+again only re-measures children at sizes it has not cached. A box sized
+height-for-width can measure its wrapping children at 10–20 widths
+(`distribute_remaining_size`, `gtkboxlayout.c`), each one a Pango
+re-wrap. A child that is constant-size is measured once, at -1.
+
+**Done.** Every part of a `_BoostCard` is constant-size, so the card's
+request mode is `CONSTANT_SIZE`:
+
+* the three-line summary is a `Gtk.Inscription` (`nat_lines=3`,
+  ellipsized), measured from font metrics, never by wrapping its text;
+* the author's name stays a one-line ellipsized `Gtk.Label`, already
+  constant-size, with `max_width_chars=1` so a long name no longer widens
+  its card past `BOOST_CARD_WIDTH` (one did, to 307 px);
+* the thumbnail sits as an unmeasured overlay on a fixed 96 px slot, and
+  is a `_SlotPicture` that reports `CONSTANT_SIZE`: a container takes its
+  request mode from all its children, overlays included, and a plain
+  `Gtk.Picture` is height-for-width. A texture landing no longer changes
+  what the card asks for.
+
+A first version also made the name an Inscription. It was dropped: an
+Inscription builds its Pango context and layout in its constructor
+(`gtkinscription.c:821`) and again when styled, where a label waits until
+it is measured, so it costs more to create.
+
+`boost card` checks that a card is constant-size with or without a
+thumbnail, the same height whatever its text, unchanged when a picture
+lands, and exactly `BOOST_CARD_WIDTH` wide.
+
+**Result.** Six runs recorded alternately, change and control, so that
+content drift falls on both: B60, B62, B64 with the change; B61, B63,
+B65 without. All healthy (2,590–2,833 frames).
+
+| Metric | Control B61/63/65 | Change B60/62/64 |
+|---|---|---|
+| Slow layout frames (all runs) | 37 windows, **1,022 ms**, 732 samples | 36 windows, **777 ms**, 488 samples |
+| Frame p99 (ms) | 4.68 [4.65–4.70] | 4.43 [4.25–4.62] |
+| Frames over 6.94 ms | 0.54% [0.48–0.57] | 0.50% [0.46–0.52] |
+| Frame max (ms) | 60.8–64.4 | 49.1–51.8 |
+| Card-population idle p99 (ms) | **10.98** [10.83–11.15] | **11.92** [11.83–12.07] |
+| Over-budget idles (all runs) | 24 windows, 327 ms | 23 windows, 320 ms |
+| `_BoostCard.__init__` in them | 28.0% | 33.6% |
+
+Time in slow layout frames fell by 24%, as it did in the Inscription-only
+set recorded an hour earlier (B53–B55: 760 ms against 1,023 ms for
+controls B56–B58), and the worst frame by about 12 ms. Over-budget frames
+and frame p99 moved less than run-to-run noise. The card-population idle
+p99 got 0.9 ms worse, with the same total over-budget idle time: the
+summary's Inscription builds its layout up front. Kept, for the frames;
+the idle target of the original fix 3 is not met.
+
 ### Still open
 
 * **T1**: the slow layout frames are GTK measuring row text (entry 7).
