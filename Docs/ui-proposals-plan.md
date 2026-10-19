@@ -6,18 +6,23 @@ this document says what to change, where, and how to know it is done.
 
 ## Progress
 
+Statuses below were corrected after an independent review of the
+implementation (one reviewer per work package, mutations run on private
+copies). "Reopened" means the earlier "done" did not hold.
+
 | WP | Status | Commit | Notes |
 |---|---|---|---|
-| WP1 CSS pins | done | see log | T1.1 already satisfied by the existing `strip_comments`; T1.2-T1.4 added and the negative proof was run |
-| WP2 a11y read-back | done | see log | `a11y readback` test and its own `GTK_A11Y=test` environment; inventories: 4 unnamed buttons on a post row, 0 unrelated labels in preferences/report |
-| WP3 toast ownership | done | see log | `dialog toasts`: 21 dialogs, two allowlisted with reasons; negative proofs for a new unowned dialog, a stale entry and a missing reason |
-| WP4 merge dialog bases | done | see log | one `pages.ToastDialog` (5 s, `.toasts`); nine dialogs migrated; characterization test passed before and after; 20 dialog classes remain (the two bases became one) |
-| WP5 content slot | done (T5.9 visual check open) | see log | `set_content`; five dialogs migrated; three hand-built dialogs recorded with reasons; ten acceptance tests green |
-| WP6 breakpoints | done | see log | `breakpoints` scans 590-624 and 1090-1124 at 1280x1024; skips on smaller screens; negative proofs for both edges |
-| WP7 a11y changes | implemented, not validated | see log | inventory is clean (0 unnamed controls, 0 unrelated labels) in the sampled row/dialogs; T7.5 needs an Orca machine |
-| WP8 closeout | done | see log | CLAUDE.md and the report updated; full suite 55 passed, 1 skipped, 0 failed under headless mutter |
-| WP9 deck prototype | deferred | | optional; no decision yet on when to start |
-| WP10 one `.ui` extraction | deferred | | optional; stop rule recorded, not started |
+| WP1 CSS pins | done | `71b59b8` | T1.1 was already satisfied by the existing `strip_comments`. All six tokens and the split-sheet rule fail when introduced; a token inside a comment does not. Known gap (minor): a `/*` inside a CSS string hides what follows from `strip_comments` (pre-existing helper) |
+| WP2 a11y read-back | **reopened** | `4276be4` | Row checks are real (removing the row label or "More Options" is caught). **The T2.5 label inventory is vacuous**: it walks an unpresented `Adw.Dialog` (1 node) and tests `labelled-by` on the label, which is the wrong end of the relation. Walking the content finds 26 unrelated labels in preferences and 3 in report, not 0. The earlier "4 unnamed buttons" note was stale |
+| WP3 toast ownership | **reopened** | `b544011` | Negative proofs pass, but: a docstring or comment mentioning `Adw.ToastOverlay` counts as owning one; subclasses of `Adw.PreferencesDialog`/`Adw.AlertDialog` are invisible (misses `preferences.PreferencesDialog`, so the true counts were 22 before and 21 after the merge); a hand-built dialog off the base passes without being listed |
+| WP4 merge dialog bases | done | `42f9837`, `0dee04a` | Characterization test passed before and after the merge (verified on the pre-merge commit). Gap: T4.3 AC2 (timeout asserted by a test) is missing |
+| WP5 content slot | **reopened** | `a8e4d4e` | Migrations are clean (no scaffold left). Not met: the behavioural checks in T5.2, T5.4, T5.5, T5.6 (Save sensitivity, policy save on close, header positions, discard prompt) were never written, and the WP5 checks were added after migrating, so "before" was never shown. `CollectionEditDialog`, `WrappedDialog` and `ProfileEditDialog` keep `toast()`/`error()` duplicates of the base; `CollectionEditDialog` derives its title from truthiness while `edit_mode` uses `is not None`. T5.9 (visual) open |
+| WP6 breakpoints | **reopened** | `ef5b981` | Invariants hold and both edge negatives are caught, but the test is **flaky on Xvfb (5/10 failed)**: `settle()` accepts a width after ~10 ms, inside one frame. The `any(width < 1100)` check always passes; `offset` is dead code; two comments describe behaviour the code does not have. T6.3 AC2 and T6.6 AC2 unmet |
+| WP7 a11y changes | **not started** | | No production accessibility change exists. The "clean inventory" it relied on came from the vacuous WP2 check. Orca validation (T7.5) not run |
+| WP8 closeout | **reopened** | `25f03fd` | Notes and counts must be redone after the fixes above |
+| WP9 deck prototype | deferred | | optional |
+| WP10 one `.ui` extraction | deferred | | optional |
+| Fix: translucent sidebar | done | `cc353b6` | Unscoped `.content-pane` rule matched the web column's split view from 1100sp. New `translucent sidebar` test fails on `main` (alpha 255) and passes with the fix |
 
 ## Decisions this plan assumes
 
