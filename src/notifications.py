@@ -1255,12 +1255,18 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         scrolled.set_vexpand(True)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.add_css_class('notification-list-scroller')
+        # No model until the list is first shown. The page is built at
+        # sign-in for the sidebar badge and loads while hidden; with its
+        # model attached, every page and streamed notification made the
+        # view build and bind rows inside the HTTP callback, for a list
+        # nobody was looking at. The model itself (and the badge, and the
+        # sections) keeps up as before.
         self.list_view = Gtk.ListView(
-            model=Gtk.NoSelection.new(self.model),
             factory=NotificationFactory(client),
             header_factory=NotificationFactory(client),
             single_click_activate=True)
         connect_weak(self.list_view, 'activate', self.on_row_activated)
+        connect_weak(self.list_view, 'map', self._attach_model)
         clamp = Adw.ClampScrollable(maximum_size=COLUMN_WIDTH,
                                     tightening_threshold=COLUMN_WIDTH)
         clamp.set_child(self.list_view)
@@ -1400,6 +1406,10 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         present_notification_policy(self, self.client)
 
     # Activation
+
+    def _attach_model(self, view):
+        if view.get_model() is None:
+            view.set_model(Gtk.NoSelection.new(self.model))
 
     def on_row_activated(self, _view, position):
         item = self.model.get_item(position)

@@ -210,6 +210,50 @@ Gtk.init()
 
 client = MastodonClient('https://fosstodon.org')  # no token: idle client
 client.notifications_mark_read_finish = lambda result: {}
+
+# Built at sign-in and loaded while hidden, the page builds no rows: the
+# window keeps it in a stack behind the timeline, and a homogeneous stack
+# measures its hidden children too.
+hidden = NotificationsPage(client)
+shown_child = Gtk.Label(label='timeline')
+switcher = Gtk.Stack(hhomogeneous=True, vhomogeneous=True)
+switcher.add_named(shown_child, 'timeline')
+switcher.add_named(hidden, 'notifications')
+switcher.set_visible_child_name('timeline')
+hidden_window = Gtk.Window(child=switcher, default_width=600,
+                           default_height=900)
+hidden_window.present()
+hidden.model.append_page(FIXTURES)
+hidden.stack.set_visible_child_name('list')
+deadline = GLib.get_monotonic_time() + 1000000
+while GLib.get_monotonic_time() < deadline:
+    if not GLib.MainContext.default().iteration(False):
+        GLib.usleep(5000)
+
+
+def notification_rows(widget):
+    found = [widget] if isinstance(widget, NotificationRow) else []
+    child = widget.get_first_child()
+    while child is not None:
+        found += notification_rows(child)
+        child = child.get_next_sibling()
+    return found
+
+
+check('a hidden notifications page builds no rows',
+      hidden.model.get_n_items() == 8
+      and not notification_rows(hidden.list_view))
+switcher.set_visible_child_name('notifications')
+deadline = GLib.get_monotonic_time() + 5000000
+while GLib.get_monotonic_time() < deadline \
+        and not notification_rows(hidden.list_view):
+    if not GLib.MainContext.default().iteration(False):
+        GLib.usleep(5000)
+check('showing it builds them',
+      bool(notification_rows(hidden.list_view)))
+hidden_window.destroy()
+del hidden, switcher, shown_child, hidden_window
+
 page = NotificationsPage(client)
 page.model.append_page(FIXTURES)
 page.stack.set_visible_child_name('list')
