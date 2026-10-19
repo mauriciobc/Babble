@@ -1214,6 +1214,52 @@ first layouts of rows coming into view (Pango under
 `gtk_list_view_measure_list`, no prefetch code on the stack), and all
 followed a short dispatch. The totals above are the comparison.
 
+### 15. Notification rows: none until the page is shown
+
+**Found.** The notifications page is built at sign-in, so the sidebar
+badge works (`window.ensure_notifications_page`), and loads its first page
+while hidden. Its `Gtk.ListView` had the model attached from the start,
+so `append_page`'s `items-changed` made the view create and bind rows
+(`NotificationRow`, `NotificationPost`, the factory's `setup`) inside the
+HTTP completion callback, and every streamed notification did the same.
+The window keeps the page in a stack behind the timeline, and a
+homogeneous stack measures its hidden children, so that list was also
+laid out inside frames.
+
+**Done.** The view gets its model on its first `map`; the model, the
+sections and the badge keep up exactly as before. `notifications render`
+now checks, with the page in a homogeneous stack behind another child,
+that loading a page builds no rows, and that showing the page builds
+them; the first check fails on the old code.
+
+**Result.** Six runs, alternating: B80, B82, B84 with the change; B81,
+B83, B85 without. All healthy (2,496–2,581 frames). Shares as in entry
+11 (main-thread samples whose stack contains the name).
+
+| Metric | Control B81/83/85 | Change B80/82/84 |
+|---|---|---|
+| HTTP completions > 5 ms (all runs) | 17 windows, 228 ms | **14 windows, 125 ms** |
+| HTTP completion max (ms) | 31.3–36.8 | **17.3–17.7** |
+| I/O completion total per run (ms) | 147–173 | 129–131 |
+| `NotificationRow.__init__` + `NotificationPost`, samples | 43 | **0** |
+| `src/notifications.py` samples, whole session | 99 | 50 |
+| Slow layout frames (all runs) | 32 windows, 614 ms | **22 windows, 471 ms** |
+| Frame p99 (ms) | 5.26 [5.17–6.35] | 4.66 [4.60–4.74] |
+| Frames over 6.94 ms | 0.48% [0.43–0.78] | 0.43% [0.43–0.44] |
+
+What is left of the notifications code in slow completions is
+`_stamp_sections` (15 samples), which walks the whole model on every
+change, and `_build_header`.
+
+**Cost: the first open.** The rows are now built in the frame that shows
+the page. Timed headless (`~/babble-profiles/scripts/notif_open.py`: the
+page behind a label in a homogeneous stack, 20 notifications loaded,
+then shown; seven fresh processes each): from switching to the page to
+its first painted rows, **16.5 ms before, 67.0 ms after** (median); the
+first frame, 11.8 ms before and 36.1 ms after. Once per session. Making
+`NotificationRow` lighter — its `NotificationPost` and the cluster
+widgets are built for every row, needed or not — would shrink it.
+
 ### Still open
 
 * **T1**: the slow layout frames are GTK measuring row text (entry 7).
