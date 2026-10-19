@@ -474,3 +474,11 @@ test('dialog toasts', python,
   env: test_env,
   timeout: 30,
 )
+
+# The behaviour both dialog bases promise, pinned before they are merged
+# so the merge can be checked against it.
+test('dialog bases', python,
+  args: [files('test-dialog-bases.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
