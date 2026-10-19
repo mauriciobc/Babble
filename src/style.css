@@ -699,21 +699,28 @@ avatar.profile-image-button:focus-visible {
    gets a tinted, blurred layer; GTK forwards backdrop-filter to the
    compositor's background-effect protocol. The content pane stays opaque.
    GTK never matches `prefers-contrast: no-preference`, so high contrast is
-   handled by undoing the rules below instead of by guarding them. */
+   handled by undoing the rules below instead of by guarding them.
+
+   The panes are scoped to the shell's own split view (.shell-split, set
+   in window.ui) and matched as its direct children. The web column is a
+   second split view wrapping the shell; once it pins beside the timeline
+   its content pane holds the whole shell, and an unscoped .content-pane
+   rule painted the window background behind the sidebar, turning it
+   opaque from 1100sp up. */
 window.translucent-sidebar {
   background-color: transparent;
 }
 
-window.translucent-sidebar .content-pane {
+window.translucent-sidebar .shell-split > .content-pane {
   background-color: var(--window-bg-color);
 }
 
-window.translucent-sidebar .sidebar-pane {
+window.translucent-sidebar .shell-split > .sidebar-pane {
   background-color: color-mix(in srgb, var(--sidebar-bg-color) 70%, transparent);
   backdrop-filter: blur(30px);
 }
 
-window.translucent-sidebar .sidebar-pane:backdrop {
+window.translucent-sidebar .shell-split > .sidebar-pane:backdrop {
   background-color: color-mix(in srgb, var(--sidebar-backdrop-color) 70%, transparent);
 }
 
@@ -722,12 +729,12 @@ window.translucent-sidebar .sidebar-pane:backdrop {
     background-color: var(--window-bg-color);
   }
 
-  window.translucent-sidebar .sidebar-pane {
+  window.translucent-sidebar .shell-split > .sidebar-pane {
     background-color: var(--sidebar-bg-color);
     backdrop-filter: none;
   }
 
-  window.translucent-sidebar .sidebar-pane:backdrop {
+  window.translucent-sidebar .shell-split > .sidebar-pane:backdrop {
     background-color: var(--sidebar-backdrop-color);
   }
 }

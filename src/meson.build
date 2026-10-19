@@ -491,3 +491,11 @@ test('breakpoints', python,
   env: fatal_test_env,
   timeout: 120,
 )
+
+# The opt-in translucent sidebar, rendered and read back on both sides of
+# the web column's 1100sp edge. Needs 1280x1024; skips when smaller.
+test('translucent sidebar', python,
+  args: [files('test-translucent-sidebar.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)

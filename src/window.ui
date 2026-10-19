@@ -325,6 +325,13 @@
                           <property name="sidebar-width-fraction">0.45</property>
                           <property name="content">
                         <object class="AdwOverlaySplitView" id="split_view">
+                          <!-- Names the shell's split view for the
+                               translucent-sidebar rules in style.css: the
+                               web column's split view around it has panes
+                               of its own, which those rules must not match. -->
+                          <style>
+                            <class name="shell-split"/>
+                          </style>
                           <property name="vexpand">True</property>
                           <property name="collapsed">True</property>
                           <property name="pin-sidebar">True</property>
