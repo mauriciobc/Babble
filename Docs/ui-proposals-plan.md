@@ -4,6 +4,21 @@ Turns [the implementation study](ui-proposals-implementation-study.md) into
 work packages (WP) and tasks (T). Evidence and reasoning live in the study;
 this document says what to change, where, and how to know it is done.
 
+## Progress
+
+| WP | Status | Commit | Notes |
+|---|---|---|---|
+| WP1 CSS pins | done | see log | T1.1 already satisfied by the existing `strip_comments`; T1.2-T1.4 added and the negative proof was run |
+| WP2 a11y read-back | pending | | |
+| WP3 toast ownership | pending | | |
+| WP4 merge dialog bases | pending | | |
+| WP5 content slot | pending | | |
+| WP6 breakpoints | pending | | |
+| WP7 a11y changes | pending | | |
+| WP8 closeout | pending | | |
+| WP9 deck prototype | pending | | optional |
+| WP10 one `.ui` extraction | pending | | optional |
+
 ## Decisions this plan assumes
 
 | # | Decision | Value |
