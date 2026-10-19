@@ -919,3 +919,47 @@ label.just-toggled {
 .catchup-tile .catchup-actions buttoncontent image {
   -gtk-icon-size: 0.875em;
 }
+
+/* #FediWrapped card styles (wrapped.py STYLES), chosen from the dialog's
+   Style menu and carried into the saved image, which is a snapshot of
+   .wrapped-card. The values follow Tuba's annual report
+   (data/style.css .annual-screenshot-box.style-*). The flag gradients
+   are content, not theme, so their colours are fixed like the
+   lightbox's; they sit over the window background at partial alpha so
+   the text keeps the palette's foreground in light and dark. In Accent
+   the text takes the accent foreground; the charts read the same colour
+   (wrapped.MonthlyChart) so their bars stay visible on the accent. */
+.wrapped-card {
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.wrapped-card.wrapped-style-window {
+  background-color: var(--window-bg-color);
+}
+
+.wrapped-card.wrapped-style-accent {
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}
+
+.wrapped-card.wrapped-style-pride {
+  background-color: var(--window-bg-color);
+  background-image: linear-gradient(135deg,
+                                    rgba(228, 3, 3, 0.3) 0%,
+                                    rgba(255, 140, 0, 0.3) 20%,
+                                    rgba(255, 237, 0, 0.3) 40%,
+                                    rgba(0, 128, 38, 0.3) 60%,
+                                    rgba(0, 77, 255, 0.3) 80%,
+                                    rgba(117, 7, 135, 0.3) 100%);
+}
+
+.wrapped-card.wrapped-style-trans {
+  background-color: var(--window-bg-color);
+  background-image: linear-gradient(135deg,
+                                    rgba(92, 206, 250, 0.5) 0%,
+                                    rgba(246, 168, 183, 0.5) 25%,
+                                    rgba(255, 255, 255, 0.5) 50%,
+                                    rgba(246, 168, 183, 0.5) 75%,
+                                    rgba(92, 206, 250, 0.5) 100%);
+}

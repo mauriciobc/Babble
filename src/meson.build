@@ -507,3 +507,11 @@ test('translucent sidebar', python,
   env: fatal_test_env,
   timeout: 60,
 )
+
+# The Wrapped Style menu, rendered: each style must change the card that
+# Save as Image exports, and Accent must keep the chart bars visible.
+test('wrapped styles', python,
+  args: [files('test-wrapped-styles.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)

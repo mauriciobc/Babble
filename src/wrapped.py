@@ -115,9 +115,20 @@ class MonthlyChart(Gtk.DrawingArea):
             self.update_property([Gtk.AccessibleProperty.LABEL], [label])
 
     def _color(self):
-        if self.accent:
+        # On the Accent card style the background is the accent itself,
+        # so the bars take the card's foreground (the accent foreground,
+        # style.css) instead of disappearing into it.
+        if self.accent and not self._on_accent_card():
             return Adw.StyleManager.get_default().get_accent_color_rgba()
         return self.get_color()
+
+    def _on_accent_card(self):
+        node = self.get_parent()
+        while node is not None:
+            if node.has_css_class('wrapped-style-accent'):
+                return True
+            node = node.get_parent()
+        return False
 
     def _draw(self, area, cr, width, height):
         text = area.get_color()
@@ -621,6 +632,17 @@ class WrappedDialog(pages.ToastDialog):
         for key, _label in STYLES:
             card.remove_css_class('wrapped-style-' + key)
         card.add_css_class('wrapped-style-' + self.style)
+        # The charts are Cairo drawings: they pick their colour when they
+        # draw, so a style change has to ask them to draw again.
+        pending = [card]
+        while pending:
+            node = pending.pop()
+            if isinstance(node, MonthlyChart):
+                node.queue_draw()
+            child = node.get_first_child()
+            while child is not None:
+                pending.append(child)
+                child = child.get_next_sibling()
 
     def _on_save(self):
         texture = self._screenshot()
