@@ -248,46 +248,6 @@ class StatePage(CtxRef, Adw.Bin):
         raise NotImplementedError
 
 
-class AdminDialogBase(Adw.Dialog):
-    """Dialog with a header bar, a preferences page and its own toasts
-    (the window's overlay would sit behind a modal dialog)."""
-
-    def __init__(self, title, width=460, height=560, **kwargs):
-        super().__init__(title=title, content_width=width,
-                         content_height=height, **kwargs)
-        self.page = Adw.PreferencesPage()
-        self.toasts = Adw.ToastOverlay(child=self.page)
-        self.header = Adw.HeaderBar()
-        toolbar = Adw.ToolbarView(content=self.toasts)
-        toolbar.add_top_bar(self.header)
-        self.set_child(toolbar)
-
-    def toast(self, text):
-        self.toasts.add_toast(Adw.Toast(title=text, use_markup=False,
-                                        timeout=5))
-
-    def error(self, heading, error):
-        self.toast('%s: %s' % (heading, error_text(error)))
-
-    def add_header_buttons(self, cancel_label, action_label, callback,
-                           css=None, sensitive=True):
-        """Cancel button that closes the dialog plus an end-side action
-        button calling *callback*; returns the action button."""
-        cancel = Gtk.Button(label=cancel_label, use_underline=True)
-        pages.connect_weak(cancel, 'clicked', self._on_cancel)
-        self.header.pack_start(cancel)
-        button = Gtk.Button(label=action_label, use_underline=True,
-                            sensitive=sensitive)
-        if css:
-            button.add_css_class(css)
-        pages.connect_weak(button, 'clicked', callback)
-        self.header.pack_end(button)
-        return button
-
-    def _on_cancel(self, _button):
-        self.force_close()
-
-
 def count_badge_label(text, css=None):
     label = Gtk.Label(label=text, xalign=1.0, wrap=True, hexpand=True,
                       valign=Gtk.Align.CENTER,
@@ -614,7 +574,7 @@ class ReportsPage(CtxRef, Adw.Bin):
         self.list.refresh()
 
 
-class ReportDialog(AdminDialogBase):
+class ReportDialog(pages.ToastDialog):
     """Report detail: reported account, who reported, category, rules,
     posts, and the assign / resolve / take-action controls."""
 
@@ -894,7 +854,7 @@ class AssignedRow(Adw.ActionRow):
              '/admin/reports/%s/%s' % (self.report_id, endpoint), ok, failed)
 
 
-class TakeActionDialog(AdminDialogBase):
+class TakeActionDialog(pages.ToastDialog):
     """POST /admin/accounts/:id/action."""
 
     __gsignals__ = {'took-action': (GObject.SignalFlags.RUN_FIRST, None, ())}
@@ -1136,7 +1096,7 @@ class UndoRow(Adw.ActionRow):
                                         self.endpoint), ok, failed)
 
 
-class AdminAccountDialog(AdminDialogBase):
+class AdminAccountDialog(pages.ToastDialog):
     def __init__(self, ctx, item):
         super().__init__(account_handle(item, ctx.client), width=480,
                          height=600)
@@ -1332,7 +1292,7 @@ class FederationBlocksPage(RuleList):
         dialog.present(self.ctx)
 
 
-class AddFederationBlockDialog(AdminDialogBase):
+class AddFederationBlockDialog(pages.ToastDialog):
     __gsignals__ = {'added': (GObject.SignalFlags.RUN_FIRST, None, ())}
 
     def __init__(self, ctx):
@@ -1543,7 +1503,7 @@ class IPBlocksPage(RuleList):
         dialog.present(self.ctx)
 
 
-class AddIPBlockDialog(AdminDialogBase):
+class AddIPBlockDialog(pages.ToastDialog):
     __gsignals__ = {'added': (GObject.SignalFlags.RUN_FIRST, None, ())}
 
     def __init__(self, ctx):

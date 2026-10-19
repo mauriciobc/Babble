@@ -22,7 +22,8 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import charts  # noqa: E402
 from . import pages  # noqa: E402
-from .lists import ToastDialog, make_pin_button  # noqa: E402
+from .lists import make_pin_button  # noqa: E402
+from .pages import ToastDialog  # noqa: E402
 
 FAVORITE_TAGS_KEY = 'favorite-tags-ids'
 SAVED_KEY = 'hashtag-lists'

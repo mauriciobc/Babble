@@ -474,6 +474,58 @@ def confirm_remind(widget, heading, body, action, action_label, setting,
     return dialog
 
 
+class ToastDialog(Adw.Dialog):
+    """Dialog with a header bar, its own toast overlay and a page.
+
+    A dialog covers the window's toast overlay, so a toast raised inside
+    one would land behind it; every dialog either subclasses this or
+    says why it cannot (``dialog toasts`` enforces the rule). Callers
+    that need something other than a preferences page replace it with
+    :meth:`set_content`.
+    """
+
+    def __init__(self, title, width=480, height=600, title_buttons=True,
+                 **kwargs):
+        super().__init__(title=title, content_width=width,
+                         content_height=height, **kwargs)
+        self.toolbar = Adw.ToolbarView()
+        self.header = Adw.HeaderBar()
+        if not title_buttons:
+            self.header.set_show_start_title_buttons(False)
+            self.header.set_show_end_title_buttons(False)
+        self.toolbar.add_top_bar(self.header)
+        self.toasts = Adw.ToastOverlay()
+        self.page = Adw.PreferencesPage()
+        self.toasts.set_child(self.page)
+        self.toolbar.set_content(self.toasts)
+        self.set_child(self.toolbar)
+
+    def toast(self, text):
+        self.toasts.add_toast(
+            Adw.Toast(title=text, timeout=5, use_markup=False))
+
+    def error(self, heading, error):
+        self.toast('%s: %s' % (heading, summarize_error(error)))
+
+    def add_header_buttons(self, cancel_label, action_label, callback,
+                           css=None, sensitive=True):
+        """Cancel button that closes the dialog plus an end-side action
+        button calling *callback*; returns the action button."""
+        cancel = Gtk.Button(label=cancel_label, use_underline=True)
+        connect_weak(cancel, 'clicked', self._on_cancel)
+        self.header.pack_start(cancel)
+        button = Gtk.Button(label=action_label, use_underline=True,
+                            sensitive=sensitive)
+        if css:
+            button.add_css_class(css)
+        connect_weak(button, 'clicked', callback)
+        self.header.pack_end(button)
+        return button
+
+    def _on_cancel(self, _button):
+        self.force_close()
+
+
 def call(widget, client, method, path, on_done=None, error_heading=None,
          **kwargs):
     """Fire one request and hand the decoded body to *on_done(data)*;

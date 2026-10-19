@@ -48,7 +48,7 @@ def check(name, condition, detail=''):
         print('ok - %s' % name)
     else:
         failures.append(name)
-        print('FAIL - %s%s' % (name, (': ' + detail) if detail else ''))
+        print('FAIL - %s%s' % (name, (': ' + str(detail)) if detail else ''))
 
 
 def module_name(path):
@@ -82,7 +82,15 @@ for path in sorted(glob.glob(os.path.join(srcdir, '*.py'))):
 
 def resolve(module, base):
     """The (module, name) a base expression refers to, or None."""
-    if base in EXTERNAL or '.' in base:
+    if base in EXTERNAL:
+        return None
+    if '.' in base:
+        qualifier, name = base.rsplit('.', 1)
+        if (qualifier, name) in classes:
+            return (qualifier, name)
+        alias = imports.get(module, {}).get(qualifier)
+        if alias is not None:
+            return (alias[0], name)
         return None
     if base in imports.get(module, {}):
         return imports[module][base]
