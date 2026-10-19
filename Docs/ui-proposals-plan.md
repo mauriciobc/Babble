@@ -6,23 +6,23 @@ this document says what to change, where, and how to know it is done.
 
 ## Progress
 
-Statuses below were corrected after an independent review of the
-implementation (one reviewer per work package, mutations run on private
-copies). "Reopened" means the earlier "done" did not hold.
+An independent review (one reviewer per work package, mutations run on
+private copies) reopened WP2, WP3, WP5, WP6 and WP8. The reworks below
+answer each finding; every new or changed check has been seen to fail.
 
-| WP | Status | Commit | Notes |
+| WP | Status | Commits | Notes |
 |---|---|---|---|
-| WP1 CSS pins | done | `71b59b8` | T1.1 was already satisfied by the existing `strip_comments`. All six tokens and the split-sheet rule fail when introduced; a token inside a comment does not. Known gap (minor): a `/*` inside a CSS string hides what follows from `strip_comments` (pre-existing helper) |
-| WP2 a11y read-back | **reopened** | `4276be4` | Row checks are real (removing the row label or "More Options" is caught). **The T2.5 label inventory is vacuous**: it walks an unpresented `Adw.Dialog` (1 node) and tests `labelled-by` on the label, which is the wrong end of the relation. Walking the content finds 26 unrelated labels in preferences and 3 in report, not 0. The earlier "4 unnamed buttons" note was stale |
-| WP3 toast ownership | **reopened** | `b544011` | Negative proofs pass, but: a docstring or comment mentioning `Adw.ToastOverlay` counts as owning one; subclasses of `Adw.PreferencesDialog`/`Adw.AlertDialog` are invisible (misses `preferences.PreferencesDialog`, so the true counts were 22 before and 21 after the merge); a hand-built dialog off the base passes without being listed |
-| WP4 merge dialog bases | done | `42f9837`, `0dee04a` | Characterization test passed before and after the merge (verified on the pre-merge commit). Gap: T4.3 AC2 (timeout asserted by a test) is missing |
-| WP5 content slot | **reopened** | `a8e4d4e` | Migrations are clean (no scaffold left). Not met: the behavioural checks in T5.2, T5.4, T5.5, T5.6 (Save sensitivity, policy save on close, header positions, discard prompt) were never written, and the WP5 checks were added after migrating, so "before" was never shown. `CollectionEditDialog`, `WrappedDialog` and `ProfileEditDialog` keep `toast()`/`error()` duplicates of the base; `CollectionEditDialog` derives its title from truthiness while `edit_mode` uses `is not None`. T5.9 (visual) open |
-| WP6 breakpoints | **reopened** | `ef5b981` | Invariants hold and both edge negatives are caught, but the test is **flaky on Xvfb (5/10 failed)**: `settle()` accepts a width after ~10 ms, inside one frame. The `any(width < 1100)` check always passes; `offset` is dead code; two comments describe behaviour the code does not have. T6.3 AC2 and T6.6 AC2 unmet |
-| WP7 a11y changes | **not started** | | No production accessibility change exists. The "clean inventory" it relied on came from the vacuous WP2 check. Orca validation (T7.5) not run |
-| WP8 closeout | **reopened** | `25f03fd` | Notes and counts must be redone after the fixes above |
+| WP1 CSS pins | done | `71b59b8` | T1.1 was already satisfied by the existing `strip_comments`. Each forbidden token and split sheet fails when introduced; a token inside a comment does not. Accepted gap: a `/*` inside a CSS string hides what follows from the pre-existing `strip_comments` (no such string exists in `style.css`) |
+| WP2 a11y read-back | done | `4276be4`, `f543dd7` | Inventory now walks dialog content (preferences 158 labels, report 18) and fails if it reaches none; a label is related when the control or container owning it has `labelled-by`. Proofs: removing "More Options" is reported; a label added to the report header is reported; an empty walk fails. Known limit: a plain label inside a labelled container counts as related |
+| WP3 toast ownership | done | `b544011`, `c3db680` | AST check for an actual `Adw.ToastOverlay(...)` call; any `Adw.*Dialog` base is a dialog; `Adw.PreferencesDialog` exempt as libadwaita-owned (only dialog class with `add_toast` in `Adw-1.gir`); every off-base dialog must be listed; aliased imports resolve; exact expected set of 21, cross-checked against a runtime subclass walk |
+| WP4 merge dialog bases | done | `42f9837`, `0dee04a`, `dd6b065` | Characterization test passed before and after the merge. Timeout (5 s) and direct-child overlay now asserted for every dialog on the base |
+| WP5 content slot | done, T5.9 open | `a8e4d4e`, `d69079a` | Duplicate `toast()`/`error()` removed; collection title uses `is not None`. `dialog behaviour` (Save sensitivity and labels, policy PATCH on close, Wrapped header layout, discard prompt) passes 20/20 on `main` and 20/20 here; four mutations each fail it. **T5.9 visual check of a migrated dialog still needs a person** |
+| WP6 breakpoints | done | `ef5b981`, `5dcc898` | Widths settle across three painted frames; an unsettled width fails. Edges 599/600/601 and 1099/1100/1101 realised and asserted; 10/10 Xvfb and 5/5 mutter runs identical. Out of scope (plan): the `max-width: 600sp` first-frame `show-sidebar` setter |
+| WP7 a11y changes | T7.1 done; T7.2-T7.4 none needed; **T7.5 open** | | Inventory on the corrected WP2: 0 unnamed controls in the post row; 2 unrelated labels in preferences, both widgets that `Adw.PreferencesDialog` builds itself: the header title (text is the app's `_('Preferences')`, `preferences.py:189`) and the search placeholder `Search preferences` (a libadwaita string, `libadwaita.mo`). Decision "no change": the app does not own either widget. Nothing for T7.2-T7.4 from the automated pass. Orca validation (T7.5) not run; machine and person not named |
+| WP8 closeout | done | see log | `CLAUDE.md` lists all six new tests. Full suite under headless mutter at 1280x1024, `-j1`: **57 passed, 1 skipped, 0 failed**; the skip is `streaming helpers` (no secret service), as documented |
 | WP9 deck prototype | deferred | | optional |
 | WP10 one `.ui` extraction | deferred | | optional |
-| Fix: translucent sidebar | done | `cc353b6` | Unscoped `.content-pane` rule matched the web column's split view from 1100sp. New `translucent sidebar` test fails on `main` (alpha 255) and passes with the fix |
+| Fix: translucent sidebar | done | `cc353b6` | Unscoped `.content-pane` rule matched the web column's split view from 1100sp. `translucent sidebar` test fails on `main` (alpha 255 at 1200 px) and passes with the fix |
 
 ## Decisions this plan assumes
 
