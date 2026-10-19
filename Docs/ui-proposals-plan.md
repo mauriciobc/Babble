@@ -10,7 +10,7 @@ this document says what to change, where, and how to know it is done.
 |---|---|---|---|
 | WP1 CSS pins | done | see log | T1.1 already satisfied by the existing `strip_comments`; T1.2-T1.4 added and the negative proof was run |
 | WP2 a11y read-back | done | see log | `a11y readback` test and its own `GTK_A11Y=test` environment; inventories: 4 unnamed buttons on a post row, 0 unrelated labels in preferences/report |
-| WP3 toast ownership | pending | | |
+| WP3 toast ownership | done | see log | `dialog toasts`: 21 dialogs, two allowlisted with reasons; negative proofs for a new unowned dialog, a stale entry and a missing reason |
 | WP4 merge dialog bases | pending | | |
 | WP5 content slot | pending | | |
 | WP6 breakpoints | pending | | |

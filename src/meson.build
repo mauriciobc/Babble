@@ -466,3 +466,11 @@ test('a11y readback', python,
   env: a11y_test_env,
   timeout: 60,
 )
+
+# Static: every dialog owns a toast overlay or is allowlisted with a
+# reason. No display, bundle or network is needed.
+test('dialog toasts', python,
+  args: [files('test-dialog-toasts.py')],
+  env: test_env,
+  timeout: 30,
+)
