@@ -23,7 +23,7 @@ answer each finding; every new or changed check has been seen to fail.
 | WP9 deck prototype | deferred | | optional |
 | WP10 one `.ui` extraction | deferred | | optional |
 | Fix: translucent sidebar | done | `cc353b6` | Unscoped `.content-pane` rule matched the web column's split view from 1100sp. `translucent sidebar` test fails on `main` (alpha 255 at 1200 px) and passes with the fix. **Visually confirmed by the owner (2026-10-19)**: maximized, web column pinned, the sidebar stays translucent while the timeline and the web column stay opaque |
-| Fix: Wrapped Style menu | done, visual open |  | Style swapped `wrapped-style-*` classes with no CSS. Four Tuba styles added; Accent charts use the card foreground. `wrapped styles` fails on `main` (identical pixels for every style) and passes with the fix. Owner visual check of Default / Accent / Pride / Trans still open |
+| Fix: Wrapped Style menu | done, visual open | `0e43bcc` | Style swapped `wrapped-style-*` classes with no CSS. Four Tuba styles added; Accent charts use the card foreground. `wrapped styles` fails on `main` (identical pixels for every style) and passes with the fix. Owner visual check of Default / Accent / Pride / Trans still open |
 
 ## Decisions this plan assumes
 
