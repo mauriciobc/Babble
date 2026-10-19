@@ -1137,6 +1137,83 @@ p99 got 0.9 ms worse, with the same total over-budget idle time: the
 summary's Inscription builds its layout up front. Kept, for the frames;
 the idle target of the original fix 3 is not met.
 
+### 14. Cards built and measured before their run is shown
+
+**Why.** Fix 4 as first written — bounding `_populate_pending` to one
+`StatusRow` per dispatch — would add rows to a shell already on screen,
+the trade entry 12 measured as a loss. Android's RecyclerView solves the
+same problem with prefetch (GapWorker): it builds the items about to
+scroll into view in the idle gap between frames, one item per step, and
+only when the step's average cost fits before the next frame is due.
+
+Two GTK 4.24.1 details make the off-screen version pay twice. A hidden
+widget queues no resize up the tree (`gtkwidget.c:3772`), so building
+into a hidden subtree disturbs no shown row. And `gtk_widget_show`
+queues a resize on the parent only, never on the widget itself, so the
+size caches a row fills while measured off screen are still valid when it
+is shown. `gtk_widget_measure` returns 0 for a hidden widget
+(`gtksizerequest.c:509`), so the rows are shown just for the
+measurement.
+
+**Done.** `statusrun` keeps a list of every `StatusRunRow` (GObject weak
+refs) and each shell its `Gtk.ListItem` (weak ref, set by the factory)
+for its position. A low-priority idle source, `babble-prefetch`
+(`G_PRIORITY_LOW`, below card population and redraw), plans up to
+`PREFETCH_AHEAD` (4) shells past the last shown run of each list and
+`PREFETCH_BEHIND` (2) before the first, and works one step per
+dispatch:
+
+* *build*: one missing `StatusRow`, bound and appended hidden to the
+  shell's column, counted against `CARD_SHELLS_KEPT` like kept cards;
+* *warm*: the run's rows shown, the shell measured at the column width
+  the list gives it, the height pinned as `_on_unmap` already does, the
+  rows hidden again.
+
+A step runs only when its running average cost fits before the window's
+next frame (frame time plus refresh interval); otherwise the source
+waits for the frame clock's `after-paint`. When the run scrolls in,
+`_on_map` finds all its cards and shows them at once (the kept-cards
+path), at the height already pinned, with no placeholder frame. `card
+prefetch` checks that the runs past the viewport are built, hidden and
+pinned, that runs further away are left alone, that a prefetched run
+shows its own cards as soon as it is mapped and is exactly its pinned
+height, and that shells are freed with their list.
+
+**Result.** Six runs, alternating: B70, B72, B74 with prefetch; B71, B73,
+B75 without (the constant-size cards of entry 13 in both). All healthy
+(2,546–2,710 frames).
+
+| Metric | Control B71/73/75 | Prefetch B70/72/74 |
+|---|---|---|
+| **Card-population idle p99 (ms)** | 13.08 [12.73–13.58] | **4.24** [4.12–4.25] |
+| Card-population idle total per run (ms) | 340–347 | 43–50 |
+| Over-budget idles (all runs) | 24 windows, 334 ms | **3 windows, 41 ms** |
+| Slow layout frames (all runs) | 39 windows, 812 ms | **29 windows, 540 ms** |
+| Frames over 6.94 ms | 0.57% [0.52–0.57] | **0.47%** [0.46–0.55] |
+| Frame max (ms) | 48.2–48.9 | **37.1–38.5** |
+| Frame p95 (ms) | 2.01 [2.01–2.01] | 2.25 [2.10–2.29] |
+| Frame p99 (ms) | 4.34 [4.29–4.44] | 4.69 [4.68–4.71] |
+| Prefetch dispatches per run | | 387–626, 604–623 ms; p99 14–18 ms, max 24 ms |
+
+The card-population idle p99 is under the frame budget, the target of
+fix 4. Over-budget frames, the worst frame and the time in slow layout
+frames all fell. Frame p95 and p99 rose by about 0.3 ms, still far inside
+the budget: a prefetched run is shown within the frame that maps it,
+where before the shell was mapped as a cheap placeholder and its cards
+cost a full relayout a frame later. Prefetch does about 300 ms more
+main-thread work per run than the card population it replaces — it
+measures runs ahead and prepares a few that are never shown — all of it
+in the gaps between frames.
+
+Of the 38 slow frames, 17 start within 40 ms after a prefetch dispatch,
+against 2 with the dispatch times shifted by 300 ms. Here that check
+misleads: prefetch fills the gaps of every flick, so nearly every
+scrolling frame follows a dispatch, while the shifted times fall in the
+700 ms pauses, which have no frames. Those 17 frames are ordinary
+first layouts of rows coming into view (Pango under
+`gtk_list_view_measure_list`, no prefetch code on the stack), and all
+followed a short dispatch. The totals above are the comparison.
+
 ### Still open
 
 * **T1**: the slow layout frames are GTK measuring row text (entry 7).

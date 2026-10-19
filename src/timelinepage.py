@@ -42,6 +42,7 @@ class TimelineFactory(Gtk.SignalListItemFactory):
     def on_setup(self, _factory, list_item):
         card = StatusRunRow()
         card.filter_context = self.filter_context
+        card.list_item_ref = list_item.weak_ref()
         list_item.set_child(card)
         list_item.set_activatable(True)
 
