@@ -12,7 +12,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gtk  # noqa: E402,F401
+from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -104,16 +104,12 @@ page = home_page(_Client([[status(9), boost(8, 1), status(7)]]), True)
 check('boosts are hidden on the first page',
       ids(page) == ['00009', '00007'])
 
-# On: an older page of nothing but boosts moves the cursor and does not
-# mark the timeline exhausted.
+# On: an older page of nothing but boosts moves the cursor instead of
+# reading as the end of the timeline: the next page still lands.
 client = _Client([[status(9)], [boost(6, 1), boost(5, 2)], [status(4)]])
 page = home_page(client, True)
 page.load_older()
-check('an all-boost older page does not end the timeline',
-      not page.model.exhausted)
-# The all-boost page leaves the list as it was, so the page keeps paging
-# on its own: the third page is requested and its post lands.
-check('paging went on past it', '00004' in ids(page))
+check('paging went on past an all-boost older page', '00004' in ids(page))
 
 # On: a refresh drops boosts too.
 page = home_page(_Client([[status(9)], [boost(10, 1), status(11)]]), True)
@@ -127,6 +123,76 @@ page.on_stream_update(boost(12, 1))
 page.on_stream_update(status(13))
 check('a streamed boost is dropped', '00012' not in ids(page))
 check('a streamed post is kept', '00013' in ids(page))
+
+# Hiding replies from non-follows asks the server who the authors are.
+# The real relationships_finish returns the first entry only (the profile
+# page asks about one account), so the page has to read the whole list
+# with request_finish; reading the first entry raised and left the page
+# on "loading" forever.
+def reply(number, author, parent=1):
+    data = status(number)
+    data['in_reply_to_id'] = '%05d' % parent
+    data['account'] = {'acct': 'user%d' % author, 'id': str(author)}
+    return data
+
+
+class _RelationshipClient(_Client):
+    def relationships_async(self, ids, callback=None, **_kw):
+        callback(self, [{'id': i, 'following': i == '21'} for i in ids])
+
+    def request_finish(self, result):
+        return result
+
+    def relationships_finish(self, result):
+        return result[0] if result else {}
+
+
+pages.settings().set_boolean('hide-replies-non-follows', True)
+client = _RelationshipClient([[status(9), reply(8, 21), reply(7, 22)]])
+page = home_page(client, False)
+check('a followed author reply is kept', '00008' in ids(page))
+check('a reply from a stranger is hidden', '00007' not in ids(page))
+check('the page left the loading state', not page.model.loading)
+pages.settings().reset('hide-replies-non-follows')
+
+# A page the filter left too short to scroll keeps asking for older posts:
+# scrolling is what pages, and five posts fit on the screen.
+def spin(milliseconds):
+    loop = GLib.MainLoop()
+    GLib.timeout_add(milliseconds, loop.quit)
+    loop.run()
+
+
+Adw.init()
+older = [[status(100 - n)] for n in range(2, 8)]
+client = _Client([[status(99), boost(98, 1), boost(97, 1)], *older])
+page = home_page(client, True)
+window = Gtk.Window(default_width=600, default_height=900)
+window.set_child(page)
+window.present()
+spin(1500)
+check('a short filtered page pages on by itself', len(client.params) > 3)
+window.destroy()
+
+# Reaching the bottom edge asks for older posts even when nothing scrolls.
+client = _Client([[status(99)], [status(98)]])
+page = home_page(client, False)
+requests = len(client.params)
+page._scrolled.emit('edge-reached', Gtk.PositionType.TOP)
+check('the top edge asks for nothing', len(client.params) == requests)
+page._scrolled.emit('edge-reached', Gtk.PositionType.BOTTOM)
+check('reaching the bottom edge pages on',
+      len(client.params) == requests + 1)
+
+# Unfiltered, the same short first page does not trigger extra requests.
+client = _Client([[status(99), status(98)], *older])
+page = home_page(client, False)
+window = Gtk.Window(default_width=600, default_height=900)
+window.set_child(page)
+window.present()
+spin(800)
+check('an unfiltered page makes no extra request', len(client.params) == 1)
+window.destroy()
 
 # Only the home timeline is filtered.
 pages.settings().set_boolean('hide-boosts-home', True)

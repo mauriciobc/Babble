@@ -20,14 +20,14 @@ from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
 """The scrolling timeline page and its API source."""
+from .homefilters import HomeFilters
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
-    AUTO_REFRESH_SCROLLED_TICKS, COLUMN_WIDTH, FOLLOW_CACHE_LIMIT,
+    AUTO_REFRESH_SCROLLED_TICKS, COLUMN_WIDTH,
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
-    _EMPTY_PAGED_ENVELOPE, _own_account_id, id_key)
+    _EMPTY_PAGED_ENVELOPE, id_key)
 from .timelinedata import (
-    BoostCarouselItem, TimelineModel, filter_boosts,
-    filter_replies_from_non_follows, matching_tag)
+    BoostCarouselItem, TimelineModel, matching_tag)
 
 
 class TimelineFactory(Gtk.SignalListItemFactory):
@@ -162,7 +162,7 @@ def _new_posts_announce_tick(page_ref):
     return GLib.SOURCE_REMOVE
 
 
-class TimelinePage(PagedPosts, Adw.Bin):
+class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
     """Scrollable timeline with infinite scroll, refresh and status pages.
 
     mode: 'home' (authenticated) or 'public'. A custom ``source`` (with
@@ -268,6 +268,11 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self._scrolled = scrolled
         adjustment = scrolled.get_vadjustment()
         connect_weak(adjustment, 'value-changed', self.on_scroll_position)
+        # The adjustment only changes when there is something to scroll.
+        # The edge signals also fire when the reader scrolls at the end of
+        # a list too short to move, which is when nothing else asks.
+        connect_weak(scrolled, 'edge-reached', self._on_edge)
+        connect_weak(scrolled, 'edge-overshot', self._on_edge)
         if autoload:
             self.ensure_loaded()
 
@@ -486,74 +491,6 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self._remember_follows(rels)
         self.model.apply_source_tags(hits, self._following_ids)
 
-    def _remember_follows(self, relationships):
-        """Record what the server said about a batch of authors.
-
-        The table is shared with the reply filter: both consumers ask the
-        same question ("does the viewer follow this author"), both go to
-        /relationships for the answer, and a reader who has already paged
-        past an author does not make the app ask about them again.
-        """
-        for rel in relationships or ():
-            author_id = str(rel.get('id') or '')
-            if author_id:
-                self._remember_follow(author_id, bool(rel.get('following')))
-
-    def _remember_follow(self, author_id, following):
-        follows = self._following_ids
-        if author_id not in follows:
-            # Bounded like the boost dedupe table: a long session scrolls
-            # past thousands of authors, and the table only exists to save
-            # a request, not to be an archive.
-            while len(follows) >= FOLLOW_CACHE_LIMIT:
-                del follows[next(iter(follows))]
-        follows[author_id] = following
-
-    def _with_home_reply_filter(self, statuses, on_done):
-        """Apply the Home filters: boosts, then replies from non-follows."""
-        if self._hide_boosts:
-            statuses = filter_boosts(statuses)
-        if not self._hide_replies_non_follows:
-            on_done(statuses)
-            return
-        viewer_id = _own_account_id(self)
-        unknown = set()
-        for status in statuses:
-            if not status.get('in_reply_to_id'):
-                continue
-            author_id = str((status.get('account') or {}).get('id') or '')
-            if not author_id:
-                continue
-            if viewer_id and author_id == str(viewer_id):
-                continue
-            if author_id not in self._following_ids:
-                unknown.add(author_id)
-        if not unknown:
-            on_done(filter_replies_from_non_follows(
-                statuses, viewer_id, self._following_ids))
-            return
-        generation = self._reply_filter_generation
-        ids = list(unknown)[:40]
-
-        def loaded(client, result, _data=None):
-            if generation != self._reply_filter_generation:
-                return
-            try:
-                rels = client.relationships_finish(result)
-            except GLib.Error:
-                on_done(filter_replies_from_non_follows(
-                    statuses, viewer_id, self._following_ids))
-                return
-            # Both answers are recorded, not just the following ones:
-            # "asked and the answer is no" has to be distinguishable from
-            # "never asked", or every page asks again about every author
-            # the viewer does not follow.
-            self._remember_follows(rels)
-            on_done(filter_replies_from_non_follows(
-                statuses, viewer_id, self._following_ids))
-
-        self.client.relationships_async(ids, loaded)
-
     def on_page_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
             return
@@ -609,6 +546,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
             self._fill_loop(0)
             return
         self.stack.set_visible_child_name('list')
+        self._fill_filtered()
 
     def _trim_old(self):
         """Keep the timeline to TIMELINE_MAX_ITEMS while the reader is on
@@ -680,6 +618,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
         # next older page is the way to fill the screen.
         self._fill_loop(before)
         self._release_bottom()
+        self._fill_filtered()
 
     def on_refresh_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
@@ -718,6 +657,10 @@ class TimelinePage(PagedPosts, Adw.Bin):
         view = getattr(self.get_root(), 'navigation_view', None)
         if view is not None:
             push_thread(view, self.client, item)
+
+    def _on_edge(self, _scrolled, position):
+        if position == Gtk.PositionType.BOTTOM:
+            self.load_older()
 
     def on_scroll_position(self, adjustment):
         if self.on_scroll_near_end(adjustment):
