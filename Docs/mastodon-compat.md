@@ -107,6 +107,12 @@ streaming events handled: `status.update`, `filters_changed` (2.4.3, no
 payload) and `notifications_merged` (4.3.0, payload ignored). Both arrive
 on the `user` stream.
 
+Dismissing one notification is `POST /api/v1/notifications/:id/dismiss`
+(Mastodon 1.3.0, scope `write:notifications`). It needs no capability gate:
+the older `POST /notifications/dismiss` with an `id` parameter was removed in
+3.0, and the docs list no `DELETE` form. A grouped row sends one request per
+notification it holds.
+
 ## Deprecation watch
 
 `mastodon.log_deprecation` logs any RFC 9745 `Deprecation` header (and a
