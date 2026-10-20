@@ -175,6 +175,10 @@
       <default>false</default>
       <summary>Hide reply posts on the home timeline from people you do not follow</summary>
     </key>
+    <key name="hide-boosts-home" type="b">
+      <default>false</default>
+      <summary>Hide boosts on the home timeline</summary>
+    </key>
     <key name="advanced-boost-dialog" type="b">
       <default>false</default>
       <summary>Ask for visibility (and offer quoting) before boosting</summary>

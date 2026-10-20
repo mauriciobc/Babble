@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-17 12:25-0300\n"
+"POT-Creation-Date: 2026-10-20 18:34-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -32,15 +32,15 @@ msgid "Mastodon;Fediverse;Social;Toot;Post;"
 msgstr "Mastodon;Fediverso;Social;Toot;Publicación;Red social;"
 
 #: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:1712
-#: src/portals.py:281 src/shortcuts-dialog.ui:53 src/sidebarcontrol.py:60
-#: src/sidebarcontrol.py:63 src/sidebarrail.py:70 src/window.ui:343
-#: src/window.ui:345 src/window.ui:491 src/window.ui:493
+#: src/portals.py:281 src/shortcuts-dialog.ui:53 src/sidebarcontrol.py:70
+#: src/sidebarcontrol.py:73 src/sidebarrail.py:70 src/window.ui:350
+#: src/window.ui:352 src/window.ui:499 src/window.ui:501
 msgid "New Post"
 msgstr "Nueva publicación"
 
 #: data/io.github.mauriciobc.Babble.desktop.in:22 src/filters.py:28
-#: src/preferences.py:536 src/sidebarcontrol.py:83 src/sidebarcontrol.py:86
-#: src/window.py:84 src/window.ui:501 src/window.ui:503 src/window.ui:518
+#: src/preferences.py:539 src/sidebarcontrol.py:83 src/sidebarcontrol.py:86
+#: src/window.py:87 src/window.ui:509 src/window.ui:511 src/window.ui:526
 msgid "Notifications"
 msgstr "Notificaciones"
 
@@ -218,41 +218,45 @@ msgstr ""
 "que no sigues"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:180
+msgid "Hide boosts on the home timeline"
+msgstr "Ocultar impulsos en la página de inicio"
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:184
 msgid "Ask for visibility (and offer quoting) before boosting"
 msgstr "Solicita visibilidad (y ofrece citar) antes de impulsar"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:184
+#: data/io.github.mauriciobc.Babble.gschema.xml:188
 msgid "Remove tracking parameters from opened links"
 msgstr "Remover parámetros de seguimiento de enlaces abiertos"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:188
+#: data/io.github.mauriciobc.Babble.gschema.xml:192
 msgid "Open links to posts and profiles on other servers inside Babble"
 msgstr ""
 "Abrir enlaces a publicaciones y perfiles en otros servidores dentro de "
 "BabbleAbre los enlaces a publicaciones y perfiles de otros servidores dentro "
 "de la aplicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:192
+#: data/io.github.mauriciobc.Babble.gschema.xml:196
 msgid "Open web links in a column beside the timeline"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:193
+#: data/io.github.mauriciobc.Babble.gschema.xml:197
 msgid ""
 "When off, or when WebKitGTK is not installed, web links open in the default "
 "browser."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:197
+#: data/io.github.mauriciobc.Babble.gschema.xml:201
 msgid "Let pages opened in Babble run JavaScript"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:201
+#: data/io.github.mauriciobc.Babble.gschema.xml:205
 msgid "Offer to open post and profile links found on the clipboard"
 msgstr ""
 "Oferta para abrir enlaces a publicaciones y perfiles encontrados en el "
 "portapapeles"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:202
+#: data/io.github.mauriciobc.Babble.gschema.xml:206
 msgid ""
 "When the window gains focus, check the clipboard for a link to a post, "
 "profile or hashtag and offer to open it in Babble."
@@ -260,29 +264,29 @@ msgstr ""
 "Cuando la ventana gana el foco, verificar el portapapeles en busca de un "
 "enlace a una publicación, perfil u hashtag y ofrecer abrirlo en Babble."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:206
+#: data/io.github.mauriciobc.Babble.gschema.xml:210
 msgid "Warn before replying to a post older than three months"
 msgstr "Advertir antes de responder a una publicación con más de tres meses"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:210
+#: data/io.github.mauriciobc.Babble.gschema.xml:214
 msgid "Warn before copying a link to a non-public post"
 msgstr "Advertir antes de copiar un enlace a una publicación no pública"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:214
+#: data/io.github.mauriciobc.Babble.gschema.xml:218
 msgid "Warn before boosting a post with media that lacks alt text"
 msgstr ""
 "Advertir antes de impulsar una publicación con medios que carecen de texto "
 "alternativo"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:218
+#: data/io.github.mauriciobc.Babble.gschema.xml:222
 msgid "Keep running after the window closes to deliver notifications"
 msgstr "Seguir funcionando tras cerrar la ventana para entregar notificaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:222
+#: data/io.github.mauriciobc.Babble.gschema.xml:226
 msgid "Bind a system-wide shortcut that opens the composer"
 msgstr "Vincula un atajo de sistema que abre el compositor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:223
+#: data/io.github.mauriciobc.Babble.gschema.xml:227
 msgid ""
 "Registered through the XDG GlobalShortcuts portal; the key combination is "
 "chosen in the system settings."
@@ -290,68 +294,68 @@ msgstr ""
 "Registrado a través del portal XDG GlobalShortcuts; la combinación de teclas "
 "se elige en la configuración del sistema."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:227
+#: data/io.github.mauriciobc.Babble.gschema.xml:231
 msgid "Stream new posts and notifications in real time"
 msgstr "Transmitir nuevas publicaciones y notificaciones en tiempo real"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:231
+#: data/io.github.mauriciobc.Babble.gschema.xml:235
 msgid "Also stream the Local and Federated timelines"
 msgstr "Transmite también las cronologías Local y Federada"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:235
+#: data/io.github.mauriciobc.Babble.gschema.xml:239
 msgid "ISO 639-1 language of new posts; empty follows the system locale"
 msgstr ""
 "Idioma ISO 639-1 de publicaciones nuevas; vacío sigue la configuración "
 "regional del sistema"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:239
+#: data/io.github.mauriciobc.Babble.gschema.xml:243
 msgid "Default quote policy on your server account (not per post in Babble)"
 msgstr ""
 "Política de cotización por defecto en tu cuenta del servidor (no por "
 "publicación en Babble)"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:243
+#: data/io.github.mauriciobc.Babble.gschema.xml:247
 msgid "Mark new posts sensitive in the composer and on your server"
 msgstr ""
 "Marcar publicaciones nuevas como sensibles en el compositor y en tu servidor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:247
+#: data/io.github.mauriciobc.Babble.gschema.xml:251
 msgid "Notification types announced on the desktop"
 msgstr "Tipos de notificación anunciados en el escritorio"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:251
+#: data/io.github.mauriciobc.Babble.gschema.xml:255
 msgid "Combine desktop notifications of the same type and post"
 msgstr "Combina notificaciones de escritorio del mismo tipo y publicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:255
+#: data/io.github.mauriciobc.Babble.gschema.xml:259
 msgid "Notification types hidden from the Notifications page"
 msgstr "Tipos de notificación ocultos de la página de Notificaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:259
+#: data/io.github.mauriciobc.Babble.gschema.xml:263
 msgid "Most recent search queries, newest first"
 msgstr "Consultas de búsqueda más recientes, primero primero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:263
+#: data/io.github.mauriciobc.Babble.gschema.xml:267
 msgid "Shortcodes of recently inserted custom emojis, newest first"
 msgstr ""
 "Códigos cortos de emojis personalizados insertados recientemente, primero "
 "primero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:267
+#: data/io.github.mauriciobc.Babble.gschema.xml:271
 msgid "Lists pinned to the sidebar, as \"account-id/list-id\""
 msgstr "Listas fijadas a la barra lateral, como \"account-id/list-id\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:271
+#: data/io.github.mauriciobc.Babble.gschema.xml:275
 msgid "Hashtags pinned to the sidebar, as \"account-id/tag\""
 msgstr "Hashtags fijados a la barra lateral, como \"account-id/tag\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:275
+#: data/io.github.mauriciobc.Babble.gschema.xml:279
 msgid "Saved multi-hashtag timelines as JSON {\"title\", \"tags\": [...]}"
 msgstr ""
 "Guardar cronologías de múltiples hashtags como JSON {\"title\", \"tags\": "
 "[...]}"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:279
+#: data/io.github.mauriciobc.Babble.gschema.xml:283
 msgid "Unsent composer drafts as JSON, newest first"
 msgstr "Borradores no enviados del compositor como JSON, primero primero"
 
@@ -477,7 +481,7 @@ msgstr ""
 msgid "Initial public release."
 msgstr ""
 
-#: src/accounts.py:218 src/admin.py:1621 src/search.py:503
+#: src/accounts.py:218 src/admin.py:1581 src/search.py:504
 msgid "Accounts"
 msgstr "Cuentas"
 
@@ -508,177 +512,177 @@ msgstr ""
 msgid "Trend over the selected period"
 msgstr "Tendencia en el periodo seleccionado"
 
-#: src/admin.py:225 src/catchup.py:1186 src/fedicollections.py:457
-#: src/mediaviewer.py:713 src/pages.py:497 src/wrapped.py:228
+#: src/admin.py:225 src/catchup.py:1186 src/fedicollections.py:456
+#: src/mediaviewer.py:739 src/pages.py:636 src/wrapped.py:234
 msgid "Loading"
 msgstr "Cargando"
 
-#: src/admin.py:227 src/fedicollections.py:380 src/fedicollections.py:460
-#: src/pages.py:498 src/wrapped.py:231
+#: src/admin.py:227 src/fedicollections.py:379 src/fedicollections.py:459
+#: src/pages.py:637 src/wrapped.py:237
 msgid "Could Not Load"
 msgstr "No se pudo cargar"
 
-#: src/admin.py:322 src/admin.py:1015 src/admin.py:1201 src/profile.py:965
+#: src/admin.py:282 src/admin.py:975 src/admin.py:1161 src/profile.py:962
 msgid "Suspended"
 msgstr "Suspendida"
 
-#: src/admin.py:324 src/admin.py:1015 src/admin.py:1202
+#: src/admin.py:284 src/admin.py:975 src/admin.py:1162
 msgid "Limited"
 msgstr "Limitada"
 
-#: src/admin.py:326 src/admin.py:1014 src/admin.py:1203
+#: src/admin.py:286 src/admin.py:974 src/admin.py:1163
 msgid "Disabled"
 msgstr "Desactivada"
 
-#: src/admin.py:328
+#: src/admin.py:288
 msgid "Waiting Approval"
 msgstr "Esperando aprobación"
 
-#: src/admin.py:329
+#: src/admin.py:289
 msgid "No Limits"
 msgstr "Sin límites"
 
-#: src/admin.py:345 src/admin.py:1286 src/admin.py:1291
+#: src/admin.py:305 src/admin.py:1246 src/admin.py:1251
 msgid "None"
 msgstr "Ninguno"
 
-#: src/admin.py:391
+#: src/admin.py:351
 msgid "New Users"
 msgstr "Usuarios nuevos"
 
-#: src/admin.py:392
+#: src/admin.py:352
 msgid "Active Users"
 msgstr "Usuarios activos"
 
-#: src/admin.py:393
+#: src/admin.py:353
 msgid "Interactions"
 msgstr "Interacciones"
 
-#: src/admin.py:394
+#: src/admin.py:354
 msgid "Reports Opened"
 msgstr "Denuncias abiertas"
 
-#: src/admin.py:395
+#: src/admin.py:355
 msgid "Reports Resolved"
 msgstr "Denuncias resueltas"
 
-#: src/admin.py:398
+#: src/admin.py:358
 msgid "Sign-up Sources"
 msgstr "Fuentes de registro"
 
-#: src/admin.py:399
+#: src/admin.py:359
 msgid "Top Active Languages"
 msgstr "Idiomas más activos"
 
-#: src/admin.py:400
+#: src/admin.py:360
 msgid "Top Active Servers"
 msgstr "Servidores más activos"
 
-#: src/admin.py:401
+#: src/admin.py:361
 msgid "Software"
 msgstr "Software"
 
-#: src/admin.py:402
+#: src/admin.py:362
 msgid "Space Usage"
 msgstr "Uso de espacio"
 
-#: src/admin.py:410
+#: src/admin.py:370
 msgid "7 Days"
 msgstr "7 días"
 
-#: src/admin.py:411
+#: src/admin.py:371
 msgid "30 Days"
 msgstr "30 días"
 
-#: src/admin.py:444
+#: src/admin.py:404
 msgid "Could not load some statistics"
 msgstr "No se pudieron cargar algunas estadísticas"
 
-#: src/admin.py:471
+#: src/admin.py:431
 msgid "Stats"
 msgstr "Estadísticas"
 
-#: src/admin.py:472
+#: src/admin.py:432
 #, python-format
 msgid "Last %d day"
 msgid_plural "Last %d days"
 msgstr[0] "Último %d día"
 msgstr[1] "Últimos %d días"
 
-#: src/admin.py:500
+#: src/admin.py:460
 msgid "No Statistics"
 msgstr "Sin estadísticas"
 
-#: src/admin.py:501
+#: src/admin.py:461
 msgid "The server returned no numbers for this period."
 msgstr "El servidor no devolvió cifras para este periodo."
 
-#: src/admin.py:521
+#: src/admin.py:481
 #, python-format
 msgid "%+.0f%% vs. previous period"
 msgstr "%+.0f%% respecto al periodo anterior"
 
-#: src/admin.py:534 src/notifications.py:110
+#: src/admin.py:494 src/notifications.py:110
 msgid "Spam"
 msgstr "Spam"
 
-#: src/admin.py:535
+#: src/admin.py:495
 msgid "Rule Violation"
 msgstr "Infracción de normas"
 
-#: src/admin.py:536
+#: src/admin.py:496
 msgid "Legal"
 msgstr "Legal"
 
-#: src/admin.py:537 src/admin.py:542 src/notifications.py:113
+#: src/admin.py:497 src/admin.py:502 src/notifications.py:113
 msgid "Other"
 msgstr "Otro"
 
-#: src/admin.py:556 src/admin.py:678
+#: src/admin.py:516 src/admin.py:638
 msgid "Action taken by"
 msgstr "Acción tomada por"
 
-#: src/admin.py:559 src/admin.py:845
+#: src/admin.py:519 src/admin.py:805
 msgid "Assigned to"
 msgstr "Asignada a"
 
-#: src/admin.py:565 src/admin.py:667
+#: src/admin.py:525 src/admin.py:627
 msgid "Reported by"
 msgstr "Denunciada por"
 
-#: src/admin.py:566
+#: src/admin.py:526
 msgid "Reported posts"
 msgstr "Publicaciones denunciadas"
 
-#: src/admin.py:569 src/admin.py:866 src/lists.py:33
+#: src/admin.py:529 src/admin.py:826 src/lists.py:34
 msgid "Nobody"
 msgstr "Nadie"
 
-#: src/admin.py:571 src/admin.py:671
+#: src/admin.py:531 src/admin.py:631
 msgid "Resolved"
 msgstr "Resuelta"
 
-#: src/admin.py:587
+#: src/admin.py:547
 msgid "Show Resolved Reports"
 msgstr "Mostrar denuncias resueltas"
 
-#: src/admin.py:592
+#: src/admin.py:552
 msgid "No Reports"
 msgstr "Sin denuncias"
 
-#: src/admin.py:593
+#: src/admin.py:553
 msgid "Nothing needs your attention."
 msgstr "Nada requiere tu atención."
 
-#: src/admin.py:622
+#: src/admin.py:582
 msgid "Report"
 msgstr "Denuncia"
 
-#: src/admin.py:634 src/admin.py:826
+#: src/admin.py:594 src/admin.py:786
 msgid "_Reopen"
 msgstr "_Reabrir"
 
-#: src/admin.py:634 src/admin.py:822
+#: src/admin.py:594 src/admin.py:782
 msgid "_Resolve"
 msgstr "_Resolver"
 
@@ -688,43 +692,43 @@ msgstr "_Resolver"
 #. summary it acts on, as a plain button: the moderation choices
 #. it leads to are destructive in their own right and each is
 #. confirmed there, which is where that emphasis belongs.
-#: src/admin.py:647 src/admin.py:1150
+#: src/admin.py:607 src/admin.py:1110
 msgid "Take _Action"
 msgstr "Tomar _acción"
 
-#: src/admin.py:663 src/admin.py:1161
+#: src/admin.py:623 src/admin.py:1121
 msgid "Joined"
 msgstr "Se unió"
 
-#: src/admin.py:665
+#: src/admin.py:625
 msgid "Reported on"
 msgstr "Denunciada el"
 
-#: src/admin.py:670
+#: src/admin.py:630
 msgid "Status"
 msgstr "Estado"
 
-#: src/admin.py:671
+#: src/admin.py:631
 msgid "Unresolved"
 msgstr "Sin resolver"
 
-#: src/admin.py:673
+#: src/admin.py:633
 msgid "Forwarded"
 msgstr "Reenviada"
 
-#: src/admin.py:673
+#: src/admin.py:633
 msgid "Yes"
 msgstr "Sí"
 
-#: src/admin.py:675 src/admin.py:947 src/admin.py:1560
+#: src/admin.py:635 src/admin.py:907 src/admin.py:1520
 msgid "Comment"
 msgstr "Comentario"
 
-#: src/admin.py:687 src/catchup.py:1769
+#: src/admin.py:647 src/catchup.py:1779
 msgid "Category"
 msgstr "Categoría"
 
-#: src/admin.py:688
+#: src/admin.py:648
 msgid ""
 "The reason this account and/or content was reported will be cited in "
 "communication with the reported account"
@@ -732,53 +736,53 @@ msgstr ""
 "El motivo por el que se denunció esta cuenta o contenido se citará en la "
 "comunicación con la cuenta denunciada"
 
-#: src/admin.py:704 src/report.py:288
+#: src/admin.py:664 src/report.py:288
 msgid "Violated Rules"
 msgstr "Normas infringidas"
 
-#: src/admin.py:712
+#: src/admin.py:672
 msgid "Reported Posts"
 msgstr "Publicaciones denunciadas"
 
-#: src/admin.py:788 src/admin.py:812
+#: src/admin.py:748 src/admin.py:772
 msgid "Could not update the report"
 msgstr "No se pudo actualizar la denuncia"
 
-#: src/admin.py:821
+#: src/admin.py:781
 #, fuzzy
 msgid "Mark This Report as Resolved?"
 msgstr "¿Marcar esta denuncia como resuelta?"
 
-#: src/admin.py:825
+#: src/admin.py:785
 #, fuzzy
 msgid "Reopen This Report?"
 msgstr "¿Reabrir esta denuncia?"
 
-#: src/admin.py:868
+#: src/admin.py:828
 msgid "Assign"
 msgstr "Asignar"
 
-#: src/admin.py:876
+#: src/admin.py:836
 msgid "Unassign"
 msgstr "Quitar asignación"
 
-#: src/admin.py:891
+#: src/admin.py:851
 msgid "Could not change the assignment"
 msgstr "No se pudo cambiar la asignación"
 
-#: src/admin.py:903
+#: src/admin.py:863
 msgid "Warning"
 msgstr "Advertencia"
 
-#: src/admin.py:904
+#: src/admin.py:864
 msgid "Send a warning to the user without triggering any other action"
 msgstr "Enviar una advertencia al usuario sin realizar ninguna otra acción"
 
-#: src/admin.py:906
+#: src/admin.py:866
 msgid "Freeze"
 msgstr "Congelar"
 
-#: src/admin.py:907
+#: src/admin.py:867
 msgid ""
 "Prevent the user from using their account, but do not delete or hide their "
 "content"
@@ -786,21 +790,21 @@ msgstr ""
 "Impedir que el usuario use su cuenta, pero sin eliminar ni ocultar su "
 "contenido"
 
-#: src/admin.py:909
+#: src/admin.py:869
 msgid "Sensitive"
 msgstr "Sensible"
 
-#: src/admin.py:910
+#: src/admin.py:870
 msgid "Force all this user's media attachments to be flagged as sensitive"
 msgstr ""
 "Forzar que todos los archivos multimedia de este usuario se marquen como "
 "sensibles"
 
-#: src/admin.py:912 src/admin.py:1284
+#: src/admin.py:872 src/admin.py:1244
 msgid "Limit"
 msgstr "Limitar"
 
-#: src/admin.py:913
+#: src/admin.py:873
 msgid ""
 "Prevent the user from posting with public visibility and hide their posts "
 "and notifications from people not following them. Closes all reports against "
@@ -810,11 +814,11 @@ msgstr ""
 "publicaciones y notificaciones a quienes no lo siguen. Cierra todas las "
 "denuncias contra esta cuenta"
 
-#: src/admin.py:916 src/admin.py:1285
+#: src/admin.py:876 src/admin.py:1245
 msgid "Suspend"
 msgstr "Suspender"
 
-#: src/admin.py:917
+#: src/admin.py:877
 msgid ""
 "Prevent any interaction from or to this account and delete its content. "
 "Revertible within 30 days. Closes all reports against this account"
@@ -822,272 +826,272 @@ msgstr ""
 "Impedir cualquier interacción con esta cuenta y eliminar su contenido. "
 "Reversible durante 30 días. Cierra todas las denuncias contra esta cuenta"
 
-#: src/admin.py:923
+#: src/admin.py:883
 msgid "Take Action"
 msgstr "Tomar acción"
 
-#: src/admin.py:929 src/admin.py:1342 src/admin.py:1553 src/catchup.py:1271
-#: src/compose.py:1041 src/fedicollections.py:685 src/hashtags.py:460
-#: src/lists.py:184 src/notificationctrl.py:441 src/pages.py:357
-#: src/pages.py:385 src/profile.py:281 src/profile.py:311
-#: src/profileedit.py:226 src/scheduled.py:123 src/search.py:584
-#: src/statusactions.py:600 src/statusactions.py:652 src/window.py:2059
+#: src/admin.py:889 src/admin.py:1302 src/admin.py:1513 src/catchup.py:1271
+#: src/compose.py:1041 src/fedicollections.py:679 src/hashtags.py:461
+#: src/lists.py:164 src/notificationctrl.py:448 src/pages.py:439
+#: src/pages.py:467 src/profile.py:281 src/profile.py:310
+#: src/profileedit.py:225 src/scheduled.py:123 src/search.py:585
+#: src/statusactions.py:600 src/statusactions.py:652 src/window.py:2073
 msgid "_Cancel"
 msgstr "_Cancelar"
 
-#: src/admin.py:929
+#: src/admin.py:889
 msgid "_Submit"
 msgstr "_Enviar"
 
-#: src/admin.py:950
+#: src/admin.py:910
 msgid "Notify the User by E-mail"
 msgstr "Notificar al usuario por correo electrónico"
 
-#: src/admin.py:951
+#: src/admin.py:911
 msgid ""
 "The user will receive an explanation of what happened with their account"
 msgstr "El usuario recibirá una explicación de lo que ocurrió con su cuenta"
 
-#: src/admin.py:964
+#: src/admin.py:924
 #, python-format
 msgid "Take Action Against %s?"
 msgstr "¿Tomar acción contra %s?"
 
-#: src/admin.py:965
+#: src/admin.py:925
 msgid "_Take Action"
 msgstr "_Tomar acción"
 
-#: src/admin.py:980
+#: src/admin.py:940
 msgid "Could not take action"
 msgstr "No se pudo tomar la acción"
 
-#: src/admin.py:1011
+#: src/admin.py:971
 msgid "All Locations"
 msgstr "Todas las ubicaciones"
 
-#: src/admin.py:1011 src/window.py:88
+#: src/admin.py:971 src/window.py:91
 msgid "Local"
 msgstr "Local"
 
-#: src/admin.py:1012
+#: src/admin.py:972
 msgid "Remote"
 msgstr "Remota"
 
-#: src/admin.py:1013
+#: src/admin.py:973
 msgid "All Statuses"
 msgstr "Todos los estados"
 
-#: src/admin.py:1013
+#: src/admin.py:973
 msgid "Active"
 msgstr "Activa"
 
-#: src/admin.py:1014 src/fedicollections.py:608 src/fedicollections.py:829
+#: src/admin.py:974 src/fedicollections.py:607 src/fedicollections.py:813
 msgid "Pending"
 msgstr "Pendiente"
 
-#: src/admin.py:1023 src/search.py:278 src/shortcuts-dialog.ui:77
-#: src/window.py:85
+#: src/admin.py:983 src/search.py:279 src/shortcuts-dialog.ui:77
+#: src/window.py:88
 msgid "Search"
 msgstr "Buscar"
 
-#: src/admin.py:1026
+#: src/admin.py:986
 msgid "Location"
 msgstr "Ubicación"
 
-#: src/admin.py:1027
+#: src/admin.py:987
 msgid "Moderation Status"
 msgstr "Estado de moderación"
 
-#: src/admin.py:1036
+#: src/admin.py:996
 msgid "Username"
 msgstr "Nombre de usuario"
 
-#: src/admin.py:1037 src/profileedit.py:372
+#: src/admin.py:997 src/profileedit.py:367
 msgid "Display Name"
 msgstr "Nombre visible"
 
-#: src/admin.py:1038 src/admin.py:1165
+#: src/admin.py:998 src/admin.py:1125
 msgid "E-mail"
 msgstr "Correo electrónico"
 
-#: src/admin.py:1039
+#: src/admin.py:999
 msgid "IP"
 msgstr "IP"
 
-#: src/admin.py:1056 src/pages.py:730
+#: src/admin.py:1016 src/pages.py:869
 msgid "No Accounts"
 msgstr "Sin cuentas"
 
-#: src/admin.py:1109 src/admin.py:1121 src/compose.py:1338 src/pages.py:333
+#: src/admin.py:1069 src/admin.py:1081 src/compose.py:1338 src/pages.py:407
 #: src/profileactions.py:217 src/profileactions.py:223
 #: src/profileactions.py:249 src/profileactions.py:267
 msgid "_Undo"
 msgstr "_Deshacer"
 
-#: src/admin.py:1120
+#: src/admin.py:1080
 #, fuzzy
 msgid "Undo This Action?"
 msgstr "¿Deshacer esta acción?"
 
-#: src/admin.py:1132
+#: src/admin.py:1092
 msgid "Could not undo the action"
 msgstr "No se pudo deshacer la acción"
 
 #. The check rows commit as they are toggled, so this commits
 #. nothing: it only dismisses the dialog. "Close" names that,
 #. where "Done" named nothing at all and the HIG forbids it.
-#: src/admin.py:1150 src/lists.py:640
+#: src/admin.py:1110 src/lists.py:620
 msgid "_Close"
 msgstr "_Cerrar"
 
-#: src/admin.py:1164
+#: src/admin.py:1124
 msgid "Role"
 msgstr "Rol"
 
-#: src/admin.py:1166
+#: src/admin.py:1126
 msgid "Confirmed"
 msgstr "Confirmada"
 
-#: src/admin.py:1167
+#: src/admin.py:1127
 msgid "Not Confirmed"
 msgstr "No confirmada"
 
-#: src/admin.py:1179
+#: src/admin.py:1139
 msgid "IPs"
 msgstr "IP"
 
-#: src/admin.py:1184
+#: src/admin.py:1144
 msgid "No reason given"
 msgstr "No se indicó ningún motivo"
 
-#: src/admin.py:1186
+#: src/admin.py:1146
 msgid "Awaiting Approval"
 msgstr "Esperando aprobación"
 
-#: src/admin.py:1188
+#: src/admin.py:1148
 msgid "Reject"
 msgstr "Rechazar"
 
-#: src/admin.py:1190
+#: src/admin.py:1150
 #, python-format
 msgid "Reject %s?"
 msgstr "¿Rechazar a %s?"
 
-#: src/admin.py:1190 src/notifications.py:1086
+#: src/admin.py:1150 src/notifications.py:1086
 msgid "_Reject"
 msgstr "_Rechazar"
 
-#: src/admin.py:1193
+#: src/admin.py:1153
 msgid "Approve"
 msgstr "Aprobar"
 
-#: src/admin.py:1195
+#: src/admin.py:1155
 #, python-format
 msgid "Approve %s?"
 msgstr "¿Aprobar a %s?"
 
-#: src/admin.py:1195
+#: src/admin.py:1155
 msgid "_Approve"
 msgstr "_Aprobar"
 
-#: src/admin.py:1204
+#: src/admin.py:1164
 msgid "Marked as Sensitive"
 msgstr "Marcada como sensible"
 
-#: src/admin.py:1222
+#: src/admin.py:1182
 msgid "Could not review the account"
 msgstr "No se pudo revisar la cuenta"
 
-#: src/admin.py:1269
+#: src/admin.py:1229
 msgid "Could not remove the entry"
 msgstr "No se pudo eliminar la entrada"
 
-#: src/admin.py:1298
+#: src/admin.py:1258
 msgid "No Federation Blocks"
 msgstr "Sin bloqueos de federación"
 
-#: src/admin.py:1299
+#: src/admin.py:1259
 msgid "Servers you block or limit will show up here."
 msgstr "Los servidores que bloquees o limites aparecerán aquí."
 
-#: src/admin.py:1301 src/admin.py:1339
+#: src/admin.py:1261 src/admin.py:1299
 msgid "Add Federation Block"
 msgstr "Añadir bloqueo de federación"
 
-#: src/admin.py:1310
+#: src/admin.py:1270
 msgid "Private comment"
 msgstr "Comentario privado"
 
-#: src/admin.py:1311
+#: src/admin.py:1271
 msgid "Public comment"
 msgstr "Comentario público"
 
-#: src/admin.py:1317
+#: src/admin.py:1277
 msgid "Reject media files"
 msgstr "Rechazar archivos multimedia"
 
-#: src/admin.py:1319
+#: src/admin.py:1279
 msgid "Reject reports"
 msgstr "Rechazar denuncias"
 
-#: src/admin.py:1321
+#: src/admin.py:1281
 msgid "Obfuscate domain name"
 msgstr "Ofuscar nombre de dominio"
 
-#: src/admin.py:1323
+#: src/admin.py:1283
 msgid "Restrictions"
 msgstr "Restricciones"
 
-#: src/admin.py:1325
+#: src/admin.py:1285
 msgid "Remove Block"
 msgstr "Quitar bloqueo"
 
-#: src/admin.py:1326 src/admin.py:1472
+#: src/admin.py:1286 src/admin.py:1432
 #, python-format
 msgid "Unblock %s?"
 msgstr "¿Desbloquear %s?"
 
-#: src/admin.py:1326 src/admin.py:1472
+#: src/admin.py:1286 src/admin.py:1432
 msgid "_Unblock"
 msgstr "_Desbloquear"
 
-#: src/admin.py:1342 src/admin.py:1553 src/fedicollections.py:915
-#: src/fedicollections.py:938
+#: src/admin.py:1302 src/admin.py:1513 src/fedicollections.py:899
+#: src/fedicollections.py:922
 msgid "_Add"
 msgstr "_Añadir"
 
-#: src/admin.py:1346
+#: src/admin.py:1306
 msgid "Domain"
 msgstr "Dominio"
 
-#: src/admin.py:1350
+#: src/admin.py:1310
 msgid "Severity"
 msgstr "Gravedad"
 
-#: src/admin.py:1355
+#: src/admin.py:1315
 msgid "Reject Media Files"
 msgstr "Rechazar archivos multimedia"
 
-#: src/admin.py:1356
+#: src/admin.py:1316
 msgid ""
 "Removes locally stored media files and refuses to download any in the future"
 msgstr ""
 "Elimina los archivos multimedia almacenados localmente y rechaza descargar "
 "más en el futuro"
 
-#: src/admin.py:1359
+#: src/admin.py:1319
 msgid "Reject Reports"
 msgstr "Rechazar denuncias"
 
-#: src/admin.py:1360
+#: src/admin.py:1320
 msgid "Ignore all reports coming from this domain"
 msgstr "Ignorar todas las denuncias procedentes de este dominio"
 
-#: src/admin.py:1362
+#: src/admin.py:1322
 msgid "Obfuscate Domain Name"
 msgstr "Ofuscar nombre de dominio"
 
-#: src/admin.py:1363
+#: src/admin.py:1323
 msgid ""
 "Partially obfuscate the domain name in the list if advertising the list of "
 "domain limitations is enabled"
@@ -1095,95 +1099,95 @@ msgstr ""
 "Ofuscar parcialmente el nombre de dominio en la lista si la publicación de "
 "la lista de limitaciones de dominio está activada"
 
-#: src/admin.py:1368
+#: src/admin.py:1328
 msgid "Private Comment"
 msgstr "Comentario privado"
 
-#: src/admin.py:1369
+#: src/admin.py:1329
 msgid "Public Comment"
 msgstr "Comentario público"
 
-#: src/admin.py:1406
+#: src/admin.py:1366
 msgid "Could not add the block"
 msgstr "No se pudo añadir el bloqueo"
 
-#: src/admin.py:1416
+#: src/admin.py:1376
 msgid "No Allowed Servers"
 msgstr "Sin servidores permitidos"
 
-#: src/admin.py:1417
+#: src/admin.py:1377
 msgid "Servers allowed to federate show up here when the allowlist is in use."
 msgstr ""
 "Los servidores autorizados a federar aparecen aquí cuando se usa la lista de "
 "permitidos."
 
-#: src/admin.py:1419
+#: src/admin.py:1379
 msgid "Allow federation with a server"
 msgstr "Permitir la federación con un servidor"
 
-#: src/admin.py:1419 src/admin.py:1444
+#: src/admin.py:1379 src/admin.py:1404
 msgid "_Allow"
 msgstr "_Permitir"
 
-#: src/admin.py:1427 src/admin.py:1471 src/admin.py:1536
-#: src/fedicollections.py:830
+#: src/admin.py:1387 src/admin.py:1431 src/admin.py:1496
+#: src/fedicollections.py:814
 msgid "Remove"
 msgstr "Eliminar"
 
-#: src/admin.py:1428
+#: src/admin.py:1388
 #, python-format
 msgid "Remove Federation with %s?"
 msgstr "¿Eliminar la federación con %s?"
 
-#: src/admin.py:1429 src/admin.py:1537 src/catchup.py:1402
-#: src/fedicollections.py:244 src/profileactions.py:229 src/statusmenu.py:415
-#: src/window.py:625
+#: src/admin.py:1389 src/admin.py:1497 src/catchup.py:1402
+#: src/fedicollections.py:243 src/profileactions.py:229 src/statusmenu.py:415
+#: src/window.py:630
 msgid "_Remove"
 msgstr "_Eliminar"
 
-#: src/admin.py:1439
+#: src/admin.py:1399
 msgid "Could not allow the server"
 msgstr "No se pudo permitir el servidor"
 
-#: src/admin.py:1443
+#: src/admin.py:1403
 #, python-format
 msgid "Allow Federation with %s?"
 msgstr "¿Permitir la federación con %s?"
 
-#: src/admin.py:1451
+#: src/admin.py:1411
 msgid "No Blocked E-mail Domains"
 msgstr "Sin dominios de correo bloqueados"
 
-#: src/admin.py:1452
+#: src/admin.py:1412
 msgid "Sign-ups from these e-mail domains are refused."
 msgstr "Se rechazan los registros de estos dominios de correo."
 
-#: src/admin.py:1453
+#: src/admin.py:1413
 msgid "Block an e-mail domain"
 msgstr "Bloquear un dominio de correo"
 
-#: src/admin.py:1453 src/admin.py:1490 src/profileactions.py:241
+#: src/admin.py:1413 src/admin.py:1450 src/profileactions.py:241
 #: src/profileactions.py:263 src/statusmenu.py:534
 msgid "_Block"
 msgstr "_Bloquear"
 
-#: src/admin.py:1468
+#: src/admin.py:1428
 #, python-format
 msgid "%d sign-up attempt"
 msgid_plural "%d sign-up attempts"
 msgstr[0] "%d intento de registro"
 msgstr[1] "%d intentos de registro"
 
-#: src/admin.py:1482
+#: src/admin.py:1442
 msgid "Could not block the domain"
 msgstr "No se pudo bloquear el dominio"
 
-#: src/admin.py:1487 src/profileactions.py:238 src/statusmenu.py:531
+#: src/admin.py:1447 src/profileactions.py:238 src/statusmenu.py:531
 #, python-format
 msgid "Block %s?"
 msgstr "¿Bloquear %s?"
 
-#: src/admin.py:1488
+#: src/admin.py:1448
 msgid ""
 "This can be the domain name that shows up in the e-mail address or the MX "
 "record it uses. They will be checked upon sign-up."
@@ -1191,141 +1195,141 @@ msgstr ""
 "Puede ser el nombre de dominio que aparece en la dirección de correo o el "
 "registro MX que utiliza. Se comprobarán al registrarse."
 
-#: src/admin.py:1494 src/profile.py:988 src/relations.py:177
+#: src/admin.py:1454 src/profile.py:985 src/relations.py:177
 msgid "Blocked"
 msgstr "Bloqueado"
 
-#: src/admin.py:1494
+#: src/admin.py:1454
 msgid "Block Access"
 msgstr "Bloquear acceso"
 
-#: src/admin.py:1495
+#: src/admin.py:1455
 msgid "Block access to all resources"
 msgstr "Bloquear el acceso a todos los recursos"
 
-#: src/admin.py:1496
+#: src/admin.py:1456
 msgid "Blocked Sign-ups"
 msgstr "Registros bloqueados"
 
-#: src/admin.py:1496
+#: src/admin.py:1456
 msgid "Block Sign-ups"
 msgstr "Bloquear registros"
 
-#: src/admin.py:1497
+#: src/admin.py:1457
 msgid "New sign-ups will not be possible"
 msgstr "No será posible registrarse"
 
-#: src/admin.py:1498
+#: src/admin.py:1458
 msgid "Limited Sign-ups"
 msgstr "Registros limitados"
 
-#: src/admin.py:1499
+#: src/admin.py:1459
 msgid "Limit Sign-ups"
 msgstr "Limitar registros"
 
-#: src/admin.py:1499
+#: src/admin.py:1459
 msgid "New sign-ups will require your approval"
 msgstr "Los nuevos registros requerirán tu aprobación"
 
-#: src/admin.py:1503 src/filters.py:42 src/profile.py:223
+#: src/admin.py:1463 src/filters.py:42 src/profile.py:223
 msgid "Never"
 msgstr "Nunca"
 
-#: src/admin.py:1504 src/filters.py:47
+#: src/admin.py:1464 src/filters.py:47
 msgid "1 Day"
 msgstr "1 día"
 
-#: src/admin.py:1505
+#: src/admin.py:1465
 msgid "2 Weeks"
 msgstr "2 semanas"
 
-#: src/admin.py:1506
+#: src/admin.py:1466
 msgid "1 Month"
 msgstr "1 mes"
 
-#: src/admin.py:1507
+#: src/admin.py:1467
 msgid "6 Months"
 msgstr "6 meses"
 
-#: src/admin.py:1508
+#: src/admin.py:1468
 msgid "1 Year"
 msgstr "1 año"
 
-#: src/admin.py:1509
+#: src/admin.py:1469
 msgid "3 Years"
 msgstr "3 años"
 
-#: src/admin.py:1516
+#: src/admin.py:1476
 msgid "No IP Rules"
 msgstr "Sin reglas de IP"
 
-#: src/admin.py:1518
+#: src/admin.py:1478
 msgid "Address ranges you restrict show up here."
 msgstr "Los rangos de direcciones que restrinjas aparecen aquí."
 
-#: src/admin.py:1520 src/admin.py:1550
+#: src/admin.py:1480 src/admin.py:1510
 msgid "Add IP Rule"
 msgstr "Añadir regla de IP"
 
-#: src/admin.py:1531 src/filters.py:99
+#: src/admin.py:1491 src/filters.py:99
 #, python-format
 msgid "Expires %s"
 msgstr "Caduca %s"
 
-#: src/admin.py:1537
+#: src/admin.py:1497
 #, python-format
 msgid "Remove the Rule for %s?"
 msgstr "¿Eliminar la regla para %s?"
 
-#: src/admin.py:1563
+#: src/admin.py:1523
 msgid "Expiration"
 msgstr "Caducidad"
 
-#: src/admin.py:1570
+#: src/admin.py:1530
 msgid "Rule"
 msgstr "Regla"
 
-#: src/admin.py:1571
+#: src/admin.py:1531
 msgid "Choose what will happen with requests from this IP"
 msgstr "Elige qué ocurrirá con las solicitudes de esta IP"
 
-#: src/admin.py:1605
+#: src/admin.py:1565
 msgid "Could not add the rule"
 msgstr "No se pudo añadir la regla"
 
-#: src/admin.py:1617
+#: src/admin.py:1577
 msgid "Dashboard"
 msgstr "Panel"
 
-#: src/admin.py:1619 src/notificationcopy.py:71
+#: src/admin.py:1579 src/notificationcopy.py:71
 msgid "Reports"
 msgstr "Denuncias"
 
-#: src/admin.py:1623
+#: src/admin.py:1583
 msgid "Federation Blocklist"
 msgstr "Lista de bloqueo de federación"
 
-#: src/admin.py:1626
+#: src/admin.py:1586
 msgid "Federation Allowlist"
 msgstr "Lista de permitidos de federación"
 
-#: src/admin.py:1628
+#: src/admin.py:1588
 msgid "Blocked E-mail Domains"
 msgstr "Dominios de correo bloqueados"
 
-#: src/admin.py:1630
+#: src/admin.py:1590
 msgid "IP Rules"
 msgstr "Reglas de IP"
 
-#: src/admin.py:1635 src/admin.py:1681 src/admin.py:1682 src/admin.py:1778
+#: src/admin.py:1595 src/admin.py:1641 src/admin.py:1642 src/admin.py:1738
 msgid "Admin Dashboard"
 msgstr "Panel de administración"
 
-#: src/admin.py:1767
+#: src/admin.py:1727
 msgid "Moderation Access Needed"
 msgstr "Se necesita acceso a la moderación"
 
-#: src/admin.py:1768
+#: src/admin.py:1728
 msgid ""
 "This login was authorized for reading and posting, but not for moderation. "
 "Babble needs permission to use this server’s moderation tools."
@@ -1334,7 +1338,7 @@ msgstr ""
 "moderar. Babble necesita permiso para usar las herramientas de moderación de "
 "este servidor."
 
-#: src/admin.py:1772
+#: src/admin.py:1732
 msgid "_Authorize Moderation"
 msgstr "_Autorizar la moderación"
 
@@ -1343,8 +1347,8 @@ msgstr "_Autorizar la moderación"
 msgid "Published %s"
 msgstr "Publicado %s"
 
-#: src/announcements.py:57 src/fedicollections.py:325
-#: src/fedicollections.py:524
+#: src/announcements.py:57 src/fedicollections.py:324
+#: src/fedicollections.py:523
 #, python-format
 msgid "Updated %s"
 msgstr "Actualizado %s"
@@ -1563,8 +1567,8 @@ msgid_plural "the last %d hours"
 msgstr[0] "la última %d hora"
 msgstr[1] "las últimas %d horas"
 
-#: src/catchup.py:180 src/filters.py:94 src/hashtags.py:65 src/profile.py:1107
-#: src/wrapped.py:469
+#: src/catchup.py:180 src/filters.py:94 src/hashtags.py:66 src/profile.py:1104
+#: src/wrapped.py:471
 #, python-format
 msgid "%d post"
 msgid_plural "%d posts"
@@ -1579,7 +1583,7 @@ msgstr[1] "%d publicaciones"
 msgid "%(start)s – %(end)s · %(posts)s"
 msgstr "%(start)s – %(end)s · %(posts)s"
 
-#: src/catchup.py:413 src/notifications.py:1285
+#: src/catchup.py:413 src/notifications.py:1291
 msgid "All"
 msgstr "Todas"
 
@@ -1746,7 +1750,7 @@ msgstr "Filtrada: %s"
 #. the warning
 #. Translators: one-line inbox preview; the message body is
 #. hidden behind this content warning
-#: src/catchup.py:826 src/conversations.py:50 src/notifications.py:1489
+#: src/catchup.py:826 src/conversations.py:50 src/notifications.py:1499
 #, python-format
 msgid "CW: %s"
 msgstr "AC: %s"
@@ -1781,7 +1785,7 @@ msgstr "%(shown)s de %(total)s"
 msgid "Could Not Catch Up"
 msgstr "No se pudo actualizar"
 
-#: src/catchup.py:1246 src/shortcuts-dialog.ui:169 src/window.py:83
+#: src/catchup.py:1246 src/shortcuts-dialog.ui:169 src/window.py:86
 msgid "Catch Up"
 msgstr "Catch Up"
 
@@ -1792,7 +1796,7 @@ msgid ""
 msgstr ""
 "Una cronología aparte para tus seguidos, con una vista general de un vistazo"
 
-#: src/catchup.py:1252 src/preferences.py:423
+#: src/catchup.py:1252 src/preferences.py:426
 msgid "_Catch Up"
 msgstr "_Catch Up"
 
@@ -1847,7 +1851,7 @@ msgid "Preparing your catch-up…"
 msgstr "Preparando tu Catch Up…"
 
 #: src/catchup.py:1661 src/explore.py:391 src/preferences.py:308
-#: src/profile.py:1151 src/search.py:505 src/timelinepage.py:220
+#: src/profile.py:1148 src/search.py:506 src/timelinepage.py:223
 msgid "Posts"
 msgstr "Publicaciones"
 
@@ -1876,58 +1880,58 @@ msgstr "Todas las publicaciones"
 msgid "No posts match these filters"
 msgstr "Ninguna publicación coincide con estos filtros"
 
-#: src/catchup.py:1781
+#: src/catchup.py:1791
 msgid "Author"
 msgstr "Autor"
 
-#: src/catchup.py:1793
+#: src/catchup.py:1803
 msgid "Sort by"
 msgstr "Ordenar por"
 
-#: src/catchup.py:1807
+#: src/catchup.py:1817
 msgid "Ascending"
 msgstr "Ascendente"
 
-#: src/catchup.py:1810
+#: src/catchup.py:1820
 msgid "Descending"
 msgstr "Descendente"
 
-#: src/catchup.py:1819 src/catchup.py:1823
+#: src/catchup.py:1829 src/catchup.py:1833
 msgid "Group by author"
 msgstr "Agrupar por autor"
 
-#: src/catchup.py:1830
+#: src/catchup.py:1840
 msgid "_Reset Filters"
 msgstr "_Restablecer filtros"
 
 #. Translators: shown under the Catch Up title when it could not
 #. go back as far as asked; %(range)s is like "the last 7 hours"
 #. and %(posts)s like "400 posts"
-#: src/catchup.py:1981
+#: src/catchup.py:1991
 #, python-format
 msgid "Covers %(range)s (%(posts)s)"
 msgstr "Abarca %(range)s (%(posts)s)"
 
-#: src/catchup.py:1992
+#: src/catchup.py:2002
 msgid "since your last catch-up"
 msgstr "desde tu último Catch Up"
 
-#: src/catchup.py:1994
+#: src/catchup.py:2004
 msgid "your timeline"
 msgstr "tu cronología"
 
-#: src/catchup.py:1997
+#: src/catchup.py:2007
 #, python-format
 msgid "Only %(count)d post in %(range)s"
 msgid_plural "Only %(count)d posts in %(range)s"
 msgstr[0] "Solo %(count)d publicación: %(range)s"
 msgstr[1] "Solo %(count)d publicaciones: %(range)s"
 
-#: src/catchup.py:2002
+#: src/catchup.py:2012
 msgid "Catch up on 24 hours"
 msgstr "Actualizar las últimas 24 horas"
 
-#: src/catchup.py:2012
+#: src/catchup.py:2022
 #, python-format
 msgid ""
 "The server is limiting requests, so this catch-up is incomplete. Try again "
@@ -1942,23 +1946,23 @@ msgstr[1] ""
 "El servidor está limitando las solicitudes, así que este Catch Up está "
 "incompleto. Inténtalo de nuevo en %d minutos."
 
-#: src/catchup.py:2019
+#: src/catchup.py:2029
 msgid "The server limited requests, so this catch-up is incomplete."
 msgstr ""
 "El servidor limitó las solicitudes, así que este Catch Up está incompleto."
 
 #. Translators: a category of the Catch Up list and how many
 #. posts it holds, e.g. "Boosts (12)"
-#: src/catchup.py:2041
+#: src/catchup.py:2051
 #, python-format
 msgid "%(category)s (%(count)d)"
 msgstr "%(category)s (%(count)d)"
 
-#: src/catchup.py:2078
+#: src/catchup.py:2088
 msgid "All authors"
 msgstr "Todos los autores"
 
-#: src/catchup.py:2079
+#: src/catchup.py:2089
 #, python-format
 msgid "%(name)s (%(count)d)"
 msgstr "%(name)s (%(count)d)"
@@ -2011,11 +2015,11 @@ msgid "Hashtag"
 msgstr "Etiqueta"
 
 #: src/catchupgrid.py:1098 src/explore.py:289 src/notifications.py:1133
-#: src/profile.py:843
+#: src/profile.py:840
 msgid "Following"
 msgstr "Siguiendo"
 
-#: src/catchupgrid.py:1305 src/profile.py:873 src/profile.py:924
+#: src/catchupgrid.py:1305 src/profile.py:870 src/profile.py:921
 #: src/statusrow.py:216 src/statusrow.py:607
 msgid "Show More"
 msgstr "Mostrar más"
@@ -2040,14 +2044,14 @@ msgstr "¿Abrir hashtag copiado?"
 msgid "Open copied collection?"
 msgstr "¿Abrir colección copiada?"
 
-#: src/compose.py:71 src/fedicollections.py:519 src/fedicollections.py:725
+#: src/compose.py:71 src/fedicollections.py:518 src/fedicollections.py:717
 #: src/preferences.py:65 src/profileedit.py:41 src/scheduled.py:400
-#: src/search.py:621 src/timelinebase.py:163
+#: src/search.py:622 src/timelinebase.py:169
 msgid "Public"
 msgstr "Público"
 
-#: src/compose.py:72 src/fedicollections.py:520 src/fedicollections.py:730
-#: src/preferences.py:66 src/scheduled.py:401 src/timelinebase.py:164
+#: src/compose.py:72 src/fedicollections.py:519 src/fedicollections.py:722
+#: src/preferences.py:66 src/scheduled.py:401 src/timelinebase.py:170
 msgid "Unlisted"
 msgstr "No listado"
 
@@ -2095,7 +2099,7 @@ msgstr "Captura de pantalla"
 msgid "Remove Attachment"
 msgstr "Quitar adjunto"
 
-#: src/compose.py:382 src/fedicollections.py:701
+#: src/compose.py:382 src/fedicollections.py:693
 msgid "Description"
 msgstr "Descripción"
 
@@ -2127,7 +2131,7 @@ msgstr "Texto de la publicación"
 msgid "What’s on your mind?"
 msgstr "¿Qué tienes en mente?"
 
-#: src/compose.py:552 src/compose.py:614 src/fedicollections.py:738
+#: src/compose.py:552 src/compose.py:614 src/fedicollections.py:730
 msgid "Content Warning"
 msgstr "Advertencia de contenido"
 
@@ -2147,7 +2151,7 @@ msgstr "Adjuntar multimedia"
 msgid "Take Screenshot"
 msgstr "Tomar Captura de Pantalla"
 
-#: src/compose.py:617 src/search.py:609
+#: src/compose.py:617 src/search.py:610
 msgid "Poll"
 msgstr "Encuesta"
 
@@ -2188,7 +2192,7 @@ msgstr "¿Descartar el borrador?"
 msgid "The text, attachments and poll of this post will be lost"
 msgstr "Se perderán el texto, los adjuntos y la encuesta de esta publicación"
 
-#: src/compose.py:1042 src/profileedit.py:652
+#: src/compose.py:1042 src/profileedit.py:644
 msgid "_Discard"
 msgstr "_Descartar"
 
@@ -2363,9 +2367,9 @@ msgstr ""
 "La conversación se quita de tu bandeja de entrada. Los demás participantes "
 "conservan su copia."
 
-#: src/conversations.py:212 src/fedicollections.py:257
-#: src/fedicollections.py:543 src/filters.py:346 src/hashtags.py:549
-#: src/lists.py:282 src/lists.py:579 src/scheduled.py:497 src/statusmenu.py:194
+#: src/conversations.py:212 src/fedicollections.py:256
+#: src/fedicollections.py:542 src/filters.py:346 src/hashtags.py:550
+#: src/lists.py:262 src/lists.py:559 src/scheduled.py:497 src/statusmenu.py:194
 #: src/statusmenu.py:441
 msgid "_Delete"
 msgstr "_Eliminar"
@@ -2402,7 +2406,7 @@ msgid_plural "%(first)s, %(second)s and %(count)d others"
 msgstr[0] "%(first)s, %(second)s y %(count)d más"
 msgstr[1] "%(first)s, %(second)s y %(count)d más"
 
-#: src/desktopnotify.py:213 src/profile.py:1270
+#: src/desktopnotify.py:213 src/profile.py:1267
 msgid "Follow Back"
 msgstr "Seguir también"
 
@@ -2504,7 +2508,7 @@ msgstr "Ningún emoji personalizado coincide con «%s»"
 msgid "No emoji match “%s”"
 msgstr "Ningún emoji coincide con «%s»"
 
-#: src/emojichooser.py:587 src/search.py:122 src/search.py:299
+#: src/emojichooser.py:587 src/search.py:123 src/search.py:300
 msgid "No Results"
 msgstr "Sin resultados"
 
@@ -2565,7 +2569,7 @@ msgid_plural "Shared by %s and %d others"
 msgstr[0] "Compartido por %s y %d otro"
 msgstr[1] "Compartido por %s y %d otros"
 
-#: src/explore.py:159 src/fedicollections.py:331
+#: src/explore.py:159 src/fedicollections.py:330
 #, python-format
 msgid "By %s"
 msgstr "Por %s"
@@ -2577,7 +2581,7 @@ msgid_plural "%d people talking"
 msgstr[0] "%d persona hablando"
 msgstr[1] "%d personas hablando"
 
-#: src/explore.py:261 src/hashtags.py:188 src/hashtags.py:219
+#: src/explore.py:261 src/hashtags.py:189 src/hashtags.py:220
 msgid "_Follow"
 msgstr "_Seguir"
 
@@ -2589,7 +2593,7 @@ msgstr "Descartar sugerencia"
 msgid "Could not follow"
 msgstr "No se pudo seguir"
 
-#: src/explore.py:288 src/profile.py:980
+#: src/explore.py:288 src/profile.py:977
 msgid "Requested"
 msgstr "Solicitado"
 
@@ -2613,7 +2617,7 @@ msgstr "Sin etiquetas en tendencia"
 msgid "No Trending News"
 msgstr "Sin noticias en tendencia"
 
-#: src/explore.py:392 src/hashtags.py:480 src/search.py:504 src/window.py:87
+#: src/explore.py:392 src/hashtags.py:481 src/search.py:505 src/window.py:90
 msgid "Hashtags"
 msgstr "Etiquetas"
 
@@ -2629,195 +2633,195 @@ msgstr "Sin publicaciones en tendencia"
 msgid "This server has no trending posts right now"
 msgstr "Este servidor no tiene publicaciones en tendencia ahora mismo"
 
-#: src/fedicollections.py:166
+#: src/fedicollections.py:165
 msgid "Copy URL"
 msgstr "Copiar URL"
 
-#: src/fedicollections.py:168 src/scheduled.py:294
+#: src/fedicollections.py:167 src/scheduled.py:294
 msgid "Edit"
 msgstr "Editar"
 
-#: src/fedicollections.py:170
+#: src/fedicollections.py:169
 msgid "Remove Myself"
 msgstr "Quitarme"
 
-#: src/fedicollections.py:172
+#: src/fedicollections.py:171
 msgid "Report Collection"
 msgstr "Reportar Colección"
 
-#: src/fedicollections.py:174 src/scheduled.py:290 src/scheduled.py:302
+#: src/fedicollections.py:173 src/scheduled.py:290 src/scheduled.py:302
 msgid "Delete"
 msgstr "Eliminar"
 
-#: src/fedicollections.py:194 src/hashtags.py:200 src/profile.py:442
+#: src/fedicollections.py:193 src/hashtags.py:201 src/profile.py:439
 #: src/statusmenu.py:64
 msgid "More Options"
 msgstr "Más opciones"
 
-#: src/fedicollections.py:203
+#: src/fedicollections.py:202
 msgid "Copied URL to clipboard"
 msgstr "URL copiada al portapapeles"
 
-#: src/fedicollections.py:235
+#: src/fedicollections.py:234
 msgid "You were removed from the collection"
 msgstr "Se te quitó de la colección"
 
-#: src/fedicollections.py:238
+#: src/fedicollections.py:237
 msgid "Could not remove you"
 msgstr "No se pudo quitarte"
 
-#: src/fedicollections.py:242
+#: src/fedicollections.py:241
 #, python-format
 msgid "Remove Yourself from “%s”?"
 msgstr "¿Quitarte de «%s»?"
 
-#: src/fedicollections.py:243
+#: src/fedicollections.py:242
 msgid "You will no longer be featured in this collection."
 msgstr "Ya no aparecerás destacado en esta colección."
 
-#: src/fedicollections.py:250
+#: src/fedicollections.py:249
 msgid "Collection deleted"
 msgstr "Colección eliminada"
 
-#: src/fedicollections.py:252
+#: src/fedicollections.py:251
 msgid "Could not delete the collection"
 msgstr "No se pudo eliminar la colección"
 
-#: src/fedicollections.py:256
+#: src/fedicollections.py:255
 #, python-format
 msgid "Delete “%s”?"
 msgstr "¿Eliminar «%s»?"
 
-#: src/fedicollections.py:257
+#: src/fedicollections.py:256
 msgid "The accounts in it are not affected."
 msgstr "Las cuentas que contiene no se ven afectadas."
 
-#: src/fedicollections.py:312 src/statusactions.py:165
+#: src/fedicollections.py:311 src/statusactions.py:165
 #, python-format
 msgid "%d account"
 msgid_plural "%d accounts"
 msgstr[0] "%d cuenta"
 msgstr[1] "%d cuentas"
 
-#: src/fedicollections.py:335 src/pages.py:877 src/report.py:221
+#: src/fedicollections.py:334 src/pages.py:1016 src/report.py:221
 #: src/report.py:222 src/statusactions.py:155
 msgid "Collection"
 msgstr "Colección"
 
-#: src/fedicollections.py:358 src/fedicollections.py:425
-#: src/fedicollections.py:679
+#: src/fedicollections.py:357 src/fedicollections.py:424
+#: src/fedicollections.py:670
 msgid "New Collection"
 msgstr "Nueva colección"
 
-#: src/fedicollections.py:383 src/window.py:284
+#: src/fedicollections.py:382 src/window.py:287
 msgid "Collections"
 msgstr "Colecciones"
 
-#: src/fedicollections.py:392 src/fedicollections.py:399
+#: src/fedicollections.py:391 src/fedicollections.py:398
 msgid "No Collections"
 msgstr "Sin colecciones"
 
-#: src/fedicollections.py:394
+#: src/fedicollections.py:393
 msgid "Collections you create to recommend accounts show up here."
 msgstr "Las colecciones que crees para recomendar cuentas aparecen aquí."
 
-#: src/fedicollections.py:401
+#: src/fedicollections.py:400
 msgid "Collections other people add you to show up here."
 msgstr "Las colecciones a las que otras personas te añadan aparecen aquí."
 
-#: src/fedicollections.py:404
+#: src/fedicollections.py:403
 msgid "My Collections"
 msgstr "Mis colecciones"
 
-#: src/fedicollections.py:406
+#: src/fedicollections.py:405
 msgid "Featuring Me"
 msgstr "En las que aparezco"
 
-#: src/fedicollections.py:422
+#: src/fedicollections.py:421
 #, python-format
 msgid "You have reached the limit of %d collection"
 msgid_plural "You have reached the limit of %d collections"
 msgstr[0] "Has alcanzado el límite de %d colección"
 msgstr[1] "Has alcanzado el límite de %d colecciones"
 
-#: src/fedicollections.py:532
+#: src/fedicollections.py:531
 msgid "Copy _URL"
 msgstr "Copiar _URL"
 
-#: src/fedicollections.py:538 src/statusmenu.py:192
+#: src/fedicollections.py:537 src/statusmenu.py:192
 msgid "_Edit"
 msgstr "_Editar"
 
-#: src/fedicollections.py:550
+#: src/fedicollections.py:549
 msgid "Remove _Myself"
 msgstr "_Quitarme"
 
-#: src/fedicollections.py:558
+#: src/fedicollections.py:557
 msgid "_Report"
 msgstr "_Reportar"
 
-#: src/fedicollections.py:568
+#: src/fedicollections.py:567
 #, python-format
 msgid "%d Member"
 msgid_plural "%d Members"
 msgstr[0] "%d miembro"
 msgstr[1] "%d miembros"
 
-#: src/fedicollections.py:578
+#: src/fedicollections.py:577
 msgid "Created By"
 msgstr "Creada por"
 
-#: src/fedicollections.py:585
+#: src/fedicollections.py:584
 msgid "Sensitive Collection"
 msgstr "Colección sensible"
 
-#: src/fedicollections.py:586
+#: src/fedicollections.py:585
 msgid "The description and the accounts are hidden behind a content warning."
 msgstr ""
 "La descripción y las cuentas están ocultas tras una advertencia de contenido."
 
-#: src/fedicollections.py:588
+#: src/fedicollections.py:587
 msgid "_Show Content"
 msgstr "_Mostrar contenido"
 
-#: src/fedicollections.py:678
+#: src/fedicollections.py:669
 msgid "Edit Collection"
 msgstr "Editar colección"
 
-#: src/fedicollections.py:689 src/filters.py:164 src/hashtags.py:463
-#: src/lists.py:188 src/mediaviewer.py:1454 src/profile.py:314
-#: src/profileedit.py:231
+#: src/fedicollections.py:683 src/filters.py:164 src/hashtags.py:464
+#: src/lists.py:168 src/mediaviewer.py:1473 src/profile.py:313
+#: src/profileedit.py:230
 msgid "_Save"
 msgstr "_Guardar"
 
-#: src/fedicollections.py:689
+#: src/fedicollections.py:683
 msgid "_Create"
 msgstr "_Crear"
 
-#: src/fedicollections.py:698
+#: src/fedicollections.py:690
 msgid "Name"
 msgstr "Nombre"
 
-#: src/fedicollections.py:703
+#: src/fedicollections.py:695
 msgid "Topic (Hashtag)"
 msgstr "Tema (etiqueta)"
 
-#: src/fedicollections.py:708 src/search.py:89
+#: src/fedicollections.py:700 src/search.py:90
 msgid "Language"
 msgstr "Idioma"
 
-#: src/fedicollections.py:720
+#: src/fedicollections.py:712
 msgid "Visibility"
 msgstr "Visibilidad"
 
-#: src/fedicollections.py:726
+#: src/fedicollections.py:718
 msgid ""
 "Discoverable in search results and other areas where recommendations appear."
 msgstr ""
 "Se puede encontrar en los resultados de búsqueda y en otras zonas donde "
 "aparecen recomendaciones."
 
-#: src/fedicollections.py:731
+#: src/fedicollections.py:723
 msgid ""
 "Visible to anyone with a link. Hidden from search results and "
 "recommendations."
@@ -2825,11 +2829,11 @@ msgstr ""
 "Visible para cualquiera con el enlace. Oculta en los resultados de búsqueda "
 "y las recomendaciones."
 
-#: src/fedicollections.py:740
+#: src/fedicollections.py:732
 msgid "Mark as Sensitive"
 msgstr "Marcar como sensible"
 
-#: src/fedicollections.py:741
+#: src/fedicollections.py:733
 msgid ""
 "Hides the collection's description and accounts behind a content warning. "
 "The name stays visible."
@@ -2837,52 +2841,52 @@ msgstr ""
 "Oculta la descripción y las cuentas de la colección tras una advertencia de "
 "contenido. El nombre sigue visible."
 
-#: src/fedicollections.py:748
+#: src/fedicollections.py:740
 msgid "Add Accounts"
 msgstr "Añadir cuentas"
 
-#: src/fedicollections.py:749
+#: src/fedicollections.py:741
 msgid "Only people who allow being featured can be added."
 msgstr "Solo se pueden añadir personas que permitan ser destacadas."
 
-#: src/fedicollections.py:751 src/lists.py:312
+#: src/fedicollections.py:743 src/lists.py:292
 msgid "Search Accounts"
 msgstr "Buscar cuentas"
 
-#: src/fedicollections.py:798
+#: src/fedicollections.py:782
 #, python-format
 msgid "Members (%(count)d/%(max)d)"
 msgstr "Miembros (%(count)d/%(max)d)"
 
-#: src/fedicollections.py:821
+#: src/fedicollections.py:805
 msgid "Could not load the members"
 msgstr "No se pudieron cargar los miembros"
 
-#: src/fedicollections.py:863
+#: src/fedicollections.py:847
 msgid "Could not remove the account"
 msgstr "No se pudo quitar la cuenta"
 
-#: src/fedicollections.py:878
+#: src/fedicollections.py:862
 msgid "Could not add the account"
 msgstr "No se pudo añadir la cuenta"
 
-#: src/fedicollections.py:903
+#: src/fedicollections.py:887
 msgid "Search failed"
 msgstr "La búsqueda falló"
 
-#: src/fedicollections.py:938
+#: src/fedicollections.py:922
 msgid "Added"
 msgstr "Añadida"
 
-#: src/fedicollections.py:943
+#: src/fedicollections.py:927
 msgid "This account does not allow being featured"
 msgstr "Esta cuenta no permite ser destacada"
 
-#: src/fedicollections.py:967
+#: src/fedicollections.py:951
 msgid "The name cannot be empty"
 msgstr "El nombre no puede estar vacío"
 
-#: src/fedicollections.py:978
+#: src/fedicollections.py:962
 msgid "Could not save the collection"
 msgstr "No se pudo guardar la colección"
 
@@ -2894,7 +2898,7 @@ msgstr "Inicio y listas"
 msgid "Public Timelines"
 msgstr "Cronologías públicas"
 
-#: src/filters.py:30 src/window.py:85
+#: src/filters.py:30 src/window.py:88
 msgid "Conversations"
 msgstr "Conversaciones"
 
@@ -3046,162 +3050,162 @@ msgstr ""
 "Ocultar o advertir sobre publicaciones que coincidan con palabras clave"
 
 #: src/filters.py:376 src/filters.py:467 src/filters.py:471
-#: src/preferences.py:581 src/preferences.py:585
+#: src/preferences.py:584 src/preferences.py:588
 msgid "Filters"
 msgstr "Filtros"
 
-#: src/hashtags.py:64
+#: src/hashtags.py:65
 #, python-format
 msgid "%(posts)s · %(people)s, last %(days)d days"
 msgstr "%(posts)s · %(people)s, últimos %(days)d días"
 
-#: src/hashtags.py:66 src/notifications.py:153
+#: src/hashtags.py:67 src/notifications.py:153
 #, python-format
 msgid "%d person"
 msgid_plural "%d people"
 msgstr[0] "%d persona"
 msgstr[1] "%d personas"
 
-#: src/hashtags.py:110
+#: src/hashtags.py:111
 #, python-format
 msgid "%d post in your timeline"
 msgid_plural "%d posts in your timeline"
 msgstr[0] "%d publicación en tu cronología"
 msgstr[1] "%d publicaciones en tu cronología"
 
-#: src/hashtags.py:153
+#: src/hashtags.py:154
 msgid "No Posts With This Hashtag"
 msgstr "Sin publicaciones con esta etiqueta"
 
-#: src/hashtags.py:154
+#: src/hashtags.py:155
 msgid "No one has posted anything with this tag yet"
 msgstr "Nadie ha publicado nada con esta etiqueta todavía"
 
-#: src/hashtags.py:177 src/hashtags.py:720
+#: src/hashtags.py:178 src/hashtags.py:721
 msgid "Edit Timeline"
 msgstr "Editar cronología"
 
-#: src/hashtags.py:212
+#: src/hashtags.py:213
 #, fuzzy
 msgid "_Remove from Featured Tags"
 msgstr "Quitar de las etiquetas destacadas"
 
-#: src/hashtags.py:213 src/profileactions.py:109
+#: src/hashtags.py:214 src/profileactions.py:109
 #, fuzzy
 msgid "_Feature on Profile"
 msgstr "Destacar en el perfil"
 
-#: src/hashtags.py:218 src/hashtags.py:642 src/profileactions.py:209
+#: src/hashtags.py:219 src/hashtags.py:643 src/profileactions.py:209
 msgid "_Unfollow"
 msgstr "_Dejar de seguir"
 
-#: src/hashtags.py:269 src/hashtags.py:682
+#: src/hashtags.py:270 src/hashtags.py:683
 #, python-format
 msgid "Could not unfollow #%s"
 msgstr "No se pudo dejar de seguir #%s"
 
-#: src/hashtags.py:271 src/hashtags.py:668
+#: src/hashtags.py:272 src/hashtags.py:669
 #, python-format
 msgid "Could not follow #%s"
 msgstr "No se pudo seguir #%s"
 
-#: src/hashtags.py:276
+#: src/hashtags.py:277
 #, python-format
 msgid "Followed #%s"
 msgstr "Siguiendo #%s"
 
-#: src/hashtags.py:277 src/hashtags.py:673
+#: src/hashtags.py:278 src/hashtags.py:674
 #, python-format
 msgid "Unfollowed #%s"
 msgstr "Dejaste de seguir #%s"
 
-#: src/hashtags.py:290
+#: src/hashtags.py:291
 msgid "Could not change the featured tags"
 msgstr "No se pudieron cambiar las etiquetas destacadas"
 
-#: src/hashtags.py:295
+#: src/hashtags.py:296
 msgid "Removed from featured tags"
 msgstr "Quitada de las etiquetas destacadas"
 
-#: src/hashtags.py:298
+#: src/hashtags.py:299
 msgid "Featured on your profile"
 msgstr "Destacada en tu perfil"
 
-#: src/hashtags.py:392
+#: src/hashtags.py:393
 msgid "Add Hashtag"
 msgstr "Añadir etiqueta"
 
-#: src/hashtags.py:414
+#: src/hashtags.py:415
 msgid "Remove Hashtag"
 msgstr "Quitar etiqueta"
 
-#: src/hashtags.py:439
+#: src/hashtags.py:440
 #, python-format
 msgid "At most %d hashtag can be combined"
 msgid_plural "At most %d hashtags can be combined"
 msgstr[0] "Se puede combinar como máximo %d etiqueta"
 msgstr[1] "Se pueden combinar como máximo %d etiquetas"
 
-#: src/hashtags.py:453
+#: src/hashtags.py:454
 msgid "Edit Multi-Hashtag Timeline"
 msgstr "Editar cronología de varias etiquetas"
 
-#: src/hashtags.py:454 src/hashtags.py:817
+#: src/hashtags.py:455 src/hashtags.py:818
 msgid "New Multi-Hashtag Timeline"
 msgstr "Nueva cronología de varias etiquetas"
 
-#: src/hashtags.py:469 src/lists.py:196
+#: src/hashtags.py:470 src/lists.py:176
 msgid "Title"
 msgstr "Título"
 
-#: src/hashtags.py:473
+#: src/hashtags.py:474
 msgid "Local Only"
 msgstr "Solo local"
 
-#: src/hashtags.py:474
+#: src/hashtags.py:475
 msgid "Only posts from your server"
 msgstr "Solo publicaciones de tu servidor"
 
-#: src/hashtags.py:481
+#: src/hashtags.py:482
 msgid "Posts with any of these hashtags. The first one is the main hashtag."
 msgstr ""
 "Publicaciones con cualquiera de estas etiquetas. La primera es la etiqueta "
 "principal."
 
-#: src/hashtags.py:484
+#: src/hashtags.py:485
 msgid "Also Requiring"
 msgstr "Requiriendo también"
 
-#: src/hashtags.py:484
+#: src/hashtags.py:485
 msgid "Posts must contain all of these too"
 msgstr "Las publicaciones también deben contener todas estas"
 
-#: src/hashtags.py:487
+#: src/hashtags.py:488
 msgid "Excluding"
 msgstr "Excluyendo"
 
-#: src/hashtags.py:487
+#: src/hashtags.py:488
 msgid "Hide posts with any of these"
 msgstr "Ocultar publicaciones con cualquiera de estas"
 
-#: src/hashtags.py:496
+#: src/hashtags.py:497
 msgid "_Delete Timeline"
 msgstr "_Eliminar cronología"
 
-#: src/hashtags.py:546
+#: src/hashtags.py:547
 msgid "Delete This Timeline?"
 msgstr "¿Eliminar esta cronología?"
 
-#: src/hashtags.py:547
+#: src/hashtags.py:548
 #, python-format
 msgid "The saved timeline “%s” will be deleted."
 msgstr "Se eliminará la cronología guardada «%s»."
 
-#: src/hashtags.py:583
+#: src/hashtags.py:584
 msgid "Usage over time"
 msgstr "Uso a lo largo del tiempo"
 
-#: src/hashtags.py:584
+#: src/hashtags.py:585
 #, python-format
 msgid "%(total)d use, peaking at %(peak)d"
 msgid_plural "%(total)d uses, peaking at %(peak)d"
@@ -3209,224 +3213,224 @@ msgstr[0] "%(total)d uso, máximo en %(peak)d"
 msgstr[1] "%(total)d usos, máximo en %(peak)d"
 
 #. weak: this group is its child
-#: src/hashtags.py:697
+#: src/hashtags.py:698
 msgid "Multi-Hashtag Timelines"
 msgstr "Cronologías de varias etiquetas"
 
-#: src/hashtags.py:729
+#: src/hashtags.py:730
 msgid "New Multi-Hashtag Timeline…"
 msgstr "Nueva cronología de varias etiquetas…"
 
-#: src/hashtags.py:772
+#: src/hashtags.py:773
 msgid "No followed hashtags"
 msgstr "No sigues ninguna etiqueta"
 
-#: src/hashtags.py:773
+#: src/hashtags.py:774
 msgid "Follow a hashtag from its page to see its posts in Home"
 msgstr ""
 "Sigue una etiqueta desde su página para ver sus publicaciones en Inicio"
 
-#: src/hashtags.py:806
+#: src/hashtags.py:807
 msgid "Followed Hashtags"
 msgstr "Etiquetas seguidas"
 
-#: src/hashtags.py:810
+#: src/hashtags.py:811
 msgid "No Followed Hashtags"
 msgstr "No sigues ninguna etiqueta"
 
-#: src/hashtags.py:812
+#: src/hashtags.py:813
 msgid "Follow a hashtag from its page to see its posts in your home timeline"
 msgstr ""
 "Sigue una etiqueta desde su página para ver sus publicaciones en tu "
 "cronología de inicio"
 
-#: src/lists.py:31
+#: src/lists.py:32
 msgid "Members of the List"
 msgstr "Miembros de la lista"
 
-#: src/lists.py:32
+#: src/lists.py:33
 msgid "People You Follow"
 msgstr "Personas que sigues"
 
-#: src/lists.py:84
+#: src/lists.py:85
 msgid "Unpin from Sidebar"
 msgstr "Desfijar de la barra lateral"
 
-#: src/lists.py:85
+#: src/lists.py:86
 msgid "Pin to Sidebar"
 msgstr "Fijar en la barra lateral"
 
-#: src/lists.py:97
+#: src/lists.py:98
 #, python-format
 msgid "%s pinned to the sidebar"
 msgstr "%s fijada en la barra lateral"
 
-#: src/lists.py:98
+#: src/lists.py:99
 #, python-format
 msgid "%s unpinned from the sidebar"
 msgstr "%s desfijada de la barra lateral"
 
-#: src/lists.py:175 src/lists.py:482 src/lists.py:528
+#: src/lists.py:155 src/lists.py:462 src/lists.py:508
 msgid "Edit List"
 msgstr "Editar lista"
 
-#: src/lists.py:175 src/lists.py:605 src/lists.py:649
+#: src/lists.py:155 src/lists.py:585 src/lists.py:629
 msgid "New List"
 msgstr "Nueva lista"
 
-#: src/lists.py:188
+#: src/lists.py:168
 msgid "C_reate"
 msgstr "C_rear"
 
-#: src/lists.py:204
+#: src/lists.py:184
 msgid "Show Replies To"
 msgstr "Mostrar respuestas a"
 
-#: src/lists.py:205
+#: src/lists.py:185
 msgid "Replies by members are shown when addressed to"
 msgstr "Las respuestas de los miembros se muestran cuando van dirigidas a"
 
-#: src/lists.py:214
+#: src/lists.py:194
 msgid "Hide Members from Home"
 msgstr "Ocultar miembros de Inicio"
 
-#: src/lists.py:215
+#: src/lists.py:195
 msgid "Posts from list members only appear in this list"
 msgstr ""
 "Las publicaciones de los miembros de la lista solo aparecen en esta lista"
 
-#: src/lists.py:223
+#: src/lists.py:203
 msgid "_Delete List"
 msgstr "_Eliminar lista"
 
-#: src/lists.py:265
+#: src/lists.py:245
 #, python-format
 msgid "Could not save the list: %s"
 msgstr "No se pudo guardar la lista: %s"
 
-#: src/lists.py:279 src/lists.py:576
+#: src/lists.py:259 src/lists.py:556
 msgid "Delete This List?"
 msgstr "¿Eliminar esta lista?"
 
-#: src/lists.py:280 src/lists.py:577
+#: src/lists.py:260 src/lists.py:557
 #, python-format
 msgid "“%s” will be deleted. The posts of its members are not affected."
 msgstr ""
 "Se eliminará «%s». Las publicaciones de sus miembros no se ven afectadas."
 
-#: src/lists.py:288
+#: src/lists.py:268
 #, python-format
 msgid "Could not delete the list: %s"
 msgstr "No se pudo eliminar la lista: %s"
 
-#: src/lists.py:299
+#: src/lists.py:279
 msgid "Members"
 msgstr "Miembros"
 
-#: src/lists.py:305
+#: src/lists.py:285
 msgid "No members yet"
 msgstr "Aún no hay miembros"
 
-#: src/lists.py:310
+#: src/lists.py:290
 msgid "Add Members"
 msgstr "Añadir miembros"
 
-#: src/lists.py:311
+#: src/lists.py:291
 msgid "Search among the accounts you follow"
 msgstr "Busca entre las cuentas que sigues"
 
-#: src/lists.py:329
+#: src/lists.py:309
 #, python-format
 msgid "Could not load the members: %s"
 msgstr "No se pudieron cargar los miembros: %s"
 
-#: src/lists.py:344
+#: src/lists.py:324
 msgid "Remove from List"
 msgstr "Quitar de la lista"
 
-#: src/lists.py:364
+#: src/lists.py:344
 #, python-format
 msgid "Could not remove the member: %s"
 msgstr "No se pudo quitar al miembro: %s"
 
-#: src/lists.py:399
+#: src/lists.py:379
 #, python-format
 msgid "Search failed: %s"
 msgstr "La búsqueda falló: %s"
 
-#: src/lists.py:412
+#: src/lists.py:392
 msgid "Add to List"
 msgstr "Añadir a la lista"
 
-#: src/lists.py:418
+#: src/lists.py:398
 msgid "No matching accounts you follow"
 msgstr "Ninguna cuenta que sigues coincide"
 
-#: src/lists.py:441
+#: src/lists.py:421
 #, python-format
 msgid "Could not add the member: %s"
 msgstr "No se pudo añadir al miembro: %s"
 
-#: src/lists.py:475
+#: src/lists.py:455
 msgid "No Posts in This List"
 msgstr "Sin publicaciones en esta lista"
 
-#: src/lists.py:476
+#: src/lists.py:456
 msgid "Add members to the list to see their posts"
 msgstr "Añade miembros a la lista para ver sus publicaciones"
 
-#: src/lists.py:510 src/window.py:1207 src/window.py:1232 src/window.py:1556
+#: src/lists.py:490 src/window.py:1221 src/window.py:1246 src/window.py:1570
 msgid "List"
 msgstr "Lista"
 
-#: src/lists.py:531
+#: src/lists.py:511
 msgid "Delete List"
 msgstr "Eliminar lista"
 
-#: src/lists.py:547
+#: src/lists.py:527
 msgid "Hidden from Home"
 msgstr "Oculta en Inicio"
 
-#: src/lists.py:549
+#: src/lists.py:529
 #, python-format
 msgid "Replies: %s"
 msgstr "Respuestas: %s"
 
-#: src/lists.py:573
+#: src/lists.py:553
 msgid "Could not delete the list"
 msgstr "No se pudo eliminar la lista"
 
-#: src/lists.py:593
+#: src/lists.py:573
 msgid "No Lists"
 msgstr "Sin listas"
 
-#: src/lists.py:595
+#: src/lists.py:575
 msgid "Create a list to follow a group of people in their own timeline"
 msgstr ""
 "Crea una lista para seguir a un grupo de personas en su propia cronología"
 
-#: src/lists.py:597
+#: src/lists.py:577
 msgid "_New List"
 msgstr "_Nueva lista"
 
-#: src/lists.py:630
+#: src/lists.py:610
 msgid "Add to Lists"
 msgstr "Añadir a listas"
 
-#: src/lists.py:646 src/window.py:89
+#: src/lists.py:626 src/window.py:92
 msgid "Lists"
 msgstr "Listas"
 
-#: src/lists.py:647
+#: src/lists.py:627
 #, python-format
 msgid "Lists with @%s as a member are checked"
 msgstr "Las listas que tienen a @%s como miembro están marcadas"
 
-#: src/lists.py:656
+#: src/lists.py:636
 msgid "You have no lists yet"
 msgstr "Aún no tienes listas"
 
-#: src/lists.py:670 src/lists.py:681
+#: src/lists.py:650 src/lists.py:661
 #, python-format
 msgid "Could not load the lists: %s"
 msgstr "No se pudieron cargar las listas: %s"
@@ -3451,20 +3455,20 @@ msgstr "Dirección de servidor no válida: %s"
 msgid "Babble only connects over HTTPS: %s"
 msgstr "Babble solo se conecta mediante HTTPS: %s"
 
-#: src/mastodon.py:619
+#: src/mastodon.py:632
 #, fuzzy
 msgid "Operation canceled"
 msgstr "Conversación eliminada"
 
-#: src/mastodon.py:624
+#: src/mastodon.py:637
 msgid "Request failed"
 msgstr "Actualización fallida"
 
-#: src/mastodon.py:632
+#: src/mastodon.py:645
 msgid "Invalid address"
 msgstr "Dirección no válida"
 
-#: src/mastodon.py:687
+#: src/mastodon.py:703
 #, python-format
 msgid "Rate limited by this server. Trying again in %d second."
 msgid_plural "Rate limited by this server. Trying again in %d seconds."
@@ -3473,59 +3477,59 @@ msgstr[0] ""
 msgstr[1] ""
 "Este servidor ha limitado las solicitudes. Se reintentará en %d segundos."
 
-#: src/mastodon.py:729
+#: src/mastodon.py:748
 #, python-format
 msgid "Invalid address: %s"
 msgstr "Dirección no válida: %s"
 
-#: src/mastodon.py:950
+#: src/mastodon.py:969
 msgid "The server did not return an application id."
 msgstr "El servidor no devolvió una identificación de aplicación."
 
-#: src/mastodon.py:1033
+#: src/mastodon.py:1052
 msgid "This login cannot be signed out on the server."
 msgstr "Este inicio de sesión no se puede cerrar en el servidor."
 
-#: src/mediabox.py:224
+#: src/mediabox.py:254
 msgid "Show Previous Boosts"
 msgstr "Mostrar impulsos anteriores"
 
-#: src/mediabox.py:226
+#: src/mediabox.py:256
 msgid "Show Next Boosts"
 msgstr "Mostrar impulsos siguientes"
 
-#: src/mediabox.py:289
+#: src/mediabox.py:319
 #, python-format
 msgid "%d Boost"
 msgid_plural "%d Boosts"
 msgstr[0] "%d impulso"
 msgstr[1] "%d impulsos"
 
-#: src/mediabox.py:378 src/mediabox.py:476 src/mediaviewer.py:994
+#: src/mediabox.py:408 src/mediabox.py:506 src/mediaviewer.py:1020
 msgid "Image"
 msgstr "Imagen"
 
-#: src/mediabox.py:378 src/mediaviewer.py:994
+#: src/mediabox.py:408 src/mediaviewer.py:1020
 msgid "Video"
 msgstr "Vídeo"
 
-#: src/mediabox.py:379
+#: src/mediabox.py:409
 msgid "Animated Image"
 msgstr "Imagen animada"
 
-#: src/mediabox.py:379 src/mediaviewer.py:995
+#: src/mediabox.py:409 src/mediaviewer.py:1021
 msgid "Audio"
 msgstr "Audio"
 
-#: src/mediabox.py:445 src/mediabox.py:615
+#: src/mediabox.py:475 src/mediabox.py:645
 msgid "Show Sensitive Content"
 msgstr "Mostrar contenido sensible"
 
-#: src/mediabox.py:452 src/mediabox.py:612
+#: src/mediabox.py:482 src/mediabox.py:642
 msgid "Hide Sensitive Content"
 msgstr "Ocultar contenido sensible"
 
-#: src/mediabox.py:552 src/mediaviewer.py:996 src/notifications.py:839
+#: src/mediabox.py:582 src/mediaviewer.py:1022 src/notifications.py:839
 msgid "Attachment"
 msgstr "Adjunto"
 
@@ -3542,169 +3546,169 @@ msgstr "Dirección multimedia no válida"
 msgid "media"
 msgstr "multimedia"
 
-#: src/mediaviewer.py:656 src/profile.py:1155 src/search.py:608
+#: src/mediaviewer.py:682 src/profile.py:1152 src/search.py:609
 msgid "Media"
 msgstr "Multimedia"
 
-#: src/mediaviewer.py:661 src/mediaviewer.py:663
+#: src/mediaviewer.py:687 src/mediaviewer.py:689
 msgid "Close"
 msgstr "_Cerrar"
 
-#: src/mediaviewer.py:669 src/mediaviewer.py:1435
+#: src/mediaviewer.py:695 src/mediaviewer.py:1454
 msgid "Fullscreen"
 msgstr "Pantalla completa"
 
-#: src/mediaviewer.py:675
+#: src/mediaviewer.py:701
 msgid "_Copy URL"
 msgstr "_Copiar URL"
 
-#: src/mediaviewer.py:676
+#: src/mediaviewer.py:702
 msgid "Copy _Image"
 msgstr "_Copiar imagen"
 
-#: src/mediaviewer.py:682 src/mediaviewer.py:768
+#: src/mediaviewer.py:708 src/mediaviewer.py:794
 msgid "_Open in Browser"
 msgstr "_Abrir en el navegador"
 
-#: src/mediaviewer.py:683
+#: src/mediaviewer.py:709
 msgid "Open _With…"
 msgstr "Abrir _Con…"
 
-#: src/mediaviewer.py:686 src/mediaviewer.py:687
+#: src/mediaviewer.py:712 src/mediaviewer.py:713
 msgid "More Actions"
 msgstr "Más acciones"
 
-#: src/mediaviewer.py:691
+#: src/mediaviewer.py:717
 msgid "Save As…"
 msgstr "Guardar como…"
 
-#: src/mediaviewer.py:746
+#: src/mediaviewer.py:772
 msgid "Media is not downloaded automatically on a metered connection"
 msgstr "Los medios no se descargan automáticamente en una conexión medida"
 
-#: src/mediaviewer.py:761 src/pages.py:447
+#: src/mediaviewer.py:787 src/pages.py:586
 msgid "_Try Again"
 msgstr "_Reintentar"
 
-#: src/mediaviewer.py:780
+#: src/mediaviewer.py:806
 msgid "Previous Attachment"
 msgstr "Adjunto anterior"
 
-#: src/mediaviewer.py:788
+#: src/mediaviewer.py:814
 msgid "Next Attachment"
 msgstr "Adjunto siguiente"
 
-#: src/mediaviewer.py:803
+#: src/mediaviewer.py:829
 msgid "Zoom Out"
 msgstr "Alejar"
 
-#: src/mediaviewer.py:807
+#: src/mediaviewer.py:833
 msgid "Toggle Fit and Actual Size"
 msgstr "Alternar entre ajustado y tamaño real"
 
-#: src/mediaviewer.py:813
+#: src/mediaviewer.py:839
 msgid "Zoom In"
 msgstr "Acercar"
 
-#: src/mediaviewer.py:817
+#: src/mediaviewer.py:843
 msgid "Fit to Window"
 msgstr "Ajustar a la ventana"
 
-#: src/mediaviewer.py:918
+#: src/mediaviewer.py:944
 msgid "ALT"
 msgstr "ALT"
 
-#: src/mediaviewer.py:919 src/mediaviewer.py:921
+#: src/mediaviewer.py:945 src/mediaviewer.py:947
 msgid "Show or Hide Description"
 msgstr "Mostrar u ocultar descripción"
 
-#: src/mediaviewer.py:970
+#: src/mediaviewer.py:996
 msgid "No Media"
 msgstr "Sin multimedia"
 
-#: src/mediaviewer.py:970
+#: src/mediaviewer.py:996
 msgid "This post has no media."
 msgstr "Esta publicación no tiene multimedia."
 
-#: src/mediaviewer.py:980 src/mediaviewer.py:989
+#: src/mediaviewer.py:1006 src/mediaviewer.py:1015
 msgid "Preview Not Available"
 msgstr "Vista previa no disponible"
 
-#: src/mediaviewer.py:981
+#: src/mediaviewer.py:1007
 msgid "This attachment has no address to load."
 msgstr "Este adjunto no tiene ninguna dirección que cargar."
 
-#: src/mediaviewer.py:990
+#: src/mediaviewer.py:1016
 msgid "This kind of attachment cannot be shown here."
 msgstr "Este tipo de adjunto no se puede mostrar aquí."
 
-#: src/mediaviewer.py:995
+#: src/mediaviewer.py:1021
 msgid "Animated GIF"
 msgstr "GIF animado"
 
 #. Translators: position in a media gallery, e.g. "2 of 4"
-#: src/mediaviewer.py:1010
+#: src/mediaviewer.py:1036
 #, python-brace-format
 msgid "{current} of {total}"
 msgstr "{current} de {total}"
 
-#: src/mediaviewer.py:1028
+#: src/mediaviewer.py:1054
 #, python-brace-format
 msgid "Attachment {current} of {total}"
 msgstr "Adjunto {current} de {total}"
 
-#: src/mediaviewer.py:1105
+#: src/mediaviewer.py:1124
 msgid "Could Not Load Image"
 msgstr "No se pudo cargar la imagen"
 
-#: src/mediaviewer.py:1139
+#: src/mediaviewer.py:1158
 msgid "Load _Audio"
 msgstr "Cargar _Audio"
 
-#: src/mediaviewer.py:1141
+#: src/mediaviewer.py:1160
 msgid "Load _Video"
 msgstr "Cargar _Video"
 
-#: src/mediaviewer.py:1167 src/mediaviewer.py:1200 src/mediaviewer.py:1295
+#: src/mediaviewer.py:1186 src/mediaviewer.py:1219 src/mediaviewer.py:1314
 msgid "Could Not Load Media"
 msgstr "No se pudo cargar el contenido multimedia"
 
 #. Translators: why the session is kept from going idle, shown by
 #. the desktop where it lists apps blocking suspend or screen lock.
-#: src/mediaviewer.py:1327
+#: src/mediaviewer.py:1346
 msgid "Playing media"
 msgstr "Reproduciendo medios"
 
-#: src/mediaviewer.py:1353
+#: src/mediaviewer.py:1372
 msgid "URL copied"
 msgstr "URL copiada"
 
-#: src/mediaviewer.py:1364
+#: src/mediaviewer.py:1383
 msgid "Image copied"
 msgstr "Imagen copiada"
 
-#: src/mediaviewer.py:1435
+#: src/mediaviewer.py:1454
 msgid "Exit Fullscreen"
 msgstr "Salir de pantalla completa"
 
-#: src/mediaviewer.py:1454
+#: src/mediaviewer.py:1473
 msgid "Save Media"
 msgstr "Guardar multimedia"
 
-#: src/mediaviewer.py:1465 src/mediaviewer.py:1491
+#: src/mediaviewer.py:1484 src/mediaviewer.py:1510
 msgid "Could not save media"
 msgstr "No se pudo guardar el contenido multimedia"
 
-#: src/mediaviewer.py:1488
+#: src/mediaviewer.py:1507
 #, python-brace-format
 msgid "Saved “{name}”"
 msgstr "«{name}» guardado"
 
-#: src/mediaviewer.py:1509 src/mediaviewer.py:1528 src/mediaviewer.py:1547
+#: src/mediaviewer.py:1528 src/mediaviewer.py:1547 src/mediaviewer.py:1566
 msgid "Could not open media"
 msgstr "No se han podido abrir los medios"
 
-#: src/mediaviewer.py:1556
+#: src/mediaviewer.py:1575
 msgid "Show in _Folder"
 msgstr "Mostrar en la _carpeta"
 
@@ -3802,16 +3806,16 @@ msgid "%s reported posts"
 msgstr "%s denunciaron publicaciones"
 
 #. Shared type labels (filter menu, settings dialog, desktop prefs).
-#: src/notificationcopy.py:60 src/notifications.py:1285
+#: src/notificationcopy.py:60 src/notifications.py:1291
 msgid "Mentions"
 msgstr "Menciones"
 
-#: src/notificationcopy.py:61 src/wrapped.py:463
+#: src/notificationcopy.py:61 src/wrapped.py:465
 msgid "New Posts"
 msgstr "Publicaciones nuevas"
 
 #: src/notificationcopy.py:63 src/statusviews.py:24 src/statusviews.py:108
-#: src/statusviews.py:110 src/window.py:86
+#: src/statusviews.py:110 src/window.py:89
 msgid "Favorites"
 msgstr "Favoritos"
 
@@ -3819,7 +3823,7 @@ msgstr "Favoritos"
 msgid "Follows"
 msgstr "Seguimientos"
 
-#: src/notificationcopy.py:65 src/window.py:276
+#: src/notificationcopy.py:65 src/window.py:279
 msgid "Follow Requests"
 msgstr "Solicitudes de seguimiento"
 
@@ -3861,7 +3865,7 @@ msgstr "Actualizaciones de colección"
 
 #. Desktop notification preferences use different headings where the
 #. context is "what to announce", not "what to show in the list".
-#: src/notificationcopy.py:80 src/wrapped.py:477
+#: src/notificationcopy.py:80 src/wrapped.py:479
 msgid "New Followers"
 msgstr "Nuevos seguidores"
 
@@ -3901,43 +3905,43 @@ msgstr "Publicaciones que citaste y que se editaron"
 msgid "Server administrators only"
 msgstr "Solo administradores del servidor"
 
-#: src/notificationctrl.py:213 src/pollbox.py:224 src/timelinepage.py:599
+#: src/notificationctrl.py:218 src/pollbox.py:224 src/timelinepage.py:693
 msgid "Refresh failed"
 msgstr "Error al actualizar"
 
-#: src/notificationctrl.py:311
+#: src/notificationctrl.py:318
 #, python-format
 msgid "%d filtered notification request"
 msgid_plural "%d filtered notification requests"
 msgstr[0] "%d solicitud de notificación filtrada"
 msgstr[1] "%d solicitudes de notificación filtradas"
 
-#: src/notificationctrl.py:317
+#: src/notificationctrl.py:324
 msgid "Filtered Notifications"
 msgstr "Notificaciones filtradas"
 
-#: src/notificationctrl.py:350
+#: src/notificationctrl.py:357
 #, python-format
 msgid "%(domain)s: %(text)s"
 msgstr "%(domain)s: %(text)s"
 
-#: src/notificationctrl.py:357 src/window.py:274
+#: src/notificationctrl.py:364 src/window.py:277
 msgid "Announcements"
 msgstr "Anuncios"
 
-#: src/notificationctrl.py:439
+#: src/notificationctrl.py:446
 msgid "Clear All Notifications?"
 msgstr "¿Borrar todas las notificaciones?"
 
-#: src/notificationctrl.py:440
+#: src/notificationctrl.py:447
 msgid "All notifications will be permanently deleted"
 msgstr "Todas las notificaciones se eliminarán de forma permanente"
 
-#: src/notificationctrl.py:442 src/search.py:340
+#: src/notificationctrl.py:449 src/search.py:341
 msgid "_Clear"
 msgstr "_Borrar"
 
-#: src/notificationctrl.py:458
+#: src/notificationctrl.py:465
 msgid "Clear failed"
 msgstr "Error al borrar"
 
@@ -4291,62 +4295,62 @@ msgstr "Las menciones, los impulsos y los seguimientos aparecerán aquí"
 
 #. Filtered notifications (Mastodon 4.3+): pending requests.
 #. Instance announcements: the button opens the Announcements page.
-#: src/notifications.py:1271 src/notifications.py:1279
+#: src/notifications.py:1277 src/notifications.py:1285
 msgid "View"
 msgstr "Ver"
 
-#: src/notifications.py:1289
+#: src/notifications.py:1295
 msgid "Filter Notifications"
 msgstr "Filtrar notificaciones"
 
-#: src/notifications.py:1347
+#: src/notifications.py:1353
 #, fuzzy
 msgid "_Filter"
 msgstr "Filtrar"
 
-#: src/notifications.py:1350
+#: src/notifications.py:1356
 #, fuzzy
 msgid "Notification _Settings"
 msgstr "Ajustes de notificaciones"
 
-#: src/notifications.py:1351
+#: src/notifications.py:1357
 msgid "_Announcements"
 msgstr "A_nuncios"
 
-#: src/notifications.py:1357
+#: src/notifications.py:1363
 msgid "Notification Options"
 msgstr "Opciones de notificaciones"
 
-#: src/notifications.py:1362
+#: src/notifications.py:1368
 msgid "Clear Notifications"
 msgstr "Borrar notificaciones"
 
-#: src/notifications.py:1464
+#: src/notifications.py:1474
 #, python-format
 msgid "%d notification"
 msgid_plural "%d notifications"
 msgstr[0] "%d notificación"
 msgstr[1] "%d notificaciones"
 
-#: src/notifications.py:1470 src/notifications.py:1562
+#: src/notifications.py:1480 src/notifications.py:1572
 msgid "Dismiss"
 msgstr "Descartar"
 
-#: src/notifications.py:1471 src/notifications.py:1565
-#: src/notifications.py:1602
+#: src/notifications.py:1481 src/notifications.py:1575
+#: src/notifications.py:1612
 msgid "Accept"
 msgstr "Aceptar"
 
-#: src/notifications.py:1496
+#: src/notifications.py:1506
 #, python-format
 msgid "Notifications from %s"
 msgstr "Notificaciones de %s"
 
-#: src/notifications.py:1513
+#: src/notifications.py:1523
 msgid "Could not update the request"
 msgstr "No se pudo actualizar la solicitud"
 
-#: src/notifications.py:1525
+#: src/notifications.py:1535
 msgid ""
 "Notifications from people matching your filters wait here until you accept "
 "or dismiss them"
@@ -4354,82 +4358,82 @@ msgstr ""
 "Las notificaciones de personas que coinciden con tus filtros esperan aquí "
 "hasta que las aceptes o descartes"
 
-#: src/notifications.py:1531
+#: src/notifications.py:1541
 msgid "No Filtered Notifications"
 msgstr "Sin notificaciones filtradas"
 
-#: src/notifications.py:1533
+#: src/notifications.py:1543
 msgid "Notifications held back by your filters will appear here"
 msgstr "Las notificaciones retenidas por tus filtros aparecerán aquí"
 
-#: src/notifications.py:1543
+#: src/notifications.py:1553
 msgid "Notification request accepted"
 msgstr "Solicitud de notificación aceptada"
 
-#: src/notifications.py:1545
+#: src/notifications.py:1555
 msgid "Notification request dismissed"
 msgstr "Solicitud de notificación descartada"
 
-#: src/notifications.py:1587
+#: src/notifications.py:1597
 msgid "People You Don’t Follow"
 msgstr "Personas que no sigues"
 
-#: src/notifications.py:1588
+#: src/notifications.py:1598
 msgid "Accounts you do not follow"
 msgstr "Cuentas que no sigues"
 
-#: src/notifications.py:1589
+#: src/notifications.py:1599
 msgid "People Not Following You"
 msgstr "Personas que no te siguen"
 
-#: src/notifications.py:1590
+#: src/notifications.py:1600
 msgid ""
 "Accounts that do not follow you, or followed you less than three days ago"
 msgstr ""
 "Cuentas que no te siguen o que empezaron a seguirte hace menos de tres días"
 
-#: src/notifications.py:1592
+#: src/notifications.py:1602
 msgid "New Accounts"
 msgstr "Cuentas nuevas"
 
-#: src/notifications.py:1593
+#: src/notifications.py:1603
 msgid "Accounts created within the last 30 days"
 msgstr "Cuentas creadas en los últimos 30 días"
 
-#: src/notifications.py:1594
+#: src/notifications.py:1604
 msgid "Unsolicited Private Mentions"
 msgstr "Menciones privadas no solicitadas"
 
-#: src/notifications.py:1595
+#: src/notifications.py:1605
 msgid "Unless in reply to your own mention or sent by someone you follow"
 msgstr ""
 "Salvo que respondan a tu propia mención o las envíe alguien a quien sigues"
 
-#: src/notifications.py:1596
+#: src/notifications.py:1606
 msgid "Moderated Accounts"
 msgstr "Cuentas moderadas"
 
-#: src/notifications.py:1597
+#: src/notifications.py:1607
 msgid "Accounts limited by the server moderators"
 msgstr "Cuentas limitadas por los moderadores del servidor"
 
-#: src/notifications.py:1598
+#: src/notifications.py:1608
 msgid "Bots"
 msgstr "Bots"
 
-#: src/notifications.py:1598
+#: src/notifications.py:1608
 msgid "Accounts marked as automated"
 msgstr "Cuentas marcadas como automatizadas"
 
-#: src/notifications.py:1603
+#: src/notifications.py:1613
 msgid "Filter"
 msgstr "Filtrar"
 
-#: src/notifications.py:1604
+#: src/notifications.py:1614
 msgid "Ignore"
 msgstr "Ignorar"
 
-#: src/notifications.py:1617
+#: src/notifications.py:1627
 msgid "Notification Settings"
 msgstr "Ajustes de notificaciones"
 
@@ -4465,24 +4469,24 @@ msgstr "Ajustes de notificaciones actualizados"
 msgid "Could not save notification settings"
 msgstr "No se pudieron guardar los ajustes de notificaciones"
 
-#: src/pages.py:386
+#: src/pages.py:468
 msgid "_Don’t Remind Me Again"
 msgstr "_No volver a recordármelo"
 
-#: src/pages.py:412 src/pages.py:645 src/profileactions.py:301
+#: src/pages.py:551 src/pages.py:784 src/profileactions.py:301
 #: src/statusactions.py:542
 msgid "Action failed"
 msgstr "La acción falló"
 
-#: src/pages.py:502
+#: src/pages.py:641
 msgid "Nothing Here"
 msgstr "Aquí no hay nada"
 
-#: src/pages.py:585 src/scheduled.py:554 src/search.py:198
+#: src/pages.py:724 src/scheduled.py:554 src/search.py:199
 msgid "Could not load more"
 msgstr "No se pudo cargar más"
 
-#: src/pages.py:692
+#: src/pages.py:831
 msgid "This account’s handle could not be verified"
 msgstr "El identificador de esa cuenta no pudo ser verificado"
 
@@ -4586,7 +4590,7 @@ msgstr "Llenar la ventana"
 msgid "Everyone"
 msgstr "Todos"
 
-#: src/preferences.py:58 src/profile.py:836
+#: src/preferences.py:58 src/profile.py:833
 msgid "Followers"
 msgstr "Seguidores"
 
@@ -4616,7 +4620,7 @@ msgstr "Apariencia"
 msgid "_Language"
 msgstr "_Idioma"
 
-#: src/preferences.py:280 src/preferences.py:516
+#: src/preferences.py:280 src/preferences.py:519
 msgid "System Language"
 msgstr "Idioma del sistema"
 
@@ -4771,89 +4775,99 @@ msgstr ""
 "En la cronología de inicio, ocultar publicaciones que son respuestas de "
 "cuentas que no sigues"
 
-#: src/preferences.py:344
+#: src/preferences.py:342
+msgid "Hide Boosts on _Home"
+msgstr "Ocultar impulsos en el _inicio"
+
+#: src/preferences.py:343
+msgid ""
+"On the home timeline, show only posts and replies by the people you follow, "
+"without their boosts"
+msgstr "En la cronología de inicio, mostrar solo las publicaciones y respuestas de las personas a las que sigues, sin sus impulsos"
+
+#: src/preferences.py:347
 msgid "Behavior"
 msgstr "Comportamiento"
 
-#: src/preferences.py:346
+#: src/preferences.py:349
 msgid "Advanced _Boost Dialog"
 msgstr "Diálogo de _impulso avanzado"
 
-#: src/preferences.py:347
+#: src/preferences.py:350
 msgid "Change boost visibility, quote and confirm boosting"
 msgstr "Cambia la visibilidad del impulso, cita y confirma el impulso"
 
-#: src/preferences.py:349
+#: src/preferences.py:352
 msgid "Strip _Tracking Parameters From Links"
 msgstr "Quitar parámetros de _seguimiento de los enlaces"
 
-#: src/preferences.py:350
+#: src/preferences.py:353
 msgid "This option can lead to broken links when enabled"
 msgstr "Esta opción puede provocar enlaces rotos si se activa"
 
-#: src/preferences.py:352
+#: src/preferences.py:355
 msgid "Open Remote Links in _Babble"
 msgstr "Abrir enlaces remotos en _Babble"
 
-#: src/preferences.py:353
+#: src/preferences.py:356
 msgid "Open links to posts and profiles on other servers inside the app"
 msgstr ""
 "Abre los enlaces a publicaciones y perfiles de otros servidores dentro de la "
 "aplicación"
 
-#: src/preferences.py:357
+#: src/preferences.py:360
 msgid "Open _Web Links Beside the Timeline"
 msgstr ""
 
-#: src/preferences.py:358
+#: src/preferences.py:361
 msgid ""
 "Show other links in a column instead of the browser. Pages keep no cookies "
 "once Babble closes"
 msgstr ""
 
-#: src/preferences.py:362
+#: src/preferences.py:365
 msgid "Allow _JavaScript on Web Pages"
 msgstr ""
 
-#: src/preferences.py:363
+#: src/preferences.py:366
 msgid "Many sites do not work without it"
 msgstr ""
 
-#: src/preferences.py:367
+#: src/preferences.py:370
 msgid "Offer to Open _Copied Links"
 msgstr "Oferta para abrir _Enlaces Copiados"
 
-#: src/preferences.py:368
+#: src/preferences.py:371
 msgid "Check the clipboard for post and profile links when Babble is focused"
 msgstr ""
 "Comprueba el portapapeles por enlaces a publicaciones y perfiles cuando "
 "Babble tiene el foco"
 
-#: src/preferences.py:371
+#: src/preferences.py:374
 msgid "Warn Before Replying to an _Old Post"
 msgstr "Avisar antes de responder a una publicación _antigua"
 
-#: src/preferences.py:373
+#: src/preferences.py:376
 msgid "Warn Before Copying a Link to a _Private Post"
 msgstr "Avisar antes de copiar el enlace de una publicación _privada"
 
-#: src/preferences.py:375
+#: src/preferences.py:378
 msgid "Warn Before Boosting Media Without _Alt Text"
 msgstr "Avisar antes de impulsar multimedia sin _texto alternativo"
 
-#: src/preferences.py:377
+#: src/preferences.py:380
 msgid "_Run in Background"
 msgstr "_Ejecutar en segundo plano"
 
-#: src/preferences.py:378
+#: src/preferences.py:381
 msgid "Keep running after the window is closed to deliver notifications"
 msgstr "Sigue ejecutándose tras cerrar la ventana para entregar notificaciones"
 
-#: src/preferences.py:382
+#: src/preferences.py:385
 msgid "_Quick Post Shortcut"
 msgstr "_Atajo de Publicación Rápida"
 
-#: src/preferences.py:383
+#: src/preferences.py:386
 msgid ""
 "Open the composer from anywhere with a system-wide shortcut, which can be "
 "changed in the system settings"
@@ -4861,91 +4875,91 @@ msgstr ""
 "Abrir el compositor desde cualquier lugar con un atajo de sistema, que puede "
 "ser cambiado en la configuración del sistema"
 
-#: src/preferences.py:394
+#: src/preferences.py:397
 msgid "Restart Babble to use the new language"
 msgstr "Reinicia Babble para usar el nuevo idioma"
 
-#: src/preferences.py:404 src/search.py:615 src/shortcuts-dialog.ui:50
+#: src/preferences.py:407 src/search.py:616 src/shortcuts-dialog.ui:50
 msgid "Timelines"
 msgstr "Cronologías"
 
-#: src/preferences.py:407
+#: src/preferences.py:410
 msgid "Live Updates"
 msgstr "Actualizaciones en directo"
 
-#: src/preferences.py:408
+#: src/preferences.py:411
 msgid "_Stream Timelines"
 msgstr "_Transmitir cronologías"
 
-#: src/preferences.py:409
+#: src/preferences.py:412
 msgid "Receive new posts and notifications in real time"
 msgstr "Recibe publicaciones y notificaciones nuevas en tiempo real"
 
-#: src/preferences.py:411
+#: src/preferences.py:414
 msgid "Stream _Public Timelines"
 msgstr "Transmitir cronologías _públicas"
 
-#: src/preferences.py:412
+#: src/preferences.py:415
 msgid "This will increase memory usage when browsing high traffic timelines"
 msgstr ""
 "Esto aumentará el uso de memoria al navegar por cronologías con mucho tráfico"
 
-#: src/preferences.py:416
+#: src/preferences.py:419
 msgid "Refresh"
 msgstr "Actualización"
 
-#: src/preferences.py:417
+#: src/preferences.py:420
 msgid "Used while live updates are off or unavailable"
 msgstr ""
 "Se usa mientras las actualizaciones en directo están desactivadas o no "
 "disponibles"
 
-#: src/preferences.py:418
+#: src/preferences.py:421
 msgid "_Automatic Refresh"
 msgstr "Actualización _automática"
 
-#: src/preferences.py:421 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
-#: src/sidebarrail.py:78 src/window.ui:465 src/window.ui:471
+#: src/preferences.py:424 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
+#: src/sidebarrail.py:78 src/window.ui:473 src/window.ui:479
 msgid "Sidebar"
 msgstr "Barra lateral"
 
-#: src/preferences.py:422
+#: src/preferences.py:425
 msgid "Choose which timelines the sidebar offers"
 msgstr "Elige qué cronologías ofrece la barra lateral"
 
-#: src/preferences.py:424
+#: src/preferences.py:427
 msgid "Summarize what you missed in your home timeline"
 msgstr "Resumir lo que perdiste en tu cronología de inicio"
 
-#: src/preferences.py:426
+#: src/preferences.py:429
 msgid "_Explore"
 msgstr "_Explorar"
 
-#: src/preferences.py:427
+#: src/preferences.py:430
 msgid "Show posts trending on your server"
 msgstr "Muestra publicaciones en tendencia en tu servidor"
 
-#: src/preferences.py:428
+#: src/preferences.py:431
 msgid "_Local Timeline"
 msgstr "Cronología _local"
 
-#: src/preferences.py:429
+#: src/preferences.py:432
 msgid "Show posts from your server"
 msgstr "Muestra publicaciones de tu servidor"
 
-#: src/preferences.py:430
+#: src/preferences.py:433
 msgid "_Federated Timeline"
 msgstr "Cronología _federada"
 
-#: src/preferences.py:431
+#: src/preferences.py:434
 msgid "Show posts from all known servers"
 msgstr "Muestra publicaciones de todos los servidores conocidos"
 
-#: src/preferences.py:434
+#: src/preferences.py:437
 msgid "Show _Disabled Timelines"
 msgstr "Mostrar _Cronologías Deshabilitadas"
 
-#: src/preferences.py:435
+#: src/preferences.py:438
 msgid ""
 "Your server has turned these timelines off, but this account may still read "
 "them"
@@ -4953,23 +4967,23 @@ msgstr ""
 "Tu servidor ha desactivado estas cronologías, pero esta cuenta aún puede "
 "leerlas"
 
-#: src/preferences.py:454
+#: src/preferences.py:457
 msgid "Posting"
 msgstr "Publicación"
 
-#: src/preferences.py:458
+#: src/preferences.py:461
 msgid "Defaults for New Posts"
 msgstr "Valores predeterminados para publicaciones nuevas"
 
-#: src/preferences.py:459
+#: src/preferences.py:462
 msgid "Changes are also saved to your server preferences"
 msgstr "Los cambios también se guardan en las preferencias de tu servidor"
 
-#: src/preferences.py:461
+#: src/preferences.py:464
 msgid "Default _Visibility"
 msgstr "_Visibilidad predeterminada"
 
-#: src/preferences.py:464
+#: src/preferences.py:467
 msgid "Default _Quote Policy"
 msgstr "Política de _citas predeterminada"
 
@@ -4978,71 +4992,71 @@ msgstr "Política de _citas predeterminada"
 #. source preferences, which is where this is
 #. sent. Say so, rather than letting the row
 #. read as a Babble-side switch.
-#: src/preferences.py:470
+#: src/preferences.py:473
 msgid ""
 "Saved to your server preferences; the API sets it per account, not per post"
 msgstr ""
 "Guardado en tus preferencias del servidor; la API lo establece por cuenta, "
 "no por publicación"
 
-#: src/preferences.py:476
+#: src/preferences.py:479
 msgid "Mark Media as _Sensitive"
 msgstr "Marcar multimedia como _sensible"
 
-#: src/preferences.py:482
+#: src/preferences.py:485
 msgid "_Server Preferences"
 msgstr "Preferencias del _servidor"
 
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:508 src/window.py:1955 src/window.py:1960
+#: src/preferences.py:511 src/window.py:1969 src/window.py:1974
 msgid "Could not open the web browser"
 msgstr "No se pudo abrir el navegador"
 
-#: src/preferences.py:517
+#: src/preferences.py:520
 msgid "Default _Language"
 msgstr "_Idioma predeterminado"
 
-#: src/preferences.py:540
+#: src/preferences.py:543
 msgid "Desktop Notifications"
 msgstr "Notificaciones de escritorio"
 
-#: src/preferences.py:541
+#: src/preferences.py:544
 msgid "Announced while the window is not focused"
 msgstr "Se anuncian cuando la ventana no tiene el foco"
 
-#: src/preferences.py:550
+#: src/preferences.py:553
 msgid "_Group"
 msgstr "_Agrupar"
 
-#: src/preferences.py:551
+#: src/preferences.py:554
 msgid "Combine notifications of the same type and post into one"
 msgstr "Combina en una las notificaciones del mismo tipo y publicación"
 
-#: src/preferences.py:555
+#: src/preferences.py:558
 msgid "Server"
 msgstr "Servidor"
 
-#: src/preferences.py:557
+#: src/preferences.py:560
 msgid "Notification _Filtering"
 msgstr "_Filtrado de notificaciones"
 
-#: src/preferences.py:558
+#: src/preferences.py:561
 msgid "Choose whose notifications reach you"
 msgstr "Elige de quién te llegan las notificaciones"
 
-#: src/preferences.py:586
+#: src/preferences.py:589
 msgid "Hide or warn about posts that match keywords, on every device you use"
 msgstr ""
 "Oculta o advierte sobre publicaciones que coinciden con palabras clave, en "
 "todos tus dispositivos"
 
-#: src/preferences.py:588
+#: src/preferences.py:591
 msgid "_Manage Filters"
 msgstr "_Gestionar filtros"
 
-#: src/preferences.py:589
+#: src/preferences.py:592
 msgid "Create, edit and delete filters"
 msgstr "Crea, edita y elimina filtros"
 
@@ -5082,252 +5096,252 @@ msgstr "Ocultar notificaciones"
 msgid "_Mute"
 msgstr "_Silenciar"
 
-#: src/profile.py:306 src/profile.py:1003
+#: src/profile.py:306 src/profile.py:1000
 msgid "Private Note"
 msgstr "Nota privada"
 
-#: src/profile.py:319
+#: src/profile.py:318
 msgid "Remaining Characters"
 msgstr "Caracteres restantes"
 
-#: src/profile.py:330
+#: src/profile.py:329
 #, python-format
 msgid "Private note about %s"
 msgstr "Nota privada sobre %s"
 
-#: src/profile.py:339
+#: src/profile.py:338
 #, python-format
 msgid "Only you can see this note about %s."
 msgstr "Solo tú puedes ver esta nota sobre %s."
 
-#: src/profile.py:453
+#: src/profile.py:450
 msgid "Loading Profile"
 msgstr "Cargando perfil"
 
-#: src/profile.py:457
+#: src/profile.py:454
 msgid "Could Not Load Profile"
 msgstr "No se pudo cargar el perfil"
 
-#: src/profile.py:474
+#: src/profile.py:471
 msgid "Profile"
 msgstr "Perfil"
 
-#: src/profile.py:621
+#: src/profile.py:618
 #, fuzzy
 msgid "View Header Image"
 msgstr "Imagen de cabecera"
 
-#: src/profile.py:692
+#: src/profile.py:689
 #, fuzzy
 msgid "View Avatar"
 msgstr "Avatar"
 
-#: src/profile.py:779
+#: src/profile.py:776
 #, python-format
 msgid "%s has indicated that their new account is now:"
 msgstr "%s ha indicado que su nueva cuenta es ahora:"
 
-#: src/profile.py:805
+#: src/profile.py:802
 msgid "post"
 msgid_plural "posts"
 msgstr[0] "publicación"
 msgstr[1] "publicaciones"
 
-#: src/profile.py:807
+#: src/profile.py:804
 msgid "following"
 msgstr "siguiendo"
 
-#: src/profile.py:809
+#: src/profile.py:806
 msgid "follower"
 msgid_plural "followers"
 msgstr[0] "seguidor"
 msgstr[1] "seguidores"
 
-#: src/profile.py:837 src/profile.py:844
+#: src/profile.py:834 src/profile.py:841
 msgid "This user has chosen to not make this information available"
 msgstr "Este usuario ha decidido no mostrar esta información"
 
-#: src/profile.py:838
+#: src/profile.py:835
 msgid "No Followers"
 msgstr "Sin seguidores"
 
-#: src/profile.py:845
+#: src/profile.py:842
 msgid "This User Doesn't Follow Anyone Yet"
 msgstr "Este usuario aún no sigue a nadie"
 
-#: src/profile.py:860 src/profileedit.py:403
+#: src/profile.py:857 src/profileedit.py:398
 msgid "Profile Fields"
 msgstr "Campos del perfil"
 
-#: src/profile.py:896
+#: src/profile.py:893
 #, python-format
 msgid "Ownership of this link was verified on %s"
 msgstr "La propiedad de este enlace se verificó el %s"
 
-#: src/profile.py:902
+#: src/profile.py:899
 msgid "Verified Link"
 msgstr "Enlace verificado"
 
-#: src/profile.py:924 src/statusrow.py:607
+#: src/profile.py:921 src/statusrow.py:607
 msgid "Show Less"
 msgstr "Mostrar menos"
 
-#: src/profile.py:942
+#: src/profile.py:939
 #, python-format
 msgid "Joined %s"
 msgstr "Se unió el %s"
 
-#: src/profile.py:950
+#: src/profile.py:947
 #, python-format
 msgid "Last post %s"
 msgstr "Última publicación %s"
 
-#: src/profile.py:963
+#: src/profile.py:960
 msgid "In Memoriam"
 msgstr "In memoriam"
 
 #. Mastodon 4.7: the handle cannot be verified.
-#: src/profile.py:968
+#: src/profile.py:965
 msgid "Unverified Handle"
 msgstr "Identificador no verificado"
 
-#: src/profile.py:970
+#: src/profile.py:967
 msgid "Locked"
 msgstr "Bloqueada"
 
-#: src/profile.py:972
+#: src/profile.py:969
 msgid "Automated"
 msgstr "Automatizada"
 
-#: src/profile.py:974
+#: src/profile.py:971
 msgid "Group"
 msgstr "Grupo"
 
-#: src/profile.py:982
+#: src/profile.py:979
 msgid "Mutuals"
 msgstr "Mutuos"
 
-#: src/profile.py:984
+#: src/profile.py:981
 msgid "Follows you"
 msgstr "Te sigue"
 
-#: src/profile.py:986
+#: src/profile.py:983
 msgid "Blocks you"
 msgstr "Te bloquea"
 
-#: src/profile.py:990
+#: src/profile.py:987
 msgid "Domain Blocked"
 msgstr "Dominio bloqueado"
 
-#: src/profile.py:992 src/relations.py:175
+#: src/profile.py:989 src/relations.py:175
 msgid "Muted"
 msgstr "Silenciada"
 
-#: src/profile.py:1040
+#: src/profile.py:1037
 msgid "Could not load familiar followers"
 msgstr "No se han podido cargar los seguidores conocidos"
 
-#: src/profile.py:1054
+#: src/profile.py:1051
 #, python-format
 msgid "Followed by %(names)s and %(count)d other"
 msgid_plural "Followed by %(names)s and %(count)d others"
 msgstr[0] "Seguida por %(names)s y %(count)d más"
 msgstr[1] "Seguida por %(names)s y %(count)d más"
 
-#: src/profile.py:1059
+#: src/profile.py:1056
 #, python-format
 msgid "Followed by %s"
 msgstr "Seguida por %s"
 
-#: src/profile.py:1061
+#: src/profile.py:1058
 #, python-format
 msgid "Followed by %(names)s and %(last)s"
 msgstr "Seguida por %(names)s y %(last)s"
 
-#: src/profile.py:1089
+#: src/profile.py:1086
 msgid "No Followers You Know"
 msgstr "Ningún seguidor que conozcas"
 
-#: src/profile.py:1090
+#: src/profile.py:1087
 msgid "Followers You Know"
 msgstr "Seguidores que conoces"
 
-#: src/profile.py:1094
+#: src/profile.py:1091
 msgid "Could not load featured hashtags"
 msgstr "No se han podido cargar los hashtags destacados"
 
-#: src/profile.py:1097
+#: src/profile.py:1094
 msgid "Featured Hashtags"
 msgstr "Etiquetas destacadas"
 
-#: src/profile.py:1119
+#: src/profile.py:1116
 msgid "Could not load featured profiles"
 msgstr "No se han podido cargar los perfiles destacados"
 
-#: src/profile.py:1122 src/profile.py:1141
+#: src/profile.py:1119 src/profile.py:1138
 msgid "Featured Profiles"
 msgstr "Perfiles destacados"
 
-#: src/profile.py:1130
+#: src/profile.py:1127
 #, python-format
 msgid "Show All %d Profile"
 msgid_plural "Show All %d Profiles"
 msgstr[0] "Mostrar %d perfil"
 msgstr[1] "Mostrar los %d perfiles"
 
-#: src/profile.py:1140
+#: src/profile.py:1137
 msgid "No Featured Profiles"
 msgstr "Sin perfiles destacados"
 
-#: src/profile.py:1153 src/statusrow.py:151 src/window.py:1551
+#: src/profile.py:1150 src/statusrow.py:151 src/window.py:1565
 msgid "Pinned"
 msgstr "Fijadas"
 
-#: src/profile.py:1206
+#: src/profile.py:1203
 msgid "Could not reload the profile"
 msgstr "No se ha podido recargar el perfil"
 
-#: src/profile.py:1232
+#: src/profile.py:1229
 msgid "Could not load relationship"
 msgstr "No se pudo cargar la relación"
 
-#: src/profile.py:1254 src/profileedit.py:201
+#: src/profile.py:1251 src/profileedit.py:201
 msgid "Edit Profile"
 msgstr "Editar perfil"
 
 #. The relationship request failed: an unknown state must not
 #. offer 'Follow' on an account that is already followed.
-#: src/profile.py:1259 src/profile.py:1273
+#: src/profile.py:1256 src/profile.py:1270
 msgid "Follow"
 msgstr "Seguir"
 
-#: src/profile.py:1262 src/relations.py:122 src/relations.py:150
+#: src/profile.py:1259 src/relations.py:122 src/relations.py:150
 msgid "Unblock"
 msgstr "Desbloquear"
 
-#: src/profile.py:1264
+#: src/profile.py:1261
 msgid "Unblock Domain"
 msgstr "Desbloquear dominio"
 
-#: src/profile.py:1266
+#: src/profile.py:1263
 msgid "Withdraw Request"
 msgstr "Retirar solicitud"
 
-#: src/profile.py:1268
+#: src/profile.py:1265
 msgid "Unfollow"
 msgstr "Dejar de seguir"
 
-#: src/profile.py:1288
+#: src/profile.py:1285
 #, python-format
 msgid "Followed %s"
 msgstr "Siguiendo a %s"
 
-#: src/profile.py:1289
+#: src/profile.py:1286
 #, python-format
 msgid "Could not follow %s"
 msgstr "No se pudo seguir a %s"
 
-#: src/profile.py:1364
+#: src/profile.py:1361
 #, python-format
 msgid "No account found for %s"
 msgstr "No se encontró ninguna cuenta para %s"
@@ -5716,56 +5730,56 @@ msgstr "Quitar campo"
 msgid "Field %d"
 msgstr "Campo %d"
 
-#: src/profileedit.py:246 src/profileedit.py:322
+#: src/profileedit.py:241 src/profileedit.py:317
 msgid "Images"
 msgstr "Imágenes"
 
-#: src/profileedit.py:282
+#: src/profileedit.py:277
 msgid "Avatar"
 msgstr "Avatar"
 
-#: src/profileedit.py:283 src/profileedit.py:296
+#: src/profileedit.py:278 src/profileedit.py:291
 msgid "PNG, JPEG, GIF or WebP"
 msgstr "PNG, JPEG, GIF o WebP"
 
-#: src/profileedit.py:291
+#: src/profileedit.py:286
 msgid "Avatar Description"
 msgstr "Descripción del avatar"
 
-#: src/profileedit.py:295
+#: src/profileedit.py:290
 msgid "Header Image"
 msgstr "Imagen de cabecera"
 
-#: src/profileedit.py:304
+#: src/profileedit.py:299
 msgid "Header Description"
 msgstr "Descripción de la cabecera"
 
-#: src/profileedit.py:312
+#: src/profileedit.py:307
 msgid "Choose…"
 msgstr "Elegir…"
 
-#: src/profileedit.py:315 src/profileedit.py:328
+#: src/profileedit.py:310 src/profileedit.py:323
 msgid "Choose Header Image"
 msgstr "Elegir imagen de cabecera"
 
-#: src/profileedit.py:316 src/profileedit.py:329
+#: src/profileedit.py:311 src/profileedit.py:324
 msgid "Choose Avatar"
 msgstr "Elegir avatar"
 
-#: src/profileedit.py:349
+#: src/profileedit.py:344
 #, python-format
 msgid "Could not open image: %s"
 msgstr "No se pudo abrir la imagen: %s"
 
-#: src/profileedit.py:370
+#: src/profileedit.py:365
 msgid "About"
 msgstr "Acerca de"
 
-#: src/profileedit.py:378 src/profileedit.py:383
+#: src/profileedit.py:373 src/profileedit.py:378
 msgid "Bio"
 msgstr "Biografía"
 
-#: src/profileedit.py:405
+#: src/profileedit.py:400
 #, python-format
 msgid ""
 "Up to %d field shown on your profile. Links to sites that link back to you "
@@ -5780,51 +5794,51 @@ msgstr[1] ""
 "Hasta %d campos visibles en tu perfil. Los enlaces a sitios que enlazan de "
 "vuelta a ti se marcan como verificados."
 
-#: src/profileedit.py:411
+#: src/profileedit.py:406
 msgid "Add Field"
 msgstr "Añadir campo"
 
-#: src/profileedit.py:455
+#: src/profileedit.py:450
 msgid "Privacy and Discovery"
 msgstr "Privacidad y descubrimiento"
 
-#: src/profileedit.py:469
+#: src/profileedit.py:464
 msgid "Posting Defaults"
 msgstr "Valores predeterminados de publicación"
 
-#: src/profileedit.py:471
+#: src/profileedit.py:466
 msgid "Default Visibility"
 msgstr "Visibilidad predeterminada"
 
-#: src/profileedit.py:482
+#: src/profileedit.py:477
 msgid "Mark Media as Sensitive"
 msgstr "Marcar multimedia como sensible"
 
-#: src/profileedit.py:493
+#: src/profileedit.py:488
 msgid "Default Language"
 msgstr "Idioma predeterminado"
 
-#: src/profileedit.py:515
+#: src/profileedit.py:510
 msgid "Profile Tabs"
 msgstr "Pestañas del perfil"
 
-#: src/profileedit.py:649
+#: src/profileedit.py:641
 msgid "Discard Changes?"
 msgstr "¿Descartar los cambios?"
 
-#: src/profileedit.py:650
+#: src/profileedit.py:642
 msgid "Your edits to the profile have not been saved."
 msgstr "Tus cambios en el perfil no se han guardado."
 
-#: src/profileedit.py:651
+#: src/profileedit.py:643
 msgid "_Keep Editing"
 msgstr "_Seguir editando"
 
-#: src/profileedit.py:733
+#: src/profileedit.py:725
 msgid "Profile updated"
 msgstr "Perfil actualizado"
 
-#: src/profileedit.py:737
+#: src/profileedit.py:729
 #, python-format
 msgid "Could not save profile: %s"
 msgstr "No se pudo guardar el perfil: %s"
@@ -6077,7 +6091,7 @@ msgstr "Borrador"
 msgid "Scheduled for %s"
 msgstr "Programada para %s"
 
-#: src/scheduled.py:402 src/timelinebase.py:165
+#: src/scheduled.py:402 src/timelinebase.py:171
 msgid "Followers Only"
 msgstr "Solo seguidores"
 
@@ -6153,107 +6167,107 @@ msgstr "Sin borradores"
 msgid "Posts you save as drafts will appear here."
 msgstr "Las publicaciones que guardes como borrador aparecerán aquí."
 
-#: src/search.py:74
+#: src/search.py:75
 #, python-format
 msgid "%s follower"
 msgid_plural "%s followers"
 msgstr[0] "%s seguidor"
 msgstr[1] "%s seguidores"
 
-#: src/search.py:83
+#: src/search.py:84
 msgid "From a User"
 msgstr "De un usuario"
 
 #. Translators: keep the "from:" operator and the examples as-is
-#: src/search.py:85
+#: src/search.py:86
 msgid "Posts by one account, for example from:me or from:user@example.social"
 msgstr ""
 "Publicaciones de una cuenta, por ejemplo de:me o "
 "de:user@example.socialPublicaciones de una cuenta, p. ej., from:me o "
 "from:user@example.social"
 
-#: src/search.py:87 src/search.py:607
+#: src/search.py:88 src/search.py:608
 msgid "Containing"
 msgstr "Que contengan"
 
-#: src/search.py:87
+#: src/search.py:88
 msgid "has:media, has:poll or has:embed"
 msgstr "has:media, has:poll o has:embed"
 
-#: src/search.py:88
+#: src/search.py:89
 msgid "Kind of Post"
 msgstr "Tipo de publicación"
 
-#: src/search.py:88
+#: src/search.py:89
 msgid "is:reply or is:sensitive"
 msgstr "is:reply o is:sensitive"
 
-#: src/search.py:90
+#: src/search.py:91
 msgid "Two-letter code, for example language:pt"
 msgstr "Código de dos letras, por ejemplo language:pt"
 
-#: src/search.py:91
+#: src/search.py:92
 msgid "Before a Date"
 msgstr "Antes de una fecha"
 
-#: src/search.py:91
+#: src/search.py:92
 msgid "before:2025-01-31"
 msgstr "before:2025-01-31"
 
-#: src/search.py:92
+#: src/search.py:93
 msgid "After a Date"
 msgstr "Después de una fecha"
 
-#: src/search.py:92
+#: src/search.py:93
 msgid "after:2025-01-31"
 msgstr "after:2025-01-31"
 
-#: src/search.py:93
+#: src/search.py:94
 msgid "On a Date"
 msgstr "En una fecha"
 
-#: src/search.py:93
+#: src/search.py:94
 msgid "during:2025-01-31"
 msgstr "during:2025-01-31"
 
-#: src/search.py:94
+#: src/search.py:95
 msgid "Where"
 msgstr "Dónde"
 
-#: src/search.py:94
+#: src/search.py:95
 msgid "in:all, in:library or in:public"
 msgstr "in:all, in:library o in:public"
 
-#: src/search.py:116 src/search.py:293
+#: src/search.py:117 src/search.py:294
 msgid "Searching"
 msgstr "Buscando"
 
-#: src/search.py:119 src/search.py:296
+#: src/search.py:120 src/search.py:297
 msgid "Search Failed"
 msgstr "La búsqueda falló"
 
-#: src/search.py:123 src/search.py:517
+#: src/search.py:124 src/search.py:518
 #, python-format
 msgid "Nothing matched “%s”"
 msgstr "Nada coincide con «%s»"
 
-#: src/search.py:275
+#: src/search.py:276
 msgid "Search accounts, hashtags and posts"
 msgstr "Busca cuentas, etiquetas y publicaciones"
 
-#: src/search.py:285 src/search.py:581
+#: src/search.py:286 src/search.py:582
 msgid "Advanced Search"
 msgstr "Búsqueda avanzada"
 
-#: src/search.py:339
+#: src/search.py:340
 msgid "Recent Searches"
 msgstr "Búsquedas recientes"
 
-#: src/search.py:350
+#: src/search.py:351
 msgid "Search Tips"
 msgstr "Consejos de búsqueda"
 
-#: src/search.py:351
+#: src/search.py:352
 msgid ""
 "Add operators to narrow posts down. Prefix one with “-” to exclude it, for "
 "example -is:reply. Search operators may not work on every server."
@@ -6264,31 +6278,31 @@ msgstr ""
 "«-» a uno para excluirlo, p. ej., -is:reply. Es posible que los operadores "
 "de búsqueda no funcionen en todos los servidores."
 
-#: src/search.py:363
+#: src/search.py:364
 msgid "Advanced Search…"
 msgstr "Búsqueda avanzada…"
 
-#: src/search.py:385
+#: src/search.py:386
 msgid "Remove from Recent Searches"
 msgstr "Quitar de las búsquedas recientes"
 
-#: src/search.py:503
+#: src/search.py:504
 msgid "See All Accounts"
 msgstr "Ver todas las cuentas"
 
-#: src/search.py:504
+#: src/search.py:505
 msgid "See All Hashtags"
 msgstr "Ver todas las etiquetas"
 
-#: src/search.py:505
+#: src/search.py:506
 msgid "See All Posts"
 msgstr "Ver todas las publicaciones"
 
-#: src/search.py:587
+#: src/search.py:588
 msgid "_Search"
 msgstr "_Buscar"
 
-#: src/search.py:594
+#: src/search.py:595
 msgid ""
 "Advanced search may not work on every server. Invert an option by prefixing "
 "it with “-”, for example -is:reply hides replies."
@@ -6299,59 +6313,59 @@ msgstr ""
 "Invierte una opción anteponiéndole «-», p. ej., -is:reply oculta las "
 "respuestas."
 
-#: src/search.py:597
+#: src/search.py:598
 msgid "Query"
 msgstr "Consulta"
 
-#: src/search.py:598
+#: src/search.py:599
 msgid "From User"
 msgstr "Del usuario"
 
-#: src/search.py:599
+#: src/search.py:600
 msgid "Only Replies"
 msgstr "Solo respuestas"
 
-#: src/search.py:601
+#: src/search.py:602
 msgid "Only Posts with Content Warnings"
 msgstr "Solo publicaciones con advertencia de contenido"
 
-#: src/search.py:610
+#: src/search.py:611
 msgid "Embed"
 msgstr "Insertado"
 
-#: src/search.py:617
+#: src/search.py:618
 msgid "Search In"
 msgstr "Buscar en"
 
-#: src/search.py:619
+#: src/search.py:620
 msgid "Everywhere"
 msgstr "Todas partes"
 
-#: src/search.py:620
+#: src/search.py:621
 msgid "Library (Favorites, Bookmarks, Own Posts)"
 msgstr "Biblioteca (favoritos, marcadores, publicaciones propias)"
 
-#: src/search.py:624
+#: src/search.py:625
 msgid "Language Code (for example pt)"
 msgstr "Código de idioma (por ejemplo pt)"
 
-#: src/search.py:629
+#: src/search.py:630
 msgid "Dates"
 msgstr "Fechas"
 
-#: src/search.py:630
+#: src/search.py:631
 msgid "Before"
 msgstr "Antes"
 
-#: src/search.py:631
+#: src/search.py:632
 msgid "During"
 msgstr "Durante"
 
-#: src/search.py:632
+#: src/search.py:633
 msgid "After"
 msgstr "Después"
 
-#: src/search.py:741
+#: src/search.py:742
 msgid "Enter something to search for"
 msgstr "Escribe algo para buscar"
 
@@ -6393,8 +6407,8 @@ msgstr "Atajos del teclado"
 msgid "Help"
 msgstr "Ayuda"
 
-#: src/shortcuts-dialog.ui:30 src/sidebarcontrol.py:69 src/sidebarcontrol.py:73
-#: src/window.ui:81 src/window.ui:84 src/window.ui:356 src/window.ui:359
+#: src/shortcuts-dialog.ui:30 src/sidebarcontrol.py:60 src/sidebarcontrol.py:64
+#: src/window.ui:81 src/window.ui:84 src/window.ui:364 src/window.ui:367
 msgid "Main Menu"
 msgstr "Menú principal"
 
@@ -6998,19 +7012,19 @@ msgid "%ds"
 msgstr "%ds"
 
 #. Translators: compact age of a post in minutes, e.g. "5m"
-#: src/statustext.py:348 src/timelinebase.py:147
+#: src/statustext.py:348 src/timelinebase.py:153
 #, python-format
 msgid "%dm"
 msgstr "%dmin"
 
 #. Translators: compact age of a post in hours, e.g. "3h"
-#: src/statustext.py:352 src/timelinebase.py:149
+#: src/statustext.py:352 src/timelinebase.py:155
 #, python-format
 msgid "%dh"
 msgstr "%dh"
 
 #. Translators: compact age of a post in days, e.g. "12d"
-#: src/statustext.py:356 src/timelinebase.py:150
+#: src/statustext.py:356 src/timelinebase.py:156
 #, python-format
 msgid "%dd"
 msgstr "%dd"
@@ -7045,7 +7059,7 @@ msgstr "%s M"
 msgid "%sB"
 msgstr "%s mil M"
 
-#: src/statusviews.py:76 src/window.py:1175
+#: src/statusviews.py:76 src/window.py:1189
 msgid "No Favorites Yet"
 msgstr "Aún no hay favoritos"
 
@@ -7112,46 +7126,46 @@ msgstr "No se pudo cargar el hilo"
 msgid "Selected post"
 msgstr "Publicación seleccionada"
 
-#: src/timelinebase.py:166
+#: src/timelinebase.py:172
 msgid "Mentioned People Only"
 msgstr "Solo personas mencionadas"
 
-#: src/timelinebase.py:171
+#: src/timelinebase.py:177
 #, fuzzy
 msgid "_Anyone"
 msgstr "Cualquiera"
 
-#: src/timelinebase.py:172
+#: src/timelinebase.py:178
 #, fuzzy
 msgid "My _Followers"
 msgstr "Mis seguidores"
 
-#: src/timelinebase.py:173
+#: src/timelinebase.py:179
 #, fuzzy
 msgid "_Nobody"
 msgstr "Nadie"
 
-#: src/timelinepage.py:253
+#: src/timelinepage.py:256
 msgid "Loading Timeline"
 msgstr "Cargando cronología"
 
-#: src/timelinepage.py:253
+#: src/timelinepage.py:256
 msgid "Fetching the latest posts"
 msgstr "Obteniendo las publicaciones más recientes"
 
-#: src/timelinepage.py:255
+#: src/timelinepage.py:258
 msgid "Could Not Load Timeline"
 msgstr "No se pudo cargar la cronología"
 
-#: src/timelinepage.py:258 src/window.py:1194
+#: src/timelinepage.py:261 src/window.py:1208
 msgid "No Posts Yet"
 msgstr "Aún no hay publicaciones"
 
-#: src/timelinepage.py:259 src/window.py:1194
+#: src/timelinepage.py:262 src/window.py:1208
 msgid "New posts will appear here"
 msgstr "Las publicaciones nuevas aparecerán aquí"
 
-#: src/timelinepage.py:311
+#: src/timelinepage.py:341
 #, python-format
 msgid "%d New Post"
 msgid_plural "%d New Posts"
@@ -7160,7 +7174,7 @@ msgstr[1] "%d publicaciones nuevas"
 
 #. Translators: spoken by screen readers when posts arrive at the
 #. top of a timeline; %d is how many.
-#: src/timelinepage.py:343
+#: src/timelinepage.py:373
 #, python-format
 msgid "%d new post"
 msgid_plural "%d new posts"
@@ -7209,80 +7223,80 @@ msgstr ""
 msgid "Page Crashed"
 msgstr ""
 
-#: src/window.py:83 src/window.ui:481
+#: src/window.py:86 src/window.ui:489
 msgid "Home"
 msgstr "Inicio"
 
-#: src/window.py:86
+#: src/window.py:89
 msgid "Bookmarks"
 msgstr "Marcadores"
 
-#: src/window.py:87
+#: src/window.py:90
 msgid "Explore"
 msgstr "Explorar"
 
-#: src/window.py:88
+#: src/window.py:91
 msgid "Federated"
 msgstr "Federada"
 
-#: src/window.py:278
+#: src/window.py:281
 msgid "Mutes & Blocks"
 msgstr "Silenciados y bloqueados"
 
-#: src/window.py:280
+#: src/window.py:283
 msgid "Draft Posts"
 msgstr "Borradores"
 
-#: src/window.py:282
+#: src/window.py:285
 msgid "Scheduled Posts"
 msgstr "Publicaciones programadas"
 
-#: src/window.py:435
+#: src/window.py:440
 #, fuzzy, python-format
 msgid "Could not read the login for @%s from the keyring"
 msgstr "El inicio de sesión de @%s ya no está en el depósito de claves"
 
-#: src/window.py:446
+#: src/window.py:451
 #, python-format
 msgid "The login for @%s is gone from the keyring"
 msgstr "El inicio de sesión de @%s ya no está en el depósito de claves"
 
 #. Translators: a draft saved earlier is offered for
 #. restoring; %s is a compact age like "5m"
-#: src/window.py:515
+#: src/window.py:520
 #, python-format
 msgid "Draft from %s"
 msgstr "Borrador de %s"
 
-#: src/window.py:517
+#: src/window.py:522
 msgid "You have an unsent draft"
 msgstr "Tienes un borrador no enviado"
 
 #. Translators: banner shown while the computer has no network.
-#: src/window.py:535
+#: src/window.py:540
 msgid "You’re offline"
 msgstr "Estás sin conexión"
 
-#: src/window.py:622
+#: src/window.py:627
 msgid "Remove Account?"
 msgstr "¿Eliminar la cuenta?"
 
-#: src/window.py:623
+#: src/window.py:628
 #, python-format
 msgid "The login for %s will be removed from this device."
 msgstr "El inicio de sesión de %s se eliminará de este dispositivo."
 
-#: src/window.py:709 src/window.ui:379 src/window.ui:381
+#: src/window.py:714 src/window.ui:387 src/window.ui:389
 msgid "Switch Account"
 msgstr "Cambiar de cuenta"
 
-#: src/window.py:969
+#: src/window.py:974
 msgid "Running in the background was not allowed"
 msgstr "No se permitió la ejecución en segundo plano"
 
 #. Translators: status GNOME Shell shows for Babble running in
 #. the background with its window closed.
-#: src/window.py:1042
+#: src/window.py:1047
 #, python-format
 msgid "%d new mention"
 msgid_plural "%d new mentions"
@@ -7290,68 +7304,68 @@ msgstr[0] "%d nueva mención"
 msgstr[1] "%d nuevas menciones"
 
 #. Translators: background status: live updates are streaming.
-#: src/window.py:1046
+#: src/window.py:1051
 msgid "Connected"
 msgstr "Conectado"
 
 #. Translators: background status: no live stream, so Babble polls
 #. the server for new notifications.
-#: src/window.py:1049
+#: src/window.py:1054
 msgid "Checking for notifications"
 msgstr "Comprobando notificaciones"
 
-#: src/window.py:1074
+#: src/window.py:1079
 msgid "The quick post shortcut was not allowed"
 msgstr "El atajo de publicación rápida no fue permitido"
 
-#: src/window.py:1142
+#: src/window.py:1156
 #, python-format
 msgid "%d unread notification"
 msgid_plural "%d unread notifications"
 msgstr[0] "%d notificación sin leer"
 msgstr[1] "%d notificaciones sin leer"
 
-#: src/window.py:1176
+#: src/window.py:1190
 msgid "Posts you favorite will appear here"
 msgstr "Las publicaciones que marques como favoritas aparecerán aquí"
 
-#: src/window.py:1180
+#: src/window.py:1194
 msgid "No Bookmarks Yet"
 msgstr "Aún no hay marcadores"
 
-#: src/window.py:1181
+#: src/window.py:1195
 msgid "Posts you bookmark will appear here"
 msgstr "Las publicaciones que añadas a marcadores aparecerán aquí"
 
-#: src/window.py:1278
+#: src/window.py:1292
 msgid "Sign in to post the file"
 msgid_plural "Sign in to post the files"
 msgstr[0] "Iniciar sesión para publicar el archivo"
 msgstr[1] "Iniciar sesión para publicar los archivos"
 
-#: src/window.py:1790
+#: src/window.py:1804
 msgid "Waiting for Authorization"
 msgstr "Esperando autorización"
 
-#: src/window.py:1792
+#: src/window.py:1806
 #, python-format
 msgid "_Continue with %s"
 msgstr "_Continuar con %s"
 
-#: src/window.py:1794 src/window.ui:233
+#: src/window.py:1808 src/window.ui:233
 msgid "_Continue"
 msgstr "_Continuar"
 
-#: src/window.py:1961
+#: src/window.py:1975
 msgid "No app is set to open web links"
 msgstr "No hay ninguna aplicación configurada para abrir enlaces web"
 
-#: src/window.py:1990
+#: src/window.py:2004
 msgid "Could not connect to the server"
 msgstr "No se pudo conectar con el servidor"
 
 #. Translators: keep "https://" untranslated
-#: src/window.py:1992
+#: src/window.py:2006
 msgid ""
 "Babble only connects over HTTPS. Enter the server address without a scheme, "
 "or with https://."
@@ -7359,11 +7373,11 @@ msgstr ""
 "Babble solo se conecta mediante HTTPS. Escribe la dirección del servidor sin "
 "esquema o con https://."
 
-#: src/window.py:2055
+#: src/window.py:2069
 msgid "Log Out?"
 msgstr "¿Cerrar sesión?"
 
-#: src/window.py:2056
+#: src/window.py:2070
 #, python-format
 msgid ""
 "The login for @%s will be signed out on the server and removed from this "
@@ -7372,7 +7386,7 @@ msgstr ""
 "Se cerrará la sesión de @%s en el servidor y se eliminará de este "
 "dispositivo."
 
-#: src/window.py:2060
+#: src/window.py:2074
 msgid "_Log Out"
 msgstr "_Cerrar sesión"
 
@@ -7424,70 +7438,70 @@ msgstr "Las credenciales se guardan en el depósito de claves del sistema"
 msgid "Restore"
 msgstr "Restaurar"
 
-#: src/window.ui:563
+#: src/window.ui:571
 #, fuzzy
 msgid "_Full Sidebar"
 msgstr "Barra lateral"
 
-#: src/window.ui:568
+#: src/window.ui:576
 msgid "Icons _Only"
 msgstr ""
 
 #. Translators: the sidebar is hidden, not narrow.
-#: src/window.ui:574
+#: src/window.ui:582
 msgid "_Hidden"
 msgstr ""
 
-#: src/window.ui:587
+#: src/window.ui:595
 msgid "_Open Profile"
 msgstr "_Abrir perfil"
 
-#: src/window.ui:593
+#: src/window.ui:601
 msgid "A_nnouncements"
 msgstr "Anuncios"
 
-#: src/window.ui:597
+#: src/window.ui:605
 msgid "_Follow Requests"
 msgstr "_Solicitudes de seguimiento"
 
-#: src/window.ui:601
+#: src/window.ui:609
 msgid "_Mutes & Blocks"
 msgstr "_Silenciados y bloqueados"
 
-#: src/window.ui:607
+#: src/window.ui:615
 msgid "D_raft Posts"
 msgstr "_Borradores"
 
-#: src/window.ui:611
+#: src/window.ui:619
 msgid "_Scheduled Posts"
 msgstr "Publicaciones _programadas"
 
-#: src/window.ui:617
+#: src/window.ui:625
 msgid "_Collections"
 msgstr "_Colecciones"
 
-#: src/window.ui:621
+#: src/window.ui:629
 msgid "#Fedi_Wrapped"
 msgstr "#Fedi_Wrapped"
 
-#: src/window.ui:625
+#: src/window.ui:633
 #, fuzzy
 msgid "Admin Dash_board"
 msgstr "Panel de administración"
 
-#: src/window.ui:632 src/window.ui:652
+#: src/window.ui:640 src/window.ui:660
 msgid "_Preferences"
 msgstr "_Preferencias"
 
-#: src/window.ui:636 src/window.ui:656
+#: src/window.ui:644 src/window.ui:664
 msgid "_Keyboard Shortcuts"
 msgstr "_Atajos del teclado"
 
-#: src/window.ui:640 src/window.ui:660
+#: src/window.ui:648 src/window.ui:668
 msgid "_Help"
 msgstr "_Ayuda"
 
-#: src/window.ui:644 src/window.ui:664
+#: src/window.ui:652 src/window.ui:672
 msgid "_About Babble"
 msgstr "_Acerca de Babble"
 
@@ -7566,28 +7580,28 @@ msgstr "Orgullo"
 msgid "Trans"
 msgstr "Trans"
 
-#: src/wrapped.py:187
+#: src/wrapped.py:198
 msgid "Wrapped"
 msgstr "Wrapped"
 
-#: src/wrapped.py:205
+#: src/wrapped.py:211
 msgid "Save as Image…"
 msgstr "Guardar como imagen…"
 
-#: src/wrapped.py:211
+#: src/wrapped.py:217
 msgid "Style"
 msgstr "Estilo"
 
-#: src/wrapped.py:215
+#: src/wrapped.py:221
 msgid "Year"
 msgstr "Año"
 
-#: src/wrapped.py:316
+#: src/wrapped.py:318
 #, python-format
 msgid "No Wrapped for %d"
 msgstr "No hay Wrapped de %d"
 
-#: src/wrapped.py:317
+#: src/wrapped.py:319
 msgid ""
 "Your server has not published a report for you. Reports appear around the "
 "end of the year for accounts that posted."
@@ -7595,98 +7609,98 @@ msgstr ""
 "Tu servidor no ha publicado un informe para ti. Los informes aparecen hacia "
 "final de año para las cuentas que han publicado."
 
-#: src/wrapped.py:332
+#: src/wrapped.py:334
 #, python-format
 msgid "Your %d Wrapped Is Ready to Make"
 msgstr "Tu Wrapped de %d está listo para crearse"
 
-#: src/wrapped.py:333
+#: src/wrapped.py:335
 msgid "Your server can put it together now. It takes a little while."
 msgstr "Tu servidor puede prepararlo ahora. Tarda un poco."
 
-#: src/wrapped.py:334
+#: src/wrapped.py:336
 msgid "_Generate"
 msgstr "_Generar"
 
-#: src/wrapped.py:338 src/wrapped.py:356
+#: src/wrapped.py:340 src/wrapped.py:358
 #, python-format
 msgid "Putting Your %d Wrapped Together"
 msgstr "Preparando tu Wrapped de %d"
 
-#: src/wrapped.py:339 src/wrapped.py:357
+#: src/wrapped.py:341 src/wrapped.py:359
 msgid "Check again in a few minutes."
 msgstr "Vuelve a comprobarlo en unos minutos."
 
-#: src/wrapped.py:341 src/wrapped.py:358
+#: src/wrapped.py:343 src/wrapped.py:360
 msgid "_Check Again"
 msgstr "_Comprobar de nuevo"
 
-#: src/wrapped.py:402 src/wrapped.py:429
+#: src/wrapped.py:404 src/wrapped.py:431
 #, python-format
 msgid "%d Wrapped"
 msgstr "Wrapped de %d"
 
-#: src/wrapped.py:439
+#: src/wrapped.py:441
 msgid "Your archetype"
 msgstr "Tu arquetipo"
 
-#: src/wrapped.py:467
+#: src/wrapped.py:469
 msgid "Most Used Hashtag"
 msgstr "Etiqueta más usada"
 
-#: src/wrapped.py:475
+#: src/wrapped.py:477
 msgid "Most Used App"
 msgstr "Aplicación más usada"
 
-#: src/wrapped.py:479
+#: src/wrapped.py:481
 msgid "New Follows"
 msgstr "Nuevos seguidos"
 
-#: src/wrapped.py:491
+#: src/wrapped.py:493
 msgid "Most Interactions"
 msgstr "Más interacciones"
 
-#: src/wrapped.py:494
+#: src/wrapped.py:496
 msgid "Your Year"
 msgstr "Tu año"
 
-#: src/wrapped.py:497
+#: src/wrapped.py:499
 msgid "Posts per Month"
 msgstr "Publicaciones por mes"
 
-#: src/wrapped.py:502
+#: src/wrapped.py:504
 msgid "New Followers per Month"
 msgstr "Nuevos seguidores por mes"
 
-#: src/wrapped.py:508
+#: src/wrapped.py:510
 msgid "Top Hashtags"
 msgstr "Etiquetas principales"
 
-#: src/wrapped.py:512
+#: src/wrapped.py:514
 msgid "Top Apps"
 msgstr "Aplicaciones principales"
 
-#: src/wrapped.py:516
+#: src/wrapped.py:518
 msgid "Most Favorited Post"
 msgstr "Publicación más marcada como favorita"
 
-#: src/wrapped.py:517
+#: src/wrapped.py:519
 msgid "Most Boosted Post"
 msgstr "Publicación más impulsada"
 
-#: src/wrapped.py:518
+#: src/wrapped.py:520
 msgid "Most Replied-to Post"
 msgstr "Publicación con más respuestas"
 
-#: src/wrapped.py:637
+#: src/wrapped.py:650
 msgid "Could not render the image"
 msgstr "No se pudo generar la imagen"
 
-#: src/wrapped.py:640
+#: src/wrapped.py:653
 msgid "Save Wrapped"
 msgstr "Guardar Wrapped"
 
-#: src/wrapped.py:655
+#: src/wrapped.py:668
 #, python-format
 msgid "Saved %d Wrapped"
 msgstr "Wrapped de %d guardado"

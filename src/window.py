@@ -59,6 +59,9 @@ PLACES = (
 HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
 
+# Settings the home page reads once when it is built, so a change rebuilds it.
+HOME_FILTER_KEYS = ('hide-boosts-home', 'hide-replies-non-follows')
+
 # Opt-in for public timelines the server has closed to most accounts but
 # still serves to this one (the "View live and topic feeds" permission).
 SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
@@ -373,6 +376,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._preferences.apply_style(self, settings)
         elif key == 'auto-refresh':
             self._apply_auto_refresh()
+        elif key in HOME_FILTER_KEYS:
+            self._rebuild_home_timeline()
         elif key in HIDE_KEYS.values() \
                 or key in ('favorite-lists-ids', 'favorite-tags-ids',
                            SHOW_RESTRICTED_KEY):
@@ -1081,6 +1086,15 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._shortcut_session = session
 
     # Pages
+
+    def _rebuild_home_timeline(self):
+        """Throw the home page and its items away and build it again, for
+        a setting that decides which posts it may show."""
+        if self.timeline_page is None:
+            return
+        self.timeline_page = None
+        self.timeline_model = None
+        self.ensure_home_timeline()
 
     def ensure_home_timeline(self):
         """Create (or reuse, cached per window) the home timeline page."""

@@ -250,6 +250,13 @@ class BoostCarouselItem(StatusItem):
         self.emit('changed')
 
 
+def filter_boosts(statuses):
+    """Drop boosts: statuses that only wrap another post in ``reblog``.
+
+    Returns a new list; *statuses* is left alone."""
+    return [s for s in statuses if not s.get('reblog')]
+
+
 def filter_replies_from_non_follows(statuses, viewer_id, following_ids):
     """Drop reply posts whose author the viewer does not follow.
 

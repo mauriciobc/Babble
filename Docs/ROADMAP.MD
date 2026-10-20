@@ -42,7 +42,7 @@ Last audited against the tree on 2026-10-20.
 | Item | Bet | Status | Notes |
 |---|---|---|---|
 | **Resume reading position** | Reading | Partial | Remember the last-seen status per timeline and reopen there. Phanpy #269 (the most-reacted open request), Tuba #1105. `client.markers_async` already reads `/api/v1/markers` for notifications; add `home`, with local persistence as the fallback for servers without markers. |
-| **Hide boosts / replies per timeline** | Calm | Partial | Phanpy #262, Tuba #1114. `hide-replies-non-follows` exists; there is no boosts counterpart. This is also the first of the Calm presets (Tier 3), so build it once. |
+| **Hide boosts / replies per timeline** | Calm | Partial | Phanpy #262, Tuba #1114. Shipped for Home: `hide-boosts-home` and `hide-replies-non-follows`, both live (changing either rebuilds the page). Still open: the same toggles for lists, hashtags and Local, which belong with the Calm presets (Tier 3). |
 | **Undo via toasts, extended** | Desktop | Partial | `pages.show_toast(undo=…)` exists and mute uses it. Extend to delete (`DELETE /api/v1/statuses/:id`), unboost (`…/unreblog`) and unfollow (`…/unfollow`). Makes everything else feel safer. |
 | **Per-notification dismiss** | Calm | | `POST /api/v1/notifications/:id/dismiss`. Already tracked in `IMPROVEMENTS.md`. |
 | **Clear error when no secret service is running** | Trust | | Tuba #598. A plain explanation instead of a crash or silent failure. |

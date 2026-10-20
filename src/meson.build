@@ -181,6 +181,11 @@ test('timeline memory', python,
   env: fatal_test_env,
   timeout: 60,
 )
+test('home filters', python,
+  args: [files('test-home-filters.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('thread profile render', python,
   args: [files('test-thread-profile.py')],
   env: fatal_test_env,

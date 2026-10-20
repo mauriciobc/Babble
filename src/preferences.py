@@ -339,6 +339,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Hide Replies From Non-_Follows'),
                      _('On the home timeline, hide posts that are replies '
                        'from accounts you do not follow'))
+        self._switch(posts, 'hide-boosts-home', _('Hide Boosts on _Home'),
+                     _('On the home timeline, show only posts and replies '
+                       'by the people you follow, without their boosts'))
         page.add(posts)
 
         behavior = Adw.PreferencesGroup(title=_('Behavior'))

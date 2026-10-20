@@ -26,8 +26,8 @@ from .timelinebase import (
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
     _EMPTY_PAGED_ENVELOPE, _own_account_id, id_key)
 from .timelinedata import (
-    BoostCarouselItem, TimelineModel, filter_replies_from_non_follows,
-    matching_tag)
+    BoostCarouselItem, TimelineModel, filter_boosts,
+    filter_replies_from_non_follows, matching_tag)
 
 
 class TimelineFactory(Gtk.SignalListItemFactory):
@@ -188,9 +188,11 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self.model.group_boosts_enabled = boosts_carousel
         self.model.dedupe_boosts_enabled = settings.get_boolean(
             'dedupe-boosts')
+        home = mode == 'home' and source is None
         self._hide_replies_non_follows = (
-            mode == 'home' and source is None
-            and settings.get_boolean('hide-replies-non-follows'))
+            home and settings.get_boolean('hide-replies-non-follows'))
+        self._hide_boosts = (
+            home and settings.get_boolean('hide-boosts-home'))
         self._following_ids = {}
         self._reply_filter_generation = 0
         self.source = source
@@ -508,7 +510,9 @@ class TimelinePage(PagedPosts, Adw.Bin):
         follows[author_id] = following
 
     def _with_home_reply_filter(self, statuses, on_done):
-        """Apply the hide-replies-from-non-follows filter when enabled."""
+        """Apply the Home filters: boosts, then replies from non-follows."""
+        if self._hide_boosts:
+            statuses = filter_boosts(statuses)
         if not self._hide_replies_non_follows:
             on_done(statuses)
             return
@@ -643,15 +647,28 @@ class TimelinePage(PagedPosts, Adw.Bin):
         # page may already be in the model and "what was there before" would
         # be unanswerable.
         before = self.model.get_n_items()
+        # The server's own cursor, taken before any filter: a page that
+        # filtering empties must still move it, or the model would read an
+        # empty page as the end of the timeline.
+        raw_oldest = min((s['id'] for s in statuses), key=id_key) \
+            if statuses else None
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_older_loaded(
-                filtered, generation, before=before))
+                filtered, generation, before=before,
+                raw_oldest=raw_oldest))
 
-    def _finish_older_loaded(self, statuses, generation=None, before=0):
+    def _finish_older_loaded(self, statuses, generation=None, before=0,
+                             raw_oldest=None):
         if generation is not None and self._superseded(generation):
             self._release_bottom()
             return
         self._loading_older = False
+        if not statuses and raw_oldest is not None:
+            # Every post of a non-empty page was filtered out: page past it.
+            self.model.oldest_id = raw_oldest
+            self._fill_loop(before)
+            self._release_bottom()
+            return
         appended = self.model.append_old(statuses)
         self._note_followed_tags(statuses)
         if not appended:
@@ -716,6 +733,8 @@ class TimelinePage(PagedPosts, Adw.Bin):
         """Insert one streamed post at the top, the way a refresh would:
         filters apply and a scrolled-away reader gets the new-posts
         pill instead of a jump."""
+        if self._hide_boosts and status.get('reblog'):
+            return
         added = self.model.insert_new([status])
         self._note_followed_tags([status])
         if self.model.oldest_id is None:
