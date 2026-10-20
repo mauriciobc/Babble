@@ -8,6 +8,7 @@ Babble lets you read the fediverse the way you'd read a good book by the
 window: timelines that scroll smoothly, threads that unfold nicely, and a
 composer that stays out of your way until you have something to say. It's
 built with GTK 4 and libadwaita, so it feels at home on your GNOME desktop.
+This app was developed using AI, and is built upon the brilliant codebases of Tuba and Phanpy.
 
 | | |
 |---|---|
