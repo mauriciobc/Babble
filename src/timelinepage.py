@@ -23,7 +23,7 @@ from .mastodon import summarize_error_markup  # noqa: E402
 from .homefilters import HomeFilters
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
-    AUTO_REFRESH_SCROLLED_TICKS, COLUMN_WIDTH,
+    AUTO_REFRESH_SCROLLED_TICKS, CATCHUP_MAX_PAGES, COLUMN_WIDTH,
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
     _EMPTY_PAGED_ENVELOPE, id_key)
 from .timelinedata import (
@@ -197,7 +197,15 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
         self._reply_filter_generation = 0
         self.source = source
         # Paging flags and cursors. See PagedPosts.
-        self._paging_init()
+        # A refresh must come back with the page just above what is shown.
+        # since_id returns the *newest* page above the cursor, so when more
+        # than a page arrived while the reader was away, the oldest of them
+        # were skipped for good. min_id is contiguous. Link-paged sources
+        # keep since_id: their refresh restarts from the newest page.
+        self._paging_init(
+            newer_cursor='min_id' if source is None
+            or getattr(source, 'paging', None) == 'id' else 'since_id')
+        self._refresh_chain = 0
         self._followed_tags = None
         self._followed_loading = False
         self._followed_waiting = []
@@ -632,13 +640,20 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
                 root.show_error(_('Refresh failed'), e.message)
             return
         if not statuses:
+            self._refresh_chain = 0
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
             return
+        # The server's own page, taken before any filter: the cursor and the
+        # "was it a full page" answer come from what was sent, not from what
+        # survived the reader's filters.
+        raw_newest = max((s['id'] for s in statuses), key=id_key)
+        raw_count = len(statuses)
         self._with_home_reply_filter(
-            statuses, lambda filtered: self._finish_refresh_loaded(filtered))
+            statuses, lambda filtered: self._finish_refresh_loaded(
+                filtered, raw_newest, raw_count))
 
-    def _finish_refresh_loaded(self, statuses):
+    def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0):
         if statuses:
             added = self.model.insert_new(statuses)
             self._note_followed_tags(statuses)
@@ -647,6 +662,21 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
             self._trim_old()
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('empty')
+        if raw_newest is not None and (
+                self.model.newest_id is None
+                or id_key(raw_newest) > id_key(self.model.newest_id)):
+            # A page the filters emptied must still move the cursor, or the
+            # next request would ask for the same page again.
+            self.model.newest_id = raw_newest
+        # A full page means there may be more above it: keep going until a
+        # short page. Capped, and safe to stop at the cap: min_id is
+        # contiguous, so the next refresh resumes exactly where this ended.
+        if self._newer_cursor == 'min_id' and raw_count >= self.PAGE_SIZE \
+                and self._refresh_chain < CATCHUP_MAX_PAGES:
+            self._refresh_chain += 1
+            self.refresh()
+        else:
+            self._refresh_chain = 0
 
     def on_row_activated(self, _view, position):
         run = self.run_model.get_item(position)

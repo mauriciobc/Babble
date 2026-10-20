@@ -26,7 +26,7 @@ tuned, but because having no timeline cache means the state never exists.
 
 | | **Babble** | **Tuba** |
 |---|---|---|
-| Cursor kind | id (`max_id` / `since_id`) | full URL from the `Link` header |
+| Cursor kind | id (`max_id` / `min_id`) | full URL from the `Link` header |
 | Cursor provenance | `min(id)` over the **local model** | **verbatim from the response** |
 | Where parsed | `PagedPosts.load_older` (`pages.py:205`) | `get_pages()` (`Timeline.vala:271`) |
 | "Last page" known? | **inferred** — `model.exhausted` | **stated** — `is_last_page` (`Timeline.vala:291`) |

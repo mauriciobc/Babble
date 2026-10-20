@@ -194,6 +194,62 @@ spin(800)
 check('an unfiltered page makes no extra request', len(client.params) == 1)
 window.destroy()
 
+# Refresh must not lose posts. A fake server with Mastodon's real cursor
+# semantics: since_id answers with the NEWEST page above the cursor (so the
+# oldest posts are skipped when more than a page arrived), min_id with the
+# page immediately above it. Verified against a live instance.
+class _Server(_Client):
+    def __init__(self, posts):
+        super().__init__([])
+        self.posts = list(posts)          # ascending ids
+
+    def grow(self, posts):
+        self.posts.extend(posts)
+
+    def timelines_home_async(self, params=None, callback=None, **_kw):
+        params = dict(params or {})
+        self.params.append(params)
+        limit = int(params.get('limit', 20))
+        if 'min_id' in params:
+            above = [p for p in self.posts if int(p['id']) > int(params['min_id'])]
+            out = above[:limit][::-1]
+        elif 'since_id' in params:
+            above = [p for p in self.posts if int(p['id']) > int(params['since_id'])]
+            out = above[-limit:][::-1]
+        elif 'max_id' in params:
+            below = [p for p in self.posts if int(p['id']) < int(params['max_id'])]
+            out = below[-limit:][::-1]
+        else:
+            out = self.posts[-limit:][::-1]
+        callback(self, out)
+
+
+pages.settings().reset('hide-replies-non-follows')
+server = _Server([status(n) for n in range(1, 101)])
+page = home_page(server, False)
+server.grow([status(n) for n in range(101, 146)])      # 45 arrived meanwhile
+page.refresh()
+shown = [int(i) for i in ids(page)]
+check('a refresh after 45 new posts leaves no gap',
+      shown[:45] == list(range(145, 100, -1)))
+check('the posts stay in server order', shown == sorted(shown, reverse=True))
+check('a refresh asks min_id, never since_id',
+      all('since_id' not in p for p in server.params))
+check('it stops on a short page', len(server.params) == 4)
+
+# Filters that empty a whole refresh page still move the cursor, and the
+# chain ends instead of asking for the same page again.
+server = _Server([status(n) for n in range(1, 21)])
+page = home_page(server, True)
+server.grow([boost(n, 500 + n) for n in range(21, 61)])  # 40 boosts
+before = len(server.params)
+page.refresh()
+check('a fully filtered refresh terminates',
+      len(server.params) - before == 3)
+check('its cursor moved to the newest id the server sent',
+      page.model.newest_id == '00060')
+check('no boost got through', all(int(i) <= 20 for i in ids(page)))
+
 # Only the home timeline is filtered.
 pages.settings().set_boolean('hide-boosts-home', True)
 public = timelinepage.TimelinePage(_Client([]), mode='public',
