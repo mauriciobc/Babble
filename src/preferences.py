@@ -289,10 +289,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._combo_enum(
             appearance, 'text-size', _('_Text Size'), TEXT_SIZES,
             subtitle=_('Set the text size used in the interface'))
-        self._switch(appearance, 'larger-line-height', _('Large _Line Height'),
+        self._switch(appearance, 'larger-line-height', _('Large Line _Height'),
                      _('Increase the line height in posts'))
         self._switch(appearance, 'dim-trivial-notifications',
-                     _('Dim _Trivial Notifications'),
+                     _('Dim Trivial _Notifications'),
                      _('Notifications like favorites and boosts will be less visible'))
         self._switch(appearance, 'translucent-sidebar',
                      _('T_ranslucent Sidebar'),
@@ -319,7 +319,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
         posts = Adw.PreferencesGroup(title=_('Posts'))
         self._switch(posts, 'collapse-long-posts', _('Collapse _Long Posts'))
-        self._switch(posts, 'letterbox-media', _('_Letterbox Media'),
+        self._switch(posts, 'letterbox-media', _('Letterbox _Media'),
                      _('Scale down and letterbox media to fill the '
                        'image containers instead of cropping them'))
         self._combo_enum(
@@ -328,13 +328,13 @@ class PreferencesDialog(Adw.PreferencesDialog):
             subtitle=_('How a photo opens in the viewer: as a box over '
                        'the window, or filling it'))
         self._switch(posts, 'show-sensitive-media',
-                     _('Reveal Sensitive _Media by Default'))
+                     _('Reveal _Sensitive Media by Default'))
         self._switch(posts, 'show-spoilers',
-                     _('Reveal _Spoilers by Default'))
+                     _('Reveal S_poilers by Default'))
         self._switch(posts, 'show-preview-cards',
                      _('Show Link Preview _Cards'))
         self._switch(posts, 'show-interaction-counters',
-                     _('Show Interaction C_ounters'),
+                     _('Show _Interaction Counters'),
                      _('Reply, boost and favorite counts on post actions'))
         self._switch(posts, 'show-action-bar',
                      _('Show Post _Actions on Timelines'),
@@ -346,7 +346,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('When a page of posts is mostly boosts, fold them '
                        'into a horizontal carousel instead of one row each. '
                        'Applies to timelines opened afterwards'))
-        self._switch(boosts, 'dedupe-boosts', _('Hide _Duplicate Boosts'),
+        self._switch(boosts, 'dedupe-boosts', _('Hide D_uplicate Boosts'),
                      _('Show only the first boost of a post that several '
                        'people boosted. Applies to timelines opened '
                        'afterwards'))
@@ -361,7 +361,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('On the home timeline, show only posts and replies '
                        'by the people you follow, without their boosts'))
         self._switch(home, 'resume-reading-position',
-                     _('Resume Reading _Position'),
+                     _('Resume _Reading Position'),
                      _('Reopen the home timeline at the post you were '
                        'reading, with a button for newer posts'))
         page.add(home)
@@ -399,7 +399,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
         reminders = Adw.PreferencesGroup(title=_('Boosts and Reminders'))
         self._switch(reminders, 'advanced-boost-dialog',
-                     _('Advanced _Boost Dialog'),
+                     _('Advanced Boost _Dialog'),
                      _('Change boost visibility, quote and confirm boosting'))
         self._switch(reminders, 'reply-to-old-post-reminder',
                      _('Warn Before Replying to an _Old Post'))
@@ -619,7 +619,6 @@ class PreferencesDialog(Adw.PreferencesDialog):
                                    icon_name='babble-filter-symbolic',
                                    name='filters')
         group = Adw.PreferencesGroup(
-            title=_('Filters'),
             description=_('Hide or warn about posts that match keywords, '
                           'on every device you use'))
         row = Adw.ActionRow(title=_('_Manage Filters'), use_underline=True,

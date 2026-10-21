@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-21 10:12-0300\n"
+"POT-Creation-Date: 2026-10-21 10:18-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2940,7 +2940,7 @@ msgid "Hide or warn about posts that match keywords"
 msgstr ""
 
 #: src/filters.py:376 src/filters.py:467 src/filters.py:471
-#: src/preferences.py:618 src/preferences.py:622
+#: src/preferences.py:618
 msgid "Filters"
 msgstr ""
 
@@ -4487,11 +4487,11 @@ msgid "Set the text size used in the interface"
 msgstr ""
 
 #: src/preferences.py:292
-msgid "Large _Line Height"
+msgid "Large Line _Height"
 msgstr ""
 
 #: src/preferences.py:295
-msgid "Dim _Trivial Notifications"
+msgid "Dim Trivial _Notifications"
 msgstr ""
 
 #: src/preferences.py:296
@@ -4537,7 +4537,7 @@ msgid "Collapse _Long Posts"
 msgstr ""
 
 #: src/preferences.py:322
-msgid "_Letterbox Media"
+msgid "Letterbox _Media"
 msgstr ""
 
 #: src/preferences.py:323
@@ -4556,11 +4556,11 @@ msgid ""
 msgstr ""
 
 #: src/preferences.py:331
-msgid "Reveal Sensitive _Media by Default"
+msgid "Reveal _Sensitive Media by Default"
 msgstr ""
 
 #: src/preferences.py:333
-msgid "Reveal _Spoilers by Default"
+msgid "Reveal S_poilers by Default"
 msgstr ""
 
 #: src/preferences.py:335
@@ -4568,7 +4568,7 @@ msgid "Show Link Preview _Cards"
 msgstr ""
 
 #: src/preferences.py:337
-msgid "Show Interaction C_ounters"
+msgid "Show _Interaction Counters"
 msgstr ""
 
 #: src/preferences.py:338
@@ -4594,7 +4594,7 @@ msgid ""
 msgstr ""
 
 #: src/preferences.py:349
-msgid "Hide _Duplicate Boosts"
+msgid "Hide D_uplicate Boosts"
 msgstr ""
 
 #: src/preferences.py:350
@@ -4628,7 +4628,7 @@ msgid ""
 msgstr ""
 
 #: src/preferences.py:364
-msgid "Resume Reading _Position"
+msgid "Resume _Reading Position"
 msgstr ""
 
 #: src/preferences.py:365
@@ -4692,7 +4692,7 @@ msgid "Boosts and Reminders"
 msgstr ""
 
 #: src/preferences.py:402
-msgid "Advanced _Boost Dialog"
+msgid "Advanced Boost _Dialog"
 msgstr ""
 
 #: src/preferences.py:403
@@ -4897,15 +4897,15 @@ msgstr ""
 msgid "Choose whose notifications reach you"
 msgstr ""
 
-#: src/preferences.py:623
+#: src/preferences.py:622
 msgid "Hide or warn about posts that match keywords, on every device you use"
 msgstr ""
 
-#: src/preferences.py:625
+#: src/preferences.py:624
 msgid "_Manage Filters"
 msgstr ""
 
-#: src/preferences.py:626
+#: src/preferences.py:625
 msgid "Create, edit and delete filters"
 msgstr ""
 

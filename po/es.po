@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-21 10:12-0300\n"
+"POT-Creation-Date: 2026-10-21 10:18-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -3072,7 +3072,7 @@ msgstr ""
 "Ocultar o advertir sobre publicaciones que coincidan con palabras clave"
 
 #: src/filters.py:376 src/filters.py:467 src/filters.py:471
-#: src/preferences.py:618 src/preferences.py:622
+#: src/preferences.py:618
 msgid "Filters"
 msgstr "Filtros"
 
@@ -4667,12 +4667,12 @@ msgid "Set the text size used in the interface"
 msgstr "Establece el tamaño del texto de la interfaz"
 
 #: src/preferences.py:292
-msgid "Large _Line Height"
-msgstr "_Altura de línea mayor"
+msgid "Large Line _Height"
+msgstr "Altura _de línea mayor"
 
 #: src/preferences.py:295
-msgid "Dim _Trivial Notifications"
-msgstr "Atenuar notificaciones _triviales"
+msgid "Dim Trivial _Notifications"
+msgstr "Atenuar _notificaciones triviales"
 
 #: src/preferences.py:296
 msgid "Notifications like favorites and boosts will be less visible"
@@ -4680,7 +4680,7 @@ msgstr "Las notificaciones como favoritos e impulsos serán menos visibles"
 
 #: src/preferences.py:298
 msgid "T_ranslucent Sidebar"
-msgstr "Barra lateral _transparente"
+msgstr "_Barra lateral transparente"
 
 #: src/preferences.py:299
 msgid ""
@@ -4721,7 +4721,7 @@ msgid "Collapse _Long Posts"
 msgstr "Contraer publicaciones _largas"
 
 #: src/preferences.py:322
-msgid "_Letterbox Media"
+msgid "Letterbox _Media"
 msgstr "Multimedia con _bandas"
 
 #: src/preferences.py:323
@@ -4743,11 +4743,11 @@ msgstr ""
 "Cómo se abre una foto en el visor: como caja sobre la ventana, o llenándola"
 
 #: src/preferences.py:331
-msgid "Reveal Sensitive _Media by Default"
+msgid "Reveal _Sensitive Media by Default"
 msgstr "Mostrar _multimedia sensible por defecto"
 
 #: src/preferences.py:333
-msgid "Reveal _Spoilers by Default"
+msgid "Reveal S_poilers by Default"
 msgstr "Mostrar _spoilers por defecto"
 
 #: src/preferences.py:335
@@ -4755,8 +4755,8 @@ msgid "Show Link Preview _Cards"
 msgstr "Mostrar _tarjetas de vista previa de enlaces"
 
 #: src/preferences.py:337
-msgid "Show Interaction C_ounters"
-msgstr "Mostrar _contadores de interacción"
+msgid "Show _Interaction Counters"
+msgstr "Mostrar contadores _de interacción"
 
 #: src/preferences.py:338
 msgid "Reply, boost and favorite counts on post actions"
@@ -4766,7 +4766,7 @@ msgstr ""
 
 #: src/preferences.py:340
 msgid "Show Post _Actions on Timelines"
-msgstr "Mostrar _Acciones de Publicación en Cronologías"
+msgstr "Mostrar Acciones de _Publicación en Cronologías"
 
 #: src/preferences.py:341
 msgid "Actions stay available in each post’s menu"
@@ -4786,8 +4786,8 @@ msgstr ""
 "cronologías abiertas después"
 
 #: src/preferences.py:349
-msgid "Hide _Duplicate Boosts"
-msgstr "Ocultar impulsos _duplicados"
+msgid "Hide D_uplicate Boosts"
+msgstr "_Ocultar impulsos duplicados"
 
 #: src/preferences.py:350
 msgid ""
@@ -4826,8 +4826,8 @@ msgstr ""
 "las personas a las que sigues, sin sus impulsos"
 
 #: src/preferences.py:364
-msgid "Resume Reading _Position"
-msgstr "Reanudar la _posición de lectura"
+msgid "Resume _Reading Position"
+msgstr "_Reanudar la posición de lectura"
 
 #: src/preferences.py:365
 msgid ""
@@ -4896,7 +4896,7 @@ msgid "Boosts and Reminders"
 msgstr "Impulsos y recordatorios"
 
 #: src/preferences.py:402
-msgid "Advanced _Boost Dialog"
+msgid "Advanced Boost _Dialog"
 msgstr "Diálogo de _impulso avanzado"
 
 #: src/preferences.py:403
@@ -4921,7 +4921,7 @@ msgstr "Segundo plano"
 
 #: src/preferences.py:414
 msgid "_Run in Background"
-msgstr "_Ejecutar en segundo plano"
+msgstr "E_jecutar en segundo plano"
 
 #: src/preferences.py:415
 msgid "Keep running after the window is closed to deliver notifications"
@@ -4929,7 +4929,7 @@ msgstr "Sigue ejecutándose tras cerrar la ventana para entregar notificaciones"
 
 #: src/preferences.py:419
 msgid "_Quick Post Shortcut"
-msgstr "_Atajo de Publicación Rápida"
+msgstr "Atajo _de Publicación Rápida"
 
 #: src/preferences.py:420
 msgid ""
@@ -5021,7 +5021,7 @@ msgstr "Muestra publicaciones de todos los servidores conocidos"
 
 #: src/preferences.py:471
 msgid "Show _Disabled Timelines"
-msgstr "Mostrar _Cronologías Deshabilitadas"
+msgstr "_Mostrar Cronologías Deshabilitadas"
 
 #: src/preferences.py:472
 msgid ""
@@ -5110,17 +5110,17 @@ msgstr "_Filtrado de notificaciones"
 msgid "Choose whose notifications reach you"
 msgstr "Elige de quién te llegan las notificaciones"
 
-#: src/preferences.py:623
+#: src/preferences.py:622
 msgid "Hide or warn about posts that match keywords, on every device you use"
 msgstr ""
 "Oculta o advierte sobre publicaciones que coinciden con palabras clave, en "
 "todos tus dispositivos"
 
-#: src/preferences.py:625
+#: src/preferences.py:624
 msgid "_Manage Filters"
 msgstr "_Gestionar filtros"
 
-#: src/preferences.py:626
+#: src/preferences.py:625
 msgid "Create, edit and delete filters"
 msgstr "Crea, edita y elimina filtros"
 

@@ -23,6 +23,7 @@ and proves nothing moved:
 Exits 77 (skip) without a display or a compiled bundle."""
 
 import os
+import re
 import sys
 
 import gi
@@ -184,6 +185,14 @@ for _name in ('appearance', 'reading', 'behavior'):
     _counts[_name] = len(_setting_rows(prefs.get_visible_page()))
 check('each split page holds a manageable number of settings',
       all(0 < n <= 14 for n in _counts.values()), _counts)
+for _name in ('appearance', 'reading', 'timelines', 'behavior'):
+    prefs.set_visible_page_name(_name)
+    pump()
+    _keys = [k.lower() for row in _setting_rows(prefs.get_visible_page())
+             for k in re.findall(r'_(\w)', row.get_title())]
+    check('%s: every access key is used once' % _name,
+          len(_keys) == len(set(_keys)),
+          sorted(k for k in set(_keys) if _keys.count(k) > 1))
 prefs.set_visible_page_name('appearance')
 on_prefs, on_window = [], []
 prefs.add_toast = lambda toast: on_prefs.append(toast.get_title())

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-21 10:12-0300\n"
+"POT-Creation-Date: 2026-10-21 10:18-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -3062,7 +3062,7 @@ msgid "Hide or warn about posts that match keywords"
 msgstr "Ocultar ou avisar sobre publicações que correspondem a palavras-chave"
 
 #: src/filters.py:376 src/filters.py:467 src/filters.py:471
-#: src/preferences.py:618 src/preferences.py:622
+#: src/preferences.py:618
 msgid "Filters"
 msgstr "Filtros"
 
@@ -4659,12 +4659,12 @@ msgid "Set the text size used in the interface"
 msgstr "Define o tamanho do texto usado na interface"
 
 #: src/preferences.py:292
-msgid "Large _Line Height"
-msgstr "_Altura de linha maior"
+msgid "Large Line _Height"
+msgstr "Altura _de linha maior"
 
 #: src/preferences.py:295
-msgid "Dim _Trivial Notifications"
-msgstr "Esmaecer notificações _triviais"
+msgid "Dim Trivial _Notifications"
+msgstr "Esmaecer _notificações triviais"
 
 #: src/preferences.py:296
 msgid "Notifications like favorites and boosts will be less visible"
@@ -4672,7 +4672,7 @@ msgstr "Notificações como favoritos e impulsos ficarão menos visíveis"
 
 #: src/preferences.py:298
 msgid "T_ranslucent Sidebar"
-msgstr "Barra lateral _transparente"
+msgstr "_Barra lateral transparente"
 
 #: src/preferences.py:299
 msgid ""
@@ -4692,7 +4692,7 @@ msgstr "_Escurecer imagens no modo escuro"
 
 #: src/preferences.py:307
 msgid "Large Custom _Emojis"
-msgstr "_Emojis personalizados grandes"
+msgstr "Emojis _personalizados grandes"
 
 #: src/preferences.py:309
 msgid "_Scale Custom Emojis on Hover"
@@ -4713,8 +4713,8 @@ msgid "Collapse _Long Posts"
 msgstr "Recolher publicações _longas"
 
 #: src/preferences.py:322
-msgid "_Letterbox Media"
-msgstr "Mídia em _letterbox"
+msgid "Letterbox _Media"
+msgstr "_Mídia em letterbox"
 
 #: src/preferences.py:323
 msgid ""
@@ -4736,11 +4736,11 @@ msgstr ""
 "preenchendo-a"
 
 #: src/preferences.py:331
-msgid "Reveal Sensitive _Media by Default"
-msgstr "Revelar _mídia sensível por padrão"
+msgid "Reveal _Sensitive Media by Default"
+msgstr "_Revelar mídia sensível por padrão"
 
 #: src/preferences.py:333
-msgid "Reveal _Spoilers by Default"
+msgid "Reveal S_poilers by Default"
 msgstr "Revelar _spoilers por padrão"
 
 #: src/preferences.py:335
@@ -4748,8 +4748,8 @@ msgid "Show Link Preview _Cards"
 msgstr "Mostrar _cartões de pré-visualização de links"
 
 #: src/preferences.py:337
-msgid "Show Interaction C_ounters"
-msgstr "Mostrar _contadores de interação"
+msgid "Show _Interaction Counters"
+msgstr "Mostrar contadores _de interação"
 
 #: src/preferences.py:338
 msgid "Reply, boost and favorite counts on post actions"
@@ -4757,7 +4757,7 @@ msgstr "Contagens de respostas, impulsos e favoritos nas ações da publicação
 
 #: src/preferences.py:340
 msgid "Show Post _Actions on Timelines"
-msgstr "Mostrar _Ações de Postagem nas Timelines"
+msgstr "Mostrar Ações de _Postagem nas Timelines"
 
 #: src/preferences.py:341
 msgid "Actions stay available in each post’s menu"
@@ -4765,7 +4765,7 @@ msgstr "As ações permanecem disponíveis no menu de cada postagem"
 
 #: src/preferences.py:345
 msgid "_Boosts Carousel"
-msgstr "_Carrossel de impulsos"
+msgstr "Carrossel de _impulsos"
 
 #: src/preferences.py:346
 msgid ""
@@ -4777,8 +4777,8 @@ msgstr ""
 "linhas do tempo abertas depois"
 
 #: src/preferences.py:349
-msgid "Hide _Duplicate Boosts"
-msgstr "Ocultar impulsos _duplicados"
+msgid "Hide D_uplicate Boosts"
+msgstr "_Ocultar impulsos duplicados"
 
 #: src/preferences.py:350
 msgid ""
@@ -4806,7 +4806,7 @@ msgstr ""
 
 #: src/preferences.py:360
 msgid "Hide Boosts on _Home"
-msgstr "Ocultar impulsos no _início"
+msgstr "Ocultar impulsos _no início"
 
 #: src/preferences.py:361
 msgid ""
@@ -4817,8 +4817,8 @@ msgstr ""
 "segue, sem os impulsos dele"
 
 #: src/preferences.py:364
-msgid "Resume Reading _Position"
-msgstr "Retomar a _posição de leitura"
+msgid "Resume _Reading Position"
+msgstr "R_etomar a posição de leitura"
 
 #: src/preferences.py:365
 msgid ""
@@ -4887,7 +4887,7 @@ msgid "Boosts and Reminders"
 msgstr "Impulsos e lembretes"
 
 #: src/preferences.py:402
-msgid "Advanced _Boost Dialog"
+msgid "Advanced Boost _Dialog"
 msgstr "Diálogo de _impulso avançado"
 
 #: src/preferences.py:403
@@ -4920,7 +4920,7 @@ msgstr "Continua em execução após fechar a janela para entregar notificaçõe
 
 #: src/preferences.py:419
 msgid "_Quick Post Shortcut"
-msgstr "_Atalho de Postagem Rápida"
+msgstr "Atalho _de Postagem Rápida"
 
 #: src/preferences.py:420
 msgid ""
@@ -5011,7 +5011,7 @@ msgstr "Mostra publicações de todos os servidores conhecidos"
 
 #: src/preferences.py:471
 msgid "Show _Disabled Timelines"
-msgstr "Mostrar _Timelines Desabilitadas"
+msgstr "_Mostrar Timelines Desabilitadas"
 
 #: src/preferences.py:472
 msgid ""
@@ -5099,17 +5099,17 @@ msgstr "_Filtragem de notificações"
 msgid "Choose whose notifications reach you"
 msgstr "Escolha de quem as notificações chegam até você"
 
-#: src/preferences.py:623
+#: src/preferences.py:622
 msgid "Hide or warn about posts that match keywords, on every device you use"
 msgstr ""
 "Oculte ou avise sobre publicações que correspondem a palavras-chave, em "
 "todos os dispositivos que você usa"
 
-#: src/preferences.py:625
+#: src/preferences.py:624
 msgid "_Manage Filters"
 msgstr "_Gerenciar filtros"
 
-#: src/preferences.py:626
+#: src/preferences.py:625
 msgid "Create, edit and delete filters"
 msgstr "Crie, edite e exclua filtros"
 

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-21 10:12-0300\n"
+"POT-Creation-Date: 2026-10-21 10:18-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -3070,7 +3070,7 @@ msgstr ""
 "Beiträge, die Schlüsselwörtern entsprechen, ausblenden oder davor warnen"
 
 #: src/filters.py:376 src/filters.py:467 src/filters.py:471
-#: src/preferences.py:618 src/preferences.py:622
+#: src/preferences.py:618
 msgid "Filters"
 msgstr "Filter"
 
@@ -4664,12 +4664,12 @@ msgid "Set the text size used in the interface"
 msgstr "Die in der Oberfläche verwendete Textgröße festlegen"
 
 #: src/preferences.py:292
-msgid "Large _Line Height"
+msgid "Large Line _Height"
 msgstr "Größere _Zeilenhöhe"
 
 #: src/preferences.py:295
-msgid "Dim _Trivial Notifications"
-msgstr "_Triviale Benachrichtigungen abschwächen"
+msgid "Dim Trivial _Notifications"
+msgstr "Triviale _Benachrichtigungen abschwächen"
 
 #: src/preferences.py:296
 msgid "Notifications like favorites and boosts will be less visible"
@@ -4719,7 +4719,7 @@ msgid "Collapse _Long Posts"
 msgstr "_Lange Beiträge einklappen"
 
 #: src/preferences.py:322
-msgid "_Letterbox Media"
+msgid "Letterbox _Media"
 msgstr "Medien mit _Rändern"
 
 #: src/preferences.py:323
@@ -4740,19 +4740,19 @@ msgstr ""
 "füllend"
 
 #: src/preferences.py:331
-msgid "Reveal Sensitive _Media by Default"
+msgid "Reveal _Sensitive Media by Default"
 msgstr "Heikle _Medien standardmäßig anzeigen"
 
 #: src/preferences.py:333
-msgid "Reveal _Spoilers by Default"
-msgstr "_Spoiler standardmäßig anzeigen"
+msgid "Reveal S_poilers by Default"
+msgstr "Spoiler standardmäßig _anzeigen"
 
 #: src/preferences.py:335
 msgid "Show Link Preview _Cards"
 msgstr "Link-Vorschau_karten anzeigen"
 
 #: src/preferences.py:337
-msgid "Show Interaction C_ounters"
+msgid "Show _Interaction Counters"
 msgstr "Interaktions_zähler anzeigen"
 
 #: src/preferences.py:338
@@ -4771,7 +4771,7 @@ msgstr "Aktionen bleiben im Menü jedes Beitrags verfügbar"
 
 #: src/preferences.py:345
 msgid "_Boosts Carousel"
-msgstr "_Karussell für geteilte Beiträge"
+msgstr "Karussell _für geteilte Beiträge"
 
 #: src/preferences.py:346
 msgid ""
@@ -4783,7 +4783,7 @@ msgstr ""
 "für danach geöffnete Zeitleisten"
 
 #: src/preferences.py:349
-msgid "Hide _Duplicate Boosts"
+msgid "Hide D_uplicate Boosts"
 msgstr "_Doppelt geteilte Beiträge ausblenden"
 
 #: src/preferences.py:350
@@ -4822,8 +4822,8 @@ msgstr ""
 "folgst, ohne ihre geteilten Beiträge"
 
 #: src/preferences.py:364
-msgid "Resume Reading _Position"
-msgstr "Leseposition _fortsetzen"
+msgid "Resume _Reading Position"
+msgstr "L_eseposition fortsetzen"
 
 #: src/preferences.py:365
 msgid ""
@@ -4890,8 +4890,8 @@ msgid "Boosts and Reminders"
 msgstr "Teilen und Erinnerungen"
 
 #: src/preferences.py:402
-msgid "Advanced _Boost Dialog"
-msgstr "Erweiterter _Teilen-Dialog"
+msgid "Advanced Boost _Dialog"
+msgstr "_Erweiterter Teilen-Dialog"
 
 #: src/preferences.py:403
 msgid "Change boost visibility, quote and confirm boosting"
@@ -4907,7 +4907,7 @@ msgstr "Vor dem Kopieren eines Links zu einem _privaten Beitrag warnen"
 
 #: src/preferences.py:409
 msgid "Warn Before Boosting Media Without _Alt Text"
-msgstr "Vor dem Teilen von Medien ohne _Alternativtext warnen"
+msgstr "_Vor dem Teilen von Medien ohne Alternativtext warnen"
 
 #: src/preferences.py:412
 msgid "Background"
@@ -5009,7 +5009,7 @@ msgstr "Beiträge von Ihrem Server anzeigen"
 
 #: src/preferences.py:467
 msgid "_Federated Timeline"
-msgstr "_Föderierte Zeitleiste"
+msgstr "Föderierte _Zeitleiste"
 
 #: src/preferences.py:468
 msgid "Show posts from all known servers"
@@ -5106,17 +5106,17 @@ msgstr "Benachrichtigungs_filter"
 msgid "Choose whose notifications reach you"
 msgstr "Wählen Sie, von wem Sie Benachrichtigungen erhalten"
 
-#: src/preferences.py:623
+#: src/preferences.py:622
 msgid "Hide or warn about posts that match keywords, on every device you use"
 msgstr ""
 "Beiträge, die Schlüsselwörtern entsprechen, auf all Ihren Geräten ausblenden "
 "oder davor warnen"
 
-#: src/preferences.py:625
+#: src/preferences.py:624
 msgid "_Manage Filters"
 msgstr "Filter _verwalten"
 
-#: src/preferences.py:626
+#: src/preferences.py:625
 msgid "Create, edit and delete filters"
 msgstr "Filter erstellen, bearbeiten und löschen"
 
