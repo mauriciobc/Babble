@@ -21,6 +21,7 @@ from .mastodon import summarize_error_markup  # noqa: E402
 
 """The scrolling timeline page and its API source."""
 from .homefilters import HomeFilters
+from .readingposition import ReadingPosition
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
     AUTO_REFRESH_SCROLLED_TICKS, CATCHUP_MAX_PAGES, COLUMN_WIDTH,
@@ -162,7 +163,7 @@ def _new_posts_announce_tick(page_ref):
     return GLib.SOURCE_REMOVE
 
 
-class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
+class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
     """Scrollable timeline with infinite scroll, refresh and status pages.
 
     mode: 'home' (authenticated) or 'public'. A custom ``source`` (with
@@ -195,6 +196,7 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
             home and settings.get_boolean('hide-boosts-home'))
         self._following_ids = {}
         self._reply_filter_generation = 0
+        self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.
         # A refresh must come back with the page just above what is shown.
@@ -341,6 +343,9 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
             return
         self._auto_refresh_ticks += 1
         at_top = self._scrolled.get_vadjustment().get_value() <= 0.0
+        if self._resumed:
+            # New posts would push the post being resumed off the screen.
+            return
         if at_top or self._auto_refresh_ticks \
                 % AUTO_REFRESH_SCROLLED_TICKS == 0:
             self.refresh()
@@ -387,6 +392,8 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
                        % count)
 
     def _on_new_pill_clicked(self, _button):
+        if self.resume_pill_clicked():
+            return
         self._pill_count = 0
         self.new_posts_revealer.set_reveal_child(False)
         self.scroll_to_top()
@@ -515,6 +522,8 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
             self.error_page.set_description(
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
+            return
+        if self._resume_page_arrived(statuses):
             return
         # Paging needs a cursor even if the reply filter hides it all.
         raw_oldest = min((s['id'] for s in statuses), key=id_key) \
@@ -695,7 +704,8 @@ class TimelinePage(HomeFilters, PagedPosts, Adw.Bin):
     def on_scroll_position(self, adjustment):
         if self.on_scroll_near_end(adjustment):
             self.load_older()
-        if adjustment.get_value() <= 0.0:
+        self.schedule_reading_position_save()
+        if adjustment.get_value() <= 0.0 and not self._resumed:
             self._pill_count = 0
             self.new_posts_revealer.set_reveal_child(False)
             self._trim_old()

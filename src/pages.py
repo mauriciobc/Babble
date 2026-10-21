@@ -220,7 +220,10 @@ class PagedPosts:
         self.model.loading = True
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('loading')
-        self._request({'limit': self.PAGE_SIZE}, self.on_page_loaded)
+        self._request(self._first_page_params(), self.on_page_loaded)
+
+    def _first_page_params(self):
+        return {'limit': self.PAGE_SIZE}
 
     def load_older(self):
         if self.model.exhausted or self.model.oldest_id is None:

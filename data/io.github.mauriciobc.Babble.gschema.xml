@@ -179,6 +179,14 @@
       <default>false</default>
       <summary>Hide boosts on the home timeline</summary>
     </key>
+    <key name="resume-reading-position" type="b">
+      <default>true</default>
+      <summary>Reopen the home timeline at the post you were reading</summary>
+    </key>
+    <key name="home-reading-position" type="a{ss}">
+      <default>{}</default>
+      <summary>The post each account was reading on the home timeline, by account key</summary>
+    </key>
     <key name="advanced-boost-dialog" type="b">
       <default>false</default>
       <summary>Ask for visibility (and offer quoting) before boosting</summary>

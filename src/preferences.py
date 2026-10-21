@@ -342,6 +342,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._switch(posts, 'hide-boosts-home', _('Hide Boosts on _Home'),
                      _('On the home timeline, show only posts and replies '
                        'by the people you follow, without their boosts'))
+        self._switch(posts, 'resume-reading-position',
+                     _('Resume Reading _Position'),
+                     _('Reopen the home timeline at the post you were '
+                       'reading, with a button for newer posts'))
         page.add(posts)
 
         behavior = Adw.PreferencesGroup(title=_('Behavior'))

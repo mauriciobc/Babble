@@ -88,6 +88,7 @@ install_data(
   'timelinedata.py',
   'timelinepage.py',
   'homefilters.py',
+  'readingposition.py',
   'statusrun.py',
   'statusactions.py',
   'statusmenu.py',
@@ -184,6 +185,12 @@ test('timeline memory', python,
 )
 test('home filters', python,
   args: [files('test-home-filters.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
+test('reading position', python,
+  args: [files('test-reading-position.py')],
   env: fatal_test_env,
   timeout: 60,
 )
