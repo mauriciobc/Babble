@@ -194,6 +194,12 @@ test('reading position', python,
   env: fatal_test_env,
   timeout: 60,
 )
+
+test('keyring errors', python,
+  args: [files('test-keyring-errors.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('thread profile render', python,
   args: [files('test-thread-profile.py')],
   env: fatal_test_env,

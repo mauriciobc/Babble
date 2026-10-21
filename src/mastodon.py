@@ -147,6 +147,29 @@ def summarize_error_markup(error):
     return GLib.markup_escape_text(summarize_error(error))
 
 
+def keyring_problem(error):
+    """What a failed keyring call means: ``'missing'``, ``'locked'`` or
+    ``'other'`` (``None`` for no error).
+
+    Missing is a Secret Service that is not there to answer, which
+    libsecret reports as a D-Bus error: ``g-dbus-error-quark`` code 2
+    (``SERVICE_UNKNOWN``, "The name org.freedesktop.secrets was not
+    provided by any .service files"), observed on a session bus with no
+    activatable keyring, from both ``Secret.Service.get`` and
+    ``Secret.password_lookup_sync``. ``NAME_HAS_NO_OWNER`` is the same
+    absence after the service has quit. A locked collection is a
+    different problem with a different fix, so it is not 'missing'."""
+    if error is None:
+        return None
+    for code in (Gio.DBusError.SERVICE_UNKNOWN,
+                 Gio.DBusError.NAME_HAS_NO_OWNER):
+        if error.matches(Gio.DBusError.quark(), code):
+            return 'missing'
+    if error.matches(Secret.error_get_quark(), Secret.Error.IS_LOCKED):
+        return 'locked'
+    return 'other'
+
+
 def log_deprecation(method, path, headers):
     """Surface an RFC 9745 ``Deprecation`` notice in development.
 
