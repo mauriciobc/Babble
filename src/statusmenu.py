@@ -457,6 +457,10 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         """Take the post out of view at once and send the DELETE only when
         the Undo toast goes away, so a slip costs nothing."""
         client = self.client
+        # Taking the row out of the model unparents this button, and a
+        # widget with no root finds no window to show the toast on: the
+        # toast target is chosen first.
+        anchor = pages.window_of(self) or self
         page = self._timeline_page()
         taken = page.model.take_status(item.status_id) \
             if page is not None and page.model is not None else []
@@ -485,13 +489,13 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                     # The post is still on the server: bring it back.
                     restore()
                     pages.report_error(
-                        self, _('Could not delete post'), error)
+                        anchor, _('Could not delete post'), error)
 
             client.request_async(
                 'DELETE', '/statuses/%s' % item.status_id, callback=finished)
 
         hide()
-        pages.deferred_action(self, _('Post deleted'), commit, restore)
+        pages.deferred_action(anchor, _('Post deleted'), commit, restore)
 
     def _delete(self, item, composer_method):
         """DELETE the post; for a redraft hand the returned source to

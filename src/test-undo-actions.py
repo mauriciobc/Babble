@@ -64,7 +64,8 @@ class FakeToasts:
 
     def __call__(self, widget, text, undo=None, undo_label=None,
                  dismissed=None):
-        if not self.shown:
+        # A widget with no root finds no window, as in GTK.
+        if not self.shown or getattr(widget, 'unrooted', False):
             return None
         self.toasts.append({'text': text, 'undo': undo,
                             'dismissed': dismissed})
@@ -202,6 +203,9 @@ class Menu:
         self.page, self.client = page, client
         self.errors = []
 
+    def get_root(self):
+        return None
+
     def _timeline_page(self):
         return self.page
 
@@ -237,6 +241,32 @@ delete(menu, model.get_item(0))
 pages.flush_deferred()
 check('closing the window sends the DELETE',
       client.requests == [('DELETE', '/statuses/5')], str(client.requests))
+
+# Removing the row unparents the menu button, and an unparented widget finds
+# no window to show the toast on: the delete used to go straight through.
+model = TimelineModel()
+model.append_old([status('5'), status('4')])
+client = Client()
+menu = Menu(Page(model), client)
+menu.unrooted = False
+_take = model.take_status
+
+
+def _take_and_unroot(status_id):
+    menu.unrooted = True
+    return _take(status_id)
+
+
+model.take_status = _take_and_unroot
+_window = object()
+_window_of = pages.window_of
+pages.window_of = lambda widget: _window
+delete(menu, model.get_item(0))
+check('the toast is shown although the row is gone', len(toasts.toasts) > 0
+      and client.requests == [], str(client.requests))
+toasts.press_undo()
+check('and Undo still works', ids(model) == ['5', '4'])
+pages.window_of = _window_of
 
 # A post shown outside a timeline list (a thread, a search result) is hidden
 # by its host and shown again on Undo; the DELETE still waits.
