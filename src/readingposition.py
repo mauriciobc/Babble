@@ -194,13 +194,15 @@ class ReadingPosition:
         self._stop_pinning()
 
     def _top_item(self):
-        """``(item, y)`` of the first row at least partly on screen: the
-        one still below the top edge with the smallest y. Bounds are
-        relative to the visible area, not to the content."""
+        """``(item, y)`` of the top row: the first one whose middle is on
+        screen, so a row cut off at the edge is not what the reader sees as
+        the top post. Bounds are relative to the visible area, not to the
+        content."""
         height = self._scrolled.get_height()
         best = None
         for y, h, run in self._row_rects():
-            if y + h > 1 and y < height and (best is None or y < best[1]):
+            if y + h / 2 > 0 and y < height \
+                    and (best is None or y < best[1]):
                 best = (run.items[0], y)
         return best
 

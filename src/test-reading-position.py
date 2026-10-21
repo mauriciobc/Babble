@@ -382,12 +382,22 @@ adjustment = page._scrolled.get_vadjustment()
 
 
 def id_under_top_edge():
-    """What is really drawn at the top edge, found by picking the widget
-    there rather than by the geometry top_visible_status_id reads."""
-    widget = page.list_view.pick(page.list_view.get_width() / 2, 2,
-                                 Gtk.PickFlags.DEFAULT)
-    while widget is not None and not hasattr(widget, 'item'):
-        widget = widget.get_parent()
+    """What is really drawn as the top post, found by picking the widget
+    there rather than by the geometry top_visible_status_id reads: the row
+    at the top edge, or the next one when most of it is cut off."""
+    def row_at(y):
+        widget = page.list_view.pick(page.list_view.get_width() / 2, y,
+                                     Gtk.PickFlags.DEFAULT)
+        while widget is not None and not hasattr(widget, 'item'):
+            widget = widget.get_parent()
+        return widget
+
+    widget = row_at(2)
+    if widget is None or widget.item is None:
+        return None
+    ok, bounds = widget.get_parent().compute_bounds(page.list_view)
+    if ok and bounds.get_y() + bounds.get_height() / 2 <= 0:
+        widget = row_at(bounds.get_y() + bounds.get_height() + 20)
     return None if widget is None or widget.item is None \
         else widget.item.raw['id']
 
@@ -439,6 +449,31 @@ check('an unseen window still saves the last post seen',
       top is not None and readingposition.get_position(settings, ACCOUNT)
       == top, '%s vs %s' % (top, readingposition.get_position(
           settings, ACCOUNT)))
+window.destroy()
+pump()
+
+# A row cut off at the top edge is not the top post: the first row with its
+# middle on screen is. Scroll so the first row is cut by most of its height.
+reset()
+server = _Server(range(1, 101))
+page = home(server)
+window = Gtk.Window(default_width=700, default_height=500)
+window.set_child(page)
+window.present()
+pump()
+_adj = page._scrolled.get_vadjustment()
+wait_for(lambda: page.top_visible_status_id() == '00100')
+_rect = next(r for r in page._row_rects() if r[2].items[0].raw['id'] == '00100')
+_adj.set_value(_rect[1] * 0.8)            # 80% of the first row is gone
+wait_for(lambda: page.top_visible_status_id() == '00099')
+check('a row mostly cut off at the top is not the top post',
+      page.top_visible_status_id() == '00099',
+      str(page.top_visible_status_id()))
+_adj.set_value(_rect[1] * 0.2)            # 20% gone: still the top post
+wait_for(lambda: page.top_visible_status_id() == '00100')
+check('a row barely cut off still is',
+      page.top_visible_status_id() == '00100',
+      str(page.top_visible_status_id()))
 window.destroy()
 pump()
 
