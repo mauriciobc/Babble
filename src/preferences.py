@@ -184,13 +184,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
     __gtype_name__ = 'BabblePreferencesDialog'
 
     def __init__(self, window):
-        # Six pages of settings: searchable, so a row can be found by its
+        # Seven pages of settings: searchable, so a row can be found by its
         # name instead of hunted for down the list.
         super().__init__(title=_('Preferences'), search_enabled=True)
         self.window = window
         self.settings = window.settings
-        self.add(self._general_page())
+        self.add(self._appearance_page())
+        self.add(self._reading_page())
         self.add(self._timelines_page())
+        self.add(self._behavior_page())
         if window.client is not None:
             self.add(self._posting_page())
         self.add(self._notifications_page())
@@ -269,12 +271,13 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     # Pages
 
-    def _general_page(self):
-        page = Adw.PreferencesPage(title=_('General'),
-                                   icon_name='preferences-system-symbolic',
-                                   name='general')
+    def _appearance_page(self):
+        page = Adw.PreferencesPage(
+            title=_('Appearance'),
+            icon_name='preferences-desktop-appearance-symbolic',
+            name='appearance')
 
-        appearance = Adw.PreferencesGroup(title=_('Appearance'))
+        appearance = Adw.PreferencesGroup()
         row = self._combo_string(
             appearance, 'interface-language', _('_Language'),
             [('', _('System Language'))] + list(INTERFACE_LANGUAGES),
@@ -288,22 +291,31 @@ class PreferencesDialog(Adw.PreferencesDialog):
             subtitle=_('Set the text size used in the interface'))
         self._switch(appearance, 'larger-line-height', _('Large _Line Height'),
                      _('Increase the line height in posts'))
-        self._switch(appearance, 'darken-images-on-dark-mode',
-                     _('_Darken Images on Dark Mode'))
         self._switch(appearance, 'dim-trivial-notifications',
                      _('Dim _Trivial Notifications'),
                      _('Notifications like favorites and boosts will be less visible'))
-        self._switch(appearance, 'enlarge-custom-emojis',
-                     _('Large Custom _Emojis'))
-        self._switch(appearance, 'scale-emoji-hover',
-                     _('_Scale Custom Emojis on Hover'),
-                     _('Slightly increases the size of custom emojis '
-                       'when you hover over them'))
         self._switch(appearance, 'translucent-sidebar',
                      _('T_ranslucent Sidebar'),
                      _('Blur the desktop behind the sidebar. '
                        'Needs a compositor that supports background blur'))
         page.add(appearance)
+
+        images = Adw.PreferencesGroup(title=_('Images and Emojis'))
+        self._switch(images, 'darken-images-on-dark-mode',
+                     _('_Darken Images on Dark Mode'))
+        self._switch(images, 'enlarge-custom-emojis',
+                     _('Large Custom _Emojis'))
+        self._switch(images, 'scale-emoji-hover',
+                     _('_Scale Custom Emojis on Hover'),
+                     _('Slightly increases the size of custom emojis '
+                       'when you hover over them'))
+        page.add(images)
+        return page
+
+    def _reading_page(self):
+        page = Adw.PreferencesPage(
+            title=_('Reading'), icon_name='view-paged-symbolic',
+            name='reading')
 
         posts = Adw.PreferencesGroup(title=_('Posts'))
         self._switch(posts, 'collapse-long-posts', _('Collapse _Long Posts'))
@@ -327,31 +339,40 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._switch(posts, 'show-action-bar',
                      _('Show Post _Actions on Timelines'),
                      _('Actions stay available in each post’s menu'))
-        self._switch(posts, 'boosts-carousel', _('_Boosts Carousel'),
+        page.add(posts)
+
+        boosts = Adw.PreferencesGroup(title=_('Boosts'))
+        self._switch(boosts, 'boosts-carousel', _('_Boosts Carousel'),
                      _('When a page of posts is mostly boosts, fold them '
                        'into a horizontal carousel instead of one row each. '
                        'Applies to timelines opened afterwards'))
-        self._switch(posts, 'dedupe-boosts', _('Hide _Duplicate Boosts'),
+        self._switch(boosts, 'dedupe-boosts', _('Hide _Duplicate Boosts'),
                      _('Show only the first boost of a post that several '
                        'people boosted. Applies to timelines opened '
                        'afterwards'))
-        self._switch(posts, 'hide-replies-non-follows',
+        page.add(boosts)
+
+        home = Adw.PreferencesGroup(title=_('Home Timeline'))
+        self._switch(home, 'hide-replies-non-follows',
                      _('Hide Replies From Non-_Follows'),
                      _('On the home timeline, hide posts that are replies '
                        'from accounts you do not follow'))
-        self._switch(posts, 'hide-boosts-home', _('Hide Boosts on _Home'),
+        self._switch(home, 'hide-boosts-home', _('Hide Boosts on _Home'),
                      _('On the home timeline, show only posts and replies '
                        'by the people you follow, without their boosts'))
-        self._switch(posts, 'resume-reading-position',
+        self._switch(home, 'resume-reading-position',
                      _('Resume Reading _Position'),
                      _('Reopen the home timeline at the post you were '
                        'reading, with a button for newer posts'))
-        page.add(posts)
+        page.add(home)
+        return page
 
-        behavior = Adw.PreferencesGroup(title=_('Behavior'))
-        self._switch(behavior, 'advanced-boost-dialog',
-                     _('Advanced _Boost Dialog'),
-                     _('Change boost visibility, quote and confirm boosting'))
+    def _behavior_page(self):
+        page = Adw.PreferencesPage(
+            title=_('Behavior'), icon_name='preferences-system-symbolic',
+            name='behavior')
+
+        behavior = Adw.PreferencesGroup(title=_('Links'))
         self._switch(behavior, 'strip-tracking',
                      _('Strip _Tracking Parameters From Links'),
                      _('This option can lead to broken links when enabled'))
@@ -374,26 +395,35 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Offer to Open _Copied Links'),
                      _('Check the clipboard for post and profile links '
                        'when Babble is focused'))
-        self._switch(behavior, 'reply-to-old-post-reminder',
+        page.add(behavior)
+
+        reminders = Adw.PreferencesGroup(title=_('Boosts and Reminders'))
+        self._switch(reminders, 'advanced-boost-dialog',
+                     _('Advanced _Boost Dialog'),
+                     _('Change boost visibility, quote and confirm boosting'))
+        self._switch(reminders, 'reply-to-old-post-reminder',
                      _('Warn Before Replying to an _Old Post'))
-        self._switch(behavior, 'copy-private-link-reminder',
+        self._switch(reminders, 'copy-private-link-reminder',
                      _('Warn Before Copying a Link to a _Private Post'))
-        self._switch(behavior, 'boost-alt-text-reminder',
+        self._switch(reminders, 'boost-alt-text-reminder',
                      _('Warn Before Boosting Media Without _Alt Text'))
-        row = self._switch(behavior, 'work-in-background',
+        page.add(reminders)
+
+        background = Adw.PreferencesGroup(title=_('Background'))
+        row = self._switch(background, 'work-in-background',
                            _('_Run in Background'),
                            _('Keep running after the window is '
                              'closed to deliver notifications'))
         pages.connect_weak(row, 'notify::active', self._on_background_toggled)
         self._shortcut_row = self._switch(
-            behavior, 'global-shortcut', _('_Quick Post Shortcut'),
+            background, 'global-shortcut', _('_Quick Post Shortcut'),
             _('Open the composer from anywhere with a system-wide '
               'shortcut, which can be changed in the system settings'))
         # Shown only once the GlobalShortcuts portal is known to exist.
         self._shortcut_row.set_visible(False)
         portals.portal_version(portals.SHORTCUTS,
                                pages.weak_method(self._on_shortcut_portal))
-        page.add(behavior)
+        page.add(background)
         return page
 
     def _on_interface_language_selected(self, _row, _pspec):

@@ -161,6 +161,30 @@ from src import preferences  # noqa: E402
 prefs = preferences.PreferencesDialog(window)
 prefs.present(window)
 pump()
+
+
+def _setting_rows(widget):
+    """Switch and combo rows under *widget*, in tree order."""
+    found = []
+    child = widget.get_first_child()
+    while child is not None:
+        if isinstance(child, (Adw.SwitchRow, Adw.ComboRow)):
+            found.append(child)
+        found.extend(_setting_rows(child))
+        child = child.get_next_sibling()
+    return found
+
+
+check('the first page is Appearance, no longer a 30-row General',
+      prefs.get_visible_page_name() == 'appearance')
+_counts = {}
+for _name in ('appearance', 'reading', 'behavior'):
+    prefs.set_visible_page_name(_name)
+    pump()
+    _counts[_name] = len(_setting_rows(prefs.get_visible_page()))
+check('each split page holds a manageable number of settings',
+      all(0 < n <= 14 for n in _counts.values()), _counts)
+prefs.set_visible_page_name('appearance')
 on_prefs, on_window = [], []
 prefs.add_toast = lambda toast: on_prefs.append(toast.get_title())
 window_add = window.add_toast
