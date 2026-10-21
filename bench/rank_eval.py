@@ -108,11 +108,25 @@ class Stopped(Exception):
 
 
 def iso_utc(moment=None):
-    """*moment* (default: now) as UTC ISO-8601, second precision."""
+    """*moment* (default: now) as UTC ISO-8601, with microseconds.
+
+    The microseconds are not decoration. The timestamp is the identity of
+    a run -- ``runs.ts`` is its PRIMARY KEY, and ``observations`` is keyed
+    by ``(run_ts, post_id)`` -- so two runs in the same second would
+    overwrite each other: one run lost, and its counters with it. The
+    plan reads "the last observation at or before T" from that table, so
+    a lost row is a wrong candidate counter and a wrong gate number.
+
+    The width is fixed (``%f`` is always six digits), so the strings
+    still sort chronologically as text -- which is how T1.2 compares them
+    in SQL (``run_ts <= T``, ``ORDER BY ts``). A variable-width fraction
+    would not: ``'...00.5Z' <= '...00Z'`` is true as text and false in
+    time.
+    """
     if moment is None:
         moment = datetime.datetime.now(datetime.timezone.utc)
     return moment.astimezone(datetime.timezone.utc).strftime(
-        '%Y-%m-%dT%H:%M:%SZ')
+        '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
 def data_dir(instance, root=None):
