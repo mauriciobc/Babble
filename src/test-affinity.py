@@ -21,7 +21,8 @@ The numbers were copied here and the temporary file was deleted;
 ``git -C ../elk status --porcelain`` is empty. Every value is asserted to
 1e-9. The sequences pinned are a mixed month of favourites, reblogs,
 replies and bookmarks with mutuals; the evidence cap on twelve favourites;
-the pruning boundary at 0, 13.9, 14 and 14.1 days; a dismissal through
+the pruning boundary at 0, 13.9, 14 and 14.1 days; the evidence floor at
+5.8 and 5.9 days; a dismissal through
 ``deriveAffinities`` and ``authorPenaltyIn``; and the ``toSignal`` weight
 filter for 1, 0, 0.5 and -1.
 
@@ -108,6 +109,15 @@ GOLDEN = {
         '13.9': {'author': {}, 'booster': {}, 'tag': {}, 'language': {}},
         '14': {'author': {}, 'booster': {}, 'tag': {}, 'language': {}},
         '14.1': {'author': {}, 'booster': {}, 'tag': {}, 'language': {}},
+    },
+    # The evidence floor, which the ages above do not straddle: a single
+    # favourite is worth ``decay(age)`` and is pruned when that falls
+    # below MIN_EVIDENCE (0.75), which is at -log2(0.75) * 14 days, about
+    # 5.81 days. 5.8 keeps it, 5.9 prunes it.
+    'floor': {
+        '5.8': {'author': {'a': 0.7503909250825057}, 'booster': {},
+                'tag': {}, 'language': {}},
+        '5.9': {'author': {}, 'booster': {}, 'tag': {}, 'language': {}},
     },
     'dismissal': {
         'author': {'a': -4},
@@ -453,6 +463,14 @@ for label, age in (('0', 0), ('13.9', 13.9 * DAY),
     check_maps('a favourite at %s days' % label,
                derive({'favourite': [sig('p-%s' % label, 'a', at_ms=at)]}),
                GOLDEN['pruning'][label])
+
+# The evidence floor itself, which those ages do not straddle: a single
+# favourite survives at 5.8 days and is pruned at 5.9.
+for label, age in (('5.8', 5.8 * DAY), ('5.9', 5.9 * DAY)):
+    at = NOW - age
+    check_maps('a favourite at %s days, at the evidence floor' % label,
+               derive({'favourite': [sig('f-%s' % label, 'a', at_ms=at)]}),
+               GOLDEN['floor'][label])
 
 # A dismissal, through deriveAffinities.
 dismissals = [sig('s1', 'a', tags=('spam',))]

@@ -14,7 +14,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 | Slice | Status | Commits | Notes |
 |---|---|---|---|
 | H0 Decisions | partly done | `c8d06be` | D1 (the gates file) is frozen. D2-D5 still open |
-| S0 Guardrails and affinity | in progress | | T0.1, T0.2 merged; T0.3 (the Elk goldens) is next |
+| S0 Guardrails and affinity | **done** | | T0.1-T0.3 merged; `module boundary` and `affinity` are in the suite |
 | S1 Evaluation harness | not started | | Ends at gate A (H1) |
 | S2 Ranked feed core | blocked by H1 | | |
 | S3 Hidden place | blocked by S2 | | |
@@ -27,7 +27,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 |---|---|---|---|
 | T0.1 `module boundary` | merged | `5c3ec10` | The Catch Up boundary is a test now |
 | T0.2 `affinity` | merged | `b8584f0`, `7547cbd` | The port; its outputs match Elk's own TypeScript |
-| T0.3 `affinity` goldens | not started | | Needs T0.2, which is merged |
+| T0.3 `affinity` goldens | merged | `3d29fe9` | 141 checks against Elk's own numbers |
 
 ### Revision 2 (after the review of 2026-10-21)
 
@@ -814,7 +814,24 @@ ported as a pure function.
    - a mixed sequence of favourites, reblogs, replies and bookmarks over 30
      days, with mutuals;
    - an evidence-cap sequence: 12 favourites of one author;
-   - a pruning boundary: a single favourite at 0, 13.9, 14 and 14.1 days;
+   - a pruning boundary: a single favourite at 0, 13.9, 14 and 14.1 days.
+     **What those ages actually pin.** They straddle the *half-life*, not
+     the evidence floor: `decayFactor` is 0.5024816639983285 at 13.9 days,
+     exactly 0.5 at 14, and 0.497530592481145 at 14.1. So the sequence pins
+     the decay curve around its half-life.
+
+     They do **not** straddle the pruning floor. A single favourite's
+     author weight is `1 × decay`, and it is pruned when that falls below
+     `MIN_EVIDENCE` (0.75) — which happens at `−log2(0.75) × 14 days ≈
+     5.81` days, not 14. At all three of 13.9, 14 and 14.1 the entry is
+     already pruned, so the derived maps are empty in each case; the
+     ages pin the decay, and the floor is pinned by the 0-day case
+     (kept) against the 13.9-day case (pruned).
+
+     The floor's own boundary is at 5.81 days, and a golden straddling
+     *that* (5.8 keeps 0.7503909250825057, 5.9 prunes) is worth having
+     too, since the floor is the rule a reader is most likely to get
+     wrong. T0.3's goldens cover both sets;
    - a dismissal sequence, through `deriveAffinities` and through
      `authorPenaltyIn`;
    - a signal with `weight` 1, 0, 0.5 and −1, to pin the `toSignal` weight
