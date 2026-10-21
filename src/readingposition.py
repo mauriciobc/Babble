@@ -7,7 +7,9 @@ next launch the first page is asked for at that id with ``max_id``, which
 puts the remembered post (or, when it was deleted, the nearest older one)
 at the top of a normal page: no scrolling to a row that is not built yet,
 and ``oldest_id``/``newest_id`` stay what they always are. What is newer
-is one button away, and it is the ordinary refresh that fetches it.
+is fetched at once by the ordinary refresh and inserted above, while the
+remembered post is held where it is on screen; the New Posts button goes
+back up to them.
 
 Only the local copy is used. The server's ``home`` marker would give a
 second device the same place, but reading it costs a round trip before the
@@ -19,12 +21,14 @@ import gi
 
 gi.require_version('Gtk', '4.0')
 
-from gi.repository import GLib  # noqa: E402
+from gi.repository import GLib, Gtk  # noqa: E402
 
-from .i18n import gettext as _  # noqa: E402
 from . import pages  # noqa: E402
+from .timelinedata import BoostCarouselItem  # noqa: E402
 
 SAVE_DELAY_MS = 2000
+# Most frames a pinned post is nudged back into place while rows settle.
+PIN_FRAMES = 30
 SETTING = 'home-reading-position'
 ENABLED = 'resume-reading-position'
 
@@ -59,6 +63,10 @@ def anchor_params(status_id):
         return None
 
 
+def _pin_tick(page, _clock):
+    return page._align_pin()
+
+
 def _save_tick(page_ref):
     page = page_ref()
     if page is None:
@@ -78,6 +86,12 @@ class ReadingPosition:
         self._resume_anchor = None
         self._resume_pending = False
         self._resumed = False
+        self._catching = False
+        self._pin_item = None
+        self._pin_y = 0.0
+        self._pin_ticks = 0
+        self._pin_calm = 0
+        self._pin_tick_id = 0
         self._save_source = 0
         if home and settings.get_boolean(ENABLED):
             self._resume_key = settings.get_string('active-account')
@@ -107,45 +121,143 @@ class ReadingPosition:
             return True
         self._resumed = True
         self._resume_anchor = None
-        self.new_pill.set_label(_('Newer Posts'))
-        self.new_posts_revealer.set_reveal_child(True)
         return False
 
-    def resume_pill_clicked(self):
-        """The pill in its resumed state asks for what is newer and goes
-        there. Returns True when it handled the click."""
-        if not self._resumed:
-            return False
-        self._resumed = False
-        self.new_posts_revealer.set_reveal_child(False)
+    # Catching up above the remembered post
+
+    def _resume_start_catchup(self):
+        """The anchored page is in: fetch what is newer, with the post at
+        its top held in place as those rows go in above it. Called from
+        every path a first page can land by, so a page the filters emptied
+        (and refilled by paging) starts it too."""
+        if not self._resumed or self._catching:
+            return
+        if self.model.get_n_items() == 0:
+            self._resumed = False
+            return
+        self._catching = True
+        self._pin_item = self.model.get_item(0)
+        self._pin_y = 0.0
         self.refresh()
-        self.scroll_to_top()
-        return True
+
+    def _pin_prepare(self):
+        """Before rows go in above: remember the post at the top of the
+        screen and where it is, which is the post resumed on the first
+        page and wherever the reader has scrolled to after that."""
+        found = self._top_item()
+        if found is not None:
+            self._pin_item, self._pin_y = found
+
+    def resume_inserted(self, added):
+        """Newer posts went in above the pinned one: count them for the
+        button and put the pinned post back where it was."""
+        if added:
+            self._show_new_pill(added)
+            self._repin()
+
+    def _chain_ended(self):
+        """The refresh chain stopped, by a short page, the cap, a failure
+        or because an older page took its request's place. Pinning ends,
+        and one more refresh sweeps up whatever the catch-up missed: posts
+        streamed meanwhile were held back, and the cursor continues
+        contiguously from where the chain stopped."""
+        self._refresh_chain = 0
+        if self._catching:
+            self._end_catchup()
+            self.refresh()
+
+    def _end_catchup(self):
+        self._catching = False
+        self._resumed = False
+        self._stop_pinning()
+
+    def _stop_pinning(self):
+        self._pin_item = None
+        self._pin_ticks = 0
+        if self._pin_tick_id:
+            self.remove_tick_callback(self._pin_tick_id)
+            self._pin_tick_id = 0
+
+    def resume_unpin(self):
+        """The reader asked for the top: stop holding the post, and treat
+        the rest of the catch-up as an ordinary refresh at the top."""
+        self._resumed = False
+        self._stop_pinning()
+
+    def _top_item(self):
+        """``(item, y)`` of the first row at least partly on screen: the
+        one still below the top edge with the smallest y. Bounds are
+        relative to the visible area, not to the content."""
+        height = self._scrolled.get_height()
+        best = None
+        for y, h, item in self._row_rects():
+            if y + h > 1 and y < height and (best is None or y < best[1]):
+                best = (item, y)
+        return best
+
+    def _row_rects(self):
+        """``(y, height, first item)`` for every row drawn."""
+        rects = []
+        child = self.list_view.get_first_child()
+        while child is not None:
+            run = getattr(child.get_first_child(), '_run', None)
+            ok, bounds = child.compute_bounds(self.list_view)
+            if run is not None and ok and child.get_mapped():
+                rects.append((bounds.get_y(), bounds.get_height(),
+                              run.items[0]))
+            child = child.get_next_sibling()
+        return rects
+
+    def _repin(self):
+        """Rows went in above the pinned post. A list view at the top
+        shows its first row, so scroll to the pinned one, then keep nudging
+        it back to where it was while the rows above settle their heights."""
+        if self._pin_item is None:
+            return
+        for position in range(self.run_model.get_n_items()):
+            if self._pin_item is self.run_model.get_item(position).items[0]:
+                break
+        else:
+            return
+        self.list_view.scroll_to(position, Gtk.ListScrollFlags.NONE, None)
+        self._pin_ticks = PIN_FRAMES
+        self._pin_calm = 0
+        if not self._pin_tick_id:
+            self._pin_tick_id = self.add_tick_callback(_pin_tick)
+
+    def _align_pin(self):
+        """One frame of nudging; stops once the post has stayed put for two
+        frames, or after PIN_FRAMES."""
+        if self._pin_item is None or self._pin_ticks <= 0:
+            self._pin_tick_id = 0
+            return GLib.SOURCE_REMOVE
+        self._pin_ticks -= 1
+        y = next((y for y, _h, item in self._row_rects()
+                  if item is self._pin_item), None)
+        if y is not None:
+            if abs(y - self._pin_y) > 1:
+                adjustment = self._scrolled.get_vadjustment()
+                adjustment.set_value(adjustment.get_value() + y - self._pin_y)
+                self._pin_calm = 0
+            else:
+                self._pin_calm += 1
+        if self._pin_calm >= 2:
+            self._pin_tick_id = 0
+            return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
 
     # Saving
 
     def top_visible_status_id(self):
-        """Timeline id of the first post that is at least partly on
-        screen, or None. This is the id the server pages by (a boost's own
-        id, not the id of the post it shares), so ``max_id`` can ask for
-        it again. The list view's children are its row shells, in no order,
-        and their bounds are relative to the visible area: the first row
-        is the one still below the top edge with the smallest y."""
-        height = self._scrolled.get_height()
-        best = None
-        child = self.list_view.get_first_child()
-        while child is not None:
-            shell = child.get_first_child()
-            item = getattr(shell, 'item', None)
-            raw = getattr(item, 'raw', None)
-            ok, bounds = child.compute_bounds(self.list_view)
-            if ok and raw and raw.get('id') and child.get_mapped() \
-                    and bounds.get_y() + bounds.get_height() > 1 \
-                    and bounds.get_y() < height \
-                    and (best is None or bounds.get_y() < best[0]):
-                best = (bounds.get_y(), str(raw['id']))
-            child = child.get_next_sibling()
-        return best[1] if best else None
+        """Timeline id of the first post at least partly on screen, or
+        None. This is the id the server pages by (a boost's own id, not
+        the id of the post it shares), so ``max_id`` can ask for it again.
+        A carousel has no single id, so the post under it is the one kept."""
+        found = self._top_item()
+        if found is None or isinstance(found[0], BoostCarouselItem):
+            return None
+        raw = found[0].raw
+        return str(raw['id']) if raw.get('id') else None
 
     def schedule_reading_position_save(self):
         """Save after the reader pauses, not on every scroll step."""

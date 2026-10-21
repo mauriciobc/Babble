@@ -392,8 +392,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
                        % count)
 
     def _on_new_pill_clicked(self, _button):
-        if self.resume_pill_clicked():
-            return
+        self.resume_unpin()
         self._pill_count = 0
         self.new_posts_revealer.set_reveal_child(False)
         self.scroll_to_top()
@@ -564,6 +563,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
             return
         self.stack.set_visible_child_name('list')
         self._fill_filtered()
+        self._resume_start_catchup()
 
     def _trim_old(self):
         """Keep the timeline to TIMELINE_MAX_ITEMS while the reader is on
@@ -636,9 +636,11 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         self._fill_loop(before)
         self._release_bottom()
         self._fill_filtered()
+        self._resume_start_catchup()
 
     def on_refresh_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
+            self._chain_ended()
             return
         self.model.loading = False
         try:
@@ -647,9 +649,10 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
             root = self.get_root()
             if root is not None and hasattr(root, 'show_error'):
                 root.show_error(_('Refresh failed'), e.message)
+            self._chain_ended()
             return
         if not statuses:
-            self._refresh_chain = 0
+            self._chain_ended()
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
             return
@@ -664,9 +667,14 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
 
     def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0):
         if statuses:
+            pinned = self._catching and self._pin_item is not None
+            if pinned:
+                self._pin_prepare()
             added = self.model.insert_new(statuses)
             self._note_followed_tags(statuses)
-            if added and self._scrolled.get_vadjustment().get_value() > 24:
+            if pinned:
+                self.resume_inserted(added)
+            elif added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
             self._trim_old()
         if self.model.get_n_items() == 0:
@@ -685,7 +693,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
             self._refresh_chain += 1
             self.refresh()
         else:
-            self._refresh_chain = 0
+            self._chain_ended()
 
     def on_row_activated(self, _view, position):
         run = self.run_model.get_item(position)
@@ -719,9 +727,9 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         if self._hide_boosts and status.get('reblog'):
             return
         if self._resumed:
-            # Inserted above the post being resumed it would push it off
-            # the screen, and it would move the cursor past the posts
-            # between. The button fetches it, in order, with the rest.
+            # Inserted before the catch-up reaches it, it would move the
+            # cursor past the posts between. The sweep that ends the
+            # catch-up fetches it, in order.
             return
         added = self.model.insert_new([status])
         self._note_followed_tags([status])

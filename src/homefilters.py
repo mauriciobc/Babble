@@ -106,6 +106,10 @@ class HomeFilters:
         unfiltered page is already full."""
         if not (self._hide_boosts or self._hide_replies_non_follows):
             return
+        if self._catching:
+            # The newer-posts request and this one would supersede each
+            # other; the catch-up goes first.
+            return
         if self.model.exhausted or self.model.get_n_items() == 0:
             return
         if self.model.get_n_items() < self.PAGE_SIZE:
