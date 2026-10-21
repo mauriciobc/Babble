@@ -438,7 +438,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             self, _('Delete Post?'),
             _('This post will be removed from your profile and from the '
               'timelines of other servers.'),
-            _('_Delete'), lambda: self._delete(item, None))
+            _('_Delete'), lambda: self._delete_with_undo(item))
 
     def _menu_redraft(self, *_args):
         item = self.item
@@ -450,6 +450,37 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
               'poll copied into a new draft.'),
             _('_Delete and Redraft'),
             lambda: self._delete(item, 'start_redraft'))
+
+    def _delete_with_undo(self, item):
+        """Take the post out of view at once and send the DELETE only when
+        the Undo toast goes away, so a slip costs nothing."""
+        client = self.client
+        page = self._timeline_page()
+        taken = page.model.take_status(item.status_id) \
+            if page is not None and page.model is not None else []
+        if not taken:
+            # Not in a list (or already gone): no way to show it coming back.
+            self._delete(item, None)
+            return
+
+        def restore():
+            if page.model is not None:
+                page.model.put_back(taken)
+
+        def commit():
+            def finished(_client, result, _data=None):
+                try:
+                    client.request_finish(result)
+                except GLib.Error as error:
+                    # The post is still on the server: bring it back.
+                    restore()
+                    pages.report_error(
+                        self, _('Could not delete post'), error)
+
+            client.request_async(
+                'DELETE', '/statuses/%s' % item.status_id, callback=finished)
+
+        pages.deferred_action(self, _('Post deleted'), commit, restore)
 
     def _delete(self, item, composer_method):
         """DELETE the post; for a redraft hand the returned source to
@@ -469,11 +500,15 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                    '/statuses/%s' % item.status_id, done,
                    _('Could not delete post'))
 
-    def _after_deleted(self, item):
+    def _timeline_page(self):
         widget = self.host() if self.host else self
         from .timelinepage import TimelinePage
         while widget is not None and not isinstance(widget, TimelinePage):
             widget = widget.get_parent()
+        return widget
+
+    def _after_deleted(self, item):
+        widget = self._timeline_page()
         if widget is not None:
             widget.on_stream_delete(item.status_id)
         self._notify('deleted')

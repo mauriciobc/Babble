@@ -475,6 +475,12 @@ test('dialog toasts', python,
   timeout: 30,
 )
 
+test('undo actions', python,
+  args: [files('test-undo-actions.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
 # The behaviour both dialog bases promise, pinned before they are merged
 # so the merge can be checked against it.
 test('dialog bases', python,

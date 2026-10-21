@@ -123,7 +123,7 @@ class BabbleApplication(Adw.Application):
         # Buttons on desktop notifications activate these app actions.
         desktopnotify.install_app_actions(self)
         self.connect('open', self.on_open)
-        self.create_action('quit', lambda *args: self.quit(), ['<primary>q'])
+        self.create_action('quit', self._on_quit, ['<primary>q'])
         self.create_action('about', self.on_about_action)
         self.create_action('preferences', self.on_preferences_action,
                            ['<primary>comma'])
@@ -201,6 +201,11 @@ class BabbleApplication(Adw.Application):
         """
         windows = self.get_windows()
         return windows[0] if windows else BabbleWindow(application=self)
+
+    def _on_quit(self, *_args):
+        from . import pages
+        pages.flush_deferred()
+        self.quit()
 
     def do_shutdown(self):
         for win in self.get_windows():

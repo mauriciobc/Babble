@@ -43,7 +43,7 @@ Last audited against the tree on 2026-10-20.
 |---|---|---|---|
 | **Resume reading position** | Reading | Partial | Remember the last-seen status per timeline and reopen there. Phanpy #269 (the most-reacted open request), Tuba #1105. `client.markers_async` already reads `/api/v1/markers` for notifications; add `home`, with local persistence as the fallback for servers without markers. |
 | **Hide boosts / replies per timeline** | Calm | Partial | Phanpy #262, Tuba #1114. `hide-replies-non-follows` exists; there is no boosts counterpart. This is also the first of the Calm presets (Tier 3), so build it once. |
-| **Undo via toasts, extended** | Desktop | Partial | `pages.show_toast(undo=…)` exists and mute uses it. Extend to delete (`DELETE /api/v1/statuses/:id`), unboost (`…/unreblog`) and unfollow (`…/unfollow`). Makes everything else feel safer. |
+| **Undo via toasts, extended** | Desktop | Shipped | Delete takes the post out of view and sends `DELETE /api/v1/statuses/:id` only once the Undo toast goes (or at once when the window closes); unboost offers an Undo that boosts again; unfollow of an unlocked account already did. Unfollowing a locked account keeps its confirmation, since an Undo would send a fresh request that needs approval again. |
 | **Per-notification dismiss** | Calm | | `POST /api/v1/notifications/:id/dismiss`. Already tracked in `IMPROVEMENTS.md`. |
 | **Clear error when no secret service is running** | Trust | | Tuba #598. A plain explanation instead of a crash or silent failure. |
 

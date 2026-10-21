@@ -473,6 +473,28 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             self._forget_boost(target)
         return removed
 
+    def take_status(self, status_id):
+        """Like :meth:`remove_status`, but returns what plain rows were
+        removed as ``(position, item)`` pairs, for :meth:`put_back`."""
+        target = str(status_id)
+        taken = []
+        for position in range(self._store.get_n_items()):
+            item = self._store.get_item(position)
+            if not isinstance(item, BoostCarouselItem) \
+                    and (item.status_id == target
+                         or str(item.raw.get('id') or '') == target):
+                taken.append((position, item))
+        self.remove_status(target)
+        return taken
+
+    def put_back(self, taken):
+        """Return rows from :meth:`take_status` to where they were."""
+        for position, item in taken:
+            if item.status_id in self._seen:
+                continue
+            self._store.insert(min(position, self._store.get_n_items()), item)
+            self._register_seen(item)
+
     def trim(self, keep):
         """Drop every post after the first *keep* and page from the
         oldest one left, so scrolling down fetches the dropped ones

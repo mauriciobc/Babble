@@ -395,14 +395,18 @@ def announce(widget, text,
         widget.announce(text, priority)
 
 
-def show_toast(widget, text, undo=None, undo_label=None):
+def show_toast(widget, text, undo=None, undo_label=None, dismissed=None):
     """Toast on the nearest Adw.ToastOverlay holding *widget*, else on the
     Adw.PreferencesDialog holding it (or that it is), else on the window;
-    *undo* adds a button calling it. *text* is plain text."""
+    *undo* adds a button calling it, *dismissed* runs when the toast goes
+    away however it does. Returns the toast, or None when there was no
+    window to show it on. *text* is plain text."""
     window = window_of(widget)
     if window is None:
-        return
+        return None
     toast = Adw.Toast(title=text, use_markup=False)
+    if dismissed is not None:
+        toast.connect('dismissed', lambda _toast: dismissed())
     if undo is not None:
         toast.set_button_label(undo_label or _('_Undo'))
         toast.set_priority(Adw.ToastPriority.HIGH)
@@ -413,7 +417,7 @@ def show_toast(widget, text, undo=None, undo_label=None):
         else None
     if overlay is not None and overlay is not window.toast_overlay:
         overlay.add_toast(toast)
-        return
+        return toast
     # Adw.PreferencesDialog keeps its overlay inside itself, so it is not an
     # ancestor of the dialog (or of a dialog presented over it); it offers
     # add_toast instead. get_ancestor counts the widget itself.
@@ -423,6 +427,46 @@ def show_toast(widget, text, undo=None, undo_label=None):
         preferences.add_toast(toast)
     else:
         window.add_toast(toast)
+    return toast
+
+
+# Actions held back until their Undo toast is gone. Each entry is the
+# function that commits one, so the window can flush them when it closes.
+_pending_actions = []
+
+
+def deferred_action(widget, text, commit, restore, undo_label=None):
+    """Offer Undo before a destructive request: show *text* with an Undo
+    button, call *restore()* if it is pressed and *commit()* once the toast
+    goes away without that. Exactly one of them runs, once. With no window
+    to show the toast on, *commit* runs at once. :func:`flush_deferred`
+    commits whatever is still waiting."""
+    state = {'settled': False}
+
+    def settle(undone):
+        if state['settled']:
+            return
+        state['settled'] = True
+        if commit_pending in _pending_actions:
+            _pending_actions.remove(commit_pending)
+        (restore if undone else commit)()
+
+    def commit_pending():
+        settle(False)
+
+    _pending_actions.append(commit_pending)
+    toast = show_toast(widget, text, undo=lambda: settle(True),
+                       undo_label=undo_label,
+                       dismissed=lambda: settle(False))
+    if toast is None:
+        settle(False)
+
+
+def flush_deferred():
+    """Commit every action still waiting on its Undo toast, for a window
+    that is closing: the reader chose it, so it must not be dropped."""
+    for commit_pending in list(_pending_actions):
+        commit_pending()
 
 
 def report_error(widget, heading, error):

@@ -934,6 +934,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 'work-in-background'):
             # A hold left from an earlier hide would outlive the window.
             self._release_hold()
+            pages.flush_deferred()
             return False
         app = self.get_application()
         if app is not None and not self._held:
