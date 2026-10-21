@@ -585,6 +585,21 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         self._track_ids(fresh)
         return len(fresh)
 
+    def remove(self, item):
+        """Take *item* out of the list; returns the position it held, or
+        None when it was not there. Its ids stay in ``_seen``: a refresh
+        must not bring a notification back while its dismissal is still in
+        flight."""
+        for position in range(self._store.get_n_items()):
+            if self._store.get_item(position) is item:
+                self._store.remove(position)
+                return position
+        return None
+
+    def restore(self, item, position):
+        """Put back an item :meth:`remove` took out (a dismissal failed)."""
+        self._store.insert(min(position, self._store.get_n_items()), item)
+
     def clear(self):
         self._seen.clear()
         self._store.remove_all()
@@ -905,6 +920,15 @@ class NotificationRow(ColumnBox):
         self.time_label.add_css_class('caption')
         self.time_label.add_css_class('dimmed')
         header.append(self.time_label)
+        self.dismiss_button = Gtk.Button(
+            icon_name='window-close-symbolic', valign=Gtk.Align.START,
+            tooltip_text=_('Dismiss Notification'))
+        self.dismiss_button.add_css_class('flat')
+        self.dismiss_button.add_css_class('circular')
+        pages.set_accessible_label(self.dismiss_button,
+                                   _('Dismiss Notification'))
+        connect_weak(self.dismiss_button, 'clicked', self._on_dismiss_clicked)
+        header.append(self.dismiss_button)
         content.append(header)
 
         self.detail_label = Gtk.Label(xalign=0.0, wrap=True, visible=False,
@@ -939,6 +963,11 @@ class NotificationRow(ColumnBox):
         content.append(self.cluster_expander)
 
         self.append(content)
+
+    def _on_dismiss_clicked(self, _button):
+        page = self.get_ancestor(NotificationsPage)
+        if page is not None and self.item is not None:
+            page.dismiss(self.item)
 
     def _on_expanded_changed(self, expander, _pspec):
         expanded = expander.get_expanded()

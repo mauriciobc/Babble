@@ -39,13 +39,15 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
 
     Actions that change the post in place emit ``refresh`` (the host
     redraws it); ``translated`` follows it once a translation arrived,
-    and ``deleted`` when the post is gone."""
+    ``deleted`` when the post is gone, and ``restored`` when an Undo
+    brought it back."""
 
     __gtype_name__ = 'BabbleStatusMenuButton'
     __gsignals__ = {
         'refresh': (GObject.SignalFlags.RUN_FIRST, None, ()),
         'translated': (GObject.SignalFlags.RUN_FIRST, None, ()),
         'deleted': (GObject.SignalFlags.RUN_FIRST, None, ()),
+        'restored': (GObject.SignalFlags.RUN_FIRST, None, ()),
     }
 
     MENU_ACTIONS = (
@@ -438,7 +440,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             self, _('Delete Post?'),
             _('This post will be removed from your profile and from the '
               'timelines of other servers.'),
-            _('_Delete'), lambda: self._delete(item, None))
+            _('_Delete'), lambda: self._delete_with_undo(item))
 
     def _menu_redraft(self, *_args):
         item = self.item
@@ -450,6 +452,50 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
               'poll copied into a new draft.'),
             _('_Delete and Redraft'),
             lambda: self._delete(item, 'start_redraft'))
+
+    def _delete_with_undo(self, item):
+        """Take the post out of view at once and send the DELETE only when
+        the Undo toast goes away, so a slip costs nothing."""
+        client = self.client
+        # Taking the row out of the model unparents this button, and a
+        # widget with no root finds no window to show the toast on: the
+        # toast target is chosen first.
+        anchor = pages.window_of(self) or self
+        page = self._timeline_page()
+        taken = page.model.take_status(item.status_id) \
+            if page is not None and page.model is not None else []
+
+        if taken:
+            def hide():
+                pass
+
+            def restore():
+                if page.model is not None:
+                    page.model.put_back(taken)
+        else:
+            # A thread, a search result, a Catch-Up tile: the host hides
+            # the post itself and shows it again.
+            def hide():
+                self._notify('deleted')
+
+            def restore():
+                self._notify('restored')
+
+        def commit():
+            def finished(_client, result, _data=None):
+                try:
+                    client.request_finish(result)
+                except GLib.Error as error:
+                    # The post is still on the server: bring it back.
+                    restore()
+                    pages.report_error(
+                        anchor, _('Could not delete post'), error)
+
+            client.request_async(
+                'DELETE', '/statuses/%s' % item.status_id, callback=finished)
+
+        hide()
+        pages.deferred_action(anchor, _('Post deleted'), commit, restore)
 
     def _delete(self, item, composer_method):
         """DELETE the post; for a redraft hand the returned source to
@@ -469,11 +515,15 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                    '/statuses/%s' % item.status_id, done,
                    _('Could not delete post'))
 
-    def _after_deleted(self, item):
+    def _timeline_page(self):
         widget = self.host() if self.host else self
         from .timelinepage import TimelinePage
         while widget is not None and not isinstance(widget, TimelinePage):
             widget = widget.get_parent()
+        return widget
+
+    def _after_deleted(self, item):
+        widget = self._timeline_page()
         if widget is not None:
             widget.on_stream_delete(item.status_id)
         self._notify('deleted')

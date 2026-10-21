@@ -710,6 +710,7 @@ class PostTile(_Tile):
         if menu is not None:
             connect_weak(menu, 'refresh', self._on_menu_refresh)
             connect_weak(menu, 'deleted', self._on_menu_deleted)
+            connect_weak(menu, 'restored', self._on_menu_restored)
             self._menu = menu
             box.append(menu)
         return box
@@ -719,6 +720,9 @@ class PostTile(_Tile):
 
     def _on_menu_deleted(self, _menu):
         self.set_visible(False)
+
+    def _on_menu_restored(self, _menu):
+        self.set_visible(True)
 
     def _texts(self, headline_lines, body_lines, quote=False):
         """The headline and body widgets. *quote* is a text-only tile two

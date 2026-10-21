@@ -44,19 +44,19 @@ TEXT_SIZES = (('small', _('Small')), ('normal', _('Normal')),
               ('large', _('Large')))
 
 AUTO_REFRESH_CHOICES = (
-    ('0', _('Off')), ('30', _('Every 30 Seconds')),
-    ('60', _('Every Minute')), ('300', _('Every 5 Minutes')))
+    ('0', _('Off')), ('30', _('Every 30 seconds')),
+    ('60', _('Every minute')), ('300', _('Every 5 minutes')))
 
 MEDIA_VIEWER_MODES = (
-    ('box', _('As a Box over the Window')),
-    ('fullscreen', _('Fill the Window')))
+    ('box', _('Box')),
+    ('fullscreen', _('Window')))
 
 # Labels are this page's; the codes belong to the entity, shared with
 # the composer's visibility menu.
 _QUOTE_LABELS = {
     'public': _('Everyone'),
     'followers': _('Followers'),
-    'nobody': _('Only Me'),
+    'nobody': _('Only me'),
 }
 QUOTE_POLICIES = tuple(
     (code, _QUOTE_LABELS[code]) for code in QUOTE_POLICY_CODES)
@@ -184,18 +184,17 @@ class PreferencesDialog(Adw.PreferencesDialog):
     __gtype_name__ = 'BabblePreferencesDialog'
 
     def __init__(self, window):
-        # Six pages of settings: searchable, so a row can be found by its
+        # Five pages of settings: searchable, so a row can be found by its
         # name instead of hunted for down the list.
         super().__init__(title=_('Preferences'), search_enabled=True)
         self.window = window
         self.settings = window.settings
-        self.add(self._general_page())
+        self.add(self._appearance_page())
+        self.add(self._reading_page())
         self.add(self._timelines_page())
         if window.client is not None:
             self.add(self._posting_page())
         self.add(self._notifications_page())
-        if window.client is not None:
-            self.add(self._filters_page())
 
     # Row builders
 
@@ -240,6 +239,34 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _on_enum_setting_changed(self, settings, key, row):
         row.set_selected(settings.get_enum(key))
 
+    def _toggle_enum(self, group, key, title, choices, subtitle=None):
+        """Row with a toggle group for an enum key of two short choices;
+        *choices* is (nick, label)… in schema order. A combo row is for
+        three or more."""
+        row = Adw.ActionRow(title=title, subtitle=subtitle or '',
+                            use_underline=True)
+        toggles = Adw.ToggleGroup(valign=Gtk.Align.CENTER)
+        for nick, label in choices:
+            toggles.add(Adw.Toggle(name=nick, label=label))
+        row.add_suffix(toggles)
+        row.set_activatable_widget(toggles)
+        nicks = [choice[0] for choice in choices]
+        toggles.set_active_name(nicks[self.settings.get_enum(key)])
+        pages.connect_weak(toggles, 'notify::active-name',
+                           self._on_toggle_selected, key, nicks)
+        pages.connect_weak(self.settings, 'changed::' + key,
+                           self._on_toggle_setting_changed, toggles, nicks)
+        group.add(row)
+        return row
+
+    def _on_toggle_selected(self, toggles, _pspec, key, nicks):
+        index = nicks.index(toggles.get_active_name())
+        if index != self.settings.get_enum(key):
+            self.settings.set_enum(key, index)
+
+    def _on_toggle_setting_changed(self, settings, key, toggles, nicks):
+        toggles.set_active_name(nicks[settings.get_enum(key)])
+
     def _combo_string(self, group, key, title, choices, subtitle=None):
         """ComboRow over a plain string key; *choices* is (nick, label)…
         Used when the value set is open-ended (e.g. interface language)."""
@@ -269,15 +296,16 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     # Pages
 
-    def _general_page(self):
-        page = Adw.PreferencesPage(title=_('General'),
-                                   icon_name='preferences-system-symbolic',
-                                   name='general')
+    def _appearance_page(self):
+        page = Adw.PreferencesPage(
+            title=_('Appearance'),
+            icon_name='preferences-desktop-appearance-symbolic',
+            name='appearance')
 
-        appearance = Adw.PreferencesGroup(title=_('Appearance'))
+        appearance = Adw.PreferencesGroup()
         row = self._combo_string(
             appearance, 'interface-language', _('_Language'),
-            [('', _('System Language'))] + list(INTERFACE_LANGUAGES),
+            [('', _('System language'))] + list(INTERFACE_LANGUAGES),
             subtitle=_('Takes effect the next time Babble starts'))
         pages.connect_weak(row, 'notify::selected',
                            self._on_interface_language_selected)
@@ -286,108 +314,160 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._combo_enum(
             appearance, 'text-size', _('_Text Size'), TEXT_SIZES,
             subtitle=_('Set the text size used in the interface'))
-        self._switch(appearance, 'larger-line-height', _('Large _Line Height'),
+        self._switch(appearance, 'larger-line-height', _('Large Line _Height'),
                      _('Increase the line height in posts'))
-        self._switch(appearance, 'darken-images-on-dark-mode',
-                     _('_Darken Images on Dark Mode'))
         self._switch(appearance, 'dim-trivial-notifications',
-                     _('Dim _Trivial Notifications'),
+                     _('Dimmed Trivial _Notifications'),
                      _('Notifications like favorites and boosts will be less visible'))
-        self._switch(appearance, 'enlarge-custom-emojis',
-                     _('Large Custom _Emojis'))
-        self._switch(appearance, 'scale-emoji-hover',
-                     _('_Scale Custom Emojis on Hover'),
-                     _('Slightly increases the size of custom emojis '
-                       'when you hover over them'))
         self._switch(appearance, 'translucent-sidebar',
                      _('T_ranslucent Sidebar'),
                      _('Blur the desktop behind the sidebar. '
                        'Needs a compositor that supports background blur'))
         page.add(appearance)
 
+        images = Adw.PreferencesGroup(title=_('Images and Emojis'))
+        self._switch(images, 'darken-images-on-dark-mode',
+                     _('Darkened _Images in Dark Mode'))
+        self._switch(images, 'enlarge-custom-emojis',
+                     _('Large Custom _Emojis'))
+        self._switch(images, 'scale-emoji-hover',
+                     _('Custom Emoji _Zoom on Hover'),
+                     _('Slightly increases the size of custom emojis '
+                       'when you hover over them'))
+        page.add(images)
+        return page
+
+    def _reading_page(self):
+        page = Adw.PreferencesPage(
+            title=_('Reading'), icon_name='view-paged-symbolic',
+            name='reading')
+
         posts = Adw.PreferencesGroup(title=_('Posts'))
-        self._switch(posts, 'collapse-long-posts', _('Collapse _Long Posts'))
-        self._switch(posts, 'letterbox-media', _('_Letterbox Media'),
+        self._switch(posts, 'collapse-long-posts',
+                     _('Collapsed _Long Posts'))
+        self._switch(posts, 'letterbox-media', _('Letterboxed _Media'),
                      _('Scale down and letterbox media to fill the '
                        'image containers instead of cropping them'))
-        self._combo_enum(
-            posts, 'media-viewer-mode', _('_Open Photos'),
+        self._toggle_enum(
+            posts, 'media-viewer-mode', _('Photo _Viewer'),
             MEDIA_VIEWER_MODES,
             subtitle=_('How a photo opens in the viewer: as a box over '
                        'the window, or filling it'))
-        self._switch(posts, 'show-sensitive-media',
-                     _('Reveal Sensitive _Media by Default'))
-        self._switch(posts, 'show-spoilers',
-                     _('Reveal _Spoilers by Default'))
+        self._switch(posts, 'show-sensitive-media', _('_Sensitive Media'),
+                     _('Reveal sensitive media instead of hiding it '
+                       'behind a warning'))
+        self._switch(posts, 'show-spoilers', _('S_poilers'),
+                     _('Reveal posts with a content warning'))
         self._switch(posts, 'show-preview-cards',
-                     _('Show Link Preview _Cards'))
+                     _('Link Preview _Cards'))
         self._switch(posts, 'show-interaction-counters',
-                     _('Show Interaction C_ounters'),
+                     _('_Interaction Counters'),
                      _('Reply, boost and favorite counts on post actions'))
         self._switch(posts, 'show-action-bar',
-                     _('Show Post _Actions on Timelines'),
+                     _('Post _Actions on Timelines'),
                      _('Actions stay available in each post’s menu'))
-        self._switch(posts, 'boosts-carousel', _('_Boosts Carousel'),
+        page.add(posts)
+
+        boosts = Adw.PreferencesGroup(title=_('Boosts'))
+        self._switch(boosts, 'boosts-carousel', _('_Boosts Carousel'),
                      _('When a page of posts is mostly boosts, fold them '
                        'into a horizontal carousel instead of one row each. '
                        'Applies to timelines opened afterwards'))
-        self._switch(posts, 'dedupe-boosts', _('Hide _Duplicate Boosts'),
+        self._switch(boosts, 'dedupe-boosts', _('Si_ngle Boost per Post'),
                      _('Show only the first boost of a post that several '
                        'people boosted. Applies to timelines opened '
                        'afterwards'))
-        self._switch(posts, 'hide-replies-non-follows',
-                     _('Hide Replies From Non-_Follows'),
+        page.add(boosts)
+
+        home = Adw.PreferencesGroup(title=_('Home Timeline'))
+        self._switch(home, 'hide-replies-non-follows',
+                     _('Hidden Replies From Non-_Follows'),
                      _('On the home timeline, hide posts that are replies '
                        'from accounts you do not follow'))
-        page.add(posts)
+        self._switch(home, 'hide-boosts-home', _('Hidden Boosts on _Home'),
+                     _('On the home timeline, show only posts and replies '
+                       'by the people you follow, without their boosts'))
+        self._switch(home, 'resume-reading-position',
+                     _('Remembered _Reading Position'),
+                     _('Reopen the home timeline at the post you were '
+                       'reading, with a button for newer posts'))
+        page.add(home)
 
-        behavior = Adw.PreferencesGroup(title=_('Behavior'))
-        self._switch(behavior, 'advanced-boost-dialog',
-                     _('Advanced _Boost Dialog'),
-                     _('Change boost visibility, quote and confirm boosting'))
-        self._switch(behavior, 'strip-tracking',
-                     _('Strip _Tracking Parameters From Links'),
+        page.add(self._links_group())
+        if self.window.client is not None:
+            page.add(self._filters_group())
+        return page
+
+    def _links_group(self):
+        links = Adw.PreferencesGroup(title=_('Links'))
+        self._switch(links, 'strip-tracking',
+                     _('_Tracking Parameter Removal'),
                      _('This option can lead to broken links when enabled'))
-        self._switch(behavior, 'aggressive-resolving',
-                     _('Open Remote Links in _Babble'),
+        self._switch(links, 'aggressive-resolving',
+                     _('R_emote Links in Babble'),
                      _('Open links to posts and profiles on other '
                        'servers inside the app'))
         if webcolumn.available():
-            web = self._switch(behavior, 'open-links-in-app',
-                               _('Open _Web Links Beside the Timeline'),
+            web = self._switch(links, 'open-links-in-app',
+                               _('_Web Links Beside the Timeline'),
                                _('Show other links in a column instead of '
                                  'the browser. Pages keep no cookies once '
                                  'Babble closes'))
-            script = self._switch(behavior, 'web-javascript',
-                                  _('Allow _JavaScript on Web Pages'),
+            script = self._switch(links, 'web-javascript',
+                                  _('_JavaScript on Web Pages'),
                                   _('Many sites do not work without it'))
             web.bind_property('active', script, 'sensitive',
                               GObject.BindingFlags.SYNC_CREATE)
-        self._switch(behavior, 'offer-copied-links',
-                     _('Offer to Open _Copied Links'),
+        self._switch(links, 'offer-copied-links',
+                     _('Copied Link S_uggestions'),
                      _('Check the clipboard for post and profile links '
                        'when Babble is focused'))
-        self._switch(behavior, 'reply-to-old-post-reminder',
-                     _('Warn Before Replying to an _Old Post'))
-        self._switch(behavior, 'copy-private-link-reminder',
-                     _('Warn Before Copying a Link to a _Private Post'))
-        self._switch(behavior, 'boost-alt-text-reminder',
-                     _('Warn Before Boosting Media Without _Alt Text'))
-        row = self._switch(behavior, 'work-in-background',
-                           _('_Run in Background'),
+        return links
+
+    def _reminders_group(self):
+        reminders = Adw.PreferencesGroup(title=_('Boosts and Reminders'))
+        self._switch(reminders, 'advanced-boost-dialog',
+                     _('Advanced Boost _Dialog'),
+                     _('Change boost visibility, quote and confirm boosting'))
+        self._switch(reminders, 'reply-to-old-post-reminder',
+                     _('Old Post Reply _Warning'))
+        self._switch(reminders, 'copy-private-link-reminder',
+                     _('Private Post Lin_k Warning'))
+        self._switch(reminders, 'boost-alt-text-reminder',
+                     _('Missing Alt Text _Boost Warning'))
+        return reminders
+
+    def _background_group(self):
+        background = Adw.PreferencesGroup(title=_('Background'))
+        row = self._switch(background, 'work-in-background',
+                           _('Background _Mode'),
                            _('Keep running after the window is '
                              'closed to deliver notifications'))
         pages.connect_weak(row, 'notify::active', self._on_background_toggled)
         self._shortcut_row = self._switch(
-            behavior, 'global-shortcut', _('_Quick Post Shortcut'),
+            background, 'global-shortcut', _('_Quick Post Shortcut'),
             _('Open the composer from anywhere with a system-wide '
               'shortcut, which can be changed in the system settings'))
         # Shown only once the GlobalShortcuts portal is known to exist.
         self._shortcut_row.set_visible(False)
         portals.portal_version(portals.SHORTCUTS,
                                pages.weak_method(self._on_shortcut_portal))
-        page.add(behavior)
-        return page
+        return background
+
+    def _filters_group(self):
+        group = Adw.PreferencesGroup(
+            title=_('Filters'),
+            description=_('Hide or warn about posts that match keywords, '
+                          'on every device you use'))
+        row = Adw.ActionRow(title=_('Mana_ge Filters'), use_underline=True,
+                            subtitle=_('Create, edit and delete filters'),
+                            activatable=True)
+        row.add_suffix(Gtk.Image(
+            icon_name='go-next-symbolic',
+            accessible_role=Gtk.AccessibleRole.PRESENTATION))
+        pages.connect_weak(row, 'activated', self._on_filters_activated)
+        group.add(row)
+        return group
 
     def _on_interface_language_selected(self, _row, _pspec):
         self.add_toast(Adw.Toast(
@@ -405,10 +485,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
                                    icon_name='view-list-symbolic',
                                    name='timelines')
         live = Adw.PreferencesGroup(title=_('Live Updates'))
-        stream = self._switch(live, 'live-updates', _('_Stream Timelines'),
+        stream = self._switch(live, 'live-updates', _('Li_ve Timelines'),
                               _('Receive new posts and notifications in real time'))
         public = self._switch(
-            live, 'public-live-updates', _('Stream _Public Timelines'),
+            live, 'public-live-updates', _('Live _Public Timelines'),
             _('This will increase memory usage when browsing high traffic timelines'))
         stream.bind_property('active', public, 'sensitive',
                              GObject.BindingFlags.SYNC_CREATE)
@@ -431,7 +511,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Show posts from all known servers'), invert=True)
         from .window import SHOW_RESTRICTED_KEY
         self._restricted_row = self._switch(
-            sidebar, SHOW_RESTRICTED_KEY, _('Show _Disabled Timelines'),
+            sidebar, SHOW_RESTRICTED_KEY, _('Disabled _Timelines'),
             _('Your server has turned these timelines off, but this '
               'account may still read them'))
         self._restricted_row.set_visible(self._restricted_feeds_available())
@@ -467,19 +547,18 @@ class PreferencesDialog(Adw.PreferencesDialog):
                          # source preferences, which is where this is
                          # sent. Say so, rather than letting the row
                          # read as a Babble-side switch.
-                         subtitle=_('Saved to your server preferences; '
-                                     'the API sets it per account, not '
-                                     'per post'),
+                         subtitle=_('Saved to your server preferences, so it '
+                                     'applies to every new post'),
                          sync=True)
         self._language_row(group)
         row = self._switch(group, 'default-sensitive',
-                           _('Mark Media as _Sensitive'))
+                           _('Media Marked _Sensitive'))
         pages.connect_weak(row, 'notify::active', self._on_sensitive_toggled)
 
         instance = (self.window.account or {}).get('instance', '')
         server = Adw.PreferencesGroup()
         server_row = Adw.ActionRow(
-            title=_('_Server Preferences'), use_underline=True,
+            title=_('Server _Preferences'), use_underline=True,
             subtitle=urllib.parse.urlsplit(instance).netloc or instance,
             activatable=True)
         server_row.add_suffix(Gtk.Image(
@@ -489,6 +568,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                            self._on_server_activated, instance)
         server.add(server_row)
         page.add(group)
+        page.add(self._reminders_group())
         page.add(server)
         return page
 
@@ -513,7 +593,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     def _language_row(self, group):
         codes = [''] + [code for code, _n in LANGUAGES]
-        labels = [_('System Language')] + [name for _c, name in LANGUAGES]
+        labels = [_('System language')] + [name for _c, name in LANGUAGES]
         row = Adw.ComboRow(title=_('Default _Language'), use_underline=True,
                            model=Gtk.StringList.new(labels))
         current = self.settings.get_string('default-language')
@@ -547,7 +627,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                                kind)
             desktop.add(row)
         self._switch(
-            desktop, 'group-desktop-notifications', _('_Group'),
+            desktop, 'group-desktop-notifications', _('Grouped _Notifications'),
             _('Combine notifications of the same type and post into one'))
         page.add(desktop)
 
@@ -563,6 +643,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             pages.connect_weak(policy, 'activated', self._on_policy_activated)
             server.add(policy)
             page.add(server)
+        page.add(self._background_group())
         return page
 
     def _on_type_toggled(self, row, _pspec, kind):
@@ -576,25 +657,6 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _on_policy_activated(self, _row):
         from .notifications import present_notification_policy
         present_notification_policy(self, self.window.client)
-
-    def _filters_page(self):
-        page = Adw.PreferencesPage(title=_('Filters'),
-                                   icon_name='babble-filter-symbolic',
-                                   name='filters')
-        group = Adw.PreferencesGroup(
-            title=_('Filters'),
-            description=_('Hide or warn about posts that match keywords, '
-                          'on every device you use'))
-        row = Adw.ActionRow(title=_('_Manage Filters'), use_underline=True,
-                            subtitle=_('Create, edit and delete filters'),
-                            activatable=True)
-        row.add_suffix(Gtk.Image(
-            icon_name='go-next-symbolic',
-            accessible_role=Gtk.AccessibleRole.PRESENTATION))
-        pages.connect_weak(row, 'activated', self._on_filters_activated)
-        group.add(row)
-        page.add(group)
-        return page
 
     def _on_filters_activated(self, _row):
         from .filters import present_filters

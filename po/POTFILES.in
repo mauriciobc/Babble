@@ -36,6 +36,7 @@ src/preferences.py
 src/profile.py
 src/profileactions.py
 src/profileedit.py
+src/readingposition.py
 src/relations.py
 src/report.py
 src/scheduled.py

@@ -23,6 +23,7 @@ from . import sidebarrail  # noqa: E402
 from . import webcolumn  # noqa: E402
 from .capabilities import COLLECTIONS_API_VERSION  # noqa: E402
 from .mastodon import (OAUTH_REDIRECT, MastodonClient, clear_secret_async,  # noqa: E402
+                       keyring_problem,
                        normalize_instance, summarize_error)
 from .sidebarcontrol import SidebarControl  # noqa: E402
 from .sidebarrail import SidebarRail  # noqa: E402
@@ -58,6 +59,9 @@ PLACES = (
 # Settings that hide a place from the sidebar.
 HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
+
+# Settings the home page reads once when it is built, so a change rebuilds it.
+HOME_FILTER_KEYS = ('hide-boosts-home', 'hide-replies-non-follows')
 
 # Opt-in for public timelines the server has closed to most accounts but
 # still serves to this one (the "View live and topic feeds" permission).
@@ -163,6 +167,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         super().__init__(**kwargs)
         self.client = None
         self.account = None
+        self._no_keyring_shown = False
         self.timeline_page = None
         self.timeline_model = None
         self.compose_dialog = None
@@ -373,6 +378,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._preferences.apply_style(self, settings)
         elif key == 'auto-refresh':
             self._apply_auto_refresh()
+        elif key in HOME_FILTER_KEYS:
+            self._rebuild_home_timeline()
         elif key in HIDE_KEYS.values() \
                 or key in ('favorite-lists-ids', 'favorite-tags-ids',
                            SHOW_RESTRICTED_KEY):
@@ -431,6 +438,9 @@ class BabbleWindow(Adw.ApplicationWindow):
                                  Gio.IOErrorEnum.CANCELLED):
                     return
                 self.main_stack.set_visible_child_name('login')
+                if keyring_problem(error) == 'missing':
+                    self.present_no_keyring()
+                    return
                 self.show_toast(
                     _('Could not read the login for @%s from the keyring')
                     % account.get('acct', ''))
@@ -461,6 +471,29 @@ class BabbleWindow(Adw.ApplicationWindow):
         # The keyring is an out-of-process round trip; the token arrives
         # later and the shell is built then.
         client.load_secret_token(account_id, loaded)
+
+    def present_no_keyring(self):
+        """Say once per session that no keyring is running, and what to
+        do. Returns the dialog, or None when it was already shown."""
+        if self._no_keyring_shown:
+            return None
+        self._no_keyring_shown = True
+        dialog = Adw.AlertDialog.new(
+            _('No Keyring Found'),
+            _('Babble keeps your login in the system keyring, and no '
+              'keyring service is running. Start one, such as GNOME '
+              'Keyring or KeePassXC, then restart Babble.'))
+        dialog.add_response('close', _('_Close'))
+        dialog.add_response('help', _('_Learn More'))
+        dialog.set_default_response('close')
+        dialog.set_close_response('close')
+        pages.connect_weak(dialog, 'response', self._on_no_keyring_response)
+        dialog.present(self)
+        return dialog
+
+    def _on_no_keyring_response(self, _dialog, response):
+        if response == 'help':
+            self.open_help()
 
     def get_stored_account(self):
         return account_store.active_account(self.settings)
@@ -934,6 +967,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 'work-in-background'):
             # A hold left from an earlier hide would outlive the window.
             self._release_hold()
+            pages.flush_deferred()
             return False
         app = self.get_application()
         if app is not None and not self._held:
@@ -1081,6 +1115,15 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._shortcut_session = session
 
     # Pages
+
+    def _rebuild_home_timeline(self):
+        """Throw the home page and its items away and build it again, for
+        a setting that decides which posts it may show."""
+        if self.timeline_page is None:
+            return
+        self.timeline_page = None
+        self.timeline_model = None
+        self.ensure_home_timeline()
 
     def ensure_home_timeline(self):
         """Create (or reuse, cached per window) the home timeline page."""

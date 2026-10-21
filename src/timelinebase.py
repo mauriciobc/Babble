@@ -47,6 +47,8 @@ NEW_POSTS_ANNOUNCE_INTERVAL_US = 10 * 1000 * 1000
 COLUMN_WIDTH = pages.COLUMN_WIDTH
 BOOST_DEDUPE_LIMIT = 100
 GROUP_BOOSTS_MIN_PAGE = 11
+# Pages a single refresh may chain while catching up on a busy feed.
+CATCHUP_MAX_PAGES = 10
 # How many "does the viewer follow this author" answers one timeline page
 # remembers. The reply filter and the followed-hashtag pass read the same
 # table, so a timeline that has met an author once does not ask the server

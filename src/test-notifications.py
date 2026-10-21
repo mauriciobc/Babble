@@ -811,6 +811,97 @@ else:
     print('note - unexpected anonymous success: %d notifications'
           % len(live['data']))
 
+# Dismissing one notification: the row goes at once, a grouped row sends one
+# request per notification it holds, and a failure brings the row back where
+# it was. The route is POST /notifications/:id/dismiss (Mastodon 1.3.0).
+class DismissClient(FollowClient):
+    def __init__(self):
+        super().__init__()
+        self.dismissed = []
+        self.fail = set()
+
+    def notifications_dismiss_async(self, notification_id, callback=None,
+                                    **_kw):
+        self.dismissed.append(notification_id)
+        callback(self, notification_id)
+
+    def notifications_dismiss_finish(self, result):
+        if result in self.fail:
+            raise GLib.Error('refused', 'mastodon-http-error-quark', 500)
+        return {}
+
+
+dismiss_client = DismissClient()
+dismiss_page = NotificationsPage(dismiss_client)
+dismiss_page.on_page_loaded(dismiss_client, [MENTION, FAV_A, FAV_B, FAV_C,
+                                             FOLLOW])
+unread_syncs = []
+dismiss_page.fetch_unread = lambda: unread_syncs.append(1)
+
+
+def item_ids(page):
+    return [[n['id'] for n in page.model.get_item(i).notifications]
+            for i in range(page.model.get_n_items())]
+
+
+before = item_ids(dismiss_page)
+check('the page groups three favourites into one row',
+      ['98', '97', '96'] in [sorted(ids, reverse=True) for ids in before]
+      and len(before) == 3)
+
+mention_item = dismiss_page.model.get_item(0)
+dismiss_page.dismiss(mention_item)
+check('dismissing sends the notification id',
+      dismiss_client.dismissed == ['100'])
+check('the dismissed row is gone', len(item_ids(dismiss_page)) == 2)
+check('the unread count is re-read from the server', unread_syncs == [1])
+
+dismiss_client.dismissed.clear()
+group_item = dismiss_page.model.get_item(0)
+dismiss_page.dismiss(group_item)
+check('a grouped row dismisses every notification it holds',
+      sorted(dismiss_client.dismissed) == ['96', '97', '98'])
+check('the grouped row is gone', len(item_ids(dismiss_page)) == 1)
+
+dismiss_client.dismissed.clear()
+dismiss_client.fail = {'99'}
+follow_item = dismiss_page.model.get_item(0)
+dismiss_page.dismiss(follow_item)
+check('a refused dismissal brings the row back',
+      dismiss_page.model.get_item(0) is follow_item
+      and len(item_ids(dismiss_page)) == 1)
+check('the page shows the list again after a refusal',
+      dismiss_page.stack.get_visible_child_name() == 'list')
+
+dismiss_client.fail = set()
+dismiss_page.dismiss(follow_item)
+check('dismissing the last row shows the empty page',
+      dismiss_page.stack.get_visible_child_name() == 'empty')
+
+# A failed dismissal restores the row at its old position, not at the top.
+restore_page = NotificationsPage(dismiss_client)
+restore_page.on_page_loaded(dismiss_client, [MENTION, FOLLOW, POLL])
+restore_page.fetch_unread = lambda: None
+dismiss_client.fail = {'99'}
+middle = restore_page.model.get_item(1)
+restore_page.dismiss(middle)
+check('a restored row returns to its position',
+      restore_page.model.get_item(1) is middle
+      and restore_page.model.get_n_items() == 3)
+
+# The dismissed ids stay known, so a refresh cannot re-add the row while
+# the request is still out.
+check('the model keeps dismissed ids as seen',
+      '99' in restore_page.model._seen)
+
+# The button is on the row, named for a screen reader.
+dismiss_row = NotificationRow()
+check('every notification row has a dismiss button',
+      dismiss_row.dismiss_button.get_tooltip_text()
+      == 'Dismiss Notification')
+dismiss_row._on_dismiss_clicked(dismiss_row.dismiss_button)
+check('a row outside a page ignores the button', True)
+
 # Notification body text. This used to be its own HTML parser, and the two
 # parsers disagreed on the one case a notification exists for: a content
 # warning. Over statustext.parse_content now, which drops script and style.

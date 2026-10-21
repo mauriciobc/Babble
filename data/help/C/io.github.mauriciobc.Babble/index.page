@@ -154,6 +154,14 @@
       rather than retrying forever. Sign in again from the welcome screen.
     </p>
     <p>
+      Babble keeps every login in the system keyring, so it needs a keyring
+      service such as GNOME Keyring or KeePassXC to be running. If none is,
+      Babble says so when it starts or when you sign in, and keeps the
+      account it already has. Start a keyring service and restart Babble.
+      In a Flatpak, the app needs permission to talk to
+      <code>org.freedesktop.secrets</code>.
+    </p>
+    <p>
       A server that does not support a feature hides it: Collections and the
       Admin Dashboard appear only where the server has them, so an older
       Mastodon shows a smaller menu rather than an error.

@@ -87,6 +87,8 @@ install_data(
   'timelinebase.py',
   'timelinedata.py',
   'timelinepage.py',
+  'homefilters.py',
+  'readingposition.py',
   'statusrun.py',
   'statusactions.py',
   'statusmenu.py',
@@ -178,6 +180,23 @@ test('timeline render', python,
 # conditions (TEST-09).
 test('timeline memory', python,
   args: [files('test-timeline-memory.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+test('home filters', python,
+  args: [files('test-home-filters.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
+test('reading position', python,
+  args: [files('test-reading-position.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
+test('keyring errors', python,
+  args: [files('test-keyring-errors.py')],
   env: fatal_test_env,
   timeout: 60,
 )
@@ -473,6 +492,12 @@ test('dialog toasts', python,
   args: [files('test-dialog-toasts.py')],
   env: test_env,
   timeout: 30,
+)
+
+test('undo actions', python,
+  args: [files('test-undo-actions.py')],
+  env: fatal_test_env,
+  timeout: 60,
 )
 
 # The behaviour both dialog bases promise, pinned before they are merged

@@ -20,14 +20,15 @@ from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
 """The scrolling timeline page and its API source."""
+from .homefilters import HomeFilters
+from .readingposition import ReadingPosition
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
-    AUTO_REFRESH_SCROLLED_TICKS, COLUMN_WIDTH, FOLLOW_CACHE_LIMIT,
+    AUTO_REFRESH_SCROLLED_TICKS, CATCHUP_MAX_PAGES, COLUMN_WIDTH,
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
-    _EMPTY_PAGED_ENVELOPE, _own_account_id, id_key)
+    _EMPTY_PAGED_ENVELOPE, id_key)
 from .timelinedata import (
-    BoostCarouselItem, TimelineModel, filter_replies_from_non_follows,
-    matching_tag)
+    BoostCarouselItem, TimelineModel, matching_tag)
 
 
 class TimelineFactory(Gtk.SignalListItemFactory):
@@ -162,7 +163,7 @@ def _new_posts_announce_tick(page_ref):
     return GLib.SOURCE_REMOVE
 
 
-class TimelinePage(PagedPosts, Adw.Bin):
+class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
     """Scrollable timeline with infinite scroll, refresh and status pages.
 
     mode: 'home' (authenticated) or 'public'. A custom ``source`` (with
@@ -188,14 +189,25 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self.model.group_boosts_enabled = boosts_carousel
         self.model.dedupe_boosts_enabled = settings.get_boolean(
             'dedupe-boosts')
+        home = mode == 'home' and source is None
         self._hide_replies_non_follows = (
-            mode == 'home' and source is None
-            and settings.get_boolean('hide-replies-non-follows'))
+            home and settings.get_boolean('hide-replies-non-follows'))
+        self._hide_boosts = (
+            home and settings.get_boolean('hide-boosts-home'))
         self._following_ids = {}
         self._reply_filter_generation = 0
+        self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.
-        self._paging_init()
+        # A refresh must come back with the page just above what is shown.
+        # since_id returns the *newest* page above the cursor, so when more
+        # than a page arrived while the reader was away, the oldest of them
+        # were skipped for good. min_id is contiguous. Link-paged sources
+        # keep since_id: their refresh restarts from the newest page.
+        self._paging_init(
+            newer_cursor='min_id' if source is None
+            or getattr(source, 'paging', None) == 'id' else 'since_id')
+        self._refresh_chain = 0
         self._followed_tags = None
         self._followed_loading = False
         self._followed_waiting = []
@@ -266,6 +278,11 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self._scrolled = scrolled
         adjustment = scrolled.get_vadjustment()
         connect_weak(adjustment, 'value-changed', self.on_scroll_position)
+        # The adjustment only changes when there is something to scroll.
+        # The edge signals also fire when the reader scrolls at the end of
+        # a list too short to move, which is when nothing else asks.
+        connect_weak(scrolled, 'edge-reached', self._on_edge)
+        connect_weak(scrolled, 'edge-overshot', self._on_edge)
         if autoload:
             self.ensure_loaded()
 
@@ -326,6 +343,9 @@ class TimelinePage(PagedPosts, Adw.Bin):
             return
         self._auto_refresh_ticks += 1
         at_top = self._scrolled.get_vadjustment().get_value() <= 0.0
+        if self._resumed:
+            # New posts would push the post being resumed off the screen.
+            return
         if at_top or self._auto_refresh_ticks \
                 % AUTO_REFRESH_SCROLLED_TICKS == 0:
             self.refresh()
@@ -372,6 +392,7 @@ class TimelinePage(PagedPosts, Adw.Bin):
                        % count)
 
     def _on_new_pill_clicked(self, _button):
+        self.resume_unpin()
         self._pill_count = 0
         self.new_posts_revealer.set_reveal_child(False)
         self.scroll_to_top()
@@ -484,72 +505,6 @@ class TimelinePage(PagedPosts, Adw.Bin):
         self._remember_follows(rels)
         self.model.apply_source_tags(hits, self._following_ids)
 
-    def _remember_follows(self, relationships):
-        """Record what the server said about a batch of authors.
-
-        The table is shared with the reply filter: both consumers ask the
-        same question ("does the viewer follow this author"), both go to
-        /relationships for the answer, and a reader who has already paged
-        past an author does not make the app ask about them again.
-        """
-        for rel in relationships or ():
-            author_id = str(rel.get('id') or '')
-            if author_id:
-                self._remember_follow(author_id, bool(rel.get('following')))
-
-    def _remember_follow(self, author_id, following):
-        follows = self._following_ids
-        if author_id not in follows:
-            # Bounded like the boost dedupe table: a long session scrolls
-            # past thousands of authors, and the table only exists to save
-            # a request, not to be an archive.
-            while len(follows) >= FOLLOW_CACHE_LIMIT:
-                del follows[next(iter(follows))]
-        follows[author_id] = following
-
-    def _with_home_reply_filter(self, statuses, on_done):
-        """Apply the hide-replies-from-non-follows filter when enabled."""
-        if not self._hide_replies_non_follows:
-            on_done(statuses)
-            return
-        viewer_id = _own_account_id(self)
-        unknown = set()
-        for status in statuses:
-            if not status.get('in_reply_to_id'):
-                continue
-            author_id = str((status.get('account') or {}).get('id') or '')
-            if not author_id:
-                continue
-            if viewer_id and author_id == str(viewer_id):
-                continue
-            if author_id not in self._following_ids:
-                unknown.add(author_id)
-        if not unknown:
-            on_done(filter_replies_from_non_follows(
-                statuses, viewer_id, self._following_ids))
-            return
-        generation = self._reply_filter_generation
-        ids = list(unknown)[:40]
-
-        def loaded(client, result, _data=None):
-            if generation != self._reply_filter_generation:
-                return
-            try:
-                rels = client.relationships_finish(result)
-            except GLib.Error:
-                on_done(filter_replies_from_non_follows(
-                    statuses, viewer_id, self._following_ids))
-                return
-            # Both answers are recorded, not just the following ones:
-            # "asked and the answer is no" has to be distinguishable from
-            # "never asked", or every page asks again about every author
-            # the viewer does not follow.
-            self._remember_follows(rels)
-            on_done(filter_replies_from_non_follows(
-                statuses, viewer_id, self._following_ids))
-
-        self.client.relationships_async(ids, loaded)
-
     def on_page_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
             return
@@ -566,6 +521,8 @@ class TimelinePage(PagedPosts, Adw.Bin):
             self.error_page.set_description(
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
+            return
+        if self._resume_page_arrived(statuses):
             return
         # Paging needs a cursor even if the reply filter hides it all.
         raw_oldest = min((s['id'] for s in statuses), key=id_key) \
@@ -605,6 +562,8 @@ class TimelinePage(PagedPosts, Adw.Bin):
             self._fill_loop(0)
             return
         self.stack.set_visible_child_name('list')
+        self._resume_start_catchup()
+        self._fill_filtered()
 
     def _trim_old(self):
         """Keep the timeline to TIMELINE_MAX_ITEMS while the reader is on
@@ -643,15 +602,28 @@ class TimelinePage(PagedPosts, Adw.Bin):
         # page may already be in the model and "what was there before" would
         # be unanswerable.
         before = self.model.get_n_items()
+        # The server's own cursor, taken before any filter: a page that
+        # filtering empties must still move it, or the model would read an
+        # empty page as the end of the timeline.
+        raw_oldest = min((s['id'] for s in statuses), key=id_key) \
+            if statuses else None
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_older_loaded(
-                filtered, generation, before=before))
+                filtered, generation, before=before,
+                raw_oldest=raw_oldest))
 
-    def _finish_older_loaded(self, statuses, generation=None, before=0):
+    def _finish_older_loaded(self, statuses, generation=None, before=0,
+                             raw_oldest=None):
         if generation is not None and self._superseded(generation):
             self._release_bottom()
             return
         self._loading_older = False
+        if not statuses and raw_oldest is not None:
+            # Every post of a non-empty page was filtered out: page past it.
+            self.model.oldest_id = raw_oldest
+            self._fill_loop(before)
+            self._release_bottom()
+            return
         appended = self.model.append_old(statuses)
         self._note_followed_tags(statuses)
         if not appended:
@@ -663,9 +635,12 @@ class TimelinePage(PagedPosts, Adw.Bin):
         # next older page is the way to fill the screen.
         self._fill_loop(before)
         self._release_bottom()
+        self._resume_start_catchup()
+        self._fill_filtered()
 
     def on_refresh_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
+            self._chain_ended()
             return
         self.model.loading = False
         try:
@@ -674,23 +649,53 @@ class TimelinePage(PagedPosts, Adw.Bin):
             root = self.get_root()
             if root is not None and hasattr(root, 'show_error'):
                 root.show_error(_('Refresh failed'), e.message)
+            self._chain_ended(sweep=False)
             return
         if not statuses:
+            self._chain_ended()
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
             return
+        # The server's own page, taken before any filter: the cursor and the
+        # "was it a full page" answer come from what was sent, not from what
+        # survived the reader's filters.
+        raw_newest = max((s['id'] for s in statuses), key=id_key)
+        raw_count = len(statuses)
         self._with_home_reply_filter(
-            statuses, lambda filtered: self._finish_refresh_loaded(filtered))
+            statuses, lambda filtered: self._finish_refresh_loaded(
+                filtered, raw_newest, raw_count))
 
-    def _finish_refresh_loaded(self, statuses):
+    def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0):
         if statuses:
+            pinned = self._catching and self._pin_item is not None
+            if pinned:
+                self._pin_prepare()
             added = self.model.insert_new(statuses)
             self._note_followed_tags(statuses)
-            if added and self._scrolled.get_vadjustment().get_value() > 24:
+            if pinned:
+                if added:
+                    self._show_new_pill(added)
+                    self._repin()
+            elif added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
             self._trim_old()
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('empty')
+        if raw_newest is not None and (
+                self.model.newest_id is None
+                or id_key(raw_newest) > id_key(self.model.newest_id)):
+            # A page the filters emptied must still move the cursor, or the
+            # next request would ask for the same page again.
+            self.model.newest_id = raw_newest
+        # A full page means there may be more above it: keep going until a
+        # short page. Capped, and safe to stop at the cap: min_id is
+        # contiguous, so the next refresh resumes exactly where this ended.
+        if self._newer_cursor == 'min_id' and raw_count >= self.PAGE_SIZE \
+                and self._refresh_chain < CATCHUP_MAX_PAGES:
+            self._refresh_chain += 1
+            self.refresh()
+        else:
+            self._chain_ended()
 
     def on_row_activated(self, _view, position):
         run = self.run_model.get_item(position)
@@ -702,10 +707,15 @@ class TimelinePage(PagedPosts, Adw.Bin):
         if view is not None:
             push_thread(view, self.client, item)
 
+    def _on_edge(self, _scrolled, position):
+        if position == Gtk.PositionType.BOTTOM:
+            self.load_older()
+
     def on_scroll_position(self, adjustment):
         if self.on_scroll_near_end(adjustment):
             self.load_older()
-        if adjustment.get_value() <= 0.0:
+        self.schedule_reading_position_save()
+        if adjustment.get_value() <= 0.0 and not self._resumed:
             self._pill_count = 0
             self.new_posts_revealer.set_reveal_child(False)
             self._trim_old()
@@ -716,6 +726,13 @@ class TimelinePage(PagedPosts, Adw.Bin):
         """Insert one streamed post at the top, the way a refresh would:
         filters apply and a scrolled-away reader gets the new-posts
         pill instead of a jump."""
+        if self._hide_boosts and status.get('reblog'):
+            return
+        if self._resume_pending or self._resumed or self._catching:
+            # Inserted before the catch-up reaches it, it would move the
+            # cursor past the posts between. The sweep that ends the
+            # catch-up fetches it, in order.
+            return
         added = self.model.insert_new([status])
         self._note_followed_tags([status])
         if self.model.oldest_id is None:

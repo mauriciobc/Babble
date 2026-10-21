@@ -45,7 +45,7 @@ from . import pages  # noqa: E402
 from .accounts import account_key  # noqa: E402
 from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
                        MastodonClient, OAUTH_REDIRECT, OAUTH_SCOPES,
-                       OOB_REDIRECT, loopback_redirect)
+                       OOB_REDIRECT, keyring_problem, loopback_redirect)
 
 # How long the loopback listener waits for the browser to come back.
 LOOPBACK_TIMEOUT_SECONDS = 10 * 60
@@ -558,7 +558,7 @@ class LoginFlow(GObject.Object):
         if attempt != self._attempt:
             return
         if error is not None:
-            self._report_keyring_failure(attempt, account)
+            self._report_keyring_failure(attempt, account, error)
             return
         # The client credentials have to land before the account does.
         # Without them a later logout cannot authenticate the revoke, so
@@ -574,7 +574,7 @@ class LoginFlow(GObject.Object):
         if attempt != self._attempt:
             return
         if error is not None:
-            self._report_keyring_failure(attempt, account)
+            self._report_keyring_failure(attempt, account, error)
             return
         # Emitted with the client still on the flow: the window needs it
         # to adopt the session the account just authorized.
@@ -589,7 +589,14 @@ class LoginFlow(GObject.Object):
         self.settle(attempt, message=_('Logged in as @%s')
                     % account.get('acct', ''))
 
-    def _report_keyring_failure(self, attempt, account):
+    def _report_keyring_failure(self, attempt, account, error=None):
+        if keyring_problem(error) == 'missing':
+            self.settle(
+                attempt, _('No Keyring Found'),
+                _('Babble keeps your login in the system keyring, and no '
+                  'keyring service is running. Start one, such as GNOME '
+                  'Keyring or KeePassXC, then try again.'))
+            return
         self.settle(
             attempt, _('Could not save the login'),
             _('The system keyring refused to store the login for '

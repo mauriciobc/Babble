@@ -3,8 +3,9 @@
 *A cozy little Mastodon client for GNOME. Read the fediverse like a good book.*
 
 **Positioning.** Babble is the reader's client for the fediverse: native GNOME,
-local-first, calm by default. Every phase below serves one of three bets —
-reading, desktop power, calm.
+local-first, calm by default. Every item below serves one of five bets:
+**Reading**, **Desktop** power, **Calm**, **Breadth** across the fediverse, and
+**Trust** and polish.
 
 ## Principles
 
@@ -13,91 +14,112 @@ reading, desktop power, calm.
 - **Local-first.** No telemetry, nothing leaves the machine.
 - **Degrade gracefully:** feature-detect the server, hide what it can't do.
 
-## Phase 1 — The Window Seat (reading) — v0.9
+## How to read this
 
-**Goal:** make the tagline true.
+Work is ranked on an **effort / impact** matrix, not by version. Do the tiers
+in order; inside a tier, the order is a suggestion.
 
-- **Reader mode** — `src/reader.py`. Extract the article behind a link card
-  locally (`GET /api/v1/statuses/:id/card`), render it distraction-free and
-  full-screen. Widgets: `AdwNavigationPage`, `GtkTextView`, `AdwToolbarView`.
-- **Typography controls** — serif/sans, measure (line length), paper/sepia
-  palette, reduced-motion respect.
-- **Reading queue** — folders and tags layered over `GET /api/v1/bookmarks`,
-  with unread and progress state persisted locally.
-- **Markdown export** — a thread or the whole queue to Markdown, ready to drop
-  into a notes vault.
+- **Effort** — S: days, one module or a preference. M: a week or two, a new
+  module or dialog. L: a structural change that touches many views.
+- **Impact** — what a reader notices, weighted by demand in the two closest
+  peers' trackers (Tuba, Phanpy; reaction counts are low in both, so treat them
+  as signal, not ranking) and by fit with the bets above.
+- **Status** — *Shipped* is in the tree. *Partial* has a foundation to build
+  on. Blank means no code yet.
 
-**Exit criteria:** a user can spend a whole session reading and never open a
-timeline.
+Last audited against the tree on 2026-10-20.
 
-## Phase 2 — Offline (local-first) — v1.0
+```
+                 impact →   low              high
+ effort ↓
+   S (days)                 Tier 2           Tier 1  ← start here
+   M (weeks)                Tier 4           Tier 3
+   L (structural)           Tier 5 (defer)   Tier 6  ← big bets
+```
 
-- `src/store.py` — SQLite cache for timelines, bookmarks, threads and
-  profiles; warm-filled on sync.
-- Offline search across everything cached.
-- Compose offline, queue sends, flush on reconnect — pairs with the
-  existing `src/sysstate.py`.
-- Eviction policy plus a visible cache-size control in Preferences.
+## Tier 1 — Small effort, high impact (do first)
 
-**Exit criteria:** airplane-mode reading works.
+| Item | Bet | Status | Notes |
+|---|---|---|---|
+| **Resume reading position** | Reading | Partial | Home reopens on the post at the top of the screen when you left, kept per account. The first page is asked for at that post with `max_id`; the newer posts are then fetched at once and inserted above it while it stays put, and the "N New Posts" button goes back to the top. Phanpy #269, Tuba #1105. Local only: syncing the server `home` marker would cost a round trip before the first post and moves the place other clients resume from, so it is open. |
+| **Hide boosts / replies per timeline** | Calm | Partial | Phanpy #262, Tuba #1114. Shipped for Home: `hide-boosts-home` and `hide-replies-non-follows`, both live (changing either rebuilds the page). Still open: the same toggles for lists, hashtags and Local, which belong with the Calm presets (Tier 3). |
+| **Undo via toasts, extended** | Desktop | Shipped | Delete takes the post out of view and sends `DELETE /api/v1/statuses/:id` only once the Undo toast goes (or at once when the window closes); unboost offers an Undo that boosts again; unfollow of an unlocked account already did. Unfollowing a locked account keeps its confirmation, since an Undo would send a fresh request that needs approval again. |
+| **Per-notification dismiss** | Calm | Shipped | `POST /api/v1/notifications/:id/dismiss`. A button on each row; a grouped row dismisses every notification it holds, and a refusal brings the row back. |
+| **Clear error when no secret service is running** | Trust | Shipped | Tuba #598. A "No Keyring Found" dialog at startup (once per session) and in the sign-in failure text, with a help entry; a locked keyring keeps its own message. |
+| **Split the Preferences General page** | Desktop | Shipped | The 31-row General page is gone. Preferences has five pages, the most a view switcher should carry: Appearance; Reading (posts, boosts, Home timeline, links, filters); Timelines; Posting (defaults, reminders); Notifications (including background mode). Switch labels are nouns and every row has its own access key. Every setting key is unchanged. |
 
-## Phase 3 — Desktop power — v1.1
+## Tier 2 — Small effort, lower impact (fill-ins)
 
-- **Command palette** — `src/palette.py`, `Ctrl+K`. Actions plus
-  `GET /api/v2/search?resolve=true`. Cheap, and it makes the app feel premium.
-- **Deck mode + saved workspaces** — `AdwTabView` with split views and
-  `AdwBreakpoint`; tear a thread off into its own window; columns built from
-  home, lists, tags and collections.
-- **Undo everywhere** — `AdwToastOverlay` with a countdown.
-  `DELETE /api/v1/statuses/:id`, `POST /api/v1/statuses/:id/unreblog`,
-  `POST /api/v1/accounts/:id/unfollow`.
-- **MPRIS** — `src/mpris.py`, on `org.mpris.MediaPlayer2.*`. Media keys and
-  top-bar now-playing for audio posts.
-- **Print / export** — `GtkPrintOperation`, thread to PDF.
+| Item | Bet | Status | Notes |
+|---|---|---|---|
+| **Small polish** | Desktop | | Click outside a media image to close it (Tuba #148); re-clicking the active sidebar place scrolls to top (Tuba #409); mark where the old top was after new posts load (Phanpy #419). Verify each first; some may already behave this way. |
+| **Share to Babble** | Desktop | | Compose from a shared link or text via `HANDLES_OPEN`. Phanpy #449. |
+| **Import / export settings** | Desktop | | GSettings and filters to a file. Phanpy #179. |
+| **Follows export** | Breadth | | `GET /api/v1/accounts/:id/following`; import only where the server exposes an endpoint, otherwise document the manual path. |
+| **Paste-a-URL box** | Breadth | Partial | `main.py` resolves URLs handed to the app and `offer-copied-links` exists; there is no in-app paste box. `GET /api/v2/search?q=<url>&resolve=true`. |
+| **One-menu thread hygiene** | Trust | | Mute thread, mute domain, filter author. |
+| **Alt-text preflight and templates** | Trust | Partial | The composer has per-attachment alt text and a boost alt-text reminder. |
+| **MPRIS** | Desktop | | `src/mpris.py` on `org.mpris.MediaPlayer2.*`. Media keys and top-bar now-playing for audio posts. Small surface, very visible, but few posts are audio. |
 
-**Exit criteria:** the app is fully operable by keyboard alone.
+## Tier 3 — Medium effort, high impact (next)
 
-## Phase 4 — Calm — v1.2
+| Item | Bet | Status | Notes |
+|---|---|---|---|
+| **Command palette** | Desktop | | `src/palette.py`, `Ctrl+K`. Actions plus `GET /api/v2/search?resolve=true`. Deferred as SKIP-03 in `IMPROVEMENTS.md`; makes the app feel premium and is the keyboard path. |
+| **Thread composer** | Desktop | | Queue several posts and send them as a self-reply chain. Tuba #157. Builds on `compose.py` and the local drafts. |
+| **Cross-account actions + keyboard account switch** | Desktop | | Act on a post as another account, resolving it there with `resolve=true`. Phanpy #803/#974, Tuba #223 (17 comments). Accounts are already keyed `(instance, id)`. |
+| **Reader mode** | Reading | | `src/reader.py`. Extract the article behind a link card locally (`GET /api/v1/statuses/:id/card`), render it distraction-free. `AdwNavigationPage`, `GtkTextView`, `AdwToolbarView`. The brand bet. Always keep "open in browser" visible, because extraction fails on some pages. |
+| **Typography controls** | Reading | | Serif/sans, measure (line length), paper/sepia palette, reduced-motion respect. Pairs with reader mode. |
+| **Quiet mode** | Calm | Partial | `show-interaction-counters` hides counts. Missing: no infinite scroll, and a real "You're all caught up" end state. |
+| **Calm presets per column** | Calm | Partial | Hide boosts, hide replies, language filter, mutuals-only, one toggle. `hide-replies-non-follows` is the only preset today. |
+| **Notification rules** | Calm | Partial | Client-side grouping, type filtering and `notification-excluded-types` exist. Missing: group and mute by account. |
+| **Orca/ATK accessibility audit** | Trust | Partial | Reduced-motion and high-contrast passes. Access keys and a media-tile keyboard path are done; decorative-image labelling is deferred (DEF-02). |
 
-*A wellbeing stance no other fediverse client takes, and it fits the brand.*
+## Tier 4 — Medium effort, lower impact
 
-- **Quiet mode** — hide boost and favorite counts, no infinite scroll, a real
-  "You're all caught up" end state.
-- **Per-column calm presets** — hide boosts, hide replies, language filter,
-  mutuals-only, one toggle.
-- **Notification rules** — group and mute by type and account, on top of
-  `GET /api/v1/notifications` and `POST /api/v1/push`.
+| Item | Bet | Status | Notes |
+|---|---|---|---|
+| **Reading queue** | Reading | Partial | The bookmarks page exists; folders, tags and unread/progress state persisted locally are missing. |
+| **Markdown export** | Reading | | A thread or the whole queue to Markdown, ready for a notes vault. |
+| **Account media grid** | Breadth | Partial | The profile has a media tab backed by `only_media`; the lightbox grid is missing. |
+| **Scheduled-post calendar** | Breadth | Partial | `scheduled.py` lists scheduled posts; a week view with drag-to-reschedule (`PUT /api/v1/scheduled_statuses`) is missing. |
+| **Profile trust panel** | Trust | | Limited or blocked by your instance, instance health, migration history, first seen. |
+| **Local-only account notes** | Trust | Partial | `PrivateNoteDialog` edits the server-side note. The local, searchable, shown-on-hover version ("met at UX Camp", pronouns) is open. |
+| **GNOME Circle / Flathub readiness pass** | Trust | | Do it once the tier 1 and 3 items have settled. |
 
-## Phase 5 — Fediverse breadth — v1.3
+## Tier 5 — Large effort, lower or uncertain impact (defer)
 
-- **Capability matrix** — `src/capabilities.py`, derived from
-  `GET /api/v2/instance` (`api_versions`, `configuration`). This generalises the
-  work already done in PR #18 for `live_feeds`.
-- **Non-Mastodon support** — GoToSocial, Akkoma, Pixelfed, driven by capability
-  detection rather than software-name branching.
-- **Paste-a-URL resolver** — drop any fediverse post URL, resolve it against
-  your instance (`GET /api/v2/search?q=<url>&resolve=true`), open natively.
-- **Account media grid** — `GET /api/v1/accounts/:id/statuses?only_media=true`
-  with a lightbox.
-- **Scheduled-post calendar** — week view with drag-to-reschedule
-  (`GET`/`PUT /api/v1/scheduled_statuses`).
-- Follows export via `GET /api/v1/accounts/:id/following`; import only where
-  the server exposes an endpoint, otherwise document the manual path.
+| Item | Bet | Notes |
+|---|---|---|
+| **Non-Mastodon support** (GoToSocial, Akkoma, Pixelfed) | Breadth | Driven by capability detection, never software-name branching. Can sprawl. The capability matrix (`src/capabilities.py`, `client.is_supported()`) is **shipped**, so this is purely the breadth work. |
+| **Web Push / UnifiedPush** | Calm | Deferred on principle (SKIP-01): the payload goes through a relay, which conflicts with "nothing leaves the machine". Revisit only after deciding whether a relayed payload is acceptable, or shipping a self-hosted relay. |
+| **Print / export to PDF** | Desktop | `GtkPrintOperation`, thread to PDF. Overlaps with Markdown export. |
 
-## Phase 6 — Trust & polish — v1.4 → 2.0
+## Tier 6 — Large effort, high impact (the big bets)
 
-- **Profile trust panel** — limited or blocked by your instance, instance
-  health, migration history, first seen.
-- **One-menu thread hygiene** — mute thread, mute domain, filter author.
-- **Private local notes on accounts** — "met at UX Camp", pronouns, context.
-  Local only, searchable, shown on hover.
-- **Alt-text preflight** and reusable alt-text templates.
-- **Orca/ATK accessibility audit** with reduced-motion and high-contrast passes.
-- GNOME Circle / Flathub readiness pass.
+| Item | Bet | Notes |
+|---|---|---|
+| **Deck mode + saved workspaces** | Desktop | The most requested layout feature in both peers (Tuba #118, Phanpy's shortcuts view). `webcolumn.py` shows a side web column; there is no multi-column timeline. `AdwTabView` with split views and `AdwBreakpoint`; tear a thread off into its own window; columns built from home, lists, tags and collections. Needs its **own module**, because `window.py` is already over its size budget, and the memory tests must cover several live pages. Start with a design spike. |
+| **Offline store** | Reading | `src/store.py`, a SQLite cache for timelines, bookmarks, threads and profiles, warm-filled on sync; offline search; compose offline and flush on reconnect (pairs with `src/sysstate.py`); eviction policy and a cache-size control. Exit criterion: airplane-mode reading works. Touches every view, so land it incrementally behind a flag, with the cache treated as disposable. |
+
+## Not planned
+
+- **Misskey / Friendica-specific support** (Tuba #32, #498): too much API
+  variance for a client that gates on capabilities.
+- **Cross-platform builds** (Tuba #572): out of scope for a GNOME app.
+- **Emoji reactions on posts** (Phanpy #598): server-specific; reactions stay
+  on announcements only.
+
+Already shipped, so not listed above: auto-expand content warnings
+(`show-spoilers`), confirm-before-boost (`advanced-boost-dialog`), the
+"N new posts" pill that keeps the scroll position, window size and position
+persistence, bookmarks, followed hashtags, conversations, edit history,
+translation, metered-connection handling, scheduled posts, v2 filters and the
+capability matrix.
 
 ## Cross-cutting
 
-- Every phase mirrors the existing `src/test-*.py` pattern: **no feature lands
+- Every item mirrors the existing `src/test-*.py` pattern: **no feature lands
   without tests.**
 - New strings go through `po/` and the `INTERFACE_LANGUAGES` picker.
 - Feature visibility is always capability-gated — never show a control the
@@ -105,19 +127,11 @@ timeline.
 - Flathub rules from the README hold: the manifest stays human-written, and
   AI-assisted code is disclosed.
 
-## Order of attack (cheap wins first)
-
-1. **Command palette** — cheap, high perceived polish.
-2. **Undo via toasts** — cheap, and it makes everything else feel safer.
-3. **MPRIS** — small surface, very visible.
-4. **Reader mode** — the brand bet.
-5. **Offline store** — the big one, start behind a flag.
-6. **Calm mode** — largely a preferences surface over existing views.
-
 ## Risks
 
-- **Offline store** is the largest change and touches every view. Land it
-  incrementally, behind a flag, with the cache treated as disposable.
+- **Deck mode** touches `window.py`, already a declared size exception, and
+  multiplies live pages; the leak tests (`timeline memory`) must grow with it.
+- **Offline store** is the largest change and touches every view.
 - **Non-Mastodon support** can sprawl. Gate on capabilities; never fork code
   paths by software name.
 - **Reader extraction** will fail on some pages. Always keep the "open in
