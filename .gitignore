@@ -16,3 +16,9 @@ __pycache__/
 
 # Gauntlet evidence: rendered screenshots and bar references
 evidence/
+
+# Profiling captures from a running instance. Local evidence, never
+# committed: the .syscap alone is hundreds of megabytes.
+babble.perf.data
+babble.perf.data.old
+babble.syscap
