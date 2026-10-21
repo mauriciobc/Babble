@@ -15,7 +15,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 |---|---|---|---|
 | H0 Decisions | partly done | `c8d06be` | D1 (the gates file) is frozen. D2-D5 still open |
 | S0 Guardrails and affinity | **done** | | T0.1-T0.3 merged; `module boundary` and `affinity` are in the suite |
-| S1 Evaluation harness | not started | | Ends at gate A (H1) |
+| S1 Evaluation harness | in progress | | T1.1 merged; T1.2 (evaluate) and T1.3 (self-test) to come |
 | S2 Ranked feed core | blocked by H1 | | |
 | S3 Hidden place | blocked by S2 | | |
 | S4 Trial instrumentation | blocked by S3 | | Ends at gate B (H2) |
@@ -28,6 +28,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 | T0.1 `module boundary` | merged | `5c3ec10` | The Catch Up boundary is a test now |
 | T0.2 `affinity` | merged | `b8584f0`, `7547cbd` | The port; its outputs match Elk's own TypeScript |
 | T0.3 `affinity` goldens | merged | `3d29fe9`, `808f937` | 153 checks against Elk's own numbers |
+| T1.1 `collect` | merged | `2101467`, `a829fea`, `a1ecc87`, `1db0a08` | The harness records the feed |
 
 ### Revision 2 (after the review of 2026-10-21)
 
@@ -218,6 +219,70 @@ port. Six nits were raised, and all six were applied.
   enforces key-set equality; a NaN comparison fails rather than passing.
 - The test exits 1 on failure, prints `ok - …` / `FAIL - …`, and the
   `1e-9` comparisons are real.
+
+### Revision 6 (after W2's T1.1, 2026-10-21)
+
+T1.1 was implemented by an agent and reviewed independently. The reviewer
+drove the harness with the **real** `MastodonClient`'s own response
+handling, which is how the shape of the first endpoint's body became
+unfakable. Four defects were found and fixed; three of them would have
+cost data over the fourteen-day collection.
+
+**Found and fixed:**
+- **The account body was indexed one time too many.** A first fix read
+  `fetched.get('/accounts/verify_credentials')[0][0]`, on the belief that
+  the body was a list. It is an **object** — the app reads it as
+  `account = client.verify_credentials_finish(result)` then
+  `account['instance'] = ...` (`auth.py:535`) — so the second index
+  raised `KeyError: 0`, which is neither a `GLib.Error` nor a
+  `Stopped` and escaped as a traceback. Every hourly run would have died
+  on its first request and written nothing. The reader takes the body as
+  it is, and the check that guards it now answers with an object, the way
+  the endpoint does.
+- **A boost asked about the wrong id.** `status_accounts` read
+  `status['reblog']['id']` — the boosted **post's** id — where it wanted
+  `status['reblog']['account']['id']`, the boosted **author's**. The
+  relationships request asked about a post id, which is not an account
+  id: the request was wasted, the boosted author's relationship was never
+  known, and the affinity maps credit exactly that author.
+- **A run's timestamp was not unique.** `runs.ts` is the run's PRIMARY
+  KEY and `observations` is keyed by `(run_ts, post_id)`, so two runs in
+  the same second overwrote each other — one run lost, and its counters
+  with it. T1.2 reads "the last observation at or before T" from that
+  table, so a lost row is a wrong candidate counter and a wrong gate
+  number. The timestamp now carries microseconds, fixed-width, so the
+  strings still sort chronologically as text.
+- **A failure that was not an HTTP error escaped as a traceback** and
+  replaced itself with a `KeyError`, hiding the real cause. It is now a
+  partial run that says what went wrong.
+- **The modes were only asked for, not set.** `os.makedirs` leaves an
+  existing directory's mode and `os.open` does not chmod an existing
+  file, so a restored backup kept whatever mode it had. Both are now
+  set.
+- **`posts=` counted the page's entries, not the posts stored.** A
+  duplicate in a page made the number larger than the rows. It counts
+  the distinct posts now.
+
+**Two traps recorded for T1.2:**
+- **The two timestamp families are different widths.** A run's `run_ts` is
+  microsecond-precision; Mastodon's `created_at` is second-precision.
+  Compared as text they disagree — `'...00.500000Z' <= '...00Z'` is
+  true, and the half-second is chronologically *after* the second. A
+  `run_ts` may be compared with a `run_ts` as text; a `created_at` must
+  be parsed first.
+- **T1.3's fake must answer with the real shapes.** The
+  `verify_credentials` body is an object, not a list. A fake that
+  answers with a list makes the harness look as if it wanted one index
+  more than it does, and the self-test would bless the crash.
+
+**Verified, not changed:**
+- The transaction boundary holds: a failure part-way through leaves no
+  half-written run, and a retry on the same connection writes cleanly.
+- The rate-limit, failed-request, missing-token and keyring paths all
+  behave as the plan says: exit 0 with a partial run and the error
+  recorded, or exit 2 with a message and the database untouched.
+- The directory is `0700`, the file `0600`, and SQLite's journal the
+  same; no post text and no token are ever printed.
 
 ---
 
