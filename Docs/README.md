@@ -25,6 +25,8 @@ Everything else is here.
 | [UI proposals: implementation study](ui-proposals-implementation-study.md) | How to implement each proposal from that report, with spike results and the order to do them in |
 | [UI proposals: task-level plan](ui-proposals-plan.md) | Work packages and tasks with files, acceptance criteria and order |
 | [GNOME review remediation plan](gnome-review-remediation-plan.md) | Phased fixes for that audit |
+| [Ranked timeline: design](timeline-algorithm.md) | A proposed ranked sidebar place: BYOTA and X's For You compared, the hypothesis, evaluation gates, and the boundary with Catch Up |
+| [Ranked timeline: implementation plan](ranked-timeline-plan.md) | Slices, user stories and agent-ready tasks with acceptance criteria and a definition of done |
 | [Roadmap](ROADMAP.MD) | What the project is betting on |
 
 `CLAUDE.md` in the repository root is the working notes for AI agents
