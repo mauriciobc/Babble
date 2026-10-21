@@ -143,8 +143,10 @@ install_data(
 #     meson test -C build -j1
 # The monitor size has to match the Xvfb screen: at 1024x768 the
 # geometry-sensitive tests (compose widgets, timeline memory) fail,
-# because the dialogs they measure get a smaller window. Both give
-# 62 passed / 1 skipped (streaming helpers, which needs a secret service).
+# because the dialogs they measure get a smaller window. The mutter run
+# gives 63 passed / 1 skipped (streaming helpers, which needs a secret
+# service), measured on 2026-10-21; the Xvfb count has not been re-taken
+# since it was 49.
 test_env = environment()
 test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test_env.set('BABBLE_BUILDDIR', meson.project_build_root())
@@ -366,6 +368,12 @@ test('catchup digest', python,
 )
 test('file size rule', python,
   args: [files('test-file-size.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: it reads the import graph only.
+test('module boundary', python,
+  args: [files('test-module-boundary.py')],
   env: test_env,
   timeout: 60,
 )
