@@ -718,6 +718,11 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         pill instead of a jump."""
         if self._hide_boosts and status.get('reblog'):
             return
+        if self._resumed:
+            # Inserted above the post being resumed it would push it off
+            # the screen, and it would move the cursor past the posts
+            # between. The button fetches it, in order, with the rest.
+            return
         added = self.model.insert_new([status])
         self._note_followed_tags([status])
         if self.model.oldest_id is None:

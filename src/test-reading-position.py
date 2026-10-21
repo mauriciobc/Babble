@@ -141,11 +141,15 @@ check('the cursors are the page\'s own',
 check('the pill offers newer posts',
       page.new_posts_revealer.get_reveal_child()
       and page.new_pill.get_label() == 'Newer Posts')
+server.posts.append(status(101))
+page.on_stream_update(status(101))
+check('a streamed post does not push the resumed post away',
+      ids(page)[0] == '00050' and page.model.newest_id == '00050')
 page.new_pill.emit('clicked')
 check('choosing it fetches what is newer, with min_id',
       server.params[1].get('min_id') == '00050')
 check('and the newer posts are on top',
-      ids(page)[0] == '00100' and '00051' in ids(page))
+      ids(page)[0] == '00101' and '00051' in ids(page))
 check('the pill goes away',
       not page.new_posts_revealer.get_reveal_child())
 
