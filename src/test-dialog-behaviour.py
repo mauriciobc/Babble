@@ -179,13 +179,13 @@ def _setting_rows(widget):
 check('the first page is Appearance, no longer a 30-row General',
       prefs.get_visible_page_name() == 'appearance')
 _counts = {}
-for _name in ('appearance', 'reading', 'behavior'):
+for _name in ('appearance', 'reading', 'timelines'):
     prefs.set_visible_page_name(_name)
     pump()
     _counts[_name] = len(_setting_rows(prefs.get_visible_page()))
 check('each split page holds a manageable number of settings',
-      all(0 < n <= 14 for n in _counts.values()), _counts)
-for _name in ('appearance', 'reading', 'timelines', 'behavior'):
+      all(0 < n <= 20 for n in _counts.values()), _counts)
+for _name in ('appearance', 'reading', 'timelines', 'notifications'):
     prefs.set_visible_page_name(_name)
     pump()
     _keys = [k.lower() for row in _setting_rows(prefs.get_visible_page())
@@ -193,6 +193,32 @@ for _name in ('appearance', 'reading', 'timelines', 'behavior'):
     check('%s: every access key is used once' % _name,
           len(_keys) == len(set(_keys)),
           sorted(k for k in set(_keys) if _keys.count(k) > 1))
+
+
+def _find(widget, kind):
+    child = widget.get_first_child()
+    while child is not None:
+        if isinstance(child, kind):
+            return child
+        found = _find(child, kind)
+        if found is not None:
+            return found
+        child = child.get_next_sibling()
+    return None
+
+
+prefs.set_visible_page_name('reading')
+pump()
+_toggles = _find(prefs.get_visible_page(), Adw.ToggleGroup)
+_viewer = prefs.settings
+_was = _viewer.get_enum('media-viewer-mode')
+_toggles.set_active_name('fullscreen')
+check('the photo viewer toggle writes its setting',
+      _viewer.get_enum('media-viewer-mode') == 1)
+_viewer.set_enum('media-viewer-mode', 0)
+check('and follows the setting',
+      _toggles.get_active_name() == 'box')
+_viewer.set_enum('media-viewer-mode', _was)
 prefs.set_visible_page_name('appearance')
 on_prefs, on_window = [], []
 prefs.add_toast = lambda toast: on_prefs.append(toast.get_title())

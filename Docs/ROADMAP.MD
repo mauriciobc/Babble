@@ -46,7 +46,7 @@ Last audited against the tree on 2026-10-20.
 | **Undo via toasts, extended** | Desktop | Shipped | Delete takes the post out of view and sends `DELETE /api/v1/statuses/:id` only once the Undo toast goes (or at once when the window closes); unboost offers an Undo that boosts again; unfollow of an unlocked account already did. Unfollowing a locked account keeps its confirmation, since an Undo would send a fresh request that needs approval again. |
 | **Per-notification dismiss** | Calm | Shipped | `POST /api/v1/notifications/:id/dismiss`. A button on each row; a grouped row dismisses every notification it holds, and a refusal brings the row back. |
 | **Clear error when no secret service is running** | Trust | Shipped | Tuba #598. A "No Keyring Found" dialog at startup (once per session) and in the sign-in failure text, with a help entry; a locked keyring keeps its own message. |
-| **Split the Preferences General page** | Desktop | Shipped | The 31-row General page is now Appearance, Reading (posts, boosts, Home timeline) and Behavior (links, reminders, background), beside the existing Timelines, Posting, Notifications and Filters. Every key and row is unchanged; only the layout moved. |
+| **Split the Preferences General page** | Desktop | Shipped | The 31-row General page is gone. Preferences has five pages, the most a view switcher should carry: Appearance; Reading (posts, boosts, Home timeline, links, filters); Timelines; Posting (defaults, reminders); Notifications (including background mode). Switch labels are nouns and every row has its own access key. Every setting key is unchanged. |
 
 ## Tier 2 — Small effort, lower impact (fill-ins)
 

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-21 10:18-0300\n"
+"POT-Creation-Date: 2026-10-21 10:25-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -39,7 +39,7 @@ msgid "New Post"
 msgstr "Neuer Beitrag"
 
 #: data/io.github.mauriciobc.Babble.desktop.in:22 src/filters.py:28
-#: src/preferences.py:573 src/sidebarcontrol.py:83 src/sidebarcontrol.py:86
+#: src/preferences.py:616 src/sidebarcontrol.py:83 src/sidebarcontrol.py:86
 #: src/window.py:88 src/window.ui:509 src/window.ui:511 src/window.ui:526
 msgid "Notifications"
 msgstr "Benachrichtigungen"
@@ -114,7 +114,7 @@ msgstr ""
 "Sprache der Oberfläche, als gettext-Lokalisierungsname wie pt_BR; leer folgt "
 "dem System. Wird beim nächsten Start angewendet"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:104 src/preferences.py:293
+#: data/io.github.mauriciobc.Babble.gschema.xml:104 src/preferences.py:318
 msgid "Increase the line height in posts"
 msgstr "Zeilenhöhe in Beiträgen erhöhen"
 
@@ -1611,7 +1611,7 @@ msgid "Replies"
 msgstr "Antworten"
 
 #: src/catchup.py:414 src/catchup.py:432 src/notificationcopy.py:62
-#: src/preferences.py:344 src/statusrow.py:655 src/statusviews.py:25
+#: src/preferences.py:371 src/statusrow.py:655 src/statusviews.py:25
 #: src/statusviews.py:108
 msgid "Boosts"
 msgstr "Geteilte Beiträge"
@@ -1813,7 +1813,7 @@ msgstr ""
 "Eine eigene Zeitleiste für deine Folgekonten, die dir einen Überblick auf "
 "einen Blick bietet"
 
-#: src/catchup.py:1252 src/preferences.py:460
+#: src/catchup.py:1252 src/preferences.py:503
 msgid "_Catch Up"
 msgstr "_Catch Up"
 
@@ -1868,7 +1868,7 @@ msgstr[1] ""
 msgid "Preparing your catch-up…"
 msgstr "Catch-up wird vorbereitet…"
 
-#: src/catchup.py:1661 src/explore.py:391 src/preferences.py:320
+#: src/catchup.py:1661 src/explore.py:391 src/preferences.py:345
 #: src/profile.py:1148 src/search.py:506 src/timelinepage.py:233
 msgid "Posts"
 msgstr "Beiträge"
@@ -3070,7 +3070,7 @@ msgstr ""
 "Beiträge, die Schlüsselwörtern entsprechen, ausblenden oder davor warnen"
 
 #: src/filters.py:376 src/filters.py:467 src/filters.py:471
-#: src/preferences.py:618
+#: src/preferences.py:459
 msgid "Filters"
 msgstr "Filter"
 
@@ -4594,24 +4594,24 @@ msgid "Off"
 msgstr "Aus"
 
 #: src/preferences.py:47
-msgid "Every 30 Seconds"
+msgid "Every 30 seconds"
 msgstr "Alle 30 Sekunden"
 
 #: src/preferences.py:48
-msgid "Every Minute"
+msgid "Every minute"
 msgstr "Jede Minute"
 
 #: src/preferences.py:48
-msgid "Every 5 Minutes"
+msgid "Every 5 minutes"
 msgstr "Alle 5 Minuten"
 
 #: src/preferences.py:51
-msgid "As a Box over the Window"
-msgstr "Als Box über dem Fenster"
+msgid "Box"
+msgstr "Box"
 
 #: src/preferences.py:52
-msgid "Fill the Window"
-msgstr "Fenster füllen"
+msgid "Window"
+msgstr "Fenster"
 
 #: src/preferences.py:57
 msgid "Everyone"
@@ -4622,66 +4622,66 @@ msgid "Followers"
 msgstr "Follower"
 
 #: src/preferences.py:59
-msgid "Only Me"
+msgid "Only me"
 msgstr "Nur ich"
 
 #: src/preferences.py:172
 msgid "Could not update the server preferences"
 msgstr "Die Servereinstellungen konnten nicht aktualisiert werden"
 
-#. Seven pages of settings: searchable, so a row can be found by its
+#. Five pages of settings: searchable, so a row can be found by its
 #. name instead of hunted for down the list.
 #: src/preferences.py:189 src/shortcuts-dialog.ui:12
 msgid "Preferences"
 msgstr "Einstellungen"
 
-#: src/preferences.py:276
+#: src/preferences.py:301
 msgid "Appearance"
 msgstr "Erscheinungsbild"
 
-#: src/preferences.py:282
+#: src/preferences.py:307
 msgid "_Language"
 msgstr "_Sprache"
 
-#: src/preferences.py:283 src/preferences.py:553
-msgid "System Language"
+#: src/preferences.py:308 src/preferences.py:596
+msgid "System language"
 msgstr "Systemsprache"
 
-#: src/preferences.py:284
+#: src/preferences.py:309
 msgid "Takes effect the next time Babble starts"
 msgstr "Wird beim nächsten Start von Babble wirksam"
 
-#: src/preferences.py:287
+#: src/preferences.py:312
 msgid "_Color Scheme"
 msgstr "_Farbschema"
 
-#: src/preferences.py:290
+#: src/preferences.py:315
 msgid "_Text Size"
 msgstr "_Textgröße"
 
-#: src/preferences.py:291
+#: src/preferences.py:316
 msgid "Set the text size used in the interface"
 msgstr "Die in der Oberfläche verwendete Textgröße festlegen"
 
-#: src/preferences.py:292
+#: src/preferences.py:317
 msgid "Large Line _Height"
 msgstr "Größere _Zeilenhöhe"
 
-#: src/preferences.py:295
-msgid "Dim Trivial _Notifications"
-msgstr "Triviale _Benachrichtigungen abschwächen"
+#: src/preferences.py:320
+msgid "Dimmed Trivial _Notifications"
+msgstr "_Abgeschwächte unwichtige Benachrichtigungen"
 
-#: src/preferences.py:296
+#: src/preferences.py:321
 msgid "Notifications like favorites and boosts will be less visible"
 msgstr ""
 "Benachrichtigungen wie Favoriten und geteilte Beiträge werden weniger "
 "sichtbar"
 
-#: src/preferences.py:298
+#: src/preferences.py:323
 msgid "T_ranslucent Sidebar"
 msgstr "T_ransparentes Seitenleiste"
 
-#: src/preferences.py:299
+#: src/preferences.py:324
 msgid ""
 "Blur the desktop behind the sidebar. Needs a compositor that supports "
 "background blur"
@@ -4689,91 +4689,99 @@ msgstr ""
 "Den Desktop hinter der Seitenleiste weichzeichnen. Erfordert einen "
 "Compositor, der Hintergrund-Weichzeichnung unterstützt"
 
-#: src/preferences.py:303
+#: src/preferences.py:328
 msgid "Images and Emojis"
 msgstr "Bilder und Emojis"
 
-#: src/preferences.py:305
-msgid "_Darken Images on Dark Mode"
-msgstr "Bilder im _dunklen Modus abdunkeln"
+#: src/preferences.py:330
+msgid "Darkened _Images in Dark Mode"
+msgstr "Abgedunkelte _Bilder im dunklen Modus"
 
-#: src/preferences.py:307
+#: src/preferences.py:332
 msgid "Large Custom _Emojis"
 msgstr "Große eigene _Emojis"
 
-#: src/preferences.py:309
-msgid "_Scale Custom Emojis on Hover"
-msgstr "Eigene Emojis beim Überfahren _vergrößern"
+#: src/preferences.py:334
+msgid "Custom Emoji _Zoom on Hover"
+msgstr "Zoom für eigene Emojis beim _Darüberfahren"
 
-#: src/preferences.py:310
+#: src/preferences.py:335
 msgid "Slightly increases the size of custom emojis when you hover over them"
 msgstr ""
 "Vergrößert eigene Emojis leicht, wenn Sie mit dem Mauszeiger darüberfahren"
 
-#: src/preferences.py:317
+#: src/preferences.py:342
 msgid "Reading"
 msgstr "Lesen"
 
-#: src/preferences.py:321
-msgid "Collapse _Long Posts"
-msgstr "_Lange Beiträge einklappen"
+#: src/preferences.py:347
+msgid "Collapsed _Long Posts"
+msgstr "_Eingeklappte lange Beiträge"
 
-#: src/preferences.py:322
-msgid "Letterbox _Media"
-msgstr "Medien mit _Rändern"
+#: src/preferences.py:348
+msgid "Letterboxed _Media"
+msgstr "_Medien mit Rändern"
 
-#: src/preferences.py:323
+#: src/preferences.py:349
 msgid ""
 "Scale down and letterbox media to fill the image containers instead of "
 "cropping them"
 msgstr "Medien verkleinern und mit Rändern versehen, statt sie zuzuschneiden"
 
-#: src/preferences.py:326
-msgid "_Open Photos"
-msgstr "_Öffnen von Fotos"
+#: src/preferences.py:352
+msgid "Photo _Viewer"
+msgstr "F_otobetrachter"
 
-#: src/preferences.py:328
+#: src/preferences.py:354
 msgid ""
 "How a photo opens in the viewer: as a box over the window, or filling it"
 msgstr ""
 "Wie ein Foto im Betrachter geöffnet wird: als Box über dem Fenster oder es "
 "füllend"
 
-#: src/preferences.py:331
-msgid "Reveal _Sensitive Media by Default"
-msgstr "Heikle _Medien standardmäßig anzeigen"
+#: src/preferences.py:356
+msgid "_Sensitive Media"
+msgstr "_Heikle Medien"
 
-#: src/preferences.py:333
-msgid "Reveal S_poilers by Default"
-msgstr "Spoiler standardmäßig _anzeigen"
+#: src/preferences.py:357
+msgid "Reveal sensitive media instead of hiding it behind a warning"
+msgstr "Heikle Medien anzeigen, statt sie hinter einer Warnung zu verbergen"
 
-#: src/preferences.py:335
-msgid "Show Link Preview _Cards"
-msgstr "Link-Vorschau_karten anzeigen"
+#: src/preferences.py:359
+msgid "S_poilers"
+msgstr "_Spoiler"
 
-#: src/preferences.py:337
-msgid "Show _Interaction Counters"
-msgstr "Interaktions_zähler anzeigen"
+#: src/preferences.py:360
+msgid "Reveal posts with a content warning"
+msgstr "Beiträge mit Inhaltswarnung aufdecken"
 
-#: src/preferences.py:338
+#: src/preferences.py:362
+msgid "Link Preview _Cards"
+msgstr "_Linkvorschau-Karten"
+
+#: src/preferences.py:364
+msgid "_Interaction Counters"
+msgstr "_Interaktionszähler"
+
+#: src/preferences.py:365
 msgid "Reply, boost and favorite counts on post actions"
 msgstr ""
 "Anzahl der Antworten, geteilten Beiträge und Favoriten bei den "
 "Beitragsaktionen"
 
-#: src/preferences.py:340
-msgid "Show Post _Actions on Timelines"
-msgstr "Post-Aktionen in Zeitleisten anzeigen"
+#: src/preferences.py:367
+msgid "Post _Actions on Timelines"
+msgstr "_Beitragsaktionen in Zeitleisten"
 
-#: src/preferences.py:341
+#: src/preferences.py:368
 msgid "Actions stay available in each post’s menu"
 msgstr "Aktionen bleiben im Menü jedes Beitrags verfügbar"
 
-#: src/preferences.py:345
+#: src/preferences.py:372
 msgid "_Boosts Carousel"
-msgstr "Karussell _für geteilte Beiträge"
+msgstr "_Karussell für geteilte Beiträge"
 
-#: src/preferences.py:346
+#: src/preferences.py:373
 msgid ""
 "When a page of posts is mostly boosts, fold them into a horizontal carousel "
 "instead of one row each. Applies to timelines opened afterwards"
@@ -4782,11 +4790,11 @@ msgstr ""
 "einem horizontalen Karussell zusammengefasst statt in je einer Zeile. Gilt "
 "für danach geöffnete Zeitleisten"
 
-#: src/preferences.py:349
-msgid "Hide D_uplicate Boosts"
-msgstr "_Doppelt geteilte Beiträge ausblenden"
+#: src/preferences.py:376
+msgid "Si_ngle Boost per Post"
+msgstr "Ein _Teilen pro Beitrag"
 
-#: src/preferences.py:350
+#: src/preferences.py:377
 msgid ""
 "Show only the first boost of a post that several people boosted. Applies to "
 "timelines opened afterwards"
@@ -4794,26 +4802,26 @@ msgstr ""
 "Zeigt nur das erste Teilen eines Beitrags, den mehrere Personen geteilt "
 "haben. Gilt für danach geöffnete Zeitleisten"
 
-#: src/preferences.py:355
+#: src/preferences.py:382
 msgid "Home Timeline"
 msgstr "Startseite"
 
-#: src/preferences.py:357
-msgid "Hide Replies From Non-_Follows"
-msgstr "Antworten von Nicht-Folgern ausblenden"
+#: src/preferences.py:384
+msgid "Hidden Replies From Non-_Follows"
+msgstr "_Ausgeblendete Antworten von Nicht-Folgern"
 
-#: src/preferences.py:358
+#: src/preferences.py:385
 msgid ""
 "On the home timeline, hide posts that are replies from accounts you do not "
 "follow"
 msgstr ""
 "Auf der Startseite die Beiträge von Konten, denen du nicht folgst, ausblenden"
 
-#: src/preferences.py:360
-msgid "Hide Boosts on _Home"
-msgstr "Boosts auf der _Startseite ausblenden"
+#: src/preferences.py:387
+msgid "Hidden Boosts on _Home"
+msgstr "Ausgeblendete _geteilte Beiträge auf der Startseite"
 
-#: src/preferences.py:361
+#: src/preferences.py:388
 msgid ""
 "On the home timeline, show only posts and replies by the people you follow, "
 "without their boosts"
@@ -4821,11 +4829,11 @@ msgstr ""
 "Auf der Startseite nur Beiträge und Antworten der Konten zeigen, denen du "
 "folgst, ohne ihre geteilten Beiträge"
 
-#: src/preferences.py:364
-msgid "Resume _Reading Position"
-msgstr "L_eseposition fortsetzen"
+#: src/preferences.py:391
+msgid "Remembered _Reading Position"
+msgstr "Geme_rkte Leseposition"
 
-#: src/preferences.py:365
+#: src/preferences.py:392
 msgid ""
 "Reopen the home timeline at the post you were reading, with a button for "
 "newer posts"
@@ -4833,101 +4841,97 @@ msgstr ""
 "Öffnet die Startseite beim zuletzt gelesenen Beitrag, mit einer Schaltfläche "
 "für neuere Beiträge"
 
-#: src/preferences.py:372
-msgid "Behavior"
-msgstr "Verhalten"
-
-#: src/preferences.py:375
+#: src/preferences.py:402
 msgid "Links"
 msgstr "Links"
 
-#: src/preferences.py:377
-msgid "Strip _Tracking Parameters From Links"
-msgstr "_Tracking-Parameter aus Links entfernen"
+#: src/preferences.py:404
+msgid "_Tracking Parameter Removal"
+msgstr "Entfernen von Tracking-_Parametern"
 
-#: src/preferences.py:378
+#: src/preferences.py:405
 msgid "This option can lead to broken links when enabled"
 msgstr "Diese Option kann bei Aktivierung zu defekten Links führen"
 
-#: src/preferences.py:380
-msgid "Open Remote Links in _Babble"
-msgstr "Entfernte Links in _Babble öffnen"
+#: src/preferences.py:407
+msgid "R_emote Links in Babble"
+msgstr "E_ntfernte Links in Babble"
 
-#: src/preferences.py:381
+#: src/preferences.py:408
 msgid "Open links to posts and profiles on other servers inside the app"
 msgstr "Links zu Beiträgen und Profilen auf anderen Servern in der App öffnen"
 
-#: src/preferences.py:385
-msgid "Open _Web Links Beside the Timeline"
-msgstr ""
+#: src/preferences.py:412
+msgid "_Web Links Beside the Timeline"
+msgstr "_Weblinks neben der Zeitleiste"
 
-#: src/preferences.py:386
+#: src/preferences.py:413
 msgid ""
 "Show other links in a column instead of the browser. Pages keep no cookies "
 "once Babble closes"
 msgstr ""
 
-#: src/preferences.py:390
-msgid "Allow _JavaScript on Web Pages"
-msgstr ""
+#: src/preferences.py:417
+msgid "_JavaScript on Web Pages"
+msgstr "_JavaScript auf Webseiten"
 
-#: src/preferences.py:391
+#: src/preferences.py:418
 msgid "Many sites do not work without it"
 msgstr ""
 
-#: src/preferences.py:395
-msgid "Offer to Open _Copied Links"
-msgstr "Angebot, _Kopierte Links öffnen"
+#: src/preferences.py:422
+msgid "Copied Link S_uggestions"
+msgstr "_Vorschläge für kopierte Links"
 
-#: src/preferences.py:396
+#: src/preferences.py:423
 msgid "Check the clipboard for post and profile links when Babble is focused"
 msgstr ""
 "Zwischenablage auf Beitrags- und Profil-Links überprüfen, wenn Babble "
 "fokussiert ist"
 
-#: src/preferences.py:400
+#: src/preferences.py:428
 msgid "Boosts and Reminders"
 msgstr "Teilen und Erinnerungen"
 
-#: src/preferences.py:402
+#: src/preferences.py:430
 msgid "Advanced Boost _Dialog"
 msgstr "_Erweiterter Teilen-Dialog"
 
-#: src/preferences.py:403
+#: src/preferences.py:431
 msgid "Change boost visibility, quote and confirm boosting"
 msgstr "Sichtbarkeit beim Teilen ändern, zitieren und Teilen bestätigen"
 
-#: src/preferences.py:405
-msgid "Warn Before Replying to an _Old Post"
-msgstr "Vor dem Antworten auf einen _alten Beitrag warnen"
+#: src/preferences.py:433
+msgid "Old Post Reply _Warning"
+msgstr "_Warnung beim Antworten auf alte Beiträge"
 
-#: src/preferences.py:407
-msgid "Warn Before Copying a Link to a _Private Post"
-msgstr "Vor dem Kopieren eines Links zu einem _privaten Beitrag warnen"
+#: src/preferences.py:435
+msgid "Private Post Lin_k Warning"
+msgstr "Warnung bei _Links zu privaten Beiträgen"
 
-#: src/preferences.py:409
-msgid "Warn Before Boosting Media Without _Alt Text"
-msgstr "_Vor dem Teilen von Medien ohne Alternativtext warnen"
+#: src/preferences.py:437
+msgid "Missing Alt Text _Boost Warning"
+msgstr "Warnung _beim Teilen ohne Alternativtext"
 
-#: src/preferences.py:412
+#: src/preferences.py:441
 msgid "Background"
 msgstr "Hintergrund"
 
-#: src/preferences.py:414
-msgid "_Run in Background"
-msgstr "Im _Hintergrund ausführen"
+#: src/preferences.py:443
+msgid "Background _Mode"
+msgstr "_Hintergrundbetrieb"
 
-#: src/preferences.py:415
+#: src/preferences.py:444
 msgid "Keep running after the window is closed to deliver notifications"
 msgstr ""
 "Nach dem Schließen des Fensters weiterlaufen, um Benachrichtigungen "
 "zuzustellen"
 
-#: src/preferences.py:419
+#: src/preferences.py:448
 msgid "_Quick Post Shortcut"
 msgstr "_Schnellpost-Shortcut"
 
-#: src/preferences.py:420
+#: src/preferences.py:449
 msgid ""
 "Open the composer from anywhere with a system-wide shortcut, which can be "
 "changed in the system settings"
@@ -4935,91 +4939,105 @@ msgstr ""
 "Composer überall mit einem System-Shortcut öffnen, der in den "
 "Systemeinstellungen geändert werden kann"
 
-#: src/preferences.py:431
+#: src/preferences.py:460
+msgid "Hide or warn about posts that match keywords, on every device you use"
+msgstr ""
+"Beiträge, die Schlüsselwörtern entsprechen, auf all Ihren Geräten ausblenden "
+"oder davor warnen"
+
+#: src/preferences.py:462
+msgid "Mana_ge Filters"
+msgstr "_Filter verwalten"
+
+#: src/preferences.py:463
+msgid "Create, edit and delete filters"
+msgstr "Filter erstellen, bearbeiten und löschen"
+
+#: src/preferences.py:474
 msgid "Restart Babble to use the new language"
 msgstr "Starten Sie Babble neu, um die neue Sprache zu verwenden"
 
-#: src/preferences.py:441 src/search.py:616 src/shortcuts-dialog.ui:50
+#: src/preferences.py:484 src/search.py:616 src/shortcuts-dialog.ui:50
 msgid "Timelines"
 msgstr "Zeitleisten"
 
-#: src/preferences.py:444
+#: src/preferences.py:487
 msgid "Live Updates"
 msgstr "Live-Aktualisierungen"
 
-#: src/preferences.py:445
-msgid "_Stream Timelines"
-msgstr "Zeitleisten _streamen"
+#: src/preferences.py:488
+msgid "Li_ve Timelines"
+msgstr "L_ive-Zeitleisten"
 
-#: src/preferences.py:446
+#: src/preferences.py:489
 msgid "Receive new posts and notifications in real time"
 msgstr "Neue Beiträge und Benachrichtigungen in Echtzeit empfangen"
 
-#: src/preferences.py:448
-msgid "Stream _Public Timelines"
-msgstr "Ö_ffentliche Zeitleisten streamen"
+#: src/preferences.py:491
+msgid "Live _Public Timelines"
+msgstr "_Öffentliche Live-Zeitleisten"
 
-#: src/preferences.py:449
+#: src/preferences.py:492
 msgid "This will increase memory usage when browsing high traffic timelines"
 msgstr ""
 "Dies erhöht den Speicherverbrauch beim Durchsuchen stark frequentierter "
 "Zeitleisten"
 
-#: src/preferences.py:453
+#: src/preferences.py:496
 msgid "Refresh"
 msgstr "Aktualisierung"
 
-#: src/preferences.py:454
+#: src/preferences.py:497
 msgid "Used while live updates are off or unavailable"
 msgstr ""
 "Wird verwendet, solange Live-Aktualisierungen aus oder nicht verfügbar sind"
 
-#: src/preferences.py:455
+#: src/preferences.py:498
 msgid "_Automatic Refresh"
 msgstr "_Automatische Aktualisierung"
 
-#: src/preferences.py:458 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
+#: src/preferences.py:501 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
 #: src/sidebarrail.py:78 src/window.ui:473 src/window.ui:479
 msgid "Sidebar"
 msgstr "Seitenleiste"
 
-#: src/preferences.py:459
+#: src/preferences.py:502
 msgid "Choose which timelines the sidebar offers"
 msgstr "Wählen Sie, welche Zeitleisten die Seitenleiste anbietet"
 
-#: src/preferences.py:461
+#: src/preferences.py:504
 msgid "Summarize what you missed in your home timeline"
 msgstr "Was du in deiner Startseite verpasst hast zusammenfassen"
 
-#: src/preferences.py:463
+#: src/preferences.py:506
 msgid "_Explore"
 msgstr "_Erkunden"
 
-#: src/preferences.py:464
+#: src/preferences.py:507
 msgid "Show posts trending on your server"
 msgstr "Angesagte Beiträge auf Ihrem Server anzeigen"
 
-#: src/preferences.py:465
+#: src/preferences.py:508
 msgid "_Local Timeline"
 msgstr "_Lokale Zeitleiste"
 
-#: src/preferences.py:466
+#: src/preferences.py:509
 msgid "Show posts from your server"
 msgstr "Beiträge von Ihrem Server anzeigen"
 
-#: src/preferences.py:467
+#: src/preferences.py:510
 msgid "_Federated Timeline"
 msgstr "Föderierte _Zeitleiste"
 
-#: src/preferences.py:468
+#: src/preferences.py:511
 msgid "Show posts from all known servers"
 msgstr "Beiträge von allen bekannten Servern anzeigen"
 
-#: src/preferences.py:471
-msgid "Show _Disabled Timelines"
-msgstr "Zeigt deaktivierte Zeitleisten"
+#: src/preferences.py:514
+msgid "Disabled _Timelines"
+msgstr "_Deaktivierte Zeitleisten"
 
-#: src/preferences.py:472
+#: src/preferences.py:515
 msgid ""
 "Your server has turned these timelines off, but this account may still read "
 "them"
@@ -5027,23 +5045,23 @@ msgstr ""
 "Dein Server hat diese Zeitleisten deaktiviert, aber dieses Konto kann sie "
 "noch lesen"
 
-#: src/preferences.py:491
+#: src/preferences.py:534
 msgid "Posting"
 msgstr "Veröffentlichen"
 
-#: src/preferences.py:495
+#: src/preferences.py:538
 msgid "Defaults for New Posts"
 msgstr "Standards für neue Beiträge"
 
-#: src/preferences.py:496
+#: src/preferences.py:539
 msgid "Changes are also saved to your server preferences"
 msgstr "Änderungen werden auch in Ihren Servereinstellungen gespeichert"
 
-#: src/preferences.py:498
+#: src/preferences.py:541
 msgid "Default _Visibility"
 msgstr "Standard-_Sichtbarkeit"
 
-#: src/preferences.py:501
+#: src/preferences.py:544
 msgid "Default _Quote Policy"
 msgstr "Standard-_Zitierrichtlinie"
 
@@ -5052,73 +5070,56 @@ msgstr "Standard-_Zitierrichtlinie"
 #. source preferences, which is where this is
 #. sent. Say so, rather than letting the row
 #. read as a Babble-side switch.
-#: src/preferences.py:507
-msgid ""
-"Saved to your server preferences; the API sets it per account, not per post"
-msgstr ""
-"Zu deinen Serverpräferenzen gespeichert; die API setzt es pro Konto, nicht "
-"pro Beitrag"
+#: src/preferences.py:550
+msgid "Saved to your server preferences, so it applies to every new post"
+msgstr "In deinen Servereinstellungen gespeichert und für jeden neuen Beitrag verwendet"
 
-#: src/preferences.py:513
-msgid "Mark Media as _Sensitive"
-msgstr "Medien als _heikel markieren"
+#: src/preferences.py:555
+msgid "Media Marked _Sensitive"
+msgstr "Als _heikel markierte Medien"
 
-#: src/preferences.py:519
-msgid "_Server Preferences"
-msgstr "_Servereinstellungen"
+#: src/preferences.py:561
+msgid "Server _Preferences"
+msgstr "Se_rvereinstellungen"
 
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:545 src/window.py:1998 src/window.py:2003
+#: src/preferences.py:588 src/window.py:1998 src/window.py:2003
 msgid "Could not open the web browser"
 msgstr "Webbrowser konnte nicht geöffnet werden"
 
-#: src/preferences.py:554
+#: src/preferences.py:597
 msgid "Default _Language"
-msgstr "Standard-_Sprache"
+msgstr "S_tandard-Sprache"
 
-#: src/preferences.py:577
+#: src/preferences.py:620
 msgid "Desktop Notifications"
 msgstr "Desktop-Benachrichtigungen"
 
-#: src/preferences.py:578
+#: src/preferences.py:621
 msgid "Announced while the window is not focused"
 msgstr "Werden angezeigt, wenn das Fenster nicht im Fokus ist"
 
-#: src/preferences.py:587
-msgid "_Group"
-msgstr "_Gruppieren"
+#: src/preferences.py:630
+msgid "Grouped _Notifications"
+msgstr "_Gruppierte Benachrichtigungen"
 
-#: src/preferences.py:588
+#: src/preferences.py:631
 msgid "Combine notifications of the same type and post into one"
 msgstr "Benachrichtigungen desselben Typs und Beitrags zusammenfassen"
 
-#: src/preferences.py:592
+#: src/preferences.py:635
 msgid "Server"
 msgstr "Server"
 
-#: src/preferences.py:594
+#: src/preferences.py:637
 msgid "Notification _Filtering"
 msgstr "Benachrichtigungs_filter"
 
-#: src/preferences.py:595
+#: src/preferences.py:638
 msgid "Choose whose notifications reach you"
 msgstr "Wählen Sie, von wem Sie Benachrichtigungen erhalten"
-
-#: src/preferences.py:622
-msgid "Hide or warn about posts that match keywords, on every device you use"
-msgstr ""
-"Beiträge, die Schlüsselwörtern entsprechen, auf all Ihren Geräten ausblenden "
-"oder davor warnen"
-
-#: src/preferences.py:624
-msgid "_Manage Filters"
-msgstr "Filter _verwalten"
-
-#: src/preferences.py:625
-msgid "Create, edit and delete filters"
-msgstr "Filter erstellen, bearbeiten und löschen"
 
 #: src/profile.py:226
 #, python-format
@@ -7791,6 +7792,48 @@ msgstr "Wrapped speichern"
 #, python-format
 msgid "Saved %d Wrapped"
 msgstr "Wrapped %d gespeichert"
+
+#~ msgid "As a Box over the Window"
+#~ msgstr "Als Box über dem Fenster"
+
+#~ msgid "Fill the Window"
+#~ msgstr "Fenster füllen"
+
+#~ msgid "_Open Photos"
+#~ msgstr "_Öffnen von Fotos"
+
+#~ msgid "Reveal _Sensitive Media by Default"
+#~ msgstr "Heikle _Medien standardmäßig anzeigen"
+
+#~ msgid "Reveal S_poilers by Default"
+#~ msgstr "Spoiler standardmäßig _anzeigen"
+
+#~ msgid "Hide D_uplicate Boosts"
+#~ msgstr "_Doppelt geteilte Beiträge ausblenden"
+
+#~ msgid "Behavior"
+#~ msgstr "Verhalten"
+
+#~ msgid "Offer to Open _Copied Links"
+#~ msgstr "Angebot, _Kopierte Links öffnen"
+
+#~ msgid "Warn Before Replying to an _Old Post"
+#~ msgstr "Vor dem Antworten auf einen _alten Beitrag warnen"
+
+#~ msgid "Warn Before Copying a Link to a _Private Post"
+#~ msgstr "Vor dem Kopieren eines Links zu einem _privaten Beitrag warnen"
+
+#~ msgid "Warn Before Boosting Media Without _Alt Text"
+#~ msgstr "_Vor dem Teilen von Medien ohne Alternativtext warnen"
+
+#~ msgid "_Run in Background"
+#~ msgstr "Im _Hintergrund ausführen"
+
+#~ msgid "Stream _Public Timelines"
+#~ msgstr "Ö_ffentliche Zeitleisten streamen"
+
+#~ msgid "_Group"
+#~ msgstr "_Gruppieren"
 
 #~ msgid "A thread, with the focused post and its replies"
 #~ msgstr "Eine Unterhaltung mit dem ausgewählten Beitrag und seinen Antworten"
