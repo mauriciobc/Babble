@@ -414,6 +414,31 @@ window.destroy()
 pump()
 check('closing leaves no save timer', page._save_source == 0)
 
+# With the window out of sight when the save delay runs out, no row is
+# mapped; the post last seen while scrolling is saved instead.
+reset()
+server = _Server(range(1, 101))
+page = home(server)
+window = Gtk.Window(default_width=700, default_height=500)
+window.set_child(page)
+window.present()
+pump()
+_adj = page._scrolled.get_vadjustment()
+for _step in range(1, 9):
+    _adj.set_value(_step * 40)
+    wait_for(lambda: page.top_visible_status_id() is not None)
+    pump(10)
+top = page.top_visible_status_id()
+window.hide()
+wait_for(lambda: page.top_visible_status_id() is None)
+page.save_reading_position()
+check('an unseen window still saves the last post seen',
+      top is not None and readingposition.get_position(settings, ACCOUNT)
+      == top, '%s vs %s' % (top, readingposition.get_position(
+          settings, ACCOUNT)))
+window.destroy()
+pump()
+
 reset()
 if failures:
     print('%d failed' % len(failures))

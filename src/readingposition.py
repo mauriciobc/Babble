@@ -93,6 +93,7 @@ class ReadingPosition:
         self._pin_calm = 0
         self._pin_tick_id = 0
         self._save_source = 0
+        self._last_top = None
         if home and settings.get_boolean(ENABLED):
             self._resume_key = settings.get_string('active-account')
             anchor = get_position(settings, self._resume_key)
@@ -262,6 +263,9 @@ class ReadingPosition:
         """Save after the reader pauses, not on every scroll step."""
         if self._resume_key is None or self._resume_pending:
             return
+        # What was last seen while scrolling: when the delay runs out the
+        # window may be in the background, with no row mapped to look at.
+        self._last_top = self.top_visible_status_id() or self._last_top
         if self._save_source:
             GLib.source_remove(self._save_source)
         self._save_source = GLib.timeout_add(
@@ -279,7 +283,7 @@ class ReadingPosition:
             # too, with nothing to resume.
             set_position(pages.settings(), self._resume_key, None)
             return
-        status_id = self.top_visible_status_id()
+        status_id = self.top_visible_status_id() or self._last_top
         if status_id:
             set_position(pages.settings(), self._resume_key, status_id)
 
