@@ -54,13 +54,23 @@ def set_position(settings, account_key, status_id):
     settings.set_value(SETTING, GLib.Variant('a{ss}', positions))
 
 
+# Past 2**53 an integer is not exact as a float, and Mastodon keeps a feed in
+# Redis sorted by score, which is a float: beside ids of this size neighbours
+# are 16 apart, so ``max_id`` one above an id rounds to that id and the
+# exclusive bound skips it. Measured on a live server: +1 and +16 skipped the
+# post, +32 and up returned it first.
+EXACT_FLOAT_LIMIT = 2 ** 53
+FLOAT_SLACK = 64
+
+
 def anchor_params(status_id):
     """``max_id`` that returns *status_id* itself first, or None when the
     id is not a number (a server whose ids are not snowflakes)."""
     try:
-        return str(int(status_id) + 1)
+        number = int(status_id)
     except (TypeError, ValueError):
         return None
+    return str(number + (FLOAT_SLACK if number > EXACT_FLOAT_LIMIT else 1))
 
 
 def _pin_tick(page, _clock):

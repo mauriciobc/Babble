@@ -149,6 +149,9 @@ check('None forgets one account only',
 check('a non-numeric id gives no anchor',
       readingposition.anchor_params('abc') is None
       and readingposition.anchor_params('00050') == '51')
+check('a large id gets room for float rounding in the server\'s feed',
+      readingposition.anchor_params('117479892627463864')
+      == '117479892627463928')
 
 # The anchored first page, then the newer posts above it
 
