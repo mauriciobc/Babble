@@ -113,6 +113,18 @@ the older `POST /notifications/dismiss` with an `id` parameter was removed in
 3.0, and the docs list no `DELETE` form. A grouped row sends one request per
 notification it holds.
 
+## Paging by an id near the one you hold
+
+Mastodon keeps a feed in Redis sorted by a float score, and ids are past
+2**53 (about 9e15), so beside one neighbours are 16 apart. Asking for
+``max_id`` one above an id therefore rounds to that id, and the exclusive
+bound skips the post. Measured on a live server for the resume position:
+``+1`` and ``+16`` skipped it, ``+32`` and more returned it first. The
+resume position adds 64 (``readingposition.anchor_params``). The same
+rounding can in principle affect any request that bounds on an id at the
+edge of a page, such as ``min_id`` for newer posts; that has not been seen
+to lose a post.
+
 ## Deprecation watch
 
 `mastodon.log_deprecation` logs any RFC 9745 `Deprecation` header (and a
