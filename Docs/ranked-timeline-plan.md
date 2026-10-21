@@ -25,8 +25,8 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
-| T0.1 `module boundary` | merged | `f01584c` | The Catch Up boundary is a test now |
-| T0.2 `affinity` | merged | `b8584f0` | The port; its outputs match Elk's own TypeScript |
+| T0.1 `module boundary` | merged | `5c3ec10` | The Catch Up boundary is a test now |
+| T0.2 `affinity` | merged | `b8584f0`, `7547cbd` | The port; its outputs match Elk's own TypeScript |
 | T0.3 `affinity` goldens | not started | | Needs T0.2, which is merged |
 
 ### Revision 2 (after the review of 2026-10-21)
