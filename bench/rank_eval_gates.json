@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "alpha": 0.05,
+  "min_nontied_days": 11,
+  "a1_k": 20,
+  "a1_min_mean_ratio": 1.25,
+  "a2_k": 20,
+  "a2_max_author_drop": 2,
+  "a2_min_small_share_ratio": 0.8,
+  "min_accounts_passing": 2
+}
