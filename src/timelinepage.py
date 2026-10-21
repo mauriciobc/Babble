@@ -562,8 +562,8 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
             self._fill_loop(0)
             return
         self.stack.set_visible_child_name('list')
-        self._fill_filtered()
         self._resume_start_catchup()
+        self._fill_filtered()
 
     def _trim_old(self):
         """Keep the timeline to TIMELINE_MAX_ITEMS while the reader is on
@@ -635,8 +635,8 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         # next older page is the way to fill the screen.
         self._fill_loop(before)
         self._release_bottom()
-        self._fill_filtered()
         self._resume_start_catchup()
+        self._fill_filtered()
 
     def on_refresh_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
@@ -649,7 +649,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
             root = self.get_root()
             if root is not None and hasattr(root, 'show_error'):
                 root.show_error(_('Refresh failed'), e.message)
-            self._chain_ended()
+            self._chain_ended(sweep=False)
             return
         if not statuses:
             self._chain_ended()
@@ -673,7 +673,9 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
             added = self.model.insert_new(statuses)
             self._note_followed_tags(statuses)
             if pinned:
-                self.resume_inserted(added)
+                if added:
+                    self._show_new_pill(added)
+                    self._repin()
             elif added and self._scrolled.get_vadjustment().get_value() > 24:
                 self._show_new_pill(added)
             self._trim_old()
@@ -726,7 +728,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         pill instead of a jump."""
         if self._hide_boosts and status.get('reblog'):
             return
-        if self._resumed:
+        if self._resume_pending or self._resumed or self._catching:
             # Inserted before the catch-up reaches it, it would move the
             # cursor past the posts between. The sweep that ends the
             # catch-up fetches it, in order.

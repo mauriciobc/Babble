@@ -148,28 +148,26 @@ class ReadingPosition:
         if found is not None:
             self._pin_item, self._pin_y = found
 
-    def resume_inserted(self, added):
-        """Newer posts went in above the pinned one: count them for the
-        button and put the pinned post back where it was."""
-        if added:
-            self._show_new_pill(added)
-            self._repin()
-
-    def _chain_ended(self):
+    def _chain_ended(self, sweep=True):
         """The refresh chain stopped, by a short page, the cap, a failure
         or because an older page took its request's place. Pinning ends,
         and one more refresh sweeps up whatever the catch-up missed: posts
         streamed meanwhile were held back, and the cursor continues
-        contiguously from where the chain stopped."""
+        contiguously from where the chain stopped. Not after a failure,
+        which would only ask again at once."""
         self._refresh_chain = 0
         if self._catching:
             self._end_catchup()
-            self.refresh()
+            if sweep:
+                self.refresh()
 
     def _end_catchup(self):
+        """The last page's nudging still has frames to run, so the tick
+        is left to finish and clear the pin itself."""
         self._catching = False
         self._resumed = False
-        self._stop_pinning()
+        if not self._pin_tick_id:
+            self._pin_item = None
 
     def _stop_pinning(self):
         self._pin_item = None
@@ -190,21 +188,20 @@ class ReadingPosition:
         relative to the visible area, not to the content."""
         height = self._scrolled.get_height()
         best = None
-        for y, h, item in self._row_rects():
+        for y, h, run in self._row_rects():
             if y + h > 1 and y < height and (best is None or y < best[1]):
-                best = (item, y)
+                best = (run.items[0], y)
         return best
 
     def _row_rects(self):
-        """``(y, height, first item)`` for every row drawn."""
+        """``(y, height, run)`` for every row drawn."""
         rects = []
         child = self.list_view.get_first_child()
         while child is not None:
             run = getattr(child.get_first_child(), '_run', None)
             ok, bounds = child.compute_bounds(self.list_view)
             if run is not None and ok and child.get_mapped():
-                rects.append((bounds.get_y(), bounds.get_height(),
-                              run.items[0]))
+                rects.append((bounds.get_y(), bounds.get_height(), run))
             child = child.get_next_sibling()
         return rects
 
@@ -215,7 +212,7 @@ class ReadingPosition:
         if self._pin_item is None:
             return
         for position in range(self.run_model.get_n_items()):
-            if self._pin_item is self.run_model.get_item(position).items[0]:
+            if self._pin_item in self.run_model.get_item(position).items:
                 break
         else:
             return
@@ -230,10 +227,11 @@ class ReadingPosition:
         frames, or after PIN_FRAMES."""
         if self._pin_item is None or self._pin_ticks <= 0:
             self._pin_tick_id = 0
+            self._pin_item = None
             return GLib.SOURCE_REMOVE
         self._pin_ticks -= 1
-        y = next((y for y, _h, item in self._row_rects()
-                  if item is self._pin_item), None)
+        y = next((y for y, _h, run in self._row_rects()
+                  if self._pin_item in run.items), None)
         if y is not None:
             if abs(y - self._pin_y) > 1:
                 adjustment = self._scrolled.get_vadjustment()
@@ -243,6 +241,7 @@ class ReadingPosition:
                 self._pin_calm += 1
         if self._pin_calm >= 2:
             self._pin_tick_id = 0
+            self._pin_item = None
             return GLib.SOURCE_REMOVE
         return GLib.SOURCE_CONTINUE
 

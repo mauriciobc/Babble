@@ -326,6 +326,37 @@ check('the button goes to the top',
 window.destroy()
 pump()
 
+# The common case: fewer than a page of newer posts, so one short page is the
+# whole catch-up. Its alignment must not be cut off by the catch-up ending.
+reset()
+readingposition.set_position(settings, ACCOUNT, '00050')
+server = _Server(range(1, 61))
+server.hold = True
+page = home(server)
+window = Gtk.Window(default_width=700, default_height=500)
+window.set_child(page)
+window.present()
+pump()
+server.release()
+wait_for(lambda: page.top_visible_status_id() == '00050')
+server.release()
+wait_for(lambda: not page._catching)
+wait_for(lambda: page._pin_item is None)
+check('a short catch-up keeps the post where it was',
+      page.top_visible_status_id() == '00050'
+      and page._scrolled.get_vadjustment().get_value() > 0,
+      str(page.top_visible_status_id()))
+# A post that streams in after the catch-up goes in above a reader who is
+# not at the top: the pill logic relies on the list keeping their place.
+page.on_stream_update(status(61))
+wait_for(lambda: ids(page)[0] == '00061')
+pump(60)
+check('a post inserted above a scrolled reader leaves their place',
+      page.top_visible_status_id() == '00050',
+      str(page.top_visible_status_id()))
+window.destroy()
+pump()
+
 # Saving what is on screen. Every third entry is a boost of a post with
 # an unrelated id, as on a real Home timeline: the id to remember is the
 # entry's, the one max_id pages by.
