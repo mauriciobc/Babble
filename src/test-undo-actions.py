@@ -205,8 +205,6 @@ class Menu:
     def _timeline_page(self):
         return self.page
 
-    def _delete(self, item, composer_method):
-        self.client.requests.append(('direct', item.status_id))
 
 
 def delete(menu, item):
@@ -240,12 +238,25 @@ pages.flush_deferred()
 check('closing the window sends the DELETE',
       client.requests == [('DELETE', '/statuses/5')], str(client.requests))
 
-model = TimelineModel()
+# A post shown outside a timeline list (a thread, a search result) is hidden
+# by its host and shown again on Undo; the DELETE still waits.
+events = []
 client = Client()
-menu = Menu(Page(model), client)
+menu = Menu(None, client)
+menu._notify = events.append
 delete(menu, StatusItem(status('9')))
-check('a post that is in no list is deleted directly',
-      client.requests == [('direct', '9')], str(client.requests))
+check('a post outside a list is hidden at once', events == ['deleted'])
+check('and nothing is sent yet', client.requests == [])
+toasts.press_undo()
+check('Undo shows it again', events == ['deleted', 'restored'])
+check('and sends nothing', client.requests == [])
+
+events.clear()
+delete(menu, StatusItem(status('9')))
+toasts.time_out()
+check('timing out sends the DELETE',
+      client.requests == [('DELETE', '/statuses/9')], str(client.requests))
+check('and the post stays hidden', events == ['deleted'])
 
 pages.show_toast = real_toast
 

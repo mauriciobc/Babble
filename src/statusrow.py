@@ -369,6 +369,8 @@ class StatusRow(Gtk.Overlay):
             pages.flash_class(self.content, 'fade-in')
         elif name == 'deleted':
             self.set_visible(False)
+        elif name == 'restored':
+            self.set_visible(True)
 
     def _on_edited_clicked(self, _button):
         self._overflow.show_history()

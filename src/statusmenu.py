@@ -39,13 +39,15 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
 
     Actions that change the post in place emit ``refresh`` (the host
     redraws it); ``translated`` follows it once a translation arrived,
-    and ``deleted`` when the post is gone."""
+    ``deleted`` when the post is gone, and ``restored`` when an Undo
+    brought it back."""
 
     __gtype_name__ = 'BabbleStatusMenuButton'
     __gsignals__ = {
         'refresh': (GObject.SignalFlags.RUN_FIRST, None, ()),
         'translated': (GObject.SignalFlags.RUN_FIRST, None, ()),
         'deleted': (GObject.SignalFlags.RUN_FIRST, None, ()),
+        'restored': (GObject.SignalFlags.RUN_FIRST, None, ()),
     }
 
     MENU_ACTIONS = (
@@ -458,14 +460,22 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         page = self._timeline_page()
         taken = page.model.take_status(item.status_id) \
             if page is not None and page.model is not None else []
-        if not taken:
-            # Not in a list (or already gone): no way to show it coming back.
-            self._delete(item, None)
-            return
 
-        def restore():
-            if page.model is not None:
-                page.model.put_back(taken)
+        if taken:
+            def hide():
+                pass
+
+            def restore():
+                if page.model is not None:
+                    page.model.put_back(taken)
+        else:
+            # A thread, a search result, a Catch-Up tile: the host hides
+            # the post itself and shows it again.
+            def hide():
+                self._notify('deleted')
+
+            def restore():
+                self._notify('restored')
 
         def commit():
             def finished(_client, result, _data=None):
@@ -480,6 +490,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             client.request_async(
                 'DELETE', '/statuses/%s' % item.status_id, callback=finished)
 
+        hide()
         pages.deferred_action(self, _('Post deleted'), commit, restore)
 
     def _delete(self, item, composer_method):
