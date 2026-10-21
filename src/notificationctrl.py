@@ -437,6 +437,44 @@ class NotificationController:
         self._unread = 0
         self.emit('unread-changed', 0)
 
+    # Dismiss one
+
+    def dismiss(self, item):
+        """Dismiss the notifications behind one row: the row goes at once,
+        one request per notification a grouped row holds, and the row comes
+        back with an error if any of them fails."""
+        if not self.client.token:
+            return
+        ids = [n['id'] for n in item.notifications]
+        position = self.model.remove(item)
+        if position is None:
+            return
+        if self.model.get_n_items() == 0:
+            self.stack.set_visible_child_name('empty')
+        outcome = {'left': len(ids), 'error': None}
+
+        def done(client, result, _data=None):
+            outcome['left'] -= 1
+            try:
+                client.notifications_dismiss_finish(result)
+            except GLib.Error as error:
+                outcome['error'] = error
+            if outcome['left']:
+                return
+            if outcome['error'] is None:
+                # The server knows which notifications are still unread.
+                self.fetch_unread()
+                return
+            # A grouped row that half-succeeded comes back whole: the
+            # dismissed ones disappear on the next load.
+            self.model.restore(item, position)
+            self.stack.set_visible_child_name('list')
+            pages.report_error(self, _('Could not dismiss the notification'),
+                               outcome['error'])
+
+        for notification_id in ids:
+            self.client.notifications_dismiss_async(notification_id, done)
+
     # Clear
 
     def on_clear_requested(self, _button):

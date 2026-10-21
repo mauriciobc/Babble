@@ -1246,6 +1246,17 @@ class MastodonClient(GObject.Object):
     def notifications_clear_finish(self, result):
         return self._finish(result)
 
+    def notifications_dismiss_async(self, notification_id, callback=None,
+                                    cancellable=None):
+        """POST /api/v1/notifications/:id/dismiss: delete one notification
+        (Mastodon 1.3.0)."""
+        return self._request_async(
+            'POST', '/notifications/%s/dismiss' % notification_id,
+            callback=callback, cancellable=cancellable)
+
+    def notifications_dismiss_finish(self, result):
+        return self._finish(result)
+
     def notifications_mark_read_async(self, last_read_id, callback=None,
                                       cancellable=None):
         """POST /api/v1/markers: store ``notifications.last_read_id`` so

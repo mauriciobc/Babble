@@ -44,8 +44,9 @@ Last audited against the tree on 2026-10-20.
 | **Resume reading position** | Reading | Partial | Home reopens at the post you were reading, kept per account and asked for with `max_id`, with a "Newer Posts" button for what arrived since. Phanpy #269, Tuba #1105. Local only: syncing the server `home` marker would cost a round trip before the first post and moves the place other clients resume from, so it is open. |
 | **Hide boosts / replies per timeline** | Calm | Partial | Phanpy #262, Tuba #1114. Shipped for Home: `hide-boosts-home` and `hide-replies-non-follows`, both live (changing either rebuilds the page). Still open: the same toggles for lists, hashtags and Local, which belong with the Calm presets (Tier 3). |
 | **Undo via toasts, extended** | Desktop | Partial | `pages.show_toast(undo=…)` exists and mute uses it. Extend to delete (`DELETE /api/v1/statuses/:id`), unboost (`…/unreblog`) and unfollow (`…/unfollow`). Makes everything else feel safer. |
-| **Per-notification dismiss** | Calm | | `POST /api/v1/notifications/:id/dismiss`. Already tracked in `IMPROVEMENTS.md`. |
+| **Per-notification dismiss** | Calm | Shipped | `POST /api/v1/notifications/:id/dismiss`. A button on each row; a grouped row dismisses every notification it holds, and a refusal brings the row back. |
 | **Clear error when no secret service is running** | Trust | | Tuba #598. A plain explanation instead of a crash or silent failure. |
+| **Split the Preferences General page** | Desktop | | The first page carries three groups (Appearance, Posts, Behavior) and 31 rows (27 switches, 4 choices), so the settings people look for are buried. Move them onto pages by purpose, for example Appearance, Reading (posts, media, carousel, filters on Home) and Behavior (links, reminders, background), following the HIG for preferences windows. Keep every `GSettings` key and `_switch` unchanged, so it is a layout change only; the `translucent sidebar` and schema tests still apply. New Home filter switches (`hide-boosts-home`, `hide-replies-non-follows`) belong on the Reading page. |
 
 ## Tier 2 — Small effort, lower impact (fill-ins)
 
