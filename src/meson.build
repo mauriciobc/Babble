@@ -30,6 +30,7 @@ install_data(
   '__init__.py',
   'accounts.py',
   'admin.py',
+  'affinity.py',
   'announcements.py',
   'auth.py',
   'catchup.py',
