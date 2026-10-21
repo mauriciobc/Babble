@@ -268,7 +268,11 @@ def derive_affinities(engaged, dismissed, muted, now_ms) -> Affinities:
         magnitude = 1 if signal.weight is None else signal.weight
         weight = (strength * magnitude
                   * decay_factor(now_ms - signal.at_ms, half_life))
-        if not weight:
+        # ``if (!weight) return`` in the TypeScript. A NaN weight is falsy
+        # there, so the signal is skipped *before* ``within`` spends one of
+        # its evidence slots -- Python's truthiness would let it through,
+        # and the slots it took would not come back.
+        if not weight or weight != weight:
             return
         if (signal.author_id and signal.author_id not in muted_ids
                 and within('author', bucket, signal.author_id, cap)):
@@ -402,8 +406,8 @@ def to_ranking_signals(affinities, not_interested_ids=(),
         tag_affinity=dict(affinities.tag),
         language_affinity=dict(affinities.language),
         booster_affinity=dict(affinities.booster),
-        not_interested=list(not_interested_ids),
-        muted_for_you=list(muted_ids),
+        not_interested=list(not_interested_ids or ()),
+        muted_for_you=list(muted_ids or ()),
     )
 
 
