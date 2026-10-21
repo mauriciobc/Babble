@@ -125,20 +125,25 @@ class ReadingPosition:
     # Saving
 
     def top_visible_status_id(self):
-        """Id of the first post that is at least partly on screen, or
-        None. The list view's children are its row shells, in no order."""
-        value = self._scrolled.get_vadjustment().get_value()
+        """Timeline id of the first post that is at least partly on
+        screen, or None. This is the id the server pages by (a boost's own
+        id, not the id of the post it shares), so ``max_id`` can ask for
+        it again. The list view's children are its row shells, in no order,
+        and their bounds are relative to the visible area: the first row
+        is the one still below the top edge with the smallest y."""
+        height = self._scrolled.get_height()
         best = None
         child = self.list_view.get_first_child()
         while child is not None:
             shell = child.get_first_child()
             item = getattr(shell, 'item', None)
+            raw = getattr(item, 'raw', None)
             ok, bounds = child.compute_bounds(self.list_view)
-            if ok and item is not None and child.get_mapped() \
-                    and bounds.get_y() + bounds.get_height() > value + 1 \
-                    and getattr(item, 'status_id', None) \
+            if ok and raw and raw.get('id') and child.get_mapped() \
+                    and bounds.get_y() + bounds.get_height() > 1 \
+                    and bounds.get_y() < height \
                     and (best is None or bounds.get_y() < best[0]):
-                best = (bounds.get_y(), item.status_id)
+                best = (bounds.get_y(), str(raw['id']))
             child = child.get_next_sibling()
         return best[1] if best else None
 

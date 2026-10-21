@@ -32,12 +32,12 @@ settings = pages.settings()
 ACCOUNT = 'https://example.org#1'
 
 
-def check(name, condition):
+def check(name, condition, detail=''):
     if condition:
         print('ok - %s' % name)
     else:
         failures.append(name)
-        print('FAIL - %s' % name)
+        print('FAIL - %s%s' % (name, (': ' + detail) if detail else ''))
 
 
 def pump(count=40):
@@ -194,9 +194,14 @@ server = _Server(range(1, 101))
 public = timelinepage.TimelinePage(server, mode='public', autoload=False)
 check('the public timeline does not resume', public._resume_key is None)
 
-# Saving what is on screen.
+# Saving what is on screen. Every third entry is a boost of a post with
+# an unrelated id, as on a real Home timeline: the id to remember is the
+# entry's, the one max_id pages by.
 reset()
 server = _Server(range(1, 101))
+for _post in server.posts:
+    if int(_post['id']) % 3 == 0:
+        _post['reblog'] = status(int(_post['id']) + 500)
 page = home(server)
 window = Gtk.Window(default_width=700, default_height=500)
 window.set_child(page)
@@ -208,6 +213,31 @@ page.save_reading_position()
 check('reading from the newest post leaves nothing to resume',
       readingposition.get_position(settings, ACCOUNT) is None)
 adjustment = page._scrolled.get_vadjustment()
+
+
+def id_under_top_edge():
+    """What is really drawn at the top edge, found by picking the widget
+    there rather than by the geometry top_visible_status_id reads."""
+    widget = page.list_view.pick(page.list_view.get_width() / 2, 2,
+                                 Gtk.PickFlags.DEFAULT)
+    while widget is not None and not hasattr(widget, 'item'):
+        widget = widget.get_parent()
+    return None if widget is None or widget.item is None \
+        else widget.item.raw['id']
+
+
+# The row at the top edge, at the top, a little down and far down: the
+# lookup used to read the scroll offset as part of the row's position and
+# found nothing once the list was scrolled far.
+for fraction in (0.0, 0.05, 0.3, 0.6, 0.9):
+    adjustment.set_value(adjustment.get_upper() * fraction)
+    pump()
+    expected = id_under_top_edge()
+    check('the top post is found at %d%% of the list' % (fraction * 100),
+          expected is not None
+          and page.top_visible_status_id() == expected,
+          '%s vs %s' % (page.top_visible_status_id(), expected))
+
 adjustment.set_value(adjustment.get_upper() / 4)
 pump()
 top = page.top_visible_status_id()
