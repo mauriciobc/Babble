@@ -542,11 +542,35 @@ class StatusActions(_PostBound, Adw.WrapBox):
                 pages.report_error(self, _('Action failed'), error)
             else:
                 _merge_status(item, data)
+                if kind == 'reblog' and not active:
+                    pages.show_toast(
+                        self, _('Boost removed'),
+                        undo=lambda: self._reboost(item),
+                        undo_label=_('_Undo'))
             if self.item is item:
                 self._refresh()
 
         client.request_async(
             'POST', '/statuses/%s/%s' % (item.status_id, verb), form=form,
+            callback=finished)
+
+    def _reboost(self, item):
+        """Undo for an unboost. The row may be bound to another post by
+        now, so the item is updated and the row only if it still shows it."""
+        client = self.client
+
+        def finished(_client, result, _data=None):
+            try:
+                data = client.request_finish(result)
+            except GLib.Error as error:
+                pages.report_error(self, _('Action failed'), error)
+                return
+            _merge_status(item, data)
+            if self.item is item:
+                self._refresh()
+
+        client.request_async(
+            'POST', '/statuses/%s/reblog' % item.status_id,
             callback=finished)
 
     def _on_favourite(self, button):

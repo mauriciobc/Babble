@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-20 20:34-0300\n"
+"POT-Creation-Date: 2026-10-20 22:03-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -40,7 +40,7 @@ msgstr "Nova publicação"
 
 #: data/io.github.mauriciobc.Babble.desktop.in:22 src/filters.py:28
 #: src/preferences.py:536 src/sidebarcontrol.py:83 src/sidebarcontrol.py:86
-#: src/window.py:85 src/window.ui:509 src/window.ui:511 src/window.ui:526
+#: src/window.py:84 src/window.ui:509 src/window.ui:511 src/window.ui:526
 msgid "Notifications"
 msgstr "Notificações"
 
@@ -408,12 +408,12 @@ msgid "Trend over the selected period"
 msgstr "Tendência no período selecionado"
 
 #: src/admin.py:225 src/catchup.py:1186 src/fedicollections.py:456
-#: src/mediaviewer.py:739 src/pages.py:636 src/wrapped.py:234
+#: src/mediaviewer.py:739 src/pages.py:680 src/wrapped.py:234
 msgid "Loading"
 msgstr "Carregando"
 
 #: src/admin.py:227 src/fedicollections.py:379 src/fedicollections.py:459
-#: src/pages.py:637 src/wrapped.py:237
+#: src/pages.py:681 src/wrapped.py:237
 msgid "Could Not Load"
 msgstr "Não foi possível carregar"
 
@@ -707,10 +707,10 @@ msgstr "Tomar ação"
 
 #: src/admin.py:889 src/admin.py:1302 src/admin.py:1513 src/catchup.py:1271
 #: src/compose.py:1041 src/fedicollections.py:679 src/hashtags.py:461
-#: src/lists.py:164 src/notificationctrl.py:448 src/pages.py:439
-#: src/pages.py:467 src/profile.py:281 src/profile.py:310
+#: src/lists.py:164 src/notificationctrl.py:448 src/pages.py:483
+#: src/pages.py:511 src/profile.py:281 src/profile.py:310
 #: src/profileedit.py:225 src/scheduled.py:123 src/search.py:585
-#: src/statusactions.py:600 src/statusactions.py:652 src/window.py:2087
+#: src/statusactions.py:624 src/statusactions.py:676 src/window.py:2060
 msgid "_Cancel"
 msgstr "_Cancelar"
 
@@ -743,7 +743,7 @@ msgstr "Não foi possível tomar a ação"
 msgid "All Locations"
 msgstr "Todos os locais"
 
-#: src/admin.py:971 src/window.py:89
+#: src/admin.py:971 src/window.py:88
 msgid "Local"
 msgstr "Local"
 
@@ -764,7 +764,7 @@ msgid "Pending"
 msgstr "Pendente"
 
 #: src/admin.py:983 src/search.py:279 src/shortcuts-dialog.ui:77
-#: src/window.py:86
+#: src/window.py:85
 msgid "Search"
 msgstr "Pesquisar"
 
@@ -792,13 +792,13 @@ msgstr "E-mail"
 msgid "IP"
 msgstr "IP"
 
-#: src/admin.py:1016 src/pages.py:869
+#: src/admin.py:1016 src/pages.py:913
 msgid "No Accounts"
 msgstr "Nenhuma conta"
 
-#: src/admin.py:1069 src/admin.py:1081 src/compose.py:1338 src/pages.py:407
+#: src/admin.py:1069 src/admin.py:1081 src/compose.py:1338 src/pages.py:411
 #: src/profileactions.py:217 src/profileactions.py:223
-#: src/profileactions.py:249 src/profileactions.py:267
+#: src/profileactions.py:249 src/profileactions.py:267 src/statusactions.py:549
 msgid "_Undo"
 msgstr "_Desfazer"
 
@@ -814,7 +814,7 @@ msgstr "Não foi possível desfazer a ação"
 #. The check rows commit as they are toggled, so this commits
 #. nothing: it only dismisses the dialog. "Close" names that,
 #. where "Done" named nothing at all and the HIG forbids it.
-#: src/admin.py:1110 src/lists.py:620 src/window.py:481
+#: src/admin.py:1110 src/lists.py:620
 msgid "_Close"
 msgstr "_Fechar"
 
@@ -1006,7 +1006,7 @@ msgstr "Remover federação com %s?"
 
 #: src/admin.py:1389 src/admin.py:1497 src/catchup.py:1402
 #: src/fedicollections.py:243 src/profileactions.py:229 src/statusmenu.py:415
-#: src/window.py:653
+#: src/window.py:625
 msgid "_Remove"
 msgstr "_Remover"
 
@@ -1032,7 +1032,7 @@ msgid "Block an e-mail domain"
 msgstr "Bloquear um domínio de e-mail"
 
 #: src/admin.py:1413 src/admin.py:1450 src/profileactions.py:241
-#: src/profileactions.py:263 src/statusmenu.py:534
+#: src/profileactions.py:263 src/statusmenu.py:569
 msgid "_Block"
 msgstr "_Bloquear"
 
@@ -1047,7 +1047,7 @@ msgstr[1] "%d tentativas de cadastro"
 msgid "Could not block the domain"
 msgstr "Não foi possível bloquear o domínio"
 
-#: src/admin.py:1447 src/profileactions.py:238 src/statusmenu.py:531
+#: src/admin.py:1447 src/profileactions.py:238 src/statusmenu.py:566
 #, python-format
 msgid "Block %s?"
 msgstr "Bloquear %s?"
@@ -1318,28 +1318,20 @@ msgstr "Não foi possível verificar a conta"
 msgid "Logged in as @%s"
 msgstr "Conectado como @%s"
 
-#: src/auth.py:595 src/window.py:477
-msgid "No Keyring Found"
-msgstr "Nenhum chaveiro encontrado"
-
-#: src/auth.py:596
-msgid "Babble keeps your login in the system keyring, and no keyring service is running. Start one, such as GNOME Keyring or KeePassXC, then try again."
-msgstr "O Babble guarda seu login no chaveiro do sistema, e nenhum serviço de chaveiro está em execução. Inicie um, como o Chaveiro do GNOME ou o KeePassXC, e tente de novo."
-
-#: src/auth.py:601
+#: src/auth.py:594
 msgid "Could not save the login"
 msgstr "Não foi possível salvar a sessão"
 
-#: src/auth.py:602
+#: src/auth.py:595
 #, python-format
 msgid "The system keyring refused to store the login for @%s. Check that a keyring service is running, then try again."
 msgstr "O chaveiro do sistema recusou-se a armazenar a sessão de @%s. Verifique se há um serviço de chaveiro em execução e tente novamente."
 
-#: src/auth.py:621 src/auth.py:637
+#: src/auth.py:614 src/auth.py:630
 msgid "The system keyring refused to store the login."
 msgstr "O chaveiro do sistema recusou-se a armazenar a sessão."
 
-#: src/auth.py:645
+#: src/auth.py:638
 msgid "Moderation access granted"
 msgstr "Acesso à moderação concedido"
 
@@ -1645,7 +1637,7 @@ msgstr "%(shown)s de %(total)s"
 msgid "Could Not Catch Up"
 msgstr "Não foi possível atualizar"
 
-#: src/catchup.py:1246 src/shortcuts-dialog.ui:169 src/window.py:84
+#: src/catchup.py:1246 src/shortcuts-dialog.ui:169 src/window.py:83
 msgid "Catch Up"
 msgstr "Catch Up"
 
@@ -2449,7 +2441,7 @@ msgstr "Nenhuma hashtag em alta"
 msgid "No Trending News"
 msgstr "Nenhuma notícia em alta"
 
-#: src/explore.py:392 src/hashtags.py:481 src/search.py:505 src/window.py:88
+#: src/explore.py:392 src/hashtags.py:481 src/search.py:505 src/window.py:87
 msgid "Hashtags"
 msgstr "Hashtags"
 
@@ -2535,7 +2527,7 @@ msgid_plural "%d accounts"
 msgstr[0] "%d conta"
 msgstr[1] "%d contas"
 
-#: src/fedicollections.py:334 src/pages.py:1016 src/report.py:221
+#: src/fedicollections.py:334 src/pages.py:1060 src/report.py:221
 #: src/report.py:222 src/statusactions.py:155
 msgid "Collection"
 msgstr "Coleção"
@@ -2545,7 +2537,7 @@ msgstr "Coleção"
 msgid "New Collection"
 msgstr "Nova coleção"
 
-#: src/fedicollections.py:382 src/window.py:286
+#: src/fedicollections.py:382 src/window.py:284
 msgid "Collections"
 msgstr "Coleções"
 
@@ -2718,7 +2710,7 @@ msgstr "Início e listas"
 msgid "Public Timelines"
 msgstr "Linhas do tempo públicas"
 
-#: src/filters.py:30 src/window.py:86
+#: src/filters.py:30 src/window.py:85
 msgid "Conversations"
 msgstr "Conversas"
 
@@ -3191,7 +3183,7 @@ msgstr "Nenhuma publicação nesta lista"
 msgid "Add members to the list to see their posts"
 msgstr "Adicione membros à lista para ver as publicações deles"
 
-#: src/lists.py:490 src/window.py:1235 src/window.py:1260 src/window.py:1584
+#: src/lists.py:490 src/window.py:1208 src/window.py:1233 src/window.py:1557
 msgid "List"
 msgstr "Lista"
 
@@ -3228,7 +3220,7 @@ msgstr "_Nova lista"
 msgid "Add to Lists"
 msgstr "Adicionar às listas"
 
-#: src/lists.py:626 src/window.py:90
+#: src/lists.py:626 src/window.py:89
 msgid "Lists"
 msgstr "Listas"
 
@@ -3248,54 +3240,54 @@ msgstr "Não foi possível carregar as listas: %s"
 
 #. Translators: toast when a web+ap:// or web+mastodon:// link
 #. is opened before any account is signed in.
-#: src/main.py:319
+#: src/main.py:324
 msgid "Sign in to open this link"
 msgstr "Faça login para abrir este link"
 
-#: src/main.py:360
+#: src/main.py:365
 msgid "translator-credits"
 msgstr "créditos do tradutor"
 
-#: src/mastodon.py:268
+#: src/mastodon.py:245
 #, python-format
 msgid "Invalid server address: %s"
 msgstr "Endereço de servidor inválido: %s"
 
-#: src/mastodon.py:270
+#: src/mastodon.py:247
 #, python-format
 msgid "Babble only connects over HTTPS: %s"
 msgstr "O Babble só se conecta por HTTPS: %s"
 
-#: src/mastodon.py:655
+#: src/mastodon.py:632
 #, fuzzy
 msgid "Operation canceled"
 msgstr "Conversa excluída"
 
-#: src/mastodon.py:660
+#: src/mastodon.py:637
 msgid "Request failed"
 msgstr "A solicitação falhou"
 
-#: src/mastodon.py:668
+#: src/mastodon.py:645
 msgid "Invalid address"
 msgstr "Endereço inválido"
 
-#: src/mastodon.py:726
+#: src/mastodon.py:703
 #, python-format
 msgid "Rate limited by this server. Trying again in %d second."
 msgid_plural "Rate limited by this server. Trying again in %d seconds."
 msgstr[0] "Limite de requisições atingido neste servidor. Tentando novamente em %d segundo."
 msgstr[1] "Limite de requisições atingido neste servidor. Tentando novamente em %d segundos."
 
-#: src/mastodon.py:771
+#: src/mastodon.py:748
 #, python-format
 msgid "Invalid address: %s"
 msgstr "Endereço inválido: %s"
 
-#: src/mastodon.py:992
+#: src/mastodon.py:969
 msgid "The server did not return an application id."
 msgstr "O servidor não retornou um ID de aplicativo."
 
-#: src/mastodon.py:1075
+#: src/mastodon.py:1052
 msgid "This login cannot be signed out on the server."
 msgstr "Esta sessão não pode ser encerrada no servidor."
 
@@ -3395,7 +3387,7 @@ msgstr "Salvar como…"
 msgid "Media is not downloaded automatically on a metered connection"
 msgstr "A mídia não é baixada automaticamente em uma conexão medida"
 
-#: src/mediaviewer.py:787 src/pages.py:586
+#: src/mediaviewer.py:787 src/pages.py:630
 msgid "_Try Again"
 msgstr "_Tentar novamente"
 
@@ -3624,7 +3616,7 @@ msgid "New Posts"
 msgstr "Novas publicações"
 
 #: src/notificationcopy.py:63 src/statusviews.py:24 src/statusviews.py:108
-#: src/statusviews.py:110 src/window.py:87
+#: src/statusviews.py:110 src/window.py:86
 msgid "Favorites"
 msgstr "Favoritos"
 
@@ -3632,7 +3624,7 @@ msgstr "Favoritos"
 msgid "Follows"
 msgstr "Seguidores"
 
-#: src/notificationcopy.py:65 src/window.py:278
+#: src/notificationcopy.py:65 src/window.py:276
 msgid "Follow Requests"
 msgstr "Pedidos para seguir"
 
@@ -3734,7 +3726,7 @@ msgstr "Notificações filtradas"
 msgid "%(domain)s: %(text)s"
 msgstr "%(domain)s: %(text)s"
 
-#: src/notificationctrl.py:364 src/window.py:276
+#: src/notificationctrl.py:364 src/window.py:274
 msgid "Announcements"
 msgstr "Anúncios"
 
@@ -4247,24 +4239,24 @@ msgstr "Configurações de notificação atualizadas"
 msgid "Could not save notification settings"
 msgstr "Não foi possível salvar as configurações de notificação"
 
-#: src/pages.py:468
+#: src/pages.py:512
 msgid "_Don’t Remind Me Again"
 msgstr "_Não lembrar novamente"
 
-#: src/pages.py:551 src/pages.py:784 src/profileactions.py:301
-#: src/statusactions.py:542
+#: src/pages.py:595 src/pages.py:828 src/profileactions.py:301
+#: src/statusactions.py:542 src/statusactions.py:566
 msgid "Action failed"
 msgstr "A ação falhou"
 
-#: src/pages.py:641
+#: src/pages.py:685
 msgid "Nothing Here"
 msgstr "Nada aqui"
 
-#: src/pages.py:724 src/scheduled.py:554 src/search.py:199
+#: src/pages.py:768 src/scheduled.py:554 src/search.py:199
 msgid "Could not load more"
 msgstr "Não foi possível carregar mais"
 
-#: src/pages.py:831
+#: src/pages.py:875
 msgid "This account’s handle could not be verified"
 msgstr "O identificador desta conta não pôde ser verificado"
 
@@ -4731,7 +4723,7 @@ msgstr "Preferências do _servidor"
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:508 src/window.py:1983 src/window.py:1988
+#: src/preferences.py:508 src/window.py:1956 src/window.py:1961
 msgid "Could not open the web browser"
 msgstr "Não foi possível abrir o navegador"
 
@@ -5011,7 +5003,7 @@ msgstr[1] "Mostrar todos os %d perfis"
 msgid "No Featured Profiles"
 msgstr "Nenhum perfil em destaque"
 
-#: src/profile.py:1150 src/statusrow.py:151 src/window.py:1579
+#: src/profile.py:1150 src/statusrow.py:151 src/window.py:1552
 msgid "Pinned"
 msgstr "Fixadas"
 
@@ -5218,7 +5210,7 @@ msgstr "Não foi possível remover %s dos seus seguidores"
 msgid "They will not be able to follow you or see your posts, and their posts will be hidden from you."
 msgstr "Essa conta não poderá seguir você nem ver suas publicações, e as publicações dela ficarão ocultas para você."
 
-#: src/profileactions.py:243 src/profileactions.py:367 src/statusmenu.py:527
+#: src/profileactions.py:243 src/profileactions.py:367 src/statusmenu.py:562
 #, python-format
 msgid "Blocked %s"
 msgstr "%s bloqueado"
@@ -5276,7 +5268,7 @@ msgstr "Não foi possível bloquear o domínio"
 msgid "Could not unblock domain"
 msgstr "Não foi possível desbloquear o domínio"
 
-#: src/profileactions.py:379 src/statusmenu.py:513
+#: src/profileactions.py:379 src/statusmenu.py:548
 #, python-format
 msgid "Muted %s"
 msgstr "%s silenciado"
@@ -6333,39 +6325,43 @@ msgstr[1] "%d dias"
 msgid "_Reply"
 msgstr "_Responder"
 
-#: src/statusactions.py:594
+#: src/statusactions.py:547
+msgid "Boost removed"
+msgstr "Impulso removido"
+
+#: src/statusactions.py:618
 msgid "This Post Has Media Without Alt Text"
 msgstr "Esta publicação tem mídia sem texto alternativo"
 
-#: src/statusactions.py:595
+#: src/statusactions.py:619
 msgid "Some of your followers might not be able to understand it."
 msgstr "Alguns dos seus seguidores talvez não consigam entendê-la."
 
-#: src/statusactions.py:597
+#: src/statusactions.py:621
 msgid "Don’t _remind me again"
 msgstr "Não _lembrar novamente"
 
-#: src/statusactions.py:601 src/statusactions.py:655
+#: src/statusactions.py:625 src/statusactions.py:679
 msgid "_Boost"
 msgstr "_Impulsionar"
 
-#: src/statusactions.py:626
+#: src/statusactions.py:650
 msgid "Visible for all"
 msgstr "Visível para todos"
 
-#: src/statusactions.py:627
+#: src/statusactions.py:651
 msgid "Visible for all, but not in public timelines"
 msgstr "Visível para todos, mas não nas linhas do tempo públicas"
 
-#: src/statusactions.py:628
+#: src/statusactions.py:652
 msgid "Visible for your followers only"
 msgstr "Visível somente para seus seguidores"
 
-#: src/statusactions.py:650
+#: src/statusactions.py:674
 msgid "Boost With Visibility"
 msgstr "Impulsionar com visibilidade"
 
-#: src/statusactions.py:654
+#: src/statusactions.py:678
 msgid "_Quote"
 msgstr "_Citar"
 
@@ -6533,27 +6529,27 @@ msgstr "Esta publicação será excluída e seu texto, anexos e enquete serão c
 msgid "_Delete and Redraft"
 msgstr "_Excluir e reescrever"
 
-#: src/statusmenu.py:466
-msgid "Post deleted"
-msgstr "Publicação excluída"
-
-#: src/statusmenu.py:470
+#: src/statusmenu.py:478 src/statusmenu.py:501
 msgid "Could not delete post"
 msgstr "Não foi possível excluir a publicação"
 
-#: src/statusmenu.py:511
+#: src/statusmenu.py:483 src/statusmenu.py:497
+msgid "Post deleted"
+msgstr "Publicação excluída"
+
+#: src/statusmenu.py:546
 msgid "Unmute failed"
 msgstr "Falha ao deixar de silenciar"
 
-#: src/statusmenu.py:516
+#: src/statusmenu.py:551
 msgid "Mute failed"
 msgstr "Falha ao silenciar"
 
-#: src/statusmenu.py:528
+#: src/statusmenu.py:563
 msgid "Block failed"
 msgstr "Falha ao bloquear"
 
-#: src/statusmenu.py:532
+#: src/statusmenu.py:567
 msgid "They will no longer be able to follow your account or see your posts, and their posts will be hidden."
 msgstr "Essa conta não poderá mais seguir você nem ver suas publicações, e as publicações dela serão ocultadas."
 
@@ -6724,7 +6720,7 @@ msgstr "%s mi"
 msgid "%sB"
 msgstr "%s bi"
 
-#: src/statusviews.py:76 src/window.py:1203
+#: src/statusviews.py:76 src/window.py:1176
 msgid "No Favorites Yet"
 msgstr "Nenhum favorito ainda"
 
@@ -6822,11 +6818,11 @@ msgstr "Buscando as publicações mais recentes"
 msgid "Could Not Load Timeline"
 msgstr "Não foi possível carregar a linha do tempo"
 
-#: src/timelinepage.py:259 src/window.py:1222
+#: src/timelinepage.py:259 src/window.py:1195
 msgid "No Posts Yet"
 msgstr "Nenhuma publicação ainda"
 
-#: src/timelinepage.py:260 src/window.py:1222
+#: src/timelinepage.py:260 src/window.py:1195
 msgid "New posts will appear here"
 msgstr "Novas publicações aparecerão aqui"
 
@@ -6886,88 +6882,80 @@ msgstr ""
 msgid "Page Crashed"
 msgstr ""
 
-#: src/window.py:84 src/window.ui:489
+#: src/window.py:83 src/window.ui:489
 msgid "Home"
 msgstr "Início"
 
-#: src/window.py:87
+#: src/window.py:86
 msgid "Bookmarks"
 msgstr "Itens salvos"
 
-#: src/window.py:88
+#: src/window.py:87
 msgid "Explore"
 msgstr "Explorar"
 
-#: src/window.py:89
+#: src/window.py:88
 msgid "Federated"
 msgstr "Federada"
 
-#: src/window.py:280
+#: src/window.py:278
 msgid "Mutes & Blocks"
 msgstr "Silenciados e bloqueados"
 
-#: src/window.py:282
+#: src/window.py:280
 msgid "Draft Posts"
 msgstr "Rascunhos"
 
-#: src/window.py:284
+#: src/window.py:282
 msgid "Scheduled Posts"
 msgstr "Publicações agendadas"
 
-#: src/window.py:440
+#: src/window.py:435
 #, fuzzy, python-format
 msgid "Could not read the login for @%s from the keyring"
 msgstr "O login de @%s não está mais no chaveiro"
 
-#: src/window.py:451
+#: src/window.py:446
 #, python-format
 msgid "The login for @%s is gone from the keyring"
 msgstr "O login de @%s não está mais no chaveiro"
 
-#: src/window.py:478
-msgid "Babble keeps your login in the system keyring, and no keyring service is running. Start one, such as GNOME Keyring or KeePassXC, then restart Babble."
-msgstr "O Babble guarda seu login no chaveiro do sistema, e nenhum serviço de chaveiro está em execução. Inicie um, como o Chaveiro do GNOME ou o KeePassXC, e reinicie o Babble."
-
-#: src/window.py:482
-msgid "_Learn More"
-msgstr "_Saiba mais"
-
 #. Translators: a draft saved earlier is offered for
 #. restoring; %s is a compact age like "5m"
-#: src/window.py:543
+#: src/window.py:515
 #, python-format
 msgid "Draft from %s"
 msgstr "Rascunho de %s"
 
-#: src/window.py:545
+#: src/window.py:517
 msgid "You have an unsent draft"
 msgstr "Você tem um rascunho não enviado"
 
 #. Translators: banner shown while the computer has no network.
-#: src/window.py:563
+#: src/window.py:535
 msgid "You’re offline"
 msgstr "Você está off-line"
 
-#: src/window.py:650
+#: src/window.py:622
 msgid "Remove Account?"
 msgstr "Remover conta?"
 
-#: src/window.py:651
+#: src/window.py:623
 #, python-format
 msgid "The login for %s will be removed from this device."
 msgstr "O login de %s será removido deste dispositivo."
 
-#: src/window.py:737 src/window.ui:387 src/window.ui:389
+#: src/window.py:709 src/window.ui:387 src/window.ui:389
 msgid "Switch Account"
 msgstr "Trocar de conta"
 
-#: src/window.py:997
+#: src/window.py:970
 msgid "Running in the background was not allowed"
 msgstr "A execução em segundo plano não foi permitida"
 
 #. Translators: status GNOME Shell shows for Babble running in
 #. the background with its window closed.
-#: src/window.py:1070
+#: src/window.py:1043
 #, python-format
 msgid "%d new mention"
 msgid_plural "%d new mentions"
@@ -6975,81 +6963,81 @@ msgstr[0] "%d nova menção"
 msgstr[1] "%d novas menções"
 
 #. Translators: background status: live updates are streaming.
-#: src/window.py:1074
+#: src/window.py:1047
 msgid "Connected"
 msgstr "Conectado"
 
 #. Translators: background status: no live stream, so Babble polls
 #. the server for new notifications.
-#: src/window.py:1077
+#: src/window.py:1050
 msgid "Checking for notifications"
 msgstr "Verificando notificações"
 
-#: src/window.py:1102
+#: src/window.py:1075
 msgid "The quick post shortcut was not allowed"
 msgstr "O atalho de postagem rápida não foi permitido"
 
-#: src/window.py:1170
+#: src/window.py:1143
 #, python-format
 msgid "%d unread notification"
 msgid_plural "%d unread notifications"
 msgstr[0] "%d notificação não lida"
 msgstr[1] "%d notificações não lidas"
 
-#: src/window.py:1204
+#: src/window.py:1177
 msgid "Posts you favorite will appear here"
 msgstr "As publicações que você favoritar aparecerão aqui"
 
-#: src/window.py:1208
+#: src/window.py:1181
 msgid "No Bookmarks Yet"
 msgstr "Nenhum item salvo ainda"
 
-#: src/window.py:1209
+#: src/window.py:1182
 msgid "Posts you bookmark will appear here"
 msgstr "As publicações que você salvar aparecerão aqui"
 
-#: src/window.py:1306
+#: src/window.py:1279
 msgid "Sign in to post the file"
 msgid_plural "Sign in to post the files"
 msgstr[0] "Faça login para postar o arquivo"
 msgstr[1] "Faça login para postar os arquivos"
 
-#: src/window.py:1818
+#: src/window.py:1791
 msgid "Waiting for Authorization"
 msgstr "Aguardando autorização"
 
-#: src/window.py:1820
+#: src/window.py:1793
 #, python-format
 msgid "_Continue with %s"
 msgstr "_Continuar com %s"
 
-#: src/window.py:1822 src/window.ui:233
+#: src/window.py:1795 src/window.ui:233
 msgid "_Continue"
 msgstr "_Continuar"
 
-#: src/window.py:1989
+#: src/window.py:1962
 msgid "No app is set to open web links"
 msgstr "Nenhum aplicativo está definido para abrir links da web"
 
-#: src/window.py:2018
+#: src/window.py:1991
 msgid "Could not connect to the server"
 msgstr "Não foi possível conectar ao servidor"
 
 #. Translators: keep "https://" untranslated
-#: src/window.py:2020
+#: src/window.py:1993
 msgid "Babble only connects over HTTPS. Enter the server address without a scheme, or with https://."
 msgstr "O Babble só se conecta por HTTPS. Digite o endereço do servidor sem esquema ou com https://."
 
-#: src/window.py:2083
+#: src/window.py:2056
 msgid "Log Out?"
 msgstr "Sair da conta?"
 
-#: src/window.py:2084
+#: src/window.py:2057
 #, python-format
 msgid "The login for @%s will be signed out on the server and removed from this device."
 msgstr "A sessão de @%s será encerrada no servidor e removida deste dispositivo."
 
-#: src/window.py:2088
+#: src/window.py:2061
 msgid "_Log Out"
 msgstr "_Sair da conta"
 
@@ -7344,6 +7332,22 @@ msgstr "Salvar Wrapped"
 #, python-format
 msgid "Saved %d Wrapped"
 msgstr "Wrapped de %d salvo"
+
+#: src/auth.py:595 src/window.py:477
+msgid "No Keyring Found"
+msgstr "Nenhum chaveiro encontrado"
+
+#: src/auth.py:596
+msgid "Babble keeps your login in the system keyring, and no keyring service is running. Start one, such as GNOME Keyring or KeePassXC, then try again."
+msgstr "O Babble guarda seu login no chaveiro do sistema, e nenhum serviço de chaveiro está em execução. Inicie um, como o Chaveiro do GNOME ou o KeePassXC, e tente de novo."
+
+#: src/window.py:478
+msgid "Babble keeps your login in the system keyring, and no keyring service is running. Start one, such as GNOME Keyring or KeePassXC, then restart Babble."
+msgstr "O Babble guarda seu login no chaveiro do sistema, e nenhum serviço de chaveiro está em execução. Inicie um, como o Chaveiro do GNOME ou o KeePassXC, e reinicie o Babble."
+
+#: src/window.py:482
+msgid "_Learn More"
+msgstr "_Saiba mais"
 
 #: src/notificationctrl.py:472
 msgid "Could not dismiss the notification"
