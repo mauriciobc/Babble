@@ -271,9 +271,13 @@ def gather(client, known_accounts=()):
                 'bookmarks': [], 'relationships': [], 'error': ''}
 
     try:
-        # ``get`` returns ``(data, next_params)``, so this is the first
-        # element of the account list -- the account itself.
-        viewer = fetched.get('/accounts/verify_credentials')[0][0]
+        # ``get`` returns ``(data, next_params)``, and this endpoint's
+        # body is an object -- the account itself, which ``lift`` makes a
+        # dict subclass. So this is the account, not the first element of
+        # a list: the app reads it the same way
+        # (``account = client.verify_credentials_finish(result)`` then
+        # ``account['instance'] = ...``, auth.py:535).
+        viewer = fetched.get('/accounts/verify_credentials')[0]
         if not isinstance(viewer, dict) or not viewer.get('id'):
             raise Stopped('verify_credentials returned no account')
         gathered['viewer'] = str(viewer['id'])
