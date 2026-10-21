@@ -172,6 +172,12 @@ def call(client, path, params=None):
             page, next_params, _previous = client.request_finish_paged(result)
         except GLib.Error as error:
             answer['error'] = error
+        except Exception as error:
+            # Anything else -- a malformed fixture in the self-test, a
+            # client that raises something else -- would otherwise escape
+            # the handler, and the KeyError below would replace the real
+            # cause with a symptom.
+            answer['error'] = error
         else:
             answer['value'] = (page, next_params)
         finally:
@@ -224,18 +230,34 @@ class Fetcher:
             return call(self.client, path, params)
         except GLib.Error as error:
             raise Stopped(error.message or path) from error
+        except Exception as error:
+            # A failure that is not an HTTP error is still a failure of
+            # this run: stop, keep what was gathered, and record why.
+            raise Stopped(str(error) or path) from error
 
 
 def status_accounts(status):
     """The account ids a status names: its author, the boosted author, the
-    reply target."""
+    reply target.
+
+    A boost names two accounts: the booster, in the wrapper's ``account``,
+    and the boosted author, in the *inner* post's ``account``. The inner
+    post's own ``id`` is a post id, not an account id, and asking
+    ``/accounts/relationships`` about it wastes a request and leaves the
+    boosted author's relationship unknown -- which is the author the
+    affinity maps credit.
+    """
     found = []
     if not isinstance(status, dict):
         return found
-    for field in ('account', 'reblog'):
-        account = status.get(field)
-        if isinstance(account, dict) and account.get('id'):
-            found.append(str(account['id']))
+    account = status.get('account')
+    if isinstance(account, dict) and account.get('id'):
+        found.append(str(account['id']))
+    reblog = status.get('reblog')
+    if isinstance(reblog, dict):
+        inner = reblog.get('account')
+        if isinstance(inner, dict) and inner.get('id'):
+            found.append(str(inner['id']))
     reply_to = status.get('in_reply_to_account_id')
     if reply_to:
         found.append(str(reply_to))
@@ -342,7 +364,20 @@ def open_database(path):
     """
     directory = os.path.dirname(path)
     os.makedirs(directory, mode=0o700, exist_ok=True)
+    # os.makedirs leaves an existing directory's mode alone, and os.open
+    # does not chmod an existing file -- so a restored backup or a
+    # directory made by an earlier version would keep whatever mode it
+    # had. The plan says the data lives in a 0700 directory holding a
+    # 0600 file, so both are set rather than only asked for.
+    try:
+        os.chmod(directory, 0o700)
+    except OSError:
+        pass
     handle = os.open(path, os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        os.fchmod(handle, 0o600)
+    except OSError:
+        pass
     os.close(handle)
     connection = sqlite3.connect(path, isolation_level=None)
     create_schema(connection)
@@ -350,8 +385,13 @@ def open_database(path):
 
 
 def _insert_posts(connection, statuses, run_ts):
-    """Store the first snapshot of every post; return how many are new."""
+    """Store the first snapshot of every post.
+
+    Returns ``(stored, new)``: how many distinct posts were written, and
+    how many of them were seen for the first time.
+    """
     new = 0
+    stored = set()
     for status in statuses:
         if not isinstance(status, dict) or not status.get('id'):
             continue
@@ -361,6 +401,7 @@ def _insert_posts(connection, statuses, run_ts):
             ' ON CONFLICT(id) DO NOTHING',
             (post_id, run_ts, json.dumps(status)))
         new += max(cursor.rowcount, 0)
+        stored.add(post_id)
         connection.execute(
             'INSERT INTO observations(run_ts, post_id, favourites, reblogs,'
             ' replies, favourited, reblogged, bookmarked)'
@@ -370,7 +411,7 @@ def _insert_posts(connection, statuses, run_ts):
             ' replies=excluded.replies, favourited=excluded.favourited,'
             ' reblogged=excluded.reblogged, bookmarked=excluded.bookmarked',
             (run_ts, post_id) + counts(status))
-    return new
+    return len(stored), new
 
 
 def _insert_list(connection, table, statuses, run_ts):
@@ -389,7 +430,7 @@ def write_run(connection, gathered, run_ts, requests, instance):
     error = gathered.get('error') or ''
     connection.execute('BEGIN IMMEDIATE')
     try:
-        new = _insert_posts(connection, gathered['home'], run_ts)
+        stored_posts, new = _insert_posts(connection, gathered['home'], run_ts)
         _insert_list(connection, 'own', gathered['own'], run_ts)
         _insert_list(connection, 'favourites', gathered['favourites'], run_ts)
         _insert_list(connection, 'bookmarks', gathered['bookmarks'], run_ts)
@@ -423,7 +464,10 @@ def write_run(connection, gathered, run_ts, requests, instance):
     except BaseException:
         connection.rollback()
         raise
-    return len(gathered['home']), new
+    # The posts actually stored, not the entries the page carried: a
+    # duplicate in one page is one post, and a page entry with no id is
+    # none.
+    return stored_posts, new
 
 
 def collect(instance, make_client=make_client, account_id=None, token=None,

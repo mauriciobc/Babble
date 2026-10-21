@@ -1083,6 +1083,23 @@ suite; H1 can start.
    engaged in any observation at or before T. Each candidate's counters are
    replaced, in a copy, by the last observation at or before T: one query,
    taking the row with the greatest `run_ts <= T` per post.
+
+   **The two timestamp families are not the same width.** A run's
+   `run_ts` is microsecond-precision (`2026-10-21T06:00:00.500000Z`), so
+   two runs in the same second are two runs; Mastodon's `created_at` is
+   second-precision (`2026-10-21T06:00:00Z`). Compared **as text** they
+   disagree: `'...00.500000Z' <= '...00Z'` is true, but the half-second
+   is chronologically *after* the second. So:
+   - a `run_ts` may be compared with a `run_ts` as text — they are the
+     same width, and that is how `run_ts <= T` and `ORDER BY ts` work;
+   - a `created_at` must be **parsed** (`datetime.fromisoformat` takes
+     the trailing `Z` on Python 3.11+) before it is compared with
+     anything. Do not compare the two families as strings.
+
+   `created_at` is inside the stored `json`, not a column of its own:
+   `json_extract(json, '$.created_at')` reads it. T1.2 may add a column
+   if that makes the queries simpler, but it must not compare the two
+   families as text.
 3. **Labels.** Candidates first observed as engaged in (T, T + 24 h], from
    the flags, plus own statuses created in that window that reply to them
    or boost them.
@@ -1201,6 +1218,17 @@ suite; H1 can start.
    - `collect` with a fake `make_client` factory returning a duck-typed fake
      client (§3.1), including the `rate_limited()` stop, a failed request in
      the middle of a run, and the file modes;
+     - **the fake must answer with the shapes the real endpoints answer
+       with.** `/accounts/verify_credentials` answers with an **object**
+       (the account), not a one-element list — the app reads it as
+       `account = client.verify_credentials_finish(result)` then
+       `account['instance'] = ...` (`auth.py:535`). A fake that answers
+       with a list makes the harness look as if it wanted one index more
+       than it does, and the self-test would bless the crash.
+     - a second run against the same database adds one `runs` row and no
+       duplicate `posts` row, and the two runs keep their own
+       observations: the run timestamp carries microseconds, so two runs in
+       the same second are two runs.
    - the A4 → shipped-ordering rule: a fixture where `affinity_chrono` wins
      A4 but fails A1 gives Gate A: FAIL;
    - `affinity_chrono` and `rank_affinity` read the same author signal for
