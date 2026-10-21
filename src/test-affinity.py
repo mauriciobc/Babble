@@ -44,7 +44,6 @@ from src import catchuprank as cr  # noqa: E402
 # Date.parse('2026-01-01T00:00:00Z') in the TypeScript goldens.
 NOW = 1_767_225_600_000
 DAY = 86_400_000
-HOUR = 3_600_000
 
 GOLDEN = {
     'constants': {
@@ -329,8 +328,11 @@ check('re-engaging yields one favourite of affinity',
       close(derive({'favourite': refreshed}).author['a'],
             af.ENGAGEMENT_STRENGTH['favourite']))
 
+# Elk removes an engagement with ``forgetSignal``; the port has no removal
+# API, so what is ported is the property that an empty sequence yields empty
+# maps -- not retraction, which the port does not do.
 undone = [s for s in refreshed if s.status_id != 's1']
-check('an undone engagement leaves no affinity behind',
+check('an empty sequence leaves no affinity behind',
       derive({'favourite': undone}).author == {})
 
 
@@ -456,7 +458,11 @@ check_maps('evidence cap', capped_derived, GOLDEN['evidence_cap'])
 check('deriving does not truncate the sequence',
       len(twelve) == GOLDEN['evidence_cap']['favourites'])
 
-# The pruning boundary: a single favourite at 0, 13.9, 14, 14.1 days.
+# Ages around the half-life. The derived maps are empty at all three,
+# because a single favourite's weight is decay(age) and it is pruned when
+# that falls below MIN_EVIDENCE -- about 5.81 days, not 14. So these cases
+# pin that the entry is gone; the half-life itself is pinned by the
+# decayFactor goldens below, and the floor by the 'floor' cases after them.
 for label, age in (('0', 0), ('13.9', 13.9 * DAY),
                    ('14', 14 * DAY), ('14.1', 14.1 * DAY)):
     at = NOW - age
@@ -525,6 +531,26 @@ check('the stored weights match the TypeScript',
 check_maps('weighted signals', derive({'favourite': weight_signals}),
            GOLDEN['weights'])
 
+# A NaN weight is the one value where JavaScript's truthiness and Python's
+# differ: ``if (!weight) return`` skips it in the TypeScript, so the signal
+# is dropped before it spends one of ``within``'s evidence slots. The port
+# emulates that with an explicit NaN test, and this pins it.
+nan_signal = af.signal_from_status({
+    'id': 'nan', 'account': {'id': 'a'}, 'tags': [],
+    'weight': float('nan'),
+}, NOW)
+check('a NaN weight is not a magnitude', nan_signal.weight is None)
+nan_direct = af.Signal(status_id='nan2', author_id='a', booster_id=None,
+                       tags=(), language=None, at_ms=NOW,
+                       weight=float('nan'))
+check('a NaN weight contributes nothing',
+      derive({'favourite': [nan_direct]}).author == {})
+# ...and it must not spend one of ``within``'s evidence slots either: the
+# signal after it still counts towards the cap.
+after_nan = derive({'favourite': [nan_direct, sig('after', 'a')]})
+check('a NaN weight spends no evidence slot',
+      close(after_nan.author.get('a', 0.0), 1.0))
+
 # PRUNE_BELOW: -0.04 is noise, -0.08 survives.
 check_maps('a negative entry below PRUNE_BELOW is dropped',
            derive({}, dismissed=[
@@ -540,6 +566,11 @@ check('decayFactor: a future stamp counts as brand new',
       af.decay_factor(-DAY) == golden_decay['negative_day'])
 check('decayFactor: age 0 is brand new',
       af.decay_factor(0) == golden_decay['zero'])
+# Elk's own case: a signal stamped in the future contributes its full
+# strength, never more -- "brand new, never as amplified".
+future = derive({'favourite': [sig('s1', 'a', at_ms=NOW + 365 * DAY)]})
+check('a future stamp contributes its full strength, never more',
+      close(future.author['a'], af.ENGAGEMENT_STRENGTH['favourite']))
 check('decayFactor: one half-life halves',
       close(af.decay_factor(af.DECAY_HALF_LIFE_MS),
             golden_decay['half_life']))
