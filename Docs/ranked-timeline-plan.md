@@ -29,6 +29,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 | T0.2 `affinity` | merged | `b8584f0`, `7547cbd` | The port; its outputs match Elk's own TypeScript |
 | T0.3 `affinity` goldens | merged | `3d29fe9`, `808f937` | 153 checks against Elk's own numbers |
 | T1.1 `collect` | merged | `2101467`, `a829fea`, `a1ecc87`, `1db0a08` | The harness records the feed |
+| T1.2 `evaluate` | merged | `79ebe80`, `3defa71` | The harness judges it against the frozen gates |
 
 ### Revision 2 (after the review of 2026-10-21)
 
@@ -283,6 +284,63 @@ cost data over the fourteen-day collection.
   recorded, or exit 2 with a message and the database untouched.
 - The directory is `0700`, the file `0600`, and SQLite's journal the
   same; no post text and no token are ever printed.
+
+### Revision 7 (after W2's T1.2, 2026-10-21)
+
+T1.2 is where the gates are decided, so a wrong verdict is silent. It
+was implemented by an agent and reviewed independently; the reviewer
+wrote its own implementation of §4 from the plan and compared it with
+the harness over 14 crafted boundary cases and 4,000 random row sets.
+**Zero disagreements** on the gate arithmetic, the tie handling, the
+too-few-days INCONCLUSIVE, and the thresholds. The p-value anchors are
+exact.
+
+Three defects were found, and all three would have changed a verdict.
+
+**Found and fixed:**
+- **A day whose window was not sampled at its ends was judged.** The
+  coverage rule looked only at the gaps *inside* the 48-hour window, so
+  a window whose first twenty-four hours were never sampled had no
+  internal gap to measure and passed. The first day of a collection is
+  exactly that: at its T, nothing can have been seen before, so
+  `rank_affinity` came out identical to `rank_null` and the day
+  counted as evidence. The window must now be **spanned** — a run
+  within the coverage gap of each end — which yields N − 2 judgeable
+  days from N collected, the correct count, since the first and the
+  last have no context on one side.
+- **An exactly two-hour gap was rejected on some days and accepted on
+  others.** `julianday` resolves to about ten microseconds, so a gap of
+  exactly two hours came back as 7200.000013 or 7199.999973 depending
+  on the date — and the plan allows a two-hour gap, because one missed
+  hourly run produces one. Over a two-hourly sweep, 159 of 239 gaps were
+  rejected. The comparison now has the margin the resolution needs.
+- **`aggregate` could print `Gate A: PASS` for an ordering that never
+  passed.** It took the majority of each account's `ordering` and
+  `use_affinity` without checking that any account shipped the resulting
+  pair *and* passed on its own numbers, and the summary did not carry
+  the shipped ordering, so it could not check. It printed
+  `Gate A: PASS / ORDERING: rank / USE_AFFINITY: false` — naming
+  `rank_null`, the ordering that failed on the only account that tested
+  it. The record now carries `shipped`, `shipped_a1` and `shipped_a2`,
+  and the gate needs `min_accounts_passing` records that shipped that
+  ordering and passed.
+
+**Verified, not changed:**
+- **No temporal leakage.** Every query that could read the future is
+  bounded at T: a post created at exactly T is excluded, T − 24 h is
+  included and T − 24 h − 1 s is not; a post engaged in any
+  observation at or before T is not a candidate; a post with no
+  observation at or before T is not a candidate; the counters come from
+  the last observation at or before T; the labels are exactly
+  (T, T + 24 h]; and the affinity at T uses only engagements first seen
+  before T. The judge's stronger check — **rewrite every observation
+  after a chosen day** and re-run — left the earlier days byte for byte
+  identical and moved only the days after the rewrite.
+- **The timestamp families never meet.** Every `created_at` goes through
+  `parse_moment` before it is compared with anything; every text
+  comparison is between two run stamps.
+- **T is 06:00 local** under UTC, UTC−03, UTC+05:30, a DST transition
+  and a half-hour offset, and no naive datetime reaches `iso_utc`.
 
 ---
 
