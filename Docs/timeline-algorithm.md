@@ -554,14 +554,20 @@ pool with planted labels, and checks that recall@k is computed correctly.
 `rank()` was timed on synthetic home posts: random text of 8 to 60 words,
 one tag, one link, 150 authors, 48 h of ages, and no media. It ran on one
 thread with the default context, on a 16-core desktop (the development
-machine). The timing script is not in the tree; stage 1 adds it to the
-harness as `rank_eval.py bench`, so the figure can be reproduced. Three
-runs each:
+machine). The timing script **is** in the tree: `rank_eval.py bench`,
+added by stage 1, so the figure can be reproduced. Three runs each:
 
 | Pool | Run 1 | Run 2 | Run 3 |
 |---|---|---|---|
 | 400 posts | 191 ms (first call, includes warm-up) | 71 ms | 72 ms |
 | 800 posts | 97 ms | 97 ms | 96 ms |
+
+Reproduced on 2026-10-21 with `python3 -I bench/rank_eval.py bench`:
+400 posts 206 / 86 / 86 ms, 800 posts 113 / 110 / 110 ms. The same
+shape — a warm-up first call, then a flat cost, and 800 posts costing
+barely more than 400 — on a different machine, so the figure is the
+algorithm's and not one machine's. The command prints **every run** and
+no median, because the median would hide the warm-up the table names.
 
 Real posts with media, cards and long threads may cost more; the stage 2
 build measures this on real pools.

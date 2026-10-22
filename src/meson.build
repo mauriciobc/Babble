@@ -144,7 +144,7 @@ install_data(
 # The monitor size has to match the Xvfb screen: at 1024x768 the
 # geometry-sensitive tests (compose widgets, timeline memory) fail,
 # because the dialogs they measure get a smaller window. The mutter run
-# gives 64 passed / 1 skipped (streaming helpers, which needs a secret
+# gives 65 passed / 1 skipped (streaming helpers, which needs a secret
 # service), measured on 2026-10-21; the Xvfb count has not been re-taken
 # since it was 49.
 test_env = environment()
@@ -382,6 +382,13 @@ test('affinity', python,
   args: [files('test-affinity.py')],
   env: test_env,
   timeout: 60,
+)
+# Needs no display and no network: every run inside it goes through a
+# fake client, and the real one is replaced by a class that raises.
+test('rank eval', python,
+  args: [files('../bench/rank_eval.py'), 'self-test'],
+  env: test_env,
+  timeout: 120,
 )
 test('capability gates', python,
   args: [files('test-capability.py')],

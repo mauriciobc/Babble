@@ -64,17 +64,42 @@ the affinity decision are the accounts' majority, ties falling back to
 no gates file they print the metrics and refuse to print a verdict: the
 thresholds were frozen before the data came in (H0), so they cannot be
 chosen after it.
+
+`self-test` checks all of that against a world whose answer is known, in
+a temporary directory and with no network: five days of hourly runs, more
+candidates a day than the top 20 holds, and labels planted on one author's
+posts after each day's evaluation time. It asserts recall@k on an ordering
+worked out by hand, the temporal split (and, in a second database that
+differs by one row, that reading past the day *would* change the top 20),
+the whole-future rewrite (every observation after a chosen day engaged:
+the days up to it come out byte for byte identical), the sign test's two
+anchors, the gate verdicts on a fixture gates file, the summary's privacy,
+and `collect` through a duck-typed fake client that answers with the real
+endpoints' shapes. `src.mastodon.MastodonClient` is replaced by a class
+whose ``__init__`` raises, so a run that reached for the real client
+fails here: patching `socket.socket` would prove nothing, because libsoup
+does not use Python's sockets.
+
+`bench` reproduces the cost figure in `Docs/timeline-algorithm.md` §6.1:
+`catchuprank.rank()` on 400 and on 800 synthetic posts, three runs each,
+every run printed.
 """
 
 import argparse
 import datetime
+import io
 import itertools
 import json
 import math
 import os
+import random
+import shutil
 import sqlite3
+import stat
 import statistics
 import sys
+import tempfile
+import time
 import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1192,9 +1217,907 @@ def aggregate(paths, gates_path=None, out=None):
     return 0
 
 
+# region self-test
+
+
+class Checks:
+    """`ok - …` lines, and `FAIL - …` for what did not hold."""
+
+    def __init__(self):
+        self.count = 0
+        self.failures = 0
+
+    def check(self, label, condition):
+        self.count += 1
+        if condition:
+            print('ok - %s' % label)
+        else:
+            self.failures += 1
+            print('FAIL - %s' % label)
+        return bool(condition)
+
+    def equal(self, label, got, want):
+        same = got == want
+        return self.check(label if same else
+                          '%s: got %r, wanted %r' % (label, got, want), same)
+
+    def close(self, label, got, want, tolerance=1e-9):
+        near = got is not None and abs(got - want) <= tolerance
+        return self.check(label if near else
+                          '%s: got %r, wanted %r +/-%g'
+                          % (label, got, want, tolerance), near)
+
+
+class _NoNetwork:
+    """Stands in for `mastodon.MastodonClient` while the self-test runs.
+
+    Its ``__init__`` raises, so a run that reached for the real client
+    fails here instead of opening a session. Patching `socket.socket`
+    would prove nothing: libsoup does not use Python's sockets, so the
+    test could pass while the network was used.
+    """
+
+    def __init__(self, *args, **kwargs):
+        raise AssertionError('the self-test must not construct a client')
+
+
+# Everything about the synthetic world is a function of these, so the
+# dates the checks name are the dates the world produces.
+SYNTHETIC_INSTANCE = 'https://synth.example'
+VIEWER_ID = 'synth-viewer'
+LIKED_AUTHOR = 'synth-liked'
+WORLD_START = datetime.datetime(2026, 10, 5, tzinfo=datetime.timezone.utc)
+WORLD_DAYS = 5
+LIKED_PER_DAY = 5
+FILLERS_PER_DAY = 26
+MINUTE = datetime.timedelta(minutes=1)
+
+
+def synthetic_status(post_id, author, created, followers=500):
+    """One status, in the shape Mastodon answers with.
+
+    Every post carries the same text, tag and language on purpose: the
+    ranker's diversity reranker then has nothing to prefer, so what moves
+    an ordering here is freshness and the author signal, which are the
+    two things these checks are about.
+    """
+    return {
+        'id': post_id,
+        'created_at': created.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'account': {
+            'id': author, 'acct': author, 'username': author,
+            'display_name': author, 'followers_count': followers,
+            'following_count': 300, 'statuses_count': 900,
+            'note': 'a synthetic account', 'fields': [],
+        },
+        'content': '<p>a synthetic post</p>',
+        'tags': [{'name': 'synth'}],
+        'language': 'en',
+        'favourites_count': 0, 'reblogs_count': 0, 'replies_count': 0,
+    }
+
+
+class SyntheticWorld:
+    """A feed, and when the reader engaged with it.
+
+    ``statuses`` maps a post id to the status as the server first sent
+    it, and ``likes`` maps the posts the reader favourites to the moment
+    the favourite appears. A run at or after that moment shows the post
+    ``favourited``, and the harness learns both the flag (a label, later)
+    and the author signal (a favourite in ``/favourites``) from it.
+    """
+
+    def __init__(self, statuses, likes, own=()):
+        self.statuses = statuses
+        self.likes = likes
+        self.own = list(own)
+
+    def _view(self, post_id, moment):
+        status = self.statuses[post_id]
+        at = self.likes.get(post_id)
+        if at is None or at > moment:
+            return status
+        seen = dict(status)
+        seen['favourited'] = True
+        seen['favourites_count'] = 1
+        return seen
+
+    def visible(self, moment):
+        """The home timeline at *moment*: the last 48 hours, the way
+        Mastodon caps it."""
+        start = moment - 2 * DAY
+        return [self._view(post_id, moment)
+                for post_id, status in sorted(self.statuses.items())
+                if start < parse_moment(status['created_at']) <= moment]
+
+    def favourites(self, moment):
+        """The reader's favourites at *moment*."""
+        return [self._view(post_id, moment)
+                for post_id, at in sorted(self.likes.items())
+                if at <= moment]
+
+    def own_statuses(self, moment):
+        """The reader's own posts, boosts and replies written by *moment*."""
+        return [status for status in self.own
+                if parse_moment(status['created_at']) <= moment]
+
+
+class FakeClient:
+    """A duck-typed `mastodon.MastodonClient`: the calls `collect` makes,
+    answered from a `SyntheticWorld`, with no socket anywhere.
+
+    ``request_async`` calls back before it returns, which `call` allows --
+    it only runs the loop when nothing answered. The account endpoint
+    answers with the account **object**, the shape the real one answers
+    with and the harness reads; answering with a one-element list is what
+    hid an off-by-one during T1.1's review, so `check_collect` asserts a
+    list is *rejected*, not accepted.
+    """
+
+    def __init__(self, world, moment, fail_at=None, limited=False):
+        self.world = world
+        self.moment = moment
+        self.fail_at = fail_at
+        self.limited = limited
+        self.asked = []
+
+    def rate_limited(self):
+        return self.limited
+
+    def retry_after_seconds(self):
+        return 30
+
+    def request_async(self, method, path, params=None, callback=None):
+        self.asked.append((path, params))
+        callback(self, None)
+
+    def request_finish_paged(self, result):
+        path, params = self.asked[-1]
+        if path == self.fail_at:
+            raise GLib.Error.new_literal(
+                GLib.quark_from_string('rank-eval'), 'the request failed', 1)
+        return self._answer(path, params), None, None
+
+    def _answer(self, path, params):
+        if path == '/accounts/verify_credentials':
+            return {'id': VIEWER_ID, 'acct': 'synth', 'username': 'synth'}
+        if path == '/timelines/home':
+            return self.world.visible(self.moment)
+        if path == '/favourites':
+            return self.world.favourites(self.moment)
+        if path == '/accounts/%s/statuses' % VIEWER_ID:
+            return self.world.own_statuses(self.moment)
+        if path == '/accounts/relationships':
+            return [{'id': account_id, 'following': True,
+                     'followed_by': False}
+                    for account_id in (params or {}).get('id[]') or ()]
+        return []
+
+
+def record(root, world, moments):
+    """Record *world* once at each of *moments*, through the fake.
+
+    `collect` calls its factory with (instance, token) and nothing else,
+    so the moment a client is built for lives in a cell the loop fills
+    in.
+    """
+    clock = {'now': moments[0]}
+    quiet = io.StringIO()
+
+    def factory(_instance, _token):
+        return FakeClient(world, clock['now'])
+
+    for moment in moments:
+        clock['now'] = moment
+        collect(SYNTHETIC_INSTANCE, make_client=factory, token='synthetic',
+                now=moment, root=root, out=quiet)
+
+
+def synthetic_world():
+    """Five days of a feed, and labels planted on one author's posts.
+
+    Each day at T has LIKED_PER_DAY posts by LIKED_AUTHOR and
+    FILLERS_PER_DAY by distinct authors. Every liked post is older than
+    every filler, so "newest first" puts the liked ones past the
+    twentieth place -- while an ordering that reads the author signal
+    puts them first. The likes that *label* a day's posts happen two
+    hours after its T, and the likes that teach the author signal are
+    yesterday's, so a day is judged on evidence that existed before it.
+
+    LIKED_AUTHOR is a small account (100 followers) against fillers with
+    500, which keeps `small20` a number that can move.
+    """
+    statuses, likes = {}, {}
+    for index in range(WORLD_DAYS):
+        moment = WORLD_START + index * DAY + EVALUATION_HOUR * HOUR
+        for slot in range(LIKED_PER_DAY):
+            post_id = 'liked-%d-%d' % (index, slot)
+            statuses[post_id] = synthetic_status(
+                post_id, LIKED_AUTHOR,
+                moment - 8 * HOUR + slot * 10 * MINUTE, followers=100)
+            likes[post_id] = moment + 2 * HOUR
+        for slot in range(FILLERS_PER_DAY):
+            post_id = 'filler-%d-%d' % (index, slot)
+            statuses[post_id] = synthetic_status(
+                post_id, 'filler-%d-%d' % (index, slot),
+                moment - 7 * HOUR + (slot + 1) * 13 * MINUTE)
+    return SyntheticWorld(statuses, likes)
+
+
+PLANT_T = WORLD_START + 2 * DAY + EVALUATION_HOUR * HOUR
+PLANT_LEAK = 'plant-leak'
+
+
+def plant_world(evidence_before):
+    """The leak plant: one day, and one author whose *only* engagement is
+    a favourite that the two variants place either side of T.
+
+    Nothing else differs between the two databases, so whatever the day's
+    numbers do with that one row shows up as a difference between them --
+    which is how the check proves that reading it would change the top
+    20, and that the harness does not read it.
+    """
+    statuses = {}
+    for slot in range(26):
+        post_id = 'plant-filler-%02d' % slot
+        statuses[post_id] = synthetic_status(
+            post_id, 'plant-filler-%02d' % slot,
+            PLANT_T - 6 * HOUR + slot * 11 * MINUTE)
+    statuses['plant-leak'] = synthetic_status(
+        'plant-leak', PLANT_LEAK, PLANT_T - 12 * HOUR, followers=100)
+    statuses['plant-leak-old'] = synthetic_status(
+        'plant-leak-old', PLANT_LEAK, PLANT_T - 3 * DAY, followers=100)
+    statuses['plant-engaged'] = synthetic_status(
+        'plant-engaged', 'plant-mine', PLANT_T - 10 * HOUR, followers=100)
+    statuses['plant-reply-target'] = synthetic_status(
+        'plant-reply-target', 'plant-reply-author', PLANT_T - 11 * HOUR,
+        followers=100)
+    statuses['plant-boost-target'] = synthetic_status(
+        'plant-boost-target', 'plant-boost-author', PLANT_T - 9 * HOUR,
+        followers=100)
+    likes = {
+        # favourited before T: not a candidate, and not a label either
+        'plant-engaged': PLANT_T - 2 * HOUR,
+        # first seen engaged just after T: a label
+        'plant-leak': PLANT_T + 2 * HOUR,
+        # the evidence, which is the one thing the variants move
+        'plant-leak-old': (PLANT_T - 2 * HOUR if evidence_before
+                           else PLANT_T + 2 * HOUR),
+    }
+    # Two of the reader's own statuses, on the two sides of T. The label
+    # window is (T, T + 24 h]: a reply at exactly T is outside it, and a
+    # boost an hour later is inside. Both are read from `own` and matched
+    # by content id, which is the path a favourite never takes.
+    own = [
+        {'id': 'plant-reply-at-t',
+         'created_at': PLANT_T.strftime('%Y-%m-%dT%H:%M:%SZ'),
+         'in_reply_to_id': 'plant-reply-target',
+         'in_reply_to_account_id': 'plant-reply-author'},
+        {'id': 'plant-boost-after-t',
+         'account': {'id': VIEWER_ID},
+         'created_at': (PLANT_T + HOUR).strftime('%Y-%m-%dT%H:%M:%SZ'),
+         'reblog': statuses['plant-boost-target']},
+    ]
+    return SyntheticWorld(statuses, likes, own)
+
+
+def day_orderings(connection, moment):
+    """The affinity maps, the candidates and the five orderings at
+    *moment* -- the same steps `evaluate` takes for a day, so a check that
+    uses it checks the harness's own path, not a copy of it."""
+    viewer, following, mutuals = stored_maps(connection)
+    affinities = affinity_at(connection, moment, viewer, mutuals)
+    candidates = candidates_at(connection, moment)
+    signals = affinity.to_ranking_signals(affinities)
+    ranked = orderings_at(
+        candidates, moment,
+        affinity.resolver(affinities, (), (), (),
+                          int(moment.timestamp() * 1000)),
+        signals, mutuals, following)
+    return affinities, candidates, ranked
+
+
+def evaluate_summary(root, path, gates_path):
+    """`evaluate` on the database under *root*, as (summary, printed)."""
+    printed = io.StringIO()
+    evaluate(SYNTHETIC_INSTANCE, gates_path=gates_path, json_path=path,
+             root=root, out=printed)
+    with open(path, encoding='utf-8') as handle:
+        return json.load(handle), printed.getvalue()
+
+
+PRIVATE_KEYS = ('content', 'id', 'acct', 'url')
+
+
+def private_keys(value, path=''):
+    """Every key in *value* that names a post, an id, a handle or a URL."""
+    found = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in PRIVATE_KEYS:
+                found.append('%s/%s' % (path, key))
+            found.extend(private_keys(item, '%s/%s' % (path, key)))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(private_keys(item, '%s[%d]' % (path, index)))
+    return found
+
+
+# The gates of §4, as a fixture file. The harness reads them through
+# `load_gates` like any other, so the checks exercise the path the real
+# run takes. The frozen file is the maintainer's; this only pins the keys
+# it must carry.
+FIXTURE_GATES = {
+    'version': 1,
+    'alpha': 0.05,
+    'min_nontied_days': 11,
+    'a1_k': 20,
+    'a1_min_mean_ratio': 1.25,
+    'a2_k': 20,
+    'a2_max_author_drop': 2,
+    'a2_min_small_share_ratio': 0.8,
+    'min_accounts_passing': 2,
+}
+
+
+def fixture_rows(scores):
+    """Rows `judge` can read: one a day, each a mapping of ordering to
+    recall@20. Every other metric is held equal, so a verdict that moves
+    is the one A1, A3 or A4 decided, not A2."""
+    rows = []
+    for index, score in enumerate(scores):
+        orderings = {}
+        for name in ORDERINGS:
+            value = score.get(name, 0.0)
+            orderings[name] = {'recall20': value, 'recall50': value,
+                               'authors20': 20, 'small20': 0.5,
+                               'overlap20': 20}
+        rows.append({'date': '2026-09-%02d' % (index + 1),
+                     't': '2026-09-%02dT09:00:00.000000Z' % (index + 1),
+                     'candidates': 25, 'labels': 5, 'labels_near_start': 0,
+                     'orderings': orderings})
+    return rows
+
+
+def summary_record(gate_a, ordering, use_affinity, shipped, a1, a2):
+    """One account's record, as `evaluate --json` writes it."""
+    return {'version': 1, 'days': [], 'means': {}, 'gates': {},
+            'gate_a': gate_a, 'ordering': ordering,
+            'use_affinity': use_affinity, 'shipped': shipped,
+            'shipped_a1': a1, 'shipped_a2': a2}
+
+
+def write_json(path, value):
+    with open(path, 'w', encoding='utf-8') as handle:
+        json.dump(value, handle)
+    return path
+
+
+def stored_rows(root, sql):
+    """Run one query against the database under *root*, read-only."""
+    connection = sqlite3.connect(database_path(SYNTHETIC_INSTANCE, root))
+    try:
+        return connection.execute(sql).fetchone()
+    finally:
+        connection.close()
+
+
+def copy_database(source, destination):
+    """Copy the harness database -- and only that -- to *destination*."""
+    target = database_path(SYNTHETIC_INSTANCE, destination)
+    os.makedirs(os.path.dirname(target), mode=0o700, exist_ok=True)
+    shutil.copyfile(database_path(SYNTHETIC_INSTANCE, source), target)
+    os.chmod(target, 0o600)
+
+
+def check_metrics(checks):
+    """Recall@k and the other four metrics, on an ordering worked out by
+    hand."""
+    posts = [synthetic_status('p%02d' % index, 'author-%02d' % index,
+                              WORLD_START) for index in range(25)]
+    posts[1]['account']['followers_count'] = 10
+    posts[24]['account']['followers_count'] = 10
+    small = small_authors(posts)
+    checks.equal('the small-account set is the two authors below the median',
+                 sorted(small), ['author-01', 'author-24'])
+    row = metrics_at(posts, {'p02', 'p20', 'p24'}, small,
+                     {'p00', 'p01', 'p24'})
+    checks.equal('recall@20 is the share of the labels inside the top 20',
+                 row['recall20'], 1 / 3)
+    checks.equal('recall@50 is the share of the labels inside the top 50',
+                 row['recall50'], 1.0)
+    checks.equal('the top 20 holds 20 distinct authors', row['authors20'], 20)
+    checks.equal('1 of 20 is a small account, so the share is 0.05',
+                 row['small20'], 0.05)
+    checks.equal('2 of the top 20 are in the engagement order',
+                 row['overlap20'], 2)
+    checks.equal('a day with no labels scores no recall',
+                 metrics_at(posts, set(), small, set())['recall20'], None)
+
+
+def check_sign_test(checks):
+    """The anchors §4 pins, to five decimal places."""
+    checks.close('the sign test gives p = 0.02869 for 11 of 14',
+                 sign_test(11, 14), 0.02869, 1e-5)
+    checks.close('and p = 0.08978 for 10 of 14',
+                 sign_test(10, 14), 0.08978, 1e-5)
+    checks.equal('no non-tied days at all is p = 1', sign_test(0, 0), 1.0)
+
+
+def check_gates(checks, work):
+    """PASS, FAIL and INCONCLUSIVE on a fixture gates file, and the rule
+    that the ordering which ships must pass on its own numbers."""
+    gates_path = write_json(os.path.join(work, 'fixture-gates.json'),
+                            FIXTURE_GATES)
+    gates = load_gates(gates_path)
+    checks.equal('the fixture gates file reads back as written',
+                 gates, FIXTURE_GATES)
+    frozen = load_gates()
+    checks.check('the frozen gates file is there, with the same keys',
+                 frozen is not None and set(frozen) == set(FIXTURE_GATES))
+
+    winning = [{'rank_affinity': 0.8 if day < 11 else 0.4,
+                'rank_null': 0.4, 'chrono': 0.4, 'affinity_chrono': 0.4}
+               for day in range(14)]
+    decision = judge(fixture_rows(winning), gates)
+    checks.equal('A1 passes on 11 wins out of 14',
+                 decision['a1']['verdict'], 'PASS')
+    checks.equal('its sample is the 11 days that were not ties',
+                 decision['a1']['nontied'], 11)
+    checks.equal('and its p is the sign test of 11 wins in 11 days',
+                 decision['a1']['p'], sign_test(11, 11))
+    checks.equal('A3 passes: affinity beats no affinity',
+                 decision['a3']['verdict'], 'PASS')
+    checks.equal('A4 passes: the ranker beats affinity-then-chrono',
+                 decision['a4']['verdict'], 'PASS')
+    checks.equal('the ordering that was checked in its own right is rank'
+                 ' with affinity', decision['shipped'], 'rank_affinity')
+    checks.equal('Gate A passes, shipping rank with affinity',
+                 (decision['gate_a'], decision['ordering'],
+                  decision['use_affinity']), ('PASS', 'rank', True))
+
+    losing = [{'rank_affinity': 0.4, 'rank_null': 0.2, 'chrono': 0.5,
+               'affinity_chrono': 0.2} for _day in range(14)]
+    decision = judge(fixture_rows(losing), gates)
+    checks.equal('A1 fails when the ranker loses to chrono',
+                 decision['a1']['verdict'], 'FAIL')
+    checks.equal('and Gate A fails with it', decision['gate_a'], 'FAIL')
+
+    few = [{'rank_affinity': 0.8, 'rank_null': 0.4, 'chrono': 0.4,
+            'affinity_chrono': 0.4} for _day in range(5)]
+    decision = judge(fixture_rows(few), gates)
+    checks.equal('A1 is INCONCLUSIVE below min_nontied_days',
+                 decision['a1']['verdict'], 'INCONCLUSIVE')
+    checks.equal('and Gate A is INCONCLUSIVE: not a pass, not a fail',
+                 decision['gate_a'], 'INCONCLUSIVE')
+
+    # A4 did not select `rank`, so `affinity_chrono` is what ships -- and
+    # it fails A1 against chrono on its own numbers. Gate A must be FAIL
+    # even though the ranker's A3 verdict was better.
+    handed_over = [{'rank_affinity': 0.4, 'rank_null': 0.4, 'chrono': 1.0,
+                    'affinity_chrono': 0.7} for _day in range(14)]
+    decision = judge(fixture_rows(handed_over), gates)
+    checks.equal('A4 hands the ordering to affinity-then-chrono',
+                 (decision['a4']['verdict'], decision['ordering']),
+                 ('FAIL', 'affinity_chrono'))
+    checks.equal('which then fails A1 on its own numbers',
+                 decision['shipped_a1']['verdict'], 'FAIL')
+    checks.equal('so Gate A is FAIL, not a pass on another ordering',
+                 decision['gate_a'], 'FAIL')
+    record = io.StringIO()
+    print_gates(decision, record)
+    printed = record.getvalue()
+    checks.check('the H1 record says Gate A: FAIL', 'Gate A: FAIL' in printed)
+    checks.check('and names affinity-then-chrono as the ordering',
+                 'ORDERING: affinity_chrono' in printed)
+    checks.check('and leaves affinity off', 'USE_AFFINITY: false' in printed)
+
+    passed = summary_record('PASS', 'rank', True, 'rank_affinity',
+                            'PASS', 'PASS')
+    failed = summary_record('FAIL', 'rank', True, 'rank_affinity',
+                            'FAIL', 'PASS')
+    # A record that says it shipped one ordering but was judged as another
+    # is exactly the hole the review of T1.2 found: a majority must not
+    # name an ordering that no account shipped and passed.
+    stray = summary_record('PASS', 'rank', True, 'affinity_chrono',
+                           'PASS', 'PASS')
+    paths = {
+        'one': write_json(os.path.join(work, 'account-one.json'), passed),
+        'two': write_json(os.path.join(work, 'account-two.json'),
+                          dict(passed)),
+        'failing': write_json(os.path.join(work, 'account-failing.json'),
+                              failed),
+        'stray': write_json(os.path.join(work, 'account-stray.json'), stray),
+    }
+    printed = io.StringIO()
+    aggregate([paths['one'], paths['two']], gates_path=gates_path, out=printed)
+    checks.check('two accounts that shipped the ordering and passed make'
+                 ' Gate A PASS', 'Gate A: PASS' in printed.getvalue())
+    printed = io.StringIO()
+    aggregate([paths['one'], paths['failing']], gates_path=gates_path,
+              out=printed)
+    checks.check('one account failing makes it FAIL',
+                 'Gate A: FAIL' in printed.getvalue())
+    printed = io.StringIO()
+    aggregate([paths['stray']], gates_path=gates_path, out=printed)
+    checks.check('a record that shipped another ordering cannot make it PASS',
+                 'Gate A: INCONCLUSIVE' in printed.getvalue())
+    return gates_path
+
+
+def check_split(checks, work):
+    """A post engaged before T is not a candidate, an engagement after T
+    does not reach the affinity at T -- and the pair of databases shows
+    that reading it *would* change the top 20."""
+    answers = {}
+    for name, evidence_before in (('bounded', False), ('control', True)):
+        root = os.path.join(work, 'split-' + name)
+        record(root, plant_world(evidence_before),
+               (PLANT_T - 13 * HOUR, PLANT_T - 2 * HOUR, PLANT_T + 2 * HOUR))
+        connection = open_database(database_path(SYNTHETIC_INSTANCE, root))
+        try:
+            affinities, candidates, ranked = day_orderings(connection, PLANT_T)
+            labels, _near = labels_at(connection, PLANT_T, candidates)
+        finally:
+            connection.close()
+        answers[name] = {
+            'author': affinities.author,
+            'candidates': [str(status.get('id')) for status in candidates],
+            'top': [str(status.get('id'))
+                    for status in ranked['rank_affinity'][:20]],
+            'labels': labels,
+        }
+
+    bounded, control = answers['bounded'], answers['control']
+    checks.check('a post engaged before T is not a candidate',
+                 'plant-engaged' not in bounded['candidates'])
+    checks.check('a post engaged only after T is a candidate',
+                 'plant-leak' in bounded['candidates'])
+    checks.check('a favourite made after T labels the post',
+                 'plant-leak' in bounded['labels'])
+    checks.check('a boost after T labels the post it boosted',
+                 'plant-boost-target' in bounded['labels'])
+    checks.check('a reply at exactly T does not: the window opens after it',
+                 'plant-reply-target' not in bounded['labels'])
+    checks.check('an engagement after T does not reach the affinity at T',
+                 PLANT_LEAK not in bounded['author'])
+    checks.check('the same engagement before T does reach it',
+                 PLANT_LEAK in control['author'])
+    checks.check('so the leaked author\'s post stays outside the top 20',
+                 'plant-leak' not in bounded['top'])
+    checks.check("and enters it when the favourite is moved before T",
+                 'plant-leak' in control['top'])
+    checks.check('which is what a query that read one row too many would do',
+                 bounded['top'] != control['top'])
+
+
+def check_collect(checks, work):
+    """`collect` through the fake: what a run writes, what a second run
+    adds, and how a rate limit or a failed request stops it."""
+    world = synthetic_world()
+    root = os.path.join(work, 'collect')
+    # The first day's 06:00: by then all 31 of its posts exist, and none
+    # of them carries a favourite yet.
+    moment = WORLD_START + EVALUATION_HOUR * HOUR
+
+    def run(when, printed, where=None, **client):
+        return collect(
+            SYNTHETIC_INSTANCE,
+            make_client=lambda _instance, _token: FakeClient(
+                world, when, **client),
+            token='synthetic', now=when, root=where or root, out=printed)
+
+    printed = io.StringIO()
+    checks.equal('a run exits 0', run(moment, printed), 0)
+    checks.equal(
+        'the run line counts the posts stored, the new ones, the requests,'
+        ' and whether it is partial',
+        printed.getvalue().strip(),
+        '%s posts=31 new=31 requests=6 partial=False' % iso_utc(moment))
+    checks.equal('the data directory is 0700',
+                 stat.S_IMODE(os.stat(
+                     data_dir(SYNTHETIC_INSTANCE, root)).st_mode), 0o700)
+    checks.equal('and the database is 0600',
+                 stat.S_IMODE(os.stat(database_path(
+                     SYNTHETIC_INSTANCE, root)).st_mode), 0o600)
+
+    same_second = moment + datetime.timedelta(microseconds=500000)
+    printed = io.StringIO()
+    checks.equal('a second run in the same second exits 0',
+                 run(same_second, printed), 0)
+    # Five requests, not six: every account is known now, so the run has
+    # no relationship to ask about.
+    checks.equal('and finds no new post or account to ask about',
+                 printed.getvalue().strip(),
+                 '%s posts=31 new=0 requests=5 partial=False'
+                 % iso_utc(same_second))
+    checks.equal('so there are two runs and one row per post',
+                 stored_rows(root, 'SELECT (SELECT COUNT(*) FROM runs),'
+                                  ' (SELECT COUNT(*) FROM posts)'), (2, 31))
+    checks.equal('and each run keeps its own observations',
+                 stored_rows(root, 'SELECT (SELECT COUNT(DISTINCT run_ts)'
+                                  ' FROM observations),'
+                                  ' (SELECT COUNT(*) FROM observations)'),
+                 (2, 62))
+
+    limited = os.path.join(work, 'collect-limited')
+    printed = io.StringIO()
+    checks.equal('a rate-limited run exits 0',
+                 run(moment, printed, where=limited, limited=True), 0)
+    checks.equal('it stops before the first request, and says why',
+                 printed.getvalue().strip(),
+                 '%s posts=0 new=0 requests=0 partial=True'
+                 % iso_utc(moment))
+    checks.equal('the run row records the rate limit',
+                 stored_rows(limited, 'SELECT requests, partial, error'
+                                     ' FROM runs'),
+                 (0, 1, 'rate limited; retry after 30s'))
+
+    failed = os.path.join(work, 'collect-failed')
+    printed = io.StringIO()
+    checks.equal('a run whose request fails exits 0',
+                 run(moment, printed, where=failed,
+                     fail_at='/favourites'), 0)
+    checks.equal('and keeps what it gathered before the failure',
+                 printed.getvalue().strip(),
+                 '%s posts=31 new=31 requests=4 partial=True'
+                 % iso_utc(moment))
+    checks.equal('the run row names the failure',
+                 stored_rows(failed, 'SELECT requests, partial, error'
+                                    ' FROM runs'),
+                 (4, 1, 'the request failed'))
+    checks.equal('and the posts gathered before it are stored',
+                 stored_rows(failed, 'SELECT COUNT(*) FROM posts')[0], 31)
+
+    class ListBody(FakeClient):
+        """Answers the account endpoint with a one-element list."""
+
+        def _answer(self, path, params):
+            if path == '/accounts/verify_credentials':
+                return [{'id': VIEWER_ID}]
+            return super()._answer(path, params)
+
+    gathered, requests = gather(ListBody(world, WORLD_START))
+    checks.equal('the account body is read as the object it is, not a list',
+                 gathered['error'], 'verify_credentials returned no account')
+    checks.equal('and the run stops on its first request', requests, 1)
+
+
+def check_world(checks, work, gates_path):
+    """The five-day world: which days are judged, what the labels are, and
+    the whole-future rewrite."""
+    root = os.path.join(work, 'world')
+    record(root, synthetic_world(),
+           [WORLD_START + index * HOUR for index in range(WORLD_DAYS * 24)])
+    summary, printed = evaluate_summary(
+        root, os.path.join(work, 'world.json'), gates_path)
+    days = summary['days']
+    checks.equal('five days of hourly runs are judged on the three in the'
+                 ' middle', [row['date'] for row in days],
+                 ['2026-10-06', '2026-10-07', '2026-10-08'])
+    checks.check('the first and last days have no coverage at one end',
+                 '2026-10-05 06:00 local no-coverage' in printed
+                 and '2026-10-09 06:00 local no-coverage' in printed)
+    checks.equal('every judged day was labelled the same way',
+                 sorted({row['labels'] for row in days}), [5])
+
+    first = days[0]
+    orderings = first['orderings']
+    checks.equal('the day offered more candidates than the top 20 holds',
+                 first['candidates'], 31)
+    checks.equal("'newest first' leaves every label outside the top 20",
+                 orderings['chrono']['recall20'], 0.0)
+    checks.equal("but still recalls every label in the top 50",
+                 orderings['chrono']['recall50'], 1.0)
+    checks.equal('its top 20 is 20 distinct authors, none of them small',
+                 (orderings['chrono']['authors20'],
+                  orderings['chrono']['small20']), (20, 0.0))
+    checks.equal('the affinity ordering puts every label in the top 20',
+                 orderings['affinity_chrono']['recall20'], 1.0)
+    checks.equal('as one author plus fifteen, five of them small',
+                 (orderings['affinity_chrono']['authors20'],
+                  orderings['affinity_chrono']['small20']), (16, 0.25))
+    checks.equal('the popularity ordering finds none of them',
+                 orderings['engagement']['recall20'], 0.0)
+    checks.equal('the ranker without affinity finds none either',
+                 orderings['rank_null']['recall20'], 0.0)
+    checks.check('the ranker with affinity finds some, but not all: %r'
+                 % orderings['rank_affinity']['recall20'],
+                 0 < orderings['rank_affinity']['recall20'] < 1)
+    checks.equal('the summary carries no id, content, handle or url',
+                 private_keys(summary), [])
+
+    no_gates, printed = evaluate_summary(
+        root, os.path.join(work, 'nogates.json'),
+        os.path.join(work, 'absent-gates.json'))
+    checks.check('without a gates file it prints the metrics and refuses a'
+                 ' verdict', 'gates not frozen, no verdict' in printed
+                 and 'gates' not in no_gates)
+
+    moment = datetime.datetime(2026, 10, 7, EVALUATION_HOUR,
+                               tzinfo=datetime.timezone.utc)
+    connection = open_database(database_path(SYNTHETIC_INSTANCE, root))
+    try:
+        affinities, _candidates, _ranked = day_orderings(connection, moment)
+    finally:
+        connection.close()
+    signals = affinity.to_ranking_signals(affinities)
+    resolver = affinity.resolver(affinities, (), (), (),
+                                 int(moment.timestamp() * 1000))
+    strangers = set(affinities.author) | {'an author with no affinity'}
+    checks.check('the liked author has a positive affinity: %r'
+                 % affinities.author.get(LIKED_AUTHOR),
+                 affinities.author.get(LIKED_AUTHOR, 0) > 0)
+    checks.equal('affinity_chrono and rank_affinity read the same author'
+                 ' signal, for every author',
+                 {author: resolver.author(author) for author in strangers},
+                 {author: catchuprank.affinity_signal(
+                     signals.author_affinity, author) for author in strangers})
+
+    # The whole-future rewrite: every observation after the chosen day's
+    # evaluation time engaged, every counter moved. The days *before* it
+    # may not notice. The chosen day itself may: its labels are the
+    # engagements in (T, T + 24 h], which is past the boundary by design
+    # and is not leakage.
+    chosen = datetime.date(2026, 10, 7)
+    copied = os.path.join(work, 'rewritten')
+    copy_database(root, copied)
+    first_day = day_moment(datetime.date(2026, 10, 6))
+    connection = sqlite3.connect(database_path(SYNTHETIC_INSTANCE, copied),
+                                 isolation_level=None)
+    try:
+        rewritten = connection.execute(
+            'UPDATE observations SET favourites = favourites + 1000,'
+            ' reblogs = reblogs + 1000, replies = replies + 1000,'
+            ' favourited = 1, reblogged = 1, bookmarked = 1'
+            ' WHERE run_ts > ?', (iso_utc(day_moment(chosen)),)).rowcount
+        kept = candidates_at(connection, first_day)
+        engaged_ever = {row[0] for row in connection.execute(
+            'SELECT DISTINCT post_id FROM observations'
+            ' WHERE favourited OR reblogged OR bookmarked')}
+        window = [str(post_id) for post_id, raw in connection.execute(
+            'SELECT id, json FROM posts')
+            if first_day - DAY <= parse_moment(
+                json.loads(raw).get('created_at')) < first_day]
+    finally:
+        connection.close()
+    checks.check('the rewrite changed observations the earlier days must'
+                 ' not read (%d rows)' % rewritten, rewritten > 0)
+    checks.equal('the day before it still has every candidate it had',
+                 len(kept), 31)
+    checks.equal('while a query without the time bound would find none of'
+                 ' them (%d posts in its window)' % len(window),
+                 sorted(set(window) - engaged_ever), [])
+
+    after, _printed = evaluate_summary(
+        copied, os.path.join(work, 'rewritten.json'), gates_path)
+
+    def by_day(summary_):
+        return {row['date']: json.dumps(row, sort_keys=True)
+                for row in summary_['days']}
+
+    was, now = by_day(summary), by_day(after)
+    checks.equal('every day before the rewrite is byte for byte identical,'
+                 ' day for day and metric for metric',
+                 [day for day in was
+                  if day < chosen.isoformat() and was[day] != now[day]], [])
+    shifted = [day for day in now
+               if day >= chosen.isoformat() and now[day] != was.get(day)]
+    checks.check('and the days it moved differ: %s' % ', '.join(shifted),
+                 shifted)
+
+
+def self_test():
+    """Check the harness against a world whose answer is known.
+
+    Prints an ``ok - …`` line per check and a ``FAIL - …`` line for each
+    that did not hold, and returns 1 if any failed. Every run goes through
+    `FakeClient`, and `mastodon.MastodonClient` is replaced here by a
+    class whose ``__init__`` raises -- so no `Soup.Session` is ever built,
+    and a run that reached for the real client would fail loudly instead
+    of quietly touching the network.
+    """
+    checks = Checks()
+    # D3 judges a day at 06:00 *local*, so the world pins the local zone
+    # rather than guess the machine's, and the dates above are the dates
+    # the harness then judges. `time.tzset()` is how the C library is told.
+    os.environ['TZ'] = 'UTC'
+    time.tzset()
+    real = mastodon.MastodonClient
+    mastodon.MastodonClient = _NoNetwork
+    try:
+        checks.check('the real client is replaced for the whole run',
+                     mastodon.MastodonClient is _NoNetwork)
+        with tempfile.TemporaryDirectory(prefix='rank-eval-') as work:
+            check_metrics(checks)
+            check_sign_test(checks)
+            gates_path = check_gates(checks, work)
+            check_split(checks, work)
+            check_collect(checks, work)
+            check_world(checks, work, gates_path)
+    finally:
+        mastodon.MastodonClient = real
+    if checks.failures:
+        print('%d checks, %d failed' % (checks.count, checks.failures))
+        return 1
+    print('%d checks, all passed' % checks.count)
+    return 0
+
+
+# endregion
+
+# region bench
+
+# The clock the bench's posts are aged against, so two machines rank the
+# same ages and not the same wall-clock offsets.
+BENCH_NOW = datetime.datetime(2026, 10, 21, 12, tzinfo=datetime.timezone.utc)
+BENCH_AUTHORS = 150
+BENCH_RUNS = 3
+BENCH_WORDS = ('alpha bravo charlie delta echo foxtrot golf hotel india'
+               ' juliet kilo lima mike november oscar papa quebec romeo'
+               ' sierra tango uniform victor whiskey xray yankee zulu'
+               ' babble timeline ranked affinity timeline feed').split()
+
+
+def bench_posts(count, seed=20261021):
+    """*count* synthetic home posts, as Docs/timeline-algorithm.md §6.1
+    describes them: random text of 8 to 60 words, one tag, one link, 150
+    authors, 48 hours of ages, no media."""
+    rng = random.Random(seed)
+    statuses = []
+    for index in range(count):
+        link = 'https://example.test/%d' % index
+        text = ' '.join(rng.choice(BENCH_WORDS)
+                        for _word in range(rng.randint(8, 60)))
+        created = BENCH_NOW - datetime.timedelta(
+            seconds=rng.randint(0, 48 * 60 * 60))
+        statuses.append({
+            'id': 'bench-%d' % index,
+            'created_at': created.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'account': {
+                'id': 'bench-author-%d' % (index % BENCH_AUTHORS),
+                'acct': 'author-%d' % (index % BENCH_AUTHORS),
+                'username': 'author-%d' % (index % BENCH_AUTHORS),
+                'followers_count': rng.randint(10, 20000),
+                'following_count': rng.randint(30, 2000),
+                'statuses_count': rng.randint(100, 20000),
+                'note': 'a synthetic account',
+            },
+            'content': '<p>%s <a href="%s">%s</a></p>' % (text, link, link),
+            'card': {'url': link},
+            'tags': [{'name': 'synth'}],
+            'language': 'en',
+            'favourites_count': rng.randint(0, 3000),
+            'reblogs_count': rng.randint(0, 500),
+            'replies_count': rng.randint(0, 100),
+        })
+    return statuses
+
+
+def bench(out=None):
+    """Time `catchuprank.rank()` on 400 and 800 synthetic posts, three
+    runs each, printing every run. §6.1 records the figure this
+    reproduces; medians would hide the first-call warm-up it names."""
+    out = out or sys.stdout
+    context = catchuprank.RankingContext(now=BENCH_NOW)
+    for count in (400, 800):
+        candidates = [catchuprank.candidate_from_status(status)
+                      for status in bench_posts(count)]
+        for attempt in range(1, BENCH_RUNS + 1):
+            started = time.perf_counter()
+            catchuprank.rank(candidates, context)
+            elapsed = (time.perf_counter() - started) * 1000
+            print('%d posts, run %d: %.1f ms' % (count, attempt, elapsed),
+                  file=out)
+    return 0
+
+
+# endregion
+
+
 def build_parser():
-    """The command line. The three commands later tasks fill in still
-    parse and answer, so a script can name them without a traceback."""
+    """The command line. `credits` is T4.3's; it parses and answers, so a
+    script can name it without a traceback."""
     parser = argparse.ArgumentParser(
         prog='rank_eval.py',
         description='Record and judge a Mastodon home timeline.')
@@ -1231,8 +2154,15 @@ def build_parser():
         '--gates', help='the frozen gates file (default: the one beside'
                         ' this script)')
 
-    for name in ('credits', 'self-test', 'bench'):
-        commands.add_parser(name, help='not implemented yet')
+    # `credits` belongs to T4.3, which reads the ranked store's counters
+    # table; the store itself is T2.1's. Until then it parses and answers.
+    commands.add_parser('credits', help='not implemented yet')
+    commands.add_parser(
+        'self-test',
+        help='check the harness against a synthetic world (no network)')
+    commands.add_parser(
+        'bench',
+        help='time catchuprank.rank() on synthetic posts')
     return parser
 
 
@@ -1245,6 +2175,10 @@ def main(argv=None):
                         json_path=args.json_path)
     if args.command == 'aggregate':
         return aggregate(args.summaries, gates_path=args.gates)
+    if args.command == 'self-test':
+        return self_test()
+    if args.command == 'bench':
+        return bench()
     print('%s is not implemented yet' % args.command, file=sys.stderr)
     return 2
 
