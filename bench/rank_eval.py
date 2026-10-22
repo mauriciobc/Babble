@@ -71,14 +71,18 @@ candidates a day than the top 20 holds, and labels planted on one author's
 posts after each day's evaluation time. It asserts recall@k on an ordering
 worked out by hand, the temporal split (and, in a second database that
 differs by one row, that reading past the day *would* change the top 20),
-the whole-future rewrite (every observation after a chosen day engaged:
-the days up to it come out byte for byte identical), the sign test's two
-anchors, the gate verdicts on a fixture gates file, the summary's privacy,
-and `collect` through a duck-typed fake client that answers with the real
-endpoints' shapes. `src.mastodon.MastodonClient` is replaced by a class
-whose ``__init__`` raises, so a run that reached for the real client
-fails here: patching `socket.socket` would prove nothing, because libsoup
-does not use Python's sockets.
+the whole-future rewrite twice over -- once from a chosen day's
+evaluation time, and once from an hour into the compared day's own
+future, so a bound one hour too far cannot hide behind the boundary --
+the sign test's two anchors, the gate verdicts on a fixture gates file
+(each of the four on the fixture where its own condition decides), the
+summary's privacy in keys and in values, candidate counters that move,
+a day with a hole in its coverage, and `collect` through a duck-typed
+fake client that answers with the real endpoints' shapes.
+`src.mastodon.MastodonClient` is replaced by a class whose ``__init__``
+raises, so a run that reached for the real client fails here: patching
+`socket.socket` would prove nothing, because libsoup does not use
+Python's sockets.
 
 `bench` reproduces the cost figure in `Docs/timeline-algorithm.md` §6.1:
 `catchuprank.rank()` on 400 and on 800 synthetic posts, three runs each,
@@ -1261,10 +1265,27 @@ class _NoNetwork:
         raise AssertionError('the self-test must not construct a client')
 
 
+def pin_zone():
+    """Judge days in UTC, for this helper on its own.
+
+    D3 judges a day at 06:00 *local*, and the world's dates are written
+    in UTC, so a check run under another zone compares the world's days
+    against a 06:00 that has moved. `self_test` pins the zone for the
+    whole run, but each helper calls this too: a helper that is only
+    right because of the call order is a helper that fails when it is
+    run alone. `time.tzset()` is how the C library is told.
+    """
+    os.environ['TZ'] = 'UTC'
+    time.tzset()
+
+
 # Everything about the synthetic world is a function of these, so the
 # dates the checks name are the dates the world produces.
 SYNTHETIC_INSTANCE = 'https://synth.example'
 VIEWER_ID = 'synth-viewer'
+# The acct the fake's account endpoint answers with, so the viewer's
+# handle is one of the strings a summary must never carry.
+VIEWER_ACCT = 'synth'
 LIKED_AUTHOR = 'synth-liked'
 WORLD_START = datetime.datetime(2026, 10, 5, tzinfo=datetime.timezone.utc)
 WORLD_DAYS = 5
@@ -1305,19 +1326,36 @@ class SyntheticWorld:
     the favourite appears. A run at or after that moment shows the post
     ``favourited``, and the harness learns both the flag (a label, later)
     and the author signal (a favourite in ``/favourites``) from it.
+
+    ``counters`` maps a post id to a schedule of ``(moment, favourites,
+    reblogs)``: the last entry at or before the run's moment is what the
+    server reports. It changes the counters of posts the reader never
+    engaged, which is the only way a *candidate* can carry a counter --
+    an engaged post is not a candidate by definition, so a world that
+    only moves liked posts' counters leaves every candidate at zero and
+    cannot tell "the last observation" from "the first".
     """
 
-    def __init__(self, statuses, likes, own=()):
+    def __init__(self, statuses, likes, own=(), counters=None):
         self.statuses = statuses
         self.likes = likes
         self.own = list(own)
+        self.counters = counters or {}
 
     def _view(self, post_id, moment):
         status = self.statuses[post_id]
+        seen = status
+        for at, favourites, reblogs in self.counters.get(post_id, ()):
+            if at <= moment:
+                if seen is status:
+                    seen = dict(status)
+                seen['favourites_count'] = favourites
+                seen['reblogs_count'] = reblogs
         at = self.likes.get(post_id)
         if at is None or at > moment:
-            return status
-        seen = dict(status)
+            return seen
+        if seen is status:
+            seen = dict(status)
         seen['favourited'] = True
         seen['favourites_count'] = 1
         return seen
@@ -1380,7 +1418,8 @@ class FakeClient:
 
     def _answer(self, path, params):
         if path == '/accounts/verify_credentials':
-            return {'id': VIEWER_ID, 'acct': 'synth', 'username': 'synth'}
+            return {'id': VIEWER_ID, 'acct': VIEWER_ACCT,
+                    'username': VIEWER_ACCT}
         if path == '/timelines/home':
             return self.world.visible(self.moment)
         if path == '/favourites':
@@ -1426,8 +1465,14 @@ def synthetic_world():
 
     LIKED_AUTHOR is a small account (100 followers) against fillers with
     500, which keeps `small20` a number that can move.
+
+    One filler a day carries counters that grow while nobody engages it.
+    It is a *candidate* on its own day, so its counters are the only way
+    the day's numbers can tell "the last observation at or before T"
+    from "the first one": with a zero everywhere, `ORDER BY run_ts ASC`
+    and `engagement_of` returning a constant would both go unnoticed.
     """
-    statuses, likes = {}, {}
+    statuses, likes, counters = {}, {}, {}
     for index in range(WORLD_DAYS):
         moment = WORLD_START + index * DAY + EVALUATION_HOUR * HOUR
         for slot in range(LIKED_PER_DAY):
@@ -1441,7 +1486,13 @@ def synthetic_world():
             statuses[post_id] = synthetic_status(
                 post_id, 'filler-%d-%d' % (index, slot),
                 moment - 7 * HOUR + (slot + 1) * 13 * MINUTE)
-    return SyntheticWorld(statuses, likes)
+        counters['filler-%d-0' % index] = [
+            (moment - 7 * HOUR, 0, 0),
+            (moment - 2 * HOUR, 3, 1),
+            (moment, 6, 2),
+            (moment + HOUR, 9, 4),
+        ]
+    return SyntheticWorld(statuses, likes, counters=counters)
 
 
 PLANT_T = WORLD_START + 2 * DAY + EVALUATION_HOUR * HOUR
@@ -1469,6 +1520,9 @@ def plant_world(evidence_before):
         'plant-leak-old', PLANT_LEAK, PLANT_T - 3 * DAY, followers=100)
     statuses['plant-engaged'] = synthetic_status(
         'plant-engaged', 'plant-mine', PLANT_T - 10 * HOUR, followers=100)
+    statuses['plant-at-t'] = synthetic_status(
+        'plant-at-t', 'plant-at-t-author', PLANT_T - 5 * HOUR,
+        followers=100)
     statuses['plant-reply-target'] = synthetic_status(
         'plant-reply-target', 'plant-reply-author', PLANT_T - 11 * HOUR,
         followers=100)
@@ -1478,11 +1532,19 @@ def plant_world(evidence_before):
     likes = {
         # favourited before T: not a candidate, and not a label either
         'plant-engaged': PLANT_T - 2 * HOUR,
-        # first seen engaged just after T: a label
-        'plant-leak': PLANT_T + 2 * HOUR,
+        # favourited exactly at T. The bounds are asymmetric on purpose:
+        # a candidate is what no observation *at or before* T shows
+        # engaged, so this one is not a candidate; a label is what was
+        # first seen *after* T, so it is not a label; and affinity reads
+        # what was first seen *before* T, so it is not evidence either.
+        'plant-at-t': PLANT_T,
+        # first seen engaged half an hour after T: a label, inside the
+        # hour `labels_near_start` counts, and inside the hour a one-hour
+        # leak would read.
+        'plant-leak': PLANT_T + 30 * MINUTE,
         # the evidence, which is the one thing the variants move
         'plant-leak-old': (PLANT_T - 2 * HOUR if evidence_before
-                           else PLANT_T + 2 * HOUR),
+                           else PLANT_T + 30 * MINUTE),
     }
     # Two of the reader's own statuses, on the two sides of T. The label
     # window is (T, T + 24 h]: a reply at exactly T is outside it, and a
@@ -1499,6 +1561,57 @@ def plant_world(evidence_before):
          'reblog': statuses['plant-boost-target']},
     ]
     return SyntheticWorld(statuses, likes, own)
+
+
+REWRITE_LEAK_AUTHOR = 'rewrite-leak-author'
+REWRITE_LEAK_POSTS = 6
+# The chosen day, as an index into WORLD_START's days. Its date is
+# 2026-10-07, so the days around it are judged too.
+REWRITE_DAY = 2
+
+
+def rewrite_world():
+    """Five days where every post is liked half an hour after its T.
+
+    The whole-future rewrite turns every observation after a chosen
+    moment into an engaged one, counters and all. For the identity
+    assertion to say anything, the compared day's *labels* must survive
+    that: labels are each post's first engaged observation, so every
+    candidate here is already engaged at T + 30 min, and the rewrite
+    starts at T + 1 h. The run at T + 30 min survives, the minimum does
+    not move, and the day's numbers cannot change -- unless a query reads
+    one row too many, which now sees the run at T + 30 min where every
+    candidate is engaged and loses its whole candidate list.
+
+    One author, REWRITE_LEAK_AUTHOR, appears only on the chosen day and
+    is liked only there. Its affinity exists only if the favourites
+    written in (T, T + 1 h) are read, so the same leak shows up in
+    `affinity_at` as six posts entering a top 20 they were outside of.
+    """
+    statuses, likes = {}, {}
+    for index in range(WORLD_DAYS):
+        moment = WORLD_START + index * DAY + EVALUATION_HOUR * HOUR
+        liked_at = moment + 30 * MINUTE
+        for slot in range(LIKED_PER_DAY):
+            post_id = 'liked-%d-%d' % (index, slot)
+            statuses[post_id] = synthetic_status(
+                post_id, LIKED_AUTHOR,
+                moment - 8 * HOUR + slot * 10 * MINUTE, followers=100)
+            likes[post_id] = liked_at
+        for slot in range(FILLERS_PER_DAY):
+            post_id = 'filler-%d-%d' % (index, slot)
+            statuses[post_id] = synthetic_status(
+                post_id, 'filler-%d-%d' % (index, slot),
+                moment - 7 * HOUR + (slot + 1) * 13 * MINUTE)
+            likes[post_id] = liked_at
+        if index == REWRITE_DAY:
+            for slot in range(REWRITE_LEAK_POSTS):
+                post_id = 'leak-%d' % slot
+                statuses[post_id] = synthetic_status(
+                    post_id, REWRITE_LEAK_AUTHOR,
+                    moment - 9 * HOUR + slot * 5 * MINUTE)
+                likes[post_id] = liked_at
+    return SyntheticWorld(statuses, likes)
 
 
 def day_orderings(connection, moment):
@@ -1543,6 +1656,45 @@ def private_keys(value, path=''):
     return found
 
 
+def private_values(value, forbidden, path=''):
+    """Every string in *value* that names a post, an account or the host.
+
+    The plan's privacy rule is written about key names; the design's
+    (``Docs/timeline-algorithm.md`` §3.5 -- "shares only the metrics
+    summary, never posts") is written about what a summary may carry at
+    all. A key called ``first`` holding a post id satisfies the first
+    rule and breaks the second, so both are checked.
+    """
+    found = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            found.extend(private_values(item, forbidden,
+                                        '%s/%s' % (path, key)))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(private_values(item, forbidden,
+                                        '%s[%d]' % (path, index)))
+    elif isinstance(value, str):
+        for token in forbidden:
+            if token and token in value:
+                found.append('%s: %r' % (path, value))
+                break
+    return found
+
+
+def world_tokens(world):
+    """Every post id, author id, handle and the URL of *world*'s host."""
+    host = urllib.parse.urlsplit(SYNTHETIC_INSTANCE).hostname
+    tokens = {SYNTHETIC_INSTANCE, VIEWER_ID,
+              '@%s@%s' % (VIEWER_ACCT, host)}
+    for post_id, status in world.statuses.items():
+        account = status['account']
+        tokens.add(post_id)
+        tokens.add(account['id'])
+        tokens.add('@%s@%s' % (account['acct'], host))
+    return tokens
+
+
 # The gates of §4, as a fixture file. The harness reads them through
 # `load_gates` like any other, so the checks exercise the path the real
 # run takes. The frozen file is the maintainer's; this only pins the keys
@@ -1560,18 +1712,31 @@ FIXTURE_GATES = {
 }
 
 
-def fixture_rows(scores):
+def fixture_rows(scores, second=None, breadth=None):
     """Rows `judge` can read: one a day, each a mapping of ordering to
-    recall@20. Every other metric is held equal, so a verdict that moves
-    is the one A1, A3 or A4 decided, not A2."""
+    recall@20.
+
+    ``second`` overrides recall@50 per ordering. The gates must read
+    ``a1_k``'s metric, and two metrics that always agreed would let them
+    read either one.
+
+    ``breadth`` overrides ``(authors20, small20)`` per ordering -- the
+    two numbers A2 reads. ``None`` stands for a mean that is missing, so
+    A2's INCONCLUSIVE branch can be reached.
+
+    Every other metric is held equal, so a verdict that moves is the one
+    the gate decided.
+    """
     rows = []
     for index, score in enumerate(scores):
         orderings = {}
         for name in ORDERINGS:
             value = score.get(name, 0.0)
-            orderings[name] = {'recall20': value, 'recall50': value,
-                               'authors20': 20, 'small20': 0.5,
-                               'overlap20': 20}
+            authors, share = (breadth or {}).get(name, (20, 0.5))
+            orderings[name] = {
+                'recall20': value,
+                'recall50': (second or {}).get(name, value),
+                'authors20': authors, 'small20': share, 'overlap20': 20}
         rows.append({'date': '2026-09-%02d' % (index + 1),
                      't': '2026-09-%02dT09:00:00.000000Z' % (index + 1),
                      'candidates': 25, 'labels': 5, 'labels_near_start': 0,
@@ -1612,20 +1777,29 @@ def copy_database(source, destination):
 
 def check_metrics(checks):
     """Recall@k and the other four metrics, on an ordering worked out by
-    hand."""
+    hand.
+
+    The labels sit on the boundaries themselves: index 19 is the last
+    post inside the top 20 and 20 the first outside it, and index 49 is
+    the last inside the top 50. A cut one short or one long moves a
+    label, so `ids[:k-1]`, `ids[:k]` and `ids[:k+1]` give three different
+    answers. The row is longer than 50 posts, or the top 50 would hold
+    every post and its cut could not be reached.
+    """
+    pin_zone()
     posts = [synthetic_status('p%02d' % index, 'author-%02d' % index,
-                              WORLD_START) for index in range(25)]
+                              WORLD_START) for index in range(60)]
     posts[1]['account']['followers_count'] = 10
-    posts[24]['account']['followers_count'] = 10
+    posts[59]['account']['followers_count'] = 10
     small = small_authors(posts)
     checks.equal('the small-account set is the two authors below the median',
-                 sorted(small), ['author-01', 'author-24'])
-    row = metrics_at(posts, {'p02', 'p20', 'p24'}, small,
-                     {'p00', 'p01', 'p24'})
-    checks.equal('recall@20 is the share of the labels inside the top 20',
-                 row['recall20'], 1 / 3)
-    checks.equal('recall@50 is the share of the labels inside the top 50',
-                 row['recall50'], 1.0)
+                 sorted(small), ['author-01', 'author-59'])
+    row = metrics_at(posts, {'p02', 'p19', 'p20', 'p49'}, small,
+                     {'p00', 'p01', 'p59'})
+    checks.equal('recall@20 counts index 19 and not index 20, so 2 of 4',
+                 row['recall20'], 2 / 4)
+    checks.equal('recall@50 counts index 49, so all 4',
+                 row['recall50'], 4 / 4)
     checks.equal('the top 20 holds 20 distinct authors', row['authors20'], 20)
     checks.equal('1 of 20 is a small account, so the share is 0.05',
                  row['small20'], 0.05)
@@ -1646,7 +1820,15 @@ def check_sign_test(checks):
 
 def check_gates(checks, work):
     """PASS, FAIL and INCONCLUSIVE on a fixture gates file, and the rule
-    that the ordering which ships must pass on its own numbers."""
+    that the ordering which ships must pass on its own numbers.
+
+    Each gate is asserted on the fixture where *its own* condition is the
+    only thing that can move the verdict. That is what separates the four
+    baselines the plan names: a fixture where `chrono`, `rank_null` and
+    `affinity_chrono` score alike cannot tell A3 from A4, and one where
+    `recall20` and `recall50` agree cannot tell the metric the gates read.
+    """
+    pin_zone()
     gates_path = write_json(os.path.join(work, 'fixture-gates.json'),
                             FIXTURE_GATES)
     gates = load_gates(gates_path)
@@ -1666,6 +1848,8 @@ def check_gates(checks, work):
                  decision['a1']['nontied'], 11)
     checks.equal('and its p is the sign test of 11 wins in 11 days',
                  decision['a1']['p'], sign_test(11, 11))
+    checks.equal('A2 passes when the top 20 keeps its authors and its'
+                 ' small-account share', decision['a2']['verdict'], 'PASS')
     checks.equal('A3 passes: affinity beats no affinity',
                  decision['a3']['verdict'], 'PASS')
     checks.equal('A4 passes: the ranker beats affinity-then-chrono',
@@ -1675,6 +1859,68 @@ def check_gates(checks, work):
     checks.equal('Gate A passes, shipping rank with affinity',
                  (decision['gate_a'], decision['ordering'],
                   decision['use_affinity']), ('PASS', 'rank', True))
+
+    # A2: the two numbers it reads, each its own way of failing, and the
+    # missing mean it cannot decide. Without these, deleting A2's
+    # condition leaves every verdict where it was.
+    same_order = [{'rank_affinity': 0.8 if day < 11 else 0.4,
+                   'rank_null': 0.4, 'chrono': 0.4, 'affinity_chrono': 0.4}
+                  for day in range(14)]
+
+    def breadth_of(rank_authors, rank_share):
+        return judge(fixture_rows(
+            same_order,
+            breadth={'rank_affinity': (rank_authors, rank_share)}), gates)
+
+    checks.equal('A2 allows a drop of exactly the two authors the gates'
+                 ' name', breadth_of(18, 0.5)['a2']['verdict'], 'PASS')
+    checks.equal('and a small-account share of exactly 0.8x',
+                 breadth_of(20, 0.4)['a2']['verdict'], 'PASS')
+    narrow = breadth_of(17, 0.5)
+    checks.equal('A2 fails when the top 20 loses three authors',
+                 narrow['a2']['verdict'], 'FAIL')
+    checks.equal('and Gate A fails on A2 alone, A1 having passed',
+                 (narrow['a1']['verdict'], narrow['gate_a']),
+                 ('PASS', 'FAIL'))
+    checks.equal('A2 fails when the small-account share is below 0.8x',
+                 breadth_of(20, 0.3)['a2']['verdict'], 'FAIL')
+    blind = breadth_of(None, None)
+    checks.equal('A2 is INCONCLUSIVE when a mean is missing',
+                 blind['a2']['verdict'], 'INCONCLUSIVE')
+    checks.equal('and Gate A is INCONCLUSIVE, not a pass',
+                 (blind['a1']['verdict'], blind['gate_a']),
+                 ('PASS', 'INCONCLUSIVE'))
+
+    # A1 is scored on recall@`a1_k`, and only on it. Here the ranker wins
+    # every day on recall@20 and loses every day on recall@50.
+    crossed = [{'rank_affinity': 0.8, 'rank_null': 0.0, 'chrono': 0.4,
+                'affinity_chrono': 0.0} for _day in range(14)]
+    decision = judge(fixture_rows(
+        crossed, second={'rank_affinity': 0.2, 'chrono': 0.6}), gates)
+    checks.equal('A1 reads recall@a1_k: the other metric turns every win'
+                 ' into a loss',
+                 (decision['a1']['verdict'], decision['a1']['wins']),
+                 ('PASS', 14))
+
+    # A1's two halves: the sign test alone can pass while the mean-ratio
+    # floor fails, and chrono can recall nothing at all.
+    thin_gain = judge(fixture_rows(
+        [{'rank_affinity': 0.45, 'rank_null': 0.4, 'chrono': 0.4,
+          'affinity_chrono': 0.4} for _day in range(14)]), gates)['a1']
+    checks.check('A1 fails on the mean ratio alone: %r with %d wins, p=%r'
+                 % (thin_gain['mean_ratio'], thin_gain['wins'],
+                    thin_gain['p']),
+                 thin_gain['verdict'] == 'FAIL'
+                 and thin_gain['wins'] == 14
+                 and thin_gain['p'] <= gates['alpha']
+                 and thin_gain['mean_ratio'] < gates['a1_min_mean_ratio'])
+    nothing = judge(fixture_rows(
+        [{'rank_affinity': 0.2, 'rank_null': 0.0, 'chrono': 0.0,
+          'affinity_chrono': 0.0} for _day in range(14)]), gates)['a1']
+    checks.equal('A1 passes when chrono recalled nothing and rank did not',
+                 nothing['verdict'], 'PASS')
+    checks.equal('and its mean ratio is undefined, not a division by zero',
+                 nothing['mean_ratio'], None)
 
     losing = [{'rank_affinity': 0.4, 'rank_null': 0.2, 'chrono': 0.5,
                'affinity_chrono': 0.2} for _day in range(14)]
@@ -1690,6 +1936,32 @@ def check_gates(checks, work):
                  decision['a1']['verdict'], 'INCONCLUSIVE')
     checks.equal('and Gate A is INCONCLUSIVE: not a pass, not a fail',
                  decision['gate_a'], 'INCONCLUSIVE')
+    checks.equal('A4 below min_nontied_days is INCONCLUSIVE too',
+                 decision['a4']['verdict'], 'INCONCLUSIVE')
+    checks.equal('and an inconclusive A4 ships the simple ordering',
+                 decision['ordering'], 'affinity_chrono')
+
+    # A3 asks whether affinity beats *no affinity*; its baseline is
+    # `rank_null`, not `chrono`. Level with rank_null is INCONCLUSIVE
+    # however far behind chrono the ranker leaves it.
+    level = [{'rank_affinity': 0.8, 'rank_null': 0.8, 'chrono': 0.2,
+              'affinity_chrono': 0.2} for _day in range(14)]
+    decision = judge(fixture_rows(level), gates)
+    checks.equal('A3 compares against rank_null: level with it is'
+                 ' INCONCLUSIVE', decision['a3']['verdict'], 'INCONCLUSIVE')
+    checks.equal('so affinity is not used, though chrono trails by 0.6',
+                 decision['use_affinity'], False)
+
+    # A4 asks whether rank() beats *affinity, then chronological*; its
+    # baseline is `affinity_chrono`, not `chrono`. Trailing
+    # affinity_chrono while beating chrono is what tells them apart.
+    overtaken = [{'rank_affinity': 0.5, 'rank_null': 0.1, 'chrono': 0.4,
+                  'affinity_chrono': 0.9} for _day in range(14)]
+    decision = judge(fixture_rows(overtaken), gates)
+    checks.equal('A4 compares against affinity_chrono, so beating chrono'
+                 ' is not enough', decision['a4']['verdict'], 'FAIL')
+    checks.equal('and hands the ordering over', decision['ordering'],
+                 'affinity_chrono')
 
     # A4 did not select `rank`, so `affinity_chrono` is what ships -- and
     # it fails A1 against chrono on its own numbers. Gate A must be FAIL
@@ -1704,13 +1976,27 @@ def check_gates(checks, work):
                  decision['shipped_a1']['verdict'], 'FAIL')
     checks.equal('so Gate A is FAIL, not a pass on another ordering',
                  decision['gate_a'], 'FAIL')
-    record = io.StringIO()
-    print_gates(decision, record)
-    printed = record.getvalue()
+    record_text = io.StringIO()
+    print_gates(decision, record_text)
+    printed = record_text.getvalue()
     checks.check('the H1 record says Gate A: FAIL', 'Gate A: FAIL' in printed)
     checks.check('and names affinity-then-chrono as the ordering',
                  'ORDERING: affinity_chrono' in printed)
     checks.check('and leaves affinity off', 'USE_AFFINITY: false' in printed)
+
+    # The mirror image: the ranker fails A1, affinity_chrono passes it,
+    # and A4 hands the ordering over. Consulting the ranker's verdicts
+    # instead of the shipped ordering's would fail Gate A.
+    saved = [{'rank_affinity': 0.2, 'rank_null': 0.1, 'chrono': 0.4,
+              'affinity_chrono': 0.9} for _day in range(14)]
+    decision = judge(fixture_rows(saved), gates)
+    checks.equal('the ranker fails A1 here', decision['a1']['verdict'],
+                 'FAIL')
+    checks.equal('while affinity-then-chrono passes it',
+                 decision['shipped_a1']['verdict'], 'PASS')
+    checks.equal('so Gate A is PASS on the shipped ordering\'s numbers',
+                 (decision['shipped'], decision['gate_a']),
+                 ('affinity_chrono', 'PASS'))
 
     passed = summary_record('PASS', 'rank', True, 'rank_affinity',
                             'PASS', 'PASS')
@@ -1748,16 +2034,36 @@ def check_gates(checks, work):
 def check_split(checks, work):
     """A post engaged before T is not a candidate, an engagement after T
     does not reach the affinity at T -- and the pair of databases shows
-    that reading it *would* change the top 20."""
+    that reading it *would* change the top 20.
+
+    The runs are placed on the boundaries themselves, not between them: a
+    run at exactly T and another half an hour later are what tell `<= T`
+    from `< T` and `< T` from `< T + 1 h`. A world that only sampled T -
+    2 h and T + 2 h would leave all three of those cuts looking alike.
+    """
+    pin_zone()
     answers = {}
+    moments = (PLANT_T - 13 * HOUR, PLANT_T - 2 * HOUR, PLANT_T,
+               PLANT_T + 30 * MINUTE, PLANT_T + HOUR, PLANT_T + 2 * HOUR)
     for name, evidence_before in (('bounded', False), ('control', True)):
         root = os.path.join(work, 'split-' + name)
-        record(root, plant_world(evidence_before),
-               (PLANT_T - 13 * HOUR, PLANT_T - 2 * HOUR, PLANT_T + 2 * HOUR))
+        record(root, plant_world(evidence_before), moments)
         connection = open_database(database_path(SYNTHETIC_INSTANCE, root))
         try:
             affinities, candidates, ranked = day_orderings(connection, PLANT_T)
-            labels, _near = labels_at(connection, PLANT_T, candidates)
+            labels, near = labels_at(connection, PLANT_T, candidates)
+            seen = connection.execute(
+                'SELECT post_id, MIN(run_ts) FROM observations'
+                ' WHERE favourited OR reblogged OR bookmarked'
+                ' GROUP BY post_id').fetchall()
+            # The label window's lower cut on its own. At T the post
+            # engaged exactly at T is already excluded from the
+            # candidates, so its `seen == T` case is never reached there;
+            # a candidate list taken half an hour earlier does include
+            # it, and "after T" must still exclude it.
+            earlier = labels_at(
+                connection, PLANT_T,
+                candidates_at(connection, PLANT_T - 30 * MINUTE))[0]
         finally:
             connection.close()
         answers[name] = {
@@ -1766,6 +2072,9 @@ def check_split(checks, work):
             'top': [str(status.get('id'))
                     for status in ranked['rank_affinity'][:20]],
             'labels': labels,
+            'near': near,
+            'first': dict(seen),
+            'earlier_labels': earlier,
         }
 
     bounded, control = answers['bounded'], answers['control']
@@ -1773,14 +2082,25 @@ def check_split(checks, work):
                  'plant-engaged' not in bounded['candidates'])
     checks.check('a post engaged only after T is a candidate',
                  'plant-leak' in bounded['candidates'])
+    checks.check('a post first engaged exactly at T is not a candidate:'
+                 ' "at or before T" includes T',
+                 'plant-at-t' not in bounded['candidates'])
     checks.check('a favourite made after T labels the post',
                  'plant-leak' in bounded['labels'])
+    checks.check('a favourite first seen exactly at T is not a label:'
+                 ' the window opens after T',
+                 'plant-at-t' not in bounded['earlier_labels'])
     checks.check('a boost after T labels the post it boosted',
                  'plant-boost-target' in bounded['labels'])
     checks.check('a reply at exactly T does not: the window opens after it',
                  'plant-reply-target' not in bounded['labels'])
+    checks.equal('one label falls within the hour that blurs a flag, and it'
+                 ' is the one liked half an hour after T',
+                 bounded['near'], 1)
     checks.check('an engagement after T does not reach the affinity at T',
                  PLANT_LEAK not in bounded['author'])
+    checks.check('nor does one first seen exactly at T',
+                 'plant-at-t-author' not in bounded['author'])
     checks.check('the same engagement before T does reach it',
                  PLANT_LEAK in control['author'])
     checks.check('so the leaked author\'s post stays outside the top 20',
@@ -1789,11 +2109,21 @@ def check_split(checks, work):
                  'plant-leak' in control['top'])
     checks.check('which is what a query that read one row too many would do',
                  bounded['top'] != control['top'])
+    # The premise the cuts rest on: the leak's engagement is first seen
+    # inside the hour after T, so a bound of T + 1 h reads it and a bound
+    # of T does not.
+    leaked_at = parse_moment(bounded['first'].get('plant-leak'))
+    checks.check('the leak is first seen at %s, inside (T, T + 1 h]'
+                 % iso_utc(leaked_at) if leaked_at else
+                 'the leak was never seen engaged',
+                 leaked_at is not None
+                 and PLANT_T < leaked_at <= PLANT_T + HOUR)
 
 
 def check_collect(checks, work):
     """`collect` through the fake: what a run writes, what a second run
     adds, and how a rate limit or a failed request stops it."""
+    pin_zone()
     world = synthetic_world()
     root = os.path.join(work, 'collect')
     # The first day's 06:00: by then all 31 of its posts exist, and none
@@ -1884,10 +2214,12 @@ def check_collect(checks, work):
 
 
 def check_world(checks, work, gates_path):
-    """The five-day world: which days are judged, what the labels are, and
-    the whole-future rewrite."""
+    """The five-day world: which days are judged, what the labels are,
+    what a candidate's counters came from, and the whole-future rewrite."""
+    pin_zone()
+    world = synthetic_world()
     root = os.path.join(work, 'world')
-    record(root, synthetic_world(),
+    record(root, world,
            [WORLD_START + index * HOUR for index in range(WORLD_DAYS * 24)])
     summary, printed = evaluate_summary(
         root, os.path.join(work, 'world.json'), gates_path)
@@ -1924,8 +2256,30 @@ def check_world(checks, work, gates_path):
     checks.check('the ranker with affinity finds some, but not all: %r'
                  % orderings['rank_affinity']['recall20'],
                  0 < orderings['rank_affinity']['recall20'] < 1)
-    checks.equal('the summary carries no id, content, handle or url',
+    # overlap20 is the popularity straw man's top 20 met by each ordering.
+    # The engaged candidate is the oldest filler, so it is in the
+    # popularity top 20 and outside chrono's.
+    checks.equal('chrono overlaps the popularity top 20 in all but the'
+                 ' candidate the counters lift into it',
+                 orderings['chrono']['overlap20'], 19)
+    checks.equal('and affinity-then-chrono in fifteen',
+                 orderings['affinity_chrono']['overlap20'], 15)
+
+    tokens = world_tokens(world)
+    checks.equal('the summary carries no id, content, handle or url as a key',
                  private_keys(summary), [])
+    checks.equal('nor as a value: no post id, handle or host',
+                 private_values(summary, tokens), [])
+    # The positive controls: each shape the reviewer added passed the
+    # key-only rule, and each must be caught by the value rule.
+    for key, value in (('first', 'liked-0-0'),
+                       ('reader', '@synth@synth.example'),
+                       ('where', SYNTHETIC_INSTANCE)):
+        probe = json.loads(json.dumps(summary))
+        probe['days'][0][key] = value
+        checks.check('a %r value of %r is caught: %s'
+                     % (key, value, private_values(probe, tokens)),
+                     bool(private_values(probe, tokens)))
 
     no_gates, printed = evaluate_summary(
         root, os.path.join(work, 'nogates.json'),
@@ -1938,7 +2292,14 @@ def check_world(checks, work, gates_path):
                                tzinfo=datetime.timezone.utc)
     connection = open_database(database_path(SYNTHETIC_INSTANCE, root))
     try:
-        affinities, _candidates, _ranked = day_orderings(connection, moment)
+        affinities, candidates, ranked = day_orderings(connection, moment)
+        observed_counters = {
+            order: {row[0]: row[1:] for row in connection.execute(
+                'SELECT post_id, favourites, reblogs FROM (SELECT *,'
+                ' ROW_NUMBER() OVER (PARTITION BY post_id ORDER BY run_ts'
+                ' %s) AS pick FROM observations WHERE run_ts <= ?)'
+                ' WHERE pick = 1' % order, (iso_utc(moment),))}
+            for order in ('DESC', 'ASC')}
     finally:
         connection.close()
     signals = affinity.to_ranking_signals(affinities)
@@ -1954,11 +2315,64 @@ def check_world(checks, work, gates_path):
                  {author: catchuprank.affinity_signal(
                      signals.author_affinity, author) for author in strangers})
 
+    # The one candidate whose counters move without anyone engaging it.
+    popular = 'filler-%d-0' % (moment.date() - WORLD_START.date()).days
+    by_id = {str(status.get('id')): status for status in candidates}
+    checks.check('the day still offers the candidate whose counters move',
+                 popular in by_id)
+    checks.equal('its counters are the last observation at or before T',
+                 (by_id[popular]['favourites_count'],
+                  by_id[popular]['reblogs_count']),
+                 observed_counters['DESC'][popular])
+    checks.check('and the first observation differs (%r, then %r), so first'
+                 ' and last are told apart'
+                 % (observed_counters['ASC'][popular],
+                    observed_counters['DESC'][popular]),
+                 observed_counters['ASC'][popular]
+                 != observed_counters['DESC'][popular])
+    checks.equal('the popularity ordering puts the most engaged candidate'
+                 ' first', str(ranked['engagement'][0].get('id')), popular)
+
+    # The interior-gap branch of `covered`: the world is sampled hourly,
+    # so only a hole can fail it. Three hours is over the limit, two is
+    # inside GAP_TOLERANCE.
+    # Inside the first judged day's window and no other judged day's:
+    # deleting runs at 10:00 and 11:00 leaves a three-hour gap there,
+    # while 24-hour-spaced windows mean a hole further along would be
+    # reported twice.
+    hole = datetime.datetime(2026, 10, 5, 10, tzinfo=datetime.timezone.utc)
+    for name, holes, covered_by_hand in (
+            ('two-hour hole', (hole,), True),
+            ('three-hour hole', (hole, hole + HOUR), False)):
+        gapped = os.path.join(work, 'gap-' + name.replace(' ', '-'))
+        copy_database(root, gapped)
+        connection = sqlite3.connect(
+            database_path(SYNTHETIC_INSTANCE, gapped), isolation_level=None)
+        try:
+            connection.executemany('DELETE FROM runs WHERE ts = ?',
+                                   [(iso_utc(at),) for at in holes])
+        finally:
+            connection.close()
+        gap_summary, gap_printed = evaluate_summary(
+            gapped, os.path.join(work, 'gap-%s.json' % name.replace(' ', '-')),
+            gates_path)
+        lost = '2026-10-06 06:00 local no-coverage' in gap_printed
+        remaining = [row['date'] for row in gap_summary['days']]
+        checks.equal('a %s in a judged day\'s window leaves it'
+                     ' %s' % (name, 'judged' if covered_by_hand
+                              else 'no-coverage'),
+                     (lost, remaining),
+                     (not covered_by_hand,
+                      ['2026-10-06', '2026-10-07', '2026-10-08']
+                      if covered_by_hand else
+                      ['2026-10-07', '2026-10-08']))
+
     # The whole-future rewrite: every observation after the chosen day's
     # evaluation time engaged, every counter moved. The days *before* it
     # may not notice. The chosen day itself may: its labels are the
     # engagements in (T, T + 24 h], which is past the boundary by design
-    # and is not leakage.
+    # and is not leakage. `check_rewrite` is the sharper form: it puts
+    # the boundary inside the compared day's future.
     chosen = datetime.date(2026, 10, 7)
     copied = os.path.join(work, 'rewritten')
     copy_database(root, copied)
@@ -2007,6 +2421,74 @@ def check_world(checks, work, gates_path):
                  shifted)
 
 
+def check_rewrite(checks, work, gates_path):
+    """The whole-future rewrite, with the boundary *inside* the compared
+    day's future.
+
+    `check_world` rewrites everything after the chosen day's 06:00 and
+    compares the day before it, whose future is the 24 hours that
+    rewrite does not touch -- so a bound one hour too far is invisible
+    there. Here every candidate is already engaged at T + 30 min and the
+    rewrite starts at T + 1 h: the labels cannot move, the day cannot
+    move, and a query that reads anything after T does.
+    """
+    pin_zone()
+    root = os.path.join(work, 'rewrite')
+    moments = {WORLD_START + index * HOUR
+               for index in range(WORLD_DAYS * 24)}
+    moments.update(WORLD_START + index * DAY + EVALUATION_HOUR * HOUR
+                   + 30 * MINUTE for index in range(WORLD_DAYS))
+    record(root, rewrite_world(), sorted(moments))
+    summary, _printed = evaluate_summary(
+        root, os.path.join(work, 'rewrite.json'), gates_path)
+    checks.equal('the rewrite world is judged on the three middle days',
+                 [row['date'] for row in summary['days']],
+                 ['2026-10-06', '2026-10-07', '2026-10-08'])
+    chosen = (WORLD_START + REWRITE_DAY * DAY).date()
+    first = {row['date']: row for row in summary['days']}[chosen.isoformat()]
+    checks.equal('every candidate of the chosen day is labelled inside the'
+                 ' hour after T, so the rewrite cannot move a label',
+                 (first['labels'], first['candidates'],
+                  first['labels_near_start']), (37, 37, 37))
+
+    copied = os.path.join(work, 'rewrite-after')
+    copy_database(root, copied)
+    moment = day_moment(chosen)
+    connection = sqlite3.connect(database_path(SYNTHETIC_INSTANCE, copied),
+                                 isolation_level=None)
+    try:
+        inside = connection.execute(
+            'SELECT COUNT(*) FROM observations WHERE run_ts > ?'
+            ' AND run_ts < ?', (iso_utc(moment),
+                                iso_utc(moment + DAY))).fetchone()[0]
+        rewritten = connection.execute(
+            'UPDATE observations SET favourites = favourites + 1000,'
+            ' reblogs = reblogs + 1000, replies = replies + 1000,'
+            ' favourited = 1, reblogged = 1, bookmarked = 1'
+            ' WHERE run_ts > ?', (iso_utc(moment + HOUR),)).rowcount
+    finally:
+        connection.close()
+    checks.check('the rewrite reaches into the compared day\'s future:'
+                 ' %d observations inside (T, T + 24 h)' % inside, inside > 0)
+    checks.check('and rewrote %d of them' % rewritten, rewritten > 0)
+
+    after, _printed = evaluate_summary(
+        copied, os.path.join(work, 'rewrite-after.json'), gates_path)
+
+    def by_day(summary_):
+        return {row['date']: json.dumps(row, sort_keys=True)
+                for row in summary_['days']}
+
+    was, now = by_day(summary), by_day(after)
+    checks.equal('the day before it and the chosen day itself are byte for'
+                 ' byte identical, day for day and metric for metric',
+                 [day for day in was
+                  if day <= chosen.isoformat() and was[day] != now[day]], [])
+    later = (chosen + DAY).isoformat()
+    checks.check('while the day after the boundary moved: %s' % later,
+                 now.get(later) != was.get(later))
+
+
 def self_test():
     """Check the harness against a world whose answer is known.
 
@@ -2020,9 +2502,9 @@ def self_test():
     checks = Checks()
     # D3 judges a day at 06:00 *local*, so the world pins the local zone
     # rather than guess the machine's, and the dates above are the dates
-    # the harness then judges. `time.tzset()` is how the C library is told.
-    os.environ['TZ'] = 'UTC'
-    time.tzset()
+    # the harness then judges. Every check calls `pin_zone` itself too, so
+    # each one is also right when it is run alone.
+    pin_zone()
     real = mastodon.MastodonClient
     mastodon.MastodonClient = _NoNetwork
     try:
@@ -2035,6 +2517,7 @@ def self_test():
             check_split(checks, work)
             check_collect(checks, work)
             check_world(checks, work, gates_path)
+            check_rewrite(checks, work, gates_path)
     finally:
         mastodon.MastodonClient = real
     if checks.failures:
