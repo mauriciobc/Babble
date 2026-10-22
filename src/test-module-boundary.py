@@ -34,6 +34,13 @@ NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage'})
 # once it appears.
 BENCH = ('rank_eval.py', 'ranked_stall.py')
 
+# The ways to reach the network that the harness must not take for
+# itself. The server is reached through `src/mastodon.py`, which owns the
+# token and the request shape; a second HTTP path inside the harness
+# would be a second way for a bearer token to leave the machine.
+HTTP_PATHS = frozenset({'http', 'http.client', 'urllib.request', 'requests',
+                        'httpx', 'aiohttp', 'socket', 'ssl'})
+
 
 def stem(path):
     """The module name of a source path, without its directory or suffix."""
@@ -130,6 +137,16 @@ def violations(sources: dict[str, str]) -> list[str]:
                     found.append(
                         'R3: %s:%d imports %s outside the standard library'
                         % (path, line, name))
+        if path.startswith('bench/'):
+            # R4: the harness talks to the server through the shared
+            # client, and only through it. A second HTTP path inside the
+            # harness would be a second way for a bearer token to reach
+            # the network, with none of the client's care.
+            for name, line, _relative in all_imports(tree):
+                if name.split('.')[0] in HTTP_PATHS:
+                    found.append('R4: %s:%d imports %s: the server is'
+                                 ' reached through src/mastodon.py'
+                                 % (path, line, name))
     return found
 
 
@@ -176,8 +193,18 @@ self_check('R3 catches an import outside the standard library',
 self_check('R3 catches a relative import',
            {'src/catchuprank.py': 'from . import i18n\n'},
            'R3: src/catchuprank.py:1 has a relative import')
+self_check('R4 catches the harness opening its own HTTP path',
+           {'bench/rank_eval.py': 'import http.client\n'},
+           'R4: bench/rank_eval.py:1 imports http.client')
+self_check('R4 catches the harness importing a request library',
+           {'bench/rank_eval.py': 'import requests\n'},
+           'R4: bench/rank_eval.py:1 imports requests')
 check('the checker accepts the ranker import R1 allows',
       not violations({'src/affinity.py': 'from . import catchuprank\n'}))
+check('the checker accepts the harness reaching the server through the'
+      ' client',
+      not violations({'bench/rank_eval.py': 'from src import mastodon\n'
+                        'import urllib.parse\n'}))
 
 
 def tree_sources():
@@ -208,6 +235,7 @@ RULES = (
     ('R1', 'a new module imports nothing from Catch Up but catchuprank'),
     ('R2', 'Catch Up imports no new module'),
     ('R3', 'catchuprank imports only the standard library'),
+    ('R4', 'the harness reaches the server through src/mastodon.py'),
 )
 for rule, label in RULES:
     hits = [line for line in FOUND if line.startswith(rule + ':')]

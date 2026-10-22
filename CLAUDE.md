@@ -83,17 +83,20 @@ recipe, in order:
    and the 14-day run cannot start. D2's shape is one account under 200 follows
    and one over 1,000; the accounts were seeded by import, and locked and
    remote accounts do not count until they accept, so `following=` can still
-   rise. `requested=` counts follows of locked accounts awaiting approval.
+   rise.
 4. To follow more (the API's limit is 400 follows a day):
    ```sh
    python3 bench/rank_eval.py follow --instance https://mastodon.social \
-     --account-id 117484225356697601 --from-account SOURCE_ID --limit 150 --pause 1
+     --account-id 117484225356697601 --from-account YOUR_OWN_ID --limit 150 --pause 1
    ```
-   Accounts already followed, and ones whose request is still pending, are
-   skipped, so a rerun continues where the last one stopped. `follow` sends
-   `notify=false`, but the people followed are still followed by a bot-flagged
-   account: keep the accounts quiet — no posts, and engagement only as the
-   gates need it.
+   `--from-account` is an account **on `mastodon.social`** to read the
+   following list from — not the ursal.zone account the import used. The
+   accounts already followed, and ones whose request is still pending, are
+   skipped, so a rerun continues where the last one stopped. `follow` prints
+   `followed=`, `requested=` (follows of locked accounts awaiting approval),
+   `already=` and `refused=`. It sends `notify=false`, but the people
+   followed are still followed by a bot-flagged account: keep the accounts
+   quiet — no posts, and engagement only as the gates need it.
 5. Start the collection, hourly, per account:
    ```sh
    python3 bench/rank_eval.py collect --instance https://mastodon.social \
@@ -105,10 +108,14 @@ recipe, in order:
    python3 bench/rank_eval.py evaluate --instance https://mastodon.social \
      --account-id 117482092944029604 --json /tmp/a.json
    ```
-   `engage --kind favourite|reblog|bookmark|reply --target STATUS_ID` (a reply
-   also needs `--text`, and a reblog or a reply a `--visibility`) is how the
-   harness produces the engagement T4.2 credits. The recorded posts never leave
-   this machine; `evaluate --json` writes numbers, dates and verdicts only.
+   `engage` produces the engagement T4.2 credits:
+   ```sh
+   python3 bench/rank_eval.py engage --instance https://mastodon.social \
+     --account-id 117482092944029604 --kind favourite --target STATUS_ID
+   ```
+   A reply also needs `--text`, and a reblog or a reply a `--visibility`.
+   The recorded posts never leave this machine; `evaluate --json` writes
+   numbers, dates and verdicts only.
 
 Memory leaks: follow `MEMORY-LEAKS.md`. `python3 bench/memwatch.py --trim` launches the uninstalled app (quit any running copy first; it is single-instance), samples RSS/CPU, and on Enter injects `bench/memprobe.py` through `sys.remote_exec` to report live objects, caches, textures and heap.
 

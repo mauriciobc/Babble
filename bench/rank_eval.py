@@ -250,6 +250,44 @@ def data_dir(instance, root=None, account_id=None):
     return os.path.join(root, name)
 
 
+def sibling_accounts(instance, root=None):
+    """The accounts this instance holds **runs** for.
+
+    Each account's data is its own directory, so reading the wrong one
+    finds nothing. This says which accounts there are, so the message can
+    name them instead of only saying there are no runs.
+    """
+    parent = os.path.dirname(data_dir(instance, root))
+    prefix = os.path.basename(data_dir(instance, root)) + '-a-'
+    try:
+        names = sorted(os.listdir(parent))
+    except OSError:
+        return []
+    found = []
+    for name in names:
+        if not name.startswith(prefix):
+            continue
+        account = name[len(prefix):]
+        path = os.path.join(parent, name, 'eval.sqlite3')
+        if os.path.exists(path) and _run_count(path):
+            found.append(account)
+    return found
+
+
+def _run_count(path):
+    """How many runs a database holds, or 0 if it cannot be read."""
+    try:
+        connection = sqlite3.connect(path)
+    except sqlite3.Error:
+        return 0
+    try:
+        return connection.execute('SELECT COUNT(*) FROM runs').fetchone()[0]
+    except sqlite3.Error:
+        return 0
+    finally:
+        connection.close()
+
+
 def database_path(instance, root=None, account_id=None):
     """The one SQLite file a run appends to."""
     return os.path.join(data_dir(instance, root, account_id), 'eval.sqlite3')
@@ -395,12 +433,15 @@ def counts(status):
             int(bool(effective.get('bookmarked'))))
 
 
-def gather(client, known_accounts=()):
+def gather(client, known_accounts=(), viewer=None):
     """Everything one run reads, or as much of it as it could read.
 
     Steps run in the plan's order. A rate limit or a failed request raises
     `Stopped` out of `Fetcher.get`; what was gathered before it stays in
     the returned dictionary, and `error` names why the run ended early.
+
+    *viewer* is the account id, when the caller already asked the server
+    and does not want the request made twice.
     """
     fetched = Fetcher(client)
     gathered = {'viewer': None, 'home': [], 'own': [], 'favourites': [],
@@ -413,10 +454,13 @@ def gather(client, known_accounts=()):
         # a list: the app reads it the same way
         # (``account = client.verify_credentials_finish(result)`` then
         # ``account['instance'] = ...``, auth.py:535).
-        viewer = fetched.get('/accounts/verify_credentials')[0]
-        if not isinstance(viewer, dict) or not viewer.get('id'):
-            raise Stopped('verify_credentials returned no account')
-        gathered['viewer'] = str(viewer['id'])
+        if viewer:
+            gathered['viewer'] = str(viewer)
+        else:
+            viewer = fetched.get('/accounts/verify_credentials')[0]
+            if not isinstance(viewer, dict) or not viewer.get('id'):
+                raise Stopped('verify_credentials returned no account')
+            gathered['viewer'] = str(viewer['id'])
 
         params = {'limit': str(PAGE_LIMIT)}
         for _page in range(HOME_MAX_PAGES):
@@ -591,6 +635,14 @@ def collect(instance, make_client=make_client, account_id=None, token=None,
     The token is *token* if given, else ``BABBLE_EVAL_TOKEN``, else the
     keyring entry for *account_id*. With none of them, the run stops with
     a message and exit code 2, before touching the database.
+
+    **The store is keyed by the account the token belongs to, not by the
+    one that was asked for.** The run verifies the token and reads the id
+    the server names; a store named for one account and holding another's
+    feed would file two accounts' summaries as one account's, and
+    ``aggregate`` cannot tell. So a given *account_id* that the server
+    disagrees with stops the run, and an absent one is filled in from
+    the server's answer.
     """
     out = out or sys.stdout
     try:
@@ -606,12 +658,27 @@ def collect(instance, make_client=make_client, account_id=None, token=None,
         return 2
 
     run_ts = iso_utc(now)
+    client = make_client(instance_url, token)
+    # The account the token belongs to, from the server itself. One
+    # request, and the rest of the run reuses it.
+    try:
+        account = invoke(client, 'verify_credentials')
+        viewer = str(account['id']) if account and account.get('id') else None
+    except Exception:
+        viewer = None
+    if viewer and account_id and str(account_id) != viewer:
+        print('rank_eval: the token belongs to account %s, not %s;'
+              ' nothing was collected' % (viewer, account_id),
+              file=sys.stderr)
+        return 2
+    account_id = viewer or account_id
+
     connection = open_database(
         database_path(instance_url, root, account_id))
     try:
         known = {row[0] for row in
                  connection.execute('SELECT account_id FROM relationships')}
-        gathered, requests = gather(make_client(instance_url, token), known)
+        gathered, requests = gather(client, known, viewer)
         posts, new = write_run(connection, gathered, run_ts, requests,
                                instance_url)
     finally:
@@ -1606,6 +1673,11 @@ def evaluate(instance, gates_path=None, json_path=None, root=None, out=None,
         gaps = run_gaps(connection)
         if not gaps:
             print('rank_eval: no runs recorded', file=sys.stderr)
+            others = sibling_accounts(instance_url, root)
+            if others:
+                print('rank_eval: this instance has data for %s; pass the'
+                      ' same --account-id that collect used'
+                      % ', '.join(others), file=sys.stderr)
             return 1
         rows = []
         for day, moment, sampled in evaluated_days(gaps):
@@ -1688,7 +1760,17 @@ def aggregate(paths, gates_path=None, out=None):
         print('gates not frozen, no verdict', file=out)
         return 0
     records = []
+    seen = []
     for path in paths:
+        # The same account twice is one account counted twice, and the
+        # gate would read it as two. H1 folds three *different* accounts,
+        # so a path named twice is a mistake, not a fold.
+        key = os.path.abspath(path)
+        if key in seen:
+            print('rank_eval: %s was given twice; each account is one'
+                  ' summary' % path, file=sys.stderr)
+            return 2
+        seen.append(key)
         with open(path, encoding='utf-8') as handle:
             records.append(json.load(handle))
     verdicts = [record.get('gate_a') for record in records]
@@ -2028,9 +2110,14 @@ class FakeAccountClient:
     def request_finish_paged(self, result):
         # A page that has a next one hands back the parameters to ask
         # for it, which is how `inspect` knows the home timeline has
-        # more than the first page and how `follow` walks the list.
-        next_params = self.next_pages.pop(0) if self.next_pages else None
-        return self._finish(result), next_params, None
+        # more than the first page and how `follow` walks the list. The
+        # pages are per path, because one run asks for several.
+        path = self.asked[-1][1] if self.asked else ''
+        for index, (wanted, params) in enumerate(self.next_pages):
+            if wanted == path:
+                self.next_pages.pop(index)
+                return self._finish(result), params, None
+        return self._finish(result), None, None
 
     def verify_credentials_async(self, callback=None, cancellable=None):
         self._read('verify', '/accounts/verify_credentials', None, callback)
@@ -2766,6 +2853,14 @@ def check_gates(checks, work):
     aggregate([paths['stray']], gates_path=gates_path, out=printed)
     checks.check('a record that shipped another ordering cannot make it PASS',
                  'Gate A: INCONCLUSIVE' in printed.getvalue())
+
+    # The same account twice is one account counted twice, and the gate
+    # would read it as two.
+    printed = io.StringIO()
+    code = aggregate([paths['one'], paths['one']], gates_path=gates_path,
+                     out=printed)
+    checks.equal('the same summary given twice is refused',
+                 (code, 'Gate A: PASS' in printed.getvalue()), (2, False))
     return gates_path
 
 
@@ -3140,6 +3235,17 @@ def check_accounts(checks):
     checks.check('and shows the home timeline it can now see',
                  'home=1' in printed)
 
+    # `older=` says the home timeline has more than its first page, and
+    # the follow command prints it too.
+    paged = FakeAccountClient(following_count=1, follows=['a1'],
+                              home=[{'id': 'p1'}],
+                              next_pages=[('/timelines/home', {'max_id': 'p1'})])
+    code, printed, errors = run(
+        follow, SYNTHETIC_INSTANCE, from_account='source', token=secret,
+        make_client=lambda _instance, _token: paged)
+    checks.check('a follow run says when the home timeline has more',
+                 code == 0 and 'older=True' in printed)
+
     fake = FakeAccountClient(follows=['b1', 'b2', 'b3', 'b4'])
     code, printed, errors = run(
         follow, SYNTHETIC_INSTANCE, from_account='source', limit=2,
@@ -3222,7 +3328,7 @@ def check_accounts(checks):
     # comes from the parameters the server hands back for the next one,
     # so a page that has a next one must say so.
     paged = FakeAccountClient(following_count=7, home=[{'id': 'p1'}],
-                              next_pages=[{'max_id': 'p1'}])
+                              next_pages=[('/timelines/home', {'max_id': 'p1'})])
     code, printed, errors = run(
         inspect, SYNTHETIC_INSTANCE, [VIEWER_ID], token=secret,
         make_client=lambda _instance, _token: paged)
@@ -3241,6 +3347,40 @@ def check_accounts(checks):
     checks.equal('an account with no keyring entry is reported, not crashed',
                  (code, 'no keyring entry for account acct-missing' in errors),
                  (1, True))
+
+    # The home timeline failing is not the account failing, and the
+    # message must say which it was.
+    class NoHome(FakeAccountClient):
+        def request_finish_paged(self, result):
+            path = self.asked[-1][1] if self.asked else ''
+            if path == '/timelines/home':
+                raise GLib.Error.new_literal(
+                    GLib.quark_from_string('rank-eval'),
+                    'the home timeline refused', 500)
+            return self._finish(result), None, None
+
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, [VIEWER_ID], token=secret,
+        make_client=lambda _instance, _token: NoHome())
+    checks.check('a home timeline that fails is named as the timeline',
+                 code == 1 and 'the home timeline of account' in errors)
+    checks.check('and the token does not reach that message',
+                 secret not in errors)
+
+    # And the account itself failing, with a token in hand.
+    class NoAccount(FakeAccountClient):
+        def verify_credentials_finish(self, result):
+            raise GLib.Error.new_literal(
+                GLib.quark_from_string('rank-eval'), 'the token was refused',
+                401)
+
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, [VIEWER_ID], token=secret,
+        make_client=lambda _instance, _token: NoAccount())
+    checks.check('an account that cannot be verified is named',
+                 code == 1 and 'refused' in errors)
+    checks.check('and the token does not reach that message either',
+                 secret not in errors)
 
     # --- the client's own write methods --------------------------------
     # `src/mastodon.py` owns the HTTP, and there is no server here to send
@@ -3287,9 +3427,9 @@ def check_accounts(checks):
 
     sent = Sent()
     REAL_CLIENT.follow_async(sent, '7')
-    checks.equal('a follow sends both relationship switches', sent.sent[2],
-                 {'form': {'reblogs': 'true', 'notify': 'false'},
-                  'callback': None, 'cancellable': None})
+    checks.equal('a follow sends both relationship switches',
+                 sent.sent[2].get('form'),
+                 {'reblogs': 'true', 'notify': 'false'})
 
     sent = Sent()
     REAL_CLIENT.reply_async(sent, '9', 'hello', {'visibility': 'private'})
@@ -3331,17 +3471,21 @@ def check_accounts(checks):
     # H1 evaluates three accounts and aggregates three summaries. One
     # store cannot give three: the viewer is a single row, and one
     # account's runs would be another's coverage.
-    root = os.path.join(tempfile.gettempdir(), 'rank-eval-separate-%d'
-                        % os.getpid())
+    cache = os.path.join(tempfile.gettempdir(), 'rank-eval-separate-%d'
+                         % os.getpid())
+    root = os.path.join(cache, 'babble-eval')
     try:
-        shutil.rmtree(root, ignore_errors=True)
-        for name in ('one', 'two'):
-            fake = FakeAccountClient(account_id='acct-' + name)
+        shutil.rmtree(cache, ignore_errors=True)
+        for name in ('acct-one', 'acct-two'):
+            fake = FakeAccountClient(account_id=name)
             run(collect, SYNTHETIC_INSTANCE, account_id=name, token=secret,
                 make_client=lambda _instance, _token, f=fake: f,
                 now=WORLD_START, root=root)
+        # The store is named for the account the *server* named, not the
+        # one that was asked for: a token for one account filed under
+        # another's id would make two summaries of one feed.
         paths = [database_path(SYNTHETIC_INSTANCE, root, name)
-                 for name in ('one', 'two')]
+                 for name in ('acct-one', 'acct-two')]
         checks.check('two accounts write to two databases',
                      paths[0] != paths[1]
                      and all(os.path.exists(path) for path in paths))
@@ -3357,8 +3501,109 @@ def check_accounts(checks):
                 connection.close()
         checks.equal('and each keeps its own viewer', viewers,
                      ['acct-one', 'acct-two'])
+        checks.equal('and the accounts it holds data for are named',
+                     sibling_accounts(SYNTHETIC_INSTANCE, root),
+                     ['acct-one', 'acct-two'])
+
+        # An account id is quoted into the path, so an id with a slash in
+        # it cannot climb out of the data directory.
+        awkward = database_path(SYNTHETIC_INSTANCE, root, 'a/../../escape')
+        checks.check('an account id cannot escape the data directory',
+                     os.path.commonpath([os.path.abspath(root),
+                                         os.path.abspath(awkward)])
+                     == os.path.abspath(root))
+        # Reading the account-less directory finds nothing, so the message
+        # has to say which account to ask for.
+        code, printed, errors = run(
+            evaluate, SYNTHETIC_INSTANCE, root=root, gates_path=None)
+        checks.check('and reading the wrong one says which to ask for',
+                     code == 1 and 'no runs recorded' in errors
+                     and 'acct-one' in errors)
+
+        # A token for one account, asked for under another's id: the run
+        # stops, because a store named for one account and holding
+        # another's feed would make two summaries of one feed -- and
+        # ``aggregate`` cannot tell.
+        mismatched = FakeAccountClient(account_id='acct-two')
+        before = _run_count(paths[0])
+        code, printed, errors = run(
+            collect, SYNTHETIC_INSTANCE, account_id='acct-one', token=secret,
+            make_client=lambda _instance, _token: mismatched,
+            now=WORLD_START + datetime.timedelta(hours=1), root=root)
+        checks.equal('a token for another account stops the run',
+                     (code, 'belongs to account acct-two' in errors), (2, True))
+        checks.equal('and writes nothing under the id that was asked for',
+                     _run_count(paths[0]), before)
+        # With no account id at all, the store is named for the account
+        # the server named.
+        derived = FakeAccountClient(account_id='acct-three')
+        code, printed, errors = run(
+            collect, SYNTHETIC_INSTANCE, token=secret,
+            make_client=lambda _instance, _token: derived,
+            now=WORLD_START, root=root)
+        checks.check('and with no account id the store is named for the'
+                     ' account the server named',
+                     code == 0
+                     and os.path.exists(
+                         database_path(SYNTHETIC_INSTANCE, root, 'acct-three')))
+
+        # And the read half: `evaluate` must read the account it was
+        # told to, and only that one. H1 folds three summaries, so a
+        # read that ignored the id would fold one feed three times.
+        for name in ('acct-one', 'acct-two'):
+            code, printed, errors = run(
+                evaluate, SYNTHETIC_INSTANCE, root=root, account_id=name,
+                gates_path=None)
+            checks.check('evaluate reads the account it was given (%s)'
+                         % name, code == 0)
+        code, printed, errors = run(
+            evaluate, SYNTHETIC_INSTANCE, root=root, account_id='acct-none',
+            gates_path=None)
+        checks.equal('and an account with no runs says so',
+                     (code, 'no runs recorded' in errors), (1, True))
+
+        # And the command line itself, which is what the maintainer
+        # types: the account id must reach `evaluate` from the
+        # arguments, not only from a caller in this file.
+        saved_cache = os.environ.get('XDG_CACHE_HOME')
+        os.environ['XDG_CACHE_HOME'] = cache
+        try:
+            code, printed, errors = run(
+                main, ['evaluate', '--instance', SYNTHETIC_INSTANCE,
+                       '--account-id', 'acct-one'])
+        finally:
+            if saved_cache is None:
+                os.environ.pop('XDG_CACHE_HOME', None)
+            else:
+                os.environ['XDG_CACHE_HOME'] = saved_cache
+        checks.check('the command line passes the account id to evaluate',
+                     code == 0)
     finally:
-        shutil.rmtree(root, ignore_errors=True)
+        shutil.rmtree(cache, ignore_errors=True)
+
+    # --- where the token comes from ---------------------------------------
+    # The order is the plan's: the one given, then the environment, then
+    # the keyring. A change to it would pick up the wrong account's
+    # token, and the store is keyed by whoever that token belongs to.
+    saved_env = os.environ.get(TOKEN_VARIABLE)
+    try:
+        os.environ[TOKEN_VARIABLE] = 'from-the-environment'
+        checks.equal('the environment token is used when none is given',
+                     token_for(SYNTHETIC_INSTANCE, 'acct-a'),
+                     'from-the-environment')
+        checks.equal('and a token given wins over it',
+                     token_for(SYNTHETIC_INSTANCE, 'acct-a', 'given'),
+                     'given')
+        os.environ.pop(TOKEN_VARIABLE, None)
+        checks.equal('and the keyring is read when neither is there',
+                     token_for(SYNTHETIC_INSTANCE, 'acct-a',
+                               reader=lambda _i, _a: 'from-the-keyring'),
+                     'from-the-keyring')
+    finally:
+        if saved_env is None:
+            os.environ.pop(TOKEN_VARIABLE, None)
+        else:
+            os.environ[TOKEN_VARIABLE] = saved_env
 
     # --- the real keyring writer -----------------------------------------
     # Every test passes its own writer, so the one that calls the keyring

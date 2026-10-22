@@ -15,7 +15,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 |---|---|---|---|
 | H0 Decisions | done | `c8d06be`, `df7b1f3` | D1–D5 and D10 frozen. D2 changed method: three harness-managed accounts, which needs an account manager that does not exist yet |
 | S0 Guardrails and affinity | **done** | | T0.1-T0.3 merged; `module boundary` and `affinity` are in the suite |
-| S1 Evaluation harness | **done** | | T1.1–T1.3 merged; `rank eval` is in the suite with 137 checks. T1.4 (the managed accounts D2 asks for) is scheduled and not started |
+| S1 Evaluation harness | **done** | | T1.1–T1.4 merged; `rank eval` is in the suite with 248 checks. The three accounts exist; the tokens do not yet |
 | S2 Ranked feed core | blocked by H1 | | |
 | S3 Hidden place | blocked by S2 | | |
 | S4 Trial instrumentation | blocked by S3 | | Ends at gate B (H2) |
@@ -31,7 +31,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 | T1.1 `collect` | merged | `2101467`, `a829fea`, `a1ecc87`, `1db0a08` | The harness records the feed |
 | T1.2 `evaluate` | merged | `79ebe80`, `3defa71` | The harness judges it against the frozen gates |
 | T1.3 `self-test` | merged | `ac44de8`, `c817ef5`, `1a2f00a` | The harness checks itself against a synthetic world |
-| T1.4 managed accounts | not started | | From D2: three accounts the harness creates and feeds |
+| T1.4 managed accounts | merged | `59d1a25`, `9b81039` | The harness can act as an account: `token`, `follow`, `engage`, `inspect` |
 
 ### Revision 2 (after the review of 2026-10-21)
 
@@ -488,6 +488,56 @@ follows, one over 1,000 — was not yet met by the largest, at 890.
 **No tokens exist yet**, which is the one thing only the maintainer
 can do: the OAuth flow needs a browser.
 
+### Revision 10 (after W3's T1.4 re-review, 2026-10-22)
+
+The re-review asked the harder question: are the fixes real, or do they
+only catch the mutation they were written for? Two of the fixes were
+not real, and one of them was a claim that was simply false.
+
+**The recipe's `engage` command still could not run.** The fix said it
+was "written out in full now". It was not: the line still read
+`engage --kind …` with no `python3 bench/rank_eval.py`, no
+`--instance` and no `--account-id`, and the maintainer following the
+recipe would have exited 2 on the step that produces the engagement
+the labels come from. The recipe also claimed `inspect` prints
+`requested=` — it is `follow` that prints it — and named a
+`SOURCE_ID` that was defined nowhere and had to be an account **on
+`mastodon.social`**, not the ursal.zone one the import used.
+
+**`collect` could file one account's feed under another's id.** The
+token comes from the environment first, and `collect` wrote under
+whatever `--account-id` was given without checking the id the server
+named. So `BABBLE_EVAL_TOKEN` set to account B and `--account-id A`
+filed B's feed under A — the same failure the per-account store was
+meant to end, reachable again through a documented token source. The
+store is now keyed by **the account the token belongs to**: the run
+verifies the token, a given id that the server disagrees with stops
+the run, and an absent id is filled in from the server's answer.
+
+**`evaluate`'s read path was untested**, and silently fell back to the
+dead shared store. The read half of the fix had no test at all, and
+the command line's own wiring had none either — `main` could drop the
+account id and every check would still pass. Both are now exercised,
+the command line included.
+
+**`aggregate` still counted the same summary twice.** One feed passed
+three times read as `Gate A: PASS`, and the summary carries no account
+identity, so `aggregate` *could not* tell. A path named twice is now
+refused.
+
+**`inspect`'s home-timeline failure was still untested**, and a token
+leaked into either of its refusal messages would have passed the whole
+suite. Both are now exercised.
+
+**The boundary test did not implement the rule the plan relies on.**
+The plan says the harness "must not grow a second HTTP path; that is
+exactly what the boundary test exists to prevent" — and the test had
+only R1–R3, so `import http.client` in `bench/rank_eval.py` passed.
+There is now **R4**, with its own self-checks.
+
+**The token does not escape on any path.** Every command's run now
+asserts it, not six of them.
+
 ---
 
 ## 1. How an agent works through this plan
@@ -658,7 +708,7 @@ A task is done when all of these hold, and the §1.4 report shows each:
 | Stall probe | `bench/ranked_stall.py` |
 | Frozen gates | `bench/rank_eval_gates.json` (maintainer only) |
 | App data | `GLib.get_user_cache_dir()/babble/ranked/<'k-' + quote(account key, safe='')>/state.sqlite3` |
-| Harness data | `${XDG_CACHE_HOME:-~/.cache}/babble-eval/<'i-' + quote(instance, safe='')>/eval.sqlite3` |
+| Harness data | `${XDG_CACHE_HOME:-~/.cache}/babble-eval/<'i-' + quote(instance, safe='') + '-a-' + quote(account_id, safe='')>/eval.sqlite3` — the account is part of the path, and it is the account the **token** belongs to, not the one that was asked for |
 | Tests | `module boundary` (`src/test-module-boundary.py`), `affinity` (`src/test-affinity.py`), `rank eval` (`bench/rank_eval.py self-test`), `ranked store` (`src/test-ranked-store.py`), `ranked source` (`src/test-ranked-source.py`), `ranked place` (`src/test-ranked-place.py`) |
 | Elk reference | `mauriciobc/elk@9597db5`, checked out at `../elk` (`/home/mauriciobc/Documentos/Code/elk` on the maintainer's machine) |
 
