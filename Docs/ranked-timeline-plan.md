@@ -13,7 +13,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 
 | Slice | Status | Commits | Notes |
 |---|---|---|---|
-| H0 Decisions | partly done | `c8d06be` | D1 (the gates file) is frozen. D2-D5 still open |
+| H0 Decisions | done | `c8d06be`, `df7b1f3` | D1–D5 and D10 frozen. D2 changed method: three harness-managed accounts, which needs an account manager that does not exist yet |
 | S0 Guardrails and affinity | **done** | | T0.1-T0.3 merged; `module boundary` and `affinity` are in the suite |
 | S1 Evaluation harness | in progress | | T1.1 merged; T1.2 (evaluate) and T1.3 (self-test) to come |
 | S2 Ranked feed core | blocked by H1 | | |
@@ -576,14 +576,45 @@ for them, but never records their outcome.
 
 ### H0: freeze the decisions (before S1's verdicts)
 
-| # | Decision | Proposed value | Used by |
+| # | Decision | Value | Used by |
 |---|---|---|---|
 | D1 | Gates file | The JSON below, committed as `bench/rank_eval_gates.json` | T1.2, T4.3 |
-| D2 | Volunteers | Two accounts besides the maintainer's: one with under 200 follows, one with over 1,000 | H1, H2 |
+| D2 | Volunteers | **Three accounts created and managed by the harness** — not human volunteers. See the note below | H1, H2 |
 | D3 | Evaluation hour | 06:00 local time | T1.2 |
 | D4 | Budget: main-loop gap while a ranked page is answered | At most 16 ms in each of 10 runs | T3.4 |
 | D5 | Working title | `Ranked` | T3.1 |
 | D10 | How "Not interested" penalizes an author | Elk's: port `authorPenaltyIn` (`signals.ts:1256-1278`), a saturating `min(1, 1 − 2^−Σ decay(dismissal age))` over the author's dismissals, with an explicit mute giving 1. It is wired as the resolver's `author_penalty`, the way Elk's `ranking.ts:430-437` says to. There is **no** automatic mute after N dismissals: Elk has none | T0.2, T5.2 |
+
+**D2, decided on 2026-10-21, and what it costs.** The maintainer chose
+three accounts **created and managed by the harness** rather than human
+volunteers. This is a real change of method, and the plan records what
+it requires, because two things the plan assumed are no longer true:
+
+- **The accounts are no longer people.** The slice's premise — "a
+  volunteer can record their own feed for two weeks" — becomes "the
+  harness runs three accounts for two weeks". The *measurement* is
+  unchanged: the same `collect`, the same SQLite store, the same gates.
+  What changes is who the feed belongs to, and therefore what the
+  verdict says about it: a verdict from synthetic accounts is a verdict
+  about **the algorithm**, not about **people's timelines**. The write-up
+  in `Docs/timeline-algorithm.md` §9 must say so, and must not be
+  reported as evidence about real users.
+- **The harness gains capabilities it does not have.** Today it is
+  read-only: one `GET` in the whole file, and the client has no
+  `favourite`, `reblog`, `bookmark` or account-registration method. A
+  managed account needs all of them — registration, an OAuth token
+  without a human at the browser, and write calls to produce the
+  engagement that the labels come from. This is **new work**, not a
+  wiring job, and it is not in any task below.
+
+**This has not been scheduled.** The tasks in S1 and S2 assume
+`collect` runs against an existing account with a token in hand, and the
+H1 gate says "run `collect` hourly for 14 days on the three accounts".
+Under D2, someone must first build the account manager — and decide
+**which server** hosts the accounts, since registration is
+server-specific and many instances disable it. Until that exists and
+its task is written, H1 cannot start and the 14-day clock cannot run.
+
 
 ```json
 {
