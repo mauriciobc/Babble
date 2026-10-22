@@ -818,6 +818,24 @@ def labels_at(connection, moment, candidates):
     return labelled, near
 
 
+def near_labels(connection, moment, candidates):
+    """The candidates first observed engaged within an hour of T.
+
+    The same rule `labels_at` counts, but returning which ones, so a
+    check can name the post on the edge rather than only the count.
+    """
+    start, near_limit = iso_utc(moment), iso_utc(moment + HOUR)
+    first = {row[0]: row[1] for row in connection.execute(
+        'SELECT post_id, MIN(run_ts) FROM observations'
+        ' WHERE (favourited OR reblogged OR bookmarked) GROUP BY post_id')}
+    near = set()
+    for status in candidates:
+        seen = first.get(str(status.get('id')))
+        if seen is not None and start < seen <= near_limit:
+            near.add(str(status.get('id')))
+    return near
+
+
 def affinity_at(connection, moment, viewer, mutuals):
     """The affinity maps at T, from what was first seen *before* T only.
 
@@ -1529,6 +1547,27 @@ def plant_world(evidence_before):
     statuses['plant-boost-target'] = synthetic_status(
         'plant-boost-target', 'plant-boost-author', PLANT_T - 9 * HOUR,
         followers=100)
+    # The three edges the plan pins, each on the side nothing else
+    # covers: a post created at exactly T is outside the candidate
+    # window [T - 24 h, T); a post first seen engaged at exactly
+    # T + 24 h is inside the label window (T, T + 24 h]; and one first
+    # seen at exactly T + 1 h is outside the hour `labels_near_start`
+    # counts.
+    statuses['plant-created-at-t'] = synthetic_status(
+        'plant-created-at-t', 'plant-created-at-t-author', PLANT_T,
+        followers=100)
+    statuses['plant-at-day-end'] = synthetic_status(
+        'plant-at-day-end', 'plant-at-day-end-author', PLANT_T - 2 * HOUR,
+        followers=100)
+    statuses['plant-near-edge'] = synthetic_status(
+        'plant-near-edge', 'plant-near-edge-author', PLANT_T - 3 * HOUR,
+        followers=100)
+    # And one just past the near hour, so the hour's upper edge is
+    # covered too: a label first seen at T + 1 h + 1 min is outside the
+    # hour, and a label at exactly T + 1 h is inside it.
+    statuses['plant-past-near'] = synthetic_status(
+        'plant-past-near', 'plant-past-near-author', PLANT_T - 3 * HOUR,
+        followers=100)
     likes = {
         # favourited before T: not a candidate, and not a label either
         'plant-engaged': PLANT_T - 2 * HOUR,
@@ -1545,6 +1584,16 @@ def plant_world(evidence_before):
         # the evidence, which is the one thing the variants move
         'plant-leak-old': (PLANT_T - 2 * HOUR if evidence_before
                            else PLANT_T + 30 * MINUTE),
+        # first seen engaged at exactly T + 24 h: the label window is
+        # (T, T + 24 h], so this one is a label, and the last hour of
+        # it is inside.
+        'plant-at-day-end': PLANT_T + DAY,
+        # first seen engaged at exactly T + 1 h: a label, and inside the
+        # hour `labels_near_start` counts -- the bound is inclusive.
+        'plant-near-edge': PLANT_T + HOUR,
+        # first seen engaged one minute later: a label, and outside the
+        # hour.
+        'plant-past-near': PLANT_T + HOUR + MINUTE,
     }
     # Two of the reader's own statuses, on the two sides of T. The label
     # window is (T, T + 24 h]: a reply at exactly T is outside it, and a
@@ -1685,6 +1734,8 @@ def private_values(value, forbidden, path=''):
 def world_tokens(world):
     """Every post id, author id, handle and the URL of *world*'s host."""
     host = urllib.parse.urlsplit(SYNTHETIC_INSTANCE).hostname
+    # The bare handle needs no token of its own: `synth` is a substring
+    # of `@synth@synth.example`, and the check looks for substrings.
     tokens = {SYNTHETIC_INSTANCE, VIEWER_ID,
               '@%s@%s' % (VIEWER_ACCT, host)}
     for post_id, status in world.statuses.items():
@@ -1891,6 +1942,22 @@ def check_gates(checks, work):
                  (blind['a1']['verdict'], blind['gate_a']),
                  ('PASS', 'INCONCLUSIVE'))
 
+    # A2 is measured against *chrono*, not against rank_null. The two
+    # must be told apart, or the gate could be scored on the wrong
+    # baseline and nobody would know. So one fixture, with the two
+    # baselines given different breadths: the verdict it reaches says
+    # which one the gate read.
+    apart = judge(fixture_rows(
+        same_order,
+        breadth={'rank_affinity': (18, 0.5), 'chrono': (15, 0.4),
+                 'rank_null': (20, 0.5)}), gates)
+    checks.equal('A2 measures against chrono, not rank_null: it passes on'
+                 ' chrono\'s breadth',
+                 apart['a2']['verdict'], 'PASS')
+    checks.equal('and chrono\'s breadth is the one it read',
+                 (apart['a2']['chrono_authors'], apart['a2']['chrono_small_share']),
+                 (15, 0.4))
+
     # A1 is scored on recall@`a1_k`, and only on it. Here the ranker wins
     # every day on recall@20 and loses every day on recall@50.
     crossed = [{'rank_affinity': 0.8, 'rank_null': 0.0, 'chrono': 0.4,
@@ -1921,6 +1988,15 @@ def check_gates(checks, work):
                  nothing['verdict'], 'PASS')
     checks.equal('and its mean ratio is undefined, not a division by zero',
                  nothing['mean_ratio'], None)
+    # The floor is a *minimum*: a ratio of exactly 1.25 passes. A gate
+    # that asked for strictly more would ship a stricter rule than the
+    # frozen file names.
+    exactly = judge(fixture_rows(
+        [{'rank_affinity': 0.5, 'rank_null': 0.4, 'chrono': 0.4,
+          'affinity_chrono': 0.4} for _day in range(14)]), gates)['a1']
+    checks.equal('A1 accepts a mean ratio of exactly the minimum',
+                 (exactly['verdict'], exactly['mean_ratio']),
+                 ('PASS', gates['a1_min_mean_ratio']))
 
     losing = [{'rank_affinity': 0.4, 'rank_null': 0.2, 'chrono': 0.5,
                'affinity_chrono': 0.2} for _day in range(14)]
@@ -1951,6 +2027,8 @@ def check_gates(checks, work):
                  ' INCONCLUSIVE', decision['a3']['verdict'], 'INCONCLUSIVE')
     checks.equal('so affinity is not used, though chrono trails by 0.6',
                  decision['use_affinity'], False)
+    checks.equal('and the ordering that ships is rank without affinity',
+                 decision['shipped'], 'rank_null')
 
     # A4 asks whether rank() beats *affinity, then chronological*; its
     # baseline is `affinity_chrono`, not `chrono`. Trailing
@@ -1998,6 +2076,23 @@ def check_gates(checks, work):
                  (decision['shipped'], decision['gate_a']),
                  ('affinity_chrono', 'PASS'))
 
+    # The same, for A2: the ordering that ships is too narrow in the top
+    # 20, while the ranker is broad enough. Consulting the ranker's A2
+    # instead of the shipped ordering's would pass Gate A on the wrong
+    # ordering's breadth -- and `aggregate` counts an account by the
+    # verdicts it shipped.
+    saved_narrow = [{'rank_affinity': 0.2, 'rank_null': 0.1, 'chrono': 0.4,
+                     'affinity_chrono': 0.9} for _day in range(14)]
+    decision = judge(fixture_rows(
+        saved_narrow, breadth={'affinity_chrono': (17, 0.5),
+                               'rank_affinity': (20, 0.5)}), gates)
+    checks.equal('the shipped ordering fails A2 on its own breadth',
+                 decision['shipped_a2']['verdict'], 'FAIL')
+    checks.equal('while the ranker passes it',
+                 decision['a2']['verdict'], 'PASS')
+    checks.equal('so Gate A is FAIL, not a pass on the rankers breadth',
+                 decision['gate_a'], 'FAIL')
+
     passed = summary_record('PASS', 'rank', True, 'rank_affinity',
                             'PASS', 'PASS')
     failed = summary_record('FAIL', 'rank', True, 'rank_affinity',
@@ -2044,7 +2139,8 @@ def check_split(checks, work):
     pin_zone()
     answers = {}
     moments = (PLANT_T - 13 * HOUR, PLANT_T - 2 * HOUR, PLANT_T,
-               PLANT_T + 30 * MINUTE, PLANT_T + HOUR, PLANT_T + 2 * HOUR)
+               PLANT_T + 30 * MINUTE, PLANT_T + HOUR, PLANT_T + HOUR + MINUTE,
+               PLANT_T + 2 * HOUR, PLANT_T + DAY)
     for name, evidence_before in (('bounded', False), ('control', True)):
         root = os.path.join(work, 'split-' + name)
         record(root, plant_world(evidence_before), moments)
@@ -2064,6 +2160,7 @@ def check_split(checks, work):
             earlier = labels_at(
                 connection, PLANT_T,
                 candidates_at(connection, PLANT_T - 30 * MINUTE))[0]
+            near_set = near_labels(connection, PLANT_T, candidates)
         finally:
             connection.close()
         answers[name] = {
@@ -2073,6 +2170,7 @@ def check_split(checks, work):
                     for status in ranked['rank_affinity'][:20]],
             'labels': labels,
             'near': near,
+            'near_labels': near_set,
             'first': dict(seen),
             'earlier_labels': earlier,
         }
@@ -2094,9 +2192,31 @@ def check_split(checks, work):
                  'plant-boost-target' in bounded['labels'])
     checks.check('a reply at exactly T does not: the window opens after it',
                  'plant-reply-target' not in bounded['labels'])
-    checks.equal('one label falls within the hour that blurs a flag, and it'
-                 ' is the one liked half an hour after T',
-                 bounded['near'], 1)
+    checks.equal('two labels fall within the hour that blurs a flag: the'
+                 ' one liked half an hour after T, and the one liked at'
+                 ' exactly T + 1 h, whose bound is inclusive',
+                 bounded['near'], 2)
+    # The three edges the plan pins, each on the side nothing else
+    # covers. The candidate window is [T - 24 h, T), so a post created at
+    # exactly T is outside it; the label window is (T, T + 24 h], so a
+    # post first seen engaged at exactly T + 24 h is inside it; and the
+    # near count is the first hour after T, so a post first seen at
+    # exactly T + 1 h is outside that.
+    checks.check('a post created at exactly T is not a candidate: the'
+                 ' window is [T - 24 h, T)',
+                 'plant-created-at-t' not in bounded['candidates'])
+    checks.check('a post first seen engaged at exactly T + 24 h is a label:'
+                 ' the window is (T, T + 24 h]',
+                 'plant-at-day-end' in bounded['labels'])
+    checks.check('a post first seen engaged at exactly T + 1 h is a label'
+                 ' and inside the hour that blurs a flag: the bound is'
+                 ' inclusive',
+                 'plant-near-edge' in bounded['labels']
+                 and 'plant-near-edge' in bounded['near_labels'])
+    checks.check('and one first seen a minute later is a label but outside'
+                 ' that hour',
+                 'plant-past-near' in bounded['labels']
+                 and 'plant-past-near' not in bounded['near_labels'])
     checks.check('an engagement after T does not reach the affinity at T',
                  PLANT_LEAK not in bounded['author'])
     checks.check('nor does one first seen exactly at T',
@@ -2332,6 +2452,11 @@ def check_world(checks, work, gates_path):
                  != observed_counters['DESC'][popular])
     checks.equal('the popularity ordering puts the most engaged candidate'
                  ' first', str(ranked['engagement'][0].get('id')), popular)
+    # The straw man is favourites *plus* reblogs. Either alone would put
+    # the same candidate first, so the order alone cannot say which.
+    checks.equal('engagement is favourites plus reblogs, not one of them',
+                 engagement_of({'favourites_count': 6, 'reblogs_count': 2}),
+                 8)
 
     # The interior-gap branch of `covered`: the world is sampled hourly,
     # so only a hole can fail it. Three hours is over the limit, two is
