@@ -30,7 +30,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 | T0.3 `affinity` goldens | merged | `3d29fe9`, `808f937` | 153 checks against Elk's own numbers |
 | T1.1 `collect` | merged | `2101467`, `a829fea`, `a1ecc87`, `1db0a08` | The harness records the feed |
 | T1.2 `evaluate` | merged | `79ebe80`, `3defa71` | The harness judges it against the frozen gates |
-| T1.3 `self-test` | in progress | | The harness checks itself against a synthetic world |
+| T1.3 `self-test` | merged | `ac44de8`, `c817ef5` | The harness checks itself against a synthetic world |
 | T1.4 managed accounts | not started | | From D2: three accounts the harness creates and feeds |
 
 ### Revision 2 (after the review of 2026-10-21)
