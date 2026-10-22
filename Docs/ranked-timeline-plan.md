@@ -344,6 +344,72 @@ Three defects were found, and all three would have changed a verdict.
 - **T is 06:00 local** under UTC, UTC−03, UTC+05:30, a DST transition
   and a half-hour offset, and no naive datetime reaches `iso_utc`.
 
+### Revision 8 (after W2's T1.3, 2026-10-21)
+
+T1.3 is the harness's own test suite, so the reviewer's question was
+not "does this look right" but **"can a wrong implementation pass
+this?"**. The reviewer copied the harness to `/tmp` and ran about
+seventy mutations against the copy. The answer was: **yes, in
+thirteen places.** The harness's behaviour was independently verified
+as correct throughout — every finding was a gap in the *tests*, not a
+bug in the harness — but a test suite that waves through a broken
+harness certifies nothing.
+
+**The findings, and what each means.**
+
+- **A one-hour future leak passed.** The whole-future rewrite picked a
+  day and rewrote everything after it, but the day it then compared was
+  the one *before* it — whose whole future is the 24 hours the rewrite
+  does not touch. So a bound of `T + 1 h` anywhere in the split left
+  the day byte-identical. The plan calls this check the one that
+  "catches any path that reaches past T"; as built it caught only paths
+  reaching past `T + 24 h`.
+- **A2 was never asserted.** The fixtures gave every ordering the same
+  distinct-author count and the same small-share, so A2 was PASS in
+  every case and **deleting A2 entirely passed all 81 checks**. A
+  breadth gate that can be deleted silently is not a gate.
+- **The gates could be scored on the wrong metric.** The fixtures set
+  `recall20` and `recall50` to the same value, so using `recall50`
+  where the plan pins `recall@20` changed nothing.
+- **A3 and A4 were never tested against their real baselines.** Their
+  three baselines were given the same value, so swapping one for
+  another changed no verdict. `USE_AFFINITY` and `ORDERING` are the two
+  decisions H1 records, and neither was pinned.
+- **The shipped-ordering rule was not discriminated.** The fixture made
+  the ranker's A1 and the shipped ordering's A1 fail together, so
+  consulting the wrong one passed — the exact hole the T1.2 review
+  found, re-openable.
+- **A1's mean-ratio requirement was untested**, and could be deleted.
+- **`recall@k` was not exact.** No label sat at index `k-1`, so
+  `ids[:k-1]` gave the same answer, and `recall50`'s boundary was
+  unreachable because no row had more than 50 posts.
+- **The candidates' counters never moved.** Only liked posts — which
+  are never candidates — had counters, so "the last observation at or
+  before T" could be replaced by the first, and the engagement ordering
+  could return anything.
+- **The temporal split never saw a run at exactly T**, so `<= T` and
+  `< T` were indistinguishable in the two functions where it matters.
+- Three nits: `labels_near_start` was always 0, the coverage rule's
+  interior-gap branch was untested, and the privacy check looked at key
+  names only, so a post id or a handle could ride in a value.
+
+**Also fixed:** the check helpers depended on `TZ=UTC` being set by
+`self_test()` — correct by accident of the call order, and wrong when
+a helper was run on its own. Each now pins the zone itself.
+
+**Verified, not changed:**
+- The sign test, the coverage rule, `collect`'s three paths, the file
+  modes, the `no-coverage` line, the `affinity_chrono` signal, the
+  resolver, and the privacy key names are all caught by a mutation.
+- The `bench` command calls `catchuprank.rank()` itself and builds
+  posts with per-post random text of 8–60 words, one tag, one link,
+  150 authors, 0–48 h ages and no media; the "one shared text" claim
+  was false. Six timings, no median.
+- The registration matches the plan verbatim; the suite is 65 passed /
+  1 skipped / 0 failed.
+- `credits` exits 2 on purpose: it is T4.3's, and its data source
+  `src/rankedstore.py` is T2.1's and does not exist yet.
+
 ---
 
 ## 1. How an agent works through this plan
@@ -1402,6 +1468,27 @@ suite; H1 can start.
        by a single guard, while this one catches any path that reaches
        past T. The judge's run of this on 2026-10-21 changed exactly the
        days after the rewrite and left the others untouched;
+       - **and the rewrite must reach into the future of the day it
+         compares.** The first version of this check did not: it
+         rewrote everything after a chosen day and then compared the
+         day *before* it, whose whole future is the 24 hours the rewrite
+         does not touch — so a bound of `T + 1 h` in any query left the
+         day byte-identical and the check passed. The rewrite must start
+         early enough to cover the future of every day it then
+         compares, and the check must be shown to fail a `T + 1 h` leak;
+     - **and each gate must be asserted in its own right.** A gate that
+       is only ever PASS in the fixtures can be deleted without the
+       suite noticing: the review of T1.3 found that A2 could be
+       removed entirely and all the checks still passed. Every gate
+       needs a fixture where it **fails** and one where it is
+       **INCONCLUSIVE**, and the fixtures must give the orderings
+       **different** baseline values, so that swapping one gate's
+       baseline for another changes a verdict;
+     - **and the metrics must be exact.** A label must sit at index
+       `k - 1` and at `k - 2`, and a row must have more than 50 posts,
+       so that `ids[:k-1]` and `ids[:k+1]` both change the answer, and
+       `recall@20` and `recall@50` must differ, so that the gates
+       cannot be scored on the wrong one;
    - the sign-test p for 11 of 14 is 0.02869 (± 1e-5), and for 10 of 14 is
      0.08978;
    - gate verdicts on a fixture gates file, covering PASS, FAIL and
