@@ -30,6 +30,8 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 | T0.3 `affinity` goldens | merged | `3d29fe9`, `808f937` | 153 checks against Elk's own numbers |
 | T1.1 `collect` | merged | `2101467`, `a829fea`, `a1ecc87`, `1db0a08` | The harness records the feed |
 | T1.2 `evaluate` | merged | `79ebe80`, `3defa71` | The harness judges it against the frozen gates |
+| T1.3 `self-test` | in progress | | The harness checks itself against a synthetic world |
+| T1.4 managed accounts | not started | | From D2: three accounts the harness creates and feeds |
 
 ### Revision 2 (after the review of 2026-10-21)
 
@@ -729,7 +731,8 @@ flowchart LR
   T03 --> T11[T1.1 collect]
   T11 --> T12[T1.2 evaluate]
   T12 --> T13[T1.3 self-test, bench]
-  T13 --> H1{{H1 gate A}}
+  T13 --> T14[T1.4 managed accounts]
+  T14 --> H1{{H1 gate A}}
   H1 --> T21[T2.1 store]
   H1 --> T22[T2.2 pool fetch]
   T21 --> T23[T2.3 source]
@@ -1445,6 +1448,76 @@ suite; H1 can start.
 #### H1: gate A (HUMAN)
 
 See §4. It needs D1–D3 frozen, and T1.3 merged.
+
+---
+
+##### T1.4: the managed accounts (from D2)
+
+- **Owner:** agent.
+- **Depends on:** T1.3, and a decision about **which server** hosts the
+  accounts.
+- **Why it exists:** D2 was decided as *three accounts created and managed
+  by the harness*, not human volunteers. Today the harness is read-only
+  — one `GET` in the whole file — and the client has no `favourite`,
+  `reblog`, `bookmark` or registration method. A managed account needs
+  all of them. Until they exist, H1 cannot start: the gate says "run
+  `collect` hourly for 14 days on the three accounts", and there are no
+  accounts to run it on.
+- **Read first:** `src/mastodon.py` (the request helpers, the OAuth
+  registration flow at `:955-1000`, and the scope constant at `:227`),
+  `src/auth.py:526-540` (how the app reads `verify_credentials`),
+  and `bench/rank_eval.py` (`gather`, `write_run`, `open_database`).
+- **Touches:** `bench/rank_eval.py`, and `src/mastodon.py` **only** if
+  the write methods must live on the shared client — see the boundary
+  rule below.
+
+**Spec.**
+
+1. **Registration.** A `register` command that creates an account on a
+   server and stores its token where `collect` can find it: the keyring,
+   under an account id the command chooses. The registration flow is
+   server-specific and many instances disable it, so the command must
+   **report the server's refusal clearly** and exit 2, not retry.
+2. **Engagement.** A way for the harness to *produce* the engagement the
+   labels come from — the `favourite`, `reblog`, `bookmark` and `reply`
+   that `T4.2` credits. Whether this is a `engage` command in the
+   harness or a write method on the shared client is a judgement call;
+   see the boundary rule below.
+3. **Three accounts.** A command or a documented recipe that stands up
+   the three accounts, and a way to keep them fed — the accounts must
+   **follow** other accounts, or their home timelines are empty and
+   there is nothing to rank. The plan's D2 proposed one account with
+   under 200 follows and one with over 1,000; that shape must survive,
+   because A2's small-account-share metric depends on it.
+4. **The account's timeline must be non-trivial.** A managed account
+   needs people to follow and posts to read. This is the part that
+   decides whether D2 is workable at all, and the task must report on
+   it honestly rather than produce three empty timelines.
+
+**Boundary rule.** The `module boundary` test owns which module may
+import what. A managed account needs HTTP calls the shared client
+already makes, so the write methods belong on `src/mastodon.py` — the
+client is the module that owns the server's API, and the harness
+imports it. The harness must not grow a second HTTP path; that is
+exactly what the boundary test exists to prevent. Check
+`src/test-module-boundary.py` for the rule before adding anything.
+
+**Acceptance criteria.**
+
+- [ ] `meson test -C build 'module boundary'` passes; the Catch Up
+      boundary diff is empty.
+- [ ] The new command works against a local test server, or against a
+      server the maintainer names — and **fails cleanly** against one
+      that refuses registration, with a message that says what was
+      refused.
+- [ ] A run's token is never printed, and never written to a file the
+      harness does not own.
+- [ ] `ruff check bench/rank_eval.py src/mastodon.py` passes.
+- [ ] The full suite still passes at its current count.
+- [ ] **A report on whether the three timelines are non-empty**, with
+      the numbers. If a managed account's home timeline cannot be made
+      to have posts, that is a **finding about D2**, and it goes to the
+      maintainer as a stop-and-report, not as a workaround.
 
 ---
 
