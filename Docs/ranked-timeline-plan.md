@@ -30,7 +30,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 | T0.3 `affinity` goldens | merged | `3d29fe9`, `808f937` | 153 checks against Elk's own numbers |
 | T1.1 `collect` | merged | `2101467`, `a829fea`, `a1ecc87`, `1db0a08` | The harness records the feed |
 | T1.2 `evaluate` | merged | `79ebe80`, `3defa71` | The harness judges it against the frozen gates |
-| T1.3 `self-test` | merged | `ac44de8`, `c817ef5` | The harness checks itself against a synthetic world |
+| T1.3 `self-test` | merged | `ac44de8`, `c817ef5`, `1a2f00a` | The harness checks itself against a synthetic world |
 | T1.4 managed accounts | not started | | From D2: three accounts the harness creates and feeds |
 
 ### Revision 2 (after the review of 2026-10-21)
@@ -409,6 +409,39 @@ a helper was run on its own. Each now pins the zone itself.
   1 skipped / 0 failed.
 - `credits` exits 2 on purpose: it is T4.3's, and its data source
   `src/rankedstore.py` is T2.1's and does not exist yet.
+
+**The second review, and what it found.** The reviewer was asked the
+harder question: *are the fixes real, or do they only catch the
+mutation they were written for?* It compared the harness's own
+functions before and after by AST — `evaluate`, `aggregate`, `judge`,
+`gate_a1`, `gate_a2`, `sign_result`, `candidates_at`, `labels_at`,
+`affinity_at`, `metrics_at`, `covered`, `sign_test` and the rest, all
+**identical** — and then ran seventy fresh mutations. The thirteen
+fixes were real. Six gaps remained, and three of them mattered:
+
+- **A2's baseline was not told apart from `rank_null`'s.** The fixtures
+  gave both the same breadth, so the gate could be scored against the
+  wrong one and no verdict would move.
+- **The shipped ordering's A2 was never told apart from the ranker's.**
+  An ordering too narrow in the top 20 could ship on the ranker's
+  breadth — and `aggregate` counts an account by the verdicts it
+  shipped.
+- **`shipped` was never named when affinity is off.** The branch that
+  picks `rank_null` could be wrong, and two such accounts would flip
+  the H1 record from `Gate A: PASS` to `INCONCLUSIVE`.
+
+And three window edges were pinned on one side only: a post created at
+exactly `T`, a label first seen at exactly `T + 24 h`, and the hour
+that counts a flag near `T`. Each now has a fixture on the side
+nothing else covered. The near hour's bound is **inclusive**, so a
+label first seen at exactly `T + 1 h` is inside it — the fixture says
+so rather than leaving it to be guessed.
+
+**A false alarm, checked and dismissed.** The re-review reported that
+the privacy rule missed the viewer's bare handle. It does not: the
+check looks for substrings, and `synth` is a substring of
+`@synth@synth.example`. The judge's own mutation — a summary value of
+`synth` — was caught.
 
 ---
 
@@ -1489,6 +1522,22 @@ suite; H1 can start.
        so that `ids[:k-1]` and `ids[:k+1]` both change the answer, and
        `recall@20` and `recall@50` must differ, so that the gates
        cannot be scored on the wrong one;
+     - **and every window must be pinned on both sides.** The candidate
+       window `[T - 24 h, T)`, the label window `(T, T + 24 h]` and the
+       hour that counts a flag near `T` each have an edge that a
+       fixture can only pin one way. There must be a post created at
+       exactly `T` (outside the candidate window), a label first seen at
+       exactly `T + 24 h` (inside the label window) and one first seen
+       a minute later (outside the near hour), and the near hour's
+       bound must be shown to be **inclusive**: a label first seen at
+       exactly `T + 1 h` is inside it;
+     - **and the gates' baselines must be told apart.** A2 measures
+       against `chrono`, A3 against `rank_null` and A4 against
+       `affinity_chrono`; a fixture that gives two of them the same
+       value lets a gate be scored on the wrong baseline without
+       changing a verdict. The same holds for the shipped ordering's
+       own A1 and A2: a fixture where they differ from the ranker's is
+       what tells the two apart.
    - the sign-test p for 11 of 14 is 0.02869 (± 1e-5), and for 10 of 14 is
      0.08978;
    - gate verdicts on a fixture gates file, covering PASS, FAIL and
