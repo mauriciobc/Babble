@@ -15,7 +15,7 @@ may touch, what to build, how to prove it works, and when to stop and ask.
 |---|---|---|---|
 | H0 Decisions | done | `c8d06be`, `df7b1f3` | D1–D5 and D10 frozen. D2 changed method: three harness-managed accounts, which needs an account manager that does not exist yet |
 | S0 Guardrails and affinity | **done** | | T0.1-T0.3 merged; `module boundary` and `affinity` are in the suite |
-| S1 Evaluation harness | in progress | | T1.1 merged; T1.2 (evaluate) and T1.3 (self-test) to come |
+| S1 Evaluation harness | **done** | | T1.1–T1.3 merged; `rank eval` is in the suite with 137 checks. T1.4 (the managed accounts D2 asks for) is scheduled and not started |
 | S2 Ranked feed core | blocked by H1 | | |
 | S3 Hidden place | blocked by S2 | | |
 | S4 Trial instrumentation | blocked by S3 | | Ends at gate B (H2) |
