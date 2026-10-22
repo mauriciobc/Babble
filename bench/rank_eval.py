@@ -110,6 +110,13 @@ HOUR = datetime.timedelta(hours=1)
 # this, in seconds.
 COVERAGE_GAP = 2 * 60 * 60
 
+# The same gap, with the tolerance that ``julianday``'s resolution
+# needs. A gap of exactly two hours comes back as 7200.000013 or
+# 7199.999973 depending on the date, and the plan allows a two-hour
+# gap -- so the comparison needs a margin, or the same sampling pattern
+# is covered on one day and not on the next.
+GAP_TOLERANCE = 1e-3
+
 # The orderings every day compares, in report order (plan item 5), and
 # the metrics each day records (plan item 6).
 ORDERINGS = ('chrono', 'rank_null', 'rank_affinity', 'engagement',
@@ -605,14 +612,33 @@ def run_gaps(connection):
 def covered(gaps, moment):
     """Whether the day at *moment* was sampled densely enough.
 
-    No gap between consecutive runs in [T - 24 h, T + 24 h] may exceed
-    two hours. A window holding fewer than two runs has no gap to
-    measure, and is not covered: an unsampled day is not a sampled one.
+    The plan: "A day has coverage when no gap between consecutive runs
+    in [T - 24 h, T + 24 h] exceeds 2 h."
+
+    That is not only about the gaps *inside* the window. A window whose
+    first twenty-four hours were never sampled has no internal gap to
+    measure, and would pass a check that looked only at those -- and the
+    day would be judged on half the context it is supposed to have. So
+    the window must also be **spanned**: a run within the coverage gap
+    of each end, and no interior gap over the limit.
+
+    The gap is compared with a tolerance. ``julianday`` resolves to
+    about ten microseconds, so an exactly two-hour gap comes back as
+    7200.000013 or 7199.999973 depending on the date; without the
+    tolerance the same sampling pattern would be covered on one day and
+    not on the next.
     """
     low, high = iso_utc(moment - DAY), iso_utc(moment + DAY)
     inside = [row for row in gaps if low <= row[0] <= high]
-    return len(inside) > 1 and all(
-        gap is not None and gap <= COVERAGE_GAP for _ts, gap in inside[1:])
+    if len(inside) < 2:
+        return False
+    # the window's ends must be sampled, or the day has no context
+    if inside[0][0] > iso_utc(moment - DAY + 2 * HOUR):
+        return False
+    if inside[-1][0] < iso_utc(moment + DAY - 2 * HOUR):
+        return False
+    return all(gap is not None and gap <= COVERAGE_GAP + GAP_TOLERANCE
+               for _ts, gap in inside[1:])
 
 
 def evaluated_days(gaps):
@@ -1094,6 +1120,14 @@ def evaluate(instance, gates_path=None, json_path=None, root=None, out=None):
         summary['gate_a'] = decision['gate_a']
         summary['ordering'] = decision['ordering']
         summary['use_affinity'] = decision['use_affinity']
+        # The ordering that shipped, and the verdicts it earned on its
+        # own numbers. ``aggregate`` needs these: it must not name an
+        # ordering that failed the plan's shipped-ordering rule on the
+        # accounts that tested it, and it can only know that from the
+        # records.
+        summary['shipped'] = decision['shipped']
+        summary['shipped_a1'] = decision['shipped_a1']['verdict']
+        summary['shipped_a2'] = decision['shipped_a2']['verdict']
         print_gates(decision, out)
     if json_path:
         with open(json_path, 'w', encoding='utf-8') as handle:
@@ -1105,13 +1139,15 @@ def evaluate(instance, gates_path=None, json_path=None, root=None, out=None):
 def aggregate(paths, gates_path=None, out=None):
     """The H1 record across accounts: the per-account summaries, judged.
 
-    Gate A passes when at least ``min_accounts_passing`` accounts' records
-    pass. A failure on any account that is not offset by enough passes is
-    a FAIL; only accounts that ran out of days without failing make the
-    whole INCONCLUSIVE. The ordering and the affinity decision are the
-    accounts' majority, and a tie falls back to the more conservative
-    answer: ``rank``, without affinity. Without a gates file nothing is
-    decided.
+    Gate A passes when at least ``min_accounts_passing`` accounts'
+    records pass **and** those records shipped an ordering that passed
+    A1 and A2 on its own numbers — the plan's shipped-ordering rule,
+    which the accounts' majority cannot override. A failure on any
+    account that is not offset by enough passes is a FAIL; only accounts
+    that ran out of days without failing make the whole INCONCLUSIVE.
+    The ordering and the affinity decision are the accounts' majority,
+    and a tie falls back to the more conservative answer: ``rank``,
+    without affinity. Without a gates file nothing is decided.
     """
     out = out or sys.stdout
     gates = load_gates(gates_path)
@@ -1123,18 +1159,32 @@ def aggregate(paths, gates_path=None, out=None):
         with open(path, encoding='utf-8') as handle:
             records.append(json.load(handle))
     verdicts = [record.get('gate_a') for record in records]
-    if verdicts.count('PASS') >= gates['min_accounts_passing']:
-        gate_a = 'PASS'
-    elif 'FAIL' in verdicts:
-        gate_a = 'FAIL'
-    else:
-        gate_a = 'INCONCLUSIVE'
     orderings = [record.get('ordering') for record in records]
     ordering = ('affinity_chrono'
                 if orderings.count('affinity_chrono') > orderings.count('rank')
                 else 'rank')
     uses = [record.get('use_affinity') for record in records]
     use_affinity = 2 * sum(1 for value in uses if value) > len(uses)
+
+    # The ordering that ships is named by ``ordering`` and ``use_affinity``
+    # together: 'rank' with affinity is ``rank_affinity``, 'rank' without
+    # is ``rank_null``, and 'affinity_chrono' is itself. The plan says
+    # that ordering "must pass A1 and A2 itself", so the records that
+    # shipped *that* ordering and passed are the ones that carry the
+    # decision. Without this, a majority could name an ordering that
+    # failed on the only account that tested it.
+    shipped = ('affinity_chrono' if ordering == 'affinity_chrono'
+               else ('rank_affinity' if use_affinity else 'rank_null'))
+    carried = [record for record in records
+               if record.get('shipped') == shipped
+               and record.get('shipped_a1') == 'PASS'
+               and record.get('shipped_a2') == 'PASS']
+    if len(carried) >= gates['min_accounts_passing']:
+        gate_a = 'PASS'
+    elif 'FAIL' in verdicts:
+        gate_a = 'FAIL'
+    else:
+        gate_a = 'INCONCLUSIVE'
     print('Gate A: %s' % gate_a, file=out)
     print('ORDERING: %s' % ordering, file=out)
     print('USE_AFFINITY: %s' % ('true' if use_affinity else 'false'),

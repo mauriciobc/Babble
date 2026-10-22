@@ -597,6 +597,15 @@ for them, but never records their outcome.
 
    A record whose ordering did not pass A1 and A2 is Gate A: FAIL.
 
+   **And across accounts, the same rule.** `ORDERING` and `USE_AFFINITY`
+   together name one ordering — `rank` with affinity is `rank_affinity`,
+   `rank` without is `rank_null`, `affinity_chrono` is itself. Gate A is
+   PASS only when at least `min_accounts_passing` records shipped **that**
+   ordering and passed A1 and A2 on its own numbers. The accounts'
+   majority cannot rescue an ordering that failed on the accounts that
+   tested it: the record must carry the shipped ordering and the two
+   verdicts it earned, so `aggregate` can check them.
+
 A FAIL or INCONCLUSIVE stops the plan (the design's kill rule): S0's and
 S1's modules are removed in a final `chore:` commit.
 
@@ -1144,6 +1153,22 @@ suite; H1 can start.
    [T − 24 h, T + 24 h] exceeds 2 h. Compute the gaps in SQL with
    `LAG(ts) OVER (ORDER BY ts)` on `runs`, not in Python. Days without
    coverage are reported as `no-coverage` and are not counted.
+
+   **The window must also be spanned.** The gap rule alone does not
+   establish coverage: a window whose first twenty-four hours were never
+   sampled has no *internal* gap to measure, and would pass a check that
+   looked only at those — and the day would then be judged on half the
+   context it is supposed to have. So a day is covered only when there
+   is a run within the coverage gap of **each** end of the window, and
+   no interior gap over the limit. A collection of N days therefore
+   yields N − 2 judgeable days, which is the correct count: the first
+   and the last have no context on one side.
+
+   **The gap is compared with a tolerance.** `julianday` resolves to
+   about ten microseconds, so a gap of exactly two hours comes back as
+   7200.000013 or 7199.999973 depending on the date. The plan allows a
+   two-hour gap — one missed hourly run — so without a margin the same
+   sampling pattern would be covered on one day and not on the next.
 2. **Candidates at T.** Posts with `created_at` in [T − 24 h, T), not
    engaged in any observation at or before T. Each candidate's counters are
    replaced, in a copy, by the last observation at or before T: one query,
@@ -1275,6 +1300,16 @@ suite; H1 can start.
    - temporal split: a post engaged before T is not a candidate, and an
      engagement after T does not change affinity at T. Plant a case where
      leakage *would* change the top 20, and assert it does not;
+     - **and the whole-future rewrite**, which is the stronger form of
+       the same check: take a recorded world, **rewrite every observation
+       after a chosen day** — every post engaged, every counter changed —
+       and assert that the days *before* that day come out **byte for
+       byte identical**, day for day and metric for metric, while the
+       days after it may differ. A query that reads one row too many
+       shows up here and nowhere else: the planted case can be satisfied
+       by a single guard, while this one catches any path that reaches
+       past T. The judge's run of this on 2026-10-21 changed exactly the
+       days after the rewrite and left the others untouched;
    - the sign-test p for 11 of 14 is 0.02869 (± 1e-5), and for 10 of 14 is
      0.08978;
    - gate verdicts on a fixture gates file, covering PASS, FAIL and
