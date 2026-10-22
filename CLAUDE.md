@@ -52,27 +52,63 @@ Performance benchmark (timeline workload against a local fixture server, run und
 
 Ranked timeline evaluation (`bench/rank_eval.py`, never installed): `collect` records one account's home timeline into `${XDG_CACHE_HOME:-~/.cache}/babble-eval/`, `evaluate` judges it day by day against `bench/rank_eval_gates.json` (the maintainer's file, H0), `aggregate` folds the per-account summaries into the Gate A record, and `self-test` checks the harness against a synthetic world with no network (`meson test -C build 'rank eval'`).
 
-The three managed accounts (D2) are created by hand; the harness only acts as them, and every server call goes through `src/mastodon.py`. The recipe, in order:
+The three managed accounts (D2) live on `https://mastodon.social`: `babble_eval_a`
+(`117482092944029604`), `babble_eval_b` (`117484163056225627`) and
+`babble_eval_c` (`117484225356697601`). They were created by hand; the harness
+only acts as them, and every server call goes through `src/mastodon.py`. The
+account ids and the follow state are in `.eval-accounts.md` (git-ignored). The
+recipe, in order:
 
-1. Create the three accounts on the chosen instance. `follow`, `engage` and `inspect` are the harness's side of managing them.
-2. Create one token per account (Preferences → Development → New application, or the instance's own token page) with the **`read write`** scopes: `read` is what `collect` needs, `write` is what `favourite`, `reblog`, `bookmark`, `reply` and `follow` need. `follow` is not a scope of its own since Mastodon 3.5; `read`/`write` cover it, which is also what the app itself requests.
-3. Put each token in the keyring, and note the account id it prints:
+1. Create one token per account (Preferences → Development → New application, or
+   the instance's own token page) with the **`read write`** scopes: `read` is
+   what `collect` needs, `write` is what `favourite`, `reblog`, `bookmark`,
+   `reply` and `follow` need. `follow` is not a scope of its own since Mastodon
+   3.5; `read`/`write` cover it, which is also what the app itself requests.
+2. Put each token in the keyring, and note the account id it prints:
    ```sh
-   python3 bench/rank_eval.py token --instance https://INSTANCE
+   python3 bench/rank_eval.py token --instance https://mastodon.social
    ```
-   It reads the token from the terminal without echoing it (or from stdin when piped), verifies it with `verify_credentials`, and stores it under the id the server names. A refused token, or an `--account-id` that is not that id, stops it with a line and exit 2; the token is never printed on any path.
-4. Give each account people to read, then check it can see posts:
+   It reads the token from the terminal without echoing it (or from stdin when
+   piped), verifies it with `verify_credentials`, and stores it under the id
+   the server names. A refused token, or an `--account-id` that is not that id,
+   stops it with a line and exit 2; the token is never printed on any path.
+3. Check each account can see posts:
    ```sh
-   python3 bench/rank_eval.py follow --instance https://INSTANCE --account-id ID \
-     --from-account SOURCE_ID --limit 150 --pause 1
-   python3 bench/rank_eval.py inspect --instance https://INSTANCE --account-id ID
+   python3 bench/rank_eval.py inspect --instance https://mastodon.social \
+     --account-id 117482092944029604 --account-id 117484163056225627 \
+     --account-id 117484225356697601
    ```
-   `inspect` prints `following=`, `followers=`, `statuses=`, `home=` (first page of the home timeline) and `older=`. `home=0` means there is nothing to rank and the 14-day run cannot start; build D2's shape — one account under 200 follows, one over 1,000 — with `--limit` and repeated runs, since accounts already followed are skipped. `requested=` counts follows of locked accounts awaiting approval, which do not move `following=` yet.
+   `inspect` prints `following=`, `followers=`, `statuses=`, `home=` (first page
+   of the home timeline) and `older=`. `home=0` means there is nothing to rank
+   and the 14-day run cannot start. D2's shape is one account under 200 follows
+   and one over 1,000; the accounts were seeded by import, and locked and
+   remote accounts do not count until they accept, so `following=` can still
+   rise. `requested=` counts follows of locked accounts awaiting approval.
+4. To follow more (the API's limit is 400 follows a day):
+   ```sh
+   python3 bench/rank_eval.py follow --instance https://mastodon.social \
+     --account-id 117484225356697601 --from-account SOURCE_ID --limit 150 --pause 1
+   ```
+   Accounts already followed, and ones whose request is still pending, are
+   skipped, so a rerun continues where the last one stopped. `follow` sends
+   `notify=false`, but the people followed are still followed by a bot-flagged
+   account: keep the accounts quiet — no posts, and engagement only as the
+   gates need it.
 5. Start the collection, hourly, per account:
    ```sh
-   python3 bench/rank_eval.py collect --instance https://INSTANCE --account-id ID
+   python3 bench/rank_eval.py collect --instance https://mastodon.social \
+     --account-id 117482092944029604
    ```
-   `engage --kind favourite|reblog|bookmark|reply --target STATUS_ID` (a reply also needs `--text`) is how the harness produces the engagement T4.2 credits. The recorded posts never leave this machine; `evaluate --json` writes numbers, dates and verdicts only.
+   **Each account's data is its own**, under the account id in the path, so
+   `evaluate` needs the same `--account-id` to read it back:
+   ```sh
+   python3 bench/rank_eval.py evaluate --instance https://mastodon.social \
+     --account-id 117482092944029604 --json /tmp/a.json
+   ```
+   `engage --kind favourite|reblog|bookmark|reply --target STATUS_ID` (a reply
+   also needs `--text`, and a reblog or a reply a `--visibility`) is how the
+   harness produces the engagement T4.2 credits. The recorded posts never leave
+   this machine; `evaluate --json` writes numbers, dates and verdicts only.
 
 Memory leaks: follow `MEMORY-LEAKS.md`. `python3 bench/memwatch.py --trim` launches the uninstalled app (quit any running copy first; it is single-instance), samples RSS/CPU, and on Enter injects `bench/memprobe.py` through `sys.remote_exec` to report live objects, caches, textures and heap.
 

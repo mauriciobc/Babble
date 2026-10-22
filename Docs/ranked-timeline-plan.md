@@ -443,6 +443,51 @@ check looks for substrings, and `synth` is a substring of
 `@synth@synth.example`. The judge's own mutation — a summary value of
 `synth` — was caught.
 
+### Revision 9 (after W3's T1.4, 2026-10-22)
+
+T1.4 gave the harness the ability to **act** as an account, and the
+review found that the recipe it shipped would have made H1 impossible.
+
+**The blocker: three accounts, one store.** The data directory was
+keyed by the instance alone, so all three accounts wrote to one
+SQLite file. The `viewer_id` is a single row — the last account to
+run overwrote the others — one account's hourly runs were another's
+coverage, and the candidate pool was the union of three feeds. H1
+needs three verdicts, and `aggregate` does not check that the records
+it folds are distinct, so one feed counted three times would read as
+`Gate A: PASS`. The account is now part of the path, and `evaluate`
+takes the same `--account-id` to read back.
+
+**The recipe's `engage` command did not run.** It was written without
+`--instance` and without `--account-id`, so it exited 2 on the very
+step that produces the engagement the labels come from.
+
+**The token-absence claims were stronger than the tests.** Only six
+of the checks asserted the secret was absent from the output; the
+reply, the engagement refusal, every `follow` and `inspect`'s failure
+path did not. Now every command's run asserts it.
+
+**Six smaller gaps, all closed:** a home-timeline failure was blamed
+on the account rather than on the timeline; `older=` was never true in
+any test, and the fake never paged; the real keyring writer was never
+run, so its two arguments could be swapped undetected; the no-echo
+property was untested; and the client check pinned only verb and
+path, leaving every form body and every `*_finish` free.
+
+**The token does not escape on any path.** The success, the 401
+refusal, the id mismatch and the keyring failure were each reproduced:
+the secret appears in neither stream. `summarize_error` carries the
+*server's* message, never the request.
+
+**The accounts exist.** Three bot-flagged accounts on
+`https://mastodon.social`, seeded by import from the maintainer's own
+following list, with the account ids and follow state in
+`.eval-accounts.md` (git-ignored). Their follow counts were still
+rising at the time of writing, so D2's shape — one account under 200
+follows, one over 1,000 — was not yet met by the largest, at 890.
+**No tokens exist yet**, which is the one thing only the maintainer
+can do: the OAuth flow needs a browser.
+
 ---
 
 ## 1. How an agent works through this plan

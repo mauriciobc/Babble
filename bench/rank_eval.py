@@ -225,24 +225,34 @@ def iso_utc(moment=None):
         '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
-def data_dir(instance, root=None):
-    """The harness data directory for *instance*.
+def data_dir(instance, root=None, account_id=None):
+    """The harness data directory for *instance*, and for one account on
+    it when *account_id* is given.
 
     *root* is the ``babble-eval`` directory itself; tests pass a temporary
     one. By default it is ``${XDG_CACHE_HOME:-~/.cache}/babble-eval``,
     read here rather than at import time so a caller can point it
     elsewhere.
+
+    **The account is part of the path.** H1 evaluates three accounts and
+    aggregates three summaries, and one store cannot give three: the
+    ``viewer_id`` is a single row, the runs of one account would be
+    another's coverage, and the candidates would be the union of three
+    feeds. So an account's data lives in its own directory.
     """
     if root is None:
         base = os.environ.get('XDG_CACHE_HOME') or os.path.join(
             os.path.expanduser('~'), '.cache')
         root = os.path.join(base, 'babble-eval')
-    return os.path.join(root, 'i-' + urllib.parse.quote(instance, safe=''))
+    name = 'i-' + urllib.parse.quote(instance, safe='')
+    if account_id:
+        name += '-a-' + urllib.parse.quote(str(account_id), safe='')
+    return os.path.join(root, name)
 
 
-def database_path(instance, root=None):
+def database_path(instance, root=None, account_id=None):
     """The one SQLite file a run appends to."""
-    return os.path.join(data_dir(instance, root), 'eval.sqlite3')
+    return os.path.join(data_dir(instance, root, account_id), 'eval.sqlite3')
 
 
 def make_client(instance, token):
@@ -596,7 +606,8 @@ def collect(instance, make_client=make_client, account_id=None, token=None,
         return 2
 
     run_ts = iso_utc(now)
-    connection = open_database(database_path(instance_url, root))
+    connection = open_database(
+        database_path(instance_url, root, account_id))
     try:
         known = {row[0] for row in
                  connection.execute('SELECT account_id FROM relationships')}
@@ -1032,10 +1043,18 @@ def inspect(instance, account_ids, token=None, make_client=make_client,
             continue
         try:
             account = invoke(client, 'verify_credentials')
+        except Exception as error:
+            print('rank_eval: %s' % refused('account %s' % account_id, error),
+                  file=sys.stderr)
+            failed = True
+            continue
+        try:
             home, next_params = call(client, '/timelines/home',
                                      {'limit': str(PAGE_LIMIT)})
         except Exception as error:
-            print('rank_eval: %s' % refused('account %s' % account_id, error),
+            print('rank_eval: %s'
+                  % refused('the home timeline of account %s' % account_id,
+                            error),
                   file=sys.stderr)
             failed = True
             continue
@@ -1556,7 +1575,8 @@ def print_gates(decision, out):
                                 else 'false'), file=out)
 
 
-def evaluate(instance, gates_path=None, json_path=None, root=None, out=None):
+def evaluate(instance, gates_path=None, json_path=None, root=None, out=None,
+             account_id=None):
     """Judge the recorded feed, day by day. Returns an exit code.
 
     Every local day between the first and the last run is printed. A day
@@ -1568,6 +1588,10 @@ def evaluate(instance, gates_path=None, json_path=None, root=None, out=None):
     no id and no handle. Without one, only the metrics are printed: the
     thresholds were frozen before the data came in (H0), so they cannot
     be chosen after it.
+
+    *account_id* names the account whose data to read, and it must be the
+    same one ``collect`` wrote under: H1 evaluates three accounts and
+    aggregates three summaries, so each account's days must be its own.
     """
     out = out or sys.stdout
     try:
@@ -1575,7 +1599,8 @@ def evaluate(instance, gates_path=None, json_path=None, root=None, out=None):
     except ValueError as error:
         print('rank_eval: %s' % error, file=sys.stderr)
         return 2
-    connection = open_database(database_path(instance_url, root))
+    connection = open_database(
+        database_path(instance_url, root, account_id))
     try:
         viewer, following, mutuals = stored_maps(connection)
         gaps = run_gaps(connection)
@@ -1928,7 +1953,7 @@ class FakeAccountClient:
     def __init__(self, account_id=VIEWER_ID, following_count=0,
                  followers_count=0, statuses_count=0, follows=(),
                  following=(), requested=(), home=(), refuse=None,
-                 limited_after=None):
+                 limited_after=None, next_pages=()):
         self.account_id = str(account_id)
         self.following_count = following_count
         self.followers_count = followers_count
@@ -1939,7 +1964,10 @@ class FakeAccountClient:
         self.home = list(home)
         self.refuse = dict(refuse or {})
         self.limited_after = limited_after
+        # The parameters each page hands back for the next one, in order.
+        self.next_pages = list(next_pages)
         self.asked = []
+        self.asked_visibility = {}
         self.writes = 0
         self.followed = []
         self.requested = []
@@ -1998,7 +2026,11 @@ class FakeAccountClient:
         self._read('request', path, params, callback)
 
     def request_finish_paged(self, result):
-        return self._finish(result), None, None
+        # A page that has a next one hands back the parameters to ask
+        # for it, which is how `inspect` knows the home timeline has
+        # more than the first page and how `follow` walks the list.
+        next_params = self.next_pages.pop(0) if self.next_pages else None
+        return self._finish(result), next_params, None
 
     def verify_credentials_async(self, callback=None, cancellable=None):
         self._read('verify', '/accounts/verify_credentials', None, callback)
@@ -2016,6 +2048,9 @@ class FakeAccountClient:
 
     def reblog_async(self, status_id, visibility=None, callback=None,
                      cancellable=None):
+        # The visibility is kept beside the call, so a check can say the
+        # harness passed it on rather than dropping it.
+        self.asked_visibility['reblog'] = visibility
         self._write('reblog', str(status_id), {'id': str(status_id),
                                                'reblogged': True})
         callback(self, None)
@@ -2960,7 +2995,11 @@ def check_accounts(checks):
         with contextlib.redirect_stdout(out), \
                 contextlib.redirect_stderr(err):
             code = function(*args, **kwargs)
-        return code, out.getvalue(), err.getvalue()
+        printed, errors = out.getvalue(), err.getvalue()
+        checks.check('no token reaches the streams of %s'
+                     % getattr(function, '__name__', function),
+                     secret not in printed + errors)
+        return code, printed, errors
 
     # --- tokens in -----------------------------------------------------
     stored = {}
@@ -3044,6 +3083,24 @@ def check_accounts(checks):
                              {'visibility': 'private'}))])
     checks.check('and the line names the reply and the target',
                  code == 0 and 'reply target=post-2' in printed)
+
+    fake = FakeAccountClient()
+    code, printed, errors = run(
+        engage, SYNTHETIC_INSTANCE, 'post-2', 'reply', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a reply without text stops before the server',
+                 (code, 'a reply needs --text' in errors,
+                  [call for call in fake.asked if call[0] == 'reply']),
+                 (2, True, []))
+
+    fake = FakeAccountClient()
+    code, printed, errors = run(
+        engage, SYNTHETIC_INSTANCE, 'post-5', 'reblog', visibility='private',
+        token=secret, make_client=lambda _instance, _token: fake)
+    checks.equal('a reblog carries its visibility',
+                 (fake.asked_visibility.get('reblog'),
+                  [call for call in fake.asked if call[0] == 'reblog']),
+                 ('private', [('reblog', 'post-5')]))
 
     fake = FakeAccountClient(refuse={'favourite': 403})
     code, printed, errors = run(
@@ -3161,6 +3218,23 @@ def check_accounts(checks):
     checks.equal('and no account token is printed', any(
         token in printed + errors for token in tokens.values()), False)
 
+    # `older=` says the home timeline has more than its first page. It
+    # comes from the parameters the server hands back for the next one,
+    # so a page that has a next one must say so.
+    paged = FakeAccountClient(following_count=7, home=[{'id': 'p1'}],
+                              next_pages=[{'max_id': 'p1'}])
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, [VIEWER_ID], token=secret,
+        make_client=lambda _instance, _token: paged)
+    checks.check('a home timeline with more than one page says so',
+                 code == 0 and 'older=True' in printed)
+    unpaged = FakeAccountClient(following_count=7, home=[{'id': 'p1'}])
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, [VIEWER_ID], token=secret,
+        make_client=lambda _instance, _token: unpaged)
+    checks.check('and one with a single page does not',
+                 code == 0 and 'older=False' in printed)
+
     code, printed, errors = run(
         inspect, SYNTHETIC_INSTANCE, ['acct-a', 'acct-missing'],
         make_client=by_token, reader=reader)
@@ -3224,6 +3298,145 @@ def check_accounts(checks):
                  ('POST', '/statuses', {'json_body': {
                      'status': 'hello', 'in_reply_to_id': '9',
                      'visibility': 'private'}}))
+
+    # The forms and the finishes, which the verb-and-path check leaves
+    # free: a reblog without its visibility, and a reply that finished as
+    # something else, would both pass.
+    sent = Sent()
+    REAL_CLIENT.reblog_async(sent, '7', 'private')
+    checks.equal('a reblog carries its visibility in the form',
+                 sent.sent[2].get('form'), {'visibility': 'private'})
+    sent = Sent()
+    REAL_CLIENT.bookmark_async(sent, '7')
+    checks.equal('a bookmark carries no form at all',
+                 sent.sent[2].get('form'), None)
+
+    class Finish:
+        """A stand-in for the client, to see which _finish is called."""
+
+        def _finish(self, result):
+            return ('_finish', result)
+
+        def post_status_finish(self, result):
+            return ('post_status', result)
+
+    checks.equal('reply_finish finishes as a posted status',
+                 REAL_CLIENT.reply_finish(Finish(), 'r'), ('post_status', 'r'))
+    checks.equal('follow_finish finishes as a request',
+                 REAL_CLIENT.follow_finish(Finish(), 'f'), ('_finish', 'f'))
+    checks.equal('favourite_finish finishes as a request',
+                 REAL_CLIENT.favourite_finish(Finish(), 'x'), ('_finish', 'x'))
+
+    # --- the three accounts keep their own data -------------------------
+    # H1 evaluates three accounts and aggregates three summaries. One
+    # store cannot give three: the viewer is a single row, and one
+    # account's runs would be another's coverage.
+    root = os.path.join(tempfile.gettempdir(), 'rank-eval-separate-%d'
+                        % os.getpid())
+    try:
+        shutil.rmtree(root, ignore_errors=True)
+        for name in ('one', 'two'):
+            fake = FakeAccountClient(account_id='acct-' + name)
+            run(collect, SYNTHETIC_INSTANCE, account_id=name, token=secret,
+                make_client=lambda _instance, _token, f=fake: f,
+                now=WORLD_START, root=root)
+        paths = [database_path(SYNTHETIC_INSTANCE, root, name)
+                 for name in ('one', 'two')]
+        checks.check('two accounts write to two databases',
+                     paths[0] != paths[1]
+                     and all(os.path.exists(path) for path in paths))
+        viewers = []
+        for path in paths:
+            connection = sqlite3.connect(path)
+            try:
+                row = connection.execute(
+                    "SELECT value FROM meta WHERE key = 'viewer_id'"
+                ).fetchone()
+                viewers.append(row[0] if row else None)
+            finally:
+                connection.close()
+        checks.equal('and each keeps its own viewer', viewers,
+                     ['acct-one', 'acct-two'])
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+    # --- the real keyring writer -----------------------------------------
+    # Every test passes its own writer, so the one that calls the keyring
+    # is never run -- and a writer that stored the token as the keyring's
+    # *kind* and the account id as the secret would leave `collect`
+    # holding an invalid token, silently.
+    calls = []
+
+    def fake_store(instance, kind, payload, callback=None, cancellable=None):
+        calls.append((instance, kind, payload))
+        callback(None)
+
+    saved_store = mastodon.store_secret_async
+    mastodon.store_secret_async = fake_store
+    try:
+        write_secret(SYNTHETIC_INSTANCE, VIEWER_ID, secret)
+    finally:
+        mastodon.store_secret_async = saved_store
+    checks.equal('the real keyring writer stores the token as the payload'
+                 ' and the account id as the kind',
+                 calls, [(SYNTHETIC_INSTANCE, VIEWER_ID, secret)])
+
+    # And that it raises when the keyring says no: a token that was
+    # never stored, reported as stored, would leave `collect` without
+    # one and the run would fail later, far from the cause.
+    def refusing_store(instance, kind, payload, callback=None,
+                       cancellable=None):
+        callback(GLib.Error.new_literal(GLib.quark_from_string('g-secret'),
+                                        'the keyring is locked', 1))
+
+    saved_store = mastodon.store_secret_async
+    mastodon.store_secret_async = refusing_store
+    try:
+        raised = None
+        try:
+            write_secret(SYNTHETIC_INSTANCE, VIEWER_ID, secret)
+        except GLib.Error as error:
+            raised = error
+        checks.check('the keyring writer raises what the keyring said',
+                     raised is not None and 'locked' in raised.message)
+    finally:
+        mastodon.store_secret_async = saved_store
+
+    # --- the token is read without echo ------------------------------------
+    # Nothing else here can see this: it is a property of the terminal,
+    # not of the output.
+    class Tty(io.StringIO):
+        def isatty(self):
+            return True
+
+    saved_stdin, saved_getpass = sys.stdin, getpass.getpass
+    sys.stdin = Tty()
+    getpass.getpass = lambda prompt='': secret
+    try:
+        typed = read_token_line()
+    finally:
+        sys.stdin, getpass.getpass = saved_stdin, saved_getpass
+    checks.equal('a terminal token is read without echo, through getpass',
+                 typed, secret)
+
+    # --- the inspect command with a token ----------------------------------
+    # The one path that takes a token on the command line, and the one
+    # whose output could have carried it.
+    fake = FakeAccountClient(following_count=3, home=[{'id': 'p1'}])
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, [VIEWER_ID], token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.check('inspect reports the account with a token given',
+                 code == 0 and 'following=3' in printed)
+
+    # A token names one account, so `inspect` must not take one and a
+    # list of accounts at once: it would have no way to say which the
+    # token belongs to.
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, ['acct-a', 'acct-b'], token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a token with more than one account is refused',
+                 (code, 'names one account' in errors), (2, True))
 
 
 def check_world(checks, work, gates_path):
@@ -3647,6 +3860,11 @@ def build_parser():
     evaluate_command.add_argument(
         '--json', dest='json_path',
         help='write the summary here (numbers, dates and verdicts only)')
+    evaluate_command.add_argument(
+        '--account-id',
+        help='the account whose data to judge; the same one collect wrote'
+             ' under. Without it, the account-less directory is read,'
+             ' which is where a single-account collection lands.')
 
     aggregate_command = commands.add_parser(
         'aggregate', help='the H1 record over several summaries')
@@ -3732,7 +3950,8 @@ def main(argv=None):
         return collect(args.instance, account_id=args.account_id)
     if args.command == 'evaluate':
         return evaluate(args.instance, gates_path=args.gates,
-                        json_path=args.json_path)
+                        json_path=args.json_path,
+                        account_id=args.account_id)
     if args.command == 'aggregate':
         return aggregate(args.summaries, gates_path=args.gates)
     if args.command == 'token':
