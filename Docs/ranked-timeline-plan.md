@@ -716,6 +716,15 @@ Under D2, someone must first build the account manager — and decide
 server-specific and many instances disable it. Until that exists and
 its task is written, H1 cannot start and the 14-day clock cannot run.
 
+**Revised on 2026-10-22.** The maintainer creates the three accounts by
+hand and hands the harness their tokens; the harness does not register
+accounts. T1.4 is therefore the harness's half — the capabilities an
+account needs (acting as one, following, engaging) — and it carries a
+written recipe for the maintainer's half. The report it must produce on
+whether the three timelines can be made non-empty is the question that
+decides whether D2 is workable, and it is the part most likely to come
+back as a finding rather than a result.
+
 
 ```json
 {
@@ -1590,8 +1599,7 @@ See §4. It needs D1–D3 frozen, and T1.3 merged.
 ##### T1.4: the managed accounts (from D2)
 
 - **Owner:** agent.
-- **Depends on:** T1.3, and a decision about **which server** hosts the
-  accounts.
+- **Depends on:** T1.3, and the three accounts existing.
 - **Why it exists:** D2 was decided as *three accounts created and managed
   by the harness*, not human volunteers. Today the harness is read-only
   — one `GET` in the whole file — and the client has no `favourite`,
@@ -1607,24 +1615,40 @@ See §4. It needs D1–D3 frozen, and T1.3 merged.
   the write methods must live on the shared client — see the boundary
   rule below.
 
+**The split of the work, decided on 2026-10-22.** The maintainer
+**creates the three accounts by hand** and hands the harness their
+tokens. The harness does **not** register accounts: registration is
+server-specific, many instances disable it, and a registration flow
+that is not exercised against a real server is a flow that does not
+work. So this task builds the harness's half — the *capabilities* the
+accounts need — and the maintainer's half is three accounts and three
+tokens.
+
+This is a smaller task than the account manager it replaces, and a
+better one: what the harness needs is not "create an account" but
+"act as one". The rest of the spec is unchanged in substance.
+
 **Spec.**
 
-1. **Registration.** A `register` command that creates an account on a
-   server and stores its token where `collect` can find it: the keyring,
-   under an account id the command chooses. The registration flow is
-   server-specific and many instances disable it, so the command must
-   **report the server's refusal clearly** and exit 2, not retry.
+1. **Tokens in.** A command — or a documented form of the keyring — that
+   takes a token for an account and stores it where `collect` can find
+   it. The harness already reads the keyring (`collect --account-id`);
+   what it lacks is a way to *put* a token there without a browser
+   flow. The command must **never print the token**, and must fail
+   cleanly if the server rejects it (`verify_credentials` answers 401).
 2. **Engagement.** A way for the harness to *produce* the engagement the
    labels come from — the `favourite`, `reblog`, `bookmark` and `reply`
-   that `T4.2` credits. Whether this is a `engage` command in the
+   that `T4.2` credits. Whether this is an `engage` command in the
    harness or a write method on the shared client is a judgement call;
    see the boundary rule below.
-3. **Three accounts.** A command or a documented recipe that stands up
-   the three accounts, and a way to keep them fed — the accounts must
-   **follow** other accounts, or their home timelines are empty and
-   there is nothing to rank. The plan's D2 proposed one account with
-   under 200 follows and one with over 1,000; that shape must survive,
-   because A2's small-account-share metric depends on it.
+3. **The three accounts.** A command or a documented recipe that
+   **follows** other accounts for each of the three, and reports the
+   resulting follow counts. The accounts must follow people, or their
+   home timelines are empty and there is nothing to rank. The plan's D2
+   proposed one account with under 200 follows and one with over 1,000;
+   that shape must survive, because A2's small-account-share metric
+   depends on it. **Following is a write call the harness does not yet
+   make** — it is part of what this task adds.
 4. **The account's timeline must be non-trivial.** A managed account
    needs people to follow and posts to read. This is the part that
    decides whether D2 is workable at all, and the task must report on
@@ -1642,10 +1666,9 @@ exactly what the boundary test exists to prevent. Check
 
 - [ ] `meson test -C build 'module boundary'` passes; the Catch Up
       boundary diff is empty.
-- [ ] The new command works against a local test server, or against a
-      server the maintainer names — and **fails cleanly** against one
-      that refuses registration, with a message that says what was
-      refused.
+- [ ] The new commands work against a server the maintainer names — and
+      **fail cleanly** against one that refuses, with a message that says
+      what was refused.
 - [ ] A run's token is never printed, and never written to a file the
       harness does not own.
 - [ ] `ruff check bench/rank_eval.py src/mastodon.py` passes.
@@ -1654,6 +1677,10 @@ exactly what the boundary test exists to prevent. Check
       the numbers. If a managed account's home timeline cannot be made
       to have posts, that is a **finding about D2**, and it goes to the
       maintainer as a stop-and-report, not as a workaround.
+- [ ] **A written recipe for the maintainer**: how to create the three
+      accounts, what scopes their tokens need, and the exact commands to
+      put the tokens in and start the collection. The recipe is part of
+      the deliverable, because the maintainer does the account half.
 
 ---
 
