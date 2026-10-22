@@ -1207,6 +1207,31 @@ class MastodonClient(GObject.Object):
         data = self._finish(result)
         return data[0] if data else {}
 
+    def follow_async(self, account_id, reblogs=True, notify=False,
+                     callback=None, cancellable=None):
+        """POST /api/v1/accounts/:id/follow; the answer is the
+        relationship, not the account.
+
+        A locked account answers ``requested: true`` instead of
+        ``following: true``: the request exists, the follow does not.
+        """
+        form = {'reblogs': 'true' if reblogs else 'false',
+                'notify': 'true' if notify else 'false'}
+        return self._request_async('POST', '/accounts/%s/follow' % account_id,
+                                   form=form, callback=callback,
+                                   cancellable=cancellable)
+
+    def follow_finish(self, result):
+        return self._finish(result)
+
+    def unfollow_async(self, account_id, callback=None, cancellable=None):
+        return self._request_async('POST', '/accounts/%s/unfollow'
+                                   % account_id, callback=callback,
+                                   cancellable=cancellable)
+
+    def unfollow_finish(self, result):
+        return self._finish(result)
+
 
     # Timelines and notifications
 
@@ -1305,6 +1330,61 @@ class MastodonClient(GObject.Object):
         data = self._finish(result)
         return data.get('ancestors', []), data.get('descendants', [])
 
+    def favourite_async(self, status_id, callback=None, cancellable=None):
+        """POST /api/v1/statuses/:id/favourite; the answer is the status."""
+        return self._request_async('POST', '/statuses/%s/favourite'
+                                   % status_id, callback=callback,
+                                   cancellable=cancellable)
+
+    def favourite_finish(self, result):
+        return self._finish(result)
+
+    def unfavourite_async(self, status_id, callback=None, cancellable=None):
+        return self._request_async('POST', '/statuses/%s/unfavourite'
+                                   % status_id, callback=callback,
+                                   cancellable=cancellable)
+
+    def unfavourite_finish(self, result):
+        return self._finish(result)
+
+    def reblog_async(self, status_id, visibility=None, callback=None,
+                     cancellable=None):
+        """POST /api/v1/statuses/:id/reblog.
+
+        *visibility* is ``public`` or ``private``; the server's default
+        applies when it is absent.
+        """
+        form = {'visibility': visibility} if visibility else None
+        return self._request_async('POST', '/statuses/%s/reblog' % status_id,
+                                   form=form, callback=callback,
+                                   cancellable=cancellable)
+
+    def reblog_finish(self, result):
+        return self._finish(result)
+
+    def unreblog_async(self, status_id, callback=None, cancellable=None):
+        return self._request_async('POST', '/statuses/%s/unreblog'
+                                   % status_id, callback=callback,
+                                   cancellable=cancellable)
+
+    def unreblog_finish(self, result):
+        return self._finish(result)
+
+    def bookmark_async(self, status_id, callback=None, cancellable=None):
+        return self._request_async('POST', '/statuses/%s/bookmark' % status_id,
+                                   callback=callback, cancellable=cancellable)
+
+    def bookmark_finish(self, result):
+        return self._finish(result)
+
+    def unbookmark_async(self, status_id, callback=None, cancellable=None):
+        return self._request_async('POST', '/statuses/%s/unbookmark'
+                                   % status_id, callback=callback,
+                                   cancellable=cancellable)
+
+    def unbookmark_finish(self, result):
+        return self._finish(result)
+
     def post_status_async(self, text, params=None, callback=None,
                           cancellable=None):
         """POST /api/v1/statuses as JSON, so nested values (``poll``
@@ -1327,6 +1407,21 @@ class MastodonClient(GObject.Object):
 
     def post_status_finish(self, result):
         return self._finish(result)
+
+    def reply_async(self, status_id, text, params=None, callback=None,
+                    cancellable=None):
+        """POST /api/v1/statuses with ``in_reply_to_id``.
+
+        A reply is a status posted to the same endpoint; this names the
+        intent so a caller does not have to spell out the parent id.
+        """
+        body = dict(params or {})
+        body['in_reply_to_id'] = str(status_id)
+        return self.post_status_async(text, body, callback=callback,
+                                      cancellable=cancellable)
+
+    def reply_finish(self, result):
+        return self.post_status_finish(result)
 
     def edit_status_async(self, status_id, text, params=None, callback=None,
                           cancellable=None):

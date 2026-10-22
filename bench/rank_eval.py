@@ -42,6 +42,23 @@ a ``0700`` directory holding a ``0600`` file, one snapshot of every post's
 counters and flags per run. The ``i-`` prefix keeps ``.`` and ``..`` out of
 the path, since ``urllib.parse.quote`` leaves ``.`` alone.
 
+`token`, `follow`, `engage` and `inspect` are the harness's half of the
+managed accounts (D2). The maintainer creates three accounts by hand and
+hands over their tokens; `token` verifies one against
+``/accounts/verify_credentials`` and stores it in the keyring under the id
+the server names, where ``collect --account-id`` reads it. It never prints
+the token, on the success path or the failure path. `follow` follows
+accounts for one managed account and reports the resulting follow count:
+the candidates come from another account's following list or from ids
+given on the command line, accounts already followed are skipped, and
+``--limit`` plus ``--pause`` build an account over several runs without
+tripping the rate limit. `engage` produces one of the four engagements
+T4.2 credits -- ``favourite``, ``reblog``, ``bookmark``, ``reply`` -- and
+`inspect` reports, per account, its follow counts and how many home
+timeline posts it can see, which is the first thing to check before the
+14-day run. All four fail with a line naming what was refused, never a
+traceback.
+
 `evaluate` reads that database back and judges it, one local day at a time
 at 06:00 local (D3). A day is judged only when its 48-hour window was
 sampled at most two hours apart; the others are reported ``no-coverage``
@@ -90,7 +107,9 @@ every run printed.
 """
 
 import argparse
+import contextlib
 import datetime
+import getpass
 import io
 import itertools
 import json
@@ -230,6 +249,14 @@ def make_client(instance, token):
     """The real client. `collect` takes this factory as a parameter, so a
     test hands in a duck-typed fake and never constructs a Soup.Session."""
     return mastodon.MastodonClient(instance, token=token)
+
+
+# The real class, held here because `self_test` swaps the module attribute
+# for `_NoNetwork` (that swap is what fails a run which reaches for the
+# network). A check that pins the write methods' verbs and paths calls
+# them unbound on this one, so it exercises the shipped methods rather
+# than the stub.
+REAL_CLIENT = mastodon.MastodonClient
 
 
 def call(client, path, params=None):
@@ -562,23 +589,10 @@ def collect(instance, make_client=make_client, account_id=None, token=None,
         print('rank_eval: %s' % error, file=sys.stderr)
         return 2
 
-    if not token:
-        token = os.environ.get(TOKEN_VARIABLE) or None
-    if not token and account_id:
-        try:
-            token = read_secret(instance_url, account_id)
-        except GLib.Error as error:
-            print('rank_eval: cannot read the keyring: %s' % error.message,
-                  file=sys.stderr)
-            return 2
-        if not token:
-            print('rank_eval: no keyring entry for account %s on %s'
-                  % (account_id, instance_url), file=sys.stderr)
-            return 2
-    if not token:
-        print('rank_eval: no token: set %s, or pass --account-id to read'
-              ' the keyring entry Babble stored' % TOKEN_VARIABLE,
-              file=sys.stderr)
+    try:
+        token = token_for(instance_url, account_id, token)
+    except LookupError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
         return 2
 
     run_ts = iso_utc(now)
@@ -595,6 +609,453 @@ def collect(instance, make_client=make_client, account_id=None, token=None,
     print('%s posts=%d new=%d requests=%d partial=%s'
           % (run_ts, posts, new, requests, bool(gathered['error'])), file=out)
     return 0
+
+
+# region managed accounts
+#
+# D2's three accounts are created by hand; the harness is handed their
+# tokens. These are the harness's half: putting a token where `collect`
+# looks for one, following accounts so a home timeline has something in
+# it, producing the engagement the labels come from, and reporting the
+# counts that say whether an account is worth collecting.
+#
+# Every server call goes through Babble's own client -- reads through
+# `call`, writes through the client's named methods -- so the tree keeps
+# one HTTP path, not two.
+
+# The kinds of engagement T4.2 credits, and the ones `engage` produces.
+ENGAGEMENTS = ('favourite', 'reblog', 'bookmark', 'reply')
+
+# /accounts/:id/following caps a page at 80, and an account may follow far
+# more than the home timeline's 800; 50 pages reach 4,000 candidates,
+# enough for D2's over-1,000 account.
+FOLLOW_PAGE_LIMIT = 80
+FOLLOW_MAX_PAGES = 50
+
+
+def http_status(error):
+    """The HTTP status a client ``GLib.Error`` carries, or None.
+
+    The client builds every response failure with the HTTP status as the
+    error's code, so a caller can tell a refused token (401) from a
+    refused write (403) without reading the message. PyGObject hands the
+    domain back as its name, not its quark.
+    """
+    if isinstance(error, GLib.Error) \
+            and error.domain == 'mastodon-http-error-quark':
+        return error.code
+    return None
+
+
+def refused(what, error):
+    """*what* refused, in one line: the status, and the server's reason."""
+    status = http_status(error)
+    reason = mastodon.summarize_error(error) or 'no reason given'
+    return '%s refused%s: %s' % (what, ' (%d)' % status if status else '',
+                                 reason)
+
+
+def invoke(client, action, *args, **params):
+    """Run one client ``<action>_async`` and return ``<action>_finish``'s.
+
+    The client answers on the main loop, so a `GLib.MainLoop` runs until
+    the callback fires -- and not when a fake answered before returning,
+    the same allowance `call` makes. A failure is raised, which is what
+    every ``_finish`` does.
+    """
+    loop = GLib.MainLoop()
+    answer = {}
+
+    def finished(_client, result, _data=None):
+        try:
+            answer['value'] = getattr(client, action + '_finish')(result)
+        except Exception as error:
+            answer['error'] = error
+        finally:
+            loop.quit()
+
+    getattr(client, action + '_async')(*args, callback=finished, **params)
+    if not answer:
+        loop.run()
+    if 'error' in answer:
+        raise answer['error']
+    return answer['value']
+
+
+def write_secret(instance, account_id, token):
+    """Store *token* in the keyring under *account_id*, waited for.
+
+    `store_secret_async` calls back with None or the GLib.Error that
+    stopped it, and the loop runs until it answers -- what `read_secret`
+    does in the other direction. The self-test passes its own writer, so
+    neither this nor `token` needs a secret service to be exercised.
+    """
+    loop = GLib.MainLoop()
+    answer = {}
+
+    def done(error=None):
+        answer['error'] = error
+        loop.quit()
+
+    mastodon.store_secret_async(instance, account_id, token, done)
+    if not answer:
+        loop.run()
+    if answer.get('error') is not None:
+        raise answer['error']
+
+
+def token_for(instance_url, account_id=None, token=None, reader=read_secret):
+    """The token for one account, or a LookupError saying where it is not.
+
+    *token* wins, then ``BABBLE_EVAL_TOKEN``, then the keyring entry for
+    *account_id*. *reader* is `read_secret`, injected by the self-test so
+    no secret service is needed.
+    """
+    if not token:
+        token = os.environ.get(TOKEN_VARIABLE) or None
+    if not token and account_id:
+        try:
+            token = reader(instance_url, account_id)
+        except GLib.Error as error:
+            raise LookupError('cannot read the keyring: %s'
+                              % mastodon.summarize_error(error)) from error
+        if not token:
+            raise LookupError('no keyring entry for account %s on %s'
+                              % (account_id, instance_url))
+    if not token:
+        raise LookupError('no token: set %s, or pass --account-id to read'
+                          ' the keyring entry Babble stored'
+                          % TOKEN_VARIABLE)
+    return token
+
+
+def read_token_line(stream=None):
+    """One line from stdin, without echoing when a terminal can hide it."""
+    if sys.stdin.isatty():
+        try:
+            return getpass.getpass('Token: ').strip()
+        except (EOFError, KeyboardInterrupt):
+            return ''
+    return (stream or sys.stdin).readline().strip()
+
+
+def store_token(instance, account_id=None, token=None,
+                make_client=make_client, store_secret=None, out=None):
+    """Verify *token* and store it where `collect --account-id` reads it.
+
+    Returns the process exit code. The token is never printed, on either
+    path: the success line names the account and the instance, and a
+    failure names what the server or the keyring refused.
+    """
+    out = out or sys.stdout
+    store_secret = store_secret or write_secret
+    if not token:
+        print('rank_eval: no token to store: pass --token, or pipe one in',
+              file=sys.stderr)
+        return 2
+    try:
+        instance_url = mastodon.normalize_instance(instance)
+    except ValueError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
+        return 2
+    try:
+        account = invoke(make_client(instance_url, token),
+                         'verify_credentials')
+    except Exception as error:
+        print('rank_eval: %s' % refused('token', error), file=sys.stderr)
+        return 2
+    if not isinstance(account, dict) or not account.get('id'):
+        print('rank_eval: verify_credentials answered with no account, so'
+              ' the token was not stored', file=sys.stderr)
+        return 2
+    verified = str(account['id'])
+    if account_id and account_id != verified:
+        # Stored under the id the server names, the entry `collect
+        # --account-id` will look for; a different id would be an entry
+        # nothing reads.
+        print('rank_eval: the token belongs to account %s, not %s; nothing'
+              ' was stored' % (verified, account_id), file=sys.stderr)
+        return 2
+    try:
+        store_secret(instance_url, verified, token)
+    except GLib.Error as error:
+        print('rank_eval: cannot write the keyring: %s'
+              % mastodon.summarize_error(error), file=sys.stderr)
+        return 2
+    print('token stored for account %s on %s' % (verified, instance_url),
+          file=out)
+    return 0
+
+
+def engage(instance, target, kind, text=None, visibility=None, token=None,
+           account_id=None, make_client=make_client, reader=read_secret,
+           out=None):
+    """Produce one ``favourite``, ``reblog``, ``bookmark`` or ``reply`` on
+    *target*. Returns the process exit code.
+
+    2 means the command could not start -- a bad instance, no token, a
+    keyring that would not answer; 1 means the server refused the write,
+    and the line says which write and why. Neither path prints the token.
+    """
+    out = out or sys.stdout
+    if kind not in ENGAGEMENTS:
+        print('rank_eval: unknown engagement %s' % kind, file=sys.stderr)
+        return 2
+    if kind == 'reply' and not text:
+        print('rank_eval: a reply needs --text', file=sys.stderr)
+        return 2
+    try:
+        instance_url = mastodon.normalize_instance(instance)
+    except ValueError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
+        return 2
+    try:
+        client = make_client(
+            instance_url, token_for(instance_url, account_id, token, reader))
+    except LookupError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
+        return 2
+    try:
+        viewer = invoke(client, 'verify_credentials')
+    except Exception as error:
+        print('rank_eval: %s' % refused('token', error), file=sys.stderr)
+        return 2
+    if not isinstance(viewer, dict) or not viewer.get('id'):
+        print('rank_eval: verify_credentials answered with no account',
+              file=sys.stderr)
+        return 2
+    viewer_id = str(viewer['id'])
+    try:
+        if kind == 'reply':
+            params = {'visibility': visibility} if visibility else None
+            status = invoke(client, 'reply', str(target), text, params)
+        elif kind == 'reblog' and visibility:
+            status = invoke(client, 'reblog', str(target),
+                            visibility=visibility)
+        else:
+            status = invoke(client, kind, str(target))
+    except Exception as error:
+        print('rank_eval: %s' % refused(kind, error), file=sys.stderr)
+        return 1
+    created = status.get('id') if isinstance(status, dict) else None
+    print('%s %s target=%s account=%s status=%s'
+          % (iso_utc(), kind, target, viewer_id, created or '-'), file=out)
+    return 0
+
+
+def already_following(client, account_ids):
+    """The subset of *account_ids* the viewer follows or has asked to.
+
+    A locked account answers a follow with ``requested: true`` and
+    ``following: false``; treating only the second as done would send the
+    same request again on every resumed run, which for D2's over-1,000
+    account is a thousand wasted requests.
+    """
+    following = set()
+    for batch in itertools.batched(account_ids, RELATIONSHIP_BATCH):
+        relationships = call(client, '/accounts/relationships',
+                             {'id[]': list(batch)})[0]
+        for relationship in relationships if isinstance(
+                relationships, list) else ():
+            if not isinstance(relationship, dict):
+                continue
+            if relationship.get('following') or relationship.get('requested'):
+                following.add(str(relationship.get('id')))
+    return following
+
+
+def follow(instance, from_account=None, accounts=(), limit=0, pause=0.0,
+           token=None, account_id=None, make_client=make_client,
+           reader=read_secret, sleep=time.sleep, out=None):
+    """Follow accounts for one managed account, then report its counts.
+
+    Candidates come from *from_account* (the accounts it follows) or from
+    *accounts*. *limit* caps how many are followed in this run, which is
+    how an over-1,000 account is built without tripping the rate limit in
+    one go; accounts already followed are skipped, so running the command
+    again continues where the last one stopped. *pause* seconds sleep
+    between follows.
+
+    Returns 0 when every follow was accepted, 1 when the server refused
+    one or rate limiting stopped the run (the accepted follows stay), and
+    2 when the command could not start. A locked account answers with a
+    follow *request* rather than a follow; that is counted as
+    ``requested``, not as followed, because the following count does not
+    move until it is accepted.
+    """
+    out = out or sys.stdout
+    try:
+        instance_url = mastodon.normalize_instance(instance)
+    except ValueError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
+        return 2
+    if not from_account and not accounts:
+        print('rank_eval: name candidates: --from-account ID, or --account ID'
+              ' (repeatable)', file=sys.stderr)
+        return 2
+    try:
+        client = make_client(
+            instance_url, token_for(instance_url, account_id, token, reader))
+    except LookupError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
+        return 2
+    try:
+        viewer = invoke(client, 'verify_credentials')
+    except Exception as error:
+        print('rank_eval: %s' % refused('token', error), file=sys.stderr)
+        return 2
+    if not isinstance(viewer, dict) or not viewer.get('id'):
+        print('rank_eval: verify_credentials answered with no account',
+              file=sys.stderr)
+        return 2
+    viewer_id = str(viewer['id'])
+
+    followed = 0
+    requested = 0
+    skipped = 0
+    refused_follows = 0
+    failures = []
+
+    def take(batch):
+        """Follow the accounts in *batch* not followed yet. False stops
+        the caller: the limit was reached, or the server refused or rate
+        limited the run."""
+        nonlocal followed, requested, skipped, refused_follows
+        ids = [account for account in batch if account != viewer_id]
+        if not ids:
+            return True
+        try:
+            known = already_following(client, ids)
+        except Exception as error:
+            failures.append(refused('relationship lookup', error))
+            return False
+        for candidate in ids:
+            if candidate in known:
+                skipped += 1
+                continue
+            if limit and followed + requested >= limit:
+                return False
+            if client.rate_limited():
+                failures.append('rate limited after %d follows; run again to'
+                                ' continue' % (followed + requested))
+                return False
+            try:
+                relationship = invoke(client, 'follow', candidate)
+            except Exception as error:
+                refused_follows += 1
+                failures.append(
+                    refused('follow of account %s' % candidate, error))
+                continue
+            if isinstance(relationship, dict) \
+                    and relationship.get('following'):
+                followed += 1
+            else:
+                requested += 1
+            if pause:
+                sleep(pause)
+        return True
+
+    if from_account:
+        params = {'limit': str(FOLLOW_PAGE_LIMIT)}
+        for _page in range(FOLLOW_MAX_PAGES):
+            try:
+                page, next_params = call(
+                    client, '/accounts/%s/following' % from_account, params)
+            except Exception as error:
+                failures.append(refused(
+                    'the following list of account %s' % from_account, error))
+                break
+            if not isinstance(page, list) or not page:
+                break
+            if not take([str(account['id']) for account in page
+                         if isinstance(account, dict) and account.get('id')]):
+                break
+            if not next_params:
+                break
+            params = dict(next_params)
+    else:
+        take([str(account) for account in accounts])
+
+    try:
+        account = invoke(client, 'verify_credentials')
+    except Exception as error:
+        failures.append(refused('the follow counts', error))
+        account = {}
+    following_count = account.get('following_count', '-') \
+        if isinstance(account, dict) else '-'
+    try:
+        home, next_params = call(client, '/timelines/home',
+                                 {'limit': str(PAGE_LIMIT)})
+    except Exception as error:
+        failures.append(refused('the home timeline', error))
+        home, next_params = [], None
+    for line in failures:
+        print('rank_eval: %s' % line, file=sys.stderr)
+    print('%s account=%s following=%s followed=%d requested=%d already=%d'
+          ' refused=%d home=%d older=%s'
+          % (iso_utc(), viewer_id, following_count, followed, requested,
+             skipped, refused_follows,
+             len(home) if isinstance(home, list) else 0,
+             bool(next_params)), file=out)
+    return 1 if failures else 0
+
+
+def inspect(instance, account_ids, token=None, make_client=make_client,
+            reader=read_secret, out=None):
+    """One line per managed account: its counts, and whether its home
+    timeline has posts.
+
+    Returns 0 when every account answered, 1 when one did not. ``home=``
+    is how many posts the account's home timeline returned on its first
+    page, and ``older=True`` says there are more: this is the command that
+    answers whether a managed account has anything to rank, before the
+    14-day run rather than after it.
+    """
+    out = out or sys.stdout
+    try:
+        instance_url = mastodon.normalize_instance(instance)
+    except ValueError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
+        return 2
+    if token and len(account_ids) != 1:
+        print('rank_eval: --token names one account; pass one --account-id',
+              file=sys.stderr)
+        return 2
+    failed = False
+    for account_id in account_ids:
+        try:
+            client = make_client(instance_url, token_for(
+                instance_url, account_id, token, reader))
+        except LookupError as error:
+            print('rank_eval: %s' % error, file=sys.stderr)
+            failed = True
+            continue
+        try:
+            account = invoke(client, 'verify_credentials')
+            home, next_params = call(client, '/timelines/home',
+                                     {'limit': str(PAGE_LIMIT)})
+        except Exception as error:
+            print('rank_eval: %s' % refused('account %s' % account_id, error),
+                  file=sys.stderr)
+            failed = True
+            continue
+        if not isinstance(account, dict) or not account.get('id'):
+            print('rank_eval: account %s: verify_credentials answered with no'
+                  ' account' % account_id, file=sys.stderr)
+            failed = True
+            continue
+        print('%s account=%s acct=%s following=%s followers=%s statuses=%s'
+              ' home=%d older=%s'
+              % (iso_utc(), account['id'], account.get('acct', '-'),
+                 account.get('following_count', '-'),
+                 account.get('followers_count', '-'),
+                 account.get('statuses_count', '-'),
+                 len(home) if isinstance(home, list) else 0,
+                 bool(next_params)), file=out)
+    return 1 if failed else 0
+
+
+# endregion
 
 
 def parse_moment(value):
@@ -1449,6 +1910,153 @@ class FakeClient:
                      'followed_by': False}
                     for account_id in (params or {}).get('id[]') or ()]
         return []
+
+
+class FakeAccountClient:
+    """A duck-typed client for `token`, `follow`, `engage` and `inspect`.
+
+    Reads answer from a small fixture and writes are recorded. The action
+    names in *refuse* fail with a ``GLib.Error`` carrying the HTTP status
+    a real server would answer with -- which is how the commands'
+    refusal paths are seen without a server or a keyring. ``verify`` is a
+    read; the rest are writes.
+
+    The account body is the **object** the real endpoint answers with and
+    `collect` reads (auth.py:535), never a one-element list.
+    """
+
+    def __init__(self, account_id=VIEWER_ID, following_count=0,
+                 followers_count=0, statuses_count=0, follows=(),
+                 following=(), requested=(), home=(), refuse=None,
+                 limited_after=None):
+        self.account_id = str(account_id)
+        self.following_count = following_count
+        self.followers_count = followers_count
+        self.statuses_count = statuses_count
+        self.source_follows = [str(account) for account in follows]
+        self.already = {str(account) for account in following}
+        self.pending_requests = {str(account) for account in requested}
+        self.home = list(home)
+        self.refuse = dict(refuse or {})
+        self.limited_after = limited_after
+        self.asked = []
+        self.writes = 0
+        self.followed = []
+        self.requested = []
+        self.pending = (None, None)
+
+    def rate_limited(self):
+        return (self.limited_after is not None
+                and self.writes >= self.limited_after)
+
+    def _account(self):
+        return {'id': self.account_id, 'acct': 'managed',
+                'username': 'managed',
+                'following_count': self.following_count + len(self.followed),
+                'followers_count': self.followers_count,
+                'statuses_count': self.statuses_count}
+
+    def _answer(self, path, params):
+        if path == '/accounts/verify_credentials':
+            return self._account()
+        if path == '/timelines/home':
+            return self.home
+        if path == '/accounts/relationships':
+            return [{'id': account_id,
+                     'following': account_id in self.already,
+                     'requested': account_id in self.pending_requests,
+                     'followed_by': False}
+                    for account_id in (params or {}).get('id[]') or ()]
+        if path.startswith('/accounts/') and path.endswith('/following'):
+            return [{'id': account_id} for account_id in self.source_follows]
+        return []
+
+    def _error(self, action):
+        status = self.refuse.get(action)
+        if status is None:
+            return None
+        return GLib.Error('%s refused by the test server' % action,
+                          'mastodon-http-error-quark', status)
+
+    def _finish(self, result):
+        value, error = self.pending
+        if error is not None:
+            raise error
+        return value
+
+    def _read(self, action, path, params, callback):
+        self.asked.append((action, path, params))
+        self.pending = (self._answer(path, params), self._error(action))
+        callback(self, None)
+
+    def _write(self, action, argument, value):
+        self.asked.append((action, argument))
+        self.writes += 1
+        self.pending = (value, self._error(action))
+
+    def request_async(self, method, path, params=None, callback=None):
+        self._read('request', path, params, callback)
+
+    def request_finish_paged(self, result):
+        return self._finish(result), None, None
+
+    def verify_credentials_async(self, callback=None, cancellable=None):
+        self._read('verify', '/accounts/verify_credentials', None, callback)
+
+    def verify_credentials_finish(self, result):
+        return self._finish(result)
+
+    def favourite_async(self, status_id, callback=None, cancellable=None):
+        self._write('favourite', str(status_id),
+                    {'id': str(status_id), 'favourited': True})
+        callback(self, None)
+
+    def favourite_finish(self, result):
+        return self._finish(result)
+
+    def reblog_async(self, status_id, visibility=None, callback=None,
+                     cancellable=None):
+        self._write('reblog', str(status_id), {'id': str(status_id),
+                                               'reblogged': True})
+        callback(self, None)
+
+    def reblog_finish(self, result):
+        return self._finish(result)
+
+    def bookmark_async(self, status_id, callback=None, cancellable=None):
+        self._write('bookmark', str(status_id), {'id': str(status_id),
+                                                 'bookmarked': True})
+        callback(self, None)
+
+    def bookmark_finish(self, result):
+        return self._finish(result)
+
+    def reply_async(self, status_id, text, params=None, callback=None,
+                    cancellable=None):
+        self.asked.append(('reply', (str(status_id), text,
+                                     dict(params or {}))))
+        self.writes += 1
+        self.pending = ({'id': 'reply-1'}, self._error('reply'))
+        callback(self, None)
+
+    def reply_finish(self, result):
+        return self._finish(result)
+
+    def follow_async(self, account_id, reblogs=True, notify=False,
+                     callback=None, cancellable=None):
+        account_id = str(account_id)
+        self.asked.append(('follow', account_id))
+        self.writes += 1
+        error = self._error('follow')
+        if error is None:
+            self.already.add(account_id)
+            self.followed.append(account_id)
+        self.pending = ({'id': account_id, 'following': error is None,
+                         'requested': False}, error)
+        callback(self, None)
+
+    def follow_finish(self, result):
+        return self._finish(result)
 
 
 def record(root, world, moments):
@@ -2333,6 +2941,291 @@ def check_collect(checks, work):
     checks.equal('and the run stops on its first request', requests, 1)
 
 
+def check_accounts(checks):
+    """The managed-account commands, with no server and no keyring.
+
+    Each command is run twice where it can fail: once accepted, once
+    refused. The refusals are what a real server answers with, built as
+    the client builds them -- a ``GLib.Error`` whose code is the HTTP
+    status -- so a path that would print a traceback instead of a line
+    fails here. Every check also asserts the token is absent from both
+    streams, because a token in an error message is the leak that matters
+    most.
+    """
+    pin_zone()
+    secret = 'synthetic-secret-token'
+
+    def run(function, *args, **kwargs):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(err):
+            code = function(*args, **kwargs)
+        return code, out.getvalue(), err.getvalue()
+
+    # --- tokens in -----------------------------------------------------
+    stored = {}
+
+    def store(instance, account_id, token):
+        stored.update(instance=instance, account=account_id, token=token)
+
+    code, printed, errors = run(
+        store_token, SYNTHETIC_INSTANCE, account_id=VIEWER_ID, token=secret,
+        make_client=lambda _instance, _token: FakeAccountClient(),
+        store_secret=store)
+    checks.equal('a verified token is stored under the id the server names',
+                 (code, stored.get('account')), (0, VIEWER_ID))
+    checks.check('the success line names the account, not the token',
+                 'token stored for account %s' % VIEWER_ID in printed)
+    checks.equal('and the token is nowhere in the output',
+                 secret in printed + errors, False)
+
+    stored.clear()
+    code, printed, errors = run(
+        store_token, SYNTHETIC_INSTANCE, account_id='someone-else',
+        token=secret,
+        make_client=lambda _instance, _token: FakeAccountClient(),
+        store_secret=store)
+    checks.equal('a token under an id the server does not name is refused,'
+                 ' and nothing is stored', (code, stored), (2, {}))
+    checks.check('and the line names both ids',
+                 'belongs to account %s' % VIEWER_ID in errors
+                 and 'someone-else' in errors)
+    checks.equal('and that path does not print the token either',
+                 secret in printed + errors, False)
+
+    stored.clear()
+    code, printed, errors = run(
+        store_token, SYNTHETIC_INSTANCE, account_id=VIEWER_ID, token=secret,
+        make_client=lambda _instance, _token: FakeAccountClient(
+            refuse={'verify': 401}),
+        store_secret=store)
+    checks.equal('a refused token exits 2 and stores nothing',
+                 (code, stored), (2, {}))
+    checks.check('and the line says the token was refused, with the status',
+                 'token refused (401)' in errors)
+    checks.equal('and the refused token is not printed',
+                 secret in printed + errors, False)
+
+    def no_keyring(_instance, _account_id, _token):
+        raise GLib.Error('no secret service', 'secret-error-quark', 0)
+
+    code, printed, errors = run(
+        store_token, SYNTHETIC_INSTANCE, account_id=VIEWER_ID, token=secret,
+        make_client=lambda _instance, _token: FakeAccountClient(),
+        store_secret=no_keyring)
+    checks.equal('a keyring that will not take the token exits 2', code, 2)
+    checks.check('and says the keyring refused it',
+                 'cannot write the keyring: no secret service' in errors)
+    checks.equal('and that path does not print the token either',
+                 secret in printed + errors, False)
+
+    # --- engagement ----------------------------------------------------
+    kinds = {}
+    for kind in ('favourite', 'reblog', 'bookmark'):
+        fake = FakeAccountClient()
+        code, printed, errors = run(
+            engage, SYNTHETIC_INSTANCE, 'post-1', kind, token=secret,
+            make_client=lambda _instance, _token, fake=fake: fake)
+        kinds[kind] = (code, [call for call in fake.asked
+                              if call[0] != 'verify'],
+                       secret in printed + errors)
+    checks.equal('each engagement is one call of its own',
+                 kinds, {kind: (0, [(kind, 'post-1')], False)
+                         for kind in ('favourite', 'reblog', 'bookmark')})
+
+    fake = FakeAccountClient()
+    code, printed, errors = run(
+        engage, SYNTHETIC_INSTANCE, 'post-2', 'reply', text='hello',
+        visibility='private', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a reply carries its parent, its text and its visibility',
+                 [call for call in fake.asked if call[0] == 'reply'],
+                 [('reply', ('post-2', 'hello',
+                             {'visibility': 'private'}))])
+    checks.check('and the line names the reply and the target',
+                 code == 0 and 'reply target=post-2' in printed)
+
+    fake = FakeAccountClient(refuse={'favourite': 403})
+    code, printed, errors = run(
+        engage, SYNTHETIC_INSTANCE, 'post-3', 'favourite', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a refused favourite exits 1, not with a traceback',
+                 code, 1)
+    checks.check('and the line names what was refused, with the status',
+                 'favourite refused (403): favourite refused by the test'
+                 ' server' in errors)
+
+    saved = os.environ.pop(TOKEN_VARIABLE, None)
+    try:
+        code, printed, errors = run(
+            engage, SYNTHETIC_INSTANCE, 'post-4', 'favourite',
+            make_client=_NoNetwork)
+    finally:
+        if saved is not None:
+            os.environ[TOKEN_VARIABLE] = saved
+    checks.equal('without a token the command stops before building a client',
+                 code, 2)
+    checks.check('and says where a token comes from', 'no token:' in errors)
+
+    # --- following -----------------------------------------------------
+    fake = FakeAccountClient(following_count=1,
+                             follows=['a1', 'a2', 'a3', 'a4'],
+                             following=['a1'], home=[{'id': 'p1'}])
+    code, printed, errors = run(
+        follow, SYNTHETIC_INSTANCE, from_account='source', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a follow run follows only what is not followed yet',
+                 [call for call in fake.asked if call[0] == 'follow'],
+                 [('follow', 'a2'), ('follow', 'a3'), ('follow', 'a4')])
+    checks.check('and reports the count the server then gives',
+                 code == 0 and 'following=4' in printed
+                 and 'followed=3' in printed and 'already=1' in printed)
+    checks.check('and shows the home timeline it can now see',
+                 'home=1' in printed)
+
+    fake = FakeAccountClient(follows=['b1', 'b2', 'b3', 'b4'])
+    code, printed, errors = run(
+        follow, SYNTHETIC_INSTANCE, from_account='source', limit=2,
+        token=secret, make_client=lambda _instance, _token: fake)
+    checks.equal('--limit stops after that many follows',
+                 (code, [call for call in fake.asked if call[0] == 'follow']),
+                 (0, [('follow', 'b1'), ('follow', 'b2')]))
+
+    fake = FakeAccountClient(follows=['e1', 'e2'], requested=['e1'])
+    code, printed, errors = run(
+        follow, SYNTHETIC_INSTANCE, from_account='source', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a follow request already pending is not sent again',
+                 [call for call in fake.asked if call[0] == 'follow'],
+                 [('follow', 'e2')])
+
+    # The account must not follow itself. Mastodon refuses the request,
+    # so the run would carry a refusal it had no reason to make.
+    fake = FakeAccountClient(follows=[VIEWER_ID, 'f1'])
+    code, printed, errors = run(
+        follow, SYNTHETIC_INSTANCE, from_account='source', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('the account does not follow itself',
+                 [call for call in fake.asked if call[0] == 'follow'],
+                 [('follow', 'f1')])
+
+    fake = FakeAccountClient(follows=['c1', 'c2'], refuse={'follow': 403})
+    code, printed, errors = run(
+        follow, SYNTHETIC_INSTANCE, from_account='source', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a refused follow exits 1, after trying the rest', code, 1)
+    checks.check('and every refusal names its account and the status',
+                 errors.count('follow of account') == 2
+                 and 'refused (403)' in errors)
+    checks.check('and the report counts the refusals',
+                 'refused=2' in printed)
+
+    fake = FakeAccountClient(follows=['d1', 'd2', 'd3'], limited_after=1)
+    code, printed, errors = run(
+        follow, SYNTHETIC_INSTANCE, from_account='source', token=secret,
+        make_client=lambda _instance, _token: fake)
+    checks.equal('a rate limit stops the run and says how to continue',
+                 (code, 'rate limited after 1 follows' in errors), (1, True))
+    checks.equal('and only the first follow was sent',
+                 [call for call in fake.asked if call[0] == 'follow'],
+                 [('follow', 'd1')])
+
+    code, printed, errors = run(
+        follow, 'http://plain.test', accounts=['x'], token=secret,
+        make_client=_NoNetwork)
+    checks.equal('a plaintext instance is refused before any call', code, 2)
+    checks.check('and says why', 'only connects over HTTPS' in errors)
+
+    # --- the three accounts' numbers -----------------------------------
+    one = FakeAccountClient(account_id='acct-a', following_count=5,
+                            home=[{'id': 'p1'}, {'id': 'p2'}])
+    two = FakeAccountClient(account_id='acct-b', following_count=1500)
+    clients = {'acct-a': one, 'acct-b': two}
+    tokens = {'acct-a': 'token-a', 'acct-b': 'token-b'}
+
+    def reader(_instance, account_id):
+        return tokens.get(account_id)
+
+    def by_token(_instance, token):
+        return clients['acct-a' if token == 'token-a' else 'acct-b']
+
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, ['acct-a', 'acct-b'],
+        make_client=by_token, reader=reader)
+    lines = printed.strip().splitlines()
+    checks.equal('inspect prints one line per account',
+                 (code, len(lines)), (0, 2))
+    checks.check('with its follow count and its home timeline size',
+                 'following=5' in lines[0] and 'home=2' in lines[0]
+                 and 'following=1500' in lines[1] and 'home=0' in lines[1])
+    checks.equal('and no account token is printed', any(
+        token in printed + errors for token in tokens.values()), False)
+
+    code, printed, errors = run(
+        inspect, SYNTHETIC_INSTANCE, ['acct-a', 'acct-missing'],
+        make_client=by_token, reader=reader)
+    checks.equal('an account with no keyring entry is reported, not crashed',
+                 (code, 'no keyring entry for account acct-missing' in errors),
+                 (1, True))
+
+    # --- the client's own write methods --------------------------------
+    # `src/mastodon.py` owns the HTTP, and there is no server here to send
+    # it to. Calling each method unbound, with a recorder as `self`, runs
+    # the shipped body and pins the verb and path it would send -- so a
+    # typo in a path is caught here rather than on the maintainer's
+    # instance.
+    class Sent:
+        """Stands in for the client's transport."""
+
+        def _request_async(self, method, path, **kwargs):
+            self.sent = (method, path, kwargs)
+            return 'task'
+
+        def post_status_async(self, text, params=None, callback=None,
+                              cancellable=None):
+            self.sent = ('POST', '/statuses', {'json_body': dict(
+                {'status': text}, **(params or {}))})
+            return 'task'
+
+    endpoints = []
+    for action, kwargs in (
+            ('favourite_async', {}),
+            ('unfavourite_async', {}),
+            ('reblog_async', {'visibility': 'private'}),
+            ('unreblog_async', {}),
+            ('bookmark_async', {}),
+            ('unbookmark_async', {}),
+            ('follow_async', {}),
+            ('unfollow_async', {})):
+        sent = Sent()
+        getattr(REAL_CLIENT, action)(sent, '7', **kwargs)
+        endpoints.append((action, sent.sent[0], sent.sent[1]))
+    checks.equal(
+        'the client sends each action to its own endpoint', endpoints,
+        [('favourite_async', 'POST', '/statuses/7/favourite'),
+         ('unfavourite_async', 'POST', '/statuses/7/unfavourite'),
+         ('reblog_async', 'POST', '/statuses/7/reblog'),
+         ('unreblog_async', 'POST', '/statuses/7/unreblog'),
+         ('bookmark_async', 'POST', '/statuses/7/bookmark'),
+         ('unbookmark_async', 'POST', '/statuses/7/unbookmark'),
+         ('follow_async', 'POST', '/accounts/7/follow'),
+         ('unfollow_async', 'POST', '/accounts/7/unfollow')])
+
+    sent = Sent()
+    REAL_CLIENT.follow_async(sent, '7')
+    checks.equal('a follow sends both relationship switches', sent.sent[2],
+                 {'form': {'reblogs': 'true', 'notify': 'false'},
+                  'callback': None, 'cancellable': None})
+
+    sent = Sent()
+    REAL_CLIENT.reply_async(sent, '9', 'hello', {'visibility': 'private'})
+    checks.equal('a reply posts a status with its parent in the body',
+                 sent.sent,
+                 ('POST', '/statuses', {'json_body': {
+                     'status': 'hello', 'in_reply_to_id': '9',
+                     'visibility': 'private'}}))
+
+
 def check_world(checks, work, gates_path):
     """The five-day world: which days are judged, what the labels are,
     what a candidate's counters came from, and the whole-future rewrite."""
@@ -2641,6 +3534,7 @@ def self_test():
             gates_path = check_gates(checks, work)
             check_split(checks, work)
             check_collect(checks, work)
+            check_accounts(checks)
             check_world(checks, work, gates_path)
             check_rewrite(checks, work, gates_path)
     finally:
@@ -2762,6 +3656,64 @@ def build_parser():
         '--gates', help='the frozen gates file (default: the one beside'
                         ' this script)')
 
+    token_command = commands.add_parser(
+        'token', help='verify an account token and store it in the keyring')
+    token_command.add_argument(
+        '--instance', required=True,
+        help='the instance the account lives on')
+    token_command.add_argument(
+        '--account-id',
+        help='the id the server names; checked against verify_credentials')
+    token_command.add_argument(
+        '--token',
+        help='the token, when it is not piped in on stdin (a shell keeps'
+             ' it in its history)')
+
+    follow_command = commands.add_parser(
+        'follow', help='follow accounts for one managed account')
+    follow_command.add_argument(
+        '--instance', required=True, help='the instance to act on')
+    follow_command.add_argument(
+        '--account-id', help='the keyring account to act as')
+    follow_command.add_argument(
+        '--from-account',
+        help='follow the accounts this account id follows')
+    follow_command.add_argument(
+        '--account', dest='accounts', action='append', default=[],
+        metavar='ID', help='a candidate account id (repeatable)')
+    follow_command.add_argument(
+        '--limit', type=int, default=0,
+        help='stop after this many follows this run (default: no cap)')
+    follow_command.add_argument(
+        '--pause', type=float, default=1.0,
+        help='seconds to wait between follows (default: 1)')
+
+    engage_command = commands.add_parser(
+        'engage', help='favourite, reblog, bookmark or reply, as an account')
+    engage_command.add_argument(
+        '--instance', required=True, help='the instance to act on')
+    engage_command.add_argument(
+        '--account-id', help='the keyring account to act as')
+    engage_command.add_argument(
+        '--target', required=True, help='the status id to engage')
+    engage_command.add_argument(
+        '--kind', required=True, choices=ENGAGEMENTS)
+    engage_command.add_argument(
+        '--text', help='the reply body (reply only)')
+    engage_command.add_argument(
+        '--visibility', help='public or private (reblog and reply)')
+
+    inspect_command = commands.add_parser(
+        'inspect',
+        help='report follow counts and the home timeline size per account')
+    inspect_command.add_argument(
+        '--instance', required=True, help='the instance the accounts live on')
+    inspect_command.add_argument(
+        '--account-id', action='append', required=True, metavar='ID',
+        help='a keyring account to report on (repeatable)')
+    inspect_command.add_argument(
+        '--token', help='act as this token; one --account-id only')
+
     # `credits` belongs to T4.3, which reads the ranked store's counters
     # table; the store itself is T2.1's. Until then it parses and answers.
     commands.add_parser('credits', help='not implemented yet')
@@ -2783,6 +3735,19 @@ def main(argv=None):
                         json_path=args.json_path)
     if args.command == 'aggregate':
         return aggregate(args.summaries, gates_path=args.gates)
+    if args.command == 'token':
+        return store_token(args.instance, account_id=args.account_id,
+                           token=args.token or read_token_line())
+    if args.command == 'follow':
+        return follow(args.instance, from_account=args.from_account,
+                      accounts=args.accounts, limit=args.limit,
+                      pause=args.pause, account_id=args.account_id)
+    if args.command == 'engage':
+        return engage(args.instance, args.target, args.kind, text=args.text,
+                      visibility=args.visibility,
+                      account_id=args.account_id)
+    if args.command == 'inspect':
+        return inspect(args.instance, args.account_id, token=args.token)
     if args.command == 'self-test':
         return self_test()
     if args.command == 'bench':
