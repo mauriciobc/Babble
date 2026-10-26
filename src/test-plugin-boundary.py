@@ -12,8 +12,9 @@ from leaking what they extend:
 2. A plugin shipped in `plugins/` imports nothing of Babble's but
    `babble.plugin` (its own package's modules are its own business).
 3. A shipped plugin connects signals through its extension or Context
-   (`self.connect`, `self.context.connect`, `context.connect`), never
-   with a bare `widget.connect`: Babble releases the first with what
+   (`self.connect` in an extension class; `context.connect` or
+   `extension.connect`, however reached, such as `self.extension.connect`
+   in a dialog), never with a bare `widget.connect`: Babble releases the first with what
    they belong to, while the second closes a cycle through C that keeps
    a whole page alive.
 
@@ -35,7 +36,9 @@ root = os.path.dirname(srcdir)
 plugins_dir = os.path.join(root, 'plugins')
 
 STDLIB = sys.stdlib_module_names
-CONNECT_RECEIVERS = ('self.context', 'context')
+# The last part of a receiver that is Babble's: its Context, or an
+# extension (whose connect goes through the Context).
+CONNECT_RECEIVERS = ('context', 'extension')
 
 failures = []
 
@@ -117,8 +120,9 @@ def connect_violations(tree):
                     and isinstance(child.func, ast.Attribute) \
                     and child.func.attr == 'connect':
                 receiver = dotted(child.func.value)
-                owned = receiver in CONNECT_RECEIVERS or (
-                    receiver == 'self' and in_extension)
+                owned = (receiver or '').split('.')[-1] \
+                    in CONNECT_RECEIVERS or (
+                        receiver == 'self' and in_extension)
                 if not owned:
                     bad.append(child.lineno)
             visit(child, in_extension)
@@ -158,7 +162,10 @@ check('self-check: connects through the extension or context pass',
           '        self.connect(b, "clicked", self.g)\n'
           '        self.context.connect(b, "clicked", self.g)\n'
           'def h(context, b):\n'
-          '    context.connect(b, "clicked", print)\n')) == [])
+          '    context.connect(b, "clicked", print)\n'
+          'class D(Adw.Dialog):\n'
+          '    def f(self, b):\n'
+          '        self.extension.connect(b, "clicked", self.g)\n')) == [])
 check('self-check: a bare connect is caught, a widget\'s self too',
       connect_violations(parse(
           'class B(Gtk.Box):\n'

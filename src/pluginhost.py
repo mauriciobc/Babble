@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import traceback
+from urllib.parse import urlencode
 
 from gi.repository import GLib, GObject, Gio  # noqa: E402
 
@@ -159,6 +160,7 @@ class _Context(api.Context):
         self.name = info.get_name() or self.plugin_id
         self.active = True
         self._settings = None
+        self._data = {}
         self._scope = _Scope()
         self._scopes = {}  # id(extension) -> _Scope
 
@@ -201,6 +203,7 @@ class _Context(api.Context):
             scope.close()
         self._scopes = {}
         self._scope.close()
+        self._data.clear()
 
     @property
     def settings(self):
@@ -208,14 +211,32 @@ class _Context(api.Context):
             self._settings = _Settings(self.plugin_id)
         return self._settings
 
+    @property
+    def data(self):
+        return self._data
+
     def connect(self, emitter, signal, callback, *extra, owner=None):
         scope = self.scope_of(owner)
+        target = getattr(callback, '__self__', None)
+        if isinstance(target, GObject.Object):
+            # A widget's own method, held weakly as pages.connect_weak
+            # does: a dialog connecting its buttons to itself is then
+            # freed when it closes, not when the plugin is disabled.
+            func, target_ref = callback.__func__, target.weak_ref()
+
+            def callback(*args):
+                owner_object = target_ref()
+                if owner_object is not None:
+                    return func(owner_object, *args)
+                return None
 
         def handler(*args):
             if not scope.active:
                 return None
             return self.guard(callback, *args)
         handler_id = emitter.connect(signal, handler, *extra)
+        scope.handlers = [(r, h) for r, h in scope.handlers
+                          if r() is not None]
         scope.handlers.append((emitter.weak_ref(), handler_id))
         return handler_id
 
@@ -225,8 +246,8 @@ class _Context(api.Context):
             scope.handlers = [(r, h) for r, h in scope.handlers
                               if h != handler_id or r() is not emitter]
 
-    def request(self, method, url, callback, json=None, headers=None,
-                owner=None):
+    def request(self, method, url, callback, json=None, form=None,
+                headers=None, owner=None):
         from gi.repository import Soup
         if not url.startswith(('https://', 'http://')):
             raise ValueError('only http and https URLs: %r' % url)
@@ -244,6 +265,10 @@ class _Context(api.Context):
             message.set_request_body_from_bytes(
                 'application/json',
                 GLib.Bytes.new(_json_dumps(json).encode('utf-8')))
+        elif form is not None:
+            message.set_request_body_from_bytes(
+                'application/x-www-form-urlencoded',
+                GLib.Bytes.new(urlencode(form).encode('utf-8')))
 
         def done(session, result, _data):
             response = _response(session, message, result)
@@ -319,12 +344,14 @@ def _response(session, message, result):
 
 
 class _PageSlot:
-    """A hashtag page the plugins may add a banner to. It holds the page
-    and its banner box weakly: the page owns both, and its going is what
-    deactivates the extensions."""
+    """A place on screen extensions fill: a hashtag page's banner box
+    (*hashtag* set), or one plugin's settings page (*plugin_id* set). It
+    holds the page and its box weakly: the page owns both, and its going
+    is what deactivates the extensions."""
 
-    def __init__(self, host, page, hashtag, box):
+    def __init__(self, host, page, box, hashtag=None, plugin_id=None):
         self.hashtag = hashtag
+        self.plugin_id = plugin_id
         self.box_ref = box.weak_ref()
         self.extensions = {}  # plugin id -> [(extension, banner or None)]
         self._page_ref = page.weak_ref(host._page_gone, self)
@@ -338,6 +365,7 @@ class PluginHost:
         self.contexts = {}  # plugin id -> _Context
         self.menu_extensions = {}  # plugin id -> [PostMenuExtension]
         self.page_classes = {}  # plugin id -> [HashtagPageExtension type]
+        self.preference_classes = {}  # plugin id -> [PreferencesExtension]
         self.slots = []
         self.errors = {}  # plugin id -> why it is not running
         self._session = None
@@ -431,7 +459,8 @@ class PluginHost:
                 'Could not be loaded; the system log has the details')
             return
         module = sys.modules.get(info.get_module_name())
-        menu_classes, page_classes = _extension_classes(module)
+        menu_classes, page_classes, preference_classes = \
+            _extension_classes(module)
         if not menu_classes and not page_classes:
             self.engine.unload_plugin(info)
             self.errors[plugin_id] = _('Adds nothing Babble can use')
@@ -440,6 +469,7 @@ class PluginHost:
         context = _Context(self, info)
         self.contexts[plugin_id] = context
         self.page_classes[plugin_id] = page_classes
+        self.preference_classes[plugin_id] = preference_classes
         extensions = []
         self.menu_extensions[plugin_id] = extensions
         for cls in menu_classes:
@@ -461,7 +491,8 @@ class PluginHost:
             context.quietly(extension.deactivate)
             context.release(extension)
         self.page_classes.pop(plugin_id, None)
-        for slot in self.slots:
+        self.preference_classes.pop(plugin_id, None)
+        for slot in list(self.slots):
             self._detach(plugin_id, slot, context)
         context.close()
         info = self.engine.get_plugin_info(plugin_id)
@@ -549,24 +580,47 @@ class PluginHost:
     # Hashtag pages
 
     def attach_hashtag_page(self, page, hashtag, box):
-        slot = _PageSlot(self, page, hashtag, box)
+        slot = _PageSlot(self, page, box, hashtag=hashtag)
         self.slots.append(slot)
         for plugin_id in list(self.page_classes):
             self._attach(plugin_id, slot)
+
+    # A plugin's settings
+
+    def has_preferences(self, plugin_id):
+        return bool(self.preference_classes.get(plugin_id))
+
+    def attach_preferences(self, plugin_id, page, box):
+        """Fill *box*, on *page*, with *plugin_id*'s settings; they go
+        when the page does or the plugin is disabled."""
+        slot = _PageSlot(self, page, box, plugin_id=plugin_id)
+        self.slots.append(slot)
+        self._attach(plugin_id, slot)
 
     def _attach(self, plugin_id, slot):
         context = self.contexts.get(plugin_id)
         box = slot.box_ref()
         if context is None or box is None:
             return
+        if slot.hashtag is not None:
+            classes = self.page_classes.get(plugin_id, ())
+        elif slot.plugin_id == plugin_id:
+            classes = self.preference_classes.get(plugin_id, ())
+        else:
+            return
         attached = slot.extensions.setdefault(plugin_id, [])
-        for cls in self.page_classes.get(plugin_id, ()):
-            extension = context.guard(cls, context, slot.hashtag,
-                                      widget=box)
+        for cls in classes:
+            if slot.hashtag is not None:
+                extension = context.guard(cls, context, slot.hashtag,
+                                          widget=box)
+            else:
+                extension = context.guard(cls, context, widget=box)
             if extension is None:
                 return
             context.guard(extension.activate, widget=box)
-            banner = context.guard(extension.create_banner, widget=box)
+            create = extension.create_banner if slot.hashtag is not None \
+                else extension.create_preferences
+            banner = context.guard(create, widget=box)
             if not context.active:
                 return
             from gi.repository import Gtk
@@ -610,10 +664,11 @@ def _menu_activate(context, item, post, widget):
 
 
 def _extension_classes(module):
-    """The extension classes *module* (a plugin) defines."""
-    menu, page = [], []
+    """The extension classes *module* (a plugin) defines: post menu,
+    hashtag page and preferences ones."""
+    menu, page, preferences = [], [], []
     if module is None:
-        return menu, page
+        return menu, page, preferences
     name = module.__name__
     for value in list(vars(module).values()):
         if not isinstance(value, type) or not (
@@ -626,7 +681,10 @@ def _extension_classes(module):
         elif issubclass(value, api.HashtagPageExtension) \
                 and value is not api.HashtagPageExtension:
             page.append(value)
-    return menu, page
+        elif issubclass(value, api.PreferencesExtension) \
+                and value is not api.PreferencesExtension:
+            preferences.append(value)
+    return menu, page, preferences
 
 
 # Entry points for the rest of the app. Each is a no-op while no plugin

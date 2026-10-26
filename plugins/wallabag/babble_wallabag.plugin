@@ -1,0 +1,10 @@
+[Plugin]
+Module=babble_wallabag
+Loader=python
+Name=Wallabag
+Description=Save the link of a post to read later in Wallabag
+Authors=Babble contributors
+Copyright=Copyright © 2026 Babble contributors
+Website=https://github.com/mauriciobc/Babble
+Version=1.0
+X-Babble-Api=1

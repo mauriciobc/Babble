@@ -130,6 +130,7 @@ class BabbleApplication(Adw.Application):
         # ``app.shortcuts`` and its Ctrl+? accelerator come from
         # AdwApplication, which builds them from the shortcuts-dialog.ui
         # resource; registering one here would replace it.
+        self.create_action('plugins', self.on_plugins_action)
         self.create_action('help', self.on_help_action, ['F1'])
         self.create_action('increase-font-size',
                            lambda *a: self.step_text_size(1),
@@ -378,6 +379,13 @@ class BabbleApplication(Adw.Application):
         if win is None:
             return
         win.show_preferences()
+
+    def on_plugins_action(self, *args):
+        win = self.props.active_window
+        if win is None:
+            return
+        from .pluginspage import present_plugins
+        present_plugins(win)
 
     def create_action(self, name, callback, shortcuts=None):
         action = Gio.SimpleAction.new(name, None)

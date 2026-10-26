@@ -44,6 +44,13 @@ root = os.path.dirname(srcdir)
 
 UI_FILES = ('window.ui', 'shortcuts-dialog.ui')
 
+# The plugins Babble ships translate through its catalogue, so their
+# strings are held to the same rules; named relative to the tree's root.
+PLUGIN_FILES = sorted(
+    os.path.relpath(os.path.join(folder, name), root)
+    for folder, _dirs, names in os.walk(os.path.join(root, 'plugins'))
+    for name in names if name.endswith('.py'))
+
 # The HIG forbids these as action labels: they say nothing about what the
 # button does. A mnemonic underscore on either end is GTK's marker, not
 # part of the label.
@@ -226,6 +233,9 @@ def collect():
     for name in names:
         for line, text in python_strings(os.path.join(srcdir, name)):
             found.append(('py', name, line, text))
+    for name in PLUGIN_FILES:
+        for line, text in python_strings(os.path.join(root, name)):
+            found.append(('py', name, line, text))
     for name in UI_FILES:
         path = os.path.join(srcdir, name)
         if not os.path.exists(path):
@@ -246,6 +256,10 @@ for _name in sorted(os.listdir(srcdir)):
     if not _name.endswith(('.py', '.ui')):
         continue
     with open(os.path.join(srcdir, _name), encoding='utf-8') as _file:
+        for _number, _text in enumerate(_file.read().split('\n'), 1):
+            SOURCES[(_name, _number)] = _text.strip()
+for _name in PLUGIN_FILES:
+    with open(os.path.join(root, _name), encoding='utf-8') as _file:
         for _number, _text in enumerate(_file.read().split('\n'), 1):
             SOURCES[(_name, _number)] = _text.strip()
 for _name, _path, _reader in DATA_FILES:

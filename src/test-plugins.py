@@ -28,7 +28,7 @@ import gi  # noqa: E402
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -45,7 +45,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import hashtags, pages, pluginhost, statusmenu  # noqa: E402
+from src import hashtags, pages, pluginhost, pluginspage, statusmenu  # noqa: E402,E501
 from src import plugin as api  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
 
@@ -378,6 +378,40 @@ check('the settings are kept on disk', os.path.exists(os.path.join(
     scratch, 'config', 'babble', 'plugins', 'netplug.json')))
 check('and read back', pluginhost._Settings('netplug').get('last')
       == 'disabled')
+
+# The Plugins page.
+window = Adw.Window(default_width=600, default_height=700)
+window.set_content(Gtk.Label())
+window.present()
+dialog = pluginspage.present_plugins(window)
+check('the Plugins page opens on its own', isinstance(
+    window.get_visible_dialog(), pluginspage.PluginsDialog))
+check('opening it again raises the same page',
+      pluginspage.present_plugins(window) is dialog)
+rows = {row.plugin_id: row for row in dialog.rows}
+check('every plugin found has a row',
+      {'goodplug', 'netplug', 'brokenplug', 'babble_wallabag'} <= set(rows))
+check('plugins from elsewhere are not counted as shipped',
+      not pluginspage.is_shipped(host.engine.get_plugin_info('goodplug')))
+check('a plugin that would not load says why, with a warning',
+      rows['brokenplug'].get_subtitle() == host.errors['brokenplug']
+      and rows['brokenplug'].warning.get_visible())
+check("an enabled plugin's switch is on",
+      rows['goodplug'].switch.get_active())
+check('a plugin with no settings has no settings button',
+      not rows['goodplug'].settings_button.get_visible())
+rows['goodplug'].switch.set_active(False)
+check('turning its switch off disables the plugin',
+      not host.is_enabled('goodplug') and 'goodplug' not in host.contexts)
+host.set_enabled('goodplug', True)
+check('and the row follows a change made elsewhere',
+      rows['goodplug'].switch.get_active())
+dialog.close()
+spin(until=lambda: window.get_visible_dialog() is None, seconds=3)
+dialog_ref = dialog.weak_ref()
+del dialog, rows
+check('the closed Plugins page is freed', freed(dialog_ref))
+window.destroy()
 
 # Quitting deactivates what is left.
 before = good.events.count('menu deactivate')

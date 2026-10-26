@@ -21,6 +21,11 @@ thing it extends:
   menu items each time a post's menu opens.
 - :class:`HashtagPageExtension`, once per open hashtag page: it may give
   the page a banner, which goes when the page does.
+- :class:`PreferencesExtension`, each time the plugin's settings open
+  from the Plugins page: it fills them, and goes when they close.
+
+Extensions of one plugin share its :class:`Context`, and through
+:attr:`Context.data` whatever state they have in common.
 
 Signal connections and HTTP requests are owned by Babble and released
 with what they belong to. Made with an extension's own
@@ -39,9 +44,22 @@ Exceptions raised by plugin code are caught: the plugin is disabled and
 the user is told, and the app carries on.
 """
 
+import gettext as _gettext
 from dataclasses import dataclass, field
 
 API_VERSION = 1
+
+
+def gettext(message):
+    """*message* translated through Babble's own catalogue: for the
+    plugins Babble ships, whose strings are in its ``po/``. A plugin
+    from elsewhere brings its own catalogue (``gettext.translation``)."""
+    return _gettext.dgettext('babble', message)
+
+
+def ngettext(singular, plural, n):
+    """The plural form of :func:`gettext`."""
+    return _gettext.dngettext('babble', singular, plural, n)
 
 
 @dataclass(frozen=True)
@@ -107,11 +125,12 @@ class Extension:
         return self.context.connect(emitter, signal, callback, *extra,
                                     owner=self)
 
-    def request(self, method, url, callback, json=None, headers=None):
+    def request(self, method, url, callback, json=None, form=None,
+                headers=None):
         """:meth:`Context.request`, never calling back once this
         extension is gone."""
         return self.context.request(method, url, callback, json=json,
-                                    headers=headers, owner=self)
+                                    form=form, headers=headers, owner=self)
 
 
 class PostMenuExtension(Extension):
@@ -146,6 +165,20 @@ class HashtagPageExtension(Extension):
         return None
 
 
+class PreferencesExtension(Extension):
+    """The plugin's own settings, opened from Babble's Plugins page.
+
+    One instance each time they open; it is deactivated when they
+    close, or when the plugin is disabled. With none, the Plugins page
+    shows the plugin without a settings button."""
+
+    def create_preferences(self):
+        """A Gtk.Widget for the settings page, typically one or more
+        Adw.PreferencesGroup in a Gtk.Box. Babble owns it once returned.
+        Called once, after :meth:`activate`."""
+        return None
+
+
 class Context:
     """What a plugin can reach of Babble. One per enabled plugin; the
     implementation is Babble's, the methods are the API.
@@ -161,22 +194,35 @@ class Context:
         """The plugin's own settings, a :class:`Settings`."""
         raise NotImplementedError
 
+    @property
+    def data(self):
+        """A dict for state the plugin's extensions share while it is
+        enabled (a session, a cache). Emptied when it is disabled."""
+        raise NotImplementedError
+
     def connect(self, emitter, signal, callback, *extra, owner=None):
         """``emitter.connect(signal, callback, *extra)``, disconnected
         when the plugin is disabled, or when *owner*, an extension, goes.
-        Returns the handler id."""
+        Returns the handler id.
+
+        A *callback* that is a method of a GObject (a widget or dialog
+        class of the plugin's) is held weakly, so a dialog connecting its
+        own buttons to its own methods is freed when it closes. Prefer
+        such methods to lambdas: a lambda that captures the widget keeps
+        it alive until the owner goes."""
         raise NotImplementedError
 
     def disconnect(self, emitter, handler_id):
         """Disconnect a handler :meth:`connect` made, before its time."""
         raise NotImplementedError
 
-    def request(self, method, url, callback, json=None, headers=None,
-                owner=None):
+    def request(self, method, url, callback, json=None, form=None,
+                headers=None, owner=None):
         """Send an HTTP request to a server other than Mastodon.
 
         *url* is ``https://`` or ``http://``. *json*, when given, is sent
-        as a JSON body. *callback* is called on the main loop as
+        as a JSON body; *form*, a dict, as a form (``application/
+        x-www-form-urlencoded``) instead. *callback* is called on the main loop as
         ``callback(response)``, a :class:`Response`, unless the plugin was
         disabled, or *owner* went, in the meantime: then it is not
         called."""
