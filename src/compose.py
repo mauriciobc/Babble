@@ -28,6 +28,7 @@ from . import emojichooser, pages, portals  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
                      store_local_draft)
+from .hashtagcompleter import HashtagCompleter, remember  # noqa: E402
 from .mentioncompleter import MentionCompleter  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 # The same list Preferences offers as the default post language.
@@ -529,6 +530,7 @@ class BabbleComposeView(Adw.Bin):
         pages.connect_weak(spell_click, 'pressed', self._on_spell_click)
         self.text_view.add_controller(spell_click)
         self.mention_completer = MentionCompleter(self.client, self.text_view)
+        self.hashtag_completer = HashtagCompleter(self.client, self.text_view)
         self.placeholder = Gtk.Label(label=_('What’s on your mind?'),
                                      halign=Gtk.Align.START,
                                      valign=Gtk.Align.START,
@@ -1436,6 +1438,7 @@ class BabbleComposeView(Adw.Bin):
             widget.set_sensitive(not active)
         if active:
             self.mention_completer.dismiss()
+            self.hashtag_completer.dismiss()
         else:
             self._set_attach_sensitive(self._can_attach_more())
         self.progress_spinner.set_visible(active)
@@ -1530,6 +1533,8 @@ class BabbleComposeView(Adw.Bin):
             return
         self.drop_saved_local_draft()
         self._finish_posting()
+        if isinstance(status, dict):
+            remember(self.client, status.get('tags'))
         # Resolve the toast target before the dialog closes.
         window = pages.window_of(self)
         root = self.get_root()
@@ -1606,6 +1611,7 @@ class BabbleComposeView(Adw.Bin):
         if self._posting:
             self._finish_posting()
         self.mention_completer.dismiss()
+        self.hashtag_completer.dismiss()
         self.buffer.set_text('')
         self.spoiler_entry.set_text('')
         self.cw_toggle.set_active(False)

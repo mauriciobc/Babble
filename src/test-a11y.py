@@ -38,7 +38,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -288,6 +288,148 @@ else:
     check('the report dialog has the dialog role',
           has_role(report_dialog, Gtk.AccessibleRole.DIALOG))
     report_unrelated_labels(report_dialog, 'report')
+
+# The suggestion lists: the text view keeps the focus, so it names the
+# list it drives and the row that is current. PyGObject cannot read a
+# relation's target back; these prove it is set while the list is shown
+# and cleared when it goes (a CRITICAL from a malformed reference list
+# is fatal in this file).
+from gi.repository import GLib  # noqa: E402
+
+from src.hashtagcompleter import HashtagCompleter  # noqa: E402
+from src.mentioncompleter import MentionCompleter  # noqa: E402
+
+ACTIVE = Gtk.AccessibleRelation.ACTIVE_DESCENDANT
+CONTROLS = Gtk.AccessibleRelation.CONTROLS
+
+
+class _Answer:
+    path = ''
+
+
+class _SuggestClient:
+    instance = 'https://example.org'
+    token = None
+
+    def request_async(self, method, path, params=None, form=None,
+                      json_body=None, callback=None, cancellable=None):
+        result = _Answer()
+        result.path = path
+        GLib.idle_add(lambda *_: (callback(self, result),
+                                  GLib.SOURCE_REMOVE)[1])
+
+    def request_finish(self, result):
+        if result.path == '/accounts/search':
+            return [{'id': '1', 'acct': 'alice', 'username': 'alice',
+                     'display_name': 'Alice'}]
+        if result.path == '/api/v2/search':
+            return {'hashtags': [{'name': 'linux'}, {'name': 'linuxmint'}]}
+        return []
+
+
+def pump(millis=100):
+    deadline = GLib.get_monotonic_time() + millis * 1000
+    context = GLib.MainContext.default()
+    while GLib.get_monotonic_time() < deadline:
+        context.iteration(False)
+
+
+suggest_window = Gtk.Window()
+suggest_view = Gtk.TextView()
+suggest_window.set_child(suggest_view)
+suggest_window.present()
+suggest_view.grab_focus()
+pump(200)
+suggest_client = _SuggestClient()
+for kind, completer, text, label in (
+        ('hashtag', HashtagCompleter(suggest_client, suggest_view),
+         '#lin', 'Suggested Hashtags'),
+        ('mention', MentionCompleter(suggest_client, suggest_view),
+         '@al', 'Suggested Accounts')):
+    suggest_view.get_buffer().set_text(text)
+    suggest_view.get_buffer().place_cursor(
+        suggest_view.get_buffer().get_end_iter())
+    pump(600)
+    check('%s list is shown' % kind, completer.get_visible())
+    check('%s list sets active-descendant while shown' % kind,
+          has_relation(suggest_view, ACTIVE)
+          and completer.list_box.get_selected_row() is not None)
+    check('%s list sets controls while shown' % kind,
+          has_relation(suggest_view, CONTROLS))
+    check('%s list and its rows are named' % kind,
+          has_label(completer.list_box)
+          and has_label(completer.list_box.get_row_at_index(0))
+          and completer.list_label == label)
+    completer.list_box.unselect_all()
+    check('%s active-descendant is cleared with the selection' % kind,
+          not has_relation(suggest_view, ACTIVE)
+          and has_relation(suggest_view, CONTROLS))
+    completer.list_box.select_row(completer.list_box.get_row_at_index(0))
+    check('%s active-descendant follows the selection' % kind,
+          has_relation(suggest_view, ACTIVE))
+    Escape = Gdk.KEY_Escape
+    completer._on_key_pressed(None, Escape, 0, Gdk.ModifierType(0))
+    check('%s relations are cleared by Escape' % kind,
+          not has_relation(suggest_view, ACTIVE)
+          and not has_relation(suggest_view, CONTROLS))
+    suggest_view.get_buffer().set_text(text + 'x')
+    suggest_view.get_buffer().place_cursor(
+        suggest_view.get_buffer().get_end_iter())
+    pump(600)
+    completer.dismiss()
+    check('%s relations are cleared on dismiss' % kind,
+          not has_relation(suggest_view, ACTIVE)
+          and not has_relation(suggest_view, CONTROLS))
+    suggest_view.get_buffer().set_text('')
+    pump(100)
+suggest_window.destroy()
+
+# Two completers share one text view: each clears only the relations it
+# set, and typing prose makes no accessibility calls at all.
+pair_window = Gtk.Window()
+pair_view = Gtk.TextView()
+pair_window.set_child(pair_view)
+pair_window.present()
+pair_view.grab_focus()
+pump(200)
+pair_mention = MentionCompleter(suggest_client, pair_view)
+pair_hashtag = HashtagCompleter(suggest_client, pair_view)
+pair_buffer = pair_view.get_buffer()
+
+
+def pair_type(text):
+    pair_buffer.set_text(text)
+    pair_buffer.place_cursor(pair_buffer.get_end_iter())
+    pump(600)
+
+
+# The hashtag completer's handler runs after the mention one, and the
+# other way round for the second pair of checks.
+pair_type('@al')
+check('the mention list is shown beside a hashtag completer',
+      pair_mention.get_visible())
+pair_hashtag.update()
+check("the hashtag completer's update does not clear the mention list's "
+      'relations',
+      has_relation(pair_view, ACTIVE) and has_relation(pair_view, CONTROLS))
+pair_type('#lin')
+check('the hashtag list is shown beside a mention completer',
+      pair_hashtag.get_visible())
+pair_mention.update()
+check("the mention completer's update does not clear the hashtag list's "
+      'relations',
+      has_relation(pair_view, ACTIVE) and has_relation(pair_view, CONTROLS))
+pair_type('')
+resets = []
+real_reset = pair_view.reset_relation
+pair_view.reset_relation = lambda relation: (resets.append(relation),
+                                             real_reset(relation))[1]
+for char in 'hello':
+    pair_buffer.insert_at_cursor(char)
+    pump(20)
+pair_view.reset_relation = real_reset
+check('prose typing makes no relation reset', not resets)
+pair_window.destroy()
 
 if failures:
     print('%d checks failed' % len(failures))

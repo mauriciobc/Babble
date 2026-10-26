@@ -19,6 +19,7 @@ src/emojichooser.py
 src/explore.py
 src/fedicollections.py
 src/filters.py
+src/hashtagcompleter.py
 src/hashtags.py
 src/lists.py
 src/main.py

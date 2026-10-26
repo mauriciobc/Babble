@@ -8,6 +8,7 @@ import gc
 import inspect
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -33,7 +34,7 @@ gi.require_version('GtkSource', '5')
 gi.require_version('Spelling', '1')
 
 from gi.repository import (Adw, Gdk, Gio, GLib, Gtk,  # noqa: E402
-                           GtkSource, Spelling)
+                           GtkSource, Pango, Spelling)
 
 srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 srcroot = os.path.dirname(os.path.abspath(srcdir))
@@ -44,6 +45,9 @@ from src.compose import (MAX_ATTACHMENTS, VISIBILITIES,  # noqa: E402
                          BabbleComposeView, ComposeDialog, countable_length)
 from src import compose, emojichooser  # noqa: E402
 from src.drafts import Attachment, Draft  # noqa: E402
+from src.hashtagcompleter import (MAX_SUGGESTIONS,  # noqa: E402
+                                  hashtag_query, is_name_char, merge_casing,
+                                  rank_tags, wants_search)
 from src.mentioncompleter import mention_query  # noqa: E402
 from gettext import gettext as _, ngettext  # noqa: E402
 
@@ -134,6 +138,18 @@ SEARCH_ACCOUNTS = [
      'display_name': ''},
 ]
 
+# What the stub answers by path: the mention completer's account search,
+# the hashtag completer's search, and the three lists behind its pool.
+HASHTAG_ANSWER = []
+POOL_ANSWERS = {'/featured_tags/suggestions': [],
+                '/featured_tags': [],
+                '/followed_tags': []}
+#: Paths that answer with an error, and paths whose reply a test holds
+#: back until release_requests() (the reply of a slow server).
+FAIL_PATHS = set()
+HOLD_PATHS = set()
+held_requests = []
+
 
 class StubMediaResult:
     """Results are opaque; the view only passes them to *_finish."""
@@ -146,6 +162,8 @@ class StubMediaResult:
     defer_status = False
     #: Replies withheld by defer_status, released by release_status().
     held = []
+    #: The request this reply answers; request_finish routes on it.
+    path = '/accounts/search'
 
 
 class StubClient:
@@ -238,14 +256,32 @@ class StubClient:
 
     def request_async(self, method, path, params=None, form=None,
                       json_body=None, callback=None, cancellable=None):
-        # Only the mention completer's account search goes through here.
+        # The completers' searches go through here, and nothing else.
         searches.append((method, path, dict(params or {})))
         result = StubMediaResult()
-        GLib.idle_add(lambda *_: (callback(self, result),
-                                  GLib.SOURCE_REMOVE)[1])
+        result.path = path
+        if path in HOLD_PATHS:
+            held_requests.append((self, result, callback))
+        else:
+            GLib.idle_add(lambda *_: (callback(self, result),
+                                      GLib.SOURCE_REMOVE)[1])
         return None
 
+    @staticmethod
+    def release_requests():
+        """Answer every request a test held back with HOLD_PATHS."""
+        held, held_requests[:] = list(held_requests), []
+        for client, result, callback in held:
+            callback(client, result)
+
     def request_finish(self, result):
+        if result.path in FAIL_PATHS:
+            raise GLib.Error('Stub failure', Gio.io_error_quark(),
+                             Gio.IOErrorEnum.FAILED)
+        if result.path == '/api/v2/search':
+            return {'hashtags': HASHTAG_ANSWER}
+        if result.path in POOL_ANSWERS:
+            return POOL_ANSWERS[result.path]
         return SEARCH_ACCOUNTS
 
     def media_status_finish(self, result):
@@ -938,6 +974,121 @@ check('a URL path is no mention',
       mention_query('https://example.com/@al') is None)
 check('a finished mention is no query', mention_query('@al ') is None)
 
+# Hashtag suggestions: the token follows Mastodon's own rule (a tag
+# starts the line or follows whitespace, and a name is letters, marks,
+# digits and connectors), checked with the same pure function the
+# completer uses.
+check('hashtag query at start', hashtag_query('#lin') == (0, 'lin'))
+check('hashtag query after a space',
+      hashtag_query('hi #lin') == (3, 'lin'))
+check('hashtag query after a tab',
+      hashtag_query('hi\t#lin') == (3, 'lin'))
+check('hashtag query after a newline',
+      hashtag_query('hi\n#lin') == (3, 'lin'))
+check('fullwidth hash starts a hashtag',
+      hashtag_query('hi \uff03lin') == (3, 'lin'))
+check('C# is no query', hashtag_query('C#') is None)
+check('(#x is no query', hashtag_query('(#x') is None)
+check('example.com/#a is no query',
+      hashtag_query('example.com/#a') is None)
+check('abc#x is no query', hashtag_query('abc#x') is None)
+check('## is no query', hashtag_query('##x') is None)
+check('CJK names are queries',
+      hashtag_query('x #日本語') == (2, '日本語'))
+check('Devanagari marks stay in the query',
+      hashtag_query('#हिन्दी') == (0, 'हिन्दी'))
+check('middle dot, katakana middle dot and ZWNJ stay in the query',
+      hashtag_query('#a\u00b7b') == (0, 'a\u00b7b')
+      and hashtag_query('#a\u30fbb') == (0, 'a\u30fbb')
+      and hashtag_query('#a\u200cb') == (0, 'a\u200cb'))
+check('digits and underscores stay in the query',
+      hashtag_query('#a_1') == (0, 'a_1'))
+check('bare hash is an empty query', hashtag_query('hi #') == (3, ''))
+check('empty text is no query', hashtag_query('') is None)
+check('finished tag is no query', hashtag_query('#tag ') is None)
+check('#foo, is no query', hashtag_query('#foo,') is None)
+check('#foo. is no query', hashtag_query('#foo.') is None)
+check('is_name_char knows names from punctuation',
+      is_name_char('a') and is_name_char('_') and is_name_char('\u0947')
+      and not is_name_char('-') and not is_name_char(' ')
+      and not is_name_char(''))
+check('wants_search digits only is False',
+      not wants_search('12') and not wants_search('')
+      and wants_search('2024x') and wants_search('日本'))
+
+check('merge_casing GamingD',
+      merge_casing('GamingD', 'gamingdeals') == 'GamingDeals')
+check('merge_casing gaming',
+      merge_casing('gaming', 'GamingDeals') == 'GamingDeals')
+check('merge_casing İ unchanged',
+      merge_casing('\u0130', '\u0130stanbul') == '\u0130stanbul'
+      and merge_casing('i', '\u0130stanbul') == '\u0130stanbul')
+check('merge_casing camel case kept',
+      merge_casing('gamingDeals', 'gamingdealsnow') == 'gamingDealsnow')
+check('merge_casing empty typed gives the name',
+      merge_casing('', 'Linux') == 'Linux')
+check('merge_casing falls back when the name does not begin with it',
+      merge_casing('Lix', 'Linux') == 'Linux')
+
+
+def mk_tag(name, source=None, people=0, following=False):
+    entry = {'name': name, 'following': following}
+    if source:
+        entry['source'] = source
+    if people:
+        entry['history'] = [{'uses': '9', 'accounts': str(people)}]
+    return entry
+
+
+def tag_names(ranked):
+    return [entry['name'] for entry in ranked]
+
+
+check('rank_tags exact first',
+      tag_names(rank_tags('lin', [mk_tag('lingo', 'recent')],
+                      [mk_tag('linux', people=9), mk_tag('Lin')]))
+      == ['Lin', 'lingo', 'linux'])
+check('rank_tags pool before server',
+      tag_names(rank_tags('l', [mk_tag('lab', 'followed'), mk_tag('lap', 'recent')],
+                      [mk_tag('linux', people=99)]))
+      == ['lap', 'lab', 'linux'])
+check('rank_tags pool by source order',
+      tag_names(rank_tags('l', [mk_tag('lc', 'followed'), mk_tag('lb', 'featured'),
+                            mk_tag('la', 'recent')], []))
+      == ['la', 'lb', 'lc'])
+check('rank_tags following before people',
+      tag_names(rank_tags('l', [], [mk_tag('big', people=99), mk_tag('mine', people=1,
+                                                           following=True)]))
+      == ['mine', 'big'])
+check('rank_tags people descending',
+      tag_names(rank_tags('l', [], [mk_tag('lone', people=1), mk_tag('lots', people=5),
+                                mk_tag('lots2', people=3)]))
+      == ['lots', 'lots2', 'lone'])
+check('rank_tags dedups case-insensitively',
+      tag_names(rank_tags('l', [mk_tag('Linux', 'recent')],
+                      [mk_tag('linux'), mk_tag('LINUX'), mk_tag('lisp')]))
+      == ['Linux', 'lisp'])
+check('rank_tags caps at 6',
+      len(rank_tags('l', [mk_tag('l%d' % i, 'recent') for i in range(4)],
+                    [mk_tag('s%d' % i) for i in range(9)])) == MAX_SUGGESTIONS)
+check('rank_tags ties keep server order',
+      tag_names(rank_tags('l', [], [mk_tag('lb'), mk_tag('la'), mk_tag('lc')]))
+      == ['lb', 'la', 'lc'])
+check('rank_tags skips nameless',
+      tag_names(rank_tags('l', [{'source': 'recent'}, mk_tag('la', 'recent')],
+                      [{'name': ''}, {'id': '3'}, None, mk_tag('lb')]))
+      == ['la', 'lb'])
+ranked = rank_tags('l', [mk_tag('la', 'featured', people=4)], [mk_tag('lb')])
+check('rank_tags adds source and people to copies',
+      ranked[0]['source'] == 'featured' and ranked[0]['people'] == 4
+      and ranked[1]['source'] is None and ranked[1]['people'] == 0)
+
+from src import hashtags, statustext  # noqa: E402
+check('history_totals still importable from hashtags',
+      hashtags.history_totals is statustext.history_totals
+      and hashtags.STATS_DAYS == statustext.STATS_DAYS)
+check('STATS_DAYS == 2', statustext.STATS_DAYS == 2)
+
 completer = view.mention_completer
 NO_MODS = Gdk.ModifierType(0)
 
@@ -1042,6 +1193,26 @@ check('a stale reply is ignored',
 view.reset()
 check('reset closes the list', not completer.get_visible())
 
+# The mention completer is the base class plus account hooks, and the
+# base knows nothing of accounts.
+from src import completer as completer_module  # noqa: E402
+check('mention completer is a TokenCompleter',
+      isinstance(completer, completer_module.TokenCompleter))
+base_source = inspect.getsource(completer_module.TokenCompleter)
+check('base class has no account-specific import',
+      'AvatarCache' not in base_source and 'acct' not in base_source)
+searches.clear()
+client.request_async('GET', '/api/v2/search', params={'q': 'x'},
+                     callback=lambda *_: None)
+stub_result = StubMediaResult()
+stub_result.path = '/api/v2/search'
+HASHTAG_ANSWER.append({'name': 'linux'})
+check('stub routes /api/v2/search separately from accounts',
+      client.request_finish(stub_result) == {'hashtags': [{'name': 'linux'}]}
+      and client.request_finish(StubMediaResult()) is SEARCH_ACCOUNTS)
+HASHTAG_ANSWER.clear()
+searches.clear()
+
 # The Mention button starts a mention set off from the word before it
 # and shows the hint until a name is typed.
 set_text('hello')
@@ -1060,6 +1231,1037 @@ view.reset()
 view.on_mention_clicked(view.mention_button)
 check('mention button on an empty draft adds a bare @', view.text() == '@')
 view.reset()
+
+# The base class on its own, through a minimal subclass that completes
+# ``#word`` from the hashtag answer: the selection, refill and input
+# method rules live in TokenCompleter, not in either real completer.
+
+
+class FakeCompleter(completer_module.TokenCompleter):
+    list_label = 'Fake'
+    #: Items shown at once, before any request, whose name starts with
+    #: the query.
+    instant = []
+    searching = True
+    #: No row starts selected.
+    no_default = False
+
+    inert = False
+
+    def token_query(self, text):
+        if self.inert:
+            return None
+        match = re.search(r'(?<!\S)#(\w*)\Z', text)
+        return None if match is None else (match.start(), match.group(1))
+
+    def continues_token(self, char):
+        return char.isalnum()
+
+    def instant_items(self, query):
+        return [item for item in self.instant
+                if item['name'].startswith(query)]
+
+    def wants_search(self, query):
+        return self.searching
+
+    def search_request(self, query):
+        return '/api/v2/search', {'q': query}
+
+    def parse(self, result):
+        return list(result['hashtags'])
+
+    def build_row(self, item):
+        return Gtk.ListBoxRow(child=Gtk.Label(label=item['name']),
+                              can_focus=False)
+
+    def completion(self, item, typed):
+        return '#' + item['name']
+
+    def default_selection(self, items, query):
+        return None if self.no_default else 0
+
+    def item_key(self, item):
+        return item['name']
+
+    def merge_results(self, query, items):
+        # A failed search leaves the rows that were already shown.
+        return items or self.instant_items(query)
+
+
+fake = FakeCompleter(client, view.text_view)
+fake.instant = []
+
+
+def fake_press(keyval, state=NO_MODS):
+    return fake._on_key_pressed(None, keyval, 0, state)
+
+
+def fake_settle():
+    deadline = GLib.get_monotonic_time() + 3 * 1000 * 1000
+    while (fake._search_id or fake._cancellable is not None) \
+            and GLib.get_monotonic_time() < deadline:
+        pump(20)
+    pump(50)
+
+
+def fake_type(text):
+    view.buffer.set_text(text)
+    view.buffer.place_cursor(view.buffer.get_end_iter())
+    fake_settle()
+
+
+def wait_until(condition, seconds=3):
+    deadline = GLib.get_monotonic_time() + seconds * 1000 * 1000
+    while not condition() and GLib.get_monotonic_time() < deadline:
+        pump(20)
+    pump(50)
+
+
+def fake_selected():
+    row = fake.list_box.get_selected_row()
+    return None if row is None else row.item['name']
+
+
+def fake_names():
+    names = []
+    while (row := fake.list_box.get_row_at_index(len(names))) is not None:
+        names.append(row.item['name'])
+    return names
+
+
+# An input method that is composing owns Enter, Tab and the arrows.
+view.reset()
+view.text_view.grab_focus()
+HASHTAG_ANSWER[:] = [{'name': 'one'}, {'name': 'two'}]
+type_text('hi @al')
+view.text_view.emit('preedit-changed', '日本')
+check('preedit lets Enter through (mention)',
+      not press(Gdk.KEY_Return) and completer.get_visible()
+      and view.text() == 'hi @al')
+check('preedit lets Down and Tab through',
+      not press(Gdk.KEY_Down) and not press(Gdk.KEY_Tab)
+      and completer.list_box.get_selected_row()
+      is completer.list_box.get_row_at_index(0))
+check('Escape passes through while composing (mention)',
+      not press(Gdk.KEY_Escape) and completer.get_visible())
+view.text_view.emit('preedit-changed', '')
+check('Escape closes once composing ends', press(Gdk.KEY_Escape)
+      and not completer.get_visible())
+type_text('hi @al')
+check('empty preedit restores Enter', press(Gdk.KEY_Return)
+      and view.text() == 'hi @alice ')
+type_text('hi @al')
+view.text_view.emit('preedit-changed', '日本')
+completer._on_focus_leave(None)
+type_text('hi @al')
+check('preedit is reset by focus leave', press(Gdk.KEY_Return)
+      and view.text() == 'hi @alice ')
+view.text_view.emit('preedit-changed', '')
+
+# A cursor move that is not a token (the input method moves it while
+# composing) closes the list but does not end the composition.
+type_text('hi @al')
+view.text_view.emit('preedit-changed', '日本')
+view.buffer.place_cursor(view.buffer.get_start_iter())
+pump(50)
+check('the list closes when the caret leaves the token',
+      not completer.get_visible())
+view.buffer.place_cursor(view.buffer.get_end_iter())
+settle()
+check('non-token mark-set mid-composition keeps the preedit guard',
+      completer.get_visible() and not press(Gdk.KEY_Return)
+      and view.text() == 'hi @al')
+view.text_view.emit('preedit-changed', '')
+
+fake_type('#o')
+check('the fake completer lists the answer', fake_names() == ['one', 'two'])
+view.text_view.emit('preedit-changed', 'に')
+check('preedit lets Enter through (base class)',
+      not fake_press(Gdk.KEY_Return) and fake.get_visible()
+      and view.text() == '#o')
+view.text_view.emit('preedit-changed', '')
+check('Enter accepts again once composing ends',
+      fake_press(Gdk.KEY_Return) and view.text() == '#one ')
+view.reset()
+
+# Selection: a subclass can leave no row selected, and then the keyboard
+# has to ask for one with Down.
+view.text_view.grab_focus()
+HASHTAG_ANSWER[:] = [{'name': 'one'}, {'name': 'two'}]
+fake.no_default = True
+fake_type('#o')
+check('default_selection None leaves no row selected',
+      fake_names() == ['one', 'two'] and fake_selected() is None
+      and fake.list_box.get_sensitive())
+check('Enter with no selection passes through',
+      not fake_press(Gdk.KEY_Return) and view.text() == '#o'
+      and fake.get_visible())
+check('Up with no selection passes through',
+      not fake_press(Gdk.KEY_Up) and fake_selected() is None)
+check('Down from no selection selects row 0 and is consumed',
+      fake_press(Gdk.KEY_Down) and fake_selected() == 'one')
+check('Enter after Down accepts the row',
+      fake_press(Gdk.KEY_Return) and view.text() == '#one ')
+fake_type('#o')
+check('Tab with no selection passes through',
+      not fake_press(Gdk.KEY_Tab) and view.text() == '#o')
+fake.no_default = False
+
+# Refill: rows shown at once are replaced by the server's answer. The
+# row the user moved to stays; one nobody moved to goes back to the
+# default.
+HOLD_PATHS.add('/api/v2/search')
+fake.instant = [{'name': 'one'}, {'name': 'oak'}]
+HASHTAG_ANSWER[:] = [{'name': 'oak'}, {'name': 'one'}]
+view.reset()
+view.text_view.grab_focus()
+view.buffer.set_text('#o')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+wait_until(lambda: held_requests)
+check('instant rows show before the answer, usable and selected',
+      fake_names() == ['one', 'oak'] and fake.list_box.get_sensitive()
+      and fake_selected() == 'one')
+check('Down moves within the instant rows',
+      fake_press(Gdk.KEY_Down) and fake_selected() == 'oak')
+client.release_requests()
+pump(50)
+check('refill keeps the moved selection by key',
+      fake_names() == ['oak', 'one'] and fake_selected() == 'oak')
+view.reset()
+view.text_view.grab_focus()
+held_requests.clear()
+view.buffer.set_text('#o')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+wait_until(lambda: held_requests)
+client.release_requests()
+pump(50)
+check('refill without a move re-applies the default',
+      fake_names() == ['oak', 'one'] and fake_selected() == 'oak')
+
+# A list still waiting for its answer is out of the keyboard's reach.
+view.reset()
+view.text_view.grab_focus()
+held_requests.clear()
+view.buffer.set_text('#o')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+wait_until(lambda: held_requests)
+client.release_requests()
+pump(50)
+held_requests.clear()
+view.buffer.insert_at_cursor('z')
+pump(50)
+check('the list is insensitive while the new query runs',
+      not fake.list_box.get_sensitive()
+      and fake.list_box.get_selected_row() is None)
+check('insensitive list passes Down and Enter through',
+      not fake_press(Gdk.KEY_Down) and not fake_press(Gdk.KEY_Return)
+      and view.text() == '#oz')
+HOLD_PATHS.clear()
+held_requests.clear()
+fake.instant = []
+
+# A search that fails keeps what could be shown without it.
+FAIL_PATHS.add('/api/v2/search')
+fake.instant = [{'name': 'one'}]
+fake_type('#o')
+check('failed search keeps instant rows',
+      fake_names() == ['one'] and fake.get_visible())
+fake.instant = []
+fake_type('#o')
+check('failed search with no rows hides', not fake.get_visible())
+FAIL_PATHS.clear()
+
+# A query that cannot be searched for and matches nothing leaves no
+# rows of an older query behind.
+HASHTAG_ANSWER[:] = [{'name': 'one'}, {'name': 'two'}]
+fake_type('#o')
+check('rows are shown before the query stops being searchable',
+      fake_names() == ['one', 'two'])
+fake.searching = False
+view.buffer.insert_at_cursor('x')
+pump(50)
+check('no instant rows and no search clears stale rows',
+      fake_names() == [] and not fake.get_visible() and not fake._search_id)
+fake.searching = True
+view.reset()
+# Unparenting it leaves the other popovers on the view pointing at a
+# stale parent, so it is silenced instead.
+fake.inert = True
+fake.dismiss()
+
+# The hashtag completer: the same popover over the hashtag search.
+from src.hashtagcompleter import caption_for  # noqa: E402
+
+hcomp = view.hashtag_completer
+LINUX = {'name': 'linux', 'history': [{'uses': '30', 'accounts': '9'},
+                                      {'uses': '5', 'accounts': '2'}]}
+MINT = {'name': 'linuxmint', 'history': [{'uses': '3', 'accounts': '1'}]}
+
+
+def hpress(keyval, state=NO_MODS):
+    return hcomp._on_key_pressed(None, keyval, 0, state)
+
+
+def hsettle():
+    deadline = GLib.get_monotonic_time() + 3 * 1000 * 1000
+    while (hcomp._search_id or hcomp._cancellable is not None) \
+            and GLib.get_monotonic_time() < deadline:
+        pump(20)
+    pump(50)
+
+
+def htype(text, cursor=None):
+    view.buffer.set_text(text)
+    view.buffer.place_cursor(view.buffer.get_end_iter() if cursor is None
+                             else view.buffer.get_iter_at_offset(cursor))
+    hsettle()
+
+
+def hnames():
+    found = []
+    while (row := hcomp.list_box.get_row_at_index(len(found))) is not None:
+        found.append(row.tag_name)
+    return found
+
+
+def hselected():
+    row = hcomp.list_box.get_selected_row()
+    return None if row is None else row.tag_name
+
+
+def hashtag_searches():
+    return [entry for entry in searches if entry[1] == '/api/v2/search']
+
+
+def cursor_offset():
+    return view.buffer.get_iter_at_mark(
+        view.buffer.get_insert()).get_offset()
+
+
+view.reset()
+view.text_view.grab_focus()
+HASHTAG_ANSWER[:] = [LINUX, MINT]
+searches.clear()
+htype('hi #lin')
+request = hashtag_searches()[-1][2] if hashtag_searches() else {}
+check('typing #lin searches hashtags',
+      hashtag_searches() and hashtag_searches()[-1][0] == 'GET'
+      and request.get('type') == 'hashtags' and request.get('q') == 'lin')
+check('search has no exclude_unreviewed and resolve=false limit=10',
+      'exclude_unreviewed' not in request
+      and request.get('resolve') == 'false' and request.get('limit') == 10)
+check('server rows show and the first is selected',
+      hcomp.get_visible() and hnames() == ['linux', 'linuxmint']
+      and hselected() == 'linux')
+check('the mention list stays closed for a hashtag',
+      not completer.get_visible())
+
+view.reset()
+searches.clear()
+view.buffer.set_text('#ab')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+view.buffer.insert_at_cursor('c')
+view.buffer.insert_at_cursor('d')
+hsettle()
+check('only the last of three quick queries is sent',
+      [entry[2]['q'] for entry in hashtag_searches()] == ['abcd'])
+
+htype('#lin')
+htype('#linu')
+searches.clear()
+htype('#lin')
+check('cache answers backspace without a request',
+      not hashtag_searches() and hcomp.get_visible()
+      and hnames() == ['linux', 'linuxmint'])
+hcomp._cache.clear()
+for number in range(33):
+    hcomp.merge_results('x%d' % number, [])
+check('cache evicts at 33',
+      len(hcomp._cache) == 32 and 'x0' not in hcomp._cache
+      and 'x32' in hcomp._cache)
+hcomp._cache.clear()
+
+# Exact matches are not preselected: Enter after a finished tag is a line
+# break, and Down then Enter still picks the server's spelling.
+HASHTAG_ANSWER[:] = [{'name': 'art'}, {'name': 'arts'}]
+htype('hi #art')
+check('exact match first row is not selected',
+      hnames() == ['art', 'arts'] and hselected() is None
+      and hcomp.list_box.get_sensitive())
+check('Enter on exact match leaves text plus newline',
+      not hpress(Gdk.KEY_Return) and not hpress(Gdk.KEY_Tab)
+      and view.text() == 'hi #art')
+HASHTAG_ANSWER[:] = [{'name': 'Linux'}]
+htype('#linux')
+check('Down then Enter on exact match inserts merged casing #Linux',
+      hselected() is None and hpress(Gdk.KEY_Down)
+      and hselected() == 'Linux' and hpress(Gdk.KEY_Return)
+      and view.text() == '#Linux ')
+
+HASHTAG_ANSWER[:] = [LINUX, MINT]
+view.text_view.grab_focus()
+htype('#lin')
+check('text view keeps focus before accept', view.text_view.is_focus())
+check('Enter inserts #Linux with a trailing space and cursor after it',
+      hpress(Gdk.KEY_Return) and view.text() == '#linux '
+      and cursor_offset() == 7 and not hcomp.get_visible())
+check('text view keeps focus after accept', view.text_view.is_focus())
+if view.buffer.get_can_undo():
+    view.buffer.undo()
+    check('ctrl+z undoes the whole insertion in one step',
+          view.text() == '#lin')
+else:
+    check('ctrl+z undo is not enabled on this buffer (code reference: '
+          '_accept wraps begin/end_user_action)', True)
+htype('hi ＃lin')
+check('fullwidth trigger kept', hpress(Gdk.KEY_Return)
+      and view.text() == 'hi ＃linux ')
+htype('#lin rest', cursor=4)
+check('space already after: no second space',
+      hpress(Gdk.KEY_Return) and view.text() == '#linux rest'
+      and cursor_offset() == 7)
+HASHTAG_ANSWER[:] = [{'name': 'Linux'}]
+hcomp._cache.clear()
+htype('#linxyz', cursor=4)
+check('mid-word accept replaces the rest of the name',
+      hpress(Gdk.KEY_Return) and view.text() == '#Linux ')
+HASHTAG_ANSWER[:] = [LINUX, MINT]
+hcomp._cache.clear()
+htype('#lin')
+hcomp._on_row_activated(hcomp.list_box, hcomp.list_box.get_row_at_index(1))
+check('click row inserts and focuses text view',
+      view.text() == '#linuxmint ' and view.text_view.is_focus())
+
+htype('#lin')
+check('Shift+Enter passes through',
+      not hpress(Gdk.KEY_Return, Gdk.ModifierType.SHIFT_MASK)
+      and hcomp.get_visible())
+check('Ctrl+Enter passes through',
+      not hpress(Gdk.KEY_Return, Gdk.ModifierType.CONTROL_MASK))
+check('Shift+Tab passes through',
+      not hpress(Gdk.KEY_Tab, Gdk.ModifierType.SHIFT_MASK))
+check('Escape closes', hpress(Gdk.KEY_Escape) and not hcomp.get_visible())
+check('Escape returns False while hidden', not hpress(Gdk.KEY_Escape))
+view.buffer.place_cursor(view.buffer.get_end_iter())
+hsettle()
+check('Escape closes and stays closed until the token changes',
+      not hcomp.get_visible())
+view.buffer.insert_at_cursor('u')
+hsettle()
+check('typing on reopens it', hcomp.get_visible())
+
+type_text('@al')
+check('@a leaves the mention list only', completer.get_visible()
+      and not hcomp.get_visible())
+htype('#al')
+check('@a then #a leaves one popover',
+      hcomp.get_visible() and not completer.get_visible())
+
+# Rows that answer an older query are out of reach.
+HOLD_PATHS.add('/api/v2/search')
+htype('#lin')
+hcomp._cache.clear()
+view.buffer.insert_at_cursor('z')
+wait_until(lambda: held_requests)
+check('selection and stale rows',
+      not hcomp.list_box.get_sensitive() and hselected() is None
+      and not hpress(Gdk.KEY_Return) and view.text() == '#linz')
+# A late answer for a token that is gone adds no rows.
+view.buffer.set_text('')
+pump(50)
+client.release_requests()
+pump(50)
+check('late answer after token change adds no rows',
+      hnames() == [] and not hcomp.get_visible())
+HOLD_PATHS.clear()
+held_requests.clear()
+
+# Digits: nothing to ask for.
+hcomp._cache.clear()
+searches.clear()
+htype('issue #12')
+check('#12 makes no request',
+      not hashtag_searches() and not hcomp.get_visible())
+htype('#2024x')
+check('#2024x searches', len(hashtag_searches()) == 1)
+
+# Failure is silent.
+toasts = []
+real_toast, real_report = pages.show_toast, pages.report_error
+pages.show_toast = lambda *a, **k: toasts.append(a)
+pages.report_error = lambda *a, **k: toasts.append(a)
+FAIL_PATHS.add('/api/v2/search')
+htype('#fail')
+check('failed search hides, no toast', not hcomp.get_visible() and not toasts)
+FAIL_PATHS.clear()
+HASHTAG_ANSWER[:] = []
+htype('#nothingwithit')
+check('pool-less empty answer hides', not hcomp.get_visible() and not toasts)
+pages.show_toast, pages.report_error = real_toast, real_report
+HASHTAG_ANSWER[:] = [{'id': '1'}, None, {'name': ''}, LINUX]
+htype('#lin')
+check('malformed entry skipped', hnames() == ['linux'])
+HASHTAG_ANSWER[:] = [LINUX, MINT]
+
+# Rows.
+plain = hcomp.build_row({'name': 'x'})
+labels_box = plain.get_child().get_last_child()
+check('row without caption has no caption child and label #x',
+      labels_box.get_first_child() is labels_box.get_last_child()
+      and plain.accessible_text == '#x')
+zero = hcomp.build_row({'name': 'x', 'history': [{'uses': '0',
+                                                  'accounts': '0'}]})
+check('zero-people history: no caption',
+      zero.accessible_text == '#x'
+      and caption_for({'name': 'x', 'history': []}) == '')
+
+
+def people(count):
+    return caption_for({'name': 'x', 'history': [
+        {'uses': '1', 'accounts': str(count)}]})
+
+
+check('caption plural 1 / 2 / 0',
+      people(1) == ngettext('%d person, last 2 days',
+                            '%d people, last 2 days', 1) % 1
+      and people(2) == ngettext('%d person, last 2 days',
+                                '%d people, last 2 days', 2) % 2
+      and people(0) == '' and '2 days' in people(5))
+check('pool captions',
+      caption_for({'source': 'recent'}) == _('Recently used')
+      and caption_for({'source': 'featured'}) == _('On your profile')
+      and caption_for({'source': 'followed'}) == _('Followed'))
+rich = hcomp.build_row({'name': 'linux', 'source': 'recent'})
+check('row label is #name, caption',
+      rich.accessible_text == '#linux, ' + _('Recently used'))
+
+longname = 'x' * 60
+long_row = hcomp.build_row({'name': longname, 'source': 'recent'})
+box = long_row.get_child().get_last_child()
+mention_row = completer.build_row({'acct': 'y' * 60, 'username': 'y',
+                                   'display_name': 'y' * 60})
+check('row labels ellipsize END and natural width <= mention row',
+      box.get_first_child().get_ellipsize() == Pango.EllipsizeMode.END
+      and box.get_last_child().get_ellipsize() == Pango.EllipsizeMode.END
+      and long_row.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+      <= mention_row.measure(Gtk.Orientation.HORIZONTAL, -1)[1])
+check('name and caption are separate labels (RTL)',
+      box.get_first_child().get_label() == '#' + longname
+      and box.get_last_child().get_label() == _('Recently used'))
+Gtk.Widget.set_default_direction(Gtk.TextDirection.RTL)
+rtl_row = hcomp.build_row({'name': 'linux', 'source': 'recent'})
+check('RTL row direction',
+      rtl_row.get_child().get_direction() == Gtk.TextDirection.RTL)
+Gtk.Widget.set_default_direction(Gtk.TextDirection.LTR)
+check('list label is Suggested Hashtags',
+      hcomp.list_label == _('Suggested Hashtags'))
+# The suite runs with GTK_A11Y=none, where nothing can be read back, so
+# this reads the one place it is set.
+check('AUTOCOMPLETE stays LIST',
+      'AccessibleAutocomplete.LIST' in base_source
+      and 'AccessibleAutocomplete.NONE' not in base_source
+      and 'AccessibleAutocomplete' not in inspect.getsource(
+          type(hcomp)))
+check('rows and list are not focusable',
+      not hcomp.get_can_focus() and not hcomp.list_box.get_can_focus()
+      and not plain.get_can_focus() and not rich.get_can_focus())
+
+# Focus, posting, input methods.
+htype('#lin')
+check('focus leave dismisses',
+      hcomp.get_visible() and (hcomp._on_focus_leave(None) or True)
+      and not hcomp.get_visible())
+view.text_view.grab_focus()
+htype('#lin')
+view.set_posting_ui(True)
+check('posting dismisses both completers',
+      not hcomp.get_visible() and not completer.get_visible())
+view.set_posting_ui(False)
+htype('#lin')
+view.reset()
+check('reset dismisses both completers',
+      not hcomp.get_visible() and not completer.get_visible())
+view.text_view.grab_focus()
+htype('#lin')
+view.text_view.emit('preedit-changed', '日本')
+check('preedit lets Enter through (hashtag)',
+      not hpress(Gdk.KEY_Return) and hcomp.get_visible()
+      and view.text() == '#lin')
+check('Escape passes through while composing (hashtag)',
+      not hpress(Gdk.KEY_Escape) and hcomp.get_visible())
+view.text_view.emit('preedit-changed', '')
+view.reset()
+
+# The pool: the account's own tags, fetched once and shared.
+from src import hashtagcompleter as hc_module  # noqa: E402
+
+POOL_PATHS = ['/featured_tags/suggestions', '/featured_tags',
+              '/followed_tags']
+RECENT, FEATURED, FOLLOWED = POOL_PATHS
+
+
+def reset_pool(**answers):
+    hc_module._POOLS.clear()
+    hcomp._cache.clear()
+    view.reset()
+    for path in POOL_PATHS:
+        POOL_ANSWERS[path] = []
+    for path, tags in answers.items():
+        POOL_ANSWERS[path] = tags
+    HASHTAG_ANSWER[:] = []
+    held_requests.clear()
+    searches.clear()
+    view.text_view.grab_focus()
+
+
+def pool_requests():
+    return [entry[1] for entry in searches if entry[1] in POOL_PATHS]
+
+
+def the_pool():
+    return hc_module._POOLS.get(client)
+
+
+reset_pool(**{RECENT: [{'name': 'linuxfan'}]})
+HASHTAG_ANSWER[:] = [LINUX]
+HOLD_PATHS.add('/api/v2/search')
+view.buffer.set_text('#lin')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+wait_until(lambda: hnames() == ['linuxfan'])
+check('pool rows show before the search answers',
+      hnames() == ['linuxfan'] and hcomp.list_box.get_sensitive()
+      and hselected() == 'linuxfan' and hcomp.get_visible())
+wait_until(lambda: held_requests)
+client.release_requests()
+pump(50)
+check('the search answer joins the pool rows',
+      hnames() == ['linuxfan', 'linux'])
+HOLD_PATHS.clear()
+check('pool fetches three endpoints once',
+      sorted(pool_requests()) == sorted(POOL_PATHS)
+      and [e[2] for e in searches if e[1] == FOLLOWED] == [{'limit': 200}])
+htype('#lino')
+extra = BabbleComposeView(client)
+extra.hashtag_completer.prepare('lin')
+pump(50)
+check('second composer in 10 minutes makes no pool request',
+      len(pool_requests()) == 3)
+extra_ref = weakref.ref(extra)
+del extra
+gc.collect()
+
+check('two composers of one client share the pool',
+      len(hc_module._POOLS) == 1)
+other = StubClient()
+hc_module._POOLS.setdefault(other, hc_module.TagPool()).ensure(other)
+pump(50)
+check('other client has its own pool',
+      len(pool_requests()) == 6 and len(hc_module._POOLS) == 2
+      and hc_module._POOLS[other] is not the_pool())
+other_ref = weakref.ref(other)
+del other
+gc.collect()
+check('the pool is freed with its client',
+      other_ref() is None and len(hc_module._POOLS) == 1)
+
+clock = [1000.0]
+real_now = hc_module._now
+hc_module._now = lambda: clock[0]
+reset_pool()
+hcomp.prepare('lin')
+pump(50)
+clock[0] += hc_module.POOL_TTL_SECONDS - 1
+hcomp.prepare('lin')
+pump(50)
+check('inside the TTL there is no refetch', len(pool_requests()) == 3)
+clock[0] += 2
+hcomp.prepare('lin')
+pump(50)
+check('TTL expiry refetches', len(pool_requests()) == 6)
+hc_module._now = real_now
+
+reset_pool()
+htype('hello there')
+pump(50)
+check('composer without a hash makes no pool request',
+      not pool_requests())
+
+for failing, label in ((RECENT, 'recent'), (FEATURED, 'featured'),
+                       (FOLLOWED, 'followed')):
+    reset_pool(**{RECENT: [{'name': 'linr'}], FEATURED: [{'name': 'linf'}],
+                  FOLLOWED: [{'name': 'link'}]})
+    FAIL_PATHS.add(failing)
+    htype('#lin')
+    left = sorted(tag['name'] for source in the_pool().tags.values()
+                  for tag in source)
+    want = sorted({'linr', 'linf', 'link'} - {
+        {RECENT: 'linr', FEATURED: 'linf', FOLLOWED: 'link'}[failing]})
+    check('pool endpoint failing in turn: others still work (%s)' % label,
+          left == want and hcomp.get_visible()
+          and sorted(hnames()) == want)
+    FAIL_PATHS.clear()
+reset_pool()
+HASHTAG_ANSWER[:] = [LINUX]
+FAIL_PATHS.update(POOL_PATHS)
+htype('#lin')
+check('all pool endpoints failing: search still works',
+      hnames() == ['linux'] and the_pool().loaded)
+FAIL_PATHS.clear()
+
+# remember() and forget_pool().
+reset_pool()
+hc_module.remember(client, [{'name': 'Foo'}, {'name': 'foo'}, {}])
+hc_module.remember(client, [{'name': 'FOO'}, {'name': 'bar'}])
+check('remember adds recent, dedups',
+      [t['name'] for t in the_pool().tags['recent']] == ['bar', 'Foo']
+      and not the_pool().loaded)
+htype('#ba')
+check('remembered tags survive the first load and are suggested',
+      hnames() == ['bar'])
+hc_module.remember(client, None)
+hc_module.forget_pool(client)
+check('forget_pool drops it', the_pool() is None)
+reset_pool()
+hcomp.prepare('a')
+pump(50)
+real_client_of = pages.client_of
+pages.client_of = lambda _widget: client
+hashtags._invalidate_home_tags(view)
+pages.client_of = real_client_of
+check('_invalidate_home_tags drops the pool', the_pool() is None)
+
+reset_pool()
+set_text('post #Gaming')
+client.post_status_finish = lambda _result: {
+    'id': '1', 'content': '<p>x</p>', 'tags': [{'name': 'Gaming'}]}
+view.on_post_done(client, StubMediaResult())
+del client.post_status_finish
+check('on_post_done remembers published tags',
+      the_pool() is not None
+      and [t['name'] for t in the_pool().tags['recent']] == ['Gaming'])
+
+# The bare #.
+reset_pool(**{RECENT: [{'name': 'r%d' % n} for n in range(5)],
+              FEATURED: [{'name': 'f1'}, {'name': 'f2'}],
+              FOLLOWED: [{'name': 'followedonly'}]})
+the_pool_obj = hc_module._POOLS.setdefault(client, hc_module.TagPool())
+the_pool_obj.ensure(client)
+pump(100)
+view.buffer.set_text('#')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+pump(50)
+check('bare hash shows nothing at once', not hcomp.get_visible())
+wait_until(hcomp.get_visible)
+check('bare hash after debounce lists recent and featured, max 6',
+      hnames() == ['r0', 'r1', 'r2', 'r3', 'r4', 'f1']
+      and hselected() is None)
+check('bare hash list takes Down then Enter',
+      hpress(Gdk.KEY_Down) and hpress(Gdk.KEY_Return)
+      and view.text() == '#r0 ')
+view.buffer.set_text('# heading')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+pump(400)
+check('# heading never shows a list', not hcomp.get_visible())
+view.buffer.set_text('#')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+view.buffer.insert_at_cursor(' ')
+pump(400)
+check('# then a space inside the debounce never shows a list',
+      not hcomp.get_visible())
+
+reset_pool()
+searches.clear()
+view.buffer.set_text('#')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+pump(400)
+check('bare hash with empty pool shows nothing and sends no search',
+      not hcomp.get_visible() and not hashtag_searches())
+
+# A pool that is still loading when the user pauses on # shows nothing,
+# and its answer later does not pop a list for a token that moved on.
+reset_pool(**{RECENT: [{'name': 'late'}]})
+HOLD_PATHS.update(POOL_PATHS)
+view.buffer.set_text('#lat')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+pump(50)
+view.buffer.set_text('hello')
+pump(50)
+HOLD_PATHS.clear()
+client.release_requests()
+pump(100)
+check('pool answer after the token moved on shows nothing',
+      not hcomp.get_visible() and hnames() == [])
+
+reset_pool(**{FEATURED: [{'name': '123abc'}, {'name': 'alpha'}]})
+htype('#12')
+check('#12 matches a digit pool tag only',
+      hnames() == ['123abc'] and not hashtag_searches())
+
+pool_values = [value for source in the_pool().tags.values()
+               for tag in source for value in tag.values()]
+check('pool holds plain dicts',
+      pool_values and not any(isinstance(v, Gtk.Widget)
+                              for v in pool_values))
+
+reset_pool()
+HOLD_PATHS.update(POOL_PATHS)
+extra = BabbleComposeView(client)
+extra.hashtag_completer.prepare('lin')
+pump(50)
+extra_ref = weakref.ref(extra)
+del extra
+gc.collect()
+check('pool fill does not keep the completer alive', extra_ref() is None)
+HOLD_PATHS.clear()
+client.release_requests()
+pump(50)
+check('a pool answer for a closed composer is harmless', True)
+reset_pool()
+
+# Fix round 1.
+
+# F1: a bare # on a pool that is still cold shows the list when the pool
+# arrives, if the user is still there. The pool is not warmed first.
+WARM = {RECENT: [{'name': 'r%d' % n} for n in range(3)],
+        FEATURED: [{'name': 'f1'}]}
+
+
+def bare_hash_cold():
+    reset_pool(**WARM)
+    HOLD_PATHS.update(POOL_PATHS)
+    view.buffer.set_text('#')
+    view.buffer.place_cursor(view.buffer.get_end_iter())
+    pump(400)
+
+
+def arrive():
+    HOLD_PATHS.clear()
+    client.release_requests()
+    pump(100)
+
+
+bare_hash_cold()
+check('bare hash on a cold pool shows nothing while it loads',
+      not hcomp.get_visible() and len(held_requests) == 3)
+arrive()
+check('bare hash on a cold pool lists recent and featured when the pool '
+      'arrives', hnames() == ['r0', 'r1', 'r2', 'f1'] and hselected() is None
+      and hcomp.get_visible())
+check('bare hash on a cold pool then takes Down then Enter',
+      hpress(Gdk.KEY_Down) and hpress(Gdk.KEY_Return)
+      and view.text() == '#r0 ')
+bare_hash_cold()
+view.buffer.insert_at_cursor('x')
+arrive()
+check('bare hash on a cold pool shows nothing if the user typed on',
+      not hcomp.get_visible() and hnames() == [])
+bare_hash_cold()
+view.spoiler_entry.grab_focus()
+arrive()
+check('bare hash on a cold pool shows nothing without focus',
+      not hcomp.get_visible() and hnames() == [])
+view.text_view.grab_focus()
+bare_hash_cold()
+view.text_view.emit('preedit-changed', '日')
+arrive()
+check('bare hash on a cold pool shows nothing while composing',
+      not hcomp.get_visible() and hnames() == [])
+view.text_view.emit('preedit-changed', '')
+reset_pool(**WARM)
+hc_module._POOLS.setdefault(client, hc_module.TagPool()).ensure(client)
+pump(100)
+view.buffer.set_text('#')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+view.text_view.emit('preedit-changed', '日')
+pump(400)
+check('composing right after a bare hash shows no list',
+      not hcomp.get_visible())
+view.text_view.emit('preedit-changed', '')
+reset_pool()
+
+# F2: accepting with the caret inside the name writes the completion in
+# two edits; none of them may open a list.
+reset_pool(**{FEATURED: [{'name': 'linux'}]})
+hc_module._POOLS.setdefault(client, hc_module.TagPool()).ensure(client)
+pump(100)
+HASHTAG_ANSWER[:] = [{'name': 'Linux'}]
+htype('#lin more', cursor=4)
+popups, fills = [], []
+hcomp.popup = lambda: popups.append(1)
+hcomp._fill = lambda items: fills.append(1)
+searches.clear()
+first_row = hcomp.list_box.get_row_at_index(0)
+if first_row is not None:
+    hcomp._on_row_activated(hcomp.list_box, first_row)
+del hcomp.popup, hcomp._fill
+check('accepting a row with the caret mid-name makes no popup and no '
+      'pool request',
+      view.text() == '#linux more' and not popups and not fills
+      and not pool_requests() and not hashtag_searches()
+      and not hcomp.get_visible())
+reset_pool()
+
+# F3 is in test-a11y.py.
+
+# F5: a pool whose three requests all failed is asked again soon.
+clock = [5000.0]
+real_now = hc_module._now
+hc_module._now = lambda: clock[0]
+reset_pool()
+FAIL_PATHS.update(POOL_PATHS)
+hcomp.prepare('a')
+pump(50)
+FAIL_PATHS.clear()
+n = len(pool_requests())
+clock[0] += hc_module.POOL_RETRY_SECONDS - 1
+hcomp.prepare('a')
+pump(50)
+check('an all-failed pool is not asked again inside the retry interval',
+      len(pool_requests()) == n == 3)
+clock[0] += 2
+hcomp.prepare('a')
+pump(50)
+check('an all-failed pool is asked again after the retry interval',
+      len(pool_requests()) == 6)
+reset_pool()
+FAIL_PATHS.add(FEATURED)
+hcomp.prepare('a')
+pump(50)
+FAIL_PATHS.clear()
+clock[0] += hc_module.POOL_TTL_SECONDS - 1
+hcomp.prepare('a')
+pump(50)
+check('a partly failed pool keeps the full TTL', len(pool_requests()) == 3)
+clock[0] += 2
+hcomp.prepare('a')
+pump(50)
+check('a partly failed pool is asked again after the TTL',
+      len(pool_requests()) == 6)
+reset_pool(**{RECENT: [{'name': 'linr'}], FEATURED: [{'name': 'linf'}]})
+hcomp.prepare('a')
+pump(50)
+POOL_ANSWERS[FEATURED] = [{'name': 'linnew'}]
+FAIL_PATHS.add(RECENT)
+clock[0] += hc_module.POOL_TTL_SECONDS + 1
+hcomp.prepare('a')
+pump(50)
+FAIL_PATHS.clear()
+check('a refresh that fails keeps the tags the last load found',
+      [tag['name'] for tag in the_pool().tags['recent']] == ['linr']
+      and [tag['name'] for tag in the_pool().tags['featured']]
+      == ['linnew'])
+hc_module._now = real_now
+
+# F6: no settings read per keystroke.
+reads = []
+real_settings = pages.settings
+reset_pool()
+pages.settings = lambda: (reads.append(1), real_settings())[1]
+for char in 'linux':
+    view.buffer.insert_at_cursor('#' if not view.text() else char)
+pump(400)
+pages.settings = real_settings
+check('no GSettings read per keystroke', not reads)
+
+# F7: one waiter per completer, however much is typed while the pool loads.
+reset_pool()
+calls, others = [], []
+real_waiter = hcomp._pool_waiter
+hcomp._pool_waiter = lambda: calls.append(1)
+HOLD_PATHS.update(POOL_PATHS)
+view.buffer.set_text('#')
+view.buffer.place_cursor(view.buffer.get_end_iter())
+for char in 'linux':
+    view.buffer.insert_at_cursor(char)
+pump(50)
+the_pool().ensure(client, lambda: others.append(1))
+HOLD_PATHS.clear()
+client.release_requests()
+pump(100)
+hcomp._pool_waiter = real_waiter
+check('typing six characters during a pool load runs the ready callback '
+      'once', calls == [1])
+check('a second completer still gets its own callback', others == [1])
+reset_pool()
+
+# F8: featuring or unfeaturing a tag changes what the pool lists.
+
+
+class FakeTagPage:
+    def __init__(self, featured_id):
+        self.tags = ['linux']
+        self.featured_id = featured_id
+        self.client = client
+        self.more_button = Gtk.Button()
+
+    def _build_menu(self):
+        pass
+
+
+real_toast = pages.show_toast
+pages.show_toast = lambda *a, **k: None
+for featured_id, label in ((None, 'featuring'), ('7', 'unfeaturing')):
+    reset_pool()
+    hcomp.prepare('a')
+    pump(50)
+    page = FakeTagPage(featured_id)
+    hashtags.HashtagPage._on_feature(page)
+    pump(50)
+    check('%s a tag drops the pool' % label, the_pool() is None)
+pages.show_toast = real_toast
+
+# F9: one constant, no invisible character in the source.
+from src import completer as completer_mod  # noqa: E402
+check('MAX_SUGGESTIONS is one constant',
+      hc_module.MAX_SUGGESTIONS is completer_mod.MAX_SUGGESTIONS)
+with open(hc_module.__file__, encoding='utf-8') as source_file:
+    hidden = [c for c in source_file.read()
+              if c in '​‌‍⁠﻿']
+check('no invisible characters in the source', not hidden)
+
+# F10: the tag name is bold.
+check('tag name label is bold (heading class)',
+      long_row.get_child().get_last_child().get_first_child()
+      .has_css_class('heading'))
+
+# F11: a separator at the edge of a name is a tag still being typed.
+reset_pool()
+htype('#a·')
+check('#a· makes no request', not hashtag_searches())
+htype('#·a')
+check('#·a makes no request', not hashtag_searches())
+htype('#a・')
+check('#a・ makes no request', not hashtag_searches())
+htype('#a·b')
+check('#a·b searches', len(hashtag_searches()) == 1)
+check('wants_search edges',
+      not wants_search('a·') and not wants_search('‌a')
+      and wants_search('a‌b') and wants_search('a'))
+
+# F12: a failed search leaves a pool hit in the list.
+reset_pool(**{FEATURED: [{'name': 'linux'}]})
+toasts = []
+real_toast, real_report = pages.show_toast, pages.report_error
+pages.show_toast = lambda *a, **k: toasts.append(a)
+pages.report_error = lambda *a, **k: toasts.append(a)
+FAIL_PATHS.add('/api/v2/search')
+htype('#lin')
+check('a pool hit stays listed when the search fails',
+      hnames() == ['linux'] and hcomp.list_box.get_sensitive()
+      and hcomp.get_visible() and not toasts)
+FAIL_PATHS.clear()
+pages.show_toast, pages.report_error = real_toast, real_report
+reset_pool()
+
+extra = BabbleComposeView(client)
+hashtag_ref = weakref.ref(extra.hashtag_completer)
+extra_ref = weakref.ref(extra)
+del extra
+gc.collect()
+check('hashtag completer is freed with the composer',
+      extra_ref() is None and hashtag_ref() is None)
+HASHTAG_ANSWER.clear()
+searches.clear()
 
 # Drag and drop: files dropped on the content are attached when they
 # are images, videos or audio, through the drop target's own signal.

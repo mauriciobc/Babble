@@ -25,8 +25,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src import statustext  # noqa: E402
-from src.statustext import (clock_format, compact_count,  # noqa: E402
-                            format_time, is_hashtag, is_web_link,
+from src.statustext import (STATS_DAYS, clock_format,  # noqa: E402
+                            compact_count, format_time, history_totals,
+                            is_hashtag, is_web_link,
                             parse_content, relative_time,
                             shorten_url_text)
 
@@ -397,6 +398,21 @@ class TestCompactCount(unittest.TestCase):
         self.assertEqual(compact_count(2100000), '2,1M')
         self.assertEqual(compact_count(999), '999')
 
+
+
+class HistoryTotalsTest(unittest.TestCase):
+    HISTORY = [{'uses': '5', 'accounts': '3'}, {'uses': '4', 'accounts': '2'},
+               {'uses': '100', 'accounts': '50'}]
+
+    def test_sums_the_newest_days_only(self):
+        self.assertEqual(STATS_DAYS, 2)
+        self.assertEqual(history_totals(self.HISTORY), (9, 5))
+        self.assertEqual(history_totals(self.HISTORY, days=1), (5, 3))
+
+    def test_missing_history_is_zero(self):
+        self.assertEqual(history_totals(None), (0, 0))
+        self.assertEqual(history_totals([]), (0, 0))
+        self.assertEqual(history_totals([{}]), (0, 0))
 
 
 if __name__ == '__main__':

@@ -462,3 +462,18 @@ def is_hashtag(segment):
     return (segment['href'] is not None
             and '/tags/' in segment['href']
             or segment['text'].startswith('#'))
+
+
+# The window a tag's usage is counted over, in days. The hashtag page and
+# the composer's suggestions say it in words ("last 2 days"), so a change
+# here has to change those strings too.
+STATS_DAYS = 2
+
+
+def history_totals(history, days=STATS_DAYS):
+    """(posts, people) over the newest *days* entries of tag.history."""
+    posts = people = 0
+    for entry in (history or [])[:days]:
+        posts += int(entry.get('uses') or 0)
+        people += int(entry.get('accounts') or 0)
+    return posts, people

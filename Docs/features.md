@@ -34,7 +34,10 @@ The full feature inventory. The [README](../README.md) has the short version.
 - Media uploads (paste, drag, or take a screenshot right from the composer),
   content warnings, polls, quotes and language selection.
 - Spell checking as you type.
-- `@mention` suggestions as you type.
+- `@mention` and `#hashtag` suggestions as you type. Hashtags you used
+  lately, keep on your profile or follow come first. What you type after
+  the `#` is sent to your own instance to look up matching hashtags, as
+  it is for `@mention`.
 - Drafts, and scheduled posts for when you'd rather say it tomorrow.
 
 ## Keeping things tidy
