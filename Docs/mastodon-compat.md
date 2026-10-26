@@ -97,6 +97,25 @@ integration points:
   since Mastodon 3.5; `read`/`write` grant every granular scope Babble
   needs, collections included.
 
+## Hashtag suggestions in the composer
+
+The composer completes the `#hashtag` being typed from four requests.
+None of them is gated on `api_versions`: a server that lacks one answers
+an error, which is treated as an empty list, and the others still work.
+
+| Request | Used for | If it is missing |
+|---|---|---|
+| `GET /api/v2/search?type=hashtags&q=…&limit=10&resolve=false` | Suggestions for what has been typed. `exclude_unreviewed` is not sent: it leaves only the exact name on a server whose admin has reviewed no tags. | No server suggestions; the account's own tags below still show. Silent, no toast. |
+| `GET /api/v1/featured_tags/suggestions` (3.0) | Tags the account used lately (`Recently used`) | That source is empty. |
+| `GET /api/v1/featured_tags` | Tags on the profile (`On your profile`) | That source is empty. |
+| `GET /api/v1/followed_tags?limit=200` (4.0) | Followed tags (`Followed`); one page only | That source is empty. |
+
+The three lists are fetched together the first time a `#` is typed for an
+account (the pool belongs to the account's client), kept for ten minutes
+(one minute if all three failed), and dropped when a tag is followed,
+unfollowed, featured or unfeatured. Tags of a post just published are added at once. A query
+with no letter in it (`#2024`) is not sent to the server.
+
 ## Notification types
 
 Babble renders the documented types including the 4.5 additions (`quote`,

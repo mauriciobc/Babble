@@ -22,14 +22,15 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import charts  # noqa: E402
 from . import pages  # noqa: E402
+from .hashtagcompleter import forget_pool  # noqa: E402
 from .lists import make_pin_button  # noqa: E402
 from .pages import ToastDialog  # noqa: E402
+from .statustext import STATS_DAYS, history_totals  # noqa: E402, F401
 
 FAVORITE_TAGS_KEY = 'favorite-tags-ids'
 SAVED_KEY = 'hashtag-lists'
 # Mastodon takes at most four extra tags next to the one in the path.
 TOTAL_TAGS_LIMIT = 5
-STATS_DAYS = 2
 
 
 def _invalidate_home_tags(widget):
@@ -38,6 +39,10 @@ def _invalidate_home_tags(widget):
     page = getattr(window, 'timeline_page', None)
     if page is not None:
         page.invalidate_followed_tags()
+    # The composer's suggestions rank the followed tags too.
+    client = pages.client_of(widget)
+    if client is not None:
+        forget_pool(client)
 
 
 def clean_name(name):
@@ -46,15 +51,6 @@ def clean_name(name):
 
 def _tag_path(name):
     return '/timelines/tag/%s' % urllib.parse.quote(clean_name(name), safe='')
-
-
-def history_totals(history, days=STATS_DAYS):
-    """(posts, people) over the newest *days* entries of tag.history."""
-    posts = people = 0
-    for entry in (history or [])[:days]:
-        posts += int(entry.get('uses') or 0)
-        people += int(entry.get('accounts') or 0)
-    return posts, people
 
 
 def stats_text(history, days=STATS_DAYS):
@@ -297,6 +293,8 @@ class HashtagPage(Adw.Bin):
             else:
                 self.featured_id = (data or {}).get('id')
                 pages.show_toast(self, _('Featured on your profile'))
+            # The composer's suggestions list the featured tags.
+            forget_pool(self.client)
             self._build_menu()
 
         self.more_button.set_sensitive(False)

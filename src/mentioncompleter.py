@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Account suggestions for the ``@mention`` being typed in a text view.
 
-:class:`MentionCompleter` watches the buffer of the text view it is
-attached to: while the cursor ends an ``@word``, it searches the
-instance's accounts and lists them in a popover under the mention. The
-arrow keys pick one, Enter or Tab inserts it, Escape closes the list;
-the keyboard never leaves the text view."""
+:class:`MentionCompleter` is a :class:`~.completer.TokenCompleter`: while
+the cursor ends an ``@word``, it searches the instance's accounts and
+lists them in a popover under the mention."""
 
 import re
 
@@ -16,12 +14,11 @@ gi.require_version('Adw', '1')
 
 from .i18n import gettext as _
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
-
-SEARCH_DELAY_MS = 250
-MAX_SUGGESTIONS = 6
+from .completer import (MAX_SUGGESTIONS, SEARCH_DELAY_MS,  # noqa: E402, F401
+                        TokenCompleter)
 
 # The mention being typed, ending at the cursor: an @ not glued to a
 # word, a path or another @ (Mastodon's own mention rule), then the
@@ -30,9 +27,6 @@ _MENTION_RE = re.compile(r'(?<![\w/@])@([\w.-]*(?:@[\w.-]*)?)\Z')
 
 # Characters a mention token continues with, past the cursor.
 _TOKEN_CHARS = re.compile(r'[\w.@-]')
-
-_ENTER_KEYS = (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_ISO_Enter,
-               Gdk.KEY_Tab, Gdk.KEY_KP_Tab)
 
 
 def mention_query(text):
@@ -52,61 +46,20 @@ def _wants_resolve(query):
     return '.' in domain.strip('.')
 
 
-class MentionCompleter(Gtk.Popover):
+class MentionCompleter(TokenCompleter):
     """Suggestion popover for *text_view*, parented to it. Call
     :meth:`prompt` after inserting a bare ``@`` to show a hint before
     anything is typed, :meth:`dismiss` to close it for good."""
 
     __gtype_name__ = 'BabbleMentionCompleter'
 
-    def __init__(self, client, text_view, **kwargs):
-        super().__init__(autohide=False, has_arrow=False, can_focus=False,
-                         position=Gtk.PositionType.BOTTOM,
-                         halign=Gtk.Align.START, **kwargs)
-        self.client = client
-        self.text_view = text_view
-        self.buffer = text_view.get_buffer()
-        self._search_id = 0
-        self._serial = 0
-        self._cancellable = None
-        # (start, query) of the mention the list is for.
-        self._token = None
-        # A mention closed with Escape stays closed until it changes.
-        self._suppressed = None
-        self._hint = False
+    @property
+    def list_label(self):
+        return _('Suggested Accounts')
 
-        self.list_box = Gtk.ListBox(
-            selection_mode=Gtk.SelectionMode.SINGLE,
-            activate_on_single_click=True, can_focus=False)
-        self.list_box.add_css_class('navigation-sidebar')
-        self.list_box.update_property([Gtk.AccessibleProperty.LABEL],
-                                      [_('Suggested Accounts')])
-        pages.connect_weak(self.list_box, 'row-activated',
-                           self._on_row_activated)
-        self.hint_label = Gtk.Label(
-            label=_('Type a name to search'), visible=False,
-            margin_top=6, margin_bottom=6, margin_start=12, margin_end=12)
-        self.hint_label.add_css_class('dimmed')
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.append(self.hint_label)
-        box.append(self.list_box)
-        self.set_child(box)
-        self.set_parent(text_view)
-
-        text_view.update_property([Gtk.AccessibleProperty.AUTOCOMPLETE],
-                                  [int(Gtk.AccessibleAutocomplete.LIST)])
-        pages.connect_weak(self.buffer, 'changed', self._on_buffer_changed)
-        pages.connect_weak(self.buffer, 'mark-set', self._on_mark_set)
-        keys = Gtk.EventControllerKey(
-            propagation_phase=Gtk.PropagationPhase.CAPTURE)
-        pages.connect_weak(keys, 'key-pressed', self._on_key_pressed)
-        text_view.add_controller(keys)
-        focus = Gtk.EventControllerFocus()
-        pages.connect_weak(focus, 'leave', self._on_focus_leave)
-        text_view.add_controller(focus)
-        pages.connect_weak(text_view, 'destroy', self._on_parent_destroy)
-
-    # Public
+    @property
+    def hint_text(self):
+        return _('Type a name to search')
 
     def prompt(self):
         """Show the hint for an ``@`` just inserted at the cursor."""
@@ -116,252 +69,51 @@ class MentionCompleter(Gtk.Popover):
         self._token = None
         self.update()
 
-    def dismiss(self):
-        """Close the list and forget any search in flight."""
-        self._cancel_search()
-        self._token = None
-        self._hint = False
-        self._clear_rows()
-        self.hint_label.set_visible(False)
-        self._hide()
+    # Hooks
 
-    def update(self):
-        """Follow the cursor: search for the mention it ends, if any."""
-        token = self._current_token()
-        if token is None or token == self._suppressed \
-                or not self.text_view.is_focus():
-            self.dismiss()
-            return
-        if token == self._token:
-            self._place(token[0])
-            return
-        self._token = token
-        self._cancel_search()
-        # The rows shown answer the previous query: keep them in view,
-        # so the list does not flicker on every keystroke, but out of
-        # reach until the new results replace them.
-        self.list_box.unselect_all()
-        self.list_box.set_sensitive(False)
-        _start, query = token
-        if not query:
-            # Nothing to search for yet: a bare @ the button inserted
-            # shows the hint; a typed one waits for a name.
-            self._clear_rows()
-            self.hint_label.set_visible(self._hint)
-            self._show_if_filled()
-            return
-        self._hint = False
-        self._search_id = GLib.timeout_add(SEARCH_DELAY_MS,
-                                           pages.weak_method(self._search))
+    def token_query(self, text):
+        return mention_query(text)
 
-    # Token
+    def continues_token(self, char):
+        return _TOKEN_CHARS.match(char) is not None
 
-    def _cursor(self):
-        return self.buffer.get_iter_at_mark(self.buffer.get_insert())
-
-    def _current_token(self):
-        if self.buffer.get_has_selection():
-            return None
-        cursor = self._cursor()
-        line_start = cursor.copy()
-        line_start.set_line_offset(0)
-        before = self.buffer.get_text(line_start, cursor, False)
-        found = mention_query(before)
-        if found is None:
-            return None
-        start, query = found
-        return line_start.get_offset() + start, query
-
-    # Search
-
-    def _cancel_search(self):
-        if self._search_id:
-            GLib.source_remove(self._search_id)
-            self._search_id = 0
-        if self._cancellable is not None:
-            self._cancellable.cancel()
-            self._cancellable = None
-        self._serial += 1
-
-    def _search(self):
-        self._search_id = 0
-        if self._token is None:
-            return GLib.SOURCE_REMOVE
-        query = self._token[1]
+    def search_request(self, query):
         params = {'q': query, 'limit': MAX_SUGGESTIONS}
         if _wants_resolve(query):
             params['resolve'] = 'true'
-        self._serial += 1
-        serial = self._serial
-        self._cancellable = Gio.Cancellable()
-        done = pages.weak_method(self._on_search_done)
-        self.client.request_async(
-            'GET', '/accounts/search', params=params,
-            cancellable=self._cancellable,
-            callback=lambda c, r, _d=None: done(c, r, serial))
-        return GLib.SOURCE_REMOVE
+        return '/accounts/search', params
 
-    def _on_search_done(self, client, result, serial):
-        try:
-            accounts = client.request_finish(result)
-        except GLib.Error:
-            # Cancelled, or the instance refused: a suggestion list is
-            # not worth an error toast on every keystroke.
-            accounts = None
-        if serial != self._serial:
-            return
-        self._cancellable = None
-        if not accounts:
-            self.dismiss()
-        elif self._token is not None:
-            self._fill(accounts)
+    def parse(self, result):
+        return [account for account in (result or [])[:MAX_SUGGESTIONS]
+                if account.get('acct') or account.get('username')]
 
-    # List
-
-    def _clear_rows(self):
-        while (row := self.list_box.get_row_at_index(0)) is not None:
-            self.list_box.remove(row)
-
-    def _fill(self, accounts):
+    def build_row(self, account):
         from .mediacache import AvatarCache
-        self._clear_rows()
-        self.hint_label.set_visible(False)
-        for account in accounts[:MAX_SUGGESTIONS]:
-            acct = account.get('acct') or account.get('username')
-            if not acct:
-                continue
-            name = re.sub(r':[A-Za-z0-9_+\-]+:', '',
-                          pages.display_name(account)).strip() or acct
-            avatar = Adw.Avatar(size=32, text=name, show_initials=True)
-            AvatarCache.load(avatar, account)
-            labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-                             valign=Gtk.Align.CENTER)
-            labels.append(Gtk.Label(label=name, xalign=0,
-                                    max_width_chars=28,
-                                    ellipsize=Pango.EllipsizeMode.END))
-            handle = Gtk.Label(label='@' + acct, xalign=0,
-                               max_width_chars=28,
-                               ellipsize=Pango.EllipsizeMode.END)
-            handle.add_css_class('dimmed')
-            handle.add_css_class('caption')
-            labels.append(handle)
-            box = Gtk.Box(spacing=8, margin_top=4, margin_bottom=4)
-            box.append(avatar)
-            box.append(labels)
-            row = Gtk.ListBoxRow(child=box, can_focus=False)
-            row.update_property([Gtk.AccessibleProperty.LABEL],
-                                ['%s, @%s' % (name, acct)])
-            row.acct = acct
-            self.list_box.append(row)
-        self.list_box.set_sensitive(True)
-        self.list_box.select_row(self.list_box.get_row_at_index(0))
-        self._show_if_filled()
+        acct = account.get('acct') or account.get('username')
+        name = re.sub(r':[A-Za-z0-9_+\-]+:', '',
+                      pages.display_name(account)).strip() or acct
+        avatar = Adw.Avatar(size=32, text=name, show_initials=True)
+        AvatarCache.load(avatar, account)
+        labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                         valign=Gtk.Align.CENTER)
+        labels.append(Gtk.Label(label=name, xalign=0, max_width_chars=28,
+                                ellipsize=Pango.EllipsizeMode.END))
+        handle = Gtk.Label(label='@' + acct, xalign=0, max_width_chars=28,
+                           ellipsize=Pango.EllipsizeMode.END)
+        handle.add_css_class('dimmed')
+        handle.add_css_class('caption')
+        labels.append(handle)
+        box = Gtk.Box(spacing=8, margin_top=4, margin_bottom=4)
+        box.append(avatar)
+        box.append(labels)
+        row = Gtk.ListBoxRow(child=box, can_focus=False)
+        row.update_property([Gtk.AccessibleProperty.LABEL],
+                            ['%s, @%s' % (name, acct)])
+        row.acct = acct
+        return row
 
-    def _show_if_filled(self):
-        filled = (self.hint_label.get_visible()
-                  or self.list_box.get_row_at_index(0) is not None)
-        if not filled or self._token is None:
-            self._hide()
-            return
-        self._place(self._token[0])
-        if not self.get_visible():
-            self.popup()
+    def completion(self, account, typed):
+        return '@' + (account.get('acct') or account.get('username'))
 
-    def _hide(self):
-        if not self.get_visible():
-            return
-        self.popdown()
-        # A popover shown again keeps its wl_surface, and when the
-        # frame it last drew is still waiting on its GPU fence the
-        # compositor rejects the new popup role ("already has a buffer
-        # committed") and drops the connection. This list hides and
-        # shows again within a frame, so give every showing a fresh
-        # surface.
-        self.unrealize()
-
-    def _place(self, offset):
-        """Point at the ``@`` the suggestions are for."""
-        location = self.text_view.get_iter_location(
-            self.buffer.get_iter_at_offset(offset))
-        x, y = self.text_view.buffer_to_window_coords(
-            Gtk.TextWindowType.WIDGET, location.x, location.y)
-        rect = Gdk.Rectangle()
-        rect.x, rect.y = x, y
-        rect.width, rect.height = 1, max(location.height, 1)
-        self.set_pointing_to(rect)
-
-    def _move(self, step):
-        selected = self.list_box.get_selected_row()
-        index = selected.get_index() + step if selected is not None else 0
-        row = self.list_box.get_row_at_index(index)
-        if row is not None:
-            self.list_box.select_row(row)
-
-    def _accept(self, row):
-        """Replace the mention being typed with *row*'s account."""
-        token = self._current_token()
-        if token is None:
-            self.dismiss()
-            return
-        start = self.buffer.get_iter_at_offset(token[0])
-        end = self._cursor()
-        # A cursor moved back into a name replaces all of it.
-        while not end.is_end() and _TOKEN_CHARS.match(end.get_char()):
-            end.forward_char()
-        text = '@' + row.acct
-        spaced = not end.is_end() and end.get_char().isspace()
-        self.buffer.begin_user_action()
-        self.buffer.delete(start, end)
-        self.buffer.insert(start, text if spaced else text + ' ')
-        if spaced:
-            start.forward_char()
-            self.buffer.place_cursor(start)
-        self.buffer.end_user_action()
-        self.dismiss()
-
-    # Events
-
-    def _on_buffer_changed(self, _buffer):
-        self._suppressed = None
-        self.update()
-
-    def _on_mark_set(self, _buffer, _location, mark):
-        if mark == self.buffer.get_insert():
-            self.update()
-
-    def _on_key_pressed(self, _controller, keyval, _keycode, state):
-        if not self.get_visible():
-            return False
-        if keyval == Gdk.KEY_Escape:
-            self._suppressed = self._token
-            self.dismiss()
-            return True
-        # Shift too: Shift+Enter is a line break, Shift+Tab moves focus.
-        modifiers = state & (Gdk.ModifierType.CONTROL_MASK
-                             | Gdk.ModifierType.ALT_MASK
-                             | Gdk.ModifierType.SUPER_MASK
-                             | Gdk.ModifierType.SHIFT_MASK)
-        selected = self.list_box.get_selected_row()
-        if modifiers or selected is None:
-            return False
-        if keyval in (Gdk.KEY_Down, Gdk.KEY_KP_Down):
-            self._move(1)
-            return True
-        if keyval in (Gdk.KEY_Up, Gdk.KEY_KP_Up):
-            self._move(-1)
-            return True
-        if keyval in _ENTER_KEYS:
-            self._accept(selected)
-            return True
-        return False
-
-    def _on_row_activated(self, _list_box, row):
-        self._accept(row)
-        self.text_view.grab_focus()
-
-    def _on_focus_leave(self, _controller):
-        self.dismiss()
-
-    def _on_parent_destroy(self, _text_view):
-        self.dismiss()
-        self.unparent()
+    def item_key(self, account):
+        return account.get('acct') or account.get('username')
