@@ -14,7 +14,7 @@ from .i18n import gettext as _
 from gi.repository import (GLib, GObject, Gio,  # noqa: E402
                            Gtk)
 
-from . import pages  # noqa: E402
+from . import pages, pluginhost  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
                         )
@@ -161,6 +161,9 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         if status.get('edited_at'):
             links.append(_('View Edit _History'), 'row.history')
         menu.append_section(None, links)
+        plugins = self._plugin_section(status)
+        if plugins is not None:
+            menu.append_section(None, plugins)
 
         post = Gio.Menu()
         if self._can_translate():
@@ -206,6 +209,26 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             account.append(_('_Report Post…'), 'row.report')
             menu.append_section(None, account)
         return menu
+
+    def _plugin_section(self, status):
+        """The entries plugins add, under their own action group, rebuilt
+        with the menu; None when they add none."""
+        client = self.client
+        entries = pluginhost.menu_items(
+            self, status, getattr(client, 'instance', '') or '')
+        if not entries:
+            self.insert_action_group('plugin', None)
+            return None
+        group = Gio.SimpleActionGroup()
+        section = Gio.Menu()
+        for number, (label, activate) in enumerate(entries):
+            name = 'item%d' % number
+            action = Gio.SimpleAction.new(name, None)
+            action.connect('activate', activate)  # holds self weakly
+            group.add_action(action)
+            section.append(label, 'plugin.' + name)
+        self.insert_action_group('plugin', group)
+        return section
 
     def _action_section(self, status):
         """Reply/Boost/(Quote)/Favorite/Bookmark as a row of icon

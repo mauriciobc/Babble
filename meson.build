@@ -11,6 +11,7 @@ gnome = import('gnome')
 
 subdir('data')
 subdir('src')
+subdir('plugins')
 subdir('po')
 
 gnome.post_install(

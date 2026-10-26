@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-21 10:25-0300\n"
+"POT-Creation-Date: 2026-10-26 14:46-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -67,34 +67,44 @@ msgstr ""
 "actualización automática"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:64
+msgid "Enabled plugins"
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:65
+msgid ""
+"Module names of the plugins to load, as in their .plugin files. Empty means "
+"libpeas is never loaded."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:69
 msgid "Known accounts as JSON strings"
 msgstr "Cuentas conocidas como cadenas JSON"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:68
+#: data/io.github.mauriciobc.Babble.gschema.xml:73
 msgid "Interface text size class"
 msgstr "Clase de tamaño de texto de la interfaz"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:72
+#: data/io.github.mauriciobc.Babble.gschema.xml:77
 msgid "Visibility preset used for new posts"
 msgstr "Preajuste de visibilidad usado para publicaciones nuevas"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:76
+#: data/io.github.mauriciobc.Babble.gschema.xml:81
 msgid "Hide the Catch Up page from the sidebar"
 msgstr "Ocultar la página de Catch Up de la barra lateral"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:80
+#: data/io.github.mauriciobc.Babble.gschema.xml:85
 msgid "Hide the Explore page from the sidebar"
 msgstr "Ocultar la página de Explorar de la barra lateral"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:84
+#: data/io.github.mauriciobc.Babble.gschema.xml:89
 msgid "Hide the Local timeline from the sidebar"
 msgstr "Ocultar la cronología local de la barra lateral"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:88
+#: data/io.github.mauriciobc.Babble.gschema.xml:93
 msgid "Hide the Federated timeline from the sidebar"
 msgstr "Ocultar la cronología federada de la barra lateral"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:92
+#: data/io.github.mauriciobc.Babble.gschema.xml:97
 msgid ""
 "Show local and federated timelines the server disabled but this account may "
 "still read"
@@ -102,11 +112,11 @@ msgstr ""
 "Mostrar cronologías local y federada que el servidor deshabilitó pero esta "
 "cuenta aún puede leer"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:96
+#: data/io.github.mauriciobc.Babble.gschema.xml:101
 msgid "Style preference: follow the system, light or dark"
 msgstr "Preferencia de estilo: seguir el sistema, claro o oscuro"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:100
+#: data/io.github.mauriciobc.Babble.gschema.xml:105
 msgid ""
 "Language of the interface, as a gettext locale name such as pt_BR; empty "
 "follows the system. Applied on the next start"
@@ -114,29 +124,29 @@ msgstr ""
 "Idioma de la interfaz, como nombre de configuración regional de gettext como "
 "pt_BR; vacío sigue el sistema. Aplicado al reiniciar."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:104 src/preferences.py:318
+#: data/io.github.mauriciobc.Babble.gschema.xml:109 src/preferences.py:318
 msgid "Increase the line height in posts"
 msgstr "Aumenta la altura de línea en las publicaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:108
+#: data/io.github.mauriciobc.Babble.gschema.xml:113
 msgid "Dim post media while the dark style is in use"
 msgstr "Atenúa los medios de publicaciones mientras se usa el estilo oscuro"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:112
+#: data/io.github.mauriciobc.Babble.gschema.xml:117
 msgid "Render favorite, boost and follow notifications less prominently"
 msgstr ""
 "Renderizar notificaciones de favoritos, impulsos y seguimientos con menos "
 "prominencia"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:116
+#: data/io.github.mauriciobc.Babble.gschema.xml:121
 msgid "Render custom emojis in posts at a larger size"
 msgstr "Renderizar emojis personalizados en publicaciones en tamaño mayor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:120
+#: data/io.github.mauriciobc.Babble.gschema.xml:125
 msgid "Slightly enlarge custom emojis under the pointer"
 msgstr "Agrandar ligeramente emojis personalizados bajo el puntero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:124
+#: data/io.github.mauriciobc.Babble.gschema.xml:129
 msgid ""
 "Blur the desktop behind a translucent sidebar, where the compositor supports "
 "it"
@@ -145,56 +155,56 @@ msgstr ""
 "soporta el compositorDifuminar el escritorio detrás de la barra lateral. "
 "Necesita un compositor con desenfoque de fondo"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:128
+#: data/io.github.mauriciobc.Babble.gschema.xml:133
 msgid "Sidebar presentation when it is expanded: full labels, or an icon rail"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:132
+#: data/io.github.mauriciobc.Babble.gschema.xml:137
 msgid "Hide the expanded sidebar; the content header keeps the shell controls"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:136
+#: data/io.github.mauriciobc.Babble.gschema.xml:141
 msgid "Collapse long posts behind a Show More button"
 msgstr "Colapsa publicaciones largas tras un botón “Mostrar más”"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:140
+#: data/io.github.mauriciobc.Babble.gschema.xml:145
 msgid "Letterbox media instead of cropping it to the preview frame"
 msgstr ""
 "Mostrar medios en letterbox en lugar de recortar al marco de vista previa"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:144
+#: data/io.github.mauriciobc.Babble.gschema.xml:149
 msgid ""
 "How the media viewer opens photos: as a box over the window, or filling it"
 msgstr ""
 "Cómo el visor de medios abre fotos: como caja sobre la ventana, o llenándola"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:148
+#: data/io.github.mauriciobc.Babble.gschema.xml:153
 msgid "Reveal media marked as sensitive without a click"
 msgstr "Revelar medios marcados como sensibles sin un clic"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:152
+#: data/io.github.mauriciobc.Babble.gschema.xml:157
 msgid "Expand posts behind content warnings by default"
 msgstr "Expande publicaciones detrás de advertencias de contenido por defecto"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:156
+#: data/io.github.mauriciobc.Babble.gschema.xml:161
 msgid "Show link preview cards under posts"
 msgstr "Mostrar tarjetas de vista previa de enlaces bajo publicaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:160
+#: data/io.github.mauriciobc.Babble.gschema.xml:165
 msgid "Show reply, boost and favorite counts on post actions"
 msgstr ""
 "Mostrar conteos de respuestas, impulsos y favoritos en acciones de "
 "publicaciónRecuentos de respuestas, impulsos y favoritos en las acciones de "
 "la publicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:164
+#: data/io.github.mauriciobc.Babble.gschema.xml:169
 msgid "Show the reply, boost and favorite actions on every post in timelines"
 msgstr ""
 "Mostrar acciones de respuesta, impulso y favorito en cada publicación en "
 "cronologíasRecuentos de respuestas, impulsos y favoritos en las acciones de "
 "la publicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:168
+#: data/io.github.mauriciobc.Babble.gschema.xml:173
 msgid ""
 "Group bursts of boosts into a horizontal carousel instead of listing each "
 "boost in the timeline"
@@ -204,67 +214,67 @@ msgstr ""
 "impulsos, los agrupa en un carrusel horizontal en lugar de una fila para "
 "cada uno. Se aplica a las cronologías abiertas después"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:172
+#: data/io.github.mauriciobc.Babble.gschema.xml:177
 msgid "Show only the first boost of a post that several people boosted"
 msgstr ""
 "Mostrar solo el primer impulso de una publicación que varias personas "
 "impulsaronMuestra solo el primer impulso de una publicación impulsada por "
 "varias personas. Se aplica a las cronologías abiertas después"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:176
+#: data/io.github.mauriciobc.Babble.gschema.xml:181
 msgid "Hide reply posts on the home timeline from people you do not follow"
 msgstr ""
 "Ocultar publicaciones de respuesta en la cronología de inicio de personas "
 "que no sigues"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:180
+#: data/io.github.mauriciobc.Babble.gschema.xml:185
 msgid "Hide boosts on the home timeline"
 msgstr "Ocultar impulsos en la página de inicio"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:184
+#: data/io.github.mauriciobc.Babble.gschema.xml:189
 msgid "Reopen the home timeline at the post you were reading"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:188
+#: data/io.github.mauriciobc.Babble.gschema.xml:193
 msgid "The post each account was reading on the home timeline, by account key"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:192
+#: data/io.github.mauriciobc.Babble.gschema.xml:197
 msgid "Ask for visibility (and offer quoting) before boosting"
 msgstr "Solicita visibilidad (y ofrece citar) antes de impulsar"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:196
+#: data/io.github.mauriciobc.Babble.gschema.xml:201
 msgid "Remove tracking parameters from opened links"
 msgstr "Remover parámetros de seguimiento de enlaces abiertos"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:200
+#: data/io.github.mauriciobc.Babble.gschema.xml:205
 msgid "Open links to posts and profiles on other servers inside Babble"
 msgstr ""
 "Abrir enlaces a publicaciones y perfiles en otros servidores dentro de "
 "BabbleAbre los enlaces a publicaciones y perfiles de otros servidores dentro "
 "de la aplicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:204
+#: data/io.github.mauriciobc.Babble.gschema.xml:209
 msgid "Open web links in a column beside the timeline"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:205
+#: data/io.github.mauriciobc.Babble.gschema.xml:210
 msgid ""
 "When off, or when WebKitGTK is not installed, web links open in the default "
 "browser."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:209
+#: data/io.github.mauriciobc.Babble.gschema.xml:214
 msgid "Let pages opened in Babble run JavaScript"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:213
+#: data/io.github.mauriciobc.Babble.gschema.xml:218
 msgid "Offer to open post and profile links found on the clipboard"
 msgstr ""
 "Oferta para abrir enlaces a publicaciones y perfiles encontrados en el "
 "portapapeles"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:214
+#: data/io.github.mauriciobc.Babble.gschema.xml:219
 msgid ""
 "When the window gains focus, check the clipboard for a link to a post, "
 "profile or hashtag and offer to open it in Babble."
@@ -272,29 +282,29 @@ msgstr ""
 "Cuando la ventana gana el foco, verificar el portapapeles en busca de un "
 "enlace a una publicación, perfil u hashtag y ofrecer abrirlo en Babble."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:218
+#: data/io.github.mauriciobc.Babble.gschema.xml:223
 msgid "Warn before replying to a post older than three months"
 msgstr "Advertir antes de responder a una publicación con más de tres meses"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:222
+#: data/io.github.mauriciobc.Babble.gschema.xml:227
 msgid "Warn before copying a link to a non-public post"
 msgstr "Advertir antes de copiar un enlace a una publicación no pública"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:226
+#: data/io.github.mauriciobc.Babble.gschema.xml:231
 msgid "Warn before boosting a post with media that lacks alt text"
 msgstr ""
 "Advertir antes de impulsar una publicación con medios que carecen de texto "
 "alternativo"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:230
+#: data/io.github.mauriciobc.Babble.gschema.xml:235
 msgid "Keep running after the window closes to deliver notifications"
 msgstr "Seguir funcionando tras cerrar la ventana para entregar notificaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:234
+#: data/io.github.mauriciobc.Babble.gschema.xml:239
 msgid "Bind a system-wide shortcut that opens the composer"
 msgstr "Vincula un atajo de sistema que abre el compositor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:235
+#: data/io.github.mauriciobc.Babble.gschema.xml:240
 msgid ""
 "Registered through the XDG GlobalShortcuts portal; the key combination is "
 "chosen in the system settings."
@@ -302,68 +312,68 @@ msgstr ""
 "Registrado a través del portal XDG GlobalShortcuts; la combinación de teclas "
 "se elige en la configuración del sistema."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:239
+#: data/io.github.mauriciobc.Babble.gschema.xml:244
 msgid "Stream new posts and notifications in real time"
 msgstr "Transmitir nuevas publicaciones y notificaciones en tiempo real"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:243
+#: data/io.github.mauriciobc.Babble.gschema.xml:248
 msgid "Also stream the Local and Federated timelines"
 msgstr "Transmite también las cronologías Local y Federada"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:247
+#: data/io.github.mauriciobc.Babble.gschema.xml:252
 msgid "ISO 639-1 language of new posts; empty follows the system locale"
 msgstr ""
 "Idioma ISO 639-1 de publicaciones nuevas; vacío sigue la configuración "
 "regional del sistema"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:251
+#: data/io.github.mauriciobc.Babble.gschema.xml:256
 msgid "Default quote policy on your server account (not per post in Babble)"
 msgstr ""
 "Política de cotización por defecto en tu cuenta del servidor (no por "
 "publicación en Babble)"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:255
+#: data/io.github.mauriciobc.Babble.gschema.xml:260
 msgid "Mark new posts sensitive in the composer and on your server"
 msgstr ""
 "Marcar publicaciones nuevas como sensibles en el compositor y en tu servidor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:259
+#: data/io.github.mauriciobc.Babble.gschema.xml:264
 msgid "Notification types announced on the desktop"
 msgstr "Tipos de notificación anunciados en el escritorio"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:263
+#: data/io.github.mauriciobc.Babble.gschema.xml:268
 msgid "Combine desktop notifications of the same type and post"
 msgstr "Combina notificaciones de escritorio del mismo tipo y publicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:267
+#: data/io.github.mauriciobc.Babble.gschema.xml:272
 msgid "Notification types hidden from the Notifications page"
 msgstr "Tipos de notificación ocultos de la página de Notificaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:271
+#: data/io.github.mauriciobc.Babble.gschema.xml:276
 msgid "Most recent search queries, newest first"
 msgstr "Consultas de búsqueda más recientes, primero primero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:275
+#: data/io.github.mauriciobc.Babble.gschema.xml:280
 msgid "Shortcodes of recently inserted custom emojis, newest first"
 msgstr ""
 "Códigos cortos de emojis personalizados insertados recientemente, primero "
 "primero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:279
+#: data/io.github.mauriciobc.Babble.gschema.xml:284
 msgid "Lists pinned to the sidebar, as \"account-id/list-id\""
 msgstr "Listas fijadas a la barra lateral, como \"account-id/list-id\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:283
+#: data/io.github.mauriciobc.Babble.gschema.xml:288
 msgid "Hashtags pinned to the sidebar, as \"account-id/tag\""
 msgstr "Hashtags fijados a la barra lateral, como \"account-id/tag\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:287
+#: data/io.github.mauriciobc.Babble.gschema.xml:292
 msgid "Saved multi-hashtag timelines as JSON {\"title\", \"tags\": [...]}"
 msgstr ""
 "Guardar cronologías de múltiples hashtags como JSON {\"title\", \"tags\": "
 "[...]}"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:291
+#: data/io.github.mauriciobc.Babble.gschema.xml:296
 msgid "Unsent composer drafts as JSON, newest first"
 msgstr "Borradores no enviados del compositor como JSON, primero primero"
 
@@ -839,7 +849,7 @@ msgid "Take Action"
 msgstr "Tomar acción"
 
 #: src/admin.py:889 src/admin.py:1302 src/admin.py:1513 src/catchup.py:1271
-#: src/compose.py:1041 src/fedicollections.py:679 src/hashtags.py:461
+#: src/compose.py:1041 src/fedicollections.py:679 src/hashtags.py:471
 #: src/lists.py:164 src/notificationctrl.py:486 src/pages.py:486
 #: src/pages.py:514 src/profile.py:281 src/profile.py:310
 #: src/profileedit.py:225 src/scheduled.py:123 src/search.py:585
@@ -910,7 +920,7 @@ msgstr "Ubicación"
 msgid "Moderation Status"
 msgstr "Estado de moderación"
 
-#: src/admin.py:996
+#: src/admin.py:996 plugins/wallabag/babble_wallabag.py:335
 msgid "Username"
 msgstr "Nombre de usuario"
 
@@ -1148,7 +1158,7 @@ msgid "Remove Federation with %s?"
 msgstr "¿Eliminar la federación con %s?"
 
 #: src/admin.py:1389 src/admin.py:1497 src/catchup.py:1402
-#: src/fedicollections.py:243 src/profileactions.py:229 src/statusmenu.py:415
+#: src/fedicollections.py:243 src/profileactions.py:229 src/statusmenu.py:440
 #: src/window.py:658
 msgid "_Remove"
 msgstr "_Eliminar"
@@ -1175,7 +1185,7 @@ msgid "Block an e-mail domain"
 msgstr "Bloquear un dominio de correo"
 
 #: src/admin.py:1413 src/admin.py:1450 src/profileactions.py:241
-#: src/profileactions.py:263 src/statusmenu.py:569
+#: src/profileactions.py:263 src/statusmenu.py:607
 msgid "_Block"
 msgstr "_Bloquear"
 
@@ -1190,7 +1200,7 @@ msgstr[1] "%d intentos de registro"
 msgid "Could not block the domain"
 msgstr "No se pudo bloquear el dominio"
 
-#: src/admin.py:1447 src/profileactions.py:238 src/statusmenu.py:566
+#: src/admin.py:1447 src/profileactions.py:238 src/statusmenu.py:604
 #, python-format
 msgid "Block %s?"
 msgstr "¿Bloquear %s?"
@@ -1617,7 +1627,7 @@ msgid "Replies"
 msgstr "Respuestas"
 
 #: src/catchup.py:414 src/catchup.py:432 src/notificationcopy.py:62
-#: src/preferences.py:371 src/statusrow.py:655 src/statusviews.py:25
+#: src/preferences.py:371 src/statusrow.py:657 src/statusviews.py:25
 #: src/statusviews.py:108
 msgid "Boosts"
 msgstr "Impulsos"
@@ -1635,8 +1645,8 @@ msgstr "Etiquetas seguidas"
 msgid "Groups"
 msgstr "Grupos"
 
-#: src/catchup.py:416 src/catchup.py:820 src/statusrow.py:447
-#: src/statusrow.py:455
+#: src/catchup.py:416 src/catchup.py:820 src/statusrow.py:449
+#: src/statusrow.py:457
 msgid "Filtered"
 msgstr "Filtrada"
 
@@ -1763,7 +1773,7 @@ msgstr "Mostrando %s"
 
 #. Translators: the row of a post hidden behind a filter; %s names
 #. the filter(s)
-#: src/catchup.py:819 src/statusrow.py:447 src/statusrow.py:455
+#: src/catchup.py:819 src/statusrow.py:449 src/statusrow.py:457
 #, python-format
 msgid "Filtered: %s"
 msgstr "Filtrada: %s"
@@ -1994,20 +2004,21 @@ msgid "Trending"
 msgstr "Tendencia"
 
 #: src/catchupgrid.py:646 src/thread.py:200
+#: plugins/hashpanel/babble_hashpanel.py:229
 #, python-format
 msgid "%d reply"
 msgid_plural "%d replies"
 msgstr[0] "%d respuesta"
 msgstr[1] "%d respuestas"
 
-#: src/catchupgrid.py:648
+#: src/catchupgrid.py:648 plugins/hashpanel/babble_hashpanel.py:228
 #, python-format
 msgid "%d boost"
 msgid_plural "%d boosts"
 msgstr[0] "%d impulso"
 msgstr[1] "%d impulsos"
 
-#: src/catchupgrid.py:650
+#: src/catchupgrid.py:650 plugins/hashpanel/babble_hashpanel.py:226
 #, python-format
 msgid "%d favorite"
 msgid_plural "%d favorites"
@@ -2024,25 +2035,25 @@ msgid_plural "%s and %d others boosted"
 msgstr[0] "%s y %d más lo impulsó"
 msgstr[1] "%s y %d más lo impulsaron"
 
-#: src/catchupgrid.py:947 src/catchupgrid.py:966 src/explore.py:393
+#: src/catchupgrid.py:951 src/catchupgrid.py:970 src/explore.py:393
 msgid "News"
 msgstr "Noticias"
 
-#: src/catchupgrid.py:985 src/explore.py:112 src/webcolumn.py:282
+#: src/catchupgrid.py:989 src/explore.py:112 src/webcolumn.py:282
 msgid "Open in Browser"
 msgstr "Abrir en el navegador"
 
-#: src/catchupgrid.py:1079 src/catchupgrid.py:1092 src/searchprovider.py:571
+#: src/catchupgrid.py:1083 src/catchupgrid.py:1096 src/searchprovider.py:571
 msgid "Hashtag"
 msgstr "Etiqueta"
 
-#: src/catchupgrid.py:1098 src/explore.py:289 src/notifications.py:1162
+#: src/catchupgrid.py:1102 src/explore.py:289 src/notifications.py:1162
 #: src/profile.py:840
 msgid "Following"
 msgstr "Siguiendo"
 
-#: src/catchupgrid.py:1305 src/profile.py:870 src/profile.py:921
-#: src/statusrow.py:216 src/statusrow.py:607
+#: src/catchupgrid.py:1309 src/profile.py:870 src/profile.py:921
+#: src/statusrow.py:216 src/statusrow.py:609
 msgid "Show More"
 msgstr "Mostrar más"
 
@@ -2125,7 +2136,7 @@ msgstr "Quitar adjunto"
 msgid "Description"
 msgstr "Descripción"
 
-#: src/compose.py:423 src/statusrow.py:587
+#: src/compose.py:423 src/statusrow.py:589
 msgid "Replying to a post"
 msgstr "Respondiendo a una publicación"
 
@@ -2324,7 +2335,7 @@ msgid "Quote Post"
 msgstr "Citar publicación"
 
 #: src/compose.py:1710 src/desktopnotify.py:222 src/scheduled.py:421
-#: src/statusactions.py:327 src/statusmenu.py:216
+#: src/statusactions.py:327 src/statusmenu.py:241
 msgid "Reply"
 msgstr "Responder"
 
@@ -2390,9 +2401,9 @@ msgstr ""
 "conservan su copia."
 
 #: src/conversations.py:212 src/fedicollections.py:256
-#: src/fedicollections.py:542 src/filters.py:346 src/hashtags.py:550
-#: src/lists.py:262 src/lists.py:559 src/scheduled.py:497 src/statusmenu.py:194
-#: src/statusmenu.py:441
+#: src/fedicollections.py:542 src/filters.py:346 src/hashtags.py:560
+#: src/lists.py:262 src/lists.py:559 src/scheduled.py:497 src/statusmenu.py:199
+#: src/statusmenu.py:466
 msgid "_Delete"
 msgstr "_Eliminar"
 
@@ -2432,12 +2443,12 @@ msgstr[1] "%(first)s, %(second)s y %(count)d más"
 msgid "Follow Back"
 msgstr "Seguir también"
 
-#: src/desktopnotify.py:224 src/statusactions.py:337 src/statusmenu.py:220
+#: src/desktopnotify.py:224 src/statusactions.py:337 src/statusmenu.py:245
 msgid "Favorite"
 msgstr "Marcar como favorito"
 
 #: src/desktopnotify.py:227 src/statusactions.py:330 src/statusactions.py:443
-#: src/statusmenu.py:217
+#: src/statusmenu.py:242
 msgid "Boost"
 msgstr "Impulsar"
 
@@ -2603,7 +2614,7 @@ msgid_plural "%d people talking"
 msgstr[0] "%d persona hablando"
 msgstr[1] "%d personas hablando"
 
-#: src/explore.py:261 src/hashtags.py:189 src/hashtags.py:220
+#: src/explore.py:261 src/hashtags.py:199 src/hashtags.py:230
 msgid "_Follow"
 msgstr "_Seguir"
 
@@ -2639,7 +2650,7 @@ msgstr "Sin etiquetas en tendencia"
 msgid "No Trending News"
 msgstr "Sin noticias en tendencia"
 
-#: src/explore.py:392 src/hashtags.py:481 src/search.py:505 src/window.py:91
+#: src/explore.py:392 src/hashtags.py:491 src/search.py:505 src/window.py:91
 msgid "Hashtags"
 msgstr "Etiquetas"
 
@@ -2675,8 +2686,8 @@ msgstr "Reportar Colección"
 msgid "Delete"
 msgstr "Eliminar"
 
-#: src/fedicollections.py:193 src/hashtags.py:201 src/profile.py:439
-#: src/statusmenu.py:64
+#: src/fedicollections.py:193 src/hashtags.py:211 src/profile.py:439
+#: src/statusmenu.py:66
 msgid "More Options"
 msgstr "Más opciones"
 
@@ -2770,7 +2781,7 @@ msgstr[1] "Has alcanzado el límite de %d colecciones"
 msgid "Copy _URL"
 msgstr "Copiar _URL"
 
-#: src/fedicollections.py:537 src/statusmenu.py:192
+#: src/fedicollections.py:537 src/statusmenu.py:197
 msgid "_Edit"
 msgstr "_Editar"
 
@@ -2810,7 +2821,7 @@ msgstr "_Mostrar contenido"
 msgid "Edit Collection"
 msgstr "Editar colección"
 
-#: src/fedicollections.py:683 src/filters.py:164 src/hashtags.py:464
+#: src/fedicollections.py:683 src/filters.py:164 src/hashtags.py:474
 #: src/lists.py:168 src/mediaviewer.py:1473 src/profile.py:313
 #: src/profileedit.py:230
 msgid "_Save"
@@ -3103,131 +3114,131 @@ msgstr "Sin publicaciones con esta etiqueta"
 msgid "No one has posted anything with this tag yet"
 msgstr "Nadie ha publicado nada con esta etiqueta todavía"
 
-#: src/hashtags.py:178 src/hashtags.py:721
+#: src/hashtags.py:188 src/hashtags.py:731
 msgid "Edit Timeline"
 msgstr "Editar cronología"
 
-#: src/hashtags.py:213
+#: src/hashtags.py:223
 #, fuzzy
 msgid "_Remove from Featured Tags"
 msgstr "Quitar de las etiquetas destacadas"
 
-#: src/hashtags.py:214 src/profileactions.py:109
+#: src/hashtags.py:224 src/profileactions.py:109
 #, fuzzy
 msgid "_Feature on Profile"
 msgstr "Destacar en el perfil"
 
-#: src/hashtags.py:219 src/hashtags.py:643 src/profileactions.py:209
+#: src/hashtags.py:229 src/hashtags.py:653 src/profileactions.py:209
 msgid "_Unfollow"
 msgstr "_Dejar de seguir"
 
-#: src/hashtags.py:270 src/hashtags.py:683
+#: src/hashtags.py:280 src/hashtags.py:693
 #, python-format
 msgid "Could not unfollow #%s"
 msgstr "No se pudo dejar de seguir #%s"
 
-#: src/hashtags.py:272 src/hashtags.py:669
+#: src/hashtags.py:282 src/hashtags.py:679
 #, python-format
 msgid "Could not follow #%s"
 msgstr "No se pudo seguir #%s"
 
-#: src/hashtags.py:277
+#: src/hashtags.py:287
 #, python-format
 msgid "Followed #%s"
 msgstr "Siguiendo #%s"
 
-#: src/hashtags.py:278 src/hashtags.py:674
+#: src/hashtags.py:288 src/hashtags.py:684
 #, python-format
 msgid "Unfollowed #%s"
 msgstr "Dejaste de seguir #%s"
 
-#: src/hashtags.py:291
+#: src/hashtags.py:301
 msgid "Could not change the featured tags"
 msgstr "No se pudieron cambiar las etiquetas destacadas"
 
-#: src/hashtags.py:296
+#: src/hashtags.py:306
 msgid "Removed from featured tags"
 msgstr "Quitada de las etiquetas destacadas"
 
-#: src/hashtags.py:299
+#: src/hashtags.py:309
 msgid "Featured on your profile"
 msgstr "Destacada en tu perfil"
 
-#: src/hashtags.py:393
+#: src/hashtags.py:403
 msgid "Add Hashtag"
 msgstr "Añadir etiqueta"
 
-#: src/hashtags.py:415
+#: src/hashtags.py:425
 msgid "Remove Hashtag"
 msgstr "Quitar etiqueta"
 
-#: src/hashtags.py:440
+#: src/hashtags.py:450
 #, python-format
 msgid "At most %d hashtag can be combined"
 msgid_plural "At most %d hashtags can be combined"
 msgstr[0] "Se puede combinar como máximo %d etiqueta"
 msgstr[1] "Se pueden combinar como máximo %d etiquetas"
 
-#: src/hashtags.py:454
+#: src/hashtags.py:464
 msgid "Edit Multi-Hashtag Timeline"
 msgstr "Editar cronología de varias etiquetas"
 
-#: src/hashtags.py:455 src/hashtags.py:818
+#: src/hashtags.py:465 src/hashtags.py:828
 msgid "New Multi-Hashtag Timeline"
 msgstr "Nueva cronología de varias etiquetas"
 
-#: src/hashtags.py:470 src/lists.py:176
+#: src/hashtags.py:480 src/lists.py:176
 msgid "Title"
 msgstr "Título"
 
-#: src/hashtags.py:474
+#: src/hashtags.py:484
 msgid "Local Only"
 msgstr "Solo local"
 
-#: src/hashtags.py:475
+#: src/hashtags.py:485
 msgid "Only posts from your server"
 msgstr "Solo publicaciones de tu servidor"
 
-#: src/hashtags.py:482
+#: src/hashtags.py:492
 msgid "Posts with any of these hashtags. The first one is the main hashtag."
 msgstr ""
 "Publicaciones con cualquiera de estas etiquetas. La primera es la etiqueta "
 "principal."
 
-#: src/hashtags.py:485
+#: src/hashtags.py:495
 msgid "Also Requiring"
 msgstr "Requiriendo también"
 
-#: src/hashtags.py:485
+#: src/hashtags.py:495
 msgid "Posts must contain all of these too"
 msgstr "Las publicaciones también deben contener todas estas"
 
-#: src/hashtags.py:488
+#: src/hashtags.py:498
 msgid "Excluding"
 msgstr "Excluyendo"
 
-#: src/hashtags.py:488
+#: src/hashtags.py:498
 msgid "Hide posts with any of these"
 msgstr "Ocultar publicaciones con cualquiera de estas"
 
-#: src/hashtags.py:497
+#: src/hashtags.py:507
 msgid "_Delete Timeline"
 msgstr "_Eliminar cronología"
 
-#: src/hashtags.py:547
+#: src/hashtags.py:557
 msgid "Delete This Timeline?"
 msgstr "¿Eliminar esta cronología?"
 
-#: src/hashtags.py:548
+#: src/hashtags.py:558
 #, python-format
 msgid "The saved timeline “%s” will be deleted."
 msgstr "Se eliminará la cronología guardada «%s»."
 
-#: src/hashtags.py:584
+#: src/hashtags.py:594
 msgid "Usage over time"
 msgstr "Uso a lo largo del tiempo"
 
-#: src/hashtags.py:585
+#: src/hashtags.py:595
 #, python-format
 msgid "%(total)d use, peaking at %(peak)d"
 msgid_plural "%(total)d uses, peaking at %(peak)d"
@@ -3235,32 +3246,32 @@ msgstr[0] "%(total)d uso, máximo en %(peak)d"
 msgstr[1] "%(total)d usos, máximo en %(peak)d"
 
 #. weak: this group is its child
-#: src/hashtags.py:698
+#: src/hashtags.py:708
 msgid "Multi-Hashtag Timelines"
 msgstr "Cronologías de varias etiquetas"
 
-#: src/hashtags.py:730
+#: src/hashtags.py:740
 msgid "New Multi-Hashtag Timeline…"
 msgstr "Nueva cronología de varias etiquetas…"
 
-#: src/hashtags.py:773
+#: src/hashtags.py:783
 msgid "No followed hashtags"
 msgstr "No sigues ninguna etiqueta"
 
-#: src/hashtags.py:774
+#: src/hashtags.py:784
 msgid "Follow a hashtag from its page to see its posts in Home"
 msgstr ""
 "Sigue una etiqueta desde su página para ver sus publicaciones en Inicio"
 
-#: src/hashtags.py:807
+#: src/hashtags.py:817
 msgid "Followed Hashtags"
 msgstr "Etiquetas seguidas"
 
-#: src/hashtags.py:811
+#: src/hashtags.py:821
 msgid "No Followed Hashtags"
 msgstr "No sigues ninguna etiqueta"
 
-#: src/hashtags.py:813
+#: src/hashtags.py:823
 msgid "Follow a hashtag from its page to see its posts in your home timeline"
 msgstr ""
 "Sigue una etiqueta desde su página para ver sus publicaciones en tu "
@@ -3459,11 +3470,11 @@ msgstr "No se pudieron cargar las listas: %s"
 
 #. Translators: toast when a web+ap:// or web+mastodon:// link
 #. is opened before any account is signed in.
-#: src/main.py:324
+#: src/main.py:330
 msgid "Sign in to open this link"
 msgstr "Iniciar sesión para abrir este enlace"
 
-#: src/main.py:365
+#: src/main.py:371
 msgid "translator-credits"
 msgstr "créditos del traductor"
 
@@ -3927,7 +3938,7 @@ msgstr "Publicaciones que citaste y que se editaron"
 msgid "Server administrators only"
 msgstr "Solo administradores del servidor"
 
-#: src/notificationctrl.py:218 src/pollbox.py:224 src/timelinepage.py:649
+#: src/notificationctrl.py:218 src/pollbox.py:224 src/timelinepage.py:651
 msgid "Refresh failed"
 msgstr "Error al actualizar"
 
@@ -4520,6 +4531,77 @@ msgstr "No se pudo cargar más"
 msgid "This account’s handle could not be verified"
 msgstr "El identificador de esa cuenta no pudo ser verificado"
 
+#: src/pluginhost.py:340
+msgid "The server sent a reply that could not be read"
+msgstr ""
+
+#: src/pluginhost.py:445
+#, fuzzy
+msgid "Not installed"
+msgstr "Sin definir"
+
+#: src/pluginhost.py:450
+msgid "Made for another version of Babble"
+msgstr ""
+
+#: src/pluginhost.py:459
+#, fuzzy
+msgid "Could not be loaded; the system log has the details"
+msgstr "No se pudo generar la imagen"
+
+#: src/pluginhost.py:466
+msgid "Adds nothing Babble can use"
+msgstr ""
+
+#: src/pluginhost.py:512
+msgid "Stopped working and was turned off; the system log has the details"
+msgstr ""
+
+#. Translators: %s is a plugin's name.
+#: src/pluginhost.py:524
+#, python-format
+msgid "“%s” stopped working and was turned off"
+msgstr ""
+
+#. Translators: %s is a plugin's name.
+#: src/pluginspage.py:54
+#, python-format
+msgid "%s Settings"
+msgstr ""
+
+#: src/pluginspage.py:97 src/pluginspage.py:103
+msgid "Plugins"
+msgstr ""
+
+#: src/pluginspage.py:110
+#, fuzzy
+msgid "Plugins Are Unavailable"
+msgstr "Cita no disponible"
+
+#: src/pluginspage.py:111
+msgid "Babble needs libpeas 2 and its Python loader to load plugins"
+msgstr ""
+
+#: src/pluginspage.py:122
+#, fuzzy
+msgid "Included With Babble"
+msgstr "Iniciado sesión con Babble"
+
+#: src/pluginspage.py:129
+msgid "Installed by You"
+msgstr ""
+
+#: src/pluginspage.py:130
+msgid ""
+"Plugins you install can do anything Babble can, including reading and "
+"posting with your account. Only turn on plugins you trust."
+msgstr ""
+
+#: src/pluginspage.py:135
+#, fuzzy
+msgid "_Open Plugins Folder"
+msgstr "_Abrir en el navegador"
+
 #: src/pollbox.py:122 src/statusviews.py:270
 msgid "Your vote"
 msgstr "Tu voto"
@@ -4748,7 +4830,8 @@ msgstr "Multimedia _sensible"
 
 #: src/preferences.py:357
 msgid "Reveal sensitive media instead of hiding it behind a warning"
-msgstr "Mostrar la multimedia sensible en lugar de ocultarla tras una advertencia"
+msgstr ""
+"Mostrar la multimedia sensible en lugar de ocultarla tras una advertencia"
 
 #: src/preferences.py:359
 msgid "S_poilers"
@@ -5076,7 +5159,9 @@ msgstr "Política de _citas predeterminada"
 #. read as a Babble-side switch.
 #: src/preferences.py:550
 msgid "Saved to your server preferences, so it applies to every new post"
-msgstr "Se guarda en las preferencias de tu servidor y se aplica a cada publicación nueva"
+msgstr ""
+"Se guarda en las preferencias de tu servidor y se aplica a cada publicación "
+"nueva"
 
 #: src/preferences.py:555
 msgid "Media Marked _Sensitive"
@@ -5113,7 +5198,8 @@ msgstr "_Notificaciones agrupadas"
 msgid "Combine notifications of the same type and post into one"
 msgstr "Combina en una las notificaciones del mismo tipo y publicación"
 
-#: src/preferences.py:635
+#: src/preferences.py:635 plugins/hashpanel/babble_hashpanel.py:277
+#: plugins/wallabag/babble_wallabag.py:328
 msgid "Server"
 msgstr "Servidor"
 
@@ -5247,7 +5333,7 @@ msgstr "La propiedad de este enlace se verificó el %s"
 msgid "Verified Link"
 msgstr "Enlace verificado"
 
-#: src/profile.py:921 src/statusrow.py:607
+#: src/profile.py:921 src/statusrow.py:609
 msgid "Show Less"
 msgstr "Mostrar menos"
 
@@ -5426,11 +5512,11 @@ msgstr "Mensaje directo"
 msgid "Copy _Handle"
 msgstr "Copiar identificador"
 
-#: src/profileactions.py:100 src/statusmenu.py:156 src/webcolumn.py:269
+#: src/profileactions.py:100 src/statusmenu.py:158 src/webcolumn.py:269
 msgid "_Copy Link"
 msgstr "_Copiar enlace"
 
-#: src/profileactions.py:101 src/statusmenu.py:155 src/webcolumn.py:268
+#: src/profileactions.py:101 src/statusmenu.py:157 src/webcolumn.py:268
 msgid "Open in _Browser"
 msgstr "Abrir en el _navegador"
 
@@ -5569,7 +5655,7 @@ msgstr ""
 "No podrá seguirte ni ver tus publicaciones, y sus publicaciones se te "
 "ocultarán."
 
-#: src/profileactions.py:243 src/profileactions.py:367 src/statusmenu.py:562
+#: src/profileactions.py:243 src/profileactions.py:367 src/statusmenu.py:600
 #, python-format
 msgid "Blocked %s"
 msgstr "%s bloqueado"
@@ -5627,7 +5713,7 @@ msgstr "No se pudo bloquear el dominio"
 msgid "Could not unblock domain"
 msgstr "No se pudo desbloquear el dominio"
 
-#: src/profileactions.py:379 src/statusmenu.py:548
+#: src/profileactions.py:379 src/statusmenu.py:586
 #, python-format
 msgid "Muted %s"
 msgstr "%s silenciado"
@@ -5907,10 +5993,6 @@ msgstr "Perfil actualizado"
 #, python-format
 msgid "Could not save profile: %s"
 msgstr "No se pudo guardar el perfil: %s"
-
-#: src/readingposition.py:110
-msgid "Newer Posts"
-msgstr "Publicaciones más nuevas"
 
 #: src/relations.py:31
 msgid "No Follow Requests"
@@ -6688,11 +6770,11 @@ msgstr "No se pudo abrir la publicación citada"
 msgid "Collection %s"
 msgstr "Colección %s"
 
-#: src/statusactions.py:334 src/statusactions.py:439 src/statusmenu.py:219
+#: src/statusactions.py:334 src/statusactions.py:439 src/statusmenu.py:244
 msgid "Quote"
 msgstr "Citar"
 
-#: src/statusactions.py:341 src/statusmenu.py:221
+#: src/statusactions.py:341 src/statusmenu.py:246
 msgid "Bookmark"
 msgstr "Añadir a marcadores"
 
@@ -6768,156 +6850,156 @@ msgstr "Impulsar con visibilidad"
 msgid "_Quote"
 msgstr "_Citar"
 
-#: src/statusmenu.py:154
+#: src/statusmenu.py:156
 msgid "_View Post"
 msgstr "_Ver publicación"
 
-#: src/statusmenu.py:158
+#: src/statusmenu.py:160
 msgid "View S_tats"
 msgstr "Ver es_tadísticas"
 
-#: src/statusmenu.py:160
+#: src/statusmenu.py:162
 msgid "View Edit _History"
 msgstr "Ver _historial de ediciones"
 
 #. Not _Translate: View S_tats already takes T in this menu.
-#: src/statusmenu.py:166 src/statusrow.py:337
+#: src/statusmenu.py:171 src/statusrow.py:337
 msgid "Show _Original"
 msgstr "Mostrar _original"
 
-#: src/statusmenu.py:167
+#: src/statusmenu.py:172
 #, fuzzy
 msgid "Tr_anslate"
 msgstr "_Traducir"
 
-#: src/statusmenu.py:169
+#: src/statusmenu.py:174
 msgid "Un_mute Conversation"
 msgstr "Dejar de si_lenciar conversación"
 
-#: src/statusmenu.py:170
+#: src/statusmenu.py:175
 msgid "_Mute Conversation"
 msgstr "_Silenciar conversación"
 
-#: src/statusmenu.py:173
+#: src/statusmenu.py:178
 msgid "_Unpin From Profile"
 msgstr "_Desfijar del perfil"
 
-#: src/statusmenu.py:174
+#: src/statusmenu.py:179
 msgid "_Pin to Profile"
 msgstr "_Fijar en el perfil"
 
-#: src/statusmenu.py:183
+#: src/statusmenu.py:188
 msgid "Who Can _Quote"
 msgstr "Quién puede _citar"
 
 #. Not _Remove…: Delete and _Redraft takes R in the same menu.
-#: src/statusmenu.py:186
+#: src/statusmenu.py:191
 #, fuzzy
 msgid "Remove My Post _From Quote"
 msgstr "_Quitar mi publicación de la cita"
 
-#: src/statusmenu.py:193
+#: src/statusmenu.py:198
 msgid "Delete and _Redraft"
 msgstr "Eliminar y _reescribir"
 
 #. Access keys are unique across the whole open menu, not per
 #. section: _Mute Conversation (M), Open in _Browser (B) and
 #. Show _Original (O) already hold those letters in it.
-#: src/statusmenu.py:201
+#: src/statusmenu.py:206
 #, fuzzy, python-format
 msgid "Ment_ion %s"
 msgstr "Mencionar a %s"
 
-#: src/statusmenu.py:202
+#: src/statusmenu.py:207
 #, fuzzy, python-format
 msgid "M_ute %s"
 msgstr "¿Silenciar a %s?"
 
-#: src/statusmenu.py:203
+#: src/statusmenu.py:208
 #, fuzzy, python-format
 msgid "Bloc_k %s"
 msgstr "¿Bloquear %s?"
 
-#: src/statusmenu.py:204
+#: src/statusmenu.py:209
 msgid "_Report Post…"
 msgstr "_Denunciar publicación…"
 
-#: src/statusmenu.py:288
+#: src/statusmenu.py:313
 msgid "Link copied"
 msgstr "Enlace copiado"
 
-#: src/statusmenu.py:294
+#: src/statusmenu.py:319
 msgid "Only mentioned people will be able to view it."
 msgstr "Solo las personas mencionadas podrán verla."
 
-#: src/statusmenu.py:296
+#: src/statusmenu.py:321
 msgid "Only mentioned people and your followers will be able to view it."
 msgstr "Solo las personas mencionadas y tus seguidores podrán verla."
 
-#: src/statusmenu.py:299
+#: src/statusmenu.py:324
 #, python-format
 msgid ""
 "Only mentioned people and people that follow %s will be able to view it."
 msgstr "Solo las personas mencionadas y quienes siguen a %s podrán verla."
 
-#: src/statusmenu.py:302
+#: src/statusmenu.py:327
 #, python-format
 msgid "Copy “%s” Post Link?"
 msgstr "¿Copiar el enlace de la publicación «%s»?"
 
-#: src/statusmenu.py:303
+#: src/statusmenu.py:328
 msgid "_Copy"
 msgstr "_Copiar"
 
-#: src/statusmenu.py:343
+#: src/statusmenu.py:368
 msgid "Could not translate"
 msgstr "No se pudo traducir"
 
-#: src/statusmenu.py:368
+#: src/statusmenu.py:393
 msgid "Could not unmute conversation"
 msgstr "No se pudo dejar de silenciar la conversación"
 
-#: src/statusmenu.py:369
+#: src/statusmenu.py:394
 msgid "Could not mute conversation"
 msgstr "No se pudo silenciar la conversación"
 
-#: src/statusmenu.py:376
+#: src/statusmenu.py:401
 msgid "Could not unpin post"
 msgstr "No se pudo desfijar la publicación"
 
-#: src/statusmenu.py:377
+#: src/statusmenu.py:402
 msgid "Could not pin post"
 msgstr "No se pudo fijar la publicación"
 
-#: src/statusmenu.py:392
+#: src/statusmenu.py:417
 msgid "Could not change quote policy"
 msgstr "No se pudo cambiar la política de citas"
 
-#: src/statusmenu.py:406
+#: src/statusmenu.py:431
 msgid "Your post was removed from the quote"
 msgstr "Tu publicación se quitó de la cita"
 
-#: src/statusmenu.py:411
+#: src/statusmenu.py:436
 msgid "Could not remove your post"
 msgstr "No se pudo quitar tu publicación"
 
-#: src/statusmenu.py:413
+#: src/statusmenu.py:438
 msgid "Remove Your Post From the Quote?"
 msgstr "¿Quitar tu publicación de la cita?"
 
-#: src/statusmenu.py:414
+#: src/statusmenu.py:439
 msgid "The quote will no longer show your post."
 msgstr "La cita ya no mostrará tu publicación."
 
-#: src/statusmenu.py:431
+#: src/statusmenu.py:456
 msgid "Could not load post for editing"
 msgstr "No se pudo cargar la publicación para editarla"
 
-#: src/statusmenu.py:438
+#: src/statusmenu.py:463
 msgid "Delete Post?"
 msgstr "¿Eliminar la publicación?"
 
-#: src/statusmenu.py:439
+#: src/statusmenu.py:464
 msgid ""
 "This post will be removed from your profile and from the timelines of other "
 "servers."
@@ -6925,11 +7007,11 @@ msgstr ""
 "Esta publicación se quitará de tu perfil y de las cronologías de otros "
 "servidores."
 
-#: src/statusmenu.py:448
+#: src/statusmenu.py:473
 msgid "Delete and Redraft?"
 msgstr "¿Eliminar y reescribir?"
 
-#: src/statusmenu.py:449
+#: src/statusmenu.py:474
 msgid ""
 "This post will be deleted and its text, attachments and poll copied into a "
 "new draft."
@@ -6937,31 +7019,31 @@ msgstr ""
 "Esta publicación se eliminará y su texto, adjuntos y encuesta se copiarán en "
 "un nuevo borrador."
 
-#: src/statusmenu.py:451
+#: src/statusmenu.py:476
 msgid "_Delete and Redraft"
 msgstr "_Eliminar y reescribir"
 
-#: src/statusmenu.py:478 src/statusmenu.py:501
+#: src/statusmenu.py:515 src/statusmenu.py:539
 msgid "Could not delete post"
 msgstr "No se pudo eliminar la publicación"
 
-#: src/statusmenu.py:483 src/statusmenu.py:497
+#: src/statusmenu.py:521 src/statusmenu.py:535
 msgid "Post deleted"
 msgstr "Publicación eliminada"
 
-#: src/statusmenu.py:546
+#: src/statusmenu.py:584
 msgid "Unmute failed"
 msgstr "Error al dejar de silenciar"
 
-#: src/statusmenu.py:551
+#: src/statusmenu.py:589
 msgid "Mute failed"
 msgstr "Error al silenciar"
 
-#: src/statusmenu.py:563
+#: src/statusmenu.py:601
 msgid "Block failed"
 msgstr "Error al bloquear"
 
-#: src/statusmenu.py:567
+#: src/statusmenu.py:605
 msgid ""
 "They will no longer be able to follow your account or see your posts, and "
 "their posts will be hidden."
@@ -6987,72 +7069,72 @@ msgstr "Bot"
 msgid "Edited"
 msgstr "Editada"
 
-#: src/statusrow.py:382
+#: src/statusrow.py:384
 #, python-format
 msgid "Post %(position)d of %(total)d in Thread"
 msgstr "Publicación %(position)d de %(total)d del hilo"
 
-#: src/statusrow.py:422
+#: src/statusrow.py:424
 #, python-format
 msgid "Post by %(author)s, boosted by %(booster)s"
 msgstr "Publicación de %(author)s, impulsada por %(booster)s"
 
-#: src/statusrow.py:426
+#: src/statusrow.py:428
 #, python-format
 msgid "Post by %s"
 msgstr "Publicación de %s"
 
-#: src/statusrow.py:539
+#: src/statusrow.py:541
 #, python-format
 msgid "Translated from %(language)s using %(provider)s"
 msgstr "Traducido del %(language)s con %(provider)s"
 
-#: src/statusrow.py:542
+#: src/statusrow.py:544
 #, python-format
 msgid "Translated using %s"
 msgstr "Traducido con %s"
 
-#: src/statusrow.py:544
+#: src/statusrow.py:546
 msgid "Translated"
 msgstr "Traducido"
 
-#: src/statusrow.py:563
+#: src/statusrow.py:565
 #, python-format
 msgid "Language: %s"
 msgstr "Idioma: %s"
 
-#: src/statusrow.py:567
+#: src/statusrow.py:569
 #, python-format
 msgid "Edited %s"
 msgstr "Editada %s"
 
-#: src/statusrow.py:571
+#: src/statusrow.py:573
 msgid "Edited. Show edit history"
 msgstr "Editada. Mostrar historial de ediciones"
 
-#: src/statusrow.py:582
+#: src/statusrow.py:584
 msgid "Replying to themselves"
 msgstr "Respondiéndose a sí mismo"
 
-#: src/statusrow.py:586
+#: src/statusrow.py:588
 #, python-format
 msgid "Replying to @%s"
 msgstr "Respondiendo a @%s"
 
-#: src/statusrow.py:671
+#: src/statusrow.py:673
 msgid "Hide Content"
 msgstr "Ocultar contenido"
 
-#: src/statusrow.py:672
+#: src/statusrow.py:674
 msgid "Show Content"
 msgstr "Mostrar contenido"
 
-#: src/statusrow.py:675
+#: src/statusrow.py:677
 #, python-format
 msgid "Hide content warning: %s"
 msgstr "Ocultar advertencia de contenido: %s"
 
-#: src/statusrow.py:676
+#: src/statusrow.py:678
 #, python-format
 msgid "Show content warning: %s"
 msgstr "Mostrar advertencia de contenido: %s"
@@ -7579,19 +7661,23 @@ msgstr "#Fedi_Wrapped"
 msgid "Admin Dash_board"
 msgstr "Panel de administración"
 
-#: src/window.ui:640 src/window.ui:660
+#: src/window.ui:640 src/window.ui:664
 msgid "_Preferences"
 msgstr "_Preferencias"
 
-#: src/window.ui:644 src/window.ui:664
+#: src/window.ui:644 src/window.ui:668
+msgid "P_lugins"
+msgstr ""
+
+#: src/window.ui:648 src/window.ui:672
 msgid "_Keyboard Shortcuts"
 msgstr "_Atajos del teclado"
 
-#: src/window.ui:648 src/window.ui:668
+#: src/window.ui:652 src/window.ui:676
 msgid "_Help"
 msgstr "_Ayuda"
 
-#: src/window.ui:652 src/window.ui:672
+#: src/window.ui:656 src/window.ui:680
 msgid "_About Babble"
 msgstr "_Acerca de Babble"
 
@@ -7794,6 +7880,179 @@ msgstr "Guardar Wrapped"
 #, python-format
 msgid "Saved %d Wrapped"
 msgstr "Wrapped de %d guardado"
+
+#: plugins/hashpanel/babble_hashpanel.py:175
+msgid "Open Hashpanel"
+msgstr ""
+
+#: plugins/hashpanel/babble_hashpanel.py:180
+#, fuzzy
+msgid "This Week"
+msgstr "1 semana"
+
+#: plugins/hashpanel/babble_hashpanel.py:183
+#, fuzzy
+msgid "Top Post Today"
+msgstr "No se encontraron publicaciones"
+
+#: plugins/hashpanel/babble_hashpanel.py:201
+#, fuzzy
+msgid "Today’s Hashtag"
+msgstr "Etiquetas principales"
+
+#. Translators: %s is a weekday, or several, as in "Tuesday's
+#. hashtag".
+#: plugins/hashpanel/babble_hashpanel.py:207
+#, fuzzy, python-format
+msgid "%s’s Hashtag"
+msgstr "Etiqueta"
+
+#: plugins/hashpanel/babble_hashpanel.py:219
+#, fuzzy
+msgid "Hashpanel could not be reached"
+msgstr "La imagen no pudo ser guardada"
+
+#. Translators: %s is a list of counts, as in "4 favorites ·
+#. 7 boosts · 1 reply".
+#: plugins/hashpanel/babble_hashpanel.py:232
+#, fuzzy, python-format
+msgid "Today: %s"
+msgstr "Hoy"
+
+#: plugins/hashpanel/babble_hashpanel.py:251
+#, python-format
+msgid "%d post this week"
+msgid_plural "%d posts this week"
+msgstr[0] ""
+msgstr[1] ""
+
+#: plugins/hashpanel/babble_hashpanel.py:255
+#, python-format
+msgid "%d the week before"
+msgid_plural "%d the week before"
+msgstr[0] ""
+msgstr[1] ""
+
+#: plugins/hashpanel/babble_hashpanel.py:273
+msgid ""
+"Hashpanel follows the daily hashtags of the Brazilian fediverse. Babble asks "
+"it only about the hashtags it follows."
+msgstr ""
+
+#: plugins/hashpanel/babble_hashpanel.py:292
+#: plugins/wallabag/babble_wallabag.py:384
+msgid "Use the server’s https:// address"
+msgstr ""
+
+#: plugins/hashpanel/babble_hashpanel.py:303
+msgid "Hashpanel server saved"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:213
+#, fuzzy
+msgid "The server did not accept these details"
+msgstr "El servidor no aceptó el archivo multimedia"
+
+#: plugins/wallabag/babble_wallabag.py:215
+msgid "No Wallabag server answered at this address"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:219
+#, fuzzy
+msgid "The server sent no token"
+msgstr "Este servidor no tiene emojis personalizados"
+
+#: plugins/wallabag/babble_wallabag.py:246
+msgid "Save to _Wallabag"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:248
+#, fuzzy
+msgid "Save to _Wallabag…"
+msgstr "Guardar como imagen…"
+
+#: plugins/wallabag/babble_wallabag.py:261
+msgid "Saved to Wallabag"
+msgstr ""
+
+#. Translators: %s is the reason, as the server or the
+#. network gave it.
+#: plugins/wallabag/babble_wallabag.py:265
+#, fuzzy, python-format
+msgid "Could not save to Wallabag: %s"
+msgstr "No se pudo guardar la lista: %s"
+
+#: plugins/wallabag/babble_wallabag.py:277
+#, fuzzy
+msgid "Account"
+msgstr "Cuentas"
+
+#: plugins/wallabag/babble_wallabag.py:281
+#, fuzzy
+msgid "Saved posts go to this account"
+msgstr "Cuéntanos qué ocurre con esta cuenta"
+
+#. Translators: a Wallabag account, by its username and the
+#. server's host name.
+#: plugins/wallabag/babble_wallabag.py:293
+#, python-format
+msgid "%(username)s on %(server)s"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:295
+msgid "Sign _Out"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:298
+#, fuzzy
+msgid "Not signed in"
+msgstr "%s se registró"
+
+#: plugins/wallabag/babble_wallabag.py:299
+msgid "_Sign In…"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:307
+#, fuzzy
+msgid "Signed out of Wallabag"
+msgstr "Guardar como imagen…"
+
+#: plugins/wallabag/babble_wallabag.py:316
+msgid "Sign In to Wallabag"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:323
+msgid "_Sign In"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:331
+msgid "app.wallabag.it, or your own server’s address"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:332
+msgid "Client ID"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:334
+msgid "Client Secret"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:337
+msgid "Password"
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:339
+msgid ""
+"Use app.wallabag.it for the hosted service. Create a client under API "
+"Clients Management in Wallabag to get its ID and secret."
+msgstr ""
+
+#: plugins/wallabag/babble_wallabag.py:345
+msgid "Your password is used once to sign in and is not stored"
+msgstr ""
+
+#~ msgid "Newer Posts"
+#~ msgstr "Publicaciones más nuevas"
 
 #~ msgid "As a Box over the Window"
 #~ msgstr "Como caja sobre la ventana"

@@ -93,6 +93,7 @@ EXPECTED = {
     ('lists', '_MembershipDialog'),
     ('notifications', 'NotificationPolicyDialog'),
     ('pages', 'ToastDialog'),
+    ('pluginspage', 'PluginsDialog'),
     ('preferences', 'PreferencesDialog'),
     ('profile', 'PrivateNoteDialog'),
     ('profile', 'ProfileDialog'),
