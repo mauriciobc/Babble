@@ -208,9 +208,12 @@ class TagPool:
             found = None
         if not isinstance(found, list):
             failed.append(source)
-            found = []
-        answers[source] = [dict(tag, source=source) for tag in found
-                           if _tag_name(tag) is not None]
+            # A refresh that fails keeps what the last load found, rather
+            # than forgetting good tags until the next one.
+            answers[source] = self.tags[source]
+        else:
+            answers[source] = [dict(tag, source=source) for tag in found
+                               if _tag_name(tag) is not None]
         if len(answers) < len(_POOL_PATHS):
             return
         self.tags = answers

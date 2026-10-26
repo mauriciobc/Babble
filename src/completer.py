@@ -429,15 +429,17 @@ class TokenCompleter(Gtk.Popover):
         # What is written in between is half a token (the completion
         # without its space): do not suggest from it.
         self._accepting = True
+        self.buffer.begin_user_action()
         try:
-            self.buffer.begin_user_action()
             self.buffer.delete(start, end)
             self.buffer.insert(start, text if spaced else text + ' ')
             if spaced:
                 start.forward_char()
                 self.buffer.place_cursor(start)
-            self.buffer.end_user_action()
         finally:
+            # An action left open would fold every later edit into this
+            # one undo step.
+            self.buffer.end_user_action()
             self._accepting = False
         self.dismiss()
 

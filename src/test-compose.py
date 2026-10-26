@@ -2137,6 +2137,19 @@ hcomp.prepare('a')
 pump(50)
 check('a partly failed pool is asked again after the TTL',
       len(pool_requests()) == 6)
+reset_pool(**{RECENT: [{'name': 'linr'}], FEATURED: [{'name': 'linf'}]})
+hcomp.prepare('a')
+pump(50)
+POOL_ANSWERS[FEATURED] = [{'name': 'linnew'}]
+FAIL_PATHS.add(RECENT)
+clock[0] += hc_module.POOL_TTL_SECONDS + 1
+hcomp.prepare('a')
+pump(50)
+FAIL_PATHS.clear()
+check('a refresh that fails keeps the tags the last load found',
+      [tag['name'] for tag in the_pool().tags['recent']] == ['linr']
+      and [tag['name'] for tag in the_pool().tags['featured']]
+      == ['linnew'])
 hc_module._now = real_now
 
 # F6: no settings read per keystroke.
