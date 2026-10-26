@@ -399,6 +399,12 @@ test('wallabag plugin', python,
   env: fatal_test_env,
   timeout: 60,
 )
+# The shipped Hashpanel plugin against a fake Hashpanel on loopback.
+test('hashpanel plugin', python,
+  args: [files('test-hashpanel.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 # Needs no display: the port imports no gi at all.
 test('affinity', python,
   args: [files('test-affinity.py')],

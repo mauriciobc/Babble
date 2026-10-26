@@ -1,0 +1,10 @@
+[Plugin]
+Module=babble_hashpanel
+Loader=python
+Name=Hashpanel
+Description=Daily hashtag stats from Hashpanel on the pages of the hashtags it follows
+Authors=Babble contributors
+Copyright=Copyright © 2026 Babble contributors
+Website=https://github.com/mauriciobc/hashpanel
+Version=1.0
+X-Babble-Api=1

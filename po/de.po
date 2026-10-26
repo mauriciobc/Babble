@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-26 14:35-0300\n"
+"POT-Creation-Date: 2026-10-26 14:46-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -2001,20 +2001,21 @@ msgid "Trending"
 msgstr "Im Trend"
 
 #: src/catchupgrid.py:646 src/thread.py:200
+#: plugins/hashpanel/babble_hashpanel.py:229
 #, python-format
 msgid "%d reply"
 msgid_plural "%d replies"
 msgstr[0] "%d Antwort"
 msgstr[1] "%d Antworten"
 
-#: src/catchupgrid.py:648
+#: src/catchupgrid.py:648 plugins/hashpanel/babble_hashpanel.py:228
 #, python-format
 msgid "%d boost"
 msgid_plural "%d boosts"
 msgstr[0] "%d geteilter Beitrag"
 msgstr[1] "%d geteilte Beiträge"
 
-#: src/catchupgrid.py:650
+#: src/catchupgrid.py:650 plugins/hashpanel/babble_hashpanel.py:226
 #, python-format
 msgid "%d favorite"
 msgid_plural "%d favorites"
@@ -5192,7 +5193,8 @@ msgstr "_Gruppierte Benachrichtigungen"
 msgid "Combine notifications of the same type and post into one"
 msgstr "Benachrichtigungen desselben Typs und Beitrags zusammenfassen"
 
-#: src/preferences.py:635 plugins/wallabag/babble_wallabag.py:328
+#: src/preferences.py:635 plugins/hashpanel/babble_hashpanel.py:277
+#: plugins/wallabag/babble_wallabag.py:328
 msgid "Server"
 msgstr "Server"
 
@@ -7876,6 +7878,73 @@ msgstr "Wrapped speichern"
 msgid "Saved %d Wrapped"
 msgstr "Wrapped %d gespeichert"
 
+#: plugins/hashpanel/babble_hashpanel.py:175
+msgid "Open Hashpanel"
+msgstr ""
+
+#: plugins/hashpanel/babble_hashpanel.py:180
+#, fuzzy
+msgid "This Week"
+msgstr "1 Woche"
+
+#: plugins/hashpanel/babble_hashpanel.py:183
+#, fuzzy
+msgid "Top Post Today"
+msgstr "Keine Beiträge gefunden"
+
+#: plugins/hashpanel/babble_hashpanel.py:201
+#, fuzzy
+msgid "Today’s Hashtag"
+msgstr "Top-Hashtags"
+
+#. Translators: %s is a weekday, or several, as in "Tuesday's
+#. hashtag".
+#: plugins/hashpanel/babble_hashpanel.py:207
+#, fuzzy, python-format
+msgid "%s’s Hashtag"
+msgstr "Schlagwort"
+
+#: plugins/hashpanel/babble_hashpanel.py:219
+#, fuzzy
+msgid "Hashpanel could not be reached"
+msgstr "Das Bild konnte nicht gespeichert werden"
+
+#. Translators: %s is a list of counts, as in "4 favorites ·
+#. 7 boosts · 1 reply".
+#: plugins/hashpanel/babble_hashpanel.py:232
+#, fuzzy, python-format
+msgid "Today: %s"
+msgstr "Heute"
+
+#: plugins/hashpanel/babble_hashpanel.py:251
+#, python-format
+msgid "%d post this week"
+msgid_plural "%d posts this week"
+msgstr[0] ""
+msgstr[1] ""
+
+#: plugins/hashpanel/babble_hashpanel.py:255
+#, python-format
+msgid "%d the week before"
+msgid_plural "%d the week before"
+msgstr[0] ""
+msgstr[1] ""
+
+#: plugins/hashpanel/babble_hashpanel.py:273
+msgid ""
+"Hashpanel follows the daily hashtags of the Brazilian fediverse. Babble asks "
+"it only about the hashtags it follows."
+msgstr ""
+
+#: plugins/hashpanel/babble_hashpanel.py:292
+#: plugins/wallabag/babble_wallabag.py:384
+msgid "Use the server’s https:// address"
+msgstr ""
+
+#: plugins/hashpanel/babble_hashpanel.py:303
+msgid "Hashpanel server saved"
+msgstr ""
+
 #: plugins/wallabag/babble_wallabag.py:213
 #, fuzzy
 msgid "The server did not accept these details"
@@ -7977,10 +8046,6 @@ msgstr ""
 
 #: plugins/wallabag/babble_wallabag.py:345
 msgid "Your password is used once to sign in and is not stored"
-msgstr ""
-
-#: plugins/wallabag/babble_wallabag.py:384
-msgid "Use the server’s https:// address"
 msgstr ""
 
 #~ msgid "Newer Posts"

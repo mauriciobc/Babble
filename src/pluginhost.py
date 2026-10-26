@@ -626,21 +626,29 @@ class PluginHost:
             from gi.repository import Gtk
             if banner is not None and not isinstance(banner, Gtk.Widget):
                 banner = None
-            attached.append((extension, banner))
+            handler = None
             if banner is not None:
                 box.append(banner)
-                box.set_visible(True)
+                # A banner may stay hidden until it knows it has
+                # something to say; the box shows only while one shows.
+                handler = banner.connect('notify::visible', _sync_box,
+                                         slot.box_ref)
+                _sync_box(banner, None, slot.box_ref)
+            attached.append((extension, banner, handler))
 
     def _detach(self, plugin_id, slot, context, page_gone=False):
         box = None if page_gone else slot.box_ref()
-        for extension, banner in slot.extensions.pop(plugin_id, []):
+        for extension, banner, handler in slot.extensions.pop(plugin_id, []):
             context.quietly(extension.deactivate)
             context.release(extension)
-            if banner is not None and box is not None \
-                    and banner.get_parent() is box:
+            if banner is None:
+                continue
+            if GObject.signal_handler_is_connected(banner, handler):
+                banner.disconnect(handler)
+            if box is not None and banner.get_parent() is box:
                 box.remove(banner)
-        if box is not None and box.get_first_child() is None:
-            box.set_visible(False)
+        if box is not None:
+            _sync_box(None, None, slot.box_ref)
 
     def _page_gone(self, slot):
         if slot in self.slots:
@@ -651,6 +659,17 @@ class PluginHost:
                 self._detach(plugin_id, slot, context, page_gone=True)
             else:
                 slot.extensions.pop(plugin_id, None)
+
+
+def _sync_box(_banner, _pspec, box_ref):
+    """Show a banner box while any banner in it is visible."""
+    box = box_ref()
+    if box is None:
+        return
+    child = box.get_first_child()
+    while child is not None and not child.get_visible():
+        child = child.get_next_sibling()
+    box.set_visible(child is not None)
 
 
 def _menu_activate(context, item, post, widget):

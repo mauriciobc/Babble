@@ -365,7 +365,7 @@ check('shipped with Babble', pluginspage.is_shipped(
     host.engine.get_plugin_info('babble_wallabag')))
 row.settings_button.emit('clicked')
 preferences = [ext for slot in host.slots if slot.plugin_id
-               for ext, _widget in slot.extensions.get('babble_wallabag', [])]
+               for ext, *_rest in slot.extensions.get('babble_wallabag', [])]
 check('opening its settings creates the preferences extension',
       len(preferences) == 1)
 account = preferences[0]

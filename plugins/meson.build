@@ -7,3 +7,9 @@ install_data(
   'wallabag/babble_wallabag.py',
   install_dir: pkgdatadir / 'plugins' / 'wallabag',
 )
+
+install_data(
+  'hashpanel/babble_hashpanel.plugin',
+  'hashpanel/babble_hashpanel.py',
+  install_dir: pkgdatadir / 'plugins' / 'hashpanel',
+)

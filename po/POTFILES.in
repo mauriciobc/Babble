@@ -63,4 +63,5 @@ src/webcolumn.py
 src/window.py
 src/window.ui
 src/wrapped.py
+plugins/hashpanel/babble_hashpanel.py
 plugins/wallabag/babble_wallabag.py
