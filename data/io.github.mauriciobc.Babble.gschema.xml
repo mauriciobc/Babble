@@ -59,6 +59,11 @@
       <default>'60'</default>
       <summary>Timeline refresh interval in seconds; 0 turns automatic refresh off</summary>
     </key>
+    <key name="active-plugins" type="as">
+      <default>[]</default>
+      <summary>Enabled plugins</summary>
+      <description>Module names of the plugins to load, as in their .plugin files. Empty means libpeas is never loaded.</description>
+    </key>
     <key name="accounts" type="as">
       <default>[]</default>
       <summary>Known accounts as JSON strings</summary>

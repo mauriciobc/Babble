@@ -64,6 +64,8 @@ install_data(
   'notificationctrl.py',
   'notifications.py',
   'pages.py',
+  'plugin.py',
+  'pluginhost.py',
   'pollbox.py',
   'portals.py',
   'preferences.py',
@@ -375,6 +377,19 @@ test('file size rule', python,
 test('module boundary', python,
   args: [files('test-module-boundary.py')],
   env: test_env,
+  timeout: 60,
+)
+# Needs no display: it reads sources only.
+test('plugin boundary', python,
+  args: [files('test-plugin-boundary.py')],
+  env: test_env,
+  timeout: 60,
+)
+# libpeas loading real plugins from a temporary directory, the two
+# extension points, and that a page or plugin dropped is freed.
+test('plugins', python,
+  args: [files('test-plugins.py')],
+  env: fatal_test_env,
   timeout: 60,
 )
 # Needs no display: the port imports no gi at all.

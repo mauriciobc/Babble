@@ -188,6 +188,8 @@ class BabbleApplication(Adw.Application):
         # GTK only finds them once the icons tree is registered.
         Gtk.IconTheme.get_for_display(Gdk.Display.get_default()) \
             .add_resource_path('/io/github/mauriciobc/Babble/icons')
+        from . import pluginhost
+        pluginhost.start_if_enabled()
 
     def do_activate(self):
         self.ensure_window().present()
@@ -208,6 +210,9 @@ class BabbleApplication(Adw.Application):
         self.quit()
 
     def do_shutdown(self):
+        # Plugins go first, while the pages they extend are still there.
+        from . import pluginhost
+        pluginhost.shutdown()
         for win in self.get_windows():
             if hasattr(win, 'streaming'):
                 win.streaming.stop()

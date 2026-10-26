@@ -51,6 +51,26 @@
 			]
 		},
 		{
+			"name": "libpeas",
+			"x-comment": "Plugin discovery and loading (src/pluginhost.py). The GNOME 51 runtime does not ship libpeas. Only the Python loader is built: plugins are Python, and the GJS and Lua loaders would only add size.",
+			"buildsystem": "meson",
+			"config-opts": [
+				"-Dgjs=false",
+				"-Dlua51=false",
+				"-Dpython3=true",
+				"-Dintrospection=true",
+				"-Dvapi=false",
+				"-Dgtk_doc=false"
+			],
+			"sources": [
+				{
+					"type": "archive",
+					"url": "https://download.gnome.org/sources/libpeas/2.2/libpeas-2.2.1.tar.xz",
+					"sha256": "589eca89b437006edf3755478df037c740a2a84cfa5d202dbad6095e828e2488"
+				}
+			]
+		},
+		{
 			"name": "babble",
 			"buildsystem": "meson",
 			"sources": [

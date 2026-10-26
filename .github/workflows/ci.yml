@@ -47,6 +47,7 @@ jobs:
             glib2-devel \
             gtksourceview5-devel libspelling-devel hunspell-en-US \
             webkitgtk6.0 \
+            libpeas libpeas-loader-python \
             mutter mesa-libGLES libglvnd-devel \
             xorg-x11-server-Xvfb \
             dbus-daemon dbus-x11
