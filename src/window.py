@@ -865,7 +865,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 if self.timeline_page is not None:
                     self.timeline_page.refresh()
                 if self.notifications_page is not None:
-                    self.notifications_page.refresh()
+                    self.notifications_page.catch_up()
             self._stream_dropped = False
         elif self.client is not None:
             self._stream_dropped = True

@@ -327,15 +327,16 @@ class DesktopNotifier(GObject.Object):
             return
         # Polling stands in for the stream, so the list gets the same
         # treatment as a streamed notification: without this it only
-        # raised a desktop notification and the page stayed stale.
+        # raised a desktop notification and the page stayed stale. The
+        # whole poll goes in as one batch.
         page = getattr(self.window, 'notifications_page', None)
+        if page is not None and notifications:
+            page.merge_notifications(notifications)
         for notification in sorted(notifications,
                                    key=lambda n: _id_key(n['id'])):
             hook = getattr(self.window, 'note_background_notification', None)
             if hook is not None:
                 hook(notification)
-            if page is not None:
-                page.on_stream_notification(notification)
             self.handle(notification)
 
 

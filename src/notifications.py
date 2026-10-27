@@ -557,6 +557,7 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         if self._store.get_n_items():
             first = self._store.get_item(0)
             if first.group_key == runs[-1][0]:
+                old_key = first.date_key
                 for n in runs[-1][1]:
                     first.merge(n)
                 merged = first
@@ -567,7 +568,14 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
             # time made a refresh of k rows reflow the list k times.
             self._store.splice(0, 0, items)
         if merged is not None:
-            self.items_changed(len(items), 1, 1)
+            position = len(items)
+            self.items_changed(position, 1, 1)
+            if merged.date_key != old_key:
+                # The merged row moved to a newer day, so it may have left
+                # the section it started: the row after it can now start
+                # one, and that heading is not drawn until GTK is told.
+                n = self._store.get_n_items()
+                self.sections_changed(position, min(2, n - position))
         self._track_ids(fresh)
         return len(fresh)
 
@@ -857,6 +865,16 @@ class NotificationPost(Gtk.Box):
         self._set_poll(item.status.get('poll'))
         self._set_media(item)
 
+    def clear(self):
+        """Drop what the last bind showed, for a recycled row that now
+        holds no post: hidden, its thumbnails would keep their textures
+        alive for as long as the row lives."""
+        self._bank = {}
+        self._segments = []
+        self.content.set_text('')
+        self._set_poll(None)
+        while (child := self.media_box.get_first_child()) is not None:
+            self.media_box.remove(child)
 
 class NotificationRow(ColumnBox):
     """Notification card: actor avatar, type icon, grouped summary line,
@@ -1009,6 +1027,8 @@ class NotificationRow(ColumnBox):
                 self.avatar_stack.remove(child)
             self.cluster_expander.set_visible(is_cluster)
             self.cluster_expander.set_expanded(False)
+            self.cluster_expander.reset_property(
+                Gtk.AccessibleProperty.LABEL)
             reveal(self.people_revealer, False)
         self.avatar.set_visible(not is_cluster)
         if not is_cluster:
@@ -1230,6 +1250,7 @@ class NotificationRow(ColumnBox):
             post.bind(item.status_item)
         elif self.post is not None:
             self.post.set_visible(False)
+            self.post.clear()
         self._populate_people(item)
         self._bind_extras(item, client)
         self.update_property(
@@ -1277,6 +1298,13 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         self._paging_init(newer_cursor='min_id')
         self._shown = False
         self._marked_read = False
+        # The id of the marker POST in flight, and whether another was
+        # asked for meanwhile. See NotificationController.mark_read.
+        self._marking = None
+        self._mark_again = False
+        # The generation of a catch-up request, whose failure is quiet.
+        # See NotificationController.catch_up.
+        self._quiet_generation = None
         self._pin_top = False
         self._unread = 0
         self._applied_excluded = self._excluded_key()
