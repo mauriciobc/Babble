@@ -649,7 +649,10 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._stream_dropped = False
         emojichooser.deactivate_instance_emojis()
         self.notifier.reset()
-        if self.compose_dialog is not None:
+        # The composer is kept after it closes, and closing a dialog that
+        # is not presented is an Adwaita critical: only an open one.
+        if self.compose_dialog is not None \
+                and self.compose_dialog.get_parent() is not None:
             self.compose_dialog.close()
         self.compose_dialog = None
         catch_up = self._place_children.get('catch-up')

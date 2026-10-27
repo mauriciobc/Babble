@@ -25,8 +25,7 @@
     <title>Media</title>
     <p>
       Attach media by choosing it in the composer, by pasting or dragging
-      it in, or by taking a screenshot from the clipboard. Posts can be
-      scheduled.
+      it in, or by taking a screenshot from the clipboard.
     </p>
   </section>
 
@@ -36,6 +35,14 @@
       Ctrl+Enter sends. Escape closes the composer without sending.
       Drafts are kept for you: close the composer with something
       half-written and Babble offers it back on the next launch.
+    </p>
+    <p>
+      To send a post later, press <gui>Schedule Post</gui> in the
+      composer's header bar and pick a date and time at least five minutes
+      ahead. The chosen time is shown above the post, and <gui>Post</gui>
+      becomes <gui>Schedule</gui>; <gui>Clear Schedule</gui> sends it now
+      instead. Scheduled posts are listed under <gui>Scheduled Posts</gui>
+      in the main menu, where they can be edited, rescheduled or deleted.
     </p>
   </section>
 
