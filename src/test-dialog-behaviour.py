@@ -18,13 +18,18 @@ and proves nothing moved:
 - profile editor: Save follows a real change, and closing with an unsaved
   change asks before discarding instead of closing; an account that
   carries the Mastodon 4.6 profile-tab flags builds, and its media-replies
-  switch follows the media switch.
+  switch follows the media switch;
+- Enter: in the form dialogs (collection, list, advanced search, profile)
+  Enter in a text row presses the affirmative button, and not while that
+  button is insensitive; Create stays insensitive while a collection is
+  sent, so it cannot be sent twice.
 
 Exits 77 (skip) without a display or a compiled bundle."""
 
 import os
 import re
 import sys
+import time
 
 import gi
 
@@ -32,7 +37,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Graphene', '1.0')
 
-from gi.repository import Adw, Gio, GLib, Graphene  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Graphene, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -50,8 +55,8 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import (fedicollections, main as babble_main,  # noqa: E402
-                 notifications, profileedit, wrapped)
+from src import (fedicollections, lists, main as babble_main,  # noqa: E402
+                 notifications, profileedit, search, wrapped)
 from src.window import BabbleWindow  # noqa: E402
 
 failures = []
@@ -86,7 +91,12 @@ class _Client:
         self.requests.append((method, path, kwargs))
 
     def request_finish(self, result):
+        if isinstance(result, GLib.Error):
+            raise result
         return result
+
+    def multipart_async(self, method, path, **kwargs):
+        self.requests.append((method, path, kwargs))
 
     def is_supported(self, *_args, **_kwargs):
         return True
@@ -329,6 +339,117 @@ if tabs is not None:
         media.set_active(True)
         check('media replies is enabled again with media on',
               replies.get_sensitive())
+
+
+# -- Enter -------------------------------------------------------------
+# A button ignores activation until it is mapped, and a pressed button
+# emits clicked only after its press animation, so both are waited for
+# by the clock rather than by a number of iterations.
+def wait_for(condition, seconds=2.0):
+    deadline = time.monotonic() + seconds
+    while not condition() and time.monotonic() < deadline:
+        pump(1)
+    return condition()
+
+
+def shown(dialog, button):
+    dialog.present(window)
+    return wait_for(lambda: window.get_visible_dialog() is dialog
+                    and button.get_mapped())
+
+
+# The discard prompt above outlives the editor it asked for; under it a
+# dialog is not the one Enter reaches.
+while window.get_visible_dialog() is not None:
+    window.get_visible_dialog().force_close()
+    pump()
+
+
+def press_enter(row, button):
+    """Enter in *row* as GTK delivers it; True if *button* was clicked.
+    The row takes focus first, as it has when someone types into it:
+    with *button* insensitive the dialog activates its focus widget
+    instead, and unfocused that would be Cancel."""
+    clicked = []
+    handler = button.connect('clicked', lambda *_a: clicked.append(1))
+    row.grab_focus()
+    _find(row, Gtk.Text).emit('activate')
+    wait_for(lambda: clicked, 0.6)
+    button.disconnect(handler)
+    return bool(clicked)
+
+
+client = _Client()
+collection = fedicollections.CollectionEditDialog(client)
+check('the collection editor is shown', shown(collection,
+                                                 collection.save_button))
+check('Enter with no name does not create a collection',
+      not press_enter(collection.name_row, collection.save_button)
+      and not client.requests, client.requests)
+check('and leaves the editor open',
+      window.get_visible_dialog() is collection)
+collection.name_row.set_text('Reading list')
+check('Enter in the account search does not create a collection',
+      not press_enter(collection.search_row, collection.save_button)
+      and not client.requests, client.requests)
+check('Enter in the name creates the collection',
+      press_enter(collection.name_row, collection.save_button)
+      and [r[:2] for r in client.requests] == [('POST', '/collections')],
+      client.requests)
+# Insensitive is the guarantee: GTK delivers no click to it, and Enter
+# goes through the same check (above).
+check('Create is insensitive while the collection is sent',
+      not collection.save_button.get_sensitive())
+if client.requests:
+    client.requests[0][2]['callback'](
+        client, GLib.Error.new_literal(GLib.quark_from_string('test'),
+                                       'refused', 1))
+    pump()
+check('Create is sensitive again after a failed save',
+      collection.save_button.get_sensitive())
+collection.force_close()
+pump()
+
+client = _Client()
+editor = lists.ListEditor(client)
+check('the list editor is shown', shown(editor, editor.save_button))
+editor.title_row.set_text('Friends')
+check('Enter in the title creates the list',
+      press_enter(editor.title_row, editor.save_button)
+      and [r[:2] for r in client.requests] == [('POST', '/lists')],
+      client.requests)
+editor.force_close()
+pump()
+
+advanced = search.AdvancedSearchDialog()
+results = []
+advanced.on_result = results.append
+search_button = advanced.get_default_widget()
+check('the advanced search is shown', shown(advanced, search_button))
+advanced.query_row.set_text('gnome')
+check('Enter in the query searches',
+      press_enter(advanced.query_row, search_button)
+      and results == ['gnome'], results)
+pump()
+
+client = _Client()
+editor = profileedit.ProfileEditDialog(client, account, window)
+check('the profile editor is shown', shown(editor, editor.save_button))
+check('Enter in an unchanged profile saves nothing',
+      not press_enter(editor.name_row, editor.save_button)
+      and not client.requests, client.requests)
+editor.add_field('Pronouns', 'they/them')
+check('a field added later opts in to Enter',
+      all(row.get_activates_default()
+          for field in editor.fields
+          for row in (field.name_row, field.value_row)))
+editor.name_row.set_text('Ada King')
+pump()
+check('Enter in the display name saves the profile',
+      press_enter(editor.name_row, editor.save_button)
+      and len(client.requests) == 1, client.requests)
+editor.force_close()
+pump()
 
 if failures:
     print('%d checks failed' % len(failures))

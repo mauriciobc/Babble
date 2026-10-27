@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="writing" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#writing"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Writing</title>
+    <title type="link">Writing</title>
+    <desc>The composer, media, polls, drafts and scheduled posts.</desc>
+  </info>
+
+  <title>Writing</title>
+
+  <section id="composer">
+    <title>The composer</title>
+    <p>
+      <gui>New Post</gui>, or Ctrl+N, opens the composer. It checks spelling,
+      completes <gui>@mentions</gui> and hashtags as you type.
+    </p>
+  </section>
+
+  <section id="media">
+    <title>Media</title>
+    <p>
+      Attach media by choosing it in the composer, by pasting or dragging
+      it in, or by taking a screenshot from the clipboard. Posts can be
+      scheduled.
+    </p>
+  </section>
+
+  <section id="sending">
+    <title>Sending and drafts</title>
+    <p>
+      Ctrl+Enter sends. Escape closes the composer without sending.
+      Drafts are kept for you: close the composer with something
+      half-written and Babble offers it back on the next launch.
+    </p>
+  </section>
+
+</page>

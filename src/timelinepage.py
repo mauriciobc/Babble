@@ -229,6 +229,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
             factory=TimelineFactory(client,
                                     filter_context_for(source)),
             single_click_activate=True)
+        self.list_view.add_css_class('canvas-list')
         self.list_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Posts')])
         connect_weak(self.list_view, 'activate', self.on_row_activated)

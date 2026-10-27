@@ -19,6 +19,7 @@ build tree, so the test needs a configured build directory."""
 
 import os
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 
 import gi
@@ -66,7 +67,8 @@ if not load_bundle():
 
 from src import main as babble_main  # noqa: E402
 from src import preferences  # noqa: E402
-from src.window import DOCS_URL, HELP_URI, BabbleWindow  # noqa: E402
+from src import window as babble_window  # noqa: E402
+from src.window import APP_ID, DOCS_URL, HELP_URI, BabbleWindow  # noqa: E402
 
 app = babble_main.BabbleApplication(version='test')
 
@@ -118,10 +120,52 @@ check('the help document id is the application id',
       == 'io.github.mauriciobc.Babble', HELP_URI)
 check('the fallback is the online documentation',
       DOCS_URL.startswith('https://'), DOCS_URL)
+
+# Whether the pages are reachable is asked before launching, because a
+# launch answers wrong: with no viewer installed the OpenURI portal puts
+# up "no apps available" and reports success, so the error path never
+# runs. The lookup has to find the document id under a language in some
+# datadir, not merely a help/ directory.
+with tempfile.TemporaryDirectory() as data_dir:
+    check('an empty datadir has no help pages',
+          babble_window.help_pages_installed([data_dir]) is False)
+    os.makedirs(os.path.join(data_dir, 'help', 'C', APP_ID))
+    check('a language directory alone is not a page',
+          babble_window.help_pages_installed([data_dir]) is False)
+    os.makedirs(os.path.join(data_dir, 'help', 'C', 'org.example.Other'))
+    check('another application\'s pages are not ours',
+          babble_window.help_pages_installed([data_dir]) is False)
+    with open(os.path.join(data_dir, 'help', 'C', APP_ID, 'index.page'),
+              'w', encoding='utf-8') as page_file:
+        page_file.write('<page/>')
+    check('the pages are found in a datadir that has them',
+          babble_window.help_pages_installed([data_dir]) is True)
+
+# Both halves are required, and neither is the other's stand-in: pages
+# with no viewer are as dead as a viewer with no pages.
+saved_viewer = babble_window.help_viewer
+saved_pages = babble_window.help_pages_installed
+try:
+    babble_window.help_viewer = lambda: None
+    babble_window.help_pages_installed = lambda *a: True
+    check('pages without a viewer are not help',
+          babble_window.help_available() is False)
+    babble_window.help_viewer = lambda: object()
+    babble_window.help_pages_installed = lambda *a: False
+    check('a viewer without pages is not help',
+          babble_window.help_available() is False)
+    babble_window.help_pages_installed = lambda *a: True
+    check('a viewer and the pages are help',
+          babble_window.help_available() is True)
+finally:
+    babble_window.help_viewer = saved_viewer
+    babble_window.help_pages_installed = saved_pages
+
 page = os.path.join(srcdir, '..', 'data', 'help', 'C',
                     'io.github.mauriciobc.Babble', 'index.page')
 check('the help page is in the source tree', os.path.exists(page), page)
 if os.path.exists(page):
+    help_dir = os.path.dirname(page)
     root = ET.parse(page).getroot()
     sections = [s.get('id') for s in root.iter(
         '{http://projectmallard.org/1.0/}section')]
@@ -129,6 +173,13 @@ if os.path.exists(page):
     check('the help page covers signing in', 'start' in sections,
           repr(sections))
 
+# Each section on the contents page has its own topic page, which is
+# where the section text lives after the split; otherwise Yelp shows an
+# empty page for each section.
+    for section in sections:
+        check('section %r has a topic page' % section,
+              os.path.isfile(os.path.join(help_dir, section + '.page')),
+              os.path.join(help_dir, section + '.page'))
 # --- the menus --------------------------------------------------------
 ui = ET.parse(os.path.join(srcdir, 'window.ui')).getroot()
 for menu in ui.iter('menu'):
@@ -156,6 +207,23 @@ check('the open preferences dialog is the visible one',
       win.get_visible_dialog() is first)
 check('the window has an open_help for the help action',
       callable(getattr(win, 'open_help', None)))
+
+# The bug this guards: on a host without Yelp (or from a build tree,
+# which has no installed pages) F1 put up the portal's "no apps
+# available" dialog, and pressing Cancel was what opened the docs. The
+# fallback has to be decided before the launch, not after it fails.
+opened = []
+saved_open_url = win.open_url
+saved_help_available = babble_window.help_available
+win.open_url = opened.append
+babble_window.help_available = lambda: False
+try:
+    win.open_help()
+finally:
+    win.open_url = saved_open_url
+    babble_window.help_available = saved_help_available
+check('F1 opens the online docs when help cannot resolve',
+      opened == [DOCS_URL], repr(opened))
 
 # --- links open in a column without loading WebKit ---------------------
 # The web column is opt-in and WebKit is large, so nothing on the

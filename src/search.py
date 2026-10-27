@@ -589,7 +589,6 @@ class AdvancedSearchDialog(ToastDialog):
         search.add_css_class('suggested-action')
         pages.connect_weak(search, 'clicked', self._on_search)
         self.header.pack_end(search)
-        self.set_default_widget(search)
 
         intro = Adw.PreferencesGroup(
             description=_('Advanced search may not work on every server. '
@@ -626,6 +625,8 @@ class AdvancedSearchDialog(ToastDialog):
         self.language_row.set_max_length(8)
         where.add(self.language_row)
         self.page.add(where)
+        self.submit_on_enter(search, self.query_row, self.user_row,
+                             self.language_row)
 
         dates = Adw.PreferencesGroup(title=_('Dates'))
         self.before = self._date_row(_('Before'), dates)

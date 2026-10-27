@@ -170,14 +170,12 @@ class ListEditor(ToastDialog):
         self.save_button.add_css_class('suggested-action')
         pages.connect_weak(self.save_button, 'clicked', self._on_save)
         self.header.pack_end(self.save_button)
-        self.set_default_widget(self.save_button)
 
         group = Adw.PreferencesGroup()
         self.title_row = Adw.EntryRow(title=_('Title'))
         self.title_row.set_text((list_json or {}).get('title', ''))
         pages.connect_weak(self.title_row, 'changed', self._update_sensitive)
-        pages.connect_weak(self.title_row, 'apply', self._on_save)
-        self.title_row.set_show_apply_button(False)
+        self.submit_on_enter(self.save_button, self.title_row)
         group.add(self.title_row)
 
         self.policy_row = Adw.ComboRow(

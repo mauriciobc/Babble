@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="problems" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#problems"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Common Problems</title>
+    <title type="link">Common Problems</title>
+    <desc>Network, logins, keyring and server compatibility.</desc>
+  </info>
+
+  <title>Common Problems</title>
+
+  <section id="network">
+    <title>Network</title>
+    <p>
+      If the computer has no network, Babble says so in a banner and keeps
+      trying; the banner goes away by itself once the network is back.
+    </p>
+  </section>
+
+  <section id="login">
+    <title>Logins</title>
+    <p>
+      If a login disappears from the keyring, Babble forgets that account
+      rather than retrying forever. Sign in again from the welcome screen.
+    </p>
+  </section>
+
+  <section id="keyring">
+    <title>Keyring</title>
+    <p>
+      Babble keeps every login in the system keyring, so it needs a keyring
+      service such as GNOME Keyring or KeePassXC to be running. If none is,
+      Babble says so when it starts or when you sign in, and keeps the
+      account it already has. Start a keyring service and restart Babble.
+      In a Flatpak, the app needs permission to talk to
+      <code>org.freedesktop.secrets</code>.
+    </p>
+  </section>
+
+  <section id="server">
+    <title>Server compatibility</title>
+    <p>
+      A server that does not support a feature hides it: Collections and the
+      Admin Dashboard appear only where the server has them, so an older
+      Mastodon shows a smaller menu rather than an error.
+    </p>
+  </section>
+
+</page>

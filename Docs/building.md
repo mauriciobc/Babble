@@ -11,10 +11,19 @@
 | libsecret | for the token keyring |
 | meson | 1.0+ |
 | Python | 3, with PyGObject |
+| Yelp | runtime, for F1 to show the help pages |
 
 The GNOME 51 runtime does not ship libspelling, so the development Flatpak
 manifest builds it from source. On a host, install it from your distribution
 (`libspelling` / `libspelling-devel`).
+
+Yelp is what handles the `help:` URI the F1 key hands out; it ships in the
+GNOME 51 runtime, but a host install needs the distribution's `yelp`
+package. Without it Babble opens the online documentation instead, so the
+pages under `share/help/` stay a nicety rather than a requirement. An
+uninstalled build takes that path for a second reason: the pages in
+`data/` are not where a viewer looks, and `python3 build/src/babble` does
+not install them.
 
 ## Building
 

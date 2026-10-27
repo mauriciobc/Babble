@@ -1343,6 +1343,7 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
             factory=NotificationFactory(client),
             header_factory=NotificationFactory(client),
             single_click_activate=True)
+        self.list_view.add_css_class('canvas-list')
         connect_weak(self.list_view, 'activate', self.on_row_activated)
         connect_weak(self.list_view, 'map', self._attach_model)
         clamp = Adw.ClampScrollable(maximum_size=COLUMN_WIDTH,

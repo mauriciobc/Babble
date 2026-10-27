@@ -358,10 +358,10 @@ class BabbleApplication(Adw.Application):
             return
         about = Adw.AboutDialog(application_name='Babble',
                                 application_icon='io.github.mauriciobc.Babble',
-                                developer_name='Mauricio BC',
-                                developers=['Mauricio BC'],
+                                developer_name='Mauricio Castro',
+                                developers=['Mauricio Castro'],
                                 version=self.version,
-                                copyright='© 2026 Mauricio BC',
+                                copyright='© 2026 Mauricio Castro',
                                 translator_credits=_('translator-credits'),
                                 license_type=Gtk.License.GPL_3_0,
                                 website=PROJECT_URL,

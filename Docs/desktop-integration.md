@@ -41,14 +41,18 @@ What Babble uses from GNOME, and what each feature needs.
   `help:io.github.mauriciobc.Babble` URI — the scheme Yelp registers, and the
   form the Desktop Help System Specification gives. (`yelp://` is not a
   scheme anything handles: Yelp declares `ghelp`, `help`, `info` and `man`
-  only.) When no viewer answers, the online documentation opens instead
-  (`window.open_help`). Inside a Flatpak the pages are deliberately skipped and
-  the online copy is used directly, because the `help:` URI is resolved
-  host-side by the OpenURI portal: the viewer would look in the host's
-  directories, not `/app/share/help`, and report the document as missing. The
-  pages are plain installed data, and they are not translated through `po/`:
-  a Mallard page is a document, so a translation is a translated page beside
-  the English one, added to `help_languages` in `data/meson.build`.
+  only.) `window.open_help` asks `help_available()` first: a viewer for the
+  scheme and the pages in a datadir. Only then does it launch. That is
+  because a launch cannot answer the question — with no viewer the OpenURI
+  portal shows "no apps available" and calls it a success, and with no
+  installed pages the viewer reports a missing document. Either way the
+  online documentation is the answer. Inside a Flatpak the pages are
+  deliberately skipped: the `help:` URI is resolved host-side by the portal,
+  so the viewer would look in the host's directories, not `/app/share/help`,
+  even though the GNOME 51 runtime ships Yelp. The pages are plain installed
+  data, and they are not translated through `po/`: a Mallard page is a
+  document, so a translation is a translated page beside the English one,
+  added to `help_languages` in `data/meson.build`.
 
 ## What needs an installed build
 
