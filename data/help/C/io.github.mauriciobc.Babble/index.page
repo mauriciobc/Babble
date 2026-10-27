@@ -8,7 +8,7 @@
     <title type="text">Babble Help</title>
     <title type="link">Babble Help</title>
     <credit type="author">
-      <name>Mauricio BC</name>
+      <name>Mauricio Castro</name>
     </credit>
     <revision date="2026-10-16" version="0.2.0"/>
     <include xmlns="http://www.w3.org/2001/XInclude" href="legal.xml"/>
