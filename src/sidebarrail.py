@@ -188,6 +188,10 @@ class SidebarRail(Gtk.Box):
             self._badge.set_visible(count > 0)
         if self._badge_row is not None:
             self._set_row_label(self._badge_row)
+            # Hiding an overlay child leaves the row's size as it was,
+            # and on Wayland the badge stayed painted on a selected row
+            # until the selection moved. Ask for the frame outright.
+            self._badge_row.queue_draw()
 
     def set_account_button(self, widget):
         """Put *widget* above the composer, detaching it first when it

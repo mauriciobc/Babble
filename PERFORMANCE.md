@@ -128,3 +128,27 @@ Every part of a boost card has a constant size, so GTK measures a card once and 
 ## Card prefetch (2026-10-18)
 
 The shells just past the visible ones (`PREFETCH_AHEAD` below, `PREFETCH_BEHIND` above) get their `StatusRow`s built hidden and their height measured while they are off screen, in a low-priority idle source (`babble-prefetch`) that takes one step per dispatch and only when the step's running average cost fits before the next frame — RecyclerView's GapWorker, in GTK. A hidden subtree queues no resize, and showing a widget later does not clear its own size caches, so a run scrolls in with cards it already has, at a height the list already knows. Over three alternating runs each, the card-population idle p99 fell from 13.1 to 4.2 ms, time in slow layout frames by a third, the worst frame from 48 to 37 ms; frame p99 rose by 0.3 ms because the shown run's cards appear in the frame that maps it. Do not build cards into a shell that is already shown: that lays the shown row out again on the next frame (`Docs/performance-profiling.md`, entries 12 and 14).
+
+## Notifications (2026-10-27)
+
+Two costs in the notifications list, both measured on the model alone (400, 1000 and 2000 rows) and on a real `NotificationsPage` with 20 fixtures under Xvfb and the Cairo renderer. Median of 3 fresh processes, alternating the two trees. The row/open figures spread more than the model ones: row construction is three sub-millisecond measurements and the first-open frame is dominated by the header and layout, so only the widget counts and the model numbers are read as hard.
+
+| | Before | After |
+|---|---:|---:|
+| Refresh of 40 new, 400 / 1000 / 2000 rows | 35.6 / 75.7 / 148.5 ms | 1.1 / 1.0 / 1.1 ms |
+| `items-changed` per refresh | 40 | 1 |
+| `strptime` calls per refresh | 1,200 | 0 |
+| 100-notification burst, 400 / 1000 / 2000 rows | 90.2 / 196.9 / 368.8 ms | 4.1 / 4.3 / 4.2 ms |
+| Burst, per event | 0.90 / 1.97 / 3.69 ms | 0.041 / 0.043 / 0.042 ms |
+| Widgets in a 19-row page | 584 | 494 |
+| Follow / status / cluster row widgets | 30 / 30 / 51 | 16 / 25 / 51 |
+| Build a follow / status / cluster row | 0.88 / 0.53 / 0.52 ms | 0.60 / 0.36 / 0.30 ms |
+
+The first-painted-row figure did not move (25–74 ms on both trees); the open already spends its frame on the header, the clamp and layout, and the rows are a small part of it. What the change removes is the work on every later refresh and stream event, and the hidden widgets each row was carrying.
+
+**Section headings come from the header, not the rows.** `NotificationModel._stamp_sections` walked the whole store after every `items-changed`, with a `strptime` per day group, and wrote the title onto each row item. `prepend_page` inserted k rows one at a time, so a refresh of k notifications walked the store k times: 40 times, and 1,200 `strptime` calls, for the 400-row refresh above. That was most of what was left of the notifications code over 5 ms in HTTP completions. The heading is now `day_heading(date_key)`, called by the header factory when `Gtk.ListHeader` binds the first item of its section. `section_title`, `section_weekday` and the stamping are gone. A cache of the formatted day labels was measured and rejected: 2.9–6.0 ms for the refresh against 1.7–3.7 ms for the `strptime` it was meant to replace.
+
+**One splice per page.** `prepend_page` inserted the runs one at a time, so GTK reflowed the list once per row; `append_page` spliced once but stamped the whole store before it. Both now merge a run into the boundary row when it matches, then `splice` the remaining runs once and emit `items-changed` only for the merged row, which the splice does not cover. One refresh is one change notification at every size.
+
+**Rows build their parts on demand.** `NotificationRow.__init__` built a `NotificationPost` (byline, content, poll, media) and the whole cluster strip (avatar stack, people box, revealer, expander) for every row, hidden when the notification did not need them. Most notifications are single-actor affairs with no post, so a follow row carried 14 widgets it never showed. The post is now built on the first bind that has a status, the cluster strip on the first merged notification, and both are kept and hidden when a recycled row no longer needs them. A follow row is 16 widgets instead of 30, a status row 25 instead of 30; a cluster still needs all 51, and its first bind absorbs the construction that the constructor used to pay. `src/test-notifications.py` pins both the lazy build and the recycling.
+

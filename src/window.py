@@ -857,9 +857,15 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_stream_connection_changed(self, _manager, connected):
         if connected:
             self.notifier.stop_polling()
-            if self._stream_dropped and self.timeline_page is not None:
-                # Fetch what was posted while the stream was down.
-                self.timeline_page.refresh()
+            if self._stream_dropped:
+                # Fetch what was posted while the stream was down. The
+                # notifications page has a list to catch up as well: the
+                # stream does not replay, and a poll may not have run
+                # since the last notification arrived.
+                if self.timeline_page is not None:
+                    self.timeline_page.refresh()
+                if self.notifications_page is not None:
+                    self.notifications_page.catch_up()
             self._stream_dropped = False
         elif self.client is not None:
             self._stream_dropped = True

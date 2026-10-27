@@ -150,6 +150,10 @@ class NotificationController:
         try:
             notifications = self._finish(result)
         except GLib.Error as e:
+            if generation is not None \
+                    and generation == self._quiet_generation:
+                # A catch-up of an empty list: it keeps saying empty.
+                return
             self.error_page.set_description(
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
@@ -206,6 +210,29 @@ class NotificationController:
         # Paging's refresh(), which uses min_id for this endpoint.
         PagedPosts.refresh(self)
 
+    def catch_up(self):
+        """Ask quietly for what is newer than the top of the list.
+
+        This is the page being opened or the stream coming back, not the
+        reader pressing refresh, so it is the one request the list
+        needs: no policy or announcements, no spinner over an empty
+        list, and no error toast when it fails -- the reader asked for
+        nothing, and a stale list is what they already had.
+        """
+        if self.account_id is not None or not self.client.token \
+                or self.model.loading:
+            return
+        if self.model.get_n_items() == 0:
+            if self.stack.get_visible_child_name() != 'empty':
+                # Never loaded, or failed: a full load is the recovery.
+                self.load()
+                return
+            self.model.loading = True
+            self._request(self._first_page_params(), self.on_page_loaded)
+        else:
+            PagedPosts.refresh(self)
+        self._quiet_generation = self._generation
+
     def on_refresh_loaded(self, client, result, generation=None):
         # A response from a superseded request must not write rows
         # of the old filter into the new model.
@@ -215,7 +242,8 @@ class NotificationController:
         try:
             notifications = self._finish(result)
         except GLib.Error as e:
-            pages.report_error(self, _('Refresh failed'), e)
+            if generation is None or generation != self._quiet_generation:
+                pages.report_error(self, _('Refresh failed'), e)
             return
         if notifications:
             self.model.prepend_page(notifications)
@@ -224,8 +252,10 @@ class NotificationController:
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('empty')
         if self._is_visible():
+            # Marking read is what clears the badge here.
             self.mark_read()
-        self.fetch_unread()
+        else:
+            self.fetch_unread()
 
     def _unpin_top(self):
         self._pin_top = False
@@ -243,30 +273,47 @@ class NotificationController:
     # Streaming
 
     def on_stream_notification(self, notification):
-        """A notification arrived on the user stream: merge it into the
-        list (honouring the type filters) and bump the unread badge
-        unless the list is on screen."""
-        if self.account_id is not None or not isinstance(notification, dict) \
-                or 'id' not in notification or 'account' not in notification:
-            return
-        kind = notification.get('type', '')
-        if kind in self._applied_excluded:
+        """A notification arrived on the user stream."""
+        self.merge_notifications([notification])
+
+    def merge_notifications(self, notifications):
+        """Merge newer notifications from the stream or the poller into
+        the list (honouring the type filters) and bump the unread badge
+        unless the list is on screen.
+
+        A batch is one splice and one marker or badge update: a poll of
+        twenty fed in one at a time reflowed the list twenty times and
+        sent twenty markers that could land out of order.
+        """
+        if self.account_id is not None:
             return
         types = self.FILTERS[self.filter]
-        if types and kind not in types:
+        wanted = [n for n in notifications
+                  if isinstance(n, dict) and 'id' in n and 'account' in n
+                  and n.get('type', '') not in self._applied_excluded
+                  and (not types or n.get('type', '') in types)]
+        if not wanted:
             return
-        if self.model.loading and self.model.get_n_items() == 0:
+        if self.model.get_n_items() == 0 \
+                and self.stack.get_visible_child_name() != 'empty':
+            # The first page has not landed. Seeded with these, the list
+            # would only ever ask for what is newer than them, and the
+            # page they stand in for would never load.
+            if not self.model.loading:
+                self.load()
             return
-        added = self.model.prepend_page([notification])
+        from .notifications import id_key
+        wanted.sort(key=lambda n: id_key(n['id']), reverse=True)
+        added = self.model.prepend_page(wanted)
         self._request_relationships()
         if not added:
             return
         self.stack.set_visible_child_name('list')
         self._marked_read = False
-        if self._shown and self.get_mapped():
+        if self._is_visible():
             self.mark_read()
         else:
-            self._unread += 1
+            self._unread += added
             self.emit('unread-changed', self._unread)
 
     # Filtering
@@ -404,10 +451,24 @@ class NotificationController:
         self.emit('unread-changed', count)
 
     def on_shown(self):
-        """The window calls this when the page becomes visible."""
+        """The window calls this when the page becomes visible.
+
+        The list is kept live by the stream, but a notification can be
+        seen by the app and still be missing from it: one that arrived
+        while the stream was down is announced by the poller and only
+        reaches the rows on a reload, and one that arrived before the
+        page had a model to merge it into was dropped. Asking for what
+        is newer than the top on every visit is what shows them.
+
+        What is on screen is marked read now, so a failed or superseded
+        catch-up cannot leave the badge up; the answer marks again with
+        what it added. Markers go out one at a time, so the second
+        cannot be overtaken by the first.
+        """
         self._shown = True
         self._marked_read = False
         self.mark_read()
+        self.catch_up()
 
     def on_hidden(self):
         """The window calls this when another page replaces this one;
@@ -425,17 +486,28 @@ class NotificationController:
                 or self.account_id is not None \
                 or self.model.newest_id is None:
             return
+        if self._marking is not None:
+            # One marker at a time: two in flight can land out of order,
+            # and the older id would be the one the server keeps.
+            self._mark_again = True
+            return
+        self._marking = self.model.newest_id
         self.client.notifications_mark_read_async(
-            self.model.newest_id, self.on_marked_read)
+            self._marking, self.on_marked_read)
 
     def on_marked_read(self, client, result):
+        marked, self._marking = self._marking, None
+        again, self._mark_again = self._mark_again, False
         try:
             client.notifications_mark_read_finish(result)
         except GLib.Error:
-            return
-        self._marked_read = True
-        self._unread = 0
-        self.emit('unread-changed', 0)
+            marked = None
+        if marked is not None and marked == self.model.newest_id:
+            self._marked_read = True
+            self._unread = 0
+            self.emit('unread-changed', 0)
+        if again:
+            self.mark_read()
 
     # Dismiss one
 
