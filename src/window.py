@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
 import urllib.parse
 
 import gi
@@ -76,10 +77,54 @@ SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
 # only on those four plus help-list:, file: and xref:, so `yelp:` would
 # not be understood either. The document id is the application id, which
 # is what share/help/<lang>/<app id>/ is keyed by.
-HELP_URI = 'help:io.github.mauriciobc.Babble'
+APP_ID = 'io.github.mauriciobc.Babble'
+HELP_SCHEME = 'help'
+HELP_URI = HELP_SCHEME + ':' + APP_ID
 PROJECT_URL = 'https://github.com/mauriciobc/babble'
 ISSUES_URL = PROJECT_URL + '/issues'
 DOCS_URL = PROJECT_URL + '/blob/main/Docs/README.md'
+
+
+def help_viewer():
+    """The application registered for ``help:`` URIs, or None."""
+    return Gio.AppInfo.get_default_for_uri_scheme(HELP_SCHEME)
+
+
+def help_pages_installed(data_dirs=None):
+    """Whether the Mallard pages are installed where a viewer looks.
+
+    *data_dirs* defaults to the XDG data directories: a viewer resolves
+    the document through the same XDG_DATA_DIRS the desktop file was
+    found under, so an install whose prefix is not on that list is not
+    one the viewer can serve either. Nothing is assumed about a build
+    tree, which has no installed pages and no desktop file."""
+    if data_dirs is None:
+        data_dirs = [GLib.get_user_data_dir(),
+                     *GLib.get_system_data_dirs()]
+    for data_dir in data_dirs:
+        base = GLib.build_filenamev([data_dir, 'help'])
+        try:
+            languages = os.listdir(base)
+        except OSError:
+            continue
+        for language in languages:
+            page = GLib.build_filenamev(
+                [base, language, APP_ID, 'index.page'])
+            if os.path.isfile(page):
+                return True
+    return False
+
+
+def help_available():
+    """Whether ``HELP_URI`` can actually reach the pages on this system.
+
+    A launch is not the test. With the OpenURI portal in the way, a
+    system with no viewer for the scheme answers with its own "no apps
+    available" dialog and calls the launch a success; only cancelling
+    that dialog makes it fail. So the error path never runs and F1
+    stays a dead end. Asking the handler table, and the install tree,
+    is what tells the two apart."""
+    return help_viewer() is not None and help_pages_installed()
 
 
 def place_title(tag):
@@ -1967,9 +2012,16 @@ class BabbleWindow(Adw.ApplicationWindow):
         not found" -- a successful launch, so the fallback never fires.
         Hence the explicit check: sandboxed, go straight to the online
         documentation rather than open a viewer that cannot find
-        anything. Unsandboxed, try the installed pages first and fall
-        back when no viewer answers at all."""
-        if GLib.getenv('FLATPAK_ID'):
+        anything.
+
+        Unsandboxed, the same trap waits wherever no viewer is installed
+        or Babble itself is not (running from a build tree, say): the
+        portal puts up "no apps available" and reports the launch as
+        successful, so F1 opens nothing useful and the online fallback
+        never runs either. So ask ``help_available`` first, and treat
+        "cannot resolve" as the answer it is -- not as a launch error to
+        discover afterwards."""
+        if GLib.getenv('FLATPAK_ID') or not help_available():
             self.open_url(DOCS_URL)
             return
 

@@ -39,7 +39,7 @@ install_data(
 
 # The Mallard help pages (F1, and the Help item in the primary menu).
 # They are installed per language under share/help/<lang>/<app id>/,
-# which is where a yelp://<app id> URI looks for them, so a translated
+# which is where a help:<app id> URI looks for them, so a translated
 # page is a directory beside the English one and one more language below.
 # They are not translated through po/: a Mallard page is its own
 # document, not a string table, so a translator edits the page.
@@ -48,6 +48,13 @@ foreach help_lang : help_languages
   install_data(
     files(
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'index.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'start.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'reading.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'writing.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'desktop.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'settings.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'problems.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'keys.page',
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'legal.xml',
     ),
     install_dir: get_option('datadir') / 'help' / help_lang / 'io.github.mauriciobc.Babble',

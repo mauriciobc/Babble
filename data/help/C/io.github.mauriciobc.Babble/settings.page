@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="settings" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#settings"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Settings</title>
+    <title type="link">Settings</title>
+    <desc>Interface text size, refresh, notifications, and the defaults a
+    new post starts from.</desc>
+  </info>
+
+  <title>Settings</title>
+
+  <section id="opening">
+    <title>Opening Preferences</title>
+    <p>
+      <link xref="keys">Ctrl+,</link> opens Preferences and it can be
+      searched by typing.
+    </p>
+  </section>
+
+  <section id="interface">
+    <title>Interface</title>
+    <p>
+      It covers the interface text size and line height, how posts refresh,
+      desktop and server notifications, and the defaults a new post
+      starts from.
+    </p>
+  </section>
+
+  <section id="server">
+    <title>Server settings</title>
+    <p>
+      A few settings only reach as far as your server: default visibility,
+      language and content warnings are stored in your server preferences,
+      so they follow you to any other Mastodon client.
+    </p>
+  </section>
+
+  <section id="language">
+    <title>Language</title>
+    <p>
+      Changing the interface language takes effect the next time Babble
+      starts.
+    </p>
+  </section>
+
+</page>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="reading" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#reading"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Reading</title>
+    <title type="link">Reading</title>
+    <desc>The timelines, live updates, and reading links beside them.</desc>
+  </info>
+
+  <title>Reading</title>
+
+  <section id="sidebar">
+    <title>The sidebar</title>
+    <p>
+      The places in the sidebar are the feeds you read. <gui>Home</gui> is
+      the timeline of the accounts you follow, <gui>Notifications</gui>
+      collects mentions and the rest, and <gui>Conversations</gui> holds
+      direct messages. <gui>Local</gui> and <gui>Federated</gui> are your
+      server's public timelines.
+    </p>
+  </section>
+
+  <section id="updates">
+    <title>Live updates and catch up</title>
+    <p>
+      With live updates on, new posts arrive as they are posted. When the
+      stream cannot connect, Babble keeps polling and catches up on what it
+      missed when the connection returns.
+    </p>
+  </section>
+
+  <section id="catchup">
+    <title>Catch Up</title>
+    <p>
+      <gui>Catch Up</gui> is the reading-back feature: pick a window of time,
+      and it ranks the posts you missed by how much they are worth your
+      attention, keeping that run frozen as a snapshot you can page through.
+    </p>
+  </section>
+
+  <section id="links">
+    <title>Links beside the timeline</title>
+    <p>
+      Links normally open in your browser. Turn on <gui>Open Web Links
+      Beside the Timeline</gui> in <link xref="settings">Preferences</link>
+      and they open in a column next to the timeline instead, or over it
+      when the window is narrow. Links to posts and profiles still open in
+      Babble itself, and Ctrl-click or a middle click sends a link to the
+      browser.
+    </p>
+    <p>
+      Pages in the column keep no cookies or history once Babble closes,
+      cannot ask for your location, camera or microphone, and never
+      download files: a download is handed to your browser.
+      <gui>Open in Browser</gui> in the column's menu does the same for the
+      page you are reading.
+    </p>
+  </section>
+
+</page>

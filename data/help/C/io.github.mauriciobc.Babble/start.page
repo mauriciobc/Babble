@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="start" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#start"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Getting Started</title>
+    <title type="link">Getting Started</title>
+    <desc>Sign in to your server and let Babble keep the token.</desc>
+  </info>
+
+  <title>Getting Started</title>
+
+  <p>
+    Babble is a Mastodon client. It reads and posts on any Mastodon
+    server, and on the other servers that server federates with.
+  </p>
+
+  <section id="server">
+    <title>Your server</title>
+    <p>
+      Type your server's address on the welcome screen and choose
+      <gui>Continue</gui> or <gui>Continue with…</gui>.
+    </p>
+    <p>
+      Your browser opens the server's own sign-in page. Babble never sees
+      your password: the server hands back a token, and only that token is
+      stored, in your system keyring.
+    </p>
+    <note style="important">
+      <title>Ask only once</title>
+      <p>
+        Babble asks for the <sys>read write</sys> scopes. Moderation
+        permissions are requested separately, and only when you open the
+        Admin Dashboard.
+      </p>
+    </note>
+    <p>
+      If the browser does not come back on its own, Babble offers an
+      <gui>Enter Authorization Code…</gui> button so you can paste the code
+      the server shows you by hand.
+    </p>
+  </section>
+
+  <section id="accounts">
+    <title>Accounts</title>
+    <p>
+      Babble keeps every login in the system keyring, so it needs a keyring
+      service such as GNOME Keyring or KeePassXC to be running. If none is,
+      Babble says so when it starts or when you sign in, and keeps the
+      account it already has. Start a keyring service and restart Babble.
+    </p>
+    <p>
+      Once you are in, <link xref="reading">Reading</link> covers the
+      feeds, and <link xref="writing">Writing</link> covers the composer.
+    </p>
+  </section>
+
+</page>

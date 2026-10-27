@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="desktop" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#desktop"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Desktop Integration</title>
+    <title type="link">Desktop Integration</title>
+    <desc>Link handlers, the file manager, search and running in the
+    background.</desc>
+  </info>
+
+  <title>Desktop Integration</title>
+
+  <section id="links">
+    <title>Links open in Babble</title>
+    <p>
+      Babble registers as a handler for <sys>babble://</sys> login
+      redirects, for <sys>web+ap://</sys> object links and for
+      <sys>web+mastodon://</sys> intents, so a link from another
+      application opens here instead of in the browser.
+    </p>
+  </section>
+
+  <section id="files">
+    <title>Files</title>
+    <p>
+      Files handed to Babble — an image chosen in your file manager, say —
+      open in the composer, ready to post.
+    </p>
+  </section>
+
+  <section id="search">
+    <title>Search</title>
+    <p>
+      Babble appears in the Activities overview search as a search provider,
+      where you can look up a post without opening the window first.
+    </p>
+  </section>
+
+  <section id="background">
+    <title>Running in the background</title>
+    <p>
+      With <gui>Keep Running in the Background</gui> on, closing the window
+      leaves Babble running so notifications still arrive; the dock icon
+      brings the window back.
+    </p>
+  </section>
+
+</page>

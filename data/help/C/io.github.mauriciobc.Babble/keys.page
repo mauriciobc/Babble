@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="keys" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#keys"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Keyboard</title>
+    <title type="link">Keyboard</title>
+    <desc>The shortcuts that work anywhere in Babble.</desc>
+  </info>
+
+  <title>Keyboard</title>
+
+  <p>
+    <link xref="desktop">Ctrl+,</link> opens Preferences, <link xref="settings">Ctrl+1</link>
+    through <link xref="settings">Ctrl+9</link> jump between places,
+    <link xref="settings">Alt+Left</link> goes back and <link xref="settings">Ctrl+R</link>
+    reloads. Press <key>F1</key> for this help, or <key>Ctrl+?</key> to list
+    every shortcut.
+  </p>
+  <p>
+    While a page in the web column has the focus, <key>Ctrl+R</key> and
+    <key>F5</key> reload the page, <key>Alt+Left</key> and <key>Alt+Right</key>
+    go back and forward, and <key>Escape</key> or <key>Ctrl+W</key> hides
+    the column.
+  </p>
+
+  <section id="shortcuts">
+    <title>Every shortcut</title>
+    <p>
+      The full list opens with <key>Ctrl+?</key>. What follows are the ones
+      that work from anywhere in the window.
+    </p>
+    <list>
+      <item><key>Ctrl+N</key> opens the composer</item>
+      <item><key>Ctrl+F</key> searches</item>
+      <item><key>Ctrl+R</key> reloads the timeline</item>
+      <item><key>Ctrl+1</key>–<key>Ctrl+9</key> jump between sidebar places</item>
+      <item><key>Alt+Left</key> goes back, <key>Alt+Right</key> forward</item>
+      <item><key>Ctrl+,</key> opens Preferences</item>
+      <item><key>F1</key> opens this help</item>
+      <item><key>Ctrl+?</key> lists every shortcut</item>
+    </list>
+  </section>
+
+</page>
