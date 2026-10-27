@@ -629,6 +629,62 @@ check('older page requests max_id',
       relay['params'].get('max_id') == '90'
       and 'min_id' not in relay['params'])
 
+# Opening the page asks for what is newer than its top. A notification
+# that arrived while the stream was down is announced by the poller but
+# never merged into the rows, so without this the page stayed stale
+# until a manual refresh. The answer marks the list read, not the visit:
+# marking first would write the id the list already had.
+class VisitClient(FollowClient):
+    """A signed-in client whose notification requests the test answers."""
+
+    def __init__(self):
+        super().__init__()
+        self.token = ''            # keep the constructor from loading
+        self.listed = []
+        self.markers = []
+        self.pending = None
+
+    def notifications_async(self, params=None, callback=None, **kwargs):
+        self.listed.append(dict(params or {}))
+        self.pending = callback
+
+    def notifications_mark_read_async(self, last_read_id, callback=None,
+                                      **kwargs):
+        self.markers.append(last_read_id)
+
+    def notifications_mark_read_finish(self, result):
+        return {}
+
+
+visit_client = VisitClient()
+visit_page = NotificationsPage(visit_client)
+visit_client.token = 'token'
+visit_page.model.append_page([MENTION])
+visit_window = Gtk.Window(child=visit_page, default_width=600,
+                          default_height=900)
+visit_window.present()
+deadline = GLib.get_monotonic_time() + 5000000
+while not visit_page.get_mapped() and GLib.get_monotonic_time() < deadline:
+    if not GLib.MainContext.default().iteration(False):
+        GLib.usleep(5000)
+visit_client.listed.clear()
+visit_client.markers.clear()
+visit_page.on_shown()
+check('opening the page asks for what is newer than its top',
+      bool(visit_client.listed)
+      and visit_client.listed[-1].get('min_id') == '100')
+check('opening the page does not mark read before the answer',
+      visit_client.markers == [])
+visit_client.pending(visit_client, [
+    make_notification('101', 'mention', ACTOR2,
+                      '2026-10-05T13:00:00.000Z', STATUS)])
+check('the notification that missed the stream is now first',
+      visit_page.model.get_item(0).notification_id == '101')
+check('the reloaded top is what gets marked read',
+      visit_client.markers == ['101'])
+visit_window.destroy()
+del visit_page, visit_client, visit_window
+
 # Unread badge signal.
 received = []
 page.connect('unread-changed', lambda _p, count: received.append(count))
@@ -758,6 +814,36 @@ group_notifier.handle(make_notification('g2', 'mention', ACTOR2, CREATED,
                                         STATUS), force=True)
 check('multi-actor grouped notification offers no buttons',
       recorded_buttons == [])
+
+# Polling stands in for the stream while it is down, so what it finds has
+# to reach the list as well: before this it only raised a desktop
+# notification and the page stayed stale until a manual refresh.
+class PollPage:
+    def __init__(self):
+        self.seen = []
+
+    def on_stream_notification(self, notification):
+        self.seen.append(notification['id'])
+
+
+class PollWindow(StubWindow):
+    def __init__(self):
+        super().__init__()
+        self.notifications_page = PollPage()
+
+
+class PollClient:
+    def request_finish(self, result):
+        return result
+
+
+poll_win = PollWindow()
+poll_notifier = desktopnotify.DesktopNotifier(poll_win, StubApp(poll_win))
+poll_notifier._polling_client = PollClient()
+poll_notifier._on_polled(poll_notifier._polling_client, [
+    make_notification('p1', 'poll', ACTOR, CREATED, STATUS)], False)
+check('a polled notification reaches the list too',
+      poll_win.notifications_page.seen == ['p1'])
 
 desktopnotify.install_app_actions(stub_app)
 check('app actions registered',

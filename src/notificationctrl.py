@@ -404,10 +404,22 @@ class NotificationController:
         self.emit('unread-changed', count)
 
     def on_shown(self):
-        """The window calls this when the page becomes visible."""
+        """The window calls this when the page becomes visible.
+
+        The list is kept live by the stream, but a notification can be
+        seen by the app and still be missing from it: one that arrived
+        while the stream was down is announced by the poller and only
+        reaches the rows on a reload, and one that arrived before the
+        page had a model to merge it into was dropped. Asking for what
+        is newer than the top on every visit is what shows them.
+
+        The answer marks the list read. Marking before it lands would
+        write the id the list had, not the one it is about to show, and
+        the two markers could arrive out of order.
+        """
         self._shown = True
         self._marked_read = False
-        self.mark_read()
+        self.refresh()
 
     def on_hidden(self):
         """The window calls this when another page replaces this one;
