@@ -426,6 +426,12 @@ class BabbleComposeView(Adw.Bin):
         pages.connect_weak(self.reply_banner, 'button-clicked',
                            self.on_reply_cancel)
         toolbar_view.add_top_bar(self.reply_banner)
+        # Plain text: the title is a formatted date, not markup.
+        self.schedule_banner = Adw.Banner(use_markup=False,
+                                          button_label=_('_Clear Schedule'))
+        pages.connect_weak(self.schedule_banner, 'button-clicked',
+                           self.on_schedule_clear)
+        toolbar_view.add_top_bar(self.schedule_banner)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                           margin_top=12, margin_bottom=12,
@@ -494,6 +500,11 @@ class BabbleComposeView(Adw.Bin):
         header.pack_end(self.post_button)
         self.progress_spinner = Adw.Spinner(visible=False)
         header.pack_end(self.progress_spinner)
+        self.schedule_button = Gtk.Button(icon_name='alarm-symbolic')
+        pages.set_accessible_label(self.schedule_button, _('Schedule Post'))
+        pages.connect_weak(self.schedule_button, 'clicked',
+                           self.on_schedule_clicked)
+        header.pack_end(self.schedule_button)
         return header
 
     def build_text_area(self):
@@ -880,6 +891,33 @@ class BabbleComposeView(Adw.Bin):
     def is_reply(self):
         return self.in_reply_to_id is not None
 
+    # Scheduling
+
+    def is_timed(self):
+        """True when the post goes out at a chosen time rather than now.
+        A server-side draft also carries a date, but one that is never
+        reached, so it is not a time to show."""
+        from .scheduled import is_draft
+        return self.scheduled_at is not None \
+            and not is_draft({'scheduled_at': self.scheduled_at})
+
+    def on_schedule_clicked(self, _button):
+        from .scheduled import SchedulePickerDialog
+        dialog = SchedulePickerDialog(
+            self.scheduled_at, _('_Set Time'),
+            on_picked=pages.weak_method(self._on_schedule_picked))
+        dialog.present(self)
+
+    def _on_schedule_picked(self, iso):
+        self.scheduled_at = iso
+        self.update_compose_state()
+
+    def on_schedule_clear(self, _banner):
+        # Back to sending now. An entry already on the server is still
+        # replaced: the post goes out and the scheduled copy is dropped.
+        self.scheduled_at = None
+        self.update_compose_state()
+
     def counted_length(self):
         """Characters Mastodon will count for the current draft."""
         return countable_length(
@@ -891,6 +929,23 @@ class BabbleComposeView(Adw.Bin):
         text = self.text()
         self.placeholder.set_visible(not text)
         self.reply_banner.set_revealed(bool(self._draft_stack))
+        timed = self.is_timed()
+        if timed:
+            from .scheduled import format_scheduled_at
+            # Translators: %s is a date and time, e.g. "October 9, 2026 ·
+            # 14:30".
+            self.schedule_banner.set_title(
+                _('Scheduled for %s') % format_scheduled_at(
+                    self.scheduled_at))
+        self.schedule_banner.set_revealed(timed)
+        self.post_button.set_label(_('_Schedule') if timed else _('_Post'))
+        self.post_button.set_tooltip_text(
+            _('Schedule (Ctrl+Enter)') if timed else _('Post (Ctrl+Enter)'))
+        # An edit of a published post cannot be moved to another time.
+        self.schedule_button.set_visible(self.editing_id is None)
+        self.schedule_button.set_sensitive(not self._posting)
+        self.schedule_button.set_tooltip_text(
+            _('Change Time') if timed else _('Schedule Post'))
         limit = self.char_limit
         remaining = limit - self.counted_length()
         self.counter_label.set_text(str(remaining))
@@ -1550,7 +1605,12 @@ class BabbleComposeView(Adw.Bin):
         was_edit = self.editing_id is not None
         scheduled_id = self.scheduled_id
         on_done = self.scheduled_on_done
-        if self.thread_toggle.get_active() and not was_edit:
+        # Still on the server, timed or as a draft; not an entry whose
+        # time was cleared, which went out now. It is not a status yet,
+        # so nothing can reply to it: it never chains a thread's next post.
+        kept_scheduled = self.scheduled_at is not None
+        if self.thread_toggle.get_active() and not was_edit \
+                and not kept_scheduled:
             # Chain the next post in the thread; media and poll must not
             # be sent twice.
             self.in_reply_to_id = str(status.get('id') or '') or None
@@ -1569,7 +1629,7 @@ class BabbleComposeView(Adw.Bin):
             self._discard_scheduled(scheduled_id, on_done)
         if was_edit:
             message = _('Post edited')
-        elif scheduled_id is not None:
+        elif kept_scheduled:
             message = _('Post scheduled')
         else:
             message = _('Post sent')

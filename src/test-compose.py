@@ -43,7 +43,7 @@ sys.path.insert(0, srcdir)
 
 from src.compose import (MAX_ATTACHMENTS, VISIBILITIES,  # noqa: E402
                          BabbleComposeView, ComposeDialog, countable_length)
-from src import compose, emojichooser  # noqa: E402
+from src import compose, emojichooser, scheduled  # noqa: E402
 from src.drafts import Attachment, Draft  # noqa: E402
 from src.hashtagcompleter import (MAX_SUGGESTIONS,  # noqa: E402
                                   hashtag_query, is_name_char, merge_casing,
@@ -947,6 +947,72 @@ view.thread_toggle.set_active(False)
 view.thread_toggle.set_active(True)
 view.reset()
 check('reset clears thread toggle', not view.thread_toggle.get_active())
+
+# Scheduling a new post: the header's alarm button opens the picker, the
+# picked time is shown in a banner, Post becomes Schedule, and the time
+# goes out as scheduled_at. A scheduled post is no status to reply to,
+# so thread mode does not chain on it.
+check('schedule button present and labelled',
+      view.schedule_button.get_visible()
+      and view.schedule_button.get_tooltip_text() == _('Schedule Post'))
+check('no schedule banner for a post sent now',
+      not view.schedule_banner.get_revealed())
+when = '2099-03-04T05:06:00.000Z'
+posts.clear()
+set_text('later, please')
+view._on_schedule_picked(when)
+check('a picked time is shown', view.schedule_banner.get_revealed()
+      and '2099' in view.schedule_banner.get_title())
+check('post button reads Schedule',
+      view.post_button.get_label() == _('_Schedule'))
+view.on_schedule_clear(view.schedule_banner)
+check('clearing the time hides the banner',
+      not view.schedule_banner.get_revealed()
+      and view.post_button.get_label() == _('_Post'))
+view._on_schedule_picked(when)
+view.thread_toggle.set_active(True)
+collect_toasts()
+view.on_post_clicked(view.post_button)
+pump(400)
+check('the time is sent as scheduled_at',
+      posts and posts[-1].get('scheduled_at') == when, repr(posts))
+check('a scheduled post says so', _('Post scheduled') in collect_toasts())
+check('a scheduled post does not chain a thread',
+      view.in_reply_to_id is None and view.scheduled_at is None
+      and not view.schedule_banner.get_revealed())
+posts.clear()
+set_text('right now')
+view.on_post_clicked(view.post_button)
+pump(400)
+check('the next post is sent now',
+      posts and 'scheduled_at' not in posts[-1], repr(posts))
+view.reset()
+# A server-side draft carries a far date, which is no time to show.
+view.start_scheduled({'id': '7', 'scheduled_at': '5099-01-01T00:00:00Z',
+                      'params': {'text': 'a draft'}}, draft=True)
+check('a draft shows no schedule banner',
+      not view.schedule_banner.get_revealed()
+      and view.post_button.get_label() == _('_Post'))
+view.reset()
+# The alarm button opens the picker over the composer, and accepting its
+# default time (an hour ahead) sets the composer's.
+dialog.present(app_window)
+pump(100)
+dialog.view.on_schedule_clicked(dialog.view.schedule_button)
+settle_until(5.0, lambda: isinstance(app_window.get_visible_dialog(),
+                                     scheduled.SchedulePickerDialog))
+picker = app_window.get_visible_dialog()
+check('the schedule button opens the picker',
+      isinstance(picker, scheduled.SchedulePickerDialog))
+if isinstance(picker, scheduled.SchedulePickerDialog):
+    picker._on_accept()
+    pump(100)
+check('the picked time reaches the composer',
+      dialog.view.is_timed() and dialog.view.schedule_banner.get_revealed())
+del picker
+dialog.view.reset()
+dialog.close()
+pump(100)
 
 # A new direct message keeps the draft in progress (conversations.py
 # calls start_reply(None, '', 'direct')).
