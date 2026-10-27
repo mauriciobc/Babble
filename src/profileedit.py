@@ -142,8 +142,12 @@ class FieldRow(Adw.ExpanderRow):
     def __init__(self, name, value, index, limits):
         super().__init__(expanded=bool(name or value), use_markup=False)
         self._limits = limits
-        self.name_row = Adw.EntryRow(title=_('Label'), text=name or '')
-        self.value_row = Adw.EntryRow(title=_('Content'), text=value or '')
+        # A field is added after the dialog is built, so it opts in to
+        # Enter itself rather than through submit_on_enter.
+        self.name_row = Adw.EntryRow(title=_('Label'), text=name or '',
+                                     activates_default=True)
+        self.value_row = Adw.EntryRow(title=_('Content'), text=value or '',
+                                      activates_default=True)
         self.add_row(self.name_row)
         self.add_row(self.value_row)
         remove = pages.icon_button('user-trash-symbolic', _('Remove Field'))
@@ -231,6 +235,9 @@ class ProfileEditDialog(pages.ToastDialog):
         self.save_button.add_css_class('suggested-action')
         pages.connect_weak(self.save_button, 'clicked', self.on_save_clicked)
         header.pack_end(self.save_button)
+        self.submit_on_enter(self.save_button, *(
+            row for row in (self.name_row, self.avatar_alt, self.header_alt)
+            if row is not None))
 
         self.connect('close-attempt', self.on_close_attempt)
         self.update_state()

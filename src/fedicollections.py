@@ -708,6 +708,8 @@ class CollectionEditDialog(pages.ToastDialog):
                     self.topic_row):
             details.add(row)
         self.page.add(details)
+        self.submit_on_enter(self.save_button, self.name_row,
+                             self.description_row, self.topic_row)
 
         visibility = Adw.PreferencesGroup(title=_('Visibility'))
         self.public_check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
@@ -950,6 +952,9 @@ class CollectionEditDialog(pages.ToastDialog):
             self.name_row.grab_focus()
             self.toast(_('The name cannot be empty'))
             return
+        # The header is outside the page: without this a second click
+        # while the request runs creates the collection twice.
+        self.save_button.set_sensitive(False)
         self.page.set_sensitive(False)
 
         def ok(_data):
@@ -959,6 +964,7 @@ class CollectionEditDialog(pages.ToastDialog):
 
         def failed(error):
             self.page.set_sensitive(True)
+            self._update_save()
             self.error(_('Could not save the collection'), error)
 
         if self.edit_mode:

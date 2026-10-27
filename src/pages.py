@@ -567,6 +567,14 @@ class ToastDialog(Adw.Dialog):
     def error(self, heading, error):
         self.toast('%s: %s' % (heading, summarize_error(error)))
 
+    def submit_on_enter(self, button, *rows):
+        """Make Enter in *rows* press *button*. The default widget alone
+        does nothing for an entry row: the row has to opt in with
+        ``activates-default``. An insensitive *button* is not pressed."""
+        self.set_default_widget(button)
+        for row in rows:
+            row.set_activates_default(True)
+
     def add_header_buttons(self, cancel_label, action_label, callback,
                            css=None, sensitive=True):
         """Cancel button that closes the dialog plus an end-side action
