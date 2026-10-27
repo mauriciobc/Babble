@@ -37,8 +37,8 @@ from src.mastodon import MastodonClient  # noqa: E402
 from src import notificationcopy  # noqa: E402
 from src.notifications import (NotificationItem, NotificationModel,  # noqa: E402
                                NotificationPost, NotificationRow,
-                               NotificationsPage, notification_detail,
-                               notification_title)
+                               NotificationsPage, day_heading,
+                               notification_detail, notification_title)
 
 failures = []
 
@@ -165,9 +165,9 @@ check('row id is the numeric newest',
 # Date sections: one section per calendar day.
 check('one section per day',
       model.get_section(0)[:2] == (0, 3))
-check('date heading stamped',
-      model.get_item(0).section_title in ('Oct 5', 'out 5')
-      and model.get_item(2).section_title is None)
+check('date heading derived from the day key',
+      day_heading(model.get_item(0).date_key)[0] in ('Oct 5', 'out 5')
+      and day_heading(model.get_item(2).date_key)[0] in ('Oct 5', 'out 5'))
 
 fresh = NotificationModel()
 check('prepend page', fresh.prepend_page([FAV_A, FAV_B]) == 2)
@@ -177,6 +177,31 @@ check('prepend dedupes', fresh.prepend_page([FAV_A]) == 0)
 fresh.clear()
 check('clear resets', fresh.get_n_items() == 0
       and fresh.oldest_id is None and not fresh.exhausted)
+
+# A refresh prepends every new row in one splice. Inserting them one at a
+# time reflowed the list once per row (and, before headings were derived,
+# walked the whole model once per row too).
+refresh_model = NotificationModel()
+refresh_model.append_page([
+    make_notification(str(1019 - i), 'favourite', ACTOR,
+                      '2026-10-05T11:%02d:00.000Z' % (19 - i),
+                      {**STATUS, 'id': str(7000 + i)})
+    for i in range(20)])
+changes = []
+refresh_model.connect('items-changed',
+                      lambda _m, pos, removed, added:
+                      changes.append((pos, removed, added)))
+check('a refresh adds its rows',
+      refresh_model.prepend_page([
+          make_notification(str(2039 - i), 'mention', ACTOR2,
+                            '2026-10-05T12:%02d:00.000Z' % (39 - i),
+                            {**STATUS, 'id': str(8000 + i)})
+          for i in range(40)]) == 40)
+check('a refresh is one splice',
+      len(changes) == 1 and changes[0] == (0, 0, 40))
+check('a refresh keeps newest first',
+      refresh_model.get_item(0).notification_id == '2039'
+      and refresh_model.get_item(40).notification_id == '1019')
 
 check('mention title', notification_title(
     NotificationItem(MENTION)) == 'Carol mentioned you')
@@ -333,8 +358,8 @@ check('date heading appears once for the whole day', sum(
 check('embedded post snapshots styled', any(
     'notification-post' in w.get_css_classes() for w in row_widgets))
 check('per-person rows under clusters', any(
-    w.people_box.get_first_child() is not None
-    and w.cluster_expander.get_visible()
+    w.people_box is not None and w.people_box.get_first_child() is not None
+    and w.cluster_expander is not None and w.cluster_expander.get_visible()
     for w in row_widgets if isinstance(w, NotificationRow)))
 check('avatar stacks rendered', any(
     'notification-avatar-stack' in w.get_css_classes()
@@ -431,8 +456,42 @@ check('post body links stay activatable',
 check('declared custom emoji shortcodes are dropped, others kept',
       ':blobcat:' not in linked_text.get_text()
       and ':unknown:' in linked_text.get_text())
-check('no date heading on standalone row',
-      long_item.section_title is None)
+# The row holds no section state; a standalone row draws no heading.
+check('standalone row has no stamped section',
+      not hasattr(long_item, 'section_title') and not hasattr(
+          long_item, 'section_weekday'))
+
+# Lazy parts: a row builds the post and the people strip only when a
+# notification needs them, and keeps them for later binds once built.
+follow_row = NotificationRow()
+follow_row.bind(NotificationItem(FOLLOW), client)
+check('a row without a status builds no post snapshot',
+      follow_row.post is None)
+check('a single-actor row builds no people strip',
+      follow_row.cluster_expander is None)
+mention_row = NotificationRow()
+mention_row.bind(NotificationItem(MENTION), client)
+check('a status row builds its post on first bind',
+      isinstance(mention_row.post, NotificationPost))
+check('a status row has no people strip until merged',
+      mention_row.cluster_expander is None)
+merged_item = NotificationItem(FAV_A)
+merged_item.merge(FAV_B)
+merged_row = NotificationRow()
+merged_row.bind(merged_item, client)
+check('a merged row builds its people strip on first bind',
+      merged_row.cluster_expander is not None
+      and merged_row.cluster_expander.get_visible()
+      and merged_row.people_box.get_first_child() is not None)
+merged_row.bind(NotificationItem(FOLLOW), client)
+check('a recycled row hides the strip it keeps',
+      not merged_row.cluster_expander.get_visible()
+      and merged_row.avatar.get_visible()
+      and merged_row.people_box.get_first_child() is None)
+mention_row.bind(NotificationItem(FOLLOW), client)
+check('a recycled row hides the post it keeps',
+      mention_row.post is not None
+      and not mention_row.post.get_visible())
 
 stack = nav_root.navigation_view.get_navigation_stack()
 page.on_row_activated(page.list_view, 0)  # mention row -> ThreadPage

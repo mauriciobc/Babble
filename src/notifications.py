@@ -301,6 +301,30 @@ _WEEKDAYS = [_('Monday'), _('Tuesday'), _('Wednesday'), _('Thursday'),
              _('Friday'), _('Saturday'), _('Sunday')]
 
 
+def day_heading(date_key):
+    """The heading of the day *date_key* names: (title, weekday).
+
+    The heading belongs to the section, not to the row: ``Gtk.ListHeader``
+    is bound with the first item of its section, so the header factory
+    asks this when it draws, instead of the model stamping every row on
+    every change. An unparsable key gets an empty title and no weekday.
+    """
+    today = datetime.date.today()
+    try:
+        day = _time.strptime(date_key, '%Y-%m-%d')
+        date = datetime.date(*day[:3])
+    except ValueError:
+        return '', ''
+    if date == today:
+        title = _('Today')
+    elif date == today - datetime.timedelta(days=1):
+        title = _('Yesterday')
+    else:
+        title = _('%(month)s %(day)d') % {
+            'month': date.strftime('%b'), 'day': day.tm_mday}
+    return title, _WEEKDAYS[day.tm_wday]
+
+
 def group_key_of(notification):
     """Cluster key: the embedded status id joins every interaction type
     on the same post; status-less types (follows, signups) cluster only
@@ -324,8 +348,6 @@ class NotificationItem(GObject.Object):
         # Entities at the boundary: the payload and every Account inside
         # it are typed once; the read sites downstream keep working.
         notification = lift(notification)
-        self._section_title = None
-        self._section_weekday = None
         self.kind = notification.type
         self._kinds_by_actor = [self._kind]
         self._date_keys = [_date_key_of(notification)]
@@ -358,20 +380,6 @@ class NotificationItem(GObject.Object):
     @property
     def kinds(self):
         return self._kinds_by_actor
-
-    @property
-    def section_title(self):
-        """Date group heading, e.g. 'Today' or 'Oct 4' (None when the
-        model marks this date group as already introduced)."""
-        return self._section_title
-
-    @property
-    def section_weekday(self):
-        return self._section_weekday
-
-    def _stamp_section(self, title, weekday):
-        self._section_title = title
-        self._section_weekday = weekday
 
     def _recompute_date_key(self):
         """After a merge the cluster's date comes from its newest
@@ -449,7 +457,6 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         connect_weak(self._store, 'items-changed', self._on_store_changed)
 
     def _on_store_changed(self, _store, position, removed, added):
-        self._stamp_sections()
         self.items_changed(position, removed, added)
 
     def do_get_n_items(self):
@@ -476,36 +483,6 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         while start > 0 and self._store[start - 1].date_key == key:
             start -= 1
         return (start, end)
-
-    def _stamp_sections(self):
-        """Mark each day's first row with the heading text ('Today',
-        'Yesterday' or the full date) and clear it on continuations."""
-        n = self._store.get_n_items()
-        today = datetime.date.today()
-        last_key = None
-        for index in range(n):
-            item = self._store[index]
-            key = item.date_key
-            if key == last_key:
-                item._stamp_section(None, None)
-                continue
-            last_key = key
-            try:
-                day = _time.strptime(key, '%Y-%m-%d')
-                date = datetime.date(*day[:3])
-            except ValueError:
-                day = None
-            if day is None:
-                item._stamp_section('', None)
-                continue
-            if date == today:
-                title = _('Today')
-            elif date == today - datetime.timedelta(days=1):
-                title = _('Yesterday')
-            else:
-                title = _('%(month)s %(day)d') % {
-                    'month': date.strftime('%b'), 'day': day.tm_mday}
-            item._stamp_section(title, _WEEKDAYS[day.tm_wday])
 
     def _runs(self, fresh):
         """Group a newest-first page into runs of consecutive matching
@@ -552,15 +529,19 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
             self._seen.add(n['id'])
         runs = self._runs(fresh)
         position = self._store.get_n_items()
+        merged = None
         if position:
             last = self._store.get_item(position - 1)
             if last.group_key == runs[0][0]:
                 for n in runs[0][1]:
                     last.merge(n)
-                self._stamp_sections()
-                self.items_changed(position - 1, 1, 1)
+                merged = last
                 runs = runs[1:]
-        self._store.splice(position, 0, self._items(runs))
+        items = self._items(runs)
+        if items:
+            self._store.splice(position, 0, items)
+        if merged is not None:
+            self.items_changed(position - 1, 1, 1)
         self._track_ids(fresh)
         return True
 
@@ -572,16 +553,21 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         for n in fresh:
             self._seen.add(n['id'])
         runs = self._runs(fresh)
+        merged = None
         if self._store.get_n_items():
             first = self._store.get_item(0)
             if first.group_key == runs[-1][0]:
                 for n in runs[-1][1]:
                     first.merge(n)
-                self._stamp_sections()
-                self.items_changed(0, 1, 1)
+                merged = first
                 runs = runs[:-1]
-        for item in reversed(self._items(runs)):
-            self._store.insert(0, item)
+        items = self._items(runs)
+        if items:
+            # One splice, one items-changed: inserting the runs one at a
+            # time made a refresh of k rows reflow the list k times.
+            self._store.splice(0, 0, items)
+        if merged is not None:
+            self.items_changed(len(items), 1, 1)
         self._track_ids(fresh)
         return len(fresh)
 
@@ -704,8 +690,9 @@ class NotificationFactory(Gtk.SignalListItemFactory):
             box = list_item.get_child()
             title, weekday = box.get_first_child(), \
                 box.get_first_child().get_next_sibling()
-            title.set_text(item.section_title)
-            weekday.set_text(item.section_weekday)
+            heading, weekday_text = day_heading(item.date_key)
+            title.set_text(heading)
+            weekday.set_text(weekday_text)
             return
         row = list_item.get_child()
         row.bind(item, self.client)
@@ -936,15 +923,38 @@ class NotificationRow(ColumnBox):
         self.detail_label.add_css_class('notification-detail')
         content.append(self.detail_label)
 
-        self.post = NotificationPost()
-        self.post.set_visible(False)
-        content.append(self.post)
+        # Built on the first bind that needs them: most notifications are
+        # a single actor with no post (follows, signups, reports), and the
+        # page opens several rows in one frame. See _ensure_post and
+        # _ensure_cluster.
+        self.post = None
+        self.avatar_stack = None
+        self.people_box = None
+        self.people_revealer = None
+        self.cluster_expander = None
 
         self.actions_box = Gtk.Box(spacing=8, halign=Gtk.Align.START,
                                    visible=False)
         self.actions_box.add_css_class('notification-actions')
         content.append(self.actions_box)
 
+        self._content = content
+        self.append(content)
+
+    def _ensure_post(self):
+        """The embedded post snapshot, built the first time a row holds a
+        status and kept for the row's later binds."""
+        if self.post is None:
+            self.post = NotificationPost()
+            self.post.set_visible(False)
+            self._content.insert_child_after(self.post, self.detail_label)
+        return self.post
+
+    def _ensure_cluster(self):
+        """The people strip and its expander, built the first time a row
+        holds a merged notification and kept for later binds."""
+        if self.cluster_expander is not None:
+            return
         # The strip must not force a row wider than the column: cap the
         # visible avatars and count the rest, instead of letting a
         # nine-person cluster set a 352 px minimum on a 360 px window.
@@ -960,9 +970,8 @@ class NotificationRow(ColumnBox):
             visible=False)
         connect_weak(self.cluster_expander, 'notify::expanded',
                      self._on_expanded_changed)
-        content.append(self.cluster_expander)
-
-        self.append(content)
+        self._content.insert_child_after(self.cluster_expander,
+                                         self.actions_box)
 
     def _on_dismiss_clicked(self, _button):
         page = self.get_ancestor(NotificationsPage)
@@ -985,18 +994,27 @@ class NotificationRow(ColumnBox):
 
     def _populate_people(self, item):
         """Build the stacked avatars with per-action badges and the
-        named per-person rows behind the expander."""
-        while (child := self.people_box.get_first_child()) is not None:
-            self.people_box.remove(child)
-        while (child := self.avatar_stack.get_first_child()) is not None:
-            self.avatar_stack.remove(child)
+        named per-person rows behind the expander.
+
+        The strip is built only for the first merged notification a row
+        shows. A recycled row that goes back to a single actor keeps its
+        widgets (they cost nothing hidden) but drops the people they
+        named, as before.
+        """
         is_cluster = len(item.notifications) > 1
-        self.cluster_expander.set_visible(is_cluster)
-        self.cluster_expander.set_expanded(False)
-        reveal(self.people_revealer, False)
+        if self.cluster_expander is not None:
+            while (child := self.people_box.get_first_child()) is not None:
+                self.people_box.remove(child)
+            while (child := self.avatar_stack.get_first_child()) is not None:
+                self.avatar_stack.remove(child)
+            self.cluster_expander.set_visible(is_cluster)
+            self.cluster_expander.set_expanded(False)
+            reveal(self.people_revealer, False)
         self.avatar.set_visible(not is_cluster)
         if not is_cluster:
             return
+        self._ensure_cluster()
+        self.cluster_expander.set_visible(True)
         names = []
         actors = list(zip(item.actors, item.kinds, strict=False))
         shown = actors[:AVATAR_STRIP_MAX]
@@ -1206,9 +1224,12 @@ class NotificationRow(ColumnBox):
         self.title_label.set_text(item.title)
         self.time_label.set_text(item.timestamp)
         has_status = item.status_item is not None
-        self.post.set_visible(has_status)
         if has_status:
-            self.post.bind(item.status_item)
+            post = self._ensure_post()
+            post.set_visible(True)
+            post.bind(item.status_item)
+        elif self.post is not None:
+            self.post.set_visible(False)
         self._populate_people(item)
         self._bind_extras(item, client)
         self.update_property(
