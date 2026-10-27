@@ -1007,11 +1007,20 @@ class BabbleComposeView(Adw.Bin):
         if self.emoji_chooser is None:
             self.emoji_chooser = emojichooser.CustomEmojiChooser(self.client)
             self.emoji_chooser.set_parent(self.emoji_button)
+            # A Gtk.Button does not unparent a child it did not add: the
+            # popover goes with the button, or it outlives it.
+            pages.connect_weak(self.emoji_button, 'destroy',
+                               self._on_emoji_button_destroy)
             pages.connect_weak(self.emoji_chooser, 'emoji-picked',
                                self.on_custom_emoji_picked)
             pages.connect_weak(self.emoji_chooser, 'text-picked',
                                self.on_emoji_picked)
         self.emoji_chooser.popup()
+
+    def _on_emoji_button_destroy(self, _button):
+        if self.emoji_chooser is not None:
+            self.emoji_chooser.unparent()
+            self.emoji_chooser = None
 
     def on_emoji_picked(self, chooser, emoji):
         self.buffer.insert_at_cursor(emoji)
