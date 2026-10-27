@@ -13,8 +13,7 @@
 
 /* The list paints the view background by default, which would cover
    the canvas with a plain column behind the cards. */
-.timeline-list listview,
-.notification-list-scroller listview {
+.canvas-list {
   background: none;
 }
 
@@ -469,7 +468,6 @@ avatar.profile-image-button:focus-visible {
 
 .media-viewer-content > .top-bar,
 .media-viewer-content > .bottom-bar,
-.media-viewer-content headerbar,
 .media-viewer-header,
 .media-viewer-content .media-viewer-bottom {
   background-color: transparent;
@@ -514,17 +512,17 @@ avatar.profile-image-button:focus-visible {
   opacity: var(--disabled-opacity);
 }
 
-.media-viewer-content headerbar button:hover,
-.media-viewer-content headerbar button:checked,
-.media-viewer-content headerbar menubutton > button:hover {
+.media-viewer-header button:hover,
+.media-viewer-header button:checked,
+.media-viewer-header menubutton > button:hover {
   background-color: color-mix(in srgb, var(--viewer-fg) 15%, transparent);
 }
 
-.media-viewer-content headerbar button {
+.media-viewer-header button {
   color: var(--viewer-fg);
 }
 
-.media-viewer-content headerbar .subtitle {
+.media-viewer-header .subtitle {
   color: color-mix(in srgb, var(--viewer-fg) 70%, transparent);
 }
 
@@ -609,9 +607,9 @@ avatar.profile-image-button:focus-visible {
   /* The 15% tint that carried the hover on the dark surface is too
      close to the surface itself once the surface is themed; mixing
      into the card instead keeps the state visible. */
-  .media-viewer-content headerbar button:hover,
-  .media-viewer-content headerbar button:checked,
-  .media-viewer-content headerbar menubutton > button:hover {
+  .media-viewer-header button:hover,
+  .media-viewer-header button:checked,
+  .media-viewer-header menubutton > button:hover {
     background-color: color-mix(in srgb, var(--window-fg-color) 15%,
                                 var(--card-bg-color));
   }
