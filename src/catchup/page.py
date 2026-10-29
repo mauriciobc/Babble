@@ -57,6 +57,14 @@ from .digest import parse_time  # noqa: E402
 from .rows import CatchUpItem, CatchUpRow, _Slot  # noqa: E402
 
 
+def _prewarm_work():
+    """Build the ranker's tokenizer patterns on a worker thread."""
+    from .rank_text import prewarm
+    prewarm()
+
+
+def _prewarm_done(_value, _error):
+    """Nothing to hand back: the patterns are cached in ``rank_text``."""
 
 
 class CatchUpPage(PageControls, Adw.Bin):
@@ -127,6 +135,8 @@ class CatchUpPage(PageControls, Adw.Bin):
         self.stack.add_named(self.error_page, 'error')
         self._add_keys()
 
+        # First, so it leads the snapshot worker, which ranks as well.
+        run_in_thread(_prewarm_work, _prewarm_done)
         self._load_snapshots()
 
     # ----------------------------------------------------------------------

@@ -6,6 +6,7 @@ import functools
 import math
 import re
 import struct
+import threading
 import unicodedata
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
@@ -366,8 +367,26 @@ class _Patterns(NamedTuple):
     single_char_ok: Any
 
 
-@functools.lru_cache(maxsize=None)
+_PATTERNS = None
+_PATTERNS_LOCK = threading.Lock()
+
+
 def _patterns():
+    """The Unicode-property regexes, built once and shared by every thread.
+
+    ``functools.lru_cache`` is thread-safe but not single-flight: two threads
+    arriving together would each run the 100 ms scan. The build is guarded
+    instead, so a second caller waits for the first one's result.
+    """
+    global _PATTERNS
+    if _PATTERNS is None:
+        with _PATTERNS_LOCK:
+            if _PATTERNS is None:
+                _PATTERNS = _build_patterns()
+    return _PATTERNS
+
+
+def _build_patterns():
     """The Unicode-property regexes of diversity.ts, built on first use.
 
     Python's ``re`` has no ``\\p{...}``. General categories (``\\p{L}``,
@@ -391,6 +410,17 @@ def _patterns():
         # SINGLE_CHAR_OK_RE: a character that is a morpheme by itself.
         single_char_ok=re.compile('[%s]' % single_ok),
     )
+
+
+def prewarm():
+    """Build the Unicode-property regexes ahead of the first ranking.
+
+    The scan takes about 110 ms. Calling this on a worker thread while the
+    reader opens Catch Up moves it off the first ``rank()`` call; a ranking
+    that starts before it finishes waits for the build in progress instead of
+    repeating it.
+    """
+    _patterns()
 
 
 # URL_RE = /https?:\/\/\S+/g, and MENTION_RE (ASCII \w, as in JavaScript).

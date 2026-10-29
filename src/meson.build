@@ -215,6 +215,11 @@ test('reading position', python,
   timeout: 60,
 )
 
+test('navigation window', python,
+  args: [files('test-navigation-window.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('keyring errors', python,
   args: [files('test-keyring-errors.py')],
   env: fatal_test_env,
@@ -380,6 +385,12 @@ test('status text', python,
 # Start-up cost: what importing accounts or the store drags in of Catch Up.
 test('catchup imports', python,
   args: [files('test-catchup-imports.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: the prewarm test runs in a fresh interpreter.
+test('catchup prewarm', python,
+  args: [files('test-catchup-prewarm.py')],
   env: test_env,
   timeout: 60,
 )
