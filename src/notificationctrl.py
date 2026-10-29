@@ -23,8 +23,8 @@ from .statustext import parse_content  # noqa: E402
 
 # Relationships fetched for "Follow Back", shared by every notifications
 # page and keyed by (instance, account id) so recycled rows and a second
-# page do not ask again. The endpoint takes 40 ids; catchup.py batches by
-# the same number.
+# page do not ask again. The endpoint takes 40 ids; Catch Up's pipeline
+# fetches relationships in batches of the same number.
 RELATIONSHIP_BATCH = 40
 _RELATIONSHIPS = {}
 _RELATIONSHIPS_PENDING = set()

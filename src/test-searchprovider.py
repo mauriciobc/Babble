@@ -20,6 +20,7 @@ routes and the avatar texture are GTK's."""
 
 import os
 import sys
+from types import SimpleNamespace
 
 srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
@@ -137,7 +138,7 @@ class StubWindow:
         self.account = {'id': 'me', 'acct': 'me', 'instance': INSTANCE}
         self.presented = []
         self.searches_opened = 0
-        self._place_children = {}
+        self.navigation = SimpleNamespace(children={})
 
     def present_with_time(self, timestamp):
         self.presented.append(timestamp)
@@ -147,7 +148,7 @@ class StubWindow:
 
     def open_search(self):
         self.searches_opened += 1
-        self._place_children.setdefault('search', StubSearchPage())
+        self.navigation.children.setdefault('search', StubSearchPage())
 
 
 class StubApp:
@@ -374,7 +375,7 @@ try:
     call_sync(shell, 'ActivateResult', ('search:#ali', ['#ali'], 45),
               '(sasu)')
     spin(20)
-    page = window._place_children.get('search')
+    page = window.navigation.children.get('search')
     check(page is not None and page.queries[-1] == ('#ali', True),
           'search: opens the search page with the terms submitted')
     before = len(window.presented)

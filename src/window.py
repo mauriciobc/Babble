@@ -18,6 +18,7 @@ from . import clipboard  # noqa: E402
 from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
+from . import navigation  # noqa: E402
 from . import portals  # noqa: E402
 from . import sidebarmode  # noqa: E402
 from . import sidebarrail  # noqa: E402
@@ -40,26 +41,6 @@ SUGGESTED_SERVERS = (
     'hachyderm.io', 'piaille.fr', 'mastodon.world', 'social.vivaldi.net',
     'epsilon.social', 'troet.cafe', 'mastodon.uno', 'mathstodon.xyz')
 
-# Sidebar places in Tuba's order: (tag, icon, group). Titles are looked
-# up at runtime so they translate.
-PLACES = (
-    ('home', 'user-home-symbolic', 0),
-    ('catch-up', 'babble-catch-up-symbolic', 0),
-    ('notifications', 'babble-notifications-symbolic', 0),
-    ('conversations', 'mail-unread-symbolic', 0),
-    ('search', 'system-search-symbolic', 0),
-    ('favourites', 'starred-symbolic', 0),
-    ('bookmarks', 'babble-bookmarks-symbolic', 0),
-    ('hashtags', 'babble-hashtag-symbolic', 0),
-    ('explore', 'babble-explore-symbolic', 1),
-    ('local', 'network-server-symbolic', 1),
-    ('federated', 'babble-compose-globe-symbolic', 1),
-    ('lists', 'view-list-symbolic', 1),
-)
-
-# Settings that hide a place from the sidebar.
-HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
-             'local': 'hide-local', 'federated': 'hide-federated'}
 
 # Settings the home page reads once when it is built, so a change rebuilds it.
 HOME_FILTER_KEYS = ('hide-boosts-home', 'hide-replies-non-follows')
@@ -127,24 +108,6 @@ def help_available():
     return help_viewer() is not None and help_pages_installed()
 
 
-def place_title(tag):
-    return {
-        'home': _('Home'), 'catch-up': _('Catch Up'),
-        'notifications': _('Notifications'),
-        'conversations': _('Conversations'), 'search': _('Search'),
-        'favourites': _('Favorites'), 'bookmarks': _('Bookmarks'),
-        'hashtags': _('Hashtags'), 'explore': _('Explore'),
-        'local': _('Local'), 'federated': _('Federated'),
-        'lists': _('Lists'),
-    }.get(tag, tag)
-
-
-def pinned_entries(settings, key, account_id):
-    """Values of the ``account-id/value`` entries of *key* that belong to
-    the account."""
-    prefix = '%s/' % account_id
-    return [entry[len(prefix):] for entry in settings.get_strv(key)
-            if entry.startswith(prefix)]
 
 
 def _swallow(finish, result):
@@ -222,10 +185,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.notifications_page = None
         self._unread_handler = None
         self.public_pages = {}
-        self._place_pages = {}
-        self._place_children = {}
+        self.navigation = navigation.Navigation(self)
         self._items = {}
-        self._pinned_lists = {}
         self._held = False
         self._background_asked = False
         self._background_pending = False
@@ -425,7 +386,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._apply_auto_refresh()
         elif key in HOME_FILTER_KEYS:
             self._rebuild_home_timeline()
-        elif key in HIDE_KEYS.values() \
+        elif key in navigation.HIDE_KEYS.values() \
                 or key in ('favorite-lists-ids', 'favorite-tags-ids',
                            SHOW_RESTRICTED_KEY):
             self._refresh_sidebar()
@@ -655,7 +616,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 and self.compose_dialog.get_parent() is not None:
             self.compose_dialog.close()
         self.compose_dialog = None
-        catch_up = self._place_children.get('catch-up')
+        catch_up = self.navigation.children.get('catch-up')
         if catch_up is not None:
             catch_up.cancel()           # a catch-up in flight stops here
         self.timeline_page = None
@@ -663,9 +624,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.home_bin.set_child(None)
         self._clear_notifications_page()
         self.public_pages.clear()
-        self._place_pages.clear()
-        self._place_children.clear()
-        self._pinned_lists = {}
+        self.navigation.clear()
         self.navigation_view.replace([self.page_home])
 
     def switch_account(self, account_key):
@@ -887,7 +846,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         from .streaming import DIRECT, FEDERATED, LOCAL
         wanted = set()
-        if 'conversations' in self._place_children:
+        if 'conversations' in self.navigation.children:
             # Direct messages only arrive on the ``direct`` stream.
             wanted.add(DIRECT)
         if self.settings.get_boolean('public-live-updates'):
@@ -922,7 +881,7 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _timeline_pages(self):
         found = [self.timeline_page, *self.public_pages.values()]
-        for child in self._place_children.values():
+        for child in self.navigation.children.values():
             found.append(getattr(child, 'timeline', child))
         return [page for page in found if isinstance(page, TimelinePage)]
 
@@ -941,7 +900,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         if name == 'delete':
             for page in self._timeline_pages():
                 page.on_stream_delete(payload)
-            conversations = self._place_children.get('conversations')
+            conversations = self.navigation.children.get('conversations')
             if conversations is not None:
                 conversations.on_stream_delete(payload)
             return
@@ -999,7 +958,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             self.note_background_notification(payload)
             return
         if name == 'conversation':
-            conversations = self._place_children.get('conversations')
+            conversations = self.navigation.children.get('conversations')
             if conversations is not None:
                 conversations.on_stream_conversation(payload)
             return
@@ -1008,7 +967,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             # conversations over /conversations and holds no keys for
             # them, so there is nothing to open -- but the event says a
             # message arrived, and the list refetches to show it.
-            conversations = self._place_children.get('conversations')
+            conversations = self.navigation.children.get('conversations')
             if conversations is not None:
                 conversations.refresh()
             return
@@ -1253,83 +1212,10 @@ class BabbleWindow(Adw.ApplicationWindow):
         pages.configure_empty_page(page.empty_page, icon, title, description)
         return page
 
-    def _build_place(self, tag):
-        """The content widget of a sidebar place other than Home and
-        Notifications, or None for an unknown tag."""
-        client = self.client
-        if tag == 'conversations':
-            from .conversations import ConversationsPage
-            return ConversationsPage(client)
-        if tag == 'catch-up':
-            from .catchup import CatchUpPage
-            return CatchUpPage(client, account=self.account)
-        if tag == 'search':
-            from .search import SearchPage
-            return SearchPage(client)
-        if tag == 'favourites':
-            return self._timeline_place(
-                '/favourites', None, 'starred-symbolic',
-                _('No Favorites Yet'),
-                _('Posts you favorite will appear here'))
-        if tag == 'bookmarks':
-            return self._timeline_place(
-                '/bookmarks', None, 'babble-bookmarks-symbolic',
-                _('No Bookmarks Yet'),
-                _('Posts you bookmark will appear here'))
-        if tag == 'hashtags':
-            from .hashtags import FollowedHashtagsPage
-            return FollowedHashtagsPage(client)
-        if tag == 'explore':
-            from .explore import ExplorePage
-            return ExplorePage(client)
-        if tag in ('local', 'federated'):
-            if tag in self._restricted_public_places():
-                return None
-            params = {'local': 'true'} if tag == 'local' else None
-            page = self._timeline_place(
-                '/timelines/public', params, 'network-server-symbolic',
-                _('No Posts Yet'), _('New posts will appear here'))
-            self.public_pages[tag] = page
-            self._apply_auto_refresh()
-            self._sync_streaming()
-            return page
-        if tag == 'lists':
-            from .lists import ListsPage
-            return ListsPage(client)
-        if tag.startswith('list:'):
-            from .lists import ListTimelinePage
-            list_id = tag[5:]
-            return ListTimelinePage(client, {
-                'id': list_id,
-                'title': self._pinned_lists.get(list_id, _('List'))})
-        if tag.startswith('tag:'):
-            from .hashtags import HashtagPage
-            return HashtagPage(client, [tag[4:]])
-        return None
-
-    def _place_page(self, tag):
-        page = self._place_pages.get(tag)
-        if page is not None:
-            return page
-        child = self._build_place(tag)
-        if child is None:
-            return None
-        title = self._place_title(tag)
-        page = pages.make_nav_page(
-            title, child, tag='place-%s' % tag,
-            sidebar_control=self.make_sidebar_control)
-        self._place_pages[tag] = page
-        self._place_children[tag] = child
-        if tag == 'conversations':
-            self._sync_streaming()
-        return page
-
-    def _place_title(self, tag):
-        if tag.startswith('list:'):
-            return self._pinned_lists.get(tag[5:], _('List'))
-        if tag.startswith('tag:'):
-            return '#' + tag[4:]
-        return place_title(tag)
+    def _public_place_built(self, tag, page):
+        self.public_pages[tag] = page
+        self._apply_auto_refresh()
+        self._sync_streaming()
 
     # Composer
 
@@ -1604,7 +1490,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._items = {}
         sections = {}
         rail_groups = {}
-        hidden = {tag for tag, key in HIDE_KEYS.items()
+        hidden = {tag for tag, key in navigation.HIDE_KEYS.items()
                   if self.settings.get_boolean(key)}
         closed = self._restricted_public_places()
         hidden |= closed
@@ -1612,16 +1498,15 @@ class BabbleWindow(Adw.ApplicationWindow):
             # A feed the server will not serve, or the reader has not
             # opted into, keeps neither a page nor a stream.
             self.public_pages.pop(tag, None)
-            self._place_pages.pop(tag, None)
-            self._place_children.pop(tag, None)
-        for tag, icon, group in PLACES:
+            self.navigation.forget(tag)
+        for tag, icon, group in navigation.PLACES:
             if tag in hidden:
                 continue
             section = sections.get(group)
             if section is None:
                 section = sections[group] = Adw.SidebarSection()
                 sidebar.append(section)
-            title = place_title(tag)
+            title = navigation.place_title(tag)
             item = Adw.SidebarItem(title=title, icon_name=icon)
             if tag == 'notifications':
                 item.set_suffix(self.notifications_badge)
@@ -1639,33 +1524,27 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._sync_sidebar_mode()
 
     def _append_pinned(self, sidebar, rail_sections):
-        account_id = self.account['id']
-        list_ids = pinned_entries(self.settings, 'favorite-lists-ids',
-                                  account_id)
-        tags = pinned_entries(self.settings, 'favorite-tags-ids', account_id)
-        if not list_ids and not tags:
+        routes = self.navigation.pinned_routes(
+            self.settings, self.account['id'])
+        if not routes:
             return
         section = Adw.SidebarSection(title=_('Pinned'))
         sidebar.append(section)
         rail_entries = []
-        for list_id in list_ids:
-            tag = 'list:%s' % list_id
-            title = self._pinned_lists.get(list_id) or _('List')
-            item = Adw.SidebarItem(title=title, icon_name='view-list-symbolic')
+        list_ids = []
+        for tag, title, icon in routes:
+            if tag.startswith('list:'):
+                list_id = tag[5:]
+                list_ids.append(list_id)
+                title = self.navigation.pinned_lists.get(list_id) or title
+            item = Adw.SidebarItem(title=title, icon_name=icon)
             section.append(item)
             self._items[tag] = item
-            rail_entries.append((tag, 'view-list-symbolic', title))
-        for name in tags:
-            tag = 'tag:%s' % name
-            item = Adw.SidebarItem(title='#' + name,
-                                   icon_name='babble-hashtag-symbolic')
-            section.append(item)
-            self._items[tag] = item
-            rail_entries.append(
-                (tag, 'babble-hashtag-symbolic', '#' + name))
+            rail_entries.append((tag, icon, title))
         if rail_entries:
             rail_sections.append(rail_entries)
-        if list_ids and not all(i in self._pinned_lists for i in list_ids):
+        if list_ids and not all(i in self.navigation.pinned_lists
+                                for i in list_ids):
             self._load_pinned_list_titles()
 
     def _load_pinned_list_titles(self):
@@ -1678,13 +1557,12 @@ class BabbleWindow(Adw.ApplicationWindow):
                 return
             if client is not self.client:
                 return
-            self._pinned_lists = {str(item['id']): item.get('title', '')
-                                  for item in lists}
-            for list_id, title in self._pinned_lists.items():
+            self.navigation.set_pinned_lists(lists)
+            for list_id, title in self.navigation.pinned_lists.items():
                 item = self._items.get('list:%s' % list_id)
                 if item is not None and item.get_title() != title:
                     item.set_title(title)
-                page = self._place_pages.get('list:%s' % list_id)
+                page = self.navigation.pages.get('list:%s' % list_id)
                 if page is not None:
                     page.set_title(title)
                 self.sidebar_rail.set_title('list:%s' % list_id, title)
@@ -1720,7 +1598,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             if self.notifications_page is not None:
                 self.notifications_page.on_shown()
             return self.page_notifications
-        return self._place_page(tag)
+        return self.navigation.place_page(tag)
 
     def show_page(self, tag):
         """Make the page registered for ``tag`` the root of the content
@@ -1746,7 +1624,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             return 'home'
         if visible is self.page_notifications:
             return 'notifications'
-        for tag, page in self._place_pages.items():
+        for tag, page in self.navigation.pages.items():
             if page is visible:
                 return tag
         return None
@@ -1764,7 +1642,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         if self.client is None:
             return
         self.show_page('search')
-        child = self._place_children.get('search')
+        child = self.navigation.children.get('search')
         entry = getattr(child, 'entry', None)
         if entry is not None:
             entry.grab_focus()

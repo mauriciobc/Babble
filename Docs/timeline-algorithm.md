@@ -41,9 +41,9 @@ Markers used below:
 ### 1.1 What we are testing
 
 > For a reader whose home timeline brings more posts than they read in a
-> sitting, ordering the last day of home posts with `catchuprank.rank()` and
-> engagement affinity puts the posts they go on to engage with nearer the top
-> than chronological order does, without narrowing whose posts they see.
+> sitting, ordering the last day of home posts with engagement affinity puts
+> the posts they go on to engage with nearer the top than chronological
+> order does, without narrowing whose posts they see.
 
 "Engage" means favourite, boost, bookmark or reply. These four are visible
 through the API, so nothing has to be recorded on the reader's machine to
@@ -58,10 +58,9 @@ Non-goals:
 ### 1.2 Why a new place, and not something we have
 
 **Catch Up's Relevance sort** already ranks a period of home posts with the
-same `rank()` (`catchup.py:280-310`, `compute()`). But it is a different
-thing:
+same `rank()` (`src/catchup/pipeline.py`). But it is a different thing:
 - It is a skim list. `CatchUpRow` is "light on purpose": one line of text,
-  thumbnails and counts, with no actions (`catchup.py:861-864`).
+  thumbnails and counts, with no actions (`src/catchup/rows.py`).
 - It covers a fixed snapshot of a chosen period, and is recomputed only when
   a new period is chosen.
 
@@ -89,36 +88,21 @@ If gate A fails, the place is not built, and Catch Up is exactly as it was.
 
 All [R].
 
-- **The ranker is a library.** `catchuprank.py` imports only the standard
-  library (`catchuprank.py:74-85`). The new code uses its existing public
-  interface, unchanged:
-  - `rank(candidates, ctx, *, max_per_conversation, diversity)`
-    (`catchuprank.py:2132`) scores each candidate, applies the slate
-    adjustments, dedupes conversations and runs the DPP reorder.
-  - `RankingContext` (`catchuprank.py:429`) takes `mutual_author_ids`,
-    `viewer_languages`, an `AffinityResolver`, and optional `weights`,
-    `params` and `base_rates`.
-  - `candidate_from_status(status, in_network=…)` (`catchuprank.py:484`)
-    takes an explicit in-network flag, so Catch Up's `_followed_tags`
-    marker is not needed.
-  - `ForYouSignals` and `signals_affinity_resolver` (`catchuprank.py:410`)
-    turn affinity maps, a `not_interested` list and a `muted_for_you` list
-    into an `AffinityResolver`. Nothing builds `ForYouSignals` yet; Elk's
-    `deriveAffinities` is not ported.
+- **The ranker is a library.** Its implementation is the Catch Up package:
+  - `src/catchup/rank.py` exposes `rank(candidates, ctx, *, max_per_conversation, diversity)`, which scores candidates, applies slate adjustments, dedupes conversations and runs the DPP reorder.
+  - `src/catchup/rank_model.py` owns features, action probabilities, `RankingContext`, affinity resolution and candidate wrapping.
+  - `src/catchup/rank_text.py` owns JavaScript text parity, Unicode tokenization and embeddings.
+  These modules have no GTK imports; the rank modules use the standard
+  library plus sibling rank modules only.
 - **Shared filtering**: `timelinebase.status_filter(data, context, now)`
   (`timelinebase.py:186`) gives the strongest filter hit through
   `filterrules`, as Home's rows use it. Catch Up's `is_filtered_post` is not
-  usable here: it reads `_filtered`, a marker only Catch Up's fetch sets
-  (`catchupdigest.py:425`).
+  usable here: it reads `_filtered`, a marker only Catch Up's fetch sets.
 - **Catch Up's own plumbing**, which the new code does **not** use:
-  - `CatchUpRun` (`catchup.py:487`), whose caps are fixed at 1,000 posts /
-    25 pages (`catchupdigest.py:63-64`);
-  - `catchupstore`, whose root is module-level and ends in `catch-up`
-    (`catchupstore.py:44-55`);
-  - `catchup.run_in_thread` (`catchup.py:217`).
-
-  Reusing any of them would mean editing Catch Up (a cap parameter, a store
-  root) or tying the place to Catch Up's behaviour.
+  - `CatchUpRun`, whose caps are fixed at 1,000 posts / 25 pages;
+  - `src/catchup/store.py`, whose root is module-level and ends in
+    `catch-up`;
+  - `catchup.run_in_thread`.
 - **How `TimelinePage` takes a source's pages**:
   - **Refresh**: `insert_new` prepends the posts in the order given and
     skips any id already in the list (`timelinedata.py:394-406`). If the
@@ -151,7 +135,7 @@ All [R].
 
 **`bench/rank_eval.py`**: a script, not installed, that imports `src.*` the
 way `bench/timeline_bench.py` does. Of Catch Up's modules it imports only
-`catchuprank`; affinity comes from the new `src/affinity.py` (§4). It has
+`src.catchup.rank`; affinity comes from the new `src/affinity.py` (§4). It has
 two commands.
 
 **`collect`** runs hourly, from a systemd user timer or by hand. Each run:
@@ -291,15 +275,17 @@ was never edited, so there is nothing to roll back in it.
 
 ### 5.0 Boundary with Catch Up
 
-**Catch Up's files are not edited, at any stage:**
-- `src/catchup.py`, `catchupdigest.py`, `catchupgrid.py`,
-  `catchupstore.py` and `catchuprank.py`;
-- `src/test-catchup*.py` and their fixtures;
-- `CATCH-UP.md`.
+**Current boundary after the Catch Up package cutover:**
 
-Before each stage merges,
-`git diff --stat main -- 'src/catchup*' 'src/test-catchup*' CATCH-UP.md`
-must print nothing.
+- `src/affinity.py`, `bench/rank_eval.py` and ranked-place modules may import
+  `src.catchup.rank`, `rank_model` and `rank_text`.
+- Catch Up may not import the ranked-place modules.
+- The three rank modules may import the standard library and their sibling
+  rank modules only. `src/test-module-boundary.py` enforces these rules.
+
+The older implementation plan below predates the package cutover; its
+file-level exclusion list and `git diff` gate are historical, not current
+acceptance criteria.
 
 **The new code:**
 
@@ -316,14 +302,14 @@ Module names follow the working name (§8), and change with it.
 
 | From | May import | Must not import |
 |---|---|---|
-| New modules and the harness | `catchuprank`, through its existing public interface (§2); the shared modules every page uses (`pages`, `timelinepage`, `timelinebase`, `filterrules`, `mastodon`, `accounts`, `i18n`) | `catchup`, `catchupdigest`, `catchupgrid`, `catchupstore` |
+| New modules and the harness | `src/catchup/rank.py`, through its existing public interface (§2); the shared modules every page uses (`pages`, `timelinepage`, `timelinebase`, `filterrules`, `mastodon`, `accounts`, `i18n`) | `src/catchup/page.py`, `digest.py`, `digest_layout.py`, `store.py`, `tiles.py`, `tiles_render.py`, `geometry.py` |
 | Catch Up's modules | (unchanged) | Any new module |
 
 **The ranker is used as it is.** The place configures `rank()` only through
 what `RankingContext` and `rank()` already take: affinity, weights, params,
 base rates, `max_per_conversation` and `diversity`. If the place ever needs
 something the ranker does not expose, that is a separate change to
-`catchuprank.py`, made and reviewed as a Catch Up change under
+`src/catchup/rank*.py`, made and reviewed as a Catch Up change under
 `CATCH-UP.md` and its tests. It is not part of this plan.
 
 **Some duplication is accepted.** The home fetch loop and the 15-line
@@ -346,14 +332,16 @@ evaluated and rejected.
   against Mastodon's 300 per 5 minutes. So no coordination is added;
   coordinating would mean reading Catch Up's state.
 
-**Enforcement.** A new `module boundary` test reads every `src/*.py` and
+**Enforcement.** A `module boundary` test reads every `src/**/*.py` and
 `bench/rank_eval.py` with `ast`, as `ui strings` does. It fails if:
-- a new module imports a Catch Up module other than `catchuprank`;
+- a new module imports a Catch Up module other than `rank`, `rank_model` or
+  `rank_text`;
 - a Catch Up module imports a new module;
-- `catchuprank` gains an import outside the standard library.
+- a rank module imports anything outside the standard library and sibling
+  rank modules.
 
-Catch Up's own tests (`catchup digest`, `catchup rank`, `catchup page`,
-`catchup grid`) must pass unchanged, with unedited fixtures, at every stage.
+Catch Up's tests (`catchup digest`, `catchup rank`, `catchup page`,
+`catchup grid`) must pass, with their golden fixtures unchanged, at every stage.
 
 ### 5.1 Pool
 
@@ -400,11 +388,10 @@ directory:
 - **Atomicity** comes from transactions. Showing a page is one `INSERT` of
   its ids, not a rewrite of a 400-post JSON file on the worker while it
   holds the GIL.
-- **Privacy** follows `catchupstore`: a `0700` directory and a `0600` file,
+- **Privacy** follows `src/catchup/store.py`: a `0700` directory and a `0600` file,
   created before SQLite opens it, so its journal inherits the mode.
-- **Deletion** goes with the account, through one call added to
-  `accounts.forget_account` next to the existing
-  `catchupstore.delete_account` (`accounts.py:157`).
+- **Deletion** goes with the account through the call in
+  `accounts.forget_account` next to `src.catchup.store.delete_account`.
 
 Opening the place shows the stored list at once, then refreshes in the
 background if it is more than 15 minutes old.
@@ -496,7 +483,7 @@ as Elk's does:
   `min(1, 1 − 2^−Σ decay)`, which is 0.5 after one fresh dismissal, 0.875
   after three, fading with the 14-day half-life. It is passed in as the
   resolver's `author_penalty`, a field `AffinityResolver` already has
-  (`catchuprank.py:327`);
+  (`src/catchup/rank_model.py`);
 - and it retracts the dismissed post's own positive history, as Elk's
   `applyNotInterestedToSignals` does (`signals.ts:842-847`): the post's id
   is removed from every engaged kind before the affinities are re-derived,

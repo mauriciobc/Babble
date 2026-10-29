@@ -33,11 +33,6 @@ install_data(
   'affinity.py',
   'announcements.py',
   'auth.py',
-  'catchup.py',
-  'catchupdigest.py',
-  'catchupgrid.py',
-  'catchuprank.py',
-  'catchupstore.py',
   'charts.py',
   'capabilities.py',
   'compose.py',
@@ -61,6 +56,7 @@ install_data(
   'main.py',
   'mastodon.py',
   'mediaviewer.py',
+  'navigation.py',
   'mentioncompleter.py',
   'notificationcopy.py',
   'notificationctrl.py',
@@ -96,12 +92,31 @@ install_data(
   'statusactions.py',
   'statusmenu.py',
   'statusrow.py',
+  'tileactions.py',
   'mediacache.py',
   'mediabox.py',
   'webcolumn.py',
   'window.py',
   'wrapped.py',
   install_dir: moduledir,
+)
+install_data(
+  'catchup/__init__.py',
+  'catchup/page.py',
+  'catchup/page_controls.py',
+  'catchup/digest.py',
+  'catchup/digest_layout.py',
+  'catchup/pipeline.py',
+  'catchup/fetch.py',
+  'catchup/rows.py',
+  'catchup/store.py',
+  'catchup/rank.py',
+  'catchup/rank_model.py',
+  'catchup/rank_text.py',
+  'catchup/tiles.py',
+  'catchup/tiles_render.py',
+  'catchup/geometry.py',
+  install_dir: moduledir / 'catchup',
 )
 
 # One environment for every test. GTK_A11Y=none is what stops a missing
@@ -362,6 +377,12 @@ test('status text', python,
   env: test_env,
   timeout: 60,
 )
+# Start-up cost: what importing accounts or the store drags in of Catch Up.
+test('catchup imports', python,
+  args: [files('test-catchup-imports.py')],
+  env: test_env,
+  timeout: 60,
+)
 # Needs no display: the Catch Up data layer imports no gi at all.
 test('catchup digest', python,
   args: [files('test-catchup-digest.py')],
@@ -376,6 +397,11 @@ test('file size rule', python,
 # Needs no display: it reads the import graph only.
 test('module boundary', python,
   args: [files('test-module-boundary.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('navigation', python,
+  args: [files('test-navigation.py')],
   env: test_env,
   timeout: 60,
 )

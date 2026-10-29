@@ -20,6 +20,7 @@ from .sourceline import SourceLine
 from .statusactions import (CollectionCard, QuoteCard, StatusActions,
                             _display_name_uses_custom_emoji, _open_thread)
 from .statusmenu import StatusMenuButton
+from . import tileactions
 from .mediacache import AvatarCache, StatusBody
 from .mediabox import BoostCarousel, CardPreview, MediaBox, _rewatch
 from .pollbox import PollBox
@@ -182,8 +183,8 @@ class StatusRow(Gtk.Overlay):
         header.append(meta)
         # Overflow menu sits with the timestamp, the way the bar keeps it
         # in the post header rather than in the action row.
-        self._overflow = StatusMenuButton()
         host = self.weak_ref()
+        self._overflow = tileactions.tile_menu_button(None, None)
         self._overflow.host = host
         header.append(self._overflow)
         main.append(header)
@@ -249,7 +250,8 @@ class StatusRow(Gtk.Overlay):
 
         # The row redraws itself whole after a toggle (refresh), so the
         # bar does not follow the item on its own.
-        actions = StatusActions(standalone=False)
+        actions = tileactions.tile_action_bar(
+            None, None, standalone=False)
         actions.host = host
         self.actions = actions
         self._overflow.actions = actions
@@ -399,7 +401,8 @@ class StatusRow(Gtk.Overlay):
             self._clear_flashes()
         self.item = item
         self.client = client
-        self._overflow.bind(item, client)
+        tileactions.tile_menu_button(
+            item, client, button=self._overflow, actions=self.actions)
         if isinstance(item, BoostCarouselItem):
             self._bind_carousel(item, client)
             return
@@ -525,7 +528,7 @@ class StatusRow(Gtk.Overlay):
         show_card = _flag('show-preview-cards') and not poll and not quote \
             and not attachments
         self._show_card(status.get('card') if show_card else None)
-        self.actions.bind(item, self.client)
+        tileactions.tile_action_bar(item, self.client, bar=self.actions)
 
     def _bind_translation(self, item):
         """The 'Translated from …' note above the body, when shown."""

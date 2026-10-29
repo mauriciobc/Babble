@@ -143,7 +143,7 @@ check('nonsense is None, not an exception',
 
 # The two callers, which is where the disagreement was.
 
-from src import catchupdigest  # noqa: E402
+from src.catchup import digest as catchupdigest  # noqa: E402
 from src import statusrun, timelinebase, timelinepage  # noqa: E402
 
 

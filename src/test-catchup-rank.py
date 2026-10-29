@@ -25,7 +25,12 @@ srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import catchuprank as cr  # noqa: E402
+from src.catchup import rank as _rank  # noqa: E402
+from src.catchup import rank_model as _model  # noqa: E402
+from src.catchup import rank_text as _text  # noqa: E402
+
+cr = types.SimpleNamespace(**{
+    **vars(_text), **vars(_model), **vars(_rank)})
 
 NOW = datetime.datetime(2026, 8, 16, 12, 0, 0, tzinfo=datetime.timezone.utc)
 HOUR = 3_600_000
@@ -109,6 +114,8 @@ def ctx(signals=None, **overrides):
     if signals is not None:
         overrides.setdefault('affinity',
                              cr.signals_affinity_resolver(signals))
+        overrides.setdefault('not_interested_ids',
+                             set(signals.not_interested))
     return cr.RankingContext(now=NOW, **overrides)
 
 
@@ -731,7 +738,7 @@ class TestAffinityResolver(Base):
     def test_the_default_resolver_returns_zero_everywhere(self):
         r = cr.NULL_AFFINITY
         for channel in (r.author, r.tag, r.language, r.booster,
-                        r.author_penalty, r.post_penalty):
+                        r.author_penalty):
             self.assertEqual(channel('anything'), 0)
         self.assertIs(ctx().affinity, cr.NULL_AFFINITY)
 
@@ -740,22 +747,21 @@ class TestAffinityResolver(Base):
             author_affinity={'a1': 10}, tag_affinity={'cats': 3},
             language_affinity={'ja': 2}, muted_for_you=['m1'],
             not_interested=['post9']))
-        self.assertGreater(resolver.author('a1'), 0)
-        self.assertGreater(resolver.tag('cats'), 0)
-        self.assertGreater(resolver.language('ja'), 0)
-        # author_penalty is account-scoped, post_penalty post-scoped.
+        self.assertGreater(resolver.author_affinity('a1'), 0)
+        self.assertGreater(resolver.tag_affinity('cats'), 0)
+        self.assertGreater(resolver.language_affinity('ja'), 0)
         self.assertEqual(resolver.author_penalty('m1'), 1)
         self.assertEqual(resolver.author_penalty('someone'), 0)
-        self.assertEqual(resolver.post_penalty('post9'), 1)
-        self.assertEqual(resolver.post_penalty('post1'), 0)
+        self.assertEqual(ctx(cr.ForYouSignals(
+            not_interested=['post9'])).not_interested_ids, {'post9'})
 
     def test_reads_booster_affinity_when_the_store_provides_it(self):
         with_boosters = cr.ForYouSignals(booster_affinity={'curator': 5})
         self.assertGreater(
-            cr.signals_affinity_resolver(with_boosters).booster('curator'),
-            0)
+            cr.signals_affinity_resolver(with_boosters)
+            .booster_affinity('curator'), 0)
         self.assertEqual(cr.signals_affinity_resolver(
-            cr.ForYouSignals()).booster('curator'), 0)
+            cr.ForYouSignals()).booster_affinity('curator'), 0)
 
     def test_is_overridable_one_channel_at_a_time(self):
         warm = cr.predict_actions(
@@ -2258,12 +2264,17 @@ class TestRankCandidates(Base):
         self.assertGreater(candidate.score, 0)
         self.assertGreater(len(candidate.reasons), 0)
 
-    def test_does_not_mutate_the_input_array_or_its_candidates(self):
+    def test_rank_candidates_returns_typed_results_without_mutating_inputs(self):
         candidates = [make_candidate(id='s1', author_id='A'),
                       make_candidate(id='s2', author_id='B', favourites=500)]
-        snapshot = list(candidates)
-        cr.rank_candidates(candidates, ctx())
-        self.assertEqual(candidates, snapshot)
+        original_statuses = [candidate.status for candidate in candidates]
+        ranked = cr.rank_candidates(candidates, ctx())
+        self.assertTrue(all(isinstance(c, cr.ScoredCandidate)
+                            for c in ranked))
+        self.assertCountEqual([candidate.status for candidate in ranked],
+                              original_statuses)
+        self.assertEqual([candidate.status for candidate in candidates],
+                         original_statuses)
         self.assertTrue(all(c.score is None and c.raw_score is None
                             for c in candidates))
 
@@ -2289,6 +2300,20 @@ class TestRankPipeline(Base):
         for c in ranked:
             self.assertIsNotNone(c.score)
             self.assertIsNotNone(c.probabilities)
+
+    def test_rank_returns_immutable_typed_scored_candidate_records(self):
+        source = make_candidate(id='scored')
+        result = cr.rank([source], ctx())[0]
+        self.assertIsInstance(result, cr.ScoredCandidate)
+        self.assertIs(result.status, source.status)
+        self.assertIsNotNone(result.probabilities)
+        self.assertIsNotNone(result.raw_score)
+        self.assertIsNotNone(result.score)
+        self.assertIsNotNone(result.reasons)
+        self.assertIsNone(source.score)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            result.score = 0
+
 
     def test_accepts_plain_status_dicts(self):
         statuses = make_fixture_statuses()
@@ -3066,6 +3091,20 @@ class TestEmbedding(Base):
         for unit in (0xD83D, 0xDE00):
             h = (h ^ unit) * 0x01000193 & 0xFFFFFFFF
         self.assertEqual(cr._hash_string('\U0001F600', 0x811C9DC5), h)
+
+    def test_the_hash_cache_changes_nothing_and_stays_bounded(self):
+        # Keys repeat across a pool, so _hash_string is cached; the cache
+        # must return exactly what the plain function does, for a lone
+        # surrogate as well, and must not grow without limit.
+        plain = cr._hash_string.__wrapped__
+        seeds = (0x811C9DC5, 0x9E3779B1)
+        keys = ('l:en', 'a:109', 't:wörld', '\U0001F600', '\ud83d', '')
+        for _round in range(2):
+            for key in keys:
+                for seed in seeds:
+                    self.assertEqual(cr._hash_string(key, seed),
+                                     plain(key, seed))
+        self.assertIsNotNone(cr._hash_string.cache_info().maxsize)
 
     def test_extracts_the_signals_of_the_original_post(self):
         features = cr.extract_candidate_features(div_status(

@@ -40,6 +40,8 @@ from src.timelinedata import (BoostCarouselItem, StatusItem,  # noqa: E402
                               filter_replies_from_non_follows,
                               matching_tag)
 from src.statusrow import StatusRow  # noqa: E402
+from src.statusactions import StatusActions  # noqa: E402
+from src.statusmenu import StatusMenuButton  # noqa: E402
 from src.statusrun import StatusRun, _shell_stamp  # noqa: E402
 from src.timelinepage import TimelinePage  # noqa: E402
 from src.timelinebase import (decodable_attachment_url,  # noqa: E402
@@ -602,6 +604,13 @@ check('the first post of a run shows the source line again',
 # live in the post's menu) and always up on detail views.
 bar_row = bind_with_account({'acct': 'patrol'})
 check('action bar hidden on patrol cards', not bar_row.actions.get_visible())
+check('timeline row actions and menu bind through the shared adapter',
+      isinstance(bar_row.actions, StatusActions)
+      and isinstance(bar_row._overflow, StatusMenuButton)
+      and bar_row.actions.item is bar_row.item
+      and bar_row.actions._client is bar_row.client
+      and bar_row._overflow.item is bar_row.item
+      and bar_row._overflow.actions is bar_row.actions)
 check('detail rows keep the action bar',
       StatusRow(detail=True).actions.get_visible())
 

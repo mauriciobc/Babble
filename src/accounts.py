@@ -28,7 +28,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GObject, Gtk  # noqa: E402
 
-from . import catchupstore  # noqa: E402
+from .catchup import store as catchupstore  # noqa: E402
 
 _SHORTCODE = re.compile(r':[A-Za-z0-9_]{2,}:')
 

@@ -39,7 +39,6 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from src import affinity as af  # noqa: E402
-from src import catchuprank as cr  # noqa: E402
 
 # Date.parse('2026-01-01T00:00:00Z') in the TypeScript goldens.
 NOW = 1_767_225_600_000
@@ -638,25 +637,42 @@ check('a correct clock restores them from the sequence',
 # --- resolver ------------------------------------------------------------
 
 positive = derive({'favourite': [sig('s1', 'alice')]})
-resolver = af.resolver(positive, (), [], (), NOW)
-check('resolver returns an AffinityResolver',
-      isinstance(resolver, cr.AffinityResolver))
+resolver = af.resolver(positive, [], (), NOW)
+check('resolver exposes the structural affinity provider',
+      all(callable(getattr(resolver, name, None)) for name in (
+          'author_affinity', 'tag_affinity', 'language_affinity',
+          'booster_affinity', 'author_penalty')))
 check('the resolver author channel is positive for a positive author',
-      resolver.author('alice') > 0)
-check('and zero for an unknown author', resolver.author('nobody') == 0)
+      resolver.author_affinity('alice') > 0)
+check('and zero for an unknown author',
+      resolver.author_affinity('nobody') == 0)
+provider_maps = af.Affinities(
+    author={'alice': 4.0, 'bob': -2.0},
+    booster={'boost': 3.0, 'other': 1.0},
+    tag={'python': 5.0, 'rust': 1.0},
+    language={'en': 3.0, 'fr': 1.0})
+provider = af.resolver(provider_maps, [], (), NOW)
+check('provider tag channel reads the tag map',
+      provider.tag_affinity('python') == 0.75)
+check('provider language channel reads the language map',
+      provider.language_affinity('en') == 0.75)
+check('provider booster channel reads the booster map',
+      provider.booster_affinity('boost') == 0.75)
+check('provider channels default to zero for unknown keys',
+      provider.tag_affinity('unknown') == 0
+      and provider.language_affinity('unknown') == 0
+      and provider.booster_affinity('unknown') == 0)
 
 for count in (1, 2, 3):
     for label, age in (('0', 0), ('14', 14 * DAY)):
         signals = [sig('d%d' % i, 'a', at_ms=NOW - age)
                    for i in range(count)]
-        wired = af.resolver(af.Affinities({}, {}, {}, {}), (), signals,
-                            (), NOW)
+        wired = af.resolver(af.Affinities({}, {}, {}, {}), signals, (), NOW)
         check('resolver author_penalty matches authorPenaltyIn: '
               '%d dismissal(s) at %s days' % (count, label),
               close(wired.author_penalty('a'),
                     GOLDEN['penalties']['%d@%s' % (count, label)]))
-muted_resolver = af.resolver(af.Affinities({}, {}, {}, {}), (), [], ('a',),
-                             NOW)
+muted_resolver = af.resolver(af.Affinities({}, {}, {}, {}), [], ('a',), NOW)
 check('resolver author_penalty is 1 for a muted author',
       muted_resolver.author_penalty('a') == 1)
 check('and 0 for everyone else', muted_resolver.author_penalty('b') == 0)

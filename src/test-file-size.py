@@ -46,11 +46,11 @@ EXCEPTIONS = {
                 'carrying the paging base. ARCH-06 split the timeline '
                 'around it; the state machine stays here because every '
                 'status list uses it.',
-    'window.py': 'four of five seams extracted (portals, auth, drafts, '
-                 'clipboard); the remaining lines are view routing over '
-                 'page containers the window owns, and extracting them '
-                 'would invert streaming.py\'s dependency on that state '
-                 'rather than cut a seam.',
+    'window.py': 'four seams extracted (portals, auth, drafts, clipboard), '
+                 'and navigation.py now owns lazy place routing and pinned '
+                 'state. BabbleWindow still owns session state, sidebar '
+                 'widgets, and streaming lifecycle; those depend on its '
+                 'page containers and stay with the window.',
     'compose.py': 'the composer widget. ARCH-01 moved the upload round '
                   'to composeupload.py; what remains is the draft, the '
                   'options and the post itself, which is one dialog.',
@@ -66,17 +66,6 @@ EXCEPTIONS = {
     'mediaviewer.py': 'the picture viewer: zoom and pan geometry, '
                       'video and audio playback, drag sources and temp '
                       'file pruning. One widget, one concern.',
-    'catchup.py': 'Catch Up is a feature port (CATCH-UP.md), and its '
-                  'page is one piece of work at a time. CatchUpPage '
-                  'is large for the same reason the port is kept intact: '
-                  'it is meant to stay legible as a port.',
-    'catchuprank.py': 'a faithful port of Elk\'s ranker, kept legible '
-                      'as a port. Its golden scores are generated from '
-                      'the original TypeScript, so refactoring it for '
-                      'Babble idiom would break the diff that makes it '
-                      'trustworthy (see D-02, SKIP-06).',
-    'catchupgrid.py': 'part of the Catch Up port; see catchup.py.',
-    'catchupdigest.py': 'part of the Catch Up port; see catchup.py.',
     'fedicollections.py': 'Collections (Mastodon 4.6+): page, CRUD and '
                           'membership.',
     'mastodon.py': 'the API client: OAuth, the keyring, the transport, '
@@ -123,13 +112,17 @@ for name, reason in EXCEPTIONS.items():
 # every module has to be in one of them or under the limit. Before this,
 # nine modules were over the limit and unlisted: the test passed, and a
 # God class could reappear in any of them unnoticed.
-modules = sorted(name for name in os.listdir(srcdir)
-                 if name.endswith('.py') and not name.startswith('test-'))
+modules = sorted(
+    os.path.relpath(os.path.join(root, filename), srcdir)
+    for root, _dirs, files in os.walk(srcdir)
+    for filename in files
+    if filename.endswith('.py') and not filename.startswith('test-'))
 undeclared = []
 for name in modules:
-    lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count(
-        '\n')
-    if lines > LIMIT and name not in EXCEPTIONS:
+    lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count('\n')
+    if name.startswith('catchup/') and lines > LIMIT:
+        undeclared.append((name, lines))
+    elif lines > LIMIT and name not in EXCEPTIONS:
         undeclared.append((name, lines))
 
 for name, lines in undeclared:
@@ -137,6 +130,8 @@ for name, lines in undeclared:
           % (name, lines))
 check('every module over the limit declares why (%d undeclared)'
       % len(undeclared), not undeclared)
+
+
 
 # install_data (src/meson.build) is maintained by hand and nothing checked
 # it: a module left off it is missing from the installed app, and the
@@ -147,12 +142,22 @@ check('every module over the limit declares why (%d undeclared)'
 build_path = os.path.join(srcdir, 'meson.build')
 with open(build_path, encoding='utf-8') as build_file:
     build_source = build_file.read()
-installed = set(re.findall(r"'([a-z0-9_]+\.py)'", build_source))
+installed = set(re.findall(r"'([a-z0-9_/]+\.py)'", build_source))
 missing = sorted(name for name in modules
                  if name not in installed and name != '__init__.py')
 for name in missing:
     print('    %s is not in src/meson.build install_data' % name)
 check('every module is installed (%d missing)' % len(missing), not missing)
+catchup_modules = sorted(
+    os.path.relpath(os.path.join(directory, filename), srcdir)
+    for directory, _dirs, files in os.walk(os.path.join(srcdir, 'catchup'))
+    for filename in files if filename.endswith('.py'))
+missing_catchup = sorted(name for name in catchup_modules
+                         if name not in installed)
+for name in missing_catchup:
+    print('    %s is not in src/meson.build catchup install_data' % name)
+check('every Catch Up submodule is installed (%d missing)'
+      % len(missing_catchup), not missing_catchup)
 stale = sorted(name for name in installed
                if name not in modules and name != 'meson.build')
 for name in stale:
@@ -182,7 +187,7 @@ translates = re.compile(r'(?<![A-Za-z0-9_.])_\(|\bngettext\(')
 # i18n.py defines the gettext helpers; it has no strings of its own.
 unlisted = []
 for name in modules:
-    if name in ('__init__.py', 'i18n.py'):
+    if os.path.basename(name) in ('__init__.py', 'i18n.py'):
         continue
     with open(os.path.join(srcdir, name), encoding='utf-8') as module:
         if translates.search(module.read()) \

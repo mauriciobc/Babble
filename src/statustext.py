@@ -315,9 +315,9 @@ def parse_time(value):
     The one reader of ISO-8601 in the app: timeline.py, statusviews.py,
     filters.py and the Catch-Up port each had their own, and two of them
     disagreed about whether a naive value was an error. The two exceptions
-    are deliberate and say so where they are found: ``catchuprank`` keeps
-    its own reader because its golden scores pin it to the original
-    JavaScript, and ``catchupdigest.parse_time`` keeps the name as an
+    are deliberate and say so where they are found: ``catchup.rank_text``
+    keeps its own reader because its golden scores pin it to the original
+    JavaScript, and ``catchup.digest.parse_time`` keeps the name as an
     alias because its own test calls it that way.
     """
     if not isinstance(value, str) or not value:

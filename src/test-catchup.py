@@ -34,7 +34,11 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import accounts, catchup, catchupdigest, catchupstore  # noqa: E402
+from src import accounts  # noqa: E402
+from src.catchup import digest as catchupdigest, digest_layout  # noqa: E402
+from src.catchup import CatchUpPage, pipeline as catchup  # noqa: E402
+from src.catchup import store as catchupstore  # noqa: E402
+from src.catchup import fetch as catchuprun  # noqa: E402
 
 failures = []
 
@@ -237,18 +241,18 @@ snapshot = {'version': 1, 'id': 'ordering', 'account': KEY,
             'trends': {'links': None, 'tags': None, 'statuses': None}}
 snapshot['posts'] = catchupdigest.apply_filters(snapshot['posts'], ['99'])
 catchupdigest.mark_threads(snapshot['posts'])
-computed = catchup.compute(snapshot, ['en'])
+computed = catchup.run(snapshot, ['en'])
 by_id = {p['id']: p for p in computed.visible}
 same = True
-for sort_by in catchupdigest.SORTS:
+for sort_by in digest_layout.SORTS:
     for order in ('asc', 'desc'):
         for group in (False, True):
             posts = computed.visible
             ours = catchup.order_ids(
                 [computed.info[p['id']] for p in posts], sort_by, order,
                 group, {a: i for i, a in enumerate(
-                    catchupdigest.author_order(posts))} if group else None)
-            theirs = [p['id'] for p in catchupdigest.sort_posts(
+                    digest_layout.author_order(posts))} if group else None)
+            theirs = [p['id'] for p in digest_layout.sort_posts(
                 posts, sort_by, order, group, computed.scores)]
             same = same and ours == theirs
 check('the cached-key ordering is catchupdigest.sort_posts', same)
@@ -276,7 +280,7 @@ view = catchup.derive_view(computed, catchup.ViewState(author='nobody'))
 check('an author with no posts is ignored',
       view.author is None and len(view.matching) == len(computed.visible))
 check('ranking is deterministic',
-      [p['id'] for p in catchup.compute(snapshot, ['en']).ranked]
+      [p['id'] for p in catchup.run(snapshot, ['en']).ranked]
       == [p['id'] for p in computed.ranked])
 text = catchup.view_summary(catchup.ViewState(
     category='boosts', sort='likes', order='desc', group=True))
@@ -348,8 +352,9 @@ def run_to_end(client, hours=24, stop_on=None, hide_trending=False):
     end_at = catchup.now_utc()
     start_at = end_at - datetime.timedelta(hours=hours) if hours else None
     got = []
-    run = catchup.CatchUpRun(client, start_at, end_at, ['99'],
-                             hide_trending, done=got.append, pause_seconds=0)
+    run = catchuprun.CatchUpRun(client, start_at, end_at, ['99'],
+                                hide_trending, done=got.append,
+                                pause_seconds=0)
     if stop_on is not None:
         run.progress = lambda evaluated, oldest: (
             run.stop() if run.pages_done == stop_on else None)
@@ -438,8 +443,8 @@ check('the safety cap stops an endless timeline',
 
 client = FakeClient(page_size=10)
 got = []
-run = catchup.CatchUpRun(client, None, catchup.now_utc(), [],
-                         done=got.append, pause_seconds=0)
+run = catchuprun.CatchUpRun(client, None, catchup.now_utc(), [],
+                            done=got.append, pause_seconds=0)
 run.start()
 run.abort()
 settle(lambda: False, timeout=0.3)
@@ -451,7 +456,7 @@ check('an aborted run says nothing and asks for nothing more',
 # The page
 
 class StubHighlights(Gtk.Box):
-    """Stands in for catchupgrid.HighlightsView."""
+    """Stands in for catchup.tiles.HighlightsView."""
 
     instances = []
 
@@ -471,12 +476,12 @@ class StubModule:
     HighlightsView = StubHighlights
 
 
-_catchupgrid_saved = sys.modules.get('src.catchupgrid')
-sys.modules['src.catchupgrid'] = StubModule
+_catchup_tiles_saved = sys.modules.get('src.catchup.tiles')
+sys.modules['src.catchup.tiles'] = StubModule
 
 
 def make_page(client, key_account=ACCOUNT):
-    page = catchup.CatchUpPage(client, account=key_account)
+    page = CatchUpPage(client, account=key_account)
     host = Gtk.Box()
     host.append(page)
     return page, host
@@ -583,7 +588,7 @@ check('Reset filters restores everything',
 ids = listed_ids(page)
 check('by default the list is oldest first',
       ids == sorted(ids))
-page.sort_dropdown.set_selected(catchupdigest.SORTS.index('likes'))
+page.sort_dropdown.set_selected(digest_layout.SORTS.index('likes'))
 likes = [page._items[i].favourite_count for i in listed_ids(page)]
 check('sorting by likes puts the most liked first',
       likes == sorted(likes, reverse=True)
@@ -591,7 +596,7 @@ check('sorting by likes puts the most liked first',
 page.order_group.set_active_name('asc')
 likes = [page._items[i].favourite_count for i in listed_ids(page)]
 check('the order can be flipped', likes == sorted(likes))
-page.sort_dropdown.set_selected(catchupdigest.SORTS.index('relevance'))
+page.sort_dropdown.set_selected(digest_layout.SORTS.index('relevance'))
 scores = [page._computed.info[i].values[5] for i in listed_ids(page)]
 check('relevance sorts by the score',
       scores == sorted(scores, reverse=True))
@@ -614,7 +619,7 @@ check('the Highlights digest never changed',
 
 page._toast_id = 0
 page.category_group.set_active_name('replies')
-page.sort_dropdown.set_selected(catchupdigest.SORTS.index('boosts'))
+page.sort_dropdown.set_selected(digest_layout.SORTS.index('boosts'))
 settle(lambda: page._toast_text != '')
 check('the filter change is announced from its parts',
       page._toast_text.startswith('Showing replies, most boosts first'))
@@ -684,13 +689,23 @@ page._on_pages_changed(4)
 check('expanding the Highlights is remembered for the snapshot',
       page._view_state.pages == 4
       and page._view_states[shown_pages].pages == 4)
+page._period = '1h'
 page._on_show_snapshot(None, GLib.Variant('s', older))
 settle(lambda: page.state == 'results' and page._snapshot_id == older)
 check('a previous catch-up can be shown', page._snapshot_id == older)
+check('period state comes from the opened snapshot',
+      page._period == next(m['period'] for m in page._metas
+                           if m['id'] == older)
+      and page._period_action.get_state().get_string() == page._period)
 check('the older one starts at its own pages',
       StubHighlights.instances[0].pages[-1] == 1)
+page._period = '1h'
 page._on_show_snapshot(None, GLib.Variant('s', shown_pages))
 settle(lambda: page.state == 'results' and page._snapshot_id == shown_pages)
+check('period state restores independently for the other snapshot',
+      page._period == next(m['period'] for m in page._metas
+                           if m['id'] == shown_pages)
+      and page._period_action.get_state().get_string() == page._period)
 check('and they come back when that snapshot is shown again',
       StubHighlights.instances[0].pages[-1] == 4)
 page._on_pages_changed(1)
@@ -844,8 +859,9 @@ check('and only its own',
 # --------------------------------------------------------------------------
 # The real Highlights grid under the page
 
-sys.modules.pop('src.catchupgrid', None)
-from src import catchupgrid  # noqa: E402
+sys.modules.pop('src.catchup.tiles', None)
+from src.catchup import tiles as catchup_tiles  # noqa: E402
+from src.catchup import tiles_render as catchup_tiles_render  # noqa: E402
 
 page8, host8 = make_page(FakeClient(), dict(ACCOUNT, id='60'))
 window8 = Gtk.Window(default_width=700, default_height=900, child=host8)
@@ -855,7 +871,7 @@ page8.catch_up_button.emit('clicked')
 settle(lambda: page8.state == 'results')
 view8 = page8._highlights
 check('the Highlights slot holds a real HighlightsView',
-      isinstance(view8, catchupgrid.HighlightsView)
+      isinstance(view8, catchup_tiles.HighlightsView)
       and hasattr(view8, 'grid'))
 grid8 = view8.grid
 settle(lambda: any(p.kind == 'post' for p in grid8.placed)
@@ -868,7 +884,7 @@ while child is not None:
     child = child.get_next_sibling()
 check('the grid has a placed post tile',
       any(p.kind == 'post' for p in grid8.placed) and any(
-          isinstance(t, catchupgrid.PostTile) for t in tiles))
+          isinstance(t, catchup_tiles_render.PostTile) for t in tiles))
 check('the tiles are children of the grid',
       tiles and all(t.get_parent() is grid8 for t in tiles))
 check('no tile is the same widget twice',
@@ -888,10 +904,10 @@ check('a dropped page frees its Highlights view, grid and tiles',
 
 shutil.rmtree(CACHE, ignore_errors=True)
 
-if _catchupgrid_saved is not None:
-    sys.modules['src.catchupgrid'] = _catchupgrid_saved
+if _catchup_tiles_saved is not None:
+    sys.modules['src.catchup.tiles'] = _catchup_tiles_saved
 else:
-    sys.modules.pop('src.catchupgrid', None)
+    sys.modules.pop('src.catchup.tiles', None)
 
 if failures:
     print('%d checks failed' % len(failures))
