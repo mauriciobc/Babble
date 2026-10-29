@@ -109,6 +109,8 @@ class CatchUpPage(PageControls, Adw.Bin):
         self._highlights = None
         self._highlights_tried = False
         self._results_built = False
+        self._displayed_count = 0
+        self._count_anim_source = None
 
         self._actions = Gio.SimpleActionGroup()
         self._period_action = Gio.SimpleAction.new_stateful(
@@ -161,6 +163,7 @@ class CatchUpPage(PageControls, Adw.Bin):
             GLib.source_remove(self._toast_id)
             self._toast_id = 0
         self._building = None
+        self._stop_count_animation()
 
     def _idle(self, method):
         """Call *method* once from an idle source below GDK's redraw. The
@@ -269,7 +272,66 @@ class CatchUpPage(PageControls, Adw.Bin):
     # Running a catch-up (3.1)
 
     def _scan_label(self, text):
-        self.scan_label.set_label(text)
+        self.scan_title.set_label(text)
+        self.scan_count.set_label('')
+        self.scan_hours.set_label('')
+        self._stop_count_animation()
+
+    def _stop_count_animation(self):
+        """Cancel any running count animation."""
+        if self._count_anim_source is not None:
+            GLib.source_remove(self._count_anim_source)
+            self._count_anim_source = None
+
+    def _animate_evaluated(self, target_count, hours):
+        """Smoothly animate the post count from its current displayed value
+        up to *target_count*. Jumps to the target when reduced motion is
+        requested."""
+        self._stop_count_animation()
+        # Translators: shown below the count while Catch Up is scanning,
+        # e.g. "(9 h back)"
+        self.scan_hours.set_label(_('(%d h back)') % hours)
+
+        gtk_settings = Gtk.Settings.get_default()
+        if gtk_settings is None or not gtk_settings.props.gtk_enable_animations:
+            # Translators: shown while Catch Up reads the home timeline
+            self.scan_count.set_label(ngettext(
+                '%d post evaluated', '%d posts evaluated', target_count)
+                % target_count)
+            self._displayed_count = target_count
+            return
+
+        start_count = self._displayed_count
+        if target_count <= start_count:
+            self.scan_count.set_label(ngettext(
+                '%d post evaluated', '%d posts evaluated', target_count)
+                % target_count)
+            self._displayed_count = target_count
+            return
+
+        duration_ms = 400
+        step_ms = 33
+        start_us = GLib.get_monotonic_time()
+        gap = target_count - start_count
+
+        def tick():
+            if self._disposed:
+                return GLib.SOURCE_REMOVE
+            elapsed_us = GLib.get_monotonic_time() - start_us
+            progress = min(elapsed_us / (duration_ms * 1000), 1.0)
+            # Cubic ease-out
+            eased = 1.0 - (1.0 - progress) ** 3
+            current = min(start_count + int(gap * eased), target_count)
+            self.scan_count.set_label(ngettext(
+                '%d post evaluated', '%d posts evaluated', current)
+                % current)
+            if progress >= 1.0:
+                self._displayed_count = target_count
+                self._count_anim_source = None
+                return GLib.SOURCE_REMOVE
+            return GLib.SOURCE_CONTINUE
+
+        self._count_anim_source = GLib.timeout_add(step_ms, tick)
 
     def _start_run(self, period):
         if self._run is not None or self._disposed or self.client is None:
@@ -297,6 +359,7 @@ class CatchUpPage(PageControls, Adw.Bin):
             progress=pages.weak_method(self._on_progress),
             done=pages.weak_method(self._on_run_done))
         self._scan_label(_('Scanning timeline…'))
+        self._displayed_count = 0
         self.cancel_button.set_visible(True)
         self.cancel_button.set_sensitive(True)
         self._set_state('scanning')
@@ -306,13 +369,8 @@ class CatchUpPage(PageControls, Adw.Bin):
         if self._disposed or self._run is None:
             return
         hours = hours_between(self._run.end_at, oldest)
-        # Translators: shown while Catch Up reads the home timeline;
-        # "h" is hours, as in "8 h back"
-        self._scan_label(ngettext(
-            'Scanning timeline… %(count)d post evaluated (%(hours)d h back)',
-            'Scanning timeline… %(count)d posts evaluated '
-            '(%(hours)d h back)', evaluated)
-            % {'count': evaluated, 'hours': hours})
+        self.scan_title.set_label(_('Scanning timeline…'))
+        self._animate_evaluated(evaluated, hours)
 
     def _on_run_done(self, result):
         active, self._run = self._run, None

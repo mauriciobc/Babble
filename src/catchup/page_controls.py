@@ -50,9 +50,22 @@ class PageControls:
                       halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
         self.spinner = Adw.Spinner(width_request=48, height_request=48,
                                    halign=Gtk.Align.CENTER)
-        self.scan_label = Gtk.Label(label=_('Scanning timeline…'),
-                                    wrap=True, justify=Gtk.Justification.CENTER)
-        self.scan_label.add_css_class('title-3')
+
+        label_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
+                            halign=Gtk.Align.CENTER)
+        self.scan_title = Gtk.Label(label=_('Scanning timeline…'),
+                                    wrap=True,
+                                    justify=Gtk.Justification.CENTER)
+        self.scan_title.add_css_class('title-3')
+        self.scan_count = Gtk.Label(
+            label='', wrap=True, justify=Gtk.Justification.CENTER)
+        self.scan_hours = Gtk.Label(
+            label='', wrap=True, justify=Gtk.Justification.CENTER)
+        self.scan_hours.add_css_class('dimmed')
+        label_box.append(self.scan_title)
+        label_box.append(self.scan_count)
+        label_box.append(self.scan_hours)
+
         self.cancel_button = Gtk.Button(label=_('_Cancel'),
                                         use_underline=True,
                                         halign=Gtk.Align.CENTER)
@@ -60,7 +73,7 @@ class PageControls:
         pages.connect_weak(self.cancel_button, 'clicked',
                            self._on_cancel_clicked)
         box.append(self.spinner)
-        box.append(self.scan_label)
+        box.append(label_box)
         box.append(self.cancel_button)
         return box
 
