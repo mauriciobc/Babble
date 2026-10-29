@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Unit tests for the Catch Up data layer (no display, no network).
 
-``catchupdigest`` imports nothing from GTK or ``gi``, so this runs anywhere
-Python does. It pins the Phanpy behaviour that was ported (categories, link
-grouping and trimming, boost deduplication, density, ``binByTime``), the
-fixed fetch stop rule, the trends merge and its fallbacks, and the tile
-allocation and dense packing of CATCH-UP.md section 6.
+``src.catchup.digest`` imports nothing from GTK or ``gi``, so this runs
+anywhere Python does. It pins the Phanpy behaviour that was ported
+(categories, link grouping and trimming, boost deduplication, density,
+``binByTime``), the fixed fetch stop rule, the trends merge and its fallbacks,
+and the tile allocation and dense packing of CATCH-UP.md section 6.
 """
 
 import datetime
@@ -13,13 +13,16 @@ import os
 import random
 import subprocess
 import sys
+import types
 import unittest
 
 srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import catchupdigest as cd  # noqa: E402
+from src.catchup import digest as _digest, digest_layout as _layout  # noqa: E402
+
+cd = types.SimpleNamespace(**{**vars(_digest), **vars(_layout)})
 
 BASE = datetime.datetime(2026, 10, 13, 12, 0, tzinfo=datetime.timezone.utc)
 
@@ -61,10 +64,11 @@ def filter_hit(action, title='f'):
 
 class ImportTest(unittest.TestCase):
     def test_no_gi(self):
+        source_root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(cd.__file__))))
         code = ('import sys; sys.path.insert(0, %r); '
-                'import catchupdigest; '
-                'sys.exit(1 if "gi" in sys.modules else 0)'
-                % os.path.dirname(os.path.abspath(cd.__file__)))
+                'from src.catchup import digest, digest_layout; '
+                'sys.exit(1 if "gi" in sys.modules else 0)' % source_root)
         self.assertEqual(subprocess.run([sys.executable, '-c', code]
                                         ).returncode, 0)
 

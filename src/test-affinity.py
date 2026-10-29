@@ -39,7 +39,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from src import affinity as af  # noqa: E402
-from src import catchuprank as cr  # noqa: E402
+import src.catchup.rank_model as cr  # noqa: E402
 
 # Date.parse('2026-01-01T00:00:00Z') in the TypeScript goldens.
 NOW = 1_767_225_600_000

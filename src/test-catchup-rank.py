@@ -25,7 +25,12 @@ srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import catchuprank as cr  # noqa: E402
+from src.catchup import rank as _rank  # noqa: E402
+from src.catchup import rank_model as _model  # noqa: E402
+from src.catchup import rank_text as _text  # noqa: E402
+
+cr = types.SimpleNamespace(**{
+    **vars(_text), **vars(_model), **vars(_rank)})
 
 NOW = datetime.datetime(2026, 8, 16, 12, 0, 0, tzinfo=datetime.timezone.utc)
 HOUR = 3_600_000

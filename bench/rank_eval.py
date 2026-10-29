@@ -66,8 +66,8 @@ and left out of every count. For each judged day it builds the feed the
 reader had at T -- posts created in [T - 24 h, T), not engaged by then,
 their counters from the last observation at or before T -- labels the
 posts first seen engaged in (T, T + 24 h], and compares five orderings of
-the same feed: chronological, `catchuprank.rank()` without and with
-affinity, engagement-only, and affinity-then-chronological. It prints
+the same feed: chronological, Catch Up's ranker without and with affinity,
+engagement-only, and affinity-then-chronological. It prints
 recall@20, recall@50, distinct authors, small-account share and overlap
 per ordering, then the four gate verdicts and the H1 record. With
 ``--json`` it writes the same numbers, and no post, id or handle, to a
@@ -102,7 +102,7 @@ raises, so a run that reached for the real client fails here: patching
 Python's sockets.
 
 `bench` reproduces the cost figure in `Docs/timeline-algorithm.md` §6.1:
-`catchuprank.rank()` on 400 and on 800 synthetic posts, three runs each,
+`src.catchup.rank.rank()` on 400 and on 800 synthetic posts, three runs each,
 every run printed.
 """
 
@@ -124,7 +124,6 @@ import sys
 import tempfile
 import time
 import urllib.parse
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 # `python3 -I` drops the environment and BABBLE_SRCDIR (src/meson.build:148)
@@ -132,7 +131,9 @@ ROOT = os.path.dirname(HERE)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from src import affinity, catchuprank, mastodon  # noqa: E402
+from src import affinity, mastodon  # noqa: E402
+import src.catchup.rank as _rank  # noqa: E402
+import src.catchup.rank_model as _rank_model  # noqa: E402
 
 from gi.repository import GLib  # noqa: E402
 
@@ -313,8 +314,8 @@ def call(client, path, params=None):
     The client answers on the main loop, so a `GLib.MainLoop` runs until
     the callback fires, and the first two items of `request_finish_paged`'s
     three are what the caller reads. List parameters go as
-    ``{'id[]': [...]}`` (catchup.py:699's form); ``urlencode(doseq=True)``
-    in the client expands them.
+    ``{'id[]': [...]}`` (the form used by Catch Up's pipeline);
+    ``urlencode(doseq=True)`` in the client expands them.
     """
     loop = GLib.MainLoop()
     answer = {}
@@ -1239,7 +1240,7 @@ def stored_maps(connection):
     """The viewer, the accounts they follow, and their mutuals.
 
     A mutual is an author the relationships say follows the viewer, the
-    set Catch Up passes as ``mutual_author_ids`` (catchuprank.py:985-991).
+    set Catch Up passes as ``mutual_author_ids`` (`rank_model.py`).
     """
     row = connection.execute(
         "SELECT value FROM meta WHERE key = 'viewer_id'").fetchone()
@@ -1413,17 +1414,17 @@ def orderings_at(candidates, moment, resolver, signals, mutuals, following):
     compared as orderings, never as numbers. ``in_network`` is false only
     for a non-boost whose author the viewer does not follow.
     """
-    wrapped = [catchuprank.candidate_from_status(
+    wrapped = [_rank_model.candidate_from_status(
         status, in_network=(isinstance(status.get('reblog'), dict)
                             or author_id(status) in following))
         for status in candidates]
 
     def ranked_with(affinity_resolver):
-        context = catchuprank.RankingContext(
+        context = _rank_model.RankingContext(
             now=moment, mutual_author_ids=mutuals,
             affinity=affinity_resolver)
         return [candidate.status
-                for candidate in catchuprank.rank(wrapped, context)]
+                for candidate in _rank.rank(wrapped, context)]
 
     def descending(key):
         # Primary key, then newest, then id: a total order, so the same
@@ -1433,12 +1434,12 @@ def orderings_at(candidates, moment, resolver, signals, mutuals, following):
             reverse=True)
 
     def by_signal(status):
-        return catchuprank.affinity_signal(signals.author_affinity,
+        return _rank_model.affinity_signal(signals.author_affinity,
                                            author_id(status))
 
     return {
         'chrono': descending(lambda status: 0),
-        'rank_null': ranked_with(catchuprank.NULL_AFFINITY),
+        'rank_null': ranked_with(_rank_model.NULL_AFFINITY),
         'rank_affinity': ranked_with(resolver),
         'engagement': descending(engagement_of),
         'affinity_chrono': descending(by_signal),
@@ -3783,8 +3784,8 @@ def check_world(checks, work, gates_path):
     checks.equal('affinity_chrono and rank_affinity read the same author'
                  ' signal, for every author',
                  {author: resolver.author(author) for author in strangers},
-                 {author: catchuprank.affinity_signal(
-                     signals.author_affinity, author) for author in strangers})
+                 {_author: _rank_model.affinity_signal(
+                     signals.author_affinity, _author) for _author in strangers})
 
     # The one candidate whose counters move without anyone engaging it.
     popular = 'filler-%d-0' % (moment.date() - WORLD_START.date()).days
@@ -4055,17 +4056,17 @@ def bench_posts(count, seed=20261021):
 
 
 def bench(out=None):
-    """Time `catchuprank.rank()` on 400 and 800 synthetic posts, three
+    """Time `src.catchup.rank.rank()` on 400 and 800 synthetic posts, three
     runs each, printing every run. §6.1 records the figure this
     reproduces; medians would hide the first-call warm-up it names."""
     out = out or sys.stdout
-    context = catchuprank.RankingContext(now=BENCH_NOW)
+    context = _rank_model.RankingContext(now=BENCH_NOW)
     for count in (400, 800):
-        candidates = [catchuprank.candidate_from_status(status)
+        candidates = [_rank_model.candidate_from_status(status)
                       for status in bench_posts(count)]
         for attempt in range(1, BENCH_RUNS + 1):
             started = time.perf_counter()
-            catchuprank.rank(candidates, context)
+            _rank.rank(candidates, context)
             elapsed = (time.perf_counter() - started) * 1000
             print('%d posts, run %d: %.1f ms' % (count, attempt, elapsed),
                   file=out)
@@ -4185,7 +4186,7 @@ def build_parser():
         help='check the harness against a synthetic world (no network)')
     commands.add_parser(
         'bench',
-        help='time catchuprank.rank() on synthetic posts')
+        help='time src.catchup.rank.rank() on synthetic posts')
     return parser
 
 

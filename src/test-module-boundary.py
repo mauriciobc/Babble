@@ -10,10 +10,9 @@ behaviour, so nothing else in the tree would notice it being broken; an
 import added for convenience would fail only in review, or not at all.
 
 The checker reads sources with `ast`, as `ui strings` does, so an import
-inside a function counts (`catchup.compute()` imports its ranker lazily).
-It is a function rather than the script body so the self-checks below can
-feed it synthetic sources; without them the test would pass vacuously
-until the first new module exists.
+inside a function counts (`pipeline.compute()` imports its ranker lazily).
+It is a function rather than the script body so the self-checks can feed it
+synthetic sources; each self-check requires an exact violation.
 """
 
 import ast
@@ -24,10 +23,13 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(srcdir)
 
-# The modules the boundary is drawn around, by file stem.
+# Catch Up's own modules are package submodules; the source parser records
+# their first module under `src` for each supported import form.
 CATCHUP = frozenset({
-    'catchup', 'catchupdigest', 'catchupgrid', 'catchupstore',
-    'catchuprank'})
+    'catchup', 'page', 'page_controls', 'pipeline', 'rows', 'store', 'digest',
+    'digest_layout', 'rank', 'rank_text', 'rank_model', 'tiles',
+    'tiles_render', 'geometry'})
+RANK = frozenset({'rank', 'rank_text', 'rank_model'})
 NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage'})
 
 # The harness lives outside src/ and does not exist yet; it is read only
@@ -47,8 +49,9 @@ def stem(path):
     return os.path.basename(path)[:-len('.py')]
 
 
-def is_catchup_importer(name):
-    return name in CATCHUP or name.startswith('test-catchup')
+def is_catchup_importer(path):
+    return path.startswith('src/catchup/') or stem(path) in CATCHUP \
+        or stem(path).startswith('test-catchup')
 
 
 def is_new_importer(name):
@@ -60,10 +63,9 @@ def is_new_importer(name):
 def source_imports(tree):
     """(module in src, line) for every src module a syntax tree imports.
 
-    The spec's five forms all name a module the same way: the first
-    component under `src`. `import src.x`, `from src import x`,
-    `from src.x import y`, `from . import x` and `from .x import y` all
-    yield `x`.
+    The known import forms all yield the first owned module under `src`.
+    For the `src.catchup.rank_*` package, that means the rank module rather
+    than the package root.
     """
     found = []
     for node in ast.walk(tree):
@@ -71,7 +73,9 @@ def source_imports(tree):
             for alias in node.names:
                 parts = alias.name.split('.')
                 if len(parts) > 1 and parts[0] == 'src':
-                    found.append((parts[1], node.lineno))
+                    module = (parts[2] if len(parts) > 2
+                              and parts[1] == 'catchup' else parts[1])
+                    found.append((module, node.lineno))
         elif isinstance(node, ast.ImportFrom):
             if node.level:
                 if node.module:
@@ -79,11 +83,16 @@ def source_imports(tree):
                 else:
                     for alias in node.names:
                         found.append((alias.name.split('.')[0], node.lineno))
-            elif node.module == 'src':
+            elif node.module == 'src.catchup':
                 for alias in node.names:
-                    found.append((alias.name.split('.')[0], node.lineno))
+                    imported = alias.name.split('.')[0]
+                    found.append((imported if imported in CATCHUP
+                                  else 'catchup', node.lineno))
             elif node.module and node.module.startswith('src.'):
-                found.append((node.module.split('.')[1], node.lineno))
+                parts = node.module.split('.')
+                module = (parts[2] if len(parts) > 2
+                          and parts[1] == 'catchup' else parts[1])
+                found.append((module, node.lineno))
     return found
 
 
@@ -107,7 +116,7 @@ def all_imports(tree):
 def violations(sources: dict[str, str]) -> list[str]:
     """Every boundary violation in *sources*, as `RULE file:line detail`.
 
-    *sources* maps a display path (`src/catchup.py`) to its source text,
+    *sources* maps a display path (`src/catchup/page.py`) to its source text,
     so the self-checks can hand in a scratch copy without touching the
     tree.
     """
@@ -122,15 +131,20 @@ def violations(sources: dict[str, str]) -> list[str]:
             continue
         for module, line in source_imports(tree):
             if (is_new_importer(importer) and module in CATCHUP
-                    and module != 'catchuprank'):
+                    and module not in RANK):
                 found.append('R1: %s:%d imports %s'
                              % (path, line, module))
-            if is_catchup_importer(importer) and module in NEW:
+            if is_catchup_importer(path) and module in NEW:
                 found.append('R2: %s:%d imports %s'
                              % (path, line, module))
-        if importer == 'catchuprank':
+        if path.startswith(('src/catchup/rank.py',
+                            'src/catchup/rank_text.py',
+                            'src/catchup/rank_model.py')):
             for name, line, relative in all_imports(tree):
                 if relative:
+                    if (path.startswith('src/catchup/rank')
+                            and name in ('rank_text', 'rank_model')):
+                        continue
                     found.append('R3: %s:%d has a relative import'
                                  % (path, line))
                 elif name.split('.')[0] not in sys.stdlib_module_names:
@@ -177,30 +191,33 @@ def self_check(label, sources, expected):
 
 # --- The checker itself, before it judges the tree ----------------------
 #
-# The new modules do not exist yet, so a checker that never matched
-# anything would pass. Each rule is shown a source that violates it, and
-# the expected report names the file and the line.
+# Each rule gets synthetic source that violates it, so a broken matcher
+# cannot pass merely because the current tree happens to respect the rule.
 
 self_check('R1 catches a new module importing Catch Up',
-           {'src/affinity.py': 'from . import catchupdigest\n'},
-           'R1: src/affinity.py:1 imports catchupdigest')
+           {'src/affinity.py': 'from src.catchup import store\n'},
+           'R1: src/affinity.py:1 imports store')
 self_check('R2 catches a Catch Up module importing a new module',
-           {'src/catchup.py': 'def load():\n    from . import rankedfeed\n'},
-           'R2: src/catchup.py:2 imports rankedfeed')
+           {'src/catchup/tiles.py': 'def load():\n    from . import rankedfeed\n'},
+           'R2: src/catchup/tiles.py:2 imports rankedfeed')
 self_check('R3 catches an import outside the standard library',
-           {'src/catchuprank.py': 'import requests\n'},
-           'R3: src/catchuprank.py:1 imports requests')
+           {'src/catchup/rank_model.py': 'import requests\n'},
+           'R3: src/catchup/rank_model.py:1 imports requests')
 self_check('R3 catches a relative import',
-           {'src/catchuprank.py': 'from . import i18n\n'},
-           'R3: src/catchuprank.py:1 has a relative import')
+           {'src/catchup/rank_model.py': 'from . import i18n\n'},
+           'R3: src/catchup/rank_model.py:1 has a relative import')
 self_check('R4 catches the harness opening its own HTTP path',
            {'bench/rank_eval.py': 'import http.client\n'},
            'R4: bench/rank_eval.py:1 imports http.client')
 self_check('R4 catches the harness importing a request library',
            {'bench/rank_eval.py': 'import requests\n'},
            'R4: bench/rank_eval.py:1 imports requests')
-check('the checker accepts the ranker import R1 allows',
-      not violations({'src/affinity.py': 'from . import catchuprank\n'}))
+check('the checker accepts an explicit rank module import R1 allows',
+      not violations({
+          'src/affinity.py': 'import src.catchup.rank_model as rank_model\n'}))
+check('the checker accepts a package-form rank import R1 allows',
+      not violations({
+          'src/affinity.py': 'from src.catchup import rank_model\n'}))
 check('the checker accepts the harness reaching the server through the'
       ' client',
       not violations({'bench/rank_eval.py': 'from src import mastodon\n'
@@ -210,11 +227,14 @@ check('the checker accepts the harness reaching the server through the'
 def tree_sources():
     """The sources under the rules, keyed by the path shown in reports."""
     sources = {}
-    for name in sorted(os.listdir(srcdir)):
-        if not name.endswith('.py'):
-            continue
-        with open(os.path.join(srcdir, name), encoding='utf-8') as module:
-            sources['src/' + name] = module.read()
+    for directory, _dirs, names in os.walk(srcdir):
+        for name in sorted(names):
+            if not name.endswith('.py'):
+                continue
+            absolute = os.path.join(directory, name)
+            relative = os.path.relpath(absolute, root)
+            with open(absolute, encoding='utf-8') as module:
+                sources[relative] = module.read()
     for name in BENCH:
         path = os.path.join(root, 'bench', name)
         if os.path.exists(path):
@@ -232,9 +252,9 @@ for line in unparsable:
 check('every source parses (%d unparsable)' % len(unparsable), not unparsable)
 
 RULES = (
-    ('R1', 'a new module imports nothing from Catch Up but catchuprank'),
+    ('R1', 'new modules import only Catch Up rank modules'),
     ('R2', 'Catch Up imports no new module'),
-    ('R3', 'catchuprank imports only the standard library'),
+    ('R3', 'rank modules import only the standard library and siblings'),
     ('R4', 'the harness reaches the server through src/mastodon.py'),
 )
 for rule, label in RULES:

@@ -507,8 +507,8 @@ class MediaBox(Gtk.Box):
             picture = status_picture(
                 -1, tile_height, alternative_text=caption, fit=fit,
                 kind=BlurredPicture if blur else Gtk.Picture, hexpand=True)
-            # Focusable like catchupgrid._Tile: a bare Overlay with only
-            # GestureClick is unreachable from the keyboard.
+            # Focusable like Catch Up's tile in tiles_render.py: a bare
+            # Overlay with only GestureClick is unreachable from the keyboard.
             overlay = Gtk.Overlay(
                 focusable=True,
                 accessible_role=Gtk.AccessibleRole.BUTTON)

@@ -7,8 +7,12 @@ src/accounts.py
 src/admin.py
 src/announcements.py
 src/auth.py
-src/catchup.py
-src/catchupgrid.py
+src/catchup/page.py
+src/catchup/page_controls.py
+src/catchup/pipeline.py
+src/catchup/rows.py
+src/catchup/tiles.py
+src/catchup/tiles_render.py
 src/clipboard.py
 src/compose.py
 src/composeupload.py

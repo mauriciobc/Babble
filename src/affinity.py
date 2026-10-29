@@ -59,7 +59,8 @@ Portions derived from Elk (https://github.com/elk-zone/elk), MIT License:
 import dataclasses
 from dataclasses import dataclass
 
-from . import catchuprank
+import src.catchup.rank_model as _rank_model
+import src.catchup.rank_text as _rank_text
 
 # Elk's ENGAGEMENT_KINDS, restricted to the kinds the bootstrap produces.
 KINDS = ('favourite', 'reblog', 'reply', 'quote', 'bookmark')
@@ -331,7 +332,7 @@ def _at_ms(status):
     """
     if not isinstance(status, dict):
         return 0
-    return catchuprank.parse_timestamp_ms(status.get('created_at')) or 0
+    return _rank_text.parse_timestamp_ms(status.get('created_at')) or 0
 
 
 def _is_mutual(status, mutual_ids):
@@ -398,10 +399,10 @@ def bootstrap_engaged(favourites, bookmarks, own_statuses,
             for kind in KINDS}
 
 
-# ForYouSignals in types.ts, as catchuprank models it.
+# ForYouSignals in types.ts, represented by the rank model.
 def to_ranking_signals(affinities, not_interested_ids=(),
-                       muted_ids=()) -> catchuprank.ForYouSignals:
-    return catchuprank.ForYouSignals(
+                       muted_ids=()) -> _rank_model.ForYouSignals:
+    return _rank_model.ForYouSignals(
         author_affinity=dict(affinities.author),
         tag_affinity=dict(affinities.tag),
         language_affinity=dict(affinities.language),
@@ -430,13 +431,12 @@ def author_penalty_in(dismissed, muted_ids, author_id, now_ms) -> float:
 
 
 # ranking.ts:430-437 wires the penalty through the resolver's
-# ``author_penalty``; AffinityResolver is a plain dataclass of callables, so
-# nothing in catchuprank changes.
+# ``author_penalty``; AffinityResolver is a plain dataclass of callables.
 def resolver(affinities, not_interested_ids, dismissed, muted_ids,
-             now_ms) -> catchuprank.AffinityResolver:
+             now_ms) -> _rank_model.AffinityResolver:
     signals = to_ranking_signals(affinities, not_interested_ids, muted_ids)
     return dataclasses.replace(
-        catchuprank.signals_affinity_resolver(signals),
+        _rank_model.signals_affinity_resolver(signals),
         author_penalty=lambda i: author_penalty_in(
             dismissed, muted_ids, i, now_ms),
     )

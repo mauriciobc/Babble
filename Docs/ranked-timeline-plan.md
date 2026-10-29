@@ -9,6 +9,13 @@ maintainer deciding at the marked human checkpoints. A task here is meant to
 be handed to an agent as it stands: it names what to read, which files it
 may touch, what to build, how to prove it works, and when to stop and ask.
 
+**Current source-layout note (2026-10-21):** This plan predates the Catch Up
+package cutover. Its old flat-module paths and “never edit Catch Up” exclusions
+refer to the layout at the time the ranked-timeline tasks were written. The
+current package layout and ownership boundaries are in `CATCH-UP.md` and
+`timeline-algorithm.md` §5.0; do not apply those historical exclusions to the
+current package split.
+
 ## Progress
 
 | Slice | Status | Commits | Notes |

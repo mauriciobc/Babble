@@ -1,6 +1,6 @@
 # Catch Up — feature specification
 
-Status: phases 1 and 2 implemented (`catchup.py`, `catchupstore.py`, `catchupgrid.py`, `catchupdigest.py`, `catchuprank.py`); phase 3 (affinity, "Why is this here?") not started.
+Status: phases 1 and 2 implemented in the `src/catchup/` package; phase 3 (affinity, "Why is this here?") not started.
 
 Sources this spec ports from:
 
@@ -58,7 +58,7 @@ called.
 - A sidebar place, tag `catch-up`, titled "Catch Up", in group 0 right after
   Home. Wire it the way the other places are wired: an entry in `PLACES` and
   `place_title()` (`src/window.py`), and a branch in `_build_place()` that
-  lazily imports `CatchUpPage` from `src/catchup.py`.
+  lazily imports `CatchUpPage` from `src/catchup/page.py`.
 - New GSettings key `hide-catch-up` (b, default `false`), added to `HIDE_KEYS`
   and to Preferences next to `hide-trending`.
 - New symbolic icon `babble-catch-up-symbolic` in the gresource bundle.
@@ -467,7 +467,7 @@ gap: 12px;
 ```
 
 *GTK*: GTK CSS has no grid layout, so this is a custom `BentoGrid(Gtk.Widget)`
-in `src/catchup.py`:
+in `src/catchup/tiles.py`:
 
 - `columns = max(1, (width + 12) // (180 + 12))`, column width
   `(width − 12·(columns − 1)) / columns`.
@@ -704,8 +704,9 @@ leaves holes. Pack like `grid-auto-flow: row dense`:
 - Interleave within each page: hero first, then news and hashtag tiles at the
   first free positions after it, then the remaining posts.
 
-Packing is a pure function of (tiles, columns), in `catchupdigest.py`, so it
-is unit-tested and recomputed cheaply on resize.
+Packing is a pure function of (tiles, columns), in
+`src/catchup/digest_layout.py`, so it is unit-tested and recomputed cheaply
+on resize.
 
 ---
 
@@ -786,9 +787,9 @@ Phanpy's snapshots.
 
 | Module | Contents | Display needed |
 |---|---|---|
-| `src/catchuprank.py` | §4: features, heads, weights, `offset_score`, adjustments, conversation dedupe, diversity rerank, affinity resolver | No: no GTK imports |
-| `src/catchupdigest.py` | §3.2–§3.4 and §6: categories, boost dedupe, links, hashtags, density, time buckets, tiers, budgets, packing | No: no GTK imports |
-| `src/catchup.py` | `CatchUpPage`, the fetch loop, snapshot I/O, `BentoGrid`, tile widgets, `CatchUpRow`, posts bar | Yes |
+| `src/catchup/rank.py`, `rank_model.py`, `rank_text.py` | §4: weighted score and diversity pipeline; feature model and affinity context; JavaScript text parity, Unicode tokenization and embeddings | No: no GTK imports |
+| `src/catchup/digest.py`, `digest_layout.py` | §3.2–§3.4 and §6: categories, boost dedupe, links, hashtags, density, time buckets, tiers, budgets and packing | No: no GTK imports |
+| `src/catchup/page.py`, `page_controls.py`, `pipeline.py`, `rows.py`, `store.py`, `tiles.py`, `tiles_render.py`, `geometry.py` | Page and controls, fetch/pipeline, snapshots, post rows, grid layout, tile rendering and geometry | Yes |
 
 Each new module goes in the `install_data` list in `src/meson.build`.
 
@@ -866,9 +867,10 @@ copying them:
 
 1. **Phanpy port**: place, period menu and first-run page, fetch loop, snapshots, categories,
    author chips, posts bar, All posts list with Phanpy's sorts.
-2. **Highlights**: `catchuprank.py` with no affinity (§4.8 phase 1),
-   `catchupdigest.py`, `BentoGrid`, the five tile types (news and hashtag
-   tiles on the shared Explore helpers), Relevance sort in the list.
+2. **Highlights**: the `src/catchup/rank*` modules with no affinity (§4.8 phase 1),
+   `digest.py` and `digest_layout.py`, `tiles.py`, `tiles_render.py` and
+   `geometry.py`, the five tile types (news and hashtag tiles on the shared
+   Explore helpers), Relevance sort in the list.
 3. **Affinity and explanations**: server-bootstrapped affinity (§4.8 phase 2),
    and the "Why is this here?" popover from the score's `reasons`.
 

@@ -66,17 +66,6 @@ EXCEPTIONS = {
     'mediaviewer.py': 'the picture viewer: zoom and pan geometry, '
                       'video and audio playback, drag sources and temp '
                       'file pruning. One widget, one concern.',
-    'catchup.py': 'Catch Up is a feature port (CATCH-UP.md), and its '
-                  'page is one piece of work at a time. CatchUpPage '
-                  'is large for the same reason the port is kept intact: '
-                  'it is meant to stay legible as a port.',
-    'catchuprank.py': 'a faithful port of Elk\'s ranker, kept legible '
-                      'as a port. Its golden scores are generated from '
-                      'the original TypeScript, so refactoring it for '
-                      'Babble idiom would break the diff that makes it '
-                      'trustworthy (see D-02, SKIP-06).',
-    'catchupgrid.py': 'part of the Catch Up port; see catchup.py.',
-    'catchupdigest.py': 'part of the Catch Up port; see catchup.py.',
     'fedicollections.py': 'Collections (Mastodon 4.6+): page, CRUD and '
                           'membership.',
     'mastodon.py': 'the API client: OAuth, the keyring, the transport, '
@@ -123,12 +112,14 @@ for name, reason in EXCEPTIONS.items():
 # every module has to be in one of them or under the limit. Before this,
 # nine modules were over the limit and unlisted: the test passed, and a
 # God class could reappear in any of them unnoticed.
-modules = sorted(name for name in os.listdir(srcdir)
-                 if name.endswith('.py') and not name.startswith('test-'))
+modules = sorted(
+    os.path.relpath(os.path.join(root, filename), srcdir)
+    for root, _dirs, files in os.walk(srcdir)
+    for filename in files
+    if filename.endswith('.py') and not filename.startswith('test-'))
 undeclared = []
 for name in modules:
-    lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count(
-        '\n')
+    lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count('\n')
     if lines > LIMIT and name not in EXCEPTIONS:
         undeclared.append((name, lines))
 
@@ -147,7 +138,7 @@ check('every module over the limit declares why (%d undeclared)'
 build_path = os.path.join(srcdir, 'meson.build')
 with open(build_path, encoding='utf-8') as build_file:
     build_source = build_file.read()
-installed = set(re.findall(r"'([a-z0-9_]+\.py)'", build_source))
+installed = set(re.findall(r"'([a-z0-9_/]+\.py)'", build_source))
 missing = sorted(name for name in modules
                  if name not in installed and name != '__init__.py')
 for name in missing:
@@ -182,7 +173,7 @@ translates = re.compile(r'(?<![A-Za-z0-9_.])_\(|\bngettext\(')
 # i18n.py defines the gettext helpers; it has no strings of its own.
 unlisted = []
 for name in modules:
-    if name in ('__init__.py', 'i18n.py'):
+    if os.path.basename(name) in ('__init__.py', 'i18n.py'):
         continue
     with open(os.path.join(srcdir, name), encoding='utf-8') as module:
         if translates.search(module.read()) \

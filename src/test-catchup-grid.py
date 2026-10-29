@@ -9,6 +9,7 @@ import gc
 import locale
 import os
 import sys
+import types
 
 # No accessibility bus in a test run; GTK would warn about it.
 os.environ.setdefault('GTK_A11Y', 'none')
@@ -29,10 +30,16 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import catchupdigest as cd  # noqa: E402
-from src import (catchupgrid, explore, hashtags, mediacache, mediabox,  # noqa: E402
-                  pages, statusactions, statusmenu, timelinedata)
-from src.catchup import Digest  # noqa: E402
+from src.catchup import digest_layout as cd  # noqa: E402
+from src.catchup import geometry, tiles as _tiles  # noqa: E402
+from src.catchup import tiles_render as _tiles_render  # noqa: E402
+from src import (explore, hashtags, mediacache, mediabox, pages,  # noqa: E402
+                 statusactions, statusmenu, statustext, timelinedata)
+from src.catchup.pipeline import Digest  # noqa: E402
+
+catchupgrid = types.SimpleNamespace(**{
+    **vars(geometry), **vars(_tiles), **vars(_tiles_render),
+    'statustext': statustext})
 
 failures = []
 

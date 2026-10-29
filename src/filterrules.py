@@ -4,13 +4,13 @@
 
 Two places have to answer that and they must not disagree: the timeline
 row that draws the "Filtered:" bar (``timeline.status_filter``) and Catch
-Up, which drops a ``hide`` post outright (``catchupdigest.filter_info``).
+Up, which drops a ``hide`` post outright (``catchup.digest.filter_info``).
 Before this module they were two copies, and they had drifted -- the
 timeline read neither ``Filter#context`` nor ``Filter#expires_at``, so a
 rule scoped to another view still collapsed a post in the home timeline
 while Catch Up honoured it. The answer now lives here once.
 
-Deliberately free of ``gi``. ``catchupdigest`` imports it and has to stay
+Deliberately free of ``gi``. ``catchup.digest`` imports it and has to stay
 importable without a display -- ``test-catchup-digest.py`` asserts ``gi``
 never enters ``sys.modules`` -- and ``timeline.py`` imports it from the GTK
 side. Nothing here builds a widget; this is what the API says a rule

@@ -557,7 +557,8 @@ import datetime  # noqa: E402
 import shutil  # noqa: E402
 import tempfile  # noqa: E402
 
-from src import catchup, catchupstore  # noqa: E402
+from src.catchup import store as catchupstore  # noqa: E402
+from src.catchup import CatchUpPage, pipeline as catchup  # noqa: E402
 
 _cu_dir = tempfile.mkdtemp(prefix='babble-catchup-mem-')
 catchupstore.set_root(_cu_dir)
@@ -582,7 +583,7 @@ class _CatchUpClient(_Client):
         return False
 
 
-cu = [catchup.CatchUpPage(_CatchUpClient(), account={
+cu = [CatchUpPage(_CatchUpClient(), account={
     'id': '1', 'instance': 'https://m.example'})]
 box.append(cu[0])
 settle(lambda: cu[0].state == 'results')

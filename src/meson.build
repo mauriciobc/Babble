@@ -33,11 +33,6 @@ install_data(
   'affinity.py',
   'announcements.py',
   'auth.py',
-  'catchup.py',
-  'catchupdigest.py',
-  'catchupgrid.py',
-  'catchuprank.py',
-  'catchupstore.py',
   'charts.py',
   'capabilities.py',
   'compose.py',
@@ -102,6 +97,23 @@ install_data(
   'window.py',
   'wrapped.py',
   install_dir: moduledir,
+)
+install_data(
+  'catchup/__init__.py',
+  'catchup/page.py',
+  'catchup/page_controls.py',
+  'catchup/pipeline.py',
+  'catchup/rows.py',
+  'catchup/digest.py',
+  'catchup/digest_layout.py',
+  'catchup/store.py',
+  'catchup/rank.py',
+  'catchup/rank_model.py',
+  'catchup/rank_text.py',
+  'catchup/tiles.py',
+  'catchup/tiles_render.py',
+  'catchup/geometry.py',
+  install_dir: moduledir / 'catchup',
 )
 
 # One environment for every test. GTK_A11Y=none is what stops a missing
