@@ -3092,6 +3092,20 @@ class TestEmbedding(Base):
             h = (h ^ unit) * 0x01000193 & 0xFFFFFFFF
         self.assertEqual(cr._hash_string('\U0001F600', 0x811C9DC5), h)
 
+    def test_the_hash_cache_changes_nothing_and_stays_bounded(self):
+        # Keys repeat across a pool, so _hash_string is cached; the cache
+        # must return exactly what the plain function does, for a lone
+        # surrogate as well, and must not grow without limit.
+        plain = cr._hash_string.__wrapped__
+        seeds = (0x811C9DC5, 0x9E3779B1)
+        keys = ('l:en', 'a:109', 't:wörld', '\U0001F600', '\ud83d', '')
+        for _round in range(2):
+            for key in keys:
+                for seed in seeds:
+                    self.assertEqual(cr._hash_string(key, seed),
+                                     plain(key, seed))
+        self.assertIsNotNone(cr._hash_string.cache_info().maxsize)
+
     def test_extracts_the_signals_of_the_original_post(self):
         features = cr.extract_candidate_features(div_status(
             '1', 'alice', 'Hello wörld \U0001F600', tags=['Foo', 'bar'],

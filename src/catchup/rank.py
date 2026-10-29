@@ -682,6 +682,9 @@ def diversity_rerank(candidates, *, penalty='dpp', theta=None, lambda_=None,
 
     limit = max(0, min(m, DEFAULT_DIVERSITY_LIMIT if limit is None
                        else limit))
+    # (index, value) pairs in each vector's own order: the dot product below
+    # adds in that order, and so must any faster form of it.
+    pairs = [list(zip(v.indices, v.values, strict=True)) for v in vectors]
     taken = [False] * m
     penalties = [0.0] * m
     placed = []
@@ -713,17 +716,15 @@ def diversity_rerank(candidates, *, penalty='dpp', theta=None, lambda_=None,
         # Fold the freshly placed vector into every remaining candidate's
         # running penalty. The embeddings are unit-norm, so the dot
         # product is the cosine.
-        chosen = vectors[best]
-        if len(chosen.indices) > 0:
-            scratch = dict(zip(chosen.indices, chosen.values,
-                               strict=True))
+        chosen = pairs[best]
+        if chosen:
+            scratch_get = dict(chosen).get
             for p in range(m):
                 if taken[p]:
                     continue
                 dot = 0
-                for index, value in zip(vectors[p].indices,
-                                        vectors[p].values, strict=True):
-                    s = scratch.get(index)
+                for index, value in pairs[p]:
+                    s = scratch_get(index)
                     if s is not None:
                         dot += s * value
 

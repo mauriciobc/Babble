@@ -467,7 +467,10 @@ _HASH_SEED_SIGN = 0x9E3779B1
 
 
 # hashString in diversity.ts: FNV-1a, 32-bit, over UTF-16 code units (what
-# charCodeAt yields), so the buckets match Elk's.
+# charCodeAt yields), so the buckets match Elk's. A pure function, and the
+# keys repeat across a pool ('l:en', a shared author, common words, link
+# hosts), so a bounded cache pays for itself inside one catch-up.
+@functools.lru_cache(maxsize=16384)
 def _hash_string(value, seed):
     h = seed & 0xFFFFFFFF
     raw = value.encode('utf-16-le', 'surrogatepass')
