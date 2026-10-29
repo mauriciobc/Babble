@@ -383,6 +383,12 @@ test('catchup imports', python,
   env: test_env,
   timeout: 60,
 )
+# Needs no display: the prewarm test runs in a fresh interpreter.
+test('catchup prewarm', python,
+  args: [files('test-catchup-prewarm.py')],
+  env: test_env,
+  timeout: 60,
+)
 # Needs no display: the Catch Up data layer imports no gi at all.
 test('catchup digest', python,
   args: [files('test-catchup-digest.py')],

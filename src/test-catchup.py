@@ -500,6 +500,24 @@ shutil.rmtree(CACHE, ignore_errors=True)
 os.makedirs(CACHE)
 catchupstore.set_root(os.path.join(CACHE, 'catch-up'))
 
+# Opening the page pre-warms the ranker's tokenizer patterns on a worker
+# thread (rank_text.prewarm), so the first ranking does not pay for them.
+import threading                                       # noqa: E402
+from src.catchup import rank_text                      # noqa: E402
+
+prewarm_calls = []
+prewarm_saved = rank_text.prewarm
+rank_text.prewarm = lambda: prewarm_calls.append(
+    threading.current_thread() is threading.main_thread())
+try:
+    probe_page, probe_host = make_page(FakeClient())
+    settle(lambda p=probe_page: prewarm_calls and p.state != 'loading')
+finally:
+    rank_text.prewarm = prewarm_saved
+check('opening the page pre-warms the patterns once, off the main thread',
+      prewarm_calls == [False])
+del probe_page, probe_host
+
 client = FakeClient()
 page, host = make_page(client)
 settle(lambda: page.state != 'loading')
