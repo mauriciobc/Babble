@@ -33,9 +33,9 @@ from .geometry import (
     segments_text, span_cover, split_headline,
 )
 from .tiles import (
-    _AvatarStack, _FitText, _build_actions, _build_menu_button, _first_icon,
-    _icon, _label, _pill, _trending_pill,
-)
+    _AvatarStack, _FitText, _first_icon, _icon, _label, _pill,
+    _trending_pill)
+from .. import tileactions
 
 
 def _markup(text):
@@ -345,8 +345,10 @@ class PostTile(_Tile):
         box.append(names)
         if self.trending and not on_image:
             box.append(_trending_pill(self.placed.colspan == 1))
-        menu = _build_menu_button(self.item, actions, on_image,
-                                  self.context.client)
+        classes = ('osd', 'circular') if on_image else ('flat', 'circular')
+        menu = tileactions.tile_menu_button(
+            self.item, self.context.client, actions=actions,
+            button_classes=classes)
         if menu is not None:
             connect_weak(menu, 'refresh', self._on_menu_refresh)
             connect_weak(menu, 'deleted', self._on_menu_deleted)
@@ -460,7 +462,10 @@ class PostTile(_Tile):
         boost = self._boost_line()
         if boost is not None:
             block.append(boost)
-        actions = _build_actions(self.item, True, self.context.client, hero)
+        action_classes = ('osd', 'pill') if hero else ('osd',)
+        actions = tileactions.tile_action_bar(
+            self.item, self.context.client, quote=False,
+            button_classes=action_classes, tinted=True, catchup_style=True)
         block.append(self._header(40 if hero else 32, True, actions))
         tall = placed.rowspan > 1
         for part in self._texts(2 if tall else 1, 6 if tall else 2):
@@ -486,7 +491,9 @@ class PostTile(_Tile):
         boost = self._boost_line()
         if boost is not None:
             box.append(boost)
-        actions = _build_actions(self.item, False, self.context.client)
+        actions = tileactions.tile_action_bar(
+            self.item, self.context.client, quote=False,
+            button_classes=('flat',), tinted=True, catchup_style=True)
         box.append(self._header(40 if hero else 32, False, actions))
         card = self.item.status.get('card')
         # A 1x1 cell is 160 px: header, card and action bar fill it, and

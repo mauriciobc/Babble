@@ -705,7 +705,8 @@ class SearchProvider:
     @staticmethod
     def _open_search(win, query):
         win.open_search()
-        page = getattr(win, '_place_children', {}).get('search')
+        page = getattr(getattr(win, 'navigation', None),
+                       'children', {}).get('search')
         if page is not None and query:
             page.set_query(query, submit=True)
 

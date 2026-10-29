@@ -1403,7 +1403,7 @@ def affinity_at(connection, moment, viewer, mutuals):
                                       int(moment.timestamp() * 1000))
 
 
-def orderings_at(candidates, moment, resolver, signals, mutuals, following):
+def orderings_at(candidates, moment, resolver, affinities, mutuals, following):
     """The five orderings of one day's candidates (plan item 5).
 
     ``chrono`` is Home's order. ``rank_null`` and ``rank_affinity`` are
@@ -1434,8 +1434,7 @@ def orderings_at(candidates, moment, resolver, signals, mutuals, following):
             reverse=True)
 
     def by_signal(status):
-        return _rank_model.affinity_signal(signals.author_affinity,
-                                           author_id(status))
+        return affinity.affinity_signal(affinities.author, author_id(status))
 
     return {
         'chrono': descending(lambda status: 0),
@@ -1688,12 +1687,11 @@ def evaluate(instance, gates_path=None, json_path=None, root=None, out=None,
             candidates = candidates_at(connection, moment)
             labels, near = labels_at(connection, moment, candidates)
             affinities = affinity_at(connection, moment, viewer, mutuals)
-            signals = affinity.to_ranking_signals(affinities)
             now_ms = int(moment.timestamp() * 1000)
             ranked = orderings_at(
                 candidates, moment,
-                affinity.resolver(affinities, (), (), (), now_ms),
-                signals, mutuals, following)
+                affinity.resolver(affinities, (), (), now_ms),
+                affinities, mutuals, following)
             small = small_authors(candidates)
             overlay = {str(status.get('id'))
                        for status in ranked['engagement'][:20]}
@@ -2401,12 +2399,11 @@ def day_orderings(connection, moment):
     viewer, following, mutuals = stored_maps(connection)
     affinities = affinity_at(connection, moment, viewer, mutuals)
     candidates = candidates_at(connection, moment)
-    signals = affinity.to_ranking_signals(affinities)
     ranked = orderings_at(
         candidates, moment,
-        affinity.resolver(affinities, (), (), (),
+        affinity.resolver(affinities, (), (),
                           int(moment.timestamp() * 1000)),
-        signals, mutuals, following)
+        affinities, mutuals, following)
     return affinities, candidates, ranked
 
 
@@ -3774,8 +3771,7 @@ def check_world(checks, work, gates_path):
             for order in ('DESC', 'ASC')}
     finally:
         connection.close()
-    signals = affinity.to_ranking_signals(affinities)
-    resolver = affinity.resolver(affinities, (), (), (),
+    resolver = affinity.resolver(affinities, (), (),
                                  int(moment.timestamp() * 1000))
     strangers = set(affinities.author) | {'an author with no affinity'}
     checks.check('the liked author has a positive affinity: %r'
@@ -3783,9 +3779,10 @@ def check_world(checks, work, gates_path):
                  affinities.author.get(LIKED_AUTHOR, 0) > 0)
     checks.equal('affinity_chrono and rank_affinity read the same author'
                  ' signal, for every author',
-                 {author: resolver.author(author) for author in strangers},
-                 {_author: _rank_model.affinity_signal(
-                     signals.author_affinity, _author) for _author in strangers})
+                 {author: resolver.author_affinity(author)
+                  for author in strangers},
+                 {_author: affinity.affinity_signal(
+                     affinities.author, _author) for _author in strangers})
 
     # The one candidate whose counters move without anyone engaging it.
     popular = 'filler-%d-0' % (moment.date() - WORLD_START.date()).days

@@ -56,11 +56,10 @@ Portions derived from Elk (https://github.com/elk-zone/elk), MIT License:
     SOFTWARE.
 """
 
-import dataclasses
+import datetime
+import math
 from dataclasses import dataclass
-
-import src.catchup.rank_model as _rank_model
-import src.catchup.rank_text as _rank_text
+from typing import Callable
 
 # Elk's ENGAGEMENT_KINDS, restricted to the kinds the bootstrap produces.
 KINDS = ('favourite', 'reblog', 'reply', 'quote', 'bookmark')
@@ -323,16 +322,22 @@ def _target_author_id(status):
 
 
 def _at_ms(status):
-    """A status's ``created_at`` in epoch milliseconds.
-
-    CATCH-UP.md section 4.8: the status's ``created_at`` is the timestamp
-    proxy for an engagement the server only knows happened at some point. A
-    stamp that does not parse becomes 0, which decays to nothing rather than
-    pretending to be fresh.
-    """
+    """A status's created_at in epoch milliseconds; malformed stamps are 0."""
     if not isinstance(status, dict):
         return 0
-    return _rank_text.parse_timestamp_ms(status.get('created_at')) or 0
+    value = status.get('created_at')
+    if not isinstance(value, str):
+        return 0
+    try:
+        moment = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return 0
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    delta = moment - epoch
+    return ((delta.days * 86400 + delta.seconds) * 1000
+            + delta.microseconds // 1000)
 
 
 def _is_mutual(status, mutual_ids):
@@ -399,17 +404,37 @@ def bootstrap_engaged(favourites, bookmarks, own_statuses,
             for kind in KINDS}
 
 
-# ForYouSignals in types.ts, represented by the rank model.
-def to_ranking_signals(affinities, not_interested_ids=(),
-                       muted_ids=()) -> _rank_model.ForYouSignals:
-    return _rank_model.ForYouSignals(
-        author_affinity=dict(affinities.author),
-        tag_affinity=dict(affinities.tag),
-        language_affinity=dict(affinities.language),
-        booster_affinity=dict(affinities.booster),
-        not_interested=list(not_interested_ids or ()),
-        muted_for_you=list(muted_ids or ()),
-    )
+def affinity_signal(values, key):
+    if not values or not key:
+        return 0.0
+    value = values.get(key)
+    if not value or not math.isfinite(value):
+        return 0.0
+    positive = value > 0
+    below = equal = total = 0
+    magnitude = abs(value)
+    for other in values.values():
+        if (not other or not math.isfinite(other)
+                or (other > 0) != positive):
+            continue
+        total += 1
+        if abs(other) < magnitude:
+            below += 1
+        elif abs(other) == magnitude:
+            equal += 1
+    if not total:
+        return 0.0
+    percentile = (below + equal / 2) / total
+    return percentile if positive else -percentile
+
+
+@dataclass(frozen=True)
+class _AffinityProvider:
+    author_affinity: Callable[[str], float]
+    tag_affinity: Callable[[str], float]
+    language_affinity: Callable[[str], float]
+    booster_affinity: Callable[[str], float]
+    author_penalty: Callable[[str], float]
 
 
 # authorPenaltyIn in signals.ts (decision D10): 1 for an explicit mute,
@@ -426,17 +451,17 @@ def author_penalty_in(dismissed, muted_ids, author_id, now_ms) -> float:
             dismissals += decay_factor(now_ms - signal.at_ms)
     if not dismissals:
         return 0.0
-
     return min(1.0, 1 - 2 ** -dismissals)
 
 
-# ranking.ts:430-437 wires the penalty through the resolver's
-# ``author_penalty``; AffinityResolver is a plain dataclass of callables.
-def resolver(affinities, not_interested_ids, dismissed, muted_ids,
-             now_ms) -> _rank_model.AffinityResolver:
-    signals = to_ranking_signals(affinities, not_interested_ids, muted_ids)
-    return dataclasses.replace(
-        _rank_model.signals_affinity_resolver(signals),
-        author_penalty=lambda i: author_penalty_in(
-            dismissed, muted_ids, i, now_ms),
+def resolver(affinities, dismissed, muted_ids, now_ms) -> _AffinityProvider:
+    return _AffinityProvider(
+        author_affinity=lambda key: affinity_signal(affinities.author, key),
+        tag_affinity=lambda key: affinity_signal(affinities.tag, key),
+        language_affinity=lambda key: affinity_signal(
+            affinities.language, key),
+        booster_affinity=lambda key: affinity_signal(
+            affinities.booster, key),
+        author_penalty=lambda key: author_penalty_in(
+            dismissed, muted_ids, key, now_ms),
     )

@@ -7,7 +7,7 @@ import math
 from typing import NamedTuple
 
 from .rank_model import (
-    BIDIRECTIONAL_FOLLOW_DWELL_WEIGHT_BOOST, Candidate,
+    BIDIRECTIONAL_FOLLOW_DWELL_WEIGHT_BOOST, Candidate, ScoredCandidate,
     MAX_FOLLOWERS_THRESHOLD, MIN_VIDEO_DURATION_MS,
     NEGATIVE_SCORES_OFFSET, ScoreReason, _clamp, _clamp01,
     candidate_from_status, content_status, extract_ranking_features, lift,
@@ -227,8 +227,10 @@ def apply_adjustments(candidates, ctx):
             score *= oon_factor
             reasons.append(ScoreReason('out_of_network', oon_factor))
 
-        result.append(dataclasses.replace(
-            candidate, score=score, reasons=reasons))
+        result.append(candidate._replace(score=score, reasons=reasons)
+                       if isinstance(candidate, ScoredCandidate)
+                       else dataclasses.replace(
+                           candidate, score=score, reasons=reasons))
     return result
 
 
@@ -248,12 +250,22 @@ def _by_score_then_id(a, b):
     return -1 if b_id < a_id else 1 if b_id > a_id else 0
 
 
+
 # rankCandidates in ranking.ts: predict, weighted sum, adjustments, sort.
 # Highest score first, ties by status id descending. Returns a new list.
-def rank_candidates(candidates, ctx):
+def _rank_candidates(candidates, ctx):
     scored = [score_candidate(c, ctx) for c in candidates]
     adjusted = apply_adjustments(scored, ctx)
     return sorted(adjusted, key=functools.cmp_to_key(_by_score_then_id))
+
+
+def rank_candidates(candidates, ctx) -> list[ScoredCandidate]:
+    """Return immutable scored records in final score order."""
+    return [ScoredCandidate(
+        status=c.status, in_network=c.in_network,
+        probabilities=c.probabilities, raw_score=c.raw_score,
+        score=c.score, reasons=c.reasons)
+        for c in _rank_candidates(candidates, ctx)]
 
 
 # endregion
@@ -741,17 +753,23 @@ def diversity_rerank(candidates, *, penalty='dpp', theta=None, lambda_=None,
 #       -> dedupe_conversations -> diversity_rerank
 #
 # ``candidates`` are Candidate objects or Mastodon Status dicts (wrapped
-# with candidate_from_status). Returns the ranked Candidates, best first,
-# with probabilities, raw_score, score and reasons filled in. The result
-# depends only on the inputs and ``ctx.now``: no clock, no randomness.
-# ``diversity`` is a dict of diversity_rerank keyword arguments.
+# with candidate_from_status). Returns ScoredCandidate records best first,
+# with probabilities, raw_score, score and reasons filled in. The inputs
+# remain unchanged. The result depends only on the inputs and ``ctx.now``:
+# no clock, no randomness. ``diversity`` is a dict of diversity_rerank
+# keyword arguments.
 def rank(candidates, ctx, *,
          max_per_conversation=DEFAULT_MAX_PER_CONVERSATION, diversity=None):
     wrapped = [c if isinstance(c, Candidate) else candidate_from_status(c)
                for c in candidates]
-    ranked = rank_candidates(wrapped, ctx)
+    ranked = _rank_candidates(wrapped, ctx)
     ranked = dedupe_conversations(ranked, max_per_conversation)
-    return diversity_rerank(ranked, **(diversity or {}))
+    ranked = diversity_rerank(ranked, **(diversity or {}))
+    return [ScoredCandidate(
+        status=c.status, in_network=c.in_network,
+        probabilities=c.probabilities, raw_score=c.raw_score,
+        score=c.score, reasons=c.reasons)
+        for c in ranked]
 
 
 # endregion

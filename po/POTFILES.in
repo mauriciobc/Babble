@@ -31,6 +31,7 @@ src/mastodon.py
 src/mediabox.py
 src/mediaviewer.py
 src/mentioncompleter.py
+src/navigation.py
 src/notificationcopy.py
 src/notificationctrl.py
 src/notifications.py

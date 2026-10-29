@@ -77,7 +77,7 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Protocol
 
 from .rank_text import (
     _JS_WHITESPACE, _WS_CLASS, _count, _js_length, _to_ms,
@@ -232,21 +232,37 @@ def _zero(_key):
     return 0
 
 
-# AffinityResolver in ranking.ts. Every channel is signed, in [-1, 1],
-# and 0 means "no information" (``lift(0, ...) == 1``). authorPenalty and
-# postPenalty are 0..1. The default returns 0 everywhere (CATCH-UP.md 4.8,
-# phase 1); phase 2 plugs the server-derived affinity in here.
+# Affinity inputs the ranker consumes. Providers need only implement these
+# five methods; they may be ordinary objects with no ranker imports.
+class AffinityProvider(Protocol):
+    def author_affinity(self, author_id: str) -> float: ...
+    def tag_affinity(self, tag: str) -> float: ...
+    def language_affinity(self, language: str) -> float: ...
+    def booster_affinity(self, author_id: str) -> float: ...
+    def author_penalty(self, author_id: str) -> float: ...
+
+
+# Internal test/default provider. ``post_penalty`` remains separate from the
+# provider protocol because it applies to a status rather than an affinity.
 @dataclass(frozen=True)
 class AffinityResolver:
     author: Callable[[str], float] = _zero
     tag: Callable[[str], float] = _zero
     language: Callable[[str], float] = _zero
-    # Whose boosts the viewer engages with; 0 for a post that is no boost.
     booster: Callable[[str], float] = _zero
-    # Pushback against an author as a whole (a mute), 0..1.
     author_penalty: Callable[[str], float] = _zero
-    # Pushback against one post (a "not interested"), 0..1.
-    post_penalty: Callable[[str], float] = _zero
+
+    def author_affinity(self, author_id: str) -> float:
+        return self.author(author_id)
+
+    def tag_affinity(self, tag: str) -> float:
+        return self.tag(tag)
+
+    def language_affinity(self, language: str) -> float:
+        return self.language(language)
+
+    def booster_affinity(self, author_id: str) -> float:
+        return self.booster(author_id)
 
 
 NULL_AFFINITY = AffinityResolver()
@@ -322,14 +338,13 @@ def affinity_signal(values, key):
 # maps. Not used by default here; phase 2 builds on it.
 def signals_affinity_resolver(signals):
     muted = signals.muted_for_you
-    dismissed = signals.not_interested
     return AffinityResolver(
         author=lambda i: affinity_signal(signals.author_affinity, i),
         tag=lambda t: affinity_signal(signals.tag_affinity, t),
         language=lambda c: affinity_signal(signals.language_affinity, c),
         booster=lambda i: affinity_signal(signals.booster_affinity, i),
         author_penalty=lambda i: 1 if i and i in muted else 0,
-        post_penalty=lambda i: 1 if i and i in dismissed else 0,
+
     )
 
 
@@ -348,7 +363,8 @@ class RankingContext:
     viewer_account_age_ms: float | None = None
     # Ids of authors that follow the viewer back (``followed_by``).
     mutual_author_ids: Any = None
-    affinity: AffinityResolver = NULL_AFFINITY
+    affinity: AffinityProvider = NULL_AFFINITY
+    not_interested_ids: Any = None
     weights: Mapping | None = None
     params: Any = None
     base_rates: Mapping | None = None
@@ -379,11 +395,8 @@ class ScoreReason(NamedTuple):
     value: float
 
 
-# PostCandidate in types.ts. ``status`` is a Mastodon Status dict.
-# ``in_network`` is True when the author is followed by the viewer; Catch
-# Up sets it False only for a post that reached the snapshot through a
-# followed tag. The scorer fills the rest; the pipeline never mutates a
-# candidate it was given.
+# Internal mutable scoring intermediate; caller-owned Candidates are copied
+# before scoring and never mutated.
 @dataclass(eq=False)
 class Candidate:
     status: dict
@@ -394,12 +407,26 @@ class Candidate:
     reasons: list | None = None
 
 
+
+
 def candidate_from_status(status, in_network=None):
     """Wrap a Status dict. ``in_network`` defaults to "not only found
     through a followed tag" (the ``_followed_tags`` marker, spec 4.2)."""
     if in_network is None:
         in_network = not status.get('_followed_tags')
     return Candidate(status=status, in_network=bool(in_network))
+
+
+@dataclass(frozen=True, slots=True)
+class ScoredCandidate:
+    """Immutable scored result returned by the ranker."""
+
+    status: dict
+    in_network: bool
+    probabilities: dict
+    raw_score: float
+    score: float
+    reasons: list
 
 
 # endregion
@@ -568,24 +595,29 @@ def extract_ranking_features(candidate, ctx):
                       if engagement_estimate > 0 else 0)
 
     account_id = account.get('id')
-    author_affinity = affinity.author(account_id) if account_id else 0
+    author_affinity = (
+        affinity.author_affinity(account_id) if account_id else 0)
     author_penalty = _clamp01(affinity.author_penalty(account_id or ''))
-    post_penalty = _clamp01(affinity.post_penalty(outer.get('id') or ''))
+    post_id = outer.get('id')
+    not_interested_ids = ctx.not_interested_ids
+    post_penalty = _clamp01(
+        1 if not_interested_ids and post_id in not_interested_ids else 0)
     booster_affinity = 0
     if outer.get('reblog') is not None:
-        booster_affinity = affinity.booster(
+        booster_affinity = affinity.booster_affinity(
             (outer.get('account') or {}).get('id') or '')
     tag_affinity = 0
     for tag in status.get('tags') or ():
         name = (tag.get('name') or '').lower()
         if not name:
             continue
-        value = affinity.tag(name)
+        value = affinity.tag_affinity(name)
         if abs(value) > abs(tag_affinity):
             tag_affinity = value
 
     language = status.get('language') or None
-    language_affinity = affinity.language(language) if language else 0
+    language_affinity = (
+        affinity.language_affinity(language) if language else 0)
     viewer_languages = ctx.viewer_languages
     known = (not language or not viewer_languages
              or language in viewer_languages)

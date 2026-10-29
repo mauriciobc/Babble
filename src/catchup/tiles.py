@@ -13,8 +13,7 @@ from gi.repository import (  # noqa: E402
     Adw, Gdk, GObject, Graphene, Gsk, Gtk, Pango)
 
 from ..i18n import gettext as _
-from .. import mediacache, pages
-from .. import statusactions, statusmenu, statustext, timelinedata
+from .. import mediacache, pages, timelinedata
 from . import digest_layout
 from .pipeline import Digest
 from ..accounts import plain_name
@@ -203,37 +202,6 @@ class _AvatarStack(Gtk.Widget):
         Gtk.Widget.do_dispose(self)
 
 
-# --------------------------------------------------------------------------
-# Action bar and menu: the only place that knows the timeline components
-
-def _build_actions(item, on_image, client=None, large=False):
-    """The action bar of a post tile, bound to *item*: reply, boost,
-    favourite and bookmark with their counts. Pill buttons over an image
-    on a hero, ``osd`` buttons over any other image."""
-    classes = (('osd', 'pill') if large else ('osd',)) if on_image \
-        else ('flat',)
-    bar = statusactions.StatusActions(
-        quote=False, button_classes=classes, tinted=True,
-        count_format=statustext.compact_count)
-    bar.add_css_class('catchup-actions')
-    bar.set_child_spacing(2)
-    bar.set_line_spacing(0)
-    if client is None:
-        bar.bind(item)
-    else:
-        bar.bind(item, client)
-    return bar
-
-
-def _build_menu_button(item, actions, on_image, client=None):
-    """The "⋯" button of a post tile with StatusRow's menu."""
-    button = statusmenu.StatusMenuButton(actions=actions, button_classes=(
-        ('osd', 'circular') if on_image else ('flat', 'circular')))
-    if client is None:
-        button.bind(item)
-    else:
-        button.bind(item, client)
-    return button
 class _Context:
     """What tiles need from the digest, with no widget in it."""
 

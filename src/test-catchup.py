@@ -38,6 +38,7 @@ from src import accounts  # noqa: E402
 from src.catchup import digest as catchupdigest, digest_layout  # noqa: E402
 from src.catchup import CatchUpPage, pipeline as catchup  # noqa: E402
 from src.catchup import store as catchupstore  # noqa: E402
+from src.catchup import fetch as catchuprun  # noqa: E402
 
 failures = []
 
@@ -240,7 +241,7 @@ snapshot = {'version': 1, 'id': 'ordering', 'account': KEY,
             'trends': {'links': None, 'tags': None, 'statuses': None}}
 snapshot['posts'] = catchupdigest.apply_filters(snapshot['posts'], ['99'])
 catchupdigest.mark_threads(snapshot['posts'])
-computed = catchup.compute(snapshot, ['en'])
+computed = catchup.run(snapshot, ['en'])
 by_id = {p['id']: p for p in computed.visible}
 same = True
 for sort_by in digest_layout.SORTS:
@@ -279,7 +280,7 @@ view = catchup.derive_view(computed, catchup.ViewState(author='nobody'))
 check('an author with no posts is ignored',
       view.author is None and len(view.matching) == len(computed.visible))
 check('ranking is deterministic',
-      [p['id'] for p in catchup.compute(snapshot, ['en']).ranked]
+      [p['id'] for p in catchup.run(snapshot, ['en']).ranked]
       == [p['id'] for p in computed.ranked])
 text = catchup.view_summary(catchup.ViewState(
     category='boosts', sort='likes', order='desc', group=True))
@@ -351,8 +352,9 @@ def run_to_end(client, hours=24, stop_on=None, hide_trending=False):
     end_at = catchup.now_utc()
     start_at = end_at - datetime.timedelta(hours=hours) if hours else None
     got = []
-    run = catchup.CatchUpRun(client, start_at, end_at, ['99'],
-                             hide_trending, done=got.append, pause_seconds=0)
+    run = catchuprun.CatchUpRun(client, start_at, end_at, ['99'],
+                                hide_trending, done=got.append,
+                                pause_seconds=0)
     if stop_on is not None:
         run.progress = lambda evaluated, oldest: (
             run.stop() if run.pages_done == stop_on else None)
@@ -441,8 +443,8 @@ check('the safety cap stops an endless timeline',
 
 client = FakeClient(page_size=10)
 got = []
-run = catchup.CatchUpRun(client, None, catchup.now_utc(), [],
-                         done=got.append, pause_seconds=0)
+run = catchuprun.CatchUpRun(client, None, catchup.now_utc(), [],
+                            done=got.append, pause_seconds=0)
 run.start()
 run.abort()
 settle(lambda: False, timeout=0.3)
@@ -687,13 +689,23 @@ page._on_pages_changed(4)
 check('expanding the Highlights is remembered for the snapshot',
       page._view_state.pages == 4
       and page._view_states[shown_pages].pages == 4)
+page._period = '1h'
 page._on_show_snapshot(None, GLib.Variant('s', older))
 settle(lambda: page.state == 'results' and page._snapshot_id == older)
 check('a previous catch-up can be shown', page._snapshot_id == older)
+check('period state comes from the opened snapshot',
+      page._period == next(m['period'] for m in page._metas
+                           if m['id'] == older)
+      and page._period_action.get_state().get_string() == page._period)
 check('the older one starts at its own pages',
       StubHighlights.instances[0].pages[-1] == 1)
+page._period = '1h'
 page._on_show_snapshot(None, GLib.Variant('s', shown_pages))
 settle(lambda: page.state == 'results' and page._snapshot_id == shown_pages)
+check('period state restores independently for the other snapshot',
+      page._period == next(m['period'] for m in page._metas
+                           if m['id'] == shown_pages)
+      and page._period_action.get_state().get_string() == page._period)
 check('and they come back when that snapshot is shown again',
       StubHighlights.instances[0].pages[-1] == 4)
 page._on_pages_changed(1)

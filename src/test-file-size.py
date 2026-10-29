@@ -46,11 +46,11 @@ EXCEPTIONS = {
                 'carrying the paging base. ARCH-06 split the timeline '
                 'around it; the state machine stays here because every '
                 'status list uses it.',
-    'window.py': 'four of five seams extracted (portals, auth, drafts, '
-                 'clipboard); the remaining lines are view routing over '
-                 'page containers the window owns, and extracting them '
-                 'would invert streaming.py\'s dependency on that state '
-                 'rather than cut a seam.',
+    'window.py': 'four seams extracted (portals, auth, drafts, clipboard), '
+                 'and navigation.py now owns lazy place routing and pinned '
+                 'state. BabbleWindow still owns session state, sidebar '
+                 'widgets, and streaming lifecycle; those depend on its '
+                 'page containers and stay with the window.',
     'compose.py': 'the composer widget. ARCH-01 moved the upload round '
                   'to composeupload.py; what remains is the draft, the '
                   'options and the post itself, which is one dialog.',
@@ -120,7 +120,9 @@ modules = sorted(
 undeclared = []
 for name in modules:
     lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count('\n')
-    if lines > LIMIT and name not in EXCEPTIONS:
+    if name.startswith('catchup/') and lines > LIMIT:
+        undeclared.append((name, lines))
+    elif lines > LIMIT and name not in EXCEPTIONS:
         undeclared.append((name, lines))
 
 for name, lines in undeclared:
@@ -128,6 +130,8 @@ for name, lines in undeclared:
           % (name, lines))
 check('every module over the limit declares why (%d undeclared)'
       % len(undeclared), not undeclared)
+
+
 
 # install_data (src/meson.build) is maintained by hand and nothing checked
 # it: a module left off it is missing from the installed app, and the
@@ -144,6 +148,16 @@ missing = sorted(name for name in modules
 for name in missing:
     print('    %s is not in src/meson.build install_data' % name)
 check('every module is installed (%d missing)' % len(missing), not missing)
+catchup_modules = sorted(
+    os.path.relpath(os.path.join(directory, filename), srcdir)
+    for directory, _dirs, files in os.walk(os.path.join(srcdir, 'catchup'))
+    for filename in files if filename.endswith('.py'))
+missing_catchup = sorted(name for name in catchup_modules
+                         if name not in installed)
+for name in missing_catchup:
+    print('    %s is not in src/meson.build catchup install_data' % name)
+check('every Catch Up submodule is installed (%d missing)'
+      % len(missing_catchup), not missing_catchup)
 stale = sorted(name for name in installed
                if name not in modules and name != 'meson.build')
 for name in stale:

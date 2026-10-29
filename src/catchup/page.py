@@ -14,7 +14,7 @@ relevance score) and ``store`` (the files). What is here is plumbing and
 widgets, and the two rules that keep it light:
 
 * Nothing heavy runs on the main loop. Ranking and the snapshot file I/O run
-  on a worker thread over plain data (:func:`compute`); the widgets are
+  on a worker thread over plain data (:func:`run`); the widgets are
   built, a chunk at a time, from idle callbacks.
 * Filters and sorts change only the list's models. One ``CatchUpItem`` is
   built per visible post, once per snapshot, and the list, the posts bar and
@@ -47,12 +47,12 @@ from ..accounts import plain_name as _plain_name  # noqa: E402
 from ..mediacache import AvatarCache  # noqa: E402
 from ..timelinebase import ui_language  # noqa: E402
 from .page_controls import PageControls  # noqa: E402
-from .pipeline import (  # noqa: E402
+from .pipeline import (
     BUILD_CHUNK, COLUMN_WIDTH, DEFAULT_PERIOD, LOW_ACTIVITY_PERIOD,
     LOW_ACTIVITY_POSTS, PERIOD_HOURS, STOPPED_COMPLETE, STOPPED_ERROR,
-    STOPPED_RATE_LIMITED, CatchUpRun, Digest, ViewState, compute,
-    hours_between, hours_phrase, make_snapshot, now_utc, period_title,
-    posts_phrase, run_in_thread, _TOP_DATA)
+    STOPPED_RATE_LIMITED, Digest, ViewState, run, hours_between, hours_phrase,
+    now_utc, period_title, posts_phrase, _TOP_DATA)
+from .fetch import CatchUpRun, run_in_thread, save_result
 from .digest import parse_time  # noqa: E402
 from .rows import CatchUpItem, CatchUpRow, _Slot  # noqa: E402
 
@@ -201,7 +201,7 @@ class CatchUpPage(PageControls, Adw.Bin):
                 except (OSError, ValueError):
                     continue
                 return ([m for _p, m in found],
-                        compute(snapshot, languages, hide))
+                        run(snapshot, languages, hide))
             return ([m for _p, m in found], None)
 
         run_in_thread(work, functools.partial(
@@ -232,7 +232,7 @@ class CatchUpPage(PageControls, Adw.Bin):
         generation = self._generation
 
         def work():
-            return compute(
+            return run(
                 lift(catchupstore.read_snapshot(path)), languages, hide)
 
         self._scan_label(_('Opening the catch-up…'))
@@ -305,30 +305,21 @@ class CatchUpPage(PageControls, Adw.Bin):
             % {'count': evaluated, 'hours': hours})
 
     def _on_run_done(self, result):
-        run, self._run = self._run, None
-        if self._disposed or run is None:
+        active, self._run = self._run, None
+        if self._disposed or active is None:
             return
         if not result.posts and result.stopped in (STOPPED_ERROR,
                                                    STOPPED_RATE_LIMITED):
             self._show_error(result.error)
             return
-        snapshot = make_snapshot(result, self.account_key, self._run_period)
         languages = self._languages()
         hide = pages.settings().get_boolean('hide-trending')
         self._scan_label(_('Preparing your catch-up…'))
         self.cancel_button.set_visible(False)
         generation = self._generation
-
-        def work():
-            saved = True
-            try:
-                catchupstore.write_snapshot(snapshot)
-            except OSError:
-                saved = False
-            metas = catchupstore.prune(snapshot['account']) if saved \
-                else None
-            return (saved, metas, compute(snapshot, languages, hide))
-
+        work = functools.partial(
+            save_result, result, self.account_key, self._run_period,
+            languages, hide)
         run_in_thread(work, functools.partial(
             pages.weak_method(self._on_run_saved), generation))
 

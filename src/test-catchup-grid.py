@@ -34,7 +34,8 @@ from src.catchup import digest_layout as cd  # noqa: E402
 from src.catchup import geometry, tiles as _tiles  # noqa: E402
 from src.catchup import tiles_render as _tiles_render  # noqa: E402
 from src import (explore, hashtags, mediacache, mediabox, pages,  # noqa: E402
-                 statusactions, statusmenu, statustext, timelinedata)
+                 statusactions, statusmenu, statustext, tileactions,
+                 timelinedata)
 from src.catchup.pipeline import Digest  # noqa: E402
 
 catchupgrid = types.SimpleNamespace(**{
@@ -738,16 +739,24 @@ check('a click on the tile itself still opens the post',
 window.set_child(host)
 host_window.set_child(None)
 
-# The action bar comes from the timeline component when it exists.
-bar = catchupgrid._build_actions(first.item, False, client)
+# The action bar comes from the shared tile adapter.
+bar = tileactions.tile_action_bar(
+    first.item, client, quote=False, button_classes=('flat',),
+    tinted=True, catchup_style=True)
 check('the action bar is the timeline component',
       isinstance(bar, statusactions.StatusActions)
       and bar.favourite_button.get_child().get_label() == '7'
       and bar.boost_button.get_child().get_label() == '1.2K')
 check('the menu button is the timeline component',
-      isinstance(catchupgrid._build_menu_button(first.item, bar, False,
-                                                client),
-                 statusmenu.StatusMenuButton))
+      isinstance(tileactions.tile_menu_button(
+          first.item, client, actions=bar), statusmenu.StatusMenuButton))
+no_client_bar = tileactions.tile_action_bar(first.item, None)
+no_client_menu = tileactions.tile_menu_button(first.item, None)
+check('the adapter binds actions and menu without an explicit client',
+      no_client_bar.item is first.item
+      and no_client_bar._client is statusactions.WINDOW_CLIENT
+      and no_client_menu.item is first.item
+      and no_client_menu._client is statusactions.WINDOW_CLIENT)
 
 # --------------------------------------------------------------------------
 # Freeing

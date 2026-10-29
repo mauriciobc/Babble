@@ -26,11 +26,12 @@ root = os.path.dirname(srcdir)
 # Catch Up's own modules are package submodules; the source parser records
 # their first module under `src` for each supported import form.
 CATCHUP = frozenset({
-    'catchup', 'page', 'page_controls', 'pipeline', 'rows', 'store', 'digest',
-    'digest_layout', 'rank', 'rank_text', 'rank_model', 'tiles',
+    'catchup', 'page', 'page_controls', 'pipeline', 'fetch', 'rows', 'store',
+    'digest', 'digest_layout', 'rank', 'rank_text', 'rank_model', 'tiles',
     'tiles_render', 'geometry'})
 RANK = frozenset({'rank', 'rank_text', 'rank_model'})
-NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage'})
+NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage',
+                 'navigation', 'tileactions'})
 
 # The harness lives outside src/ and does not exist yet; it is read only
 # once it appears.
@@ -55,7 +56,8 @@ def is_catchup_importer(path):
 
 
 def is_new_importer(name):
-    return (name in NEW or name == 'test-affinity'
+    return (name in NEW and name not in ('affinity', 'navigation')
+            or name == 'test-affinity'
             or name.startswith('test-ranked-')
             or name in ('rank_eval', 'ranked_stall'))
 
@@ -131,12 +133,34 @@ def violations(sources: dict[str, str]) -> list[str]:
             continue
         for module, line in source_imports(tree):
             if (is_new_importer(importer) and module in CATCHUP
-                    and module not in RANK):
+                    and module not in RANK
+                    and not (path == 'src/navigation.py'
+                             and module == 'catchup')):
                 found.append('R1: %s:%d imports %s'
                              % (path, line, module))
-            if is_catchup_importer(path) and module in NEW:
+            if (is_catchup_importer(path) and module in NEW
+                    and not (path == 'src/catchup/tiles_render.py'
+                             and module == 'tileactions')):
                 found.append('R2: %s:%d imports %s'
                              % (path, line, module))
+            if path == 'src/affinity.py' and module in RANK:
+                found.append('R5: %s:%d imports rank module %s'
+                             % (path, line, module))
+            if (is_catchup_importer(path) and module in ('navigation',
+                                                        'tileactions')
+                    and not (path == 'src/catchup/tiles_render.py'
+                             and module == 'tileactions')):
+                found.append('R7: %s:%d imports window-owned %s'
+                             % (path, line, module))
+        if path.startswith('src/catchup/tiles'):
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ('StatusActions',
+                                               'StatusMenuButton')):
+                    found.append('R6: %s:%d constructs %s instead of '
+                                 'using tileactions'
+                                 % (path, node.lineno, node.func.attr))
         if path.startswith(('src/catchup/rank.py',
                             'src/catchup/rank_text.py',
                             'src/catchup/rank_model.py')):
@@ -195,8 +219,8 @@ def self_check(label, sources, expected):
 # cannot pass merely because the current tree happens to respect the rule.
 
 self_check('R1 catches a new module importing Catch Up',
-           {'src/affinity.py': 'from src.catchup import store\n'},
-           'R1: src/affinity.py:1 imports store')
+           {'src/rankedfeed.py': 'from src.catchup import store\n'},
+           'R1: src/rankedfeed.py:1 imports store')
 self_check('R2 catches a Catch Up module importing a new module',
            {'src/catchup/tiles.py': 'def load():\n    from . import rankedfeed\n'},
            'R2: src/catchup/tiles.py:2 imports rankedfeed')
@@ -212,12 +236,16 @@ self_check('R4 catches the harness opening its own HTTP path',
 self_check('R4 catches the harness importing a request library',
            {'bench/rank_eval.py': 'import requests\n'},
            'R4: bench/rank_eval.py:1 imports requests')
-check('the checker accepts an explicit rank module import R1 allows',
-      not violations({
-          'src/affinity.py': 'import src.catchup.rank_model as rank_model\n'}))
-check('the checker accepts a package-form rank import R1 allows',
-      not violations({
-          'src/affinity.py': 'from src.catchup import rank_model\n'}))
+self_check('R5 rejects affinity importing the ranker',
+           {'src/affinity.py': 'import src.catchup.rank_model\n'},
+           'R5: src/affinity.py:1 imports rank module rank_model')
+self_check('R6 rejects tile constructors outside the shared adapter',
+           {'src/catchup/tiles_render.py':
+            'def build():\n    return statusactions.StatusActions()\n'},
+           'R6: src/catchup/tiles_render.py:2 constructs StatusActions')
+self_check('R7 rejects Catch Up importing window-owned navigation',
+           {'src/catchup/pipeline.py': 'from .. import navigation\n'},
+           'R7: src/catchup/pipeline.py:1 imports window-owned navigation')
 check('the checker accepts the harness reaching the server through the'
       ' client',
       not violations({'bench/rank_eval.py': 'from src import mastodon\n'
@@ -252,10 +280,13 @@ for line in unparsable:
 check('every source parses (%d unparsable)' % len(unparsable), not unparsable)
 
 RULES = (
-    ('R1', 'new modules import only Catch Up rank modules'),
-    ('R2', 'Catch Up imports no new module'),
-    ('R3', 'rank modules import only the standard library and siblings'),
-    ('R4', 'the harness reaches the server through src/mastodon.py'),
+    ('R1', 'new ranked-place modules import only rank modules'),
+    ('R2', 'Catch Up imports no ranked-place modules'),
+    ('R3', 'rank modules import only standard library and siblings'),
+    ('R4', 'benchmark reaches server through the shared client'),
+    ('R5', 'affinity imports no ranker modules'),
+    ('R6', 'Catch Up tiles construct controls through tileactions'),
+    ('R7', 'Catch Up imports no window-owned module'),
 )
 for rule, label in RULES:
     hits = [line for line in FOUND if line.startswith(rule + ':')]
