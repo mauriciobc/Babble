@@ -56,7 +56,7 @@ def is_catchup_importer(path):
 
 
 def is_new_importer(name):
-    return (name in NEW and name not in ('affinity', 'navigation')
+    return (name in NEW
             or name == 'test-affinity'
             or name.startswith('test-ranked-')
             or name in ('rank_eval', 'ranked_stall'))
@@ -80,7 +80,14 @@ def source_imports(tree):
                     found.append((module, node.lineno))
         elif isinstance(node, ast.ImportFrom):
             if node.level:
-                if node.module:
+                if node.module == 'catchup':
+                    for alias in node.names:
+                        imported = alias.name.split('.')[0]
+                        found.append((imported if imported in CATCHUP
+                                      else 'catchup', node.lineno))
+                elif node.module and node.module.startswith('catchup.'):
+                    found.append((node.module.split('.')[1], node.lineno))
+                elif node.module:
                     found.append((node.module.split('.')[0], node.lineno))
                 else:
                     for alias in node.names:
@@ -246,6 +253,15 @@ self_check('R6 rejects tile constructors outside the shared adapter',
 self_check('R7 rejects Catch Up importing window-owned navigation',
            {'src/catchup/pipeline.py': 'from .. import navigation\n'},
            'R7: src/catchup/pipeline.py:1 imports window-owned navigation')
+self_check('R1 rejects affinity importing a Catch Up module',
+           {'src/affinity.py': 'from .catchup import digest\n'},
+           'R1: src/affinity.py:1 imports digest')
+self_check('R1 rejects navigation importing a Catch Up submodule',
+           {'src/navigation.py': 'from .catchup.store import X\n'},
+           'R1: src/navigation.py:1 imports store')
+check('the checker accepts navigation importing the catchup package',
+      not violations({'src/navigation.py':
+                      'from .catchup import CatchUpPage\n'}))
 check('the checker accepts the harness reaching the server through the'
       ' client',
       not violations({'bench/rank_eval.py': 'from src import mastodon\n'

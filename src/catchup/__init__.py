@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Catch Up, the separate view over the people you follow."""
 
-from .pipeline import run
-
 
 def __getattr__(name):
+    # Importing a submodule runs this file, and `accounts` imports `store`
+    # at start-up; nothing here may load the pipeline until it is asked for.
+    if name == 'run':
+        from .pipeline import run
+        return run
     if name == 'CatchUpPage':
         from .page import CatchUpPage
         return CatchUpPage

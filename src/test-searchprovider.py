@@ -20,6 +20,7 @@ routes and the avatar texture are GTK's."""
 
 import os
 import sys
+from types import SimpleNamespace
 
 srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))

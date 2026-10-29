@@ -347,14 +347,14 @@ class PostTile(_Tile):
             box.append(_trending_pill(self.placed.colspan == 1))
         classes = ('osd', 'circular') if on_image else ('flat', 'circular')
         menu = tileactions.tile_menu_button(
-            self.item, self.context.client, actions=actions,
+            self.item, self.context.client or tileactions.WINDOW_CLIENT,
+            actions=actions,
             button_classes=classes)
-        if menu is not None:
-            connect_weak(menu, 'refresh', self._on_menu_refresh)
-            connect_weak(menu, 'deleted', self._on_menu_deleted)
-            connect_weak(menu, 'restored', self._on_menu_restored)
-            self._menu = menu
-            box.append(menu)
+        connect_weak(menu, 'refresh', self._on_menu_refresh)
+        connect_weak(menu, 'deleted', self._on_menu_deleted)
+        connect_weak(menu, 'restored', self._on_menu_restored)
+        self._menu = menu
+        box.append(menu)
         return box
 
     def _on_menu_refresh(self, _menu):
@@ -464,7 +464,8 @@ class PostTile(_Tile):
             block.append(boost)
         action_classes = ('osd', 'pill') if hero else ('osd',)
         actions = tileactions.tile_action_bar(
-            self.item, self.context.client, quote=False,
+            self.item, self.context.client or tileactions.WINDOW_CLIENT,
+            quote=False,
             button_classes=action_classes, tinted=True, catchup_style=True)
         block.append(self._header(40 if hero else 32, True, actions))
         tall = placed.rowspan > 1
@@ -492,7 +493,8 @@ class PostTile(_Tile):
         if boost is not None:
             box.append(boost)
         actions = tileactions.tile_action_bar(
-            self.item, self.context.client, quote=False,
+            self.item, self.context.client or tileactions.WINDOW_CLIENT,
+            quote=False,
             button_classes=('flat',), tinted=True, catchup_style=True)
         box.append(self._header(40 if hero else 32, False, actions))
         card = self.item.status.get('card')

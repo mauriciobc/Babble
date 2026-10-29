@@ -164,6 +164,12 @@ with patch.dict(sys.modules, {
         check('hashtag routes expose readable title and stable page tag',
               first.name == '#hello world'
               and first.args[1] == 'place-tag:hello world')
+        routing.forget('tag:hello world')
+        routing.forget('nope')
+        check('forget drops one route from pages and children and ignores '
+              'an unknown tag',
+              'tag:hello world' not in routing.pages
+              and 'tag:hello world' not in routing.children)
         routing.clear()
         check('clearing navigation drops pages, children, and pinned titles',
               not routing.pages and not routing.children

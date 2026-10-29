@@ -1211,11 +1211,11 @@ class BabbleWindow(Adw.ApplicationWindow):
             paging='link' if link_paged(path) else 'id'))
         pages.configure_empty_page(page.empty_page, icon, title, description)
         return page
+
     def _public_place_built(self, tag, page):
         self.public_pages[tag] = page
         self._apply_auto_refresh()
         self._sync_streaming()
-
 
     # Composer
 
@@ -1498,8 +1498,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             # A feed the server will not serve, or the reader has not
             # opted into, keeps neither a page nor a stream.
             self.public_pages.pop(tag, None)
-            self.navigation.pages.pop(tag, None)
-            self.navigation.children.pop(tag, None)
+            self.navigation.forget(tag)
         for tag, icon, group in navigation.PLACES:
             if tag in hidden:
                 continue

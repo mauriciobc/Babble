@@ -7,15 +7,12 @@ import datetime
 from ..i18n import gettext as _, ngettext
 
 from .digest import (
-    CATEGORIES, apply_filters, author_counts, categorize, content_of,
-    dedupe_boosts, filter_posts, is_filtered_post, mark_threads,
+    CATEGORIES, author_counts, categorize, content_of,
+    dedupe_boosts, filter_posts, is_filtered_post,
     merge_hashtags, merge_news, parse_time, timeline_hashtags, timeline_links,
     trending_status_keys)
 from .digest_layout import (
     author_order, post_info_values, posts_bar_ids, sort_info_ids)
-
-
- 
 
 
 @dataclasses.dataclass

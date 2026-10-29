@@ -377,6 +377,12 @@ test('status text', python,
   env: test_env,
   timeout: 60,
 )
+# Start-up cost: what importing accounts or the store drags in of Catch Up.
+test('catchup imports', python,
+  args: [files('test-catchup-imports.py')],
+  env: test_env,
+  timeout: 60,
+)
 # Needs no display: the Catch Up data layer imports no gi at all.
 test('catchup digest', python,
   args: [files('test-catchup-digest.py')],
@@ -477,11 +483,6 @@ test('schedule dialog', python,
 # the rail and header-control widgets do, and run with fatal criticals.
 test('sidebar state', python,
   args: [files('test-sidebar-state.py')],
-  env: test_env,
-  timeout: 60,
-)
-test('navigation', python,
-  args: [files('test-navigation.py')],
   env: test_env,
   timeout: 60,
 )

@@ -68,6 +68,10 @@ class Navigation:
         self.children = {}
         self.pinned_lists = {}
 
+    def forget(self, tag):
+        self.pages.pop(tag, None)
+        self.children.pop(tag, None)
+
     def clear(self):
         self.pages.clear()
         self.children.clear()

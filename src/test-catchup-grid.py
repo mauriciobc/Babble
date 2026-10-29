@@ -750,13 +750,17 @@ check('the action bar is the timeline component',
 check('the menu button is the timeline component',
       isinstance(tileactions.tile_menu_button(
           first.item, client, actions=bar), statusmenu.StatusMenuButton))
-no_client_bar = tileactions.tile_action_bar(first.item, None)
-no_client_menu = tileactions.tile_menu_button(first.item, None)
+no_client_bar = tileactions.tile_action_bar(first.item)
+no_client_menu = tileactions.tile_menu_button(first.item)
 check('the adapter binds actions and menu without an explicit client',
       no_client_bar.item is first.item
       and no_client_bar._client is statusactions.WINDOW_CLIENT
       and no_client_menu.item is first.item
       and no_client_menu._client is statusactions.WINDOW_CLIENT)
+none_bar = tileactions.tile_action_bar(first.item, client=None)
+none_menu = tileactions.tile_menu_button(first.item, client=None)
+check('an explicit client=None stays None',
+      none_bar._client is None and none_menu._client is None)
 
 # --------------------------------------------------------------------------
 # Freeing
