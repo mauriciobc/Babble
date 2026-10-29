@@ -215,6 +215,11 @@ test('reading position', python,
   timeout: 60,
 )
 
+test('navigation window', python,
+  args: [files('test-navigation-window.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('keyring errors', python,
   args: [files('test-keyring-errors.py')],
   env: fatal_test_env,

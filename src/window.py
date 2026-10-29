@@ -184,8 +184,15 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._pending_compose = None
         self.notifications_page = None
         self._unread_handler = None
-        self.public_pages = {}
-        self.navigation = navigation.Navigation(self)
+        self.navigation = navigation.Navigation(navigation.PlaceHost(
+            client=lambda: self.client,
+            account=lambda: self.account,
+            make_sidebar_control=self.make_sidebar_control,
+            timeline_place=self._timeline_place,
+            restricted_public_places=self._restricted_public_places,
+            notify_place_built=self._public_place_built,
+            sync_streaming=self._sync_streaming,
+        ))
         self._items = {}
         self._held = False
         self._background_asked = False
@@ -623,7 +630,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.timeline_model = None
         self.home_bin.set_child(None)
         self._clear_notifications_page()
-        self.public_pages.clear()
         self.navigation.clear()
         self.navigation_view.replace([self.page_home])
 
@@ -850,9 +856,9 @@ class BabbleWindow(Adw.ApplicationWindow):
             # Direct messages only arrive on the ``direct`` stream.
             wanted.add(DIRECT)
         if self.settings.get_boolean('public-live-updates'):
-            if 'local' in self.public_pages:
+            if 'local' in self.navigation.public_pages:
                 wanted.add(LOCAL)
-            if 'federated' in self.public_pages:
+            if 'federated' in self.navigation.public_pages:
                 wanted.add(FEDERATED)
         self.streaming.set_streams(wanted)
         if not self.streaming.connected:
@@ -880,7 +886,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._schedule_background_status()
 
     def _timeline_pages(self):
-        found = [self.timeline_page, *self.public_pages.values()]
+        found = [self.timeline_page, *self.navigation.public_pages.values()]
         for child in self.navigation.children.values():
             found.append(getattr(child, 'timeline', child))
         return [page for page in found if isinstance(page, TimelinePage)]
@@ -889,9 +895,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         from .streaming import FEDERATED, LOCAL
         if name == 'update':
             if stream == LOCAL:
-                target = self.public_pages.get('local')
+                target = self.navigation.public_pages.get('local')
             elif stream == FEDERATED:
-                target = self.public_pages.get('federated')
+                target = self.navigation.public_pages.get('federated')
             else:
                 target = self.timeline_page
             if target is not None:
@@ -1213,7 +1219,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         return page
 
     def _public_place_built(self, tag, page):
-        self.public_pages[tag] = page
         self._apply_auto_refresh()
         self._sync_streaming()
 
@@ -1497,7 +1502,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         for tag in closed:
             # A feed the server will not serve, or the reader has not
             # opted into, keeps neither a page nor a stream.
-            self.public_pages.pop(tag, None)
             self.navigation.forget(tag)
         for tag, icon, group in navigation.PLACES:
             if tag in hidden:
@@ -1534,9 +1538,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         list_ids = []
         for tag, title, icon in routes:
             if tag.startswith('list:'):
-                list_id = tag[5:]
-                list_ids.append(list_id)
-                title = self.navigation.pinned_lists.get(list_id) or title
+                list_ids.append(tag[5:])
             item = Adw.SidebarItem(title=title, icon_name=icon)
             section.append(item)
             self._items[tag] = item
@@ -2062,7 +2064,8 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def _apply_auto_refresh(self):
         seconds = int(self.settings.get_string('auto-refresh'))
-        for page in [self.timeline_page, *self.public_pages.values()]:
+        public = self.navigation.public_pages.values()
+        for page in [self.timeline_page, *public]:
             if page is not None:
                 page.set_auto_refresh_interval(seconds)
 

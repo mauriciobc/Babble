@@ -47,27 +47,33 @@ class FakeClient:
         raise AssertionError('route construction must not fetch data')
 
 
-class FakeWindow:
+class Host:
     def __init__(self):
-        self.client = FakeClient()
-        self.account = {'id': 'user'}
+        self._client = FakeClient()
+        self._account = {'id': 'user'}
         self.calls = []
         self.restricted = set()
 
-    def make_sidebar_control(self):
+    def client(self):
+        return self._client
+
+    def account(self):
+        return self._account
+
+    def make_sidebar_control(self, include_bell=True):
         return None
 
-    def _restricted_public_places(self):
+    def restricted_public_places(self):
         return self.restricted
 
-    def _timeline_place(self, *args):
-        self.calls.append(('timeline', args))
-        return FakePage('timeline', *args)
+    def timeline_place(self, path, params, icon, title, description):
+        self.calls.append(('timeline', (path, params, icon, title, description)))
+        return FakePage('timeline', path, params, icon, title, description)
 
-    def _public_place_built(self, tag, page):
+    def notify_place_built(self, tag, page):
         self.calls.append(('public', tag, page))
 
-    def _sync_streaming(self):
+    def sync_streaming(self):
         self.calls.append(('streaming',))
 
 
@@ -86,8 +92,8 @@ modules = {
     'src.explore': ('ExplorePage',),
     'src.lists': ('ListsPage', 'ListTimelinePage'),
 }
-window = FakeWindow()
-routing = navigation.Navigation(window)
+host = Host()
+routing = navigation.Navigation(host)
 
 with patch.dict(sys.modules, {
     name: types.ModuleType(name) for name in modules
@@ -98,16 +104,16 @@ with patch.dict(sys.modules, {
 
     routing.set_pinned_lists([{'id': '42', 'title': 'List'}])
     expectations = {
-        'conversations': ('src.conversations', (window.client,), {}),
-        'catch-up': ('src.catchup', (window.client,),
-                     {'account': window.account}),
-        'search': ('src.search', (window.client,), {}),
-        'hashtags': ('src.hashtags', (window.client,), {}),
-        'explore': ('src.explore', (window.client,), {}),
-        'lists': ('src.lists', (window.client,), {}),
+        'conversations': ('src.conversations', (host.client(),), {}),
+        'catch-up': ('src.catchup', (host.client(),),
+                     {'account': host.account()}),
+        'search': ('src.search', (host.client(),), {}),
+        'hashtags': ('src.hashtags', (host.client(),), {}),
+        'explore': ('src.explore', (host.client(),), {}),
+        'lists': ('src.lists', (host.client(),), {}),
         'list:42': ('src.lists',
-                    (window.client, {'id': '42', 'title': 'List'}), {}),
-        'tag:cats': ('src.hashtags', (window.client, ['cats']), {}),
+                    (host.client(), {'id': '42', 'title': 'List'}), {}),
+        'tag:cats': ('src.hashtags', (host.client(), ['cats']), {}),
     }
     for tag, (module, args, kwargs) in expectations.items():
         child = routing.build_place(tag)
@@ -120,22 +126,21 @@ with patch.dict(sys.modules, {
             ('bookmarks', '/bookmarks', None),
             ('local', '/timelines/public', {'local': 'true'}),
             ('federated', '/timelines/public', None)):
-        before = len(window.calls)
+        before = len(host.calls)
         child = routing.build_place(tag)
-        timeline_call = window.calls[before]
+        timeline_call = host.calls[before]
         check('%s uses the expected timeline endpoint' % tag,
               child.name == 'timeline'
               and timeline_call[1][0] == path
               and timeline_call[1][1] == params)
-    check('public routes notify the window for stream tracking',
-          [call[1] for call in window.calls if call[0] == 'public']
-          == ['local', 'federated'])
-    window.restricted = {'local', 'federated'}
-    before = len(window.calls)
+    check('building a public route alone does not notify the host',
+          not [call for call in host.calls if call[0] == 'public'])
+    host.restricted = {'local', 'federated'}
+    before = len(host.calls)
     check('restricted public feeds are not constructed',
           routing.build_place('local') is None
           and routing.build_place('federated') is None
-          and len(window.calls) == before)
+          and len(host.calls) == before)
     check('unknown routes return no page',
           routing.build_place('unknown') is None)
 
@@ -144,7 +149,7 @@ with patch.dict(sys.modules, {
         {'id': 'one', 'title': 'First list'},
         {'id': 'three', 'title': 'Third'}])
     check('pinned entries are scoped to the active account',
-          routing.pinned_entries(settings, 'favorite-lists-ids', 'a')
+          navigation.pinned_entries(settings, 'favorite-lists-ids', 'a')
           == ['one', 'three'])
     check('pinned routes preserve order, titles, and account scope',
           routing.pinned_routes(settings, 'a') == [
@@ -174,6 +179,38 @@ with patch.dict(sys.modules, {
         check('clearing navigation drops pages, children, and pinned titles',
               not routing.pages and not routing.children
               and not routing.pinned_lists)
+
+    # Public places: a view of children, announced to the host once, after
+    # the page is cached (the host reads public_pages when it hears).
+    host.restricted = set()
+    host.calls.clear()
+    seen = []
+    host.notify_place_built = lambda tag, page: seen.append(
+        (tag, tag in routing.public_pages, routing.children.get(tag)))
+    with patch.object(navigation.pages, 'make_nav_page',
+                      side_effect=lambda title, child, tag=None,
+                      sidebar_control=None: FakePage(title, child, tag)):
+        local_nav = routing.place_page('local')
+        routing.place_page('local')
+        federated_nav = routing.place_page('federated')
+        routing.place_page('favourites')
+    check('local and federated are public pages, and only those',
+          set(routing.public_pages) == {'local', 'federated'}
+          and routing.public_pages['local'] is routing.children['local']
+          and routing.public_pages['federated'] is routing.children['federated']
+          and 'favourites' in routing.children)
+    check('the host hears of each public place once, with it already cached',
+          [(tag, present) for tag, present, _child in seen]
+          == [('local', True), ('federated', True)]
+          and all(child is not None for _tag, _present, child in seen)
+          and local_nav is not federated_nav)
+    routing.forget('local')
+    check('forget drops a public page with the rest of the route',
+          'local' not in routing.public_pages
+          and 'federated' in routing.public_pages)
+    routing.clear()
+    check('clear drops every public page',
+          not routing.public_pages)
 
 if failures:
     raise SystemExit('%d navigation checks failed' % len(failures))
