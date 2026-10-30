@@ -231,7 +231,6 @@ class AnnouncementRow(Gtk.ListBoxRow):
                                        hexpand=True)
         self.content.add_css_class('status-content')
         self.content.link_mentions = announcement.get('mentions') or []
-        self.content.link_tags = announcement.get('tags') or []
         bank = emoji_bank_from(announcement.get('emojis'))
         self.content.set_segments(
             parse_content(announcement.get('content') or ''), bank)

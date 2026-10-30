@@ -189,6 +189,8 @@ class InlineEmojiText(Gtk.TextView):
         self._paragraph_gap = paragraph_gap
         self._links = []
         self._link_tags = {}
+        # href -> hashtag name, for the anchors parse_content flagged.
+        self._link_hashtags = {}
         self._style_ids = []
         # Pango layout of the current text for do_measure's estimate.
         self._estimate_layout = None
@@ -390,6 +392,7 @@ class InlineEmojiText(Gtk.TextView):
             table.remove(tag)
         buf.set_text('', -1)
         self._link_tags = {}
+        self._link_hashtags = {}
         self._estimate_layout = None
         self._links = []
         plain = []
@@ -444,6 +447,12 @@ class InlineEmojiText(Gtk.TextView):
                     put(' ')
             pending_breaks = 0
             previous_space_after = segment.get('sp_after', True)
+            if segment.get('hashtag') and segment.get('href'):
+                # A name cannot contain whitespace; take the first token
+                # in case the same-href merge joined two anchors.
+                name = text.strip().lstrip('#＃').split(None, 1)[0].strip()
+                if name:
+                    self._link_hashtags[segment['href']] = name
             tag = link_tag(segment['href']) if segment['href'] else None
             if self._shorten_links and segment['href']:
                 text = helpers.shorten_url_text(text)
@@ -506,11 +515,12 @@ class InlineEmojiText(Gtk.TextView):
 
     def _open(self, href):
         """In-app routing (mentions, hashtags, fediverse links); set
-        ``link_mentions``/``link_tags`` to the status payload's
-        ``mentions``/``tags`` so they resolve exactly."""
+        ``link_mentions`` to the status payload's ``mentions`` so they
+        resolve exactly. Hashtags are already known from the rendered
+        segments, so a normalized ``tags`` payload cannot misroute them."""
         from .pages import open_link
         open_link(self, href, mentions=getattr(self, 'link_mentions', None),
-                  tags=getattr(self, 'link_tags', None))
+                  tag=self._link_hashtags.get(href))
 
     def _caret_offset(self):
         return self._buffer.get_iter_at_mark(

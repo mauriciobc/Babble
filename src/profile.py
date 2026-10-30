@@ -229,25 +229,23 @@ def duration_label(seconds):
 
 
 def link_context(segments, instance_host):
-    """``(mentions, tags)`` payloads for InlineEmojiText link routing,
-    derived from the rendered segments of an account's HTML (accounts do
-    not carry the ``mentions``/``tags`` arrays statuses do)."""
-    mentions, tags = [], []
+    """The mentions payload for InlineEmojiText link routing, derived
+    from the rendered segments of an account's HTML (accounts do not
+    carry the ``mentions`` array statuses do). Hashtags need no payload:
+    parse_content marks their anchors, so the visible name is exact."""
+    mentions = []
     for segment in segments:
         href = segment.get('href')
         text = segment.get('text') or ''
-        if not href:
+        if not href or not text.startswith('@'):
             continue
-        if text.startswith('@'):
-            parts = urllib.parse.urlsplit(href)
-            user = parts.path.rstrip('/').rsplit('/', 1)[-1].lstrip('@')
-            if user and parts.hostname:
-                acct = user if parts.hostname == instance_host \
-                    else '%s@%s' % (user, parts.hostname)
-                mentions.append({'url': href, 'acct': acct})
-        elif text.startswith('#') and len(text) > 1:
-            tags.append({'name': text[1:]})
-    return mentions, tags
+        parts = urllib.parse.urlsplit(href)
+        user = parts.path.rstrip('/').rsplit('/', 1)[-1].lstrip('@')
+        if user and parts.hostname:
+            acct = user if parts.hostname == instance_host \
+                else '%s@%s' % (user, parts.hostname)
+            mentions.append({'url': href, 'acct': acct})
+    return mentions
 
 
 def make_chip(text, tone=None):
@@ -737,9 +735,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
         text = InlineEmojiText(emoji_size=emoji_size,
                                paragraph_gap=paragraph_gap)
         text.set_segments(segments, emoji_bank(account))
-        mentions, tags = link_context(segments, self._instance_host())
-        text.link_mentions = mentions
-        text.link_tags = tags
+        text.link_mentions = link_context(segments, self._instance_host())
         return text
 
     def _open_image_on_click(self, widget, url, description, label=None):

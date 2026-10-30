@@ -598,7 +598,6 @@ class StatusRow(Gtk.Overlay):
             or status.get('content', '')
         segments = parse_content(html)
         self.content.link_mentions = status.get('mentions')
-        self.content.link_tags = status.get('tags')
         self.content.set_emoji_size(
             32 if _flag('enlarge-custom-emojis') else 20)
         shown, collapsible = _collapse_view(segments)

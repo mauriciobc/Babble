@@ -63,6 +63,39 @@ class TestParseContent(unittest.TestCase):
         self.assertEqual(link['href'], 'https://x.test/a')
         self.assertEqual(link['text'], 'café')
 
+    def test_a_hashtag_anchor_is_marked_and_its_text_kept(self):
+        # The status payload's tags are normalized, and a server may not
+        # link tags through /tags/, so the class is the only reliable
+        # signal that this anchor is a hashtag.
+        segments = parse_content(
+            '<p><a class="mention hashtag" rel="tag" '
+            'href="https://x.test/tags/K%C3%BCnstlicheIntelligenz">'
+            '#KünstlicheIntelligenz</a></p>')
+        link = next(s for s in segments if s['href'])
+        self.assertTrue(link.get('hashtag'))
+        self.assertEqual(link['text'], '#KünstlicheIntelligenz')
+
+    def test_a_hashtag_anchor_off_the_tags_path_is_marked(self):
+        segments = parse_content(
+            '<p><a class="hashtag" '
+            'href="https://app.wafrn.net/dashboard/search/photo%20friday">'
+            '#photo-friday</a></p>')
+        link = next(s for s in segments if s['href'])
+        self.assertTrue(link.get('hashtag'))
+
+    def test_an_ordinary_link_is_not_marked(self):
+        segments = parse_content(
+            '<a href="https://x.test/a">#notatag</a>')
+        self.assertFalse(segments[0].get('hashtag'))
+
+    def test_the_hashtag_flag_survives_the_same_href_merge(self):
+        segments = parse_content(
+            '<a class="hashtag" href="https://x.test/tags/a">#a</a> '
+            '<a class="hashtag" href="https://x.test/tags/a">#b</a>')
+        link = next(s for s in segments if s['href'])
+        self.assertTrue(link.get('hashtag'))
+        self.assertEqual(link['text'], '#a #b')
+
     def test_a_script_body_never_reaches_the_text(self):
         # The status content is untrusted: a <script> whose text were
         # kept would be rendered as the post's own words.

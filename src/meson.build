@@ -376,6 +376,11 @@ test('preferences schema', python,
   env: test_env,
   timeout: 60,
 )
+test('hashtag links', python,
+  args: [files('test-hashtag-links.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 # Needs no display: the text layer is deliberately widget-free.
 test('status text', python,
   args: [files('test-statustext.py')],
