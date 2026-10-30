@@ -722,6 +722,8 @@ class NotificationPost(Gtk.Box):
         self.add_css_class('notification-post')
         self._segments = []
         self._bank = {}
+        # href -> hashtag name, for the anchors parse_content flagged.
+        self._tag_by_href = {}
 
         byline = Gtk.Box(spacing=6)
         self.name_label = Gtk.Label(xalign=0.0,
@@ -738,6 +740,10 @@ class NotificationPost(Gtk.Box):
         self.content = Gtk.Label(xalign=0.0, hexpand=True, wrap=True,
                                  wrap_mode=Pango.WrapMode.WORD_CHAR,
                                  use_markup=True)
+        # A Gtk.Label's own activate-link opens the URI externally;
+        # route it through the app instead, hashtags included.
+        connect_weak(self.content, 'activate-link',
+                     self._on_activate_link)
         self.append(self.content)
 
         self.more_button = Gtk.Button(label=_('Read More'),
@@ -784,9 +790,14 @@ class NotificationPost(Gtk.Box):
         self._show(self._segments)
         self.more_button.set_visible(False)
 
+    def _on_activate_link(self, _label, uri):
+        pages.open_link(self, uri, tag=self._tag_by_href.get(uri))
+        return True
+
     def _show(self, segments):
         """Render segments as Pango markup: links stay focusable and
         activatable, custom emoji shortcodes are dropped."""
+        self._tag_by_href = {}
         parts = []
         for segment in segments:
             text = segment['text']
@@ -794,6 +805,10 @@ class NotificationPost(Gtk.Box):
                 if parts and not parts[-1].endswith('\n'):
                     parts.append('\n\n')
                 continue
+            if segment.get('hashtag') and segment.get('href'):
+                name = text.strip().lstrip('#＃').split(None, 1)[0].strip()
+                if name:
+                    self._tag_by_href[segment['href']] = name
             text = EMOJI_RE.sub(
                 lambda m: '' if m.group(1) in self._bank else m.group(0),
                 shorten_url_text(text) if segment['href'] else text)
@@ -871,6 +886,7 @@ class NotificationPost(Gtk.Box):
         alive for as long as the row lives."""
         self._bank = {}
         self._segments = []
+        self._tag_by_href = {}
         self.content.set_text('')
         self._set_poll(None)
         while (child := self.media_box.get_first_child()) is not None:

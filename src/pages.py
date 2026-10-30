@@ -1010,11 +1010,16 @@ def open_web(widget, uri):
     launch_external(widget, uri)
 
 
-def open_link(widget, uri, mentions=None, tags=None, resolve=False):
+def open_link(widget, uri, mentions=None, tag=None, resolve=False):
     """Route a link clicked in post or profile text.
 
-    Mentions (matched against the status ``mentions`` payload) open the
-    profile, hashtags open the hashtag timeline, Collection URLs open the
+    *tag*, when the renderer recognised an ``<a class="hashtag">`` and
+    kept its displayed name, opens that hashtag's timeline directly:
+    the status ``tags`` payload is normalized (casefolded, transliterated)
+    and cannot be compared with the href, and a server that links tags
+    elsewhere (``/dashboard/search/…``, ``/feeds/search?q=…#name``)
+    would never match a URL shape. Mentions (matched against the status
+    ``mentions`` payload) open the profile, Collection URLs open the
     Collection, other post/profile URLs are resolved through the
     instance's search when the ``aggressive-resolving`` setting is on, or
     always with *resolve*; everything else goes to the web column when
@@ -1029,19 +1034,22 @@ def open_link(widget, uri, mentions=None, tags=None, resolve=False):
     if client is None:
         launch_external(widget, uri)
         return
+    if tag:
+        from .hashtags import push_hashtag
+        push_hashtag(widget, client, tag)
+        return
     for mention in mentions or ():
         if mention.get('url') == uri:
             open_profile(widget, client, acct=mention.get('acct'))
             return
     parts = split_url(uri)
-    tag = _TAG_PATH.match(parts.path)
-    if tag:
-        name = urllib.parse.unquote(tag.group(1))
-        known = {t.get('name', '').lower() for t in tags or ()}
-        if not tags or name.lower() in known:
-            from .hashtags import push_hashtag
-            push_hashtag(widget, client, name)
-            return
+    path_tag = _TAG_PATH.match(parts.path)
+    if path_tag:
+        # An anchor without the hashtag class, or a plain link to a tag
+        # page. Both open the timeline in-app, as Tuba does.
+        from .hashtags import push_hashtag
+        push_hashtag(widget, client, urllib.parse.unquote(path_tag.group(1)))
+        return
     if _COLLECTION_PATH.match(parts.path):
         # A Collection link (Mastodon 4.6+). Resolution goes through the
         # instance's search, which returns the local Collection entity

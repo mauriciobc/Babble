@@ -55,6 +55,7 @@ class _ContentParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.segments = []
         self._href = None
+        self._hashtag = False
         self._buffer = []
         self._unprintable = 0
 
@@ -66,7 +67,13 @@ class _ContentParser(HTMLParser):
             return
         if tag == 'a':
             self._flush()
-            self._href = dict(attrs).get('href')
+            attrs = dict(attrs)
+            self._href = attrs.get('href')
+            # The class is the only signal that survives a server that
+            # does not link tags through /tags/, and a status's ``tags``
+            # payload is normalized (casefolded, transliterated), so it
+            # cannot be matched against the href.
+            self._hashtag = 'hashtag' in (attrs.get('class') or '').split()
         elif tag in self.BLOCK_TAGS:
             self._flush()
             if self.segments:
@@ -89,6 +96,7 @@ class _ContentParser(HTMLParser):
         if tag == 'a':
             self._flush()
             self._href = None
+            self._hashtag = False
         elif tag in self.BLOCK_TAGS or tag in self.LINE_TAGS:
             self._flush()
 
@@ -102,7 +110,10 @@ class _ContentParser(HTMLParser):
         self._buffer = []
         if not text:
             return
-        self.segments.append({'text': text, 'href': self._href})
+        segment = {'text': text, 'href': self._href}
+        if self._hashtag:
+            segment['hashtag'] = True
+        self.segments.append(segment)
 
 
 def parse_content(html_text):
@@ -110,9 +121,10 @@ def parse_content(html_text):
 
     Text segments are ``{'text', 'href', 'sp_before', 'sp_after'}`` (the
     flags record whether the source had whitespace around the text, so
-    punctuation after a link does not get a stray space). A line break
-    is a ``'newline'`` segment flagged ``br`` and a paragraph break the
-    same segment without the flag."""
+    punctuation after a link does not get a stray space). A segment
+    rendered from an ``<a class="hashtag">`` also carries ``hashtag:
+    True``. A line break is a ``'newline'`` segment flagged ``br`` and a
+    paragraph break the same segment without the flag."""
     if not html_text:
         return []
     parser = _ContentParser()
@@ -152,9 +164,14 @@ def parse_content(html_text):
                 and segments[-1]['text'] != '\n':
             segments[-1]['text'] += ' ' + text
             segments[-1]['sp_after'] = sp_after
+            if segment.get('hashtag'):
+                segments[-1]['hashtag'] = True
         else:
-            segments.append({'text': text, 'href': segment['href'],
-                             'sp_before': sp_before, 'sp_after': sp_after})
+            entry = {'text': text, 'href': segment['href'],
+                     'sp_before': sp_before, 'sp_after': sp_after}
+            if segment.get('hashtag'):
+                entry['hashtag'] = True
+            segments.append(entry)
     while segments and segments[-1]['text'] == '\n':
         segments.pop()
     return segments
