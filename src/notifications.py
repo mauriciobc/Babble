@@ -11,7 +11,7 @@ gi.require_version('Soup', '3.0')
 
 from .i18n import gettext as _, ngettext
 
-from gi.repository import Adw, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
 import datetime  # noqa: E402
 import re  # noqa: E402
 import time as _time  # noqa: E402
@@ -680,8 +680,17 @@ class NotificationFactory(Gtk.SignalListItemFactory):
     def __init__(self, client):
         super().__init__()
         self.client = client
+        # Row widgets by model position, for the page's activation
+        # handler: a grouped row with no single actor to open has to
+        # toggle its own expander, and `activate` only carries the
+        # position.
+        self.rows = {}
         self.connect('setup', self.on_setup)
         self.connect('bind', self.on_bind)
+        self.connect('unbind', self.on_unbind)
+
+    def row_at(self, position):
+        return self.rows.get(position)
 
     def on_setup(self, _factory, list_item):
         if isinstance(list_item, Gtk.ListHeader):
@@ -704,6 +713,12 @@ class NotificationFactory(Gtk.SignalListItemFactory):
             return
         row = list_item.get_child()
         row.bind(item, self.client)
+        self.rows[list_item.get_position()] = row
+
+    def on_unbind(self, _factory, list_item):
+        if isinstance(list_item, Gtk.ListHeader):
+            return
+        self.rows.pop(list_item.get_position(), None)
 
 
 class NotificationPost(Gtk.Box):
@@ -1004,6 +1019,21 @@ class NotificationRow(ColumnBox):
             visible=False)
         connect_weak(self.cluster_expander, 'notify::expanded',
                      self._on_expanded_changed)
+        # GtkExpander's gesture on the title widget never claims its
+        # sequence, so a click on the avatars or the arrow also reached
+        # the list item's activation gesture and opened actors[0]. Claim
+        # title clicks in capture phase and toggle here instead: a
+        # claimed sequence cancels the expander's own handler.
+        self._title_click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
+        self._title_click.set_propagation_phase(
+            Gtk.PropagationPhase.CAPTURE)
+        connect_weak(self._title_click, 'pressed',
+                     self._on_title_pressed)
+        connect_weak(self._title_click, 'released',
+                     self._on_title_released)
+        connect_weak(self._title_click, 'cancel', self._on_title_cancel)
+        self.cluster_expander.add_controller(self._title_click)
+        self._title_claimed = False
         self._content.insert_child_after(self.cluster_expander,
                                          self.actions_box)
 
@@ -1012,19 +1042,62 @@ class NotificationRow(ColumnBox):
         if page is not None and self.item is not None:
             page.dismiss(self.item)
 
+    def _in_cluster_title(self, x, y):
+        """A point on the expander's title (arrow or avatar strip) but
+        not in the revealed people list; the gesture sits on the whole
+        expander, child included."""
+        picked = self.cluster_expander.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while picked is not None:
+            if picked is self.people_revealer:
+                return False
+            if picked is self.cluster_expander:
+                return True
+            picked = picked.get_parent()
+        return False
+
+    def _on_title_pressed(self, gesture, _n_press, x, y):
+        if self._title_claimed or not self._in_cluster_title(x, y):
+            return
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        self._title_claimed = True
+
+    def _on_title_released(self, _gesture, _n_press, _x, _y):
+        if not self._title_claimed:
+            return
+        self._title_claimed = False
+        self.cluster_expander.set_expanded(
+            not self.cluster_expander.get_expanded())
+
+    def _on_title_cancel(self, _gesture, _sequence):
+        self._title_claimed = False
+
     def _on_expanded_changed(self, expander, _pspec):
         expanded = expander.get_expanded()
         reveal(self.people_revealer, expanded, animate=expanded)
 
-    def _person_row(self, name, kind):
-        """One named person row under the expander: action icon and name."""
+    def _person_row(self, actor, name, kind):
+        """One named person row under the expander: action icon and name.
+        A button, so it opens that person -- and so its click is claimed
+        and cannot also activate the card behind it."""
         person = Gtk.Box(spacing=8)
         person.append(Gtk.Image(
             icon_name=type_icon(kind),
             accessible_role=Gtk.AccessibleRole.PRESENTATION))
         person.append(Gtk.Label(label=name, xalign=0.0, hexpand=True,
                                 ellipsize=Pango.EllipsizeMode.END))
-        return person
+        button = Gtk.Button(child=person)
+        button.add_css_class('flat')
+        pages.set_accessible_label(button, name)
+        connect_weak(button, 'clicked', self._on_person_clicked, actor)
+        return button
+
+    def _on_person_clicked(self, _button, actor):
+        root = self.get_root()
+        view = getattr(root, 'navigation_view', None) if root else None
+        if view is None:
+            return
+        from .profile import push_profile
+        push_profile(view, self.client, actor)
 
     def _populate_people(self, item):
         """Build the stacked avatars with per-action badges and the
@@ -1063,13 +1136,13 @@ class NotificationRow(ColumnBox):
             AvatarCache.load(avatar, actor)
             slot = Gtk.Overlay(child=avatar)
             badge = Gtk.Image.new_from_icon_name(type_icon(kind))
-            badge.set_pixel_size(10)
+            badge.set_pixel_size(8)
             badge.set_halign(Gtk.Align.END)
             badge.set_valign(Gtk.Align.END)
             badge.add_css_class('notification-badge')
             slot.add_overlay(badge)
             self.avatar_stack.append(slot)
-            self.people_box.append(self._person_row(name, kind))
+            self.people_box.append(self._person_row(actor, name, kind))
         remaining = len(actors) - len(shown)
         if remaining > 0:
             more = Gtk.Label(label='+%d' % remaining)
@@ -1083,7 +1156,7 @@ class NotificationRow(ColumnBox):
         for actor, kind in actors[len(shown):]:
             name = _clean_name(actor)
             names.append(name)
-            self.people_box.append(self._person_row(name, kind))
+            self.people_box.append(self._person_row(actor, name, kind))
         people = ', '.join(names)
         pages.set_accessible_label(self.cluster_expander, people)
 
@@ -1524,6 +1597,17 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
             links = notification_links(item, self.client.instance)
             if links:
                 launch_external(self, links[0][1])
+            return
+        if item.status_item is None and len(item.actors) > 1:
+            # A merged group with no post (new followers, sign-ups) has no
+            # single account to open; picking actors[0] opened a profile
+            # nobody chose. Activating the card toggles its people list,
+            # like the expander itself.
+            factory = self.list_view.get_factory()
+            row = factory.row_at(position) if factory is not None else None
+            if row is not None and row.cluster_expander is not None:
+                row.cluster_expander.set_expanded(
+                    not row.cluster_expander.get_expanded())
             return
         root = self.get_root()
         view = getattr(root, 'navigation_view', None) if root else None

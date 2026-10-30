@@ -508,6 +508,95 @@ page.on_row_activated(page.list_view, follow_index)
 check('follow row opens the actor profile', profile_calls == ['carol'])
 check('thread page tracks activated status', mention_id == '50')
 
+# A grouped row with no post (two new followers) has no single account
+# to open. Activating it toggles the people list, the chevron and the
+# avatar strip are the expander's own interaction, and a named person
+# opens that person. The expander's click gesture never claims its
+# sequence, so a click on it used to reach the row's activation gesture
+# as well: expanding the group also opened the first follower.
+cluster_page = NotificationsPage(client)
+cluster_page.model.append_page([
+    make_notification('300', 'follow', ACTOR, '2026-10-06T12:00:00.000Z'),
+    make_notification('299', 'follow', ACTOR2, '2026-10-06T11:59:00.000Z')])
+cluster_page.stack.set_visible_child_name('list')
+cluster_window = NavRoot()
+cluster_window.navigation_view = Adw.NavigationView()
+cluster_window.set_child(cluster_page)
+cluster_window.set_default_size(600, 900)
+cluster_window.present()
+
+
+def cluster_rows():
+    return [w for w in notification_rows(cluster_page.list_view)
+            if w.get_mapped() and w.cluster_expander is not None
+            and w.cluster_expander.get_visible()]
+
+
+def pump_until(predicate, seconds=5):
+    deadline = GLib.get_monotonic_time() + int(seconds * 1000000)
+    while GLib.get_monotonic_time() < deadline and not predicate():
+        if not GLib.MainContext.default().iteration(False):
+            GLib.usleep(5000)
+
+
+pump_until(lambda: bool(cluster_rows()))
+cluster_row = cluster_rows()[0]
+check('grouped followers merge into one row',
+      cluster_page.model.get_n_items() == 1
+      and len(cluster_page.model.get_item(0).actors) == 2)
+first_person = cluster_row.people_box.get_first_child()
+check('people rows are buttons that name the person',
+      isinstance(first_person, Gtk.Button)
+      and isinstance(first_person.get_child().get_last_child(), Gtk.Label)
+      and first_person.get_child().get_last_child().get_text()
+      == 'Alice Doe')
+profile_calls.clear()
+cluster_page.on_row_activated(cluster_page.list_view, 0)
+check('activating a grouped follow row expands it',
+      cluster_row.cluster_expander.get_expanded())
+check('expanding a grouped follow row opens no profile',
+      profile_calls == [])
+pump_until(lambda: cluster_row.people_revealer.get_child_revealed())
+
+
+def find_named(widget, name):
+    if type(widget).__name__ == name:
+        return widget
+    child = widget.get_first_child()
+    while child is not None:
+        found = find_named(child, name)
+        if found is not None:
+            return found
+        child = child.get_next_sibling()
+    return None
+
+
+def point_in_expander(widget):
+    ok, rect = widget.compute_bounds(cluster_row.cluster_expander)
+    return rect.origin.x + rect.size.width / 2, \
+        rect.origin.y + rect.size.height / 2
+
+
+check('the avatar strip is an expander title click',
+      cluster_row._in_cluster_title(
+          *point_in_expander(cluster_row.avatar_stack)))
+# The expander's arrow is a private GtkBuiltinIcon; it is the widget the
+# title gesture must claim, since its release reaches the row as well.
+arrow = find_named(cluster_row.cluster_expander, 'GtkBuiltinIcon')
+check('the expander arrow is an expander title click',
+      arrow is not None
+      and cluster_row._in_cluster_title(*point_in_expander(arrow)))
+check('the revealed people list is not an expander title click',
+      not cluster_row._in_cluster_title(
+          *point_in_expander(cluster_row.people_box)))
+profile_calls.clear()
+cluster_row.people_box.get_first_child().emit('clicked')
+check('a named person opens that person', profile_calls == ['alice'])
+cluster_page.on_row_activated(cluster_page.list_view, 0)
+check('activating the grouped row again collapses it',
+      not cluster_row.cluster_expander.get_expanded())
+cluster_window.destroy()
+
 # A page of new followers asks for their relationships once, and the rows
 # whose answer comes back are re-emitted so they rebind with Follow Back.
 # The first page load used to call a method that did not exist.

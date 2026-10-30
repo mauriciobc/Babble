@@ -250,13 +250,16 @@ picture.broken-image {
   font-weight: bold;
 }
 
+/* notifications.py: the per-action dot on a cluster avatar. A 32 px
+   avatar leaves room for a small corner badge; at 18 px minimum plus
+   padding it covered most of the portrait and read as a second avatar,
+   so it stays just big enough to carry an 8 px symbolic glyph. */
 .notification-badge {
-  min-width: 18px;
-  min-height: 18px;
+  min-width: 14px;
+  min-height: 14px;
   border-radius: 9999px;
   background-color: var(--card-bg-color);
   border: 1px solid var(--border-color);
-  padding: 1px 3px;
 }
 
 @media (prefers-contrast: more) {
