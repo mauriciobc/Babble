@@ -534,6 +534,25 @@ check('a closed media viewer ran its teardown', viewer._closed)
 viewer_ref = viewer.weak_ref()
 del viewer
 check('a closed media viewer is freed', freed(viewer_ref, attempts=12))
+
+# The viewer is an overlay of the window and a profile sheet floats above
+# it, so the sheet has to close or the image opens behind it.
+# The shell's window is the one dialogs are presented on; the attribute
+# is what pages.window_of reads to recognise it.
+host.navigation_view = Adw.NavigationView()
+sheet_page = profile.ProfilePage(api, account(1), viewer_id='99')
+sheet = profile.ProfileDialog(Adw.NavigationView(), sheet_page, 'User 1')
+sheet.present(host)
+settle(lambda: sheet.get_mapped())
+viewer = mediaviewer.present_media(
+    sheet_page, [{'type': 'image', 'url': 'https://example.org/a.png'}])
+settle(lambda: not sheet.get_mapped())
+check('opening an image from the profile sheet closes the sheet',
+      not sheet.get_mapped() and viewer.window is host
+      and viewer.get_parent() is host.get_content())
+viewer.force_close()
+settle(lambda: viewer._closed)
+sheet.force_close()
 host.destroy()
 mediacache._TextureCache.store.clear()
 

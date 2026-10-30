@@ -1650,13 +1650,30 @@ def media_overlay(window):
     return content if isinstance(content, Gtk.Overlay) else None
 
 
+def _enclosing_dialog(widget):
+    """The :class:`Adw.Dialog` in *widget*'s ancestry, or None."""
+    node = widget
+    while node is not None:
+        if isinstance(node, Adw.Dialog):
+            return node
+        node = node.get_parent()
+    return None
+
+
 def present_media(parent_widget, attachments, index=0):
     """Open the media viewer on *attachments* (Mastodon media_attachments
     dicts) at *index* as an overlay of the window of *parent_widget*;
-    returns the viewer."""
+    returns the viewer. A dialog holds the widget it was opened from
+    above that overlay, so it closes instead of hiding the image."""
     global _open_viewer
     if _open_viewer is not None:
         _open_viewer.close()
+    dialog = _enclosing_dialog(parent_widget)
+    if dialog is not None:
+        window = pages.window_of(parent_widget)
+        if window is not None:
+            parent_widget = window
+        dialog.close()
     viewer = MediaViewer(parent_widget, attachments, index)
     window = viewer.window
     overlay = media_overlay(window)

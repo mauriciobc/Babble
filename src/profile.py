@@ -60,7 +60,9 @@ class ProfileDialog(Adw.Dialog):
     """Profile in a bottom sheet, like Phanpy's account sheet. Lists the
     profile opens (followers, following, familiar followers) stack inside
     the sheet; anything the profile opens in the window's navigation (a
-    thread, a post, a hashtag) closes the sheet so it lands in view."""
+    thread, a post, a hashtag) closes the sheet so it lands in view. The
+    media viewer is an overlay of the window too, so presenting it from
+    inside the sheet closes the sheet."""
 
     __gtype_name__ = 'BabbleProfileDialog'
 
