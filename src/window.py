@@ -110,16 +110,6 @@ def help_available():
 
 
 
-def _swallow(finish, result):
-    """Take delivery of a reply nobody is waiting for, discarding any
-    failure. Used where the outcome is already decided and the request
-    was only ever best-effort."""
-    try:
-        finish(result)
-    except GLib.Error:
-        pass
-
-
 @Gtk.Template(resource_path='/io/github/mauriciobc/Babble/window.ui')
 class BabbleWindow(Adw.ApplicationWindow):
     __gtype_name__ = 'BabbleWindow'
@@ -707,7 +697,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             if client.token and client.client_id and client.client_secret:
                 client.revoke_token_async(
                     client.token,
-                    lambda _c, result, _d=None: _swallow(
+                    lambda _c, result, _d=None: auth.discard_reply(
                         client.revoke_token_finish, result))
             self._finish_account_removal(account)
 
