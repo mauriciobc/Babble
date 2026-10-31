@@ -447,17 +447,16 @@ class StatusRow(Gtk.Overlay):
         self.filter_bar.set_visible(collapsed or blur)
         self.actions.set_visible(
             self.detail or _flag('show-action-bar'))
-        if collapsed:
+        if collapsed or blur:
+            # In the blur case the badge stays so the filter names
+            # itself; the Show Anyway click clears it together with the
+            # blur.
             self.filter_label.set_text(
                 _('Filtered: %s') % rule[1] if rule[1] else _('Filtered'))
+        if collapsed:
             self.main.set_visible(False)
             return
         self.main.set_visible(True)
-        if blur:
-            # The badge stays so the filter names itself; the Show
-            # Anyway click clears it together with the blur.
-            self.filter_label.set_text(
-                _('Filtered: %s') % rule[1] if rule[1] else _('Filtered'))
 
         AvatarCache.load(self.avatar, account)
         display = item.display_name or '?'

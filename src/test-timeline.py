@@ -616,7 +616,7 @@ check('detail rows keep the action bar',
 
 # A 'blur' filter covers just the media: the badge stays, the text
 # stays, and Show Anyway clears both the badge and the blur.
-def media_status(order):
+def media_status(order, title='Spoiler'):
     status = {'id': '9', 'content': '<p>text for the filtered card</p>',
               'account': {'acct': 'patrol'},
               'created_at': '2026-10-01T00:00:00.000Z',
@@ -624,7 +624,7 @@ def media_status(order):
                   'type': 'image', 'url': EMOJI_URL_BASE + 'x.png'}]}
     if order is not None:
         status['filtered'] = [{
-            'filter': {'filter_action': order, 'title': 'Spoiler'}}]
+            'filter': {'filter_action': order, 'title': title}}]
     return status
 
 def deep_pictures(widget, out):
@@ -640,6 +640,8 @@ blur_item = StatusItem(media_status('blur'))
 blur_row.bind(blur_item, _DummyClient())
 check('blur shows the badge', blur_row.filter_bar.get_visible())
 check('blur does not collapse the post', blur_row.main.get_visible())
+check('blur badge names the filter',
+      blur_row.filter_label.get_text() == 'Filtered: Spoiler')
 blurred_seen = []
 deep_pictures(blur_row, blurred_seen)
 check('blur wraps the media picture', len(blurred_seen) == 1)
@@ -663,6 +665,14 @@ warn_row = StatusRow()
 warn_item = StatusItem(media_status('warn'))
 warn_row.bind(warn_item, _DummyClient())
 check('warn collapses the card', not warn_row.main.get_visible())
+check('warn badge names the filter',
+      warn_row.filter_label.get_text() == 'Filtered: Spoiler')
+for order in ('warn', 'blur'):
+    untitled_row = StatusRow()
+    untitled_row.bind(StatusItem(media_status(order, title='')),
+                      _DummyClient())
+    check('%s without a title says only Filtered' % order,
+          untitled_row.filter_label.get_text() == 'Filtered')
 
 emoji_window.set_child(None)
 
