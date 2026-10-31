@@ -83,6 +83,30 @@ check('a rail row has a plain-text tooltip',
       repr(rows[0].get_tooltip_text()))
 check('the separator row cannot be selected or activated',
       not rows[2].get_selectable() and not rows[2].get_activatable())
+def row_kinds(sections):
+    """Lay the sections out on a fresh rail: the tag of each place row, and
+    'sep' for each separator row."""
+    probe = SidebarRail()
+    probe.set_sections(sections)
+    kinds = []
+    index = 0
+    while (row := probe.listbox.get_row_at_index(index)) is not None:
+        kinds.append(getattr(row, 'tag', None) or 'sep')
+        index += 1
+    return kinds
+
+
+A = [('a', 'user-home-symbolic', 'A')]
+B = [('b', 'view-list-symbolic', 'B')]
+C = [('c', 'view-list-symbolic', 'C')]
+check('empty leading, middle and trailing sections leave no stray separator',
+      row_kinds([[], A, [], B, [], C, []]) == ['a', 'sep', 'b', 'sep', 'c'],
+      repr(row_kinds([[], A, [], B, [], C, []])))
+check('a lone section has no separator',
+      row_kinds([[], A, []]) == ['a'], repr(row_kinds([[], A, []])))
+check('no sections at all leaves the rail empty',
+      row_kinds([[], []]) == [] and row_kinds([]) == [])
+
 check('the compose button targets win.compose',
       rail.compose_button.get_action_name() == 'win.compose',
       repr(rail.compose_button.get_action_name()))

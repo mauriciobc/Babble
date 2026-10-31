@@ -220,6 +220,11 @@ test('navigation window', python,
   env: fatal_test_env,
   timeout: 60,
 )
+test('stream dispatch', python,
+  args: [files('test-stream-dispatch.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('keyring errors', python,
   args: [files('test-keyring-errors.py')],
   env: fatal_test_env,

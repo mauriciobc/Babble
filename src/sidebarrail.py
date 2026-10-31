@@ -94,13 +94,9 @@ class SidebarRail(Gtk.Box):
         self._rows = {}
         self._badge = None
         self._badge_row = None
-        first = True
-        for section in sections:
-            if not section:
-                continue
-            if not first:
+        for index, section in enumerate(filter(None, sections)):
+            if index:
                 self.listbox.append(self._make_separator())
-            first = False
             for tag, icon, title in section:
                 row = self._make_row(tag, icon, title)
                 self._rows[tag] = row
