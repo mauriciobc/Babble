@@ -42,6 +42,10 @@
     <title>Settings</title>
   </section>
 
+  <section id="plugins" style="2column">
+    <title>Plugins</title>
+  </section>
+
   <section id="problems" style="2column">
     <title>Common Problems</title>
   </section>

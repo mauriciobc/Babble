@@ -62,6 +62,9 @@ install_data(
   'notificationctrl.py',
   'notifications.py',
   'pages.py',
+  'plugin.py',
+  'pluginhost.py',
+  'pluginspage.py',
   'pollbox.py',
   'portals.py',
   'preferences.py',
@@ -424,6 +427,31 @@ test('module boundary', python,
 test('navigation', python,
   args: [files('test-navigation.py')],
   env: test_env,
+  timeout: 60,
+)
+# Needs no display: it reads sources only.
+test('plugin boundary', python,
+  args: [files('test-plugin-boundary.py')],
+  env: test_env,
+  timeout: 60,
+)
+# libpeas loading real plugins from a temporary directory, the two
+# extension points, and that a page or plugin dropped is freed.
+test('plugins', python,
+  args: [files('test-plugins.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+# The shipped Wallabag plugin against a fake Wallabag on loopback.
+test('wallabag plugin', python,
+  args: [files('test-wallabag.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+# The shipped Hashpanel plugin against a fake Hashpanel on loopback.
+test('hashpanel plugin', python,
+  args: [files('test-hashpanel.py')],
+  env: fatal_test_env,
   timeout: 60,
 )
 # Needs no display: the port imports no gi at all.

@@ -36,6 +36,9 @@ src/notificationcopy.py
 src/notificationctrl.py
 src/notifications.py
 src/pages.py
+src/plugin.py
+src/pluginhost.py
+src/pluginspage.py
 src/pollbox.py
 src/portals.py
 src/preferences.py
@@ -66,3 +69,5 @@ src/webcolumn.py
 src/window.py
 src/window.ui
 src/wrapped.py
+plugins/hashpanel/babble_hashpanel.py
+plugins/wallabag/babble_wallabag.py

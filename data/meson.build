@@ -53,6 +53,7 @@ foreach help_lang : help_languages
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'writing.page',
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'desktop.page',
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'settings.page',
+      'help' / help_lang / 'io.github.mauriciobc.Babble' / 'plugins.page',
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'problems.page',
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'keys.page',
       'help' / help_lang / 'io.github.mauriciobc.Babble' / 'legal.xml',

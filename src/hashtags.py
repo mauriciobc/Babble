@@ -159,6 +159,13 @@ class HashtagPage(Adw.Bin):
         self.stats_label.add_css_class('hashtag-stats')
         box.append(Adw.Clamp(maximum_size=pages.COLUMN_WIDTH,
                              child=self.stats_label))
+        # Banners plugins add (HashtagPageExtension); hidden while empty.
+        self.plugin_banners = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                                      spacing=6, visible=False,
+                                      margin_start=12, margin_end=12,
+                                      margin_bottom=6)
+        box.append(Adw.Clamp(maximum_size=pages.COLUMN_WIDTH,
+                             child=self.plugin_banners))
         self.timeline.set_vexpand(True)
         box.append(self.timeline)
         self.set_child(box)
@@ -169,6 +176,9 @@ class HashtagPage(Adw.Bin):
         if not self.multi:
             self._build_single_header()
             self._load_info()
+            from . import pluginhost
+            pluginhost.attach_hashtag_page(self, self.tags[0].lower(),
+                                           self.plugin_banners)
         else:
             self.edit_button = pages.icon_button(
                 'document-edit-symbolic', _('Edit Timeline'))

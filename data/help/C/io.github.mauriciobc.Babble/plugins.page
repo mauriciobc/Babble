@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="plugins" xml:lang="C">
+
+  <info>
+    <link type="guide" xref="index#plugins"/>
+    <title type="link" role="trail">Babble Help</title>
+    <title type="text">Plugins</title>
+    <title type="link">Plugins</title>
+    <desc>Turn plugins on, and what the included ones do.</desc>
+  </info>
+
+  <title>Plugins</title>
+
+  <p>
+    Plugins add to Babble: an entry in a post's menu, a banner on a
+    hashtag's page, and settings of their own. Open <gui>Plugins</gui> in
+    the main menu to see them. Every plugin starts turned off; the switch
+    beside it turns it on, and the button with a gear opens its settings
+    when it has any.
+  </p>
+  <p>
+    <gui>Included With Babble</gui> lists the plugins that come with the
+    app. <gui>Installed by You</gui> lists the ones you added yourself, by
+    putting a plugin's folder in the folder that <gui>Open Plugins
+    Folder</gui> opens: <file>~/.local/share/babble/plugins</file>, or
+    <file>~/.var/app/io.github.mauriciobc.Babble/data/babble/plugins</file>
+    when Babble is installed as a Flatpak.
+  </p>
+  <note style="warning">
+    <title>Only turn on plugins you trust</title>
+    <p>
+      A plugin runs as part of Babble and can do anything Babble can,
+      including reading and posting with your account. The plugins
+      included with Babble are reviewed with it; any other plugin is only
+      as safe as whoever wrote it.
+    </p>
+  </note>
+
+  <section id="wallabag">
+  <title>Wallabag</title>
+  <p>
+    Adds <gui>Save to Wallabag</gui> to every post's menu, to keep the
+    post's link to read later in <link href="https://wallabag.org">Wallabag</link>.
+    The first time, it asks you to sign in: the server's address
+    (<sys>app.wallabag.it</sys> for the hosted service, or your own), an
+    API client's ID and secret, which you create in Wallabag under
+    <gui>API Clients Management</gui>, and your username and password.
+  </p>
+  <p>
+    Your password is used once to sign in and is not stored. The keyring
+    keeps the client secret and a token that keeps you signed in; if it
+    expires, Babble asks you to sign in again. <gui>Sign Out</gui> is in
+    the plugin's settings.
+  </p>
+  </section>
+
+  <section id="hashpanel">
+  <title>Hashpanel</title>
+  <p>
+    <link href="https://github.com/mauriciobc/hashpanel">Hashpanel</link>
+    follows the daily hashtags of the Brazilian fediverse, such as
+    <sys>#segundaficha</sys> on Mondays. On the page of a hashtag it
+    follows, the plugin shows whose day it is, today's favorites, boosts
+    and replies, the week against the one before, and the day's top post.
+  </p>
+  <p>
+    Babble asks Hashpanel only about the hashtags it follows: opening any
+    other hashtag sends Hashpanel nothing. Another Hashpanel server can be
+    set in the plugin's settings.
+  </p>
+  </section>
+
+  <section id="plugin-problems">
+  <title>When a Plugin Does Not Work</title>
+  <p>
+    A plugin that cannot be loaded, or that stops working, shows why under
+    its name in <gui>Plugins</gui>, with a warning sign; one that stops
+    working is also turned off, and Babble says so. The system log has the
+    details. A plugin that could not be loaded is tried again the next
+    time Babble starts, and one made for another version of Babble is not
+    loaded at all.
+  </p>
+  </section>
+
+</page>
