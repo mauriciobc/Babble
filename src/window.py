@@ -923,17 +923,15 @@ class BabbleWindow(Adw.ApplicationWindow):
             if self.notifications_page is not None:
                 self.notifications_page.refresh()
             return
-        if name == 'notifications_merged':
-            # Accepted notification requests finished merging into the
-            # stream: the loaded list is stale.
-            if self.notifications_page is not None:
-                self.notifications_page.refresh()
-            return
-        if name == 'follow_request':
-            # A new request. It arrives on the user stream and becomes a
-            # notification only once the server has written it, so the
-            # list is refetched rather than patched -- the same reason
-            # notifications_merged reloads.
+        if name in ('notifications_merged', 'follow_request'):
+            # notifications_merged: accepted notification requests
+            # finished merging into the stream, so the loaded list is
+            # stale.
+            #
+            # follow_request: a new request. It arrives on the user
+            # stream and becomes a notification only once the server has
+            # written it, so the list is refetched rather than patched --
+            # the same reason notifications_merged reloads.
             if self.notifications_page is not None:
                 self.notifications_page.refresh()
             return
