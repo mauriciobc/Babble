@@ -31,7 +31,7 @@ This app was developed using AI, and is built upon the brilliant codebases of Tu
 
 ## Status
 
-- **0.2.0** is the current version. **Not on Flathub yet** — build it from
+- **0.3.0** is the current version. **Not on Flathub yet** — build it from
   source [below](#getting-it).
 - The interface is translated into German, Spanish, French and Brazilian
   Portuguese. [Adding a language](Docs/localization.md) is a page of its own.

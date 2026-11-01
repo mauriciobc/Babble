@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-01 10:25-0300\n"
+"POT-Creation-Date: 2026-11-01 11:08-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -31,7 +31,7 @@ msgstr "Sigue tus cronologías de Mastodon"
 msgid "Mastodon;Fediverse;Social;Toot;Post;"
 msgstr "Mastodon;Fediverso;Social;Toot;Publicación;Red social;"
 
-#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:2134
+#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:2139
 #: src/portals.py:281 src/shortcuts-dialog.ui:53 src/sidebarcontrol.py:70
 #: src/sidebarcontrol.py:73 src/sidebarrail.py:70 src/window.ui:350
 #: src/window.ui:352 src/window.ui:499 src/window.ui:501
@@ -428,6 +428,50 @@ msgstr ""
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:65
 msgid ""
+"Babble can now be extended with plugins, turned on from a new Plugins page. "
+"Two ship with it: Wallabag, to save a post's link for later, and Hashpanel, "
+"for the daily hashtags of the Brazilian fediverse."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:71
+msgid ""
+"The composer suggests hashtags as you type, and can schedule a new post. "
+"Home reopens at the post you were reading."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:75
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:97
+msgid "Other changes:"
+msgstr "Otros cambios:"
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:77
+msgid "Deleting a post and removing a boost can be undone."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:78
+#, fuzzy
+msgid "A single notification can be dismissed."
+msgstr "Solicitud de notificación descartada"
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:79
+msgid "Boosts can be hidden on Home, and Home filters apply at once."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:80
+msgid "Editing a scheduled post keeps its poll, duration and language."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:81
+#, fuzzy
+msgid "Removing an account also removes its saved credentials."
+msgstr "No se pudo eliminar la entrada"
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:82
+msgid "A missing keyring is reported clearly instead of failing quietly."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:88
+msgid ""
 "Babble now has a Help menu item and a F1 shortcut that open the help pages "
 "shipped with the app, falling back to the online documentation when no help "
 "viewer can see them."
@@ -436,7 +480,7 @@ msgstr ""
 "páginas de ayuda incluidas con la aplicación, recurriendo a la documentación "
 "en línea cuando no hay un visor de ayuda disponible."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:70
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:93
 msgid ""
 "Preferences can be searched, and opening them again brings the dialog you "
 "already have up instead of a second copy."
@@ -444,37 +488,33 @@ msgstr ""
 "Las preferencias pueden ser buscadas, y abrirlas de nuevo trae el diálogo "
 "que ya tiene en lugar de una segunda copia."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:74
-msgid "Other changes:"
-msgstr "Otros cambios:"
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:76
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:99
 msgid "The attachment viewer no longer overflows a narrow window."
 msgstr "El visor de adjuntos ya no desborda una ventana estrecha."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:77
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:100
 msgid ""
 "Text size and line height now apply to every kind of text, not just labels."
 msgstr ""
 "El tamaño del texto y la altura de línea ahora aplican a todo tipo de texto, "
 "no solo a etiquetas."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:78
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:101
 msgid "Charts and buttons stay readable in high contrast."
 msgstr "Los diagramas y botones permanecen legibles en contraste alto."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:79
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:102
 msgid "The Catch-Up chart and filter controls are announced by screen readers."
 msgstr ""
 "El gráfico de Catch-Up y los controles de filtro son anunciados por lectores "
 "de pantalla."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:80
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:103
 msgid "One emphasised button per view in the list, hashtag and report editors."
 msgstr ""
 "Un botón destacado por vista en la lista, hashtag y editores de reportes."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:81
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:104
 msgid ""
 "US spelling, and spelled-out examples in place of Latin abbreviations, in "
 "the interface text."
@@ -482,7 +522,7 @@ msgstr ""
 "Ortografía estadounidense, y ejemplos escritos en lugar de abreviaturas en "
 "latín, en el texto de la interfaz."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:83
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:106
 #, fuzzy
 msgid ""
 "Translations: nothing already translated was lost. This release adds 35 "
@@ -496,7 +536,7 @@ msgstr ""
 "que solo ahora entraron en la plantilla de traducción. Se muestran en inglés "
 "hasta que un traductor las revise."
 
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:95
+#: data/io.github.mauriciobc.Babble.metainfo.xml.in:118
 msgid "Initial public release."
 msgstr ""
 
@@ -850,7 +890,7 @@ msgid "Take Action"
 msgstr "Tomar acción"
 
 #: src/admin.py:889 src/admin.py:1302 src/admin.py:1513
-#: src/catchup/page_controls.py:69 src/compose.py:1385
+#: src/catchup/page_controls.py:69 src/compose.py:1390
 #: src/fedicollections.py:679 src/hashtags.py:469 src/lists.py:164
 #: src/notificationctrl.py:558 src/pages.py:486 src/pages.py:514
 #: src/profile.py:281 src/profile.py:310 src/profileedit.py:229
@@ -942,7 +982,7 @@ msgstr "IP"
 msgid "No Accounts"
 msgstr "Sin cuentas"
 
-#: src/admin.py:1069 src/admin.py:1081 src/compose.py:1691 src/pages.py:414
+#: src/admin.py:1069 src/admin.py:1081 src/compose.py:1696 src/pages.py:414
 #: src/profileactions.py:217 src/profileactions.py:223
 #: src/profileactions.py:249 src/profileactions.py:267 src/statusactions.py:549
 msgid "_Undo"
@@ -2146,327 +2186,327 @@ msgstr "7 días"
 
 #. Translators: file name, without its extension, of an image pasted
 #. into the composer. It is shown on the attachment.
-#: src/compose.py:303
+#: src/compose.py:316
 msgid "Pasted image"
 msgstr "Imagen pegada"
 
-#: src/compose.py:306
+#: src/compose.py:319
 msgid "The image could not be saved"
 msgstr "La imagen no pudo ser guardada"
 
 #. Translators: file name, without its extension, of a screenshot
 #. taken from the composer. It is shown on the attachment.
-#: src/compose.py:322
+#: src/compose.py:335
 msgid "Screenshot"
 msgstr "Captura de pantalla"
 
-#: src/compose.py:376
+#: src/compose.py:389
 msgid "Remove Attachment"
 msgstr "Quitar adjunto"
 
-#: src/compose.py:385 src/fedicollections.py:693
+#: src/compose.py:398 src/fedicollections.py:693
 msgid "Description"
 msgstr "Descripción"
 
-#: src/compose.py:454 src/statusrow.py:591
+#: src/compose.py:467 src/statusrow.py:591
 msgid "Replying to a post"
 msgstr "Respondiendo a una publicación"
 
-#: src/compose.py:455
+#: src/compose.py:468
 msgid "_Cancel Reply"
 msgstr "_Cancelar respuesta"
 
-#: src/compose.py:461
+#: src/compose.py:474
 msgid "_Clear Schedule"
 msgstr "_Quitar programación"
 
-#: src/compose.py:522
+#: src/compose.py:535
 msgid "Discard Draft"
 msgstr "Descartar borrador"
 
-#: src/compose.py:527 src/compose.py:1208
+#: src/compose.py:540 src/compose.py:1222
 msgid "_Post"
 msgstr "_Publicar"
 
-#: src/compose.py:529 src/compose.py:1210
+#: src/compose.py:542 src/compose.py:1224
 msgid "Post (Ctrl+Enter)"
 msgstr "Publicar (Ctrl+Intro)"
 
-#: src/compose.py:535 src/compose.py:1217 src/scheduled.py:110
+#: src/compose.py:548 src/compose.py:1231 src/scheduled.py:110
 msgid "Schedule Post"
 msgstr "Programar publicación"
 
-#: src/compose.py:558
+#: src/compose.py:571
 msgid "Post Text"
 msgstr "Texto de la publicación"
 
-#: src/compose.py:576
+#: src/compose.py:589
 msgid "What’s on your mind?"
 msgstr "¿Qué tienes en mente?"
 
-#: src/compose.py:596 src/compose.py:658 src/fedicollections.py:732
+#: src/compose.py:609 src/compose.py:671 src/fedicollections.py:732
 msgid "Content Warning"
 msgstr "Advertencia de contenido"
 
-#: src/compose.py:612
+#: src/compose.py:625
 msgid "Duration"
 msgstr "Duración"
 
-#: src/compose.py:616
+#: src/compose.py:629
 msgid "_Add Choice"
 msgstr "_Añadir opción"
 
-#: src/compose.py:646 src/compose.py:1400
+#: src/compose.py:659 src/compose.py:1405
 msgid "Attach Media"
 msgstr "Adjuntar multimedia"
 
-#: src/compose.py:651
+#: src/compose.py:664
 msgid "Take Screenshot"
 msgstr "Tomar Captura de Pantalla"
 
-#: src/compose.py:661 src/search.py:609
+#: src/compose.py:674 src/search.py:609
 msgid "Poll"
 msgstr "Encuesta"
 
-#: src/compose.py:664
+#: src/compose.py:677
 msgid "Mention"
 msgstr "Mencionar"
 
-#: src/compose.py:668
+#: src/compose.py:681
 msgid "Insert Emoji"
 msgstr "Insertar emoji"
 
-#: src/compose.py:672
+#: src/compose.py:686
 msgid "Keep Open for a Thread"
 msgstr "Mantener abierto para un hilo"
 
-#: src/compose.py:681
+#: src/compose.py:695
 msgid "Post Visibility"
 msgstr "Visibilidad de la publicación"
 
-#: src/compose.py:682
+#: src/compose.py:696
 msgid "Post Language"
 msgstr "Idioma de la publicación"
 
-#: src/compose.py:694
+#: src/compose.py:708
 msgid "Characters Left"
 msgstr "Caracteres restantes"
 
 #. Translators: exact poll duration restored from a saved post.
-#: src/compose.py:747
+#: src/compose.py:761
 #, python-format
 msgid "%d second"
 msgid_plural "%d seconds"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/compose.py:760
+#: src/compose.py:774
 #, fuzzy
 msgid "Could not restore draft"
 msgstr "No se pudo reprogramar"
 
-#: src/compose.py:761
+#: src/compose.py:775
 msgid "The saved draft has unsupported settings."
 msgstr ""
 
-#: src/compose.py:832
+#: src/compose.py:846
 msgid "Remove the original scheduled post before starting another post."
 msgstr ""
 
-#: src/compose.py:836
+#: src/compose.py:850
 msgid "Finish sending this post first."
 msgstr ""
 
-#: src/compose.py:1004
+#: src/compose.py:1018
 #, fuzzy
 msgid "The server returned unsupported post settings."
 msgstr "El servidor no devolvió cifras para este periodo."
 
-#: src/compose.py:1094
+#: src/compose.py:1108
 #, fuzzy
 msgid "Could not edit scheduled post"
 msgstr "No se pudo reprogramar"
 
-#: src/compose.py:1170
+#: src/compose.py:1184
 msgid "_Set Time"
 msgstr "_Fijar hora"
 
-#: src/compose.py:1205 src/scheduled.py:333
+#: src/compose.py:1219 src/scheduled.py:333
 #, python-format
 msgid "Scheduled for %s"
 msgstr "Programada para %s"
 
-#: src/compose.py:1208 src/scheduled.py:127
+#: src/compose.py:1222 src/scheduled.py:127
 msgid "_Schedule"
 msgstr "_Programar"
 
-#: src/compose.py:1210
+#: src/compose.py:1224
 msgid "Schedule (Ctrl+Enter)"
 msgstr "Programar (Ctrl+Intro)"
 
-#: src/compose.py:1217
+#: src/compose.py:1231
 msgid "Change Time"
 msgstr "Cambiar hora"
 
-#: src/compose.py:1310
+#: src/compose.py:1324
 #, python-format
 msgid "Choice %d"
 msgstr "Opción %d"
 
-#: src/compose.py:1382
+#: src/compose.py:1387
 msgid "Discard Draft?"
 msgstr "¿Descartar el borrador?"
 
-#: src/compose.py:1383
+#: src/compose.py:1388
 msgid "The text, attachments and poll of this post will be lost"
 msgstr "Se perderán el texto, los adjuntos y la encuesta de esta publicación"
 
-#: src/compose.py:1386 src/profileedit.py:651
+#: src/compose.py:1391 src/profileedit.py:651
 msgid "_Discard"
 msgstr "_Descartar"
 
-#: src/compose.py:1418
+#: src/compose.py:1423
 msgid "Media accepted by this server"
 msgstr "Medios aceptados por este servidor"
 
-#: src/compose.py:1419
+#: src/compose.py:1424
 msgid "Images, Videos and Audio"
 msgstr "Imágenes, videos y audio"
 
-#: src/compose.py:1441
+#: src/compose.py:1446
 msgid "Could not open the file picker"
 msgstr "No se pudo abrir el selector de archivos"
 
-#: src/compose.py:1457 src/compose.py:1472 src/compose.py:1480
+#: src/compose.py:1462 src/compose.py:1477 src/compose.py:1485
 msgid "Could not take a screenshot"
 msgstr "No se ha podido tomar una captura de pantalla"
 
-#: src/compose.py:1571
+#: src/compose.py:1576
 msgid "Only images, videos and audio can be attached"
 msgstr "Solo imágenes, videos y audio pueden ser adjuntados"
 
-#: src/compose.py:1579
+#: src/compose.py:1584
 msgid "Wait for the post to be sent to attach files"
 msgstr "Esperar que la publicación sea enviada para adjuntar archivos"
 
-#: src/compose.py:1582
+#: src/compose.py:1587
 msgid "A video or audio file must be the only attachment"
 msgstr "Un archivo de video o audio debe ser el único adjunto"
 
-#: src/compose.py:1587
+#: src/compose.py:1592
 #, python-format
 msgid "A post can have at most %d attachment"
 msgid_plural "A post can have at most %d attachments"
 msgstr[0] "Una publicación puede tener como máximo %d adjunto"
 msgstr[1] "Una publicación puede tener como máximo %d adjuntos"
 
-#: src/compose.py:1645
+#: src/compose.py:1650
 msgid "Could not paste the files"
 msgstr "No se han podido pegar los archivos"
 
-#: src/compose.py:1659 src/compose.py:1669
+#: src/compose.py:1664 src/compose.py:1674
 msgid "Could not paste the image"
 msgstr "No se ha podido pegar la imagen"
 
-#: src/compose.py:1690
+#: src/compose.py:1695
 msgid "Attachment removed"
 msgstr "Adjunto quitado"
 
-#: src/compose.py:1766
+#: src/compose.py:1771
 msgid "Post is too long"
 msgstr "La publicación es demasiado larga"
 
-#: src/compose.py:1769
+#: src/compose.py:1774
 msgid "Add content warning text"
 msgstr "Añade el texto de la advertencia de contenido"
 
-#: src/compose.py:1774
+#: src/compose.py:1779
 msgid "Add at least two poll choices"
 msgstr "Añade al menos dos opciones a la encuesta"
 
-#: src/compose.py:1777
+#: src/compose.py:1782
 msgid "Poll choices must be unique"
 msgstr "Las opciones de la encuesta deben ser distintas"
 
-#: src/compose.py:1780
+#: src/compose.py:1785
 msgid "A poll cannot be combined with media"
 msgstr "Una encuesta no se puede combinar con multimedia"
 
 #. Translators: why logging out or suspending is held back, as the
 #. session shows it while a post is being uploaded and sent.
-#: src/compose.py:1826
+#: src/compose.py:1831
 msgid "Sending a post"
 msgstr "Enviando una publicación"
 
-#: src/compose.py:1836
+#: src/compose.py:1841
 msgid "Could not upload media"
 msgstr "No se pudo subir el archivo multimedia"
 
-#: src/compose.py:1905
+#: src/compose.py:1910
 msgid "Could not post"
 msgstr "No se pudo publicar"
 
-#: src/compose.py:1911
+#: src/compose.py:1916
 msgid "Post edited"
 msgstr "Publicación editada"
 
-#: src/compose.py:1913
+#: src/compose.py:1918
 msgid "Post scheduled"
 msgstr "Publicación programada"
 
-#: src/compose.py:1915
+#: src/compose.py:1920
 msgid "Post sent"
 msgstr "Publicación enviada"
 
-#: src/compose.py:1987
+#: src/compose.py:1992
 #, fuzzy
 msgid "Could not remove original scheduled post"
 msgstr "No se pudo quitar tu publicación"
 
-#: src/compose.py:2006
+#: src/compose.py:2011
 msgid ""
 "The replacement was saved, but the original scheduled post could not be "
 "removed. Both may be published."
 msgstr ""
 
-#: src/compose.py:2008
+#: src/compose.py:2013
 msgid "_Retry Removal"
 msgstr ""
 
-#: src/compose.py:2126
+#: src/compose.py:2131
 msgid "Edit Post"
 msgstr "Editar publicación"
 
-#: src/compose.py:2128
+#: src/compose.py:2133
 msgid "Edit Scheduled Post"
 msgstr "Editar publicación programada"
 
-#: src/compose.py:2130
+#: src/compose.py:2135
 msgid "Quote Post"
 msgstr "Citar publicación"
 
-#: src/compose.py:2132 src/desktopnotify.py:222 src/scheduled.py:421
+#: src/compose.py:2137 src/desktopnotify.py:222 src/scheduled.py:421
 #: src/statusactions.py:327 src/statusmenu.py:241
 msgid "Reply"
 msgstr "Responder"
 
-#: src/compose.py:2141
+#: src/compose.py:2146
 #, fuzzy
 msgid "Leave Duplicate Scheduled Posts?"
 msgstr "¿Eliminar la publicación programada?"
 
-#: src/compose.py:2142
+#: src/compose.py:2147
 msgid ""
 "The replacement was saved, but the original is still scheduled. Closing "
 "leaves both entries on the server."
 msgstr ""
 
-#: src/compose.py:2144
+#: src/compose.py:2149
 #, fuzzy
 msgid "_Keep Open"
 msgstr "_Abrir"
 
-#: src/compose.py:2145
+#: src/compose.py:2150
 #, fuzzy
 msgid "_Close Anyway"
 msgstr "Cerrar ventana"

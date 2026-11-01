@@ -60,6 +60,29 @@
   </supports>
   <translation type="gettext">babble</translation>
   <releases>
+    <release version="0.3.0" date="2026-11-01">
+      <description>
+        <p>
+          Babble can now be extended with plugins, turned on from a new
+          Plugins page. Two ship with it: Wallabag, to save a post's link
+          for later, and Hashpanel, for the daily hashtags of the
+          Brazilian fediverse.
+        </p>
+        <p>
+          The composer suggests hashtags as you type, and can schedule a
+          new post. Home reopens at the post you were reading.
+        </p>
+        <p>Other changes:</p>
+        <ul>
+          <li>Deleting a post and removing a boost can be undone.</li>
+          <li>A single notification can be dismissed.</li>
+          <li>Boosts can be hidden on Home, and Home filters apply at once.</li>
+          <li>Editing a scheduled post keeps its poll, duration and language.</li>
+          <li>Removing an account also removes its saved credentials.</li>
+          <li>A missing keyring is reported clearly instead of failing quietly.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-16">
       <description>
         <p>
