@@ -11,6 +11,11 @@ During login Babble listens on a `127.0.0.1` port and registers
 the authorization straight back. The tab then tells you it's safe to close.
 The flow uses PKCE (RFC 7636) and a fresh `state` on every attempt.
 
+A denied authorization ends the attempt without saving credentials; an invalid
+state or redirect leaves the legitimate attempt available. Invalid JSON, missing
+tokens, and invalid account identities are reported as login failures, not adopted
+as accounts.
+
 ## When no port can be opened
 
 Babble falls back to a `babble://` redirect. That one needs a single command,
@@ -41,3 +46,14 @@ The admin scopes (`admin:read admin:write`) are requested only by the admin
 dashboard, and only once your account's role says it could use them — that
 authorization runs separately, on top of the session you are already signed
 in to.
+The browser must authorize the same account and server already signed in to
+Babble. Switching accounts during authorization prevents the old response from
+replacing the new session's credentials.
+
+## Removing an account
+
+Local sign-out does not wait for best-effort server revocation or keyring cleanup.
+Babble attempts to delete both the account token and its OAuth application
+credentials, scoped to that account and server. A keyring failure reports one
+warning after both deletions answer; it does not restore the removed account or
+sign out another session.

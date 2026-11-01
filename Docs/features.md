@@ -39,6 +39,27 @@ The full feature inventory. The [README](../README.md) has the short version.
   the `#` is sent to your own instance to look up matching hashtags, as
   it is for `@mention`.
 - Drafts, and scheduled posts for when you'd rather say it tomorrow.
+  Editing a scheduled post preserves its poll choices, exact duration, poll flags,
+  language, sensitivity and quote policy. Unsupported settings are refused before
+  changing the composer or the server entry.
+  Field handling follows Mastodon's
+  [ScheduledStatus contract](https://docs.joinmastodon.org/entities/ScheduledStatus/).
+- Scheduled edits create a replacement before removing the original. If removal
+  fails, the composer locks submission and shows **Retry Removal**, which retries
+  only the original deletion. Closing requires a duplicate-post warning; reopening
+  the cached composer retains this recovery state. After exit or account removal,
+  use the server's scheduled-post list to resolve any remaining duplicate.
+- Reply cancellation restores the preceding draft's text and posting mode. Quotes
+  cannot inherit an unfinished edit's update target, and thread segments do not
+  repeat a prior quote or reused attachments.
+
+## Wallabag
+
+The optional Wallabag plugin reports sign-in only after credentials reach the
+system keyring, and sign-out only after their deletion succeeds. A failed initial
+save leaves the previous session unchanged. If storing a rotated refresh token
+fails, pending saves stop and sign-in explains the keyring failure; it does not
+claim the unusable old credentials are still a durable login.
 
 ## Keeping things tidy
 

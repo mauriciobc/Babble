@@ -50,9 +50,10 @@ class Server:
     else is answered with ``reply``.
     """
 
-    def __init__(self, reply=b'{"id":"1"}', script=None):
+    def __init__(self, reply=b'{"id":"1"}', script=None, status=200):
         self.requests = []
         self.reply = reply
+        self.status = status
         self.script = list(script or ['reply'])
         self.sock = socket.socket()
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -93,9 +94,9 @@ class Server:
             self.reply = behaviour if isinstance(behaviour, bytes) \
                 else self.reply
             conn.sendall(
-                b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+                b'HTTP/1.1 %d Response\r\nContent-Type: application/json\r\n'
                 b'Content-Length: %d\r\nConnection: close\r\n\r\n%s'
-                % (len(self.reply), self.reply))
+                % (self.status, len(self.reply), self.reply))
         finally:
             conn.close()
 
@@ -355,6 +356,81 @@ client = MastodonClient('https://example.social')
 client.register_app_finish(Task({'client_id': 'a', 'client_secret': 'b'}))
 check('a normal registration still records the credentials',
       client.client_id == 'a' and client.client_secret == 'b')
+
+
+# OAuth finish boundaries reject unsupported shapes without partial commits.
+for payload in ({}, [], None, {'access_token': ''}, {'access_token': 7}):
+    try:
+        client.request_token_finish(Task(payload))
+    except GLib.Error as error:
+        check('invalid token payload %r is a bounded GLib.Error' % payload,
+              error.domain == 'mastodon-http-error-quark' and error.code == 0
+              and error.message == 'The server did not return an access token.')
+    else:
+        check('invalid token payload %r is rejected' % payload, False)
+for payload in ({}, [], None, {'id': ''}, {'id': 7}):
+    try:
+        client.verify_credentials_finish(Task(payload))
+    except GLib.Error as error:
+        check('invalid account payload %r is rejected' % payload,
+              error.message == 'The server did not return a valid account.')
+    else:
+        check('invalid account payload %r is rejected' % payload, False)
+for payload in ([], None, {'client_id': 3}, {'client_id': 'new'},
+                {'client_id': 'new', 'client_secret': 7}):
+    try:
+        client.register_app_finish(Task(payload))
+    except GLib.Error:
+        check('invalid registration %r preserves old credentials' % payload,
+              (client.client_id, client.client_secret) == ('a', 'b'))
+    else:
+        check('invalid registration %r is rejected' % payload, False)
+check('valid token and nonnumeric account ID remain accepted',
+      client.request_token_finish(Task({'access_token': 'synthetic'}))
+      == 'synthetic' and client.verify_credentials_finish(Task({'id': 'abc'}))
+      == {'id': 'abc'})
+
+
+def transport_result(body, status=200, token=False):
+    server = Server(reply=body, status=status)
+    client = client_for(server.port)
+    outcomes = []
+
+    def finished(source, result):
+        try:
+            value = (source.request_token_finish(result) if token
+                     else source.request_finish(result))
+            outcomes.append(value)
+        except GLib.Error as error:
+            outcomes.append(error)
+
+    try:
+        if token:
+            client.request_token_async('synthetic', callback=finished)
+        else:
+            client.request_async('GET', '/probe', callback=finished)
+        deadline = time.monotonic() + 10
+        context = GLib.MainContext.default()
+        while not outcomes and time.monotonic() < deadline:
+            context.iteration(False)
+            time.sleep(0.001)
+        return outcomes[0] if outcomes else None, len(server.requests)
+    finally:
+        client._session.abort()
+        server.close()
+
+
+error, requests = transport_result(b'<html>secret-token-body</html>', token=True)
+check('HTML token success fails once without exposing its body',
+      isinstance(error, GLib.Error) and error.code == 0 and requests == 1
+      and error.message == 'The server returned an invalid JSON response.')
+for status in (200, 204):
+    value, _requests = transport_result(b'', status)
+    check('empty HTTP %d succeeds as an empty object' % status, value == {})
+error, requests = transport_result(b'<html>Gateway unavailable</html>', 403)
+check('invalid JSON error response retains bounded HTTP failure',
+      isinstance(error, GLib.Error) and error.code == 403 and requests == 1
+      and 'Gateway unavailable' in error.message and '<html>' not in error.message)
 
 
 # --- a response is parsed once and handed through the task as is ---

@@ -10,6 +10,8 @@ import datetime
 import json
 import shutil
 import time
+from copy import deepcopy
+from dataclasses import dataclass
 
 import gi
 
@@ -171,6 +173,19 @@ def _make_dropdown(options, label):
     dropdown.set_valign(Gtk.Align.CENTER)
     pages.set_accessible_label(dropdown, label)
     return dropdown
+
+
+def _unparent_popovers(button):
+    """A Gtk.Button does not unparent a child it did not add, so a popover
+    set on it is released when the button goes, or the button is
+    finalized with a child still attached. A module function rather than
+    a method: the handler must not hold the composer."""
+    child = button.get_first_child()
+    while child is not None:
+        following = child.get_next_sibling()
+        if isinstance(child, Gtk.Popover):
+            child.unparent()
+        child = following
 
 
 def media_type(path):
@@ -384,6 +399,26 @@ class AttachmentRow(Gtk.ListBox):
         self.append(self.alt_entry)
 
 
+@dataclass
+class _ComposeState:
+    draft: Draft
+    editing_id: str | None
+    quoted_status_id: str | None
+    scheduled_id: str | None
+    scheduled_at: str | None
+    scheduled_on_done: object
+    media_ids: tuple[str, ...]
+    scheduled_fields: dict
+
+
+@dataclass(frozen=True)
+class _ScheduledReplacement:
+    original_id: str
+    accepted: dict
+    on_done: object
+    message: str
+
+
 class BabbleComposeView(Adw.Bin):
     """Post composer content: header bar with Post, text area, options
     and toolbar. Emits ``changed`` whenever the draft state changes."""
@@ -410,6 +445,12 @@ class BabbleComposeView(Adw.Bin):
         self.scheduled_at = None
         self.scheduled_on_done = None
         self._pending_media_ids = []
+        self._languages = list(LANGUAGES)
+        self._poll_durations = list(POLL_DURATIONS)
+        self._scheduled_fields = {}
+        self._replacement = None
+        self._cleanup_busy = False
+        self._cleanup_cancellable = None
         # One round per click of Post: abandoning the dialog or starting
         # a new post stops the uploads still in flight.
         self.uploads = UploadRound(
@@ -420,6 +461,8 @@ class BabbleComposeView(Adw.Bin):
         _prune_pasted_once()
 
         toolbar_view = Adw.ToolbarView()
+        self._toolbar_view = toolbar_view
+        self._cleanup_banner = None
         toolbar_view.add_top_bar(self.build_header_bar())
         self.reply_banner = Adw.Banner(title=_('Replying to a post'),
                                        button_label=_('_Cancel Reply'))
@@ -436,6 +479,7 @@ class BabbleComposeView(Adw.Bin):
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                           margin_top=12, margin_bottom=12,
                           margin_start=12, margin_end=12)
+        self._content = content
         content.append(self.build_text_area())
         content.append(self.build_options())
         self.attachments_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
@@ -579,7 +623,7 @@ class BabbleComposeView(Adw.Bin):
         self.poll_entries = []
         self.poll_expiry = Adw.ComboRow(
             title=_('Duration'),
-            model=Gtk.StringList.new([text for _s, text in POLL_DURATIONS]))
+            model=Gtk.StringList.new([text for _s, text in self._poll_durations]))
         self.poll_expiry.set_selected(2)
         self._poll_box.append(self.poll_expiry)
         self.poll_add = Adw.ButtonRow(title=_('_Add Choice'),
@@ -637,6 +681,7 @@ class BabbleComposeView(Adw.Bin):
                                         _('Insert Emoji'))
         pages.connect_weak(self.emoji_button, 'clicked',
                            self.on_emoji_clicked)
+        self.emoji_button.connect('destroy', _unparent_popovers)
         self.thread_toggle = icon_button('view-list-symbolic',
                                          _('Keep Open for a Thread'),
                                          toggle=True)
@@ -648,12 +693,12 @@ class BabbleComposeView(Adw.Bin):
         options = Adw.WrapBox(child_spacing=6, line_spacing=6)
         self.visibility_row = _make_dropdown(VISIBILITIES,
                                              _('Post Visibility'))
-        self.language_row = _make_dropdown(LANGUAGES, _('Post Language'))
+        self.language_row = _make_dropdown(self._languages, _('Post Language'))
         self.language_row.set_expression(Gtk.PropertyExpression.new(
             Gtk.StringObject, None, 'string'))
         self.language_row.set_enable_search(True)
         self.language_row.set_selected(
-            [lang[0] for lang in LANGUAGES].index(default_language()))
+            [lang[0] for lang in self._languages].index(default_language()))
         pages.connect_weak(self.language_row, 'notify::selected',
                            self._update_spell_language)
         self._update_spell_language()
@@ -679,6 +724,7 @@ class BabbleComposeView(Adw.Bin):
             text=self.text(),
             visibility=self.visibility_row.get_selected(),
             language=self.language_row.get_selected(),
+            language_code=self._languages[self.language_row.get_selected()][0],
             cw_visible=self.cw_toggle.get_active(),
             cw_text=self.spoiler_entry.get_text(),
             attachments=[Attachment(path=row.path,
@@ -691,30 +737,73 @@ class BabbleComposeView(Adw.Bin):
         return Poll(active=self.poll_toggle.get_active(),
                     options=[entry.get_text()
                              for entry in self.poll_entries],
-                    expires=self.poll_expiry.get_selected())
+                    expires=self.poll_expiry.get_selected(),
+                    duration_seconds=self._poll_durations[self.poll_expiry.get_selected()][0],
+                    **self._scheduled_fields.get('poll_flags', {}))
 
     def _poll_options(self):
         return [entry.get_text().strip() for entry in self.poll_entries
                 if entry.get_text().strip()]
 
+    def _select_language(self, code):
+        code = code or default_language()
+        codes = [value for value, _label in self._languages]
+        if code not in codes:
+            self._languages.append((code, code))
+            self.language_row.get_model().append(code)
+            codes.append(code)
+        self.language_row.set_selected(codes.index(code))
+
+    def _select_poll_duration(self, seconds):
+        values = [value for value, _label in self._poll_durations]
+        if seconds not in values:
+            # Translators: exact poll duration restored from a saved post.
+            label = ngettext('%d second', '%d seconds', seconds) % seconds
+            self._poll_durations.append((seconds, label))
+            self.poll_expiry.get_model().append(label)
+            values.append(seconds)
+        self.poll_expiry.set_selected(values.index(seconds))
+
+    def _valid_draft_settings(self, draft):
+        if not 0 <= draft.visibility < len(VISIBILITIES) \
+                or (draft.language_code is None
+                    and not 0 <= draft.language < len(LANGUAGES)) \
+                or (draft.poll.duration_seconds is None
+                    and not 0 <= draft.poll.expires < len(POLL_DURATIONS)) \
+                or len(draft.poll.options) > MAX_POLL_CHOICES:
+            self._show_error(_('Could not restore draft'),
+                             _('The saved draft has unsupported settings.'))
+            return False
+        return True
+
     def restore(self, draft):
         """Put *draft*, a :class:`drafts.Draft`, back into the composer."""
+        if not self._valid_draft_settings(draft):
+            return False
         self.buffer.set_text(draft.text)
         self.visibility_row.set_selected(draft.visibility)
-        self.language_row.set_selected(draft.language)
+        self._select_language(draft.language_code or LANGUAGES[draft.language][0])
         self.cw_toggle.set_active(draft.cw_visible)
         self.spoiler_entry.set_text(draft.cw_text)
         self.clear_attachments()
         for attachment in draft.attachments:
             self.add_attachment_path(attachment.path, alt=attachment.alt)
         self.in_reply_to_id = draft.in_reply_to_id
+        for entry in self.poll_entries:
+            entry.set_text('')
         self.poll_toggle.set_active(draft.poll.active)
         for index, text in enumerate(draft.poll.options):
-            while index >= len(self.poll_entries):
+            if index >= len(self.poll_entries):
                 self.on_poll_add_choice(self.poll_add)
             self.poll_entries[index].set_text(text or '')
-        self.poll_expiry.set_selected(draft.poll.expires)
+        if draft.poll.duration_seconds is not None:
+            self._select_poll_duration(draft.poll.duration_seconds)
+        else:
+            self.poll_expiry.set_selected(draft.poll.expires)
+        self._scheduled_fields['poll_flags'] = {
+            'multiple': draft.poll.multiple, 'hide_totals': draft.poll.hide_totals}
         self.update_compose_state()
+        return True
 
     def is_empty(self):
         return not (self.text() or self.attachments()
@@ -752,13 +841,61 @@ class BabbleComposeView(Adw.Bin):
         self._saved_local_raw = None
         self._saved_local_content = None
 
+    def _accept_transition(self):
+        if self._replacement is not None:
+            self._toast(_('Remove the original scheduled post before '
+                          'starting another post.'))
+            return False
+        if self._posting:
+            self._toast(_('Finish sending this post first.'))
+            return False
+        return True
+
+    def _clear_submission_mode(self):
+        if self._replacement is not None:
+            return False
+        self.editing_id = None
+        self.quoted_status_id = None
+        self.scheduled_id = None
+        self.scheduled_at = None
+        self.scheduled_on_done = None
+        self._pending_media_ids = []
+        self._scheduled_fields = {}
+        return True
+
+    def _capture_state(self):
+        return _ComposeState(
+            self.snapshot(), self.editing_id, self.quoted_status_id,
+            self.scheduled_id, self.scheduled_at, self.scheduled_on_done,
+            tuple(self._pending_media_ids), deepcopy(self._scheduled_fields))
+
+    def _restore_state(self, state):
+        if not self._clear_submission_mode():
+            return False
+        self.restore(state.draft)
+        self.editing_id = state.editing_id
+        self.quoted_status_id = state.quoted_status_id
+        self.scheduled_id = state.scheduled_id
+        self.scheduled_at = state.scheduled_at
+        self.scheduled_on_done = state.scheduled_on_done
+        self._pending_media_ids = list(state.media_ids)
+        self._scheduled_fields = deepcopy(state.scheduled_fields)
+        self.update_compose_state()
+        return True
+
     def restore_stashing(self, draft):
         """Restore a recovered draft, keeping the content in progress
         on the draft stack so the banner above the buffer can bring it
         back."""
+        if not self._accept_transition():
+            return False
+        if not self._valid_draft_settings(draft):
+            return False
         if not self.is_empty():
-            self._draft_stack = [self.snapshot()]
+            self._draft_stack = [self._capture_state()]
+        self._clear_submission_mode()
         self.restore(draft)
+        return True
 
     def clear_attachments(self):
         for row in self.attachments():
@@ -776,8 +913,11 @@ class BabbleComposeView(Adw.Bin):
         ``status_id`` None starts a brand-new message (a direct message
         from the conversations page): the draft in progress is kept, not
         replaced by an empty buffer."""
+        if not self._accept_transition():
+            return False
         new_message = status_id is None and not handle
-        previous = self.snapshot()
+        previous = self._capture_state()
+        self._clear_submission_mode()
         if new_message:
             if not self.is_empty():
                 self._draft_stack = [previous]
@@ -788,11 +928,15 @@ class BabbleComposeView(Adw.Bin):
         self.in_reply_to_id = str(status_id) if status_id is not None else None
         self._select_visibility(visibility)
         self._finish_begin()
+        return True
 
     def start_mention(self, account, direct=False):
         """Prefill a mention of *account* (``direct`` for a DM)."""
+        if not self._accept_transition():
+            return False
         acct = account.get('acct') or account.get('username') or ''
-        previous = self.snapshot()
+        previous = self._capture_state()
+        self._clear_submission_mode()
         self.buffer.set_text('@%s ' % acct)
         self.buffer.place_cursor(self.buffer.get_end_iter())
         self.in_reply_to_id = None
@@ -800,32 +944,49 @@ class BabbleComposeView(Adw.Bin):
             self._select_visibility('direct')
         self._draft_stack = [previous]
         self._finish_begin()
+        return True
 
     def prefill_text(self, text):
         """Start a post with *text*, as shared from outside the app. A
         draft in progress is kept on the draft stack, for the banner
         above the buffer to bring back."""
-        previous = self.snapshot()
+        if not self._accept_transition():
+            return False
+        previous = self._capture_state()
+        self._clear_submission_mode()
         if not self.is_empty():
             self._draft_stack = [previous]
         self.buffer.set_text(text)
         self.buffer.place_cursor(self.buffer.get_end_iter())
         self.in_reply_to_id = None
         self._finish_begin()
+        return True
 
     def start_edit(self, status):
         """Load an existing post into the composer for a PUT."""
+        if not self._accept_transition():
+            return False
+        self._clear_submission_mode()
         self.editing_id = str(status.get('id') or '') or None
         self._load_status_draft(status)
+        return True
 
     def start_redraft(self, status):
         """Refill the composer from a just-deleted post. The server keeps
         the media for about 24h, so the attachment ids can be reused."""
-        self.editing_id = None
+        if not self._accept_transition():
+            return False
+        self._clear_submission_mode()
         self._load_status_draft(status)
+        return True
 
     def _load_status_draft(self, status):
         """Fill in the fields shared by editing and re-drafting a post."""
+        self.clear_attachments()
+        self.poll_toggle.set_active(False)
+        for entry in self.poll_entries:
+            entry.set_text('')
+        self.poll_expiry.set_selected(2)
         source = dict(status)
         self._pending_media_ids = [
             attachment['id']
@@ -843,25 +1004,121 @@ class BabbleComposeView(Adw.Bin):
 
     def start_quote(self, status):
         """Quote *status*: the server prepends the quoted post."""
+        if not self._accept_transition():
+            return False
+        self._clear_submission_mode()
         self.quoted_status_id = str(status.get('id') or '') or None
         self.in_reply_to_id = None
         self._draft_stack = []
         self._finish_begin()
+        return True
+
+    def _scheduled_content(self, scheduled):
+        def unsupported():
+            raise GLib.Error(_('The server returned unsupported post settings.'),
+                             'mastodon-http-error-quark', 0)
+
+        if not isinstance(scheduled, dict) or not isinstance(scheduled.get('id'), str) \
+                or not scheduled['id']:
+            unsupported()
+        params = scheduled.get('params')
+        if params is None:
+            params = {}
+        if not isinstance(params, dict):
+            unsupported()
+        content = {}
+        for key in ('text', 'spoiler_text'):
+            value = params.get(key)
+            if value is None:
+                value = ''
+            if not isinstance(value, str):
+                unsupported()
+            content[key] = value
+        visibility = params.get('visibility')
+        if visibility is None:
+            visibility = 'public'
+        if visibility not in [code for code, _label in VISIBILITIES]:
+            unsupported()
+        content['visibility'] = visibility
+        language = params.get('language')
+        if language is not None and not isinstance(language, str):
+            unsupported()
+        content['language'] = language
+        for key in ('in_reply_to_id', 'quoted_status_id'):
+            value = params.get(key)
+            if key == 'in_reply_to_id' and type(value) is int and value > 0:
+                value = str(value)
+            if value is not None and (not isinstance(value, str) or not value):
+                unsupported()
+            content[key] = value
+        sensitive = params.get('sensitive')
+        if sensitive is not None and not isinstance(sensitive, bool):
+            unsupported()
+        policy = params.get('quote_approval_policy')
+        if policy is not None and policy not in ('public', 'followers', 'nobody'):
+            unsupported()
+        content.update(sensitive=sensitive, quote_approval_policy=policy)
+        attachments = scheduled.get('media_attachments')
+        media_ids = params.get('media_ids')
+        if attachments is None:
+            attachments = []
+        if media_ids is None:
+            media_ids = []
+        if not isinstance(attachments, list) or not isinstance(media_ids, list):
+            unsupported()
+        ids = []
+        for attachment in attachments:
+            if not isinstance(attachment, dict):
+                unsupported()
+            value = attachment.get('id')
+            if not isinstance(value, str) or not value:
+                unsupported()
+            ids.append(value)
+        if any(not isinstance(value, str) or not value for value in media_ids):
+            unsupported()
+        content['media_ids'] = ids or list(media_ids)
+        poll = params.get('poll')
+        if poll is not None:
+            if not isinstance(poll, dict):
+                unsupported()
+            options = poll.get('options')
+            expiry = poll.get('expires_in')
+            if not isinstance(options, list) \
+                    or not 2 <= len(options) <= MAX_POLL_CHOICES \
+                    or any(not isinstance(o, str) or not o.strip() for o in options) \
+                    or len({o.strip() for o in options}) != len(options) \
+                    or type(expiry) is not int or expiry <= 0:
+                unsupported()
+            flags = {key: poll.get(key, False) for key in ('multiple', 'hide_totals')}
+            if any(not isinstance(value, bool) for value in flags.values()):
+                unsupported()
+            poll = dict(options=list(options), expires_in=expiry, **flags)
+        content['poll'] = poll
+        return content
 
     def start_scheduled(self, scheduled, draft=False, on_done=None):
         """Load a scheduled post or draft into the composer. Editing the
         content means re-scheduling, so the old entry is dropped once the
         new one is accepted."""
+        if not self._accept_transition():
+            return False
+        try:
+            params = self._scheduled_content(scheduled)
+        except GLib.Error as error:
+            self._show_error(_('Could not edit scheduled post'), error.message)
+            return False
+        self._clear_submission_mode()
+        self.clear_attachments()
+        self.poll_toggle.set_active(False)
+        for entry in self.poll_entries:
+            entry.set_text('')
+        self.poll_expiry.set_selected(2)
         from .scheduled import draft_scheduled_at
-        params = scheduled.get('params') or {}
-        self.scheduled_id = str(scheduled.get('id') or '') or None
+        self.scheduled_id = scheduled['id']
         self.scheduled_at = draft_scheduled_at() if draft \
             else scheduled.get('scheduled_at')
         self.scheduled_on_done = on_done
-        self._pending_media_ids = [
-            attachment['id']
-            for attachment in scheduled.get('media_attachments') or []
-            if attachment.get('id')]
+        self._pending_media_ids = params['media_ids']
         self.buffer.set_text(params.get('text') or '')
         self.buffer.place_cursor(self.buffer.get_end_iter())
         spoiler = params.get('spoiler_text') or ''
@@ -869,8 +1126,24 @@ class BabbleComposeView(Adw.Bin):
         self.spoiler_entry.set_text(spoiler)
         self._select_visibility(params.get('visibility') or 'public')
         self.in_reply_to_id = params.get('in_reply_to_id')
+        self.quoted_status_id = params['quoted_status_id']
+        self._select_language(params['language'])
+        for key in ('sensitive', 'quote_approval_policy'):
+            if params[key] is not None:
+                self._scheduled_fields[key] = params[key]
+        poll = params['poll']
+        if poll is not None:
+            self.poll_toggle.set_active(True)
+            for index, option in enumerate(poll['options']):
+                if index >= len(self.poll_entries):
+                    self.on_poll_add_choice(self.poll_add)
+                self.poll_entries[index].set_text(option)
+            self._select_poll_duration(poll['expires_in'])
+            self._scheduled_fields['poll_flags'] = {
+                key: poll[key] for key in ('multiple', 'hide_totals')}
         self._draft_stack = []
         self._finish_begin()
+        return True
 
     def _select_visibility(self, visibility):
         codes = [code for code, _label in VISIBILITIES]
@@ -878,10 +1151,12 @@ class BabbleComposeView(Adw.Bin):
             self.visibility_row.set_selected(codes.index(visibility))
 
     def pop_reply_state(self):
-        draft = self._draft_stack.pop() if self._draft_stack else None
-        if draft is not None:
-            self.restore(draft)
-        if not self._draft_stack:
+        if self._replacement is not None or self._posting:
+            return
+        state = self._draft_stack.pop() if self._draft_stack else None
+        if state is not None:
+            self._restore_state(state)
+        else:
             self.in_reply_to_id = None
         self.update_compose_state()
 
@@ -902,6 +1177,8 @@ class BabbleComposeView(Adw.Bin):
             and not is_draft({'scheduled_at': self.scheduled_at})
 
     def on_schedule_clicked(self, _button):
+        if self._replacement is not None:
+            return
         from .scheduled import SchedulePickerDialog
         dialog = SchedulePickerDialog(
             self.scheduled_at, _('_Set Time'),
@@ -909,10 +1186,14 @@ class BabbleComposeView(Adw.Bin):
         dialog.present(self)
 
     def _on_schedule_picked(self, iso):
+        if self._replacement is not None:
+            return
         self.scheduled_at = iso
         self.update_compose_state()
 
     def on_schedule_clear(self, _banner):
+        if self._replacement is not None:
+            return
         # Back to sending now. An entry already on the server is still
         # replaced: the post goes out and the scheduled copy is dropped.
         self.scheduled_at = None
@@ -944,6 +1225,8 @@ class BabbleComposeView(Adw.Bin):
         # An edit of a published post cannot be moved to another time.
         self.schedule_button.set_visible(self.editing_id is None)
         self.schedule_button.set_sensitive(not self._posting)
+        if self._replacement is not None:
+            self.schedule_button.set_sensitive(False)
         self.schedule_button.set_tooltip_text(
             _('Change Time') if timed else _('Schedule Post'))
         limit = self.char_limit
@@ -959,6 +1242,7 @@ class BabbleComposeView(Adw.Bin):
             self.counter_label.add_css_class('dimmed')
         self.post_button.set_sensitive(self.can_post())
         self.discard_button.set_sensitive(not self._posting
+                                          and self._replacement is None
                                           and not self.is_empty())
         self.emit('changed')
 
@@ -969,6 +1253,7 @@ class BabbleComposeView(Adw.Bin):
         """A post needs text, media, a quote or reused media: Mastodon
         only requires text when none of the others are present."""
         return (not self._posting
+                and self._replacement is None
                 and self._within_char_limit()
                 and bool(self.text() or self.attachments()
                          or self.quoted_status_id
@@ -986,11 +1271,11 @@ class BabbleComposeView(Adw.Bin):
         no language picked, the default dictionary."""
         provider = Spelling.Provider.get_default()
         selected = self.language_row.get_selected()
-        if selected < len(LANGUAGES):
+        if selected < len(self._languages):
             languages = provider.list_languages()
             available = [languages.get_item(index).get_code()
                          for index in range(languages.get_n_items())]
-            code = spelling_language(LANGUAGES[selected][0], available,
+            code = spelling_language(self._languages[selected][0], available,
                                      GLib.get_language_names())
         else:
             code = provider.get_default_code()
@@ -1029,6 +1314,7 @@ class BabbleComposeView(Adw.Bin):
         if toggle.get_active():
             self.poll_entries[0].grab_focus()
         else:
+            self._scheduled_fields.pop('poll_flags', None)
             for entry in self.poll_entries:
                 entry.set_text('')
 
@@ -1062,28 +1348,23 @@ class BabbleComposeView(Adw.Bin):
         if self.emoji_chooser is None:
             self.emoji_chooser = emojichooser.CustomEmojiChooser(self.client)
             self.emoji_chooser.set_parent(self.emoji_button)
-            # A Gtk.Button does not unparent a child it did not add: the
-            # popover goes with the button, or it outlives it.
-            pages.connect_weak(self.emoji_button, 'destroy',
-                               self._on_emoji_button_destroy)
             pages.connect_weak(self.emoji_chooser, 'emoji-picked',
                                self.on_custom_emoji_picked)
             pages.connect_weak(self.emoji_chooser, 'text-picked',
                                self.on_emoji_picked)
         self.emoji_chooser.popup()
 
-    def _on_emoji_button_destroy(self, _button):
-        if self.emoji_chooser is not None:
-            self.emoji_chooser.unparent()
-            self.emoji_chooser = None
-
     def on_emoji_picked(self, chooser, emoji):
+        if self._replacement is not None:
+            return
         self.buffer.insert_at_cursor(emoji)
         self.text_view.grab_focus()
 
     def on_custom_emoji_picked(self, _chooser, shortcode):
         """Insert ``:shortcode:`` set off from the surrounding words, as
         Mastodon only renders it between non-word characters."""
+        if self._replacement is not None:
+            return
         cursor = self.buffer.get_iter_at_mark(self.buffer.get_insert())
         before = ''
         if not cursor.starts_line():
@@ -1100,6 +1381,8 @@ class BabbleComposeView(Adw.Bin):
         self.text_view.grab_focus()
 
     def on_discard_clicked(self, _button):
+        if self._replacement is not None:
+            return
         dialog = Adw.AlertDialog(
             heading=_('Discard Draft?'),
             body=_('The text, attachments and poll of this post will be '
@@ -1207,6 +1490,8 @@ class BabbleComposeView(Adw.Bin):
     def _room_for_attachment(self):
         """Whether one more attachment can be added now; a toast says
         why not."""
+        if self._replacement is not None:
+            return False
         if self._posting:
             self._toast_busy_posting()
             return False
@@ -1233,6 +1518,8 @@ class BabbleComposeView(Adw.Bin):
         self.screenshot_button.set_sensitive(sensitive)
 
     def add_attachment_path(self, path, alt=None, position=-1):
+        if self._replacement is not None:
+            return None
         if not path or not self._can_attach_more():
             return None
         if self.attachments() and must_be_alone(media_type(path)):
@@ -1265,6 +1552,8 @@ class BabbleComposeView(Adw.Bin):
         in flight would not send it: a toast says so. Returns the rows
         added."""
         files = list(files)
+        if self._replacement is not None:
+            return []
         if self._posting:
             if files:
                 self._toast_busy_posting()
@@ -1317,6 +1606,9 @@ class BabbleComposeView(Adw.Bin):
         (a screenshot, an image copied from a browser) saves it and
         attaches it. Anything that has text pastes as text, the text
         view's own handler."""
+        if self._replacement is not None:
+            text_view.stop_emission_by_name('paste-clipboard')
+            return
         if self._paste_through:
             return
         if self._read_clipboard_media(files=True):
@@ -1454,7 +1746,7 @@ class BabbleComposeView(Adw.Bin):
         return True
 
     def on_post_clicked(self, _button):
-        if self._posting:
+        if self._posting or self._replacement is not None:
             return
         if not (self.text() or self.attachments() or self.quoted_status_id
                 or self._pending_media_ids):
@@ -1495,22 +1787,31 @@ class BabbleComposeView(Adw.Bin):
         return True
 
     def set_posting_ui(self, active):
+        cleanup = self._replacement is not None
+        locked = active or cleanup
+        # Only the cleanup-only state freezes the content: disabling it on
+        # every post would take keyboard focus out of the text view.
+        self._content.set_sensitive(not cleanup)
+        self.text_view.set_editable(not cleanup)
+        self.reply_banner.set_sensitive(not locked)
+        self.schedule_banner.set_sensitive(not locked)
         for widget in (self.attach_button, self.screenshot_button,
                        self.cw_toggle, self.poll_toggle,
+                       self.mention_button, self.emoji_button,
                        self.thread_toggle, self.visibility_row,
                        self.language_row):
-            widget.set_sensitive(not active)
+            widget.set_sensitive(not locked)
         if active:
             self.mention_completer.dismiss()
             self.hashtag_completer.dismiss()
         else:
-            self._set_attach_sensitive(self._can_attach_more())
+            self._set_attach_sensitive(not locked and self._can_attach_more())
         self.progress_spinner.set_visible(active)
         # No drop is taken while posting, so none is outlined either.
-        self.drop_target.set_actions(Gdk.DragAction.NONE if active
+        self.drop_target.set_actions(Gdk.DragAction.NONE if locked
                                      else Gdk.DragAction.COPY)
         for row in self.attachments():
-            row.remove_button.set_sensitive(not active)
+            row.remove_button.set_sensitive(not locked)
         self.update_compose_state()
 
     def _finish_posting(self):
@@ -1542,14 +1843,18 @@ class BabbleComposeView(Adw.Bin):
     def send_status(self):
         params = {
             'visibility': VISIBILITIES[self.visibility_row.get_selected()][0],
-            'language': LANGUAGES[self.language_row.get_selected()][0],
+            'language': self._languages[self.language_row.get_selected()][0],
         }
+        for key in ('sensitive', 'quote_approval_policy'):
+            if key in self._scheduled_fields:
+                params[key] = self._scheduled_fields[key]
         if self.cw_toggle.get_active():
             cw_text = self.spoiler_entry.get_text()
             if cw_text:
                 params['spoiler_text'] = cw_text
                 params['sensitive'] = True
         elif _has_setting('default-sensitive') \
+                and 'sensitive' not in params \
                 and pages.settings().get_boolean('default-sensitive'):
             # The preference is mirrored to the account's server defaults,
             # but a client that leaves the field out inherits whatever the
@@ -1558,12 +1863,14 @@ class BabbleComposeView(Adw.Bin):
             # decides here too.
             params['sensitive'] = True
         if self.poll_toggle.get_active():
-            options = self._poll_options()
+            options = [entry.get_text() for entry in self.poll_entries
+                       if entry.get_text().strip()]
             params['poll'] = {
                 'options': options,
-                'expires_in': POLL_DURATIONS[
+                'expires_in': self._poll_durations[
                     self.poll_expiry.get_selected()][0],
             }
+            params['poll'].update(self._scheduled_fields.get('poll_flags', {}))
         if self.in_reply_to_id is not None:
             params['in_reply_to_id'] = self.in_reply_to_id
         if self.quoted_status_id is not None:
@@ -1578,44 +1885,70 @@ class BabbleComposeView(Adw.Bin):
         if media_ids:
             params['media_ids'] = media_ids
         if self.editing_id is not None:
+            context = (self.editing_id, self.uploads.generation)
             self.client.edit_status_async(self.editing_id, self.text(),
                                           params=params,
-                                          callback=self.on_post_done)
+                                          callback=lambda c, r:
+                                          self.on_post_done(c, r, context))
         else:
+            context = (None, self.uploads.generation)
             self.client.post_status_async(self.text(), params=params,
-                                          callback=self.on_post_done)
+                                          callback=lambda c, r:
+                                          self.on_post_done(c, r, context))
 
     def on_post_done(self, client, result, _user_data=None):
+        editing_id, generation = _user_data
         try:
-            if self.editing_id is not None:
+            if editing_id is not None:
                 status = client.edit_status_finish(result)
             else:
                 status = client.post_status_finish(result)
         except GLib.Error as e:
+            if generation != self.uploads.generation:
+                return
             self._finish_posting()
             self._show_error(_('Could not post'), e.message)
             return
+        if generation != self.uploads.generation:
+            return
         self.drop_saved_local_draft()
+        if editing_id is not None:
+            message = _('Post edited')
+        elif self.scheduled_at is not None:
+            message = _('Post scheduled')
+        else:
+            message = _('Post sent')
+        if self.scheduled_id is not None:
+            self._replacement = _ScheduledReplacement(
+                self.scheduled_id, status, self.scheduled_on_done, message)
+            self._finish_posting()
+            self._retry_scheduled_removal()
+            return status
         self._finish_posting()
+        return self._complete_post(status, message)
+
+    def _complete_post(self, status, message):
         if isinstance(status, dict):
             remember(self.client, status.get('tags'))
         # Resolve the toast target before the dialog closes.
         window = pages.window_of(self)
         root = self.get_root()
         was_edit = self.editing_id is not None
-        scheduled_id = self.scheduled_id
-        on_done = self.scheduled_on_done
+        was_scheduled = self.scheduled_id is not None
         # Still on the server, timed or as a draft; not an entry whose
         # time was cleared, which went out now. It is not a status yet,
         # so nothing can reply to it: it never chains a thread's next post.
         kept_scheduled = self.scheduled_at is not None
         if self.thread_toggle.get_active() and not was_edit \
-                and not kept_scheduled:
+                and not kept_scheduled and not was_scheduled:
             # Chain the next post in the thread; media and poll must not
             # be sent twice.
             self.in_reply_to_id = str(status.get('id') or '') or None
             self.buffer.set_text('')
             self.clear_attachments()
+            self._pending_media_ids = []
+            self.quoted_status_id = None
+            self._scheduled_fields = {}
             self._set_attach_sensitive(True)
             self.poll_toggle.set_active(False)
             self.uploads.clear_results()
@@ -1625,52 +1958,71 @@ class BabbleComposeView(Adw.Bin):
             dialog = self.get_ancestor(Adw.Dialog)
             if dialog is not None and dialog.get_parent() is not None:
                 dialog.close()
-        if scheduled_id is not None:
-            self._discard_scheduled(scheduled_id, on_done)
-        if was_edit:
-            message = _('Post edited')
-        elif kept_scheduled:
-            message = _('Post scheduled')
-        else:
-            message = _('Post sent')
         if window is not None:
             window.show_toast(message)
         elif root is not None and hasattr(root, 'show_toast'):
             root.show_toast(message)
         return status
 
-    def _discard_scheduled(self, scheduled_id, on_done):
-        """Drop the scheduled entry this composer replaced, then let the
-        list refresh. Its failure is not worth an error toast: the new
-        entry exists and the old one is only a duplicate.
+    def _retry_scheduled_removal(self, *_args):
+        transaction = self._replacement
+        if transaction is None or self._cleanup_busy:
+            return
+        self._cleanup_busy = True
+        self._cleanup_cancellable = Gio.Cancellable()
+        if self._cleanup_banner is not None:
+            self._cleanup_banner.set_sensitive(False)
+        view_ref = self.weak_ref()
+        client = self.client
 
-        The result is consumed -- every other callback here finishes its
-        task -- because leaving it unclaimed keeps the Gio.Task and this
-        whole closure alive until the client drops it.
-
-        The generation guard matches its siblings: a ``reset()`` that
-        abandons the draft must also stop this reply from refreshing a
-        list for a draft the user no longer has.
-        """
-        generation = self.uploads.generation
-
-        def finished(client, result, _data=None):
-            # Neither the error nor the body is wanted, but the task has
-            # to be finished or the reply is never released.
+        def finished(_source, result, _data=None):
+            error = None
             try:
                 client.request_finish(result)
-            except GLib.Error:
-                pass
-            if generation != self.uploads.generation:
+            except GLib.Error as failure:
+                if failure.domain != 'mastodon-http-error-quark' or failure.code != 404:
+                    error = failure
+            view = view_ref()
+            if view is None or view._replacement is not transaction:
                 return
-            if on_done is not None:
-                on_done()
+            view._cleanup_busy = False
+            view._cleanup_cancellable = None
+            if error is not None:
+                view._show_cleanup_warning()
+                view._show_error(_('Could not remove original scheduled post'),
+                                 error.message)
+                return
+            view._replacement = None
+            if view._cleanup_banner is not None:
+                view._cleanup_banner.set_revealed(False)
+            view.set_posting_ui(False)
+            if transaction.on_done is not None:
+                transaction.on_done()
+            view._complete_post(transaction.accepted, transaction.message)
 
-        self.client.request_async(
-            'DELETE', '/scheduled_statuses/%s' % scheduled_id,
-            callback=finished)
+        client.request_async(
+            'DELETE', '/scheduled_statuses/%s' % transaction.original_id,
+            callback=finished, cancellable=self._cleanup_cancellable)
+
+    def _show_cleanup_warning(self):
+        if self._cleanup_banner is None:
+            self._cleanup_banner = Adw.Banner(
+                use_markup=False,
+                title=_('The replacement was saved, but the original scheduled '
+                        'post could not be removed. Both may be published.'),
+                button_label=_('_Retry Removal'))
+            pages.connect_weak(self._cleanup_banner, 'button-clicked',
+                               self._retry_scheduled_removal)
+            self._toolbar_view.add_top_bar(self._cleanup_banner)
+        self._cleanup_banner.set_sensitive(True)
+        self._cleanup_banner.set_revealed(True)
+        self.update_compose_state()
 
     def reset(self):
+        if self._replacement is not None:
+            return False
+        predecessor = self._draft_stack[-1] if self._draft_stack else None
+        self._draft_stack = []
         # Discarding the draft abandons any upload it started. The
         # generation bump is what tells a still-in-flight reply that it
         # belongs to a round that no longer exists; cancelling alone only
@@ -1685,22 +2037,20 @@ class BabbleComposeView(Adw.Bin):
         self.spoiler_entry.set_text('')
         self.cw_toggle.set_active(False)
         self.poll_toggle.set_active(False)
+        for entry in self.poll_entries:
+            entry.set_text('')
+        self.poll_expiry.set_selected(2)
         self.thread_toggle.set_active(False)
         self.clear_attachments()
         self._set_attach_sensitive(True)
-        self.editing_id = None
-        self.quoted_status_id = None
-        self.scheduled_id = None
-        self.scheduled_at = None
-        self.scheduled_on_done = None
-        self._pending_media_ids = []
+        self._clear_submission_mode()
         # Back to the presets, so a DM or a reply's visibility does not
         # carry over; before the pop, so a stacked draft keeps its own.
         self._select_visibility(default_visibility())
-        self.language_row.set_selected(
-            [lang[0] for lang in LANGUAGES].index(default_language()))
-        if self.in_reply_to_id is not None:
-            self.pop_reply_state()
+        self._select_language(default_language())
+        self.in_reply_to_id = None
+        if predecessor is not None:
+            self._restore_state(predecessor)
         self.update_compose_state()
 
 
@@ -1748,6 +2098,7 @@ class ComposeDialog(Adw.Dialog):
         self.view._select_visibility(default_visibility())
         pages.connect_weak(self.view, 'changed', self._on_view_changed)
         pages.connect_weak(self, 'closed', self.view.save_local_draft)
+        pages.connect_weak(self, 'close-attempt', self._on_close_attempt)
         self.set_child(_ComposeWidth(self.view))
         self.set_focus(self.view.text_view)
         self._on_view_changed(self.view)
@@ -1757,24 +2108,25 @@ class ComposeDialog(Adw.Dialog):
         return self.view.client
 
     def start_reply(self, status_id, handle, visibility='public'):
-        self.view.start_reply(status_id, handle, visibility)
+        return self.view.start_reply(status_id, handle, visibility)
 
     def start_mention(self, account, direct=False):
-        self.view.start_mention(account, direct=direct)
+        return self.view.start_mention(account, direct=direct)
 
     def start_edit(self, status):
-        self.view.start_edit(status)
+        return self.view.start_edit(status)
 
     def start_redraft(self, status):
-        self.view.start_redraft(status)
+        return self.view.start_redraft(status)
 
     def start_quote(self, status):
-        self.view.start_quote(status)
+        return self.view.start_quote(status)
 
     def start_scheduled(self, scheduled, draft=False, on_done=None):
-        self.view.start_scheduled(scheduled, draft=draft, on_done=on_done)
+        return self.view.start_scheduled(scheduled, draft=draft, on_done=on_done)
 
     def _on_view_changed(self, view):
+        self.set_can_close(view._replacement is None)
         if view.editing_id is not None:
             title = _('Edit Post')
         elif view.scheduled_id is not None:
@@ -1786,3 +2138,45 @@ class ComposeDialog(Adw.Dialog):
         else:
             title = _('New Post')
         self.set_title(title)
+
+    def _on_close_attempt(self, _dialog):
+        if self.view._replacement is None or self.view._cleanup_busy:
+            return
+        dialog = Adw.AlertDialog(
+            heading=_('Leave Duplicate Scheduled Posts?'),
+            body=_('The replacement was saved, but the original is still '
+                   'scheduled. Closing leaves both entries on the server.'))
+        dialog.add_response('keep', _('_Keep Open'))
+        dialog.add_response('leave', _('_Close Anyway'))
+        dialog.set_response_appearance('leave', Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response('keep')
+        dialog.set_close_response('keep')
+        pages.connect_weak(dialog, 'response', self._on_cleanup_close_response)
+        dialog.present(self)
+
+    def _on_cleanup_close_response(self, _dialog, response):
+        if response == 'leave' and not self.view._cleanup_busy:
+            self.force_close()
+
+    def abandon_session(self):
+        view = self.view
+        # Saved first, while the draft is still in the composer; it skips
+        # an edit, a scheduled replacement and a post still on its way.
+        view.save_local_draft()
+        view.uploads.abandon()
+        cancellable = view._cleanup_cancellable
+        view._replacement = None
+        view._cleanup_busy = False
+        view._cleanup_cancellable = None
+        if cancellable is not None:
+            cancellable.cancel()
+        view._draft_stack = []
+        if view._cleanup_banner is not None:
+            view._cleanup_banner.set_revealed(False)
+        # The abandoned round never reaches _finish_posting, so the
+        # logout inhibition is returned here; _posting stays set so the
+        # closing dialog does not save the half-sent post as a draft.
+        _end_inhibition(view._inhibition)
+        view.set_posting_ui(view._posting)
+        if self.get_parent() is not None:
+            self.force_close()

@@ -188,7 +188,7 @@ class StubClient:
         self.reply(callback, task)
 
     def request_token_finish(self, result):
-        return self._finish(result)['access_token']
+        return MastodonClient.request_token_finish(self, result)
 
     def verify_credentials_async(self, callback=None, cancellable=None):
         task = StubTask(error=http_error('The access token is invalid')) \
@@ -196,7 +196,7 @@ class StubClient:
         self.reply(callback, task)
 
     def verify_credentials_finish(self, result):
-        return self._finish(result)
+        return MastodonClient.verify_credentials_finish(self, result)
 
     def store_secret_token(self, account_id, token, callback=None,
                            cancellable=None):
@@ -365,6 +365,18 @@ check('refused verification settles one toast',
 check('no shell without a verified account',
       win.main_stack.get_visible_child_name() == 'login')
 
+for field, payload in (('TOKEN', '{}'), ('TOKEN', '[]'), ('TOKEN', 'null'),
+                       ('TOKEN', '{"access_token": 7}'),
+                       ('ACCOUNT', '{}'), ('ACCOUNT', '{"id": 7}')):
+    win, toasts = fresh_window()
+    client = start_attempt(win, StubClient())
+    setattr(client, field, payload)
+    win.auth.on_oauth_callback(REDIRECT_URI)
+    pump()
+    check('invalid OAuth %s %s settles with no keyring persistence' % (field, payload),
+          not win.auth.waiting and client.stored is None and len(toasts) == 1
+          and win.account is None)
+
 # --- A reply for a superseded attempt is dropped ------------------------
 
 win, toasts = fresh_window()
@@ -386,6 +398,38 @@ first.flush()
 pump()
 check('a reply from a superseded attempt is silent',
       toasts == [] and win.client is None)
+
+# State-validated denial settles once without spending a token code.
+for error_code, message in (('access_denied', 'Authorization was denied.'),
+                            ('server_error',
+                             'The server could not authorize this request.')):
+    win, toasts = fresh_window()
+    client = start_attempt(win, StubClient())
+    uri = OAUTH_REDIRECT + '?error=' + error_code + '&state=' + STATE
+    check('scheme denial %s is accepted' % error_code,
+          win.auth.on_oauth_callback(uri))
+    win.auth.on_oauth_callback(uri)
+    check('scheme denial %s settles once with no exchange' % error_code,
+          not win.auth.waiting and client.exchanges == []
+          and toasts == ['Authorization failed: ' + message])
+
+win, toasts = fresh_window()
+client = start_attempt(win, StubClient(deferred=True))
+for query in ('error=access_denied&state=wrong',
+              'error=access_denied&state=' + STATE + '&state=' + STATE,
+              'error=access_denied&error=access_denied&state=' + STATE,
+              'code=c&error=access_denied&state=' + STATE,
+              'code=c&code=d&state=' + STATE):
+    check('malformed or foreign OAuth answer is ignored: ' + query,
+          not win.auth.on_oauth_callback(OAUTH_REDIRECT + '?' + query)
+          and win.auth.waiting and client.exchanges == [])
+win.auth.on_oauth_callback(REDIRECT_URI)
+check('denial cannot override a pending code exchange',
+      not win.auth.on_oauth_callback(
+          OAUTH_REDIRECT + '?error=access_denied&state=' + STATE)
+      and win.auth.waiting and len(client.exchanges) == 1 and toasts == [])
+client.flush()
+pump()
 
 # --- A new attempt is not blocked by the spent code --------------------
 
@@ -759,6 +803,8 @@ class AdminScopeClient(StubClient):
         super().__init__(**kwargs)
         self.instance = instance
         self.registered_with = None
+        self.held_store = None
+        self.defer_store = False
         AdminScopeClient.created.append(self)
 
     def register_app_async(self, scopes=None, *, loopback=None,
@@ -777,7 +823,10 @@ class AdminScopeClient(StubClient):
                            cancellable=None):
         self.stored = (account_id, token)
         if callback is not None:
-            callback(None)
+            if self.defer_store:
+                self.held_store = callback
+            else:
+                callback(None)
 
 
 win, toasts = fresh_window()
@@ -817,6 +866,54 @@ try:
     check('the caller is told it was granted', granted == [True])
     check('a granted attempt leaves no authorization in flight',
           win.auth.client is None and not win.auth.admin)
+    check('same-identity moderation retains the current role',
+          win.account['role'] == {'permissions': 16})
+
+    for verified_id, verified_instance in (('99', 'https://mod.example'),
+                                           ('42', 'https://other.example')):
+        outcome = []
+        win.authorize_admin(outcome.append)
+        pump()
+        mismatch = AdminScopeClient.created[-1]
+        mismatch.ACCOUNT = json.dumps({'id': verified_id, 'acct': 'other'})
+        mismatch.instance = verified_instance
+        previous_account = win.account
+        previous_pages = win.page_home
+        win.on_oauth_callback(OAUTH_REDIRECT + '?code=mismatch-'
+                              + verified_id + verified_instance.rsplit('/', 1)[-1]
+                              + '&state=' + mismatch._state)
+        pump()
+        check('moderation identity %s %s cannot persist or adopt' % (
+            verified_id, verified_instance), mismatch.stored is None
+              and not hasattr(mismatch, 'client_credentials')
+              and win.account is previous_account and win.client is session
+              and win.page_home is previous_pages and outcome == [False])
+
+    outcome = []
+    win.authorize_admin(outcome.append)
+    pump()
+    held = AdminScopeClient.created[-1]
+    held.defer_store = True
+    win.on_oauth_callback(OAUTH_REDIRECT + '?code=held&state=' + held._state)
+    pump()
+    old_account = win.account
+    new_session = AdminScopeClient('https://next.example')
+    new_session.token = 'next-token'
+    win.account = {'id': '42', 'instance': 'https://next.example'}
+    win.client = new_session
+    held.held_store(None)
+    held.held_store(None)
+    check('a switch during the moderation keyring write keeps the pair '
+          'and adopts nothing',
+          outcome == [False] and win.client is new_session
+          and new_session.token == 'next-token'
+          and held.stored == ('42', 'test-token')
+          and held.client_credentials
+          == ('42', 'admin-client', 'admin-secret'))
+    check('the switch is reported as such',
+          toasts[-1:] == ['Moderation access was saved for the account '
+                          'you switched away from.'])
+    win.account, win.client = old_account, session
 
     # A second attempt that fails must still answer its caller, or the
     # dashboard waits on a button that will never reply.
@@ -935,8 +1032,18 @@ finally:
 # Removal also clears the keyring. This section stubs that call: the
 # checks are about revoke-then-forget, and a session with no secret
 # service raises out of the real clear before the window can finish.
+import src.mastodon as mastodon_module
 _real_clear_secret = window_module.clear_secret_async
-window_module.clear_secret_async = lambda *args, **kwargs: None
+_real_mastodon_clear = mastodon_module.clear_secret_async
+
+
+def successful_clear(instance, kind, callback=None, cancellable=None):
+    if callback is not None:
+        callback(None)
+
+
+window_module.clear_secret_async = successful_clear
+mastodon_module.clear_secret_async = successful_clear
 
 # Deleting the keyring entry leaves the token valid on the instance: a
 # copy of it, from a backup or a shared machine, would keep working. So
@@ -1005,6 +1112,69 @@ try:
           and win.main_stack.get_visible_child_name() == 'login')
 finally:
     window_module.clear_secret_async = _real_clear_secret
+    mastodon_module.clear_secret_async = _real_mastodon_clear
+
+# Both exact account-bound keys are removed; deferred results cannot sign out B.
+from src.mastodon import CLIENT_CREDENTIALS_KIND
+for failed_kind in (None, '42', CLIENT_CREDENTIALS_KIND + '42'):
+    win, toasts = fresh_window()
+    removed = {'id': '42', 'instance': 'https://a.example', 'acct': 'removed'}
+    other = {'id': '43', 'instance': 'https://a.example', 'acct': 'other'}
+    remote = {'id': '42', 'instance': 'https://b.example', 'acct': 'remote'}
+    secrets = {(a['instance'], prefix + a['id']): 'synthetic'
+               for a in (removed, other, remote)
+               for prefix in ('', CLIENT_CREDENTIALS_KIND)}
+    pending_deletes = []
+
+    def deferred_clear(instance, kind, callback=None, cancellable=None,
+                       pending_deletes=pending_deletes):
+        pending_deletes.append((instance, kind, callback))
+
+    def answer_clear(pending_deletes=pending_deletes, failed_kind=failed_kind,
+                     secrets=secrets):
+        instance, kind, callback = pending_deletes.pop(0)
+        error = None
+        if kind == failed_kind:
+            error = GLib.Error('synthetic keyring deletion failed',
+                               'g-io-error-quark', 0)
+        else:
+            secrets.pop((instance, kind), None)
+        callback(error)
+
+    window_module.clear_secret_async = deferred_clear
+    mastodon_module.clear_secret_async = deferred_clear
+    try:
+        win.account = removed
+        win.client = RevokeClient(removed['instance'])
+        win.store_account(removed)
+        win._finish_account_removal(removed)
+        check('local account removal completes before either keyring callback',
+              win.account is None and len(pending_deletes) == 2
+              and win.settings.get_strv('accounts') == [])
+        win.account = other
+        new_client = win.client = RevokeClient(other['instance'])
+        answer_clear()
+        check('first deletion result emits no premature warning', toasts == [])
+        answer_clear()
+        check('credential deletion is scoped to exact instance and account',
+              all((a['instance'], prefix + a['id']) in secrets
+                  for a in (other, remote) for prefix in ('', CLIENT_CREDENTIALS_KIND))
+              and all(((removed['instance'], prefix + '42') in secrets)
+                      == (prefix + '42' == failed_kind)
+                      for prefix in ('', CLIENT_CREDENTIALS_KIND)))
+        check('late keyring result preserves new session and reports one warning',
+              win.account is other and win.client is new_client
+              and len(toasts) == (0 if failed_kind is None else 1)
+              and (not toasts or toasts[0].startswith(
+                  'Could not remove all saved credentials')))
+        if failed_kind is None:
+            win._finish_account_removal(removed)
+            answer_clear()
+            answer_clear()
+            check('deleting absent credential entries remains successful', toasts == [])
+    finally:
+        window_module.clear_secret_async = _real_clear_secret
+        mastodon_module.clear_secret_async = _real_mastodon_clear
 
 # --- Only web links reach the system launcher -------------------------
 #

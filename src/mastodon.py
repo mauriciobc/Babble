@@ -703,15 +703,22 @@ class MastodonClient(GObject.Object):
             task.return_error(e)
             return
         text = body.get_data().decode('utf-8', 'replace')
+        invalid_json = False
         try:
             data = json.loads(text) if text else {}
         except json.JSONDecodeError:
+            invalid_json = True
             data = {'error': text}
         status = message.get_status()
         headers = message.get_response_headers()
         log_deprecation(message.get_method(), message.get_uri().get_path(),
                         headers)
         if 200 <= status < 300 and status != Soup.Status.NONE:
+            if invalid_json:
+                task.return_error(GLib.Error(
+                    _('The server returned an invalid JSON response.'),
+                    'mastodon-http-error-quark', 0))
+                return
             link = headers.get_one('Link') or ''
             # The parsed object itself, not a re-encoded string: dumping
             # it into a GLib.Variant only for _envelope to parse it again
@@ -977,22 +984,17 @@ class MastodonClient(GObject.Object):
 
     def register_app_finish(self, result):
         data = self._finish(result)
-        client_id = data.get('client_id')
-        # A GLib.Error, not a KeyError: the contract this class documents
-        # is that every finish raises GLib.Error, and an index into the
-        # payload raised through the GObject callback instead, leaving
-        # the login waiting on a browser step that was never going to
-        # arrive. REST::CredentialApplicationSerializer declares
-        # client_id, client_secret and client_secret_expires_at and
-        # fills them from Doorkeeper's uid and secret, and the docs say
-        # "Mastodon only supports provisioning confidential clients, i.e.,
-        # you will always receive a client_secret" -- so this guards
-        # against a server that does not, not a shape to expect.
-        if not client_id:
+        client_id = data.get('client_id') if isinstance(data, dict) else None
+        if not isinstance(client_id, str) or not client_id:
             raise GLib.Error(_('The server did not return an application id.'),
                              'mastodon-http-error-quark', 0)
+        client_secret = data.get('client_secret')
+        if not isinstance(client_secret, str) or not client_secret:
+            raise GLib.Error(
+                _('The server did not return an application secret.'),
+                'mastodon-http-error-quark', 0)
         self.client_id = client_id
-        self.client_secret = data.get('client_secret')
+        self.client_secret = client_secret
         return data
 
     def store_secret_token(self, account_id, token, callback=None,
@@ -1115,7 +1117,7 @@ class MastodonClient(GObject.Object):
         return self.instance + '/oauth/authorize?' + query
 
     def parse_callback_uri(self, uri):
-        """The authorization *code* from a redirect, or None.
+        """Return a code, raise a validated OAuth denial, or return None.
 
         A redirect callback must carry the ``state`` this client minted
         in :meth:`get_authorize_url`. A callback without one, or with
@@ -1142,14 +1144,25 @@ class MastodonClient(GObject.Object):
         if (parts.scheme, parts.netloc.lower(), parts.path) \
                 != (expected.scheme, expected.netloc, expected.path):
             return None
-        params = urllib.parse.parse_qs(parts.query)
+        params = urllib.parse.parse_qs(parts.query, keep_blank_values=True)
         codes = params.get('code')
+        errors = params.get('error')
         states = params.get('state')
-        code = codes[0] if codes else None
-        state = states[0] if states else None
-        if code is None or state is None or state != self._state:
+        if states is None or len(states) != 1 or not states[0] \
+                or states[0] != self._state:
             return None
-        return code
+        if codes is not None and errors is not None:
+            return None
+        if errors is not None:
+            if len(errors) != 1 or not errors[0]:
+                return None
+            message = _('Authorization was denied.') \
+                if errors[0] == 'access_denied' else _(
+                    'The server could not authorize this request.')
+            raise GLib.Error(message, 'mastodon-oauth-error-quark', 0)
+        if codes is None or len(codes) != 1 or not codes[0]:
+            return None
+        return codes[0]
 
     def request_token_async(self, code, callback=None, cancellable=None,
                             redirect_uri=OAUTH_REDIRECT):
@@ -1166,7 +1179,12 @@ class MastodonClient(GObject.Object):
                                    callback=callback, cancellable=cancellable)
 
     def request_token_finish(self, result):
-        return self._finish(result)['access_token']
+        data = self._finish(result)
+        token = data.get('access_token') if isinstance(data, dict) else None
+        if not isinstance(token, str) or not token:
+            raise GLib.Error(_('The server did not return an access token.'),
+                             'mastodon-http-error-quark', 0)
+        return token
 
     # Accounts
 
@@ -1176,7 +1194,12 @@ class MastodonClient(GObject.Object):
                                    cancellable=cancellable)
 
     def verify_credentials_finish(self, result):
-        return self._finish(result)
+        data = self._finish(result)
+        account_id = data.get('id') if isinstance(data, dict) else None
+        if not isinstance(account_id, str) or not account_id:
+            raise GLib.Error(_('The server did not return a valid account.'),
+                             'mastodon-http-error-quark', 0)
+        return data
 
     def lookup_account_async(self, acct, callback=None, cancellable=None):
         return self._request_async('GET', '/accounts/lookup',

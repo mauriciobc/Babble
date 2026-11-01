@@ -17,6 +17,7 @@ gi.require_version('Gio', '2.0')
 from gi.repository import Gio
 
 from src.drafts import MAX_LOCAL_DRAFTS, drop_local_draft, store_local_draft
+from src.drafts import Draft, Poll
 
 failures = []
 
@@ -42,6 +43,27 @@ check('store respects MAX_LOCAL_DRAFTS',
 drop_local_draft(settings, settings.get_strv('local-drafts')[0])
 check('drop removes one entry',
       len(settings.get_strv('local-drafts')) == MAX_LOCAL_DRAFTS - 1)
+
+legacy = {'text': 'legacy', 'visibility': 0, 'language': 0,
+          'cw_visible': False, 'cw_text': '', 'attachments': [],
+          'poll': {'active': False, 'options': ['', ''], 'expires': 0},
+          'in_reply_to_id': None}
+check('legacy draft JSON remains readable', Draft.parse(legacy) is not None)
+for value in (True, 0, -1, '7200'):
+    check('invalid exact duration is rejected: %r' % value,
+          Poll.parse(dict(legacy['poll'], duration_seconds=value)) is None)
+for value in ('', 1, False):
+    check('invalid exact language is rejected: %r' % value,
+          Draft.parse(dict(legacy, language_code=value)) is None)
+check('poll options must be strings',
+      Poll.parse(dict(legacy['poll'], options=['a', 2])) is None)
+exact = dict(legacy, language_code='zz', poll={
+    'active': True, 'options': ['a', 'b', 'c'], 'expires': 0,
+    'duration_seconds': 7200, 'multiple': True, 'hide_totals': True})
+draft = Draft.parse(exact)
+check('exact language duration and poll flags round trip',
+      Draft.parse_raw(draft.as_stored('instance#id', 'now')).as_dict()
+      == draft.as_dict())
 
 if failures:
     print('%d failure(s)' % len(failures))

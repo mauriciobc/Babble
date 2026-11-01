@@ -18,6 +18,7 @@ out in the other.
 
 import json
 import time
+import weakref
 from urllib.parse import urlsplit
 
 from gi.repository import Adw, Gtk
@@ -72,6 +73,8 @@ class Session:
         self.expires_at = 0.0
         self.credentials = None  # read from the keyring when first needed
         self.waiting = None  # callbacks waiting while a token is fetched
+        self._credential_busy = False
+        self.credential_error = None
 
     def signed_in(self):
         settings = self.context.settings
@@ -114,6 +117,9 @@ class Session:
     def with_token(self, then):
         """``then(access_token)``, refreshing it first when it expired;
         ``then(None)`` when it cannot be refreshed."""
+        if self._credential_busy and self.waiting is None:
+            then(None)
+            return
         if self.access_token and time.monotonic() < self.expires_at:
             then(self.access_token)
             return
@@ -162,6 +168,9 @@ class Session:
         it has a path, the server's root is tried next. That is what a
         page address pasted from the browser
         (``https://host/unread/list``) needs."""
+        if self._credential_busy:
+            finished(_('Wait for the current Wallabag request to finish.'))
+            return
         form = {
             'grant_type': 'password',
             'client_id': client_id,
@@ -189,15 +198,32 @@ class Session:
             self.token_request(form, client_secret, done, server=address)
         attempt(candidates.pop(0))
 
-    def sign_out(self):
-        """Forget the tokens and the client; the server and username stay
-        to fill in the next sign-in."""
-        self.access_token = None
-        self.credentials = None
-        self.context.settings.remove('client_id')
-        self.context.clear_secret(SECRET)
+    def sign_out(self, finished):
+        """Forget credentials only after the keyring confirms removal."""
+        if self._credential_busy:
+            finished(_('Wait for the current Wallabag request to finish.'))
+            return
+        self._credential_busy = True
+
+        def cleared(error):
+            self._credential_busy = False
+            if error is not None:
+                # Translators: %s is the system keyring failure.
+                finished(_('Could not remove Wallabag credentials: %s') % error)
+                return
+            self.access_token = None
+            self.expires_at = 0.0
+            self.credentials = None
+            self.context.settings.remove('client_id')
+            finished(None)
+
+        self.context.clear_secret(SECRET, cleared)
 
     def token_request(self, form, client_secret, finished, server=None):
+        if self._credential_busy:
+            finished(_('Wait for the current Wallabag request to finish.'), None)
+            return
+        self._credential_busy = True
         server = server or self.context.settings.get('server')
 
         def done(response):
@@ -207,8 +233,9 @@ class Session:
                 if response.status in (400, 401):
                     # The server refused the grant: what we hold is no
                     # good any more.
-                    self.access_token = None
-                    self.credentials = None
+                    if form['grant_type'] == 'refresh_token':
+                        self.access_token = None
+                        self.credentials = None
                     message = data.get('error_description') or _(
                         'The server did not accept these details')
                 elif response.status == 404:
@@ -221,17 +248,36 @@ class Session:
                 # the password and the client secret.
                 self.context.log('token request to %s failed: %s' % (
                     url, response.error))
+                self._credential_busy = False
                 finished(message, response.status)
                 return
-            self.access_token = token
-            self.expires_at = time.monotonic() + max(
+            expires_at = time.monotonic() + max(
                 0, int(data.get('expires_in') or 3600) - EXPIRY_MARGIN)
-            self.credentials = {
+            credentials = {
                 'client_secret': client_secret,
                 'refresh_token': data.get('refresh_token') or '',
             }
-            self.context.store_secret(SECRET, json.dumps(self.credentials))
-            finished(None, response.status)
+
+            def stored(error):
+                self._credential_busy = False
+                if error is not None:
+                    # Translators: %s is the system keyring failure.
+                    message = _('Could not save Wallabag credentials: %s') % error
+                    if form['grant_type'] == 'refresh_token':
+                        self.access_token = None
+                        self.expires_at = 0.0
+                        self.credentials = None
+                        self.context.settings.remove('client_id')
+                        self.credential_error = message
+                    finished(message, response.status)
+                    return
+                self.access_token = token
+                self.expires_at = expires_at
+                self.credentials = credentials
+                self.credential_error = None
+                finished(None, response.status)
+
+            self.context.store_secret(SECRET, json.dumps(credentials), stored)
         url = server + '/oauth/v2/token'
         self.context.request('POST', url, done, form=form)
 
@@ -273,6 +319,12 @@ class Wallabag(plugin.PostMenuExtension):
 class WallabagPreferences(plugin.PreferencesExtension):
     """The account: who is signed in, and Sign Out; or Sign In."""
 
+    def activate(self):
+        self._released = False
+
+    def deactivate(self):
+        self._released = True
+
     def create_preferences(self):
         self.row = Adw.ActionRow(title=_('Account'))
         self.button = Gtk.Button(valign=Gtk.Align.CENTER, use_underline=True)
@@ -302,9 +354,19 @@ class WallabagPreferences(plugin.PreferencesExtension):
     def on_clicked(self, button):
         session = session_of(self.context)
         if session.signed_in():
-            session.sign_out()
-            self.update()
-            self.context.toast(button, _('Signed out of Wallabag'))
+            button.set_sensitive(False)
+            extension_ref = weakref.ref(self)
+
+            def finished(error):
+                extension = extension_ref()
+                if extension is None or extension._released:
+                    return
+                extension.button.set_sensitive(True)
+                extension.update()
+                extension.context.toast(
+                    extension.button, error or _('Signed out of Wallabag'))
+
+            session.sign_out(finished)
             return
         SignInDialog(self, session, self.update).present(button)
 
@@ -317,6 +379,7 @@ class SignInDialog(Adw.Dialog):
         self.extension = extension
         self.session = session
         self.then = then
+        self._signing_in = False
         settings = extension.context.settings
 
         header = Adw.HeaderBar()
@@ -367,6 +430,8 @@ class SignInDialog(Adw.Dialog):
             extension.connect(row, 'changed', self.on_changed)
             extension.connect(row, 'entry-activated', self.on_sign_in)
         self.on_changed()
+        if session.credential_error is not None:
+            self.show_error(session.credential_error)
 
     def fields(self):
         return (normalize_server(self.server.get_text()),
@@ -376,18 +441,30 @@ class SignInDialog(Adw.Dialog):
                 self.password.get_text())
 
     def on_changed(self, *_args):
-        self.sign_in_button.set_sensitive(all(self.fields()))
+        self.sign_in_button.set_sensitive(not self._signing_in and all(self.fields()))
 
     def on_sign_in(self, *_args):
+        if self._signing_in:
+            return
         if not all(self.fields()):
             if self.server.get_text().strip() and not self.fields()[0]:
                 self.show_error(_('Use the server’s https:// address'))
             return
+        self._signing_in = True
+        self.set_can_close(False)
+        for row in (self.server, self.client_id, self.client_secret,
+                    self.username, self.password):
+            row.set_sensitive(False)
         self.sign_in_button.set_sensitive(False)
         self.error.set_visible(False)
         self.session.sign_in(*self.fields(), self.finished)
 
     def finished(self, error):
+        self._signing_in = False
+        self.set_can_close(True)
+        for row in (self.server, self.client_id, self.client_secret,
+                    self.username, self.password):
+            row.set_sensitive(True)
         if error is not None:
             self.show_error(error)
             self.on_changed()

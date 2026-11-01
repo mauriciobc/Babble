@@ -592,7 +592,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         dialog = self.present_composer()
         if dialog is None:
             return
-        dialog.view.restore_stashing(draft)
+        if not dialog.view.restore_stashing(draft):
+            return
         from .drafts import drop_local_draft
         drop_local_draft(pages.settings(), raw)
 
@@ -607,11 +608,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._stream_dropped = False
         emojichooser.deactivate_instance_emojis()
         self.notifier.reset()
-        # The composer is kept after it closes, and closing a dialog that
-        # is not presented is an Adwaita critical: only an open one.
-        if self.compose_dialog is not None \
-                and self.compose_dialog.get_parent() is not None:
-            self.compose_dialog.close()
+        # A cached composer also owns requests when not presented.
+        if self.compose_dialog is not None:
+            self.compose_dialog.abandon_session()
         self.compose_dialog = None
         catch_up = self.navigation.children.get('catch-up')
         if catch_up is not None:
@@ -722,14 +721,32 @@ class BabbleWindow(Adw.ApplicationWindow):
             and account_store.same_account(self.account, account)
 
     def _finish_account_removal(self, account):
-        clear_secret_async(account['instance'], account['id'])
+        window_ref = self.weak_ref()
+        errors = []
+        pending = 2
+
+        def cleared(error):
+            nonlocal pending
+            if error is not None:
+                errors.append(error)
+            pending -= 1
+            window = window_ref()
+            if pending or not errors or window is None:
+                return
+            detail = summarize_error(errors[0].message)
+            body = _('The account was removed from Babble, but the system '
+                     'keyring could not remove all of its credentials.')
+            if detail:
+                body += ' ' + detail
+            window.show_error(_('Could not remove all saved credentials'), body)
+
+        client = MastodonClient(account['instance'])
+        clear_secret_async(account['instance'], account['id'], cleared)
+        client.clear_client_credentials(account['id'], cleared)
         remaining = account_store.forget_account(self.settings,
                                                  account['id'],
                                                  account['instance'])
-        # Re-read now that the keyring has answered: the user may have
-        # switched accounts while it was in flight, and tearing down a
-        # session that is no longer this account would sign the wrong one
-        # out.
+        # Local removal never waits for keyring deletion or server revocation.
         if not self._is_active(account):
             return
         self._teardown_session()

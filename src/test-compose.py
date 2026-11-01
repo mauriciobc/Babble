@@ -902,9 +902,9 @@ dialog.view.restore_stashing(Draft.parse({
 pump(50)
 check('restore replaces the buffer',
       dialog.view.text() == 'recovered draft')
-check('restore stashes the content in progress',
-      bool(dialog.view._draft_stack)
-      and dialog.view._draft_stack[0].text == 'in progress')
+dialog.view.on_reply_cancel(dialog.view.reply_banner)
+check('canceling a restored draft returns the content in progress',
+      dialog.view.text() == 'in progress')
 
 # The draft that was just posted is no longer offered for restoring.
 dialog.present(app_window)
@@ -2000,7 +2000,7 @@ reset_pool()
 set_text('post #Gaming')
 client.post_status_finish = lambda _result: {
     'id': '1', 'content': '<p>x</p>', 'tags': [{'name': 'Gaming'}]}
-view.on_post_done(client, StubMediaResult())
+view.on_post_done(client, StubMediaResult(), (None, view.uploads.generation))
 del client.post_status_finish
 check('on_post_done remembers published tags',
       the_pool() is not None

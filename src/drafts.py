@@ -47,6 +47,9 @@ class Poll:
     active: bool
     options: typing.List[str]
     expires: int
+    duration_seconds: int | None = None
+    multiple: bool = False
+    hide_totals: bool = False
 
     @classmethod
     def parse(cls, data):
@@ -54,16 +57,27 @@ class Poll:
             return None
         if not isinstance(data.get('active'), bool):
             return None
-        if not isinstance(data.get('options'), list):
+        options = data.get('options')
+        if not isinstance(options, list) \
+                or any(not isinstance(o, str) for o in options):
             return None
-        if not isinstance(data.get('expires'), int):
+        if type(data.get('expires')) is not int:
             return None
-        return cls(active=data['active'], options=list(data['options']),
-                   expires=data['expires'])
+        duration = data.get('duration_seconds')
+        if duration is not None and (type(duration) is not int or duration <= 0):
+            return None
+        multiple = data.get('multiple', False)
+        hide_totals = data.get('hide_totals', False)
+        if not isinstance(multiple, bool) or not isinstance(hide_totals, bool):
+            return None
+        return cls(active=data['active'], options=list(options),
+                   expires=data['expires'], duration_seconds=duration,
+                   multiple=multiple, hide_totals=hide_totals)
 
     def as_dict(self):
         return {'active': self.active, 'options': list(self.options),
-                'expires': self.expires}
+                'expires': self.expires, 'duration_seconds': self.duration_seconds,
+                'multiple': self.multiple, 'hide_totals': self.hide_totals}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -85,6 +99,7 @@ class Draft:
     in_reply_to_id: typing.Optional[str] = None
     key: str = ''
     saved_at: str = ''
+    language_code: str | None = None
 
     @classmethod
     def parse(cls, data, key=''):
@@ -99,9 +114,9 @@ class Draft:
             return None
         if not isinstance(data.get('text'), str):
             return None
-        if not isinstance(data.get('visibility'), int):
+        if type(data.get('visibility')) is not int:
             return None
-        if not isinstance(data.get('language'), int):
+        if type(data.get('language')) is not int:
             return None
         if not isinstance(data.get('cw_visible'), bool):
             return None
@@ -110,6 +125,10 @@ class Draft:
         if not isinstance(data.get('attachments'), list):
             return None
         if 'in_reply_to_id' not in data:
+            return None
+        language_code = data.get('language_code')
+        if language_code is not None and (not isinstance(language_code, str)
+                                          or not language_code):
             return None
         poll = Poll.parse(data.get('poll'))
         if poll is None:
@@ -122,7 +141,8 @@ class Draft:
                    cw_text=data['cw_text'], attachments=attachments,
                    poll=poll, in_reply_to_id=data['in_reply_to_id'],
                    key=str(data.get('key') or key),
-                   saved_at=str(data.get('saved_at') or ''))
+                   saved_at=str(data.get('saved_at') or ''),
+                   language_code=language_code)
 
     @classmethod
     def parse_raw(cls, raw, key=''):
@@ -138,6 +158,7 @@ class Draft:
             'text': self.text,
             'visibility': self.visibility,
             'language': self.language,
+            'language_code': self.language_code,
             'cw_visible': self.cw_visible,
             'cw_text': self.cw_text,
             'attachments': [a.as_dict() for a in self.attachments],

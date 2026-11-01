@@ -305,19 +305,23 @@ class LoginFlow(GObject.Object):
     # The redirect
 
     def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
-        """Exchange the code a redirect to *redirect_uri* carries.
+        """Accept one redirect answering the authorization in flight."""
+        return self._accept_oauth_callback(uri, redirect_uri)
 
-        Returns whether the exchange started. *uri* arrives on the
-        ``babble://`` scheme or, rebuilt from the request, on the
-        loopback listener; either way it must answer the authorization
-        in flight.
-        """
+    def _accept_oauth_callback(self, uri, redirect_uri, prepare_denial=None):
         client = self._client
-        if client is None:
+        if client is None or self._attempt <= self._settled_attempt \
+                or self._pending_code is not None:
             return False
-        # parse_callback_uri drops a callback whose state belongs to a
-        # different authorization than the one in flight.
-        code = client.parse_callback_uri(uri)
+        try:
+            code = client.parse_callback_uri(uri)
+        except GLib.Error as error:
+            if error.domain != 'mastodon-oauth-error-quark':
+                raise
+            if prepare_denial is not None:
+                prepare_denial()
+            self._fail(self._attempt, _('Authorization failed'), error.message)
+            return True
         if code is None:
             return False
         return self.start_token_exchange(code, redirect_uri)
@@ -420,10 +424,23 @@ class LoginFlow(GObject.Object):
         redirect = self._loopback_uri
         query = msg.get_uri().get_query()
         uri = redirect + '?' + query if query else redirect
-        if not self.on_oauth_callback(uri, redirect):
+        denied = False
+
+        def prepare_denial():
+            nonlocal denied
+            denied = True
+            self.detach_loopback()
+            _reply(msg, 200, _('Authorization denied'),
+                   _('Return to Babble to try again.'))
+            msg.connect('finished', _close_loopback, server)
+            msg.connect('disconnected', _close_loopback, server)
+
+        if not self._accept_oauth_callback(uri, redirect, prepare_denial):
             _reply(msg, 400,
                    _('Babble could not use this login'),
                    _('Return to Babble and try logging in again.'))
+            return
+        if denied:
             return
         _reply(msg, 200,
                # Translators: heading of the web page the browser shows
@@ -607,6 +624,17 @@ class LoginFlow(GObject.Object):
 
     def _on_admin_token(self, client, account, attempt):
         """Keep the moderation token as the signed-in account's token."""
+        if attempt != self._attempt:
+            return
+        if account_key(account) != self._admin_owner:
+            self._settle_admin(False, _(
+                'Authorize moderation with the account already signed in to Babble.'))
+            return
+        if self._stale_admin_owner():
+            self._settle_admin(False, _(
+                'The signed-in account changed while moderation was being '
+                'authorized.'))
+            return
         client.store_secret_token(
             account['id'], client.token,
             lambda error: self._on_admin_token_stored(client, account,
@@ -614,15 +642,17 @@ class LoginFlow(GObject.Object):
             cancellable=self._cancellable)
 
     def _on_admin_token_stored(self, client, account, attempt, error):
-        if attempt != self._attempt or self._stale_admin_owner():
+        if attempt != self._attempt:
             return
+        # The verified account is the one that asked, so its token and
+        # client credentials are written as a pair even if the session
+        # moves on in between: stopping after the token would leave a
+        # token the stored credentials cannot revoke.
         if error is not None:
             self._settle_admin(False,
                                _('The system keyring refused to store the '
                                  'login.'))
             return
-        # The credentials have to land before the token does, or a
-        # restart leaves an account that cannot be revoked on logout.
         client.store_client_credentials(
             account['id'], client.client_id, client.client_secret,
             lambda cred_error: self._on_admin_credentials_stored(
@@ -630,12 +660,19 @@ class LoginFlow(GObject.Object):
             cancellable=self._cancellable)
 
     def _on_admin_credentials_stored(self, client, account, attempt, error):
-        if attempt != self._attempt or self._stale_admin_owner():
+        if attempt != self._attempt:
             return
         if error is not None:
             self._settle_admin(False,
                                _('The system keyring refused to store the '
                                  'login.'))
+            return
+        if self._stale_admin_owner():
+            # Saved for the account that asked; the session that is
+            # current now must not adopt it.
+            self._settle_admin(False, _(
+                'Moderation access was saved for the account you switched '
+                'away from.'))
             return
         # The freshly verified entity carries no role, and losing it
         # would take the admin action with it; keep the one the session

@@ -170,10 +170,25 @@ threading.Thread(target=nowhere.serve_forever, daemon=True).start()
 NOWHERE = 'http://127.0.0.1:%d' % nowhere.server_address[1]
 
 keyring = {}
+secret_operations = []
+defer_secrets = [False]
+
+
+def answer_secret(error=None):
+    operation, name, value, callback = secret_operations.pop(0)
+    if error is None:
+        if operation == 'store':
+            keyring[name] = value
+        else:
+            keyring.pop(name, None)
+    callback(error)
 
 
 def fake_keyring(context):
     def store(name, value, callback=None):
+        if defer_secrets[0]:
+            secret_operations.append(('store', name, value, callback))
+            return
         keyring[name] = value
         if callback is not None:
             callback(None)
@@ -182,6 +197,9 @@ def fake_keyring(context):
         callback(keyring.get(name), None)
 
     def clear(name, callback=None):
+        if defer_secrets[0]:
+            secret_operations.append(('clear', name, None, callback))
+            return
         keyring.pop(name, None)
         if callback is not None:
             callback(None)
@@ -262,7 +280,31 @@ check('and keeps nothing', host.contexts['babble_wallabag'].settings.get(
     'server') is None and not keyring)
 
 dialog.password.set_text(Server.password)
+defer_secrets[0] = True
 dialog.sign_in_button.emit('clicked')
+spin(lambda: bool(secret_operations))
+check('sign-in waits for durable storage and locks edits and closing',
+      not session().signed_in() and not Server.entries and not keyring
+      and dialog._signing_in and not dialog.get_can_close()
+      and not dialog.password.get_sensitive())
+grants_before = len(Server.grants)
+dialog.password.set_text(Server.password)
+dialog.sign_in_button.emit('clicked')
+busy = []
+session().sign_out(busy.append)
+check('edits cannot double submit and overlapping signout is refused',
+      not dialog.sign_in_button.get_sensitive() and len(Server.grants) == grants_before
+      and busy == ['Wait for the current Wallabag request to finish.'])
+answer_secret('synthetic keyring locked')
+check('failed initial store keeps sign-in open with no durable success',
+      visible_dialog() is dialog and dialog.error.get_visible()
+      and 'Could not save Wallabag credentials' in dialog.error.get_label()
+      and not dialog._signing_in and dialog.get_can_close()
+      and not session().signed_in() and not keyring and not Server.entries)
+dialog.sign_in_button.emit('clicked')
+spin(lambda: bool(secret_operations))
+answer_secret()
+defer_secrets[0] = False
 spin(lambda: Server.entries)
 check('signing in saves the post right away',
       Server.entries == ['https://example.org/@ana/1'])
@@ -372,7 +414,18 @@ account = preferences[0]
 check('they name the signed-in account',
       account.row.get_subtitle() == 'ana on 127.0.0.1'
       and account.button.get_label() == 'Sign _Out')
+defer_secrets[0] = True
 account.button.emit('clicked')
+check('preferences disable Sign Out while removal is pending',
+      not account.button.get_sensitive() and session().signed_in())
+answer_secret('synthetic UI deletion failure')
+check('failed UI clear keeps Sign Out available',
+      account.button.get_sensitive() and session().signed_in()
+      and account.button.get_label() == 'Sign _Out')
+account.button.emit('clicked')
+answer_secret()
+defer_secrets[0] = False
+spin(lambda: not session().signed_in())
 check('Sign Out forgets the client and the tokens',
       not session().signed_in() and session().access_token is None
       and module.SECRET not in keyring)
@@ -393,6 +446,84 @@ plugins_ref = plugins.weak_ref()
 del plugins, row
 check('the closed Plugins page is freed', freed(plugins_ref))
 check('and its settings extension with it', freed(account_ref))
+
+# Rotated refresh credentials must be durable before coalesced saves resume.
+done = []
+session().sign_in(SERVER, 'cid', 'secret', 'ana', Server.password, done.append)
+spin(lambda: bool(done))
+old_secret = keyring[module.SECRET]
+session().expires_at = 0
+defer_secrets[0] = True
+saves = []
+grants_before = len(Server.grants)
+session().save('https://example.org/one', saves.append)
+session().save('https://example.org/two', saves.append)
+spin(lambda: bool(secret_operations))
+check('coalesced saves wait for the refresh secret write',
+      saves == [] and len(Server.grants) == grants_before + 1)
+answer_secret('synthetic rotated keyring failure')
+check('failed rotated refresh drains waiters and clears durability claim',
+      saves == [None, None] and not session().signed_in()
+      and session().access_token is None and session().credentials is None
+      and session().credential_error is not None
+      and keyring[module.SECRET] == old_secret)
+extension = module.Wallabag(host.contexts['babble_wallabag'])
+dialog = module.SignInDialog(extension, session(), lambda: None)
+check('new sign-in explains the credential storage failure',
+      dialog.error.get_visible()
+      and 'rotated keyring failure' in dialog.error.get_label())
+defer_secrets[0] = False
+done.clear()
+session().sign_in(SERVER, 'cid', 'secret', 'ana', Server.password, done.append)
+spin(lambda: bool(done))
+check('durable sign-in clears the credential error', session().credential_error is None)
+previous = (session().access_token, session().expires_at, session().credentials)
+previous_secret = keyring[module.SECRET]
+defer_secrets[0] = True
+attempt = []
+session().sign_in(SERVER, 'cid', 'secret', 'ana', Server.password, attempt.append)
+spin(lambda: bool(secret_operations))
+answer_secret('synthetic password storage failure')
+check('failed password storage preserves prior memory and durable secret',
+      (session().access_token, session().expires_at, session().credentials)
+      == previous and keyring[module.SECRET] == previous_secret
+      and session().signed_in() and attempt
+      and attempt[0].startswith('Could not save Wallabag credentials'))
+defer_secrets[0] = True
+done.clear()
+session().sign_out(done.append)
+check('deferred clear keeps the old session signed in',
+      session().signed_in() and done == [])
+answer_secret('synthetic deletion failure')
+check('failed clear retains session and settings',
+      session().signed_in() and session().access_token is not None
+      and done == ['Could not remove Wallabag credentials: synthetic deletion failure'])
+done.clear()
+session().sign_out(done.append)
+answer_secret()
+check('retry clear succeeds only after keyring confirmation',
+      done == [None] and not session().signed_in() and module.SECRET not in keyring)
+defer_secrets[0] = False
+
+done.clear()
+session().sign_in(SERVER, 'cid', 'secret', 'ana', Server.password, done.append)
+spin(lambda: bool(done))
+plugins = pluginspage.present_plugins(window)
+row = [r for r in plugins.rows if r.plugin_id == 'babble_wallabag'][0]
+row.settings_button.emit('clicked')
+preferences = [ext for slot in host.slots if slot.plugin_id
+               for ext, *_rest in slot.extensions.get('babble_wallabag', [])]
+account = preferences[0]
+account_ref = weakref.ref(account)
+defer_secrets[0] = True
+account.button.emit('clicked')
+plugins.pop_subpage()
+plugins.close()
+del preferences, account, plugins, row
+check('pending removal does not retain released preferences', freed(account_ref))
+answer_secret()
+check('session removal finishes after preferences close', not session().signed_in())
+defer_secrets[0] = False
 
 host.shutdown()
 window.destroy()

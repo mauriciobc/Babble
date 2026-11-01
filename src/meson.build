@@ -243,6 +243,11 @@ test('compose widgets', python,
   env: test_env,
   timeout: 120,
 )
+test('compose transactions', python,
+  args: [files('test-compose-transactions.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('notifications render', python,
   args: [files('test-notifications.py')],
   env: fatal_test_env,

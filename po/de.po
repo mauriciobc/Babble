@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-10-31 19:30-0300\n"
+"POT-Creation-Date: 2026-11-01 10:25-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -31,7 +31,7 @@ msgstr "Folgen Sie Ihren Mastodon-Zeitleisten"
 msgid "Mastodon;Fediverse;Social;Toot;Post;"
 msgstr "Mastodon;Fediverse;Sozial;Tröt;Beitrag;Soziales Netzwerk;"
 
-#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:1787
+#: data/io.github.mauriciobc.Babble.desktop.in:18 src/compose.py:2134
 #: src/portals.py:281 src/shortcuts-dialog.ui:53 src/sidebarcontrol.py:70
 #: src/sidebarcontrol.py:73 src/sidebarrail.py:70 src/window.ui:350
 #: src/window.ui:352 src/window.ui:499 src/window.ui:501
@@ -844,12 +844,12 @@ msgid "Take Action"
 msgstr "Maßnahme ergreifen"
 
 #: src/admin.py:889 src/admin.py:1302 src/admin.py:1513
-#: src/catchup/page_controls.py:69 src/compose.py:1107
+#: src/catchup/page_controls.py:69 src/compose.py:1385
 #: src/fedicollections.py:679 src/hashtags.py:469 src/lists.py:164
 #: src/notificationctrl.py:558 src/pages.py:486 src/pages.py:514
 #: src/profile.py:281 src/profile.py:310 src/profileedit.py:229
 #: src/scheduled.py:123 src/search.py:585 src/statusactions.py:624
-#: src/statusactions.py:676 src/window.py:2031
+#: src/statusactions.py:676 src/window.py:2048
 msgid "_Cancel"
 msgstr "_Abbrechen"
 
@@ -916,7 +916,7 @@ msgstr "Ort"
 msgid "Moderation Status"
 msgstr "Moderationsstatus"
 
-#: src/admin.py:996 plugins/wallabag/babble_wallabag.py:335
+#: src/admin.py:996 plugins/wallabag/babble_wallabag.py:398
 msgid "Username"
 msgstr "Benutzername"
 
@@ -936,7 +936,7 @@ msgstr "IP"
 msgid "No Accounts"
 msgstr "Keine Konten"
 
-#: src/admin.py:1069 src/admin.py:1081 src/compose.py:1404 src/pages.py:414
+#: src/admin.py:1069 src/admin.py:1081 src/compose.py:1691 src/pages.py:414
 #: src/profileactions.py:217 src/profileactions.py:223
 #: src/profileactions.py:249 src/profileactions.py:267 src/statusactions.py:549
 msgid "_Undo"
@@ -1155,7 +1155,7 @@ msgstr "Föderation mit %s entfernen?"
 
 #: src/admin.py:1389 src/admin.py:1497 src/catchup/page_controls.py:200
 #: src/fedicollections.py:243 src/profileactions.py:229 src/statusmenu.py:440
-#: src/window.py:661
+#: src/window.py:660
 msgid "_Remove"
 msgstr "_Entfernen"
 
@@ -1440,47 +1440,57 @@ msgstr "Schließen Sie die Moderationsautorisierung im Webbrowser ab"
 msgid "Finish logging in with the web browser"
 msgstr "Schließen Sie die Anmeldung im Webbrowser ab"
 
-#: src/auth.py:425
+#: src/auth.py:323 src/auth.py:540
+msgid "Authorization failed"
+msgstr "Autorisierung fehlgeschlagen"
+
+#: src/auth.py:433
+#, fuzzy
+msgid "Authorization denied"
+msgstr "Autorisierung fehlgeschlagen"
+
+#: src/auth.py:434
+#, fuzzy
+msgid "Return to Babble to try again."
+msgstr "Zur Babble zurückkehren und erneut anmelden."
+
+#: src/auth.py:440
 msgid "Babble could not use this login"
 msgstr "Babble konnte diese Anmeldung nicht verwenden"
 
-#: src/auth.py:426
+#: src/auth.py:441
 msgid "Return to Babble and try logging in again."
 msgstr "Zur Babble zurückkehren und erneut anmelden."
 
 #. Translators: heading of the web page the browser shows
 #. once it has handed the login back to the app
-#: src/auth.py:431
+#: src/auth.py:448
 msgid "Logged in with Babble"
 msgstr "Mit Babble angemeldet"
 
-#: src/auth.py:432
+#: src/auth.py:449
 msgid "You can close this tab and return to Babble."
 msgstr "Du kannst dieses Tab schließen und zu Babble zurückkehren."
 
-#: src/auth.py:512
+#: src/auth.py:529
 #, python-format
 msgid "Authorization failed: %s"
 msgstr "Autorisierung fehlgeschlagen: %s"
 
-#: src/auth.py:523
-msgid "Authorization failed"
-msgstr "Autorisierung fehlgeschlagen"
-
-#: src/auth.py:537
+#: src/auth.py:554
 msgid "Could not verify the account"
 msgstr "Das Konto konnte nicht überprüft werden"
 
-#: src/auth.py:589
+#: src/auth.py:606
 #, python-format
 msgid "Logged in as @%s"
 msgstr "Angemeldet als @%s"
 
-#: src/auth.py:595 src/window.py:485
+#: src/auth.py:612 src/window.py:485
 msgid "No Keyring Found"
 msgstr "Kein Schlüsselbund gefunden"
 
-#: src/auth.py:596
+#: src/auth.py:613
 msgid ""
 "Babble keeps your login in the system keyring, and no keyring service is "
 "running. Start one, such as GNOME Keyring or KeePassXC, then try again."
@@ -1489,11 +1499,11 @@ msgstr ""
 "Schlüsselbund-Dienst. Starte einen, etwa GNOME-Schlüsselbund oder KeePassXC, "
 "und versuche es dann erneut."
 
-#: src/auth.py:601
+#: src/auth.py:618
 msgid "Could not save the login"
 msgstr "Die Anmeldung konnte nicht gespeichert werden"
 
-#: src/auth.py:602
+#: src/auth.py:619
 #, python-format
 msgid ""
 "The system keyring refused to store the login for @%s. Check that a keyring "
@@ -1502,11 +1512,24 @@ msgstr ""
 "Der System-Schlüsselbund hat die Anmeldung für @%s nicht gespeichert. Prüfen "
 "Sie, ob ein Schlüsselbunddienst läuft, und versuchen Sie es erneut."
 
-#: src/auth.py:621 src/auth.py:637
+#: src/auth.py:631
+msgid "Authorize moderation with the account already signed in to Babble."
+msgstr ""
+
+#: src/auth.py:635
+#, fuzzy
+msgid "The signed-in account changed while moderation was being authorized."
+msgstr "Das Konto wurde gewechselt, bevor die Moderation autorisiert war."
+
+#: src/auth.py:653 src/auth.py:667
 msgid "The system keyring refused to store the login."
 msgstr "Der System-Schlüsselbund hat die Anmeldung nicht gespeichert."
 
-#: src/auth.py:645
+#: src/auth.py:674
+msgid "Moderation access was saved for the account you switched away from."
+msgstr ""
+
+#: src/auth.py:682
 msgid "Moderation access granted"
 msgstr "Moderationszugriff erteilt"
 
@@ -2082,296 +2105,367 @@ msgstr "Kopierter Hashtag öffnen?"
 msgid "Open copied collection?"
 msgstr "Kopierte Sammlung öffnen?"
 
-#: src/compose.py:72 src/fedicollections.py:518 src/fedicollections.py:719
+#: src/compose.py:74 src/fedicollections.py:518 src/fedicollections.py:719
 #: src/preferences.py:65 src/profileedit.py:41 src/scheduled.py:400
 #: src/search.py:621 src/timelinebase.py:171
 msgid "Public"
 msgstr "Öffentlich"
 
-#: src/compose.py:73 src/fedicollections.py:519 src/fedicollections.py:724
+#: src/compose.py:75 src/fedicollections.py:519 src/fedicollections.py:724
 #: src/preferences.py:66 src/scheduled.py:401 src/timelinebase.py:172
 msgid "Unlisted"
 msgstr "Nicht gelistet"
 
-#: src/compose.py:74 src/preferences.py:67 src/profileedit.py:43
+#: src/compose.py:76 src/preferences.py:67 src/profileedit.py:43
 msgid "Followers only"
 msgstr "Nur Follower"
 
-#: src/compose.py:75 src/preferences.py:68 src/scheduled.py:403
+#: src/compose.py:77 src/preferences.py:68 src/scheduled.py:403
 msgid "Direct"
 msgstr "Direkt"
 
-#: src/compose.py:79
+#: src/compose.py:81
 msgid "30 minutes"
 msgstr "30 Minuten"
 
-#: src/compose.py:80
+#: src/compose.py:82
 msgid "1 hour"
 msgstr "1 Stunde"
 
-#: src/compose.py:81
+#: src/compose.py:83
 msgid "1 day"
 msgstr "1 Tag"
 
-#: src/compose.py:82
+#: src/compose.py:84
 msgid "7 days"
 msgstr "7 Tage"
 
 #. Translators: file name, without its extension, of an image pasted
 #. into the composer. It is shown on the attachment.
-#: src/compose.py:301
+#: src/compose.py:303
 msgid "Pasted image"
 msgstr "Füge Bild ein"
 
-#: src/compose.py:304
+#: src/compose.py:306
 msgid "The image could not be saved"
 msgstr "Das Bild konnte nicht gespeichert werden"
 
 #. Translators: file name, without its extension, of a screenshot
 #. taken from the composer. It is shown on the attachment.
-#: src/compose.py:320
+#: src/compose.py:322
 msgid "Screenshot"
 msgstr "Screenshot"
 
-#: src/compose.py:374
+#: src/compose.py:376
 msgid "Remove Attachment"
 msgstr "Anhang entfernen"
 
-#: src/compose.py:383 src/fedicollections.py:693
+#: src/compose.py:385 src/fedicollections.py:693
 msgid "Description"
 msgstr "Beschreibung"
 
-#: src/compose.py:424 src/statusrow.py:591
+#: src/compose.py:454 src/statusrow.py:591
 msgid "Replying to a post"
 msgstr "Antwort auf einen Beitrag"
 
-#: src/compose.py:425
+#: src/compose.py:455
 msgid "_Cancel Reply"
 msgstr "Antwort _abbrechen"
 
-#: src/compose.py:431
+#: src/compose.py:461
 msgid "_Clear Schedule"
 msgstr "Planung _aufheben"
 
-#: src/compose.py:491
+#: src/compose.py:522
 msgid "Discard Draft"
 msgstr "Entwurf verwerfen"
 
-#: src/compose.py:496 src/compose.py:941
+#: src/compose.py:527 src/compose.py:1208
 msgid "_Post"
 msgstr "_Veröffentlichen"
 
-#: src/compose.py:498 src/compose.py:943
+#: src/compose.py:529 src/compose.py:1210
 msgid "Post (Ctrl+Enter)"
 msgstr "Veröffentlichen (Strg+Eingabe)"
 
-#: src/compose.py:504 src/compose.py:948 src/scheduled.py:110
+#: src/compose.py:535 src/compose.py:1217 src/scheduled.py:110
 msgid "Schedule Post"
 msgstr "Beitrag planen"
 
-#: src/compose.py:527
+#: src/compose.py:558
 msgid "Post Text"
 msgstr "Beitragstext"
 
-#: src/compose.py:545
+#: src/compose.py:576
 msgid "What’s on your mind?"
 msgstr "Was beschäftigt Sie?"
 
-#: src/compose.py:565 src/compose.py:627 src/fedicollections.py:732
+#: src/compose.py:596 src/compose.py:658 src/fedicollections.py:732
 msgid "Content Warning"
 msgstr "Inhaltswarnung"
 
-#: src/compose.py:581
+#: src/compose.py:612
 msgid "Duration"
 msgstr "Dauer"
 
-#: src/compose.py:585
+#: src/compose.py:616
 msgid "_Add Choice"
 msgstr "Option _hinzufügen"
 
-#: src/compose.py:615 src/compose.py:1122
+#: src/compose.py:646 src/compose.py:1400
 msgid "Attach Media"
 msgstr "Medien anhängen"
 
-#: src/compose.py:620
+#: src/compose.py:651
 msgid "Take Screenshot"
 msgstr "Screenshot machen"
 
-#: src/compose.py:630 src/search.py:609
+#: src/compose.py:661 src/search.py:609
 msgid "Poll"
 msgstr "Umfrage"
 
-#: src/compose.py:633
+#: src/compose.py:664
 msgid "Mention"
 msgstr "Erwähnen"
 
-#: src/compose.py:637
+#: src/compose.py:668
 msgid "Insert Emoji"
 msgstr "Emoji einfügen"
 
-#: src/compose.py:641
+#: src/compose.py:672
 msgid "Keep Open for a Thread"
 msgstr "Für einen Thread geöffnet lassen"
 
-#: src/compose.py:650
+#: src/compose.py:681
 msgid "Post Visibility"
 msgstr "Sichtbarkeit des Beitrags"
 
-#: src/compose.py:651
+#: src/compose.py:682
 msgid "Post Language"
 msgstr "Sprache des Beitrags"
 
-#: src/compose.py:663
+#: src/compose.py:694
 msgid "Characters Left"
 msgstr "Verbleibende Zeichen"
 
-#: src/compose.py:907
+#. Translators: exact poll duration restored from a saved post.
+#: src/compose.py:747
+#, python-format
+msgid "%d second"
+msgid_plural "%d seconds"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/compose.py:760
+#, fuzzy
+msgid "Could not restore draft"
+msgstr "Neu planen fehlgeschlagen"
+
+#: src/compose.py:761
+msgid "The saved draft has unsupported settings."
+msgstr ""
+
+#: src/compose.py:832
+msgid "Remove the original scheduled post before starting another post."
+msgstr ""
+
+#: src/compose.py:836
+msgid "Finish sending this post first."
+msgstr ""
+
+#: src/compose.py:1004
+#, fuzzy
+msgid "The server returned unsupported post settings."
+msgstr "Der Server hat für diesen Zeitraum keine Zahlen geliefert."
+
+#: src/compose.py:1094
+#, fuzzy
+msgid "Could not edit scheduled post"
+msgstr "Neu planen fehlgeschlagen"
+
+#: src/compose.py:1170
 msgid "_Set Time"
 msgstr "Zeit _festlegen"
 
-#: src/compose.py:938 src/scheduled.py:333
+#: src/compose.py:1205 src/scheduled.py:333
 #, python-format
 msgid "Scheduled for %s"
 msgstr "Geplant für %s"
 
-#: src/compose.py:941 src/scheduled.py:127
+#: src/compose.py:1208 src/scheduled.py:127
 msgid "_Schedule"
 msgstr "_Planen"
 
-#: src/compose.py:943
+#: src/compose.py:1210
 msgid "Schedule (Ctrl+Enter)"
 msgstr "Planen (Strg+Eingabe)"
 
-#: src/compose.py:948
+#: src/compose.py:1217
 msgid "Change Time"
 msgstr "Zeit ändern"
 
-#: src/compose.py:1038
+#: src/compose.py:1310
 #, python-format
 msgid "Choice %d"
 msgstr "Option %d"
 
-#: src/compose.py:1104
+#: src/compose.py:1382
 msgid "Discard Draft?"
 msgstr "Entwurf verwerfen?"
 
-#: src/compose.py:1105
+#: src/compose.py:1383
 msgid "The text, attachments and poll of this post will be lost"
 msgstr "Text, Anhänge und Umfrage dieses Beitrags gehen verloren"
 
-#: src/compose.py:1108 src/profileedit.py:651
+#: src/compose.py:1386 src/profileedit.py:651
 msgid "_Discard"
 msgstr "_Verwerfen"
 
-#: src/compose.py:1140
+#: src/compose.py:1418
 msgid "Media accepted by this server"
 msgstr "Vom Server akzeptierte Medien"
 
-#: src/compose.py:1141
+#: src/compose.py:1419
 msgid "Images, Videos and Audio"
 msgstr "Bilder, Videos und Audio"
 
-#: src/compose.py:1163
+#: src/compose.py:1441
 msgid "Could not open the file picker"
 msgstr "Die Dateiauswahl konnte nicht geöffnet werden"
 
-#: src/compose.py:1179 src/compose.py:1194 src/compose.py:1202
+#: src/compose.py:1457 src/compose.py:1472 src/compose.py:1480
 msgid "Could not take a screenshot"
 msgstr "Ein Screenshot konnte nicht erstellt werden"
 
-#: src/compose.py:1287
+#: src/compose.py:1571
 msgid "Only images, videos and audio can be attached"
 msgstr "Nur Bilder, Videos und Audio können angehängt werden"
 
-#: src/compose.py:1295
+#: src/compose.py:1579
 msgid "Wait for the post to be sent to attach files"
 msgstr "Warte, bis der Beitrag gesendet wird, um Dateien anzuhängen"
 
-#: src/compose.py:1298
+#: src/compose.py:1582
 msgid "A video or audio file must be the only attachment"
 msgstr "Eine Video- oder Audiodatei muss der einzige Anhang sein"
 
-#: src/compose.py:1303
+#: src/compose.py:1587
 #, python-format
 msgid "A post can have at most %d attachment"
 msgid_plural "A post can have at most %d attachments"
 msgstr[0] "Ein Beitrag kann höchstens %d Anhänge haben"
 msgstr[1] "Ein Beitrag kann höchstens %d Anhänge haben"
 
-#: src/compose.py:1358
+#: src/compose.py:1645
 msgid "Could not paste the files"
 msgstr "Die Dateien konnten nicht eingefügt werden"
 
-#: src/compose.py:1372 src/compose.py:1382
+#: src/compose.py:1659 src/compose.py:1669
 msgid "Could not paste the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/compose.py:1403
+#: src/compose.py:1690
 msgid "Attachment removed"
 msgstr "Anhang entfernt"
 
-#: src/compose.py:1479
+#: src/compose.py:1766
 msgid "Post is too long"
 msgstr "Der Beitrag ist zu lang"
 
-#: src/compose.py:1482
+#: src/compose.py:1769
 msgid "Add content warning text"
 msgstr "Fügen Sie einen Text für die Inhaltswarnung hinzu"
 
-#: src/compose.py:1487
+#: src/compose.py:1774
 msgid "Add at least two poll choices"
 msgstr "Fügen Sie mindestens zwei Umfrageoptionen hinzu"
 
-#: src/compose.py:1490
+#: src/compose.py:1777
 msgid "Poll choices must be unique"
 msgstr "Die Umfrageoptionen müssen eindeutig sein"
 
-#: src/compose.py:1493
+#: src/compose.py:1780
 msgid "A poll cannot be combined with media"
 msgstr "Eine Umfrage kann nicht mit Medien kombiniert werden"
 
 #. Translators: why logging out or suspending is held back, as the
 #. session shows it while a post is being uploaded and sent.
-#: src/compose.py:1530
+#: src/compose.py:1826
 msgid "Sending a post"
 msgstr "Beitrag senden"
 
-#: src/compose.py:1540
+#: src/compose.py:1836
 msgid "Could not upload media"
 msgstr "Die Medien konnten nicht hochgeladen werden"
 
-#: src/compose.py:1596
+#: src/compose.py:1905
 msgid "Could not post"
 msgstr "Veröffentlichen fehlgeschlagen"
 
-#: src/compose.py:1631
+#: src/compose.py:1911
 msgid "Post edited"
 msgstr "Beitrag bearbeitet"
 
-#: src/compose.py:1633
+#: src/compose.py:1913
 msgid "Post scheduled"
 msgstr "Beitrag geplant"
 
-#: src/compose.py:1635
+#: src/compose.py:1915
 msgid "Post sent"
 msgstr "Beitrag gesendet"
 
-#: src/compose.py:1779
+#: src/compose.py:1987
+#, fuzzy
+msgid "Could not remove original scheduled post"
+msgstr "Ihr Beitrag konnte nicht entfernt werden"
+
+#: src/compose.py:2006
+msgid ""
+"The replacement was saved, but the original scheduled post could not be "
+"removed. Both may be published."
+msgstr ""
+
+#: src/compose.py:2008
+msgid "_Retry Removal"
+msgstr ""
+
+#: src/compose.py:2126
 msgid "Edit Post"
 msgstr "Beitrag bearbeiten"
 
-#: src/compose.py:1781
+#: src/compose.py:2128
 msgid "Edit Scheduled Post"
 msgstr "Geplanten Beitrag bearbeiten"
 
-#: src/compose.py:1783
+#: src/compose.py:2130
 msgid "Quote Post"
 msgstr "Beitrag zitieren"
 
-#: src/compose.py:1785 src/desktopnotify.py:222 src/scheduled.py:421
+#: src/compose.py:2132 src/desktopnotify.py:222 src/scheduled.py:421
 #: src/statusactions.py:327 src/statusmenu.py:241
 msgid "Reply"
 msgstr "Antworten"
+
+#: src/compose.py:2141
+#, fuzzy
+msgid "Leave Duplicate Scheduled Posts?"
+msgstr "Geplanten Beitrag löschen?"
+
+#: src/compose.py:2142
+msgid ""
+"The replacement was saved, but the original is still scheduled. Closing "
+"leaves both entries on the server."
+msgstr ""
+
+#: src/compose.py:2144
+#, fuzzy
+msgid "_Keep Open"
+msgstr "_Öffnen"
+
+#: src/compose.py:2145
+#, fuzzy
+msgid "_Close Anyway"
+msgstr "Fenster schließen"
 
 #. Translators: %s is a file name, then the largest size this server
 #. accepts for this kind of file, e.g. "99 MB".
@@ -3567,25 +3661,55 @@ msgstr "Aktualisierung fehlgeschlagen"
 msgid "Invalid address"
 msgstr "Ungültige Adresse"
 
-#: src/mastodon.py:726
+#: src/mastodon.py:719
+#, fuzzy
+msgid "The server returned an invalid JSON response."
+msgstr "Der Server hat für diesen Zeitraum keine Zahlen geliefert."
+
+#: src/mastodon.py:733
 #, python-format
 msgid "Rate limited by this server. Trying again in %d second."
 msgid_plural "Rate limited by this server. Trying again in %d seconds."
 msgstr[0] "Dieser Server begrenzt Anfragen. Neuer Versuch in %d Sekunde."
 msgstr[1] "Dieser Server begrenzt Anfragen. Neuer Versuch in %d Sekunden."
 
-#: src/mastodon.py:771
+#: src/mastodon.py:778
 #, python-format
 msgid "Invalid address: %s"
 msgstr "Ungültige Adresse: %s"
 
-#: src/mastodon.py:992
+#: src/mastodon.py:989
 msgid "The server did not return an application id."
 msgstr "Der Server gab keine Anwendungs-ID zurück."
 
-#: src/mastodon.py:1075
+#: src/mastodon.py:994
+#, fuzzy
+msgid "The server did not return an application secret."
+msgstr "Der Server gab keine Anwendungs-ID zurück."
+
+#: src/mastodon.py:1077
 msgid "This login cannot be signed out on the server."
 msgstr "Diese Anmeldung kann nicht auf dem Server abgemeldet werden."
+
+#: src/mastodon.py:1159
+#, fuzzy
+msgid "Authorization was denied."
+msgstr "Autorisierung fehlgeschlagen"
+
+#: src/mastodon.py:1161
+#, fuzzy
+msgid "The server could not authorize this request."
+msgstr "Die Anfrage konnte nicht aktualisiert werden"
+
+#: src/mastodon.py:1185
+#, fuzzy
+msgid "The server did not return an access token."
+msgstr "Der Server gab keine Anwendungs-ID zurück."
+
+#: src/mastodon.py:1200
+#, fuzzy
+msgid "The server did not return a valid account."
+msgstr "Der Server gab keine Anwendungs-ID zurück."
 
 #: src/mediabox.py:254
 msgid "Show Previous Boosts"
@@ -5279,7 +5403,7 @@ msgstr "Se_rvereinstellungen"
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:588 src/window.py:1927 src/window.py:1932
+#: src/preferences.py:588 src/window.py:1944 src/window.py:1949
 msgid "Could not open the web browser"
 msgstr "Webbrowser konnte nicht geöffnet werden"
 
@@ -5304,7 +5428,7 @@ msgid "Combine notifications of the same type and post into one"
 msgstr "Benachrichtigungen desselben Typs und Beitrags zusammenfassen"
 
 #: src/preferences.py:635 plugins/hashpanel/babble_hashpanel.py:277
-#: plugins/wallabag/babble_wallabag.py:328
+#: plugins/wallabag/babble_wallabag.py:391
 msgid "Server"
 msgstr "Server"
 
@@ -5551,7 +5675,7 @@ msgstr[1] "Alle %d Profile anzeigen"
 msgid "No Featured Profiles"
 msgstr "Keine vorgestellten Profile"
 
-#: src/profile.py:1148 src/statusrow.py:152 src/window.py:1523
+#: src/profile.py:1148 src/statusrow.py:152 src/window.py:1540
 msgid "Pinned"
 msgstr "Angeheftet"
 
@@ -7517,26 +7641,37 @@ msgstr "Du hast einen ungesandten Entwurf"
 msgid "You’re offline"
 msgstr "Du bist offline"
 
-#: src/window.py:658
+#: src/window.py:657
 msgid "Remove Account?"
 msgstr "Konto entfernen?"
 
-#: src/window.py:659
+#: src/window.py:658
 #, python-format
 msgid "The login for %s will be removed from this device."
 msgstr "Die Anmeldung für %s wird von diesem Gerät entfernt."
 
-#: src/window.py:745 src/window.ui:387 src/window.ui:389
+#: src/window.py:737
+msgid ""
+"The account was removed from Babble, but the system keyring could not remove "
+"all of its credentials."
+msgstr ""
+
+#: src/window.py:741
+#, fuzzy
+msgid "Could not remove all saved credentials"
+msgstr "Der Eintrag konnte nicht entfernt werden"
+
+#: src/window.py:762 src/window.ui:387 src/window.ui:389
 msgid "Switch Account"
 msgstr "Konto wechseln"
 
-#: src/window.py:1010
+#: src/window.py:1027
 msgid "Running in the background was not allowed"
 msgstr "Die Ausführung im Hintergrund wurde nicht erlaubt"
 
 #. Translators: status GNOME Shell shows for Babble running in
 #. the background with its window closed.
-#: src/window.py:1083
+#: src/window.py:1100
 #, python-format
 msgid "%d new mention"
 msgid_plural "%d new mentions"
@@ -7544,56 +7679,56 @@ msgstr[0] "%d neue Erwähnung"
 msgstr[1] "%d neue Erwähnungen"
 
 #. Translators: background status: live updates are streaming.
-#: src/window.py:1087
+#: src/window.py:1104
 msgid "Connected"
 msgstr "Verbunden"
 
 #. Translators: background status: no live stream, so Babble polls
 #. the server for new notifications.
-#: src/window.py:1090
+#: src/window.py:1107
 msgid "Checking for notifications"
 msgstr "Nach Benachrichtigungen suchen"
 
-#: src/window.py:1115
+#: src/window.py:1132
 msgid "The quick post shortcut was not allowed"
 msgstr "Der Schnellpost-Shortcut wurde nicht erlaubt"
 
-#: src/window.py:1192
+#: src/window.py:1209
 #, python-format
 msgid "%d unread notification"
 msgid_plural "%d unread notifications"
 msgstr[0] "%d ungelesene Benachrichtigung"
 msgstr[1] "%d ungelesene Benachrichtigungen"
 
-#: src/window.py:1254
+#: src/window.py:1271
 msgid "Sign in to post the file"
 msgid_plural "Sign in to post the files"
 msgstr[0] "Einloggen, um die Datei zu posten"
 msgstr[1] "Einloggen, um die Dateien zu posten"
 
-#: src/window.py:1755
+#: src/window.py:1772
 msgid "Waiting for Authorization"
 msgstr "Warten auf Autorisierung"
 
-#: src/window.py:1757
+#: src/window.py:1774
 #, python-format
 msgid "_Continue with %s"
 msgstr "Mit %s _fortfahren"
 
-#: src/window.py:1759 src/window.ui:233
+#: src/window.py:1776 src/window.ui:233
 msgid "_Continue"
 msgstr "_Fortfahren"
 
-#: src/window.py:1933
+#: src/window.py:1950
 msgid "No app is set to open web links"
 msgstr "Keine Anwendung ist zum Öffnen von Weblinks eingerichtet"
 
-#: src/window.py:1962
+#: src/window.py:1979
 msgid "Could not connect to the server"
 msgstr "Verbindung zum Server fehlgeschlagen"
 
 #. Translators: keep "https://" untranslated
-#: src/window.py:1964
+#: src/window.py:1981
 msgid ""
 "Babble only connects over HTTPS. Enter the server address without a scheme, "
 "or with https://."
@@ -7601,11 +7736,11 @@ msgstr ""
 "Babble verbindet sich nur über HTTPS. Geben Sie die Serveradresse ohne "
 "Schema oder mit https:// ein."
 
-#: src/window.py:2027
+#: src/window.py:2044
 msgid "Log Out?"
 msgstr "Abmelden?"
 
-#: src/window.py:2028
+#: src/window.py:2045
 #, python-format
 msgid ""
 "The login for @%s will be signed out on the server and removed from this "
@@ -7614,7 +7749,7 @@ msgstr ""
 "Die Anmeldung für @%s wird auf dem Server abgemeldet und von diesem Gerät "
 "entfernt."
 
-#: src/window.py:2032
+#: src/window.py:2049
 msgid "_Log Out"
 msgstr "_Abmelden"
 
@@ -7996,7 +8131,7 @@ msgid ""
 msgstr ""
 
 #: plugins/hashpanel/babble_hashpanel.py:292
-#: plugins/wallabag/babble_wallabag.py:384
+#: plugins/wallabag/babble_wallabag.py:451
 msgid "Use the server’s https:// address"
 msgstr ""
 
@@ -8004,106 +8139,124 @@ msgstr ""
 msgid "Hashpanel server saved"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:213
+#: plugins/wallabag/babble_wallabag.py:172
+#: plugins/wallabag/babble_wallabag.py:204
+#: plugins/wallabag/babble_wallabag.py:224
+msgid "Wait for the current Wallabag request to finish."
+msgstr ""
+
+#. Translators: %s is the system keyring failure.
+#: plugins/wallabag/babble_wallabag.py:212
+#, fuzzy, python-format
+msgid "Could not remove Wallabag credentials: %s"
+msgstr "Die Liste konnte nicht gespeichert werden: %s"
+
+#: plugins/wallabag/babble_wallabag.py:240
 #, fuzzy
 msgid "The server did not accept these details"
 msgstr "Der Server hat die Medien nicht angenommen"
 
-#: plugins/wallabag/babble_wallabag.py:215
+#: plugins/wallabag/babble_wallabag.py:242
 msgid "No Wallabag server answered at this address"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:219
+#: plugins/wallabag/babble_wallabag.py:246
 #, fuzzy
 msgid "The server sent no token"
 msgstr "Dieser Server hat keine eigenen Emojis"
 
-#: plugins/wallabag/babble_wallabag.py:246
+#. Translators: %s is the system keyring failure.
+#: plugins/wallabag/babble_wallabag.py:265
+#, fuzzy, python-format
+msgid "Could not save Wallabag credentials: %s"
+msgstr "Die Liste konnte nicht gespeichert werden: %s"
+
+#: plugins/wallabag/babble_wallabag.py:292
 msgid "Save to _Wallabag"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:248
+#: plugins/wallabag/babble_wallabag.py:294
 #, fuzzy
 msgid "Save to _Wallabag…"
 msgstr "Als Bild speichern…"
 
-#: plugins/wallabag/babble_wallabag.py:261
+#: plugins/wallabag/babble_wallabag.py:307
 msgid "Saved to Wallabag"
 msgstr ""
 
 #. Translators: %s is the reason, as the server or the
 #. network gave it.
-#: plugins/wallabag/babble_wallabag.py:265
+#: plugins/wallabag/babble_wallabag.py:311
 #, fuzzy, python-format
 msgid "Could not save to Wallabag: %s"
 msgstr "Die Liste konnte nicht gespeichert werden: %s"
 
-#: plugins/wallabag/babble_wallabag.py:277
+#: plugins/wallabag/babble_wallabag.py:329
 #, fuzzy
 msgid "Account"
 msgstr "Konten"
 
-#: plugins/wallabag/babble_wallabag.py:281
+#: plugins/wallabag/babble_wallabag.py:333
 #, fuzzy
 msgid "Saved posts go to this account"
 msgstr "Sagen Sie uns, was mit diesem Konto los ist"
 
 #. Translators: a Wallabag account, by its username and the
 #. server's host name.
-#: plugins/wallabag/babble_wallabag.py:293
+#: plugins/wallabag/babble_wallabag.py:345
 #, python-format
 msgid "%(username)s on %(server)s"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:295
+#: plugins/wallabag/babble_wallabag.py:347
 msgid "Sign _Out"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:298
+#: plugins/wallabag/babble_wallabag.py:350
 #, fuzzy
 msgid "Not signed in"
 msgstr "%s hat sich registriert"
 
-#: plugins/wallabag/babble_wallabag.py:299
+#: plugins/wallabag/babble_wallabag.py:351
 msgid "_Sign In…"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:307
+#: plugins/wallabag/babble_wallabag.py:367
 #, fuzzy
 msgid "Signed out of Wallabag"
 msgstr "Als Bild speichern…"
 
-#: plugins/wallabag/babble_wallabag.py:316
+#: plugins/wallabag/babble_wallabag.py:378
 msgid "Sign In to Wallabag"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:323
+#: plugins/wallabag/babble_wallabag.py:386
 msgid "_Sign In"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:331
+#: plugins/wallabag/babble_wallabag.py:394
 msgid "app.wallabag.it, or your own server’s address"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:332
+#: plugins/wallabag/babble_wallabag.py:395
 msgid "Client ID"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:334
+#: plugins/wallabag/babble_wallabag.py:397
 msgid "Client Secret"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:337
+#: plugins/wallabag/babble_wallabag.py:400
 msgid "Password"
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:339
+#: plugins/wallabag/babble_wallabag.py:402
 msgid ""
 "Use app.wallabag.it for the hosted service. Create a client under API "
 "Clients Management in Wallabag to get its ID and secret."
 msgstr ""
 
-#: plugins/wallabag/babble_wallabag.py:345
+#: plugins/wallabag/babble_wallabag.py:408
 msgid "Your password is used once to sign in and is not stored"
 msgstr ""
 
@@ -8223,9 +8376,6 @@ msgstr ""
 #, python-format
 #~ msgid "Restored %s"
 #~ msgstr "%s wiederhergestellt"
-
-#~ msgid "The account changed before moderation was authorized."
-#~ msgstr "Das Konto wurde gewechselt, bevor die Moderation autorisiert war."
 
 #~ msgid "_New Post"
 #~ msgstr "_Neuer Beitrag"

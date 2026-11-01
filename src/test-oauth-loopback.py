@@ -218,6 +218,27 @@ pump()
 check('a second hit reaches nothing', reply is None)
 check('a second hit starts no exchange', client.exchanges == [('x', redirect)])
 
+# Denial is a complete non-success page before terminal settlement closes HTTP.
+for error_code in ('access_denied', 'server_error'):
+    win, opened = fresh_window()
+    client = start_login(win)
+    server, redirect = win.auth.loopback, win.auth.loopback_uri
+    reply = get(redirect + '?error=' + error_code + '&state=wrong')
+    check('foreign denial keeps the listener and authorization usable',
+          reply and reply[0] == 400 and win.auth.waiting
+          and win.auth.loopback is server and client.exchanges == [])
+    reply = get(redirect + '?error=' + error_code + '&state=' + client._state
+                + '&error_description=untrusted-description')
+    pump()
+    check('loopback denial %s answers a complete no-store page' % error_code,
+          reply and reply[0] == 200 and 'Authorization denied' in reply[1]
+          and 'Return to Babble to try again.' in reply[1]
+          and 'Logged in with Babble' not in reply[1]
+          and 'untrusted-description' not in reply[1]
+          and reply[2].get_one('Cache-Control') == 'no-store')
+    check('loopback denial settles without a token exchange',
+          not win.auth.waiting and closed(server) and client.exchanges == [])
+
 # --- Cancel, leaving the page and the timeout close it -----------------
 
 win.on_cancel_login_clicked(None)
@@ -272,6 +293,17 @@ check('a moderation authorization names it',
 win.on_cancel_login_clicked(None)
 check('a cancelled moderation authorization closes the listener',
       win.auth.loopback is None and closed(server) and outcomes == [False])
+outcomes.clear()
+win.authorize_admin(outcomes.append)
+pump()
+admin = StubClient.instances[-1]
+redirect = win.auth.loopback_uri
+server = win.auth.loopback
+reply = get(redirect + '?error=access_denied&state=' + admin._state)
+pump()
+check('admin loopback denial answers false once with zero exchanges',
+      reply and reply[0] == 200 and outcomes == [False]
+      and admin.exchanges == [] and not win.auth.waiting and closed(server))
 win.account = win.client = None
 
 # --- No port: the login stays on babble:// ------------------------------
