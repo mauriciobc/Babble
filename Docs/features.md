@@ -52,6 +52,11 @@ The full feature inventory. The [README](../README.md) has the short version.
 - Reply cancellation restores the preceding draft's text and posting mode. Quotes
   cannot inherit an unfinished edit's update target, and thread segments do not
   repeat a prior quote or reused attachments.
+- Threads: with **Keep Open for a Thread** on, the title counts the post you are
+  writing ("Thread · Post 2") and a dimmed strip shows the end of the one before.
+  Replying to the last of your own posts picks the thread up with the right
+  number, and editing one of them shows its place ("Edit Post · 2/5"). The
+  thread is read from your instance; if that fails, the composer behaves as usual.
 
 ## Wallabag
 

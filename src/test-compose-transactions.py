@@ -60,6 +60,31 @@ class Server(ThreadingHTTPServer):
         self.delete_gate = None
         self.delete_entered = threading.Event()
         self.posts = 0
+        self.statuses = {}
+        self.gets = []
+        self.context_status = 200
+        self.context_gate = None
+        self.context_entered = threading.Event()
+
+    def context_of(self, status_id):
+        """Mastodon's context: ancestors root first, descendants in
+        creation order."""
+        ancestors = []
+        current = self.statuses[status_id]
+        while current['in_reply_to_id'] in self.statuses:
+            current = self.statuses[current['in_reply_to_id']]
+            ancestors.insert(0, current)
+
+        def below(status):
+            parent = status['in_reply_to_id']
+            while parent in self.statuses:
+                if parent == status_id:
+                    return True
+                parent = self.statuses[parent]['in_reply_to_id']
+            return False
+
+        return {'ancestors': ancestors,
+                'descendants': [s for s in self.statuses.values() if below(s)]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -67,6 +92,26 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        self.server.gets.append(self.path)
+        parts = self.path.split('?')[0].split('/')
+        if parts[:4] == ['', 'api', 'v1', 'statuses'] and len(parts) > 4 \
+                and parts[4] in self.server.statuses:
+            if len(parts) == 6 and parts[5] == 'context':
+                self.server.context_entered.set()
+                gate = self.server.context_gate
+                if gate is not None:
+                    gate.wait(10)
+                if self.server.context_status != 200:
+                    self.reply(self.server.context_status, {'error': 'synthetic'})
+                else:
+                    self.reply(200, self.server.context_of(parts[4]))
+                return
+            if len(parts) == 5:
+                self.reply(200, self.server.statuses[parts[4]])
+                return
+        if parts[:4] == ['', 'api', 'v1', 'statuses']:
+            self.reply(404, {'error': 'not found'})
+            return
         self.reply(200, [])
 
     def do_POST(self):
@@ -107,6 +152,199 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         except BrokenPipeError:
             pass
+
+
+def settle(seconds=0.3):
+    """Let answers that are expected to change nothing arrive."""
+    deadline = time.monotonic() + seconds
+    context = GLib.MainContext.default()
+    while time.monotonic() < deadline:
+        context.iteration(False)
+        time.sleep(0.001)
+
+
+def fixture_thread(server, account='me'):
+    """Five own posts in a chain, plus a stranger's reply and a second
+    own reply under post 2, both of which must not change the counts."""
+    words = ' '.join('word%d' % number for number in range(60))
+
+    def post(status_id, parent, author, text):
+        server.statuses[status_id] = {
+            'id': status_id, 'in_reply_to_id': parent,
+            'created_at': '2026-10-01T10:%02d:00.000Z' % len(server.statuses),
+            'account': {'id': author}, 'content': '<p>%s</p>' % text,
+            'tags': []}
+
+    post('s1', None, account, words)
+    post('s2', 's1', account, 'second post')
+    post('o1', 's2', 'other', 'a stranger replies')
+    post('s3', 's2', account, 'third post')
+    post('s2b', 's2', account, 'a later second reply')
+    post('s4', 's3', account, 'fourth post')
+    post('s5', 's4', account, 'fifth ' + words)
+
+
+def thread_tracker(server, client, window):
+    from src import mastodon
+    from src.threadchain import plain_text, preview_tail
+    saved_backoff = mastodon.REST_BACKOFF_START
+    mastodon.REST_BACKOFF_START = 0.01
+    dialog = ComposeDialog(client)
+    view = dialog.view
+    view.local_draft_key = 'http://127.0.0.1:%d#me' % server.server_port
+    fixture_thread(server)
+
+    def title():
+        return dialog.get_title()
+
+    def preview():
+        return view.preview_label.get_label() \
+            if view.preview_label.get_visible() else ''
+
+    def post_and_wait(text):
+        view.buffer.set_text(text)
+        count = server.posts
+        view.on_post_clicked(None)
+        until(lambda: not view._posting and server.posts == count + 1)
+
+    def context_asked():
+        return any('context' in path for path in server.gets)
+
+    try:
+        dialog.present(window)
+        until(lambda: view.get_mapped())
+        check('plain composer has no thread title or preview',
+              title() == 'New Post' and preview() == '')
+        view.thread_toggle.set_active(True)
+        check('thread toggle titles the first post',
+              title() == 'Thread · Post 1' and preview() == '')
+        first = 'First post of a thread ' + ' '.join(
+            'tail%d' % n for n in range(50))
+        post_and_wait(first)
+        check('second post is numbered and previews the text just sent',
+              title() == 'Thread · Post 2' and preview() == preview_tail(first)
+              and preview().startswith('…') and preview().endswith('tail49'))
+        server.post_status = 403
+        view.buffer.set_text('refused')
+        view.on_post_clicked(None)
+        until(lambda: not view._posting)
+        check('a failed post does not advance the count',
+              title() == 'Thread · Post 2' and preview() == preview_tail(first))
+        server.post_status = 200
+        second = 'Second post, short'
+        post_and_wait(second)
+        check('third post previews the second',
+              title() == 'Thread · Post 3' and preview() == second)
+        view.thread_toggle.set_active(False)
+        check('the closing post keeps its number with the toggle off',
+              title() == 'Thread · Post 3' and preview() == second)
+        post_and_wait('closing')
+        until(lambda: dialog.get_parent() is None)
+        check('sending the closing post clears title and preview',
+              title() == 'New Post' and preview() == ''
+              and view._thread is None)
+
+        # Editing a post in the middle of the five-post thread.
+        dialog.present(window)
+        until(lambda: view.get_mapped())
+        edited = dict(server.statuses['s2'], text='second post')
+        view.start_edit(edited)
+        check('edit opens as plain Edit Post before the thread arrives',
+              title() == 'Edit Post' and preview() == '')
+        until(lambda: title() == 'Edit Post · 2/5')
+        check('edit of post 2 previews the end of post 1',
+              preview() == preview_tail(plain_text(server.statuses['s1']))
+              and preview().endswith('word59') and view.text() == 'second post')
+        view.reset()
+        check('reset clears title and preview',
+              title() == 'New Post' and preview() == '')
+        view.start_edit(dict(server.statuses['s1'], text='first'))
+        until(lambda: title() == 'Edit Post · 1/5')
+        check('editing the first post has no preview', preview() == '')
+        view.reset()
+
+        # Continuing the thread from its last post.
+        view.start_reply('s5', 'me')
+        check('reply opens as plain Reply before the thread arrives',
+              title() == 'Reply')
+        until(lambda: title() == 'Thread · Post 6')
+        check('reply to post 5 previews the end of post 5',
+              preview() == preview_tail(plain_text(server.statuses['s5']))
+              and preview().endswith('word59'))
+        wire_start = len(server.wire)
+        post_and_wait('sixth')
+        check('the reply is posted into the thread',
+              server.wire[wire_start][2]['in_reply_to_id'] == 's5'
+              and title() == 'New Post' and preview() == '')
+        dialog.present(window)
+        until(lambda: view.get_mapped())
+
+        # Not a thread of one's own.
+        server.gets.clear()
+        view.start_reply('o1', 'other')
+        until(lambda: '/api/v1/statuses/o1' in server.gets)
+        settle()
+        check('reply to a stranger stays a plain Reply',
+              title() == 'Reply' and preview() == ''
+              and not context_asked())
+        view.reset()
+
+        # A context that cannot be fetched.
+        server.context_status = 500
+        server.gets.clear()
+        view.start_edit(edited)
+        until(context_asked)
+        settle(0.6)
+        check('failed context leaves a plain Edit Post',
+              title() == 'Edit Post' and preview() == '')
+        view.reset()
+        server.gets.clear()
+        view.start_reply('s5', 'me')
+        until(context_asked)
+        settle(0.6)
+        check('failed context leaves a plain Reply',
+              title() == 'Reply' and preview() == '')
+        view.reset()
+        server.context_status = 200
+
+        # An answer after the composer moved on.
+        for late in ('edit', 'reply'):
+            server.context_gate = threading.Event()
+            server.context_entered.clear()
+            if late == 'edit':
+                view.start_edit(edited)
+            else:
+                view.start_reply('s5', 'me')
+            until(lambda: server.context_entered.is_set())
+            view.start_quote({'id': 'quoted-later'})
+            server.context_gate.set()
+            settle()
+            check('late thread answer after %s is ignored' % late,
+                  title() == 'Quote Post' and preview() == ''
+                  and view._thread is None)
+            server.context_gate = None
+            view.reset()
+
+        # Cancelling a reply in the middle of a thread.
+        view.thread_toggle.set_active(True)
+        post_and_wait('thread opener')
+        check('thread under way before replying',
+              title() == 'Thread · Post 2' and preview() == 'thread opener')
+        opener_id = view.in_reply_to_id
+        view.start_reply('o1', 'other')
+        check('a reply in between shows no preview',
+              preview() == '' and view.in_reply_to_id == 'o1')
+        view.on_reply_cancel(None)
+        check('cancelling the reply restores the thread title and preview',
+              title() == 'Thread · Post 2' and preview() == 'thread opener'
+              and view.in_reply_to_id == opener_id)
+    finally:
+        mastodon.REST_BACKOFF_START = saved_backoff
+        server.context_gate = None
+        if dialog.get_parent() is not None:
+            dialog.force_close()
+        until(lambda: dialog.get_parent() is None)
+        dialog.run_dispose()
 
 
 def click_label(widget, label):
@@ -388,6 +626,7 @@ def run():
         check('a session switch saves the open unsent draft',
               [d.text for d in saved if d is not None] == ['unsent words'])
         pages.settings().set_strv('local-drafts', [])
+        thread_tracker(server, client, window)
     finally:
         client._session.abort()
         if server.delete_gate is not None:

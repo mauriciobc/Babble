@@ -24,7 +24,7 @@ gi.require_version('Spelling', '1')
 from .i18n import gettext as _, ngettext
 
 from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
-                           GtkSource, Spelling)
+                           GtkSource, Pango, Spelling)
 
 from . import emojichooser, pages, portals  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
@@ -33,6 +33,7 @@ from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
 from .hashtagcompleter import HashtagCompleter, remember  # noqa: E402
 from .mentioncompleter import MentionCompleter  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
+from .threadchain import own_thread, plain_text, preview_tail  # noqa: E402
 # The same list Preferences offers as the default post language.
 from .preferences import LANGUAGES  # noqa: E402
 
@@ -399,6 +400,16 @@ class AttachmentRow(Gtk.ListBox):
         self.append(self.alt_entry)
 
 
+@dataclass(frozen=True)
+class _ThreadProgress:
+    """Where the composer stands in a thread: the number shown in the
+    title, the length of an edited post's thread, and the end of the
+    post before."""
+    number: int
+    total: int | None
+    preview: str
+
+
 @dataclass
 class _ComposeState:
     draft: Draft
@@ -409,6 +420,7 @@ class _ComposeState:
     scheduled_on_done: object
     media_ids: tuple[str, ...]
     scheduled_fields: dict
+    thread: _ThreadProgress | None
 
 
 @dataclass(frozen=True)
@@ -451,6 +463,10 @@ class BabbleComposeView(Adw.Bin):
         self._replacement = None
         self._cleanup_busy = False
         self._cleanup_cancellable = None
+        self._thread = None
+        # Counts the changes of thread state; an answer from the server
+        # applies only if none happened since its request.
+        self._thread_generation = 0
         # One round per click of Post: abandoning the dialog or starting
         # a new post stops the uploads still in flight.
         self.uploads = UploadRound(
@@ -480,6 +496,7 @@ class BabbleComposeView(Adw.Bin):
                           margin_top=12, margin_bottom=12,
                           margin_start=12, margin_end=12)
         self._content = content
+        content.append(self._build_preview())
         content.append(self.build_text_area())
         content.append(self.build_options())
         self.attachments_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
@@ -861,13 +878,15 @@ class BabbleComposeView(Adw.Bin):
         self.scheduled_on_done = None
         self._pending_media_ids = []
         self._scheduled_fields = {}
+        self._set_thread(None)
         return True
 
     def _capture_state(self):
         return _ComposeState(
             self.snapshot(), self.editing_id, self.quoted_status_id,
             self.scheduled_id, self.scheduled_at, self.scheduled_on_done,
-            tuple(self._pending_media_ids), deepcopy(self._scheduled_fields))
+            tuple(self._pending_media_ids), deepcopy(self._scheduled_fields),
+            self._thread)
 
     def _restore_state(self, state):
         if not self._clear_submission_mode():
@@ -880,8 +899,92 @@ class BabbleComposeView(Adw.Bin):
         self.scheduled_on_done = state.scheduled_on_done
         self._pending_media_ids = list(state.media_ids)
         self._scheduled_fields = deepcopy(state.scheduled_fields)
+        self._set_thread(state.thread)
         self.update_compose_state()
         return True
+
+    def _build_preview(self):
+        # The end of the post before, for picking a thread up where it
+        # stopped. Selectable so a name or link in it can be copied.
+        self.preview_label = Gtk.Label(
+            xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+            selectable=True, visible=False)
+        self.preview_label.add_css_class('dimmed')
+        self.preview_label.update_property([Gtk.AccessibleProperty.LABEL],
+                                           [_('End of the previous post')])
+        return self.preview_label
+
+    def _set_thread(self, thread):
+        self._thread = thread
+        self._thread_generation += 1
+
+    def _own_account_id(self):
+        key = self.local_draft_key
+        return key.rsplit('#', 1)[-1] if key and '#' in key else None
+
+    def _load_thread(self, status_id, status=None, editing=False):
+        """Look the thread of one of the signed-in account's own posts
+        up. *status* is the post when it is at hand, else it is fetched
+        first. The answer is dropped if the composer moved on since: the
+        thread state changes on every entry point and reset."""
+        account_id = self._own_account_id()
+        if account_id is None or not status_id:
+            return
+        generation = self._thread_generation
+        view_ref = self.weak_ref()
+        client = self.client
+
+        def own(post):
+            account = post.get('account') if isinstance(post, dict) else None
+            return isinstance(account, dict) \
+                and str(account.get('id')) == account_id
+
+        def current():
+            view = view_ref()
+            if view is not None and view._thread_generation == generation:
+                return view
+            return None
+
+        def got_context(post, result):
+            try:
+                ancestors, descendants = client.status_context_finish(result)
+            except GLib.Error:
+                return
+            view = current()
+            if view is None:
+                return
+            position = own_thread(post, ancestors, descendants, account_id)
+            if position is None:
+                return
+            if editing:
+                previous = position.previous
+                thread = _ThreadProgress(
+                    position.index, position.total,
+                    preview_tail(plain_text(previous)) if previous else '')
+            else:
+                thread = _ThreadProgress(position.index + 1, None,
+                                         preview_tail(plain_text(post)))
+            view._set_thread(thread)
+            view.update_compose_state()
+
+        def fetch_context(post):
+            client.status_context_async(
+                status_id, callback=lambda _c, result: got_context(post, result))
+
+        def got_status(_source, result):
+            try:
+                post = client.request_finish(result)
+            except GLib.Error:
+                return
+            if current() is not None and own(post):
+                fetch_context(post)
+
+        if status is not None:
+            if own(status):
+                fetch_context(status)
+        else:
+            client.request_async('GET', '/statuses/%s' % status_id,
+                                 callback=got_status)
 
     def restore_stashing(self, draft):
         """Restore a recovered draft, keeping the content in progress
@@ -928,6 +1031,8 @@ class BabbleComposeView(Adw.Bin):
         self.in_reply_to_id = str(status_id) if status_id is not None else None
         self._select_visibility(visibility)
         self._finish_begin()
+        if status_id is not None:
+            self._load_thread(str(status_id))
         return True
 
     def start_mention(self, account, direct=False):
@@ -969,6 +1074,7 @@ class BabbleComposeView(Adw.Bin):
         self._clear_submission_mode()
         self.editing_id = str(status.get('id') or '') or None
         self._load_status_draft(status)
+        self._load_thread(self.editing_id, status, editing=True)
         return True
 
     def start_redraft(self, status):
@@ -1158,6 +1264,7 @@ class BabbleComposeView(Adw.Bin):
             self._restore_state(state)
         else:
             self.in_reply_to_id = None
+            self._set_thread(None)
         self.update_compose_state()
 
     def on_reply_cancel(self, _banner):
@@ -1210,6 +1317,9 @@ class BabbleComposeView(Adw.Bin):
         text = self.text()
         self.placeholder.set_visible(not text)
         self.reply_banner.set_revealed(bool(self._draft_stack))
+        preview = self._thread.preview if self._thread is not None else ''
+        self.preview_label.set_label(preview)
+        self.preview_label.set_visible(bool(preview))
         timed = self.is_timed()
         if timed:
             from .scheduled import format_scheduled_at
@@ -1944,6 +2054,9 @@ class BabbleComposeView(Adw.Bin):
             # Chain the next post in the thread; media and poll must not
             # be sent twice.
             self.in_reply_to_id = str(status.get('id') or '') or None
+            number = self._thread.number if self._thread is not None else 1
+            self._set_thread(_ThreadProgress(
+                number + 1, None, preview_tail(self.text())))
             self.buffer.set_text('')
             self.clear_attachments()
             self._pending_media_ids = []
@@ -2127,10 +2240,24 @@ class ComposeDialog(Adw.Dialog):
 
     def _on_view_changed(self, view):
         self.set_can_close(view._replacement is None)
+        thread = view._thread
         if view.editing_id is not None:
-            title = _('Edit Post')
+            if thread is not None and thread.total:
+                # Translators: dialog title when editing a post that is
+                # part of a thread; the first number is its position, the
+                # second the length of the thread.
+                title = _('Edit Post · %(index)d/%(total)d') % {
+                    'index': thread.number, 'total': thread.total}
+            else:
+                title = _('Edit Post')
         elif view.scheduled_id is not None:
             title = _('Edit Scheduled Post')
+        elif thread is not None or (view.thread_toggle.get_active()
+                                    and view.scheduled_at is None):
+            # Translators: dialog title while writing a thread; %d is the
+            # number of the post being written.
+            title = _('Thread · Post %d') % (
+                thread.number if thread is not None else 1)
         elif view.quoted_status_id is not None:
             title = _('Quote Post')
         elif view.is_reply():
@@ -2168,6 +2295,7 @@ class ComposeDialog(Adw.Dialog):
         view._replacement = None
         view._cleanup_busy = False
         view._cleanup_cancellable = None
+        view._set_thread(None)
         if cancellable is not None:
             cancellable.cancel()
         view._draft_stack = []

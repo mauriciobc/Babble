@@ -86,6 +86,7 @@ install_data(
   'sysstate.py',
   'textemoji.py',
   'thread.py',
+  'threadchain.py',
   'timelinebase.py',
   'timelinedata.py',
   'timelinepage.py',
@@ -397,6 +398,11 @@ test('hashtag links', python,
 # Needs no display: the text layer is deliberately widget-free.
 test('status text', python,
   args: [files('test-statustext.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('thread chain', python,
+  args: [files('test-threadchain.py')],
   env: test_env,
   timeout: 60,
 )
