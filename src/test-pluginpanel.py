@@ -8,8 +8,10 @@ setting, and stop at the OAuth detour to another origin.
 
 Exits 77 (skip) without a display, WebKitGTK 6.0 or libpeas 2."""
 
+import gc
 import http.server
 import os
+import socket
 import sys
 import tempfile
 import textwrap
@@ -53,6 +55,7 @@ if os.path.exists(resource_path):
     Gio.Resource.load(resource_path)._register()
 
 from src import pages, pluginhost, webcolumn  # noqa: E402
+from src import plugin as api  # noqa: E402
 
 if not webcolumn.available():
     print('SKIP - WebKitGTK 6.0 is not available')
@@ -104,6 +107,12 @@ OTHER = b'<!doctype html><title>Your instance</title><p>Authorize?'
 def serve(body):
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
+            if self.path == '/redir':
+                self.send_response(302)
+                self.send_header('Location', '/')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.send_header('Content-Length', str(len(body)))
@@ -120,21 +129,23 @@ def serve(body):
 realreal, LOGIN_URL = serve(LOGIN)
 detour, OTHER_URL = serve(OTHER)
 
-os.makedirs(os.path.join(plugin_dir, 'realplug'))
-with open(os.path.join(plugin_dir, 'realplug', 'realplug.plugin'), 'w') as f:
-    f.write('[Plugin]\nModule=realplug\nLoader=python\nName=Realplug\n'
-            'Version=1.0\nX-Babble-Api=1\n')
-with open(os.path.join(plugin_dir, 'realplug', 'realplug.py'), 'w') as f:
-    f.write(textwrap.dedent('''
-        from babble import plugin
+for module in ('realplug', 'otherplug'):
+    os.makedirs(os.path.join(plugin_dir, module))
+    with open(os.path.join(plugin_dir, module, module + '.plugin'),
+              'w') as f:
+        f.write('[Plugin]\nModule=%s\nLoader=python\nName=%s\n'
+                'Version=1.0\nX-Babble-Api=1\n' % (module, module.title()))
+    with open(os.path.join(plugin_dir, module, module + '.py'), 'w') as f:
+        f.write(textwrap.dedent('''
+            from babble import plugin
 
-        contexts = []
+            contexts = []
 
 
-        class Menu(plugin.PostMenuExtension):
-            def activate(self):
-                contexts.append(self.context)
-    '''))
+            class Menu(plugin.PostMenuExtension):
+                def activate(self):
+                    contexts.append(self.context)
+        '''))
 
 
 class Host(Gtk.Window):
@@ -221,6 +232,10 @@ check('an object result comes back as JSON data',
       == ({'a': [1, 'x', None], 'b': True}, None))
 check('a script error comes back as an error',
       run(panel, 'throw new Error("nope")')[1] is not None)
+result, error = run(panel, 'throw new Error("nope")')
+check('a script that throws reports ERROR_SCRIPT, a str with the message',
+      isinstance(error, str) and isinstance(error, api.PanelError)
+      and error.code == api.ERROR_SCRIPT and 'nope' in error)
 
 # The OAuth detour: another origin. A user's link, here done directly.
 count = len(messages)
@@ -231,6 +246,8 @@ check('the panel is still open, on its origin', panel.is_open
 result, error = run(panel, '1')
 check('run_script errors while the page is on another origin',
       result is None and error is not None)
+check('the host refusal carries ERROR_WRONG_ORIGIN, and is a str',
+      isinstance(error, str) and error.code == api.ERROR_WRONG_ORIGIN)
 panel._on_message(None)
 check('messages are ignored on another origin', len(messages) == count)
 column.view.load_uri(LOGIN_URL)
@@ -249,7 +266,10 @@ panel._refusal = lambda _column: None  # the host believes it is fine
 result, error = run(panel, 'document.body.dataset.ran = "yes"; 1')
 del panel._refusal
 check('the guard in the page refuses a script on another origin',
-      result is None and error is not None and 'wrong origin' in error)
+      result is None and error is not None and 'origin' in error)
+check('and its error is ERROR_WRONG_ORIGIN, not the sentinel text',
+      isinstance(error, str) and error.code == api.ERROR_WRONG_ORIGIN
+      and 'babble:' not in error)
 # Read the marker from a world of the test's own, which has no guard.
 marker = []
 column.evaluate('test-reader', 'String(document.body.dataset.ran)',
@@ -265,6 +285,8 @@ settings.set_boolean('web-javascript', False)
 result, error = run(panel, '1')
 check('with web-javascript off run_script reports an error',
       result is None and error is not None and 'JavaScript' in error)
+check('and its code is ERROR_JAVASCRIPT_OFF, on a str',
+      isinstance(error, str) and error.code == api.ERROR_JAVASCRIPT_OFF)
 settings.set_boolean('web-javascript', True)
 check('and works again with it on', run(panel, '4') == (4, None))
 
@@ -281,7 +303,157 @@ except ValueError:
     refused = True
 check('load_uri refuses a URL that is not http(s)', refused)
 
+# on_load: every finished full load, not a failed one, not after a close.
+events = []
+loads = []
+column.view.connect('load-changed', lambda _v, e: events.append(e.value_nick))
+panel.on_load(loads.append)
+panel.load_uri(LOGIN_URL)
+check('on_load fires once the page finished loading',
+      spin(until=lambda: loads, seconds=10) and spin(0.3)
+      and loads == [LOGIN_URL])
+panel.load_uri(LOGIN_URL + 'redir')
+check('on_load fires after a redirect, with where the page ended up',
+      spin(until=lambda: len(loads) == 2, seconds=10)
+      and loads[1] == LOGIN_URL)
+panel.load_uri(LOGIN_URL + 'again')
+check('and fires for every further load',
+      spin(until=lambda: len(loads) == 3, seconds=10)
+      and loads[2] == LOGIN_URL + 'again')
+
+# Failure: a port nothing listens on.
+probe = socket.socket()
+probe.bind(('127.0.0.1', 0))
+dead = 'http://127.0.0.1:%d/' % probe.getsockname()[1]
+probe.close()
+del events[:]
+panel.load_uri(dead)
+check('a load that failed shows the error page',
+      spin(until=lambda: column.stack.get_visible_child_name() == 'error',
+           seconds=10))
+spin(1.0)
+print('# events after the failed load: %s' % events)
+check('on_load is not called for a load that failed',
+      len(loads) == 3)
+check('(WebKit does emit FINISHED after the failure: the flag is what '
+      'stops the callback)', 'finished' in events)
+panel.load_uri(LOGIN_URL)
+check('on_load fires again for the next good load',
+      spin(until=lambda: len(loads) == 4, seconds=10))
+
+# on_load is not delivered once the handle is closed, nor after own close().
+panel.close()
+panel._on_loaded(LOGIN_URL)
+check('a closed handle gets no on_load', spin(0.3) and len(loads) == 4)
+
+# on_close.
+def fresh(ctx, url=None, record=None):
+    p = ctx.open_panel(window, url or LOGIN_URL)
+    if record is not None:
+        p.on_close(record.append)
+    return p
+
+
+other_ctx = None
+host.set_enabled('otherplug', True)
+import otherplug  # noqa: E402
+
+other_ctx = otherplug.contexts[-1]
+
+closes = []
+p1 = fresh(context, record=closes)
+check('on_close is not called while the panel is open',
+      spin(0.2) and closes == [])
+window.web_split.set_show_sidebar(False)  # the user dismisses the column
+check('on_close is never synchronous', closes == [])
+check("hiding the column reports 'hidden', once",
+      spin(until=lambda: closes, seconds=5) and spin(0.3)
+      and closes == ['hidden'])
+check('and the handle is closed', not p1.is_open)
+
+closes = []
+p1 = fresh(context, record=closes)
+window.web_slot.get_child().close_column()  # the header's close button
+check("close_column reports 'hidden'",
+      spin(until=lambda: closes, seconds=5) and closes == ['hidden'])
+
+closes, theirs = [], []
+p1 = fresh(context, record=closes)
+p2 = fresh(other_ctx, record=theirs)
+check("another plugin's panel replaces it: 'replaced'",
+      spin(until=lambda: closes, seconds=5) and closes == ['replaced'])
+check('and the new panel is not told anything', spin(0.3) and theirs == [])
+webcolumn.present_web(window, OTHER_URL)  # an ordinary link in the column
+check("an ordinary link in the column ends the panel: 'replaced'",
+      spin(until=lambda: theirs, seconds=5) and theirs == ['replaced'])
+
+closes = []
+p1 = fresh(context, record=closes)
+p1.close()
+check("a plugin's own close() is not reported", spin(0.5) and closes == [])
+
+closes = []
+p1 = fresh(context, record=closes)
+p1._end('replaced')
+p1._end('hidden')
+check('on_close is called once, whatever ends the handle after',
+      spin(until=lambda: closes, seconds=5) and spin(0.3)
+      and closes == ['replaced'])
+
+# Disabling the plugin is not reported either, nor is a report queued
+# before it, once the plugin is off.
+closes = []
+host.set_enabled('otherplug', False)
+host.set_enabled('otherplug', True)
+other_ctx = otherplug.contexts[-1]
+p3 = fresh(other_ctx, record=closes)
+host.set_enabled('otherplug', False)
+check('disabling the plugin closes its panel without on_close',
+      not p3.is_open and spin(0.5) and closes == [])
+host.set_enabled('otherplug', True)
+other_ctx = otherplug.contexts[-1]
+p3 = fresh(other_ctx, record=closes)
+p4 = fresh(context)  # replaces p3: the report is queued...
+host.set_enabled('otherplug', False)  # ...and the plugin goes before it runs
+check('a report queued before the plugin was disabled is dropped',
+      spin(0.5) and closes == [])
+
+# Deferred: a plugin can open a panel from on_close.
+reopened = []
+
+
+def reopen(reason):
+    reopened.append((reason, context.open_panel(window, LOGIN_URL)))
+
+
+host.set_enabled('otherplug', True)
+other_ctx = otherplug.contexts[-1]
+p5 = fresh(context)
+p5.on_close(reopen)
+fresh(other_ctx)
+check('open_panel from on_close works',
+      spin(until=lambda: reopened, seconds=5)
+      and reopened[0][0] == 'replaced' and reopened[0][1].is_open
+      and window.web_slot.get_child().panel is reopened[0][1])
+reopened[0][1].close()
+
+# A window destroyed without dispose_column still ends the handle.
+gone = []
+window2 = Host()
+window2.present()
+spin(until=lambda w=window2: w.get_mapped(), seconds=5)
+pw = context.open_panel(window2, LOGIN_URL)
+pw.on_close(gone.append)
+window2.destroy()
+del window2
+gc.collect()
+check("destroying the window ends the handle with 'hidden'",
+      spin(until=lambda: gone, seconds=5) and gone == ['hidden']
+      and not pw.is_open)
+
 # Disabling the plugin ends it.
+panel = context.open_panel(window, LOGIN_URL)
+settled(window.web_slot.get_child(), LOGIN_URL)
 after = []
 panel.run_script('1', lambda *a: after.append(a))
 host.set_enabled('realplug', False)

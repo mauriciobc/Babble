@@ -49,6 +49,12 @@ user hiding the column, or disabling the plugin, closes the panel.
 Scripting is limited to the origin the plugin opened and runs in a world
 of its own, which the page cannot see or call (see :class:`Panel`).
 
+A panel also tells the plugin what happens to the page:
+:meth:`Panel.on_load` after each full page load that finished,
+:meth:`Panel.on_close` when the user or another page took the column. A
+script that fails reports a :class:`PanelError`, whose ``code`` is one of
+the ``ERROR_*`` constants, stable across releases (the message is not).
+
 Exceptions raised by plugin code are caught: the plugin is disabled and
 the user is told, and the app carries on.
 """
@@ -57,6 +63,34 @@ import gettext as _gettext
 from dataclasses import dataclass, field
 
 API_VERSION = 1
+
+# The API grows inside a version. A plugin that needs more than the first
+# revision says so in its ``.plugin`` file, as ``X-Babble-Api-Revision=N``
+# (absent means 1), and Babble refuses to load it when it provides less.
+#
+# Revisions:
+#   1  post menu, hashtag banner, preferences (Babble 0.3.0)
+#   2  panels, panel events (on_load, on_close), error codes, account
+#      info, link claiming
+API_REVISION = 2
+
+# The ``code`` of a :class:`PanelError`.
+ERROR_WRONG_ORIGIN = 'wrong-origin'  # the page is not on the panel's origin
+ERROR_JAVASCRIPT_OFF = 'javascript-off'  # the Run JavaScript preference
+ERROR_SCRIPT = 'script'  # anything else: the script threw, or WebKit failed
+
+
+class PanelError(str):
+    """The *error* :meth:`Panel.run_script` reports: a readable message
+    (a ``str``, so code that treats it as one keeps working) with a
+    stable :attr:`code`, one of ``ERROR_WRONG_ORIGIN``,
+    ``ERROR_JAVASCRIPT_OFF`` or ``ERROR_SCRIPT``. Test the code, never
+    the message, which is for people and may be reworded."""
+
+    def __new__(cls, message, code=ERROR_SCRIPT):
+        error = super().__new__(cls, message)
+        error.code = code
+        return error
 
 
 def gettext(message):
@@ -328,8 +362,9 @@ class Panel:
         """Run the JavaScript *script* in the page. *callback*, when
         given, is called on the main loop as ``callback(result, error)``:
         *result* is what the script's last expression gave, as plain JSON
-        data (None for nothing), *error* a message or None. Nothing is
-        called back, not even an error, once the handle is closed."""
+        data (None for nothing), *error* None or a :class:`PanelError`.
+        Nothing is called back, not even an error, once the handle is
+        closed."""
         raise NotImplementedError
 
     def on_message(self, callback):
@@ -337,6 +372,28 @@ class Panel:
         ``window.webkit.messageHandlers.babble.postMessage(data)``:
         ``callback(data)``, *data* plain JSON data. Replaces the previous
         callback; None stops it."""
+        raise NotImplementedError
+
+    def on_load(self, callback):
+        """``callback(uri)`` each time a full page load finishes, the
+        first one and every navigation after it, redirects included;
+        *uri* is where the page is, so check :attr:`origin` before
+        scripting it. Not called for a load that failed (the column shows
+        an error), nor after the handle closed. It does not see
+        ``history.pushState`` or a fragment change: a plugin for a
+        single-page app watches the DOM from :meth:`run_script`. Replaces
+        the previous callback; None stops it."""
+        raise NotImplementedError
+
+    def on_close(self, callback):
+        """``callback(reason)`` when Babble ends this panel: *reason* is
+        ``'hidden'`` (the user hid the column, or the window closed) or
+        ``'replaced'`` (another panel, or a link opened in the column,
+        took it). Called once, never from inside the call that ended the
+        panel (so it may open another panel), and only while the plugin
+        is enabled. Not called for the plugin's own :meth:`close`, nor
+        when the plugin is disabled. Replaces the previous callback; None
+        stops it."""
         raise NotImplementedError
 
 

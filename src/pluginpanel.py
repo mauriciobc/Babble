@@ -19,6 +19,7 @@ browser:
 """
 
 import json
+import weakref
 from urllib.parse import urlsplit
 
 from gi.repository import Gio, GLib
@@ -26,6 +27,7 @@ from gi.repository import Gio, GLib
 from . import plugin as api
 
 MESSAGE_HANDLER = 'babble'
+WRONG_ORIGIN_SENTINEL = 'babble:wrong-origin'  # what the in-page guard throws
 
 
 def origin_of(uri):
@@ -64,6 +66,8 @@ class _Panel(api.Panel):
         self._column_ref = None  # GObject weak ref: the column owns us
         self._handle = None
         self._message = None
+        self._loaded = None
+        self._closed = None
         self._cancellable = Gio.Cancellable()
 
     # The contract
@@ -96,6 +100,7 @@ class _Panel(api.Panel):
         if not self._open:
             return
         column = self._column()
+        self._closed = None  # our own close is not reported back
         if column is not None and column.panel is self:
             column.close_column()  # hides the slot; ends us on the way
         self._end()
@@ -114,16 +119,24 @@ class _Panel(api.Panel):
         # Checked in the page too: it may have moved on since the check
         # above, and the check there is the one that cannot be raced.
         guarded = 'if (location.origin !== %s) { throw new Error(%s); }\n%s' \
-            % (json.dumps(self._origin), json.dumps('wrong origin'), script)
+            % (json.dumps(self._origin), json.dumps(WRONG_ORIGIN_SENTINEL), script)
 
         def done(value, error):
             if callback is not None:
+                if error:
+                    error = _script_error(error)
                 self._deliver(callback, None if error else _plain(value),
                               error)
         column.evaluate(self._world, guarded, done, self._cancellable)
 
     def on_message(self, callback):
         self._message = callback
+
+    def on_load(self, callback):
+        self._loaded = callback
+
+    def on_close(self, callback):
+        self._closed = callback
 
     # The host's
 
@@ -132,15 +145,24 @@ class _Panel(api.Panel):
 
     def _attach(self, column):
         self._column_ref = column.weak_ref()
+        # A column destroyed without dispose_column (its window went)
+        # still ends the handle. The notify must not touch the column.
+        me = weakref.ref(self)
+        self._gone = column.weak_ref(lambda: me() and me()._end('hidden'))
         self._handle = column.add_message_handler(
             self._world, MESSAGE_HANDLER, self._on_message)
 
-    def _end(self):
-        """Close the handle without touching the column's visibility."""
+    def _end(self, reason='hidden'):
+        """Close the handle without touching the column's visibility.
+        *reason* is what ``on_close`` is told, a moment later."""
         if not self._open:
             return
         self._open = False
         self._message = None
+        self._loaded = None
+        closed, self._closed = self._closed, None
+        if closed is not None:
+            GLib.idle_add(self._report_close, closed, reason)
         self._cancellable.cancel()
         handle, self._handle = self._handle, None
         column = self._column()
@@ -149,13 +171,26 @@ class _Panel(api.Panel):
         if column is not None:
             column.release_panel(self)
 
+    def _report_close(self, callback, reason):
+        # Deferred, so the plugin may open a panel from the callback; and
+        # only while the plugin is still enabled.
+        self._context.guard(callback, reason)
+        return GLib.SOURCE_REMOVE
+
+    def _on_loaded(self, uri):
+        callback = self._loaded
+        if callback is not None and self.is_open:
+            self._context.guard(callback, uri)
+
     def _refusal(self, column):
         if column is None:
-            return 'the panel is closed'
+            return api.PanelError('the panel is closed')
         if origin_of(column.view.get_uri()) != self._origin:
-            return 'the page is not on the origin the plugin opened'
+            return api.PanelError(_WRONG_ORIGIN_MESSAGE,
+                                  api.ERROR_WRONG_ORIGIN)
         if not column.view.get_settings().get_enable_javascript():
-            return 'JavaScript is turned off'
+            return api.PanelError('JavaScript is turned off',
+                                  api.ERROR_JAVASCRIPT_OFF)
         return None
 
     def _deliver(self, callback, result, error):
@@ -171,6 +206,16 @@ class _Panel(api.Panel):
                 or origin_of(column.view.get_uri()) != self._origin:
             return
         self._context.guard(callback, _plain(value))
+
+
+_WRONG_ORIGIN_MESSAGE = 'the page is not on the origin the plugin opened'
+
+
+def _script_error(message):
+    """The :class:`plugin.PanelError` for what WebKit reported."""
+    if WRONG_ORIGIN_SENTINEL in message:
+        return api.PanelError(_WRONG_ORIGIN_MESSAGE, api.ERROR_WRONG_ORIGIN)
+    return api.PanelError(message, api.ERROR_SCRIPT)
 
 
 def _remove_handle(handle):

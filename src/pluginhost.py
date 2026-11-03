@@ -34,6 +34,7 @@ from .i18n import gettext as _  # noqa: E402
 
 ACTIVE_KEY = 'active-plugins'
 API_KEY = 'Babble-Api'  # X-Babble-Api= in the .plugin file
+REVISION_KEY = 'Babble-Api-Revision'  # X-Babble-Api-Revision=, default 1
 SECRET_PREFIX = 'babble-plugin:'
 HTTP_TIMEOUT_SECONDS = 30
 
@@ -461,6 +462,17 @@ class PluginHost:
             _log(GLib.LogLevelFlags.LEVEL_WARNING,
                  '%s: X-Babble-Api is %r, this Babble provides %d'
                  % (plugin_id, wanted, api.API_VERSION), plugin_id)
+            return
+        wanted = info.get_external_data(REVISION_KEY)
+        try:
+            revision = 1 if wanted is None else int(wanted)
+        except ValueError:
+            revision = None
+        if revision is None or revision > api.API_REVISION:
+            self.errors[plugin_id] = _('Needs a newer version of Babble')
+            _log(GLib.LogLevelFlags.LEVEL_WARNING,
+                 '%s: X-Babble-Api-Revision is %r, this Babble provides %d'
+                 % (plugin_id, wanted, api.API_REVISION), plugin_id)
             return
         if not self.engine.load_plugin(info):
             # libpeas logged the traceback; it keeps the failure until

@@ -190,6 +190,7 @@ class WebColumn(Adw.Bin):
         self._disposed = False
         self._error_uri = None
         self._committed = False
+        self._load_failed = False  # the current load did not succeed
         self._pending_user = False  # the next navigation is ours
         self._user_nav = False
         self._handed_off = False
@@ -337,7 +338,7 @@ class WebColumn(Adw.Bin):
         """Load *uri*. *owner* is the plugin panel loading it; a load by
         anyone else ends the panel the column had."""
         if self.panel is not None and self.panel is not owner:
-            self.panel._end()
+            self.panel._end('replaced')
         self.panel = owner
         if owner is None:
             self._fallback_title = None
@@ -472,6 +473,7 @@ class WebColumn(Adw.Bin):
 
     def _on_load_failed(self, _view, _event, uri, error):
         WebKit = self._webkit
+        self._load_failed = True
         if error.matches(WebKit.NetworkError.quark(),
                          int(WebKit.NetworkError.CANCELLED)) \
                 or error.matches(
@@ -483,6 +485,7 @@ class WebColumn(Adw.Bin):
         return True
 
     def _on_tls_failed(self, _view, uri, _certificate, _errors):
+        self._load_failed = True
         self._show_error(
             _('Security Certificate Not Trusted'),
             _('The connection is not private, so the page was not '
@@ -492,6 +495,7 @@ class WebColumn(Adw.Bin):
 
     def _on_terminated(self, _view, reason):
         WebKit = self._webkit
+        self._load_failed = True
         if reason == WebKit.WebProcessTerminationReason.EXCEEDED_MEMORY_LIMIT:
             description = _('The page used too much memory and was '
                             'stopped.')
@@ -512,9 +516,15 @@ class WebColumn(Adw.Bin):
         self._refresh_nav()
 
     def _on_load_changed(self, _view, event):
-        if event == self._webkit.LoadEvent.COMMITTED:
+        LoadEvent = self._webkit.LoadEvent
+        if event == LoadEvent.STARTED:
+            self._load_failed = False
+        elif event == LoadEvent.COMMITTED:
             self._committed = True
             self.stack.set_visible_child_name('page')
+        elif event == LoadEvent.FINISHED and not self._load_failed \
+                and self.panel is not None:
+            self.panel._on_loaded(self.view.get_uri())
         self._refresh_nav()
 
     def _on_progress(self, _view, _pspec):
@@ -575,7 +585,7 @@ class WebColumn(Adw.Bin):
             return
         self._disposed = True
         if self.panel is not None:
-            self.panel._end()
+            self.panel._end('hidden')
         self.view.stop_loading()
         parent = self.get_parent()
         if parent is not None:

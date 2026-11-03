@@ -6,6 +6,7 @@ and a hashtag page, are turned off when they raise, and leave nothing
 behind once their page or the plugin itself is gone. Exits 77 (skip)
 without a display, or without libpeas 2 and its Python loader."""
 
+import builtins
 import gc
 import http.server
 import os
@@ -204,6 +205,20 @@ write_plugin('oldplug', 'raise SystemExit("must never be imported")\n',
              api_version='0')
 write_plugin('noversion', 'x = 1\n', api_version=None)
 write_plugin('emptyplug', 'x = 1\n')
+MENU_ONLY = '''
+    from babble import plugin
+
+
+    class Menu(plugin.PostMenuExtension):
+        pass
+'''
+IMPORTED = 'import builtins\nbuiltins.REVISION_IMPORTED = True\n'
+write_plugin('revfuture', IMPORTED,
+             extra='X-Babble-Api-Revision=99\n')
+write_plugin('revbad', IMPORTED,
+             extra='X-Babble-Api-Revision=abc\n')
+write_plugin('revabsent', MENU_ONLY)
+write_plugin('revtwo', MENU_ONLY, extra='X-Babble-Api-Revision=2\n')
 write_plugin('raiseplug', '''
     from babble import plugin
 
@@ -265,6 +280,24 @@ check('and is never imported', 'oldplug' not in sys.modules)
 host.set_enabled('noversion', True)
 check('a plugin that names no API version is refused',
       'noversion' not in host.contexts and 'noversion' not in sys.modules)
+host.set_enabled('revfuture', True)
+check('a plugin needing a newer API revision is refused, never imported',
+      'revfuture' not in host.contexts and 'revfuture' not in sys.modules
+      and host.errors.get('revfuture') == 'Needs a newer version of Babble')
+host.set_enabled('revbad', True)
+check('a revision that is not an integer is refused, never imported',
+      'revbad' not in host.contexts and 'revbad' not in sys.modules
+      and host.errors.get('revbad') == 'Needs a newer version of Babble')
+check('neither module was imported',
+      not hasattr(builtins, 'REVISION_IMPORTED'))
+host.set_enabled('revabsent', True)
+check('no revision means 1, which loads',
+      'revabsent' in host.contexts and 'revabsent' not in host.errors)
+host.set_enabled('revtwo', True)
+check('revision 2 loads', 'revtwo' in host.contexts)
+check('the API revision is 2', api.API_REVISION == 2)
+for plugin_id in ('revabsent', 'revtwo'):
+    host.set_enabled(plugin_id, False)
 host.set_enabled('brokenplug', True)
 check('a plugin that fails to import is not loaded, and says why',
       'brokenplug' not in host.contexts
@@ -273,7 +306,8 @@ host.set_enabled('emptyplug', True)
 check('a plugin with no extensions is not kept loaded',
       'emptyplug' not in host.contexts
       and not host.engine.get_plugin_info('emptyplug').is_loaded())
-for plugin_id in ('oldplug', 'noversion', 'brokenplug', 'emptyplug'):
+for plugin_id in ('oldplug', 'noversion', 'brokenplug', 'emptyplug',
+                  'revfuture', 'revbad'):
     host.set_enabled(plugin_id, False)
 
 # The post menu.
