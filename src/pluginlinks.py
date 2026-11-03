@@ -6,6 +6,8 @@ the app sees it.
 A link is claimed only when its origin is one the plugin names (read on
 every click, so a settings change takes effect), the first plugin to
 claim it wins, and ``claims()`` can only narrow that, never widen it.
+The origin of the signed-in account's instance is never claimed,
+whatever a plugin says.
 :func:`claim_link` also steps aside when the user chose to open links in
 the browser; :func:`is_claimed` does not, since it answers a different
 question (does a plugin own this origin, for a click inside its panel).
@@ -30,6 +32,15 @@ def _origins(context, extension):
     return None if found is None else found - {''}
 
 
+def _own_origin():
+    """The origin of the signed-in account's instance, which no plugin
+    may claim, or '' with nobody signed in. Read on each call: an
+    account switch moves it."""
+    from . import accounts, pages
+    account = accounts.active_account(pages.settings())
+    return origin_of(account.get('instance')) if account else ''
+
+
 def _claimer(url):
     """``(context, extension)`` of the first enabled plugin claiming
     *url*, or None."""
@@ -38,7 +49,7 @@ def _claimer(url):
     if host is None or not host.link_extensions:
         return None
     origin = origin_of(url)
-    if not origin:
+    if not origin or origin == _own_origin():
         return None
     for plugin_id, extensions in list(host.link_extensions.items()):
         context = host.contexts.get(plugin_id)

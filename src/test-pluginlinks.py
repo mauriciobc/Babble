@@ -195,6 +195,17 @@ check('a created host that never started claims nothing either',
       and host.engine is None
       and 'gi.repository.Peas' not in sys.modules)
 
+# The cheap early return comes before any account lookup.
+looked = []
+real_active = accounts.active_account
+accounts.active_account = lambda *a: looked.append(a) or real_active(*a)
+try:
+    pluginlinks.claim_link(None, URL)
+    pluginlinks.is_claimed(URL)
+finally:
+    accounts.active_account = real_active
+check('with no plugin enabled, no account is looked up', looked == [])
+
 # Post.author_handle.
 LOCAL = {'id': '1', 'account': {'acct': 'ana'}}
 REMOTE = {'id': '2', 'account': {'acct': 'bob@other.social'}}
@@ -428,6 +439,56 @@ pages.open_link(anchor, loop)
 check('open_link from inside open() opens the ordinary way, no loop',
       linkloop.opened == [loop] and shown == [loop])
 host.set_enabled('linkloop', False)
+
+# The user's own server is never claimed, whatever a plugin says.
+MINE = 'https://mastodon.social'
+MINE_URL = MINE + '/@user@host.tld'
+accounts.save_account(settings, {
+    'id': '987654', 'acct': 'me', 'username': 'me', 'instance': MINE,
+    'token': 'T'})
+host.set_enabled('linkone', True)
+one = linkone.contexts[-1]
+one.settings.set('origins', [MINE + '/', CLAIMED])
+reset()
+del linkone.opened[:], linkone.asked[:]
+pages.open_link(anchor, MINE_URL, resolve=True)
+check('a plugin naming the signed-in account\'s own origin does not '
+      'claim it: open() never runs and the link routes normally',
+      linkone.opened == [] and linkone.asked == []
+      and resolved == [MINE_URL]
+      and pluginlinks.claim_link(anchor, MINE_URL) is False
+      and pluginlinks.is_claimed(MINE_URL) is False)
+pages.open_web(anchor, MINE + '/article')
+check('open_web does not claim it either',
+      linkone.opened == [] and shown == [MINE + '/article'])
+reset()
+pages.open_link(anchor, URL, resolve=True)
+check('a different origin is still claimed',
+      linkone.opened == [(URL, anchor)] and pluginlinks.is_claimed(URL))
+
+# It follows an account switch.
+accounts.save_account(settings, {
+    'id': '5', 'acct': 'you', 'username': 'you',
+    'instance': CLAIMED})
+del linkone.opened[:]
+reset()
+pages.open_link(anchor, URL, resolve=True)
+check('after a switch to an account on the claimed origin, that origin is '
+      'protected', linkone.opened == [] and resolved == [URL]
+      and pluginlinks.is_claimed(URL) is False)
+pages.open_link(anchor, MINE_URL, resolve=True)
+check('and the former account\'s origin is claimable again',
+      linkone.opened == [(MINE_URL, anchor)]
+      and pluginlinks.is_claimed(MINE_URL) is True)
+
+# Nobody signed in: nothing is protected.
+settings.set_string('active-account', '')
+del linkone.opened[:]
+pages.open_link(anchor, URL, resolve=True)
+check('with no account nothing is protected',
+      linkone.opened == [(URL, anchor)] and pluginlinks.is_claimed(URL)
+      and pluginlinks.is_claimed(MINE_URL))
+host.set_enabled('linkone', False)
 
 # Navigation inside the panel.
 CTRL_LINK = CLAIMED + '/@user@host.tld'

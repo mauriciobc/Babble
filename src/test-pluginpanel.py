@@ -437,6 +437,77 @@ check('open_panel from on_close works',
       and window.web_slot.get_child().panel is reopened[0][1])
 reopened[0][1].close()
 
+# toast() and open_link(): anchored on the panel's own column, which the
+# plugin never sees, and nothing once the handle is closed.
+calls = []
+real_pages = (pages.show_toast, pages.open_link)
+pages.show_toast = lambda *a, **k: calls.append(('toast', a, k))
+pages.open_link = lambda *a, **k: calls.append(('link', a, k))
+LINK = 'https://example.org/@someone'
+tp = fresh(context)
+tcolumn = window.web_slot.get_child()
+returned = [tp.toast('Hello'), tp.open_link(LINK)]
+check('toast and open_link work while the panel is open, anchored on its '
+      'column with the plain text and url',
+      [c[0] for c in calls] == ['toast', 'link']
+      and calls[0][1][1:] == ('Hello',)
+      and calls[1][1][1:] == (LINK,) and calls[1][2] == {'resolve': True})
+check("the anchor is the panel's own column, a widget inside the window",
+      all(c[1][0] is tcolumn for c in calls)
+      and isinstance(calls[0][1][0], Gtk.Widget)
+      and calls[0][1][0].get_root() is window)
+check('and the plugin gets nothing back: no widget reaches it',
+      returned == [None, None]
+      and not any(isinstance(getattr(tp, n), Gtk.Widget)
+                  for n in ('uri', 'origin', 'is_open')))
+del calls[:]
+tp.close()
+tp.toast('late')
+tp.open_link(LINK)
+check('both are no-ops after close()', calls == [])
+
+p1 = fresh(context)
+fresh(other_ctx)  # replaces p1
+spin(0.2)
+p1.toast('late')
+p1.open_link(LINK)
+check('both are no-ops once another panel replaced this one', calls == []
+      and not p1.is_open)
+window.web_slot.get_child().panel.close()
+
+# The column is freed after the panel closes, though both were called.
+freed = []
+fp = fresh(context)
+fcolumn = window.web_slot.get_child()
+fcolumn.weak_ref(lambda: freed.append(True))
+fp.toast('x')
+fp.open_link(LINK)
+fp.close()
+del fcolumn
+del calls[:]  # the stubs kept the column they were handed
+for _ in range(5):
+    gc.collect()
+    spin(0.1)
+check('the column is freed after the panel closes, though the plugin '
+      'called toast and open_link', freed == [True])
+
+gone_calls = []
+window3 = Host()
+window3.present()
+spin(until=lambda w=window3: w.get_mapped(), seconds=5)
+pw3 = context.open_panel(window3, LOGIN_URL)
+pw3.on_close(lambda reason: None)
+window3.destroy()
+del window3
+gc.collect()
+spin(until=lambda: not pw3.is_open, seconds=5)
+del calls[:]
+pw3.toast('late')
+pw3.open_link(LINK)
+check('both are no-ops after the window was destroyed',
+      calls == [] and not pw3.is_open)
+pages.show_toast, pages.open_link = real_pages
+
 # A window destroyed without dispose_column still ends the handle.
 gone = []
 window2 = Host()

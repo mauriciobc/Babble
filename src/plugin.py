@@ -236,6 +236,11 @@ class LinkExtension(Extension):
     nothing else: not as a post or profile in Babble, even when its path
     looks like one.
 
+    A plugin can never claim the user's own server: a link whose origin
+    is that of the signed-in account's instance is never claimed,
+    whatever :meth:`origins` and :meth:`claims` say, and the rule follows
+    an account switch. With nobody signed in nothing is protected.
+
     Babble's explicit "Open in Browser" is never claimed, and a menu
     entry that calls :meth:`Context.open_panel` always works, since the
     user asked for it. A link clicked inside a plugin's panel on a
@@ -392,6 +397,11 @@ class Panel:
     JavaScript* preference: with it off, :meth:`run_script` reports an
     error.
 
+    :meth:`toast` and :meth:`open_link` let the plugin talk to the user
+    and open a link from its panel without being given any widget: Babble
+    anchors both on the panel's own column, on purpose, so a plugin never
+    holds a piece of Babble's interface.
+
     A closed handle does nothing and never calls back, whether the user
     hid the column, another page replaced this one, or the plugin was
     disabled."""
@@ -419,6 +429,22 @@ class Panel:
 
     def close(self):
         """Hide the column, if it still shows this page."""
+        raise NotImplementedError
+
+    def toast(self, text):
+        """Show *text* (plain text, shown as given) as a toast in the
+        panel's window. Does nothing once the handle is closed. No
+        widget is exposed, on purpose."""
+        raise NotImplementedError
+
+    def open_link(self, url):
+        """Open *url* the way a link in a post opens: a thread, profile
+        or hashtag inside Babble, anything else in the web column or the
+        browser, as the user chose. Anchored on the panel's own column,
+        and it goes through the usual routing, so a link another plugin
+        claims is that plugin's (never the user's own server, see
+        :class:`LinkExtension`). Does nothing once the handle is closed.
+        No widget is exposed, on purpose."""
         raise NotImplementedError
 
     def run_script(self, script, callback=None):
