@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-01 11:40-0300\n"
+"POT-Creation-Date: 2026-11-03 15:48-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: French\n"
@@ -387,8 +387,8 @@ msgstr ""
 "récents"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:9
-msgid "mauriciobc"
-msgstr "mauriciobc"
+msgid "Mauricio Castro"
+msgstr ""
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:12
 msgid ""
@@ -580,12 +580,12 @@ msgid "Trend over the selected period"
 msgstr "Tendance sur la période sélectionnée"
 
 #: src/admin.py:225 src/catchup/page.py:131 src/fedicollections.py:456
-#: src/mediaviewer.py:739 src/pages.py:691 src/wrapped.py:234
+#: src/mediaviewer.py:739 src/pages.py:696 src/wrapped.py:234
 msgid "Loading"
 msgstr "Chargement"
 
 #: src/admin.py:227 src/fedicollections.py:379 src/fedicollections.py:459
-#: src/pages.py:692 src/wrapped.py:237
+#: src/pages.py:697 src/wrapped.py:237
 msgid "Could Not Load"
 msgstr "Chargement impossible"
 
@@ -900,7 +900,7 @@ msgstr "Prendre une mesure"
 #: src/admin.py:889 src/admin.py:1302 src/admin.py:1513
 #: src/catchup/page_controls.py:69 src/compose.py:1500
 #: src/fedicollections.py:679 src/hashtags.py:469 src/lists.py:164
-#: src/notificationctrl.py:558 src/pages.py:486 src/pages.py:514
+#: src/notificationctrl.py:558 src/pages.py:491 src/pages.py:519
 #: src/profile.py:281 src/profile.py:310 src/profileedit.py:229
 #: src/scheduled.py:123 src/search.py:585 src/statusactions.py:624
 #: src/statusactions.py:676 src/window.py:2048
@@ -987,7 +987,7 @@ msgstr "Courriel"
 msgid "IP"
 msgstr "IP"
 
-#: src/admin.py:1016 src/pages.py:924
+#: src/admin.py:1016 src/pages.py:929
 msgid "No Accounts"
 msgstr "Aucun compte"
 
@@ -2126,7 +2126,7 @@ msgstr[1] "%s et %d autres l’ont partagé"
 msgid "News"
 msgstr "Actualités"
 
-#: src/catchup/tiles_render.py:638 src/explore.py:112 src/webcolumn.py:282
+#: src/catchup/tiles_render.py:638 src/explore.py:112 src/webcolumn.py:303
 msgid "Open in Browser"
 msgstr "Ouvrir dans le navigateur"
 
@@ -2940,7 +2940,7 @@ msgid_plural "%d accounts"
 msgstr[0] "%d compte"
 msgstr[1] "%d comptes"
 
-#: src/fedicollections.py:334 src/pages.py:1079 src/report.py:221
+#: src/fedicollections.py:334 src/pages.py:1084 src/report.py:221
 #: src/report.py:222 src/statusactions.py:155
 msgid "Collection"
 msgstr "Collection"
@@ -3709,11 +3709,11 @@ msgstr "Impossible de charger les listes : %s"
 
 #. Translators: toast when a web+ap:// or web+mastodon:// link
 #. is opened before any account is signed in.
-#: src/main.py:330
+#: src/main.py:334
 msgid "Sign in to open this link"
 msgstr "Se connecter pour ouvrir ce lien"
 
-#: src/main.py:371
+#: src/main.py:375
 msgid "translator-credits"
 msgstr "crédits des traducteurs"
 
@@ -3887,7 +3887,7 @@ msgid "Media is not downloaded automatically on a metered connection"
 msgstr ""
 "Les médias ne sont pas téléchargés automatiquement sur une connexion limitée"
 
-#: src/mediaviewer.py:787 src/pages.py:641
+#: src/mediaviewer.py:787 src/pages.py:646
 msgid "_Try Again"
 msgstr "_Réessayer"
 
@@ -4819,55 +4819,59 @@ msgstr "Paramètres des notifications mis à jour"
 msgid "Could not save notification settings"
 msgstr "Impossible d’enregistrer les paramètres des notifications"
 
-#: src/pages.py:515
+#: src/pages.py:520
 msgid "_Don’t Remind Me Again"
 msgstr "_Ne plus me le rappeler"
 
-#: src/pages.py:606 src/pages.py:839 src/profileactions.py:301
+#: src/pages.py:611 src/pages.py:844 src/profileactions.py:301
 #: src/statusactions.py:542 src/statusactions.py:566
 msgid "Action failed"
 msgstr "L’action a échoué"
 
-#: src/pages.py:696
+#: src/pages.py:701
 msgid "Nothing Here"
 msgstr "Rien ici"
 
-#: src/pages.py:779 src/scheduled.py:554 src/search.py:199
+#: src/pages.py:784 src/scheduled.py:554 src/search.py:199
 msgid "Could not load more"
 msgstr "Impossible d’en charger davantage"
 
-#: src/pages.py:886
+#: src/pages.py:891
 msgid "This account’s handle could not be verified"
 msgstr "Le handle de ce compte n’a pas pu être vérifié"
 
-#: src/pluginhost.py:340
+#: src/pluginhost.py:351
 msgid "The server sent a reply that could not be read"
 msgstr ""
 
-#: src/pluginhost.py:445
+#: src/pluginhost.py:456
 #, fuzzy
 msgid "Not installed"
 msgstr "Non défini"
 
-#: src/pluginhost.py:450
+#: src/pluginhost.py:461
 msgid "Made for another version of Babble"
 msgstr ""
 
-#: src/pluginhost.py:459
+#: src/pluginhost.py:472
+msgid "Needs a newer version of Babble"
+msgstr ""
+
+#: src/pluginhost.py:481
 #, fuzzy
 msgid "Could not be loaded; the system log has the details"
 msgstr "Impossible de générer l’image"
 
-#: src/pluginhost.py:466
+#: src/pluginhost.py:488
 msgid "Adds nothing Babble can use"
 msgstr ""
 
-#: src/pluginhost.py:512
+#: src/pluginhost.py:534
 msgid "Stopped working and was turned off; the system log has the details"
 msgstr ""
 
 #. Translators: %s is a plugin's name.
-#: src/pluginhost.py:524
+#: src/pluginhost.py:546
 #, python-format
 msgid "“%s” stopped working and was turned off"
 msgstr ""
@@ -5514,7 +5518,7 @@ msgid "Combine notifications of the same type and post into one"
 msgstr ""
 "Regrouper en une seule les notifications de même type et de même message"
 
-#: src/preferences.py:635 plugins/hashpanel/babble_hashpanel.py:277
+#: src/preferences.py:635 plugins/hashpanel/babble_hashpanel.py:278
 #: plugins/wallabag/babble_wallabag.py:391
 msgid "Server"
 msgstr "Serveur"
@@ -5829,11 +5833,11 @@ msgstr "Message direct"
 msgid "Copy _Handle"
 msgstr "Copier l’identifiant"
 
-#: src/profileactions.py:100 src/statusmenu.py:158 src/webcolumn.py:269
+#: src/profileactions.py:100 src/statusmenu.py:158 src/webcolumn.py:290
 msgid "_Copy Link"
 msgstr "_Copier le lien"
 
-#: src/profileactions.py:101 src/statusmenu.py:157 src/webcolumn.py:268
+#: src/profileactions.py:101 src/statusmenu.py:157 src/webcolumn.py:289
 msgid "Open in _Browser"
 msgstr "Ouvrir dans le _navigateur"
 
@@ -5912,7 +5916,7 @@ msgstr "Modération"
 msgid "Copied handle to clipboard"
 msgstr "Identifiant copié dans le presse-papiers"
 
-#: src/profileactions.py:175 src/webcolumn.py:530
+#: src/profileactions.py:175 src/webcolumn.py:570
 msgid "Copied link to clipboard"
 msgstr "Lien copié dans le presse-papiers"
 
@@ -6878,7 +6882,7 @@ msgstr "Fermer la fenêtre"
 msgid "Quit"
 msgstr "Quitter"
 
-#: src/shortcuts-dialog.ui:59 src/webcolumn.py:285
+#: src/shortcuts-dialog.ui:59 src/webcolumn.py:306
 msgid "Reload"
 msgstr "Recharger"
 
@@ -6975,16 +6979,16 @@ msgstr "Défiler en haut"
 msgid "Web Column"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:213 src/webcolumn.py:251
+#: src/shortcuts-dialog.ui:213 src/webcolumn.py:272
 msgid "Hide Web Column"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:219 src/webcolumn.py:255
+#: src/shortcuts-dialog.ui:219 src/webcolumn.py:276
 #, fuzzy
 msgid "Back"
 msgstr "Retour"
 
-#: src/shortcuts-dialog.ui:225 src/webcolumn.py:257
+#: src/shortcuts-dialog.ui:225 src/webcolumn.py:278
 #, fuzzy
 msgid "Forward"
 msgstr "Transféré"
@@ -7445,62 +7449,62 @@ msgstr "Afficher l’avertissement de contenu : %s"
 #. Translators: date and 12-hour time, a GDateTime format
 #. string, e.g. "9 Oct 2026, 2:47 PM"; see the
 #. g_date_time_format() docs
-#: src/statustext.py:305
+#: src/statustext.py:309
 msgid "%-d %b %Y, %-I:%M %p"
 msgstr "%-d %b %Y, %-I:%M %p"
 
 #. Translators: 12-hour time, a GDateTime format string, e.g.
 #. "2:47 PM"; see the g_date_time_format() docs
-#: src/statustext.py:309
+#: src/statustext.py:313
 msgid "%-I:%M %p"
 msgstr "%-I:%M %p"
 
 #. Translators: a GDateTime format string, e.g. "9 Oct 2026, 10:47";
 #. see the g_date_time_format() docs
-#: src/statustext.py:313
+#: src/statustext.py:317
 msgid "%-d %b %Y, %H:%M"
 msgstr "%-d %b %Y, %H:%M"
 
 #. Translators: 24-hour time, a GDateTime format string, e.g.
 #. "14:47"; see the g_date_time_format() docs
-#: src/statustext.py:317
+#: src/statustext.py:321
 msgid "%H:%M"
 msgstr "%H:%M"
 
 #. Translators: compact age of a post in seconds, e.g. "42s"
-#: src/statustext.py:361
+#: src/statustext.py:365
 #, python-format
 msgid "%ds"
 msgstr "%ds"
 
 #. Translators: compact age of a post in minutes, e.g. "5m"
-#: src/statustext.py:365 src/timelinebase.py:155
+#: src/statustext.py:369 src/timelinebase.py:155
 #, python-format
 msgid "%dm"
 msgstr "%dmin"
 
 #. Translators: compact age of a post in hours, e.g. "3h"
-#: src/statustext.py:369 src/timelinebase.py:157
+#: src/statustext.py:373 src/timelinebase.py:157
 #, python-format
 msgid "%dh"
 msgstr "%dh"
 
 #. Translators: compact age of a post in days, e.g. "12d"
-#: src/statustext.py:373 src/timelinebase.py:158
+#: src/statustext.py:377 src/timelinebase.py:158
 #, python-format
 msgid "%dd"
 msgstr "%dj"
 
 #. Translators: date of a post older than a year, a GDateTime format
 #. string, e.g. "Oct 2025"; see the g_date_time_format() docs
-#: src/statustext.py:377
+#: src/statustext.py:381
 msgid "%b %Y"
 msgstr "%b %Y"
 
 #. Translators: compact count in thousands, e.g. "3.4K"; %s is the
 #. number. Write it as "3.4 Tsd." in German, "3,4 mil" in Spanish
 #. and "3,4 mil" in Brazilian Portuguese. Keep the %s.
-#: src/statustext.py:403
+#: src/statustext.py:407
 #, python-format
 msgid "%sK"
 msgstr "%s k"
@@ -7508,7 +7512,7 @@ msgstr "%s k"
 #. Translators: compact count in millions, e.g. "2.1M"; %s is the
 #. number. German uses "Mio.", French "M" is fine, Portuguese
 #. uses "mi". Keep the %s.
-#: src/statustext.py:408
+#: src/statustext.py:412
 #, python-format
 msgid "%sM"
 msgstr "%s M"
@@ -7516,7 +7520,7 @@ msgstr "%s M"
 #. Translators: compact count in billions, e.g. "1.2B"; %s is the
 #. number. German uses "Mrd.", French "Md", Portuguese "bi".
 #. Keep the %s.
-#: src/statustext.py:413
+#: src/statustext.py:417
 #, python-format
 msgid "%sB"
 msgstr "%s Md"
@@ -7631,45 +7635,45 @@ msgid_plural "%d new posts"
 msgstr[0] "%d nouveau message"
 msgstr[1] "%d nouveaux messages"
 
-#: src/webcolumn.py:267
+#: src/webcolumn.py:288
 #, fuzzy
 msgid "_Reload"
 msgstr "Recharger"
 
-#: src/webcolumn.py:273
+#: src/webcolumn.py:294
 #, fuzzy
 msgid "Page Actions"
 msgstr "Prendre une mesure"
 
-#: src/webcolumn.py:428
+#: src/webcolumn.py:458
 #, fuzzy
 msgid "Open Link in _Browser"
 msgstr "Ouvrir dans le _navigateur"
 
-#: src/webcolumn.py:452
+#: src/webcolumn.py:483
 #, fuzzy
 msgid "Page Did Not Load"
 msgstr "Chargement impossible"
 
-#: src/webcolumn.py:458
+#: src/webcolumn.py:490
 msgid "Security Certificate Not Trusted"
 msgstr ""
 
-#: src/webcolumn.py:459
+#: src/webcolumn.py:491
 msgid ""
 "The connection is not private, so the page was not loaded. You can open it "
 "in your browser instead."
 msgstr ""
 
-#: src/webcolumn.py:467
+#: src/webcolumn.py:500
 msgid "The page used too much memory and was stopped."
 msgstr ""
 
-#: src/webcolumn.py:470
+#: src/webcolumn.py:503
 msgid "The page stopped responding."
 msgstr ""
 
-#: src/webcolumn.py:471
+#: src/webcolumn.py:504
 msgid "Page Crashed"
 msgstr ""
 
@@ -8206,18 +8210,18 @@ msgid_plural "%d the week before"
 msgstr[0] ""
 msgstr[1] ""
 
-#: plugins/hashpanel/babble_hashpanel.py:273
+#: plugins/hashpanel/babble_hashpanel.py:274
 msgid ""
 "Hashpanel follows the daily hashtags of the Brazilian fediverse. Babble asks "
 "it only about the hashtags it follows."
 msgstr ""
 
-#: plugins/hashpanel/babble_hashpanel.py:292
+#: plugins/hashpanel/babble_hashpanel.py:293
 #: plugins/wallabag/babble_wallabag.py:451
 msgid "Use the server’s https:// address"
 msgstr ""
 
-#: plugins/hashpanel/babble_hashpanel.py:303
+#: plugins/hashpanel/babble_hashpanel.py:304
 msgid "Hashpanel server saved"
 msgstr ""
 
@@ -8341,6 +8345,9 @@ msgstr ""
 #: plugins/wallabag/babble_wallabag.py:408
 msgid "Your password is used once to sign in and is not stored"
 msgstr ""
+
+#~ msgid "mauriciobc"
+#~ msgstr "mauriciobc"
 
 #, python-format
 #~ msgid "Scanning timeline… %(count)d post evaluated (%(hours)d h back)"
