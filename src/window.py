@@ -61,7 +61,7 @@ SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
 APP_ID = 'io.github.mauriciobc.Babble'
 HELP_SCHEME = 'help'
 HELP_URI = HELP_SCHEME + ':' + APP_ID
-PROJECT_URL = 'https://github.com/mauriciobc/babble'
+PROJECT_URL = 'https://github.com/mauriciobc/Babble'
 ISSUES_URL = PROJECT_URL + '/issues'
 DOCS_URL = PROJECT_URL + '/blob/main/Docs/README.md'
 

@@ -6,7 +6,7 @@
   <name>Babble</name>
   <summary>Follow your Mastodon timelines</summary>
   <developer id="io.github.mauriciobc">
-    <name>mauriciobc</name>
+    <name>Mauricio Castro</name>
   </developer>
   <description>
     <p>Babble is a Mastodon client focused on reading and writing posts. Follow your home timeline, catch up on notifications, read whole threads and write posts without leaving the desktop.</p>

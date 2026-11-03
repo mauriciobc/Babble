@@ -62,15 +62,6 @@ foreach help_lang : help_languages
   )
 endforeach
 
-install_data(
-  'screenshots/timeline.png',
-  'screenshots/catch-up.png',
-  'screenshots/hashtag.png',
-  'screenshots/composer.png',
-  'screenshots/thread.png',
-  install_dir: get_option('datadir') / 'metainfo' / 'io.github.mauriciobc.Babble' / 'screenshots',
-)
-
 gnome.compile_schemas(build_by_default: true, depend_files: 'io.github.mauriciobc.Babble.gschema.xml')
 
 # Each validator is optional so a machine missing one still builds, but
