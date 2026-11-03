@@ -114,6 +114,23 @@ window._activate_account(account, login_only=True)
 check('a locked keyring keeps its toast',
       len(toasts) == 1 and 'keyring' in toasts[0]
       and not window._no_keyring_shown)
+check('and does not forget the account either', stored == [])
+
+
+def absent(self, account_id, callback, cancellable=None):
+    callback(None, None)
+
+
+# An entry that is genuinely absent is not an error: the account's login
+# is gone, so a startup restore forgets it. This is the half of the
+# contract the error path must not swallow.
+mastodon.MastodonClient.load_secret_token = absent
+toasts.clear()
+window._activate_account(account, login_only=True)
+check('an absent entry at startup forgets the account',
+      stored == [account])
+check('and goes to the login page when forgetting it',
+      window.main_stack.get_visible_child_name() == 'login')
 mastodon.MastodonClient.load_secret_token = real_load
 
 if failures:
