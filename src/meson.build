@@ -64,8 +64,10 @@ install_data(
   'pages.py',
   'plugin.py',
   'pluginhost.py',
+  'pluginlinks.py',
   'pluginpanel.py',
   'pluginspage.py',
+  'pluginsupport.py',
   'pollbox.py',
   'portals.py',
   'preferences.py',
@@ -467,6 +469,13 @@ plugin_web_env.set('G_DEBUG', 'fatal-criticals')
 # panel lifecycle on a real web column.
 test('plugins', python,
   args: [files('test-plugins.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+# Account info and link claiming for plugins, through libpeas, and a
+# claimed link clicked inside the web column.
+test('plugin links', python,
+  args: [files('test-pluginlinks.py')],
   env: plugin_web_env,
   timeout: 120,
 )

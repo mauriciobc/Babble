@@ -21,6 +21,8 @@ thing it extends:
   menu items each time a post's menu opens.
 - :class:`HashtagPageExtension`, once per open hashtag page: it may give
   the page a banner, which goes when the page does.
+- :class:`LinkExtension`, once per enabled plugin: it claims the links
+  to the origins it names, so they open in the plugin's own way.
 - :class:`PreferencesExtension`, each time the plugin's settings open
   from the Plugins page: it fills them, and goes when they close.
 
@@ -134,6 +136,18 @@ class Post:
     sensitive: bool = False
     spoiler_text: str = ''
     media: tuple = field(default=())
+    author_handle: str = ''  # always @user@server, local authors included
+
+
+@dataclass(frozen=True)
+class Account:
+    """The signed-in account, as far as a plugin may know it: its
+    ``handle`` (``@user@server``), the ``instance`` URL it is on
+    (``https://example.org``) and that server's ``host``
+    (``example.org``). Never its id or its token."""
+    handle: str
+    instance: str
+    host: str
 
 
 @dataclass(frozen=True)
@@ -208,6 +222,46 @@ class HashtagPageExtension(Extension):
         return None
 
 
+class LinkExtension(Extension):
+    """Claims links to the servers a plugin knows, so Babble opens them
+    the plugin's way instead of in the web column or the browser.
+
+    One instance per enabled plugin. A link is claimed only when its
+    origin is one of :meth:`origins` (never any other, whatever
+    :meth:`claims` would say), when the user chose to open links in the
+    app (with that preference off every link goes to the browser, as the
+    user asked, and nothing is claimed), and when :meth:`claims` agrees.
+    The first enabled plugin, in the order they were loaded, that claims
+    a link gets it. A claimed link opens through :meth:`open` and
+    nothing else: not as a post or profile in Babble, even when its path
+    looks like one.
+
+    Babble's explicit "Open in Browser" is never claimed, and a menu
+    entry that calls :meth:`Context.open_panel` always works, since the
+    user asked for it. A link clicked inside a plugin's panel on a
+    claimed origin stays in the panel."""
+
+    def origins(self):
+        """The origins this plugin claims, an iterable of
+        ``scheme://host[:port]`` strings in lower case, such as
+        ``https://example.org``. Read on every click, so a change in the
+        plugin's settings takes effect at once; keep it cheap."""
+        return ()
+
+    def claims(self, url):
+        """Whether to claim *url*, a link on one of :meth:`origins`.
+        Called only for such links; the default claims all of them."""
+        return True
+
+    def open(self, url, widget):
+        """Open *url*, which this plugin claimed. *widget* is something
+        on screen, to find the window by or anchor a toast to; the usual
+        thing is :meth:`Context.open_panel`. Handing the same *url* back
+        to :meth:`Context.open_link` from here opens it the ordinary way
+        instead of coming back to this method."""
+        raise NotImplementedError
+
+
 class PreferencesExtension(Extension):
     """The plugin's own settings, opened from Babble's Plugins page.
 
@@ -235,6 +289,13 @@ class Context:
     @property
     def settings(self):
         """The plugin's own settings, a :class:`Settings`."""
+        raise NotImplementedError
+
+    @property
+    def account(self):
+        """The signed-in account, an :class:`Account`, or None when
+        nobody is signed in. Read when asked, so it follows an account
+        switch."""
         raise NotImplementedError
 
     @property
@@ -312,8 +373,10 @@ class Context:
 
 class Panel:
     """A page the plugin showed in the web column, and the handle to
-    control it. Babble's own account and token are never given to the
-    page or to the plugin.
+    control it. Babble never gives the page anything of the signed-in
+    account, and the plugin gets only the handle and server
+    (:attr:`Context.account`); the account's id and token are given to
+    neither.
 
     Scripting is bound to the origin the plugin opened (:attr:`origin`,
     that of the URL given to :meth:`Context.open_panel` or

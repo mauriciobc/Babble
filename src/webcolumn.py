@@ -12,7 +12,7 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import pages, pluginlinks  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .statustext import is_web_link  # noqa: E402
 
@@ -54,12 +54,14 @@ def _network_session():
 
 def classify_navigation(uri, *, new_window=False, link_clicked=False,
                         user_gesture=False, button=0, modifiers=0,
-                        strip=False, resolve=False):
+                        strip=False, resolve=False, claimed=False):
     """Decide what a navigation request should do.
 
     Returns ``(action, uri)``: LOAD in the view, hand to the EXTERNAL
     launcher, ROUTE inside the app, or IGNORE. *uri* comes back changed
-    only when tracking parameters were stripped."""
+    only when tracking parameters were stripped. A *claimed* link (one a
+    plugin owns the origin of) is never ROUTEd: it stays in the view, as
+    a click inside the plugin's own panel should."""
     if not uri:
         return IGNORE, uri
     scheme = uri.split(':', 1)[0].lower() if ':' in uri else ''
@@ -72,7 +74,8 @@ def classify_navigation(uri, *, new_window=False, link_clicked=False,
     if link_clicked and (button == 2
                          or modifiers & Gdk.ModifierType.CONTROL_MASK):
         return EXTERNAL, uri
-    if link_clicked and resolve and pages.is_fediverse_link(uri):
+    if link_clicked and resolve and not claimed \
+            and pages.is_fediverse_link(uri):
         return ROUTE, uri
     if new_window and not user_gesture:
         return IGNORE, uri  # popups are blocked
@@ -382,7 +385,8 @@ class WebColumn(Adw.Bin):
             modifiers=int(action.get_modifiers()),
             strip=(config.get_boolean('strip-tracking')
                    and untargeted and user_gesture),
-            resolve=config.get_boolean('aggressive-resolving'))
+            resolve=config.get_boolean('aggressive-resolving'),
+            claimed=pluginlinks.is_claimed(uri))
         if verdict == LOAD:
             if new_window or target != uri:
                 decision.ignore()
