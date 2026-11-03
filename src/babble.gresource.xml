@@ -6,6 +6,10 @@
     <file>style.css</file>
     <file alias="icons/scalable/apps/io.github.mauriciobc.Babble.svg">../data/icons/hicolor/scalable/apps/io.github.mauriciobc.Babble.svg</file>
     <file alias="icons/symbolic/apps/io.github.mauriciobc.Babble-symbolic.svg">../data/icons/hicolor/symbolic/apps/io.github.mauriciobc.Babble-symbolic.svg</file>
+    <!-- The action icons are aliased under scalable/actions on purpose, although
+         data/icons installs them to hicolor/symbolic/actions. GTK's lookup under a
+         registered resource path finds them only here; aliasing them under
+         symbolic/actions resolves 0 of 12 (measured). -->
     <file alias="icons/scalable/actions/babble-compose-poll-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-compose-poll-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-compose-globe-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-compose-globe-symbolic.svg</file>
     <file alias="icons/scalable/actions/babble-notifications-symbolic.svg">../data/icons/hicolor/symbolic/actions/babble-notifications-symbolic.svg</file>

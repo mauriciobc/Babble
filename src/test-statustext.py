@@ -277,7 +277,7 @@ class ClockState(unittest.TestCase):
     it -- or the bus and schema lookups behind it -- freely."""
 
     NAMES = ('_clock_format', '_clock_subscription', '_clock_settings',
-             '_session_bus', '_schema_source')
+             '_clock_live', '_session_bus_async', '_schema_source')
 
     def setUp(self):
         self._saved = {name: getattr(statustext, name)
@@ -336,7 +336,7 @@ class TestClockFormat(ClockState):
     def setUp(self):
         super().setUp()
         statustext._clock_format = None
-        statustext._session_bus = lambda: None
+        statustext._session_bus_async = lambda callback: callback(None)
 
     def test_no_bus_and_no_schema_is_24_hour(self):
         lookups = []

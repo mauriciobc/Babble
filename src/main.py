@@ -189,6 +189,10 @@ class BabbleApplication(Adw.Application):
         # GTK only finds them once the icons tree is registered.
         Gtk.IconTheme.get_for_display(Gdk.Display.get_default()) \
             .add_resource_path('/io/github/mauriciobc/Babble/icons')
+        # Starts the clock-format read, so it has answered by the time
+        # the first timestamps are formatted.
+        from . import statustext
+        statustext.clock_format()
         from . import pluginhost
         pluginhost.start_if_enabled()
 
