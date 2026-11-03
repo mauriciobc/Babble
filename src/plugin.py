@@ -40,6 +40,15 @@ reference cycle through C that Python's collector cannot see, and the
 page it is on would never be freed. The `plugin boundary` test fails
 on a bare ``.connect(`` in the plugins Babble ships.
 
+A plugin can also show a web page in Babble's web column and script it:
+:meth:`Context.open_panel` returns a :class:`Panel`. There is one
+column, so one panel: opening another (from any plugin, or an ordinary
+link opened in the column) closes the previous handle. A closed handle
+never calls back, and neither does one whose plugin was disabled; the
+user hiding the column, or disabling the plugin, closes the panel.
+Scripting is limited to the origin the plugin opened and runs in a world
+of its own, which the page cannot see or call (see :class:`Panel`).
+
 Exceptions raised by plugin code are caught: the plugin is disabled and
 the user is told, and the app carries on.
 """
@@ -251,8 +260,83 @@ class Context:
         hashtag inside Babble, anything else in the browser."""
         raise NotImplementedError
 
+    def open_panel(self, widget, url, title=None):
+        """Show *url*, ``https://`` or ``http://``, in Babble's web column
+        and return its :class:`Panel`. The column is shown whatever the
+        user chose for opening links in the app; *widget* is something on
+        screen, to find the window by. *title* is shown until the page
+        has one.
+
+        Without a web engine (or a window with a column) the page opens in
+        the browser instead and the Panel returned is already closed."""
+        raise NotImplementedError
+
     def log(self, message):
         """Write *message* to the journal, marked with the plugin's id."""
+        raise NotImplementedError
+
+
+class Panel:
+    """A page the plugin showed in the web column, and the handle to
+    control it. Babble's own account and token are never given to the
+    page or to the plugin.
+
+    Scripting is bound to the origin the plugin opened (:attr:`origin`,
+    that of the URL given to :meth:`Context.open_panel` or
+    :meth:`load_uri`). While the page is on another origin (a link the
+    user followed, a sign-in on the user's own server), :meth:`run_script`
+    reports an error and messages are dropped, until it is back.
+
+    Script runs in an isolated world, one per plugin: it shares the
+    page's DOM, but the page's own script cannot see its variables or
+    the message channel, so a web page can never message Babble. Fields
+    set from script must be told to the page the way a user would (an
+    ``input`` event after setting a value). Scripting follows the *Run
+    JavaScript* preference: with it off, :meth:`run_script` reports an
+    error.
+
+    A closed handle does nothing and never calls back, whether the user
+    hid the column, another page replaced this one, or the plugin was
+    disabled."""
+
+    @property
+    def uri(self):
+        """The address the page is on now, or the last one it was on."""
+        raise NotImplementedError
+
+    @property
+    def origin(self):
+        """The origin scripting is bound to, such as
+        ``https://example.org``."""
+        raise NotImplementedError
+
+    @property
+    def is_open(self):
+        """False once the handle is closed."""
+        raise NotImplementedError
+
+    def load_uri(self, url):
+        """Load *url* in the panel; scripting is bound to its origin
+        from then on."""
+        raise NotImplementedError
+
+    def close(self):
+        """Hide the column, if it still shows this page."""
+        raise NotImplementedError
+
+    def run_script(self, script, callback=None):
+        """Run the JavaScript *script* in the page. *callback*, when
+        given, is called on the main loop as ``callback(result, error)``:
+        *result* is what the script's last expression gave, as plain JSON
+        data (None for nothing), *error* a message or None. Nothing is
+        called back, not even an error, once the handle is closed."""
+        raise NotImplementedError
+
+    def on_message(self, callback):
+        """Receive what script this plugin ran posts, with
+        ``window.webkit.messageHandlers.babble.postMessage(data)``:
+        ``callback(data)``, *data* plain JSON data. Replaces the previous
+        callback; None stops it."""
         raise NotImplementedError
 
 

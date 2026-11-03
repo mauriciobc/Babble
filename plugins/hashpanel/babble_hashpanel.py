@@ -258,7 +258,8 @@ class Banner(plugin.HashtagPageExtension):
         self.week.set_visible(True)
 
     def on_open(self, button):
-        self.context.open_link(button, source_of(self.context).server())
+        self.context.open_panel(button, source_of(self.context).server(),
+                                title='Hashpanel')
 
     def on_top(self, row):
         if self.top_link:

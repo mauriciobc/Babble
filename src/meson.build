@@ -64,6 +64,7 @@ install_data(
   'pages.py',
   'plugin.py',
   'pluginhost.py',
+  'pluginpanel.py',
   'pluginspage.py',
   'pollbox.py',
   'portals.py',
@@ -446,12 +447,36 @@ test('plugin boundary', python,
   env: test_env,
   timeout: 60,
 )
+# The panel tests run a real web view; WebKit's sandbox (bubblewrap)
+# cannot start in a build sandbox or CI container, as for 'web column'.
+plugin_web_env = environment()
+plugin_web_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+plugin_web_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+plugin_web_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+plugin_web_env.set('GSETTINGS_BACKEND', 'memory')
+plugin_web_env.set('GDK_DEBUG', 'no-portals')
+plugin_web_env.set('NO_AT_BRIDGE', '1')
+plugin_web_env.set('GTK_A11Y', 'none')
+plugin_web_env.set('LANG', 'C')
+plugin_web_env.set('LC_ALL', 'C')
+plugin_web_env.set('GSK_RENDERER', 'cairo')
+plugin_web_env.set('WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS', '1')
+plugin_web_env.set('G_DEBUG', 'fatal-criticals')
 # libpeas loading real plugins from a temporary directory, the two
-# extension points, and that a page or plugin dropped is freed.
+# extension points, and that a page or plugin dropped is freed; and the
+# panel lifecycle on a real web column.
 test('plugins', python,
   args: [files('test-plugins.py')],
-  env: fatal_test_env,
-  timeout: 60,
+  env: plugin_web_env,
+  timeout: 120,
+)
+# A plugin driving a Na Real-style login form in the web column: script
+# bound to its origin, in an isolated world, following the JavaScript
+# setting.
+test('plugin panel', python,
+  args: [files('test-pluginpanel.py')],
+  env: plugin_web_env,
+  timeout: 120,
 )
 # The shipped Wallabag plugin against a fake Wallabag on loopback.
 test('wallabag plugin', python,

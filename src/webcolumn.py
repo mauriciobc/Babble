@@ -89,13 +89,31 @@ def present_web(widget, uri):
             or not available():
         pages.launch_external(widget, uri)
         return
+    _show(window, uri)
+
+
+def present_panel(widget, uri, owner, title=None):
+    """Open *uri* in the web column as the page of *owner*, a plugin's
+    panel: whatever panel the column had is closed, and the column is
+    shown whatever the user chose for opening links. Returns the column,
+    or None, after opening the system browser, when there is none."""
+    window = pages.window_of(widget)
+    if window is None or not hasattr(window, 'web_split') \
+            or not available():
+        pages.launch_external(widget, uri)
+        return None
+    return _show(window, uri, owner, title)
+
+
+def _show(window, uri, owner=None, title=None):
     column = window.web_slot.get_child()
     if column is None:
         column = WebColumn()
         window.web_slot.set_child(column)
-    column.load_uri(uri)
+    column.load_uri(uri, owner=owner, title=title)
     window.web_split.set_show_sidebar(True)
     column.view.grab_focus()
+    return column
 
 
 def watch_split(split):
@@ -175,6 +193,8 @@ class WebColumn(Adw.Bin):
         self._pending_user = False  # the next navigation is ours
         self._user_nav = False
         self._handed_off = False
+        self.panel = None  # the plugin panel showing here, if any
+        self._fallback_title = None
 
         self._build_actions()
         self.view = self._build_view()
@@ -313,7 +333,16 @@ class WebColumn(Adw.Bin):
 
     # Public
 
-    def load_uri(self, uri):
+    def load_uri(self, uri, owner=None, title=None):
+        """Load *uri*. *owner* is the plugin panel loading it; a load by
+        anyone else ends the panel the column had."""
+        if self.panel is not None and self.panel is not owner:
+            self.panel._end()
+        self.panel = owner
+        if owner is None:
+            self._fallback_title = None
+        elif title is not None:
+            self._fallback_title = title
         self.stack.set_visible_child_name('page')
         self._error_uri = uri
         self._pending_user = True
@@ -475,7 +504,8 @@ class WebColumn(Adw.Bin):
 
     def _on_title_uri(self, _view, _pspec):
         shown = self._webkit.uri_for_display(self.view.get_uri() or '') or ''
-        self.title.set_title(self.view.get_title() or shown)
+        self.title.set_title(self.view.get_title() or self._fallback_title
+                             or shown)
         self.title.set_subtitle(shown)
 
     def _on_uri(self, _view, _pspec):
@@ -511,7 +541,7 @@ class WebColumn(Adw.Bin):
 
     def _on_reload(self, *_args):
         if self.stack.get_visible_child_name() == 'error' and self._error_uri:
-            self.load_uri(self._error_uri)
+            self.load_uri(self._error_uri, owner=self.panel)
         else:
             self.view.reload()
 
@@ -544,7 +574,50 @@ class WebColumn(Adw.Bin):
         if self._disposed:
             return
         self._disposed = True
+        if self.panel is not None:
+            self.panel._end()
         self.view.stop_loading()
         parent = self.get_parent()
         if parent is not None:
             parent.set_child(None)
+
+    # Plugin panels
+
+    def release_panel(self, panel):
+        if self.panel is panel:
+            self.panel = None
+            self._fallback_title = None
+
+    def evaluate(self, world, script, callback, cancellable=None):
+        """Run *script* in the page, in the script world *world*:
+        ``callback(value, error)``, *value* a JavaScriptCore value."""
+        def done(view, result, _data):
+            try:
+                value = view.evaluate_javascript_finish(result)
+            except GLib.Error as error:
+                callback(None, error.message)
+                return
+            callback(value, None)
+        self.view.evaluate_javascript(script, -1, world, None, cancellable,
+                                      done, None)
+
+    def add_message_handler(self, world, name, callback):
+        """Have ``callback(value)`` called for what script in *world*
+        posts to ``window.webkit.messageHandlers.<name>``; pages' own
+        script, in the main world, has no such channel. Returns a handle
+        for :meth:`remove_message_handler`, or None."""
+        content = self.view.get_user_content_manager()
+        if not content.register_script_message_handler(name, world):
+            return None
+        handler = content.connect(
+            'script-message-received::' + name,
+            lambda _content, value: callback(value))
+        return (content.weak_ref(), name, world, handler)
+
+    @staticmethod
+    def remove_message_handler(handle):
+        reference, name, world, handler = handle
+        content = reference()
+        if content is not None:
+            content.disconnect(handler)
+            content.unregister_script_message_handler(name, world)

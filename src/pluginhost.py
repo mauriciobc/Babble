@@ -163,6 +163,7 @@ class _Context(api.Context):
         self._data = {}
         self._scope = _Scope()
         self._scopes = {}  # id(extension) -> _Scope
+        self._panel = None
 
     def guard(self, func, *args, widget=None, default=None):
         """``func(*args)``, and on an exception the plugin is turned off."""
@@ -199,6 +200,9 @@ class _Context(api.Context):
 
     def close(self):
         self.active = False
+        panel, self._panel = self._panel, None
+        if panel is not None:
+            self.quietly(panel.close)
         for scope in self._scopes.values():
             scope.close()
         self._scopes = {}
@@ -312,6 +316,12 @@ class _Context(api.Context):
     def open_link(self, widget, url):
         from . import pages
         pages.open_link(widget, url, resolve=True)
+
+    def open_panel(self, widget, url, title=None):
+        from . import pluginpanel
+        panel = pluginpanel.open_panel(self, widget, url, title)
+        self._panel = panel
+        return panel
 
     def log(self, message):
         _log(GLib.LogLevelFlags.LEVEL_MESSAGE,
