@@ -182,11 +182,11 @@ _CLOCK_KEY = 'clock-format'
 _PORTAL_NAME = 'org.freedesktop.portal.Desktop'
 _PORTAL_PATH = '/org/freedesktop/portal/desktop'
 _PORTAL_SETTINGS = 'org.freedesktop.portal.Settings'
-# The first timestamp rendered waits on this read; a portal that is slow
-# to answer must not stall the window, so it gets the GSettings fallback.
-_PORTAL_TIMEOUT_MS = 200
 
 _clock_format = None
+# Set once the portal has announced the setting itself, so a slower
+# answer to the initial read cannot overwrite the newer value.
+_clock_live = False
 # What keeps the clock setting live: the bus subscription to the
 # portal's SettingChanged, and the GSettings object when it is the source.
 _clock_subscription = None
@@ -197,11 +197,15 @@ def _clock_value(value):
     return value if value in ('12h', '24h') else None
 
 
-def _session_bus():
-    try:
-        return Gio.bus_get_sync(Gio.BusType.SESSION, None)
-    except GLib.Error:
-        return None
+def _session_bus_async(callback):
+    """*callback(bus)* with the session bus, None when it is unreachable."""
+    def done(_source, result):
+        try:
+            bus = Gio.bus_get_finish(result)
+        except GLib.Error:
+            bus = None
+        callback(bus)
+    Gio.bus_get(Gio.BusType.SESSION, None, done)
 
 
 def _schema_source():
@@ -209,35 +213,35 @@ def _schema_source():
 
 
 def _portal_read(bus, method):
-    reply = bus.call_sync(
+    def done(_bus, result):
+        global _clock_format
+        try:
+            reply = bus.call_finish(result)
+        except GLib.Error as error:
+            # ReadOne is Settings version 2; a version 1 portal only has
+            # Read.
+            if (method == 'ReadOne' and Gio.DBusError.get_remote_error(error)
+                    == 'org.freedesktop.DBus.Error.UnknownMethod'):
+                _portal_read(bus, 'Read')
+            return
+        # unpack() opens nested variants too, so the doubly wrapped value
+        # the old Read returns comes out as the plain string ReadOne gives.
+        value = _clock_value(reply.unpack()[0])
+        if value and not _clock_live:
+            _clock_format = value
+
+    bus.call(
         _PORTAL_NAME, _PORTAL_PATH, _PORTAL_SETTINGS, method,
         GLib.Variant('(ss)', (_INTERFACE_SCHEMA, _CLOCK_KEY)),
-        GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE,
-        _PORTAL_TIMEOUT_MS, None)
-    # unpack() opens nested variants too, so the doubly wrapped value
-    # the old Read returns comes out as the plain string ReadOne gives.
-    return _clock_value(reply.unpack()[0])
-
-
-def _read_portal(bus):
-    try:
-        return _portal_read(bus, 'ReadOne')
-    except GLib.Error as error:
-        # ReadOne is Settings version 2; a version 1 portal only has Read.
-        if (Gio.DBusError.get_remote_error(error)
-                != 'org.freedesktop.DBus.Error.UnknownMethod'):
-            return None
-    try:
-        return _portal_read(bus, 'Read')
-    except GLib.Error:
-        return None
+        GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, -1, None, done)
 
 
 def _on_portal_setting_changed(_bus, _sender, _path, _interface, _signal,
                                parameters):
-    global _clock_format
+    global _clock_format, _clock_live
     namespace, key, value = parameters.unpack()
     if namespace == _INTERFACE_SCHEMA and key == _CLOCK_KEY:
+        _clock_live = True
         _clock_format = _clock_value(value) or '24h'
 
 
@@ -260,30 +264,30 @@ def _read_gsettings():
     return _clock_value(settings.get_string(_CLOCK_KEY))
 
 
-def _load_clock_format():
+def _watch_portal(bus):
     global _clock_subscription
-    bus = _session_bus()
-    value = None
-    if bus is not None:
-        # Subscribed before the read, so a change in between is not lost.
-        _clock_subscription = (bus, bus.signal_subscribe(
-            _PORTAL_NAME, _PORTAL_SETTINGS, 'SettingChanged', _PORTAL_PATH,
-            _INTERFACE_SCHEMA, Gio.DBusSignalFlags.NONE,
-            _on_portal_setting_changed))
-        value = _read_portal(bus)
-    return value or _read_gsettings() or '24h'
+    if bus is None:
+        return
+    # Subscribed before the read, so a change in between is not lost.
+    _clock_subscription = (bus, bus.signal_subscribe(
+        _PORTAL_NAME, _PORTAL_SETTINGS, 'SettingChanged', _PORTAL_PATH,
+        _INTERFACE_SCHEMA, Gio.DBusSignalFlags.NONE,
+        _on_portal_setting_changed))
+    _portal_read(bus, 'ReadOne')
 
 
 def clock_format():
     """'12h' or '24h', the desktop's clock format.
 
-    Read once, on first use, from the Settings portal (which answers in
-    and out of a sandbox), else from GSettings when the GNOME schema is
-    installed, else '24h'; later changes update it, so the next time
-    formatted follows the setting."""
+    The first call answers at once from GSettings when the GNOME schema
+    is installed, else '24h', and asks the Settings portal (which answers
+    in and out of a sandbox) in the background; its answer and later
+    changes update the cache, so the next time formatted follows the
+    setting. Nothing here waits on the bus."""
     global _clock_format
     if _clock_format is None:
-        _clock_format = _load_clock_format()
+        _clock_format = _read_gsettings() or '24h'
+        _session_bus_async(_watch_portal)
     return _clock_format
 
 

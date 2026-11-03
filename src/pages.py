@@ -473,7 +473,12 @@ def flush_deferred():
 
 
 def report_error(widget, heading, error):
-    """Toast '<heading>: <server message>' for a GLib.Error."""
+    """Toast '<heading>: <server message>' for a GLib.Error. A cancelled
+    operation is the reader's own doing, so it stays silent."""
+    if (isinstance(error, GLib.Error)
+            and error.matches(Gio.io_error_quark(),
+                              Gio.IOErrorEnum.CANCELLED)):
+        return
     message = getattr(error, 'message', None) or str(error)
     show_toast(widget, '%s: %s' % (heading, summarize_error(message)))
 
