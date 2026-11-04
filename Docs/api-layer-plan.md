@@ -7,9 +7,13 @@ merges (it touches `notifications.py`).
 
 ## Problem
 
-74 call sites outside `src/mastodon.py` hand a method and a literal path to
+83 call sites outside `src/mastodon.py` hand a method and a literal path to
 `request_async` or `pages.call` (about 32 modules; `lists.py` 10,
-`hashtags.py` 6). `mastodon.py` has roughly 20 real endpoint wrappers, and
+`hashtags.py` 6). The first count was 74; the audit corrected it to 83.
+Beyond them, 8 internal calls inside the generic helpers and 84
+helper-layer sites (`PagedList`/`AccountListPage` paths, `mutate_row`,
+`admin.send`, ...) name a path that is sent later; the allow-list keys all
+three layers. `mastodon.py` has roughly 20 real endpoint wrappers, and
 the UI mostly ignores them: `statusactions._send_toggle` and
 `profileactions` rebuild the paths the wrappers already define. Nothing
 records, endpoint by endpoint, that method, path, parameters, scope and
@@ -43,8 +47,8 @@ past the 800-line norm, so wrappers cannot simply be added to it.
 
 - **`api boundary`** (new test, `ast`-based, like `module boundary`): fails
   on any literal Mastodon path passed to `request_async` / `pages.call`
-  outside `src/api/` and `mastodon.py`. Begins with an allow-list of the 74
-  current sites; every phase shrinks it; phase 4 empties it.
+  outside `src/api/` and `mastodon.py`. Begins with an allow-list of the 83 raw
+  sites (plus helper and internal layers); every phase shrinks it; phase 4 empties it.
 - **`api registry`** (new test): every endpoint has all metadata fields; no
   deprecated endpoint without a recorded reason; gates use `is_supported`.
 - **Fixture server** (`bench/fixture_server.py`) resolves routes from the
@@ -69,7 +73,8 @@ roles run in sequence; the main session accepts against the criteria below.
   deprecation). Output: `Docs/mastodon-api-audit.md`.
 - Golden request recorder and the `api boundary` test with the full
   allow-list.
-- **Done when:** suite unchanged, audit reviewed, allow-list == 74 sites.
+- **Done when:** suite unchanged, audit reviewed, the allow-list reproduces the audit's 83 raw sites plus the helper and
+  internal layers (currently 175 entries: 83 raw, 8 internal, 84 helper).
 
 ### Phase 1: status and account actions, `mastodon.py` split
 - Create `src/api/` (`statuses`, `accounts`, `relationships`), move the
@@ -95,6 +100,9 @@ roles run in sequence; the main session accepts against the criteria below.
 - **Done when:** zero raw sites outside the allowed internals.
 
 ### Phase 5: compliance fixes
+- Pre-phase-1 or first phase 5 item: fix `send_domain_block` (one word,
+  `applied=` to `apply=`) in its own commit; its two golden scenarios change
+  deliberately. See "Known bugs" in `Docs/mastodon-api-audit.md`.
 - One commit per deviation found in phase 0 (deprecated endpoints, wrong
   parameters, missing version gates, missing scopes). Each states the docs
   page and the observable change.
