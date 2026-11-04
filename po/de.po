@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-03 15:48-0300\n"
+"POT-Creation-Date: 2026-11-03 19:06-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -889,7 +889,7 @@ msgstr "Maßnahme ergreifen"
 #: src/notificationctrl.py:558 src/pages.py:491 src/pages.py:519
 #: src/profile.py:281 src/profile.py:310 src/profileedit.py:229
 #: src/scheduled.py:123 src/search.py:585 src/statusactions.py:624
-#: src/statusactions.py:676 src/window.py:2048
+#: src/statusactions.py:676 src/window.py:2051
 msgid "_Cancel"
 msgstr "_Abbrechen"
 
@@ -994,7 +994,7 @@ msgstr "Die Aktion konnte nicht rückgängig gemacht werden"
 #. The check rows commit as they are toggled, so this commits
 #. nothing: it only dismisses the dialog. "Close" names that,
 #. where "Done" named nothing at all and the HIG forbids it.
-#: src/admin.py:1110 src/lists.py:618 src/window.py:489
+#: src/admin.py:1110 src/lists.py:618 src/window.py:492
 msgid "_Close"
 msgstr "_Schließen"
 
@@ -1195,7 +1195,7 @@ msgstr "Föderation mit %s entfernen?"
 
 #: src/admin.py:1389 src/admin.py:1497 src/catchup/page_controls.py:200
 #: src/fedicollections.py:243 src/profileactions.py:229 src/statusmenu.py:440
-#: src/window.py:660
+#: src/window.py:663
 msgid "_Remove"
 msgstr "_Entfernen"
 
@@ -1526,7 +1526,7 @@ msgstr "Das Konto konnte nicht überprüft werden"
 msgid "Logged in as @%s"
 msgstr "Angemeldet als @%s"
 
-#: src/auth.py:612 src/window.py:485
+#: src/auth.py:612 src/window.py:488
 msgid "No Keyring Found"
 msgstr "Kein Schlüsselbund gefunden"
 
@@ -2111,12 +2111,12 @@ msgstr[1] "%s und %d weitere Personen haben geteilt"
 msgid "News"
 msgstr "Nachrichten"
 
-#: src/catchup/tiles_render.py:638 src/explore.py:112 src/webcolumn.py:303
+#: src/catchup/tiles_render.py:638 src/explore.py:112 src/webcolumn.py:306
 msgid "Open in Browser"
 msgstr "Im Browser öffnen"
 
 #: src/catchup/tiles_render.py:732 src/catchup/tiles_render.py:745
-#: src/searchprovider.py:571
+#: src/searchprovider.py:571 plugins/nareal/babble_nareal.py:452
 msgid "Hashtag"
 msgstr "Schlagwort"
 
@@ -2925,7 +2925,7 @@ msgid_plural "%d accounts"
 msgstr[0] "%d Konto"
 msgstr[1] "%d Konten"
 
-#: src/fedicollections.py:334 src/pages.py:1084 src/report.py:221
+#: src/fedicollections.py:334 src/pages.py:1091 src/report.py:221
 #: src/report.py:222 src/statusactions.py:155
 msgid "Collection"
 msgstr "Sammlung"
@@ -2935,7 +2935,7 @@ msgstr "Sammlung"
 msgid "New Collection"
 msgstr "Neue Sammlung"
 
-#: src/fedicollections.py:382 src/window.py:292
+#: src/fedicollections.py:382 src/window.py:294
 msgid "Collections"
 msgstr "Sammlungen"
 
@@ -4146,7 +4146,7 @@ msgstr "Neue Beiträge"
 msgid "Follows"
 msgstr "Neue Follower"
 
-#: src/notificationcopy.py:65 src/window.py:284
+#: src/notificationcopy.py:65 src/window.py:286
 msgid "Follow Requests"
 msgstr "Folgeanfragen"
 
@@ -4248,7 +4248,7 @@ msgstr "Gefilterte Benachrichtigungen"
 msgid "%(domain)s: %(text)s"
 msgstr "%(domain)s: %(text)s"
 
-#: src/notificationctrl.py:411 src/window.py:282
+#: src/notificationctrl.py:411 src/window.py:284
 msgid "Announcements"
 msgstr "Ankündigungen"
 
@@ -4822,38 +4822,38 @@ msgstr "Weitere konnten nicht geladen werden"
 msgid "This account’s handle could not be verified"
 msgstr "Der Handle dieses Kontos konnte nicht verifiziert werden"
 
-#: src/pluginhost.py:351
+#: src/pluginhost.py:320
 msgid "The server sent a reply that could not be read"
 msgstr ""
 
-#: src/pluginhost.py:456
+#: src/pluginhost.py:428
 #, fuzzy
 msgid "Not installed"
 msgstr "Nicht festgelegt"
 
-#: src/pluginhost.py:461
+#: src/pluginhost.py:433
 msgid "Made for another version of Babble"
 msgstr ""
 
-#: src/pluginhost.py:472
+#: src/pluginhost.py:444
 msgid "Needs a newer version of Babble"
 msgstr ""
 
-#: src/pluginhost.py:481
+#: src/pluginhost.py:453
 #, fuzzy
 msgid "Could not be loaded; the system log has the details"
 msgstr "Das Bild konnte nicht erstellt werden"
 
-#: src/pluginhost.py:488
+#: src/pluginhost.py:461
 msgid "Adds nothing Babble can use"
 msgstr ""
 
-#: src/pluginhost.py:534
+#: src/pluginhost.py:525
 msgid "Stopped working and was turned off; the system log has the details"
 msgstr ""
 
 #. Translators: %s is a plugin's name.
-#: src/pluginhost.py:546
+#: src/pluginhost.py:537
 #, python-format
 msgid "“%s” stopped working and was turned off"
 msgstr ""
@@ -5467,7 +5467,7 @@ msgstr "Se_rvereinstellungen"
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:588 src/window.py:1944 src/window.py:1949
+#: src/preferences.py:588 src/window.py:1947 src/window.py:1952
 msgid "Could not open the web browser"
 msgstr "Webbrowser konnte nicht geöffnet werden"
 
@@ -5492,7 +5492,7 @@ msgid "Combine notifications of the same type and post into one"
 msgstr "Benachrichtigungen desselben Typs und Beitrags zusammenfassen"
 
 #: src/preferences.py:635 plugins/hashpanel/babble_hashpanel.py:278
-#: plugins/wallabag/babble_wallabag.py:391
+#: plugins/nareal/babble_nareal.py:441 plugins/wallabag/babble_wallabag.py:391
 msgid "Server"
 msgstr "Server"
 
@@ -5739,7 +5739,7 @@ msgstr[1] "Alle %d Profile anzeigen"
 msgid "No Featured Profiles"
 msgstr "Keine vorgestellten Profile"
 
-#: src/profile.py:1148 src/statusrow.py:152 src/window.py:1540
+#: src/profile.py:1148 src/statusrow.py:152 src/window.py:1543
 msgid "Pinned"
 msgstr "Angeheftet"
 
@@ -5807,11 +5807,11 @@ msgstr "Direktnachricht"
 msgid "Copy _Handle"
 msgstr "Adresse kopieren"
 
-#: src/profileactions.py:100 src/statusmenu.py:158 src/webcolumn.py:290
+#: src/profileactions.py:100 src/statusmenu.py:158 src/webcolumn.py:293
 msgid "_Copy Link"
 msgstr "Link _kopieren"
 
-#: src/profileactions.py:101 src/statusmenu.py:157 src/webcolumn.py:289
+#: src/profileactions.py:101 src/statusmenu.py:157 src/webcolumn.py:292
 msgid "Open in _Browser"
 msgstr "Im _Browser öffnen"
 
@@ -5890,7 +5890,7 @@ msgstr "Moderation"
 msgid "Copied handle to clipboard"
 msgstr "Adresse in die Zwischenablage kopiert"
 
-#: src/profileactions.py:175 src/webcolumn.py:570
+#: src/profileactions.py:175 src/webcolumn.py:574
 msgid "Copied link to clipboard"
 msgstr "Link in die Zwischenablage kopiert"
 
@@ -6859,7 +6859,7 @@ msgstr "Fenster schließen"
 msgid "Quit"
 msgstr "Beenden"
 
-#: src/shortcuts-dialog.ui:59 src/webcolumn.py:306
+#: src/shortcuts-dialog.ui:59 src/webcolumn.py:309
 msgid "Reload"
 msgstr "Neu laden"
 
@@ -6956,16 +6956,16 @@ msgstr "Nach oben scrollen"
 msgid "Web Column"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:213 src/webcolumn.py:272
+#: src/shortcuts-dialog.ui:213 src/webcolumn.py:275
 msgid "Hide Web Column"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:219 src/webcolumn.py:276
+#: src/shortcuts-dialog.ui:219 src/webcolumn.py:279
 #, fuzzy
 msgid "Back"
 msgstr "Zurück"
 
-#: src/shortcuts-dialog.ui:225 src/webcolumn.py:278
+#: src/shortcuts-dialog.ui:225 src/webcolumn.py:281
 #, fuzzy
 msgid "Forward"
 msgstr "Weitergeleitet"
@@ -7612,71 +7612,71 @@ msgid_plural "%d new posts"
 msgstr[0] "%d neuer Beitrag"
 msgstr[1] "%d neue Beiträge"
 
-#: src/webcolumn.py:288
+#: src/webcolumn.py:291
 #, fuzzy
 msgid "_Reload"
 msgstr "Neu laden"
 
-#: src/webcolumn.py:294
+#: src/webcolumn.py:297
 #, fuzzy
 msgid "Page Actions"
 msgstr "Maßnahme ergreifen"
 
-#: src/webcolumn.py:458
+#: src/webcolumn.py:462
 #, fuzzy
 msgid "Open Link in _Browser"
 msgstr "Im _Browser öffnen"
 
-#: src/webcolumn.py:483
+#: src/webcolumn.py:487
 #, fuzzy
 msgid "Page Did Not Load"
 msgstr "Laden fehlgeschlagen"
 
-#: src/webcolumn.py:490
+#: src/webcolumn.py:494
 msgid "Security Certificate Not Trusted"
 msgstr ""
 
-#: src/webcolumn.py:491
+#: src/webcolumn.py:495
 msgid ""
 "The connection is not private, so the page was not loaded. You can open it "
 "in your browser instead."
 msgstr ""
 
-#: src/webcolumn.py:500
+#: src/webcolumn.py:504
 msgid "The page used too much memory and was stopped."
 msgstr ""
 
-#: src/webcolumn.py:503
+#: src/webcolumn.py:507
 msgid "The page stopped responding."
 msgstr ""
 
-#: src/webcolumn.py:504
+#: src/webcolumn.py:508
 msgid "Page Crashed"
 msgstr ""
 
-#: src/window.py:286
+#: src/window.py:288
 msgid "Mutes & Blocks"
 msgstr "Stummgeschaltet und gesperrt"
 
-#: src/window.py:288
+#: src/window.py:290
 msgid "Draft Posts"
 msgstr "Entwürfe"
 
-#: src/window.py:290
+#: src/window.py:292
 msgid "Scheduled Posts"
 msgstr "Geplante Beiträge"
 
-#: src/window.py:448
+#: src/window.py:451
 #, fuzzy, python-format
 msgid "Could not read the login for @%s from the keyring"
 msgstr "Die Anmeldung für @%s fehlt im Schlüsselbund"
 
-#: src/window.py:459
+#: src/window.py:462
 #, python-format
 msgid "The login for @%s is gone from the keyring"
 msgstr "Die Anmeldung für @%s fehlt im Schlüsselbund"
 
-#: src/window.py:486
+#: src/window.py:489
 msgid ""
 "Babble keeps your login in the system keyring, and no keyring service is "
 "running. Start one, such as GNOME Keyring or KeePassXC, then restart Babble."
@@ -7685,57 +7685,57 @@ msgstr ""
 "Schlüsselbund-Dienst. Starte einen, etwa GNOME-Schlüsselbund oder KeePassXC, "
 "und starte Babble dann neu."
 
-#: src/window.py:490
+#: src/window.py:493
 msgid "_Learn More"
 msgstr "_Mehr erfahren"
 
 #. Translators: a draft saved earlier is offered for
 #. restoring; %s is a compact age like "5m"
-#: src/window.py:551
+#: src/window.py:554
 #, python-format
 msgid "Draft from %s"
 msgstr "Entwurf von %s"
 
-#: src/window.py:553
+#: src/window.py:556
 msgid "You have an unsent draft"
 msgstr "Du hast einen ungesandten Entwurf"
 
 #. Translators: banner shown while the computer has no network.
-#: src/window.py:571
+#: src/window.py:574
 msgid "You’re offline"
 msgstr "Du bist offline"
 
-#: src/window.py:657
+#: src/window.py:660
 msgid "Remove Account?"
 msgstr "Konto entfernen?"
 
-#: src/window.py:658
+#: src/window.py:661
 #, python-format
 msgid "The login for %s will be removed from this device."
 msgstr "Die Anmeldung für %s wird von diesem Gerät entfernt."
 
-#: src/window.py:737
+#: src/window.py:740
 msgid ""
 "The account was removed from Babble, but the system keyring could not remove "
 "all of its credentials."
 msgstr ""
 
-#: src/window.py:741
+#: src/window.py:744
 #, fuzzy
 msgid "Could not remove all saved credentials"
 msgstr "Der Eintrag konnte nicht entfernt werden"
 
-#: src/window.py:762 src/window.ui:387 src/window.ui:389
+#: src/window.py:765 src/window.ui:387 src/window.ui:389
 msgid "Switch Account"
 msgstr "Konto wechseln"
 
-#: src/window.py:1027
+#: src/window.py:1030
 msgid "Running in the background was not allowed"
 msgstr "Die Ausführung im Hintergrund wurde nicht erlaubt"
 
 #. Translators: status GNOME Shell shows for Babble running in
 #. the background with its window closed.
-#: src/window.py:1100
+#: src/window.py:1103
 #, python-format
 msgid "%d new mention"
 msgid_plural "%d new mentions"
@@ -7743,56 +7743,56 @@ msgstr[0] "%d neue Erwähnung"
 msgstr[1] "%d neue Erwähnungen"
 
 #. Translators: background status: live updates are streaming.
-#: src/window.py:1104
+#: src/window.py:1107
 msgid "Connected"
 msgstr "Verbunden"
 
 #. Translators: background status: no live stream, so Babble polls
 #. the server for new notifications.
-#: src/window.py:1107
+#: src/window.py:1110
 msgid "Checking for notifications"
 msgstr "Nach Benachrichtigungen suchen"
 
-#: src/window.py:1132
+#: src/window.py:1135
 msgid "The quick post shortcut was not allowed"
 msgstr "Der Schnellpost-Shortcut wurde nicht erlaubt"
 
-#: src/window.py:1209
+#: src/window.py:1212
 #, python-format
 msgid "%d unread notification"
 msgid_plural "%d unread notifications"
 msgstr[0] "%d ungelesene Benachrichtigung"
 msgstr[1] "%d ungelesene Benachrichtigungen"
 
-#: src/window.py:1271
+#: src/window.py:1274
 msgid "Sign in to post the file"
 msgid_plural "Sign in to post the files"
 msgstr[0] "Einloggen, um die Datei zu posten"
 msgstr[1] "Einloggen, um die Dateien zu posten"
 
-#: src/window.py:1772
+#: src/window.py:1775
 msgid "Waiting for Authorization"
 msgstr "Warten auf Autorisierung"
 
-#: src/window.py:1774
+#: src/window.py:1777
 #, python-format
 msgid "_Continue with %s"
 msgstr "Mit %s _fortfahren"
 
-#: src/window.py:1776 src/window.ui:233
+#: src/window.py:1779 src/window.ui:233
 msgid "_Continue"
 msgstr "_Fortfahren"
 
-#: src/window.py:1950
+#: src/window.py:1953
 msgid "No app is set to open web links"
 msgstr "Keine Anwendung ist zum Öffnen von Weblinks eingerichtet"
 
-#: src/window.py:1979
+#: src/window.py:1982
 msgid "Could not connect to the server"
 msgstr "Verbindung zum Server fehlgeschlagen"
 
 #. Translators: keep "https://" untranslated
-#: src/window.py:1981
+#: src/window.py:1984
 msgid ""
 "Babble only connects over HTTPS. Enter the server address without a scheme, "
 "or with https://."
@@ -7800,11 +7800,11 @@ msgstr ""
 "Babble verbindet sich nur über HTTPS. Geben Sie die Serveradresse ohne "
 "Schema oder mit https:// ein."
 
-#: src/window.py:2044
+#: src/window.py:2047
 msgid "Log Out?"
 msgstr "Abmelden?"
 
-#: src/window.py:2045
+#: src/window.py:2048
 #, python-format
 msgid ""
 "The login for @%s will be signed out on the server and removed from this "
@@ -7813,7 +7813,7 @@ msgstr ""
 "Die Anmeldung für @%s wird auf dem Server abgemeldet und von diesem Gerät "
 "entfernt."
 
-#: src/window.py:2049
+#: src/window.py:2052
 msgid "_Log Out"
 msgstr "_Abmelden"
 
@@ -7916,23 +7916,23 @@ msgstr "#Fedi_Wrapped"
 msgid "Admin Dash_board"
 msgstr "Administrationsübersicht"
 
-#: src/window.ui:640 src/window.ui:664
+#: src/window.ui:645 src/window.ui:669
 msgid "_Preferences"
 msgstr "_Einstellungen"
 
-#: src/window.ui:644 src/window.ui:668
+#: src/window.ui:649 src/window.ui:673
 msgid "P_lugins"
 msgstr ""
 
-#: src/window.ui:648 src/window.ui:672
+#: src/window.ui:653 src/window.ui:677
 msgid "_Keyboard Shortcuts"
 msgstr "_Tastenkürzel"
 
-#: src/window.ui:652 src/window.ui:676
+#: src/window.ui:657 src/window.ui:681
 msgid "_Help"
 msgstr "_Hilfe"
 
-#: src/window.ui:656 src/window.ui:680
+#: src/window.ui:661 src/window.ui:685
 msgid "_About Babble"
 msgstr "_Info zu Babble"
 
@@ -8195,12 +8195,91 @@ msgid ""
 msgstr ""
 
 #: plugins/hashpanel/babble_hashpanel.py:293
-#: plugins/wallabag/babble_wallabag.py:451
+#: plugins/nareal/babble_nareal.py:470 plugins/wallabag/babble_wallabag.py:451
 msgid "Use the server’s https:// address"
 msgstr ""
 
 #: plugins/hashpanel/babble_hashpanel.py:304
 msgid "Hashpanel server saved"
+msgstr ""
+
+#. Translators: the first line of a post that invites people to ask
+#. the author questions; a link and a hashtag follow it. Na Real is
+#. the name of a service.
+#: plugins/nareal/babble_nareal.py:220
+msgid "Ask me anything, anonymously, on Na Real:"
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:300
+msgid "Na Real needs JavaScript. Turn it on in Preferences."
+msgstr ""
+
+#. Translators: shown when the Na Real page does not tell
+#. Babble the user's link. Na Real is the name of a service.
+#: plugins/nareal/babble_nareal.py:325
+msgid "Couldn’t read your Na Real link."
+msgstr ""
+
+#. Translators: a main menu entry that opens the user's
+#. questions on Na Real; the underscore marks the access key.
+#. Na Real is the name of a service.
+#: plugins/nareal/babble_nareal.py:353
+#, fuzzy
+msgid "My _Questions"
+msgstr "Keine Vorschläge"
+
+#. Translators: a main menu entry that starts a post with the
+#. user's Na Real link; the underscore marks the access key.
+#. Na Real is the name of a service.
+#: plugins/nareal/babble_nareal.py:357
+msgid "_Share My Questions Link"
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:366
+#, fuzzy
+msgid "Sign in to Babble first."
+msgstr "Einloggen, um die Datei zu posten"
+
+#. Na Real has never seen this user: signing in from the
+#. dashboard is what creates the page.
+#: plugins/nareal/babble_nareal.py:377
+msgid "You are not on Na Real yet. Sign in from My Questions first."
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:405
+msgid "Anonymous questions for the fediverse"
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:408
+msgid "Open Na Real"
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:438
+msgid ""
+"Na Real is run by each community on its own server. Enter the address of the "
+"one you use."
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:448
+msgid ""
+"Added to the invitation you share from the main menu, and the hashtag that "
+"shows the Na Real banner."
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:474
+msgid "That is your own server. Use the address of a Na Real server."
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:485
+msgid "Na Real server saved"
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:491
+msgid "Use a single hashtag, without spaces"
+msgstr ""
+
+#: plugins/nareal/babble_nareal.py:501
+msgid "Na Real hashtag saved"
 msgstr ""
 
 #: plugins/wallabag/babble_wallabag.py:172
