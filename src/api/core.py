@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Endpoint declarations, the registry, and the one function that sends.
+
+An endpoint is declared once, at import time, with everything the docs say
+about it. A resource module's wrapper then calls `send()` with that
+declaration, so the method and path are never typed twice and
+`Docs/mastodon-compat.md` can be generated from `registry`.
+
+`send()` calls the PUBLIC `MastodonClient.request_async`, which forwards
+unchanged to `_request_async`, and that reaches `_spawn`, the chokepoint
+the `api golden` recorder watches: a request sent here is byte-identical to
+the one the old `<name>_async` wrapper sent. The wrappers use the private
+`_request_async` only for `auth=False` (the OAuth app and token calls),
+which the public method does not offer; those calls are not API endpoints
+of this layer and stay in `mastodon.py`.
+
+No version or scope gating happens here: a caller asks
+`client.is_supported(endpoint.min_version)` before it sends.
+"""
+
+import dataclasses
+from typing import Optional
+
+
+@dataclasses.dataclass(frozen=True)
+class Endpoint:
+    """One Mastodon REST endpoint, as the documentation describes it.
+
+    ``path`` is a template in the code base's ``%`` style (``%s`` for ids,
+    ``%d`` for numbers), relative to /api/v1 or a full ``/api/v2/...``.
+    ``scope`` is the OAuth scope the docs require, or None for a public
+    endpoint (then ``note`` says so). ``min_version`` is the
+    ``api_versions.mastodon`` that added it, or None when unversioned.
+    ``deprecated`` names the replacement when the docs deprecate it.
+    """
+    name: str
+    method: str
+    path: str
+    scope: Optional[str]
+    min_version: Optional[int]
+    docs: str
+    deprecated: Optional[str] = None
+    note: Optional[str] = None
+
+
+registry = {}
+
+
+def declare(name, method, path, scope, min_version, docs, deprecated=None,
+            note=None, into=None):
+    """Create an `Endpoint` and register it under ``name``.
+
+    A duplicate name raises ValueError at import time, so two modules cannot
+    quietly declare the same endpoint. ``into`` is for tests, which use a
+    registry of their own."""
+    target = registry if into is None else into
+    if name in target:
+        raise ValueError('endpoint %r is declared twice' % name)
+    endpoint = Endpoint(name, method, path, scope, min_version, docs,
+                        deprecated, note)
+    target[name] = endpoint
+    return endpoint
+
+
+def send(client, endpoint, *path_args, params=None, form=None,
+         json_body=None, callback=None, cancellable=None):
+    """Format the path with ``path_args`` and queue the call.
+
+    Returns the Gio.Task, like ``request_async``; finish it with
+    :func:`finish`. ``json_body`` is the keyword ``request_async`` takes."""
+    path = endpoint.path % path_args if path_args else endpoint.path
+    return client.request_async(endpoint.method, path, params=params,
+                                form=form, json_body=json_body,
+                                callback=callback, cancellable=cancellable)
+
+
+def finish(client, result):
+    """The decoded JSON body; raises GLib.Error on HTTP errors."""
+    return client.request_finish(result)
