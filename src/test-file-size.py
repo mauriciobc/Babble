@@ -70,12 +70,6 @@ EXCEPTIONS = {
                           'membership.',
     'mastodon.py': 'the API client: OAuth, the keyring, the transport, '
                    'and one method per endpoint the app calls.',
-    'timelinepage.py': 'the TimelinePage view: the list view, the page '
-                      'source, filter routing and reading position. It '
-                      'crossed the limit with the pull-to-refresh spinner '
-                      'and overshoot fix (e28da42), which lands on this '
-                      'widget; shrinking it for 17 lines was not worth a '
-                      'new seam.',
     'hashtags.py': 'the followed-tag list plus a hashtag timeline. '
                    'The timeline is TimelinePage (ARCH-06); the list '
                    'and the saved-definition editor are this module.',

@@ -95,6 +95,7 @@ install_data(
   'timelinebase.py',
   'timelinedata.py',
   'timelinepage.py',
+  'timelinetags.py',
   'homefilters.py',
   'readingposition.py',
   'statusrun.py',
