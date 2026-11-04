@@ -227,14 +227,6 @@
   },
   {
    "file": "src/compose.py",
-   "function": "BabbleComposeView._load_thread",
-   "via": "request_async",
-   "path": "'/statuses/%s' % status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/compose.py",
    "function": "BabbleComposeView._retry_scheduled_removal",
    "via": "request_async",
    "path": "'/scheduled_statuses/%s' % transaction.original_id",
@@ -270,14 +262,6 @@
    "function": "DesktopNotifier._poll",
    "via": "request_async",
    "path": "'/notifications'",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/desktopnotify.py",
-   "function": "_reply",
-   "via": "request_async",
-   "path": "'/statuses/%s' % status_id",
    "layer": "raw",
    "reason": "phase 1: statuses"
   },
@@ -1180,60 +1164,12 @@
    "reason": "phase 2: search"
   },
   {
-   "file": "src/statusactions.py",
-   "function": "QuoteCard._resolve_quoted",
-   "via": "pages.call",
-   "path": "'/statuses/%s' % self.quote['quoted_status_id']",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusactions.py",
-   "function": "StatusActions._reboost",
-   "via": "request_async",
-   "path": "'/statuses/%s/reblog' % item.status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusactions.py",
-   "function": "StatusActions._send_toggle",
-   "via": "request_async",
-   "path": "'/statuses/%s/%s' % (item.status_id, verb)",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._delete",
-   "via": "pages.call",
-   "path": "'/statuses/%s' % item.status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._delete_with_undo.commit",
-   "via": "request_async",
-   "path": "'/statuses/%s' % item.status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
    "file": "src/statusmenu.py",
    "function": "StatusMenuButton._menu_block.block",
    "via": "pages.call",
    "path": "'/accounts/%s/block' % account['id']",
    "layer": "raw",
    "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._menu_edit",
-   "via": "pages.call",
-   "path": "'/statuses/%s/source' % item.status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
   },
   {
    "file": "src/statusmenu.py",
@@ -1250,46 +1186,6 @@
    "path": "'/accounts/%s/unmute' % account['id']",
    "layer": "raw",
    "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._menu_quote_policy",
-   "via": "pages.call",
-   "path": "'/statuses/%s/interaction_policy' % item.status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._menu_revoke_quote.revoke",
-   "via": "pages.call",
-   "path": "'/statuses/%s/quotes/%s/revoke' % (quoted['id'], item.status_id)",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._post_action",
-   "via": "pages.call",
-   "path": "'/statuses/%s/%s' % (item.status_id, action)",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton.toggle_translation",
-   "via": "pages.call",
-   "path": "'/statuses/%s/translate' % item.status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/statusviews.py",
-   "function": "EditHistoryView.refresh",
-   "via": "request_async",
-   "path": "'/statuses/%s/history' % self.status_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
   },
   {
    "file": "src/statusviews.py",
@@ -1355,14 +1251,6 @@
    "path": "'/annual_reports/%d/generate' % year",
    "layer": "helper",
    "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/wrapped.py",
-   "function": "WrappedDialog._top_post",
-   "via": "wrapped._send",
-   "path": "'/statuses/%s' % status_id",
-   "layer": "helper",
-   "reason": "phase 1: statuses"
   },
   {
    "file": "src/wrapped.py",

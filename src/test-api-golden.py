@@ -769,6 +769,13 @@ def wrapper(rec, name, *args, **kwargs):
     getattr(client, name)(*args, callback=lambda *_a: None, **kwargs)
 
 
+def api_wrapper(rec, name, *args, **kwargs):
+    """A `src.api.statuses` function: the client is its first argument."""
+    from src.api import statuses
+    getattr(statuses, name)(rec.client(), *args, callback=lambda *_a: None,
+                            **kwargs)
+
+
 @scenario
 def client_account_wrappers(rec):
     wrapper(rec, 'verify_credentials_async')
@@ -782,14 +789,14 @@ def client_account_wrappers(rec):
 
 @scenario
 def client_status_wrappers(rec):
-    wrapper(rec, 'status_context_async', '100')
-    wrapper(rec, 'favourite_async', '100')
-    wrapper(rec, 'unfavourite_async', '100')
-    wrapper(rec, 'reblog_async', '100')
-    wrapper(rec, 'reblog_async', '100', visibility='private')
-    wrapper(rec, 'unreblog_async', '100')
-    wrapper(rec, 'bookmark_async', '100')
-    wrapper(rec, 'unbookmark_async', '100')
+    api_wrapper(rec, 'context_async', '100')
+    api_wrapper(rec, 'favourite_async', '100')
+    api_wrapper(rec, 'unfavourite_async', '100')
+    api_wrapper(rec, 'reblog_async', '100')
+    api_wrapper(rec, 'reblog_async', '100', visibility='private')
+    api_wrapper(rec, 'unreblog_async', '100')
+    api_wrapper(rec, 'bookmark_async', '100')
+    api_wrapper(rec, 'unbookmark_async', '100')
 
 
 @scenario
@@ -1076,8 +1083,9 @@ def status_stats_view_tabs(rec):
     view = statusviews.StatusStatsView(
         rec.client(), status('100', quotes_count=1), 'favourites')
     rec.settle()
-    for kind, _key, path in statusviews.STATS_TABS:
-        view._make_tab(kind, path % '100')
+    from src.api import statuses
+    for kind, _key in statusviews.STATS_TABS:
+        view._make_tab(kind, statuses.list_path(kind, '100'))
         rec.settle()
 
 

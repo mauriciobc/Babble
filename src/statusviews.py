@@ -10,13 +10,14 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import statuses as api_statuses  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .statustext import format_time, parse_time  # noqa: E402
 
 STATS_TABS = (
-    ('favourites', 'favourites_count', '/statuses/%s/favourited_by'),
-    ('boosts', 'reblogs_count', '/statuses/%s/reblogged_by'),
-    ('quotes', 'quotes_count', '/statuses/%s/quotes'),
+    ('favourites', 'favourites_count'),
+    ('boosts', 'reblogs_count'),
+    ('quotes', 'quotes_count'),
 )
 
 
@@ -44,7 +45,7 @@ class StatusStatsView(Adw.Bin):
         self._builders = {}
         self._built = set()
         self._kinds = []
-        for tab_kind, count_key, path in STATS_TABS:
+        for tab_kind, count_key in STATS_TABS:
             if tab_kind == 'quotes' and 'quotes_count' not in status \
                     and kind != 'quotes':
                 continue
@@ -55,8 +56,9 @@ class StatusStatsView(Adw.Bin):
             page.set_icon_name({'favourites': 'starred-symbolic',
                                 'boosts': 'media-playlist-repeat-symbolic',
                                 'quotes': 'babble-quote-symbolic'}[tab_kind])
+            path = api_statuses.list_path(tab_kind, status_id)
             self._builders[tab_kind] = (
-                lambda k=tab_kind, p=path % status_id: self._make_tab(k, p))
+                lambda k=tab_kind, p=path: self._make_tab(k, p))
 
         if kind not in self._kinds:
             kind = self._kinds[0]
@@ -179,9 +181,8 @@ class EditHistoryView(Adw.Bin):
 
     def refresh(self):
         self.stack.set_visible_child_name('loading')
-        self.client.request_async(
-            'GET', '/statuses/%s/history' % self.status_id,
-            callback=self._on_loaded)
+        api_statuses.history_async(self.client, self.status_id,
+                                   callback=self._on_loaded)
 
     def _on_loaded(self, client, result, _data=None):
         try:

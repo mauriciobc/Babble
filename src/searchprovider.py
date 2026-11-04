@@ -695,12 +695,16 @@ class SearchProvider:
 
     def _open_status(self, win, status_id, status):
         from . import pages
+        from .api import statuses as api_statuses
         if status is not None:
             pages.open_status(win, win.client, status)
             return
-        self._fetch(win, '/statuses/%s' % status_id,
-                    _('Could not open the post'),
-                    lambda data: pages.open_status(win, win.client, data))
+        pages.call_api(
+            win, win.client,
+            lambda cb: api_statuses.get_async(win.client, status_id,
+                                              callback=cb),
+            lambda data: pages.open_status(win, win.client, data),
+            _('Could not open the post'))
 
     @staticmethod
     def _open_search(win, query):

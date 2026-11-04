@@ -14,6 +14,7 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
+from .api import statuses as api_statuses  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .timelinebase import COLUMN_WIDTH  # noqa: E402
 from .timelinedata import StatusItem  # noqa: E402
@@ -268,15 +269,15 @@ class ThreadPage(Adw.Bin):
 
     def load(self):
         self.stack.set_visible_child_name('loading')
-        self.client.status_context_async(self.status['id'],
-                                         self.on_context_loaded)
+        api_statuses.context_async(self.client, self.status['id'],
+                                   callback=self.on_context_loaded)
 
     def on_retry(self, _button):
         self.load()
 
     def on_context_loaded(self, client, result, _user_data=None):
         try:
-            ancestors, descendants = client.status_context_finish(result)
+            ancestors, descendants = api_statuses.context_finish(client, result)
         except GLib.Error as e:
             self.error_page.set_description(
                 summarize_error_markup(e))

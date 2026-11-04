@@ -15,6 +15,7 @@ from gi.repository import (GLib, GObject, Gio,  # noqa: E402
                            Gtk)
 
 from . import pages, pluginhost  # noqa: E402
+from .api import statuses as api_statuses  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
                         )
@@ -363,10 +364,11 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                 self._refresh()
                 self._notify('translated')
 
-        pages.call(self, self.client, 'POST',
-                   '/statuses/%s/translate' % item.status_id, translated,
-                   _('Could not translate'),
-                   form={'lang': ui_language()})
+        pages.call_api(
+            self, self.client,
+            lambda cb: api_statuses.translate_async(
+                self.client, item.status_id, ui_language(), callback=cb),
+            translated, _('Could not translate'))
 
     def _menu_translate(self, *_args):
         self.toggle_translation()
@@ -380,9 +382,11 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             if self.item is item:
                 self._refresh()
 
-        pages.call(self, self.client, 'POST',
-                   '/statuses/%s/%s' % (item.status_id, action), done,
-                   heading)
+        pages.call_api(
+            self, self.client,
+            lambda cb: api_statuses.post_action_async(
+                self.client, item.status_id, action, callback=cb),
+            done, heading)
 
     def _menu_mute_conversation(self, *_args):
         if self.item is None:
@@ -412,10 +416,11 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             if self.item is item:
                 self._refresh()
 
-        pages.call(self, self.client, 'PUT',
-                   '/statuses/%s/interaction_policy' % item.status_id, done,
-                   _('Could not change quote policy'),
-                   form={'quote_approval_policy': value})
+        pages.call_api(
+            self, self.client,
+            lambda cb: api_statuses.interaction_policy_async(
+                self.client, item.status_id, value, callback=cb),
+            done, _('Could not change quote policy'))
 
     def _menu_revoke_quote(self, *_args):
         item = self.item
@@ -430,10 +435,11 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                     self._refresh()
                 self._toast(_('Your post was removed from the quote'))
 
-            pages.call(self, self.client, 'POST',
-                       '/statuses/%s/quotes/%s/revoke'
-                       % (quoted['id'], item.status_id), done,
-                       _('Could not remove your post'))
+            pages.call_api(
+                self, self.client,
+                lambda cb: api_statuses.revoke_quote_async(
+                    self.client, quoted['id'], item.status_id, callback=cb),
+                done, _('Could not remove your post'))
 
         pages.confirm(self, _('Remove Your Post From the Quote?'),
                       _('The quote will no longer show your post.'),
@@ -451,9 +457,11 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                 status['spoiler_text'] = source['spoiler_text']
             _open_composer(self, 'start_edit', status)
 
-        pages.call(self, self.client, 'GET',
-                   '/statuses/%s/source' % item.status_id, loaded,
-                   _('Could not load post for editing'))
+        pages.call_api(
+            self, self.client,
+            lambda cb: api_statuses.source_async(
+                self.client, item.status_id, callback=cb),
+            loaded, _('Could not load post for editing'))
 
     def _menu_delete(self, *_args):
         item = self.item
@@ -514,8 +522,8 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                     pages.report_error(
                         anchor, _('Could not delete post'), error)
 
-            client.request_async(
-                'DELETE', '/statuses/%s' % item.status_id, callback=finished)
+            api_statuses.delete_async(client, item.status_id,
+                                      callback=finished)
 
         hide()
         pages.deferred_action(anchor, _('Post deleted'), commit, restore)
@@ -534,9 +542,11 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             else:
                 self._toast(_('Post deleted'))
 
-        pages.call(self, self.client, 'DELETE',
-                   '/statuses/%s' % item.status_id, done,
-                   _('Could not delete post'))
+        pages.call_api(
+            self, self.client,
+            lambda cb: api_statuses.delete_async(
+                self.client, item.status_id, callback=cb),
+            done, _('Could not delete post'))
 
     def _timeline_page(self):
         widget = self.host() if self.host else self

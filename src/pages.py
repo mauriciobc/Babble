@@ -616,6 +616,23 @@ def call(widget, client, method, path, on_done=None, error_heading=None,
     return client.request_async(method, path, callback=finished, **kwargs)
 
 
+def call_api(widget, client, start, on_done=None, error_heading=None):
+    """`call` for an `api` function: *start(callback)* queues the request
+    (``lambda cb: statuses.get_async(client, id, callback=cb)``), so the
+    path is never spelled here. Same toast on failure."""
+
+    def finished(_client, result, _data=None):
+        try:
+            data = client.request_finish(result)
+        except GLib.Error as error:
+            report_error(widget, error_heading or _('Action failed'), error)
+            return
+        if on_done is not None:
+            on_done(data)
+
+    return start(finished)
+
+
 # Status pages
 
 def configure_empty_page(page, icon_name, title, description):
