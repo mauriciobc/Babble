@@ -28,6 +28,7 @@ from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
 
 from . import emojichooser, pages, portals  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
+from .composequote import QuotePaste  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
                      store_local_draft)
 from .hashtagcompleter import HashtagCompleter, remember  # noqa: E402
@@ -431,7 +432,7 @@ class _ScheduledReplacement:
     message: str
 
 
-class BabbleComposeView(Adw.Bin):
+class BabbleComposeView(QuotePaste, Adw.Bin):
     """Post composer content: header bar with Post, text area, options
     and toolbar. Emits ``changed`` whenever the draft state changes."""
 
@@ -474,6 +475,19 @@ class BabbleComposeView(Adw.Bin):
         # Set while the text view's own paste runs, re-emitted by
         # on_paste_clipboard when the clipboard holds nothing to attach.
         self._paste_through = False
+        # Nonzero while the buffer is written programmatically, so an
+        # inserted lone link is not turned into a quote then.
+        self._in_programmatic_insert = 0
+        # The position the paste is about to insert at, recorded
+        # before the class handler starts its (asynchronous) clipboard
+        # read. The insert handler pairs this with the insertion it
+        # sees; anything else is not a paste and is left as text.
+        self._pre_paste_offset = None
+        self._paste_serial = 0
+        # Bumped on every composer-state change (draft discarded, edit
+        # started, quote cleared), so a link that resolved after the
+        # composer moved on is dropped, not attached.
+        self._quote_state_generation = 0
         _prune_pasted_once()
 
         toolbar_view = Adw.ToolbarView()
@@ -584,6 +598,12 @@ class BabbleComposeView(Adw.Bin):
                                       accepts_tab=False)
         pages.connect_weak(self.text_view, 'paste-clipboard',
                            self.on_paste_clipboard)
+        # A lone link to a post inserted in one go -- a paste, or text
+        # arriving from elsewhere -- is turned into a quote by the
+        # buffer's own insert notification, so plain-text pastes go
+        # through the default handler untouched.
+        pages.connect_weak(self.buffer, 'insert-text',
+                           self._on_text_inserted)
         self.text_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Post Text')])
         # Misspelled words are underlined, with corrections in the
@@ -797,7 +817,7 @@ class BabbleComposeView(Adw.Bin):
         """Put *draft*, a :class:`drafts.Draft`, back into the composer."""
         if not self._valid_draft_settings(draft):
             return False
-        self.buffer.set_text(draft.text)
+        self._set_buffer(draft.text)
         self.visibility_row.set_selected(draft.visibility)
         self._select_language(draft.language_code or LANGUAGES[draft.language][0])
         self.cw_toggle.set_active(draft.cw_visible)
@@ -878,6 +898,8 @@ class BabbleComposeView(Adw.Bin):
         self.scheduled_on_done = None
         self._pending_media_ids = []
         self._scheduled_fields = {}
+        self._quote_state_generation += 1
+        self._pre_paste_offset = None
         self._set_thread(None)
         return True
 
@@ -1008,14 +1030,19 @@ class BabbleComposeView(Adw.Bin):
         self.update_compose_state()
         self.text_view.grab_focus()
 
-    def start_reply(self, status_id, handle, visibility='public'):
+    def start_reply(self, status_id, handle, visibility='public',
+                    parent=None):
         """Push the current draft (if any) and prefill a reply; only one
         level of reply stack is kept, so the prior draft is recovered
         with :meth:`pop_reply_state` on send or cancel.
 
         ``status_id`` None starts a brand-new message (a direct message
         from the conversations page): the draft in progress is kept, not
-        replaced by an empty buffer."""
+        replaced by an empty buffer. ``parent`` is the status being
+        replied to, when the caller has it; a reply to a post that
+        carries a content warning starts behind the same CW, like
+        Phanpy does -- the field is shown based solely on whether the
+        parent already carries one."""
         if not self._accept_transition():
             return False
         new_message = status_id is None and not handle
@@ -1025,9 +1052,21 @@ class BabbleComposeView(Adw.Bin):
             if not self.is_empty():
                 self._draft_stack = [previous]
         else:
-            self.buffer.set_text('' if not handle else '@' + handle + ' ')
+            self._set_buffer('' if not handle else '@' + handle + ' ')
             self.buffer.place_cursor(self.buffer.get_end_iter())
             self._draft_stack = [previous]
+        if status_id is not None and parent is not None:
+            # The reply starts behind the parent's CW, like the CW
+            # behaviour claims to work, and never behind one left over
+            # from the stashed draft: the draft was set aside with its
+            # own CW, and the reply needs the parent's state.
+            parent_cw = parent.get('spoiler_text') or ''
+            if parent_cw:
+                self.cw_toggle.set_active(True)
+                self.spoiler_entry.set_text(parent_cw)
+            else:
+                self.cw_toggle.set_active(False)
+                self.spoiler_entry.set_text('')
         self.in_reply_to_id = str(status_id) if status_id is not None else None
         self._select_visibility(visibility)
         self._finish_begin()
@@ -1042,7 +1081,7 @@ class BabbleComposeView(Adw.Bin):
         acct = account.get('acct') or account.get('username') or ''
         previous = self._capture_state()
         self._clear_submission_mode()
-        self.buffer.set_text('@%s ' % acct)
+        self._set_buffer('@%s ' % acct)
         self.buffer.place_cursor(self.buffer.get_end_iter())
         self.in_reply_to_id = None
         if direct:
@@ -1061,7 +1100,7 @@ class BabbleComposeView(Adw.Bin):
         self._clear_submission_mode()
         if not self.is_empty():
             self._draft_stack = [previous]
-        self.buffer.set_text(text)
+        self._set_buffer(text)
         self.buffer.place_cursor(self.buffer.get_end_iter())
         self.in_reply_to_id = None
         self._finish_begin()
@@ -1098,11 +1137,19 @@ class BabbleComposeView(Adw.Bin):
             attachment['id']
             for attachment in source.get('media_attachments') or []
             if attachment.get('id')]
-        self.buffer.set_text(source.get('text') or '')
+        self._set_buffer(source.get('text') or '')
         self.buffer.place_cursor(self.buffer.get_end_iter())
         spoiler = source.get('spoiler_text') or ''
         self.cw_toggle.set_active(bool(spoiler))
         self.spoiler_entry.set_text(spoiler)
+        if source.get('sensitive'):
+            # The PUT carries a "sensitive" flag only when the caller
+            # sends one, and the server does not keep it from the post
+            # this draft came from -- the same silent loss the CW had.
+            # So the loaded post's flag is carried, as the scheduled
+            # path already does, and there is no way here to *clear*
+            # it: the composer has no control for it.
+            self._scheduled_fields['sensitive'] = True
         self._select_visibility(source.get('visibility') or 'public')
         self.in_reply_to_id = None
         self._draft_stack = []
@@ -1225,7 +1272,7 @@ class BabbleComposeView(Adw.Bin):
             else scheduled.get('scheduled_at')
         self.scheduled_on_done = on_done
         self._pending_media_ids = params['media_ids']
-        self.buffer.set_text(params.get('text') or '')
+        self._set_buffer(params.get('text') or '')
         self.buffer.place_cursor(self.buffer.get_end_iter())
         spoiler = params.get('spoiler_text') or ''
         self.cw_toggle.set_active(bool(spoiler))
@@ -1714,8 +1761,9 @@ class BabbleComposeView(Adw.Bin):
     def on_paste_clipboard(self, text_view):
         """Pasting copied files attaches them, and pasting a bare image
         (a screenshot, an image copied from a browser) saves it and
-        attaches it. Anything that has text pastes as text, the text
-        view's own handler."""
+        attaches it. Text, including a link to a post, goes through the
+        default handler; the buffer-level insert watcher turns a lone
+        post link into a quote."""
         if self._replacement is not None:
             text_view.stop_emission_by_name('paste-clipboard')
             return
@@ -1723,6 +1771,24 @@ class BabbleComposeView(Adw.Bin):
             return
         if self._read_clipboard_media(files=True):
             text_view.stop_emission_by_name('paste-clipboard')
+            return
+        # The text paste is about to run through the default handler;
+        # record where the cursor is so the insert watcher can pair it
+        # with the paste's own insertion (which is asynchronous).
+        # Pasting over a selection never matches this offset (the
+        # selection is deleted before the insertion), so it stays a
+        # plain paste -- the safe direction. If
+        # the paste inserts nothing, the watchdog un-arms the offset so
+        # a later insert cannot be mistaken for the paste.
+        self._pre_paste_offset = self.buffer.get_iter_at_mark(
+            self.buffer.get_insert()).get_offset()
+        # A newer paste owns the offset: the watchdog of an older one
+        # must not un-arm it, so each carries its serial. A second is
+        # allowed for the clipboard read, which a loaded machine can
+        # stretch; past that the paste stays plain text.
+        self._paste_serial += 1
+        GLib.timeout_add(1000, pages.weak_method(
+            self._clear_pre_paste_offset), self._paste_serial)
 
     def _read_clipboard_media(self, files):
         """Start reading the clipboard's files (when *files*) or image to
@@ -1752,6 +1818,16 @@ class BabbleComposeView(Adw.Bin):
             self.text_view.emit('paste-clipboard')
         finally:
             self._paste_through = False
+
+    def _set_buffer(self, text):
+        """Write *text* into the buffer without the quote watcher:
+        programmatic text is not a paste, so a lone link in a restored
+        draft must not become a quote."""
+        self._in_programmatic_insert += 1
+        try:
+            self.buffer.set_text(text)
+        finally:
+            self._in_programmatic_insert -= 1
 
     def _on_paste_files(self, clipboard, result):
         try:
@@ -1825,6 +1901,15 @@ class BabbleComposeView(Adw.Bin):
         window when a widget is not under an overlay, and this same
         lookup is what it would do."""
         overlay = self.get_ancestor(Adw.ToastOverlay)
+        if overlay is None:
+            # The composer's own overlay used to be its child, which
+            # get_ancestor cannot reach: the ancestor lookup always
+            # missed and toasts fell through to the covered window
+            # overlay. get_ancestor finds a dialog's overlay when one
+            # holds us; get_child finds the one we put inside ourselves.
+            child = self.get_child()
+            if isinstance(child, Adw.ToastOverlay):
+                overlay = child
         if overlay is not None:
             overlay.add_toast(toast)
             return
@@ -2057,7 +2142,7 @@ class BabbleComposeView(Adw.Bin):
             number = self._thread.number if self._thread is not None else 1
             self._set_thread(_ThreadProgress(
                 number + 1, None, preview_tail(self.text())))
-            self.buffer.set_text('')
+            self._set_buffer('')
             self.clear_attachments()
             self._pending_media_ids = []
             self.quoted_status_id = None
@@ -2146,7 +2231,7 @@ class BabbleComposeView(Adw.Bin):
             self._finish_posting()
         self.mention_completer.dismiss()
         self.hashtag_completer.dismiss()
-        self.buffer.set_text('')
+        self._set_buffer('')
         self.spoiler_entry.set_text('')
         self.cw_toggle.set_active(False)
         self.poll_toggle.set_active(False)
@@ -2220,8 +2305,10 @@ class ComposeDialog(Adw.Dialog):
     def client(self):
         return self.view.client
 
-    def start_reply(self, status_id, handle, visibility='public'):
-        return self.view.start_reply(status_id, handle, visibility)
+    def start_reply(self, status_id, handle, visibility='public',
+                    parent=None):
+        return self.view.start_reply(status_id, handle, visibility,
+                                     parent=parent)
 
     def start_mention(self, account, direct=False):
         return self.view.start_mention(account, direct=direct)

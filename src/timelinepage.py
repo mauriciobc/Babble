@@ -21,6 +21,7 @@ from .mastodon import summarize_error_markup  # noqa: E402
 
 """The scrolling timeline page and its API source."""
 from .homefilters import HomeFilters
+from .timelinetags import FollowedTags
 from .readingposition import ReadingPosition
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
@@ -28,7 +29,7 @@ from .timelinebase import (
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
     _EMPTY_PAGED_ENVELOPE, id_key)
 from .timelinedata import (
-    BoostCarouselItem, TimelineModel, matching_tag)
+    BoostCarouselItem, TimelineModel)
 
 
 class TimelineFactory(Gtk.SignalListItemFactory):
@@ -163,7 +164,8 @@ def _new_posts_announce_tick(page_ref):
     return GLib.SOURCE_REMOVE
 
 
-class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
+class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
+                   Adw.Bin):
     """Scrollable timeline with infinite scroll, refresh and status pages.
 
     mode: 'home' (authenticated) or 'public'. A custom ``source`` (with
@@ -442,84 +444,6 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
 
     def _on_retry(self, _button):
         self.load()
-
-    def invalidate_followed_tags(self):
-        """Forget the followed tags, so the next page re-reads them."""
-        self._followed_tags = None
-
-    def _note_followed_tags(self, statuses):
-        """Mark posts that reached Home through a followed hashtag."""
-        if not (self.mode == 'home' and self.source is None and statuses):
-            return
-        if self.client.rate_limited():
-            return
-        if self._followed_tags is None:
-            self._followed_waiting.append(statuses)
-            if self._followed_loading:
-                return
-            self._followed_loading = True
-            self.client.request_async('GET', '/followed_tags', {'limit': 200},
-                                      callback=self._on_followed_tags)
-            return
-        self._apply_followed_tags(statuses)
-
-    def _on_followed_tags(self, client, result, _data=None):
-        self._followed_loading = False
-        try:
-            data = client.request_finish(result)
-        except GLib.Error:
-            self._followed_tags = []
-        else:
-            self._followed_tags = sorted(
-                {tag.get('name') for tag in data or () if tag.get('name')},
-                key=str.casefold)
-        waiting = self._followed_waiting
-        self._followed_waiting = []
-        for statuses in waiting:
-            self._apply_followed_tags(statuses)
-
-    def _apply_followed_tags(self, statuses):
-        names = self._followed_tags or ()
-        if not names:
-            return
-        hits = {}
-        authors = []
-        for status in statuses:
-            tag = matching_tag(status, names)
-            if tag is None:
-                continue
-            status_id = str(status.get('id') or '')
-            if not status_id:
-                continue
-            hits[status_id] = tag
-            author_id = str(
-                (status.get('account') or {}).get('id') or '')
-            if author_id and author_id not in authors:
-                authors.append(author_id)
-        if not hits:
-            return
-        # Only authors this page has not already been told about go back to
-        # the server. Paging down a boost-heavy timeline meets the same
-        # boosters over and over, and asking about them again on every page
-        # was a request per page, followed by a full synchronous rebuild of
-        # every row it touched when the answer arrived.
-        unknown = [a for a in authors if a not in self._following_ids]
-        if not unknown:
-            self.model.apply_source_tags(hits, self._following_ids)
-            return
-        self.client.relationships_async(
-            unknown[:40],
-            lambda client, result, _data=None:
-                self._on_tag_relationships(client, result, hits))
-
-    def _on_tag_relationships(self, client, result, hits):
-        try:
-            rels = client.request_finish(result)
-        except GLib.Error:
-            self.model.apply_source_tags(hits, self._following_ids)
-            return
-        self._remember_follows(rels)
-        self.model.apply_source_tags(hits, self._following_ids)
 
     def on_page_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):

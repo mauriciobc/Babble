@@ -6,6 +6,7 @@ and a hashtag page, are turned off when they raise, and leave nothing
 behind once their page or the plugin itself is gone. Exits 77 (skip)
 without a display, or without libpeas 2 and its Python loader."""
 
+import builtins
 import gc
 import http.server
 import os
@@ -14,6 +15,7 @@ import tempfile
 import textwrap
 import threading
 import time
+import weakref
 
 # GLib reads the user directories once; point them at a scratch tree
 # before anything asks.
@@ -22,6 +24,7 @@ os.environ['XDG_CONFIG_HOME'] = os.path.join(scratch, 'config')
 os.environ['XDG_DATA_HOME'] = os.path.join(scratch, 'data')
 plugin_dir = os.path.join(scratch, 'plugins')
 os.environ['BABBLE_PLUGIN_PATH'] = plugin_dir
+os.environ.setdefault('WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS', '1')
 
 import gi  # noqa: E402
 
@@ -184,11 +187,38 @@ write_plugin('netplug', '''
         def got(self, response):
             answers.append(response)
 ''')
+PANEL_PLUGIN = '''
+    from babble import plugin
+
+    contexts = []
+    calls = []
+
+
+    class Menu(plugin.PostMenuExtension):
+        def activate(self):
+            contexts.append(self.context)
+'''
+write_plugin('panelplug', PANEL_PLUGIN)
+write_plugin('panelplug2', PANEL_PLUGIN)
 write_plugin('brokenplug', 'import does_not_exist_anywhere\n')
 write_plugin('oldplug', 'raise SystemExit("must never be imported")\n',
              api_version='0')
 write_plugin('noversion', 'x = 1\n', api_version=None)
 write_plugin('emptyplug', 'x = 1\n')
+MENU_ONLY = '''
+    from babble import plugin
+
+
+    class Menu(plugin.PostMenuExtension):
+        pass
+'''
+IMPORTED = 'import builtins\nbuiltins.REVISION_IMPORTED = True\n'
+write_plugin('revfuture', IMPORTED,
+             extra='X-Babble-Api-Revision=99\n')
+write_plugin('revbad', IMPORTED,
+             extra='X-Babble-Api-Revision=abc\n')
+write_plugin('revabsent', MENU_ONLY)
+write_plugin('revtwo', MENU_ONLY, extra='X-Babble-Api-Revision=2\n')
 write_plugin('raiseplug', '''
     from babble import plugin
 
@@ -250,6 +280,24 @@ check('and is never imported', 'oldplug' not in sys.modules)
 host.set_enabled('noversion', True)
 check('a plugin that names no API version is refused',
       'noversion' not in host.contexts and 'noversion' not in sys.modules)
+host.set_enabled('revfuture', True)
+check('a plugin needing a newer API revision is refused, never imported',
+      'revfuture' not in host.contexts and 'revfuture' not in sys.modules
+      and host.errors.get('revfuture') == 'Needs a newer version of Babble')
+host.set_enabled('revbad', True)
+check('a revision that is not an integer is refused, never imported',
+      'revbad' not in host.contexts and 'revbad' not in sys.modules
+      and host.errors.get('revbad') == 'Needs a newer version of Babble')
+check('neither module was imported',
+      not hasattr(builtins, 'REVISION_IMPORTED'))
+host.set_enabled('revabsent', True)
+check('no revision means 1, which loads',
+      'revabsent' in host.contexts and 'revabsent' not in host.errors)
+host.set_enabled('revtwo', True)
+check('revision 2 loads', 'revtwo' in host.contexts)
+check('the API revision is 2', api.API_REVISION == 2)
+for plugin_id in ('revabsent', 'revtwo'):
+    host.set_enabled(plugin_id, False)
 host.set_enabled('brokenplug', True)
 check('a plugin that fails to import is not loaded, and says why',
       'brokenplug' not in host.contexts
@@ -258,7 +306,8 @@ host.set_enabled('emptyplug', True)
 check('a plugin with no extensions is not kept loaded',
       'emptyplug' not in host.contexts
       and not host.engine.get_plugin_info('emptyplug').is_loaded())
-for plugin_id in ('oldplug', 'noversion', 'brokenplug', 'emptyplug'):
+for plugin_id in ('oldplug', 'noversion', 'brokenplug', 'emptyplug',
+                  'revfuture', 'revbad'):
     host.set_enabled(plugin_id, False)
 
 # The post menu.
@@ -412,6 +461,147 @@ dialog_ref = dialog.weak_ref()
 del dialog, rows
 check('the closed Plugins page is freed', freed(dialog_ref))
 window.destroy()
+
+# Plugin panels: the shared web column, loaded by a plugin. Needs WebKit.
+from src import webcolumn  # noqa: E402
+
+if webcolumn.available():
+    from src import pluginpanel  # noqa: E402
+
+    class _PanelPage(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = b'<title>panel</title><p>hello'
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            pass
+
+    panel_server = http.server.ThreadingHTTPServer(('127.0.0.1', 0),
+                                                   _PanelPage)
+    threading.Thread(target=panel_server.serve_forever, daemon=True).start()
+    PANEL = 'http://127.0.0.1:%d/' % panel_server.server_address[1]
+
+    class PanelHost(Gtk.Window):
+        def __init__(self):
+            super().__init__()
+            self.navigation_view = object()  # what pages.window_of wants
+            self.web_slot = Adw.Bin()
+            self.web_split = Adw.OverlaySplitView(
+                sidebar=self.web_slot, content=Gtk.Button(label='timeline'),
+                show_sidebar=False, sidebar_position=Gtk.PackType.END,
+                collapsed=False, min_sidebar_width=360,
+                max_sidebar_width=720, sidebar_width_fraction=0.45,
+                enable_show_gesture=False)
+            self.set_default_size(1000, 600)
+            self.set_child(self.web_split)
+            webcolumn.watch_split(self.web_split)
+
+    def loaded(column):
+        return not column.view.is_loading() \
+            and (column.view.get_uri() or '').startswith('http')
+
+    panel_host = PanelHost()
+    panel_host.present()
+    spin(until=lambda: panel_host.get_mapped()
+         and panel_host.get_width() > 0, seconds=5)
+    settings.set_boolean('open-links-in-app', False)
+
+    host.set_enabled('panelplug', True)
+    host.set_enabled('panelplug2', True)
+    first_context = sys.modules['panelplug'].contexts[-1]
+    second_context = sys.modules['panelplug2'].contexts[-1]
+
+    panel = first_context.open_panel(panel_host, PANEL, title='Fixture')
+    column = panel_host.web_slot.get_child()
+    check('open_panel shows the column although links open outside',
+          column is not None and panel_host.web_split.get_show_sidebar()
+          and not settings.get_boolean('open-links-in-app'))
+    check('the panel is open on the URL, origin bound',
+          panel.is_open and panel.uri == PANEL
+          and panel.origin == PANEL.rstrip('/'))
+    check('the column loads the panel URL',
+          spin(until=lambda: loaded(column), seconds=10)
+          and column.view.get_uri() == PANEL)
+    check('the given title shows until the page has its own',
+          column.title.get_title() in ('panel', 'Fixture'))
+
+    results = []
+    panel.run_script('1 + 1', lambda *a: results.append(a))
+    check('run_script answers with plain data',
+          spin(until=lambda: results, seconds=5) and results[0] == (2, None))
+
+    # A second panel, from another plugin, ends the first handle.
+    got = []
+    panel.on_message(lambda data: got.append(data))
+    other = second_context.open_panel(panel_host, PANEL)
+    check('a second panel closes the first handle',
+          not panel.is_open and other.is_open
+          and panel_host.web_slot.get_child() is column
+          and column.panel is other)
+    stale = []
+    panel.run_script('1', lambda *a: stale.append(a))
+    panel.load_uri(PANEL + 'x')
+    check('a closed handle does nothing', spin(0.3)
+          and not stale and column.view.get_uri() != PANEL + 'x')
+
+    # An ordinary link in the column ends the panel too.
+    spin(until=lambda: loaded(column), seconds=10)
+    webcolumn.present_web(panel_host, PANEL)
+    check('an ordinary link closes the previous handle', not other.is_open
+          and column.panel is None)
+
+    # Script posted just before the handle closes never calls back.
+    third = first_context.open_panel(panel_host, PANEL)
+    spin(until=lambda: loaded(column), seconds=10)
+    late = []
+    third.on_message(lambda data: late.append(data))
+    third.run_script('window.webkit.messageHandlers.babble.postMessage(1);'
+                     ' 5', lambda *a: late.append(a))
+    third.close()
+    check('closing hides the column', not panel_host.web_split
+          .get_show_sidebar() and panel_host.web_slot.get_child() is None)
+    check('a callback in flight when the handle closed is dropped',
+          spin(0.5) and late == [])
+    del column
+
+    # Disabling the plugin closes its panel and hides the column.
+    fourth = first_context.open_panel(panel_host, PANEL)
+    column = panel_host.web_slot.get_child()
+    column_ref = column.weak_ref()
+    spin(until=lambda: loaded(column), seconds=10)
+    pending = []
+    fourth.run_script('9', lambda *a: pending.append(a))
+    host.set_enabled('panelplug', False)
+    check('disabling the plugin closes its panel and hides the column',
+          not fourth.is_open and not panel_host.web_split.get_show_sidebar()
+          and panel_host.web_slot.get_child() is None)
+    check('and nothing is called back afterwards',
+          spin(0.5) and pending == [])
+    panel_ref = weakref.ref(fourth)
+    del fourth, column, third, panel, other, stale
+    check("the panel's page is freed", freed(column_ref))
+    check('and the handle', freed(panel_ref))
+
+    # No column to show it in: the browser opens and the handle is shut.
+    launched = []
+    real_launch = pages.launch_external
+    pages.launch_external = lambda _widget, uri: launched.append(uri)
+    closed = second_context.open_panel(Gtk.Button(), PANEL)
+    pages.launch_external = real_launch
+    check('without a column the browser opens and the panel is closed',
+          launched == [PANEL] and not closed.is_open)
+    check('a URL that is not http(s) is refused',
+          pluginpanel.origin_of('file:///etc/passwd') == ''
+          and pluginpanel.origin_of('javascript:alert(1)') == '')
+    host.set_enabled('panelplug2', False)
+    panel_host.destroy()
+    panel_server.shutdown()
+else:
+    print('SKIP - panel checks: WebKitGTK 6.0 is not available')
 
 # Quitting deactivates what is left.
 before = good.events.count('menu deactivate')
