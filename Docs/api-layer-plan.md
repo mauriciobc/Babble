@@ -1,0 +1,118 @@
+# API layer plan
+
+*One typed, documented, tested way to talk to Mastodon, used everywhere.*
+
+Status: approved, not started. Starts after the notification-filter fix
+merges (it touches `notifications.py`).
+
+## Problem
+
+74 call sites outside `src/mastodon.py` hand a method and a literal path to
+`request_async` or `pages.call` (about 32 modules; `lists.py` 10,
+`hashtags.py` 6). `mastodon.py` has roughly 20 real endpoint wrappers, and
+the UI mostly ignores them: `statusactions._send_toggle` and
+`profileactions` rebuild the paths the wrappers already define. Nothing
+records, endpoint by endpoint, that method, path, parameters, scope and
+deprecation status match docs.joinmastodon.org. `mastodon.py` is already
+past the 800-line norm, so wrappers cannot simply be added to it.
+
+## Decisions (approved)
+
+1. **Layout.** `src/api/<resource>.py` modules of functions that take the
+   client, each an `<name>_async` / `<name>_finish` pair on the Gio.Task
+   convention. Not mixins on `MastodonClient`.
+2. **Plugins.** `src/plugin.py`'s generic request is unchanged.
+3. **Compliance is in scope**, as its own commits (phase 5).
+4. **Timing.** After the notification-filter fix merges.
+
+## Design
+
+- **Registry.** Each endpoint is declared once: method, path template,
+  required scope, minimum `api_versions.mastodon`, docs URL, deprecation
+  status. The wrapper builds its request from the declaration.
+  `Docs/mastodon-compat.md`'s endpoint table is generated from it.
+- **Escape hatch.** `MastodonClient.request_async` stays for the paging,
+  streaming and plugin internals. UI modules stop calling it.
+- **Gates** go through `client.is_supported(...)` with constants in
+  `src/capabilities.py`, as today.
+- **Conventions kept:** `from .i18n import gettext as _`, `connect_weak`,
+  SPDX headers, 800-line limit, new modules in `src/meson.build`'s install
+  list.
+
+## Enforcement
+
+- **`api boundary`** (new test, `ast`-based, like `module boundary`): fails
+  on any literal Mastodon path passed to `request_async` / `pages.call`
+  outside `src/api/` and `mastodon.py`. Begins with an allow-list of the 74
+  current sites; every phase shrinks it; phase 4 empties it.
+- **`api registry`** (new test): every endpoint has all metadata fields; no
+  deprecated endpoint without a recorded reason; gates use `is_supported`.
+- **Fixture server** (`bench/fixture_server.py`) resolves routes from the
+  registry, so a path typo fails there.
+
+## Behaviour-preserving proof
+
+Before a module moves, a recorder captures `(method, path, query, body)` for
+each of its UI actions (golden request log, committed under `src/` test
+data). After the move the log must be byte-identical. A difference is a
+compliance fix and belongs in phase 5 with its own justification.
+
+## Phases
+
+Each phase is one or more commits on its own branch; Dev, QA and Tech Lead
+roles run in sequence; the main session accepts against the criteria below.
+
+### Phase 0: baseline and audit
+- Full suite under headless mutter; record the pass/skip counts.
+- Inventory every endpoint in use (method, path, caller, params).
+- Audit table: used vs documented (path, method, params, scope, version,
+  deprecation). Output: `Docs/mastodon-api-audit.md`.
+- Golden request recorder and the `api boundary` test with the full
+  allow-list.
+- **Done when:** suite unchanged, audit reviewed, allow-list == 74 sites.
+
+### Phase 1: status and account actions, `mastodon.py` split
+- Create `src/api/` (`statuses`, `accounts`, `relationships`), move the
+  existing wrappers out of `mastodon.py`, keep `mastodon.py` under 800
+  lines.
+- Route `statusactions`, `statusmenu`, `profileactions` through them.
+- **Done when:** golden logs identical, suite green, allow-list shrunk,
+  `mastodon.py` under the limit.
+
+### Phase 2: read paths
+- Lists, hashtags, search, explore, conversations, announcements,
+  notifications, scheduled posts, filters, timelines helpers.
+- **Done when:** as phase 1 for those modules.
+
+### Phase 3: write paths
+- Compose and edit, media, polls, profile edit, reports, admin.
+- **Done when:** as phase 1; multipart/media paths covered by the recorder.
+
+### Phase 4: close
+- Allow-list empty; `api boundary` has no exceptions.
+- `CLAUDE.md` and `Docs/mastodon-compat.md` updated (registry-generated
+  table); remove the "bench-only API" wording.
+- **Done when:** zero raw sites outside the allowed internals.
+
+### Phase 5: compliance fixes
+- One commit per deviation found in phase 0 (deprecated endpoints, wrong
+  parameters, missing version gates, missing scopes). Each states the docs
+  page and the observable change.
+- **Done when:** audit table has no open rows.
+
+## Definition of done (whole plan)
+
+- `meson test -C build -j1` under headless mutter passes at least the
+  phase 0 baseline plus the new tests.
+- `ruff check src/ bench/ plugins/` clean.
+- `api boundary` allow-list is empty.
+- Every endpoint in use appears in the registry and in the audit table.
+- Po tests and `ui strings` pass (no new generic labels).
+
+## Risks
+
+- **Refactor regressions in live UI.** Mitigated by golden logs and one
+  module family per commit.
+- **Docs drift.** Mastodon docs lag the code (docs cover API v11, main is
+  v12); the audit records the source (docs page or server source) per row.
+- **Plugins.** Unchanged API; `plugin boundary` must stay green.
