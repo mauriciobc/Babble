@@ -419,10 +419,14 @@ class InlineEmojiText(Gtk.TextView):
                               buf.get_iter_at_offset(end))
                 self._links.append((start, end, tag.babble_href))
 
-        def emoji_anchor(url):
+        def emoji_anchor(url, shortcode):
             image = Gtk.Image(accessible_role=Gtk.AccessibleRole.PRESENTATION)
             image.set_pixel_size(self._emoji_size)
             image.add_css_class('custom-emoji')
+            # The shortcode as a tooltip, like the reference frontend's
+            # title attribute: a bare emoji image gives no other hint of
+            # what it stands for.
+            image.set_tooltip_text(':%s:' % shortcode)
             EmojiTextures.bind(image, url)
             anchor = self._buffer.create_child_anchor(
                 self._buffer.get_end_iter())
@@ -462,7 +466,7 @@ class InlineEmojiText(Gtk.TextView):
                     put(text[position:match.start()], tag)
                 url = lookup_emoji(emojis, match.group(1))
                 if url:
-                    emoji_anchor(url)
+                    emoji_anchor(url, match.group(1))
                     plain.append(match.group(0))
                 else:
                     put(match.group(0), tag)
