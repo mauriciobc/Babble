@@ -8,9 +8,16 @@ are only %s or %d, an OAuth scope of a known shape (None only with a note
 saying why), a docs URL on docs.joinmastodon.org, an int or None
 `min_version`, and a replacement named whenever `deprecated` is set.
 
-The registry is empty in phase 1a (no wrapper has moved yet), so the
-rules are proved on a synthetic registry: one good endpoint passes, and
-each rule has a bad endpoint that must fail it. This test needs no display.
+Further rules over the whole registry: the docs URL carries an anchor
+(`#...`); no two endpoints share a (method, path) unless the note of one
+says `same request as`; and every endpoint a path accessor hands to a
+paged view (`LISTS`, `PATH_ONLY` of a module) is a GET, because those views
+hard-code GET and a declared POST would never be sent.
+
+The rules are proved on a synthetic registry too: one good endpoint passes,
+and each rule has a bad endpoint that must fail it. The real registry is
+imported from the resource modules and its size is asserted, so the test
+cannot pass by checking nothing. This test needs no display.
 """
 
 import os
@@ -22,6 +29,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.api import core  # noqa: E402
+from src.api import accounts, relationships, statuses  # noqa: E402, F401
+
+RESOURCE_MODULES = (statuses, accounts, relationships)
+MINIMUM_ENDPOINTS = 53
 
 failed = False
 
@@ -44,6 +55,8 @@ PLACEHOLDER = re.compile(r'%.')
 def problems(endpoint):
     """The rules an endpoint breaks, as short names."""
     found = []
+    if isinstance(endpoint.docs, str) and '#' not in endpoint.docs:
+        found.append('docs-anchor')
     if not isinstance(endpoint.name, str) or not endpoint.name.strip():
         found.append('name')
     if endpoint.method not in METHODS:
@@ -80,7 +93,7 @@ good = core.Endpoint('statuses.favourite', 'POST', '/statuses/%s/favourite',
 check('a complete endpoint breaks no rule', problems(good) == [])
 check('a public endpoint with a note is allowed',
       problems(core.Endpoint('x', 'GET', '/instance', None, None,
-                             DOCS + 'methods/instance/',
+                             DOCS + 'methods/instance/#get',
                              note='public, no token needed')) == [])
 
 BAD = {
@@ -95,7 +108,9 @@ BAD = {
                             DOCS + 'x/'),
     'docs': good.__class__('a', 'GET', '/a', 'read', None,
                            'https://example.com/x/'),
-    'min_version': good.__class__('a', 'GET', '/a', 'read', '10', DOCS + 'x/'),
+    'min_version': good.__class__('a', 'GET', '/a', 'read', '10',
+                                  DOCS + 'x/#a'),
+    'docs-anchor': good.__class__('a', 'GET', '/a', 'read', None, DOCS + 'x/'),
     'deprecated': good.__class__('a', 'GET', '/a', 'read', None, DOCS + 'x/',
                                  deprecated=' '),
 }
@@ -136,10 +151,62 @@ check('send without path args leaves the path untouched',
 check('finish returns the client\'s decoded body',
       core.finish(client, 'r') == {'result': 'r'})
 
+
+
+def duplicates(registry):
+    """Names sharing a (method, path), unless one says `same request as`."""
+    seen = {}
+    for endpoint in registry.values():
+        seen.setdefault((endpoint.method, endpoint.path),
+                        []).append(endpoint)
+    return sorted(e.name for group in seen.values() if len(group) > 1
+                  and not any('same request as' in (e.note or '')
+                              for e in group) for e in group)
+
+
+def non_get_lists(modules):
+    """Endpoints a path accessor serves that are not GET."""
+    out = []
+    for module in modules:
+        served = list(getattr(module, 'LISTS', {}).values())
+        served += list(getattr(module, 'PATH_ONLY', ()))
+        out += [e.name for e in served if e.method != 'GET']
+    return out
+
+
+twin = {'a': core.Endpoint('a', 'GET', '/x', 'read', None, DOCS + 'x/#a'),
+        'b': core.Endpoint('b', 'GET', '/x', 'read', None, DOCS + 'x/#b')}
+check('the checker fails a duplicated (method, path)',
+      duplicates(twin) == ['a', 'b'])
+twin['b'] = core.Endpoint('b', 'GET', '/x', 'read', None, DOCS + 'x/#b',
+                          note='same request as a')
+check('a duplicate marked in its note is allowed', duplicates(twin) == [])
+
+
+class FakeModule:
+    LISTS = {'k': core.Endpoint('k', 'POST', '/k', 'read', None,
+                                DOCS + 'x/#k')}
+    PATH_ONLY = ()
+
+
+check('the checker fails a list-served endpoint that is not GET',
+      non_get_lists([FakeModule]) == ['k'])
+
 # The real registry: every declared endpoint passes every rule.
 for name, endpoint in sorted(core.registry.items()):
     check('registry %s: %s' % (name, problems(endpoint) or 'complete'),
           problems(endpoint) == [] and endpoint.name == name)
 print('registry holds %d endpoint(s)' % len(core.registry))
+check('the registry holds at least %d endpoints (it checked %d)'
+      % (MINIMUM_ENDPOINTS, len(core.registry)),
+      len(core.registry) >= MINIMUM_ENDPOINTS)
+check('no two endpoints share a (method, path): %s'
+      % (duplicates(core.registry) or 'none'),
+      duplicates(core.registry) == [])
+check('every list-served endpoint is a GET: %s'
+      % (non_get_lists(RESOURCE_MODULES) or 'all'),
+      non_get_lists(RESOURCE_MODULES) == [])
+check('every resource module serves at least one list',
+      all(getattr(m, 'LISTS', None) for m in RESOURCE_MODULES))
 
 sys.exit(1 if failed else 0)

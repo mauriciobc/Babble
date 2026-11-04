@@ -125,10 +125,10 @@ check('a streamed boost is dropped', '00012' not in ids(page))
 check('a streamed post is kept', '00013' in ids(page))
 
 # Hiding replies from non-follows asks the server who the authors are.
-# The real relationships_finish returns the first entry only (the profile
-# page asks about one account), so the page has to read the whole list
-# with relationships_all_finish; reading the first entry raised and left
-# the page on "loading" forever.
+# The real api.accounts.relationships_finish returns the first entry only
+# (the profile page asks about one account), so the page has to read the
+# whole list with relationships_all_finish; reading the first entry raised
+# and left the page on "loading" forever.
 def reply(number, author, parent=1):
     data = status(number)
     data['in_reply_to_id'] = '%05d' % parent

@@ -6,9 +6,10 @@ The API-layer refactor (Docs/api-layer-plan.md, "Behaviour-preserving
 proof") moves request construction out of the widgets and out of
 ``mastodon.py``. This test records, for each named scenario, every request
 the real UI code (StatusActions, StatusMenuButton, ProfileActions, the
-MastodonClient wrappers) hands to the transport and compares it with the
-committed ``golden/api-requests.json``. After a refactor the log must be
-identical; a difference is a behaviour change.
+`src.api` functions and the MastodonClient transport) hands to the
+transport and compares it with the committed
+``golden/api-requests.json``. After a refactor the log must be identical;
+a difference is a behaviour change.
 
 Nothing touches the network. The recorder replaces the single transport
 chokepoint, ``MastodonClient._spawn(task, message)``, which every request
@@ -761,6 +762,15 @@ def profile_unblock_domain(rec):
     page.confirm_domain_block(False)
 
 
+@scenario
+def profile_unblock_domain_then_undo_blocks(rec):
+    page = page_for(rec, {'domain_blocking': True},
+                    acct='zed@remote.example')
+    page.confirm_domain_block(False)
+    rec.settle()
+    rec.press_undo()
+
+
 # The MastodonClient wrappers
 
 
@@ -1087,10 +1097,28 @@ def status_stats_view_tabs(rec):
     view = statusviews.StatusStatsView(
         rec.client(), status('100', quotes_count=1), 'favourites')
     rec.settle()
-    from src.api import statuses
     for kind, _key in statusviews.STATS_TABS:
-        view._make_tab(kind, statuses.list_path(kind, '100'))
+        view._make_tab(kind, '100')
         rec.settle()
+
+
+@scenario
+def mention_completer_searches_accounts(rec):
+    from src.mentioncompleter import MentionCompleter
+    view = Gtk.TextView()
+    completer = MentionCompleter(rec.client(), view)
+    for token in ('al', 'ada@remote.example'):
+        completer._token = (0, token)
+        completer._search()
+        rec.settle()
+
+
+@scenario
+def fedicollections_fetch_accounts(rec):
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    fedicollections.fetch_accounts(rec.client(), ['7', '8', '7'],
+                                   lambda _accounts: None)
 
 
 # Run

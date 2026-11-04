@@ -56,9 +56,8 @@ class StatusStatsView(Adw.Bin):
             page.set_icon_name({'favourites': 'starred-symbolic',
                                 'boosts': 'media-playlist-repeat-symbolic',
                                 'quotes': 'babble-quote-symbolic'}[tab_kind])
-            path = api_statuses.list_path(tab_kind, status_id)
             self._builders[tab_kind] = (
-                lambda k=tab_kind, p=path: self._make_tab(k, p))
+                lambda k=tab_kind: self._make_tab(k, status_id))
 
         if kind not in self._kinds:
             kind = self._kinds[0]
@@ -72,17 +71,21 @@ class StatusStatsView(Adw.Bin):
         self.title_widget = self.switcher
         self.set_child(self.stack)
 
-    def _make_tab(self, kind, path):
+    def _make_tab(self, kind, status_id):
         if kind == 'favourites':
             return pages.AccountListPage(
-                self.client, path, empty_title=_('No Favorites Yet'))
+                self.client, api_statuses.list_path('favourites', status_id),
+                empty_title=_('No Favorites Yet'))
         if kind == 'boosts':
             return pages.AccountListPage(
-                self.client, path, empty_title=_('No Boosts Yet'))
+                self.client, api_statuses.list_path('boosts', status_id),
+                empty_title=_('No Boosts Yet'))
         from .timelinepage import ApiTimelineSource, TimelinePage
         return TimelinePage(
             self.client, mode='home',
-            source=ApiTimelineSource(self.client, path, paging='link'))
+            source=ApiTimelineSource(
+                self.client, api_statuses.list_path('quotes', status_id),
+                paging='link'))
 
     def _ensure_built(self, kind):
         if kind in self._built or kind not in self._builders:

@@ -93,6 +93,11 @@ Three commits, each leaving `api golden` byte-identical:
   `src/api/relationships.py`: the account wrappers and the follow, block,
   mute, endorse, note, domain-block, follow-request verbs used by
   `profileactions`, `profile`, `relations`, `explore` and `notifications`.
+- Two allow-list entries were relabelled during phase 1 because they were
+  not status or account verbs: `desktopnotify.DesktopNotifier._poll`
+  (`GET /notifications`, "phase 1: statuses" to "phase 2: notifications") and
+  `hashtags.TagRow._on_unfollow.undo` (`/tags/%s/follow`, "phase 1:
+  relationships" to "phase 2: tags").
 - After each commit the `api boundary` allow-list is pruned
   (`BABBLE_BOUNDARY_PRUNE=1`) and the diff reviewed.
 - `mastodon.py` is a recorded exception in `src/test-file-size.py`; its size

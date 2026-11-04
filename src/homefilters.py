@@ -76,9 +76,9 @@ class HomeFilters:
             if generation != self._reply_filter_generation:
                 return
             try:
-                # The whole list. relationships_finish returns the first
-                # entry only, for the profile page that asks about one
-                # account; iterating that dict here raised on every reply
+                # The whole list. accounts.relationships_finish returns
+                # the first entry only, for the profile page that asks
+                # about one account; iterating that dict here raised on every reply
                 # from an author not yet asked about, and the page stayed
                 # on "loading" forever.
                 rels = api_accounts.relationships_all_finish(client, result)

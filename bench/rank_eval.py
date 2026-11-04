@@ -457,8 +457,8 @@ def gather(client, known_accounts=(), viewer=None):
         # body is an object -- the account itself, which ``lift`` makes a
         # dict subclass. So this is the account, not the first element of
         # a list: the app reads it the same way
-        # (``account = client.verify_credentials_finish(result)`` then
-        # ``account['instance'] = ...``, auth.py:535).
+        # (``account = api_accounts.verify_credentials_finish(client,
+        # result)`` then ``account['instance'] = ...``, auth.py).
         if viewer:
             gathered['viewer'] = str(viewer)
         else:

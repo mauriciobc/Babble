@@ -515,8 +515,10 @@ def _run(app, client, name, target_id):
         api_statuses.favourite_async(client, target_id, callback=done)
     elif name == 'boost':
         api_statuses.reblog_async(client, target_id, callback=done)
-    else:
+    elif name == 'follow-back':
         api_relationships.follow_async(client, target_id, callback=done)
+    else:
+        raise KeyError(name)
 
 
 def _report_failure(app, name, detail):

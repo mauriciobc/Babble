@@ -603,14 +603,6 @@
    "count": 2
   },
   {
-   "file": "src/mentioncompleter.py",
-   "function": "MentionCompleter.search_request",
-   "via": "hook:search_request",
-   "path": "api_accounts.search_path()",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
    "file": "src/notificationctrl.py",
    "function": "NotificationController.fetch_policy",
    "via": "request_async",
@@ -739,111 +731,6 @@
    "reason": "phase 2: search"
   },
   {
-   "file": "src/profile.py",
-   "function": "ProfilePage._push_accounts",
-   "via": "AccountListPage",
-   "path": "api_accounts.list_path(kind, self.account['id'])",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/profile.py",
-   "function": "ProfilePage.on_endorsements_clicked",
-   "via": "AccountListPage",
-   "path": "api_accounts.list_path('endorsements', self.account['id'])",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/profile.py",
-   "function": "ProfilePage.on_familiar_clicked",
-   "via": "AccountListPage",
-   "path": "api_accounts.familiar_followers_path()",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/profile.py",
-   "function": "ProfilePage.on_follow_clicked",
-   "via": "send_relationship",
-   "path": "'follow'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.confirm_block",
-   "via": "send_relationship",
-   "path": "'block'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.confirm_block",
-   "via": "send_relationship",
-   "path": "'unblock'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.confirm_cancel_request",
-   "via": "send_relationship",
-   "path": "'unfollow'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.confirm_remove_follower",
-   "via": "send_relationship",
-   "path": "'remove_from_followers'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.confirm_unfollow",
-   "via": "send_relationship",
-   "path": "'unfollow'",
-   "layer": "helper",
-   "reason": "phase 1: relationships",
-   "count": 2
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.on_mute",
-   "via": "send_relationship",
-   "path": "'mute'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.on_unmute",
-   "via": "send_relationship",
-   "path": "'unmute'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.set_boosts",
-   "via": "send_relationship",
-   "path": "'follow'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.set_notifying",
-   "via": "send_relationship",
-   "path": "'follow'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
    "file": "src/profileedit.py",
    "function": "ProfileEditDialog.on_save_clicked",
    "via": "multipart_async",
@@ -858,46 +745,6 @@
    "path": "'/profile'",
    "layer": "raw",
    "reason": "phase 3: accounts"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "BlockedAccountsPage.__init__",
-   "via": "super().__init__",
-   "path": "api_relationships.list_path('blocks')",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "BlockedDomainsPage.__init__",
-   "via": "super().__init__",
-   "path": "api_relationships.list_path('domain_blocks')",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "FollowRequestsPage.__init__",
-   "via": "super().__init__",
-   "path": "api_relationships.list_path('follow_requests')",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "MutedAccountsPage.__init__",
-   "via": "super().__init__",
-   "path": "api_relationships.list_path('mutes')",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/report.py",
-   "function": "ReportDialog._build_posts_page",
-   "via": "PagedList",
-   "path": "api_accounts.list_path('statuses', self.account['id'])",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
   },
   {
    "file": "src/report.py",
@@ -962,23 +809,6 @@
    "path": "'/api/v2/search'",
    "layer": "raw",
    "reason": "phase 2: search"
-  },
-  {
-   "file": "src/statusviews.py",
-   "function": "StatusStatsView._make_tab",
-   "via": "AccountListPage",
-   "path": "path",
-   "layer": "helper",
-   "reason": "phase 1: statuses",
-   "count": 2
-  },
-  {
-   "file": "src/statusviews.py",
-   "function": "StatusStatsView._make_tab",
-   "via": "ApiTimelineSource",
-   "path": "path",
-   "layer": "helper",
-   "reason": "phase 1: statuses"
   },
   {
    "file": "src/timelinepage.py",

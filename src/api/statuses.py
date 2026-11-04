@@ -93,7 +93,7 @@ _POST_ACTIONS = {
     'mute': MUTE, 'unmute': UNMUTE, 'pin': PIN, 'unpin': UNPIN,
 }
 # Stats tabs (who favourited, boosted, quoted): the list endpoint of each.
-_LISTS = {
+LISTS = {
     'favourites': FAVOURITED_BY, 'boosts': REBLOGGED_BY, 'quotes': QUOTES,
 }
 
@@ -210,4 +210,4 @@ def post_action_finish(client, result):
 def list_path(kind, status_id):
     """The path of a stats list (``favourites``, ``boosts``, ``quotes``)
     for the paged views, which take a path rather than send a call."""
-    return _LISTS[kind].path % status_id
+    return LISTS[kind].path % status_id

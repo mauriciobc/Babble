@@ -63,17 +63,20 @@ SEARCH = _declare('search', 'GET', '/accounts/search', 'read:accounts',
                   '#search', note='limit is at most 80')
 
 # Lists of accounts or posts a paged view reads, by the name the UI uses.
-_LISTS = {
+# `LISTS` and `PATH_ONLY` are what reaches the wire through a path accessor
+# below and a view that hard-codes GET; `api registry` requires GET of both.
+LISTS = {
     'followers': FOLLOWERS, 'following': FOLLOWING,
     'endorsements': ENDORSEMENTS, 'statuses': STATUSES,
 }
+PATH_ONLY = (FAMILIAR_FOLLOWERS, SEARCH)
 
 
 def list_path(kind, account_id):
     """The path of a paged list of one account (``followers``,
     ``following``, ``endorsements``, ``statuses``) for the views that take
     a path rather than send a call."""
-    return _LISTS[kind].path % account_id
+    return LISTS[kind].path % account_id
 
 
 def familiar_followers_path():

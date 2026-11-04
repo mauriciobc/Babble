@@ -79,15 +79,16 @@ DOMAIN_UNBLOCK = _declare(
     note='Mastodon 1.4.0; DEVIATES (audit RL-7): `domain` is sent in the '
          'query, the docs say form data; fixed in phase 5')
 
-# Verb -> endpoint, for the callers that pick the verb at run time.
-_ACTIONS = {
+# Verb -> endpoint, for the callers that pick the verb at run time (the
+# `api boundary` test reads this table to accept a literal verb).
+ACTIONS = {
     'follow': FOLLOW, 'unfollow': UNFOLLOW,
     'remove_from_followers': REMOVE_FROM_FOLLOWERS,
     'block': BLOCK, 'unblock': UNBLOCK, 'mute': MUTE, 'unmute': UNMUTE,
     'endorse': ENDORSE, 'unendorse': UNENDORSE, 'pin': PIN, 'unpin': UNPIN,
 }
 _REQUESTS = {'authorize': AUTHORIZE, 'reject': REJECT}
-_LISTS = {
+LISTS = {
     'follow_requests': FOLLOW_REQUESTS, 'blocks': BLOCKS, 'mutes': MUTES,
     'domain_blocks': DOMAIN_BLOCKS,
 }
@@ -96,19 +97,19 @@ _LISTS = {
 def list_path(kind):
     """The path of a paged list (``follow_requests``, ``blocks``,
     ``mutes``, ``domain_blocks``) for the views that take a path."""
-    return _LISTS[kind].path
+    return LISTS[kind].path
 
 
 def action_endpoint(operation):
     """The endpoint of *operation*; an unknown one raises KeyError."""
-    return _ACTIONS[operation]
+    return ACTIONS[operation]
 
 
 def action_async(client, account_id, operation, form=None, callback=None,
                  cancellable=None):
     """Send *operation* (a key of the table above) on an account; the
     answer is the relationship. An unknown operation raises KeyError."""
-    return core.send(client, _ACTIONS[operation], account_id, form=form,
+    return core.send(client, ACTIONS[operation], account_id, form=form,
                      callback=callback, cancellable=cancellable)
 
 
@@ -119,7 +120,11 @@ def action_finish(client, result):
 def follow_async(client, account_id, reblogs=None, notify=None,
                  callback=None, cancellable=None):
     """Follow. The form carries only what the caller states: ``reblogs``
-    and ``notify`` are booleans, None leaves the server's default."""
+    and ``notify`` are booleans, None leaves the server's default.
+
+    Unlike the old ``MastodonClient.follow_async``, which always sent
+    ``reblogs`` (default true) and ``notify`` (default false), this sends
+    only the keys given, and with none given sends no form at all."""
     form = {}
     if reblogs is not None:
         form['reblogs'] = 'true' if reblogs else 'false'

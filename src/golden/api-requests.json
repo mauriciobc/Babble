@@ -771,6 +771,27 @@
     "query": []
    }
   ],
+  "fedicollections fetch accounts": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ],
+     [
+      "id[]",
+      "8"
+     ]
+    ]
+   }
+  ],
   "followed hashtags page loads": [
    {
     "body": null,
@@ -893,6 +914,50 @@
     "method": "POST",
     "path": "/api/v1/tags/golden/follow",
     "query": []
+   }
+  ],
+  "mention completer searches accounts": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/search",
+    "query": [
+     [
+      "limit",
+      "6"
+     ],
+     [
+      "q",
+      "al"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/search",
+    "query": [
+     [
+      "limit",
+      "6"
+     ],
+     [
+      "q",
+      "ada@remote.example"
+     ],
+     [
+      "resolve",
+      "true"
+     ]
+    ]
    }
   ],
   "menu block author": [
@@ -1586,6 +1651,56 @@
       "7"
      ]
     ]
+   }
+  ],
+  "profile unblock domain then undo blocks": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/domain_blocks",
+    "query": [
+     [
+      "domain",
+      "remote.example"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/relationships",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "domain",
+       "remote.example"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/domain_blocks",
+    "query": []
    }
   ],
   "profile unblock then undo blocks": [
