@@ -12,6 +12,7 @@ gi.require_version('Gtk', '4.0')
 
 from gi.repository import GLib  # noqa: E402
 
+from .api import accounts as api_accounts  # noqa: E402
 from .timelinebase import FOLLOW_CACHE_LIMIT, _own_account_id  # noqa: E402
 from .timelinedata import (  # noqa: E402
     filter_boosts, filter_replies_from_non_follows)
@@ -80,7 +81,7 @@ class HomeFilters:
                 # account; iterating that dict here raised on every reply
                 # from an author not yet asked about, and the page stayed
                 # on "loading" forever.
-                rels = client.request_finish(result)
+                rels = api_accounts.relationships_all_finish(client, result)
             except GLib.Error:
                 on_done(filter_replies_from_non_follows(
                     statuses, viewer_id, self._following_ids))
@@ -93,7 +94,7 @@ class HomeFilters:
             on_done(filter_replies_from_non_follows(
                 statuses, viewer_id, self._following_ids))
 
-        self.client.relationships_async(ids, loaded)
+        api_accounts.relationships_async(self.client, ids, loaded)
 
     def _fill_filtered(self):
         """Top a filtered page up to one page of posts.

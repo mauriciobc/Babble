@@ -16,6 +16,7 @@ from gi.repository import (Adw, GLib, Gio,  # noqa: E402
 
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
@@ -492,14 +493,14 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         if not unknown:
             self.model.apply_source_tags(hits, self._following_ids)
             return
-        self.client.relationships_async(
-            unknown[:40],
+        api_accounts.relationships_async(
+            self.client, unknown[:40],
             lambda client, result, _data=None:
                 self._on_tag_relationships(client, result, hits))
 
     def _on_tag_relationships(self, client, result, hits):
         try:
-            rels = client.request_finish(result)
+            rels = api_accounts.relationships_all_finish(client, result)
         except GLib.Error:
             self.model.apply_source_tags(hits, self._following_ids)
             return

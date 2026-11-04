@@ -851,6 +851,16 @@ class PagedList(PagedPosts, Adw.Bin):
         the caller's *on_done* then writes. Everything else -- disable,
         report, drop -- is the same.
         """
+        finished = self._row_finished(row, on_done, error_heading, remove)
+        self.client.request_async(method, path, callback=finished, **kwargs)
+
+    def mutate_row_api(self, row, start, on_done=None, error_heading=None,
+                       remove=True):
+        """`mutate_row` for an `api` function: *start(callback)* queues
+        the request, so the path is never spelled here."""
+        start(self._row_finished(row, on_done, error_heading, remove))
+
+    def _row_finished(self, row, on_done, error_heading, remove):
         row.set_sensitive(False)
 
         def finished(_client, result, _data=None):
@@ -866,7 +876,7 @@ class PagedList(PagedPosts, Adw.Bin):
             if on_done is not None:
                 on_done()
 
-        self.client.request_async(method, path, callback=finished, **kwargs)
+        return finished
 
 
 # Accounts

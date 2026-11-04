@@ -27,6 +27,7 @@ gi.require_version('Soup', '3.0')
 
 from gi.repository import Gio, GLib  # noqa: E402
 
+from src.api import accounts  # noqa: E402
 from src.mastodon import (DEFAULT_RATE_LIMIT_SECONDS,  # noqa: E402
                           MastodonClient, parse_reset_instant,
                           server_clock_offset)
@@ -370,7 +371,7 @@ for payload in ({}, [], None, {'access_token': ''}, {'access_token': 7}):
         check('invalid token payload %r is rejected' % payload, False)
 for payload in ({}, [], None, {'id': ''}, {'id': 7}):
     try:
-        client.verify_credentials_finish(Task(payload))
+        accounts.verify_credentials_finish(client, Task(payload))
     except GLib.Error as error:
         check('invalid account payload %r is rejected' % payload,
               error.message == 'The server did not return a valid account.')
@@ -387,7 +388,7 @@ for payload in ([], None, {'client_id': 3}, {'client_id': 'new'},
         check('invalid registration %r is rejected' % payload, False)
 check('valid token and nonnumeric account ID remain accepted',
       client.request_token_finish(Task({'access_token': 'synthetic'}))
-      == 'synthetic' and client.verify_credentials_finish(Task({'id': 'abc'}))
+      == 'synthetic' and accounts.verify_credentials_finish(client, Task({'id': 'abc'}))
       == {'id': 'abc'})
 
 

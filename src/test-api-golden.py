@@ -769,22 +769,26 @@ def wrapper(rec, name, *args, **kwargs):
     getattr(client, name)(*args, callback=lambda *_a: None, **kwargs)
 
 
-def api_wrapper(rec, name, *args, **kwargs):
-    """A `src.api.statuses` function: the client is its first argument."""
-    from src.api import statuses
-    getattr(statuses, name)(rec.client(), *args, callback=lambda *_a: None,
-                            **kwargs)
+def api_wrapper(rec, name, *args, module='statuses', **kwargs):
+    """A `src.api.<module>` function: the client is its first argument."""
+    import importlib
+    api = importlib.import_module('src.api.' + module)
+    getattr(api, name)(rec.client(), *args, callback=lambda *_a: None,
+                       **kwargs)
 
 
 @scenario
 def client_account_wrappers(rec):
-    wrapper(rec, 'verify_credentials_async')
-    wrapper(rec, 'lookup_account_async', 'ada@remote.example')
-    wrapper(rec, 'account_statuses_async', '7', params={'limit': 20})
-    wrapper(rec, 'relationships_async', ['7', '8'])
-    wrapper(rec, 'follow_async', '7')
-    wrapper(rec, 'follow_async', '7', reblogs=False, notify=True)
-    wrapper(rec, 'unfollow_async', '7')
+    api_wrapper(rec, 'verify_credentials_async', module='accounts')
+    api_wrapper(rec, 'lookup_async', 'ada@remote.example', module='accounts')
+    api_wrapper(rec, 'statuses_async', '7', params={'limit': 20},
+                module='accounts')
+    api_wrapper(rec, 'relationships_async', ['7', '8'], module='accounts')
+    api_wrapper(rec, 'follow_async', '7', reblogs=True, notify=False,
+                module='relationships')
+    api_wrapper(rec, 'follow_async', '7', reblogs=False, notify=True,
+                module='relationships')
+    api_wrapper(rec, 'unfollow_async', '7', module='relationships')
 
 
 @scenario

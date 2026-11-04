@@ -15,6 +15,7 @@ from gi.repository import (GLib, GObject, Gio,  # noqa: E402
                            Gtk)
 
 from . import pages, pluginhost  # noqa: E402
+from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
@@ -589,14 +590,19 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
 
         def muted(_data):
             def undo():
-                pages.call(self, client, 'POST',
-                           '/accounts/%s/unmute' % account['id'], None,
-                           _('Unmute failed'))
+                pages.call_api(
+                    self, client,
+                    lambda cb: api_relationships.unmute_async(
+                        client, account['id'], callback=cb),
+                    None, _('Unmute failed'))
 
             self._toast(_('Muted %s') % handle, undo)
 
-        pages.call(self, client, 'POST', '/accounts/%s/mute' % account['id'],
-                   muted, _('Mute failed'))
+        pages.call_api(
+            self, client,
+            lambda cb: api_relationships.mute_async(
+                client, account['id'], callback=cb),
+            muted, _('Mute failed'))
 
     def _menu_block(self, *_args):
         account = self._author()
@@ -605,10 +611,12 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         client, handle = self.client, self.item.handle
 
         def block():
-            pages.call(self, client, 'POST',
-                       '/accounts/%s/block' % account['id'],
-                       lambda _data: self._toast(_('Blocked %s') % handle),
-                       _('Block failed'))
+            pages.call_api(
+                self, client,
+                lambda cb: api_relationships.block_async(
+                    client, account['id'], callback=cb),
+                lambda _data: self._toast(_('Blocked %s') % handle),
+                _('Block failed'))
 
         pages.confirm(
             self, _('Block %s?') % handle,

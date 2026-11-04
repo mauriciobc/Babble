@@ -126,6 +126,8 @@ install_data(
   'api/__init__.py',
   'api/core.py',
   'api/statuses.py',
+  'api/accounts.py',
+  'api/relationships.py',
   install_dir: moduledir / 'api',
 )
 

@@ -21,6 +21,7 @@ from gi.repository import (Adw, Gdk, GLib, GObject, Gtk,  # noqa: E402
 
 from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .profileactions import (ProfileActions,  # noqa: E402
                               endorse_action_names)  # noqa: F401
@@ -127,27 +128,28 @@ class AccountStatuses:
         merged.update(params or {})
         paged = any(key in merged for key in ('max_id', 'since_id', 'min_id'))
         if not self.include_pinned or paged:
-            self.client.account_statuses_async(
-                self.account_id, params=merged, callback=callback)
+            api_accounts.statuses_async(
+                self.client, self.account_id, params=merged,
+                callback=callback)
             return
 
         def pinned_loaded(client, result, _data=None):
             try:
-                pinned = client.account_statuses_finish(result)
+                pinned = api_accounts.statuses_finish(client, result)
             except GLib.Error:
                 pinned = []
             for status in pinned:
                 status['pinned'] = True
             self.pinned_statuses = pinned
-            client.account_statuses_async(self.account_id, params=merged,
-                                          callback=callback)
+            api_accounts.statuses_async(client, self.account_id,
+                                        params=merged, callback=callback)
 
-        self.client.account_statuses_async(
-            self.account_id, params={'pinned': 'true'},
+        api_accounts.statuses_async(
+            self.client, self.account_id, params={'pinned': 'true'},
             callback=pinned_loaded)
 
     def finish(self, result):
-        statuses = self.client.account_statuses_finish(result)
+        statuses = api_accounts.statuses_finish(self.client, result)
         pinned, self.pinned_statuses = self.pinned_statuses, []
         if statuses:
             self.oldest_regular_id = min(s['id'] for s in statuses)
@@ -841,7 +843,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     def _push_accounts(self, title, kind, empty_title):
         page = pages.AccountListPage(
-            self.client, '/accounts/%s/%s' % (self.account['id'], kind),
+            self.client, api_accounts.list_path(kind, self.account['id']),
             empty_title=empty_title)
         self.push_subpage(title, page)
 
@@ -1019,16 +1021,14 @@ class ProfilePage(ProfileActions, Adw.Bin):
             return _on_loaded
 
         if self._signed_in() and not self._is_self():
-            self.client.request_async(
-                'GET', '/accounts/familiar_followers',
-                params={'id[]': [account_id]},
+            api_accounts.familiar_followers_async(
+                self.client, [account_id],
                 callback=handler(self._on_familiar))
-        self.client.request_async(
-            'GET', '/accounts/%s/featured_tags' % account_id,
-            callback=handler(self._on_featured_tags))
-        self.client.request_async(
-            'GET', '/accounts/%s/endorsements' % account_id,
-            params={'limit': 80}, callback=handler(self._on_endorsements))
+        api_accounts.featured_tags_async(
+            self.client, account_id, callback=handler(self._on_featured_tags))
+        api_accounts.endorsements_async(
+            self.client, account_id, params={'limit': 80},
+            callback=handler(self._on_endorsements))
 
     def _on_familiar(self, client, result, _data=None):
         data = _request_result(client, result, self,
@@ -1077,7 +1077,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     def on_familiar_clicked(self, _button):
         page = pages.AccountListPage(
-            self.client, '/accounts/familiar_followers',
+            self.client, api_accounts.familiar_followers_path(),
             params={'id[]': [self.account['id']]}, paginated=False,
             extract=lambda data: (data[0].get('accounts') or [])
             if data else [],
@@ -1131,7 +1131,8 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     def on_endorsements_clicked(self, _row):
         page = pages.AccountListPage(
-            self.client, '/accounts/%s/endorsements' % self.account['id'],
+            self.client,
+            api_accounts.list_path('endorsements', self.account['id']),
             empty_title=_('No Featured Profiles'))
         self.push_subpage(_('Featured Profiles'), page)
 
@@ -1191,8 +1192,6 @@ class ProfilePage(ProfileActions, Adw.Bin):
         rebuild the header when it differs from what is shown."""
         account_id = self.account.get('id')
         generation = self._generation
-        path = '/accounts/verify_credentials' if self._is_self() \
-            else '/accounts/%s' % account_id
 
         def loaded(client, result, _data=None):
             if generation != self._generation:
@@ -1204,7 +1203,11 @@ class ProfilePage(ProfileActions, Adw.Bin):
                 self.account = dict(self.account, **fresh)
                 self.refresh_header(self.account)
 
-        self.client.request_async('GET', path, callback=loaded)
+        if self._is_self():
+            api_accounts.verify_credentials_async(self.client,
+                                                  callback=loaded)
+        else:
+            api_accounts.get_async(self.client, account_id, callback=loaded)
 
     # Relationship
 
@@ -1213,12 +1216,13 @@ class ProfilePage(ProfileActions, Adw.Bin):
             self.update_follow_button()
             self.update_menu()
             return
-        self.client.relationships_async([self.account['id']],
-                                        self.on_relationship_loaded)
+        api_accounts.relationships_async(
+            self.client, [self.account['id']], self.on_relationship_loaded)
 
     def on_relationship_loaded(self, client, result, _user_data=None):
         try:
-            self.relationship = client.relationships_finish(result)
+            self.relationship = api_accounts.relationships_finish(
+                client, result)
             self._relationship_known = True
         except GLib.Error as error:
             # Showing 'Follow' for an account the viewer already follows
@@ -1321,12 +1325,12 @@ class LookupProfilePage(ProfilePage):
 
     def lookup(self):
         self.set_stack_state('loading')
-        self.client.lookup_account_async(self.account['acct'],
-                                         self.on_lookup)
+        api_accounts.lookup_async(self.client, self.account['acct'],
+                                  self.on_lookup)
 
     def on_lookup(self, client, result, _user_data=None):
         try:
-            account = client.lookup_account_finish(result)
+            account = api_accounts.lookup_finish(client, result)
         except GLib.Error as e:
             if e.code == 404 and self._signed_in():
                 self.resolve()

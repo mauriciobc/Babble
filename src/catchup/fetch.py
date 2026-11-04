@@ -7,6 +7,7 @@ import functools
 
 from gi.repository import Gio, GLib, GObject
 
+from ..api import accounts as api_accounts
 from . import pipeline
 
 from .digest import (PAGE_LIMIT, apply_filters, fetch_progress,
@@ -230,11 +231,21 @@ class CatchUpRun:
     # Followed tags, relationships, trends (each degrades, never fails)
 
     def _get(self, path, params, done):
-        if self.aborted:
+        finished = self._reply(path, done)
+        if finished is None:
             return
+        self.client.request_async('GET', path, params=params,
+                                  callback=finished,
+                                  cancellable=self.cancellable)
+
+    def _reply(self, path, done):
+        """The callback of one paged GET keyed by *path*, or None when the
+        run is over or rate limited (then *done* has already been told)."""
+        if self.aborted:
+            return None
         if self.client.rate_limited():
             done(None)
-            return
+            return None
 
         def finished(_client, result, _data=None):
             if self.aborted:
@@ -251,9 +262,7 @@ class CatchUpRun:
             self._more[path] = next_params
             done(data)
 
-        self.client.request_async('GET', path, params=params,
-                                  callback=finished,
-                                  cancellable=self.cancellable)
+        return finished
 
     def _on_followed_tags(self, data):
         # An account may follow more tags than one page holds, and the
@@ -276,8 +285,12 @@ class CatchUpRun:
             return
         batch = self._pending_ids[:RELATIONSHIP_BATCH]
         self._pending_ids = self._pending_ids[RELATIONSHIP_BATCH:]
-        self._get('/accounts/relationships', {'id[]': batch},
-                  self._on_relationships)
+        finished = self._reply(api_accounts.RELATIONSHIPS.path,
+                               self._on_relationships)
+        if finished is not None:
+            api_accounts.relationships_async(
+                self.client, batch, callback=finished,
+                cancellable=self.cancellable)
 
     def _on_relationships(self, data):
         for rel in data or []:

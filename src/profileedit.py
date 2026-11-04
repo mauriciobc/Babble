@@ -15,6 +15,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gdk, GLib, Gio, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 
 DEFAULT_LIMITS = {
@@ -119,14 +120,14 @@ def present_profile_edit(parent, client, account, on_saved=None):
 
     def credentials_loaded(c, result, _data=None):
         try:
-            fresh = c.verify_credentials_finish(result)
+            fresh = api_accounts.verify_credentials_finish(c, result)
         except GLib.Error as error:
             pages.report_error(parent, _('Could not load your profile'),
                                error)
             return
         with_limits(fresh)
 
-    client.verify_credentials_async(credentials_loaded)
+    api_accounts.verify_credentials_async(client, credentials_loaded)
 
 
 class FieldRow(Adw.ExpanderRow):
@@ -711,11 +712,11 @@ class ProfileEditDialog(pages.ToastDialog):
             self.reload()
 
     def reload(self):
-        self.client.verify_credentials_async(self.on_reloaded)
+        api_accounts.verify_credentials_async(self.client, self.on_reloaded)
 
     def on_reloaded(self, client, result, _data=None):
         try:
-            account = client.verify_credentials_finish(result)
+            account = api_accounts.verify_credentials_finish(client, result)
         except GLib.Error as error:
             self.save_failed(error)
             return

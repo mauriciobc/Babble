@@ -18,6 +18,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 
 COMMENT_MAX = 1000
@@ -316,7 +317,7 @@ class ReportDialog(Adw.Dialog):
             return None if dialog is None else dialog._make_post_row(status)
 
         self.posts_list = pages.PagedList(
-            self.client, '/accounts/%s/statuses' % self.account['id'],
+            self.client, api_accounts.list_path('statuses', self.account['id']),
             make_row,
             params={'limit': 20, 'exclude_replies': 'false',
                     'exclude_reblogs': 'true'},

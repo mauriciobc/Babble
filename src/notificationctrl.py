@@ -16,6 +16,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import PagedPosts, push_page  # noqa: E402
 from .statustext import parse_content  # noqa: E402
@@ -113,10 +114,9 @@ class NotificationController:
             self._drain_relationship_queue()
             self._relationships_arrived(instance, arrived)
 
-        client.request_async('GET', '/accounts/relationships',
-                             params={'id[]': [str(actor['id'])
-                                              for _key, actor in batch]},
-                             callback=done)
+        api_accounts.relationships_async(
+            client, [str(actor['id']) for _key, actor in batch],
+            callback=done)
 
     def _relationships_arrived(self, instance, keys):
         """Re-emit the follow rows whose answer just came, so the ones

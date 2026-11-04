@@ -195,14 +195,6 @@
   },
   {
    "file": "src/catchup/fetch.py",
-   "function": "CatchUpRun._next_relationships",
-   "via": "catchup._get",
-   "path": "'/accounts/relationships'",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/catchup/fetch.py",
    "function": "CatchUpRun._on_followed_tags",
    "via": "catchup._get",
    "path": "'/followed_tags'",
@@ -263,15 +255,7 @@
    "via": "request_async",
    "path": "'/notifications'",
    "layer": "raw",
-   "reason": "phase 1: statuses"
-  },
-  {
-   "file": "src/desktopnotify.py",
-   "function": "_run",
-   "via": "request_async",
-   "path": "path % target_id",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
+   "reason": "phase 2: notifications"
   },
   {
    "file": "src/emojichooser.py",
@@ -320,14 +304,6 @@
    "path": "'/suggestions/%s' % self.account['id']",
    "layer": "raw",
    "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/explore.py",
-   "function": "SuggestionRow._on_follow",
-   "via": "request_async",
-   "path": "'/accounts/%s/follow' % self.account['id']",
-   "layer": "raw",
-   "reason": "phase 1: relationships"
   },
   {
    "file": "src/explore.py",
@@ -395,14 +371,6 @@
   },
   {
    "file": "src/fedicollections.py",
-   "function": "CollectionEditDialog._run_search",
-   "via": "fedicollections._send",
-   "path": "'/accounts/search'",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/fedicollections.py",
    "function": "CollectionPage.refresh",
    "via": "fedicollections._send",
    "path": "'/collections/%s' % self.collection_id",
@@ -427,27 +395,11 @@
   },
   {
    "file": "src/fedicollections.py",
-   "function": "CollectionsPage._load_account",
-   "via": "fedicollections._send",
-   "path": "'/accounts/verify_credentials'",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/fedicollections.py",
    "function": "_send",
    "via": "request_async",
    "path": "path",
    "layer": "internal",
    "reason": "phase 4: generic helper internals (_send)"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "fetch_accounts",
-   "via": "fedicollections._send",
-   "path": "'/accounts'",
-   "layer": "helper",
-   "reason": "phase 1: accounts"
   },
   {
    "file": "src/filters.py",
@@ -559,7 +511,7 @@
    "via": "pages.call",
    "path": "'/tags/%s/follow' % quoted",
    "layer": "raw",
-   "reason": "phase 1: relationships"
+   "reason": "phase 2: tags"
   },
   {
    "file": "src/lists.py",
@@ -600,14 +552,6 @@
    "path": "path",
    "layer": "raw",
    "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListEditor._run_search",
-   "via": "request_async",
-   "path": "'/accounts/search'",
-   "layer": "raw",
-   "reason": "phase 1: accounts"
   },
   {
    "file": "src/lists.py",
@@ -662,16 +606,8 @@
    "file": "src/mentioncompleter.py",
    "function": "MentionCompleter.search_request",
    "via": "hook:search_request",
-   "path": "'/accounts/search'",
+   "path": "api_accounts.search_path()",
    "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/notificationctrl.py",
-   "function": "NotificationController._drain_relationship_queue",
-   "via": "request_async",
-   "path": "'/accounts/relationships'",
-   "layer": "raw",
    "reason": "phase 1: accounts"
   },
   {
@@ -721,22 +657,6 @@
    "path": "'/notifications/requests'",
    "layer": "helper",
    "reason": "phase 2: notifications"
-  },
-  {
-   "file": "src/notifications.py",
-   "function": "NotificationRow._answer_request",
-   "via": "request_async",
-   "path": "'/follow_requests/%s/%s' % (item.actors[0]['id'], action)",
-   "layer": "raw",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/notifications.py",
-   "function": "NotificationRow._follow_back",
-   "via": "request_async",
-   "path": "'/accounts/%s/follow' % actor['id']",
-   "layer": "raw",
-   "reason": "phase 1: relationships"
   },
   {
    "file": "src/pages.py",
@@ -822,39 +742,15 @@
    "file": "src/profile.py",
    "function": "ProfilePage._push_accounts",
    "via": "AccountListPage",
-   "path": "'/accounts/%s/%s' % (self.account['id'], kind)",
+   "path": "api_accounts.list_path(kind, self.account['id'])",
    "layer": "helper",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/profile.py",
-   "function": "ProfilePage.load_extras",
-   "via": "request_async",
-   "path": "'/accounts/%s/endorsements' % account_id",
-   "layer": "raw",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/profile.py",
-   "function": "ProfilePage.load_extras",
-   "via": "request_async",
-   "path": "'/accounts/%s/featured_tags' % account_id",
-   "layer": "raw",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/profile.py",
-   "function": "ProfilePage.load_extras",
-   "via": "request_async",
-   "path": "'/accounts/familiar_followers'",
-   "layer": "raw",
    "reason": "phase 1: accounts"
   },
   {
    "file": "src/profile.py",
    "function": "ProfilePage.on_endorsements_clicked",
    "via": "AccountListPage",
-   "path": "'/accounts/%s/endorsements' % self.account['id']",
+   "path": "api_accounts.list_path('endorsements', self.account['id'])",
    "layer": "helper",
    "reason": "phase 1: accounts"
   },
@@ -862,7 +758,7 @@
    "file": "src/profile.py",
    "function": "ProfilePage.on_familiar_clicked",
    "via": "AccountListPage",
-   "path": "'/accounts/familiar_followers'",
+   "path": "api_accounts.familiar_followers_path()",
    "layer": "helper",
    "reason": "phase 1: accounts"
   },
@@ -872,22 +768,6 @@
    "via": "send_relationship",
    "path": "'follow'",
    "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profile.py",
-   "function": "ProfilePage.reload_account",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions._send_profile_action",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
    "reason": "phase 1: relationships"
   },
   {
@@ -949,43 +829,11 @@
   },
   {
    "file": "src/profileactions.py",
-   "function": "ProfileActions.save_private_note",
-   "via": "request_async",
-   "path": "'/accounts/%s/note' % self.account['id']",
-   "layer": "raw",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.send_domain_block",
-   "via": "_send_profile_action",
-   "path": "'/domain_blocks'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.send_relationship",
-   "via": "_send_profile_action",
-   "path": "'/accounts/%s/%s' % (self.account['id'], operation)",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
    "function": "ProfileActions.set_boosts",
    "via": "send_relationship",
    "path": "'follow'",
    "layer": "helper",
    "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/profileactions.py",
-   "function": "ProfileActions.set_endorsed.send",
-   "via": "request_async",
-   "path": "'/accounts/%s/%s' % (self.account['id'], names[attempt])",
-   "layer": "raw",
-   "reason": "phase 1: accounts"
   },
   {
    "file": "src/profileactions.py",
@@ -1015,15 +863,7 @@
    "file": "src/relations.py",
    "function": "BlockedAccountsPage.__init__",
    "via": "super().__init__",
-   "path": "'/blocks'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "BlockedAccountsPage.unblock",
-   "via": "mutate_row",
-   "path": "'/accounts/%s/unblock' % account['id']",
+   "path": "api_relationships.list_path('blocks')",
    "layer": "helper",
    "reason": "phase 1: relationships"
   },
@@ -1031,15 +871,7 @@
    "file": "src/relations.py",
    "function": "BlockedDomainsPage.__init__",
    "via": "super().__init__",
-   "path": "'/domain_blocks'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "BlockedDomainsPage.unblock",
-   "via": "mutate_row",
-   "path": "'/domain_blocks'",
+   "path": "api_relationships.list_path('domain_blocks')",
    "layer": "helper",
    "reason": "phase 1: relationships"
   },
@@ -1047,15 +879,7 @@
    "file": "src/relations.py",
    "function": "FollowRequestsPage.__init__",
    "via": "super().__init__",
-   "path": "'/follow_requests'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "FollowRequestsPage.answer",
-   "via": "mutate_row",
-   "path": "'/follow_requests/%s/%s' % (account['id'], verb)",
+   "path": "api_relationships.list_path('follow_requests')",
    "layer": "helper",
    "reason": "phase 1: relationships"
   },
@@ -1063,15 +887,7 @@
    "file": "src/relations.py",
    "function": "MutedAccountsPage.__init__",
    "via": "super().__init__",
-   "path": "'/mutes'",
-   "layer": "helper",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/relations.py",
-   "function": "MutedAccountsPage.unmute",
-   "via": "mutate_row",
-   "path": "'/accounts/%s/unmute' % account['id']",
+   "path": "api_relationships.list_path('mutes')",
    "layer": "helper",
    "reason": "phase 1: relationships"
   },
@@ -1079,7 +895,7 @@
    "file": "src/report.py",
    "function": "ReportDialog._build_posts_page",
    "via": "PagedList",
-   "path": "'/accounts/%s/statuses' % self.account['id']",
+   "path": "api_accounts.list_path('statuses', self.account['id'])",
    "layer": "helper",
    "reason": "phase 1: accounts"
   },
@@ -1135,25 +951,9 @@
    "file": "src/searchprovider.py",
    "function": "SearchProvider._ensure_index",
    "via": "request_async",
-   "path": "'/accounts/%s/following' % account['id']",
-   "layer": "raw",
-   "reason": "phase 1: accounts"
-  },
-  {
-   "file": "src/searchprovider.py",
-   "function": "SearchProvider._ensure_index",
-   "via": "request_async",
    "path": "'/followed_tags'",
    "layer": "raw",
    "reason": "phase 2: tags"
-  },
-  {
-   "file": "src/searchprovider.py",
-   "function": "SearchProvider._fetch",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 1: statuses"
   },
   {
    "file": "src/searchprovider.py",
@@ -1162,30 +962,6 @@
    "path": "'/api/v2/search'",
    "layer": "raw",
    "reason": "phase 2: search"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._menu_block.block",
-   "via": "pages.call",
-   "path": "'/accounts/%s/block' % account['id']",
-   "layer": "raw",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._menu_mute",
-   "via": "pages.call",
-   "path": "'/accounts/%s/mute' % account['id']",
-   "layer": "raw",
-   "reason": "phase 1: relationships"
-  },
-  {
-   "file": "src/statusmenu.py",
-   "function": "StatusMenuButton._menu_mute.muted.undo",
-   "via": "pages.call",
-   "path": "'/accounts/%s/unmute' % account['id']",
-   "layer": "raw",
-   "reason": "phase 1: relationships"
   },
   {
    "file": "src/statusviews.py",

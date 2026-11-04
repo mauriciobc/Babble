@@ -18,6 +18,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import relationships as api_relationships  # noqa: E402
 from .capabilities import ENDORSE_API_VERSION  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 
@@ -274,9 +275,9 @@ class ProfileActions:
         if self.menu_button is not None:
             self.menu_button.set_sensitive(not busy)
 
-    def _send_profile_action(self, method, path, form=None, params=None,
-                             failed=None, on_failed=None, apply=None,
-                             done=None, undo=None, undo_label=None):
+    def _send_profile_action(self, start, failed=None, on_failed=None,
+                             apply=None, done=None, undo=None,
+                             undo_label=None):
         """One account action: busy, POST, apply, report, toast.
 
         The shape every mutation on this page has -- follow, unfollow,
@@ -285,11 +286,12 @@ class ProfileActions:
         near-identical closures, and the copies had already drifted (one
         refreshes the menu on failure, another does not).
 
-        *apply* receives the decoded body and puts it on the page; the
-        default is a Relationship, which is what
-        ``POST /accounts/:id/<op>`` answers. *done* is the toast text.
-        *undo* is ``(method, path, form, params, label)`` -- the reverse
-        call, offered as a button on the success toast.
+        *start* queues the request: ``start(callback)``, built from an
+        `api` function so no path is spelled here. *apply* receives the
+        decoded body and puts it on the page; the default is a
+        Relationship, which is what an account action answers. *done* is
+        the toast text. *undo* is the *start* of the reverse call, offered
+        as a button on the success toast.
         """
         self._set_busy(True)
 
@@ -314,29 +316,34 @@ class ProfileActions:
             undo_action = None
             if undo is not None:
                 undo_action = lambda: self._send_profile_action(  # noqa: E731
-                    *undo[:4], failed=failed, done=_('Restored'))
+                    undo, failed=failed, done=_('Restored'))
             pages.show_toast(self, done, undo=undo_action,
                              undo_label=undo_label)
 
-        self.client.request_async(method, path, form=form, params=params,
-                                  callback=finished)
+        start(finished)
+
+    def _account_start(self, operation, form=None):
+        """The *start* of an account action, checked against the
+        registry here so a typo fails before the busy state is set."""
+        account_id = self.account['id']
+        client = self.client
+        api_relationships.action_endpoint(operation)
+        return lambda callback: api_relationships.action_async(
+            client, account_id, operation, form=form, callback=callback)
 
     def send_relationship(self, operation, form=None, done=None,
                           failed=None, on_failed=None, undo=None):
-        """POST /accounts/:id/<operation>; the response is the new
-        Relationship. *undo* is ``(operation, form, label)`` for a
+        """An account action (a key of `api.relationships`); the response
+        is the new Relationship. *undo* is ``(operation, form, label)`` for a
         reversible action, offered as a button on the success toast."""
         handle = self._acct()
         undo_spec = None
         undo_label = None
         if undo is not None:
-            undo_spec = ('POST',
-                         '/accounts/%s/%s' % (self.account['id'], undo[0]),
-                         undo[1], None)
+            undo_spec = self._account_start(undo[0], undo[1])
             undo_label = undo[2]
         self._send_profile_action(
-            'POST', '/accounts/%s/%s' % (self.account['id'], operation),
-            form=form,
+            self._account_start(operation, form),
             failed=(failed or _('Action failed: %s')) % handle,
             on_failed=on_failed,
             done=done % handle if done else None,
@@ -353,20 +360,22 @@ class ProfileActions:
             self.update_relationship_ui()
             self.load_relationship()
 
-        method = 'POST' if block else 'DELETE'
-        kwargs = {'form': {'domain': domain}} if block \
-            else {'params': {'domain': domain}}
+        client = self.client
+        send = api_relationships.domain_block_async if block \
+            else api_relationships.domain_unblock_async
+        reverse = api_relationships.domain_unblock_async if block \
+            else api_relationships.domain_block_async
         undo_spec = None
         if undo_label:
-            undo_spec = ('DELETE' if block else 'POST', '/domain_blocks',
-                         {'domain': domain}, None)
+            undo_spec = lambda callback: reverse(  # noqa: E731
+                client, domain, callback=callback)
         self._send_profile_action(
-            method, '/domain_blocks', apply=applied,
+            lambda callback: send(client, domain, callback=callback),
+            apply=applied,
             failed=_('Could not block domain') if block
             else _('Could not unblock domain'),
             done=(_('Blocked %s') if block else _('Unblocked %s')) % domain,
-            undo=undo_spec, undo_label=undo_label,
-            **kwargs)
+            undo=undo_spec, undo_label=undo_label)
 
     def on_mute(self):
         from .profile import present_mute_dialog
@@ -440,9 +449,8 @@ class ProfileActions:
             pages.show_toast(self, done % handle)
 
         def send(attempt):
-            self.client.request_async(
-                'POST', '/accounts/%s/%s' % (self.account['id'],
-                                             names[attempt]),
+            api_relationships.action_async(
+                self.client, self.account['id'], names[attempt],
                 callback=lambda c, r, _d=None: finished(c, r, attempt))
 
         send(0)
@@ -469,7 +477,6 @@ class ProfileActions:
             self.set_relationship(relationship)
             pages.show_toast(self, _('Private note saved'))
 
-        self.client.request_async(
-            'POST', '/accounts/%s/note' % self.account['id'],
-            form={'comment': text}, callback=finished)
+        api_relationships.note_async(self.client, self.account['id'], text,
+                                     callback=finished)
 
