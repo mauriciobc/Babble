@@ -256,9 +256,23 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         self.new_posts_revealer.set_child(self.new_pill)
         self.new_posts_revealer.set_reveal_child(False)
 
+        # Shown while a pull-to-refresh is in flight, so the pull has an
+        # answer even when nothing new comes back.
+        self.refresh_spinner = Gtk.Spinner(spinning=False)
+        self.refresh_spinner.set_size_request(24, 24)
+        self.refresh_spinner.add_css_class('card')
+        self.refresh_revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.CROSSFADE,
+            can_target=False)
+        self.refresh_revealer.set_halign(Gtk.Align.CENTER)
+        self.refresh_revealer.set_valign(Gtk.Align.START)
+        self.refresh_revealer.set_margin_top(12)
+        self.refresh_revealer.set_child(self.refresh_spinner)
+
         self.overlay = Gtk.Overlay()
         self.overlay.set_child(scrolled)
         self.overlay.add_overlay(self.new_posts_revealer)
+        self.overlay.add_overlay(self.refresh_revealer)
 
         self.stack.add_named(self.overlay, 'list')
         self.set_child(self.stack)
@@ -284,6 +298,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         # a list too short to move, which is when nothing else asks.
         connect_weak(scrolled, 'edge-reached', self._on_edge)
         connect_weak(scrolled, 'edge-overshot', self._on_edge)
+        connect_weak(scrolled, 'edge-overshot', self._on_overshoot)
         if autoload:
             self.ensure_loaded()
 
@@ -712,6 +727,25 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         if position == Gtk.PositionType.BOTTOM:
             self.load_older()
 
+    def _on_overshoot(self, _scrolled, position):
+        """Only an overshoot is a pull; reaching the top is not."""
+        if position == Gtk.PositionType.TOP:
+            self.pull_refresh()
+
+    def pull_refresh(self):
+        """A pull at the top: refresh, with a spinner until it ends."""
+        if self.model.loading or self._load_started is False:
+            return
+        self.refresh_spinner.start()
+        self.refresh_revealer.set_reveal_child(True)
+        self.refresh()
+        if not self.model.loading:
+            self._pull_done()
+
+    def _pull_done(self):
+        self.refresh_revealer.set_reveal_child(False)
+        self.refresh_spinner.stop()
+
     def on_scroll_position(self, adjustment):
         if self.on_scroll_near_end(adjustment):
             self.load_older()
@@ -779,5 +813,5 @@ class _RefreshGesture:
             return False
         at_top = adjustment.get_value() <= 0.0
         if at_top and dy < 0:
-            page.refresh()
+            page.pull_refresh()
         return False
