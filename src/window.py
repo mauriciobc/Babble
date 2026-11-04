@@ -1252,13 +1252,14 @@ class BabbleWindow(Adw.ApplicationWindow):
             dialog.present(self)
         return dialog
 
-    def open_compose_reply(self, status_id, handle, visibility='public'):
+    def open_compose_reply(self, status_id, handle, visibility='public',
+                           parent=None):
         """Called by timeline rows to reply to a status while keeping
         any draft in progress."""
         dialog = self.ensure_composer()
         if dialog is None:
             return
-        dialog.start_reply(status_id, handle, visibility)
+        dialog.start_reply(status_id, handle, visibility, parent=parent)
         self.present_composer()
 
     def compose_with_files(self, paths=()):
