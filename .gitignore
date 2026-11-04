@@ -22,3 +22,12 @@ evidence/
 babble.perf.data
 babble.perf.data.old
 babble.syscap
+
+# Agent and harness tooling, not project sources; keep them out of commits.
+.agents/
+.claude/
+.commandcode/
+.hermes/
+.kiro/
+skills/
+skills-lock.json
