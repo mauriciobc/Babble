@@ -70,4 +70,5 @@ src/window.py
 src/window.ui
 src/wrapped.py
 plugins/hashpanel/babble_hashpanel.py
+plugins/nareal/babble_nareal.py
 plugins/wallabag/babble_wallabag.py

@@ -1,0 +1,11 @@
+[Plugin]
+Module=babble_nareal
+Loader=python
+Name=Na Real
+Description=Answer your questions on Na Real and share your link
+Authors=Babble contributors
+Copyright=Copyright © 2026 Babble contributors
+Website=https://codeberg.org/thiagojedi/na-real
+Version=1.0
+X-Babble-Api=1
+X-Babble-Api-Revision=2

@@ -507,6 +507,14 @@ test('hashpanel plugin', python,
   env: fatal_test_env,
   timeout: 60,
 )
+# The shipped Na Real plugin against a fake Na Real on loopback, in a real
+# web column: the exact handle it asks for, the login form filled but never
+# submitted, claimed links, the answer link, the share link and Compartilhar.
+test('nareal plugin', python,
+  args: [files('test-nareal.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
 # Needs no display: the port imports no gi at all.
 test('affinity', python,
   args: [files('test-affinity.py')],
