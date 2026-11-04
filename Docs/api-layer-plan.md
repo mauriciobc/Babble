@@ -100,9 +100,10 @@ roles run in sequence; the main session accepts against the criteria below.
 - **Done when:** zero raw sites outside the allowed internals.
 
 ### Phase 5: compliance fixes
-- Pre-phase-1 or first phase 5 item: fix `send_domain_block` (one word,
-  `applied=` to `apply=`) in its own commit; its two golden scenarios change
-  deliberately. See "Known bugs" in `Docs/mastodon-api-audit.md`.
+- Done before phase 1: `send_domain_block` (`applied=` to `apply=`) and
+  `confirm_domain_block` (`undo=` to `undo_label=`) fixed in their own
+  commit; the two golden scenarios changed deliberately. See "Known bugs" in
+  `Docs/mastodon-api-audit.md`.
 - One commit per deviation found in phase 0 (deprecated endpoints, wrong
   parameters, missing version gates, missing scopes). Each states the docs
   page and the observable change.

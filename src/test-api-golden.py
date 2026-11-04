@@ -29,8 +29,8 @@ do not pass through ``MastodonClient._spawn`` as one UI action: the 429
 retry respawn, the streaming socket, the ``imagecache`` and ``mediaviewer``
 sessions, and the plugin host.
 
-Every scenario must produce at least one request (a ``raised`` outcome does
-not count), unless it is named in ``ALLOW_NO_REQUESTS`` with its reason.
+Every scenario must produce at least one request, unless it is named in
+``ALLOW_NO_REQUESTS`` with its reason.
 
     BABBLE_GOLDEN_UPDATE=1   rewrite golden/api-requests.json
     BABBLE_GOLDEN_MUTATE=1   corrupt one recorded path, to show the test
@@ -93,8 +93,6 @@ failures = []
 # Scenarios that legitimately send no request, each with the reason.
 ALLOW_NO_REQUESTS = {
     'menu delete undone': 'Undo cancels the delete before it is sent',
-    'profile block domain': 'KNOWN BUG: TypeError before any request',
-    'profile unblock domain': 'KNOWN BUG: TypeError before any request',
 }
 
 
@@ -750,34 +748,17 @@ def profile_private_note(rec):
     page.save_private_note(Dialog(), 'a note')
 
 
-def raised(rec, function):
-    """Record an exception as the outcome. send_domain_block passes an
-    ``applied=`` keyword that _send_profile_action does not take, so the
-    domain block raises TypeError before any request: the log pins that
-    as it is today, and a fix shows up as a deliberate difference."""
-    try:
-        function()
-    except Exception as error:  # noqa: BLE001
-        rec.log.append({'raised': type(error).__name__})
-
-
 @scenario
 def profile_block_domain(rec):
-    # KNOWN BUG: send_domain_block passes `applied=` where
-    # _send_profile_action takes `apply=`, so nothing is sent
-    # (Docs/api-layer-plan.md, phase 5 item). Fixing it changes this
-    # scenario on purpose.
     page = page_for(rec, acct='zed@remote.example')
-    raised(rec, lambda: page.confirm_domain_block(True))
+    page.confirm_domain_block(True)
 
 
 @scenario
 def profile_unblock_domain(rec):
-    # KNOWN BUG: same TypeError as profile_block_domain
-    # (Docs/api-layer-plan.md, phase 5 item); changes on purpose when fixed.
     page = page_for(rec, {'domain_blocking': True},
                     acct='zed@remote.example')
-    raised(rec, lambda: page.confirm_domain_block(False))
+    page.confirm_domain_block(False)
 
 
 # The MastodonClient wrappers

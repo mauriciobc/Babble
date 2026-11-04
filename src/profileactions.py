@@ -264,7 +264,7 @@ class ProfileActions:
                 lambda: self.send_domain_block(block, domain),
                 destructive=True)
             return
-        self.send_domain_block(block, domain, undo=_('_Undo'))
+        self.send_domain_block(block, domain, undo_label=_('_Undo'))
 
     # Requests
 
@@ -361,7 +361,7 @@ class ProfileActions:
             undo_spec = ('DELETE' if block else 'POST', '/domain_blocks',
                          {'domain': domain}, None)
         self._send_profile_action(
-            method, '/domain_blocks', applied=applied,
+            method, '/domain_blocks', apply=applied,
             failed=_('Could not block domain') if block
             else _('Could not unblock domain'),
             done=(_('Blocked %s') if block else _('Unblocked %s')) % domain,

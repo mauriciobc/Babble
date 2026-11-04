@@ -55,14 +55,15 @@ See the tally line at the end of section 3: COMPLIANT 105, DEVIATES 4, ACCEPTED-
 
 ### Known bugs (not compliance deviations)
 
-- **Blocking or unblocking a domain from the profile page has never worked.**
-  `ProfileActions.send_domain_block` (`src/profileactions.py` 350-364) passes
-  `applied=` where `_send_profile_action` takes `apply=`, so it raises
-  `TypeError` before any request is sent. The Preferences blocked-domains
-  page unblock (`relations.py`) is a separate path and is unaffected. The
-  golden request log pins both scenarios as sending nothing. Fix: one word,
-  in its own commit, as a pre-phase-1 or first phase 5 item
-  (`Docs/api-layer-plan.md`); the two golden scenarios change deliberately.
+- **FIXED: blocking or unblocking a domain from the profile page never
+  worked.** `ProfileActions.send_domain_block` passed `applied=` where
+  `_send_profile_action` takes `apply=`, and `confirm_domain_block` passed
+  `undo=` where `send_domain_block` takes `undo_label=`, so both actions
+  raised `TypeError` before any request was sent. Fixed in its own commit;
+  the two golden scenarios now record `POST /domain_blocks` (form `domain`)
+  and `DELETE /domain_blocks` (query `domain`), each followed by a
+  relationship reload. The Preferences blocked-domains page unblock
+  (`relations.py`) was a separate path and unaffected.
 
 ### Top deviations to fix in phase 5
 

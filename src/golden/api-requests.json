@@ -1230,7 +1230,37 @@
   ],
   "profile block domain": [
    {
-    "raised": "TypeError"
+    "body": {
+     "form": [
+      [
+       "domain",
+       "remote.example"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/domain_blocks",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/relationships",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
    }
   ],
   "profile endorse 404 falls back to pin": [
@@ -1528,7 +1558,34 @@
   ],
   "profile unblock domain": [
    {
-    "raised": "TypeError"
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/domain_blocks",
+    "query": [
+     [
+      "domain",
+      "remote.example"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/relationships",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
    }
   ],
   "profile unblock then undo blocks": [
