@@ -76,13 +76,30 @@ roles run in sequence; the main session accepts against the criteria below.
 - **Done when:** suite unchanged, audit reviewed, the allow-list reproduces the audit's 83 raw sites plus the helper and
   internal layers (currently 175 entries: 83 raw, 8 internal, 84 helper).
 
-### Phase 1: status and account actions, `mastodon.py` split
-- Create `src/api/` (`statuses`, `accounts`, `relationships`), move the
-  existing wrappers out of `mastodon.py`, keep `mastodon.py` under 800
-  lines.
-- Route `statusactions`, `statusmenu`, `profileactions` through them.
-- **Done when:** golden logs identical, suite green, allow-list shrunk,
-  `mastodon.py` under the limit.
+### Phase 1: status and account actions
+Three commits, each leaving `api golden` byte-identical:
+- **1a core and registry.** `src/api/` package with `core.py` (an `Endpoint`
+  declaration: method, path template, scope, minimum API version, docs URL,
+  deprecation note; and a `send()` that formats the path and calls
+  `client.request_async`, so the golden recorder's chokepoint is unchanged),
+  and an `api registry` test (every endpoint complete, docs URL on
+  docs.joinmastodon.org, valid method, path template placeholders match).
+- **1b statuses.** `src/api/statuses.py`: the status wrappers moved out of
+  `MastodonClient` (favourite, reblog, bookmark, context, post/reply/edit stay
+  for phase 3) plus the verbs `statusactions`, `statusmenu` and `statusviews`
+  build by hand. Callers, `bench/rank_eval.py` and the golden scenarios call
+  the api functions; no compatibility shims left on the client.
+- **1c accounts and relationships.** `src/api/accounts.py` and
+  `src/api/relationships.py`: the account wrappers and the follow, block,
+  mute, endorse, note, domain-block, follow-request verbs used by
+  `profileactions`, `profile`, `relations`, `explore` and `notifications`.
+- After each commit the `api boundary` allow-list is pruned
+  (`BABBLE_BOUNDARY_PRUNE=1`) and the diff reviewed.
+- `mastodon.py` is a recorded exception in `src/test-file-size.py`; its size
+  is not a phase 1 criterion. Moving OAuth and the keyring out of it is an
+  optional later step, not part of this plan.
+- **Done when:** golden identical, suite green, phase 1 allow-list entries
+  gone, no status or account verb path built outside `src/api/`.
 
 ### Phase 2: read paths
 - Lists, hashtags, search, explore, conversations, announcements,
