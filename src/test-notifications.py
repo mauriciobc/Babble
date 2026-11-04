@@ -34,9 +34,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.mastodon import MastodonClient  # noqa: E402
-from src import notificationcopy, pages  # noqa: E402
+from src import filterrules, notificationcopy, pages  # noqa: E402
+from src.mediabox import BlurredPicture  # noqa: E402
+from src.timelinedata import StatusItem  # noqa: E402
 from src.notifications import (NotificationItem, NotificationModel,  # noqa: E402
-                               NotificationPost, NotificationRow,
+                               NotificationPost, NotificationRequestRow,
+                               NotificationRow,
                                NotificationsPage, day_heading,
                                notification_detail, notification_title)
 
@@ -1266,6 +1269,253 @@ check('a content warning stands in for the body it hides',
       desktopnotify.notification_body(
           {'status': {'spoiler_text': 'spoiler',
                       'content': '<p>hidden body</p>'}}) == 'spoiler')
+
+# Server-supplied status filters (Status#filtered, FilterResult) in the
+# notifications context. Timelines honour them through filterrules, and
+# so do the notification rows (NotificationPost.bind) and the request
+# row's preview.
+
+
+def filter_result(title, action, contexts, matches=None):
+    """docs.joinmastodon.org/entities/FilterResult."""
+    return {'filter': {'id': '1', 'title': title, 'context': contexts,
+                       'expires_at': None, 'filter_action': action},
+      'keyword_matches': matches or ['secretword'],
+      'status_matches': None}
+
+
+def filtered_mention(id, body, filtered, media=False):
+    status = {**STATUS, 'id': 'f' + id,
+              'content': '<p>%s</p>' % body, 'filtered': filtered}
+    if media:
+        status['media_attachments'] = [{
+      'id': 'm' + id, 'type': 'image',
+      'url': 'https://example.invalid/a.png',
+      'preview_url': 'https://example.invalid/a.png',
+      'description': 'a picture'}]
+    return make_notification(
+        'f' + id, 'mention', ACTOR2, '2026-10-05T13:%02d:00.000Z' % int(id),
+        status)
+
+
+F_HIDE = filtered_mention('10', 'hidebody secretword', [
+    filter_result('Hide rule', filterrules.HIDE,
+                  [filterrules.NOTIFICATIONS])])
+F_WARN = filtered_mention('11', 'warnbody secretword', [
+    filter_result('Warn rule', 'warn', [filterrules.NOTIFICATIONS])])
+F_BLUR = filtered_mention('12', 'blurbody secretword', [
+    filter_result('Blur rule', filterrules.BLUR,
+                  [filterrules.NOTIFICATIONS])], media=True)
+F_HOME = filtered_mention('13', 'homebody secretword', [
+    filter_result('Home only', filterrules.HIDE, [filterrules.HOME])])
+F_CONTROL = filtered_mention('14', 'controlbody plain', [])
+FILTER_FIXTURES = [F_HIDE, F_WARN, F_BLUR, F_HOME, F_CONTROL]
+
+# The reference the rows should match: the same resolver timelines use.
+check('resolver: hide applies in notifications',
+      filterrules.resolve(F_HIDE['status'], filterrules.NOTIFICATIONS)
+      ['action'] == filterrules.HIDE)
+check('resolver: warn applies in notifications',
+      filterrules.resolve(F_WARN['status'], filterrules.NOTIFICATIONS)
+      ['action'] == 'warn')
+check('resolver: blur applies in notifications',
+      filterrules.resolve(F_BLUR['status'], filterrules.NOTIFICATIONS)
+      ['action'] == filterrules.BLUR)
+check('resolver: a home-only rule does not apply in notifications',
+      filterrules.resolve(F_HOME['status'], filterrules.NOTIFICATIONS)
+      is None)
+
+filter_page = NotificationsPage(client)
+filter_page.model.append_page(FILTER_FIXTURES)
+filter_page.stack.set_visible_child_name('list')
+filter_window = Gtk.Window(child=filter_page, default_width=600,
+                           default_height=1200)
+filter_window.present()
+pump_until(lambda: len(notification_rows(filter_page.list_view)) >= 1, 5)
+pump_until(lambda: len(notification_rows(filter_page.list_view))
+           >= len(FILTER_FIXTURES), 5)
+filter_rows = notification_rows(filter_page.list_view)
+filter_text = ' '.join(visible_text(r) for r in filter_rows)
+
+
+def row_with(marker):
+    return [r for r in filter_rows if marker in visible_text(r)]
+
+
+check('filter fixtures: control row is shown', bool(row_with('controlbody')))
+check('filter fixtures: home-only rule row is shown normally',
+      bool(row_with('homebody')))
+# The contract is StatusRow's (statusrow.py:438-459; test-timeline.py
+# 620-680): the bar reads 'Filtered: <title>' with a 'Show Anyway'
+# button. warn and hide both collapse the card behind it; blur leaves the
+# text readable and covers the media with mediabox.BlurredPicture.
+# Timelines never remove a hide post client-side, so for notifications
+# "absent or collapsed" are both acceptable for hide.
+
+
+def shown_text(widget):
+    """Text of the labels actually mapped on screen."""
+    out = []
+    collect(widget, out)
+    return ' '.join(w.get_text() or '' for w in out
+                    if isinstance(w, Gtk.Label) and w.get_mapped())
+
+
+def filter_bar_texts(widget):
+    out = []
+    collect(widget, out)
+    return [w.get_text() for w in out
+      if isinstance(w, Gtk.Label) and w.get_mapped()
+      and (w.get_text() or '').startswith('Filtered')]
+
+
+def show_anyway_buttons(widget):
+    out = []
+    collect(widget, out)
+    return [w for w in out if isinstance(w, Gtk.Button) and w.get_mapped()
+      and (w.get_label() or '').replace('_', '') == 'Show Anyway']
+
+
+def all_shown_text():
+    return ' '.join(shown_text(r) for r in filter_rows)
+
+
+check('filter fixtures: shown_text sees the control body',
+      'controlbody' in all_shown_text())
+check('hide rule in notifications: body is not readable',
+      'hidebody' not in all_shown_text())
+warn_rows = row_with('Warn rule') or row_with('warnbody')
+check('warn rule in notifications: card collapsed behind '
+      '"Filtered: Warn rule"',
+      bool(warn_rows)
+      and any('Filtered: Warn rule' in filter_bar_texts(r)
+                    for r in warn_rows)
+      and not any('warnbody' in shown_text(r) for r in warn_rows))
+check('warn rule in notifications: the reader can Show Anyway',
+      any(show_anyway_buttons(r) for r in warn_rows))
+revealed = False
+for r in warn_rows:
+    for button in show_anyway_buttons(r):
+        button.emit('clicked')
+        revealed = True
+pump_until(lambda: 'warnbody' in all_shown_text(), 2)
+check('warn rule in notifications: Show Anyway reveals the body',
+      revealed and 'warnbody' in all_shown_text()
+      and not any('Filtered: Warn rule' in filter_bar_texts(r)
+                        for r in warn_rows))
+blur_rows = row_with('blurbody')
+blur_all = []
+for r in blur_rows:
+    collect(r, blur_all)
+blur_pictures = [w for w in blur_all if isinstance(w, BlurredPicture)]
+plain_pictures = [w for w in blur_all if isinstance(w, Gtk.Picture)
+                  and not isinstance(w, BlurredPicture)]
+check('blur rule in notifications: media is a BlurredPicture, text '
+      'stays, bar names the rule',
+      bool(blur_rows) and bool(blur_pictures) and not plain_pictures
+      and any('Filtered: Blur rule' in filter_bar_texts(r)
+                    for r in blur_rows))
+filter_window.destroy()
+
+# (a) an expired rule no longer applies: the row is not collapsed.
+EXPIRED = filter_result('Old rule', 'warn', [filterrules.NOTIFICATIONS])
+EXPIRED['filter']['expires_at'] = '2020-01-01T00:00:00.000Z'
+expired_post = NotificationPost()
+expired_post.bind(StatusItem({**STATUS, 'id': 'x1', 'filtered': [EXPIRED]}))
+check('expired rule: the post is not collapsed',
+      expired_post.content.get_visible()
+      and expired_post.byline.get_visible()
+      and (expired_post.filter_bar is None
+           or not expired_post.filter_bar.get_visible()))
+
+# (b) a rule on the boosted post, not on the wrapper, collapses.
+boost_post = NotificationPost()
+boost_post.bind(StatusItem({
+    **STATUS, 'id': 'x2', 'filtered': [],
+    'reblog': {**STATUS, 'id': 'x3', 'content': '<p>boosted</p>',
+               'filtered': [filter_result('Boost rule', 'warn',
+                                          [filterrules.NOTIFICATIONS])]}}))
+check('filtered boost: collapsed behind the rule title',
+      boost_post.filter_bar is not None
+      and boost_post.filter_bar.get_visible()
+      and boost_post.filter_label.get_text() == 'Filtered: Boost rule'
+      and not boost_post.content.get_visible())
+
+# (c) recycling: one NotificationPost bound to a filtered item, then an
+# unfiltered one with media and a poll, then back.
+RECYCLE_BODY = {
+    **STATUS, 'id': 'x4', 'content': '<p>recycled body</p>',
+    'poll': {'options': [{'title': 'yes', 'votes_count': 1},
+                         {'title': 'no', 'votes_count': 1}],
+             'votes_count': 2},
+    'media_attachments': [{
+        'id': 'mx', 'type': 'image', 'url': 'https://example.invalid/a.png',
+        'preview_url': 'https://example.invalid/a.png',
+        'description': 'a picture'}]}
+rec_filtered = StatusItem({**RECYCLE_BODY, 'filtered': [
+    filter_result('Recycle rule', 'warn', [filterrules.NOTIFICATIONS])]})
+rec_plain = StatusItem({**RECYCLE_BODY, 'id': 'x5', 'filtered': []})
+rec_post = NotificationPost()
+rec_window = Gtk.Window(child=rec_post, default_width=600)
+rec_window.present()
+
+
+def collapsed_now():
+    return (rec_post.filter_bar is not None
+            and rec_post.filter_bar.get_visible()
+            and not rec_post.byline.get_visible()
+            and not rec_post.content.get_visible()
+            and not rec_post.media_box.get_visible()
+            and not rec_post.poll_box.get_visible())
+
+
+def expanded_now():
+    return (rec_post.byline.get_visible() and rec_post.content.get_visible()
+            and rec_post.media_box.get_visible()
+            and rec_post.poll_box.get_visible()
+            and (rec_post.filter_bar is None
+                 or not rec_post.filter_bar.get_visible()))
+
+
+rec_post.bind(rec_filtered)
+check('recycle: a filtered item collapses the post', collapsed_now())
+rec_post.bind(rec_plain)
+pump_until(expanded_now, 2)
+check('recycle: an unfiltered item restores byline, content, media, poll '
+      'and hides the bar',
+      expanded_now() and body_text(rec_post) == 'recycled body')
+rec_post.bind(rec_filtered)
+check('recycle: and back to collapsed again', collapsed_now())
+rec_window.destroy()
+
+# (d) the request row's one-line preview consults the filters too.
+
+
+def request_preview(status):
+    return NotificationRequestRow._preview(status)
+
+
+def with_filter(action):
+    return {**STATUS, 'content': '<p>plain preview</p>',
+            'filtered': [filter_result('Preview rule', action,
+                                       [filterrules.NOTIFICATIONS])]}
+
+
+check('request preview: warn shows the rule title',
+      request_preview(with_filter('warn')) == 'Filtered: Preview rule')
+check('request preview: hide shows the rule title',
+      request_preview(with_filter(filterrules.HIDE))
+      == 'Filtered: Preview rule')
+check('request preview: blur leaves the text',
+      request_preview(with_filter(filterrules.BLUR)) == 'plain preview')
+check('request preview: no filter leaves the text',
+      request_preview({**STATUS, 'content': '<p>plain preview</p>'})
+      == 'plain preview')
+check('request preview: a home-only rule leaves the text',
+      request_preview({**STATUS, 'content': '<p>plain preview</p>',
+                       'filtered': [filter_result(
+                           'Home', filterrules.HIDE, [filterrules.HOME])]})
+      == 'plain preview')
 
 if failures:
     print('%d checks failed' % len(failures))
