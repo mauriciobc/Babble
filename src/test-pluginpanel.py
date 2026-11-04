@@ -149,9 +149,27 @@ for module in ('realplug', 'otherplug'):
 
 
 class Host(Gtk.Window):
+    def present_composer(self):
+        """What BabbleWindow does: None without a session, else the
+        composer whose ``view.prefill_text`` is what compose() calls."""
+        if not self.session:
+            return None
+        composed = self.composed
+
+        class View:
+            def prefill_text(self, text):
+                composed.append(text)
+                return True
+
+        class Dialog:
+            view = View()
+        return Dialog()
+
     def __init__(self):
         super().__init__()
         self.navigation_view = object()  # what pages.window_of looks for
+        self.session = True  # False: nobody signed in
+        self.composed = []
         self.web_slot = Adw.Bin()
         self.web_split = Adw.OverlaySplitView(
             sidebar=self.web_slot, content=Gtk.Button(label='timeline'),
@@ -506,6 +524,49 @@ pw3.toast('late')
 pw3.open_link(LINK)
 check('both are no-ops after the window was destroyed',
       calls == [] and not pw3.is_open)
+
+# compose(): the composer opens in the panel's own window with the text,
+# nothing is returned, and it does nothing once the handle is closed,
+# replaced or its window gone, without a session, or for a non-str.
+cp = fresh(context)
+check('compose opens the composer in the panel\'s window with the text, '
+      'returning nothing',
+      cp.compose('Ask me anything') is None
+      and window.composed == ['Ask me anything'])
+cp.compose(42)
+cp.compose(None)
+cp.compose(b'bytes')
+check('a non-str text does nothing', window.composed == ['Ask me anything'])
+window.session = False
+cp.compose('nobody home')
+check('without a session it does nothing and raises nothing',
+      window.composed == ['Ask me anything'])
+window.session = True
+cp.close()
+cp.compose('late')
+check('after close() compose does nothing', window.composed
+      == ['Ask me anything'])
+cp1 = fresh(context)
+fresh(other_ctx)  # replaces cp1
+spin(0.2)
+cp1.compose('late')
+check('once another panel replaced this one compose does nothing',
+      window.composed == ['Ask me anything'] and not cp1.is_open)
+window.web_slot.get_child().panel.close()
+window4 = Host()
+window4.present()
+spin(until=lambda w=window4: w.get_mapped(), seconds=5)
+cp4 = context.open_panel(window4, LOGIN_URL)
+check('a live panel composes in its own window, not another',
+      cp4.compose('four') is None and window4.composed == ['four']
+      and window.composed == ['Ask me anything'])
+window4.destroy()
+del window4
+gc.collect()
+spin(until=lambda: not cp4.is_open, seconds=5)
+cp4.compose('after destroy')
+check('after the window was destroyed compose does nothing, no exception',
+      not cp4.is_open)
 pages.show_toast, pages.open_link = real_pages
 
 # A window destroyed without dispose_column still ends the handle.

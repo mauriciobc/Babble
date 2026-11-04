@@ -65,6 +65,7 @@ install_data(
   'plugin.py',
   'pluginhost.py',
   'pluginlinks.py',
+  'pluginmenu.py',
   'pluginpanel.py',
   'pluginspage.py',
   'pluginsupport.py',
@@ -476,6 +477,13 @@ test('plugins', python,
 # claimed link clicked inside the web column.
 test('plugin links', python,
   args: [files('test-pluginlinks.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+# A plugin's entries in the main menu of a real window, and
+# Context.compose opening the real composer.
+test('plugin menu', python,
+  args: [files('test-pluginmenu.py')],
   env: plugin_web_env,
   timeout: 120,
 )

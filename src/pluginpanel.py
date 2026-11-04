@@ -119,6 +119,13 @@ class _Panel(api.Panel):
         from . import pages
         pages.open_link(column, str(url), resolve=True)
 
+    def compose(self, text):
+        column = self._column()
+        if not self.is_open or column is None:
+            return
+        from . import pluginmenu
+        pluginmenu.compose(column, text)
+
     def run_script(self, script, callback=None):
         if not self.is_open:
             return

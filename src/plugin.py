@@ -19,6 +19,8 @@ thing it extends:
 
 - :class:`PostMenuExtension`, once per enabled plugin: it is asked for
   menu items each time a post's menu opens.
+- :class:`MainMenuExtension`, once per enabled plugin: it adds entries to
+  a section of the app's main menu.
 - :class:`HashtagPageExtension`, once per open hashtag page: it may give
   the page a banner, which goes when the page does.
 - :class:`LinkExtension`, once per enabled plugin: it claims the links
@@ -152,11 +154,14 @@ class Account:
 
 @dataclass(frozen=True)
 class MenuItem:
-    """An entry a plugin adds to a post's menu.
+    """An entry a plugin adds to a menu: a post's, or the main menu.
 
     *label* is shown as given (use an underscore for the access key);
-    *activate* is called as ``activate(post, widget)``, where *widget* is
-    something on screen to anchor a toast or a dialog to."""
+    *activate* is called as ``activate(subject, widget)``. *subject* is
+    the :class:`Post` the menu opened on for a post menu, and ``None``
+    for the main menu, which is about no post. *widget* is something on
+    screen to anchor a toast or a dialog to (for the main menu, the
+    window)."""
     label: str
     activate: object
 
@@ -200,6 +205,22 @@ class PostMenuExtension(Extension):
     def menu_items(self, post):
         """The entries for *post*, a :class:`Post`: a list of
         :class:`MenuItem`, empty when the plugin has nothing for it."""
+        return []
+
+
+class MainMenuExtension(Extension):
+    """Adds entries to the app's main menu, in a section of their own
+    next to the other app-level entries.
+
+    One instance per enabled plugin, released when the plugin is
+    disabled. Babble asks :meth:`menu_items` whenever it rebuilds the
+    section (a plugin was enabled or disabled, or a window opened), never
+    while the menu is being drawn; keep it quick and do not start network
+    requests there. An entry is called as ``activate(None, window)``."""
+
+    def menu_items(self):
+        """The entries: a list of :class:`MenuItem`, empty when the plugin
+        has nothing to offer right now."""
         return []
 
 
@@ -371,6 +392,18 @@ class Context:
         the browser instead and the Panel returned is already closed."""
         raise NotImplementedError
 
+    def compose(self, widget, text):
+        """Open Babble's composer, in the window *widget* is in, with
+        *text* in it (the way the ``share`` link of a ``web+ap`` URL
+        does). A draft the user had in progress is kept, for the banner
+        above the editor to bring back. Nothing is posted: the user
+        reviews the text and posts it, or not. No widget is returned, on
+        purpose.
+
+        Does nothing, and raises nothing, when *text* is not a ``str``,
+        when there is no window for *widget*, or when nobody is signed in."""
+        raise NotImplementedError
+
     def log(self, message):
         """Write *message* to the journal, marked with the plugin's id."""
         raise NotImplementedError
@@ -445,6 +478,14 @@ class Panel:
         claims is that plugin's (never the user's own server, see
         :class:`LinkExtension`). Does nothing once the handle is closed.
         No widget is exposed, on purpose."""
+        raise NotImplementedError
+
+    def compose(self, text):
+        """:meth:`Context.compose` in the panel's own window: the composer
+        opens with *text* in it and nothing is posted, the user reviews
+        and posts. No widget is exposed. Does nothing once the handle is
+        closed or its column is gone, and when *text* is not a ``str`` or
+        nobody is signed in."""
         raise NotImplementedError
 
     def run_script(self, script, callback=None):

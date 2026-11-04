@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import traceback
+import weakref
 from urllib.parse import urlencode
 
 from gi.repository import GLib, GObject, Gio  # noqa: E402
@@ -42,6 +43,7 @@ SECRET_PREFIX = 'babble-plugin:'
 HTTP_TIMEOUT_SECONDS = 30
 
 _host = None
+_menu_listeners = []  # weak methods, told when the main menu's entries change
 
 
 def _log(level, message, plugin_id=None):
@@ -279,6 +281,12 @@ class _Context(api.Context):
         from . import pages
         pages.open_link(widget, url, resolve=True)
 
+    def compose(self, widget, text):
+        if not self.active:
+            return
+        from . import pluginmenu
+        pluginmenu.compose(widget, text)
+
     def open_panel(self, widget, url, title=None):
         from . import pluginpanel
         panel = pluginpanel.open_panel(self, widget, url, title)
@@ -339,6 +347,7 @@ class PluginHost:
         self.page_classes = {}  # plugin id -> [HashtagPageExtension type]
         self.preference_classes = {}  # plugin id -> [PreferencesExtension]
         self.link_extensions = {}  # plugin id -> [LinkExtension]
+        self.main_extensions = {}  # plugin id -> [MainMenuExtension]
         self.slots = []
         self.errors = {}  # plugin id -> why it is not running
         self._session = None
@@ -411,6 +420,7 @@ class PluginHost:
             if plugin_id not in self.contexts \
                     and plugin_id not in self.errors:
                 self._load(plugin_id)
+        _menu_changed()
 
     def _load(self, plugin_id):
         info = self.engine.get_plugin_info(plugin_id)
@@ -443,9 +453,10 @@ class PluginHost:
                 'Could not be loaded; the system log has the details')
             return
         module = sys.modules.get(info.get_module_name())
-        menu_classes, page_classes, preference_classes, link_classes = \
-            _extension_classes(module)
-        if not menu_classes and not page_classes and not link_classes:
+        menu_classes, page_classes, preference_classes, link_classes, \
+            main_classes = _extension_classes(module)
+        if not (menu_classes or page_classes or link_classes
+                or main_classes):
             self.engine.unload_plugin(info)
             self.errors[plugin_id] = _('Adds nothing Babble can use')
             return
@@ -470,6 +481,14 @@ class PluginHost:
                 return
             links.append(extension)
             context.guard(extension.activate)
+        mains = []
+        self.main_extensions[plugin_id] = mains
+        for cls in main_classes:
+            extension = context.guard(cls, context)
+            if extension is None or not context.active:
+                return
+            mains.append(extension)
+            context.guard(extension.activate)
         for slot in list(self.slots):
             if not context.active:
                 return
@@ -480,7 +499,8 @@ class PluginHost:
         if context is None:
             return
         for extension in self.menu_extensions.pop(plugin_id, []) \
-                + self.link_extensions.pop(plugin_id, []):
+                + self.link_extensions.pop(plugin_id, []) \
+                + self.main_extensions.pop(plugin_id, []):
             context.quietly(extension.deactivate)
             context.release(extension)
         self.page_classes.pop(plugin_id, None)
@@ -523,6 +543,7 @@ class PluginHost:
             self.set_enabled(plugin_id, False)
         else:
             self._unload(plugin_id)
+            _menu_changed()
         if message is not None:
             self.errors[plugin_id] = message  # sync() does not clear it
         return GLib.SOURCE_REMOVE
@@ -531,6 +552,7 @@ class PluginHost:
         """Deactivate every extension, before the windows go."""
         for plugin_id in list(self.contexts):
             self._unload(plugin_id)
+        _menu_changed()
 
     # HTTP
 
@@ -569,6 +591,8 @@ class PluginHost:
                         entries.append((item.label, _menu_activate(
                             context, item, post, widget)))
         return entries
+
+    # Main menu
 
     # Hashtag pages
 
@@ -677,10 +701,10 @@ def _menu_activate(context, item, post, widget):
 
 def _extension_classes(module):
     """The extension classes *module* (a plugin) defines: post menu,
-    hashtag page, preferences and link ones."""
-    menu, page, preferences, link = [], [], [], []
+    hashtag page, preferences, link and main menu ones."""
+    menu, page, preferences, link, main = [], [], [], [], []
     if module is None:
-        return menu, page, preferences, link
+        return menu, page, preferences, link, main
     name = module.__name__
     for value in list(vars(module).values()):
         if not isinstance(value, type) or not (
@@ -699,7 +723,10 @@ def _extension_classes(module):
         elif issubclass(value, api.LinkExtension) \
                 and value is not api.LinkExtension:
             link.append(value)
-    return menu, page, preferences, link
+        elif issubclass(value, api.MainMenuExtension) \
+                and value is not api.MainMenuExtension:
+            main.append(value)
+    return menu, page, preferences, link, main
 
 
 # Entry points for the rest of the app. Each is a no-op while no plugin
@@ -725,6 +752,26 @@ def menu_items(widget, status, instance):
     if _host is None or not _host.menu_extensions:
         return []
     return _host.menu_items(widget, status, instance)
+
+
+def on_menu_changed(callback):
+    """Call *callback*, a bound method held weakly, when plugins were
+    enabled, disabled, loaded or unloaded. Creates no host and imports no
+    libpeas."""
+    _menu_listeners.append(weakref.WeakMethod(callback))
+
+
+def _menu_changed():
+    _menu_listeners[:] = [r for r in _menu_listeners if r() is not None]
+    for ref in list(_menu_listeners):
+        callback = ref()
+        if callback is None:
+            continue
+        try:
+            callback()
+        except Exception:
+            _log(GLib.LogLevelFlags.LEVEL_WARNING,
+                 'main menu: %s' % traceback.format_exc())
 
 
 def attach_hashtag_page(page, hashtag, box):
