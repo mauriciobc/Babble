@@ -111,15 +111,41 @@ Three commits, each leaving `api golden` byte-identical:
   notifications, scheduled posts, filters, timelines helpers.
 - **Done when:** as phase 1 for those modules.
 
+**Carried over from the phase 1 review (do these at the start or end of phase 2):**
+- Collapse the parallel helper pairs into the `start(callback)` form and
+  delete the path-taking versions when their last raw caller goes:
+  `pages.call` / `pages.call_api`, `PagedList.mutate_row` / `mutate_row_api`,
+  `fedicollections._send` / `_send_api`, `catchup/fetch._get` / `_reply`.
+  `call_api` should take an optional `finish=` so an api `*_finish`
+  (validation, tuple unpacking) is honoured instead of bypassed by
+  `client.request_finish`.
+- Converge the naming before it spreads: one name for the table-pick
+  (`ACTIONS`), one keyword (`operation`), one accessor shape
+  (`list_path(kind, *ids)`), for `statuses.toggle_async`/`post_action_async`,
+  `relationships.action_async`/`answer_request_async` and the three
+  `LISTS` tables. Name `lists.py` and `hashtags.py` consistently from the
+  start.
+- Add `core.finish_paged` with the first paged read.
+- Add a `mastodon_version` (release string) field to `Endpoint`, or decide
+  the generated version column comes from `src/capabilities.py`; today
+  `min_version` is None everywhere and versions live in free-text notes.
+
 ### Phase 3: write paths
 - Compose and edit, media, polls, profile edit, reports, admin.
 - **Done when:** as phase 1; multipart/media paths covered by the recorder.
+- `core` has no multipart path yet: add `core.send_multipart` (or a `body=`
+  passthrough) when media upload moves.
 
 ### Phase 4: close
 - Allow-list empty; `api boundary` has no exceptions.
 - `CLAUDE.md` and `Docs/mastodon-compat.md` updated (registry-generated
   table); remove the "bench-only API" wording.
 - **Done when:** zero raw sites outside the allowed internals.
+- Option: replace `MastodonClient.invalid_response` (kept so the translated
+  error text stays out of `src/api`) with a plain `core.InvalidResponse`
+  that the transport or UI layer translates where it catches it.
+- Update the `mastodon.py` entry in `src/test-file-size.py` to whatever it
+  still holds.
 
 ### Phase 5: compliance fixes
 - Done before phase 1: `send_domain_block` (`applied=` to `apply=`) and
