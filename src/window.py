@@ -19,6 +19,7 @@ from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .api import lists as api_lists  # noqa: E402
 from . import pluginmenu  # noqa: E402
 from . import navigation  # noqa: E402
 from . import portals  # noqa: E402
@@ -1564,7 +1565,7 @@ class BabbleWindow(Adw.ApplicationWindow):
 
         def done(_client, result, _data=None):
             try:
-                lists = client.request_finish(result)
+                lists = api_lists.index_finish(client, result)
             except GLib.Error:
                 return
             if client is not self.client:
@@ -1579,7 +1580,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                     page.set_title(title)
                 self.sidebar_rail.set_title('list:%s' % list_id, title)
 
-        client.request_async('GET', '/lists', callback=done)
+        api_lists.index_async(client, callback=done)
 
     def _select_item(self, tag):
         self.sidebar_rail.set_selected(tag)

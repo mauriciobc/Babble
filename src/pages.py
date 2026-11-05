@@ -599,31 +599,21 @@ class ToastDialog(Adw.Dialog):
         self.force_close()
 
 
-def call(widget, client, method, path, on_done=None, error_heading=None,
-         **kwargs):
+def call_api(widget, client, start, on_done=None, error_heading=None,
+             finish=None):
     """Fire one request and hand the decoded body to *on_done(data)*;
-    failures toast *error_heading* (default 'Action failed')."""
+    failures toast *error_heading* (default 'Action failed').
+
+    *start(callback)* queues the request, so the path is never spelled
+    here: ``lambda cb: statuses.get_async(client, id, callback=cb)``.
+    *finish(client, result)* decodes the answer; pass the api module's own
+    ``<name>_finish`` to honour its validation or unpacking. It defaults to
+    ``client.request_finish``."""
+    decode = finish or (lambda c, result: c.request_finish(result))
 
     def finished(_client, result, _data=None):
         try:
-            data = client.request_finish(result)
-        except GLib.Error as error:
-            report_error(widget, error_heading or _('Action failed'), error)
-            return
-        if on_done is not None:
-            on_done(data)
-
-    return client.request_async(method, path, callback=finished, **kwargs)
-
-
-def call_api(widget, client, start, on_done=None, error_heading=None):
-    """`call` for an `api` function: *start(callback)* queues the request
-    (``lambda cb: statuses.get_async(client, id, callback=cb)``), so the
-    path is never spelled here. Same toast on failure."""
-
-    def finished(_client, result, _data=None):
-        try:
-            data = client.request_finish(result)
+            data = decode(client, result)
         except GLib.Error as error:
             report_error(widget, error_heading or _('Action failed'), error)
             return
@@ -631,6 +621,18 @@ def call_api(widget, client, start, on_done=None, error_heading=None):
             on_done(data)
 
     return start(finished)
+
+
+def call(widget, client, method, path, on_done=None, error_heading=None,
+         **kwargs):
+    """`call_api` for a request still spelled as a verb and a path. It goes
+    when its last caller (hashtags, the notification policy, polls) moves
+    into `src/api`."""
+    return call_api(
+        widget, client,
+        lambda callback: client.request_async(
+            method, path, callback=callback, **kwargs),
+        on_done, error_heading)
 
 
 # Status pages
@@ -839,11 +841,16 @@ class PagedList(PagedPosts, Adw.Bin):
             return
         self.stack.set_visible_child_name('empty')
 
-    def mutate_row(self, row, method, path, on_done=None, error_heading=None,
-                   remove=True, **kwargs):
+    def mutate_row_api(self, row, start, on_done=None, error_heading=None,
+                       remove=True, finish=None):
         """Fire a row-scoped request: *row* is disabled while it runs and
         dropped on success; failure re-enables it and toasts
         *error_heading* (default 'Action failed').
+
+        *start(callback)* queues the request through an `api` function, so
+        the path is never spelled here. *finish(client, result)* replaces
+        ``client.request_finish`` to honour the api module's own
+        ``<name>_finish``.
 
         *remove* False keeps the row on success, for the actions that
         update it in place rather than taking it off the list -- a
@@ -851,21 +858,29 @@ class PagedList(PagedPosts, Adw.Bin):
         the caller's *on_done* then writes. Everything else -- disable,
         report, drop -- is the same.
         """
-        finished = self._row_finished(row, on_done, error_heading, remove)
-        self.client.request_async(method, path, callback=finished, **kwargs)
+        start(self._row_finished(row, on_done, error_heading, remove,
+                                 finish))
 
-    def mutate_row_api(self, row, start, on_done=None, error_heading=None,
-                       remove=True):
-        """`mutate_row` for an `api` function: *start(callback)* queues
-        the request, so the path is never spelled here."""
-        start(self._row_finished(row, on_done, error_heading, remove))
+    def mutate_row(self, row, method, path, on_done=None, error_heading=None,
+                   remove=True, **kwargs):
+        """`mutate_row_api` for a request still spelled as a verb and a
+        path. It goes when its last caller (the notification requests)
+        moves into `src/api`."""
+        self.mutate_row_api(
+            row, lambda callback: self.client.request_async(
+                method, path, callback=callback, **kwargs),
+            on_done, error_heading, remove)
 
-    def _row_finished(self, row, on_done, error_heading, remove):
+    def _row_finished(self, row, on_done, error_heading, remove,
+                      finish=None):
         row.set_sensitive(False)
 
         def finished(_client, result, _data=None):
             try:
-                self.client.request_finish(result)
+                if finish is None:
+                    self.client.request_finish(result)
+                else:
+                    finish(self.client, result)
             except GLib.Error as error:
                 row.set_sensitive(True)
                 report_error(self, error_heading or _('Action failed'),

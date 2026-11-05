@@ -6,7 +6,8 @@ Every `Endpoint` in `src.api.core.registry` is held to the same rules:
 a name, a valid verb, a path that starts with '/' and whose placeholders
 are only %s or %d, an OAuth scope of a known shape (None only with a note
 saying why), a docs URL on docs.joinmastodon.org, an int or None
-`min_version`, and a replacement named whenever `deprecated` is set.
+`min_version`, a `mastodon_version` that is None or dotted digits
+('4.5.0'), and a replacement named whenever `deprecated` is set.
 
 Further rules over the whole registry: the docs URL carries an anchor
 (`#...`); no two endpoints share a (method, path) unless the note of one
@@ -29,10 +30,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.api import core  # noqa: E402
-from src.api import accounts, relationships, statuses  # noqa: E402, F401
+from src.api import accounts, announcements, filters, lists  # noqa: E402, F401
+from src.api import relationships, scheduled, statuses  # noqa: E402, F401
 
-RESOURCE_MODULES = (statuses, accounts, relationships)
-MINIMUM_ENDPOINTS = 53
+RESOURCE_MODULES = (statuses, accounts, relationships, lists, filters,
+                    announcements, scheduled)
+# Modules whose endpoints a paged view reads by path: each declares LISTS.
+# `filters` has no paged view (its list is read once), so it declares none.
+PAGED_MODULES = tuple(m for m in RESOURCE_MODULES if m is not filters)
+MINIMUM_ENDPOINTS = 53 + 9 + 4 + 4 + 3
 
 failed = False
 
@@ -50,6 +56,7 @@ SCOPE_TOKEN = re.compile(
     r'(:[a-z_]+)*$')
 DOCS = 'https://docs.joinmastodon.org/'
 PLACEHOLDER = re.compile(r'%.')
+RELEASE = re.compile(r'^\d+(\.\d+)+$')
 
 
 def problems(endpoint):
@@ -80,6 +87,10 @@ def problems(endpoint):
     if version is not None and (not isinstance(version, int)
                                 or isinstance(version, bool)):
         found.append('min_version')
+    release = endpoint.mastodon_version
+    if release is not None and not (isinstance(release, str)
+                                    and RELEASE.match(release)):
+        found.append('mastodon_version')
     if endpoint.deprecated is not None and (
             not isinstance(endpoint.deprecated, str)
             or not endpoint.deprecated.strip()):
@@ -111,6 +122,8 @@ BAD = {
     'min_version': good.__class__('a', 'GET', '/a', 'read', '10',
                                   DOCS + 'x/#a'),
     'docs-anchor': good.__class__('a', 'GET', '/a', 'read', None, DOCS + 'x/'),
+    'mastodon_version': good.__class__('a', 'GET', '/a', 'read', None,
+                                       DOCS + 'x/#a', mastodon_version='v4'),
     'deprecated': good.__class__('a', 'GET', '/a', 'read', None, DOCS + 'x/',
                                  deprecated=' '),
 }
@@ -120,8 +133,11 @@ for rule, endpoint in BAD.items():
 # declare(): registers, rejects duplicates, and send() builds the request.
 mine = {}
 declared = core.declare('a.b', 'GET', '/a/%s', 'read', 1, DOCS + 'x/',
-                        into=mine)
+                        into=mine, mastodon_version='4.5.0')
 check('declare registers the endpoint', mine.get('a.b') is declared)
+check('declare keeps mastodon_version, defaulted to None',
+      declared.mastodon_version == '4.5.0'
+      and good.mastodon_version is None)
 try:
     core.declare('a.b', 'GET', '/a', 'read', 1, DOCS + 'x/', into=mine)
     check('declare rejects a duplicate name', False)
@@ -150,6 +166,9 @@ check('send without path args leaves the path untouched',
       client.sent[0] == ('POST', '/b') and client.sent[1]['form'] == {'k': 'v'})
 check('finish returns the client\'s decoded body',
       core.finish(client, 'r') == {'result': 'r'})
+client.request_finish_paged = lambda result: ([result], {'max_id': '1'}, None)
+check('finish_paged returns the body and the parsed Link parameters',
+      core.finish_paged(client, 'r') == (['r'], {'max_id': '1'}, None))
 
 
 
@@ -207,6 +226,6 @@ check('every list-served endpoint is a GET: %s'
       % (non_get_lists(RESOURCE_MODULES) or 'all'),
       non_get_lists(RESOURCE_MODULES) == [])
 check('every resource module serves at least one list',
-      all(getattr(m, 'LISTS', None) for m in RESOURCE_MODULES))
+      all(getattr(m, 'LISTS', None) for m in PAGED_MODULES))
 
 sys.exit(1 if failed else 0)

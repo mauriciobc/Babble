@@ -22,9 +22,9 @@ from . import core
 DOCS = 'https://docs.joinmastodon.org/methods/accounts/'
 
 
-def _declare(name, method, path, scope, anchor, note=None):
+def _declare(name, method, path, scope, anchor, note=None, version=None):
     return core.declare('accounts.' + name, method, path, scope, None,
-                        DOCS + anchor, note=note)
+                        DOCS + anchor, note=note, mastodon_version=version)
 
 
 _PUBLIC = 'public; no token needed'
@@ -35,10 +35,10 @@ VERIFY_CREDENTIALS = _declare(
     'read:accounts', '#verify_credentials',
     note='the `profile` scope also works (4.3.0)')
 LOOKUP = _declare('lookup', 'GET', '/accounts/lookup', 'read:accounts',
-                  '#lookup', note='Mastodon 3.4.0')
+                  '#lookup', version='3.4.0')
 BY_IDS = _declare('by_ids', 'GET', '/accounts', None, '#index',
-                  note=_PUBLIC + '; Mastodon 4.3.0; not version-gated by '
-                       'the caller (an error is an empty answer)')
+                  note=_PUBLIC + '; not version-gated by the caller (an '
+                       'error is an empty answer)', version='4.3.0')
 STATUSES = _declare(
     'statuses', 'GET', '/accounts/%s/statuses', None, '#statuses',
     note='public statuses need no token; others need read:statuses')
@@ -48,14 +48,14 @@ FOLLOWING = _declare('following', 'GET', '/accounts/%s/following', None,
                      '#following', note=_PUBLIC)
 FEATURED_TAGS = _declare('featured_tags', 'GET',
                          '/accounts/%s/featured_tags', None,
-                         '#featured_tags', note=_PUBLIC + '; Mastodon 3.3.0')
+                         '#featured_tags', note=_PUBLIC, version='3.3.0')
 ENDORSEMENTS = _declare(
     'endorsements', 'GET', '/accounts/%s/endorsements', None,
     '#endorsements',
-    note=_PUBLIC + '; Mastodon 4.4.0; not version-gated by the caller')
+    note=_PUBLIC + '; not version-gated by the caller', version='4.4.0')
 FAMILIAR_FOLLOWERS = _declare(
     'familiar_followers', 'GET', '/accounts/familiar_followers',
-    'read:follows', '#familiar_followers', note='Mastodon 3.5.0')
+    'read:follows', '#familiar_followers', version='3.5.0')
 RELATIONSHIPS = _declare('relationships', 'GET', '/accounts/relationships',
                          'read:follows', '#relationships',
                          note='`with_suspended` (4.3.0) is not sent')
@@ -72,11 +72,12 @@ LISTS = {
 PATH_ONLY = (FAMILIAR_FOLLOWERS, SEARCH)
 
 
-def list_path(kind, account_id):
+def list_path(kind, *ids):
     """The path of a paged list of one account (``followers``,
     ``following``, ``endorsements``, ``statuses``) for the views that take
-    a path rather than send a call."""
-    return LISTS[kind].path % account_id
+    a path rather than send a call; *ids* fill the placeholders (the
+    account id)."""
+    return LISTS[kind].path % ids
 
 
 def familiar_followers_path():

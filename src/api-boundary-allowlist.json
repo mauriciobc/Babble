@@ -146,30 +146,6 @@
    "reason": "phase 4: generic helper internals (send)"
   },
   {
-   "file": "src/announcements.py",
-   "function": "AnnouncementRow.mark_read",
-   "via": "request_async",
-   "path": "'/announcements/%s/dismiss' % self.announcement['id']",
-   "layer": "raw",
-   "reason": "phase 2: announcements"
-  },
-  {
-   "file": "src/announcements.py",
-   "function": "AnnouncementsPage.__init__",
-   "via": "super().__init__",
-   "path": "'/announcements'",
-   "layer": "helper",
-   "reason": "phase 2: announcements"
-  },
-  {
-   "file": "src/announcements.py",
-   "function": "ReactionsBar._on_toggled",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 2: announcements"
-  },
-  {
    "file": "src/catchup/fetch.py",
    "function": "CatchUpRun._end_paging",
    "via": "catchup._get",
@@ -216,14 +192,6 @@
    "path": "path",
    "layer": "raw",
    "reason": "phase 2: search"
-  },
-  {
-   "file": "src/compose.py",
-   "function": "BabbleComposeView._retry_scheduled_removal",
-   "via": "request_async",
-   "path": "'/scheduled_statuses/%s' % transaction.original_id",
-   "layer": "raw",
-   "reason": "phase 2: scheduled"
   },
   {
    "file": "src/composequote.py",
@@ -410,30 +378,6 @@
    "reason": "phase 4: generic helper internals (_send)"
   },
   {
-   "file": "src/filters.py",
-   "function": "FilterEditPage._on_delete_clicked.delete",
-   "via": "request_async",
-   "path": "'%s/%s' % (FILTERS_PATH, item['id'])",
-   "layer": "raw",
-   "reason": "phase 2: filters"
-  },
-  {
-   "file": "src/filters.py",
-   "function": "FilterEditPage._on_save_clicked",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 2: filters"
-  },
-  {
-   "file": "src/filters.py",
-   "function": "FiltersList.refresh",
-   "via": "request_async",
-   "path": "FILTERS_PATH",
-   "layer": "raw",
-   "reason": "phase 2: filters"
-  },
-  {
    "file": "src/hashtagcompleter.py",
    "function": "HashtagCompleter.search_request",
    "via": "hook:search_request",
@@ -522,109 +466,12 @@
    "reason": "phase 2: tags"
   },
   {
-   "file": "src/lists.py",
-   "function": "ListEditor._build_members",
-   "via": "request_async",
-   "path": "'/lists/%s/accounts' % self.list['id']",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListEditor._on_add_member",
-   "via": "request_async",
-   "path": "'/lists/%s/accounts' % self.list['id']",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListEditor._on_delete.really",
-   "via": "request_async",
-   "path": "'/lists/%s' % self.list['id']",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListEditor._on_remove_member",
-   "via": "request_async",
-   "path": "'/lists/%s/accounts' % self.list['id']",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListEditor._on_save",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListRow._on_delete.really",
-   "via": "pages.call",
-   "path": "'/lists/%s' % self.list['id']",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListTimelinePage.__init__",
-   "via": "ApiTimelineSource",
-   "path": "'/timelines/list/%s' % list_json['id']",
-   "layer": "helper",
-   "reason": "phase 2: timelines"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "ListsPage.__init__",
-   "via": "PagedList",
-   "path": "'/lists'",
-   "layer": "helper",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "_MembershipDialog.__init__",
-   "via": "request_async",
-   "path": "'/accounts/%s/lists' % account['id']",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "_MembershipDialog.__init__",
-   "via": "request_async",
-   "path": "'/lists'",
-   "layer": "raw",
-   "reason": "phase 2: lists"
-  },
-  {
-   "file": "src/lists.py",
-   "function": "_MembershipDialog._on_toggled",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 2: lists",
-   "count": 2
-  },
-  {
    "file": "src/notificationctrl.py",
    "function": "NotificationController.fetch_policy",
    "via": "request_async",
    "path": "'/api/v2/notifications/policy'",
    "layer": "raw",
    "reason": "phase 2: notifications"
-  },
-  {
-   "file": "src/notificationctrl.py",
-   "function": "NotificationController.load_announcements",
-   "via": "request_async",
-   "path": "'/announcements'",
-   "layer": "raw",
-   "reason": "phase 2: announcements"
   },
   {
    "file": "src/notifications.py",
@@ -763,30 +610,6 @@
    "reason": "phase 3: reports"
   },
   {
-   "file": "src/scheduled.py",
-   "function": "ScheduledRow._delete",
-   "via": "request_async",
-   "path": "'/scheduled_statuses/%s' % self.scheduled['id']",
-   "layer": "raw",
-   "reason": "phase 2: scheduled"
-  },
-  {
-   "file": "src/scheduled.py",
-   "function": "ScheduledRow._put_schedule",
-   "via": "request_async",
-   "path": "'/scheduled_statuses/%s' % self.scheduled['id']",
-   "layer": "raw",
-   "reason": "phase 2: scheduled"
-  },
-  {
-   "file": "src/scheduled.py",
-   "function": "_FilteredList.__init__",
-   "via": "super().__init__",
-   "path": "'/scheduled_statuses'",
-   "layer": "helper",
-   "reason": "phase 2: scheduled"
-  },
-  {
    "file": "src/search.py",
    "function": "SearchPage._request",
    "via": "request_async",
@@ -833,14 +656,6 @@
    "path": "'/followed_tags'",
    "layer": "raw",
    "reason": "phase 2: tags"
-  },
-  {
-   "file": "src/window.py",
-   "function": "BabbleWindow._load_pinned_list_titles",
-   "via": "request_async",
-   "path": "'/lists'",
-   "layer": "raw",
-   "reason": "phase 2: lists"
   },
   {
    "file": "src/window.py",

@@ -22,9 +22,11 @@ from . import core
 DOCS = 'https://docs.joinmastodon.org/methods/statuses/'
 
 
-def _declare(name, method, path, scope, anchor, note=None, deprecated=None):
+def _declare(name, method, path, scope, anchor, note=None, deprecated=None,
+             version=None):
     return core.declare('statuses.' + name, method, path, scope, None,
-                        DOCS + anchor, deprecated=deprecated, note=note)
+                        DOCS + anchor, deprecated=deprecated, note=note,
+                        mastodon_version=version)
 
 
 _PUBLIC = 'public statuses need no token; others need read:statuses'
@@ -37,13 +39,13 @@ DELETE = _declare('delete', 'DELETE', '/statuses/%s', 'write:statuses',
 CONTEXT = _declare('context', 'GET', '/statuses/%s/context', None,
                    '#context', note=_PUBLIC)
 HISTORY = _declare('history', 'GET', '/statuses/%s/history', None,
-                   '#history', note=_PUBLIC + '; Mastodon 3.5.0')
+                   '#history', note=_PUBLIC, version='3.5.0')
 SOURCE = _declare('source', 'GET', '/statuses/%s/source', 'read:statuses',
-                  '#source', note='Mastodon 3.5.0')
+                  '#source', version='3.5.0')
 TRANSLATE = _declare('translate', 'POST', '/statuses/%s/translate',
                      'read:statuses', '#translate',
-                     note='Mastodon 4.0.0; the instance must enable '
-                          'translation')
+                     note='the instance must enable translation',
+                     version='4.0.0')
 FAVOURITE = _declare('favourite', 'POST', '/statuses/%s/favourite',
                      'write:favourites', '#favourite')
 UNFAVOURITE = _declare('unfavourite', 'POST', '/statuses/%s/unfavourite',
@@ -53,43 +55,43 @@ REBLOG = _declare('reblog', 'POST', '/statuses/%s/reblog', 'write:statuses',
 UNREBLOG = _declare('unreblog', 'POST', '/statuses/%s/unreblog',
                     'write:statuses', '#unreblog')
 BOOKMARK = _declare('bookmark', 'POST', '/statuses/%s/bookmark',
-                    'write:bookmarks', '#bookmark', note='Mastodon 3.1.0')
+                    'write:bookmarks', '#bookmark', version='3.1.0')
 UNBOOKMARK = _declare('unbookmark', 'POST', '/statuses/%s/unbookmark',
                       'write:bookmarks', '#unbookmark',
-                      note='Mastodon 3.1.0')
+                      version='3.1.0')
 MUTE = _declare('mute', 'POST', '/statuses/%s/mute', 'write:mutes', '#mute',
-                note='conversation mute; Mastodon 1.4.2')
+                note='conversation mute', version='1.4.2')
 UNMUTE = _declare('unmute', 'POST', '/statuses/%s/unmute', 'write:mutes',
-                  '#unmute', note='conversation mute; Mastodon 1.4.2')
+                  '#unmute', note='conversation mute', version='1.4.2')
 PIN = _declare('pin', 'POST', '/statuses/%s/pin', 'write:accounts', '#pin',
-               note='Mastodon 1.6.0')
+               version='1.6.0')
 UNPIN = _declare('unpin', 'POST', '/statuses/%s/unpin', 'write:accounts',
-                 '#unpin', note='Mastodon 1.6.0')
+                 '#unpin', version='1.6.0')
 INTERACTION_POLICY = _declare(
     'interaction_policy', 'PUT', '/statuses/%s/interaction_policy',
     'write:statuses', '#update_interaction_policy',
-    note='Mastodon 4.5.0; not version-gated by the caller')
+    note='not version-gated by the caller', version='4.5.0')
 REVOKE_QUOTE = _declare(
     'revoke_quote', 'POST', '/statuses/%s/quotes/%s/revoke',
     'write:statuses', '#revoke_quote',
-    note='Mastodon 4.5.0; not version-gated by the caller; arguments are '
-         'the quoted post id, then the quoting post id')
+    note='not version-gated by the caller; arguments are the quoted post '
+         'id, then the quoting post id', version='4.5.0')
 FAVOURITED_BY = _declare('favourited_by', 'GET', '/statuses/%s/favourited_by',
                          None, '#favourited_by', note=_PUBLIC)
 REBLOGGED_BY = _declare('reblogged_by', 'GET', '/statuses/%s/reblogged_by',
                         None, '#reblogged_by', note=_PUBLIC)
 QUOTES = _declare('quotes', 'GET', '/statuses/%s/quotes', 'read:statuses',
                   '#quotes',
-                  note='Mastodon 4.5.0; not version-gated by the caller')
+                  note='not version-gated by the caller', version='4.5.0')
 
 # The do/undo pairs a toggle button picks from: (kind, active) -> endpoint.
-_TOGGLES = {
+TOGGLES = {
     ('favourite', True): FAVOURITE, ('favourite', False): UNFAVOURITE,
     ('reblog', True): REBLOG, ('reblog', False): UNREBLOG,
     ('bookmark', True): BOOKMARK, ('bookmark', False): UNBOOKMARK,
 }
 # Verbs that act on a post and answer with the updated status.
-_POST_ACTIONS = {
+ACTIONS = {
     'mute': MUTE, 'unmute': UNMUTE, 'pin': PIN, 'unpin': UNPIN,
 }
 # Stats tabs (who favourited, boosted, quoted): the list endpoint of each.
@@ -187,7 +189,7 @@ def toggle_async(client, status_id, kind, active, form=None, callback=None,
                  cancellable=None):
     """Set *kind* (``favourite``, ``reblog`` or ``bookmark``) to *active*
     with its do or undo endpoint. An unknown kind raises KeyError."""
-    return core.send(client, _TOGGLES[(kind, active)], status_id, form=form,
+    return core.send(client, TOGGLES[(kind, active)], status_id, form=form,
                      callback=callback, cancellable=cancellable)
 
 
@@ -195,11 +197,11 @@ def toggle_finish(client, result):
     return core.finish(client, result)
 
 
-def post_action_async(client, status_id, action, callback=None,
+def post_action_async(client, status_id, operation, callback=None,
                       cancellable=None):
-    """``mute``, ``unmute``, ``pin`` or ``unpin``; anything else raises
-    KeyError."""
-    return core.send(client, _POST_ACTIONS[action], status_id,
+    """*operation* is a key of ``ACTIONS`` (``mute``, ``unmute``, ``pin``
+    or ``unpin``); anything else raises KeyError."""
+    return core.send(client, ACTIONS[operation], status_id,
                      callback=callback, cancellable=cancellable)
 
 
@@ -207,7 +209,8 @@ def post_action_finish(client, result):
     return core.finish(client, result)
 
 
-def list_path(kind, status_id):
+def list_path(kind, *ids):
     """The path of a stats list (``favourites``, ``boosts``, ``quotes``)
-    for the paged views, which take a path rather than send a call."""
-    return LISTS[kind].path % status_id
+    for the paged views, which take a path rather than send a call; *ids*
+    fill the path's placeholders (the status id)."""
+    return LISTS[kind].path % ids

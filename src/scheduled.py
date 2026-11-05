@@ -23,6 +23,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import scheduled as api_scheduled  # noqa: E402
 from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .statustext import clock_format  # noqa: E402
@@ -467,7 +468,7 @@ class ScheduledRow(Gtk.ListBoxRow):
         def finished(client, result, _data=None):
             self._set_busy(False)
             try:
-                data = client.request_finish(result)
+                data = api_scheduled.update_finish(client, result)
             except GLib.Error as error:
                 pages.report_error(self, _('Could not reschedule'), error)
                 return
@@ -483,9 +484,8 @@ class ScheduledRow(Gtk.ListBoxRow):
             if window is not None:
                 window.show_toast(success_text)
 
-        self.client.request_async(
-            'PUT', '/scheduled_statuses/%s' % self.scheduled['id'],
-            form={'scheduled_at': iso}, callback=finished)
+        api_scheduled.update_async(
+            self.client, self.scheduled['id'], iso, callback=finished)
 
     def _on_delete(self):
         if self.draft:
@@ -502,7 +502,7 @@ class ScheduledRow(Gtk.ListBoxRow):
         def finished(client, result, _data=None):
             self._set_busy(False)
             try:
-                client.request_finish(result)
+                api_scheduled.delete_finish(client, result)
             except GLib.Error as error:
                 pages.report_error(self, _('Could not delete'), error)
                 return
@@ -514,9 +514,8 @@ class ScheduledRow(Gtk.ListBoxRow):
                     _('Draft deleted') if self.draft
                     else _('Scheduled post deleted'))
 
-        self.client.request_async(
-            'DELETE', '/scheduled_statuses/%s' % self.scheduled['id'],
-            callback=finished)
+        api_scheduled.delete_async(
+            self.client, self.scheduled['id'], callback=finished)
 
     def _remove(self):
         if self.on_removed is not None:
@@ -536,7 +535,8 @@ class _FilteredList(pages.PagedList):
 
     def __init__(self, client, make_row, want_drafts, **kwargs):
         self.want_drafts = want_drafts
-        super().__init__(client, '/scheduled_statuses', make_row, **kwargs)
+        super().__init__(client, api_scheduled.list_path('index'), make_row,
+                         **kwargs)
 
     def _on_loaded(self, client, result, generation):
         if generation != self._generation:
@@ -544,7 +544,8 @@ class _FilteredList(pages.PagedList):
         self._loading = False
         self.more_spinner.set_visible(False)
         try:
-            data, next_params, _prev = client.request_finish_paged(result)
+            data, next_params, _prev = api_scheduled.index_finish_paged(
+                client, result)
         except GLib.Error as error:
             if not self.rows:
                 self.error_page.set_description(

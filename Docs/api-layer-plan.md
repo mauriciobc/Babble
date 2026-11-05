@@ -111,22 +111,31 @@ Three commits, each leaving `api golden` byte-identical:
   notifications, scheduled posts, filters, timelines helpers.
 - **Done when:** as phase 1 for those modules.
 
+**Phase 2 progress.** Step 2a done: lists (`lists.py`), filters, announcements and
+scheduled statuses moved (20 endpoints, registry 73), and the housekeeping below
+(marked DONE). Still to move in phase 2: timelines helpers, hashtags/tags, search,
+explore, conversations, notifications, custom emojis.
+
 **Carried over from the phase 1 review (do these at the start or end of phase 2):**
-- Collapse the parallel helper pairs into the `start(callback)` form and
+- DONE (2a): Collapse the parallel helper pairs into the `start(callback)` form and
   delete the path-taking versions when their last raw caller goes:
   `pages.call` / `pages.call_api`, `PagedList.mutate_row` / `mutate_row_api`,
   `fedicollections._send` / `_send_api`, `catchup/fetch._get` / `_reply`.
   `call_api` should take an optional `finish=` so an api `*_finish`
   (validation, tuple unpacking) is honoured instead of bypassed by
-  `client.request_finish`.
-- Converge the naming before it spreads: one name for the table-pick
+  `client.request_finish`. Done for `pages.call` / `call_api` and
+  `PagedList.mutate_row` / `mutate_row_api` (the path-taking ones now wrap the
+  `start` form and stay for their last raw callers: hashtags, the notification
+  policy, polls, and the notification requests). `fedicollections._send_api`
+  and `catchup/fetch._get` / `_reply` move with their endpoints.
+- DONE (2a): Converge the naming before it spreads: one name for the table-pick
   (`ACTIONS`), one keyword (`operation`), one accessor shape
   (`list_path(kind, *ids)`), for `statuses.toggle_async`/`post_action_async`,
   `relationships.action_async`/`answer_request_async` and the three
   `LISTS` tables. Name `lists.py` and `hashtags.py` consistently from the
   start.
-- Add `core.finish_paged` with the first paged read.
-- Add a `mastodon_version` (release string) field to `Endpoint`, or decide
+- DONE (2a): Add `core.finish_paged` with the first paged read (scheduled).
+- DONE (2a, field added and filled): Add a `mastodon_version` (release string) field to `Endpoint`, or decide
   the generated version column comes from `src/capabilities.py`; today
   `min_version` is None everywhere and versions live in free-text notes.
 

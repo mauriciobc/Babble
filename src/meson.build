@@ -134,6 +134,10 @@ install_data(
   'api/statuses.py',
   'api/accounts.py',
   'api/relationships.py',
+  'api/lists.py',
+  'api/filters.py',
+  'api/announcements.py',
+  'api/scheduled.py',
   install_dir: moduledir / 'api',
 )
 

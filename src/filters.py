@@ -19,9 +19,9 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import filters as api_filters  # noqa: E402
 from .statustext import format_time, parse_time  # noqa: E402
 
-FILTERS_PATH = '/api/v2/filters'
 
 CONTEXTS = (
     ('home', _('Home and Lists')),
@@ -299,14 +299,14 @@ class FilterEditPage(Adw.NavigationPage):
         self._busy = True
         self._validate()
         body = self.collect()
-        method, path = ('PUT', '%s/%s' % (FILTERS_PATH, self.item['id'])) \
-            if self.item else ('POST', FILTERS_PATH)
+        editing = self.item is not None
 
         def saved(client, result, _data=None):
             self._busy = False
             self._validate()
             try:
-                saved_item = client.request_finish(result)
+                saved_item = (api_filters.update_finish if editing
+                              else api_filters.create_finish)(client, result)
             except GLib.Error as error:
                 pages.report_error(self, _('Could not save the filter'),
                                    error)
@@ -317,8 +317,11 @@ class FilterEditPage(Adw.NavigationPage):
             if view is not None:
                 view.pop()
 
-        self.client.request_async(method, path, json_body=body,
-                                  callback=saved)
+        if editing:
+            api_filters.update_async(self.client, self.item['id'], body,
+                                     callback=saved)
+        else:
+            api_filters.create_async(self.client, body, callback=saved)
 
     def _on_delete_clicked(self, _row):
         item = self.item
@@ -326,7 +329,7 @@ class FilterEditPage(Adw.NavigationPage):
         def delete():
             def deleted(client, result, _data=None):
                 try:
-                    client.request_finish(result)
+                    api_filters.delete_finish(client, result)
                 except GLib.Error as error:
                     pages.report_error(self, _('Could not delete the filter'),
                                        error)
@@ -337,9 +340,8 @@ class FilterEditPage(Adw.NavigationPage):
                 if view is not None:
                     view.pop()
 
-            self.client.request_async(
-                'DELETE', '%s/%s' % (FILTERS_PATH, item['id']),
-                callback=deleted)
+            api_filters.delete_async(self.client, item['id'],
+                                     callback=deleted)
 
         pages.confirm(self, _('Delete Filter?'),
                       _('“%s” will stop filtering your timelines.')
@@ -388,12 +390,11 @@ class FiltersList(Adw.Bin):
 
     def refresh(self):
         self.stack.set_visible_child_name('loading')
-        self.client.request_async('GET', FILTERS_PATH,
-                                  callback=self._on_loaded)
+        api_filters.index_async(self.client, callback=self._on_loaded)
 
     def _on_loaded(self, client, result, _data=None):
         try:
-            self.items = client.request_finish(result)
+            self.items = api_filters.index_finish(client, result)
         except GLib.Error as error:
             self.error_page.set_description(
                 pages.summarize_error_markup(error))

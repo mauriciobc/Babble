@@ -95,10 +95,16 @@ sys.path.insert(0, srcdir)
 # The resource modules are pure Python (no GI): their tables say which
 # verbs and list kinds a literal may name.
 from src.api import accounts as _accounts  # noqa: E402
+from src.api import announcements as _announcements  # noqa: E402
+from src.api import filters as _filters  # noqa: E402
+from src.api import lists as _lists  # noqa: E402
 from src.api import relationships as _relationships  # noqa: E402
+from src.api import scheduled as _scheduled  # noqa: E402
 from src.api import statuses as _statuses  # noqa: E402
 
-API_MODULES = {'accounts': _accounts, 'relationships': _relationships,
+API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
+               'filters': _filters, 'lists': _lists,
+               'relationships': _relationships, 'scheduled': _scheduled,
                'statuses': _statuses}
 # The path accessors of `src.api`: a helper handed one of these names no
 # path of its own, so the site needs no allow-list entry.

@@ -17,6 +17,7 @@ from gi.repository import Adw, GLib  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .api import announcements as api_announcements  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import PagedPosts, push_page  # noqa: E402
 from .statustext import parse_content  # noqa: E402
@@ -382,12 +383,12 @@ class NotificationController:
             return
         # Client stubs in the OAuth tests run login without the generic
         # request API.
-        self.client.request_async('GET', '/announcements',
-                                  callback=self.on_announcements_loaded)
+        api_announcements.index_async(
+            self.client, callback=self.on_announcements_loaded)
 
     def on_announcements_loaded(self, client, result, _user_data=None):
         try:
-            announcements = client.request_finish(result)
+            announcements = api_announcements.index_finish(client, result)
         except GLib.Error:
             return
         unread = next((a for a in announcements or []
