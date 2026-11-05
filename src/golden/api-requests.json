@@ -719,6 +719,25 @@
     },
     "host": "https://golden.example",
     "method": "GET",
+    "path": "/api/v1/followed_tags",
+    "query": [
+     [
+      "limit",
+      "200"
+     ],
+     [
+      "max_id",
+      "77"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
     "path": "/api/v1/accounts/relationships",
     "query": [
      [
@@ -3955,6 +3974,28 @@
     "host": "https://golden.example",
     "method": "GET",
     "path": "/api/v1/statuses/321",
+    "query": []
+   }
+  ],
+  "wrapped without a year loads the index": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/annual_reports",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/annual_reports/2025/state",
     "query": []
    }
   ]

@@ -1656,6 +1656,12 @@ def catchup_followed_tags_trends_and_relationships(rec):
     tagged = status('100', tags=[{'name': 'golden'}],
                     created_at='2026-06-01T00:00:00.000Z')
     rec.queue[('GET', '/api/v1/timelines/home')] = [[tagged], []]
+    # Two pages of followed tags: the Link cursor kept under
+    # ``_more['followed_tags']`` is what asks for the second.
+    rec.queue[('GET', '/api/v1/followed_tags')] = [
+        ([{'name': 'golden'}],
+         link_header('/api/v1/followed_tags', limit=200, max_id='77')),
+        ([{'name': 'other'}], '')]
     start = datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)
     end = datetime.datetime(2026, 7, 1, tzinfo=datetime.timezone.utc)
     got = []
@@ -1665,6 +1671,11 @@ def catchup_followed_tags_trends_and_relationships(rec):
     rec.settle()
     check('catch up run finishes', bool(got))
     rec.settle()
+    pages_asked = [dict(entry['query']) for entry in rec.log
+                   if entry['path'] == '/api/v1/followed_tags']
+    check('followed tags follow the Link cursor to a second page',
+          len(pages_asked) == 2 and pages_asked[1].get('max_id') == '77',
+          '    asked: %r' % (pages_asked,))
 
 
 # Notifications
@@ -1752,11 +1763,16 @@ def api_timeline_source_link_and_none_paging(rec):
 def window_timeline_places(rec):
     from src.window import BabbleWindow
     stub = types.SimpleNamespace(client=rec.client())
+    expected = {'favourites': 'link', 'bookmarks': 'link', 'public': 'id'}
     for kind, params in (('favourites', None), ('bookmarks', None),
                          ('public', {'local': 'true'}),
                          ('public', None)):
-        BabbleWindow._timeline_place(stub, kind, params, 'edit-find-symbolic',
-                                     'Title', 'Description')
+        page = BabbleWindow._timeline_place(
+            stub, kind, params, 'edit-find-symbolic', 'Title', 'Description')
+        rec.keep(page)
+        check('%s place pages by %s' % (kind, expected[kind]),
+              page.source.paging == expected[kind],
+              '    got %r' % (page.source.paging,))
     rec.settle()
 
 
@@ -1806,6 +1822,13 @@ def emoji_chooser_loads_custom_emojis(rec):
 def wrapped_loads_a_report_and_its_top_post(rec):
     from src import wrapped
     rec.keep(wrapped.WrappedDialog(Gtk.Box(), rec.client(), 2025))
+    rec.settle()
+
+
+@p2
+def wrapped_without_a_year_loads_the_index(rec):
+    from src import wrapped
+    rec.keep(wrapped.WrappedDialog(Gtk.Box(), rec.client()))
     rec.settle()
 
 

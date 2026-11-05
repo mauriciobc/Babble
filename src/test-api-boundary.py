@@ -22,15 +22,15 @@ the call that sends it:
     generic helpers, plus 15 `pages.call`). The path argument is keyed.
   * `internal`: the inner `request_async` calls of the generic helpers
     (`pages.call`, two in `PagedList`, `admin.send`,
-    `fedicollections._send`; `pages.mutate_row` and `wrapped._send` are
-    gone) and the site
+    `fedicollections._send`; the old `mutate_row` and `wrapped._send`
+    are gone) and the site
     `pages.AccountListPage.__init__`, which forwards a variable path to
     `PagedList` and calls no `request_async`. They carry a *variable*
     path, so they are keyed by that variable's name. They stay on the
     list until the helper itself moves into `src/api/` (phase 4).
   * `helper`: a call that hands a path or a verb to a helper that sends
     it later: `admin.send`, `fedicollections._send`,
-    `mutate_row`, the `PagedList` / `AccountListPage` /
+    `mutate_row_api`, the `PagedList` / `AccountListPage` /
     `ApiTimelineSource` constructors, `profileactions.send_relationship`
     (its first argument names the operation, from which the path is
     built), `multipart_async`,
