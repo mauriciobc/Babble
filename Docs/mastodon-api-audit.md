@@ -55,7 +55,7 @@ searched).
 
 ### Verdicts (distinct endpoint rows in section 3)
 
-See the tally line at the end of section 3: COMPLIANT 110, DEVIATES 2, ACCEPTED-UNDOCUMENTED 4, DEPRECATED 1, UNDOCUMENTED 1 (after 5e).
+See the tally line at the end of section 3: COMPLIANT 112, DEVIATES 0, ACCEPTED-UNDOCUMENTED 4, DEPRECATED 1, UNDOCUMENTED 0 (after 5g).
 
 ### Known bugs (not compliance deviations)
 
@@ -128,10 +128,9 @@ The one known live bug is listed separately below.
    v4.3.8 reads 2 and has none; 4.6.0 reads 10. See 5f item 2.
 4. **`POST /api/v1/apps` app registration joins `redirect_uris` with a space**
    (`mastodon.register_app_async`). The docs allow "String or Array of
-   Strings" and do not say the string delimiter. The only separator the
-   docs show is a newline (in the response's deprecated `redirect_uri`).
-   Prefer the array form `redirect_uris[]` unless the server source is
-   checked.
+   Strings" and do not say the string delimiter. **RESOLVED (5g): kept, the
+   string form is the only one every supported server reads; the array form
+   would break servers before 4.3.0.** See 5g.
 5. **Ungated version-specific endpoints**: `GET /annual_reports/:year/state`
    and `POST /annual_reports/:year/generate` (4.6.0, API 8) in
    `wrapped.py`, `unread_count` (4.3.0; the `mastodon.py` docstring says
@@ -384,6 +383,61 @@ checks for items 4 and 5.
    synthesised success would open an empty composer. PUT repeats are exact
    duplicates. Comment added above `IDEMPOTENT_METHODS`.
 
+### 5g: app registration and the other OAuth requests
+
+Sources: `app/controllers/api/v1/apps_controller.rb` at v3.5.0, v4.0.0,
+v4.2.0, v4.3.0, v4.4.0, v4.5.0 and main; Doorkeeper 5.7.1 (Mastodon 4.3.0),
+5.8.2 (4.4.0, 4.5.0) and 5.9.9 (main), read from
+`raw.githubusercontent.com/doorkeeper-gem/doorkeeper`. The live registration
+was **not tried**: `POST /api/v1/apps` leaves a permanent OAuth application
+on the server that no API call removes. Verification is the source reading
+and a loopback fake server.
+
+**Evidence: what each server version accepts for `redirect_uris`**
+
+| Mastodon | Doorkeeper | `params.permit` in `apps_controller#app_params` | string (space or newline) | `redirect_uris[]` array |
+|---|---|---|---|---|
+| 3.5.0, 4.0.0, 4.2.0 | older than 5.7 | `:client_name, :redirect_uris, :scopes, :website` | accepted | **dropped** by `permit` (not scalar): `redirect_uri` is nil, the application is invalid, 422 |
+| 4.3.0 | 5.7.1 | `... :redirect_uris, redirect_uris: []` | accepted | accepted |
+| 4.4.0, 4.5.0 | 5.8.2 | same as 4.3.0 | accepted | accepted |
+| main | 5.9.9 | same | accepted (spec "multiple redirect_uris as a string" uses a newline) | accepted (spec "as an array"; `Application#redirect_uri=` joins an Array with `"\n"`) |
+
+Doorkeeper splits on any whitespace everywhere it reads the field:
+`RedirectUriValidator#validate_each` does `value.split.each` and
+`OAuth::Helpers::URIChecker` does `client_url.split.any?` (identical in
+5.7.1, 5.8.2, 5.9.9). A space-joined and a newline-joined string therefore
+validate and match identically; the array form adds nothing a supported
+server needs and fails on every server before 4.3.0, which Babble still
+talks to (the API-version gates are all `when_unknown` aware). Decision:
+**keep the string, keep the space**. Switching to a newline is equivalent on
+the server but would change a stored value and the golden for no benefit,
+and a non-Mastodon server that splits on a space (the form Babble has always
+sent) is not worth risking.
+
+Babble registers at most three URIs: the loopback `http://127.0.0.1:PORT/callback`
+(when the port could be bound), `babble://oauth/callback`, and
+`urn:ietf:wg:oauth:2.0:oob`; two without the loopback. Every URI
+`get_authorize_url` and `request_token_async` send is one of them.
+
+Tests (no code change, so no golden change): `client transport` gained
+`audit 5g` checks against the loopback fake server: the registration is a
+form POST, `redirect_uris` is one string with no `[]` key, split on
+whitespace it equals the expected two and three URIs in order, `scopes` is
+`read write`, and the authorization `redirect_uri` is a registered one. The
+golden already pins both bodies (`client oauth wrappers`).
+
+**The other OAuth requests, read against the docs and the server**
+
+| Request | Verdict | Evidence |
+|---|---|---|
+| `POST /oauth/token` (`grant_type`, `code`, `code_verifier`, `client_id`, `client_secret`, `redirect_uri`) | COMPLIANT | Doorkeeper `AuthorizationCodeRequest` reads `redirect_uri` and `code_verifier` from the parameters, validates the redirect against the grant's and PKCE against its challenge. `scope` is not sent: for this grant the token takes `grant.scopes` (`authorization_code_request.rb`: `grant.scopes`), the scopes granted at authorization (`read write`); the docs' `scope` (default `read`) applies to `client_credentials`, so omitting it cannot narrow or widen the token. |
+| `POST /oauth/revoke` (`client_id`, `client_secret`, `token`, form) | COMPLIANT | Matches the documented parameters; public-client credentials are sent as form fields, no bearer header (`auth=False`). |
+| `GET /oauth/authorize` (`response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, `code_challenge`, `code_challenge_method=S256`) | COMPLIANT | Mastodon's initializer has `pkce_code_challenge_methods ['S256']`. `force_login` and `lang` are optional and not sent. `scope` is `read write`, equal to the registered scopes (`OAUTH_SCOPES`), so Mastodon cannot refuse it. |
+
+OA-1 and item 4 are resolved. The `redirect_uris` array is recorded as the
+form to use if the minimum supported server ever becomes 4.3.0.
+
+
 ## 2. Documentation sources and what could not be verified
 
 Fetched and used: `/methods/` statuses, accounts, lists, timelines,
@@ -622,7 +676,7 @@ used in section 4.
 
 | Id | Method path | Params | Docs: scope; added | Gate | Verdict |
 |---|---|---|---|---|---|
-| OA-1 | POST /apps | form `client_name`, `redirect_uris` (space-joined), `scopes`, `website` | public; `redirect_uris` array/string 4.3.0 | none | UNDOCUMENTED: string delimiter for several URIs not stated; docs show newline in responses. Source not consulted. |
+| OA-1 | POST /apps | form `client_name`, `redirect_uris` (space-joined string), `scopes`, `website` | public; `redirect_uris` array/string 4.3.0 | none | COMPLIANT (5g): scalar string read by every server version; Doorkeeper splits on whitespace, so the delimiter is cosmetic. Array form rejected before 4.3.0. |
 | OA-2 | GET /oauth/authorize (browser URL) | `response_type`, `client_id`, `redirect_uri`, `scope`, `state`, `code_challenge`, `code_challenge_method=S256` | PKCE 4.3.0 | PKCE always sent | COMPLIANT (servers before 4.3 ignore PKCE) |
 | OA-3 | POST /oauth/token | form `grant_type=authorization_code`, `code`, `client_id`, `client_secret`, `redirect_uri`, `code_verifier` | 0.1.0 | none | COMPLIANT |
 | OA-4 | POST /oauth/revoke | form `client_id`, `client_secret`, `token` | 0.1.0 | none | COMPLIANT |
@@ -638,7 +692,7 @@ used in section 4.
 | OT-3 | DELETE /suggestions/:id | none | `read`; 2.4.3 | none | COMPLIANT |
 | OT-4 | GET /trends/tags, /trends/links, /trends/statuses | `limit` 20 (tags/links max 20), 40 (statuses max 40) | public; 3.0/3.5 | none | COMPLIANT |
 | OT-5 | GET /annual_reports, /annual_reports/:year | none | `read:accounts`; 4.3.0 / 4.4.0 | none | COMPLIANT |
-| OT-6 | GET /annual_reports/:year/state, POST /annual_reports/:year/generate | none | `read:accounts` / `write:accounts`; 4.6.0 (API 8) | none (404 treated as "empty") | DEVIATES [minor]: ungated 4.6.0 endpoints |
+| OT-6 | GET /annual_reports/:year/state, POST /annual_reports/:year/generate | none | `read:accounts` / `write:accounts`; 4.6.0 (API 8) | gated on API 8 since 5c (`ANNUAL_REPORT_STATE_API_VERSION`); a 404 is still treated as "empty" | COMPLIANT (was DEVIATES [minor]: ungated 4.6.0 endpoints, fixed in 5c) |
 | OT-7 | (phase 3b: declared in `src/api/collections_api.py` from docs.joinmastodon.org/methods/collections/, read 2026-11-05: anchors `#create`, `#get_collection`, `#get_collections`, `#in_collections`, `#update_collection`, `#delete_collection`, `#add_account`, `#remove_account`, `#revoke_item`; the docs label create/update/add parameters form data but their examples are JSON; no new deviation) GET/POST /collections, GET/PATCH/DELETE /collections/:id, POST /collections/:id/items, DELETE .../items/:item, POST .../items/:item/revoke | JSON `name`, `description`, `language`, `tag_name`, `sensitive`, `discoverable`, `account_id` | `read/write:collections`; 4.6.0 (API 10); docs example shows JSON | `>= 10` | COMPLIANT |
 | OT-8 | WebSocket /api/v1/streaming?stream=user (+ subscribe/unsubscribe messages) | `Authorization: Bearer` header | 3.3.0 websocket; header auth preferred | `configuration.timelines_access` for public | COMPLIANT (token not in the query) |
 
@@ -646,7 +700,7 @@ Plugin host requests (`Context.request`) go to third-party servers
 (wallabag, hashpanel). They are not Mastodon endpoints and are not
 audited.
 
-**Tally (118 table rows; a row may cover a method pair or an id family; after 5e):** COMPLIANT 110, DEVIATES 2, ACCEPTED-UNDOCUMENTED 4, DEPRECATED 1, UNDOCUMENTED 1, UNVERIFIED 0. Of the COMPLIANT rows, about 15 are version-ungated 4.3 to 4.6 endpoints noted in the summary. UNVERIFIED applies to the `api_versions` number mapping (gate v6) rather than to a whole endpoint row; it is reported in section 2.
+**Tally (118 table rows; a row may cover a method pair or an id family; after 5g):** COMPLIANT 112, DEVIATES 0, ACCEPTED-UNDOCUMENTED 4, DEPRECATED 1, UNDOCUMENTED 0, UNVERIFIED 0. Of the COMPLIANT rows, about 15 are version-ungated 4.3 to 4.6 endpoints noted in the summary. UNVERIFIED applies to the `api_versions` number mapping (gate v6) rather than to a whole endpoint row; it is reported in section 2.
 
 ## 4. Call sites per endpoint (migration list)
 

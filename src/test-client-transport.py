@@ -631,6 +631,44 @@ check('the repeated key goes back out on the wire',
       _wire.get_query().count('exclude_types%5B%5D=') == 2
       and _wire.get_query().count('max_id=7') == 1, _wire.get_query())
 
+# --- audit 5g: app registration sends redirect_uris as ONE string ---
+# Servers before Mastodon 4.3.0 permit only the scalar `redirect_uris`
+# (apps_controller.rb v3.5.0..v4.2.0), so a `redirect_uris[]` array is
+# dropped there and the registration fails with a blank redirect_uri.
+# Doorkeeper splits the string on whitespace (RedirectUriValidator and
+# URIChecker, 5.7.1 to 5.9.9), so the separator is cosmetic.
+from src.mastodon import (OAUTH_REDIRECT, OOB_REDIRECT,  # noqa: E402
+                          loopback_redirect)
+
+_reg_reply = b'{"client_id":"c","client_secret":"s"}'
+for _label, _loop in (('without a loopback', None),
+                      ('with a loopback', loopback_redirect(4242))):
+    _line, _ctype, _body, _s = wire_of(
+        lambda c, _l=_loop: c.register_app_async(loopback=_l,
+                                                 callback=quiet),
+        reply=_reg_reply)
+    _fields = dict(_body or [])
+    _uris = _fields.get('redirect_uris', '').split()
+    _want = ([_loop] if _loop else []) + [OAUTH_REDIRECT, OOB_REDIRECT]
+    check('register %s: POST /api/v1/apps, form encoded' % _label,
+          _line == 'POST /api/v1/apps HTTP/1.1' and _ctype == FORM,
+          repr((_line, _ctype)))
+    check('register %s: one redirect_uris string, no array key' % _label,
+          'redirect_uris' in _fields
+          and not any(k.endswith('[]') for k, _v in _body or []),
+          repr(_body))
+    check('register %s: the URIs are %r, whitespace separated, at most 3'
+          % (_label, _want), _uris == _want and len(_uris) <= 3,
+          repr(_uris))
+    check('register %s: scopes are the ones the authorization asks for'
+          % _label, _fields.get('scopes') == 'read write', repr(_fields))
+
+_authz = urllib.parse.urlparse(
+    MastodonClient('https://x.test').get_authorize_url()).query
+check('the authorization redirect_uri is a registered one',
+      urllib.parse.parse_qs(_authz)['redirect_uri'][0] in
+      (OAUTH_REDIRECT, OOB_REDIRECT), _authz)
+
 if failures:
     print('%d failure(s): %s' % (len(failures), ', '.join(failures)))
     sys.exit(1)
