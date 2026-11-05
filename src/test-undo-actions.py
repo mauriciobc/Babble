@@ -156,7 +156,8 @@ class Answering:
     def __init__(self):
         self.requests = []
 
-    def request_async(self, method, path, form=None, callback=None):
+    def request_async(self, method, path, params=None, form=None,
+                      json_body=None, callback=None, cancellable=None):
         self.requests.append((method, path))
         callback(self, lift(dict(status('7'), reblogged=True)), None)
 
@@ -184,7 +185,8 @@ class Client:
     def __init__(self):
         self.requests = []
 
-    def request_async(self, method, path, form=None, callback=None):
+    def request_async(self, method, path, params=None, form=None,
+                      json_body=None, callback=None, cancellable=None):
         self.requests.append((method, path))
 
     def request_finish(self, result):

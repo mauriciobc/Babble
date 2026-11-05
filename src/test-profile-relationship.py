@@ -92,6 +92,9 @@ class _Page:
     def _send_profile_action(self, *args, **kwargs):
         return ProfilePage._send_profile_action(self, *args, **kwargs)
 
+    def _account_start(self, *args, **kwargs):
+        return ProfilePage._account_start(self, *args, **kwargs)
+
 
 toasts = []
 pages.show_toast = lambda *_args, **_kwargs: toasts.append(True)

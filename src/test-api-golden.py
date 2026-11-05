@@ -6,9 +6,10 @@ The API-layer refactor (Docs/api-layer-plan.md, "Behaviour-preserving
 proof") moves request construction out of the widgets and out of
 ``mastodon.py``. This test records, for each named scenario, every request
 the real UI code (StatusActions, StatusMenuButton, ProfileActions, the
-MastodonClient wrappers) hands to the transport and compares it with the
-committed ``golden/api-requests.json``. After a refactor the log must be
-identical; a difference is a behaviour change.
+`src.api` functions and the MastodonClient transport) hands to the
+transport and compares it with the committed
+``golden/api-requests.json``. After a refactor the log must be identical;
+a difference is a behaviour change.
 
 Nothing touches the network. The recorder replaces the single transport
 chokepoint, ``MastodonClient._spawn(task, message)``, which every request
@@ -761,6 +762,15 @@ def profile_unblock_domain(rec):
     page.confirm_domain_block(False)
 
 
+@scenario
+def profile_unblock_domain_then_undo_blocks(rec):
+    page = page_for(rec, {'domain_blocking': True},
+                    acct='zed@remote.example')
+    page.confirm_domain_block(False)
+    rec.settle()
+    rec.press_undo()
+
+
 # The MastodonClient wrappers
 
 
@@ -769,27 +779,38 @@ def wrapper(rec, name, *args, **kwargs):
     getattr(client, name)(*args, callback=lambda *_a: None, **kwargs)
 
 
+def api_wrapper(rec, name, *args, module='statuses', **kwargs):
+    """A `src.api.<module>` function: the client is its first argument."""
+    import importlib
+    api = importlib.import_module('src.api.' + module)
+    getattr(api, name)(rec.client(), *args, callback=lambda *_a: None,
+                       **kwargs)
+
+
 @scenario
 def client_account_wrappers(rec):
-    wrapper(rec, 'verify_credentials_async')
-    wrapper(rec, 'lookup_account_async', 'ada@remote.example')
-    wrapper(rec, 'account_statuses_async', '7', params={'limit': 20})
-    wrapper(rec, 'relationships_async', ['7', '8'])
-    wrapper(rec, 'follow_async', '7')
-    wrapper(rec, 'follow_async', '7', reblogs=False, notify=True)
-    wrapper(rec, 'unfollow_async', '7')
+    api_wrapper(rec, 'verify_credentials_async', module='accounts')
+    api_wrapper(rec, 'lookup_async', 'ada@remote.example', module='accounts')
+    api_wrapper(rec, 'statuses_async', '7', params={'limit': 20},
+                module='accounts')
+    api_wrapper(rec, 'relationships_async', ['7', '8'], module='accounts')
+    api_wrapper(rec, 'follow_async', '7', reblogs=True, notify=False,
+                module='relationships')
+    api_wrapper(rec, 'follow_async', '7', reblogs=False, notify=True,
+                module='relationships')
+    api_wrapper(rec, 'unfollow_async', '7', module='relationships')
 
 
 @scenario
 def client_status_wrappers(rec):
-    wrapper(rec, 'status_context_async', '100')
-    wrapper(rec, 'favourite_async', '100')
-    wrapper(rec, 'unfavourite_async', '100')
-    wrapper(rec, 'reblog_async', '100')
-    wrapper(rec, 'reblog_async', '100', visibility='private')
-    wrapper(rec, 'unreblog_async', '100')
-    wrapper(rec, 'bookmark_async', '100')
-    wrapper(rec, 'unbookmark_async', '100')
+    api_wrapper(rec, 'context_async', '100')
+    api_wrapper(rec, 'favourite_async', '100')
+    api_wrapper(rec, 'unfavourite_async', '100')
+    api_wrapper(rec, 'reblog_async', '100')
+    api_wrapper(rec, 'reblog_async', '100', visibility='private')
+    api_wrapper(rec, 'unreblog_async', '100')
+    api_wrapper(rec, 'bookmark_async', '100')
+    api_wrapper(rec, 'unbookmark_async', '100')
 
 
 @scenario
@@ -1076,9 +1097,28 @@ def status_stats_view_tabs(rec):
     view = statusviews.StatusStatsView(
         rec.client(), status('100', quotes_count=1), 'favourites')
     rec.settle()
-    for kind, _key, path in statusviews.STATS_TABS:
-        view._make_tab(kind, path % '100')
+    for kind, _key in statusviews.STATS_TABS:
+        view._make_tab(kind, '100')
         rec.settle()
+
+
+@scenario
+def mention_completer_searches_accounts(rec):
+    from src.mentioncompleter import MentionCompleter
+    view = Gtk.TextView()
+    completer = MentionCompleter(rec.client(), view)
+    for token in ('al', 'ada@remote.example'):
+        completer._token = (0, token)
+        completer._search()
+        rec.settle()
+
+
+@scenario
+def fedicollections_fetch_accounts(rec):
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    fedicollections.fetch_accounts(rec.client(), ['7', '8', '7'],
+                                   lambda _accounts: None)
 
 
 # Run

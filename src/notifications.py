@@ -18,6 +18,7 @@ import time as _time  # noqa: E402
 
 from .mastodon import summarize_error_markup  # noqa: E402
 from . import pages  # noqa: E402
+from .api import relationships as api_relationships  # noqa: E402
 from .pages import (PagedList, PagedPosts, connect_weak,  # noqa: E402
                     launch_external,
                     push_page, report_error, reveal, settings, show_toast)
@@ -1324,9 +1325,8 @@ class NotificationRow(ColumnBox):
             if self.item is item:
                 self._bind_extras(item, client)
 
-        client.request_async(
-            'POST', '/follow_requests/%s/%s' % (item.actors[0]['id'],
-                                                action), callback=done)
+        api_relationships.answer_request_async(
+            client, item.actors[0]['id'], action, callback=done)
 
 
     def _add_follow_back(self, item):
@@ -1373,8 +1373,7 @@ class NotificationRow(ColumnBox):
             if self.item is item:
                 self._bind_extras(item, client)
 
-        client.request_async('POST', '/accounts/%s/follow' % actor['id'],
-                             callback=done)
+        api_relationships.follow_async(client, actor['id'], callback=done)
 
     def bind(self, item, client):
         self.item = item

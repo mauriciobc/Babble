@@ -1186,75 +1186,16 @@ class MastodonClient(GObject.Object):
                              'mastodon-http-error-quark', 0)
         return token
 
-    # Accounts
+    # Accounts live in src/api/accounts.py and src/api/relationships.py.
 
-    def verify_credentials_async(self, callback=None, cancellable=None):
-        return self._request_async('GET', '/accounts/verify_credentials',
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def verify_credentials_finish(self, result):
-        data = self._finish(result)
-        account_id = data.get('id') if isinstance(data, dict) else None
-        if not isinstance(account_id, str) or not account_id:
-            raise GLib.Error(_('The server did not return a valid account.'),
-                             'mastodon-http-error-quark', 0)
-        return data
-
-    def lookup_account_async(self, acct, callback=None, cancellable=None):
-        return self._request_async('GET', '/accounts/lookup',
-                                   params={'acct': acct},
-                                   callback=callback, cancellable=cancellable)
-
-    def lookup_account_finish(self, result):
-        return self._finish(result)
-
-    def account_statuses_async(self, account_id, params=None, callback=None,
-                               cancellable=None):
-        return self._request_async('GET', '/accounts/%s/statuses'
-                                   % account_id, params=params,
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def account_statuses_finish(self, result):
-        return self._finish(result)
-
-    def relationships_async(self, account_ids, callback=None,
-                            cancellable=None):
-        return self._request_async(
-            'GET', '/accounts/relationships',
-            params={'id[]': account_ids}, callback=callback,
-            cancellable=cancellable)
-
-    def relationships_finish(self, result):
-        data = self._finish(result)
-        return data[0] if data else {}
-
-    def follow_async(self, account_id, reblogs=True, notify=False,
-                     callback=None, cancellable=None):
-        """POST /api/v1/accounts/:id/follow; the answer is the
-        relationship, not the account.
-
-        A locked account answers ``requested: true`` instead of
-        ``following: true``: the request exists, the follow does not.
-        """
-        form = {'reblogs': 'true' if reblogs else 'false',
-                'notify': 'true' if notify else 'false'}
-        return self._request_async('POST', '/accounts/%s/follow' % account_id,
-                                   form=form, callback=callback,
-                                   cancellable=cancellable)
-
-    def follow_finish(self, result):
-        return self._finish(result)
-
-    def unfollow_async(self, account_id, callback=None, cancellable=None):
-        return self._request_async('POST', '/accounts/%s/unfollow'
-                                   % account_id, callback=callback,
-                                   cancellable=cancellable)
-
-    def unfollow_finish(self, result):
-        return self._finish(result)
-
+    def invalid_response(self, what):
+        """The error for a 2xx answer whose body is not what the endpoint
+        promises, for the `api` modules, which cannot import GLib or
+        translate. *what* is ``account``."""
+        messages = {
+            'account': _('The server did not return a valid account.'),
+        }
+        return GLib.Error(messages[what], 'mastodon-http-error-quark', 0)
 
     # Timelines and notifications
 
@@ -1342,71 +1283,6 @@ class MastodonClient(GObject.Object):
         return self._finish(result)
 
     # Statuses
-
-    def status_context_async(self, status_id, callback=None,
-                             cancellable=None):
-        return self._request_async('GET', '/statuses/%s/context' % status_id,
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def status_context_finish(self, result):
-        data = self._finish(result)
-        return data.get('ancestors', []), data.get('descendants', [])
-
-    def favourite_async(self, status_id, callback=None, cancellable=None):
-        """POST /api/v1/statuses/:id/favourite; the answer is the status."""
-        return self._request_async('POST', '/statuses/%s/favourite'
-                                   % status_id, callback=callback,
-                                   cancellable=cancellable)
-
-    def favourite_finish(self, result):
-        return self._finish(result)
-
-    def unfavourite_async(self, status_id, callback=None, cancellable=None):
-        return self._request_async('POST', '/statuses/%s/unfavourite'
-                                   % status_id, callback=callback,
-                                   cancellable=cancellable)
-
-    def unfavourite_finish(self, result):
-        return self._finish(result)
-
-    def reblog_async(self, status_id, visibility=None, callback=None,
-                     cancellable=None):
-        """POST /api/v1/statuses/:id/reblog.
-
-        *visibility* is ``public`` or ``private``; the server's default
-        applies when it is absent.
-        """
-        form = {'visibility': visibility} if visibility else None
-        return self._request_async('POST', '/statuses/%s/reblog' % status_id,
-                                   form=form, callback=callback,
-                                   cancellable=cancellable)
-
-    def reblog_finish(self, result):
-        return self._finish(result)
-
-    def unreblog_async(self, status_id, callback=None, cancellable=None):
-        return self._request_async('POST', '/statuses/%s/unreblog'
-                                   % status_id, callback=callback,
-                                   cancellable=cancellable)
-
-    def unreblog_finish(self, result):
-        return self._finish(result)
-
-    def bookmark_async(self, status_id, callback=None, cancellable=None):
-        return self._request_async('POST', '/statuses/%s/bookmark' % status_id,
-                                   callback=callback, cancellable=cancellable)
-
-    def bookmark_finish(self, result):
-        return self._finish(result)
-
-    def unbookmark_async(self, status_id, callback=None, cancellable=None):
-        return self._request_async('POST', '/statuses/%s/unbookmark'
-                                   % status_id, callback=callback,
-                                   cancellable=cancellable)
-
-    def unbookmark_finish(self, result):
-        return self._finish(result)
 
     def post_status_async(self, text, params=None, callback=None,
                           cancellable=None):

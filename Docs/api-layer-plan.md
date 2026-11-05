@@ -76,28 +76,76 @@ roles run in sequence; the main session accepts against the criteria below.
 - **Done when:** suite unchanged, audit reviewed, the allow-list reproduces the audit's 83 raw sites plus the helper and
   internal layers (currently 175 entries: 83 raw, 8 internal, 84 helper).
 
-### Phase 1: status and account actions, `mastodon.py` split
-- Create `src/api/` (`statuses`, `accounts`, `relationships`), move the
-  existing wrappers out of `mastodon.py`, keep `mastodon.py` under 800
-  lines.
-- Route `statusactions`, `statusmenu`, `profileactions` through them.
-- **Done when:** golden logs identical, suite green, allow-list shrunk,
-  `mastodon.py` under the limit.
+### Phase 1: status and account actions
+Three commits, each leaving `api golden` byte-identical:
+- **1a core and registry.** `src/api/` package with `core.py` (an `Endpoint`
+  declaration: method, path template, scope, minimum API version, docs URL,
+  deprecation note; and a `send()` that formats the path and calls
+  `client.request_async`, so the golden recorder's chokepoint is unchanged),
+  and an `api registry` test (every endpoint complete, docs URL on
+  docs.joinmastodon.org, valid method, path template placeholders match).
+- **1b statuses.** `src/api/statuses.py`: the status wrappers moved out of
+  `MastodonClient` (favourite, reblog, bookmark, context, post/reply/edit stay
+  for phase 3) plus the verbs `statusactions`, `statusmenu` and `statusviews`
+  build by hand. Callers, `bench/rank_eval.py` and the golden scenarios call
+  the api functions; no compatibility shims left on the client.
+- **1c accounts and relationships.** `src/api/accounts.py` and
+  `src/api/relationships.py`: the account wrappers and the follow, block,
+  mute, endorse, note, domain-block, follow-request verbs used by
+  `profileactions`, `profile`, `relations`, `explore` and `notifications`.
+- Two allow-list entries were relabelled during phase 1 because they were
+  not status or account verbs: `desktopnotify.DesktopNotifier._poll`
+  (`GET /notifications`, "phase 1: statuses" to "phase 2: notifications") and
+  `hashtags.TagRow._on_unfollow.undo` (`/tags/%s/follow`, "phase 1:
+  relationships" to "phase 2: tags").
+- After each commit the `api boundary` allow-list is pruned
+  (`BABBLE_BOUNDARY_PRUNE=1`) and the diff reviewed.
+- `mastodon.py` is a recorded exception in `src/test-file-size.py`; its size
+  is not a phase 1 criterion. Moving OAuth and the keyring out of it is an
+  optional later step, not part of this plan.
+- **Done when:** golden identical, suite green, phase 1 allow-list entries
+  gone, no status or account verb path built outside `src/api/`.
 
 ### Phase 2: read paths
 - Lists, hashtags, search, explore, conversations, announcements,
   notifications, scheduled posts, filters, timelines helpers.
 - **Done when:** as phase 1 for those modules.
 
+**Carried over from the phase 1 review (do these at the start or end of phase 2):**
+- Collapse the parallel helper pairs into the `start(callback)` form and
+  delete the path-taking versions when their last raw caller goes:
+  `pages.call` / `pages.call_api`, `PagedList.mutate_row` / `mutate_row_api`,
+  `fedicollections._send` / `_send_api`, `catchup/fetch._get` / `_reply`.
+  `call_api` should take an optional `finish=` so an api `*_finish`
+  (validation, tuple unpacking) is honoured instead of bypassed by
+  `client.request_finish`.
+- Converge the naming before it spreads: one name for the table-pick
+  (`ACTIONS`), one keyword (`operation`), one accessor shape
+  (`list_path(kind, *ids)`), for `statuses.toggle_async`/`post_action_async`,
+  `relationships.action_async`/`answer_request_async` and the three
+  `LISTS` tables. Name `lists.py` and `hashtags.py` consistently from the
+  start.
+- Add `core.finish_paged` with the first paged read.
+- Add a `mastodon_version` (release string) field to `Endpoint`, or decide
+  the generated version column comes from `src/capabilities.py`; today
+  `min_version` is None everywhere and versions live in free-text notes.
+
 ### Phase 3: write paths
 - Compose and edit, media, polls, profile edit, reports, admin.
 - **Done when:** as phase 1; multipart/media paths covered by the recorder.
+- `core` has no multipart path yet: add `core.send_multipart` (or a `body=`
+  passthrough) when media upload moves.
 
 ### Phase 4: close
 - Allow-list empty; `api boundary` has no exceptions.
 - `CLAUDE.md` and `Docs/mastodon-compat.md` updated (registry-generated
   table); remove the "bench-only API" wording.
 - **Done when:** zero raw sites outside the allowed internals.
+- Option: replace `MastodonClient.invalid_response` (kept so the translated
+  error text stays out of `src/api`) with a plain `core.InvalidResponse`
+  that the transport or UI layer translates where it catches it.
+- Update the `mastodon.py` entry in `src/test-file-size.py` to whatever it
+  still holds.
 
 ### Phase 5: compliance fixes
 - Done before phase 1: `send_domain_block` (`applied=` to `apply=`) and

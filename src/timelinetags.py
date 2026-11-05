@@ -14,6 +14,7 @@ gi.require_version('Gtk', '4.0')
 
 from gi.repository import GLib  # noqa: E402
 
+from .api import accounts as api_accounts  # noqa: E402
 from .timelinedata import matching_tag  # noqa: E402
 
 
@@ -87,14 +88,14 @@ class FollowedTags:
         if not unknown:
             self.model.apply_source_tags(hits, self._following_ids)
             return
-        self.client.relationships_async(
-            unknown[:40],
+        api_accounts.relationships_async(
+            self.client, unknown[:40],
             lambda client, result, _data=None:
                 self._on_tag_relationships(client, result, hits))
 
     def _on_tag_relationships(self, client, result, hits):
         try:
-            rels = client.request_finish(result)
+            rels = api_accounts.relationships_all_finish(client, result)
         except GLib.Error:
             self.model.apply_source_tags(hits, self._following_ids)
             return

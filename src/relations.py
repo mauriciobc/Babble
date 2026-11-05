@@ -13,6 +13,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import relationships as api_relationships  # noqa: E402
 
 
 def _account_label(account):
@@ -27,7 +28,7 @@ class FollowRequestsPage(pages.AccountListPage):
     __gtype_name__ = 'BabbleFollowRequestsPage'
 
     def __init__(self, client, **kwargs):
-        super().__init__(client, '/follow_requests',
+        super().__init__(client, api_relationships.list_path('follow_requests'),
                          empty_title=_('No Follow Requests'),
                          make_suffix=self._suffix_for, **kwargs)
         self.empty_page.set_icon_name('address-book-new-symbolic')
@@ -60,8 +61,10 @@ class FollowRequestsPage(pages.AccountListPage):
 
     def answer(self, row, account, verb):
         accepted = verb == 'authorize'
-        self.mutate_row(
-            row, 'POST', '/follow_requests/%s/%s' % (account['id'], verb),
+        client = self.client
+        self.mutate_row_api(
+            row, lambda cb: api_relationships.answer_request_async(
+                client, account['id'], verb, callback=cb),
             lambda: pages.show_toast(
                 self, (_('Accepted %s') if accepted else _('Rejected %s'))
                 % _account_label(account)),
@@ -88,7 +91,7 @@ class MutedAccountsPage(pages.AccountListPage):
     __gtype_name__ = 'BabbleMutedAccountsPage'
 
     def __init__(self, client, **kwargs):
-        super().__init__(client, '/mutes',
+        super().__init__(client, api_relationships.list_path('mutes'),
                          empty_title=_('No Muted Accounts'),
                          make_suffix=self._suffix_for, **kwargs)
         self.empty_page.set_icon_name('audio-volume-muted-symbolic')
@@ -100,8 +103,10 @@ class MutedAccountsPage(pages.AccountListPage):
         self.unmute(_row_of(button), account)
 
     def unmute(self, row, account):
-        self.mutate_row(
-            row, 'POST', '/accounts/%s/unmute' % account['id'],
+        client = self.client
+        self.mutate_row_api(
+            row, lambda cb: api_relationships.unmute_async(
+                client, account['id'], callback=cb),
             lambda: pages.show_toast(
                 self, _('Unmuted %s') % _account_label(account)),
             _('Could not unmute %s') % _account_label(account))
@@ -113,7 +118,7 @@ class BlockedAccountsPage(pages.AccountListPage):
     __gtype_name__ = 'BabbleBlockedAccountsPage'
 
     def __init__(self, client, **kwargs):
-        super().__init__(client, '/blocks',
+        super().__init__(client, api_relationships.list_path('blocks'),
                          empty_title=_('No Blocked Accounts'),
                          make_suffix=self._suffix_for, **kwargs)
         self.empty_page.set_icon_name('action-unavailable-symbolic')
@@ -125,8 +130,10 @@ class BlockedAccountsPage(pages.AccountListPage):
         self.unblock(_row_of(button), account)
 
     def unblock(self, row, account):
-        self.mutate_row(
-            row, 'POST', '/accounts/%s/unblock' % account['id'],
+        client = self.client
+        self.mutate_row_api(
+            row, lambda cb: api_relationships.unblock_async(
+                client, account['id'], callback=cb),
             lambda: pages.show_toast(
                 self, _('Unblocked %s') % _account_label(account)),
             _('Could not unblock %s') % _account_label(account))
@@ -139,7 +146,9 @@ class BlockedDomainsPage(pages.PagedList):
     __gtype_name__ = 'BabbleBlockedDomainsPage'
 
     def __init__(self, client, **kwargs):
-        super().__init__(client, '/domain_blocks', self._make_row,
+        super().__init__(client,
+                         api_relationships.list_path('domain_blocks'),
+                         self._make_row,
                          empty_title=_('No Blocked Domains'),
                          empty_icon='network-server-symbolic', **kwargs)
 
@@ -154,8 +163,10 @@ class BlockedDomainsPage(pages.PagedList):
         self.unblock(_row_of(button), domain)
 
     def unblock(self, row, domain):
-        self.mutate_row(
-            row, 'DELETE', '/domain_blocks', params={'domain': domain},
+        client = self.client
+        self.mutate_row_api(
+            row, lambda cb: api_relationships.domain_unblock_async(
+                client, domain, callback=cb),
             on_done=lambda: pages.show_toast(
                 self, _('Unblocked %s') % domain),
             error_heading=_('Could not unblock %s') % domain)

@@ -444,9 +444,9 @@ class SearchProvider:
             for waiter in self._index_waiters.pop(key, ()):
                 waiter()
 
-        client.request_async(
-            'GET', '/accounts/%s/following' % account['id'],
-            params={'limit': 80},
+        from .api import accounts as api_accounts
+        api_accounts.following_async(
+            client, account['id'], params={'limit': 80},
             callback=lambda c, r, _d=None: finished('accounts', c, r))
         client.request_async(
             'GET', '/followed_tags', params={'limit': 100},
@@ -672,35 +672,31 @@ class SearchProvider:
 
         self._when_signed_in(window, route)
 
-    @staticmethod
-    def _fetch(win, path, heading, opener):
-        def done(client, result, _data=None):
-            try:
-                data = client.request_finish(result)
-            except GLib.Error as error:
-                from .pages import report_error
-                report_error(win, heading, error)
-                return
-            opener(data)
-        win.client.request_async('GET', path, callback=done)
-
     def _open_profile(self, win, account_id, account):
         from . import pages
         if account is not None:
             pages.open_profile(win, win.client, account)
             return
-        self._fetch(win, '/accounts/%s' % account_id,
-                    _('Could not open the profile'),
-                    lambda data: pages.open_profile(win, win.client, data))
+        from .api import accounts as api_accounts
+        pages.call_api(
+            win, win.client,
+            lambda cb: api_accounts.get_async(win.client, account_id,
+                                              callback=cb),
+            lambda data: pages.open_profile(win, win.client, data),
+            _('Could not open the profile'))
 
     def _open_status(self, win, status_id, status):
         from . import pages
+        from .api import statuses as api_statuses
         if status is not None:
             pages.open_status(win, win.client, status)
             return
-        self._fetch(win, '/statuses/%s' % status_id,
-                    _('Could not open the post'),
-                    lambda data: pages.open_status(win, win.client, data))
+        pages.call_api(
+            win, win.client,
+            lambda cb: api_statuses.get_async(win.client, status_id,
+                                              callback=cb),
+            lambda data: pages.open_status(win, win.client, data),
+            _('Could not open the post'))
 
     @staticmethod
     def _open_search(win, query):

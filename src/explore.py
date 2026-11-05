@@ -17,6 +17,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import relationships as api_relationships  # noqa: E402
 
 from .capabilities import LINK_TIMELINE_API_VERSION
 
@@ -288,9 +289,8 @@ class SuggestionRow(pages.AccountRow):
             button.set_label(_('Requested') if relationship.get('requested')
                              else _('Following'))
 
-        client.request_async(
-            'POST', '/accounts/%s/follow' % self.account['id'],
-            callback=finished)
+        api_relationships.follow_async(client, self.account['id'],
+                                       callback=finished)
 
     def _on_dismiss(self, _button):
         client = self.page.client

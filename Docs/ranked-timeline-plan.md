@@ -243,7 +243,8 @@ cost data over the fourteen-day collection.
   `fetched.get('/accounts/verify_credentials')[0][0]`, on the belief that
   the body was a list. It is an **object** — the app reads it as
   `account = client.verify_credentials_finish(result)` then
-  `account['instance'] = ...` (`auth.py:535`) — so the second index
+  `account['instance'] = ...` (`auth.py:535`; the call is now
+  `api.accounts.verify_credentials_finish(client, result)`) — so the second index
   raised `KeyError: 0`, which is neither a `GLib.Error` nor a
   `Stopped` and escaped as a traceback. Every hourly run would have died
   on its first request and written nothing. The reader takes the body as
@@ -1661,7 +1662,8 @@ suite; H1 can start.
        with.** `/accounts/verify_credentials` answers with an **object**
        (the account), not a one-element list — the app reads it as
        `account = client.verify_credentials_finish(result)` then
-       `account['instance'] = ...` (`auth.py:535`). A fake that answers
+       `account['instance'] = ...` (`auth.py:535`; now
+       `api.accounts.verify_credentials_finish(client, result)`). A fake that answers
        with a list makes the harness look as if it wanted one index more
        than it does, and the self-test would bless the crash.
      - a second run against the same database adds one `runs` row and no

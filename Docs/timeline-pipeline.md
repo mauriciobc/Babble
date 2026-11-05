@@ -420,7 +420,7 @@ timeline (`source is None`).
         ├─ collect author_ids of replies not already in self._following_ids
         ├─ unknown empty ─► filter_replies_from_non_follows(...)  [sync]
         │
-        └─ unknown non-empty ─► client.relationships_async(ids[:40], loaded)
+        └─ unknown non-empty ─► api.accounts.relationships_async(client, ids[:40], loaded)
                                      │
                                      ▼   ◄── EXTRA ROUND TRIP before any paint
                                   loaded(client, result)

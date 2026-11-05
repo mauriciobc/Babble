@@ -343,19 +343,19 @@ class DesktopNotifier(GObject.Object):
 from .notifications import id_key as _id_key  # noqa: E402
 from .accounts import account_key, find_account_by_key  # noqa: E402
 from .mastodon import MastodonClient, summarize_error  # noqa: E402
+from .api import relationships as api_relationships  # noqa: E402
+from .api import statuses as api_statuses  # noqa: E402
 
 # Kinds whose post is someone else's and can be favourited or boosted
 # straight from the notification.
 _STATUS_BUTTON_KINDS = ('mention', 'status')
 
-# action name -> (HTTP method, path template, failure title)
+# action name -> failure title. The requests are `api` functions, chosen
+# in `_run`.
 _ACTIONS = {
-    'favourite': ('POST', '/statuses/%s/favourite',
-                  lambda: _('Could not favorite post')),
-    'boost': ('POST', '/statuses/%s/reblog',
-              lambda: _('Could not boost post')),
-    'follow-back': ('POST', '/accounts/%s/follow',
-                    lambda: _('Could not follow back')),
+    'favourite': lambda: _('Could not favorite post'),
+    'boost': lambda: _('Could not boost post'),
+    'follow-back': lambda: _('Could not follow back'),
 }
 
 
@@ -446,8 +446,7 @@ def _reply(win, key, status_id):
             return
         _open_reply(win, status_id, fetched or {})
 
-    win.client.request_async('GET', '/statuses/%s' % status_id,
-                             callback=done)
+    api_statuses.get_async(win.client, status_id, callback=done)
 
 
 def _open_reply(win, status_id, status):
@@ -500,8 +499,6 @@ def _on_activate(action, parameter, app):
 
 
 def _run(app, client, name, target_id):
-    method, path, _title = _ACTIONS[name]
-
     def done(c, result):
         try:
             c.request_finish(result)
@@ -514,11 +511,18 @@ def _run(app, client, name, target_id):
             from .pages import show_toast
             show_toast(win, _confirmation(name))
 
-    client.request_async(method, path % target_id, callback=done)
+    if name == 'favourite':
+        api_statuses.favourite_async(client, target_id, callback=done)
+    elif name == 'boost':
+        api_statuses.reblog_async(client, target_id, callback=done)
+    elif name == 'follow-back':
+        api_relationships.follow_async(client, target_id, callback=done)
+    else:
+        raise KeyError(name)
 
 
 def _report_failure(app, name, detail):
-    note = Gio.Notification.new(_ACTIONS[name][2]())
+    note = Gio.Notification.new(_ACTIONS[name]())
     body = summarize_error(detail or '')
     if body:
         note.set_body(body)

@@ -192,6 +192,38 @@ def violations(sources: dict[str, str]) -> list[str]:
                     found.append('R4: %s:%d imports %s: the server is'
                                  ' reached through src/mastodon.py'
                                  % (path, line, name))
+        if path.startswith('src/api/'):
+            # R8: the api package is pure Python on the standard library
+            # and its own core. No GObject, no gettext, no widgets, no
+            # client: it builds a request and hands it to the client the
+            # caller passes in, so it can be tested without a display.
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        top = alias.name.split('.')[0]
+                        if top not in sys.stdlib_module_names:
+                            found.append('R8: %s:%d imports %s: src/api'
+                                         ' may use only the standard'
+                                         ' library and core'
+                                         % (path, node.lineno, alias.name))
+                elif isinstance(node, ast.ImportFrom):
+                    names = {alias.name for alias in node.names}
+                    if node.level == 0:
+                        top = (node.module or '').split('.')[0]
+                        if top not in sys.stdlib_module_names:
+                            found.append('R8: %s:%d imports %s: src/api'
+                                         ' may use only the standard'
+                                         ' library and core'
+                                         % (path, node.lineno, node.module))
+                    elif not (node.level == 1
+                              and (node.module == 'core'
+                                   or (node.module is None
+                                       and names == {'core'}))):
+                        found.append('R8: %s:%d imports %s%s: src/api may'
+                                     ' use only the standard library and'
+                                     ' core'
+                                     % (path, node.lineno,
+                                        '.' * node.level, node.module or ''))
     return found
 
 
@@ -259,6 +291,24 @@ self_check('R1 rejects affinity importing a Catch Up module',
 self_check('R1 rejects navigation importing a Catch Up submodule',
            {'src/navigation.py': 'from .catchup.store import X\n'},
            'R1: src/navigation.py:1 imports store')
+self_check('R8 rejects src/api importing GObject',
+           {'src/api/statuses.py': 'import gi\n'},
+           'R8: src/api/statuses.py:1 imports gi')
+self_check('R8 rejects src/api importing the translation helper',
+           {'src/api/statuses.py': 'from ..i18n import gettext\n'},
+           'R8: src/api/statuses.py:1 imports ..i18n')
+self_check('R8 rejects src/api importing the client',
+           {'src/api/accounts.py': 'from .mastodon import MastodonClient\n'},
+           'R8: src/api/accounts.py:1 imports .mastodon')
+self_check('R8 rejects one resource module importing another',
+           {'src/api/accounts.py': 'from . import statuses\n'},
+           'R8: src/api/accounts.py:1 imports .')
+check('R8 accepts the standard library and core',
+      not [line for line in violations({
+          'src/api/accounts.py':
+          'import dataclasses\nfrom typing import Optional\n'
+          'from . import core\nfrom .core import send\n'})
+          if line.startswith('R8')])
 check('the checker accepts navigation importing the catchup package',
       not violations({'src/navigation.py':
                       'from .catchup import CatchUpPage\n'}))

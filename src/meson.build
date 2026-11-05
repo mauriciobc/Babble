@@ -128,6 +128,14 @@ install_data(
   'catchup/geometry.py',
   install_dir: moduledir / 'catchup',
 )
+install_data(
+  'api/__init__.py',
+  'api/core.py',
+  'api/statuses.py',
+  'api/accounts.py',
+  'api/relationships.py',
+  install_dir: moduledir / 'api',
+)
 
 # One environment for every test. GTK_A11Y=none is what stops a missing
 # AT-SPI registry from aborting the tests that run under
@@ -444,6 +452,12 @@ test('module boundary', python,
 # Needs no display: it reads the sources with ast only.
 test('api boundary', python,
   args: [files('test-api-boundary.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: it imports the registry and runs the checker.
+test('api registry', python,
+  args: [files('test-api-registry.py')],
   env: test_env,
   timeout: 60,
 )

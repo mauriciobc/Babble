@@ -31,8 +31,8 @@ the call that sends it:
     it later: `admin.send`, `fedicollections._send`, `wrapped._send`,
     `mutate_row`, the `PagedList` / `AccountListPage` /
     `ApiTimelineSource` constructors, `profileactions.send_relationship`
-    and `_send_profile_action` (their first argument names the operation,
-    from which the path is built), Catch Up's `_get`, `multipart_async`,
+    (its first argument names the operation, from which the path is
+    built), Catch Up's `_get`, `multipart_async`,
     and the completers' `search_request` hooks (their `return path,
     params`). Without these, a new endpoint could be reached through a
     helper and never show up as a `request_async` with a literal path,
@@ -67,7 +67,7 @@ Counts, and the three layers in two lines. `raw` is a call that names a
 Mastodon path itself (`request_async`, `pages.call`); `internal` is a
 generic helper's own inner send or path forward (7 `request_async` calls
 plus `pages.AccountListPage.__init__`, 8 in all); `helper` hands a path or a
-verb to a helper that sends it later. Today: 175 sites, raw 83, internal 8,
+verb to a helper that sends it later. At phase 0: 175 sites, raw 83, internal 8,
 helper 84.
 
 Pruning. The list may only shrink, and removing an entry by hand after a
@@ -89,6 +89,20 @@ import sys
 
 srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
+sys.path.insert(0, srcdir)
+
+# The resource modules are pure Python (no GI): their tables say which
+# verbs and list kinds a literal may name.
+from src.api import accounts as _accounts  # noqa: E402
+from src.api import relationships as _relationships  # noqa: E402
+from src.api import statuses as _statuses  # noqa: E402
+
+API_MODULES = {'accounts': _accounts, 'relationships': _relationships,
+               'statuses': _statuses}
+# The path accessors of `src.api`: a helper handed one of these names no
+# path of its own, so the site needs no allow-list entry.
+ACCESSORS = ('list_path', 'search_path', 'familiar_followers_path')
 ALLOWLIST = os.path.join(srcdir, 'api-boundary-allowlist.json')
 
 # Files that are the boundary itself.
@@ -115,8 +129,6 @@ MECHANISMS = {
     'ApiTimelineSource': ('helper', 1, 'path', None),
     'send_relationship': ('helper', 0, 'operation',
                           {'src/profile.py', 'src/profileactions.py'}),
-    '_send_profile_action': ('helper', 1, 'path',
-                             {'src/profileactions.py'}),
     'catchup._get': ('helper', 0, 'path', {'src/catchup/fetch.py'}),
 }
 HOOK_NAME = 'search_request'
@@ -126,6 +138,8 @@ ALIASED = frozenset({'request_async'})
 # Classes whose constructor takes a path: a subclass hands it on through
 # `super().__init__(client, '/path', ...)`, which names the path too.
 PATH_BASES = frozenset({'PagedList', 'AccountListPage'})
+# Mechanisms whose first argument names a verb of the relationships table.
+VERB_MECHANISMS = frozenset({'send_relationship'})
 
 
 def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
@@ -183,19 +197,55 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
     return None
 
 
+def path_node(call, mechanism):
+    """The path argument node of *call*, or None if absent."""
+    _layer, index, keyword, _files = MECHANISMS[mechanism]
+    if len(call.args) > index:
+        return call.args[index]
+    node = None
+    for kw in call.keywords:
+        if kw.arg in (keyword, 'path'):
+            node = kw.value
+    return node
+
+
 def path_text(call, mechanism):
     """The path argument of *call* as stable text, or None if absent."""
-    _layer, index, keyword, _files = MECHANISMS[mechanism]
-    node = None
-    if len(call.args) > index:
-        node = call.args[index]
-    else:
-        for kw in call.keywords:
-            if kw.arg in (keyword, 'path'):
-                node = kw.value
+    node = path_node(call, mechanism)
     if node is None:
         return None
     return ' '.join(ast.unparse(node).split())
+
+
+def is_registered(node, mechanism, api_names):
+    """True when the path (or verb) argument *node* is a registered accessor.
+
+    * a verb mechanism (`send_relationship`) given a string literal that is
+      a key of `api.relationships.ACTIONS`; an unknown literal or a
+      variable is still a site;
+    * a helper-layer path that is a call of `list_path(...)`,
+      `search_path()` or `familiar_followers_path()` on a name bound to a
+      `src.api` module import. A string literal first argument must be a
+      kind of that module's `LISTS`; a variable kind is accepted (the
+      accessor raises KeyError at run time on a typo)."""
+    if node is None:
+        return False
+    if mechanism in VERB_MECHANISMS:
+        return isinstance(node, ast.Constant) \
+            and node.value in _relationships.ACTIONS
+    if not (isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in api_names
+            and node.func.attr in ACCESSORS):
+        return False
+    module = API_MODULES[api_names[node.func.value.id]]
+    if not hasattr(module, node.func.attr):
+        return False
+    if node.func.attr == 'list_path' and node.args \
+            and isinstance(node.args[0], ast.Constant):
+        return node.args[0].value in getattr(module, 'LISTS', {})
+    return True
 
 
 def _base_name(node):
@@ -237,8 +287,10 @@ def path_classes(tree, known=frozenset()):
 
 
 class Visitor(ast.NodeVisitor):
-    def __init__(self, rel, call_names, pages_names, derived, forwarding):
+    def __init__(self, rel, call_names, pages_names, derived, forwarding,
+                 api_names=None):
         self.rel = rel
+        self.api_names = api_names or {}
         self.call_names = call_names
         self.pages_names = pages_names
         self.derived = derived
@@ -277,7 +329,10 @@ class Visitor(ast.NodeVisitor):
                                  in_derived)
         if mechanism is not None:
             text = path_text(node, mechanism)
-            if text is not None:
+            registered = MECHANISMS[mechanism][0] == 'helper' \
+                and is_registered(path_node(node, mechanism), mechanism,
+                                  self.api_names)
+            if text is not None and not registered:
                 self.add(mechanism, text, MECHANISMS[mechanism][0],
                          node.lineno)
         elif isinstance(node.func, ast.Name) and node.func.id == 'getattr' \
@@ -304,7 +359,9 @@ class Visitor(ast.NodeVisitor):
         if (self.scope and self.scope[-1] == HOOK_NAME
                 and isinstance(node.value, ast.Tuple) and node.value.elts):
             text = ' '.join(ast.unparse(node.value.elts[0]).split())
-            self.add('hook:' + HOOK_NAME, text, 'helper', node.lineno)
+            if not is_registered(node.value.elts[0], HOOK_NAME,
+                                 self.api_names):
+                self.add('hook:' + HOOK_NAME, text, 'helper', node.lineno)
         self.generic_visit(node)
 
 
@@ -331,6 +388,21 @@ def import_names(tree):
     return call_names, pages_names
 
 
+def api_import_names(tree):
+    """{local name: module} of the `src.api` modules a tree imports.
+
+    Only `from .api import accounts as api_accounts` (any dots) counts: a
+    name bound any other way is not a registered accessor."""
+    names = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom) and (n.module or '') in (
+                'api', 'src.api'):
+            for a in n.names:
+                if a.name in API_MODULES:
+                    names[a.asname or a.name] = a.name
+    return names
+
+
 def scan_source(rel, source, known=frozenset()):
     """[(file, function, mechanism, path text, layer, line)] of one source.
 
@@ -340,7 +412,8 @@ def scan_source(rel, source, known=frozenset()):
     tree = ast.parse(source, rel)
     call_names, pages_names = import_names(tree)
     derived, forwarding = path_classes(tree, known)
-    visitor = Visitor(rel, call_names, pages_names, derived, forwarding)
+    visitor = Visitor(rel, call_names, pages_names, derived, forwarding,
+                      api_import_names(tree))
     visitor.visit(tree)
     return visitor.found
 
@@ -616,6 +689,60 @@ def self_check():
         'pages.call', 'pages.call'],
           'self-check: aliased pages.call and request_async are caught')
 
+    imports = ("from .api import accounts as api_accounts\n"
+               "from .api import relationships as api_rel\n"
+               "from .api import statuses as api_statuses\n")
+
+    def scan_api(body, rel='src/profileactions.py'):
+        return scan_source(rel, imports + body)
+
+    ok_verb = ("def f(self):\n"
+               "    self.send_relationship('follow')\n"
+               "    self.send_relationship('remove_from_followers')\n")
+    check(scan_api(ok_verb) == [],
+          'self-check: a send_relationship literal verb of the table needs '
+          'no entry')
+    check(len(scan_api("def f(self):\n"
+                       "    self.send_relationship('folow')\n")) == 1,
+          'self-check: a typo in a send_relationship verb fails')
+    check(len(scan_api("def f(self, verb):\n"
+                       "    self.send_relationship(verb)\n")) == 1,
+          'self-check: a variable send_relationship verb is still a site')
+    ok_path = ("def f(self, c, kind):\n"
+               "    pages.AccountListPage(c, api_rel.list_path('mutes'))\n"
+               "    pages.PagedList(c, api_accounts.list_path(kind, 1), f)\n"
+               "    pages.PagedList(c, api_accounts.familiar_followers_path()"
+               ", f)\n"
+               "    pages.AccountListPage(c, api_statuses.list_path("
+               "'boosts', 3))\n")
+    check(scan_api(ok_path) == [],
+          'self-check: registered list_path accessors need no entry')
+    check(len(scan_api("def f(self, c):\n"
+                       "    pages.AccountListPage(c, api_rel.list_path("
+                       "'mute'))\n")) == 1,
+          'self-check: an unknown list_path kind fails')
+    check(len(scan_api("def f(self, c):\n"
+                       "    pages.AccountListPage(c, '/mutes')\n")) == 1,
+          'self-check: a raw literal path is still a site')
+    check(len(scan_api("def f(self, c):\n"
+                       "    pages.AccountListPage(c, other.list_path("
+                       "'mutes'))\n")) == 1,
+          'self-check: list_path on a name that is not an api import is '
+          'still a site')
+    check(len(scan_api("def f(self, c):\n"
+                       "    c.request_async('GET', api_rel.list_path("
+                       "'mutes'))\n")) == 1,
+          'self-check: a raw request_async path is never covered')
+    hook_ok = ("class C:\n"
+               "    def search_request(self, q):\n"
+               "        return api_accounts.search_path(), {'q': q}\n")
+    check(scan_api(hook_ok, 'src/mentioncompleter.py') == [],
+          'self-check: a hook returning search_path() needs no entry')
+    check(len(scan_api(hook_ok.replace('api_accounts.search_path()',
+                                       "'/accounts/search'"),
+                       'src/mentioncompleter.py')) == 1,
+          'self-check: a hook returning a literal path is still a site')
+
     local = ("def f():\n"
              "    def send(attempt):\n"
              "        pass\n"
@@ -624,8 +751,88 @@ def self_check():
           'self-check: a local send() outside admin.py is not the helper')
 
 
+CLIENT_NAMES = ('client', '_client')
+# Receivers that are named like a client but are not a MastodonClient. Keep
+# this short, each with its reason.
+NOT_A_CLIENT = {}
+
+
+def client_members(source):
+    """Names defined in the body of class MastodonClient of *source*."""
+    tree = ast.parse(source)
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == 'MastodonClient':
+            names = set()
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    names.add(item.name)
+                elif isinstance(item, ast.Assign):
+                    names.update(t.id for t in item.targets
+                                 if isinstance(t, ast.Name))
+            return names
+    return set()
+
+
+def client_method_calls(rel, source, members):
+    """Lines calling `<client>.NAME_async/_finish` for a NAME the client no
+    longer has: a leftover call to a wrapper that moved into `src/api/`."""
+    out = []
+    for node in ast.walk(ast.parse(source, rel)):
+        if not (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr.endswith(('_async', '_finish'))):
+            continue
+        receiver = node.func.value
+        last = receiver.attr if isinstance(receiver, ast.Attribute) else (
+            receiver.id if isinstance(receiver, ast.Name) else None)
+        if last in CLIENT_NAMES and node.func.attr not in members \
+                and NOT_A_CLIENT.get(rel) != node.func.attr:
+            out.append('%s:%d %s.%s' % (rel, node.lineno,
+                                        ast.unparse(receiver),
+                                        node.func.attr))
+    return out
+
+
+def check_client_calls():
+    with open(os.path.join(srcdir, 'mastodon.py'), encoding='utf-8') as h:
+        members = client_members(h.read())
+    check(len(members) > 20 and 'request_async' in members
+          and 'favourite_async' not in members,
+          'client calls: MastodonClient has %d members and no '
+          'favourite_async' % len(members))
+    planted = "def f(self):\n    self.client.favourite_async('1')\n"
+    check(client_method_calls('src/x.py', planted, members)
+          == ['src/x.py:2 self.client.favourite_async'],
+          'self-check: a call to a removed client wrapper is found')
+    check(client_method_calls(
+        'src/x.py', "def f(client):\n    client.request_async('GET', '/')\n"
+        "    api.favourite_async(client, '1')\n", members) == [],
+          'self-check: a real client method and an api function are fine')
+    folders = [srcdir, os.path.join(srcdir, 'catchup'),
+               os.path.join(os.path.dirname(srcdir), 'bench')]
+    scanned = 0
+    for folder in folders:
+        if not os.path.isdir(folder):
+            continue
+        for name in sorted(os.listdir(folder)):
+            rel = 'src/' + name if folder == srcdir else (
+                os.path.relpath(os.path.join(folder, name),
+                                os.path.dirname(srcdir)))
+            if not name.endswith('.py') or name == 'mastodon.py':
+                continue
+            scanned += 1
+            with open(os.path.join(folder, name), encoding='utf-8') as h:
+                found = client_method_calls(rel, h.read(), members)
+            for line in found:
+                print('FAIL - call to a name MastodonClient does not have '
+                      '(moved to src/api/?): ' + line)
+            check(not found, 'client calls: %s' % rel)
+    check(scanned > 50, 'client calls: scanned %d files' % scanned)
+
+
 def main():
     self_check()
+    check_client_calls()
 
     with open(ALLOWLIST, encoding='utf-8') as handle:
         data = json.load(handle)

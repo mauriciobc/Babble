@@ -42,6 +42,7 @@ except ImportError:  # loaded as a top-level module by the standalone tests
 from gi.repository import Gio, GLib, GObject, Soup  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .accounts import account_key  # noqa: E402
 from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
                        MastodonClient, OAUTH_REDIRECT, OAUTH_SCOPES,
@@ -540,16 +541,18 @@ class LoginFlow(GObject.Object):
             self._fail(attempt, _('Authorization failed'), e.message)
             return
         client.token = token
-        client.verify_credentials_async(
-            _replying(self._on_credentials_verified, attempt),
+        api_accounts.verify_credentials_async(
+            client, _replying(self._on_credentials_verified, attempt),
             cancellable=self._cancellable)
 
     def _on_credentials_verified(self, client, result, attempt):
         if attempt != self._attempt:
-            discard_reply(client.verify_credentials_finish, result)
+            discard_reply(
+                lambda r: api_accounts.verify_credentials_finish(client, r),
+                result)
             return
         try:
-            account = client.verify_credentials_finish(result)
+            account = api_accounts.verify_credentials_finish(client, result)
         except GLib.Error as e:
             self._fail(attempt, _('Could not verify the account'),
                        e.message)

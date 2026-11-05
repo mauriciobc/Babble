@@ -29,6 +29,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
@@ -53,7 +54,7 @@ def _is_member(item):
     return item.get('state') not in ('rejected', 'revoked')
 
 
-def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
+def _finished(client, on_ok, on_error):
     def finished(_client, result, _data=None):
         try:
             data = client.request_finish(result)
@@ -64,7 +65,19 @@ def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
         if on_ok is not None:
             on_ok(data)
 
-    return client.request_async(method, path, callback=finished, **kwargs)
+    return finished
+
+
+def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
+    return client.request_async(method, path,
+                                callback=_finished(client, on_ok, on_error),
+                                **kwargs)
+
+
+def _send_api(client, start, on_ok=None, on_error=None):
+    """`_send` for an `api` function: *start(callback)* queues the
+    request, so the path is never spelled here."""
+    return start(_finished(client, on_ok, on_error))
 
 
 def _current_account(widget=None):
@@ -110,8 +123,10 @@ def fetch_accounts(client, ids, callback):
             _ACCOUNTS[(host, account['id'])] = account
         done()
 
-    _send(client, 'GET', '/accounts', ok, lambda _e: done(),
-          params={'id[]': missing})
+    _send_api(client,
+              lambda cb: api_accounts.by_ids_async(client, missing,
+                                                   callback=cb),
+              ok, lambda _e: done())
 
 
 def remember_account(client, account):
@@ -381,7 +396,10 @@ class CollectionsPage(Adw.Bin):
                                    error.message)),
                 'error', _('Collections'))
 
-        _send(self.client, 'GET', '/accounts/verify_credentials', ok, failed)
+        _send_api(self.client,
+                  lambda cb: api_accounts.verify_credentials_async(
+                      self.client, callback=cb),
+                  ok, failed)
 
     def _build(self):
         # The lists and their rows live inside the page: hand them weak
@@ -885,9 +903,12 @@ class CollectionEditDialog(pages.ToastDialog):
                 remember_account(self.client, account)
                 self._add_result(account)
 
-        _send(self.client, 'GET', '/accounts/search', ok,
-              lambda e: self.error(_('Search failed'), e),
-              params={'q': query, 'resolve': 'false', 'limit': 5})
+        _send_api(
+            self.client,
+            lambda cb: api_accounts.search_async(
+                self.client,
+                {'q': query, 'resolve': 'false', 'limit': 5}, callback=cb),
+            ok, lambda e: self.error(_('Search failed'), e))
         return GLib.SOURCE_REMOVE
 
     def _clear_results(self):

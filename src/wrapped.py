@@ -26,6 +26,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E40
 
 from . import charts  # noqa: E402
 from . import pages  # noqa: E402
+from .api import statuses as api_statuses  # noqa: E402
 from .mastodon import (summarize_error,  # noqa: E402
                        summarize_error_markup)
 from .statustext import compact_count  # noqa: E402
@@ -71,7 +72,9 @@ def shorten(value):
     return compact_count(value)
 
 
-def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
+def _finish_with(client, start, on_ok=None, on_error=None):
+    """*start(callback)* queues the request; the answer goes to *on_ok*,
+    a failure to *on_error*."""
     def finished(_client, result, _data=None):
         try:
             data = client.request_finish(result)
@@ -82,7 +85,14 @@ def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
         if on_ok is not None:
             on_ok(data)
 
-    return client.request_async(method, path, callback=finished, **kwargs)
+    return start(finished)
+
+
+def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
+    return _finish_with(
+        client,
+        lambda cb: client.request_async(method, path, callback=cb, **kwargs),
+        on_ok, on_error)
 
 
 def default_year():
@@ -585,9 +595,11 @@ class WrappedDialog(pages.ToastDialog):
             self._put_status(holder, status)
         else:
             # The report only embeds some posts; fetch the rest.
-            _send(self.client, 'GET', '/statuses/%s' % status_id,
-                  lambda s: self._put_status(holder, s),
-                  lambda _e: box.set_visible(False))
+            _finish_with(self.client,
+                         lambda cb: api_statuses.get_async(
+                             self.client, status_id, callback=cb),
+                         lambda s: self._put_status(holder, s),
+                         lambda _e: box.set_visible(False))
         return box
 
     def _put_status(self, holder, status):

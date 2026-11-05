@@ -116,6 +116,7 @@ import json
 import math
 import os
 import random
+import re
 import shutil
 import sqlite3
 import stat
@@ -132,6 +133,9 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from src import affinity, mastodon  # noqa: E402
+from src.api import accounts as api_accounts  # noqa: E402
+from src.api import relationships as api_relationships  # noqa: E402
+from src.api import statuses as api_statuses  # noqa: E402
 import src.catchup.rank as _rank  # noqa: E402
 import src.catchup.rank_model as _rank_model  # noqa: E402
 
@@ -453,8 +457,8 @@ def gather(client, known_accounts=(), viewer=None):
         # body is an object -- the account itself, which ``lift`` makes a
         # dict subclass. So this is the account, not the first element of
         # a list: the app reads it the same way
-        # (``account = client.verify_credentials_finish(result)`` then
-        # ``account['instance'] = ...``, auth.py:535).
+        # (``account = api_accounts.verify_credentials_finish(client,
+        # result)`` then ``account['instance'] = ...``, auth.py).
         if viewer:
             gathered['viewer'] = str(viewer)
         else:
@@ -734,8 +738,19 @@ def refused(what, error):
                                  reason)
 
 
+STATUS_ACTIONS = ('favourite', 'unfavourite', 'reblog', 'unreblog',
+                  'bookmark', 'unbookmark')
+# The other actions that live in `src.api`, and the module each is in.
+API_ACTIONS = {'verify_credentials': api_accounts, 'follow': api_relationships,
+               'unfollow': api_relationships}
+
+
 def invoke(client, action, *args, **params):
-    """Run one client ``<action>_async`` and return ``<action>_finish``'s.
+    """Run one ``<action>_async`` and return ``<action>_finish``'s.
+
+    The status, account and relationship actions live in `src.api` and
+    take the client as their first argument; every other action is a
+    method of the client.
 
     The client answers on the main loop, so a `GLib.MainLoop` runs until
     the callback fires -- and not when a fake answered before returning,
@@ -745,15 +760,27 @@ def invoke(client, action, *args, **params):
     loop = GLib.MainLoop()
     answer = {}
 
+    module = api_statuses if action in STATUS_ACTIONS \
+        else API_ACTIONS.get(action)
+    if module is not None:
+        start = getattr(module, action + '_async')
+        finish = getattr(module, action + '_finish')
+        args = (client,) + args
+        finish_args = (client,)
+    else:
+        start = getattr(client, action + '_async')
+        finish = getattr(client, action + '_finish')
+        finish_args = ()
+
     def finished(_client, result, _data=None):
         try:
-            answer['value'] = getattr(client, action + '_finish')(result)
+            answer['value'] = finish(*finish_args, result)
         except Exception as error:
             answer['error'] = error
         finally:
             loop.quit()
 
-    getattr(client, action + '_async')(*args, callback=finished, **params)
+    start(*args, callback=finished, **params)
     if not answer:
         loop.run()
     if 'error' in answer:
@@ -1019,7 +1046,8 @@ def follow(instance, from_account=None, accounts=(), limit=0, pause=0.0,
                                 ' continue' % (followed + requested))
                 return False
             try:
-                relationship = invoke(client, 'follow', candidate)
+                relationship = invoke(client, 'follow', candidate, reblogs=True,
+                                      notify=False)
             except Exception as error:
                 refused_follows += 1
                 failures.append(
@@ -2103,8 +2131,35 @@ class FakeAccountClient:
         self.writes += 1
         self.pending = (value, self._error(action))
 
-    def request_async(self, method, path, params=None, callback=None):
+    def request_async(self, method, path, params=None, form=None,
+                      json_body=None, callback=None, cancellable=None):
+        # The account actions arrive here too, from `src.api`.
+        if method == 'GET' and path == '/accounts/verify_credentials':
+            self._read('verify', path, params, callback)
+            return
+        followed = re.fullmatch(r'/accounts/([^/]+)/follow', path)
+        if method == 'POST' and followed:
+            self._follow(followed.group(1), callback)
+            return
+        # The status actions arrive here, from `src.api.statuses`.
+        written = re.fullmatch(r'/statuses/([^/]+)/(favourite|reblog'
+                               r'|bookmark)', path)
+        if method == 'POST' and written:
+            status_id, action = written.groups()
+            if action == 'reblog':
+                # The visibility is kept beside the call, so a check can
+                # say the harness passed it on rather than dropping it.
+                self.asked_visibility['reblog'] = (form or {}).get(
+                    'visibility')
+            flag = {'favourite': 'favourited', 'reblog': 'reblogged',
+                    'bookmark': 'bookmarked'}[action]
+            self._write(action, status_id, {'id': status_id, flag: True})
+            callback(self, None)
+            return
         self._read('request', path, params, callback)
+
+    def request_finish(self, result):
+        return self._finish(result)
 
     def request_finish_paged(self, result):
         # A page that has a next one hands back the parameters to ask
@@ -2118,40 +2173,6 @@ class FakeAccountClient:
                 return self._finish(result), params, None
         return self._finish(result), None, None
 
-    def verify_credentials_async(self, callback=None, cancellable=None):
-        self._read('verify', '/accounts/verify_credentials', None, callback)
-
-    def verify_credentials_finish(self, result):
-        return self._finish(result)
-
-    def favourite_async(self, status_id, callback=None, cancellable=None):
-        self._write('favourite', str(status_id),
-                    {'id': str(status_id), 'favourited': True})
-        callback(self, None)
-
-    def favourite_finish(self, result):
-        return self._finish(result)
-
-    def reblog_async(self, status_id, visibility=None, callback=None,
-                     cancellable=None):
-        # The visibility is kept beside the call, so a check can say the
-        # harness passed it on rather than dropping it.
-        self.asked_visibility['reblog'] = visibility
-        self._write('reblog', str(status_id), {'id': str(status_id),
-                                               'reblogged': True})
-        callback(self, None)
-
-    def reblog_finish(self, result):
-        return self._finish(result)
-
-    def bookmark_async(self, status_id, callback=None, cancellable=None):
-        self._write('bookmark', str(status_id), {'id': str(status_id),
-                                                 'bookmarked': True})
-        callback(self, None)
-
-    def bookmark_finish(self, result):
-        return self._finish(result)
-
     def reply_async(self, status_id, text, params=None, callback=None,
                     cancellable=None):
         self.asked.append(('reply', (str(status_id), text,
@@ -2163,8 +2184,7 @@ class FakeAccountClient:
     def reply_finish(self, result):
         return self._finish(result)
 
-    def follow_async(self, account_id, reblogs=True, notify=False,
-                     callback=None, cancellable=None):
+    def _follow(self, account_id, callback):
         account_id = str(account_id)
         self.asked.append(('follow', account_id))
         self.writes += 1
@@ -2175,9 +2195,6 @@ class FakeAccountClient:
         self.pending = ({'id': account_id, 'following': error is None,
                          'requested': False}, error)
         callback(self, None)
-
-    def follow_finish(self, result):
-        return self._finish(result)
 
 
 def record(root, world, moments):
@@ -3367,8 +3384,10 @@ def check_accounts(checks):
 
     # And the account itself failing, with a token in hand.
     class NoAccount(FakeAccountClient):
-        def verify_credentials_finish(self, result):
-            raise GLib.Error.new_literal(
+        def _error(self, action):
+            if action != 'verify':
+                return super()._error(action)
+            return GLib.Error.new_literal(
                 GLib.quark_from_string('rank-eval'), 'the token was refused',
                 401)
 
@@ -3393,6 +3412,10 @@ def check_accounts(checks):
             self.sent = (method, path, kwargs)
             return 'task'
 
+        # The status actions are `src.api.statuses` functions, which send
+        # through the public request_async.
+        request_async = _request_async
+
         def post_status_async(self, text, params=None, callback=None,
                               cancellable=None):
             self.sent = ('POST', '/statuses', {'json_body': dict(
@@ -3410,7 +3433,9 @@ def check_accounts(checks):
             ('follow_async', {}),
             ('unfollow_async', {})):
         sent = Sent()
-        getattr(REAL_CLIENT, action)(sent, '7', **kwargs)
+        name = action[:-len('_async')]
+        module = api_statuses if name in STATUS_ACTIONS else api_relationships
+        getattr(module, action)(sent, '7', **kwargs)
         endpoints.append((action, sent.sent[0], sent.sent[1]))
     checks.equal(
         'the client sends each action to its own endpoint', endpoints,
@@ -3424,7 +3449,7 @@ def check_accounts(checks):
          ('unfollow_async', 'POST', '/accounts/7/unfollow')])
 
     sent = Sent()
-    REAL_CLIENT.follow_async(sent, '7')
+    api_relationships.follow_async(sent, '7', reblogs=True, notify=False)
     checks.equal('a follow sends both relationship switches',
                  sent.sent[2].get('form'),
                  {'reblogs': 'true', 'notify': 'false'})
@@ -3441,11 +3466,11 @@ def check_accounts(checks):
     # free: a reblog without its visibility, and a reply that finished as
     # something else, would both pass.
     sent = Sent()
-    REAL_CLIENT.reblog_async(sent, '7', 'private')
+    api_statuses.reblog_async(sent, '7', 'private')
     checks.equal('a reblog carries its visibility in the form',
                  sent.sent[2].get('form'), {'visibility': 'private'})
     sent = Sent()
-    REAL_CLIENT.bookmark_async(sent, '7')
+    api_statuses.bookmark_async(sent, '7')
     checks.equal('a bookmark carries no form at all',
                  sent.sent[2].get('form'), None)
 
@@ -3458,12 +3483,17 @@ def check_accounts(checks):
         def post_status_finish(self, result):
             return ('post_status', result)
 
+        def request_finish(self, result):
+            return ('request_finish', result)
+
     checks.equal('reply_finish finishes as a posted status',
                  REAL_CLIENT.reply_finish(Finish(), 'r'), ('post_status', 'r'))
     checks.equal('follow_finish finishes as a request',
-                 REAL_CLIENT.follow_finish(Finish(), 'f'), ('_finish', 'f'))
+                 api_relationships.follow_finish(Finish(), 'f'),
+                 ('request_finish', 'f'))
     checks.equal('favourite_finish finishes as a request',
-                 REAL_CLIENT.favourite_finish(Finish(), 'x'), ('_finish', 'x'))
+                 api_statuses.favourite_finish(Finish(), 'x'),
+                 ('request_finish', 'x'))
 
     # --- the three accounts keep their own data -------------------------
     # H1 evaluates three accounts and aggregates three summaries. One

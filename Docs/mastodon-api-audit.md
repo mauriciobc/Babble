@@ -3,6 +3,10 @@
 *Every Mastodon endpoint Babble calls, checked against docs.joinmastodon.org.*
 
 Date: 2026-11-04. Branch `refactor/api-layer-phase0`. Plan: `Docs/api-layer-plan.md`.
+Note: the call-site citations in this audit (wrapper names such as
+`MastodonClient.follow_async`, `verify_credentials_async`, `relationships_async`,
+and the line numbers) are *at audit time*; phase 1 moved those wrappers into
+`src/api/`, so a name cited here may now be `api.<module>.<name>`.
 Method: static scan of `src/`, `plugins/` and `src/mastodon.py` with `ast`
 plus greps for path literals; docs pages fetched one by one with WebFetch
 (fetched text is a model summary of the page, so a row says what the page

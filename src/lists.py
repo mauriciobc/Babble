@@ -18,6 +18,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .pages import ToastDialog  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
@@ -362,9 +363,9 @@ class ListEditor(ToastDialog):
         if not query:
             self._set_results([])
             return GLib.SOURCE_REMOVE
-        self.client.request_async(
-            'GET', '/accounts/search',
-            params={'q': query, 'following': 'true', 'limit': 10},
+        api_accounts.search_async(
+            self.client,
+            {'q': query, 'following': 'true', 'limit': 10},
             callback=lambda c, r, _d=None: self._on_search_done(c, r, serial))
         return GLib.SOURCE_REMOVE
 

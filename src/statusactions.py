@@ -15,6 +15,7 @@ from gi.repository import (Adw, GLib, GObject, Gtk, Pango)
 
 from .entities import (STATUS_MERGE_KEYS as MERGE_KEYS)
 from . import pages  # noqa: E402
+from .api import statuses as api_statuses  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .textemoji import (InlineEmojiText, emoji_bank)
 
@@ -123,9 +124,10 @@ class QuoteCard(Gtk.Button):
         pages.open_status(self, self.client, quoted)
 
     def _resolve_quoted(self, _button):
-        pages.call(
-            self, self.client, 'GET',
-            '/statuses/%s' % self.quote['quoted_status_id'],
+        pages.call_api(
+            self, self.client,
+            lambda cb: api_statuses.get_async(
+                self.client, self.quote['quoted_status_id'], callback=cb),
             lambda data: pages.open_status(self, self.client, data),
             _('Could not open quoted post'))
 
@@ -521,9 +523,6 @@ class StatusActions(_PostBound, Adw.WrapBox):
                 'bookmark': 'bookmarked'}[kind]
         count_key = {'favourite': 'favourites_count',
                      'reblog': 'reblogs_count'}.get(kind)
-        verb = kind if active else {'favourite': 'unfavourite',
-                                    'reblog': 'unreblog',
-                                    'bookmark': 'unbookmark'}[kind]
         previous = {flag: item.status.get(flag)}
         item.status[flag] = active
         if count_key:
@@ -550,9 +549,8 @@ class StatusActions(_PostBound, Adw.WrapBox):
             if self.item is item:
                 self._refresh()
 
-        client.request_async(
-            'POST', '/statuses/%s/%s' % (item.status_id, verb), form=form,
-            callback=finished)
+        api_statuses.toggle_async(client, item.status_id, kind, active,
+                                  form=form, callback=finished)
 
     def _reboost(self, item):
         """Undo for an unboost. The row may be bound to another post by
@@ -569,9 +567,8 @@ class StatusActions(_PostBound, Adw.WrapBox):
             if self.item is item:
                 self._refresh()
 
-        client.request_async(
-            'POST', '/statuses/%s/reblog' % item.status_id,
-            callback=finished)
+        api_statuses.reblog_async(client, item.status_id,
+                                  callback=finished)
 
     def _on_favourite(self, button):
         item = self.item

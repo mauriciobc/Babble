@@ -27,6 +27,7 @@ from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Pango, Spelling)
 
 from . import emojichooser, pages, portals  # noqa: E402
+from .api import statuses as api_statuses  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
 from .composequote import QuotePaste  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
@@ -969,7 +970,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
 
         def got_context(post, result):
             try:
-                ancestors, descendants = client.status_context_finish(result)
+                ancestors, descendants = api_statuses.context_finish(client, result)
             except GLib.Error:
                 return
             view = current()
@@ -990,8 +991,9 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             view.update_compose_state()
 
         def fetch_context(post):
-            client.status_context_async(
-                status_id, callback=lambda _c, result: got_context(post, result))
+            api_statuses.context_async(
+                client, status_id,
+                callback=lambda _c, result: got_context(post, result))
 
         def got_status(_source, result):
             try:
@@ -1005,8 +1007,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             if own(status):
                 fetch_context(status)
         else:
-            client.request_async('GET', '/statuses/%s' % status_id,
-                                 callback=got_status)
+            api_statuses.get_async(client, status_id, callback=got_status)
 
     def restore_stashing(self, draft):
         """Restore a recovered draft, keeping the content in progress

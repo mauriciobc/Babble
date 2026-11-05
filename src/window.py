@@ -18,6 +18,7 @@ from . import clipboard  # noqa: E402
 from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from . import pluginmenu  # noqa: E402
 from . import navigation  # noqa: E402
 from . import portals  # noqa: E402
@@ -829,7 +830,7 @@ class BabbleWindow(Adw.ApplicationWindow):
 
         def account_done(_client, result, _data=None):
             try:
-                fresh = client.verify_credentials_finish(result)
+                fresh = api_accounts.verify_credentials_finish(client, result)
             except GLib.Error:
                 return
             if client is not self.client or self.account is None \
@@ -841,7 +842,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._update_session_actions()
             self._refresh_sidebar()
 
-        client.verify_credentials_async(callback=account_done)
+        api_accounts.verify_credentials_async(client, callback=account_done)
 
     def on_account_updated(self, account):
         """The profile editor saved: show the new name and avatar."""

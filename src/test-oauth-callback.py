@@ -190,13 +190,8 @@ class StubClient:
     def request_token_finish(self, result):
         return MastodonClient.request_token_finish(self, result)
 
-    def verify_credentials_async(self, callback=None, cancellable=None):
-        task = StubTask(error=http_error('The access token is invalid')) \
-            if self.fail_verify else StubTask(self.ACCOUNT)
-        self.reply(callback, task)
-
-    def verify_credentials_finish(self, result):
-        return MastodonClient.verify_credentials_finish(self, result)
+    def invalid_response(self, what):
+        return MastodonClient.invalid_response(self, what)
 
     def store_secret_token(self, account_id, token, callback=None,
                            cancellable=None):
@@ -237,6 +232,12 @@ class StubClient:
 
     def request_async(self, method, path, params=None, form=None,
                       json_body=None, callback=None, cancellable=None):
+        if path == '/accounts/verify_credentials':
+            # The account check, from `src.api.accounts`.
+            self.reply(callback, StubTask(
+                error=http_error('The access token is invalid'))
+                if self.fail_verify else StubTask(self.ACCOUNT))
+            return
         self.reply(callback, StubTask(
             self.EMOJIS if path == '/custom_emojis' else '{}'))
 
