@@ -15,6 +15,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import core as api_core  # noqa: E402
 
 SEARCH_DELAY_MS = 250
 MAX_SUGGESTIONS = 6
@@ -281,8 +282,8 @@ class TokenCompleter(Gtk.Popover):
         serial = self._serial
         self._cancellable = Gio.Cancellable()
         done = pages.weak_method(self._on_search_done)
-        self.client.request_async(
-            'GET', path, params=params,
+        api_core.send_path(
+            self.client, 'GET', path, params=params,
             cancellable=self._cancellable,
             callback=lambda c, r, _d=None: done(c, r, serial))
         return GLib.SOURCE_REMOVE
