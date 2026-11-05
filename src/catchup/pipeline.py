@@ -61,8 +61,7 @@ FETCH_PAUSE_SECONDS = 1           # between two pages (3.1)
 # budgets "~30 requests" for the whole catch-up. Batching is what the API
 # allows, so this is a deliberate deviation from both.
 RELATIONSHIP_BATCH = 40
-TREND_LIMITS = (('links', '/trends/links', 20), ('tags', '/trends/tags', 20),
-                ('statuses', '/trends/statuses', 40))
+TREND_LIMITS = (('links', 20), ('tags', 20), ('statuses', 40))
 LOW_ACTIVITY_POSTS = 20
 LOW_ACTIVITY_PERIOD = '24h'
 BUILD_CHUNK = 150

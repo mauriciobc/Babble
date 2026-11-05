@@ -122,9 +122,15 @@ the filtered-notification requests), registry 101; the client's `timelines_*`,
 `trends_statuses_*`, `markers_*` and `notifications_*` wrappers are gone, and
 `PagedList.mutate_row` with them. `ApiTimelineSource.fetch` and the completer's
 `_search` are generic helpers' own sends of a caller-supplied path, relabelled
-"phase 4: internal". Still to move in phase 2 (step 2d): explore (trends
-links, suggestions), conversations, custom emojis, Wrapped and the rest of
-Catch Up's fetch. The completers' `search_request` hooks still
+"phase 4: internal". Step 2d done (the last move step of phase 2):
+`conversations.py` (3), `suggestions.py` (2), `instance.py` (custom emojis, 1),
+`annual_reports.py` (4: the report, one year, state, generate) and
+`trends.links` (1) plus `tags.trending_async`; explore, the inbox, the emoji
+chooser, Wrapped and Catch Up's trend reads call them. Registry 112. Catch Up's
+`_get` now takes `(key, start, done)` like `_reply` (guard order unchanged:
+aborted, then rate limited, then send), and `wrapped._send` is gone. No
+"phase 2" allow-list entry is left; the only path-taking `pages.call` callers
+are the two in `pollbox.py` (phase 3). The completers' `search_request` hooks still
 return a path (from `search_path()`), so `completer.TokenCompleter._search`
 keeps its one raw send until the hook protocol changes.
 

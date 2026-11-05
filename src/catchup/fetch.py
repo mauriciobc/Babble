@@ -10,6 +10,7 @@ from gi.repository import Gio, GLib, GObject
 from ..api import accounts as api_accounts
 from ..api import tags as api_tags
 from ..api import timelines as api_timelines
+from ..api import trends as api_trends
 from . import pipeline
 
 from .digest import (PAGE_LIMIT, apply_filters, fetch_progress,
@@ -18,6 +19,13 @@ from .digest import (PAGE_LIMIT, apply_filters, fetch_progress,
 from .pipeline import (HTTP_TOO_MANY_REQUESTS, RELATIONSHIP_BATCH,
                        STOPPED_CANCELLED, STOPPED_COMPLETE, STOPPED_ERROR,
                        STOPPED_RATE_LIMITED, TREND_LIMITS)
+
+# The trend read behind each TREND_LIMITS key; each takes (client, params,
+# callback, cancellable).
+TREND_STARTS = {'links': api_trends.links_async,
+                'tags': api_tags.trending_async,
+                'statuses': api_trends.statuses_async}
+
 
 def save_result(result, account_key, period, viewer_languages,
                 hide_trending):
@@ -111,8 +119,8 @@ class CatchUpRun:
         self._relationships = {}
         self._trends = {}
         self._trends_left = 0
-        # Cursor for the next page of a Link-paginated endpoint, by path.
-        # See _get.
+        # Cursor for the next page of a Link-paginated endpoint, by the
+        # key its caller gave _get/_reply.
         self._more = {}
 
     # Control
@@ -232,25 +240,24 @@ class CatchUpRun:
 
     # Followed tags, relationships, trends (each degrades, never fails)
 
-    def _get(self, path, params, done):
-        finished = self._reply(path, done)
+    def _get(self, key, start, done):
+        """One paged GET: *start(callback, cancellable)* queues the request
+        (an api ``<name>_async``), the answer goes to *done* and its cursor
+        is kept under *key*."""
+        finished = self._reply(key, done)
         if finished is None:
             return
-        self.client.request_async('GET', path, params=params,
-                                  callback=finished,
-                                  cancellable=self.cancellable)
+        start(finished, self.cancellable)
 
     def _get_followed_tags(self, params):
         """One page of the followed tags, through the same paged reply as
         `_get`; the cursor is kept under ``followed_tags``."""
-        finished = self._reply('followed_tags', self._on_followed_tags)
-        if finished is None:
-            return
-        api_tags.followed_async(self.client, params, callback=finished,
-                                cancellable=self.cancellable)
+        self._get('followed_tags', functools.partial(
+            api_tags.followed_async, self.client, params),
+            self._on_followed_tags)
 
-    def _reply(self, path, done):
-        """The callback of one paged GET keyed by *path*, or None when the
+    def _reply(self, key, done):
+        """The callback of one paged GET keyed by *key*, or None when the
         run is over or rate limited (then *done* has already been told)."""
         if self.aborted:
             return None
@@ -270,7 +277,7 @@ class CatchUpRun:
                     self.client.request_finish_paged(result)
             except GLib.Error:
                 data, next_params = None, None
-            self._more[path] = next_params
+            self._more[key] = next_params
             done(data)
 
         return finished
@@ -296,12 +303,9 @@ class CatchUpRun:
             return
         batch = self._pending_ids[:RELATIONSHIP_BATCH]
         self._pending_ids = self._pending_ids[RELATIONSHIP_BATCH:]
-        finished = self._reply(api_accounts.RELATIONSHIPS.path,
-                               self._on_relationships)
-        if finished is not None:
-            api_accounts.relationships_async(
-                self.client, batch, callback=finished,
-                cancellable=self.cancellable)
+        self._get('relationships', functools.partial(
+            api_accounts.relationships_async, self.client, batch),
+            self._on_relationships)
 
     def _on_relationships(self, data):
         for rel in data or []:
@@ -319,9 +323,10 @@ class CatchUpRun:
             self._finish()
             return
         self._trends_left = len(TREND_LIMITS)
-        for key, path, limit in TREND_LIMITS:
-            self._get(path, {'limit': limit},
-                      functools.partial(self._on_trend, key))
+        for key, limit in TREND_LIMITS:
+            self._get(key, functools.partial(
+                TREND_STARTS[key], self.client, {'limit': limit}),
+                functools.partial(self._on_trend, key))
 
     def _on_trend(self, key, data):
         self._trends[key] = data if isinstance(data, list) else None

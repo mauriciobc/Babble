@@ -110,6 +110,16 @@ def followed_finish(client, result):
     return core.finish(client, result)
 
 
+def trending_async(client, params=None, callback=None, cancellable=None):
+    """The trending tags; *params* ``{'limit': 20}``."""
+    return core.send(client, TRENDING, params=params, callback=callback,
+                     cancellable=cancellable)
+
+
+def trending_finish(client, result):
+    return core.finish(client, result)
+
+
 def featured_async(client, callback=None, cancellable=None):
     return core.send(client, FEATURED, callback=callback,
                      cancellable=cancellable)

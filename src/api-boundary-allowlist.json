@@ -146,92 +146,12 @@
    "reason": "phase 4: generic helper internals (send)"
   },
   {
-   "file": "src/catchup/fetch.py",
-   "function": "CatchUpRun._get",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 2: timelines"
-  },
-  {
-   "file": "src/catchup/fetch.py",
-   "function": "CatchUpRun._mark_and_trends",
-   "via": "catchup._get",
-   "path": "path",
-   "layer": "helper",
-   "reason": "phase 2: misc"
-  },
-  {
    "file": "src/completer.py",
    "function": "TokenCompleter._search",
    "via": "request_async",
    "path": "path",
    "layer": "raw",
    "reason": "phase 4: internal"
-  },
-  {
-   "file": "src/conversations.py",
-   "function": "ConversationRow._delete_confirmed",
-   "via": "request_async",
-   "path": "'/conversations/%s' % self.conversation['id']",
-   "layer": "raw",
-   "reason": "phase 2: timelines"
-  },
-  {
-   "file": "src/conversations.py",
-   "function": "ConversationRow.mark_read",
-   "via": "request_async",
-   "path": "'/conversations/%s/read' % self.conversation['id']",
-   "layer": "raw",
-   "reason": "phase 2: timelines"
-  },
-  {
-   "file": "src/conversations.py",
-   "function": "ConversationsPage.__init__",
-   "via": "super().__init__",
-   "path": "'/conversations'",
-   "layer": "helper",
-   "reason": "phase 2: timelines"
-  },
-  {
-   "file": "src/emojichooser.py",
-   "function": "load_custom_emojis",
-   "via": "request_async",
-   "path": "'/custom_emojis'",
-   "layer": "raw",
-   "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/explore.py",
-   "function": "ExplorePage._build_posts",
-   "via": "ApiTimelineSource",
-   "path": "'/trends/statuses'",
-   "layer": "helper",
-   "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/explore.py",
-   "function": "NewsPage.__init__",
-   "via": "PagedList",
-   "path": "'/trends/links'",
-   "layer": "helper",
-   "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/explore.py",
-   "function": "SuggestionRow._on_dismiss",
-   "via": "request_async",
-   "path": "'/suggestions/%s' % self.account['id']",
-   "layer": "raw",
-   "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/explore.py",
-   "function": "SuggestionsPage.__init__",
-   "via": "PagedList",
-   "path": "'/api/v2/suggestions'",
-   "layer": "helper",
-   "reason": "phase 2: misc"
   },
   {
    "file": "src/fedicollections.py",
@@ -408,38 +328,6 @@
    "path": "self.path",
    "layer": "raw",
    "reason": "phase 4: internal"
-  },
-  {
-   "file": "src/wrapped.py",
-   "function": "WrappedDialog._check_state",
-   "via": "wrapped._send",
-   "path": "'/annual_reports/%d/state' % year",
-   "layer": "helper",
-   "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/wrapped.py",
-   "function": "WrappedDialog._generate",
-   "via": "wrapped._send",
-   "path": "'/annual_reports/%d/generate' % year",
-   "layer": "helper",
-   "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/wrapped.py",
-   "function": "WrappedDialog.load",
-   "via": "wrapped._send",
-   "path": "path",
-   "layer": "helper",
-   "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/wrapped.py",
-   "function": "_send",
-   "via": "request_async",
-   "path": "path",
-   "layer": "internal",
-   "reason": "phase 4: generic helper internals (_send)"
   }
  ]
 }

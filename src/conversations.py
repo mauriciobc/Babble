@@ -11,6 +11,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
+from .api import conversations as api_conversations
 from .i18n import gettext as _, ngettext
 
 import re  # noqa: E402
@@ -201,9 +202,8 @@ class ConversationRow(Gtk.ListBoxRow):
             self.set_unread(False)
             self.page.emit_unread_changed()
 
-        client.request_async(
-            'POST', '/conversations/%s/read' % self.conversation['id'],
-            callback=done)
+        api_conversations.read_async(
+            client, self.conversation['id'], callback=done)
 
     def delete(self):
         confirm(self, _('Delete Conversation?'),
@@ -226,9 +226,8 @@ class ConversationRow(Gtk.ListBoxRow):
             self.page.emit_unread_changed()
             show_toast(self, _('Conversation deleted'))
 
-        client.request_async(
-            'DELETE', '/conversations/%s' % self.conversation['id'],
-            callback=done)
+        api_conversations.delete_async(
+            client, self.conversation['id'], callback=done)
 
 
 class ConversationsPage(PagedList):
@@ -241,7 +240,7 @@ class ConversationsPage(PagedList):
 
     def __init__(self, client, **kwargs):
         super().__init__(
-            client, '/conversations', self._make_row,
+            client, api_conversations.list_path('index'), self._make_row,
             empty_title=_('No Conversations'),
             empty_icon='mail-unread-symbolic',
             empty_description=_('Direct messages will appear here'),

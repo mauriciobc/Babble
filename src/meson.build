@@ -144,6 +144,10 @@ install_data(
   'api/markers.py',
   'api/trends.py',
   'api/notifications.py',
+  'api/conversations.py',
+  'api/suggestions.py',
+  'api/instance.py',
+  'api/annual_reports.py',
   install_dir: moduledir / 'api',
 )
 

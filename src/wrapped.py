@@ -26,6 +26,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E40
 
 from . import charts  # noqa: E402
 from . import pages  # noqa: E402
+from .api import annual_reports as api_annual_reports  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .mastodon import (summarize_error,  # noqa: E402
                        summarize_error_markup)
@@ -86,13 +87,6 @@ def _finish_with(client, start, on_ok=None, on_error=None):
             on_ok(data)
 
     return start(finished)
-
-
-def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
-    return _finish_with(
-        client,
-        lambda cb: client.request_async(method, path, callback=cb, **kwargs),
-        on_ok, on_error)
 
 
 def default_year():
@@ -270,10 +264,6 @@ class WrappedDialog(pages.ToastDialog):
         generation = self._generation
         self.stack.set_visible_child_name('loading')
         self._set_chrome(False)
-        path = '/annual_reports'
-        if self.year:
-            path += '/%d' % self.year
-
         def ok(data):
             if generation != self._generation:
                 return
@@ -293,7 +283,9 @@ class WrappedDialog(pages.ToastDialog):
                 summarize_error_markup(error))
             self.stack.set_visible_child_name('error')
 
-        _send(self.client, 'GET', path, ok, failed)
+        _finish_with(
+            self.client, lambda cb: api_annual_reports.get_async(
+                self.client, self.year, callback=cb), ok, failed)
 
     def _set_chrome(self, visible):
         self.save_button.set_visible(visible)
@@ -357,8 +349,10 @@ class WrappedDialog(pages.ToastDialog):
             else:
                 self._empty(year)
 
-        _send(self.client, 'GET', '/annual_reports/%d/state' % year, ok,
-              lambda _e: generation == self._generation and self._empty(year))
+        _finish_with(
+            self.client, lambda cb: api_annual_reports.state_async(
+                self.client, year, callback=cb), ok,
+            lambda _e: generation == self._generation and self._empty(year))
 
     def _generate(self, year):
         self.stack.set_visible_child_name('loading')
@@ -374,8 +368,9 @@ class WrappedDialog(pages.ToastDialog):
             self._check_state(year)
             self.toast(summarize_error(error))
 
-        _send(self.client, 'POST', '/annual_reports/%d/generate' % year, ok,
-              failed)
+        _finish_with(
+            self.client, lambda cb: api_annual_reports.generate_async(
+                self.client, year, callback=cb), ok, failed)
 
     # Rendering
 
