@@ -624,17 +624,6 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
     return start(finished)
 
 
-def call(widget, client, method, path, on_done=None, error_heading=None,
-         **kwargs):
-    """`call_api` for a request still spelled as a verb and a path. It goes
-    when its last caller (the poll box, phase 3) moves into `src/api`."""
-    return call_api(
-        widget, client,
-        lambda callback: client.request_async(
-            method, path, callback=callback, **kwargs),
-        on_done, error_heading)
-
-
 # Status pages
 
 def configure_empty_page(page, icon_name, title, description):

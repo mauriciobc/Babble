@@ -149,6 +149,9 @@ install_data(
   'api/instance.py',
   'api/annual_reports.py',
   'api/admin.py',
+  'api/collections_api.py',
+  'api/polls.py',
+  'api/reports.py',
   install_dir: moduledir / 'api',
 )
 

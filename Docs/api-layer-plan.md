@@ -168,6 +168,16 @@ keeps its one raw send until the hook protocol changes.
   like `pages.call_api` and `RuleList` takes a rule kind instead of a path, so
   the `admin.send` mechanism and its internal allow-list entry are gone
   (17 "phase 3: admin" entries plus 1 internal, 41 to 23).
+- Step 3b done: collections (`src/api/collections_api.py`, 9 endpoints), polls
+  (`polls.py`, 2) and reports (`reports.py`, 1), registry 153. Eleven golden
+  scenarios (collections page, page, delete, remove myself, edit, create,
+  poll refresh and votes, two report submits) were added first; the log is
+  unchanged by the move. `fedicollections._send` and the path-taking
+  `pages.call` had no caller left and are gone with their mechanisms in
+  `api boundary` (23 to 8 allow-list entries: 10 collections, 2 polls, 1
+  reports, 1 `_send` internal, 1 `call` internal). Left: 3 "phase 3: accounts"
+  (profileedit, preferences), 2 phase 4 internals, 3 phase 4 helper
+  internals; compose and media are 3c.
 - **Done when:** as phase 1; multipart/media paths covered by the recorder.
 - `core` has no multipart path yet: add `core.send_multipart` (or a `body=`
   passthrough) when media upload moves.

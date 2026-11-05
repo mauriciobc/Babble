@@ -2022,6 +2022,222 @@ def admin_rule_pages_load_add_and_delete(rec):
     rec.settle()
 
 
+# Phase 3b: collections, polls and reports
+
+def collection_json(collection_id='5', owner=ME, **extra):
+    data = {'id': collection_id, 'name': 'Picks', 'description': 'Good ones',
+            'url': 'https://golden.example/collections/' + collection_id,
+            'uri': 'https://golden.example/c/' + collection_id,
+            'account_id': owner, 'language': 'en', 'sensitive': False,
+            'discoverable': True, 'tag': {'name': 'books'}, 'item_count': 2,
+            'updated_at': '2026-01-03T00:00:00.000Z',
+            'items': [{'id': '91', 'account_id': '7', 'state': 'accepted'},
+                      {'id': '92', 'account_id': ME, 'state': 'accepted'}]}
+    data.update(extra)
+    return data
+
+
+def collection_answer(collection):
+    return {'collection': collection,
+            'accounts': [account('7'), account('8', 'bob')]}
+
+
+def poll_json(poll_id='55', **extra):
+    data = {'id': poll_id, 'expires_at': '2099-01-01T00:00:00.000Z',
+            'expired': False, 'multiple': False, 'votes_count': 0,
+            'voters_count': 0, 'voted': False, 'own_votes': [],
+            'options': [{'title': 'a', 'votes_count': 0},
+                        {'title': 'b', 'votes_count': 0},
+                        {'title': 'c', 'votes_count': 0}], 'emojis': []}
+    data.update(extra)
+    return data
+
+
+_RICH.update({
+    ('GET', '/api/v1/accounts/1/collections'): lambda q: {
+        'collections': [collection_json('5')]},
+    ('GET', '/api/v1/accounts/1/in_collections'): lambda q: {
+        'collections': [collection_json('6', owner='7')]},
+    ('GET', '/api/v1/collections/5'): lambda q: collection_answer(
+        collection_json('5')),
+    ('GET', '/api/v1/collections/6'): lambda q: collection_answer(
+        collection_json('6', owner='7')),
+    ('POST', '/api/v1/collections'): lambda q: collection_answer(
+        collection_json('9')),
+    ('PATCH', '/api/v1/collections/5'): lambda q: collection_answer(
+        collection_json('5')),
+    ('POST', '/api/v1/collections/5/items'): lambda q: {
+        'collection_item': {'id': '93', 'account_id': '8',
+                            'state': 'accepted'}},
+    ('GET', '/api/v1/polls/55'): lambda q: poll_json(votes_count=2),
+    ('POST', '/api/v1/polls/55/votes'): lambda q: poll_json(
+        voted=True, own_votes=[1], votes_count=1),
+})
+
+
+class AsAccount:
+    """The signed-in account `fedicollections` reads off the window."""
+
+    def __enter__(self):
+        from src import fedicollections
+        self.module = fedicollections
+        self.real = fedicollections._current_account
+        fedicollections._current_account = \
+            lambda widget=None: account(ME, 'me')
+
+    def __exit__(self, *_exc):
+        self.module._current_account = self.real
+
+
+@p2
+def collections_page_loads_both_lists_and_refreshes(rec):
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    page = rec.keep(fedicollections.CollectionsPage(rec.client()))
+    rec.settle()
+    page.refresh()
+    rec.settle()
+
+
+@p2
+def collection_page_loads(rec):
+    from src import fedicollections
+    rec.keep(fedicollections.CollectionPage(rec.client(), '5'))
+    rec.settle()
+
+
+@p2
+def collection_owner_deletes(rec):
+    from src import fedicollections
+    with AsAccount():
+        actions = fedicollections.CollectionActions(
+            Gtk.Box(), rec.client(), collection_json('5'),
+            lambda: None, lambda: None)
+        actions.delete()
+    rec.settle()
+
+
+@p2
+def collection_member_removes_themselves(rec):
+    from src import fedicollections
+    with AsAccount():
+        actions = fedicollections.CollectionActions(
+            Gtk.Box(), rec.client(), collection_json('6', owner='7'),
+            lambda: None, lambda: None)
+        actions.remove_me()
+    rec.settle()
+
+
+@p2
+def collection_edit_members_invite_remove_and_save(rec):
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), collection_json('5'), on_saved=lambda: None))
+    dialog.close = lambda: None
+    rec.settle()
+    dialog.search_row.set_text('bo')
+    dialog._search_id += 1  # cancel the debounce timer
+    dialog._run_search(dialog._search_id)
+    rec.settle()
+    dialog._invite(account('8', 'bob'), dialog._search_results[0])
+    rec.settle()
+    dialog._remove(account('7'))
+    rec.settle()
+    dialog.name_row.set_text('Better picks')
+    dialog.sensitive_row.set_active(True)
+    dialog._on_save(None)
+    rec.settle()
+
+
+@p2
+def collection_edit_saving_without_changes_sends_nothing_more(rec):
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), collection_json('5'), on_saved=lambda: None))
+    dialog.close = lambda: None
+    rec.settle()
+    dialog._on_save(None)
+    rec.settle()
+
+
+@p2
+def collection_create_with_members(rec):
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), None, on_saved=lambda: None))
+    dialog.close = lambda: None
+    # The default language follows the environment: pin it.
+    dialog.language_row.set_selected(dialog.language_codes.index('en'))
+    dialog.name_row.set_text('New picks')
+    dialog.topic_row.set_text('books')
+    dialog.unlisted_check.set_active(True)
+    dialog._invite(account('8', 'bob'), Gtk.Button())
+    dialog._on_save(None)
+    rec.settle()
+    bare = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), None, on_saved=lambda: None))
+    bare.close = lambda: None
+    bare.language_row.set_selected(bare.language_codes.index('en'))
+    bare.name_row.set_text('Bare')
+    bare._on_save(None)
+    rec.settle()
+
+
+@p2
+def poll_refresh_and_vote(rec):
+    from src import pollbox
+    box = rec.keep(pollbox.PollBox())
+    box.set_poll(poll_json(), client=rec.client())
+    box._on_refresh(None)
+    rec.settle()
+    box.set_poll(poll_json(), client=rec.client())
+    box._choices[1].set_active(True)
+    box._on_vote(None)
+    rec.settle()
+    many = rec.keep(pollbox.PollBox())
+    many.set_poll(poll_json(multiple=True), client=rec.client())
+    many._choices[0].set_active(True)
+    many._choices[2].set_active(True)
+    many._on_vote(None)
+    rec.settle()
+
+
+def _report_dialog(rec, acct, **kwargs):
+    from src import report
+    info = {'rules': [{'id': '1', 'text': 'Be kind'},
+                      {'id': '2', 'text': 'No spam'}]}
+    dialog = rec.keep(report.ReportDialog(
+        rec.client(info=info), acct, parent_widget=Gtk.Box(), **kwargs))
+    dialog.force_close = lambda: None
+    return dialog
+
+
+@p2
+def report_submit_spam_on_a_remote_account_with_a_post(rec):
+    dialog = _report_dialog(rec, account('7', 'ada@remote.example'),
+                            status=status('100'))
+    dialog.category = 'spam'
+    dialog._build_posts_page()
+    rec.settle()
+    dialog._build_comment_page()
+    dialog.comment_buffer.set_text('  looks automated ')
+    dialog.forward_row.set_active(False)
+    dialog._submit()
+    rec.settle()
+
+
+@p2
+def report_submit_violation_with_rules_and_a_collection(rec):
+    dialog = _report_dialog(rec, account('7', 'ada'),
+                            collection=collection_json('6', owner='7'))
+    dialog.category = 'violation'
+    dialog._build_rules_page()
+    dialog.rule_checks['2'].set_active(True)
+    dialog._build_comment_page()
+    dialog._submit()
+    rec.settle()
+
+
 # Run
 
 recorded = {}

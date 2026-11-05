@@ -19,6 +19,7 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .api import reports  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 
 COMMENT_MAX = 1000
@@ -448,13 +449,12 @@ class ReportDialog(Adw.Dialog):
             return
         self._sending = True
         self.next_buttons['comment'].set_sensitive(False)
-        self.client.request_async('POST', '/reports', form=payload,
-                                  callback=self._on_sent)
+        reports.create_async(self.client, payload, callback=self._on_sent)
 
     def _on_sent(self, client, result, _data=None):
         self._sending = False
         try:
-            client.request_finish(result)
+            reports.create_finish(client, result)
         except GLib.Error as error:
             self.next_buttons['comment'].set_sensitive(True)
             self._toast('%s: %s' % (

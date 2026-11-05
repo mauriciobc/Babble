@@ -10,94 +10,6 @@
    "reason": "phase 4: internal"
   },
   {
-   "file": "src/fedicollections.py",
-   "function": "CollectionActions.delete.go",
-   "via": "fedicollections._send",
-   "path": "'/collections/%s' % self.collection['id']",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionActions.remove_me.go",
-   "via": "fedicollections._send",
-   "path": "'/collections/%s/items/%s/revoke' % (self.collection['id'], self.my_item['id'])",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionEditDialog._invite",
-   "via": "fedicollections._send",
-   "path": "'/collections/%s/items' % self.collection['id']",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionEditDialog._load_members",
-   "via": "fedicollections._send",
-   "path": "'/collections/%s' % self.collection['id']",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionEditDialog._on_save",
-   "via": "fedicollections._send",
-   "path": "'/collections'",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionEditDialog._on_save",
-   "via": "fedicollections._send",
-   "path": "'/collections/%s' % original['id']",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionEditDialog._remove",
-   "via": "fedicollections._send",
-   "path": "'/collections/%s/items/%s' % (self.collection['id'], entry['item']['id'])",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionPage.refresh",
-   "via": "fedicollections._send",
-   "path": "'/collections/%s' % self.collection_id",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionsPage._build",
-   "via": "PagedList",
-   "path": "'/accounts/%s/collections' % self.me",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "CollectionsPage._build",
-   "via": "PagedList",
-   "path": "'/accounts/%s/in_collections' % self.me",
-   "layer": "helper",
-   "reason": "phase 3: collections"
-  },
-  {
-   "file": "src/fedicollections.py",
-   "function": "_send",
-   "via": "request_async",
-   "path": "path",
-   "layer": "internal",
-   "reason": "phase 4: generic helper internals (_send)"
-  },
-  {
    "file": "src/pages.py",
    "function": "AccountListPage.__init__",
    "via": "super().__init__",
@@ -122,30 +34,6 @@
    "reason": "phase 4: generic helper internals (PagedList.refresh)"
   },
   {
-   "file": "src/pages.py",
-   "function": "call",
-   "via": "request_async",
-   "path": "path",
-   "layer": "internal",
-   "reason": "phase 4: generic helper internals (call)"
-  },
-  {
-   "file": "src/pollbox.py",
-   "function": "PollBox._on_refresh",
-   "via": "pages.call",
-   "path": "'/polls/%s' % self._poll['id']",
-   "layer": "raw",
-   "reason": "phase 3: polls"
-  },
-  {
-   "file": "src/pollbox.py",
-   "function": "PollBox._on_vote",
-   "via": "pages.call",
-   "path": "'/polls/%s/votes' % self._poll['id']",
-   "layer": "raw",
-   "reason": "phase 3: polls"
-  },
-  {
    "file": "src/preferences.py",
    "function": "sync_posting_defaults",
    "via": "request_async",
@@ -168,14 +56,6 @@
    "path": "'/profile'",
    "layer": "raw",
    "reason": "phase 3: accounts"
-  },
-  {
-   "file": "src/report.py",
-   "function": "ReportDialog._submit",
-   "via": "request_async",
-   "path": "'/reports'",
-   "layer": "raw",
-   "reason": "phase 3: reports"
   },
   {
    "file": "src/timelinepage.py",

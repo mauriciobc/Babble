@@ -17,6 +17,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import polls  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .textemoji import InlineEmojiText, poll_emoji_bank  # noqa: E402
 from .timelinebase import time_left  # noqa: E402
@@ -208,10 +209,12 @@ class PollBox(Gtk.Box):
         if not choices or self._poll is None:
             return
         self.vote_button.set_sensitive(False)
-        pages.call(self, self._client, 'POST',
-                   '/polls/%s/votes' % self._poll['id'],
-                   on_done=self._apply, error_heading=_('Vote failed'),
-                   json_body={'choices': choices})
+        pages.call_api(
+            self, self._client,
+            lambda cb: polls.vote_async(self._client, self._poll['id'],
+                                        choices, callback=cb),
+            on_done=self._apply, error_heading=_('Vote failed'),
+            finish=polls.vote_finish)
         # A failed vote leaves the form usable again.
         GLib.timeout_add_seconds(
             3, lambda: self.vote_button.set_sensitive(
@@ -220,5 +223,9 @@ class PollBox(Gtk.Box):
     def _on_refresh(self, _button):
         if self._poll is None:
             return
-        pages.call(self, self._client, 'GET', '/polls/%s' % self._poll['id'],
-                   on_done=self._apply, error_heading=_('Refresh failed'))
+        pages.call_api(
+            self, self._client,
+            lambda cb: polls.get_async(self._client, self._poll['id'],
+                                       callback=cb),
+            on_done=self._apply, error_heading=_('Refresh failed'),
+            finish=polls.get_finish)

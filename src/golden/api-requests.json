@@ -2399,6 +2399,381 @@
     "query": []
    }
   ],
+  "collection create with members": [
+   {
+    "body": {
+     "json": {
+      "account_ids": [
+       "8"
+      ],
+      "discoverable": false,
+      "language": "en",
+      "name": "New picks",
+      "sensitive": false,
+      "tag_name": "#books"
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/collections",
+    "query": []
+   },
+   {
+    "body": {
+     "json": {
+      "account_ids": [],
+      "discoverable": true,
+      "language": "en",
+      "name": "Bare",
+      "sensitive": false
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/collections",
+    "query": []
+   }
+  ],
+  "collection edit members invite remove and save": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/collections/5",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/search",
+    "query": [
+     [
+      "limit",
+      "5"
+     ],
+     [
+      "q",
+      "bo"
+     ],
+     [
+      "resolve",
+      "false"
+     ]
+    ]
+   },
+   {
+    "body": {
+     "json": {
+      "account_id": "8"
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/collections/5/items",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/collections/5/items/91",
+    "query": []
+   },
+   {
+    "body": {
+     "json": {
+      "name": "Better picks",
+      "sensitive": true
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/collections/5",
+    "query": []
+   }
+  ],
+  "collection edit saving without changes sends nothing more": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/collections/5",
+    "query": []
+   }
+  ],
+  "collection member removes themselves": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/collections/6/items/92/revoke",
+    "query": []
+   }
+  ],
+  "collection owner deletes": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/collections/5",
+    "query": []
+   }
+  ],
+  "collection page loads": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/collections/5",
+    "query": []
+   }
+  ],
+  "collections page loads both lists and refreshes": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/verify_credentials",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/1/collections",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/1/in_collections",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "1"
+     ],
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "1"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "1"
+     ],
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/1/collections",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/1/in_collections",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "1"
+     ],
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "1"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "1"
+     ],
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   }
+  ],
   "compose retries the scheduled removal": [
    {
     "body": null,
@@ -3674,6 +4049,53 @@
     ]
    }
   ],
+  "poll refresh and vote": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/polls/55",
+    "query": []
+   },
+   {
+    "body": {
+     "json": {
+      "choices": [
+       1
+      ]
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/polls/55/votes",
+    "query": []
+   },
+   {
+    "body": {
+     "json": {
+      "choices": [
+       0,
+       2
+      ]
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/polls/55/votes",
+    "query": []
+   }
+  ],
   "profile account lists": [
    {
     "body": null,
@@ -4394,6 +4816,97 @@
     "host": "https://golden.example",
     "method": "POST",
     "path": "/api/v1/accounts/7/unmute",
+    "query": []
+   }
+  ],
+  "report submit spam on a remote account with a post": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7/statuses",
+    "query": [
+     [
+      "exclude_reblogs",
+      "true"
+     ],
+     [
+      "exclude_replies",
+      "false"
+     ],
+     [
+      "limit",
+      "20"
+     ]
+    ]
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "account_id",
+       "7"
+      ],
+      [
+       "category",
+       "spam"
+      ],
+      [
+       "comment",
+       "looks automated"
+      ],
+      [
+       "forward",
+       "false"
+      ],
+      [
+       "status_ids[]",
+       "100"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/reports",
+    "query": []
+   }
+  ],
+  "report submit violation with rules and a collection": [
+   {
+    "body": {
+     "form": [
+      [
+       "account_id",
+       "7"
+      ],
+      [
+       "category",
+       "violation"
+      ],
+      [
+       "collection_ids[]",
+       "6"
+      ],
+      [
+       "rule_ids[]",
+       "2"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/reports",
     "query": []
    }
   ],

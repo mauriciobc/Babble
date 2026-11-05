@@ -30,6 +30,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .api import collections_api  # noqa: E402
 from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
@@ -68,15 +69,9 @@ def _finished(client, on_ok, on_error):
     return finished
 
 
-def _send(client, method, path, on_ok=None, on_error=None, **kwargs):
-    return client.request_async(method, path,
-                                callback=_finished(client, on_ok, on_error),
-                                **kwargs)
-
-
 def _send_api(client, start, on_ok=None, on_error=None):
-    """`_send` for an `api` function: *start(callback)* queues the
-    request, so the path is never spelled here."""
+    """Send an `api` function: *start(callback)* queues the request, so
+    the path is never spelled here."""
     return start(_finished(client, on_ok, on_error))
 
 
@@ -243,10 +238,12 @@ class CollectionActions:
 
     def remove_me(self):
         def go():
-            _send(self.client, 'POST',
-                  '/collections/%s/items/%s/revoke' % (
-                      self.collection['id'], self.my_item['id']),
-                  lambda _d: self._gone(_('You were removed from the '
+            _send_api(
+                self.client,
+                lambda cb: collections_api.revoke_item_async(
+                    self.client, self.collection['id'], self.my_item['id'],
+                    callback=cb),
+                lambda _d: self._gone(_('You were removed from the '
                                           'collection')),
                   lambda e: pages.report_error(
                       self.widget, _('Could not remove you'), e))
@@ -259,9 +256,11 @@ class CollectionActions:
 
     def delete(self):
         def go():
-            _send(self.client, 'DELETE',
-                  '/collections/%s' % self.collection['id'],
-                  lambda _d: self._gone(_('Collection deleted')),
+            _send_api(
+                self.client,
+                lambda cb: collections_api.delete_async(
+                    self.client, self.collection['id'], callback=cb),
+                lambda _d: self._gone(_('Collection deleted')),
                   lambda e: pages.report_error(
                       self.widget, _('Could not delete the collection'), e))
 
@@ -405,14 +404,14 @@ class CollectionsPage(Adw.Bin):
         # The lists and their rows live inside the page: hand them weak
         # callbacks so they do not keep the page alive through C.
         self.own = pages.PagedList(
-            self.client, '/accounts/%s/collections' % self.me,
+            self.client, collections_api.list_path('by_account', self.me),
             weak_method(self._make_row), empty_title=_('No Collections'),
             empty_icon='folder-symbolic',
             empty_description=_('Collections you create to recommend '
                                 'accounts show up here.'),
             extract=weak_method(self._extract_own))
         self.featuring = pages.PagedList(
-            self.client, '/accounts/%s/in_collections' % self.me,
+            self.client, collections_api.list_path('featuring', self.me),
             weak_method(self._make_row), empty_title=_('No Collections'),
             empty_icon='avatar-default-symbolic',
             empty_description=_('Collections other people add you to '
@@ -497,8 +496,10 @@ class CollectionPage(Adw.Bin):
                 summarize_error_markup(error))
             self.stack.set_visible_child_name('error')
 
-        _send(self.client, 'GET', '/collections/%s' % self.collection_id,
-              ok, failed)
+        _send_api(self.client,
+                  lambda cb: collections_api.get_async(
+                      self.client, self.collection_id, callback=cb),
+                  ok, failed)
 
     def _show(self, accounts):
         collection = self.collection
@@ -819,11 +820,13 @@ class CollectionEditDialog(pages.ToastDialog):
                 self._add_member(account, item)
 
         self.members_group.set_sensitive(False)
-        _send(self.client, 'GET', '/collections/%s' % self.collection['id'],
-              lambda data: (ok(data),
-                            self.members_group.set_sensitive(True)),
-              lambda e: (self.error(_('Could not load the members'), e),
-                         self.members_group.set_sensitive(True)))
+        _send_api(self.client,
+                  lambda cb: collections_api.get_async(
+                      self.client, self.collection['id'], callback=cb),
+                  lambda data: (ok(data),
+                                self.members_group.set_sensitive(True)),
+                  lambda e: (self.error(_('Could not load the members'), e),
+                             self.members_group.set_sensitive(True)))
 
     def _add_member(self, account, item=None):
         if account['id'] in self.members or len(self.members) >= MAX_MEMBERS:
@@ -859,12 +862,14 @@ class CollectionEditDialog(pages.ToastDialog):
             self._remove_member(account['id'])
             return
         entry['row'].set_sensitive(False)
-        _send(self.client, 'DELETE',
-              '/collections/%s/items/%s' % (self.collection['id'],
-                                            entry['item']['id']),
-              lambda _d: self._remove_member(account['id']),
-              lambda e: (entry['row'].set_sensitive(True),
-                         self.error(_('Could not remove the account'), e)))
+        _send_api(
+            self.client,
+            lambda cb: collections_api.remove_item_async(
+                self.client, self.collection['id'], entry['item']['id'],
+                callback=cb),
+            lambda _d: self._remove_member(account['id']),
+            lambda e: (entry['row'].set_sensitive(True),
+                       self.error(_('Could not remove the account'), e)))
 
     def _invite(self, account, row):
         if not self.edit_mode:
@@ -876,11 +881,14 @@ class CollectionEditDialog(pages.ToastDialog):
             row.set_sensitive(True)
             self._add_member(account, data.get('collection_item'))
 
-        _send(self.client, 'POST',
-              '/collections/%s/items' % self.collection['id'], ok,
-              lambda e: (row.set_sensitive(True),
-                         self.error(_('Could not add the account'), e)),
-              json_body={'account_id': account['id']})
+        _send_api(
+            self.client,
+            lambda cb: collections_api.add_item_async(
+                self.client, self.collection['id'], account['id'],
+                callback=cb),
+            ok,
+            lambda e: (row.set_sensitive(True),
+                       self.error(_('Could not add the account'), e)))
 
     def _on_search_changed(self, *_args):
         self._search_id += 1
@@ -995,15 +1003,19 @@ class CollectionEditDialog(pages.ToastDialog):
             if not changes:
                 ok(None)
                 return
-            _send(self.client, 'PATCH',
-                  '/collections/%s' % original['id'], ok, failed,
-                  json_body=changes)
+            _send_api(self.client,
+                      lambda cb: collections_api.update_async(
+                          self.client, original['id'], changes,
+                          callback=cb),
+                      ok, failed)
         else:
             if not body['description']:
                 del body['description']
             body['account_ids'] = list(self.members)
-            _send(self.client, 'POST', '/collections', ok, failed,
-                  json_body=body)
+            _send_api(self.client,
+                      lambda cb: collections_api.create_async(
+                          self.client, body, callback=cb),
+                      ok, failed)
 
     @staticmethod
     def _original(collection, key):
