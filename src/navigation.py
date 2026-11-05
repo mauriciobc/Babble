@@ -137,11 +137,11 @@ class Navigation:
             return SearchPage(client)
         if tag == 'favourites':
             return self.host.timeline_place(
-                '/favourites', None, 'starred-symbolic',
+                'favourites', None, 'starred-symbolic',
                 _('No Favorites Yet'), _('Posts you favorite will appear here'))
         if tag == 'bookmarks':
             return self.host.timeline_place(
-                '/bookmarks', None, 'babble-bookmarks-symbolic',
+                'bookmarks', None, 'babble-bookmarks-symbolic',
                 _('No Bookmarks Yet'), _('Posts you bookmark will appear here'))
         if tag == 'hashtags':
             from .hashtags import FollowedHashtagsPage
@@ -154,7 +154,7 @@ class Navigation:
                 return None
             params = {'local': 'true'} if tag == 'local' else None
             return self.host.timeline_place(
-                '/timelines/public', params, 'network-server-symbolic',
+                'public', params, 'network-server-symbolic',
                 _('No Posts Yet'), _('New posts will appear here'))
         if tag == 'lists':
             from .lists import ListsPage

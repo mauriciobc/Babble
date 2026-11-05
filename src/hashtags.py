@@ -9,7 +9,6 @@ Phanpy: pages/followed-hashtags.jsx, pages/hashtag.jsx.
 """
 
 import json
-import urllib.parse
 
 import gi
 
@@ -23,6 +22,7 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 from . import charts  # noqa: E402
 from . import pages  # noqa: E402
 from .api import tags as api_tags  # noqa: E402
+from .api import timelines as api_timelines  # noqa: E402
 from .hashtagcompleter import forget_pool  # noqa: E402
 from .lists import make_pin_button  # noqa: E402
 from .pages import ToastDialog  # noqa: E402
@@ -48,10 +48,6 @@ def _invalidate_home_tags(widget):
 
 def clean_name(name):
     return (name or '').strip().lstrip('#').strip()
-
-
-def _tag_path(name):
-    return '/timelines/tag/%s' % urllib.parse.quote(clean_name(name), safe='')
 
 
 def stats_text(history, days=STATS_DAYS):
@@ -145,7 +141,8 @@ class HashtagPage(Adw.Bin):
             if definition.get('local'):
                 params['local'] = 'true'
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
-            client, _tag_path(self.tags[0]), params=params))
+            client, api_timelines.list_path('tag', clean_name(self.tags[0])),
+            params=params))
         pages.configure_empty_page(
             self.timeline.empty_page, 'edit-find-symbolic',
             _('No Posts With This Hashtag'),

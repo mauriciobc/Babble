@@ -210,25 +210,9 @@ class StubClient:
         if callback is not None:
             callback(None)
 
-    # Pages the shell builds after a successful login.
-
-    def timelines_home_async(self, params=None, callback=None,
-                             cancellable=None):
-        return StubTask('[]')
-
-    def notifications_async(self, params=None, callback=None,
-                            cancellable=None):
-        return StubTask('[]')
-
-    def notifications_unread_count_async(self, params=None, callback=None,
-                                         cancellable=None):
-        return StubTask('{"count": 0}')
-
-    def markers_async(self, timelines, callback=None, cancellable=None):
-        self.reply(callback, StubTask('{}'))
-
-    def markers_finish(self, result):
-        return self._finish(result)
+    # Requests the pages the shell builds after a successful login send.
+    UNANSWERED = ('/timelines/home', '/notifications',
+                  '/notifications/unread_count')
 
     def request_async(self, method, path, params=None, form=None,
                       json_body=None, callback=None, cancellable=None):
@@ -237,6 +221,10 @@ class StubClient:
             self.reply(callback, StubTask(
                 error=http_error('The access token is invalid'))
                 if self.fail_verify else StubTask(self.ACCOUNT))
+            return
+        if path in self.UNANSWERED:
+            # The pages the shell builds after a login stay loading: the
+            # test is about the login, not the timeline behind it.
             return
         self.reply(callback, StubTask(
             self.EMOJIS if path == '/custom_emojis' else '{}'))

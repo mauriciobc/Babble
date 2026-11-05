@@ -627,8 +627,7 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
 def call(widget, client, method, path, on_done=None, error_heading=None,
          **kwargs):
     """`call_api` for a request still spelled as a verb and a path. It goes
-    when its last caller (hashtags, the notification policy, polls) moves
-    into `src/api`."""
+    when its last caller (the poll box, phase 3) moves into `src/api`."""
     return call_api(
         widget, client,
         lambda callback: client.request_async(
@@ -861,16 +860,6 @@ class PagedList(PagedPosts, Adw.Bin):
         """
         start(self._row_finished(row, on_done, error_heading, remove,
                                  finish))
-
-    def mutate_row(self, row, method, path, on_done=None, error_heading=None,
-                   remove=True, **kwargs):
-        """`mutate_row_api` for a request still spelled as a verb and a
-        path. It goes when its last caller (the notification requests)
-        moves into `src/api`."""
-        self.mutate_row_api(
-            row, lambda callback: self.client.request_async(
-                method, path, callback=callback, **kwargs),
-            on_done, error_heading, remove)
 
     def _row_finished(self, row, on_done, error_heading, remove,
                       finish=None):

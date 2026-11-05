@@ -48,6 +48,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
+from src.api import timelines as api_timelines  # noqa: E402
+from src.api import trends as api_trends  # noqa: E402
 from src.mastodon import MastodonClient  # noqa: E402
 from src.profile import (AccountStatuses, ProfilePage,  # noqa: E402
                          format_count)
@@ -122,13 +124,13 @@ window.present()
 # Fetch the public timeline; fall back to trending statuses when none of
 # the sampled posts has replies, so nesting gets real data too.
 timeline = {}
-client.timelines_public_async({'limit': 20},
-                              lambda c, r: timeline.update(result=r))
+api_timelines.public_async(client, {'limit': 20},
+                           lambda c, r: timeline.update(result=r))
 deadline = time.monotonic() + 45
 while time.monotonic() < deadline and 'result' not in timeline:
     pump(0.2)
 try:
-    statuses = client.timelines_public_finish(timeline['result'])
+    statuses = api_timelines.public_finish(client, timeline['result'])
 except Exception as e:
     print('SKIP - public timeline unreachable: %s' % e)
     sys.exit(77)
@@ -136,13 +138,13 @@ except Exception as e:
 # Add trending statuses: the public timeline rarely samples a deep
 # thread, so guarantee a reply-rich status for the nesting checks.
 trends = {}
-client.trends_statuses_async({'limit': 20},
-                             lambda c, r: trends.update(result=r))
+api_trends.statuses_async(client, {'limit': 20},
+                          lambda c, r: trends.update(result=r))
 deadline = time.monotonic() + 45
 while time.monotonic() < deadline and 'result' not in trends:
     pump(0.2)
 try:
-    statuses += client.trends_statuses_finish(trends['result'])
+    statuses += api_trends.statuses_finish(client, trends['result'])
 except Exception:
     pass
 

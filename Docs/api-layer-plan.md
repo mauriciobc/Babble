@@ -114,9 +114,17 @@ Three commits, each leaving `api golden` byte-identical:
 **Phase 2 progress.** Step 2a done: lists (`lists.py`), filters, announcements and
 scheduled statuses moved (20 endpoints, registry 73), and the housekeeping below
 (marked DONE). Step 2b done: tags (`tags.py`: 9 endpoints, including followed and trending
-tags) and search (`search.py`: 1), registry 83. Still to move in phase 2:
-timelines helpers, explore (trends links/statuses), conversations,
-notifications, custom emojis. The completers' `search_request` hooks still
+tags) and search (`search.py`: 1), registry 83. Step 2c done: timelines
+(`timelines.py`: home, public, tag, link, favourites, bookmarks, with the list
+timeline reused from `lists.py`), markers (`markers.py`), trending statuses
+(`trends.py`) and notifications (`notifications.py`: 9, with the policy and
+the filtered-notification requests), registry 101; the client's `timelines_*`,
+`trends_statuses_*`, `markers_*` and `notifications_*` wrappers are gone, and
+`PagedList.mutate_row` with them. `ApiTimelineSource.fetch` and the completer's
+`_search` are generic helpers' own sends of a caller-supplied path, relabelled
+"phase 4: internal". Still to move in phase 2 (step 2d): explore (trends
+links, suggestions), conversations, custom emojis, Wrapped and the rest of
+Catch Up's fetch. The completers' `search_request` hooks still
 return a path (from `search_path()`), so `completer.TokenCompleter._search`
 keeps its one raw send until the hook protocol changes.
 

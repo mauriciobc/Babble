@@ -283,7 +283,8 @@ class StubPollClient:
     def rate_limited(self):
         return False
 
-    def request_async(self, method, path, params=None, callback=None):
+    def request_async(self, method, path, params=None, callback=None,
+                      **_kw):
         self.polls.append(params)
 
 

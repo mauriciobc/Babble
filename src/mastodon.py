@@ -850,15 +850,6 @@ class MastodonClient(GObject.Object):
         self.instance_info = self._finish(result)
         return self.instance_info
 
-    def markers_async(self, timelines, callback=None, cancellable=None):
-        """GET /api/v1/markers for the named timelines."""
-        params = [('timeline[]', name) for name in timelines]
-        return self._request_async('GET', '/markers', params=params,
-                                   callback=callback, cancellable=cancellable)
-
-    def markers_finish(self, result):
-        return self._finish(result)
-
     def max_characters(self):
         """Post length limit of the instance, 500 until it is known."""
         info = self.instance_info or {}
@@ -1196,91 +1187,6 @@ class MastodonClient(GObject.Object):
             'account': _('The server did not return a valid account.'),
         }
         return GLib.Error(messages[what], 'mastodon-http-error-quark', 0)
-
-    # Timelines and notifications
-
-    def timelines_home_async(self, params=None, callback=None, cancellable=None):
-        return self._request_async('GET', '/timelines/home', params=params,
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def timelines_home_finish(self, result):
-        return self._finish(result)
-
-    def timelines_public_async(self, params=None, callback=None, cancellable=None):
-        return self._request_async('GET', '/timelines/public', params=params,
-                                   callback=callback, cancellable=cancellable)
-
-    def timelines_public_finish(self, result):
-        return self._finish(result)
-
-    def trends_statuses_async(self, params=None, callback=None,
-                              cancellable=None):
-        return self._request_async('GET', '/trends/statuses', params=params,
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def trends_statuses_finish(self, result):
-        return self._finish(result)
-
-    def notifications_async(self, params=None, callback=None, cancellable=None):
-        """GET /api/v1/notifications.
-
-        Pagination params: ``max_id`` (older page), ``min_id`` (newer
-        page), ``limit``; ``types`` filters by notification type.
-        """
-        return self._request_async('GET', '/notifications', params=params,
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def notifications_finish(self, result):
-        return self._finish(result)
-
-    def notifications_unread_count_async(self, params=None, callback=None,
-                                         cancellable=None):
-        """GET /api/v1/notifications/unread_count (Mastodon 4.0+).
-        ``params`` accepts the same ``types[]``/``exclude_types[]`` as the
-        list endpoint, so the badge counts what the list shows."""
-        return self._request_async('GET', '/notifications/unread_count',
-                                   params=params,
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def notifications_unread_count_finish(self, result):
-        return self._finish(result).get('count', 0)
-
-    def notifications_clear_async(self, callback=None, cancellable=None):
-        """POST /api/v1/notifications/clear: delete every notification."""
-        return self._request_async('POST', '/notifications/clear',
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def notifications_clear_finish(self, result):
-        return self._finish(result)
-
-    def notifications_dismiss_async(self, notification_id, callback=None,
-                                    cancellable=None):
-        """POST /api/v1/notifications/:id/dismiss: delete one notification
-        (Mastodon 1.3.0)."""
-        return self._request_async(
-            'POST', '/notifications/%s/dismiss' % notification_id,
-            callback=callback, cancellable=cancellable)
-
-    def notifications_dismiss_finish(self, result):
-        return self._finish(result)
-
-    def notifications_mark_read_async(self, last_read_id, callback=None,
-                                      cancellable=None):
-        """POST /api/v1/markers: store ``notifications.last_read_id`` so
-        unread_count drops to 0."""
-        return self._request_async('POST', '/markers',
-                                   form={'notifications[last_read_id]':
-                                         last_read_id},
-                                   callback=callback,
-                                   cancellable=cancellable)
-
-    def notifications_mark_read_finish(self, result):
-        return self._finish(result)
 
     # Statuses
 

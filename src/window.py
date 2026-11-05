@@ -20,6 +20,7 @@ from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import lists as api_lists  # noqa: E402
+from .api import timelines as api_timelines  # noqa: E402
 from . import pluginmenu  # noqa: E402
 from . import navigation  # noqa: E402
 from . import portals  # noqa: E402
@@ -1220,11 +1221,10 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.props.unread_visible = bool(count)
         self.sidebar_rail.set_badge(count)
 
-    def _timeline_place(self, path, params, icon, title, description):
-        from .timelinepage import link_paged
+    def _timeline_place(self, kind, params, icon, title, description):
         page = TimelinePage(self.client, source=ApiTimelineSource(
-            self.client, path, params,
-            paging='link' if link_paged(path) else 'id'))
+            self.client, api_timelines.list_path(kind), params,
+            paging='link' if kind in api_timelines.LINK_PAGED else 'id'))
         pages.configure_empty_page(page.empty_page, icon, title, description)
         return page
 

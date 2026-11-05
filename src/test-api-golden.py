@@ -891,21 +891,24 @@ def fresh_wrapper(rec, name, *args, **kwargs):
 @scenario
 def client_instance_markers_timelines_trends(rec):
     fresh_wrapper(rec, 'instance_info_async')
-    wrapper(rec, 'markers_async', ['home', 'notifications'])
-    wrapper(rec, 'timelines_home_async', params={'limit': 20})
-    wrapper(rec, 'timelines_public_async',
-            params={'local': 'true', 'limit': 20})
-    wrapper(rec, 'trends_statuses_async', params={'limit': 10})
+    api_wrapper(rec, 'get_async', ['home', 'notifications'],
+                module='markers')
+    api_wrapper(rec, 'home_async', params={'limit': 20}, module='timelines')
+    api_wrapper(rec, 'public_async', params={'local': 'true', 'limit': 20},
+                module='timelines')
+    api_wrapper(rec, 'statuses_async', params={'limit': 10},
+                module='trends')
 
 
 @scenario
 def client_notification_wrappers(rec):
-    wrapper(rec, 'notifications_async', params={'limit': 30})
-    wrapper(rec, 'notifications_unread_count_async',
-            params={'limit': 100})
-    wrapper(rec, 'notifications_clear_async')
-    wrapper(rec, 'notifications_dismiss_async', '12')
-    wrapper(rec, 'notifications_mark_read_async', '34')
+    api_wrapper(rec, 'index_async', params={'limit': 30},
+                module='notifications')
+    api_wrapper(rec, 'unread_count_async', params={'limit': 100},
+                module='notifications')
+    api_wrapper(rec, 'clear_async', module='notifications')
+    api_wrapper(rec, 'dismiss_async', '12', module='notifications')
+    api_wrapper(rec, 'save_async', 'notifications', '34', module='markers')
 
 
 @scenario
@@ -1749,10 +1752,10 @@ def api_timeline_source_link_and_none_paging(rec):
 def window_timeline_places(rec):
     from src.window import BabbleWindow
     stub = types.SimpleNamespace(client=rec.client())
-    for path, params in (('/favourites', None), ('/bookmarks', None),
-                         ('/timelines/public', {'local': 'true'}),
-                         ('/timelines/public', None)):
-        BabbleWindow._timeline_place(stub, path, params, 'edit-find-symbolic',
+    for kind, params in (('favourites', None), ('bookmarks', None),
+                         ('public', {'local': 'true'}),
+                         ('public', None)):
+        BabbleWindow._timeline_place(stub, kind, params, 'edit-find-symbolic',
                                      'Title', 'Description')
     rec.settle()
 

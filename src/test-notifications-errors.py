@@ -35,7 +35,7 @@ check('page-2 errors are swallowed in on_older_loaded',
                 source, re.S))
 check('markers gate unread_count',
       '_on_markers_before_unread' in source
-      and 'markers_async' in source)
+      and 'api_markers.get_async' in source)
 check('policy dialog distinguishes a 404 from other errors',
       re.search(
           r'def on_loaded\(.*?getattr\(error, \'code\', 0\) == 404',

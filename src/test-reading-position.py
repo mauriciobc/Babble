@@ -80,7 +80,10 @@ class _Server:
     def rate_limited(self):
         return False
 
-    def timelines_home_async(self, params=None, callback=None, **_kw):
+    def request_async(self, _method, _path, params=None, callback=None,
+                      **_kw):
+        if _path != '/timelines/home':
+            return None
         params = dict(params or {})
         self.params.append(params)
         limit = int(params.get('limit', 20))
@@ -104,7 +107,7 @@ class _Server:
         for deliver in pending:
             deliver()
 
-    def timelines_home_finish(self, result):
+    def request_finish(self, result):
         return result
 
     def __getattr__(self, _name):

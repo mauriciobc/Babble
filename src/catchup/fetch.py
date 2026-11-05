@@ -9,6 +9,7 @@ from gi.repository import Gio, GLib, GObject
 
 from ..api import accounts as api_accounts
 from ..api import tags as api_tags
+from ..api import timelines as api_timelines
 from . import pipeline
 
 from .digest import (PAGE_LIMIT, apply_filters, fetch_progress,
@@ -148,9 +149,9 @@ class CatchUpRun:
             self._end_paging(STOPPED_RATE_LIMITED)
             return
         self._busy = True
-        self.client.request_async(
-            'GET', '/timelines/home', params=params,
-            callback=self._on_page, cancellable=self.cancellable)
+        api_timelines.home_async(
+            self.client, params=params, callback=self._on_page,
+            cancellable=self.cancellable)
 
     def _on_page(self, _client, result, _data=None):
         self._busy = False

@@ -33,15 +33,17 @@ from src.api import core  # noqa: E402
 from src.api import accounts, announcements, filters, lists  # noqa: E402, F401
 from src.api import relationships, scheduled, search, statuses  # noqa: E402, F401
 from src.api import tags  # noqa: E402, F401
+from src.api import markers, notifications, timelines, trends  # noqa: E402, F401
 
 RESOURCE_MODULES = (statuses, accounts, relationships, lists, filters,
-                    announcements, scheduled, tags, search)
+                    announcements, scheduled, tags, search, timelines,
+                    markers, trends, notifications)
 # Modules whose endpoints a paged view reads by path: each declares LISTS.
-# `filters` has no paged view (its list is read once) and `search` serves
-# only a path to completers, so they declare none.
+# `filters` has no paged view (its list is read once), `search` serves
+# only a path to completers and `markers` is read once, so they declare none.
 PAGED_MODULES = tuple(m for m in RESOURCE_MODULES
-                      if m not in (filters, search))
-MINIMUM_ENDPOINTS = 53 + 9 + 4 + 4 + 3 + 9 + 1  # 83
+                      if m not in (filters, search, markers))
+MINIMUM_ENDPOINTS = 53 + 9 + 4 + 4 + 3 + 9 + 1 + 6 + 2 + 1 + 9  # 101
 
 failed = False
 

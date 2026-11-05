@@ -66,14 +66,12 @@ class _HomeFailureClient:
     def __init__(self):
         self.public_requests = 0
 
-    def timelines_home_async(self, *_args, **_kwargs):
-        pass
+    def request_async(self, _method, path, *_args, **_kwargs):
+        if path == '/timelines/public':
+            self.public_requests += 1
 
-    def timelines_home_finish(self, _result):
+    def request_finish(self, _result):
         raise GLib.Error('home failed', 'mastodon-http-error-quark', 500)
-
-    def timelines_public_async(self, *_args, **_kwargs):
-        self.public_requests += 1
 
 
 failure_client = _HomeFailureClient()

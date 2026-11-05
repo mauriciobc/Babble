@@ -162,20 +162,12 @@
    "reason": "phase 2: misc"
   },
   {
-   "file": "src/catchup/fetch.py",
-   "function": "CatchUpRun._request_page",
-   "via": "request_async",
-   "path": "'/timelines/home'",
-   "layer": "raw",
-   "reason": "phase 2: timelines"
-  },
-  {
    "file": "src/completer.py",
    "function": "TokenCompleter._search",
    "via": "request_async",
    "path": "path",
    "layer": "raw",
-   "reason": "phase 2: search"
+   "reason": "phase 4: internal"
   },
   {
    "file": "src/conversations.py",
@@ -202,14 +194,6 @@
    "reason": "phase 2: timelines"
   },
   {
-   "file": "src/desktopnotify.py",
-   "function": "DesktopNotifier._poll",
-   "via": "request_async",
-   "path": "'/notifications'",
-   "layer": "raw",
-   "reason": "phase 2: notifications"
-  },
-  {
    "file": "src/emojichooser.py",
    "function": "load_custom_emojis",
    "via": "request_async",
@@ -224,14 +208,6 @@
    "path": "'/trends/statuses'",
    "layer": "helper",
    "reason": "phase 2: misc"
-  },
-  {
-   "file": "src/explore.py",
-   "function": "LinkTimelinePage.__init__",
-   "via": "ApiTimelineSource",
-   "path": "'/timelines/link'",
-   "layer": "helper",
-   "reason": "phase 2: timelines"
   },
   {
    "file": "src/explore.py",
@@ -346,54 +322,6 @@
    "reason": "phase 4: generic helper internals (_send)"
   },
   {
-   "file": "src/hashtags.py",
-   "function": "HashtagPage.__init__",
-   "via": "ApiTimelineSource",
-   "path": "_tag_path(self.tags[0])",
-   "layer": "helper",
-   "reason": "phase 2: timelines"
-  },
-  {
-   "file": "src/notificationctrl.py",
-   "function": "NotificationController.fetch_policy",
-   "via": "request_async",
-   "path": "'/api/v2/notifications/policy'",
-   "layer": "raw",
-   "reason": "phase 2: notifications"
-  },
-  {
-   "file": "src/notifications.py",
-   "function": "NotificationPolicyDialog.load",
-   "via": "request_async",
-   "path": "'/api/v2/notifications/policy'",
-   "layer": "raw",
-   "reason": "phase 2: notifications"
-  },
-  {
-   "file": "src/notifications.py",
-   "function": "NotificationPolicyDialog.save",
-   "via": "pages.call",
-   "path": "'/api/v2/notifications/policy'",
-   "layer": "raw",
-   "reason": "phase 2: notifications"
-  },
-  {
-   "file": "src/notifications.py",
-   "function": "NotificationRequestRow.answer",
-   "via": "mutate_row",
-   "path": "'/notifications/requests/%s/%s' % (self.request['id'], action)",
-   "layer": "helper",
-   "reason": "phase 2: notifications"
-  },
-  {
-   "file": "src/notifications.py",
-   "function": "NotificationRequestsPage.__init__",
-   "via": "super().__init__",
-   "path": "'/notifications/requests'",
-   "layer": "helper",
-   "reason": "phase 2: notifications"
-  },
-  {
    "file": "src/pages.py",
    "function": "AccountListPage.__init__",
    "via": "super().__init__",
@@ -408,14 +336,6 @@
    "path": "self.fetch_path",
    "layer": "internal",
    "reason": "phase 4: generic helper internals (PagedList.load_more)"
-  },
-  {
-   "file": "src/pages.py",
-   "function": "PagedList.mutate_row",
-   "via": "request_async",
-   "path": "path",
-   "layer": "internal",
-   "reason": "phase 4: generic helper internals (PagedList.mutate_row)"
   },
   {
    "file": "src/pages.py",
@@ -487,15 +407,7 @@
    "via": "request_async",
    "path": "self.path",
    "layer": "raw",
-   "reason": "phase 2: timelines"
-  },
-  {
-   "file": "src/window.py",
-   "function": "BabbleWindow._timeline_place",
-   "via": "ApiTimelineSource",
-   "path": "path",
-   "layer": "helper",
-   "reason": "phase 2: timelines"
+   "reason": "phase 4: internal"
   },
   {
    "file": "src/wrapped.py",

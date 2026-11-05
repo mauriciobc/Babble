@@ -140,6 +140,10 @@ install_data(
   'api/scheduled.py',
   'api/tags.py',
   'api/search.py',
+  'api/timelines.py',
+  'api/markers.py',
+  'api/trends.py',
+  'api/notifications.py',
   install_dir: moduledir / 'api',
 )
 

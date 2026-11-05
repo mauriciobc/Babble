@@ -27,7 +27,7 @@ gi.require_version('Soup', '3.0')
 
 from gi.repository import Gio, GLib  # noqa: E402
 
-from src.api import accounts  # noqa: E402
+from src.api import accounts, timelines  # noqa: E402
 from src.mastodon import (DEFAULT_RATE_LIMIT_SECONDS,  # noqa: E402
                           MastodonClient, parse_reset_instant,
                           server_clock_offset)
@@ -201,7 +201,7 @@ server.close()
 
 server = Server(script=['drop', b'{"id":"9"}'])
 client = client_for(server.port)
-client.timelines_home_async()
+timelines.home_async(client)
 run_loop(lambda: (time.sleep(3.0), GLib.SOURCE_REMOVE)[1])
 check('a dropped GET is repeated', len(server.requests) == 2,
       '%d requests arrived' % len(server.requests))

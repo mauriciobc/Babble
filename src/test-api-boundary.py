@@ -103,11 +103,17 @@ from src.api import scheduled as _scheduled  # noqa: E402
 from src.api import search as _search  # noqa: E402
 from src.api import statuses as _statuses  # noqa: E402
 from src.api import tags as _tags  # noqa: E402
+from src.api import markers as _markers  # noqa: E402
+from src.api import notifications as _notifications  # noqa: E402
+from src.api import timelines as _timelines  # noqa: E402
+from src.api import trends as _trends  # noqa: E402
 
 API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'filters': _filters, 'lists': _lists,
                'relationships': _relationships, 'scheduled': _scheduled,
-               'search': _search, 'statuses': _statuses, 'tags': _tags}
+               'markers': _markers, 'notifications': _notifications,
+               'search': _search, 'statuses': _statuses, 'tags': _tags,
+               'timelines': _timelines, 'trends': _trends}
 # The path accessors of `src.api`: a helper handed one of these names no
 # path of its own, so the site needs no allow-list entry.
 ACCESSORS = ('list_path', 'search_path', 'familiar_followers_path')

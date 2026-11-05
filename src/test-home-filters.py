@@ -71,11 +71,14 @@ class _Client:
     def rate_limited(self):
         return False
 
-    def timelines_home_async(self, params=None, callback=None, **_kw):
+    def request_async(self, _method, _path, params=None, callback=None,
+                      **_kw):
+        if _path != '/timelines/home':
+            return None
         self.params.append(dict(params or {}))
         callback(self, self.pages.pop(0) if self.pages else [])
 
-    def timelines_home_finish(self, result):
+    def request_finish(self, result):
         return result
 
     def __getattr__(self, _name):
@@ -139,7 +142,8 @@ def reply(number, author, parent=1):
 class _RelationshipClient(_Client):
     def request_async(self, method, path, params=None, callback=None, **_kw):
         if path != '/accounts/relationships':
-            return None
+            return super().request_async(method, path, params=params,
+                                         callback=callback, **_kw)
         callback(self, [{'id': i, 'following': i == '21'}
                         for i in params['id[]']])
 
@@ -206,7 +210,10 @@ class _Server(_Client):
     def grow(self, posts):
         self.posts.extend(posts)
 
-    def timelines_home_async(self, params=None, callback=None, **_kw):
+    def request_async(self, _method, _path, params=None, callback=None,
+                      **_kw):
+        if _path != '/timelines/home':
+            return None
         params = dict(params or {})
         self.params.append(params)
         limit = int(params.get('limit', 20))

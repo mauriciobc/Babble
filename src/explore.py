@@ -19,6 +19,7 @@ from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 from . import pages  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .api import tags as api_tags  # noqa: E402
+from .api import timelines as api_timelines  # noqa: E402
 
 from .capabilities import LINK_TIMELINE_API_VERSION
 
@@ -88,7 +89,7 @@ class LinkTimelinePage(Adw.Bin):
         from .timelinepage import ApiTimelineSource, TimelinePage
         self.link = link
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
-            client, '/timelines/link', params={'url': link['url']}))
+            client, api_timelines.list_path('link'), params={'url': link['url']}))
         self.timeline.set_vexpand(True)
         pages.configure_empty_page(
             self.timeline.empty_page, 'edit-find-symbolic',
