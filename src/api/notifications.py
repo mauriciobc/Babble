@@ -45,7 +45,10 @@ UPDATE_POLICY = _declare(
     'update_policy', 'PATCH', '/api/v2/notifications/policy',
     'write:notifications', '#update-the-filtering-policy',
     note='DEVIATES (audit NT-6): the changed `for_*` fields go as a JSON '
-         'body, the docs say form data; fixed in phase 5',
+         'body, the docs say form data; fixed in phase 5. The request '
+         'names are `for_*` while the docs example response shows '
+         '`filter_*` booleans; Babble sends and reads `for_*` (audit '
+         'item 7)',
     version='4.3.0')
 REQUESTS = _declare('requests', 'GET', '/notifications/requests',
                     'read:notifications', '#get-requests',

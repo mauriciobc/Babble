@@ -114,6 +114,7 @@ The one known live bug is listed separately below.
 6. **`GET /api/v1/instance` v1 is not used (good); `GET /api/v1/admin/accounts`
    (v1) is used as a scope probe** (`admin.py:1701`) next to the v2 list.
    Docs do not mark v1 deprecated; consistent use of v2 would be tidier.
+   **DONE (5a):** probe kept as v1 (request unchanged); v2 has the same scope and 200/403 semantics and could serve, recorded in the `admin.accounts.probe` note.
 7. **Docs inconsistencies Babble must not copy**: `DELETE /admin/ip_blocks/:id`
    is documented with `admin:write:domain_blocks` (probably a docs error);
    `PUT /admin/domain_blocks` / `DELETE` describe `:id` as a DomainAllow;
@@ -121,6 +122,7 @@ The one known live bug is listed separately below.
    example response (`filter_*` booleans); tags `feature`/`unfeature` use
    `:id` for a name. The registry should record the scope Babble actually
    requests, with a note.
+   **DONE (5a):** all four oddities now stated in the registry notes (ip_blocks scope, domain_blocks/allows `:id`, policy `for_*` vs `filter_*`, featured tag `:id`).
 8. **Home timeline `exclude_*` filters** (`exclude_direct`, `exclude_reblogs`,
    `exclude_quotes`, `exclude_replies`) exist from API 12 (docs label it
    5.0.0). Babble filters client-side (`homefilters`, `catchup`). Not a
@@ -128,10 +130,12 @@ The one known live bug is listed separately below.
 9. **`DELETE /statuses/:id` never sends `delete_media`** (4.4.0). Correct for
    redraft (media must survive), but plain delete leaves media for up to
    ~24 h on the server. Intentional; record it in the registry as such.
+   **DONE (5a):** `statuses.delete` note says delete_media is never sent on purpose (redraft; plain delete leaves media about 24 h).
 10. **`GET /announcements` `with_dismissed`** is not documented and not sent;
     announcement reactions return 400 when disabled on the server
     (5.0.0 change on the page). Check `announcements.py` shows the server
     message instead of a generic one.
+   **DONE (5a):** checked: `announcements.py` reports reaction failures via `report_error` with the server message (`summarize_error`), not a generic one; nothing to change.
 
 ## 2. Documentation sources and what could not be verified
 

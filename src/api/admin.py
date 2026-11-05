@@ -55,7 +55,11 @@ ACCOUNTS_PROBE = _declare(
     'accounts', '#v1',
     note='sent with limit=1 as the cheapest admin call: 200 when the token '
          'has the scope and the role, 403 when not; the v1 list is not '
-         'deprecated per the docs', version='2.9.1')
+         'deprecated per the docs. The v2 list needs the same scope and '
+         'role (3.5.0), so it could be the probe with the same 200/403 '
+         'answer; v1 is kept because it is older and the dashboard works '
+         'on servers that predate v2 (audit item 6, phase 5)',
+    version='2.9.1')
 ACCOUNT_ACTION = _declare(
     'accounts.action', 'POST', '/admin/accounts/%s/action',
     'admin:write:accounts', 'accounts', '#action',
@@ -124,7 +128,9 @@ DOMAIN_BLOCK_CREATE = _declare(
          'private_comment, public_comment', version='4.0.0')
 DOMAIN_BLOCK_DELETE = _declare(
     'domain_blocks.delete', 'DELETE', '/admin/domain_blocks/%s',
-    'admin:write:domain_blocks', 'domain_blocks', '#delete', version='4.0.0')
+    'admin:write:domain_blocks', 'domain_blocks', '#delete',
+    note='the docs describe :id as a DomainAllow, a copy-paste slip; it is '
+         'the DomainBlock id from the list (audit item 7)', version='4.0.0')
 DOMAIN_ALLOWS = _declare('domain_allows.index', 'GET',
                          '/admin/domain_allows', 'admin:read:domain_allows',
                          'domain_allows', '#get', version='4.0.0')
@@ -134,7 +140,9 @@ DOMAIN_ALLOW_CREATE = _declare(
     note='form domain', version='4.0.0')
 DOMAIN_ALLOW_DELETE = _declare(
     'domain_allows.delete', 'DELETE', '/admin/domain_allows/%s',
-    'admin:write:domain_allows', 'domain_allows', '#delete', version='4.0.0')
+    'admin:write:domain_allows', 'domain_allows', '#delete',
+    note='the :id is the DomainAllow id from the list (audit item 7)',
+    version='4.0.0')
 EMAIL_BLOCKS = _declare(
     'email_domain_blocks.index', 'GET', '/admin/email_domain_blocks',
     'admin:read:email_domain_blocks', 'email_domain_blocks', '#get',
@@ -158,7 +166,8 @@ IP_BLOCK_DELETE = _declare(
     'ip_blocks.delete', 'DELETE', '/admin/ip_blocks/%s',
     'admin:write:ip_blocks', 'ip_blocks', '#delete',
     note='the docs name the scope admin:write:domain_blocks here, probably '
-         'a docs error (audit AD-11)', version='4.0.0')
+         'a docs error (audit AD-11); Babble requests the matching '
+         'admin:write:ip_blocks', version='4.0.0')
 
 # Verbs on an account that review it or undo a moderation state.
 ACTIONS = {

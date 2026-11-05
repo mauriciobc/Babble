@@ -34,8 +34,10 @@ _PUBLIC = 'public statuses need no token; others need read:statuses'
 GET = _declare('get', 'GET', '/statuses/%s', None, '#get', note=_PUBLIC)
 DELETE = _declare('delete', 'DELETE', '/statuses/%s', 'write:statuses',
                   '#delete',
-                  note='delete_media (4.4.0) is not sent, on purpose: a '
-                       'redraft keeps the attachments')
+                  note='delete_media (4.4.0) is never sent, on purpose: a '
+                       'redraft needs the attachments to survive, and a '
+                       'plain delete leaves them on the server for about '
+                       '24 hours (audit item 9)')
 CONTEXT = _declare('context', 'GET', '/statuses/%s/context', None,
                    '#context', note=_PUBLIC)
 HISTORY = _declare('history', 'GET', '/statuses/%s/history', None,
