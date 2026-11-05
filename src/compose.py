@@ -29,6 +29,7 @@ from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
 from . import emojichooser, pages, portals  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
+from .capabilities import QUOTES_API_VERSION  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
 from .composequote import QuotePaste  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
@@ -2072,6 +2073,16 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             params['in_reply_to_id'] = self.in_reply_to_id
         if self.quoted_status_id is not None:
             params['quoted_status_id'] = self.quoted_status_id
+        # Quote posts are Mastodon 4.5.0 (API 7). A server whose number is
+        # known to be lower would ignore both fields and post a plain
+        # status, so they are left off rather than sent for nothing.
+        # when_unknown=True: a quote can only have been started from a
+        # status carrying `quote_approval`, which is evidence the server
+        # has the feature, and a scheduled post restored from the server
+        # carries them back -- an unreported version must not strip them.
+        if not self.client.is_supported(QUOTES_API_VERSION, when_unknown=True):
+            params.pop('quoted_status_id', None)
+            params.pop('quote_approval_policy', None)
         if self.scheduled_at is not None:
             params['scheduled_at'] = self.scheduled_at
         # Uploaded rows first, then media reused from the edited post.

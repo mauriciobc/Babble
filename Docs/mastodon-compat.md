@@ -26,6 +26,22 @@ Mastodon 4.4.0). Babble does all four.
 | Translation (`POST /statuses/:id/translate`) | 4.0.0 | `configuration.translation.enabled` | `timeline._translation_enabled` |
 | Live feed access (`live_feeds`) | 4.5.0 | `configuration.timelines_access` | `streaming.public_feed_access` |
 | Trending-link timeline | 4.3.0 | `is_supported(LINK_TIMELINE_API_VERSION)` | `explore.supports_link_timeline` |
+| Wrapped `/state` and Generate | 4.6.0 (v8) | `is_supported(ANNUAL_REPORT_STATE_API_VERSION)`; below it Wrapped shows the empty page without asking | `wrapped.WrappedDialog._check_state` |
+| Notification policy, requests, `unread_count` | 4.3.0 (v2, read off the v4.3.x tags) | `is_supported(NOTIFICATION_POLICY_API_VERSION, when_unknown=True)`: only a known lower number skips the call | `NotificationController.supports_filtering`, the page menu, `preferences._notifications_page` |
+| Policy `for_bots` | 4.6.0 (v10, `notification_policy.rb`) | no version gate: the row and its PATCH key exist only when the policy response carries `for_bots` | `notifications.NotificationPolicyDialog` |
+| Filter action `blur` | 4.4.0 (v5) | `is_supported(FILTER_BLUR_API_VERSION)`; an existing blur filter keeps it | `filters.available_actions` |
+| Default quote policy (`source[quote_policy]`) | 4.5.0 (v7) | `is_supported(QUOTES_API_VERSION)` hides the Preferences row and skips the PATCH | `preferences._posting_page`, `sync_posting_defaults` |
+| `quoted_status_id`, `quote_approval_policy` on `POST /statuses` | 4.5.0 (v7) | `is_supported(QUOTES_API_VERSION, when_unknown=True)`; left off for a known lower number | `compose.BabbleComposeView.send_status` |
+| Quote button, "Who Can Quote", revoke, quotes tab | 4.5.0 (v7) | the post itself: `quote_approval`, `quote` state and `quotes_count` must be on the status | `statusactions`, `statusmenu`, `statusviews` |
+| `GET /accounts/:id/endorsements` | 4.4.0 (v6, read off v4.4.0) | `is_supported(ENDORSEMENTS_API_VERSION)` | `profile.ProfilePage.load_extras` |
+| `GET /accounts?id[]=` | 4.3.0 | not gated: only reached through Collections, which needs v10 | `fedicollections` |
+| `supported_types[]` on `GET /notifications` | 4.6.0 (v10) | not sent: Babble renders no notification `fallback` | none |
+
+The API number of a release is `api_versions.mastodon` in
+`lib/mastodon/version.rb` at its tag: 2 at v4.3.0 to v4.3.9, 6 at v4.4.0, 7
+at v4.5.0, 10 at v4.6.0, 11 at v4.6.1. The docs name a number only from 4.4.0
+on, and only on some entries; where they do not, the gate is the number of
+the release that introduced the feature.
 
 A gate is answered through `client.is_supported(min_version)`, never by
 comparing `mastodon_api_version()` at the call site: that accessor

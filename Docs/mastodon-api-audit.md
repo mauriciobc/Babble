@@ -111,6 +111,29 @@ The one known live bug is listed separately below.
    (4.4.0), `GET /accounts?id[]=` (4.3.0). All degrade through an error
    today; none is listed in `Docs/mastodon-compat.md` or
    `capabilities.py`.
+   **DONE (5c):** each claim was checked in the code and against the docs and
+   the server source (`lib/mastodon/version.rb` at the release tags gives the
+   API number of a release). Gated, with the constant in `capabilities.py`:
+   Wrapped `/state` and Generate (v8, docs state the number); notification
+   policy, requests and `unread_count` (v2: the docs say only 4.3.0, and
+   `api_versions` reads 2 at v4.3.0, rc.1 and v4.3.8), `when_unknown=True`
+   since the page is built before the instance document may have arrived and
+   a failure was already invisible; filter action `blur` (v5, docs state
+   it); the default-quote-policy row and its `source[quote_policy]` PATCH
+   (v7); `quoted_status_id` and `quote_approval_policy` on `POST /statuses`
+   left off for a known lower number; `GET /accounts/:id/endorsements` (v6,
+   4.4.0; before the gate every profile on an older server toasted "Could
+   not load featured profiles"). Deliberately not gated: the `for_bots`
+   policy row (it already exists only when the policy response carries the
+   key, which is exact; the field arrived in 4.6.0, API 10, per
+   `notification_policy.rb` at v4.6.0, absent at v4.5.11), the Quote button,
+   "Who Can Quote", revoke and the quotes tab (each needs `quote_approval`,
+   `quote.state` or `quotes_count` on the post), `GET /accounts?id[]=`
+   (only reachable through Collections, API 10), the Wrapped report reads
+   (4.3.0/4.4.0, a 404 is handled), and `supported_types[]` on
+   `GET /notifications` (4.6.0, API 10): it only switches on a `fallback`
+   object on notification types a client does not know, and Babble has no
+   rendering for one, so sending it would change nothing visible.
 6. **`GET /api/v1/instance` v1 is not used (good); `GET /api/v1/admin/accounts`
    (v1) is used as a scope probe** (`admin.py:1701`) next to the v2 list.
    Docs do not mark v1 deprecated; consistent use of v2 would be tidier.

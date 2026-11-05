@@ -256,6 +256,32 @@ for name, endpoint in sorted(core.registry.items()):
     check('registry %s: %s' % (name, problems(endpoint) or 'complete'),
           problems(endpoint) == [] and endpoint.name == name)
 print('registry holds %d endpoint(s)' % len(core.registry))
+
+# `min_version` is the gate a caller asks. src/api may not import
+# capabilities (R8), so the number is written out there and held equal to
+# the constant here.
+from src import capabilities  # noqa: E402
+
+GATED = {
+    'annual_reports.state': capabilities.ANNUAL_REPORT_STATE_API_VERSION,
+    'annual_reports.generate': capabilities.ANNUAL_REPORT_STATE_API_VERSION,
+    'accounts.endorsements': capabilities.ENDORSEMENTS_API_VERSION,
+    'notifications.unread_count': capabilities.NOTIFICATION_POLICY_API_VERSION,
+    'notifications.policy': capabilities.NOTIFICATION_POLICY_API_VERSION,
+    'notifications.update_policy':
+        capabilities.NOTIFICATION_POLICY_API_VERSION,
+    'notifications.requests': capabilities.NOTIFICATION_POLICY_API_VERSION,
+    'notifications.accept_request':
+        capabilities.NOTIFICATION_POLICY_API_VERSION,
+    'notifications.dismiss_request':
+        capabilities.NOTIFICATION_POLICY_API_VERSION,
+}
+for name, constant in sorted(GATED.items()):
+    check('%s min_version equals its capabilities constant (%d)'
+          % (name, constant), core.registry[name].min_version == constant)
+check('no other endpoint carries a min_version',
+      sorted(n for n, e in core.registry.items()
+             if e.min_version is not None) == sorted(GATED))
 check('the registry holds at least %d endpoints (it checked %d)'
       % (MINIMUM_ENDPOINTS, len(core.registry)),
       len(core.registry) >= MINIMUM_ENDPOINTS)

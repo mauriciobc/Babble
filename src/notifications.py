@@ -27,6 +27,7 @@ from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .notificationcopy import (FILTER_NOTIFICATION_TYPES,  # noqa: E402
                                LIST_TITLE_DEFAULT, LIST_TITLES)
 from .notificationctrl import (NotificationController,  # noqa: E402
+                               filtering_supported,
                                _RELATIONSHIPS)
 from .entities import lift
 from .timelinedata import StatusItem  # noqa: E402
@@ -1521,7 +1522,8 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         filters.append_submenu(_('_Filter'), filter_menu)
         menu.append_section(None, filters)
         more = Gio.Menu()
-        more.append(_('Notification _Settings'), 'notifs.policy')
+        if filtering_supported(self.client):
+            more.append(_('Notification _Settings'), 'notifs.policy')
         more.append(_('_Announcements'), 'notifs.announcements')
         menu.append_section(None, more)
         self.menu_button = Gtk.MenuButton(icon_name='open-menu-symbolic',

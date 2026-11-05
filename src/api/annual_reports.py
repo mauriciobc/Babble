@@ -7,11 +7,14 @@ declared once and sent through `api.core`.
 `<name>_async` / `<name>_finish` pairs, and the request on the wire is the
 one Wrapped sent before.
 
-Carried over from the audit, not fixed here (phase 5): `state` and
-`generate` are Mastodon 4.6.0 (API 8) endpoints the app does not gate on;
-Wrapped treats a 404 as "no report" (OT-6).
+`state` and `generate` are Mastodon 4.6.0 (API 8) endpoints; Wrapped asks
+``capabilities.ANNUAL_REPORT_STATE_API_VERSION`` before `state` (audit 5c)
+and a 404 on the report itself is still "no report" (OT-6). The report
+reads (4.3.0, 4.4.0) are not gated, so their `min_version` is None.
 
-`min_version` is None throughout, so the release is in ``mastodon_version``.
+`min_version` is the number the caller gates on, written out here because
+this package may import nothing but the standard library and `core`;
+`api registry` holds it equal to the constant in `capabilities.py`.
 """
 
 from . import core
@@ -25,14 +28,15 @@ GET = core.declare('annual_reports.get', 'GET', '/annual_reports/%d',
                    'read:accounts', None, DOCS + '#get-one',
                    mastodon_version='4.4.0')
 STATE = core.declare('annual_reports.state', 'GET',
-                     '/annual_reports/%d/state', 'read:accounts', None,
+                     '/annual_reports/%d/state', 'read:accounts', 8,
                      DOCS + '#state',
-                     note='not version-gated by the caller (audit OT-6)',
+                     note='gated by the caller on API version 8',
                      mastodon_version='4.6.0')
 GENERATE = core.declare('annual_reports.generate', 'POST',
                         '/annual_reports/%d/generate', 'write:accounts',
-                        None, DOCS + '#generate',
-                        note='not version-gated by the caller (audit OT-6)',
+                        8, DOCS + '#generate',
+                        note='gated by the caller on API version 8: the '
+                             'Generate button only follows a /state answer',
                         mastodon_version='4.6.0')
 
 

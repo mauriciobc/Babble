@@ -178,6 +178,10 @@ class StubClient:
     def __init__(self):
         self.token = None
 
+    def is_supported(self, _min_version, when_unknown=False):
+        # A current server: every version gate is open.
+        return True
+
     def media_size_limits(self):
         # No limit advertised, which is what most of these tests want:
         # an instance that says nothing must not refuse anything.

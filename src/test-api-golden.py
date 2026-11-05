@@ -180,6 +180,9 @@ def _headers(message):
     return dict(sorted(seen.items()))
 
 
+DEFAULT_INFO = {'api_versions': {'mastodon': 12}}
+
+
 class Recorder:
     """The transport stand-in; one live at a time."""
 
@@ -269,7 +272,11 @@ class Recorder:
 
     def client(self, info=None):
         client = MastodonClient(INSTANCE, token=TOKEN)
-        client.instance_info = info or {}
+        # A recorded server is a current one (API 12, Mastodon 4.8), so the
+        # version gates of capabilities.py (audit 5c) are all open and the
+        # scenarios record the request of the feature, not of its absence.
+        # A scenario that is about an older server passes its own `info`.
+        client.instance_info = DEFAULT_INFO if info is None else info
         # Remember whose client this is: see `_spawn`.
         client._golden_recorder = self
         return client
@@ -1371,7 +1378,9 @@ pages.open_profile = lambda *args: None
 
 def _announcements_page(rec):
     from src import announcements
-    page = announcements.AnnouncementsPage(rec.client())
+    # An empty instance document, not the current-server default: the page
+    # fetches it when there is none, and the golden records that request.
+    page = announcements.AnnouncementsPage(rec.client(info={}))
     rec.settle()
     return page
 

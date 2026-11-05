@@ -12,9 +12,11 @@ forms, each its own function: a urlencoded form from the posting defaults
 and multipart from the profile editor. `PATCH /profile` (AC-22) is the
 editor's profile-tab and alt-text form.
 
-`min_version` is None throughout: the audit records no gate in the app
-for these, so the release is named in ``note`` and nothing here changes
-what the app asks of an instance.
+`min_version` is None except where the app gates a call (the endorsements
+list, API 6; audit 5c): the number is written out here because this package
+may import nothing but the standard library and `core`, and `api registry`
+holds it equal to ``capabilities.ENDORSEMENTS_API_VERSION``. Elsewhere the
+release is named in ``note``.
 """
 
 from . import core
@@ -22,8 +24,9 @@ from . import core
 DOCS = 'https://docs.joinmastodon.org/methods/accounts/'
 
 
-def _declare(name, method, path, scope, anchor, note=None, version=None):
-    return core.declare('accounts.' + name, method, path, scope, None,
+def _declare(name, method, path, scope, anchor, note=None, version=None,
+             gate=None):
+    return core.declare('accounts.' + name, method, path, scope, gate,
                         DOCS + anchor, note=note, mastodon_version=version)
 
 
@@ -52,7 +55,8 @@ FEATURED_TAGS = _declare('featured_tags', 'GET',
 ENDORSEMENTS = _declare(
     'endorsements', 'GET', '/accounts/%s/endorsements', None,
     '#endorsements',
-    note=_PUBLIC + '; not version-gated by the caller', version='4.4.0')
+    note=_PUBLIC + '; the profile asks API version 6 (4.4.0) first',
+    version='4.4.0', gate=6)
 FAMILIAR_FOLLOWERS = _declare(
     'familiar_followers', 'GET', '/accounts/familiar_followers',
     'read:follows', '#familiar_followers', version='3.5.0')
@@ -68,7 +72,7 @@ UPDATE_CREDENTIALS = _declare(
     note='the app sends it two ways: urlencoded `source[...]` posting '
          'defaults (preferences) and multipart with `avatar`, `header` and '
          'fields (the profile editor); `source[quote_policy]` is 4.5.0 and '
-         'not gated by the caller')
+         'the caller sends it only to API version 7 or later')
 UPDATE_PROFILE = core.declare(
     'accounts.update_profile', 'PATCH', '/profile', 'write:accounts', None,
     'https://docs.joinmastodon.org/methods/profile/#update',

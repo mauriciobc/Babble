@@ -584,6 +584,11 @@ test('version gate call sites', python,
   env: test_env,
   timeout: 60,
 )
+test('feature gates', python,
+  args: [files('test-feature-gates.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('filter rules', python,
   args: [files('test-filter-rules.py')],
   env: test_env,

@@ -201,8 +201,12 @@ def _marker_case(last_read, newest):
         stub = types.SimpleNamespace(
             model=types.SimpleNamespace(newest_id=newest),
             _marked_read=False, _unread=5, _applied_excluded=(),
-            client=object(), emit=lambda *args: emitted.append(args),
+            client=types.SimpleNamespace(
+                is_supported=lambda *_a, **_k: True),
+            emit=lambda *args: emitted.append(args),
             on_unread_count=None)
+        stub.request_unread_count = types.MethodType(
+            NotificationController.request_unread_count, stub)
         marker_api = sys.modules['src.api.markers']
         real_finish = marker_api.get_finish
         marker_api.get_finish = lambda client, result: {

@@ -27,6 +27,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E40
 from . import charts  # noqa: E402
 from . import pages  # noqa: E402
 from .api import annual_reports as api_annual_reports  # noqa: E402
+from .capabilities import ANNUAL_REPORT_STATE_API_VERSION  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .mastodon import (summarize_error,  # noqa: E402
                        summarize_error_markup)
@@ -324,8 +325,17 @@ class WrappedDialog(pages.ToastDialog):
 
     def _check_state(self, year):
         """Servers can generate a report on request: look at the
-        ``/state`` endpoint (Mastodon 4.5+) before giving up."""
+        ``/state`` endpoint before giving up. That endpoint and the
+        Generate button behind it are Mastodon API 8 (4.6.0); a server
+        below that, or one that says nothing about its API version (older
+        than 4.3, or not Mastodon), has neither, so the answer is the
+        empty page without a request that can only 404. Unknown is
+        treated as "no" here (``when_unknown=False``): a server that
+        does not report a version is not one that has a 4.6 feature."""
         generation = self._generation
+        if not self.client.is_supported(ANNUAL_REPORT_STATE_API_VERSION):
+            self._empty(year)
+            return
 
         def ok(data):
             if generation != self._generation:

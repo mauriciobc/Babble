@@ -72,11 +72,13 @@ UNPIN = _declare('unpin', 'POST', '/statuses/%s/unpin', 'write:accounts',
 INTERACTION_POLICY = _declare(
     'interaction_policy', 'PUT', '/statuses/%s/interaction_policy',
     'write:statuses', '#update_interaction_policy',
-    note='not version-gated by the caller', version='4.5.0')
+    note='not version-gated by the caller: the menu entry needs the post '
+         'to carry `quote_approval` (audit 5c)', version='4.5.0')
 REVOKE_QUOTE = _declare(
     'revoke_quote', 'POST', '/statuses/%s/quotes/%s/revoke',
     'write:statuses', '#revoke_quote',
-    note='not version-gated by the caller; arguments are the quoted post '
+    note='not version-gated by the caller: only offered for a post whose '
+         '`quote` is accepted (audit 5c); arguments are the quoted post '
          'id, then the quoting post id', version='4.5.0')
 FAVOURITED_BY = _declare('favourited_by', 'GET', '/statuses/%s/favourited_by',
                          None, '#favourited_by', note=_PUBLIC)
@@ -84,7 +86,9 @@ REBLOGGED_BY = _declare('reblogged_by', 'GET', '/statuses/%s/reblogged_by',
                         None, '#reblogged_by', note=_PUBLIC)
 QUOTES = _declare('quotes', 'GET', '/statuses/%s/quotes', 'read:statuses',
                   '#quotes',
-                  note='not version-gated by the caller', version='4.5.0')
+                  note='not version-gated by the caller: the tab only shows '
+                       'for a post with `quotes_count` (audit 5c)',
+                  version='4.5.0')
 
 CREATE = _declare(
     'create', 'POST', '/statuses', 'write:statuses', '#create',

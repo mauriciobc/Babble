@@ -20,6 +20,7 @@ from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import filters as api_filters  # noqa: E402
+from .capabilities import FILTER_BLUR_API_VERSION  # noqa: E402
 from .statustext import format_time, parse_time  # noqa: E402
 
 
@@ -36,6 +37,19 @@ ACTIONS = (
     ('hide', _('Hide'), _('Removed completely')),
     ('blur', _('Blur Media'), _('Text stays, media is blurred')),
 )
+
+
+def available_actions(client, current=None):
+    """The filter actions the server accepts. ``blur`` is Mastodon 4.4.0
+    (API 5): offered only when the server is known to have it
+    (``when_unknown=False``: an unknown server would answer a 422 for the
+    value, and the other two actions lose nothing). A filter that already
+    blurs keeps it, so editing one never silently changes its action."""
+    blur_ok = client.is_supported(FILTER_BLUR_API_VERSION) \
+        or current == 'blur'
+    return tuple(action for action in ACTIONS
+                 if action[0] != 'blur' or blur_ok)
+
 
 # Seconds, None meaning never.
 EXPIRIES = (
@@ -206,15 +220,17 @@ class FilterEditPage(Adw.NavigationPage):
         page.add(contexts)
 
         options = Adw.PreferencesGroup()
+        current = item.get('filter_action') or 'warn'
+        self._actions = available_actions(client, current)
         self.action_row = Adw.ComboRow(
             title=_('Action'),
-            model=Gtk.StringList.new([label for _n, label, _d in ACTIONS]))
-        current = item.get('filter_action') or 'warn'
-        names = [name for name, _l, _d in ACTIONS]
+            model=Gtk.StringList.new(
+                [label for _n, label, _d in self._actions]))
+        names = [name for name, _l, _d in self._actions]
         self.action_row.set_selected(names.index(current)
                                      if current in names else 0)
         self.action_row.set_subtitle(
-            ACTIONS[self.action_row.get_selected()][2])
+            self._actions[self.action_row.get_selected()][2])
         pages.connect_weak(self.action_row, 'notify::selected',
                            self._on_action_changed)
         options.add(self.action_row)
@@ -264,7 +280,7 @@ class FilterEditPage(Adw.NavigationPage):
         self.keywords_list.remove(row)
 
     def _on_action_changed(self, row, _pspec):
-        row.set_subtitle(ACTIONS[row.get_selected()][2])
+        row.set_subtitle(self._actions[row.get_selected()][2])
 
     # Saving
 
@@ -288,7 +304,7 @@ class FilterEditPage(Adw.NavigationPage):
             self.title_row.get_text(),
             [name for name, row in self._context_rows.items()
              if row.get_active()],
-            ACTIONS[self.action_row.get_selected()][0],
+            self._actions[self.action_row.get_selected()][0],
             expires,
             [row.value() for row in self._keyword_rows],
             original=self._original_keywords, keep_expiry=keep)
