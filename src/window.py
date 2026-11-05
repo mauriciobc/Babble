@@ -169,6 +169,19 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._setup_state()
+        self._setup_auth()
+        self._setup_settings_and_banners()
+        self._setup_streaming()
+        self._setup_actions()
+        self._setup_account_ui()
+        self._setup_sidebar_and_lifecycle()
+
+        self._refresh_sidebar()
+        self.refresh_login_widgets()
+        self.restore_account()
+
+    def _setup_state(self):
         self.client = None
         self.account = None
         self._no_keyring_shown = False
@@ -215,6 +228,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._applying_sidebar_visibility = False
         self._sidebar_visibility_id = 0
         self._applying_sidebar_mode = False
+
+    def _setup_auth(self):
         # The OAuth state machine. It owns the attempt bookkeeping, the
         # loopback listener and the keyring writes, and answers in
         # signals; the window keeps only the widgets.
@@ -226,6 +241,8 @@ class BabbleWindow(Adw.ApplicationWindow):
         pages.connect_weak(self.auth, 'browser', self._on_auth_browser)
         pages.connect_weak(self.auth, 'changed', self._on_auth_changed)
         pages.connect_weak(self.auth, 'attended', self._on_auth_attended)
+
+    def _setup_settings_and_banners(self):
         # Local scope: a focused TextView/Editable keeps Page Up/Down.
         # An application accelerator would steal them first.
         page_keys = Gtk.ShortcutController()
@@ -255,6 +272,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._setup_copied_link_banner()
         self._setup_offline_banner()
 
+    def _setup_streaming(self):
         self.notifications_badge = Gtk.Label(visible=False)
         self.notifications_badge.add_css_class('notifications-badge')
         self.notifications_badge.add_css_class('caption-heading')
@@ -273,6 +291,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         # The open admin dashboard, so a streaming report can refresh it.
         self._admin_dialog = None
 
+    def _setup_actions(self):
         actions = (
             ('logout', self.on_logout_requested),
             ('show-notifications',
@@ -320,6 +339,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._update_session_actions()
         self._plugin_menu = pluginmenu.MainMenu(self, self.plugin_menu_section)
 
+    def _setup_account_ui(self):
         self.switcher = account_store.AccountSwitcher(self.settings)
         self.account_button.set_popover(self.switcher)
         pages.connect_weak(self.switcher, 'switch', self._on_switcher_switch)
@@ -339,6 +359,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.notifications_header.pack_start(
             self.make_sidebar_control(include_bell=False))
 
+    def _setup_sidebar_and_lifecycle(self):
         from . import preferences
         self._preferences = preferences
         pages.connect_weak(self.settings, 'changed', self._on_setting_changed)
@@ -367,10 +388,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         pages.connect_weak(self, 'map', self._defer_sidebar_visibility)
         pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
         self._sync_global_shortcut()
-
-        self._refresh_sidebar()
-        self.refresh_login_widgets()
-        self.restore_account()
 
     # Settings
 
