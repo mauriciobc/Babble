@@ -75,6 +75,7 @@ def build(with_pages=True):
     log = []
     rec = {name: Recorder(name, log) for name in (
         'home', 'local', 'federated', 'notifications', 'conversations',
+        'list', 'tagpage',
         'notifier', 'window', 'other')}
     fake = types.SimpleNamespace(
         timeline_page=rec['home'] if with_pages else None,
@@ -86,6 +87,9 @@ def build(with_pages=True):
             children={'conversations': rec['conversations']}
             if with_pages else {}),
         notifier=rec['notifier'],
+        _place_streams=lambda: {('list', '12'): [rec['list']],
+                                ('hashtag', 'rust'): [rec['tagpage']]}
+        if with_pages else {},
         _timeline_pages=lambda: (
             [rec['home'], rec['local'], rec['federated']]
             if with_pages else []),
@@ -152,6 +156,15 @@ for label, stream in (('the user stream', USER), ('local', LOCAL),
     log, payload = dispatch('update', stream)
     check('update on %s goes to its own page only' % label,
           log == expected('update', payload, stream))
+
+for label, stream, target in (
+        ('a list', ('list', '12'), 'list'),
+        ('a hashtag', ('hashtag', 'rust'), 'tagpage')):
+    log, payload = dispatch('update', stream)
+    check('update on %s goes to its page only' % label,
+          log == [(target, 'on_stream_update', (payload,))])
+log, payload = dispatch('update', ('list', '99'))
+check('update on a list nobody has open goes nowhere', log == [])
 
 for event in EVENTS:
     try:

@@ -874,12 +874,39 @@ class BabbleWindow(Adw.ApplicationWindow):
                 wanted.add(LOCAL)
             if 'federated' in self.navigation.public_pages:
                 wanted.add(FEDERATED)
+        wanted.update(self._place_streams())
         self.streaming.set_streams(wanted)
         if not self.streaming.connected:
             self.streaming.start(self.client)
             # Many instances sit behind CDNs that reject the upgrade;
             # poll until the socket actually opens.
             self.notifier.start_polling()
+
+    def _place_streams(self):
+        """``{stream: [TimelinePage]}`` for the built list and hashtag
+        places, so they update live like the home timeline.
+
+        A list stream is the reader's own, so only ``live-updates`` gates
+        it; a hashtag stream carries public posts, so it follows
+        ``public-live-updates``. A page over several tags is left to
+        refresh: its ``all``/``none`` filters are the server's, and a
+        stream of one tag cannot apply them."""
+        from .streaming import hashtag_stream, list_stream
+        public = self.settings.get_boolean('public-live-updates')
+        found = {}
+        for tag, child in self.navigation.children.items():
+            page = getattr(child, 'timeline', None)
+            if not isinstance(page, TimelinePage):
+                continue
+            if tag.startswith('list:'):
+                stream = list_stream(tag[5:])
+            elif tag.startswith('tag:') and public \
+                    and not getattr(child, 'multi', False):
+                stream = hashtag_stream(tag[4:])
+            else:
+                continue
+            found.setdefault(stream, []).append(page)
+        return found
 
     def _on_stream_connection_changed(self, _manager, connected):
         if connected:
@@ -908,6 +935,10 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_stream_event(self, _manager, stream, name, payload):
         from .streaming import FEDERATED, LOCAL
         if name == 'update':
+            if stream[:1] in (('list',), ('hashtag',)):
+                for page in self._place_streams().get(stream, ()):
+                    page.on_stream_update(payload)
+                return
             if stream == LOCAL:
                 target = self.navigation.public_pages.get('local')
             elif stream == FEDERATED:
@@ -1877,8 +1908,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             # top, instead of installing a second session.
             if self.client is not None and client is not None:
                 self.client.token = client.token
-                self.client.client_id = client.client_id
-                self.client.client_secret = client.client_secret
+                self.client.adopt_client_credentials(client)
         else:
             self.client = client
             self.instance_entry.set_text('')
