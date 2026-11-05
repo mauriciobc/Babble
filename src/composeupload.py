@@ -17,6 +17,8 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Gio, GLib  # noqa: E402
 
+from .api import media as api_media  # noqa: E402
+
 # An instance may take a few seconds to transcode an upload. Poll
 # GET /media/:id until it is ready, but never longer than this: a post
 # blocked on a stuck upload is worse than a clear failure.
@@ -172,8 +174,8 @@ class UploadRound:
         generation = self.generation
         if self.cancellable is None:
             self.cancellable = Gio.Cancellable()
-        self.client.media_upload_async(
-            data, GLib.path_get_basename(row.path), row.content_type,
+        api_media.upload_async(
+            self.client, data, GLib.path_get_basename(row.path), row.content_type,
             description=row.alt_entry.get_text() or None,
             callback=self._uploaded(row, generation),
             cancellable=self.cancellable)
@@ -187,7 +189,7 @@ class UploadRound:
 
     def _on_uploaded(self, row, result):
         try:
-            data = self.client.media_upload_finish(result)
+            data = api_media.upload_finish(self.client, result)
         except GLib.Error as error:
             # A cancelled upload belongs to a round the user abandoned,
             # not to a failure worth a toast.
@@ -214,7 +216,7 @@ class UploadRound:
             if generation != self.generation:
                 return
             try:
-                media = client.media_status_finish(result)
+                media = api_media.status_finish(client, result)
             except GLib.Error as error:
                 # A cancelled request is this round going away, not the
                 # instance being slow: retrying it would keep polling a
@@ -234,8 +236,8 @@ class UploadRound:
                 return
             self._schedule(row, media_id, attempt + 1, generation)
 
-        self.client.media_status_async(
-            media_id, callback=check, cancellable=self.cancellable)
+        api_media.status_async(
+            self.client, media_id, callback=check, cancellable=self.cancellable)
 
     def _schedule(self, row, media_id, attempt, generation):
         source = GLib.timeout_add(

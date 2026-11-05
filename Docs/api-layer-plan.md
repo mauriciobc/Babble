@@ -159,9 +159,43 @@ keeps its one raw send until the hook protocol changes.
 
 ### Phase 3: write paths
 - Compose and edit, media, polls, profile edit, reports, admin.
+- **Progress.** Step 3a done: admin (`src/api/admin.py`, 29 endpoints,
+  registry 141): accounts v2 and the v1 scope probe, the review and action
+  verbs, reports (list, update, assign, resolve...), measures, dimensions and
+  the four rule lists (federation blocks and allows, blocked e-mail domains,
+  IP rules). Six golden scenarios were added first and the rest of the file
+  is byte-identical after the move. `admin.send` now takes `start(callback)`
+  like `pages.call_api` and `RuleList` takes a rule kind instead of a path, so
+  the `admin.send` mechanism and its internal allow-list entry are gone
+  (17 "phase 3: admin" entries plus 1 internal, 41 to 23).
+- Step 3b done: collections (`src/api/collections_api.py`, 9 endpoints), polls
+  (`polls.py`, 2) and reports (`reports.py`, 1), registry 153. Eleven golden
+  scenarios (collections page, page, delete, remove myself, edit, create,
+  poll refresh and votes, two report submits) were added first; the log is
+  unchanged by the move. `fedicollections._send` and the path-taking
+  `pages.call` had no caller left and are gone with their mechanisms in
+  `api boundary` (23 to 8 allow-list entries: 10 collections, 2 polls, 1
+  reports, 1 `_send` internal, 1 `call` internal). Left: 3 "phase 3: accounts"
+  (profileedit, preferences), 2 phase 4 internals, 3 phase 4 helper
+  internals; compose and media are 3c.
+- Step 3c done, so all of phase 3's move steps are done: `core.send_multipart`
+  (over the client's public `multipart_async`, which stays as transport);
+  `statuses.post_async`/`reply_async`/`edit_async` (registry entries `create`
+  and `edit`), `media.py` (upload v2, status; new module) and
+  `accounts.update_credentials` (one endpoint, two wire forms: urlencoded for
+  the posting defaults, multipart for the profile editor) plus
+  `accounts.update_profile` (`PATCH /profile`). Four golden scenarios (profile
+  edit with avatar, header, fields and tabs; credentials only; profile only;
+  posting defaults) were added first, 224 lines and no deletion; the log is
+  unchanged by the move. `MastodonClient` lost `post_status_*`, `reply_*`,
+  `edit_status_*`, `media_upload_*` and `media_status_*`. Registry 159;
+  allow-list 8 to 5 (the 3 "phase 3: accounts" entries). The `multipart_async`
+  mechanism in `api boundary` stays as the guard against a new multipart call
+  outside `src/api`.
 - **Done when:** as phase 1; multipart/media paths covered by the recorder.
-- `core` has no multipart path yet: add `core.send_multipart` (or a `body=`
-  passthrough) when media upload moves.
+- **Left for phase 4:** the 5 allow-list sites (`completer` search, the
+  `PagedList`/`AccountListPage` internals, `ApiTimelineSource.fetch`) and the
+  Mastodon verbs still on `MastodonClient` (see its list in the phase 4 notes).
 
 ### Phase 4: close
 - Allow-list empty; `api boundary` has no exceptions.

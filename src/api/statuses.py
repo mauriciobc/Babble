@@ -7,9 +7,9 @@ cancellable=None)` / `<name>_finish(client, result)` pair. The request on
 the wire is the one the old `MastodonClient` wrappers and the UI's
 hand-built paths sent: same verb, path, form and (absent) params.
 
-`POST /statuses`, `PUT /statuses/:id`, the media upload and the reply
-helper (ST-1, ST-3) stay on `MastodonClient` until phase 3: they carry a
-JSON body, which the docs show as a form.
+`POST /statuses` and `PUT /statuses/:id` (ST-1, ST-3) carry a JSON body,
+which the docs show as a form: the audit records that as accepted, and the
+note on each endpoint says so. `post`, `reply` and `edit` are theirs.
 
 `min_version` is None throughout: these endpoints predate
 `api_versions`, and the audit records no gate for the 4.5 ones (quote
@@ -83,6 +83,15 @@ REBLOGGED_BY = _declare('reblogged_by', 'GET', '/statuses/%s/reblogged_by',
 QUOTES = _declare('quotes', 'GET', '/statuses/%s/quotes', 'read:statuses',
                   '#quotes',
                   note='not version-gated by the caller', version='4.5.0')
+
+CREATE = _declare(
+    'create', 'POST', '/statuses', 'write:statuses', '#create',
+    note='the app sends a JSON body, so nested values (poll options, '
+         'media_ids arrays) keep their structure; the docs show a form. '
+         'No Idempotency-Key, on purpose (see post_async)')
+EDIT = _declare(
+    'edit', 'PUT', '/statuses/%s', 'write:statuses', '#edit',
+    note='JSON body, as for create', version='3.5.0')
 
 # The do/undo pairs a toggle button picks from: (kind, active) -> endpoint.
 TOGGLES = {
@@ -214,3 +223,59 @@ def list_path(kind, *ids):
     for the paged views, which take a path rather than send a call; *ids*
     fill the path's placeholders (the status id)."""
     return LISTS[kind].path % ids
+
+
+def post_async(client, text, params=None, callback=None, cancellable=None):
+    """POST /api/v1/statuses as JSON, so nested values (``poll``
+    options, ``media_ids`` arrays) keep their structure.
+
+    No ``Idempotency-Key`` is sent, and that is deliberate.
+    Mastodon reads one (api/v1/statuses_controller.rb) and keys it
+    per account in Redis for an hour (PostStatusService
+    #with_idempotency), but on a repeat it raises IdempotencyError
+    carrying the *id string*, which the controller then hands to
+    the status serializer. So the dedup does not make a retry safe --
+    it makes the retry return something that is not a status. The
+    reply is left to :data:`IDEMPOTENT_METHODS` instead.
+    """
+    body = {'status': text}
+    if params:
+        body.update(params)
+    return core.send(client, CREATE, json_body=body, callback=callback,
+                     cancellable=cancellable)
+
+
+def post_finish(client, result):
+    return core.finish(client, result)
+
+
+def reply_async(client, status_id, text, params=None, callback=None,
+                cancellable=None):
+    """POST /api/v1/statuses with ``in_reply_to_id``.
+
+    A reply is a status posted to the same endpoint; this names the
+    intent so a caller does not have to spell out the parent id.
+    """
+    body = dict(params or {})
+    body['in_reply_to_id'] = str(status_id)
+    return post_async(client, text, body, callback=callback,
+                      cancellable=cancellable)
+
+
+def reply_finish(client, result):
+    return post_finish(client, result)
+
+
+def edit_async(client, status_id, text, params=None, callback=None,
+               cancellable=None):
+    """PUT /api/v1/statuses/:id as JSON, mirroring :func:`post_async`
+    (docs.joinmastodon.org/methods/statuses)."""
+    body = {'status': text}
+    if params:
+        body.update(params)
+    return core.send(client, EDIT, status_id, json_body=body,
+                     callback=callback, cancellable=cancellable)
+
+
+def edit_finish(client, result):
+    return core.finish(client, result)

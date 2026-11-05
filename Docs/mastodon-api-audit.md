@@ -192,7 +192,7 @@ used in section 4.
 
 | Id | Method path | Params Babble sends | Docs: scope; added | Gate today | Verdict |
 |---|---|---|---|---|---|
-| ST-1 | POST /statuses | JSON: `status`, `media_ids[]`, `poll{options,expires_in,multiple,hide_totals}`, `in_reply_to_id`, `sensitive`, `spoiler_text`, `visibility`, `language`, `scheduled_at`, `quoted_status_id` | `write:statuses`; 0.0.0 (`scheduled_at` 2.7, `poll` 2.8, `quoted_status_id`/`quote_approval_policy` 4.5) | none for `quoted_status_id` | ACCEPTED-UNDOCUMENTED: JSON body (docs show form `poll[options][]`); `quoted_status_id` ungated. No `Idempotency-Key` on purpose (documented in `post_status_async`). |
+| ST-1 | POST /statuses | JSON: `status`, `media_ids[]`, `poll{options,expires_in,multiple,hide_totals}`, `in_reply_to_id`, `sensitive`, `spoiler_text`, `visibility`, `language`, `scheduled_at`, `quoted_status_id` | `write:statuses`; 0.0.0 (`scheduled_at` 2.7, `poll` 2.8, `quoted_status_id`/`quote_approval_policy` 4.5) | none for `quoted_status_id` | ACCEPTED-UNDOCUMENTED: JSON body (docs show form `poll[options][]`); `quoted_status_id` ungated. No `Idempotency-Key` on purpose (documented in `api.statuses.post_async`). |
 | ST-2 | GET /statuses/:id | none | public / `read:statuses`; 0.0.0 | none | COMPLIANT |
 | ST-3 | PUT /statuses/:id | JSON as ST-1 (no `scheduled_at`) | `write:statuses`; 3.5.0 | none | ACCEPTED-UNDOCUMENTED: JSON body |
 | ST-4 | DELETE /statuses/:id | none | `write:statuses`; 0.0.0, `delete_media` 4.4.0 | none | COMPLIANT (no `delete_media`, intentional for redraft) |
@@ -388,7 +388,7 @@ used in section 4.
 | OT-4 | GET /trends/tags, /trends/links, /trends/statuses | `limit` 20 (tags/links max 20), 40 (statuses max 40) | public; 3.0/3.5 | none | COMPLIANT |
 | OT-5 | GET /annual_reports, /annual_reports/:year | none | `read:accounts`; 4.3.0 / 4.4.0 | none | COMPLIANT |
 | OT-6 | GET /annual_reports/:year/state, POST /annual_reports/:year/generate | none | `read:accounts` / `write:accounts`; 4.6.0 (API 8) | none (404 treated as "empty") | DEVIATES [minor]: ungated 4.6.0 endpoints |
-| OT-7 | GET/POST /collections, GET/PATCH/DELETE /collections/:id, POST /collections/:id/items, DELETE .../items/:item, POST .../items/:item/revoke | JSON `name`, `description`, `language`, `tag_name`, `sensitive`, `discoverable`, `account_id` | `read/write:collections`; 4.6.0 (API 10); docs example shows JSON | `>= 10` | COMPLIANT |
+| OT-7 | (phase 3b: declared in `src/api/collections_api.py` from docs.joinmastodon.org/methods/collections/, read 2026-11-05: anchors `#create`, `#get_collection`, `#get_collections`, `#in_collections`, `#update_collection`, `#delete_collection`, `#add_account`, `#remove_account`, `#revoke_item`; the docs label create/update/add parameters form data but their examples are JSON; no new deviation) GET/POST /collections, GET/PATCH/DELETE /collections/:id, POST /collections/:id/items, DELETE .../items/:item, POST .../items/:item/revoke | JSON `name`, `description`, `language`, `tag_name`, `sensitive`, `discoverable`, `account_id` | `read/write:collections`; 4.6.0 (API 10); docs example shows JSON | `>= 10` | COMPLIANT |
 | OT-8 | WebSocket /api/v1/streaming?stream=user (+ subscribe/unsubscribe messages) | `Authorization: Bearer` header | 3.3.0 websocket; header auth preferred | `configuration.timelines_access` for public | COMPLIANT (token not in the query) |
 
 Plugin host requests (`Context.request`) go to third-party servers
@@ -402,9 +402,9 @@ audited.
 `file:line` of the request statement. Wrapper = a `MastodonClient`
 method. "via" names a shared helper that carries the real call.
 
-**ST-1** POST /statuses: `compose.py:2005` (post_status_async), reply uses the same; wrapper `mastodon.py:1428`.
+**ST-1** POST /statuses: `compose.py` via `api.statuses.post_async`, reply uses the same (`reply_async`).
 **ST-2** GET /statuses/:id: `compose.py:986`, `desktopnotify.py:449`, `searchprovider.py:685` (via `_fetch`, callers 701), `statusactions.py:126` (pages.call), `wrapped.py:588`.
-**ST-3** PUT /statuses/:id: `compose.py:1999` (edit_status_async).
+**ST-3** PUT /statuses/:id: `compose.py` via `api.statuses.edit_async`.
 **ST-4** DELETE /statuses/:id: `statusmenu.py:517`, `statusmenu.py:537`.
 **ST-5** context: `compose.py:971`, `thread.py:271` (status_context_async).
 **ST-6** history: `statusviews.py:182`.
@@ -434,8 +434,8 @@ method. "via" names a shared helper that carries the real call.
 **AC-18** familiar_followers: `profile.py:1022,1079`.
 **AC-19** accounts/search: `lists.py:366`, `mentioncompleter.py:84` (search_request, run at `completer.py:284`), `fedicollections.py:888`.
 **AC-20** endorsements: `profile.py:1029,1134`.
-**AC-21** update_credentials: `preferences.py:175`, `profileedit.py:682` (multipart).
-**AC-22** profile: `profileedit.py:705`.
+**AC-21** update_credentials: `preferences.py` (`api.accounts.update_credentials_async`, urlencoded), `profileedit.py` (`update_credentials_multipart_async`).
+**AC-22** profile: `profileedit.py` via `api.accounts.update_profile_async`. Its docs URL (`methods/profile/#update`) was declared from the route name and not checked against the live docs.
 **AC-23** collections of account: `fedicollections.py:389,396`.
 
 **RL-1/2** follow_requests: `relations.py:30` (list), `relations.py:64` (mutate_row), `notifications.py:1275`.
@@ -461,7 +461,7 @@ method. "via" names a shared helper that carries the real call.
 **NT-1** `notificationctrl.py:140`, `desktopnotify.py:311`. **NT-2** `notificationctrl.py:442`. **NT-3** `notificationctrl.py:569`. **NT-4** `notificationctrl.py:548`. **NT-5** `notificationctrl.py:351`, `notifications.py:1842`. **NT-6** `notifications.py:1893`. **NT-7** `notifications.py:1719`. **NT-8** `notifications.py:1700`. **NT-9** `notificationctrl.py:421`. **NT-10** `notificationctrl.py:495`. Also `notificationctrl.py:385` is AN-1.
 
 **FL-1** `filters.py:391`. **FL-2** `filters.py:320`. **FL-3** `filters.py:340`.
-**MD-1** `composeupload.py:175` (media_upload_async). **MD-2** `composeupload.py:237`.
+**MD-1** `composeupload.py` (`api.media.upload_async`). **MD-2** `composeupload.py` (`api.media.status_async`).
 **PL-1** `pollbox.py:223`. **PL-2** `pollbox.py:211`.
 **SC-1** `scheduled.py:539`. **SC-2** `scheduled.py:486`. **SC-3** `scheduled.py:517`, `compose.py:2116`.
 **AN-1** `notificationctrl.py:385`, `announcements.py:304`. **AN-2** `announcements.py:289`. **AN-3** `announcements.py:156,179`.

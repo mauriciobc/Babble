@@ -173,7 +173,7 @@ class StubMediaResult:
 
 class StubClient:
     """Minimal stand-in matching the MastodonClient surface used by
-    BabbleComposeView (post_status/media_upload), with counters."""
+    BabbleComposeView (post and upload, routed from `src.api`), with counters."""
 
     def __init__(self):
         self.token = None
@@ -183,7 +183,7 @@ class StubClient:
         # an instance that says nothing must not refuse anything.
         return None, None
 
-    def post_status_async(self, text, params=None, callback=None,
+    def post_async(self, text, params=None, callback=None,
                           cancellable=None):
         form = {'status': text}
         if params:
@@ -195,10 +195,10 @@ class StubClient:
                                   GLib.SOURCE_REMOVE)[1])
         return None
 
-    def post_status_finish(self, result):
+    def post_finish(self, result):
         return {'id': 'invented', 'content': '<p>x</p>'}
 
-    def edit_status_async(self, status_id, text, params=None, callback=None,
+    def edit_async(self, status_id, text, params=None, callback=None,
                           cancellable=None):
         # Edits carry their target id, unlike posts.
         form = {'status': text}
@@ -212,13 +212,13 @@ class StubClient:
                                   GLib.SOURCE_REMOVE)[1])
         return None
 
-    def edit_status_finish(self, result):
+    def edit_finish(self, result):
         return {'id': 'invented', 'content': '<p>x</p>'}
 
-    def media_upload_async(self, file_bytes, filename, content_type,
+    def upload_async(self, file_bytes, filename, content_type,
                            description=None, callback=None,
                            cancellable=None):
-        # media_upload_async takes the payload as bytes or as a
+        # upload_async takes the payload as bytes or as a
         # GLib.Bytes, and the composer hands over whichever it has.
         size = (file_bytes.get_size() if hasattr(file_bytes, 'get_size')
                 else len(file_bytes))
@@ -243,10 +243,10 @@ class StubClient:
                                   GLib.SOURCE_REMOVE)[1])
         return None
 
-    def media_upload_finish(self, result):
+    def upload_finish(self, result):
         return result._media
 
-    def media_status_async(self, media_id, callback=None, cancellable=None):
+    def status_async(self, media_id, callback=None, cancellable=None):
         polls.append(media_id)
 
         def cb(source, result, _user_data=None):
@@ -308,7 +308,7 @@ class StubClient:
             return POOL_ANSWERS[result.path]
         return SEARCH_ACCOUNTS
 
-    def media_status_finish(self, result):
+    def status_finish(self, result):
         if result.cancelled:
             # What a real cancellation looks like to the caller: a
             # GLib.Error in the Gio.IOErrorEnum.CANCELLED domain, not a
@@ -317,6 +317,25 @@ class StubClient:
                              Gio.io_error_quark(),
                              Gio.IOErrorEnum.CANCELLED)
         return result._media
+
+
+def _route(module, name):
+    """The composer calls `src.api` functions with the client first. This
+    suite stubs the network, so those functions are replaced by ones that
+    hand the call to the stub's method of the same name (the old client
+    methods this stub was written for)."""
+    setattr(module, name,
+            lambda client, *args, **kwargs: getattr(client, name)(
+                *args, **kwargs))
+
+
+from src.api import media as api_media, statuses as api_statuses  # noqa: E402
+
+for _name in ('post_async', 'post_finish', 'edit_async', 'edit_finish'):
+    _route(api_statuses, _name)
+for _name in ('upload_async', 'upload_finish', 'status_async',
+              'status_finish'):
+    _route(api_media, _name)
 
 
 Adw.init()
@@ -2105,10 +2124,10 @@ check('_invalidate_home_tags drops the pool', the_pool() is None)
 
 reset_pool()
 set_text('post #Gaming')
-client.post_status_finish = lambda _result: {
+client.post_finish = lambda _result: {
     'id': '1', 'content': '<p>x</p>', 'tags': [{'name': 'Gaming'}]}
 view.on_post_done(client, StubMediaResult(), (None, view.uploads.generation))
-del client.post_status_finish
+del client.post_finish
 check('on_post_done remembers published tags',
       the_pool() is not None
       and [t['name'] for t in the_pool().tags['recent']] == ['Gaming'])

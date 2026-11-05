@@ -807,11 +807,6 @@ def profile_unblock_domain_then_undo_blocks(rec):
 # The MastodonClient wrappers
 
 
-def wrapper(rec, name, *args, **kwargs):
-    client = rec.client()
-    getattr(client, name)(*args, callback=lambda *_a: None, **kwargs)
-
-
 def api_wrapper(rec, name, *args, module='statuses', **kwargs):
     """A `src.api.<module>` function: the client is its first argument."""
     import importlib
@@ -848,23 +843,23 @@ def client_status_wrappers(rec):
 
 @scenario
 def client_post_reply_edit(rec):
-    wrapper(rec, 'post_status_async', 'hello',
-            params={'visibility': 'unlisted', 'sensitive': True,
-                    'media_ids': ['1', '2'],
-                    'poll': {'options': ['a', 'b'], 'expires_in': 300}})
-    wrapper(rec, 'reply_async', 100, 'answer',
-            params={'visibility': 'public'})
-    wrapper(rec, 'edit_status_async', '100', 'edited',
-            params={'spoiler_text': 'cw'})
+    api_wrapper(rec, 'post_async', 'hello',
+                params={'visibility': 'unlisted', 'sensitive': True,
+                        'media_ids': ['1', '2'],
+                        'poll': {'options': ['a', 'b'], 'expires_in': 300}})
+    api_wrapper(rec, 'reply_async', 100, 'answer',
+                params={'visibility': 'public'})
+    api_wrapper(rec, 'edit_async', '100', 'edited',
+                params={'spoiler_text': 'cw'})
 
 
 @scenario
 def client_media_multipart(rec):
-    wrapper(rec, 'media_upload_async', b'\x89PNG-bytes', 'pic.png',
-            'image/png', description='alt text')
-    wrapper(rec, 'media_upload_async', GLib.Bytes.new(b'abc'), 'a.ogg',
-            'audio/ogg')
-    wrapper(rec, 'media_status_async', '500')
+    api_wrapper(rec, 'upload_async', b'\x89PNG-bytes', 'pic.png',
+                'image/png', description='alt text', module='media')
+    api_wrapper(rec, 'upload_async', GLib.Bytes.new(b'abc'), 'a.ogg',
+                'audio/ogg', module='media')
+    api_wrapper(rec, 'status_async', '500', module='media')
 
 
 @scenario
@@ -1839,6 +1834,478 @@ def wrapped_generates_an_eligible_report(rec):
     dialog = wrapped.WrappedDialog(Gtk.Box(), rec.client(), 2025)
     rec.settle()
     dialog._generate(2025)
+    rec.settle()
+
+
+# Admin dashboard: the dashboard, reports, accounts and the four rule pages
+
+def admin_account_json(account_id='31', **extra):
+    data = {'id': account_id, 'username': 'ada', 'domain': None,
+            'created_at': '2026-01-01T00:00:00.000Z', 'email': 'a@x.example',
+            'ip': '192.0.2.1', 'ips': [], 'confirmed': True,
+            'role': {'name': 'User', 'permissions': '0'},
+            'suspended': True, 'silenced': True, 'disabled': True,
+            'sensitized': True, 'approved': False,
+            'invite_request': 'please', 'account': account('7')}
+    data.update(extra)
+    return data
+
+
+def admin_report_json(report_id='12', **extra):
+    data = {'id': report_id, 'action_taken': False, 'category': 'violation',
+            'comment': '', 'forwarded': False,
+            'created_at': '2026-01-02T00:00:00.000Z',
+            'account': admin_account_json('30'),
+            'target_account': admin_account_json('31'),
+            'assigned_account': None, 'action_taken_by_account': None,
+            'statuses': [], 'rules': [{'id': '1', 'text': 'Be kind'}]}
+    data.update(extra)
+    return data
+
+
+_RICH.update({
+    ('POST', '/api/v1/admin/measures'): lambda q: [],
+    ('POST', '/api/v1/admin/dimensions'): lambda q: [],
+    ('GET', '/api/v1/admin/reports'): lambda q: [admin_report_json()],
+    ('GET', '/api/v2/admin/accounts'): lambda q: [admin_account_json()],
+    ('GET', '/api/v1/admin/domain_blocks'): lambda q: [
+        {'id': '41', 'domain': 'bad.example', 'severity': 'suspend'}],
+    ('GET', '/api/v1/admin/domain_allows'): lambda q: [
+        {'id': '51', 'domain': 'good.example'}],
+    ('GET', '/api/v1/admin/email_domain_blocks'): lambda q: [
+        {'id': '61', 'domain': 'spam.example', 'history': []}],
+    ('GET', '/api/v1/admin/ip_blocks'): lambda q: [
+        {'id': '71', 'ip': '192.0.2.0/24', 'severity': 'no_access',
+         'comment': '', 'expires_at': None}],
+})
+
+
+def admin_dialog(rec):
+    from src import admin
+    # The window is today's date: pin it so the body is deterministic.
+    admin.DashboardPage._window = lambda self: ('2026-01-01', '2026-01-30')
+    return rec.keep(admin.AdminDialog(
+        Gtk.Box(), rec.client(info={'rules': [
+            {'id': '1', 'text': 'Be kind'}, {'id': '2', 'text': 'No spam'}]}),
+        None))
+
+
+@p2
+def admin_dialog_probes_scopes_and_loads_the_dashboard(rec):
+    dialog = admin_dialog(rec)
+    rec.settle()
+    dialog.authorize_scopes(None)
+    rec.settle()
+
+
+@p2
+def admin_reports_list_and_resolved_filter(rec):
+    dialog = admin_dialog(rec)
+    rec.settle()
+    page = dialog.show_tool('reports').content
+    rec.settle()
+    page.resolved_button.set_active(True)
+    rec.settle()
+
+
+@p2
+def admin_report_dialog_category_assignment_and_resolve(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    rec.queue[('POST', '/api/v1/admin/reports/12/assign_to_self')] = [
+        {'assigned_account': admin_account_json('30')}]
+    report = admin.ReportDialog(dialog, admin_report_json())
+    rec.settle()
+    report.category_checks['spam'].set_active(True)
+    rec.settle()
+    report.category_checks['violation'].set_active(True)
+    report._rule_checks['2'].set_active(True)
+    rec.settle()
+    report.assign_row._on_clicked(None)
+    rec.settle()
+    report.assign_row._on_clicked(None)
+    rec.settle()
+    report._on_resolve(None)
+    rec.settle()
+    reopened = admin.ReportDialog(
+        dialog, admin_report_json(action_taken=True,
+                                  action_taken_by_account=admin_account_json(
+                                      '30')))
+    rec.settle()
+    reopened._on_reopen(None)
+    rec.settle()
+
+
+@p2
+def admin_take_action_from_a_report_and_an_account(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    from_report = admin.TakeActionDialog(dialog, '31', '@ada', '12')
+    from_report.checks['suspend'].set_active(True)
+    from_report.comment.set_text('spam')
+    from_report._on_submit(None)
+    rec.settle()
+    plain = admin.TakeActionDialog(dialog, '31', '@ada')
+    plain.email.set_active(False)
+    plain._on_submit(None)
+    rec.settle()
+
+
+@p2
+def admin_accounts_list_filters_review_and_undo(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    page = dialog.show_tool('accounts').content
+    rec.settle()
+    page.origin.set_selected(1)
+    page.status.set_selected(2)
+    page.entries['username'].set_text('ada')
+    page.entries['ip'].set_text('192.0.2.1')
+    page._on_search()
+    rec.settle()
+    account_dialog = admin.AdminAccountDialog(dialog, admin_account_json())
+    rec.settle()
+    account_dialog._on_review(None, 'approve', 'Approve %s?', '_Approve')
+    rec.settle()
+    account_dialog._on_review(None, 'reject', 'Reject %s?', '_Reject')
+    rec.settle()
+    for endpoint in ('unsuspend', 'unsilence', 'enable', 'unsensitive'):
+        admin.UndoRow(account_dialog, 'Undo', endpoint)._undo()
+        rec.settle()
+    account_dialog._on_take_action(None)
+    rec.settle()
+
+
+@p2
+def admin_rule_pages_load_add_and_delete(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    for tag, item_id in (('domain-blocks', '41'), ('domain-allows', '51'),
+                         ('email-blocks', '61'), ('ip-blocks', '71')):
+        page = dialog.show_tool(tag).content
+        rec.settle()
+        page.delete(page.list.rows[0], item_id, 'Remove?', '_Remove')
+        rec.settle()
+    dialog.show_tool('domain-allows').content._on_add('allowed.example')
+    rec.settle()
+    dialog.show_tool('email-blocks').content._on_add('mail.example')
+    rec.settle()
+    block = admin.AddFederationBlockDialog(dialog)
+    block.domain.set_text('bad.example')
+    block.severity.set_selected(0)
+    block.reject_reports.set_active(True)
+    block._on_save(None)
+    rec.settle()
+    block = admin.AddFederationBlockDialog(dialog)
+    block.domain.set_text('worse.example')
+    block.severity.set_selected(1)
+    block._on_save(None)
+    rec.settle()
+    rule = admin.AddIPBlockDialog(dialog)
+    rule.ip.set_text('198.51.100.0/24')
+    rule.checks['sign_up_block'].set_active(True)
+    rule._on_save(None)
+    rec.settle()
+    rule = admin.AddIPBlockDialog(dialog)
+    rule.ip.set_text('203.0.113.7')
+    rule.expiration.set_selected(0)
+    rule._on_save(None)
+    rec.settle()
+
+
+# Phase 3b: collections, polls and reports
+
+def collection_json(collection_id='5', owner=ME, **extra):
+    data = {'id': collection_id, 'name': 'Picks', 'description': 'Good ones',
+            'url': 'https://golden.example/collections/' + collection_id,
+            'uri': 'https://golden.example/c/' + collection_id,
+            'account_id': owner, 'language': 'en', 'sensitive': False,
+            'discoverable': True, 'tag': {'name': 'books'}, 'item_count': 2,
+            'updated_at': '2026-01-03T00:00:00.000Z',
+            'items': [{'id': '91', 'account_id': '7', 'state': 'accepted'},
+                      {'id': '92', 'account_id': ME, 'state': 'accepted'}]}
+    data.update(extra)
+    return data
+
+
+def collection_answer(collection):
+    return {'collection': collection,
+            'accounts': [account('7'), account('8', 'bob')]}
+
+
+def poll_json(poll_id='55', **extra):
+    data = {'id': poll_id, 'expires_at': '2099-01-01T00:00:00.000Z',
+            'expired': False, 'multiple': False, 'votes_count': 0,
+            'voters_count': 0, 'voted': False, 'own_votes': [],
+            'options': [{'title': 'a', 'votes_count': 0},
+                        {'title': 'b', 'votes_count': 0},
+                        {'title': 'c', 'votes_count': 0}], 'emojis': []}
+    data.update(extra)
+    return data
+
+
+_RICH.update({
+    ('GET', '/api/v1/accounts/1/collections'): lambda q: {
+        'collections': [collection_json('5')]},
+    ('GET', '/api/v1/accounts/1/in_collections'): lambda q: {
+        'collections': [collection_json('6', owner='7')]},
+    ('GET', '/api/v1/collections/5'): lambda q: collection_answer(
+        collection_json('5')),
+    ('GET', '/api/v1/collections/6'): lambda q: collection_answer(
+        collection_json('6', owner='7')),
+    ('POST', '/api/v1/collections'): lambda q: collection_answer(
+        collection_json('9')),
+    ('PATCH', '/api/v1/collections/5'): lambda q: collection_answer(
+        collection_json('5')),
+    ('POST', '/api/v1/collections/5/items'): lambda q: {
+        'collection_item': {'id': '93', 'account_id': '8',
+                            'state': 'accepted'}},
+    ('GET', '/api/v1/polls/55'): lambda q: poll_json(votes_count=2),
+    ('POST', '/api/v1/polls/55/votes'): lambda q: poll_json(
+        voted=True, own_votes=[1], votes_count=1),
+})
+
+
+class AsAccount:
+    """The signed-in account `fedicollections` reads off the window."""
+
+    def __enter__(self):
+        from src import fedicollections
+        self.module = fedicollections
+        self.real = fedicollections._current_account
+        fedicollections._current_account = \
+            lambda widget=None: account(ME, 'me')
+
+    def __exit__(self, *_exc):
+        self.module._current_account = self.real
+
+
+@p2
+def collections_page_loads_both_lists_and_refreshes(rec):
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    page = rec.keep(fedicollections.CollectionsPage(rec.client()))
+    rec.settle()
+    page.refresh()
+    rec.settle()
+
+
+@p2
+def collection_page_loads(rec):
+    from src import fedicollections
+    rec.keep(fedicollections.CollectionPage(rec.client(), '5'))
+    rec.settle()
+
+
+@p2
+def collection_owner_deletes(rec):
+    from src import fedicollections
+    with AsAccount():
+        actions = fedicollections.CollectionActions(
+            Gtk.Box(), rec.client(), collection_json('5'),
+            lambda: None, lambda: None)
+        actions.delete()
+    rec.settle()
+
+
+@p2
+def collection_member_removes_themselves(rec):
+    from src import fedicollections
+    with AsAccount():
+        actions = fedicollections.CollectionActions(
+            Gtk.Box(), rec.client(), collection_json('6', owner='7'),
+            lambda: None, lambda: None)
+        actions.remove_me()
+    rec.settle()
+
+
+@p2
+def collection_edit_members_invite_remove_and_save(rec):
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), collection_json('5'), on_saved=lambda: None))
+    dialog.close = lambda: None
+    rec.settle()
+    dialog.search_row.set_text('bo')
+    dialog._search_id += 1  # cancel the debounce timer
+    dialog._run_search(dialog._search_id)
+    rec.settle()
+    dialog._invite(account('8', 'bob'), dialog._search_results[0])
+    rec.settle()
+    dialog._remove(account('7'))
+    rec.settle()
+    dialog.name_row.set_text('Better picks')
+    dialog.sensitive_row.set_active(True)
+    dialog._on_save(None)
+    rec.settle()
+
+
+@p2
+def collection_edit_saving_without_changes_sends_nothing_more(rec):
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), collection_json('5'), on_saved=lambda: None))
+    dialog.close = lambda: None
+    rec.settle()
+    dialog._on_save(None)
+    rec.settle()
+
+
+@p2
+def collection_create_with_members(rec):
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), None, on_saved=lambda: None))
+    dialog.close = lambda: None
+    # The default language follows the environment: pin it.
+    dialog.language_row.set_selected(dialog.language_codes.index('en'))
+    dialog.name_row.set_text('New picks')
+    dialog.topic_row.set_text('books')
+    dialog.unlisted_check.set_active(True)
+    dialog._invite(account('8', 'bob'), Gtk.Button())
+    dialog._on_save(None)
+    rec.settle()
+    bare = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), None, on_saved=lambda: None))
+    bare.close = lambda: None
+    bare.language_row.set_selected(bare.language_codes.index('en'))
+    bare.name_row.set_text('Bare')
+    bare._on_save(None)
+    rec.settle()
+
+
+@p2
+def poll_refresh_and_vote(rec):
+    from src import pollbox
+    box = rec.keep(pollbox.PollBox())
+    box.set_poll(poll_json(), client=rec.client())
+    box._on_refresh(None)
+    rec.settle()
+    box.set_poll(poll_json(), client=rec.client())
+    box._choices[1].set_active(True)
+    box._on_vote(None)
+    rec.settle()
+    many = rec.keep(pollbox.PollBox())
+    many.set_poll(poll_json(multiple=True), client=rec.client())
+    many._choices[0].set_active(True)
+    many._choices[2].set_active(True)
+    many._on_vote(None)
+    rec.settle()
+
+
+def _report_dialog(rec, acct, **kwargs):
+    from src import report
+    info = {'rules': [{'id': '1', 'text': 'Be kind'},
+                      {'id': '2', 'text': 'No spam'}]}
+    dialog = rec.keep(report.ReportDialog(
+        rec.client(info=info), acct, parent_widget=Gtk.Box(), **kwargs))
+    dialog.force_close = lambda: None
+    return dialog
+
+
+@p2
+def report_submit_spam_on_a_remote_account_with_a_post(rec):
+    dialog = _report_dialog(rec, account('7', 'ada@remote.example'),
+                            status=status('100'))
+    dialog.category = 'spam'
+    dialog._build_posts_page()
+    rec.settle()
+    dialog._build_comment_page()
+    dialog.comment_buffer.set_text('  looks automated ')
+    dialog.forward_row.set_active(False)
+    dialog._submit()
+    rec.settle()
+
+
+@p2
+def report_submit_violation_with_rules_and_a_collection(rec):
+    dialog = _report_dialog(rec, account('7', 'ada'),
+                            collection=collection_json('6', owner='7'))
+    dialog.category = 'violation'
+    dialog._build_rules_page()
+    dialog.rule_checks['2'].set_active(True)
+    dialog._build_comment_page()
+    dialog._submit()
+    rec.settle()
+
+
+# Phase 3c: the profile editor and the posting defaults
+
+def _profile_editor(rec, **extra):
+    from src import profileedit
+    account_json = account(
+        ME, 'me', display_name='Ada Lovelace',
+        avatar_description='', header_description='',
+        show_featured=True, show_media=True, show_media_replies=False,
+        source={'note': '', 'fields': [], 'privacy': 'public',
+                'sensitive': False, 'language': 'en'})
+    account_json.update(extra)
+    info = {'api_versions': {'mastodon': 9}}
+    dialog = rec.keep(profileedit.ProfileEditDialog(
+        rec.client(info=info), account_json, Gtk.Box()))
+    dialog.force_close = lambda: None
+    return dialog
+
+
+@scenario
+def profile_edit_save_with_avatar_fields_and_tabs(rec):
+    dialog = _profile_editor(rec)
+    dialog.name_row.set_text('Ada King')
+    dialog.add_field('Pronouns', 'they/them')
+    dialog.avatar_alt.set_text('a portrait')
+    dialog.tab_rows['show_media'].set_active(False)
+    dialog.new_avatar = (b'\x89PNG-avatar', 'me.png', 'image/png')
+    dialog.new_header = (b'\xff\xd8-header', 'banner.jpg', 'image/jpeg')
+    dialog.on_save_clicked(None)
+    rec.settle()
+
+
+@scenario
+def profile_edit_save_credentials_only(rec):
+    dialog = _profile_editor(rec)
+    dialog.name_row.set_text('Ada King')
+    dialog.on_save_clicked(None)
+    rec.settle()
+
+
+@scenario
+def profile_edit_save_profile_only(rec):
+    dialog = _profile_editor(rec)
+    dialog.tab_rows['show_featured'].set_active(False)
+    dialog.on_save_clicked(None)
+    rec.settle()
+
+
+@scenario
+def posting_defaults_sync(rec):
+    from src import preferences
+
+    class Settings:
+        values = {'default-visibility': 'unlisted',
+                  'default-language': 'pt',
+                  'default-sensitive': True,
+                  'default-quote-policy': 'followers'}
+
+        def get_string(self, key):
+            return self.values[key]
+
+        def get_boolean(self, key):
+            return self.values[key]
+
+    class Window(FakeWindow):
+        client = rec.client()
+
+    settings = Settings()
+    for key in settings.values:
+        preferences.sync_posting_defaults(Window, key, settings)
+    settings.values['default-visibility'] = 'direct'   # not a server default
+    preferences.sync_posting_defaults(Window, 'default-visibility', settings)
+    settings.values['default-sensitive'] = False
+    preferences.sync_posting_defaults(Window, 'default-sensitive', settings)
     rec.settle()
 
 

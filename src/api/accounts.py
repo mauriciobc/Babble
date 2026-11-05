@@ -7,10 +7,10 @@ cancellable=None)` / `<name>_finish(client, result)` pair. The request on
 the wire is the one the old `MastodonClient` wrappers and the UI's
 hand-built paths sent.
 
-Left for later phases, on purpose: `PATCH /accounts/update_credentials` and
-`PATCH /profile` (phase 3: they carry multipart bodies and the profile
-editor), `GET /accounts/:id/lists` (phase 2: lists) and the collections
-(phase 3).
+`PATCH /accounts/update_credentials` (AC-21) is one endpoint with two wire
+forms, each its own function: a urlencoded form from the posting defaults
+and multipart from the profile editor. `PATCH /profile` (AC-22) is the
+editor's profile-tab and alt-text form.
 
 `min_version` is None throughout: the audit records no gate in the app
 for these, so the release is named in ``note`` and nothing here changes
@@ -61,6 +61,20 @@ RELATIONSHIPS = _declare('relationships', 'GET', '/accounts/relationships',
                          note='`with_suspended` (4.3.0) is not sent')
 SEARCH = _declare('search', 'GET', '/accounts/search', 'read:accounts',
                   '#search', note='limit is at most 80')
+
+UPDATE_CREDENTIALS = _declare(
+    'update_credentials', 'PATCH', '/accounts/update_credentials',
+    'write:accounts', '#update_credentials',
+    note='the app sends it two ways: urlencoded `source[...]` posting '
+         'defaults (preferences) and multipart with `avatar`, `header` and '
+         'fields (the profile editor); `source[quote_policy]` is 4.5.0 and '
+         'not gated by the caller')
+UPDATE_PROFILE = core.declare(
+    'accounts.update_profile', 'PATCH', '/profile', 'write:accounts', None,
+    'https://docs.joinmastodon.org/methods/profile/#update',
+    note='urlencoded profile-tab flags and avatar/header descriptions; the '
+         'caller gates tabs on API version 8 and alt text on 9',
+    mastodon_version='4.6.0')
 
 # Lists of accounts or posts a paged view reads, by the name the UI uses.
 # `LISTS` and `PATH_ONLY` are what reaches the wire through a path accessor
@@ -209,4 +223,33 @@ def search_async(client, params, callback=None, cancellable=None):
 
 
 def search_finish(client, result):
+    return core.finish(client, result)
+
+
+def update_credentials_async(client, form, callback=None, cancellable=None):
+    """The urlencoded form: *form* maps ``source[...]`` names to strings."""
+    return core.send(client, UPDATE_CREDENTIALS, form=form,
+                     callback=callback, cancellable=cancellable)
+
+
+def update_credentials_multipart_async(client, fields, files,
+                                       callback=None, cancellable=None):
+    """The multipart form of the profile editor: *fields* maps names to
+    strings, *files* maps ``avatar`` / ``header`` to ``(bytes, filename,
+    content_type)``."""
+    return core.send_multipart(client, UPDATE_CREDENTIALS, fields=fields,
+                               files=files, callback=callback,
+                               cancellable=cancellable)
+
+
+def update_credentials_finish(client, result):
+    return core.finish(client, result)
+
+
+def update_profile_async(client, form, callback=None, cancellable=None):
+    return core.send(client, UPDATE_PROFILE, form=form, callback=callback,
+                     cancellable=cancellable)
+
+
+def update_profile_finish(client, result):
     return core.finish(client, result)

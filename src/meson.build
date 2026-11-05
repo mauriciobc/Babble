@@ -148,6 +148,11 @@ install_data(
   'api/suggestions.py',
   'api/instance.py',
   'api/annual_reports.py',
+  'api/admin.py',
+  'api/collections_api.py',
+  'api/polls.py',
+  'api/reports.py',
+  'api/media.py',
   install_dir: moduledir / 'api',
 )
 

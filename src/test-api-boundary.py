@@ -16,21 +16,18 @@ Which layer is keyed (the decision `Docs/mastodon-api-audit.md` asked for).
 A site is the call where a Mastodon path is *named*, which is not always
 the call that sends it:
 
-  * `raw`: `client.request_async(method, path, ...)` and `pages.call(widget,
-    client, method, path, ...)`. These are the audit's 83 raw sites (75
-    `request_async` outside `mastodon.py`, minus the 7 inner calls of the
-    generic helpers, plus 15 `pages.call`). The path argument is keyed.
+  * `raw`: `client.request_async(method, path, ...)`. (The audit's 83 raw
+    sites also counted 15 `pages.call`; that helper is gone.) The path
+    argument is keyed.
   * `internal`: the inner `request_async` calls of the generic helpers
-    (`pages.call`, two in `PagedList`, `admin.send`,
-    `fedicollections._send`; the old `mutate_row` and `wrapped._send`
-    are gone) and the site
+    (two in `PagedList`; the old `mutate_row`, `wrapped._send`,
+    `admin.send`, `pages.call` and `fedicollections._send` are gone) and the site
     `pages.AccountListPage.__init__`, which forwards a variable path to
     `PagedList` and calls no `request_async`. They carry a *variable*
     path, so they are keyed by that variable's name. They stay on the
     list until the helper itself moves into `src/api/` (phase 4).
   * `helper`: a call that hands a path or a verb to a helper that sends
-    it later: `admin.send`, `fedicollections._send`,
-    `mutate_row_api`, the `PagedList` / `AccountListPage` /
+    it later: `mutate_row_api`, the `PagedList` / `AccountListPage` /
     `ApiTimelineSource` constructors, `profileactions.send_relationship`
     (its first argument names the operation, from which the path is
     built), `multipart_async`,
@@ -45,9 +42,8 @@ calls are `helper` sites keyed by the subclass's `__init__`, found by
 resolving the class bases (also across files, and subclasses of
 subclasses). Building a subclass that only forwards `*args` names the
 path at the call site and is keyed there. Using `request_async` as a value
-(`r = c.request_async`), `getattr(c, 'request_async')` and `pages.call`
-as a value are failures (`alias:` sites), as are aliased imports of
-`pages` or `pages.call`. Known limit: `c2 = c; c2.method` by string
+(`r = c.request_async`) and `getattr(c, 'request_async')` are failures
+(`alias:` sites). Known limit: `c2 = c; c2.method` by string
 concatenation or `getattr(c, name)` with a variable are not seen.
 
 A literal path, a `%` / f-string template, or a variable all render to a
@@ -65,7 +61,7 @@ adding a row to the table is not seen. The registry test of phase 1
 closes that.
 
 Counts, and the three layers in two lines. `raw` is a call that names a
-Mastodon path itself (`request_async`, `pages.call`); `internal` is a
+Mastodon path itself (`request_async`); `internal` is a
 generic helper's own inner send or path forward (7 `request_async` calls
 plus `pages.AccountListPage.__init__`, 8 in all); `helper` hands a path or a
 verb to a helper that sends it later. At phase 0: 175 sites, raw 83, internal 8,
@@ -112,6 +108,11 @@ from src.api import annual_reports as _annual_reports  # noqa: E402
 from src.api import conversations as _conversations  # noqa: E402
 from src.api import instance as _instance  # noqa: E402
 from src.api import suggestions as _suggestions  # noqa: E402
+from src.api import admin as _admin  # noqa: E402
+from src.api import collections_api as _collections_api  # noqa: E402
+from src.api import polls as _polls  # noqa: E402
+from src.api import reports as _reports  # noqa: E402
+from src.api import media as _media  # noqa: E402
 
 API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'filters': _filters, 'lists': _lists,
@@ -121,7 +122,9 @@ API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'timelines': _timelines, 'trends': _trends,
                'annual_reports': _annual_reports,
                'conversations': _conversations, 'instance': _instance,
-               'suggestions': _suggestions}
+               'suggestions': _suggestions, 'admin': _admin,
+               'collections_api': _collections_api, 'polls': _polls,
+               'reports': _reports, 'media': _media}
 # The path accessors of `src.api`: a helper handed one of these names no
 # path of its own, so the site needs no allow-list entry.
 ACCESSORS = ('list_path', 'search_path', 'familiar_followers_path')
@@ -137,11 +140,7 @@ EXEMPT_PREFIXES = ('src/api/',)
 # modules that define the generic helper of that name.
 MECHANISMS = {
     'request_async': ('raw', 1, 'path', None),
-    'pages.call': ('raw', 3, 'path', None),
     'multipart_async': ('helper', 1, 'path', None),
-    'admin.send': ('helper', 2, 'path', {'src/admin.py'}),
-    'fedicollections._send': ('helper', 2, 'path',
-                              {'src/fedicollections.py'}),
     'mutate_row': ('helper', 2, 'path', None),
     'PagedList': ('helper', 1, 'fetch_path', None),
     'PagedList.__init__': ('helper', 2, 'fetch_path', None),
@@ -172,15 +171,6 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
     func = call.func
     if isinstance(func, ast.Attribute):
         name, base = func.attr, func.value
-        if name == 'call':
-            if isinstance(base, ast.Name) and base.id in pages_names:
-                return 'pages.call'
-            return None
-        if name == 'send' and rel == 'src/admin.py':
-            return 'admin.send'
-        if name == '_send':
-            return {'src/fedicollections.py':
-                    'fedicollections._send'}.get(rel)
         if name == '__init__':
             if isinstance(base, ast.Call) \
                     and isinstance(base.func, ast.Name) \
@@ -193,13 +183,6 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
             return None
     elif isinstance(func, ast.Name):
         name = func.id
-        if name in call_names:
-            return 'pages.call'
-        if name == 'send' and rel == 'src/admin.py':
-            return 'admin.send'
-        if name == '_send':
-            return {'src/fedicollections.py':
-                    'fedicollections._send'}.get(rel)
         if name in derived:
             return 'PagedList'
     else:
@@ -207,8 +190,7 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
     if name in derived:
         return 'PagedList'
     if name in MECHANISMS and name not in (
-            'pages.call', 'admin.send', 'super().__init__',
-            'PagedList.__init__'):
+            'super().__init__', 'PagedList.__init__'):
         files = MECHANISMS[name][3]
         if files is None or rel in files:
             return name
@@ -364,10 +346,7 @@ class Visitor(ast.NodeVisitor):
 
     def visit_Attribute(self, node):
         # `send = client.request_async`: the method leaves the call site.
-        if id(node) not in self.called and (
-                node.attr in ALIASED
-                or (node.attr == 'call' and isinstance(node.value, ast.Name)
-                    and node.value.id in self.pages_names)):
+        if id(node) not in self.called and node.attr in ALIASED:
             self.add('alias:' + node.attr, ast.unparse(node), 'raw',
                      node.lineno)
         self.generic_visit(node)
@@ -610,15 +589,6 @@ def self_check():
     check(compare(scan_source('src/z.py', two), [entry2]) == ([], []),
           'self-check: count 2 allows two identical calls')
 
-    helper = ("from .pages import call\n"
-              "def go(w, c):\n"
-              "    call(w, c, 'GET', '/statuses/1')\n"
-              "    pages.call(w, c, 'GET', '/statuses/2')\n")
-    found = scan_source('src/h.py', helper)
-    check(sorted(f[3] for f in found)
-          == ["'/statuses/1'", "'/statuses/2'"],
-          'self-check: call and pages.call both count')
-
     unrelated = ("def go(bus, call):\n"
                  "    bus.call('name', '/path')\n"
                  "    call()\n")
@@ -694,18 +664,13 @@ def self_check():
           'self-check: building a forwarding subclass names the path')
 
     aliases = ("from . import pages as pg\n"
-               "from .pages import call as pc\n"
                "def go(w, c):\n"
-               "    pg.call(w, c, 'GET', '/a')\n"
-               "    pc(w, c, 'GET', '/b')\n"
                "    r = c.request_async\n"
-               "    getattr(c, 'request_async')\n"
-               "    f = pg.call\n")
+               "    getattr(c, 'request_async')\n")
     found = scan_source('src/a.py', aliases)
     check(sorted(f[2] for f in found) == [
-        'alias:call', 'alias:request_async', 'alias:request_async',
-        'pages.call', 'pages.call'],
-          'self-check: aliased pages.call and request_async are caught')
+        'alias:request_async', 'alias:request_async'],
+          'self-check: aliased request_async is caught')
 
     imports = ("from .api import accounts as api_accounts\n"
                "from .api import relationships as api_rel\n"
@@ -760,13 +725,6 @@ def self_check():
                                        "'/accounts/search'"),
                        'src/mentioncompleter.py')) == 1,
           'self-check: a hook returning a literal path is still a site')
-
-    local = ("def f():\n"
-             "    def send(attempt):\n"
-             "        pass\n"
-             "    send(1)\n")
-    check(scan_source('src/profileactions.py', local) == [],
-          'self-check: a local send() outside admin.py is not the helper')
 
 
 CLIENT_NAMES = ('client', '_client')
