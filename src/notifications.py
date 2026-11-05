@@ -31,7 +31,9 @@ from .timelinedata import StatusItem  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .timelinepage import _RefreshGesture  # noqa: E402
 from .statustext import parse_content, relative_time, shorten_url_text  # noqa: E402
-from .timelinebase import COLUMN_WIDTH, id_key  # noqa: E402
+from .timelinebase import COLUMN_WIDTH, id_key, status_filter  # noqa: E402
+from . import filterrules  # noqa: E402
+from .mediabox import BlurredPicture  # noqa: E402
 
 
 # Most avatars drawn in a cluster's stacked strip before the rest
@@ -739,8 +741,13 @@ class NotificationPost(Gtk.Box):
         self._bank = {}
         # href -> hashtag name, for the anchors parse_content flagged.
         self._tag_by_href = {}
+        # Built the first time a server filter applies to a post.
+        self.filter_bar = None
+        self.filter_label = None
+        self._item = None
 
         byline = Gtk.Box(spacing=6)
+        self.byline = byline
         self.name_label = Gtk.Label(xalign=0.0,
                                     ellipsize=Pango.EllipsizeMode.END)
         self.name_label.add_css_class('caption-heading')
@@ -856,7 +863,31 @@ class NotificationPost(Gtk.Box):
         total.add_css_class('dimmed')
         self.poll_box.append(total)
 
-    def _set_media(self, item):
+    def _ensure_filter_bar(self):
+        """The bar a filtered post collapses behind, as StatusRow's."""
+        if self.filter_bar is None:
+            bar = Gtk.Box(spacing=8)
+            bar.add_css_class('filter-bar')
+            self.filter_label = Gtk.Label(xalign=0.0, hexpand=True,
+                                          wrap=True)
+            self.filter_label.add_css_class('dimmed')
+            bar.append(self.filter_label)
+            button = Gtk.Button(label=_('Show _Anyway'), use_underline=True,
+                                valign=Gtk.Align.CENTER)
+            button.add_css_class('flat')
+            connect_weak(button, 'clicked', self._on_show_filtered)
+            bar.append(button)
+            self.prepend(bar)
+            self.filter_bar = bar
+        return self.filter_bar
+
+    def _on_show_filtered(self, _button):
+        if self._item is None:
+            return
+        self._item.ui['filter_shown'] = True
+        self.bind(self._item)
+
+    def _set_media(self, item, blur=False):
         while (child := self.media_box.get_first_child()) is not None:
             self.media_box.remove(child)
         attachments = item.media[:self.MAX_THUMBNAILS]
@@ -872,8 +903,9 @@ class NotificationPost(Gtk.Box):
             self.media_box.append(label)
             return
         for attachment in attachments:
-            picture = Gtk.Picture(content_fit=Gtk.ContentFit.COVER,
-                                  can_shrink=True, hexpand=True)
+            picture = (BlurredPicture if blur else Gtk.Picture)(
+                content_fit=Gtk.ContentFit.COVER, can_shrink=True,
+                hexpand=True)
             picture.set_size_request(-1, self.THUMBNAIL_HEIGHT)
             picture.set_alternative_text(
                 attachment.get('description') or _('Attachment'))
@@ -885,6 +917,26 @@ class NotificationPost(Gtk.Box):
                 _TextureCache.load(url, picture)
 
     def bind(self, item):
+        self._item = item
+        rule = status_filter(item.raw, filterrules.NOTIFICATIONS,
+                             datetime.datetime.now(datetime.timezone.utc))
+        shown = item.ui.get('filter_shown')
+        blur = rule is not None and rule[0] == 'blur' and not shown
+        collapsed = rule is not None and rule[0] != 'blur' and not shown
+        if collapsed or blur:
+            self._ensure_filter_bar().set_visible(True)
+            self.filter_label.set_text(
+                _('Filtered: %s') % rule[1] if rule[1] else _('Filtered'))
+        elif self.filter_bar is not None:
+            self.filter_bar.set_visible(False)
+        parts = (self.byline, self.content, self.more_button,
+                 self.poll_box, self.media_box)
+        for part in parts:
+            part.set_visible(not collapsed)
+        if collapsed:
+            self.clear()
+            self._item = item
+            return
         self.name_label.set_text(item.display_name or '?')
         self.handle_label.set_text(item.handle)
         self._bank = status_emoji_bank(item.status)
@@ -893,12 +945,13 @@ class NotificationPost(Gtk.Box):
         self._show(preview or self._segments)
         self.more_button.set_visible(preview is not None)
         self._set_poll(item.status.get('poll'))
-        self._set_media(item)
+        self._set_media(item, blur)
 
     def clear(self):
         """Drop what the last bind showed, for a recycled row that now
         holds no post: hidden, its thumbnails would keep their textures
         alive for as long as the row lives."""
+        self._item = None
         self._bank = {}
         self._segments = []
         self._tag_by_href = {}
@@ -1674,6 +1727,10 @@ class NotificationRequestRow(Adw.ActionRow):
         instead of the body when there is one)."""
         if not status:
             return ''
+        rule = status_filter(status, filterrules.NOTIFICATIONS,
+                             datetime.datetime.now(datetime.timezone.utc))
+        if rule is not None and rule[0] != 'blur':
+            return _('Filtered: %s') % rule[1] if rule[1] else _('Filtered')
         if status.get('spoiler_text'):
             return _('CW: %s') % status['spoiler_text']
         text = ' '.join(s['text'] for s in
