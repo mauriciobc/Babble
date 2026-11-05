@@ -21,15 +21,15 @@ the call that sends it:
     `request_async` outside `mastodon.py`, minus the 7 inner calls of the
     generic helpers, plus 15 `pages.call`). The path argument is keyed.
   * `internal`: the inner `request_async` calls of the generic helpers
-    (`pages.call`, two in `PagedList`, `admin.send`,
-    `fedicollections._send`; the old `mutate_row` and `wrapped._send`
-    are gone) and the site
+    (`pages.call`, two in `PagedList`,
+    `fedicollections._send`; the old `mutate_row`, `wrapped._send` and
+    `admin.send` are gone) and the site
     `pages.AccountListPage.__init__`, which forwards a variable path to
     `PagedList` and calls no `request_async`. They carry a *variable*
     path, so they are keyed by that variable's name. They stay on the
     list until the helper itself moves into `src/api/` (phase 4).
   * `helper`: a call that hands a path or a verb to a helper that sends
-    it later: `admin.send`, `fedicollections._send`,
+    it later: `fedicollections._send`,
     `mutate_row_api`, the `PagedList` / `AccountListPage` /
     `ApiTimelineSource` constructors, `profileactions.send_relationship`
     (its first argument names the operation, from which the path is
@@ -112,6 +112,7 @@ from src.api import annual_reports as _annual_reports  # noqa: E402
 from src.api import conversations as _conversations  # noqa: E402
 from src.api import instance as _instance  # noqa: E402
 from src.api import suggestions as _suggestions  # noqa: E402
+from src.api import admin as _admin  # noqa: E402
 
 API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'filters': _filters, 'lists': _lists,
@@ -121,7 +122,7 @@ API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'timelines': _timelines, 'trends': _trends,
                'annual_reports': _annual_reports,
                'conversations': _conversations, 'instance': _instance,
-               'suggestions': _suggestions}
+               'suggestions': _suggestions, 'admin': _admin}
 # The path accessors of `src.api`: a helper handed one of these names no
 # path of its own, so the site needs no allow-list entry.
 ACCESSORS = ('list_path', 'search_path', 'familiar_followers_path')
@@ -139,7 +140,6 @@ MECHANISMS = {
     'request_async': ('raw', 1, 'path', None),
     'pages.call': ('raw', 3, 'path', None),
     'multipart_async': ('helper', 1, 'path', None),
-    'admin.send': ('helper', 2, 'path', {'src/admin.py'}),
     'fedicollections._send': ('helper', 2, 'path',
                               {'src/fedicollections.py'}),
     'mutate_row': ('helper', 2, 'path', None),
@@ -176,8 +176,6 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
             if isinstance(base, ast.Name) and base.id in pages_names:
                 return 'pages.call'
             return None
-        if name == 'send' and rel == 'src/admin.py':
-            return 'admin.send'
         if name == '_send':
             return {'src/fedicollections.py':
                     'fedicollections._send'}.get(rel)
@@ -195,8 +193,6 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
         name = func.id
         if name in call_names:
             return 'pages.call'
-        if name == 'send' and rel == 'src/admin.py':
-            return 'admin.send'
         if name == '_send':
             return {'src/fedicollections.py':
                     'fedicollections._send'}.get(rel)
@@ -207,7 +203,7 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
     if name in derived:
         return 'PagedList'
     if name in MECHANISMS and name not in (
-            'pages.call', 'admin.send', 'super().__init__',
+            'pages.call', 'super().__init__',
             'PagedList.__init__'):
         files = MECHANISMS[name][3]
         if files is None or rel in files:
@@ -760,13 +756,6 @@ def self_check():
                                        "'/accounts/search'"),
                        'src/mentioncompleter.py')) == 1,
           'self-check: a hook returning a literal path is still a site')
-
-    local = ("def f():\n"
-             "    def send(attempt):\n"
-             "        pass\n"
-             "    send(1)\n")
-    check(scan_source('src/profileactions.py', local) == [],
-          'self-check: a local send() outside admin.py is not the helper')
 
 
 CLIENT_NAMES = ('client', '_client')

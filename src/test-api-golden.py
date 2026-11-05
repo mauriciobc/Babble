@@ -1842,6 +1842,186 @@ def wrapped_generates_an_eligible_report(rec):
     rec.settle()
 
 
+# Admin dashboard: the dashboard, reports, accounts and the four rule pages
+
+def admin_account_json(account_id='31', **extra):
+    data = {'id': account_id, 'username': 'ada', 'domain': None,
+            'created_at': '2026-01-01T00:00:00.000Z', 'email': 'a@x.example',
+            'ip': '192.0.2.1', 'ips': [], 'confirmed': True,
+            'role': {'name': 'User', 'permissions': '0'},
+            'suspended': True, 'silenced': True, 'disabled': True,
+            'sensitized': True, 'approved': False,
+            'invite_request': 'please', 'account': account('7')}
+    data.update(extra)
+    return data
+
+
+def admin_report_json(report_id='12', **extra):
+    data = {'id': report_id, 'action_taken': False, 'category': 'violation',
+            'comment': '', 'forwarded': False,
+            'created_at': '2026-01-02T00:00:00.000Z',
+            'account': admin_account_json('30'),
+            'target_account': admin_account_json('31'),
+            'assigned_account': None, 'action_taken_by_account': None,
+            'statuses': [], 'rules': [{'id': '1', 'text': 'Be kind'}]}
+    data.update(extra)
+    return data
+
+
+_RICH.update({
+    ('POST', '/api/v1/admin/measures'): lambda q: [],
+    ('POST', '/api/v1/admin/dimensions'): lambda q: [],
+    ('GET', '/api/v1/admin/reports'): lambda q: [admin_report_json()],
+    ('GET', '/api/v2/admin/accounts'): lambda q: [admin_account_json()],
+    ('GET', '/api/v1/admin/domain_blocks'): lambda q: [
+        {'id': '41', 'domain': 'bad.example', 'severity': 'suspend'}],
+    ('GET', '/api/v1/admin/domain_allows'): lambda q: [
+        {'id': '51', 'domain': 'good.example'}],
+    ('GET', '/api/v1/admin/email_domain_blocks'): lambda q: [
+        {'id': '61', 'domain': 'spam.example', 'history': []}],
+    ('GET', '/api/v1/admin/ip_blocks'): lambda q: [
+        {'id': '71', 'ip': '192.0.2.0/24', 'severity': 'no_access',
+         'comment': '', 'expires_at': None}],
+})
+
+
+def admin_dialog(rec):
+    from src import admin
+    # The window is today's date: pin it so the body is deterministic.
+    admin.DashboardPage._window = lambda self: ('2026-01-01', '2026-01-30')
+    return rec.keep(admin.AdminDialog(
+        Gtk.Box(), rec.client(info={'rules': [
+            {'id': '1', 'text': 'Be kind'}, {'id': '2', 'text': 'No spam'}]}),
+        None))
+
+
+@p2
+def admin_dialog_probes_scopes_and_loads_the_dashboard(rec):
+    dialog = admin_dialog(rec)
+    rec.settle()
+    dialog.authorize_scopes(None)
+    rec.settle()
+
+
+@p2
+def admin_reports_list_and_resolved_filter(rec):
+    dialog = admin_dialog(rec)
+    rec.settle()
+    page = dialog.show_tool('reports').content
+    rec.settle()
+    page.resolved_button.set_active(True)
+    rec.settle()
+
+
+@p2
+def admin_report_dialog_category_assignment_and_resolve(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    rec.queue[('POST', '/api/v1/admin/reports/12/assign_to_self')] = [
+        {'assigned_account': admin_account_json('30')}]
+    report = admin.ReportDialog(dialog, admin_report_json())
+    rec.settle()
+    report.category_checks['spam'].set_active(True)
+    rec.settle()
+    report.category_checks['violation'].set_active(True)
+    report._rule_checks['2'].set_active(True)
+    rec.settle()
+    report.assign_row._on_clicked(None)
+    rec.settle()
+    report.assign_row._on_clicked(None)
+    rec.settle()
+    report._on_resolve(None)
+    rec.settle()
+    reopened = admin.ReportDialog(
+        dialog, admin_report_json(action_taken=True,
+                                  action_taken_by_account=admin_account_json(
+                                      '30')))
+    rec.settle()
+    reopened._on_reopen(None)
+    rec.settle()
+
+
+@p2
+def admin_take_action_from_a_report_and_an_account(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    from_report = admin.TakeActionDialog(dialog, '31', '@ada', '12')
+    from_report.checks['suspend'].set_active(True)
+    from_report.comment.set_text('spam')
+    from_report._on_submit(None)
+    rec.settle()
+    plain = admin.TakeActionDialog(dialog, '31', '@ada')
+    plain.email.set_active(False)
+    plain._on_submit(None)
+    rec.settle()
+
+
+@p2
+def admin_accounts_list_filters_review_and_undo(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    page = dialog.show_tool('accounts').content
+    rec.settle()
+    page.origin.set_selected(1)
+    page.status.set_selected(2)
+    page.entries['username'].set_text('ada')
+    page.entries['ip'].set_text('192.0.2.1')
+    page._on_search()
+    rec.settle()
+    account_dialog = admin.AdminAccountDialog(dialog, admin_account_json())
+    rec.settle()
+    account_dialog._on_review(None, 'approve', 'Approve %s?', '_Approve')
+    rec.settle()
+    account_dialog._on_review(None, 'reject', 'Reject %s?', '_Reject')
+    rec.settle()
+    for endpoint in ('unsuspend', 'unsilence', 'enable', 'unsensitive'):
+        admin.UndoRow(account_dialog, 'Undo', endpoint)._undo()
+        rec.settle()
+    account_dialog._on_take_action(None)
+    rec.settle()
+
+
+@p2
+def admin_rule_pages_load_add_and_delete(rec):
+    from src import admin
+    dialog = admin_dialog(rec)
+    rec.settle()
+    for tag, item_id in (('domain-blocks', '41'), ('domain-allows', '51'),
+                         ('email-blocks', '61'), ('ip-blocks', '71')):
+        page = dialog.show_tool(tag).content
+        rec.settle()
+        page.delete(page.list.rows[0], item_id, 'Remove?', '_Remove')
+        rec.settle()
+    dialog.show_tool('domain-allows').content._on_add('allowed.example')
+    rec.settle()
+    dialog.show_tool('email-blocks').content._on_add('mail.example')
+    rec.settle()
+    block = admin.AddFederationBlockDialog(dialog)
+    block.domain.set_text('bad.example')
+    block.severity.set_selected(0)
+    block.reject_reports.set_active(True)
+    block._on_save(None)
+    rec.settle()
+    block = admin.AddFederationBlockDialog(dialog)
+    block.domain.set_text('worse.example')
+    block.severity.set_selected(1)
+    block._on_save(None)
+    rec.settle()
+    rule = admin.AddIPBlockDialog(dialog)
+    rule.ip.set_text('198.51.100.0/24')
+    rule.checks['sign_up_block'].set_active(True)
+    rule._on_save(None)
+    rec.settle()
+    rule = admin.AddIPBlockDialog(dialog)
+    rule.ip.set_text('203.0.113.7')
+    rule.expiration.set_selected(0)
+    rule._on_save(None)
+    rec.settle()
+
+
 # Run
 
 recorded = {}

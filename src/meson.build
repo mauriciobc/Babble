@@ -148,6 +148,7 @@ install_data(
   'api/suggestions.py',
   'api/instance.py',
   'api/annual_reports.py',
+  'api/admin.py',
   install_dir: moduledir / 'api',
 )
 

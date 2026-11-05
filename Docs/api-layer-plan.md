@@ -159,6 +159,15 @@ keeps its one raw send until the hook protocol changes.
 
 ### Phase 3: write paths
 - Compose and edit, media, polls, profile edit, reports, admin.
+- **Progress.** Step 3a done: admin (`src/api/admin.py`, 29 endpoints,
+  registry 141): accounts v2 and the v1 scope probe, the review and action
+  verbs, reports (list, update, assign, resolve...), measures, dimensions and
+  the four rule lists (federation blocks and allows, blocked e-mail domains,
+  IP rules). Six golden scenarios were added first and the rest of the file
+  is byte-identical after the move. `admin.send` now takes `start(callback)`
+  like `pages.call_api` and `RuleList` takes a rule kind instead of a path, so
+  the `admin.send` mechanism and its internal allow-list entry are gone
+  (17 "phase 3: admin" entries plus 1 internal, 41 to 23).
 - **Done when:** as phase 1; multipart/media paths covered by the recorder.
 - `core` has no multipart path yet: add `core.send_multipart` (or a `body=`
   passthrough) when media upload moves.

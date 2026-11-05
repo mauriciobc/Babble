@@ -30,6 +30,7 @@ from urllib.parse import urlsplit  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from . import charts  # noqa: E402
+from .api import admin as admin_api  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import weak_method  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
@@ -105,8 +106,11 @@ def account_name(admin_account):
         or account.get('acct', '')
 
 
-def send(client, method, path, on_ok=None, on_error=None, **kwargs):
-    """One request; *on_ok(data)* or *on_error(GLib.Error)*."""
+def send(client, start, on_ok=None, on_error=None):
+    """One request; *on_ok(data)* or *on_error(GLib.Error)*.
+
+    *start(callback)* queues it, so the path is never spelled here:
+    ``lambda cb: admin_api.measures_async(client, body, callback=cb)``."""
 
     def finished(_client, result, _data=None):
         try:
@@ -118,7 +122,7 @@ def send(client, method, path, on_ok=None, on_error=None, **kwargs):
         if on_ok is not None:
             on_ok(data)
 
-    return client.request_async(method, path, callback=finished, **kwargs)
+    return start(finished)
 
 
 def bool_str(value):
@@ -415,14 +419,19 @@ class DashboardPage(StatePage):
             state['errors'].append(error)
             settle()
 
-        send(self.ctx.client, 'POST', '/admin/measures',
-             got('measures'), failed,
-             json_body={'start_at': start, 'end_at': end,
-                        'keys': [key for key, _t in self.MEASURES]})
-        send(self.ctx.client, 'POST', '/admin/dimensions',
-             got('dimensions'), failed,
-             json_body={'start_at': start, 'end_at': end, 'limit': 8,
-                        'keys': [key for key, _t, _l in self.DIMENSIONS]})
+        client = self.ctx.client
+        measures = {'start_at': start, 'end_at': end,
+                    'keys': [key for key, _t in self.MEASURES]}
+        dimensions = {'start_at': start, 'end_at': end, 'limit': 8,
+                      'keys': [key for key, _t, _l in self.DIMENSIONS]}
+        send(client,
+             lambda cb: admin_api.measures_async(client, measures,
+                                                 callback=cb),
+             got('measures'), failed)
+        send(client,
+             lambda cb: admin_api.dimensions_async(client, dimensions,
+                                                   callback=cb),
+             got('dimensions'), failed)
 
     def _build(self, measures, dimensions):
         page = Adw.PreferencesPage()
@@ -548,7 +557,7 @@ class ReportsPage(CtxRef, Adw.Bin):
         pages.connect_weak(self.resolved_button, 'toggled', self._on_toggled)
         self.header_widgets = [self.resolved_button]
         self.list = pages.PagedList(
-            ctx.client, '/admin/reports', weak_method(self._make_row),
+            ctx.client, admin_api.list_path('reports'), weak_method(self._make_row),
             empty_title=_('No Reports'), empty_icon='object-select-symbolic',
             empty_description=_('Nothing needs your attention.'))
         self.set_child(self.list)
@@ -744,10 +753,11 @@ class ReportDialog(pages.ToastDialog):
         self.should_refresh = True
 
         def put(body):
-            send(self.client, 'PUT', '/admin/reports/%s' % self.report_id,
+            send(self.client,
+                 lambda cb: admin_api.report_update_async(
+                     self.client, self.report_id, body, callback=cb),
                  on_error=lambda e: self.error(_('Could not update the '
-                                                 'report'), e),
-                 json_body=body)
+                                                 'report'), e))
 
         # Mastodon refuses a category change while rules are attached:
         # clear them first.
@@ -771,9 +781,10 @@ class ReportDialog(pages.ToastDialog):
                 self.resolve_button.set_sensitive(True)
                 self.error(_('Could not update the report'), error)
 
-            send(self.client, 'POST',
-                 '/admin/reports/%s/%s' % (self.report_id, path), ok,
-                 failed)
+            send(self.client,
+                 lambda cb: admin_api.report_transition_async(
+                     self.client, self.report_id, path, callback=cb),
+                 ok, failed)
 
         pages.confirm(self, heading, body, label, go, destructive=False)
 
@@ -850,8 +861,10 @@ class AssignedRow(Adw.ActionRow):
             self.button.set_sensitive(True)
             self.dialog.error(_('Could not change the assignment'), error)
 
-        send(self.dialog.client, 'POST',
-             '/admin/reports/%s/%s' % (self.report_id, endpoint), ok, failed)
+        send(self.dialog.client,
+             lambda cb: admin_api.report_transition_async(
+                 self.dialog.client, self.report_id, endpoint, callback=cb),
+             ok, failed)
 
 
 class TakeActionDialog(pages.ToastDialog):
@@ -939,9 +952,10 @@ class TakeActionDialog(pages.ToastDialog):
             self.page.set_sensitive(True)
             self.error(_('Could not take action'), error)
 
-        send(self.client, 'POST',
-             '/admin/accounts/%s/action' % self.account_id, ok, failed,
-             form=form)
+        send(self.client,
+             lambda cb: admin_api.account_action_async(
+                 self.client, self.account_id, form, callback=cb),
+             ok, failed)
 
 
 # Accounts
@@ -1012,7 +1026,7 @@ class AccountsPage(CtxRef, Adw.Bin):
         pages.connect_weak(self.status, 'notify::selected', self._on_search)
 
         self.list = pages.PagedList(
-            ctx.client, '/api/v2/admin/accounts', weak_method(self._make_row),
+            ctx.client, admin_api.list_path('accounts'), weak_method(self._make_row),
             empty_title=_('No Accounts'), empty_icon='system-users-symbolic')
         self.set_child(self.list)
 
@@ -1091,9 +1105,11 @@ class UndoRow(Adw.ActionRow):
             self.button.set_sensitive(True)
             self.dialog.error(_('Could not undo the action'), error)
 
-        send(self.dialog.client, 'POST',
-             '/admin/accounts/%s/%s' % (self.dialog.account_id,
-                                        self.endpoint), ok, failed)
+        send(self.dialog.client,
+             lambda cb: admin_api.account_review_async(
+                 self.dialog.client, self.dialog.account_id, self.endpoint,
+                 callback=cb),
+             ok, failed)
 
 
 class AdminAccountDialog(pages.ToastDialog):
@@ -1181,8 +1197,9 @@ class AdminAccountDialog(pages.ToastDialog):
                 self.approval_row.set_sensitive(True)
                 self.error(_('Could not review the account'), error)
 
-            send(self.client, 'POST',
-                 '/admin/accounts/%s/%s' % (self.account_id, endpoint),
+            send(self.client,
+                 lambda cb: admin_api.account_review_async(
+                     self.client, self.account_id, endpoint, callback=cb),
                  ok, failed)
 
         pages.confirm(self, heading % self.handle, None, label, go,
@@ -1204,13 +1221,14 @@ class RuleList(CtxRef, Adw.Bin):
     """List of block/allow rules with delete buttons and an add
     control: shared by the four rule pages."""
 
-    def __init__(self, ctx, path, make_row, empty_title, empty_icon,
+    def __init__(self, ctx, kind, make_row, empty_title, empty_icon,
                  empty_description=None, **kwargs):
         super().__init__(**kwargs)
         self.ctx = ctx
-        self.path = path
+        self.kind = kind
         self.list = pages.PagedList(
-            ctx.client, path, weak_method(make_row), empty_title=empty_title,
+            ctx.client, admin_api.list_path(kind), weak_method(make_row),
+            empty_title=empty_title,
             empty_icon=empty_icon, empty_description=empty_description)
         self.set_child(self.list)
 
@@ -1228,7 +1246,9 @@ class RuleList(CtxRef, Adw.Bin):
                 row.set_sensitive(True)
                 self.ctx.error(_('Could not remove the entry'), error)
 
-            send(self.ctx.client, 'DELETE', '%s/%s' % (self.path, item_id),
+            send(self.ctx.client,
+                 lambda cb: admin_api.rule_delete_async(
+                     self.ctx.client, self.kind, item_id, callback=cb),
                  ok, failed)
 
         pages.confirm(self.ctx, heading, None, label, go)
@@ -1254,7 +1274,7 @@ def severity_title(value):
 class FederationBlocksPage(RuleList):
     def __init__(self, ctx, **kwargs):
         super().__init__(
-            ctx, '/admin/domain_blocks', self._make_row,
+            ctx, 'domain_blocks', self._make_row,
             _('No Federation Blocks'), 'action-unavailable-symbolic',
             _('Servers you block or limit will show up here.'), **kwargs)
         self.add_button = pages.icon_button(
@@ -1365,14 +1385,16 @@ class AddFederationBlockDialog(pages.ToastDialog):
             self.page.set_sensitive(True)
             self.error(_('Could not add the block'), error)
 
-        send(self.client, 'POST', '/admin/domain_blocks', ok, failed,
-             form=form)
+        send(self.client,
+             lambda cb: admin_api.rule_create_async(
+                 self.client, 'domain_blocks', form, callback=cb),
+             ok, failed)
 
 
 class DomainAllowsPage(RuleList):
     def __init__(self, ctx, **kwargs):
         super().__init__(
-            ctx, '/admin/domain_allows', self._make_row,
+            ctx, 'domain_allows', self._make_row,
             _('No Allowed Servers'), 'object-select-symbolic',
             _('Servers allowed to federate show up here when the '
               'allowlist is in use.'), **kwargs)
@@ -1395,10 +1417,13 @@ class DomainAllowsPage(RuleList):
                 self.bar.clear()
                 self.refresh()
 
-            send(self.ctx.client, 'POST', '/admin/domain_allows', ok,
+            send(self.ctx.client,
+                 lambda cb: admin_api.rule_create_async(
+                     self.ctx.client, 'domain_allows', {'domain': domain},
+                     callback=cb),
+                 ok,
                  lambda e: self.ctx.error(_('Could not allow the server'),
-                                          e),
-                 form={'domain': domain})
+                                          e))
 
         pages.confirm(self.ctx, _('Allow Federation with %s?') % domain,
                       None, _('_Allow'), go, destructive=False)
@@ -1407,7 +1432,7 @@ class DomainAllowsPage(RuleList):
 class EmailBlocksPage(RuleList):
     def __init__(self, ctx, **kwargs):
         super().__init__(
-            ctx, '/admin/email_domain_blocks', self._make_row,
+            ctx, 'email_domain_blocks', self._make_row,
             _('No Blocked E-mail Domains'), 'mail-unread-symbolic',
             _('Sign-ups from these e-mail domains are refused.'), **kwargs)
         self.bar = AddBar(_('Block an e-mail domain'), _('_Block'),
@@ -1438,10 +1463,13 @@ class EmailBlocksPage(RuleList):
                 self.bar.clear()
                 self.refresh()
 
-            send(self.ctx.client, 'POST', '/admin/email_domain_blocks', ok,
+            send(self.ctx.client,
+                 lambda cb: admin_api.rule_create_async(
+                     self.ctx.client, 'email_domain_blocks',
+                     {'domain': domain}, callback=cb),
+                 ok,
                  lambda e: self.ctx.error(_('Could not block the domain'),
-                                          e),
-                 form={'domain': domain})
+                                          e))
 
         pages.confirm(
             self.ctx, _('Block %s?') % domain,
@@ -1473,7 +1501,7 @@ EXPIRATIONS = (
 class IPBlocksPage(RuleList):
     def __init__(self, ctx, **kwargs):
         super().__init__(
-            ctx, '/admin/ip_blocks', self._make_row, _('No IP Rules'),
+            ctx, 'ip_blocks', self._make_row, _('No IP Rules'),
             'network-server-symbolic',
             _('Address ranges you restrict show up here.'), **kwargs)
         self.add_button = pages.icon_button(
@@ -1564,7 +1592,10 @@ class AddIPBlockDialog(pages.ToastDialog):
             self.page.set_sensitive(True)
             self.error(_('Could not add the rule'), error)
 
-        send(self.client, 'POST', '/admin/ip_blocks', ok, failed, form=form)
+        send(self.client,
+             lambda cb: admin_api.rule_create_async(
+                 self.client, 'ip_blocks', form, callback=cb),
+             ok, failed)
 
 
 # The dialog
@@ -1698,8 +1729,9 @@ class AdminDialog(Adw.Dialog):
         the token never asked for the scopes, which is what the extra
         authorization below fixes.
         """
-        send(self.client, 'GET', '/admin/accounts',
-             params={'limit': 1},
+        send(self.client,
+             lambda cb: admin_api.accounts_probe_async(self.client,
+                                                       callback=cb),
              on_ok=lambda _data: self._on_scopes_ok(on_done),
              on_error=lambda error: self._on_scopes_error(error, on_done))
 
