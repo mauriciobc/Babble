@@ -13,3 +13,9 @@ install_data(
   'hashpanel/babble_hashpanel.py',
   install_dir: pkgdatadir / 'plugins' / 'hashpanel',
 )
+
+install_data(
+  'nareal/babble_nareal.plugin',
+  'nareal/babble_nareal.py',
+  install_dir: pkgdatadir / 'plugins' / 'nareal',
+)

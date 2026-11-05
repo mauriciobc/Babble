@@ -57,6 +57,14 @@ The full feature inventory. The [README](../README.md) has the short version.
   Replying to the last of your own posts picks the thread up with the right
   number, and editing one of them shows its place ("Edit Post · 2/5"). The
   thread is read from your instance; if that fails, the composer behaves as usual.
+- A reply to a post that carries a content warning starts behind the same
+  warning. Editing a post that is flagged sensitive keeps the flag. The flag
+  cannot be cleared from Babble (Mastodon's edit API only carries it one
+  way, and the composer has no control for it); remove it from the server's
+  web UI if you need to.
+- A paste whose whole content is a link to a post attaches the post as a
+  quote instead of inserting the link; the toast says so, and undoing detaches
+  the quote and puts the link back as text.
 
 ## Wallabag
 

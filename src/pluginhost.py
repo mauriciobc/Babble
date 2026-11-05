@@ -25,19 +25,25 @@ import json
 import os
 import sys
 import traceback
+import weakref
 from urllib.parse import urlencode
 
 from gi.repository import GLib, GObject, Gio  # noqa: E402
 
+from . import accounts  # noqa: E402
 from . import plugin as api  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
+from .pluginsupport import PluginSettings as _Settings  # noqa: E402
+from .pluginsupport import Scope as _Scope  # noqa: E402
 
 ACTIVE_KEY = 'active-plugins'
 API_KEY = 'Babble-Api'  # X-Babble-Api= in the .plugin file
+REVISION_KEY = 'Babble-Api-Revision'  # X-Babble-Api-Revision=, default 1
 SECRET_PREFIX = 'babble-plugin:'
 HTTP_TIMEOUT_SECONDS = 30
 
 _host = None
+_menu_listeners = []  # weak methods, told when the main menu's entries change
 
 
 def _log(level, message, plugin_id=None):
@@ -66,6 +72,11 @@ def post_of(status, instance=''):
     (the boosted one for a boost)."""
     from .statustext import parse_content
     account = status.get('account') or {}
+    acct = account.get('acct') or ''
+    handle = ''
+    if acct:
+        handle = accounts.full_handle(
+            {'acct': acct, 'instance': instance or ''})
     text = []
     space = False  # the source had whitespace after the last segment
     for segment in parse_content(status.get('content') or ''):
@@ -82,7 +93,7 @@ def post_of(status, instance=''):
     return api.Post(
         id=str(status.get('id') or ''), url=status.get('url') or '',
         uri=status.get('uri') or '', instance=instance or '',
-        author=account.get('acct') or '',
+        author=acct, author_handle=handle,
         author_name=account.get('display_name') or '',
         text=''.join(text).strip(),
         tags=tuple((t.get('name') or '').lower()
@@ -92,63 +103,6 @@ def post_of(status, instance=''):
         visibility=status.get('visibility') or '',
         sensitive=bool(status.get('sensitive')),
         spoiler_text=status.get('spoiler_text') or '', media=media)
-
-
-class _Settings(api.Settings):
-    """A JSON file per plugin, under the user's config directory."""
-
-    def __init__(self, plugin_id):
-        self.path = os.path.join(GLib.get_user_config_dir(), 'babble',
-                                 'plugins', plugin_id + '.json')
-        self._values = None
-
-    def _load(self):
-        if self._values is None:
-            try:
-                with open(self.path, encoding='utf-8') as source:
-                    values = json.load(source)
-                self._values = values if isinstance(values, dict) else {}
-            except (OSError, ValueError):
-                self._values = {}
-        return self._values
-
-    def _save(self):
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        GLib.file_set_contents(self.path, json.dumps(
-            self._values, ensure_ascii=False, indent=1).encode('utf-8'))
-
-    def get(self, key, default=None):
-        return self._load().get(key, default)
-
-    def set(self, key, value):
-        json.dumps(value)  # refuse what could not be saved, here
-        self._load()[key] = value
-        self._save()
-
-    def remove(self, key):
-        if self._load().pop(key, None) is not None:
-            self._save()
-
-
-class _Scope:
-    """What one owner made through the Context: the plugin itself, or
-    one of its extensions. Closing it disconnects its handlers and
-    cancels its requests, whose callbacks then never run."""
-
-    def __init__(self):
-        self.active = True
-        self.handlers = []  # (GObject weak ref to the emitter, id)
-        self.cancellable = Gio.Cancellable()
-
-    def close(self):
-        self.active = False
-        self.cancellable.cancel()
-        for ref, handler_id in self.handlers:
-            emitter = ref()
-            if emitter is not None and GObject.signal_handler_is_connected(
-                    emitter, handler_id):
-                emitter.disconnect(handler_id)
-        self.handlers = []
 
 
 class _Context(api.Context):
@@ -163,6 +117,7 @@ class _Context(api.Context):
         self._data = {}
         self._scope = _Scope()
         self._scopes = {}  # id(extension) -> _Scope
+        self._panel = None
 
     def guard(self, func, *args, widget=None, default=None):
         """``func(*args)``, and on an exception the plugin is turned off."""
@@ -199,6 +154,9 @@ class _Context(api.Context):
 
     def close(self):
         self.active = False
+        panel, self._panel = self._panel, None
+        if panel is not None:
+            self.quietly(panel.close)
         for scope in self._scopes.values():
             scope.close()
         self._scopes = {}
@@ -210,6 +168,16 @@ class _Context(api.Context):
         if self._settings is None:
             self._settings = _Settings(self.plugin_id)
         return self._settings
+
+    @property
+    def account(self):
+        from . import pages
+        found = accounts.active_account(pages.settings())
+        if found is None:
+            return None
+        return api.Account(handle=accounts.full_handle(found),
+                           instance=found.get('instance') or '',
+                           host=accounts.instance_host(found))
 
     @property
     def data(self):
@@ -313,6 +281,18 @@ class _Context(api.Context):
         from . import pages
         pages.open_link(widget, url, resolve=True)
 
+    def compose(self, widget, text):
+        if not self.active:
+            return
+        from . import pluginmenu
+        pluginmenu.compose(widget, text)
+
+    def open_panel(self, widget, url, title=None):
+        from . import pluginpanel
+        panel = pluginpanel.open_panel(self, widget, url, title)
+        self._panel = panel
+        return panel
+
     def log(self, message):
         _log(GLib.LogLevelFlags.LEVEL_MESSAGE,
              '%s: %s' % (self.plugin_id, message), self.plugin_id)
@@ -366,6 +346,8 @@ class PluginHost:
         self.menu_extensions = {}  # plugin id -> [PostMenuExtension]
         self.page_classes = {}  # plugin id -> [HashtagPageExtension type]
         self.preference_classes = {}  # plugin id -> [PreferencesExtension]
+        self.link_extensions = {}  # plugin id -> [LinkExtension]
+        self.main_extensions = {}  # plugin id -> [MainMenuExtension]
         self.slots = []
         self.errors = {}  # plugin id -> why it is not running
         self._session = None
@@ -438,6 +420,7 @@ class PluginHost:
             if plugin_id not in self.contexts \
                     and plugin_id not in self.errors:
                 self._load(plugin_id)
+        _menu_changed()
 
     def _load(self, plugin_id):
         info = self.engine.get_plugin_info(plugin_id)
@@ -452,6 +435,17 @@ class PluginHost:
                  '%s: X-Babble-Api is %r, this Babble provides %d'
                  % (plugin_id, wanted, api.API_VERSION), plugin_id)
             return
+        wanted = info.get_external_data(REVISION_KEY)
+        try:
+            revision = 1 if wanted is None else int(wanted)
+        except ValueError:
+            revision = None
+        if revision is None or revision > api.API_REVISION:
+            self.errors[plugin_id] = _('Needs a newer version of Babble')
+            _log(GLib.LogLevelFlags.LEVEL_WARNING,
+                 '%s: X-Babble-Api-Revision is %r, this Babble provides %d'
+                 % (plugin_id, wanted, api.API_REVISION), plugin_id)
+            return
         if not self.engine.load_plugin(info):
             # libpeas logged the traceback; it keeps the failure until
             # Babble restarts.
@@ -459,9 +453,10 @@ class PluginHost:
                 'Could not be loaded; the system log has the details')
             return
         module = sys.modules.get(info.get_module_name())
-        menu_classes, page_classes, preference_classes = \
-            _extension_classes(module)
-        if not menu_classes and not page_classes:
+        menu_classes, page_classes, preference_classes, link_classes, \
+            main_classes = _extension_classes(module)
+        if not (menu_classes or page_classes or link_classes
+                or main_classes):
             self.engine.unload_plugin(info)
             self.errors[plugin_id] = _('Adds nothing Babble can use')
             return
@@ -478,6 +473,22 @@ class PluginHost:
                 return
             extensions.append(extension)
             context.guard(extension.activate)
+        links = []
+        self.link_extensions[plugin_id] = links
+        for cls in link_classes:
+            extension = context.guard(cls, context)
+            if extension is None or not context.active:
+                return
+            links.append(extension)
+            context.guard(extension.activate)
+        mains = []
+        self.main_extensions[plugin_id] = mains
+        for cls in main_classes:
+            extension = context.guard(cls, context)
+            if extension is None or not context.active:
+                return
+            mains.append(extension)
+            context.guard(extension.activate)
         for slot in list(self.slots):
             if not context.active:
                 return
@@ -487,7 +498,9 @@ class PluginHost:
         context = self.contexts.pop(plugin_id, None)
         if context is None:
             return
-        for extension in self.menu_extensions.pop(plugin_id, []):
+        for extension in self.menu_extensions.pop(plugin_id, []) \
+                + self.link_extensions.pop(plugin_id, []) \
+                + self.main_extensions.pop(plugin_id, []):
             context.quietly(extension.deactivate)
             context.release(extension)
         self.page_classes.pop(plugin_id, None)
@@ -530,6 +543,7 @@ class PluginHost:
             self.set_enabled(plugin_id, False)
         else:
             self._unload(plugin_id)
+            _menu_changed()
         if message is not None:
             self.errors[plugin_id] = message  # sync() does not clear it
         return GLib.SOURCE_REMOVE
@@ -538,6 +552,7 @@ class PluginHost:
         """Deactivate every extension, before the windows go."""
         for plugin_id in list(self.contexts):
             self._unload(plugin_id)
+        _menu_changed()
 
     # HTTP
 
@@ -576,6 +591,8 @@ class PluginHost:
                         entries.append((item.label, _menu_activate(
                             context, item, post, widget)))
         return entries
+
+    # Main menu
 
     # Hashtag pages
 
@@ -684,10 +701,10 @@ def _menu_activate(context, item, post, widget):
 
 def _extension_classes(module):
     """The extension classes *module* (a plugin) defines: post menu,
-    hashtag page and preferences ones."""
-    menu, page, preferences = [], [], []
+    hashtag page, preferences, link and main menu ones."""
+    menu, page, preferences, link, main = [], [], [], [], []
     if module is None:
-        return menu, page, preferences
+        return menu, page, preferences, link, main
     name = module.__name__
     for value in list(vars(module).values()):
         if not isinstance(value, type) or not (
@@ -703,7 +720,13 @@ def _extension_classes(module):
         elif issubclass(value, api.PreferencesExtension) \
                 and value is not api.PreferencesExtension:
             preferences.append(value)
-    return menu, page, preferences
+        elif issubclass(value, api.LinkExtension) \
+                and value is not api.LinkExtension:
+            link.append(value)
+        elif issubclass(value, api.MainMenuExtension) \
+                and value is not api.MainMenuExtension:
+            main.append(value)
+    return menu, page, preferences, link, main
 
 
 # Entry points for the rest of the app. Each is a no-op while no plugin
@@ -729,6 +752,26 @@ def menu_items(widget, status, instance):
     if _host is None or not _host.menu_extensions:
         return []
     return _host.menu_items(widget, status, instance)
+
+
+def on_menu_changed(callback):
+    """Call *callback*, a bound method held weakly, when plugins were
+    enabled, disabled, loaded or unloaded. Creates no host and imports no
+    libpeas."""
+    _menu_listeners.append(weakref.WeakMethod(callback))
+
+
+def _menu_changed():
+    _menu_listeners[:] = [r for r in _menu_listeners if r() is not None]
+    for ref in list(_menu_listeners):
+        callback = ref()
+        if callback is None:
+            continue
+        try:
+            callback()
+        except Exception:
+            _log(GLib.LogLevelFlags.LEVEL_WARNING,
+                 'main menu: %s' % traceback.format_exc())
 
 
 def attach_hashtag_page(page, hashtag, box):

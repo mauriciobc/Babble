@@ -85,6 +85,13 @@ table = [
      ROUTE, FEDI),
     ('fediverse no resolve', dict(uri=FEDI, link_clicked=True), LOAD, FEDI),
     ('fediverse redirect', dict(uri=FEDI, resolve=True), LOAD, FEDI),
+    ('claimed fediverse click stays', dict(
+        uri=FEDI, link_clicked=True, resolve=True, claimed=True), LOAD, FEDI),
+    ('claimed middle click is external', dict(
+        uri=FEDI, link_clicked=True, button=2, claimed=True), EXTERNAL, FEDI),
+    ('claimed strips like any click', dict(
+        uri=WEB + '?utm_source=x&a=1', link_clicked=True, strip=True,
+        claimed=True), LOAD, WEB + '?a=1'),
     ('popup script', dict(uri=WEB, new_window=True), IGNORE, WEB),
     ('popup gesture', dict(uri=WEB, new_window=True, user_gesture=True),
      LOAD, WEB),

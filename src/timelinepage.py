@@ -21,6 +21,7 @@ from .mastodon import summarize_error_markup  # noqa: E402
 
 """The scrolling timeline page and its API source."""
 from .homefilters import HomeFilters
+from .timelinetags import FollowedTags
 from .readingposition import ReadingPosition
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
@@ -28,7 +29,7 @@ from .timelinebase import (
     NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
     _EMPTY_PAGED_ENVELOPE, id_key)
 from .timelinedata import (
-    BoostCarouselItem, TimelineModel, matching_tag)
+    BoostCarouselItem, TimelineModel)
 
 
 class TimelineFactory(Gtk.SignalListItemFactory):
@@ -163,7 +164,8 @@ def _new_posts_announce_tick(page_ref):
     return GLib.SOURCE_REMOVE
 
 
-class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
+class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
+                   Adw.Bin):
     """Scrollable timeline with infinite scroll, refresh and status pages.
 
     mode: 'home' (authenticated) or 'public'. A custom ``source`` (with
@@ -256,9 +258,23 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         self.new_posts_revealer.set_child(self.new_pill)
         self.new_posts_revealer.set_reveal_child(False)
 
+        # Shown while a pull-to-refresh is in flight, so the pull has an
+        # answer even when nothing new comes back.
+        self.refresh_spinner = Gtk.Spinner(spinning=False)
+        self.refresh_spinner.set_size_request(24, 24)
+        self.refresh_spinner.add_css_class('card')
+        self.refresh_revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.CROSSFADE,
+            can_target=False)
+        self.refresh_revealer.set_halign(Gtk.Align.CENTER)
+        self.refresh_revealer.set_valign(Gtk.Align.START)
+        self.refresh_revealer.set_margin_top(12)
+        self.refresh_revealer.set_child(self.refresh_spinner)
+
         self.overlay = Gtk.Overlay()
         self.overlay.set_child(scrolled)
         self.overlay.add_overlay(self.new_posts_revealer)
+        self.overlay.add_overlay(self.refresh_revealer)
 
         self.stack.add_named(self.overlay, 'list')
         self.set_child(self.stack)
@@ -284,6 +300,7 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         # a list too short to move, which is when nothing else asks.
         connect_weak(scrolled, 'edge-reached', self._on_edge)
         connect_weak(scrolled, 'edge-overshot', self._on_edge)
+        connect_weak(scrolled, 'edge-overshot', self._on_overshoot)
         if autoload:
             self.ensure_loaded()
 
@@ -427,84 +444,6 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
 
     def _on_retry(self, _button):
         self.load()
-
-    def invalidate_followed_tags(self):
-        """Forget the followed tags, so the next page re-reads them."""
-        self._followed_tags = None
-
-    def _note_followed_tags(self, statuses):
-        """Mark posts that reached Home through a followed hashtag."""
-        if not (self.mode == 'home' and self.source is None and statuses):
-            return
-        if self.client.rate_limited():
-            return
-        if self._followed_tags is None:
-            self._followed_waiting.append(statuses)
-            if self._followed_loading:
-                return
-            self._followed_loading = True
-            self.client.request_async('GET', '/followed_tags', {'limit': 200},
-                                      callback=self._on_followed_tags)
-            return
-        self._apply_followed_tags(statuses)
-
-    def _on_followed_tags(self, client, result, _data=None):
-        self._followed_loading = False
-        try:
-            data = client.request_finish(result)
-        except GLib.Error:
-            self._followed_tags = []
-        else:
-            self._followed_tags = sorted(
-                {tag.get('name') for tag in data or () if tag.get('name')},
-                key=str.casefold)
-        waiting = self._followed_waiting
-        self._followed_waiting = []
-        for statuses in waiting:
-            self._apply_followed_tags(statuses)
-
-    def _apply_followed_tags(self, statuses):
-        names = self._followed_tags or ()
-        if not names:
-            return
-        hits = {}
-        authors = []
-        for status in statuses:
-            tag = matching_tag(status, names)
-            if tag is None:
-                continue
-            status_id = str(status.get('id') or '')
-            if not status_id:
-                continue
-            hits[status_id] = tag
-            author_id = str(
-                (status.get('account') or {}).get('id') or '')
-            if author_id and author_id not in authors:
-                authors.append(author_id)
-        if not hits:
-            return
-        # Only authors this page has not already been told about go back to
-        # the server. Paging down a boost-heavy timeline meets the same
-        # boosters over and over, and asking about them again on every page
-        # was a request per page, followed by a full synchronous rebuild of
-        # every row it touched when the answer arrived.
-        unknown = [a for a in authors if a not in self._following_ids]
-        if not unknown:
-            self.model.apply_source_tags(hits, self._following_ids)
-            return
-        self.client.relationships_async(
-            unknown[:40],
-            lambda client, result, _data=None:
-                self._on_tag_relationships(client, result, hits))
-
-    def _on_tag_relationships(self, client, result, hits):
-        try:
-            rels = client.request_finish(result)
-        except GLib.Error:
-            self.model.apply_source_tags(hits, self._following_ids)
-            return
-        self._remember_follows(rels)
-        self.model.apply_source_tags(hits, self._following_ids)
 
     def on_page_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
@@ -712,6 +651,25 @@ class TimelinePage(ReadingPosition, HomeFilters, PagedPosts, Adw.Bin):
         if position == Gtk.PositionType.BOTTOM:
             self.load_older()
 
+    def _on_overshoot(self, _scrolled, position):
+        """Only an overshoot is a pull; reaching the top is not."""
+        if position == Gtk.PositionType.TOP:
+            self.pull_refresh()
+
+    def pull_refresh(self):
+        """A pull at the top: refresh, with a spinner until it ends."""
+        if self.model.loading or self._load_started is False:
+            return
+        self.refresh_spinner.start()
+        self.refresh_revealer.set_reveal_child(True)
+        self.refresh()
+        if not self.model.loading:
+            self._pull_done()
+
+    def _pull_done(self):
+        self.refresh_revealer.set_reveal_child(False)
+        self.refresh_spinner.stop()
+
     def on_scroll_position(self, adjustment):
         if self.on_scroll_near_end(adjustment):
             self.load_older()
@@ -779,5 +737,5 @@ class _RefreshGesture:
             return False
         at_top = adjustment.get_value() <= 0.0
         if at_top and dy < 0:
-            page.refresh()
+            page.pull_refresh()
         return False

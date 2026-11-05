@@ -36,6 +36,7 @@ install_data(
   'charts.py',
   'capabilities.py',
   'compose.py',
+  'composequote.py',
   'completer.py',
   'composeupload.py',
   'conversations.py',
@@ -64,7 +65,11 @@ install_data(
   'pages.py',
   'plugin.py',
   'pluginhost.py',
+  'pluginlinks.py',
+  'pluginmenu.py',
+  'pluginpanel.py',
   'pluginspage.py',
+  'pluginsupport.py',
   'pollbox.py',
   'portals.py',
   'preferences.py',
@@ -90,6 +95,7 @@ install_data(
   'timelinebase.py',
   'timelinedata.py',
   'timelinepage.py',
+  'timelinetags.py',
   'homefilters.py',
   'readingposition.py',
   'statusrun.py',
@@ -457,12 +463,50 @@ test('plugin boundary', python,
   env: test_env,
   timeout: 60,
 )
+# The panel tests run a real web view; WebKit's sandbox (bubblewrap)
+# cannot start in a build sandbox or CI container, as for 'web column'.
+plugin_web_env = environment()
+plugin_web_env.set('BABBLE_SRCDIR', meson.current_source_dir())
+plugin_web_env.set('BABBLE_BUILDDIR', meson.project_build_root())
+plugin_web_env.set('GSETTINGS_SCHEMA_DIR', meson.project_build_root() / 'data')
+plugin_web_env.set('GSETTINGS_BACKEND', 'memory')
+plugin_web_env.set('GDK_DEBUG', 'no-portals')
+plugin_web_env.set('NO_AT_BRIDGE', '1')
+plugin_web_env.set('GTK_A11Y', 'none')
+plugin_web_env.set('LANG', 'C')
+plugin_web_env.set('LC_ALL', 'C')
+plugin_web_env.set('GSK_RENDERER', 'cairo')
+plugin_web_env.set('WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS', '1')
+plugin_web_env.set('G_DEBUG', 'fatal-criticals')
 # libpeas loading real plugins from a temporary directory, the two
-# extension points, and that a page or plugin dropped is freed.
+# extension points, and that a page or plugin dropped is freed; and the
+# panel lifecycle on a real web column.
 test('plugins', python,
   args: [files('test-plugins.py')],
-  env: fatal_test_env,
-  timeout: 60,
+  env: plugin_web_env,
+  timeout: 120,
+)
+# Account info and link claiming for plugins, through libpeas, and a
+# claimed link clicked inside the web column.
+test('plugin links', python,
+  args: [files('test-pluginlinks.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+# A plugin's entries in the main menu of a real window, and
+# Context.compose opening the real composer.
+test('plugin menu', python,
+  args: [files('test-pluginmenu.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+# A plugin driving a Na Real-style login form in the web column: script
+# bound to its origin, in an isolated world, following the JavaScript
+# setting.
+test('plugin panel', python,
+  args: [files('test-pluginpanel.py')],
+  env: plugin_web_env,
+  timeout: 120,
 )
 # The shipped Wallabag plugin against a fake Wallabag on loopback.
 test('wallabag plugin', python,
@@ -475,6 +519,14 @@ test('hashpanel plugin', python,
   args: [files('test-hashpanel.py')],
   env: fatal_test_env,
   timeout: 60,
+)
+# The shipped Na Real plugin against a fake Na Real on loopback, in a real
+# web column: the exact handle it asks for, the login form filled but never
+# submitted, claimed links, the answer link, the share link and Compartilhar.
+test('nareal plugin', python,
+  args: [files('test-nareal.py')],
+  env: plugin_web_env,
+  timeout: 120,
 )
 # Needs no display: the port imports no gi at all.
 test('affinity', python,

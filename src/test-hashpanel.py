@@ -166,6 +166,9 @@ context = host.contexts['babble_hashpanel']
 context.settings.set('server', SERVER)
 opened = []
 context.open_link = lambda widget, url: opened.append(url)
+panels = []
+context.open_panel = lambda widget, url, title=None: panels.append(
+    (url, title))
 
 check('the default server is the live Hashpanel',
       module.DEFAULT_SERVER == 'https://hashpanel.mauriciocastro.des.br')
@@ -227,7 +230,9 @@ banner.top.emit('activated')
 check('the top post opens through Babble',
       opened == ['https://example.org/@autobrain/1'])
 banner.open_button.emit('clicked')
-check('the open button opens Hashpanel', opened[-1] == SERVER)
+check('the open button opens Hashpanel in the panel',
+      panels == [(SERVER, 'Hashpanel')]
+      and opened == ['https://example.org/@autobrain/1'])
 stats_asked = hits('/stats')
 page_ref = page.weak_ref()
 page = banner = None
