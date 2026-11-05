@@ -138,6 +138,8 @@ install_data(
   'api/filters.py',
   'api/announcements.py',
   'api/scheduled.py',
+  'api/tags.py',
+  'api/search.py',
   install_dir: moduledir / 'api',
 )
 

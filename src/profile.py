@@ -22,6 +22,7 @@ from gi.repository import (Adw, Gdk, GLib, GObject, Gtk,  # noqa: E402
 from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .api import search as api_search  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .profileactions import (ProfileActions,  # noqa: E402
                               endorse_action_names)  # noqa: F401
@@ -1342,15 +1343,13 @@ class LookupProfilePage(ProfilePage):
     def resolve(self):
         """Search with resolve=true: makes the server fetch a remote
         account it does not know yet."""
-        self.client.request_async(
-            'GET', '/api/v2/search',
-            params={'q': self.account['acct'], 'type': 'accounts',
-                    'resolve': 'true', 'limit': 5},
-            callback=self.on_resolved)
+        api_search.search_async(
+            self.client, self.account['acct'], type='accounts',
+            resolve='true', limit=5, callback=self.on_resolved)
 
     def on_resolved(self, client, result, _user_data=None):
         try:
-            data = client.request_finish(result)
+            data = api_search.search_finish(client, result)
         except GLib.Error as e:
             self.show_lookup_error(e)
             return

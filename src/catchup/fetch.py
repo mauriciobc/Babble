@@ -8,6 +8,7 @@ import functools
 from gi.repository import Gio, GLib, GObject
 
 from ..api import accounts as api_accounts
+from ..api import tags as api_tags
 from . import pipeline
 
 from .digest import (PAGE_LIMIT, apply_filters, fetch_progress,
@@ -226,7 +227,7 @@ class CatchUpRun:
             return
         self.kept = apply_filters(self.kept, self.self_ids, 'home',
                                   self.end_at)
-        self._get('/followed_tags', {'limit': 200}, self._on_followed_tags)
+        self._get_followed_tags({'limit': 200})
 
     # Followed tags, relationships, trends (each degrades, never fails)
 
@@ -237,6 +238,15 @@ class CatchUpRun:
         self.client.request_async('GET', path, params=params,
                                   callback=finished,
                                   cancellable=self.cancellable)
+
+    def _get_followed_tags(self, params):
+        """One page of the followed tags, through the same paged reply as
+        `_get`; the cursor is kept under ``followed_tags``."""
+        finished = self._reply('followed_tags', self._on_followed_tags)
+        if finished is None:
+            return
+        api_tags.followed_async(self.client, params, callback=finished,
+                                cancellable=self.cancellable)
 
     def _reply(self, path, done):
         """The callback of one paged GET keyed by *path*, or None when the
@@ -270,9 +280,9 @@ class CatchUpRun:
         for tag in data or []:
             if isinstance(tag, dict) and tag.get('name'):
                 self._followed.append(tag['name'])
-        more = self._more.get('/followed_tags')
+        more = self._more.get('followed_tags')
         if more:
-            self._get('/followed_tags', more, self._on_followed_tags)
+            self._get_followed_tags(more)
             return
         self._followed = list(dict.fromkeys(self._followed))
         self._hits = followed_tag_hits(self.kept, self._followed)

@@ -113,8 +113,12 @@ Three commits, each leaving `api golden` byte-identical:
 
 **Phase 2 progress.** Step 2a done: lists (`lists.py`), filters, announcements and
 scheduled statuses moved (20 endpoints, registry 73), and the housekeeping below
-(marked DONE). Still to move in phase 2: timelines helpers, hashtags/tags, search,
-explore, conversations, notifications, custom emojis.
+(marked DONE). Step 2b done: tags (`tags.py`: 9 endpoints, including followed and trending
+tags) and search (`search.py`: 1), registry 83. Still to move in phase 2:
+timelines helpers, explore (trends links/statuses), conversations,
+notifications, custom emojis. The completers' `search_request` hooks still
+return a path (from `search_path()`), so `completer.TokenCompleter._search`
+keeps its one raw send until the hook protocol changes.
 
 **Carried over from the phase 1 review (do these at the start or end of phase 2):**
 - DONE (2a): Collapse the parallel helper pairs into the `start(callback)` form and

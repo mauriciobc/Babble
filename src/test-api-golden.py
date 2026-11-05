@@ -270,6 +270,8 @@ class Recorder:
     def client(self, info=None):
         client = MastodonClient(INSTANCE, token=TOKEN)
         client.instance_info = info or {}
+        # Remember whose client this is: see `_spawn`.
+        client._golden_recorder = self
         return client
 
     def press_undo(self):
@@ -290,7 +292,13 @@ CURRENT = None
 
 
 def _spawn(self, task, message):
-    CURRENT.record(task, message)
+    # A request goes to the log of the scenario that built its client, not
+    # of whichever scenario is running when it is sent. A widget a scenario
+    # leaves behind can send later -- the list editor's search is debounced
+    # by a 300 ms timer that `_run_search()` does not cancel -- and on a
+    # busy machine that landed in the next scenario's log. A client built
+    # any other way still records into the running scenario.
+    getattr(self, '_golden_recorder', CURRENT).record(task, message)
 
 
 MastodonClient._spawn = _spawn

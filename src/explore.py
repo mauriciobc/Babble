@@ -18,6 +18,7 @@ from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
+from .api import tags as api_tags  # noqa: E402
 
 from .capabilities import LINK_TIMELINE_API_VERSION
 
@@ -344,7 +345,7 @@ class HashtagsPage(Adw.Bin):
         super().__init__()
         from .hashtags import HashtagRow
         self.paged = pages.PagedList(
-            client, '/trends/tags',
+            client, api_tags.list_path('trending'),
             lambda tag: HashtagRow(client, tag, sparkline=True),
             params={'limit': 20}, empty_title=_('No Trending Hashtags'),
             empty_icon='edit-find-symbolic')

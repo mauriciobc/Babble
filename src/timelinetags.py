@@ -15,6 +15,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import GLib  # noqa: E402
 
 from .api import accounts as api_accounts  # noqa: E402
+from .api import tags as api_tags  # noqa: E402
 from .timelinedata import matching_tag  # noqa: E402
 
 
@@ -39,15 +40,15 @@ class FollowedTags:
             if self._followed_loading:
                 return
             self._followed_loading = True
-            self.client.request_async('GET', '/followed_tags', {'limit': 200},
-                                      callback=self._on_followed_tags)
+            api_tags.followed_async(self.client, {'limit': 200},
+                                    callback=self._on_followed_tags)
             return
         self._apply_followed_tags(statuses)
 
     def _on_followed_tags(self, client, result, _data=None):
         self._followed_loading = False
         try:
-            data = client.request_finish(result)
+            data = api_tags.followed_finish(client, result)
         except GLib.Error:
             self._followed_tags = []
         else:

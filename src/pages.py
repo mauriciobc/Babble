@@ -26,6 +26,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, GLib, Gio, Gtk, Pango  # noqa: E402
 
+from .api import search as api_search  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 from .statustext import is_web_link, split_url  # noqa: E402
 
@@ -1141,7 +1142,7 @@ def resolve_uri(widget, client, uri):
 
     def resolved(_client, result, _data=None):
         try:
-            data = client.request_finish(result)
+            data = api_search.search_finish(client, result)
         except GLib.Error:
             launch_external(widget, uri)
             return
@@ -1154,9 +1155,8 @@ def resolve_uri(widget, client, uri):
         else:
             launch_external(widget, uri)
 
-    client.request_async('GET', '/api/v2/search',
-                         params={'q': uri, 'resolve': 'true', 'limit': 1},
-                         callback=resolved)
+    api_search.search_async(client, uri, resolve='true', limit=1,
+                            callback=resolved)
 
 
 # Small widgets

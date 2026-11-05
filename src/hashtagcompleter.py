@@ -21,6 +21,8 @@ from .i18n import gettext as _, ngettext
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import search as api_search  # noqa: E402
+from .api import tags as api_tags  # noqa: E402
 from .completer import MAX_SUGGESTIONS, TokenCompleter  # noqa: E402
 from .statustext import history_totals  # noqa: E402
 
@@ -141,11 +143,16 @@ def rank_tags(typed, pool_hits, server_tags):
 POOL_TTL_SECONDS = 600
 POOL_RETRY_SECONDS = 60
 
-# Where each source comes from, relative to /api/v1. A server without one
-# of them answers an error, which counts as an empty list.
-_POOL_PATHS = (('recent', '/featured_tags/suggestions'),
-               ('featured', '/featured_tags'),
-               ('followed', '/followed_tags'))
+# Where each source comes from: the call that asks for it. A server
+# without one of them answers an error, which counts as an empty list.
+def _followed(client, callback):
+    return api_tags.followed_async(client, {'limit': 200}, callback=callback)
+
+
+_POOL_SOURCES = (
+    ('recent', api_tags.featured_suggestions_async),
+    ('featured', api_tags.featured_async),
+    ('followed', _followed))
 
 # {client: TagPool}. A client is one account on one server, so its pool
 # is the account's, shared by every composer of that window, and goes
@@ -162,7 +169,7 @@ class TagPool:
     lately, the ones on its profile and the ones it follows."""
 
     def __init__(self):
-        self.tags = {source: [] for source, _path in _POOL_PATHS}
+        self.tags = {source: [] for source, _start in _POOL_SOURCES}
         # Tags remembered from posts published here, kept over a reload.
         self.remembered = []
         self.loaded_at = None
@@ -194,12 +201,9 @@ class TagPool:
         self._waiting = [] if callback is None else [callback]
         answers = {}
         failed = []
-        for source, path in _POOL_PATHS:
-            client.request_async(
-                'GET', path, params={'limit': 200} if source == 'followed'
-                else None,
-                callback=lambda c, r, _d=None, _s=source:
-                self._on_answer(c, r, _s, answers, failed))
+        for source, start in _POOL_SOURCES:
+            start(client, lambda c, r, _d=None, _s=source:
+                  self._on_answer(c, r, _s, answers, failed))
 
     def _on_answer(self, client, result, source, answers, failed):
         try:
@@ -214,11 +218,11 @@ class TagPool:
         else:
             answers[source] = [dict(tag, source=source) for tag in found
                                if _tag_name(tag) is not None]
-        if len(answers) < len(_POOL_PATHS):
+        if len(answers) < len(_POOL_SOURCES):
             return
         self.tags = answers
         self.loaded_at = _now()
-        self.answered = len(failed) < len(_POOL_PATHS)
+        self.answered = len(failed) < len(_POOL_SOURCES)
         self.remember(self.remembered)
         waiting, self._waiting = self._waiting, None
         for callback in waiting:
@@ -241,7 +245,7 @@ class TagPool:
     def hits(self, query):
         """The tags whose name begins with *query*, every source."""
         query = query.lower()
-        return [tag for source, _path in _POOL_PATHS
+        return [tag for source, _start in _POOL_SOURCES
                 for tag in self.tags[source]
                 if tag['name'].lower().startswith(query)]
 
@@ -333,8 +337,9 @@ class HashtagCompleter(TokenCompleter):
     def search_request(self, query):
         # No exclude_unreviewed: it leaves only the exact name on an
         # instance whose admin has reviewed no tags.
-        return '/api/v2/search', {'type': 'hashtags', 'q': query,
-                                  'limit': SEARCH_LIMIT, 'resolve': 'false'}
+        return api_search.search_path(), {
+            'type': 'hashtags', 'q': query, 'limit': SEARCH_LIMIT,
+            'resolve': 'false'}
 
     def parse(self, result):
         tags = result.get('hashtags') if isinstance(result, dict) else None

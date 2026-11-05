@@ -31,14 +31,17 @@ sys.path.insert(0, srcdir)
 
 from src.api import core  # noqa: E402
 from src.api import accounts, announcements, filters, lists  # noqa: E402, F401
-from src.api import relationships, scheduled, statuses  # noqa: E402, F401
+from src.api import relationships, scheduled, search, statuses  # noqa: E402, F401
+from src.api import tags  # noqa: E402, F401
 
 RESOURCE_MODULES = (statuses, accounts, relationships, lists, filters,
-                    announcements, scheduled)
+                    announcements, scheduled, tags, search)
 # Modules whose endpoints a paged view reads by path: each declares LISTS.
-# `filters` has no paged view (its list is read once), so it declares none.
-PAGED_MODULES = tuple(m for m in RESOURCE_MODULES if m is not filters)
-MINIMUM_ENDPOINTS = 53 + 9 + 4 + 4 + 3
+# `filters` has no paged view (its list is read once) and `search` serves
+# only a path to completers, so they declare none.
+PAGED_MODULES = tuple(m for m in RESOURCE_MODULES
+                      if m not in (filters, search))
+MINIMUM_ENDPOINTS = 53 + 9 + 4 + 4 + 3 + 9 + 1  # 83
 
 failed = False
 
