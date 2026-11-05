@@ -101,6 +101,8 @@ class Navigation:
     def forget(self, tag):
         self.pages.pop(tag, None)
         self.children.pop(tag, None)
+        if tag.startswith(('list:', 'tag:')):
+            self.host.sync_streaming()
 
     def clear(self):
         self.pages.clear()
@@ -186,6 +188,6 @@ class Navigation:
             # After ``children`` holds it: the host reads ``public_pages``
             # to start the stream and the refresh timer.
             self.host.notify_place_built(tag, child)
-        if tag == 'conversations':
+        if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
             self.host.sync_streaming()
         return page

@@ -19,7 +19,7 @@ The test is always a **repeated cycle**: do an action, undo it, N times. Steady 
 
 | Holder | Cap | Where |
 |---|---|---|
-| Avatar textures | 256 × up to 96 px at display scale | `AVATAR_CACHE_SIZE`, `src/timeline.py` |
+| Avatar textures | 256 × up to 96 px at display scale | `AVATAR_CACHE_SIZE`, `src/timelinebase.py` |
 | Media thumbnails | 48 decoded textures | `MEDIA_TEXTURE_CACHE_SIZE` |
 | Custom emoji | 128 | `EMOJI_TEXTURE_CACHE_SIZE`, `src/textemoji.py` |
 | Media viewer | 6 full-size textures | `TEXTURE_CACHE_SIZE`, `src/mediaviewer.py` |

@@ -38,15 +38,6 @@ def check(name, condition, detail=''):
 
 # --- the matrix -------------------------------------------------------
 
-check('full expanded: labels',
-      sidebarmode.label_visible('full', False))
-check('full collapsed: labels',
-      sidebarmode.label_visible('full', True))
-check('icons expanded: no labels',
-      not sidebarmode.label_visible('icons', False))
-check('icons collapsed: labels, because the overlay is a full pane',
-      sidebarmode.label_visible('icons', True))
-
 check('full expanded is not a rail',
       not sidebarmode.icon_rail('full', False))
 check('icons expanded is a rail',

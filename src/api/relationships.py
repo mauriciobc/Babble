@@ -154,17 +154,9 @@ def unfollow_async(client, account_id, callback=None, cancellable=None):
                      cancellable=cancellable)
 
 
-def unfollow_finish(client, result):
-    return core.finish(client, result)
-
-
 def block_async(client, account_id, callback=None, cancellable=None):
     return core.send(client, BLOCK, account_id, callback=callback,
                      cancellable=cancellable)
-
-
-def block_finish(client, result):
-    return core.finish(client, result)
 
 
 def mute_async(client, account_id, callback=None, cancellable=None):
@@ -172,26 +164,14 @@ def mute_async(client, account_id, callback=None, cancellable=None):
                      cancellable=cancellable)
 
 
-def mute_finish(client, result):
-    return core.finish(client, result)
-
-
 def unmute_async(client, account_id, callback=None, cancellable=None):
     return core.send(client, UNMUTE, account_id, callback=callback,
                      cancellable=cancellable)
 
 
-def unmute_finish(client, result):
-    return core.finish(client, result)
-
-
 def unblock_async(client, account_id, callback=None, cancellable=None):
     return core.send(client, UNBLOCK, account_id, callback=callback,
                      cancellable=cancellable)
-
-
-def unblock_finish(client, result):
-    return core.finish(client, result)
 
 
 def note_async(client, account_id, comment, callback=None,

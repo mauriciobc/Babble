@@ -485,7 +485,7 @@ been re-measured under clean conditions.
 
 **Evidence.** A: a 275 ms idle dispatch through
 `gtk_sort_list_model_items_changed_cb` → `gtk_list_item_manager_ensure_items`
-(Catch-Up holds Babble's only `Gtk.SortListModel`, `src/catchup.py:1647`),
+(Catch-Up holds Babble's only `Gtk.SortListModel`, `src/catchup/page.py:462`),
 followed by a 208 ms frame (53 ms CSS, 150 ms layout); the GTK counters
 show 8,128 invalidated CSS nodes and 7,300 styles created in that frame.
 B: about 1.1 s of continuous work (0.74 s CPU) from

@@ -120,10 +120,6 @@ def trending_async(client, params=None, callback=None, cancellable=None):
                      cancellable=cancellable)
 
 
-def trending_finish(client, result):
-    return core.finish(client, result)
-
-
 def featured_async(client, callback=None, cancellable=None):
     return core.send(client, FEATURED, callback=callback,
                      cancellable=cancellable)
@@ -155,6 +151,3 @@ def unfeature_async(client, featured_id, callback=None, cancellable=None):
     return core.send(client, UNFEATURE, featured_id, callback=callback,
                      cancellable=cancellable)
 
-
-def unfeature_finish(client, result):
-    return core.finish(client, result)

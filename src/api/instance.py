@@ -2,8 +2,9 @@
 """Instance-wide reads: the instance document and the custom emoji list,
 declared once and sent through `api.core`.
 
-`info_async(client, callback=None, cancellable=None)` /
-`info_finish(client, result)` is `GET /api/v2/instance`.
+`info_async(client, callback=None, cancellable=None)` is
+`GET /api/v2/instance`; its answer is decoded by
+`MastodonClient.instance_info_finish`.
 `MastodonClient.instance_info_async` sends through it but keeps the caching
 and coalescing, which are client state that `is_supported` reads.
 
@@ -29,10 +30,6 @@ CUSTOM_EMOJIS = core.declare(
 def info_async(client, callback=None, cancellable=None):
     return core.send(client, INFO, callback=callback,
                      cancellable=cancellable)
-
-
-def info_finish(client, result):
-    return core.finish(client, result)
 
 
 def custom_emojis_async(client, callback=None, cancellable=None):

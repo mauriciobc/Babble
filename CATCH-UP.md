@@ -803,7 +803,7 @@ copying them:
 - `src/hashtags.py`: likewise, factor what `HashtagRow` shows into a helper
   the Hashtag tile can lay out in a grid cell. Let `Sparkline` also take plain
   values (for the fallback buckets) besides a `history` list.
-- `src/timeline.py`: move `StatusRow`'s action buttons and overflow menu
+- `src/statusrow.py` (done: the shared `src/statusactions.py`, `src/statusmenu.py` and `src/tileactions.py`; the old `src/timeline.py` no longer exists): move `StatusRow`'s action buttons and overflow menu
   (`_action_button`, `_on_reply`/`_on_boost`/`_on_favourite`/`_on_bookmark`,
   `_overflow_button`, `_build_menu`) into a component both `StatusRow` and the
   post tiles use, bound to a `StatusItem`. It keeps building the menu lazily
