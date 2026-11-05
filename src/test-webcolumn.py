@@ -197,11 +197,11 @@ check('error page shown', column.stack.get_visible_child_name() == 'error')
 # Closing frees the column
 ref = column.weak_ref()
 column.dispose_column()
-check('close empties the slot', host.web_slot.get_child() is None)
+check('close empties the slot', webcolumn.live_column(host) is None)
 view = column = loaded = None
-for _ in range(20):
-    GLib.MainContext.default().iteration(False)
-    gc.collect()
+# A column still loading is kept until its page settled (see
+# WebColumn.dispose_column), so wait for it to go.
+pump(lambda: (gc.collect(), ref() is None)[1], 8)
 check('closed column is freed', ref() is None)
 
 # The split view hiding its own sidebar disposes it too
@@ -209,11 +209,11 @@ webcolumn.present_web(host, 'about:blank')
 column = host.web_slot.get_child()
 ref = column.weak_ref()
 host.web_split.set_show_sidebar(False)
-check('hiding the sidebar empties the slot', host.web_slot.get_child() is None)
+check('hiding the sidebar empties the slot', webcolumn.live_column(host) is None)
 column = None
-for _ in range(20):
-    GLib.MainContext.default().iteration(False)
-    gc.collect()
+# A column still loading is kept until its page settled (see
+# WebColumn.dispose_column), so wait for it to go.
+pump(lambda: (gc.collect(), ref() is None)[1], 8)
 check('hidden column is freed', ref() is None)
 
 
@@ -409,7 +409,7 @@ respond('https://example.org/file.zip', supported=False)
 check('response: first-load download hands off',
       launched == ['https://example.org/file.zip'])
 check('response: first-load download closes the column',
-      pump(lambda: host.web_slot.get_child() is None, 5)
+      pump(lambda: webcolumn.live_column(host) is None, 5)
       and not host.web_split.get_show_sidebar())
 column = None
 
@@ -482,7 +482,7 @@ check('forward_action: not with the focus elsewhere',
 column.view.grab_focus()
 host.web_split.set_show_sidebar(False)
 check('forward_action: not when the column is hidden',
-      host.web_slot.get_child() is None
+      webcolumn.live_column(host) is None
       and not webcolumn.forward_action(host, 'back'))
 webcolumn.present_web(host, 'about:blank')
 column = host.web_slot.get_child()
@@ -490,7 +490,7 @@ column.view.grab_focus()
 pump(lambda: host.get_focus() is not None, 3)
 check('forward_action: close hides and frees the column',
       webcolumn.forward_action(host, 'close')
-      and host.web_slot.get_child() is None
+      and webcolumn.live_column(host) is None
       and not host.web_split.get_show_sidebar())
 
 
@@ -515,7 +515,7 @@ check('collapsed: present_web shows it as an overlay',
       split.get_show_sidebar() and host.web_slot.get_child() is column)
 split.set_show_sidebar(False)
 check('collapsed: dismissing the overlay closes the column',
-      host.web_slot.get_child() is None)
+      webcolumn.live_column(host) is None)
 split.set_collapsed(False)
 pump(lambda: False, 0.2)
 check('expand after a close leaves no empty column',

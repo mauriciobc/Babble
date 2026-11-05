@@ -152,15 +152,29 @@ def watch_split(split):
 
 def _hide_if_empty(split):
     # The sidebar comes back on expanding even when the column was
-    # closed meanwhile; there is nothing to show then.
-    if split.get_show_sidebar() and split.get_sidebar().get_child() is None:
+    # closed meanwhile; there is nothing to show then. A column whose
+    # teardown is deferred (see WebColumn.dispose_column) is closed.
+    if split.get_show_sidebar() and _live(split.get_sidebar().get_child()) \
+            is None:
         split.set_show_sidebar(False)
 
 
-def _column_of(window):
+def _live(child):
+    """*child* if it is a column in use, else None: a disposed column may
+    sit in the slot for a moment while its page settles."""
+    if isinstance(child, WebColumn) and not child._disposed:
+        return child
+    return None
+
+
+def live_column(window):
+    """The web column *window* is showing, or None. Read the slot through
+    this, not ``web_slot.get_child()``."""
     slot = getattr(window, 'web_slot', None)
-    column = slot.get_child() if slot is not None else None
-    return column if isinstance(column, WebColumn) else None
+    return _live(slot.get_child()) if slot is not None else None
+
+
+_column_of = live_column
 
 
 def forward_action(window, name):
@@ -183,6 +197,9 @@ def forward_action(window, name):
     return True
 
 
+TEARDOWN_GRACE_SECONDS = 3
+
+
 class WebColumn(Adw.Bin):
     """Header bar, load progress, and the page or an error."""
 
@@ -191,6 +208,7 @@ class WebColumn(Adw.Bin):
         from gi.repository import WebKit  # noqa: E402
         self._webkit = WebKit
         self._disposed = False
+        self._teardown_timer = 0  # source id while a teardown is deferred
         self._error_uri = None
         self._committed = False
         self._load_failed = False  # the current load did not succeed
@@ -340,6 +358,8 @@ class WebColumn(Adw.Bin):
     def load_uri(self, uri, owner=None, title=None):
         """Load *uri*. *owner* is the plugin panel loading it; a load by
         anyone else ends the panel the column had."""
+        if self._disposed and self._teardown_timer:
+            self._revive()
         if self.panel is not None and self.panel is not owner:
             self.panel._end('replaced')
         self.panel = owner
@@ -533,6 +553,9 @@ class WebColumn(Adw.Bin):
 
     def _on_progress(self, _view, _pspec):
         loading = self.view.is_loading()
+        if self._disposed and self._teardown_timer and not loading:
+            self._teardown()  # the deferred teardown: the page settled
+            return
         self.progress.set_visible(loading)
         if loading:
             self.progress.set_fraction(self.view.get_estimated_load_progress())
@@ -590,10 +613,38 @@ class WebColumn(Adw.Bin):
         self._disposed = True
         if self.panel is not None:
             self.panel._end('hidden')
+        if self.view.is_loading():
+            # WebKitGTK crashes (SIGSEGV in the UI process, ~1 run in 4 of
+            # test-pluginpanel.py) when a view is cancelled and unmapped
+            # before its first load has started. The panel is already
+            # told; the page goes once it has settled, or after a grace
+            # period if it never does. A new load in the meantime
+            # (:meth:`load_uri`) takes the column back.
+            self._teardown_timer = GLib.timeout_add_seconds(
+                TEARDOWN_GRACE_SECONDS, pages.weak_method(self._on_grace))
+            return
+        self._teardown()
+
+    def _on_grace(self):
+        self._teardown_timer = 0
+        self._teardown()
+        return GLib.SOURCE_REMOVE
+
+    def _teardown(self):
+        if self._teardown_timer:
+            GLib.source_remove(self._teardown_timer)
+            self._teardown_timer = 0
         self.view.stop_loading()
         parent = self.get_parent()
-        if parent is not None:
+        if parent is not None and parent.get_child() is self:
             parent.set_child(None)
+
+    def _revive(self):
+        """Take back a column whose teardown was deferred."""
+        if self._teardown_timer:
+            GLib.source_remove(self._teardown_timer)
+            self._teardown_timer = 0
+        self._disposed = False
 
     # Plugin panels
 

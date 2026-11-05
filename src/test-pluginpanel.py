@@ -407,8 +407,29 @@ check("an ordinary link in the column ends the panel: 'replaced'",
 
 closes = []
 p1 = fresh(context, record=closes)
+column_loading = window.web_slot.get_child()
 p1.close()
+# WebKitGTK crashes (SIGSEGV, about 1 run in 4) when a view is cancelled and
+# unmapped before its first load has started, so the column keeps the view
+# until the page settled and only then goes.
+check('closing a column that is still loading defers its teardown',
+      window.web_slot.get_child() is column_loading
+      and column_loading is not None)
 check("a plugin's own close() is not reported", spin(0.5) and closes == [])
+check('and the column goes once the page settled',
+      spin(until=lambda: window.web_slot.get_child() is None, seconds=8))
+
+# A new load in the meantime takes the column back.
+p1 = fresh(context)
+column_loading = window.web_slot.get_child()
+p1.close()
+p2 = fresh(context)
+check('a load while the teardown is deferred reuses the column',
+      window.web_slot.get_child() is column_loading and p2.is_open)
+check('and the column stays', spin(0.5)
+      and window.web_slot.get_child() is column_loading and p2.is_open)
+p2.close()
+spin(until=lambda: window.web_slot.get_child() is None, seconds=8)
 
 closes = []
 p1 = fresh(context, record=closes)
@@ -590,7 +611,7 @@ after = []
 panel.run_script('1', lambda *a: after.append(a))
 host.set_enabled('realplug', False)
 check('disabling the plugin closes the panel',
-      not panel.is_open and window.web_slot.get_child() is None)
+      not panel.is_open and webcolumn.live_column(window) is None)
 check('and nothing calls back afterwards', spin(0.5) and after == [])
 
 window.destroy()

@@ -563,7 +563,7 @@ if webcolumn.available():
                      ' 5', lambda *a: late.append(a))
     third.close()
     check('closing hides the column', not panel_host.web_split
-          .get_show_sidebar() and panel_host.web_slot.get_child() is None)
+          .get_show_sidebar() and webcolumn.live_column(panel_host) is None)
     check('a callback in flight when the handle closed is dropped',
           spin(0.5) and late == [])
     del column
@@ -578,7 +578,7 @@ if webcolumn.available():
     host.set_enabled('panelplug', False)
     check('disabling the plugin closes its panel and hides the column',
           not fourth.is_open and not panel_host.web_split.get_show_sidebar()
-          and panel_host.web_slot.get_child() is None)
+          and webcolumn.live_column(panel_host) is None)
     check('and nothing is called back afterwards',
           spin(0.5) and pending == [])
     panel_ref = weakref.ref(fourth)
