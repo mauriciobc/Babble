@@ -441,6 +441,17 @@ test('module boundary', python,
   env: test_env,
   timeout: 60,
 )
+# Needs no display: it reads the sources with ast only.
+test('api boundary', python,
+  args: [files('test-api-boundary.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('api golden', python,
+  args: [files('test-api-golden.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('navigation', python,
   args: [files('test-navigation.py')],
   env: test_env,

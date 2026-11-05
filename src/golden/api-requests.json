@@ -1,0 +1,1937 @@
+{
+ "scenarios": {
+  "bar bookmark": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/bookmark",
+    "query": []
+   }
+  ],
+  "bar boost": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/reblog",
+    "query": []
+   }
+  ],
+  "bar boost with visibility dialog": [
+   {
+    "body": {
+     "form": [
+      [
+       "visibility",
+       "unlisted"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/reblog",
+    "query": []
+   }
+  ],
+  "bar favourite": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/favourite",
+    "query": []
+   }
+  ],
+  "bar favourite fails and rolls back": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/favourite",
+    "query": []
+   }
+  ],
+  "bar unbookmark": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unbookmark",
+    "query": []
+   }
+  ],
+  "bar unboost": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unreblog",
+    "query": []
+   }
+  ],
+  "bar unboost then undo reboosts": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unreblog",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/reblog",
+    "query": []
+   }
+  ],
+  "bar unfavourite": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unfavourite",
+    "query": []
+   }
+  ],
+  "client account wrappers": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/verify_credentials",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/lookup",
+    "query": [
+     [
+      "acct",
+      "ada@remote.example"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7/statuses",
+    "query": [
+     [
+      "limit",
+      "20"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/relationships",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ],
+     [
+      "id[]",
+      "8"
+     ]
+    ]
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "notify",
+       "false"
+      ],
+      [
+       "reblogs",
+       "true"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "notify",
+       "true"
+      ],
+      [
+       "reblogs",
+       "false"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unfollow",
+    "query": []
+   }
+  ],
+  "client generic request": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/bookmarks",
+    "query": [
+     [
+      "limit",
+      "20"
+     ]
+    ]
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "lang",
+       "en"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/1/translate",
+    "query": []
+   },
+   {
+    "body": {
+     "json": {
+      "x": [
+       1,
+       2
+      ]
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "PUT",
+    "path": "/api/v1/statuses/1/interaction_policy",
+    "query": []
+   }
+  ],
+  "client instance markers timelines trends": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v2/instance",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/markers",
+    "query": [
+     [
+      "timeline[]",
+      "home"
+     ],
+     [
+      "timeline[]",
+      "notifications"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/timelines/home",
+    "query": [
+     [
+      "limit",
+      "20"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/timelines/public",
+    "query": [
+     [
+      "limit",
+      "20"
+     ],
+     [
+      "local",
+      "true"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/trends/statuses",
+    "query": [
+     [
+      "limit",
+      "10"
+     ]
+    ]
+   }
+  ],
+  "client media multipart": [
+   {
+    "body": {
+     "multipart": [
+      {
+       "bytes": 10,
+       "content_type": "image/png",
+       "filename": "pic.png",
+       "name": "file"
+      },
+      {
+       "name": "description",
+       "value": "alt text"
+      }
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "multipart/form-data; boundary=<boundary>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v2/media",
+    "query": []
+   },
+   {
+    "body": {
+     "multipart": [
+      {
+       "bytes": 3,
+       "content_type": "audio/ogg",
+       "filename": "a.ogg",
+       "name": "file"
+      }
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "multipart/form-data; boundary=<boundary>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v2/media",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/media/500",
+    "query": []
+   }
+  ],
+  "client notification wrappers": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/notifications",
+    "query": [
+     [
+      "limit",
+      "30"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/notifications/unread_count",
+    "query": [
+     [
+      "limit",
+      "100"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/notifications/clear",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/notifications/12/dismiss",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "notifications[last_read_id]",
+       "34"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/markers",
+    "query": []
+   }
+  ],
+  "client oauth wrappers": [
+   {
+    "body": {
+     "form": [
+      [
+       "client_name",
+       "Babble"
+      ],
+      [
+       "redirect_uris",
+       "babble://oauth/callback urn:ietf:wg:oauth:2.0:oob"
+      ],
+      [
+       "scopes",
+       "read write"
+      ],
+      [
+       "website",
+       "https://github.com/mauriciobc/Babble"
+      ]
+     ]
+    },
+    "headers": {
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/apps",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "client_name",
+       "Babble"
+      ],
+      [
+       "redirect_uris",
+       "http://127.0.0.1:4242/cb babble://oauth/callback urn:ietf:wg:oauth:2.0:oob"
+      ],
+      [
+       "scopes",
+       "read"
+      ],
+      [
+       "website",
+       "https://github.com/mauriciobc/Babble"
+      ]
+     ]
+    },
+    "headers": {
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/apps",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "client_id",
+       "cid"
+      ],
+      [
+       "client_secret",
+       "csecret"
+      ],
+      [
+       "code",
+       "the-code"
+      ],
+      [
+       "grant_type",
+       "authorization_code"
+      ],
+      [
+       "redirect_uri",
+       "babble://oauth/callback"
+      ]
+     ]
+    },
+    "headers": {
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/oauth/token",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "client_id",
+       "cid"
+      ],
+      [
+       "client_secret",
+       "csecret"
+      ],
+      [
+       "token",
+       "tok"
+      ]
+     ]
+    },
+    "headers": {
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/oauth/revoke",
+    "query": []
+   }
+  ],
+  "client post reply edit": [
+   {
+    "body": {
+     "json": {
+      "media_ids": [
+       "1",
+       "2"
+      ],
+      "poll": {
+       "expires_in": 300,
+       "options": [
+        "a",
+        "b"
+       ]
+      },
+      "sensitive": true,
+      "status": "hello",
+      "visibility": "unlisted"
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses",
+    "query": []
+   },
+   {
+    "body": {
+     "json": {
+      "in_reply_to_id": "100",
+      "status": "answer",
+      "visibility": "public"
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses",
+    "query": []
+   },
+   {
+    "body": {
+     "json": {
+      "spoiler_text": "cw",
+      "status": "edited"
+     }
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/json"
+    },
+    "host": "https://golden.example",
+    "method": "PUT",
+    "path": "/api/v1/statuses/100",
+    "query": []
+   }
+  ],
+  "client status wrappers": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/context",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/favourite",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unfavourite",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/reblog",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "visibility",
+       "private"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/reblog",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unreblog",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/bookmark",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unbookmark",
+    "query": []
+   }
+  ],
+  "followed hashtags page loads": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/followed_tags",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   }
+  ],
+  "hashtag page follow unfollow feature": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/timelines/tag/golden",
+    "query": [
+     [
+      "limit",
+      "20"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/tags/golden",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/featured_tags",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/tags/golden/follow",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/tags/golden/unfollow",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "name",
+       "golden"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/featured_tags",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/featured_tags/5",
+    "query": []
+   }
+  ],
+  "hashtag tag row unfollow then undo": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/tags/golden/unfollow",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/tags/golden/follow",
+    "query": []
+   }
+  ],
+  "menu block author": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/block",
+    "query": []
+   }
+  ],
+  "menu delete after toast times out": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/statuses/100",
+    "query": []
+   }
+  ],
+  "menu delete and redraft": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/statuses/100",
+    "query": []
+   }
+  ],
+  "menu delete undone": [],
+  "menu edit loads source": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/source",
+    "query": []
+   }
+  ],
+  "menu icon row favourite boost bookmark": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/favourite",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/reblog",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/bookmark",
+    "query": []
+   }
+  ],
+  "menu mute author then undo": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/mute",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unmute",
+    "query": []
+   }
+  ],
+  "menu mute conversation": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/mute",
+    "query": []
+   }
+  ],
+  "menu pin": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/pin",
+    "query": []
+   }
+  ],
+  "menu quote policy": [
+   {
+    "body": {
+     "form": [
+      [
+       "quote_approval_policy",
+       "nobody"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PUT",
+    "path": "/api/v1/statuses/100/interaction_policy",
+    "query": []
+   }
+  ],
+  "menu revoke quote": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/55/quotes/100/revoke",
+    "query": []
+   }
+  ],
+  "menu translate": [
+   {
+    "body": {
+     "form": [
+      [
+       "lang",
+       "en"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/translate",
+    "query": []
+   }
+  ],
+  "menu unmute conversation": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unmute",
+    "query": []
+   }
+  ],
+  "menu unpin": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/statuses/100/unpin",
+    "query": []
+   }
+  ],
+  "notification answer follow request": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/follow_requests/7/authorize",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/follow_requests/7/reject",
+    "query": []
+   }
+  ],
+  "notification follow back": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   }
+  ],
+  "notification request row accept and dismiss": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/notifications/requests/9/accept",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/notifications/requests/9/dismiss",
+    "query": []
+   }
+  ],
+  "profile account lists": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7/followers",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7/following",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/familiar_followers",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7/endorsements",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   }
+  ],
+  "profile block": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/block",
+    "query": []
+   }
+  ],
+  "profile block domain": [
+   {
+    "body": {
+     "form": [
+      [
+       "domain",
+       "remote.example"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/domain_blocks",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/relationships",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   }
+  ],
+  "profile endorse 404 falls back to pin": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/endorse",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/pin",
+    "query": []
+   }
+  ],
+  "profile endorse and unendorse": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/endorse",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unendorse",
+    "query": []
+   }
+  ],
+  "profile endorse on a legacy server": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/pin",
+    "query": []
+   }
+  ],
+  "profile follow": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   }
+  ],
+  "profile hide and show boosts": [
+   {
+    "body": {
+     "form": [
+      [
+       "reblogs",
+       "false"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "reblogs",
+       "true"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   }
+  ],
+  "profile load extras for another account": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/familiar_followers",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7/featured_tags",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7/endorsements",
+    "query": [
+     [
+      "limit",
+      "80"
+     ]
+    ]
+   }
+  ],
+  "profile load extras for the own account": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/1/featured_tags",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/1/endorsements",
+    "query": [
+     [
+      "limit",
+      "80"
+     ]
+    ]
+   }
+  ],
+  "profile mute": [
+   {
+    "body": {
+     "form": [
+      [
+       "duration",
+       "3600"
+      ],
+      [
+       "notifications",
+       "true"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/mute",
+    "query": []
+   }
+  ],
+  "profile notify on and off": [
+   {
+    "body": {
+     "form": [
+      [
+       "notify",
+       "true"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "notify",
+       "false"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   }
+  ],
+  "profile private note": [
+   {
+    "body": {
+     "form": [
+      [
+       "comment",
+       "a note"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/note",
+    "query": []
+   }
+  ],
+  "profile reload account another": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/7",
+    "query": []
+   }
+  ],
+  "profile reload account own": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/verify_credentials",
+    "query": []
+   }
+  ],
+  "profile remove follower": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/remove_from_followers",
+    "query": []
+   }
+  ],
+  "profile unblock domain": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/domain_blocks",
+    "query": [
+     [
+      "domain",
+      "remote.example"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/relationships",
+    "query": [
+     [
+      "id[]",
+      "7"
+     ]
+    ]
+   }
+  ],
+  "profile unblock then undo blocks": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unblock",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/block",
+    "query": []
+   }
+  ],
+  "profile unendorse 404 falls back to unpin": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unendorse",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unpin",
+    "query": []
+   }
+  ],
+  "profile unfollow locked account": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unfollow",
+    "query": []
+   }
+  ],
+  "profile unfollow then undo follows": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unfollow",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   }
+  ],
+  "profile unmute": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unmute",
+    "query": []
+   }
+  ],
+  "profile withdraw follow request": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unfollow",
+    "query": []
+   }
+  ],
+  "quote card resolves the quoted post": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/55",
+    "query": []
+   }
+  ],
+  "relations follow request authorize and reject": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/follow_requests/7/authorize",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/follow_requests/8/reject",
+    "query": []
+   }
+  ],
+  "relations lists load": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/follow_requests",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/mutes",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/blocks",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/domain_blocks",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   }
+  ],
+  "relations unblock": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unblock",
+    "query": []
+   }
+  ],
+  "relations unblock domain": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/domain_blocks",
+    "query": [
+     [
+      "domain",
+      "remote.example"
+     ]
+    ]
+   }
+  ],
+  "relations unmute": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/unmute",
+    "query": []
+   }
+  ],
+  "status edit history view": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/history",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/history",
+    "query": []
+   }
+  ],
+  "status stats view tabs": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/favourited_by",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/favourited_by",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/reblogged_by",
+    "query": [
+     [
+      "limit",
+      "40"
+     ]
+    ]
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/statuses/100/quotes",
+    "query": [
+     [
+      "limit",
+      "20"
+     ]
+    ]
+   }
+  ],
+  "suggestion row follow and dismiss": [
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "POST",
+    "path": "/api/v1/accounts/7/follow",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "DELETE",
+    "path": "/api/v1/suggestions/7",
+    "query": []
+   }
+  ]
+ }
+}
