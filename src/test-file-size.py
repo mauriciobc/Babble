@@ -68,10 +68,10 @@ EXCEPTIONS = {
                       'file pruning. One widget, one concern.',
     'fedicollections.py': 'Collections (Mastodon 4.6+): page, CRUD and '
                           'membership.',
-    'mastodon.py': 'the transport: OAuth with PKCE, the keyring, rate '
-                   'limiting and the paging envelope, plus the endpoints '
-                   'still waiting for phases 2-3 (timelines, notifications, '
-                   'compose, media). Phase 4 revisits the exception.',
+    'mastodon.py': 'the transport: OAuth with PKCE (app, token and '
+                   'revoke calls), the keyring, rate limiting, the paging '
+                   'envelope, the instance-info cache and capability '
+                   'gates. Every endpoint lives in src/api/ (phase 4).',
     'hashtags.py': 'the followed-tag list plus a hashtag timeline. '
                    'The timeline is TimelinePage (ARCH-06); the list '
                    'and the saved-definition editor are this module.',

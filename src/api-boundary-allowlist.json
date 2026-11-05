@@ -1,45 +1,4 @@
 {
- "comment": "Every Mastodon API call site outside src/mastodon.py and src/api/ that test-api-boundary.py finds. The list may only shrink: remove an entry in the commit that moves its call into src/api/. Not installed; test data.",
- "entries": [
-  {
-   "file": "src/completer.py",
-   "function": "TokenCompleter._search",
-   "via": "request_async",
-   "path": "path",
-   "layer": "raw",
-   "reason": "phase 4: internal"
-  },
-  {
-   "file": "src/pages.py",
-   "function": "AccountListPage.__init__",
-   "via": "super().__init__",
-   "path": "path",
-   "layer": "internal",
-   "reason": "phase 4: generic helper internals (AccountListPage.__init__)"
-  },
-  {
-   "file": "src/pages.py",
-   "function": "PagedList.load_more",
-   "via": "request_async",
-   "path": "self.fetch_path",
-   "layer": "internal",
-   "reason": "phase 4: generic helper internals (PagedList.load_more)"
-  },
-  {
-   "file": "src/pages.py",
-   "function": "PagedList.refresh",
-   "via": "request_async",
-   "path": "self.fetch_path",
-   "layer": "internal",
-   "reason": "phase 4: generic helper internals (PagedList.refresh)"
-  },
-  {
-   "file": "src/timelinepage.py",
-   "function": "ApiTimelineSource.fetch",
-   "via": "request_async",
-   "path": "self.path",
-   "layer": "raw",
-   "reason": "phase 4: internal"
-  }
- ]
+ "comment": "Every Mastodon API call site outside src/mastodon.py and src/api/ that test-api-boundary.py finds. Empty since phase 4. The list may only shrink; it is not meant to grow. Not installed; test data.",
+ "entries": []
 }

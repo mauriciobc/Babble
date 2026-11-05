@@ -4,8 +4,10 @@
 
 `Docs/api-layer-plan.md` moves every Mastodon request behind `src/api/`.
 Until that is done, UI code still builds paths and passes them to the
-generic client. This test freezes today's set of such places in
-`src/api-boundary-allowlist.json` and enforces three rules:
+generic client. This test enforces three rules against
+`src/api-boundary-allowlist.json`, which is EMPTY since phase 4 (the
+mechanism stays so a list entry could be added to carry a move, and the
+list still may only shrink):
 
   (a) a place that is not on the list fails: a new raw call;
   (b) a list entry with no matching place fails: the list cannot rot, it
@@ -59,6 +61,17 @@ a path written in a table (statusviews' `_KINDS`, desktopnotify's
 `_ACTIONS`) is seen where the table's value reaches a call, as a variable;
 adding a row to the table is not seen. The registry test of phase 1
 closes that.
+
+Phase 4 emptied the list. The generic helpers (`PagedList.load_more` and
+`refresh`, `ApiTimelineSource.fetch`, the completers' `_search`) send through
+`core.send_path`, the one function outside `mastodon.py` that sends a path a
+caller supplies. The rule is: `send_path` takes a bare variable path (a name
+or attribute chain, never a literal, a template or a call) and only in
+`SEND_PATH_FILES`; anywhere else it is a site like a raw `request_async`. A
+generic base class (`AccountListPage`) handing its own `path` parameter to
+its base is not a site either. What this guards: a path is named once, at
+the call that builds the helper (checked as a `helper` site), and the sender
+cannot be used to name a path in a new place.
 
 Counts, and the three layers in two lines. `raw` is a call that names a
 Mastodon path itself (`request_async`); `internal` is a
@@ -140,6 +153,7 @@ EXEMPT_PREFIXES = ('src/api/',)
 # modules that define the generic helper of that name.
 MECHANISMS = {
     'request_async': ('raw', 1, 'path', None),
+    'send_path': ('raw', 2, 'path', None),
     'multipart_async': ('helper', 1, 'path', None),
     'mutate_row': ('helper', 2, 'path', None),
     'PagedList': ('helper', 1, 'fetch_path', None),
@@ -150,6 +164,15 @@ MECHANISMS = {
     'send_relationship': ('helper', 0, 'operation',
                           {'src/profile.py', 'src/profileactions.py'}),
 }
+# `core.send_path(client, method, path, ...)` is the one sender of a path a
+# caller supplies. It is allowed only with a bare variable path (a name or
+# an attribute chain such as `self.fetch_path`, never a literal, a template
+# or a call) and only in the files that hold the generic helpers: those
+# helpers get the path from a caller this test already checks where it names
+# it. A literal anywhere, or a variable in any other file, is a site and
+# fails: the allow-list is empty and stays so.
+SEND_PATH_FILES = frozenset({'src/completer.py', 'src/pages.py',
+                             'src/timelinepage.py'})
 HOOK_NAME = 'search_request'
 # Methods whose use as a value (not a call) or through getattr is a failure:
 # the scan could not see where the path goes.
@@ -207,6 +230,13 @@ def path_node(call, mechanism):
         if kw.arg in (keyword, 'path'):
             node = kw.value
     return node
+
+
+def is_variable_path(node):
+    """True for a bare name or attribute chain (`path`, `self.fetch_path`)."""
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return isinstance(node, ast.Name)
 
 
 def path_text(call, mechanism):
@@ -297,6 +327,7 @@ class Visitor(ast.NodeVisitor):
         self.forwarding = forwarding
         self.scope = []
         self.classes = []
+        self.params = []
         self.called = set()
         self.found = []
 
@@ -309,8 +340,20 @@ class Visitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         self.scope.append(node.name)
+        self.params.append({a.arg for a in node.args.args
+                            + node.args.kwonlyargs})
         self.generic_visit(node)
+        self.params.pop()
         self.scope.pop()
+
+    def is_pass_through(self, mechanism, node):
+        """A generic base class handing its own `path` parameter to its base
+        (`AccountListPage.__init__`). Its callers name the path and are
+        checked there."""
+        return (mechanism in ('super().__init__', 'PagedList.__init__')
+                and bool(self.classes) and self.classes[-1] in PATH_BASES
+                and bool(self.params) and isinstance(node, ast.Name)
+                and node.id in self.params[-1])
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
@@ -332,6 +375,11 @@ class Visitor(ast.NodeVisitor):
             registered = MECHANISMS[mechanism][0] == 'helper' \
                 and is_registered(path_node(node, mechanism), mechanism,
                                   self.api_names)
+            if mechanism == 'send_path':
+                registered = self.rel in SEND_PATH_FILES \
+                    and is_variable_path(path_node(node, mechanism))
+            elif self.is_pass_through(mechanism, path_node(node, mechanism)):
+                registered = True
             if text is not None and not registered:
                 self.add(mechanism, text, MECHANISMS[mechanism][0],
                          node.lineno)
@@ -725,6 +773,37 @@ def self_check():
                                        "'/accounts/search'"),
                        'src/mentioncompleter.py')) == 1,
           'self-check: a hook returning a literal path is still a site')
+
+    sp_var = ("def go(self):\n"
+              "    api_core.send_path(self.client, 'GET', self.fetch_path)\n")
+    check(scan_source('src/pages.py', sp_var) == [],
+          'self-check: core.send_path with a variable path is allowed in '
+          'a helper file')
+    check(len(scan_source('src/timeline.py', sp_var)) == 1,
+          'self-check: core.send_path with a variable path fails outside '
+          'the helper files')
+    for body in ("'/statuses'", "'/a/%s' % x", "f'/a/{x}'",
+                 "api_accounts.list_path('mutes')"):
+        check(len(scan_source('src/pages.py', (
+            "def go(self):\n"
+            "    api_core.send_path(self.client, 'GET', %s)\n" % body))) == 1,
+              'self-check: core.send_path with %s fails even in a helper '
+              'file' % body)
+    check(len(scan_source('src/other.py', (
+        "def go(client):\n"
+        "    api_core.send_path(client, 'GET', '/statuses')\n"))) == 1,
+          'self-check: core.send_path with a literal in a UI file fails')
+    passthrough = ("class AccountListPage(PagedList):\n"
+                   "    def __init__(self, client, path, row):\n"
+                   "        super().__init__(client, path, row)\n")
+    check(scan_source('src/pages.py', passthrough) == [],
+          'self-check: a generic base forwarding its own path parameter '
+          'is allowed')
+    check(len(scan_source('src/pages.py', passthrough.replace(
+        'client, path, row):', 'client, row):').replace(
+        'super().__init__(client, path', "super().__init__(client, '/m'"))
+          ) == 1,
+          'self-check: a base forwarding a literal path is a site')
 
 
 CLIENT_NAMES = ('client', '_client')

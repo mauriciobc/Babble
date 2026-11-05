@@ -26,6 +26,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, GLib, Gio, Gtk, Pango  # noqa: E402
 
+from .api import core as api_core  # noqa: E402
 from .api import search as api_search  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 from .statustext import is_web_link, split_url  # noqa: E402
@@ -752,8 +753,8 @@ class PagedList(PagedPosts, Adw.Bin):
         if self.paginated:
             params.setdefault('limit', PAGE_SIZE)
         generation = self._generation
-        self.client.request_async(
-            self.method, self.fetch_path, params=params,
+        api_core.send_path(
+            self.client, self.method, self.fetch_path, params=params,
             callback=lambda c, r, _d=None, g=generation:
                 self._on_loaded(c, r, g),
             cancellable=None)
@@ -770,8 +771,8 @@ class PagedList(PagedPosts, Adw.Bin):
         params = dict(self.params)
         params.update(self._next)
         generation = self._generation
-        self.client.request_async(
-            self.method, self.fetch_path, params=params,
+        api_core.send_path(
+            self.client, self.method, self.fetch_path, params=params,
             callback=lambda c, r, _d=None, g=generation:
                 self._on_loaded(c, r, g))
 

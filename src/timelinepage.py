@@ -16,6 +16,7 @@ from gi.repository import (Adw, GLib, Gio,  # noqa: E402
 
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
+from .api import core as api_core  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
@@ -122,8 +123,8 @@ class ApiTimelineSource:
                 # silently did not, would page past everything newer.
                 self._next = None
             self._older_request = 'max_id' in params
-        self.client.request_async('GET', self.path, params=merged,
-                                  callback=callback)
+        api_core.send_path(self.client, 'GET', self.path, params=merged,
+                           callback=callback)
 
     def finish(self, result):
         data, next_params, _prev = self.client.request_finish_paged(result)

@@ -22,6 +22,11 @@ except ImportError:  # loaded as a top-level module by the standalone tests
 
 from gi.repository import GLib, GObject, Gio, Secret, Soup  # noqa: E402
 
+try:
+    from .api import instance as api_instance  # noqa: E402
+except ImportError:  # loaded as a top-level module by the standalone tests
+    from api import instance as api_instance  # noqa: E402
+
 # Reverse proxies routinely refuse the default libsoup User-Agent
 # ("libsoup/3.0") outright: ursal.zone's nginx answers POST /api/v1/apps
 # with 403 to it while the very same request carrying an application
@@ -829,8 +834,8 @@ class MastodonClient(GObject.Object):
             client._instance_info_in_flight = False
             client._complete_instance_info_waiters(error)
 
-        return self._request_async('GET', '/api/v2/instance',
-                                   callback=loaded, cancellable=cancellable)
+        return api_instance.info_async(self, callback=loaded,
+                                       cancellable=cancellable)
 
     def _complete_instance_info_waiters(self, error):
         waiters = self._instance_info_waiters

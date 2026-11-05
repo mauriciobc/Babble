@@ -79,6 +79,25 @@ def send(client, endpoint, *path_args, params=None, form=None,
                                 callback=callback, cancellable=cancellable)
 
 
+def send_path(client, method, path, params=None, callback=None,
+              cancellable=None):
+    """Queue a call whose path the CALLER supplies, not a declaration.
+
+    This is the one place outside ``mastodon.py`` where a path that is not
+    a declared :class:`Endpoint` is sent. It exists for the generic helpers
+    (``pages.PagedList``, ``timelinepage.ApiTimelineSource`` and the
+    completers' ``search_request`` hook), which page or search whatever
+    path their caller hands over. That path comes from a registered
+    accessor (``list_path(kind, ...)``, ``search_path()``, ...) or from the
+    helper's own subclass, and ``api boundary`` checks the caller where it
+    names the path. Nothing else may call this with a literal or a
+    template: ``api boundary`` fails on it, and allows a variable path only
+    in the three files that hold those helpers. Finish with :func:`finish`
+    or :func:`finish_paged`."""
+    return client.request_async(method, path, params=params,
+                                callback=callback, cancellable=cancellable)
+
+
 def send_multipart(client, endpoint, *path_args, fields=None, files=None,
                    callback=None, cancellable=None):
     """Format the path with ``path_args`` and queue a multipart/form-data

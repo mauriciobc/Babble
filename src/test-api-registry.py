@@ -19,6 +19,13 @@ The rules are proved on a synthetic registry too: one good endpoint passes,
 and each rule has a bad endpoint that must fail it. The real registry is
 imported from the resource modules and its size is asserted, so the test
 cannot pass by checking nothing. This test needs no display.
+
+The same test keeps the "Endpoints" table of `Docs/mastodon-compat.md` in step
+with the registry: the block between `<!-- api-table:start -->` and
+`<!-- api-table:end -->` is generated, never edited by hand, and the test
+fails when it differs from `render_table(core.registry)`. Regenerate it with
+
+    python3 src/test-api-registry.py --write-table
 """
 
 import os
@@ -55,7 +62,7 @@ PAGED_MODULES = tuple(m for m in RESOURCE_MODULES
                                    annual_reports, polls, reports, media))
 MINIMUM_ENDPOINTS = (53 + 9 + 4 + 4 + 3 + 9 + 1 + 6 + 2 + 1 + 9
                      + 3 + 2 + 1 + 4 + 1 + 29 + 9 + 2 + 1
-                     + 2 + 2 + 2)  # 159: statuses, accounts, media (3c)
+                     + 2 + 2 + 2 + 1)  # 160: statuses, accounts, media (3c)
 
 failed = False
 
@@ -260,5 +267,56 @@ check('every list-served endpoint is a GET: %s'
       non_get_lists(RESOURCE_MODULES) == [])
 check('every resource module serves at least one list',
       all(getattr(m, 'LISTS', None) for m in PAGED_MODULES))
+
+TABLE_START = '<!-- api-table:start -->'
+TABLE_END = '<!-- api-table:end -->'
+COMPAT = os.path.join(os.path.dirname(os.path.abspath(srcdir)), 'Docs',
+                      'mastodon-compat.md')
+
+
+def render_table(registry):
+    """The markdown table of *registry*, one row per endpoint."""
+    lines = ['| Method | Path | Scope | Mastodon | Deprecated | Docs |',
+             '|---|---|---|---|---|---|']
+    for endpoint in sorted(registry.values(),
+                           key=lambda e: (e.path, e.method, e.name)):
+        lines.append('| %s | `%s` | %s | %s | %s | [docs](%s) |' % (
+            endpoint.method, endpoint.path,
+            '`%s`' % endpoint.scope if endpoint.scope else 'none',
+            endpoint.mastodon_version or '',
+            endpoint.deprecated or '', endpoint.docs))
+    return '\n'.join(lines)
+
+
+def splice_table(text, table):
+    """*text* with the generated block replaced by *table*, or None when
+    the markers are missing."""
+    start, end = text.find(TABLE_START), text.find(TABLE_END)
+    if start < 0 or end < start:
+        return None
+    return (text[:start + len(TABLE_START)] + '\n' + table + '\n'
+            + text[end:])
+
+
+with open(COMPAT, encoding='utf-8') as handle:
+    compat_text = handle.read()
+fresh = splice_table(compat_text, render_table(core.registry))
+if '--write-table' in sys.argv and fresh is not None:
+    with open(COMPAT, 'w', encoding='utf-8') as handle:
+        handle.write(fresh)
+    print('wrote %s' % COMPAT)
+    compat_text = fresh
+check('splice_table needs both markers',
+      splice_table('no markers', 'x') is None
+      and splice_table('%s\nold\n%s' % (TABLE_START, TABLE_END), 'new')
+      == '%s\nnew\n%s' % (TABLE_START, TABLE_END))
+changed = dict(core.registry)
+first = sorted(changed)[0]
+changed[first] = core.dataclasses.replace(changed[first], scope='read:x')
+check('the table differs when an endpoint changes',
+      render_table(changed) != render_table(core.registry))
+check('Docs/mastodon-compat.md Endpoints table is current '
+      '(regenerate: python3 src/test-api-registry.py --write-table)',
+      fresh is not None and fresh == compat_text)
 
 sys.exit(1 if failed else 0)
