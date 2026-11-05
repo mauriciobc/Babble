@@ -206,6 +206,63 @@ Commit message for the set: `fix: numeric id order, role admin bits, chunked
 account lookup, repeated Link keys, clearing a collection topic, search
 offset (audit 5b)`.
 
+### 5d: instance limits and the unread cap
+
+Tests are in `src/test-instance-limits.py` (`instance limits`); each check
+was written first and the file failed with an ImportError before the fix.
+The golden file did not change (no scenario records these requests).
+
+1. **Poll limits hard-coded.** **REAL, FIXED.** `compose.py` offered four
+   options and four fixed durations and capped nothing else. Source:
+   `configuration.polls` (docs.joinmastodon.org/entities/Instance/#polls).
+   `MastodonClient.poll_limits()` reads `max_options`,
+   `max_characters_per_option`, `min_expiration`, `max_expiration`. The
+   composer reads them live (the dialog is cached per client and the
+   document can arrive after it is built): option rows are capped at
+   `max_options`, the option entry's max length is set, and the fixed
+   durations are narrowed to the range (min and max themselves when none
+   fits). Fallbacks: 4 options (Mastodon's default); no length cap and no
+   duration bound when unsaid, because the server rejects what it refuses
+   and a guess could block a valid poll. A `max_options` under 2 is
+   treated as unsaid. Draft restore refuses more options than allowed.
+   A duration restored from a saved post stays offered even when outside
+   the range. A legacy draft's `expires` index is now mapped through the
+   fixed list to seconds.
+2. **Alt text length.** **REAL, FIXED in the composer.**
+   `configuration.media_attachments.description_limit` (#media_attachments;
+   1500 default since 4.4.0, 420 before) was never read for composer
+   attachments. `media_description_limit()` returns it; the attachment's
+   entry gets it as max length. Unsaid gives 420: a server that says
+   nothing may be a pre-4.4 Mastodon that answers 422 above 420, while the
+   lower cap only costs a longer description on a modern server that
+   advertises nothing. The entry truncates silently (no visible counter).
+   The profile editor already enforced
+   `max_avatar_description_length` and `max_header_description_length`
+   (`profileedit.account_limits`, stock 150): nothing to change there.
+3. **`unread_count` without `limit`.** **REAL, FIXED.** The docs default
+   to 100 and allow 1000, so a user with more unread saw an exact-looking
+   "100". Babble now sends `limit=100` explicitly
+   (`api.notifications.UNREAD_COUNT_LIMIT`, the number the display is
+   derived from) and shows `100+` from that count up (badge, sidebar rail
+   badge and both accessible labels; `unread_badge_text`). Counts raised
+   by streamed notifications past the limit also show `100+`. The request
+   changes by one query parameter; no golden scenario records the
+   controller's call, and the wrapper scenario already used `limit=100`.
+4. **Status limits.** `max_characters` is read (`char_limit`, 500
+   unsaid) and `max_media_attachments` is read (`attachment_limit()`, 4
+   unsaid): **NOT REAL.** `characters_reserved_per_url` was hard-coded at
+   23: **REAL, FIXED** (`characters_reserved_per_url()` feeds the counter;
+   23 unsaid). `statuses.supported_mime_types` is not part of this audit.
+   Not enforced anywhere: `configuration.statuses` has no `language`
+   key; the post `language` is a request field (the composer sends the
+   picker's value) and nothing in the document limits it.
+
+Unverified: no live server (a custom document with other poll limits was
+not available); the 420 for pre-4.4 servers is from the docs text, not
+from a server run. Translations: the new strings are not yet in `po/`
+(`meson compile -C build babble-pot babble-update-po` would rewrite
+every line reference, so it was left out of this change).
+
 ## 2. Documentation sources and what could not be verified
 
 Fetched and used: `/methods/` statuses, accounts, lists, timelines,
@@ -369,7 +426,7 @@ used in section 4.
 | Id | Method path | Params | Docs: scope; added | Gate | Verdict |
 |---|---|---|---|---|---|
 | NT-1 | GET /notifications | `types[]`, `exclude_types[]`, `account_id`, `include_filtered`, ids, `limit` | `read:notifications`; `include_filtered` 4.3.0; 40/80 | none | COMPLIANT |
-| NT-2 | GET /notifications/unread_count | `types[]`, `exclude_types[]` | `read:notifications`; **4.3.0** | none | COMPLIANT (ungated; code comment says "4.0+", docs say 4.3.0) |
+| NT-2 | GET /notifications/unread_count | `types[]`, `exclude_types[]`, `limit` (default 100, max 1000) | `read:notifications`; **4.3.0** | none | COMPLIANT after 5d (sends `limit=100`, badge shows `100+`; ungated; code comment says "4.0+", docs say 4.3.0) |
 | NT-3 | POST /notifications/clear | none | `write:notifications` | none | COMPLIANT |
 | NT-4 | POST /notifications/:id/dismiss | none | `write:notifications`; 1.3.0 | none | COMPLIANT |
 | NT-5 | GET /api/v2/notifications/policy | none | `read:notifications`; 4.3.0 | none | COMPLIANT (ungated) |

@@ -20,6 +20,7 @@ from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import lists as api_lists  # noqa: E402
+from .api.notifications import unread_badge_text  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from . import pluginmenu  # noqa: E402
 from . import navigation  # noqa: E402
@@ -1207,19 +1208,26 @@ class BabbleWindow(Adw.ApplicationWindow):
     def on_unread_changed(self, page, count):
         if page is not None and page is not self.notifications_page:
             return
-        self.notifications_badge.set_label(str(count) if count else '')
+        text = unread_badge_text(count)
+        self.notifications_badge.set_label(text)
         was_shown = self.notifications_badge.get_visible()
         self.notifications_badge.set_visible(bool(count))
         if count and not was_shown:
             pages.flash_class(self.notifications_badge, 'just-toggled')
-        description = ngettext('%d unread notification',
-                               '%d unread notifications', count) % count \
-            if count else ''
+        if not count:
+            description = ''
+        elif text.endswith('+'):
+            # Translators: accessible label of the notifications badge when
+            # the server counted only up to its limit; %s is such as "100+".
+            description = _('%s unread notifications') % text
+        else:
+            description = ngettext('%d unread notification',
+                                   '%d unread notifications', count) % count
         self.notifications_badge.update_property(
             [Gtk.AccessibleProperty.LABEL], [description])
-        self.props.unread_text = str(count) if count else ''
+        self.props.unread_text = text
         self.props.unread_visible = bool(count)
-        self.sidebar_rail.set_badge(count)
+        self.sidebar_rail.set_badge(count, text)
 
     def _timeline_place(self, kind, params, icon, title, description):
         page = TimelinePage(self.client, source=ApiTimelineSource(

@@ -36,6 +36,10 @@ _RELATIONSHIPS = {}
 _RELATIONSHIPS_PENDING = set()
 
 
+UNREAD_COUNT_LIMIT = api_notifications.UNREAD_COUNT_LIMIT
+unread_badge_text = api_notifications.unread_badge_text
+
+
 def filtering_supported(client):
     """Whether the server has the 4.3.0 notification features: the
     policy, its requests and ``unread_count``.
@@ -465,9 +469,9 @@ class NotificationController:
         exclusions as the list."""
         if not filtering_supported(self.client):
             return
-        params = None
+        params = {'limit': UNREAD_COUNT_LIMIT}
         if self._applied_excluded:
-            params = {'exclude_types[]': sorted(self._applied_excluded)}
+            params['exclude_types[]'] = sorted(self._applied_excluded)
         api_notifications.unread_count_async(
             self.client, params=params, callback=self.on_unread_count)
 

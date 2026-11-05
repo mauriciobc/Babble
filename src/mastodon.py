@@ -58,6 +58,13 @@ MAX_RATE_LIMIT_SECONDS = 3600
 # Mastodon's own default per-post attachment count, used when an
 # instance does not advertise one (Status::MEDIA_ATTACHMENTS_LIMIT).
 DEFAULT_MAX_MEDIA_ATTACHMENTS = 4
+# Poll options when ``configuration.polls.max_options`` is unsaid.
+DEFAULT_MAX_POLL_OPTIONS = 4
+# Alt text length when ``description_limit`` is unsaid: the pre-4.4 value,
+# the one an old server cannot refuse (4.4.0 raised it to 1500).
+DEFAULT_DESCRIPTION_LIMIT = 420
+# Characters a link counts for (``characters_reserved_per_url``).
+DEFAULT_URL_CHARACTERS = 23
 
 # libsoup 3 does not name HTTP 429, so the wire value is spelled out.
 HTTP_TOO_MANY_REQUESTS = 429
@@ -900,6 +907,61 @@ class MastodonClient(GObject.Object):
         except (TypeError, ValueError):
             return DEFAULT_MAX_MEDIA_ATTACHMENTS
         return limit if limit > 0 else DEFAULT_MAX_MEDIA_ATTACHMENTS
+
+    def poll_limits(self):
+        """``configuration.polls`` as a dict: ``max_options`` (4 when
+        unsaid, Mastodon's own default) and the three bounds the docs name
+        (docs.joinmastodon.org/entities/Instance/#polls),
+        ``max_characters_per_option``, ``min_expiration`` and
+        ``max_expiration``, each None when the server does not say. None
+        means no bound to enforce, which is the safe direction to fail in:
+        the server answers a poll it refuses. A value that is not a
+        positive integer counts as unsaid, and so does a ``max_options``
+        under two, which no poll can use.
+        """
+        polls = (((self.instance_info or {}).get('configuration') or {})
+                 .get('polls') or {})
+
+        def positive(name):
+            value = polls.get(name)
+            if isinstance(value, bool) or not isinstance(value, int) \
+                    or value <= 0:
+                return None
+            return value
+        options = positive('max_options')
+        return {
+            'max_options': options if options and options >= 2
+            else DEFAULT_MAX_POLL_OPTIONS,
+            'max_characters_per_option': positive('max_characters_per_option'),
+            'min_expiration': positive('min_expiration'),
+            'max_expiration': positive('max_expiration'),
+        }
+
+    def media_description_limit(self):
+        """Longest alt text one attachment takes.
+
+        ``configuration.media_attachments.description_limit`` (docs: 1500
+        by default since 4.4.0). A server that says nothing gets the older
+        420, because it may be a pre-4.4 Mastodon that refuses anything
+        longer with a 422; the lower number is the one that cannot fail.
+        """
+        value = self._media_configuration().get('description_limit')
+        if isinstance(value, bool) or not isinstance(value, int) \
+                or value <= 0:
+            return DEFAULT_DESCRIPTION_LIMIT
+        return value
+
+    def characters_reserved_per_url(self):
+        """How many characters a link counts for in a post
+        (``configuration.statuses.characters_reserved_per_url``), 23 until
+        the instance says."""
+        info = self.instance_info or {}
+        statuses = (info.get('configuration') or {}).get('statuses') or {}
+        value = statuses.get('characters_reserved_per_url')
+        if isinstance(value, bool) or not isinstance(value, int) \
+                or value <= 0:
+            return DEFAULT_URL_CHARACTERS
+        return value
 
     def media_size_limits(self):
         """``(image_bytes, video_bytes)`` from the instance, either None

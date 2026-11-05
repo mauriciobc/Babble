@@ -97,6 +97,23 @@ def index_finish(client, result):
     return core.finish(client, result)
 
 
+# ``limit`` of unread_count: the docs default is 100 and the maximum 1000.
+# Babble sends the default explicitly because the badge's "100+" is derived
+# from it: a count that reaches it means "at least this many".
+UNREAD_COUNT_LIMIT = 100
+
+
+def unread_badge_text(count):
+    """The badge's text: the exact count, or ``100+`` once the count
+    reaches the limit the server counts up to, where it is a floor and not
+    a number."""
+    if count <= 0:
+        return ''
+    if count >= UNREAD_COUNT_LIMIT:
+        return '%d+' % UNREAD_COUNT_LIMIT
+    return str(count)
+
+
 def unread_count_async(client, params=None, callback=None,
                        cancellable=None):
     return core.send(client, UNREAD_COUNT, params=params, callback=callback,

@@ -37,6 +37,26 @@ Mastodon 4.4.0). Babble does all four.
 | `GET /accounts?id[]=` | 4.3.0 | not gated: only reached through Collections, which needs v10 | `fedicollections` |
 | `supported_types[]` on `GET /notifications` | 4.6.0 (v10) | not sent: Babble renders no notification `fallback` | none |
 
+## Limits the instance document advertises
+
+Read through `MastodonClient` accessors from `instance_info['configuration']`,
+never by indexing the dict at the call site. A limit is not a version gate: a
+server that says nothing gets a fallback, and the server still answers what it
+refuses.
+
+| Limit | Docs | Accessor | Unsaid | Enforced in |
+|---|---|---|---|---|
+| `statuses.max_characters` | [#statuses](https://docs.joinmastodon.org/entities/Instance/#statuses) | `max_characters()` | 500 | composer counter, `can_post` |
+| `statuses.max_media_attachments` | #statuses | `max_media_attachments()` | 4 | `attachment_limit()` |
+| `statuses.characters_reserved_per_url` | #statuses | `characters_reserved_per_url()` | 23 | `counted_length()` |
+| `polls.max_options` | [#polls](https://docs.joinmastodon.org/entities/Instance/#polls) | `poll_limits()['max_options']` | 4 | rows of the poll editor, draft restore |
+| `polls.max_characters_per_option` | #polls | `poll_limits()` | no cap | option entry max length |
+| `polls.min_expiration`, `max_expiration` | #polls | `poll_limits()` | fixed list | `poll_duration_choices()`; min and max when none of the fixed list fits |
+| `media_attachments.description_limit` | [#media_attachments](https://docs.joinmastodon.org/entities/Instance/#media_attachments) | `media_description_limit()` | 420 (pre-4.4; 4.4.0 raised the default to 1500) | composer attachment entry |
+| `media_attachments.image_size_limit`, `video_size_limit` | #media_attachments | `media_size_limits()` | none | `attachment_refusal` |
+| `accounts.max_*` | [#accounts](https://docs.joinmastodon.org/entities/Instance/#accounts) | `profileedit.account_limits` | stock values | profile editor, including avatar and header descriptions |
+| `GET /notifications/unread_count` `limit` | [#unread-count](https://docs.joinmastodon.org/methods/notifications/#unread-count) | `api.notifications.UNREAD_COUNT_LIMIT` | 100 sent explicitly (default 100, max 1000) | badge shows `100+` at the limit |
+
 The API number of a release is `api_versions.mastodon` in
 `lib/mastodon/version.rb` at its tag: 2 at v4.3.0 to v4.3.9, 6 at v4.4.0, 7
 at v4.5.0, 10 at v4.6.0, 11 at v4.6.1. The docs name a number only from 4.4.0
