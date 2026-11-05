@@ -40,7 +40,13 @@ _JSON = ('JSON body; the docs label the parameters form data but their '
 CREATE = _declare('create', 'POST', '/collections', 'write:collections',
                   '#create',
                   note='%s: name, description, language, sensitive, '
-                       'discoverable, tag_name, account_ids' % _JSON)
+                       'discoverable, tag_name, account_ids. `tag_name` '
+                       'may carry a leading `#` or not: `Collection#tag_name=` '
+                       'goes through `Tag.find_or_create_by_names`, whose '
+                       '`HashtagNormalizer` drops every character outside '
+                       'letters, digits and the separators, `#` included '
+                       '(main), and the response spells it back as '
+                       '`#name`; Babble sends `#name` (audit 5f)' % _JSON)
 GET = _declare('get', 'GET', '/collections/%s', 'read:collections',
                '#get_collection',
                note='public, or a user token with read:collections; '
@@ -63,7 +69,11 @@ REVOKE_ITEM = _declare('revoke_item', 'POST',
 BY_ACCOUNT = _declare('by_account', 'GET', '/accounts/%s/collections',
                       'read:collections', '#get_collections',
                       note='public, or a user token with read:collections; '
-                           'paged with limit and offset')
+                           'paged with limit and offset. The docs say '
+                           'default 40, max 80; collections_controller has '
+                           'DEFAULT_COLLECTIONS_LIMIT = 40 and '
+                           'MAX_COLLECTIONS_LIMIT = 100 (main). Babble '
+                           'sends 40, inside both (audit 5f)')
 IN_COLLECTIONS = _declare('in_collections', 'GET',
                           '/accounts/%s/in_collections', 'read:collections',
                           '#in_collections',

@@ -22,7 +22,7 @@ Mastodon 4.4.0). Babble does all four.
 | Profile tabs (`PATCH /api/v1/profile`) | 4.6.0 (v8) | `>= 8` | `profileedit.PROFILE_TABS_VERSION` |
 | Avatar/header alt text (`PATCH /profile`) | 4.6.0 (v9) | `>= 9` | `profileedit.PROFILE_ALT_TEXT_VERSION` |
 | Avatar/header alt text (`PATCH /accounts/update_credentials`) | 4.6.1 (v11) | not used; carried by `/profile` instead | `profileedit.collect` |
-| `endorse`/`unendorse` aliases | 4.6.0 (v6) | `is_supported(ENDORSE_API_VERSION, when_unknown=True)`; a 404 retries `pin`/`unpin` | `ProfilePage.set_endorsed` |
+| `endorse`/`unendorse` aliases | 4.4.0 (v6, read off v4.4.0; the routes are absent at v4.3.8) | `is_supported(ENDORSE_API_VERSION, when_unknown=True)`; a 404 retries `pin`/`unpin` | `ProfilePage.set_endorsed` |
 | Translation (`POST /statuses/:id/translate`) | 4.0.0 | `configuration.translation.enabled` | `timeline._translation_enabled` |
 | Live feed access (`live_feeds`) | 4.5.0 | `configuration.timelines_access` | `streaming.public_feed_access` |
 | Trending-link timeline | 4.3.0 | `is_supported(LINK_TIMELINE_API_VERSION)` | `explore.supports_link_timeline` |

@@ -334,6 +334,53 @@ for label, version in around(gate) + [('unknown', UNKNOWN)]:
           % ('read' if want else 'not read', label),
           bool(client.sent(*ENDORSEMENTS)) == want, client.requests)
 
+# -- 7. Notification types: the entity page's version history ---------
+from src.notificationcopy import type_offered  # noqa: E402
+
+for kind, gate in caps.NOTIFICATION_TYPE_API_VERSIONS.items():
+    for label, version in around(gate) + [('unknown', UNKNOWN)]:
+        want = version is UNKNOWN or version >= gate
+        check('%s is %s on a server %s its gate (v%s)'
+              % (kind, 'offered' if want else 'not offered', label, version),
+              type_offered(RecordingClient(version), kind) == want)
+check('a type with no gate is offered on the oldest server',
+      type_offered(RecordingClient(0), 'mention'))
+check('every gated type is a type the filter lists',
+      set(caps.NOTIFICATION_TYPE_API_VERSIONS)
+      <= {k for k, _l in notifications.NOTIFICATION_TYPES})
+
+for label, version in (('below', caps.QUOTES_API_VERSION - 1),
+                       ('at', caps.COLLECTIONS_API_VERSION)):
+    dialog = notifications.NotificationPolicyDialog(RecordingClient(version))
+    shown = {k for k, row in dialog.type_rows.items() if row.get_visible()}
+    want = {k for k, _l in notifications.NOTIFICATION_TYPES
+            if type_offered(RecordingClient(version), k)}
+    check('the type switches follow the gate on a server %s it' % label,
+          shown == want, (shown, want))
+    check('and quote switches are %s' % ('hidden' if label == 'below'
+                                         else 'shown'),
+          ('quote' in shown) == (label != 'below'))
+
+# -- 8. Editing a post sends only what PUT /statuses/:id permits -------
+client = RecordingClient(caps.COLLECTIONS_API_VERSION)
+view = compose.BabbleComposeView(client)
+view.start_edit({'id': '900', 'text': 'edited', 'visibility': 'unlisted',
+                 'language': 'en', 'spoiler_text': '',
+                 'in_reply_to_id': '5', 'media_attachments': []})
+pump()
+view.quoted_status_id = '55'
+view._scheduled_fields['quote_approval_policy'] = 'nobody'
+view.send_status()
+puts = client.sent('PUT', '/statuses/900')
+body = puts[0][2]['json'] if puts else {}
+check('an edit goes to PUT /statuses/:id', bool(puts), client.requests)
+check('an edit keeps its permitted fields',
+      body.get('status') == 'edited' and 'language' in body
+      and body.get('quote_approval_policy') == 'nobody', body)
+check('an edit leaves out create-only fields',
+      not ({'visibility', 'in_reply_to_id', 'quoted_status_id',
+            'scheduled_at'} & set(body)), body)
+
 if failures:
     print('%d checks failed' % len(failures))
     sys.exit(1)

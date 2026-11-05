@@ -82,6 +82,14 @@ REST_BACKOFF_MAX = 30.0
 # POST /statuses whose response was lost *after* the server committed it
 # looked exactly like a failure, so retrying asked for the post a second
 # time and the reader got one status while the instance held two.
+# Known and accepted (audit 5f): a DELETE whose first answer was lost, then
+# repeated, finds the object gone and the caller sees a 404 for what did
+# succeed. Only a transport error or a 5xx repeats a request, so the window
+# is narrow, and the 404 is not turned into a success on purpose: a
+# successful DELETE /statuses/:id answers with the deleted status, whose text
+# a redraft needs, and a 404 cannot supply it, so a made-up success would
+# open an empty composer where an error now says what happened. The state
+# the reader wanted is the state they have.
 IDEMPOTENT_METHODS = ('GET', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE')
 
 # A parsed number below this is not an instant: 2000-01-01T00:00:00Z. It

@@ -856,8 +856,13 @@ def client_post_reply_edit(rec):
                         'poll': {'options': ['a', 'b'], 'expires_in': 300}})
     api_wrapper(rec, 'reply_async', 100, 'answer',
                 params={'visibility': 'public'})
+    # The composer hands over its whole draft; an edit keeps only the keys
+    # PUT /statuses/:id permits (audit 5f), so the rest never reaches the wire.
     api_wrapper(rec, 'edit_async', '100', 'edited',
-                params={'spoiler_text': 'cw'})
+                params={'spoiler_text': 'cw', 'visibility': 'public',
+                        'in_reply_to_id': '7', 'quoted_status_id': '8',
+                        'scheduled_at': '2030-01-01T00:00:00Z',
+                        'quote_approval_policy': 'nobody'})
 
 
 @scenario

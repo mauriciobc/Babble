@@ -123,11 +123,9 @@ The one known live bug is listed separately below.
 3. **`endorse`/`unendorse` gate is `api_versions >= 6` / "4.6.0"
    (`capabilities.ENDORSE_API_VERSION`), but the accounts page says
    `endorse`/`unendorse` were added and `pin`/`unpin` deprecated in 4.4.0.**
-   One of the two is wrong. The docs page for `/api/v1/instance` only says
-   `api_versions` was added in 4.3.0 and does not map numbers to releases
-   (UNVERIFIED), so the constant cannot be checked from the docs. Babble
-   falls back to the deprecated `pin`/`unpin` on a 404, which is correct for
-   old servers.
+   **RESOLVED (5f):** the docs are right and the gate was right; the
+   comment was wrong. v4.4.0 reads `api_versions` 6 and has the routes,
+   v4.3.8 reads 2 and has none; 4.6.0 reads 10. See 5f item 2.
 4. **`POST /api/v1/apps` app registration joins `redirect_uris` with a space**
    (`mastodon.register_app_async`). The docs allow "String or Array of
    Strings" and do not say the string delimiter. The only separator the
@@ -191,7 +189,10 @@ The one known live bug is listed separately below.
     announcement reactions return 400 when disabled on the server
     (5.0.0 change on the page). Check `announcements.py` shows the server
     message instead of a generic one.
-   **DONE (5a):** checked: `announcements.py` reports reaction failures via `report_error` with the server message (`summarize_error`), not a generic one; nothing to change.
+   **DONE (5a), wording corrected in 5f:** the reaction failures show the
+   server message (`report_error`, `summarize_error`). The parameter was in
+   fact *sent* (`AnnouncementsPage` passed `with_dismissed=true`); 5f found the
+   server ignores it and stopped sending it.
 
 ### 5b: findings of the independent audit
 
@@ -296,6 +297,93 @@ from a server run. Translations: the new strings are not yet in `po/`
 (`meson compile -C build babble-pot babble-update-po` would rewrite
 every line reference, so it was left out of this change).
 
+### 5f: remaining corrections
+
+Each claim was checked in the code and in the server source
+(`raw.githubusercontent.com/mastodon/mastodon` at `main` and the tags named).
+The golden file changed in two places (listed); `feature gates` gained the
+checks for items 4 and 5.
+
+1. **`with_dismissed` on `GET /announcements`.** **REAL, FIXED.**
+   `announcements_controller#set_announcements` is
+   `Announcement.published.chronological` at main, v4.3.0, v4.4.0 and
+   v4.5.0; no code reads the parameter, and each announcement carries its own
+   `read` flag. `AnnouncementsPage` no longer sends it (golden: the six
+   announcements requests lose `?with_dismissed=true`). The registry note and
+   docstring now say it takes no parameters; item 10 above said "not sent",
+   which was wrong.
+2. **Endorse API number.** **REAL (comment only), RESOLVED.**
+   `lib/mastodon/version.rb`: `api_versions.mastodon` is 2 at v4.3.8, 6 at
+   v4.4.0, 7 at v4.5.0, 10 at v4.6.0. `config/routes/api.rb` has `endorse`
+   and `unendorse` at v4.4.0 and not at v4.3.8. So 6 is 4.4.0, as the accounts
+   page says. The `capabilities.py` comment and the `mastodon-compat.md` row
+   said 4.6.0; both fixed. The registry's `mastodon_version` was already
+   4.4.0. The constant stays 6. AC-14 and item 3 are marked resolved.
+3. **`post_async` idempotency docstring.** **NOT REAL as written; docstring
+   corrected.** The claim was that a repeated key returns the id string.
+   `PostStatusService` returns the stored record at every version: v4.3.0,
+   v4.4.0, v4.5.0 `return idempotency_duplicate` (an
+   `@account.statuses.find(id)` or `scheduled_statuses.find`), main raises
+   `IdempotencyError, idempotency_duplicate` rescued to `e.status`. Sending a
+   key is therefore safe on current versions (key per account, one hour, set
+   only after a successful create). Difference: main runs the check under a
+   Redis lock, 4.3 to 4.5 do not, so two concurrent requests with one key can
+   both create there. The key is still not sent because `IDEMPOTENT_METHODS`
+   excludes POST: nothing would repeat the request, so the header would do
+   nothing until the transport retries a keyed POST.
+4. **`PUT /statuses/:id` body.** **REAL, FIXED.** `statuses_controller#update`
+   passes only `status`, `media_ids`, `media_attributes`, `sensitive`,
+   `language`, `spoiler_text`, `poll` and (from 4.5.0, when present)
+   `quote_approval_policy` to `UpdateStatusService`; `visibility`,
+   `in_reply_to_id`, `quoted_status_id` and `scheduled_at` are permitted
+   params of create only. The scheduled-item concern does not apply: editing a
+   scheduled post sets `scheduled_id`, not `editing_id` (`_clear_submission_mode`
+   resets both), and it saves through `POST /statuses` followed by deleting the
+   scheduled item, so `scheduled_at` is never on a PUT in practice. No real
+   flow needs the dropped keys. `api.statuses.edit_async` now keeps only
+   `EDIT_FIELDS`. Golden: the edit scenario now hands the composer's whole
+   draft and records the PUT with only `spoiler_text` and
+   `quote_approval_policy` (new key, in the permitted set); the visibility,
+   reply, quote and schedule keys it was given are absent.
+5. **Notification type lists.** **REAL (docs inconsistency), partly acted
+   on.** The Notification entity page's `type` history is the complete one:
+   `severed_relationships` and `moderation_warning` 4.3.0, `quote` and
+   `quoted_update` 4.5.0 (API 7), `added_to_collection` and
+   `collection_update` 4.6.0 (API 10); the methods page lists only the older
+   types. It lists no `annual_report`, which the server has
+   (`Notification::PROPERTIES`), so the entity page is incomplete too. All
+   six are real server types, hence valid `types[]`/`exclude_types[]` values;
+   `Notification.browserable` does `types & TYPES` and `requested - exclude`,
+   so a type an older server does not know is dropped silently (no 422) and
+   `exclude_types[]` is harmless. The quick filter sends only `mention`. What
+   was wrong was offering a switch that cannot do anything: the six now show
+   in the Filter menu and the "Show Notifications For" rows only on a server
+   at or above the entity page's number (`capabilities.
+   NOTIFICATION_TYPE_API_VERSIONS`, `notificationcopy.type_offered`), with
+   `when_unknown=True` so a server that reports nothing keeps them. The stored
+   exclusion list is left alone. No golden change. Limit: the menu is built
+   once, so if the instance document arrives after the page the menu keeps
+   the choice it made.
+6. **Collections.** Limit: **RECORDED.** `collections_controller` has
+   `DEFAULT_COLLECTIONS_LIMIT = 40` and `MAX_COLLECTIONS_LIMIT = 100` (main);
+   the docs say max 80. Babble sends 40. Note added. `tag_name` leading `#`:
+   **NOT REAL.** `Collection#tag_name=` is `Tag.find_or_create_by_names`, whose
+   `HashtagNormalizer` ends in `gsub(HASHTAG_INVALID_CHARS_RE, '')`, a class
+   that excludes `#`, applied to both `name` and `display_name`; the reader
+   `tag_name` returns `"#" + display_name`. So `#books` and `books` store the
+   same tag and Babble's `#books` round-trips; no change, no golden change.
+7. **`Mastodon-Async-Refresh` on `GET /statuses/:id/context`.** **RECORDED.**
+   Not handled: the header is experimental and a thread shows what the server
+   holds when asked. Note on the `statuses.context` endpoint.
+8. **`IDEMPOTENT_METHODS` with PUT and DELETE.** **RECORDED as an accepted
+   NIT, no code change.** A retry happens only after a transport error or a
+   5xx, so the case is a DELETE whose answer was lost after the server
+   committed it, repeated, and answered 404. Treating that 404 as success is
+   not simple: a successful `DELETE /statuses/:id` returns the deleted status
+   and the redraft path needs its text, which a 404 cannot supply, so a
+   synthesised success would open an empty composer. PUT repeats are exact
+   duplicates. Comment added above `IDEMPOTENT_METHODS`.
+
 ## 2. Documentation sources and what could not be verified
 
 Fetched and used: `/methods/` statuses, accounts, lists, timelines,
@@ -391,7 +479,7 @@ used in section 4.
 | AC-11 | POST /accounts/:id/block, /unblock | none | `write:blocks` | none | COMPLIANT |
 | AC-12 | POST /accounts/:id/mute | form `notifications`, `duration` | `write:mutes`; `duration` 3.3.0 | none | COMPLIANT |
 | AC-13 | POST /accounts/:id/unmute | none | `write:mutes` | none | COMPLIANT |
-| AC-14 | POST /accounts/:id/endorse, /unendorse | none | `write:accounts`; 4.4.0 per page | `is_supported(ENDORSE_API_VERSION=6, when_unknown=True)` | DEVIATES [minor]: gate documented as 4.6.0/v6, page says 4.4.0; v6 mapping UNVERIFIED |
+| AC-14 | POST /accounts/:id/endorse, /unendorse | none | `write:accounts`; 4.4.0 per page | `is_supported(ENDORSE_API_VERSION=6, when_unknown=True)` | COMPLIANT. RESOLVED (5f): v6 is v4.4.0, as the page says; the "4.6.0" comment was the error |
 | AC-15 | POST /accounts/:id/pin, /unpin | none | `write:accounts`; deprecated 4.4.0 | used as 404 fallback | DEPRECATED (replacement: AC-14; kept for servers older than the endorse aliases) |
 | AC-16 | POST /accounts/:id/note | form `comment` | `write:accounts`; 3.2.0 | none | COMPLIANT |
 | AC-17 | GET /accounts/relationships | `id[]` | `read:follows`; 0.0.0 (`with_suspended` 4.3.0 not sent) | none | COMPLIANT |

@@ -39,7 +39,15 @@ DELETE = _declare('delete', 'DELETE', '/statuses/%s', 'write:statuses',
                        'plain delete leaves them on the server for about '
                        '24 hours (audit item 9)')
 CONTEXT = _declare('context', 'GET', '/statuses/%s/context', None,
-                   '#context', note=_PUBLIC)
+                   '#context',
+                   note=_PUBLIC + '. From 4.5.0 the response may carry the '
+                   'experimental `Mastodon-Async-Refresh` header (a '
+                   'background fetch of missing replies, polled through '
+                   '/api/v1_alpha/async_refreshes). Babble does not read '
+                   'it: the header is marked experimental in the docs and '
+                   'the thread simply shows the replies the server holds '
+                   'when asked, so a reply that arrives later is missed '
+                   'until the thread is reopened (audit 5f)')
 HISTORY = _declare('history', 'GET', '/statuses/%s/history', None,
                    '#history', note=_PUBLIC, version='3.5.0')
 SOURCE = _declare('source', 'GET', '/statuses/%s/source', 'read:statuses',
@@ -94,10 +102,24 @@ CREATE = _declare(
     'create', 'POST', '/statuses', 'write:statuses', '#create',
     note='the app sends a JSON body, so nested values (poll options, '
          'media_ids arrays) keep their structure; the docs show a form. '
-         'No Idempotency-Key, on purpose (see post_async)')
+         'No Idempotency-Key, on purpose (see post_async); a repeated key '
+         'returns the original status, so it would be safe to send')
 EDIT = _declare(
     'edit', 'PUT', '/statuses/%s', 'write:statuses', '#edit',
-    note='JSON body, as for create', version='3.5.0')
+    note='JSON body, as for create. The server permits only `status`, '
+         '`spoiler_text`, `sensitive`, `language`, `media_ids`, '
+         '`media_attributes`, `poll` and `quote_approval_policy` '
+         '(statuses_controller#update at main and v4.3.0 to v4.5.0; the '
+         'last from 4.5.0); '
+         '`visibility`, `in_reply_to_id`, `quoted_status_id` and '
+         '`scheduled_at` belong to create and are dropped by '
+         '`edit_async` (audit 5f)', version='3.5.0')
+
+# What PUT /statuses/:id reads (statuses_controller#update). The composer
+# builds one draft for create and edit alike; an edit keeps only these.
+EDIT_FIELDS = frozenset({
+    'status', 'spoiler_text', 'sensitive', 'language', 'media_ids',
+    'media_attributes', 'poll', 'quote_approval_policy'})
 
 # The do/undo pairs a toggle button picks from: (kind, active) -> endpoint.
 TOGGLES = {
@@ -235,14 +257,23 @@ def post_async(client, text, params=None, callback=None, cancellable=None):
     """POST /api/v1/statuses as JSON, so nested values (``poll``
     options, ``media_ids`` arrays) keep their structure.
 
-    No ``Idempotency-Key`` is sent, and that is deliberate.
-    Mastodon reads one (api/v1/statuses_controller.rb) and keys it
-    per account in Redis for an hour (PostStatusService
-    #with_idempotency), but on a repeat it raises IdempotencyError
-    carrying the *id string*, which the controller then hands to
-    the status serializer. So the dedup does not make a retry safe --
-    it makes the retry return something that is not a status. The
-    reply is left to :data:`IDEMPOTENT_METHODS` instead.
+    No ``Idempotency-Key`` is sent, and that is deliberate, but not
+    because a repeat answers with something that is not a status (an
+    earlier version of this note said so, wrongly). Verified in
+    PostStatusService at main and at v4.3.0, v4.4.0 and v4.5.0: the key is
+    stored per account in Redis for an hour (``idempotency:status:<account
+    id>:<key>``, set only after the status was created), and a repeat
+    returns the *original* Status (or ScheduledStatus), found by id with
+    ``@account.statuses.find`` / ``scheduled_statuses.find``. At 4.3 to
+    4.5 that is ``return idempotency_duplicate``; at main it is
+    ``raise IdempotencyError, idempotency_duplicate`` rescued to
+    ``e.status``, the same record, and the check runs under a Redis lock.
+    So sending a key would be safe on every current version, with one
+    difference: before the lock (4.3 to 4.5) two simultaneous requests with
+    one key can both create. It is still not sent because a retry here is
+    decided by :data:`IDEMPOTENT_METHODS`, which excludes POST: nothing
+    would repeat the request, so the key would have no effect until the
+    transport learned to retry a POST that carries one (audit 5f).
     """
     body = {'status': text}
     if params:
@@ -275,10 +306,12 @@ def reply_finish(client, result):
 def edit_async(client, status_id, text, params=None, callback=None,
                cancellable=None):
     """PUT /api/v1/statuses/:id as JSON, mirroring :func:`post_async`
-    (docs.joinmastodon.org/methods/statuses)."""
+    (docs.joinmastodon.org/methods/statuses). Keys outside
+    :data:`EDIT_FIELDS` are dropped: the server ignores them, and sending
+    them suggests an edit can change a post's visibility or thread."""
     body = {'status': text}
     if params:
-        body.update(params)
+        body.update({k: v for k, v in params.items() if k in EDIT_FIELDS})
     return core.send(client, EDIT, status_id, json_body=body,
                      callback=callback, cancellable=cancellable)
 

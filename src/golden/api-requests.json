@@ -1217,12 +1217,7 @@
     "host": "https://golden.example",
     "method": "GET",
     "path": "/api/v1/announcements",
-    "query": [
-     [
-      "with_dismissed",
-      "true"
-     ]
-    ]
+    "query": []
    },
    {
     "body": null,
@@ -1232,12 +1227,7 @@
     "host": "https://golden.example",
     "method": "GET",
     "path": "/api/v1/announcements",
-    "query": [
-     [
-      "with_dismissed",
-      "true"
-     ]
-    ]
+    "query": []
    },
    {
     "body": null,
@@ -1259,12 +1249,7 @@
     "host": "https://golden.example",
     "method": "GET",
     "path": "/api/v1/announcements",
-    "query": [
-     [
-      "with_dismissed",
-      "true"
-     ]
-    ]
+    "query": []
    },
    {
     "body": null,
@@ -1274,12 +1259,7 @@
     "host": "https://golden.example",
     "method": "GET",
     "path": "/api/v1/announcements",
-    "query": [
-     [
-      "with_dismissed",
-      "true"
-     ]
-    ]
+    "query": []
    }
   ],
   "announcements reaction toggled off and on": [
@@ -1291,12 +1271,7 @@
     "host": "https://golden.example",
     "method": "GET",
     "path": "/api/v1/announcements",
-    "query": [
-     [
-      "with_dismissed",
-      "true"
-     ]
-    ]
+    "query": []
    },
    {
     "body": null,
@@ -1306,12 +1281,7 @@
     "host": "https://golden.example",
     "method": "GET",
     "path": "/api/v1/announcements",
-    "query": [
-     [
-      "with_dismissed",
-      "true"
-     ]
-    ]
+    "query": []
    },
    {
     "body": null,
@@ -2541,6 +2511,7 @@
    {
     "body": {
      "json": {
+      "quote_approval_policy": "nobody",
       "spoiler_text": "cw",
       "status": "edited"
      }

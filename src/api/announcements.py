@@ -24,8 +24,13 @@ def _declare(name, method, path, scope, anchor, note=None):
 
 
 INDEX = _declare('index', 'GET', '/announcements', None, '#get',
-                 note='needs a user token, but no scope; `with_dismissed` '
-                      'lists the read ones too')
+                 note='needs a user token, but no scope. Takes no '
+                      'parameters: the controller returns every published '
+                      'announcement (`Announcement.published.chronological`, '
+                      'identical at main and v4.3.0, v4.4.0, v4.5.0), and '
+                      'each carries its own `read` flag. The app used to '
+                      'send `with_dismissed=true`, which nothing reads '
+                      '(audit 5f)')
 DISMISS = _declare('dismiss', 'POST', '/announcements/%s/dismiss',
                    'write:accounts', '#dismiss')
 ADD_REACTION = _declare('add_reaction', 'PUT',
@@ -49,7 +54,9 @@ def list_path(kind, *ids):
 
 
 def index_async(client, params=None, callback=None, cancellable=None):
-    """*params* ``{'with_dismissed': 'true'}`` includes the read ones."""
+    """GET /announcements. There is no parameter worth passing: the server
+    lists every published announcement, read ones included, each with a
+    ``read`` flag (``with_dismissed`` is ignored by the controller)."""
     return core.send(client, INDEX, params=params, callback=callback,
                      cancellable=cancellable)
 

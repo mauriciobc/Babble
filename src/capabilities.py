@@ -18,7 +18,10 @@ PROFILE_TABS_API_VERSION = 8
 # Avatar/header alt text on /profile (Mastodon 4.6.0, api_versions 9).
 PROFILE_ALT_TEXT_API_VERSION = 9
 
-# endorse/unendorse aliases vs pin/unpin (Mastodon 4.6.0, api_versions 6).
+# endorse/unendorse aliases vs pin/unpin (Mastodon 4.4.0, api_versions 6).
+# The docs' accounts page says "4.4.0 - added" and deprecates pin/unpin;
+# config/routes/api.rb has the endorse and unendorse routes at v4.4.0 (api
+# number 6) and not at v4.3.8 (number 2). Not 4.6.0: that release reads 10.
 ENDORSE_API_VERSION = 6
 
 # What the numbers below are derived from. The docs name an API number only
@@ -63,3 +66,22 @@ def translation_enabled(client):
     info = client.instance_info or {}
     translation = (info.get('configuration') or {}).get('translation') or {}
     return bool(translation.get('enabled'))
+
+# Notification types a server only has from some release on, for the
+# Filter menu and the "Show Notifications For" rows. Source: the
+# Notification entity page's "type" history (docs.joinmastodon.org/
+# entities/Notification/#type): severed_relationships and moderation_warning
+# 4.3.0 (api 2), quote and quoted_update 4.5.0 (api 7), added_to_collection
+# and collection_update 4.6.0 (api 10). The methods page lists only the
+# older types; the entity page is the complete one. A type missing here is
+# offered everywhere. An excluded type the server does not know is
+# harmless (Notification.browserable subtracts it from the known set), so
+# this only keeps a switch that can do nothing out of the UI.
+NOTIFICATION_TYPE_API_VERSIONS = {
+    'severed_relationships': 2,
+    'moderation_warning': 2,
+    'quote': 7,
+    'quoted_update': 7,
+    'added_to_collection': 10,
+    'collection_update': 10,
+}
