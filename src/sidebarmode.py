@@ -33,7 +33,3 @@ def widths(style, collapsed):
         return (64, 64)
     return (180, 280)
 
-
-def label_visible(style, collapsed):
-    """Whether sidebar rows show their text labels; the rail hides them."""
-    return not icon_rail(style, collapsed)

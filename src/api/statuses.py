@@ -196,10 +196,6 @@ def translate_async(client, status_id, lang, callback=None,
                      callback=callback, cancellable=cancellable)
 
 
-def translate_finish(client, result):
-    return core.finish(client, result)
-
-
 def interaction_policy_async(client, status_id, quote_approval_policy,
                              callback=None, cancellable=None):
     return core.send(
@@ -208,18 +204,10 @@ def interaction_policy_async(client, status_id, quote_approval_policy,
         callback=callback, cancellable=cancellable)
 
 
-def interaction_policy_finish(client, result):
-    return core.finish(client, result)
-
-
 def revoke_quote_async(client, quoted_id, status_id, callback=None,
                        cancellable=None):
     return core.send(client, REVOKE_QUOTE, quoted_id, status_id,
                      callback=callback, cancellable=cancellable)
-
-
-def revoke_quote_finish(client, result):
-    return core.finish(client, result)
 
 
 def toggle_async(client, status_id, kind, active, form=None, callback=None,
@@ -240,10 +228,6 @@ def post_action_async(client, status_id, operation, callback=None,
     or ``unpin``); anything else raises KeyError."""
     return core.send(client, ACTIONS[operation], status_id,
                      callback=callback, cancellable=cancellable)
-
-
-def post_action_finish(client, result):
-    return core.finish(client, result)
 
 
 def list_path(kind, *ids):

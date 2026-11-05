@@ -35,6 +35,11 @@ class QuotePaste:
         with that offset here, so a single lone link to a post becomes
         a quote and nothing else ever converts. Typing a link never
         fires this with the whole URL at once."""
+        if self._in_programmatic_insert:
+            # A draft restored, or a link put back as text, while a
+            # paste is still out: the write is not the paste's own, and
+            # the paste keeps its offset for the insert that is.
+            return
         pre = self._pre_paste_offset
         if pre is None:
             return

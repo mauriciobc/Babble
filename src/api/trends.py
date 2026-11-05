@@ -43,6 +43,3 @@ def links_async(client, params=None, callback=None, cancellable=None):
     return core.send(client, LINKS, params=params, callback=callback,
                      cancellable=cancellable)
 
-
-def links_finish(client, result):
-    return core.finish(client, result)

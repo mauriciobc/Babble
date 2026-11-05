@@ -60,11 +60,10 @@ from gi.repository import GLib, Gio, Soup  # noqa: E402
 HTTP_TIMEOUT_SECONDS = 30
 
 # Decoded-texture budgets, per use. Avatars repeat across a timeline so
-# they are cheap to keep; full-size media are large, so far fewer stay
-# resident. Banners are between the two: one per profile, and a session
-# visits only so many.
+# they are cheap to keep; banners are one per profile, and a session
+# visits only so many. The budget for full-size media is
+# timelinebase.MEDIA_TEXTURE_CACHE_SIZE.
 AVATAR_CACHE_SIZE = 256
-MEDIA_CACHE_SIZE = 48
 BANNER_CACHE_SIZE = 16
 
 _session = None

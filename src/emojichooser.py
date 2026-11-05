@@ -316,7 +316,6 @@ class CustomEmojiChooser(Gtk.Popover):
         super().__init__(**kwargs)
         self.client = client
         self.emojis = []
-        self.categories = []
         self._loaded = False
         self.mode = 'emoji'
         self.add_css_class('emoji-picker')
@@ -463,7 +462,6 @@ class CustomEmojiChooser(Gtk.Popover):
             items = self._custom_categories()
         else:
             items = self._unicode_categories()
-        self.categories = items
         self.category_store.splice(0, self.category_store.get_n_items(),
                                    items)
         self.grid_store.remove_all()

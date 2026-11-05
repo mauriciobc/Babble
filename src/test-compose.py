@@ -124,8 +124,6 @@ PNG_BYTES = bytes.fromhex(
     '01f15c4890000000d4944415478da6360000002000100ffff030000060005'
     '57bfabd40000000049454e44ae426082')
 
-MEDIA_RESPONSES = ['9901', '9902']
-
 posts = []
 uploads = []
 polls = []
@@ -2722,6 +2720,16 @@ view.reset()
 paste('pasted words')
 check('pasting text inserts it', view.text() == 'pasted words')
 check('pasting text adds no attachment', view.attachments() == [])
+view.reset()
+
+# A write the composer makes itself (a restored draft) while a paste is
+# still waiting for the clipboard is not that paste: the watcher leaves
+# the paste's offset alone, and takes it again once the write is over.
+view._pre_paste_offset = 0
+view._set_buffer('https://mastodon.social/@user/1')
+check('a programmatic write does not consume a pending paste offset',
+      view._pre_paste_offset == 0 and view.quoted_status_id is None)
+view._pre_paste_offset = None
 view.reset()
 
 # Pasting a lone link to a post on a fediverse server attaches the

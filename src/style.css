@@ -369,16 +369,6 @@ avatar.profile-image-button:focus-visible {
                                     color-mix(in srgb, var(--accent-bg-color) 50%, var(--window-fg-color)));
 }
 
-/* 'Follows you' badge: the text carries the meaning, the accent only
-   tints it; the border keeps it visible in high contrast. */
-.profile-follows-chip {
-  border: 1px solid var(--accent-color);
-  background-color: color-mix(in srgb, var(--accent-bg-color) 15%, transparent);
-  color: var(--accent-color);
-  border-radius: 9999px;
-  padding: 1px 9px;
-}
-
 /* Vertical rail on the left of a multi-post author run (Phanpy bar). */
 .status-run .run-rail {
   min-width: 3px;
@@ -631,8 +621,8 @@ avatar.profile-image-button:focus-visible {
 }
 
 /* Profile slice: badges under the profile name (account type and
-   relationship); the text carries the meaning, the tone only tints it.
-   .profile-follows-chip above is kept for the accent variant. */
+   relationship); the text carries the meaning, the tone only tints it;
+   the border keeps it visible in high contrast. */
 .profile-chip {
   border: 1px solid var(--border-color);
   border-radius: 9999px;
