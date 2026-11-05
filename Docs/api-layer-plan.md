@@ -111,22 +111,49 @@ Three commits, each leaving `api golden` byte-identical:
   notifications, scheduled posts, filters, timelines helpers.
 - **Done when:** as phase 1 for those modules.
 
+**Phase 2 progress.** Step 2a done: lists (`lists.py`), filters, announcements and
+scheduled statuses moved (20 endpoints, registry 73), and the housekeeping below
+(marked DONE). Step 2b done: tags (`tags.py`: 9 endpoints, including followed and trending
+tags) and search (`search.py`: 1), registry 83. Step 2c done: timelines
+(`timelines.py`: home, public, tag, link, favourites, bookmarks, with the list
+timeline reused from `lists.py`), markers (`markers.py`), trending statuses
+(`trends.py`) and notifications (`notifications.py`: 9, with the policy and
+the filtered-notification requests), registry 101; the client's `timelines_*`,
+`trends_statuses_*`, `markers_*` and `notifications_*` wrappers are gone, and
+`PagedList.mutate_row` with them. `ApiTimelineSource.fetch` and the completer's
+`_search` are generic helpers' own sends of a caller-supplied path, relabelled
+"phase 4: internal". Step 2d done (the last move step of phase 2):
+`conversations.py` (3), `suggestions.py` (2), `instance.py` (custom emojis, 1),
+`annual_reports.py` (4: the report, one year, state, generate) and
+`trends.links` (1) plus `tags.trending_async`; explore, the inbox, the emoji
+chooser, Wrapped and Catch Up's trend reads call them. Registry 112. Catch Up's
+`_get` now takes `(key, start, done)` like `_reply` (guard order unchanged:
+aborted, then rate limited, then send), and `wrapped._send` is gone. No
+"phase 2" allow-list entry is left; the only path-taking `pages.call` callers
+are the two in `pollbox.py` (phase 3). The completers' `search_request` hooks still
+return a path (from `search_path()`), so `completer.TokenCompleter._search`
+keeps its one raw send until the hook protocol changes.
+
 **Carried over from the phase 1 review (do these at the start or end of phase 2):**
-- Collapse the parallel helper pairs into the `start(callback)` form and
+- DONE (2a): Collapse the parallel helper pairs into the `start(callback)` form and
   delete the path-taking versions when their last raw caller goes:
   `pages.call` / `pages.call_api`, `PagedList.mutate_row` / `mutate_row_api`,
   `fedicollections._send` / `_send_api`, `catchup/fetch._get` / `_reply`.
   `call_api` should take an optional `finish=` so an api `*_finish`
   (validation, tuple unpacking) is honoured instead of bypassed by
-  `client.request_finish`.
-- Converge the naming before it spreads: one name for the table-pick
+  `client.request_finish`. Done for `pages.call` / `call_api` and
+  `PagedList.mutate_row` / `mutate_row_api` (the path-taking ones now wrap the
+  `start` form and stay for their last raw callers: hashtags, the notification
+  policy, polls, and the notification requests). `fedicollections._send_api`
+  and `catchup/fetch._get` / `_reply` move with their endpoints.
+- DONE (2a): Converge the naming before it spreads: one name for the table-pick
   (`ACTIONS`), one keyword (`operation`), one accessor shape
   (`list_path(kind, *ids)`), for `statuses.toggle_async`/`post_action_async`,
   `relationships.action_async`/`answer_request_async` and the three
   `LISTS` tables. Name `lists.py` and `hashtags.py` consistently from the
   start.
-- Add `core.finish_paged` with the first paged read.
-- Add a `mastodon_version` (release string) field to `Endpoint`, or decide
+- DONE (2a): Add `core.finish_paged` with the first paged read (scheduled).
+- DONE (2a, field added and filled): Add a `mastodon_version` (release string) field to `Endpoint`, or decide
   the generated version column comes from `src/capabilities.py`; today
   `min_version` is None everywhere and versions live in free-text notes.
 

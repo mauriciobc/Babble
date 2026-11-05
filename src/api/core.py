@@ -41,13 +41,14 @@ class Endpoint:
     docs: str
     deprecated: Optional[str] = None
     note: Optional[str] = None
+    mastodon_version: Optional[str] = None
 
 
 registry = {}
 
 
 def declare(name, method, path, scope, min_version, docs, deprecated=None,
-            note=None, into=None):
+            note=None, into=None, mastodon_version=None):
     """Create an `Endpoint` and register it under ``name``.
 
     A duplicate name raises ValueError at import time, so two modules cannot
@@ -57,7 +58,7 @@ def declare(name, method, path, scope, min_version, docs, deprecated=None,
     if name in target:
         raise ValueError('endpoint %r is declared twice' % name)
     endpoint = Endpoint(name, method, path, scope, min_version, docs,
-                        deprecated, note)
+                        deprecated, note, mastodon_version)
     target[name] = endpoint
     return endpoint
 
@@ -77,3 +78,10 @@ def send(client, endpoint, *path_args, params=None, form=None,
 def finish(client, result):
     """The decoded JSON body; raises GLib.Error on HTTP errors."""
     return client.request_finish(result)
+
+
+def finish_paged(client, result):
+    """``(data, next_params, prev_params)``: the decoded body and the query
+    parameters of the ``Link`` header's next and prev URLs (None when
+    absent), for a read a caller pages through."""
+    return client.request_finish_paged(result)

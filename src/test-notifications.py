@@ -33,6 +33,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
+from src.api import notifications as api_notifications  # noqa: E402
 from src.mastodon import MastodonClient  # noqa: E402
 from src import filterrules, notificationcopy, pages  # noqa: E402
 from src.mediabox import BlurredPicture  # noqa: E402
@@ -237,7 +238,6 @@ Adw.init()
 Gtk.init()
 
 client = MastodonClient('https://fosstodon.org')  # no token: idle client
-client.notifications_mark_read_finish = lambda result: {}
 
 # Built at sign-in and loaded while hidden, the page builds no rows: the
 # window keeps it in a stack behind the timeline, and a homogeneous stack
@@ -613,18 +613,6 @@ class FollowClient(MastodonClient):
         self.requests = []
         self.reply = None
 
-    def markers_async(self, *args, **kwargs):
-        pass
-
-    def notifications_unread_count_async(self, *args, **kwargs):
-        pass
-
-    def notifications_async(self, *args, **kwargs):
-        pass
-
-    def notifications_finish(self, result):
-        return result
-
     def request_async(self, method, path, callback=None, params=None, **kw):
         self.requests.append((method, path, params))
         if path == '/accounts/relationships':
@@ -684,12 +672,18 @@ check('a streamed follower standing alone is asked for',
 relay = {}
 
 
-def fake_notifications_async(params, callback):
+real_request_async = client.request_async
+
+
+def fake_request_async(method, path, params=None, callback=None, **kwargs):
+    if path != '/notifications':
+        return real_request_async(method, path, params=params,
+                                  callback=callback, **kwargs)
     relay['params'] = dict(params)
     relay['callback'] = callback
 
 
-client.notifications_async = fake_notifications_async
+client.request_async = fake_request_async
 page.filter_group.set_active_name('mentions')
 check('mentions filter requests types[]=mention',
       relay['params'].get('types[]') == ['mention'])
@@ -739,25 +733,21 @@ class VisitClient(FollowClient):
         self.pending = None
         self.other_requests = []
 
-    def request_async(self, method, path, callback=None, params=None, **kw):
-        self.other_requests.append(path)
+    def request_async(self, method, path, callback=None, params=None,
+                      form=None, **kw):
+        if path == '/notifications':
+            self.listed.append(dict(params or {}))
+            self.pending = callback
+        elif path == '/markers' and method == 'POST':
+            self.markers.append(form['notifications[last_read_id]'])
+            self.marker_callbacks.append(callback)
+        elif path not in ('/markers', '/notifications/unread_count'):
+            self.other_requests.append(path)
 
-    def notifications_async(self, params=None, callback=None, **kwargs):
-        self.listed.append(dict(params or {}))
-        self.pending = callback
-
-    def notifications_finish(self, result):
+    def request_finish(self, result):
         if isinstance(result, GLib.Error):
             raise result
         return result
-
-    def notifications_mark_read_async(self, last_read_id, callback=None,
-                                      **kwargs):
-        self.markers.append(last_read_id)
-        self.marker_callbacks.append(callback)
-
-    def notifications_mark_read_finish(self, result):
-        return {}
 
     def finish_marker(self):
         self.marker_callbacks.pop(0)(self, None)
@@ -886,6 +876,7 @@ page.connect('unread-changed', lambda _p, count: received.append(count))
 if page.model.newest_id is None:
     page.model.append_page(FIXTURES)
 page._marking = page.model.newest_id
+client.request_finish = lambda result: {}
 page.on_marked_read(client, None)
 check('badge signal emits 0 after mark-read', received == [0])
 # One that was overtaken by a newer notification does not clear the badge:
@@ -893,6 +884,7 @@ check('badge signal emits 0 after mark-read', received == [0])
 received.clear()
 page._marking = '1'
 page.on_marked_read(client, None)
+del client.request_finish
 check('an overtaken marker leaves the badge alone',
       received == [] and page.model.newest_id != '1')
 
@@ -1120,7 +1112,7 @@ live = {'error': None, 'data': None, 'done': False}
 
 def on_live(c, result):
     try:
-        live['data'] = c.notifications_finish(result)
+        live['data'] = api_notifications.index_finish(c, result)
     except GLib.Error as e:
         live['error'] = e
     finally:
@@ -1129,7 +1121,7 @@ def on_live(c, result):
 
 
 live_loop = GLib.MainLoop()
-GLib.idle_add(lambda: (live_client.notifications_async(callback=on_live),
+GLib.idle_add(lambda: (api_notifications.index_async(live_client, callback=on_live),
                        False)[1])
 live['loop'] = live_loop
 GLib.timeout_add_seconds(45, live_loop.quit)
@@ -1171,12 +1163,19 @@ class DismissClient(FollowClient):
         self.dismissed = []
         self.fail = set()
 
-    def notifications_dismiss_async(self, notification_id, callback=None,
-                                    **_kw):
-        self.dismissed.append(notification_id)
-        callback(self, notification_id)
+    def request_async(self, method, path, callback=None, params=None, **kw):
+        if method == 'POST' and path.endswith('/dismiss') \
+                and path.startswith('/notifications/'):
+            notification_id = path.split('/')[2]
+            self.dismissed.append(notification_id)
+            callback(self, notification_id)
+            return
+        super().request_async(method, path, callback=callback,
+                              params=params, **kw)
 
-    def notifications_dismiss_finish(self, result):
+    def request_finish(self, result):
+        if not isinstance(result, str):
+            return result
         if result in self.fail:
             raise GLib.Error('refused', 'mastodon-http-error-quark', 500)
         return {}

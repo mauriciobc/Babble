@@ -16,6 +16,7 @@ from gi.repository import (Adw, GLib, Gio,  # noqa: E402
 
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
+from .api import timelines as api_timelines  # noqa: E402
 from .pages import PagedPosts, connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
@@ -75,22 +76,6 @@ def filter_context_for(source):
             or path.startswith('/timelines/link'):
         return filterrules.PUBLIC
     return filterrules.HOME
-
-
-def link_paged(path):
-    """Whether *path* is one whose cursor is not a status id.
-
-    Bookmarks and favourites are ``max_id``/``since_id`` in name only:
-    Mastodon pages them by their own ids, so TimelinePage's id cursors
-    mean nothing there and the ``Link`` header is the only way back.
-    Named here rather than in the window, so the rule sits with the
-    source that acts on it.
-    """
-    return path in LINK_PAGED_PATHS
-
-
-# Endpoints whose Link header is their cursor. See link_paged().
-LINK_PAGED_PATHS = ('/bookmarks', '/favourites')
 
 
 class ApiTimelineSource:
@@ -425,13 +410,13 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
                 callback(c, r, g))
             return
         if self.mode == 'public':
-            self.client.timelines_public_async(
-                params=params,
+            api_timelines.public_async(
+                self.client, params=params,
                 callback=lambda c, r, _d=None, g=generation:
                 callback(c, r, g))
         else:
-            self.client.timelines_home_async(
-                params=params,
+            api_timelines.home_async(
+                self.client, params=params,
                 callback=lambda c, r, _d=None, g=generation:
                 callback(c, r, g))
 
@@ -439,8 +424,8 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         if self.source is not None:
             return self.source.finish(result)
         if self.mode == 'public':
-            return self.client.timelines_public_finish(result)
-        return self.client.timelines_home_finish(result)
+            return api_timelines.public_finish(self.client, result)
+        return api_timelines.home_finish(self.client, result)
 
     def _on_retry(self, _button):
         self.load()

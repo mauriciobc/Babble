@@ -21,6 +21,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .api import search as api_search  # noqa: E402
 from .lists import error_text_markup  # noqa: E402
 from .pages import ToastDialog  # noqa: E402
 from .statustext import compact_count  # noqa: E402
@@ -181,10 +182,9 @@ class SearchTypePage(Adw.Bin):
         generation = self._generation
         if self._offset:
             self.more_spinner.set_visible(True)
-        self.client.request_async(
-            'GET', '/api/v2/search',
-            params={'q': self.query, 'type': self.kind,
-                    'limit': PAGE_LIMIT, 'offset': self._offset},
+        api_search.search_async(
+            self.client, self.query, type=self.kind, limit=PAGE_LIMIT,
+            offset=self._offset,
             callback=lambda c, r, _d=None: self._on_loaded(c, r, generation))
 
     def _on_loaded(self, client, result, generation):
@@ -193,7 +193,7 @@ class SearchTypePage(Adw.Bin):
         self._loading = False
         self.more_spinner.set_visible(False)
         try:
-            data = client.request_finish(result)
+            data = api_search.search_finish(client, result)
         except GLib.Error as error:
             if self.count:
                 pages.report_error(self, _('Could not load more'), error)
@@ -461,15 +461,14 @@ class SearchPage(Adw.Bin):
             if serial != self._serial:
                 return
             try:
-                data = client.request_finish(result)
+                data = api_search.search_finish(client, result)
             except GLib.Error as error:
                 self.error_page.set_description(error_text_markup(error))
                 self.stack.set_visible_child_name('error')
                 return
             callback(data)
 
-        self.client.request_async('GET', '/api/v2/search', params=params,
-                                  callback=finished)
+        api_search.search_async(self.client, callback=finished, **params)
 
     def _resolve_url(self, url, force=False):
         if url == self._resolved_url and not force:

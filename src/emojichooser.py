@@ -18,6 +18,7 @@ gi.require_version('Soup', '3.0')
 from gi.repository import Adw, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import textemoji  # noqa: E402
+from .api import instance as api_instance  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .pages import (connect_weak, set_accessible_label,  # noqa: E402
                     weak_method)
@@ -91,7 +92,7 @@ def load_custom_emojis(client, callback):
         for waiter in waiting:
             waiter(emojis)
 
-    client.request_async('GET', '/custom_emojis', callback=finished)
+    api_instance.custom_emojis_async(client, callback=finished)
 
 
 def _settings():

@@ -19,14 +19,17 @@ DOCS = 'https://docs.joinmastodon.org/methods/'
 _ACCOUNTS = DOCS + 'accounts/'
 
 
-def _declare(name, method, path, scope, docs, note=None, deprecated=None):
+def _declare(name, method, path, scope, docs, note=None, deprecated=None,
+             version=None):
     return core.declare('relationships.' + name, method, path, scope, None,
-                        docs, deprecated=deprecated, note=note)
+                        docs, deprecated=deprecated, note=note,
+                        mastodon_version=version)
 
 
-def _account(name, scope, note=None, deprecated=None):
+def _account(name, scope, note=None, deprecated=None, version=None):
     return _declare(name, 'POST', '/accounts/%s/' + name, scope,
-                    _ACCOUNTS + '#' + name, note=note, deprecated=deprecated)
+                    _ACCOUNTS + '#' + name, note=note, deprecated=deprecated,
+                    version=version)
 
 
 FOLLOW = _account('follow', 'write:follows',
@@ -34,25 +37,26 @@ FOLLOW = _account('follow', 'write:follows',
                        'not sent; a locked account answers requested')
 UNFOLLOW = _account('unfollow', 'write:follows')
 REMOVE_FROM_FOLLOWERS = _account('remove_from_followers', 'write:follows',
-                                 note='Mastodon 3.5.0')
+                                 version='3.5.0')
 BLOCK = _account('block', 'write:blocks')
 UNBLOCK = _account('unblock', 'write:blocks')
 MUTE = _account('mute', 'write:mutes',
                 note='form notifications, duration (3.3.0)')
 UNMUTE = _account('unmute', 'write:mutes')
 ENDORSE = _account('endorse', 'write:accounts',
-                   note='Mastodon 4.4.0 per the docs; the app gates it on '
-                        'api_versions 6, which is unverified (audit AC-14)')
+                   note='4.4.0 per the docs; the app gates it on '
+                        'api_versions 6, which is unverified (audit AC-14)',
+                   version='4.4.0')
 UNENDORSE = _account('unendorse', 'write:accounts',
-                     note='see endorse')
+                     note='see endorse', version='4.4.0')
 PIN = _account('pin', 'write:accounts', deprecated='endorse',
                note='deprecated 4.4.0; kept as the 404 fallback for older '
                     'servers')
 UNPIN = _account('unpin', 'write:accounts', deprecated='unendorse',
                  note='deprecated 4.4.0; kept as the 404 fallback for '
                       'older servers')
-NOTE = _account('note', 'write:accounts',
-                note='form comment; Mastodon 3.2.0')
+NOTE = _account('note', 'write:accounts', note='form comment',
+                version='3.2.0')
 
 FOLLOW_REQUESTS = _declare(
     'follow_requests', 'GET', '/follow_requests', 'read:follows',
@@ -69,35 +73,41 @@ MUTES = _declare('mutes', 'GET', '/mutes', 'read:mutes',
                  DOCS + 'mutes/#get')
 DOMAIN_BLOCKS = _declare('domain_blocks', 'GET', '/domain_blocks',
                          'read:blocks', DOCS + 'domain_blocks/#get',
-                         note='Mastodon 1.4.0')
+                         version='1.4.0')
 DOMAIN_BLOCK = _declare('domain_block', 'POST', '/domain_blocks',
                         'write:blocks', DOCS + 'domain_blocks/#block',
-                        note='form domain; Mastodon 1.4.0')
+                        note='form domain', version='1.4.0')
 DOMAIN_UNBLOCK = _declare(
     'domain_unblock', 'DELETE', '/domain_blocks', 'write:blocks',
     DOCS + 'domain_blocks/#unblock',
-    note='Mastodon 1.4.0; DEVIATES (audit RL-7): `domain` is sent in the '
-         'query, the docs say form data; fixed in phase 5')
+    note='DEVIATES (audit RL-7): `domain` is sent in the query, the docs '
+         'say form data; fixed in phase 5', version='1.4.0')
 
-# Verb -> endpoint, for the callers that pick the verb at run time (the
+# Operation -> endpoint, for the callers that pick the verb at run time (the
 # `api boundary` test reads this table to accept a literal verb).
+# `authorize` and `reject` are in it for completeness; the follow-request
+# page reaches them through `answer_request_async`, which restricts to
+# `ANSWERS`.
 ACTIONS = {
     'follow': FOLLOW, 'unfollow': UNFOLLOW,
     'remove_from_followers': REMOVE_FROM_FOLLOWERS,
     'block': BLOCK, 'unblock': UNBLOCK, 'mute': MUTE, 'unmute': UNMUTE,
     'endorse': ENDORSE, 'unendorse': UNENDORSE, 'pin': PIN, 'unpin': UNPIN,
+    'authorize': AUTHORIZE, 'reject': REJECT,
 }
-_REQUESTS = {'authorize': AUTHORIZE, 'reject': REJECT}
+# The two answers to a follow request, picked by `answer_request_async`.
+ANSWERS = ('authorize', 'reject')
 LISTS = {
     'follow_requests': FOLLOW_REQUESTS, 'blocks': BLOCKS, 'mutes': MUTES,
     'domain_blocks': DOMAIN_BLOCKS,
 }
 
 
-def list_path(kind):
+def list_path(kind, *ids):
     """The path of a paged list (``follow_requests``, ``blocks``,
-    ``mutes``, ``domain_blocks``) for the views that take a path."""
-    return LISTS[kind].path
+    ``mutes``, ``domain_blocks``) for the views that take a path; none of
+    them has a placeholder, so *ids* is empty."""
+    return LISTS[kind].path % ids
 
 
 def action_endpoint(operation):
@@ -193,11 +203,13 @@ def note_finish(client, result):
     return core.finish(client, result)
 
 
-def answer_request_async(client, account_id, verb, callback=None,
+def answer_request_async(client, account_id, operation, callback=None,
                          cancellable=None):
-    """Answer a follow request: ``authorize`` or ``reject``; anything else
-    raises KeyError."""
-    return core.send(client, _REQUESTS[verb], account_id,
+    """Answer a follow request: *operation* is ``authorize`` or ``reject``
+    (keys of ``ACTIONS``); anything else raises KeyError."""
+    if operation not in ANSWERS:
+        raise KeyError(operation)
+    return core.send(client, ACTIONS[operation], account_id,
                      callback=callback, cancellable=cancellable)
 
 

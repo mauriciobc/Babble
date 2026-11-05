@@ -7,8 +7,6 @@ Mark as Read, and a reactions bar: existing reactions toggle your own
 (``PUT``/``DELETE /announcements/:id/reactions/:name``) and a Gtk emoji
 chooser adds a new one."""
 
-import urllib.parse
-
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -18,6 +16,7 @@ from .i18n import gettext as _
 
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
+from .api import announcements as api_announcements  # noqa: E402
 from .pages import (PagedList, connect_weak, report_error,  # noqa: E402
                     set_accessible_label)
 from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
@@ -153,14 +152,14 @@ class ReactionsBar(Gtk.Box):
         if bool(reaction.get('me')) == mine:
             return
         name = reaction['name']
-        path = '/announcements/%s/reactions/%s' % (
-            self.announcement_id, urllib.parse.quote(name, safe=''))
         button.set_sensitive(False)
 
         def done(_client, result, _data=None):
             button.set_sensitive(True)
             try:
-                self.client.request_finish(result)
+                (api_announcements.add_reaction_finish if mine
+                 else api_announcements.remove_reaction_finish)(
+                    self.client, result)
             except GLib.Error as error:
                 button.handler_block(button.toggled_id)
                 button.set_active(not mine)
@@ -176,8 +175,9 @@ class ReactionsBar(Gtk.Box):
             else:
                 button.refresh()
 
-        self.client.request_async('PUT' if mine else 'DELETE', path,
-                                  callback=done)
+        send = api_announcements.add_reaction_async if mine \
+            else api_announcements.remove_reaction_async
+        send(self.client, self.announcement_id, name, callback=done)
 
 
 class AnnouncementRow(Gtk.ListBoxRow):
@@ -278,7 +278,7 @@ class AnnouncementRow(Gtk.ListBoxRow):
         def done(_client, result, _data=None):
             self.read_button.set_sensitive(True)
             try:
-                client.request_finish(result)
+                api_announcements.dismiss_finish(client, result)
             except GLib.Error as error:
                 report_error(self, _('Could not mark as read'), error)
                 return
@@ -286,9 +286,8 @@ class AnnouncementRow(Gtk.ListBoxRow):
             self._sync_read()
             self.page.emit_unread_changed()
 
-        client.request_async(
-            'POST', '/announcements/%s/dismiss' % self.announcement['id'],
-            callback=done)
+        api_announcements.dismiss_async(
+            client, self.announcement['id'], callback=done)
 
 
 class AnnouncementsPage(PagedList):
@@ -301,7 +300,7 @@ class AnnouncementsPage(PagedList):
 
     def __init__(self, client, **kwargs):
         super().__init__(
-            client, '/announcements', self._make_row,
+            client, api_announcements.list_path('index'), self._make_row,
             params={'with_dismissed': 'true'}, paginated=False,
             empty_title=_('No Announcements'),
             empty_icon='dialog-information-symbolic',

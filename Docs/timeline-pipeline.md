@@ -324,8 +324,8 @@ mechanism behind several hazards in §11.
   TimelinePage._paging_fetch()                  timelinepage.py:422
         │
         ├─ source is not None  ─► source.fetch(params, cb)     ApiTimelineSource
-        ├─ mode == 'public'    ─► client.timelines_public_async
-        └─ else (home)         ─► client.timelines_home_async
+        ├─ mode == 'public'    ─► api_timelines.public_async
+        └─ else (home)         ─► api_timelines.home_async
                 │
                 ▼
   mastodon._request_async(method, path, ...)    mastodon.py:729

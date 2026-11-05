@@ -122,10 +122,10 @@ with patch.dict(sys.modules, {
               and child.kwargs == kwargs)
 
     for tag, path, params in (
-            ('favourites', '/favourites', None),
-            ('bookmarks', '/bookmarks', None),
-            ('local', '/timelines/public', {'local': 'true'}),
-            ('federated', '/timelines/public', None)):
+            ('favourites', 'favourites', None),
+            ('bookmarks', 'bookmarks', None),
+            ('local', 'public', {'local': 'true'}),
+            ('federated', 'public', None)):
         before = len(host.calls)
         child = routing.build_place(tag)
         timeline_call = host.calls[before]

@@ -19,6 +19,7 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .api import lists as api_lists  # noqa: E402
 from .pages import ToastDialog  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
@@ -226,19 +227,22 @@ class ListEditor(ToastDialog):
         if not title:
             return
         selected = self.policy_row.get_selected()
-        form = {'title': title,
-                'replies_policy': reply_policies()[selected][0],
-                'exclusive': 'true' if self.exclusive_row.get_active()
-                else 'false'}
+        policy = reply_policies()[selected][0]
+        exclusive = self.exclusive_row.get_active()
         self.save_button.set_sensitive(False)
-        method, path = ('PUT', '/lists/%s' % self.list['id']) \
-            if self.list else ('POST', '/lists')
-        self.client.request_async(method, path, form=form,
-                                  callback=self._on_saved_done)
+        if self.list:
+            api_lists.update_async(
+                self.client, self.list['id'], title, policy, exclusive,
+                callback=self._on_saved_done)
+        else:
+            api_lists.create_async(
+                self.client, title, policy, exclusive,
+                callback=self._on_saved_done)
 
     def _on_saved_done(self, client, result, _data=None):
         try:
-            data = client.request_finish(result)
+            data = (api_lists.create_finish if self.list is None
+                    else api_lists.update_finish)(client, result)
         except GLib.Error as error:
             self._update_sensitive()
             self.toast(_('Could not save the list: %s') % error_text(error))
@@ -251,8 +255,8 @@ class ListEditor(ToastDialog):
 
     def _on_delete(self, button):
         def really():
-            self.client.request_async('DELETE', '/lists/%s' % self.list['id'],
-                                      callback=self._on_deleted_done)
+            api_lists.delete_async(self.client, self.list['id'],
+                                   callback=self._on_deleted_done)
 
         pages.confirm(
             self, _('Delete This List?'),
@@ -262,7 +266,7 @@ class ListEditor(ToastDialog):
 
     def _on_deleted_done(self, client, result, _data=None):
         try:
-            client.request_finish(result)
+            api_lists.delete_finish(client, result)
         except GLib.Error as error:
             self.toast(_('Could not delete the list: %s')
                        % error_text(error))
@@ -296,14 +300,13 @@ class ListEditor(ToastDialog):
         self.result_rows = []
         self.page.add(self.members_group)
         self.page.add(self.search_group)
-        self.client.request_async(
-            'GET', '/lists/%s/accounts' % self.list['id'],
-            params={'limit': 0}, callback=self._on_members_loaded)
+        api_lists.members_async(self.client, self.list['id'],
+                                callback=self._on_members_loaded)
 
     def _on_members_loaded(self, client, result, _data=None):
         self.members_spinner.set_visible(False)
         try:
-            accounts = client.request_finish(result)
+            accounts = api_lists.members_finish(client, result)
         except GLib.Error as error:
             self.toast(_('Could not load the members: %s')
                        % error_text(error))
@@ -329,15 +332,14 @@ class ListEditor(ToastDialog):
 
     def _on_remove_member(self, button, row):
         button.set_sensitive(False)
-        self.client.request_async(
-            'DELETE', '/lists/%s/accounts' % self.list['id'],
-            params={'account_ids[]': [row.account['id']]},
+        api_lists.remove_members_async(
+            self.client, self.list['id'], [row.account['id']],
             callback=lambda c, r, _d=None: self._on_member_removed(
                 c, r, row, button))
 
     def _on_member_removed(self, client, result, row, button):
         try:
-            client.request_finish(result)
+            api_lists.remove_members_finish(client, result)
         except GLib.Error as error:
             button.set_sensitive(True)
             self.toast(_('Could not remove the member: %s')
@@ -406,15 +408,14 @@ class ListEditor(ToastDialog):
     def _on_add_member(self, button, row):
         button.set_sensitive(False)
         account = row.account
-        self.client.request_async(
-            'POST', '/lists/%s/accounts' % self.list['id'],
-            form={'account_ids[]': [account['id']]},
+        api_lists.add_members_async(
+            self.client, self.list['id'], [account['id']],
             callback=lambda c, r, _d=None: self._on_member_added(
                 c, r, account, button))
 
     def _on_member_added(self, client, result, account, button):
         try:
-            client.request_finish(result)
+            api_lists.add_members_finish(client, result)
         except GLib.Error as error:
             button.set_sensitive(True)
             self.toast(_('Could not add the member: %s')
@@ -448,7 +449,7 @@ class ListTimelinePage(Adw.Bin):
         self.list = list_json
         self.timeline = TimelinePage(
             client, source=ApiTimelineSource(
-                client, '/timelines/list/%s' % list_json['id']))
+                client, api_lists.list_path('timeline', list_json['id'])))
         pages.configure_empty_page(
             self.timeline.empty_page, 'view-list-symbolic',
             _('No Posts in This List'),
@@ -545,10 +546,12 @@ class ListRow(Adw.ActionRow):
 
     def _on_delete(self, _button):
         def really():
-            pages.call(
-                self, self.page.client, 'DELETE',
-                '/lists/%s' % self.list['id'],
+            pages.call_api(
+                self, self.page.client,
+                lambda cb: api_lists.delete_async(
+                    self.page.client, self.list['id'], callback=cb),
                 on_done=lambda _d: self._on_deleted(self.list),
+                finish=api_lists.delete_finish,
                 error_heading=_('Could not delete the list'))
 
         pages.confirm(
@@ -568,7 +571,7 @@ class ListsPage(Adw.Bin):
         self.client = client
         page = self.weak_ref()  # the list is a child: no strong cycle
         self.paged = pages.PagedList(
-            client, '/lists', lambda item: ListRow(page(), item),
+            client, api_lists.list_path('index'), lambda item: ListRow(page(), item),
             paginated=False, empty_title=_('No Lists'),
             empty_icon='view-list-symbolic',
             empty_description=_('Create a list to follow a group of people '
@@ -636,13 +639,13 @@ class _MembershipDialog(ToastDialog):
                                        selectable=False, visible=False)
         self.empty_row.add_css_class('dimmed')
         self.group.add(self.empty_row)
-        client.request_async('GET', '/lists', callback=self._on_lists)
-        client.request_async('GET', '/accounts/%s/lists' % account['id'],
-                             callback=self._on_member_of)
+        api_lists.index_async(client, callback=self._on_lists)
+        api_lists.of_account_async(client, account['id'],
+                                   callback=self._on_member_of)
 
     def _on_lists(self, client, result, _data=None):
         try:
-            self._lists = client.request_finish(result)
+            self._lists = api_lists.index_finish(client, result)
         except GLib.Error as error:
             self._pending = -1
             self.spinner.set_visible(False)
@@ -653,7 +656,8 @@ class _MembershipDialog(ToastDialog):
     def _on_member_of(self, client, result, _data=None):
         try:
             self._member_of = {item['id']
-                               for item in client.request_finish(result)}
+                               for item in api_lists.of_account_finish(
+                                   client, result)}
         except GLib.Error as error:
             self._pending = -1
             self.spinner.set_visible(False)
@@ -688,23 +692,17 @@ class _MembershipDialog(ToastDialog):
     def _on_toggled(self, check, item, row):
         adding = check.get_active()
         check.set_sensitive(False)
-        path = '/lists/%s/accounts' % item['id']
-        ids = {'account_ids[]': [self.account['id']]}
-        if adding:
-            self.client.request_async(
-                'POST', path, form=ids,
-                callback=lambda c, r, _d=None: self._on_done(
-                    c, r, check, row, adding))
-        else:
-            self.client.request_async(
-                'DELETE', path, params=ids,
-                callback=lambda c, r, _d=None: self._on_done(
-                    c, r, check, row, adding))
+        send = api_lists.add_members_async if adding \
+            else api_lists.remove_members_async
+        send(self.client, item['id'], [self.account['id']],
+             callback=lambda c, r, _d=None: self._on_done(
+                 c, r, check, row, adding))
 
     def _on_done(self, client, result, check, row, adding):
         check.set_sensitive(True)
         try:
-            client.request_finish(result)
+            (api_lists.add_members_finish if adding
+             else api_lists.remove_members_finish)(client, result)
         except GLib.Error as error:
             # Revert without re-triggering the request.
             check.handler_block(row.handler)

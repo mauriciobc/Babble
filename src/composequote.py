@@ -20,6 +20,7 @@ from gi.repository import Adw, GLib  # noqa: E402
 
 from .i18n import gettext as _  # noqa: E402
 from . import pages  # noqa: E402
+from .api import search as api_search  # noqa: E402
 
 
 class QuotePaste:
@@ -103,7 +104,7 @@ class QuotePaste:
                 # draft was discarded, an edit started): drop the paste.
                 return
             try:
-                data = client.request_finish(result)
+                data = api_search.search_finish(client, result)
             except GLib.Error:
                 data = None
             for status in (data or {}).get('statuses') or []:
@@ -118,10 +119,8 @@ class QuotePaste:
             # text, at the site of the paste.
             view._restore_url(uri, insert_offset)
 
-        client.request_async('GET', '/api/v2/search',
-                             params={'q': uri, 'resolve': 'true',
-                                     'limit': 1},
-                             callback=resolved)
+        api_search.search_async(client, uri, resolve='true', limit=1,
+                                callback=resolved)
 
     def _restore_url(self, uri, at_offset=None):
         """Insert *uri* back at *at_offset* (default: the end), as text.

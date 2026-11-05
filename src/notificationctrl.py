@@ -17,6 +17,9 @@ from gi.repository import Adw, GLib  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .api import announcements as api_announcements  # noqa: E402
+from .api import markers as api_markers  # noqa: E402
+from .api import notifications as api_notifications  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import PagedPosts, push_page  # noqa: E402
 from .statustext import parse_content  # noqa: E402
@@ -53,7 +56,7 @@ class NotificationController:
         return params
 
     def _finish(self, result):
-        return self.client.notifications_finish(result)
+        return api_notifications.index_finish(self.client, result)
 
     # Follow Back
 
@@ -134,11 +137,10 @@ class NotificationController:
 
         The filter merge is what makes this endpoint different from a
         timeline's, so it belongs in the seam the base calls rather than
-        in a copy of the request. Goes through ``notifications_async`` so
-        the page keeps the one typed client method for this endpoint.
+        in a copy of the request.
         """
-        self.client.notifications_async(
-            params=self._fetch_params(params),
+        api_notifications.index_async(
+            self.client, params=self._fetch_params(params),
             callback=lambda c, r, _d=None, g=generation: callback(c, r, g))
 
     def on_page_loaded(self, client, result, generation=None):
@@ -348,12 +350,12 @@ class NotificationController:
         filtered-notification requests are waiting."""
         if not self.client.token:
             return
-        self.client.request_async('GET', '/api/v2/notifications/policy',
-                                  callback=self.on_policy_loaded)
+        api_notifications.policy_async(self.client,
+                                       callback=self.on_policy_loaded)
 
     def on_policy_loaded(self, client, result, _user_data=None):
         try:
-            policy = client.request_finish(result)
+            policy = api_notifications.policy_finish(client, result)
         except GLib.Error:
             # Servers before Mastodon 4.3 have no policy endpoint.
             self.requests_banner.set_revealed(False)
@@ -382,12 +384,12 @@ class NotificationController:
             return
         # Client stubs in the OAuth tests run login without the generic
         # request API.
-        self.client.request_async('GET', '/announcements',
-                                  callback=self.on_announcements_loaded)
+        api_announcements.index_async(
+            self.client, callback=self.on_announcements_loaded)
 
     def on_announcements_loaded(self, client, result, _user_data=None):
         try:
-            announcements = client.request_finish(result)
+            announcements = api_announcements.index_finish(client, result)
         except GLib.Error:
             return
         unread = next((a for a in announcements or []
@@ -418,12 +420,12 @@ class NotificationController:
     def fetch_unread(self):
         if not self.client.token:
             return
-        self.client.markers_async(['notifications'],
-                                  callback=self._on_markers_before_unread)
+        api_markers.get_async(self.client, ['notifications'],
+                              callback=self._on_markers_before_unread)
 
     def _on_markers_before_unread(self, client, result, _user_data=None):
         try:
-            markers = client.markers_finish(result)
+            markers = api_markers.get_finish(client, result)
         except GLib.Error:
             markers = {}
         marker = (markers or {}).get('notifications') or {}
@@ -439,12 +441,12 @@ class NotificationController:
         params = None
         if self._applied_excluded:
             params = {'exclude_types[]': sorted(self._applied_excluded)}
-        self.client.notifications_unread_count_async(
-            params=params, callback=self.on_unread_count)
+        api_notifications.unread_count_async(
+            self.client, params=params, callback=self.on_unread_count)
 
     def on_unread_count(self, client, result):
         try:
-            count = client.notifications_unread_count_finish(result)
+            count = api_notifications.unread_count_finish(client, result)
         except GLib.Error:
             return
         self._unread = count
@@ -492,14 +494,14 @@ class NotificationController:
             self._mark_again = True
             return
         self._marking = self.model.newest_id
-        self.client.notifications_mark_read_async(
-            self._marking, self.on_marked_read)
+        api_markers.save_async(self.client, 'notifications', self._marking,
+                               self.on_marked_read)
 
     def on_marked_read(self, client, result):
         marked, self._marking = self._marking, None
         again, self._mark_again = self._mark_again, False
         try:
-            client.notifications_mark_read_finish(result)
+            api_markers.save_finish(client, result)
         except GLib.Error:
             marked = None
         if marked is not None and marked == self.model.newest_id:
@@ -528,7 +530,7 @@ class NotificationController:
         def done(client, result, _data=None):
             outcome['left'] -= 1
             try:
-                client.notifications_dismiss_finish(result)
+                api_notifications.dismiss_finish(client, result)
             except GLib.Error as error:
                 outcome['error'] = error
             if outcome['left']:
@@ -545,7 +547,7 @@ class NotificationController:
                                outcome['error'])
 
         for notification_id in ids:
-            self.client.notifications_dismiss_async(notification_id, done)
+            api_notifications.dismiss_async(self.client, notification_id, done)
 
     # Clear
 
@@ -566,11 +568,11 @@ class NotificationController:
     def on_clear_chosen(self, dialog, result):
         if dialog.choose_finish(result) != 'clear':
             return
-        self.client.notifications_clear_async(self.on_cleared)
+        api_notifications.clear_async(self.client, self.on_cleared)
 
     def on_cleared(self, client, result):
         try:
-            client.notifications_clear_finish(result)
+            api_notifications.clear_finish(client, result)
         except GLib.Error as e:
             pages.report_error(self, _('Clear failed'), e)
             return

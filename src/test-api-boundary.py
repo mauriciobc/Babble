@@ -20,19 +20,20 @@ the call that sends it:
     client, method, path, ...)`. These are the audit's 83 raw sites (75
     `request_async` outside `mastodon.py`, minus the 7 inner calls of the
     generic helpers, plus 15 `pages.call`). The path argument is keyed.
-  * `internal`: the 7 inner `request_async` calls of the generic helpers
-    (`pages.call`, `pages.mutate_row`, two in `PagedList`, `admin.send`,
-    `fedicollections._send`, `wrapped._send`) and the 8th internal site,
+  * `internal`: the inner `request_async` calls of the generic helpers
+    (`pages.call`, two in `PagedList`, `admin.send`,
+    `fedicollections._send`; the old `mutate_row` and `wrapped._send`
+    are gone) and the site
     `pages.AccountListPage.__init__`, which forwards a variable path to
     `PagedList` and calls no `request_async`. They carry a *variable*
     path, so they are keyed by that variable's name. They stay on the
     list until the helper itself moves into `src/api/` (phase 4).
   * `helper`: a call that hands a path or a verb to a helper that sends
-    it later: `admin.send`, `fedicollections._send`, `wrapped._send`,
-    `mutate_row`, the `PagedList` / `AccountListPage` /
+    it later: `admin.send`, `fedicollections._send`,
+    `mutate_row_api`, the `PagedList` / `AccountListPage` /
     `ApiTimelineSource` constructors, `profileactions.send_relationship`
     (its first argument names the operation, from which the path is
-    built), Catch Up's `_get`, `multipart_async`,
+    built), `multipart_async`,
     and the completers' `search_request` hooks (their `return path,
     params`). Without these, a new endpoint could be reached through a
     helper and never show up as a `request_async` with a literal path,
@@ -95,11 +96,32 @@ sys.path.insert(0, srcdir)
 # The resource modules are pure Python (no GI): their tables say which
 # verbs and list kinds a literal may name.
 from src.api import accounts as _accounts  # noqa: E402
+from src.api import announcements as _announcements  # noqa: E402
+from src.api import filters as _filters  # noqa: E402
+from src.api import lists as _lists  # noqa: E402
 from src.api import relationships as _relationships  # noqa: E402
+from src.api import scheduled as _scheduled  # noqa: E402
+from src.api import search as _search  # noqa: E402
 from src.api import statuses as _statuses  # noqa: E402
+from src.api import tags as _tags  # noqa: E402
+from src.api import markers as _markers  # noqa: E402
+from src.api import notifications as _notifications  # noqa: E402
+from src.api import timelines as _timelines  # noqa: E402
+from src.api import trends as _trends  # noqa: E402
+from src.api import annual_reports as _annual_reports  # noqa: E402
+from src.api import conversations as _conversations  # noqa: E402
+from src.api import instance as _instance  # noqa: E402
+from src.api import suggestions as _suggestions  # noqa: E402
 
-API_MODULES = {'accounts': _accounts, 'relationships': _relationships,
-               'statuses': _statuses}
+API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
+               'filters': _filters, 'lists': _lists,
+               'relationships': _relationships, 'scheduled': _scheduled,
+               'markers': _markers, 'notifications': _notifications,
+               'search': _search, 'statuses': _statuses, 'tags': _tags,
+               'timelines': _timelines, 'trends': _trends,
+               'annual_reports': _annual_reports,
+               'conversations': _conversations, 'instance': _instance,
+               'suggestions': _suggestions}
 # The path accessors of `src.api`: a helper handed one of these names no
 # path of its own, so the site needs no allow-list entry.
 ACCESSORS = ('list_path', 'search_path', 'familiar_followers_path')
@@ -120,7 +142,6 @@ MECHANISMS = {
     'admin.send': ('helper', 2, 'path', {'src/admin.py'}),
     'fedicollections._send': ('helper', 2, 'path',
                               {'src/fedicollections.py'}),
-    'wrapped._send': ('helper', 2, 'path', {'src/wrapped.py'}),
     'mutate_row': ('helper', 2, 'path', None),
     'PagedList': ('helper', 1, 'fetch_path', None),
     'PagedList.__init__': ('helper', 2, 'fetch_path', None),
@@ -129,7 +150,6 @@ MECHANISMS = {
     'ApiTimelineSource': ('helper', 1, 'path', None),
     'send_relationship': ('helper', 0, 'operation',
                           {'src/profile.py', 'src/profileactions.py'}),
-    'catchup._get': ('helper', 0, 'path', {'src/catchup/fetch.py'}),
 }
 HOOK_NAME = 'search_request'
 # Methods whose use as a value (not a call) or through getattr is a failure:
@@ -159,10 +179,8 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
         if name == 'send' and rel == 'src/admin.py':
             return 'admin.send'
         if name == '_send':
-            return {'src/fedicollections.py': 'fedicollections._send',
-                    'src/wrapped.py': 'wrapped._send'}.get(rel)
-        if name == '_get':
-            return 'catchup._get' if rel == 'src/catchup/fetch.py' else None
+            return {'src/fedicollections.py':
+                    'fedicollections._send'}.get(rel)
         if name == '__init__':
             if isinstance(base, ast.Call) \
                     and isinstance(base.func, ast.Name) \
@@ -180,8 +198,8 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
         if name == 'send' and rel == 'src/admin.py':
             return 'admin.send'
         if name == '_send':
-            return {'src/fedicollections.py': 'fedicollections._send',
-                    'src/wrapped.py': 'wrapped._send'}.get(rel)
+            return {'src/fedicollections.py':
+                    'fedicollections._send'}.get(rel)
         if name in derived:
             return 'PagedList'
     else:
@@ -189,7 +207,7 @@ def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
     if name in derived:
         return 'PagedList'
     if name in MECHANISMS and name not in (
-            'pages.call', 'admin.send', 'catchup._get', 'super().__init__',
+            'pages.call', 'admin.send', 'super().__init__',
             'PagedList.__init__'):
         files = MECHANISMS[name][3]
         if files is None or rel in files:

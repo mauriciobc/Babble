@@ -9,7 +9,6 @@ Phanpy: pages/followed-hashtags.jsx, pages/hashtag.jsx.
 """
 
 import json
-import urllib.parse
 
 import gi
 
@@ -22,6 +21,8 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import charts  # noqa: E402
 from . import pages  # noqa: E402
+from .api import tags as api_tags  # noqa: E402
+from .api import timelines as api_timelines  # noqa: E402
 from .hashtagcompleter import forget_pool  # noqa: E402
 from .lists import make_pin_button  # noqa: E402
 from .pages import ToastDialog  # noqa: E402
@@ -47,10 +48,6 @@ def _invalidate_home_tags(widget):
 
 def clean_name(name):
     return (name or '').strip().lstrip('#').strip()
-
-
-def _tag_path(name):
-    return '/timelines/tag/%s' % urllib.parse.quote(clean_name(name), safe='')
 
 
 def stats_text(history, days=STATS_DAYS):
@@ -144,7 +141,8 @@ class HashtagPage(Adw.Bin):
             if definition.get('local'):
                 params['local'] = 'true'
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
-            client, _tag_path(self.tags[0]), params=params))
+            client, api_timelines.list_path('tag', clean_name(self.tags[0])),
+            params=params))
         pages.configure_empty_page(
             self.timeline.empty_page, 'edit-find-symbolic',
             _('No Posts With This Hashtag'),
@@ -231,16 +229,13 @@ class HashtagPage(Adw.Bin):
             self.follow_button.add_css_class('suggested-action')
 
     def _load_info(self):
-        name = self.tags[0]
-        quoted = urllib.parse.quote(name, safe='')
-        self.client.request_async('GET', '/tags/%s' % quoted,
-                                  callback=self._on_info)
-        self.client.request_async('GET', '/featured_tags',
-                                  callback=self._on_featured)
+        api_tags.get_async(self.client, self.tags[0],
+                           callback=self._on_info)
+        api_tags.featured_async(self.client, callback=self._on_featured)
 
     def _on_info(self, client, result, _data=None):
         try:
-            info = client.request_finish(result)
+            info = api_tags.get_finish(client, result)
         except GLib.Error:
             return
         text = stats_text(info.get('history'))
@@ -251,7 +246,7 @@ class HashtagPage(Adw.Bin):
 
     def _on_featured(self, client, result, _data=None):
         try:
-            featured = client.request_finish(result)
+            featured = api_tags.featured_finish(client, result)
         except GLib.Error:
             return
         name = self.tags[0].lower()
@@ -263,14 +258,13 @@ class HashtagPage(Adw.Bin):
 
     def _on_follow_clicked(self, button):
         name = self.tags[0]
-        quoted = urllib.parse.quote(name, safe='')
         action = 'unfollow' if self.following else 'follow'
         button.set_sensitive(False)
 
         def done(client, result, _data=None):
             button.set_sensitive(True)
             try:
-                info = client.request_finish(result)
+                info = api_tags.action_finish(client, result)
             except GLib.Error as error:
                 pages.report_error(
                     self, _('Could not unfollow #%s') % name
@@ -283,8 +277,7 @@ class HashtagPage(Adw.Bin):
                 self, _('Followed #%s') % name if self.following
                 else _('Unfollowed #%s') % name)
 
-        self.client.request_async('POST', '/tags/%s/%s' % (quoted, action),
-                                  callback=done)
+        api_tags.action_async(self.client, name, action, callback=done)
 
     def _on_feature(self, *_a):
         name = self.tags[0]
@@ -292,7 +285,7 @@ class HashtagPage(Adw.Bin):
         def done(client, result, _data=None):
             self.more_button.set_sensitive(True)
             try:
-                data = client.request_finish(result)
+                data = api_tags.feature_finish(client, result)
             except GLib.Error as error:
                 pages.report_error(self, _('Could not change the featured '
                                            'tags'), error)
@@ -309,12 +302,10 @@ class HashtagPage(Adw.Bin):
 
         self.more_button.set_sensitive(False)
         if self.featured_id:
-            self.client.request_async(
-                'DELETE', '/featured_tags/%s' % self.featured_id,
-                callback=done)
+            api_tags.unfeature_async(self.client, self.featured_id,
+                                     callback=done)
         else:
-            self.client.request_async('POST', '/featured_tags',
-                                      form={'name': name}, callback=done)
+            api_tags.feature_async(self.client, name, callback=done)
 
     # Multi-hashtag header
 
@@ -663,7 +654,6 @@ class TagRow(HashtagRow):
 
     def _on_unfollow(self, button):
         name = self.tag['name']
-        quoted = urllib.parse.quote(name, safe='')
         client = self.page.client
         button.set_sensitive(False)
 
@@ -672,9 +662,13 @@ class TagRow(HashtagRow):
                 _invalidate_home_tags(self.page)
                 self.page.refresh()
 
-            pages.call(self.page, client, 'POST', '/tags/%s/follow' % quoted,
-                       on_done=restored,
-                       error_heading=_('Could not follow #%s') % name)
+            pages.call_api(
+                self.page, client,
+                lambda callback: api_tags.action_async(
+                    client, name, 'follow', callback=callback),
+                on_done=restored,
+                error_heading=_('Could not follow #%s') % name,
+                finish=api_tags.action_finish)
 
         def done(_data):
             self.page.paged.remove_row(self)
@@ -684,7 +678,7 @@ class TagRow(HashtagRow):
 
         def finished(c, result, _d=None):
             try:
-                data = c.request_finish(result)
+                data = api_tags.action_finish(c, result)
             except GLib.Error as error:
                 button.set_sensitive(True)
                 pages.report_error(
@@ -692,8 +686,7 @@ class TagRow(HashtagRow):
                 return
             done(data)
 
-        client.request_async('POST', '/tags/%s/unfollow' % quoted,
-                             callback=finished)
+        api_tags.action_async(client, name, 'unfollow', callback=finished)
 
 
 class SavedTimelinesGroup(Gtk.Box):
@@ -815,7 +808,7 @@ class FollowedHashtagsPage(Adw.Bin):
         header.append(pages.section_label(_('Followed Hashtags')))
         page = self.weak_ref()  # the list is a child: no strong cycle
         self.paged = _FollowedTagsList(
-            client, '/followed_tags', lambda tag: TagRow(page(), tag),
+            client, api_tags.list_path('followed'), lambda tag: TagRow(page(), tag),
             empty_title=_('No Followed Hashtags'),
             empty_icon='edit-find-symbolic',
             empty_description=_('Follow a hashtag from its page to see its '

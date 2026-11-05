@@ -18,6 +18,10 @@ from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
+from .api import suggestions as api_suggestions  # noqa: E402
+from .api import tags as api_tags  # noqa: E402
+from .api import timelines as api_timelines  # noqa: E402
+from .api import trends as api_trends  # noqa: E402
 
 from .capabilities import LINK_TIMELINE_API_VERSION
 
@@ -87,7 +91,7 @@ class LinkTimelinePage(Adw.Bin):
         from .timelinepage import ApiTimelineSource, TimelinePage
         self.link = link
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
-            client, '/timelines/link', params={'url': link['url']}))
+            client, api_timelines.list_path('link'), params={'url': link['url']}))
         self.timeline.set_vexpand(True)
         pages.configure_empty_page(
             self.timeline.empty_page, 'edit-find-symbolic',
@@ -306,9 +310,8 @@ class SuggestionRow(pages.AccountRow):
                 return
             self.page.paged.remove_row(self)
 
-        client.request_async(
-            'DELETE', '/suggestions/%s' % self.account['id'],
-            callback=finished)
+        api_suggestions.dismiss_async(
+            client, self.account['id'], callback=finished)
 
 
 class SuggestionsPage(Adw.Bin):
@@ -321,7 +324,7 @@ class SuggestionsPage(Adw.Bin):
         self.client = client
         page = self.weak_ref()  # the list is a child: no strong cycle
         self.paged = pages.PagedList(
-            client, '/api/v2/suggestions',
+            client, api_suggestions.list_path('index'),
             lambda suggestion: SuggestionRow(page(), suggestion)
             if suggestion.get('account') else None,
             params={'limit': 40}, paginated=False,
@@ -344,7 +347,7 @@ class HashtagsPage(Adw.Bin):
         super().__init__()
         from .hashtags import HashtagRow
         self.paged = pages.PagedList(
-            client, '/trends/tags',
+            client, api_tags.list_path('trending'),
             lambda tag: HashtagRow(client, tag, sparkline=True),
             params={'limit': 20}, empty_title=_('No Trending Hashtags'),
             empty_icon='edit-find-symbolic')
@@ -362,7 +365,8 @@ class NewsPage(Adw.Bin):
     def __init__(self, client):
         super().__init__()
         self.paged = pages.PagedList(
-            client, '/trends/links', lambda link: LinkCard(client, link),
+            client, api_trends.list_path('links'),
+            lambda link: LinkCard(client, link),
             params={'limit': 20}, empty_title=_('No Trending News'),
             empty_icon='text-x-generic-symbolic')
         self.set_child(self.paged)
@@ -407,7 +411,7 @@ class ExplorePage(Adw.Bin):
     def _build_posts(self):
         from .timelinepage import ApiTimelineSource, TimelinePage
         page = TimelinePage(self.client, source=ApiTimelineSource(
-            self.client, '/trends/statuses', paging='link'))
+            self.client, api_trends.list_path('statuses'), paging='link'))
         pages.configure_empty_page(
             page.empty_page, 'edit-find-symbolic',
             _('No Trending Posts'),

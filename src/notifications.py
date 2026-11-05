@@ -18,6 +18,7 @@ import time as _time  # noqa: E402
 
 from .mastodon import summarize_error_markup  # noqa: E402
 from . import pages  # noqa: E402
+from .api import notifications as api_notifications  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .pages import (PagedList, PagedPosts, connect_weak,  # noqa: E402
                     launch_external,
@@ -1747,15 +1748,17 @@ class NotificationRequestRow(Adw.ActionRow):
     def answer(self, action):
         """POST /api/v1/notifications/requests/:id/(accept|dismiss).
 
-        mutate_row with remove=False: the page decides what leaving the
+        mutate_row_api with remove=False: the page decides what leaving the
         list means here (a toast, and the request list refreshes), so the
         row stays until request_answered takes it.
         """
-        self.page.mutate_row(
-            self, 'POST',
-            '/notifications/requests/%s/%s' % (self.request['id'], action),
+        self.page.mutate_row_api(
+            self, lambda callback: api_notifications.answer_request_async(
+                self.page.client, self.request['id'], action,
+                callback=callback),
             on_done=lambda: self.page.request_answered(self, action),
-            error_heading=_('Could not update the request'), remove=False)
+            error_heading=_('Could not update the request'), remove=False,
+            finish=api_notifications.answer_request_finish)
 
 
 class NotificationRequestsPage(PagedList):
@@ -1772,7 +1775,7 @@ class NotificationRequestsPage(PagedList):
             xalign=0.0, wrap=True)
         intro.add_css_class('dimmed')
         super().__init__(
-            client, '/notifications/requests', self._make_row,
+            client, api_notifications.list_path('requests'), self._make_row,
             empty_title=_('No Filtered Notifications'),
             empty_icon='babble-notifications-symbolic',
             empty_description=_('Notifications held back by your filters '
@@ -1895,12 +1898,11 @@ class NotificationPolicyDialog(pages.ToastDialog):
     # Policy
 
     def load(self):
-        self.client.request_async('GET', '/api/v2/notifications/policy',
-                                  callback=self.on_loaded)
+        api_notifications.policy_async(self.client, callback=self.on_loaded)
 
     def on_loaded(self, client, result, _user_data=None):
         try:
-            policy = client.request_finish(result)
+            policy = api_notifications.policy_finish(client, result)
         except GLib.Error as error:
             self.filters_group.set_description(
                 _('This server does not support filtering notifications')
@@ -1946,11 +1948,13 @@ class NotificationPolicyDialog(pages.ToastDialog):
             if parent is not None:
                 show_toast(parent, _('Notification settings updated'))
 
-        pages.call(self, self.client, 'PATCH',
-                   '/api/v2/notifications/policy',
-                   on_done=saved,
-                   error_heading=_('Could not save notification settings'),
-                   json_body=payload)
+        pages.call_api(
+            self, self.client,
+            lambda callback: api_notifications.update_policy_async(
+                self.client, payload, callback=callback),
+            on_done=saved,
+            error_heading=_('Could not save notification settings'),
+            finish=api_notifications.update_policy_finish)
 
     # Visible types
 

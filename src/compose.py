@@ -27,6 +27,7 @@ from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Pango, Spelling)
 
 from . import emojichooser, pages, portals  # noqa: E402
+from .api import scheduled as api_scheduled  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
 from .composequote import QuotePaste  # noqa: E402
@@ -2177,7 +2178,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         def finished(_source, result, _data=None):
             error = None
             try:
-                client.request_finish(result)
+                api_scheduled.delete_finish(client, result)
             except GLib.Error as failure:
                 if failure.domain != 'mastodon-http-error-quark' or failure.code != 404:
                     error = failure
@@ -2199,9 +2200,9 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                 transaction.on_done()
             view._complete_post(transaction.accepted, transaction.message)
 
-        client.request_async(
-            'DELETE', '/scheduled_statuses/%s' % transaction.original_id,
-            callback=finished, cancellable=self._cleanup_cancellable)
+        api_scheduled.delete_async(
+            client, transaction.original_id, callback=finished,
+            cancellable=self._cleanup_cancellable)
 
     def _show_cleanup_warning(self):
         if self._cleanup_banner is None:

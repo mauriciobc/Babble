@@ -298,6 +298,7 @@ class SearchProvider:
             DEBOUNCE_MS, self._fire_network, search)
 
     def _fire_network(self, search):
+        from .api import search as api_search
         search.timer = 0
         if search.answered:
             return GLib.SOURCE_REMOVE
@@ -306,16 +307,15 @@ class SearchProvider:
             if search.answered:
                 return
             try:
-                search.network = client.request_finish(result) or {}
+                search.network = api_search.search_finish(client, result) or {}
             except GLib.Error:
                 search.network = {}
             self._step(search)
 
-        search.client.request_async(
-            'GET', '/api/v2/search',
-            params={'q': search.query, 'limit': MAX_ACCOUNTS,
-                    'resolve': 'false'},
-            callback=done, cancellable=search.cancellable)
+        api_search.search_async(
+            search.client, search.query, limit=MAX_ACCOUNTS,
+            resolve='false', callback=done,
+            cancellable=search.cancellable)
         return GLib.SOURCE_REMOVE
 
     def _step(self, search):
@@ -445,11 +445,12 @@ class SearchProvider:
                 waiter()
 
         from .api import accounts as api_accounts
+        from .api import tags as api_tags
         api_accounts.following_async(
             client, account['id'], params={'limit': 80},
             callback=lambda c, r, _d=None: finished('accounts', c, r))
-        client.request_async(
-            'GET', '/followed_tags', params={'limit': 100},
+        api_tags.followed_async(
+            client, {'limit': 100},
             callback=lambda c, r, _d=None: finished('tags', c, r))
 
     # Metas

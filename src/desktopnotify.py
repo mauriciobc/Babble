@@ -308,13 +308,13 @@ class DesktopNotifier(GObject.Object):
         params = {'limit': 1 if initial else 20}
         if not initial and self._last_id is not None:
             params['since_id'] = self._last_id
-        client.request_async(
-            'GET', '/notifications', params=params,
+        api_notifications.index_async(
+            client, params=params,
             callback=lambda c, result: self._on_polled(c, result, initial))
 
     def _on_polled(self, client, result, initial):
         try:
-            notifications = client.request_finish(result)
+            notifications = api_notifications.index_finish(client, result)
         except GLib.Error:
             return
         if client is not self._polling_client:
@@ -343,6 +343,7 @@ class DesktopNotifier(GObject.Object):
 from .notifications import id_key as _id_key  # noqa: E402
 from .accounts import account_key, find_account_by_key  # noqa: E402
 from .mastodon import MastodonClient, summarize_error  # noqa: E402
+from .api import notifications as api_notifications  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 
