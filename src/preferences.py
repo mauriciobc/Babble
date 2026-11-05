@@ -20,6 +20,8 @@ from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
 from . import pages, portals, webcolumn  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from .capabilities import (NOTIFICATION_POLICY_API_VERSION,  # noqa: E402
+                           QUOTES_API_VERSION)
 from .notificationcopy import DESKTOP_NOTIFICATION_TYPES  # noqa: E402
 from .entities import (QUOTE_POLICIES as QUOTE_POLICY_CODES,  # noqa: E402
                        VISIBILITIES as VISIBILITY_CODES)
@@ -162,6 +164,8 @@ def sync_posting_defaults(window, key, settings):
         form['source[sensitive]'] = 'true' if settings.get_boolean(key) \
             else 'false'
     elif key == 'default-quote-policy':
+        if not client.is_supported(QUOTES_API_VERSION):
+            return   # no such preference before Mastodon 4.5.0
         form['source[quote_policy]'] = settings.get_string(key)
     else:
         return
@@ -540,16 +544,23 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._combo_enum(group, 'default-visibility',
                          _('Default _Visibility'), VISIBILITIES,
                          sync=True)
-        self._combo_enum(group, 'default-quote-policy',
-                         _('Default _Quote Policy'), QUOTE_POLICIES,
-                         # There is no per-post quote policy in the API:
-                         # the only place it is set is the account's own
-                         # source preferences, which is where this is
-                         # sent. Say so, rather than letting the row
-                         # read as a Babble-side switch.
-                         subtitle=_('Saved to your server preferences, so it '
-                                     'applies to every new post'),
-                         sync=True)
+        # Quote posts are Mastodon 4.5.0: older servers ignore
+        # source[quote_policy], so the row would read as saved and do
+        # nothing. A server that says nothing is told no
+        # (when_unknown=False); the row is a visible promise.
+        self.quote_policy_row = None
+        if self.window.client.is_supported(QUOTES_API_VERSION):
+            self.quote_policy_row = self._combo_enum(
+                group, 'default-quote-policy',
+                _('Default _Quote Policy'), QUOTE_POLICIES,
+                # There is no per-post quote policy in the API:
+                # the only place it is set is the account's own
+                # source preferences, which is where this is
+                # sent. Say so, rather than letting the row
+                # read as a Babble-side switch.
+                subtitle=_('Saved to your server preferences, so it '
+                            'applies to every new post'),
+                sync=True)
         self._language_row(group)
         row = self._switch(group, 'default-sensitive',
                            _('Media Marked _Sensitive'))
@@ -631,9 +642,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
             _('Combine notifications of the same type and post into one'))
         page.add(desktop)
 
-        if self.window.client is not None:
+        self.policy_row = None
+        # Notification filtering is Mastodon 4.3.0. An unproven server
+        # keeps the row (when_unknown=True): the dialog says plainly that
+        # the server cannot filter, and this page can be built before
+        # the instance document has arrived.
+        if self.window.client is not None and self.window.client.is_supported(
+                NOTIFICATION_POLICY_API_VERSION, when_unknown=True):
             server = Adw.PreferencesGroup(title=_('Server'))
-            policy = Adw.ActionRow(
+            self.policy_row = policy = Adw.ActionRow(
                 title=_('Notification _Filtering'), use_underline=True,
                 subtitle=_('Choose whose notifications reach you'),
                 activatable=True)

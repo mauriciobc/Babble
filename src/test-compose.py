@@ -178,6 +178,10 @@ class StubClient:
     def __init__(self):
         self.token = None
 
+    def is_supported(self, _min_version, when_unknown=False):
+        # A current server: every version gate is open.
+        return True
+
     def media_size_limits(self):
         # No limit advertised, which is what most of these tests want:
         # an instance that says nothing must not refuse anything.
@@ -2131,6 +2135,31 @@ del client.post_finish
 check('on_post_done remembers published tags',
       the_pool() is not None
       and [t['name'] for t in the_pool().tags['recent']] == ['Gaming'])
+
+# Saving a draft or scheduled post can be refused with a 422 naming the
+# limit (scheduled_status.rb: 25 per scheduled_at date, 300 per account).
+# The reader must see the server's sentence, not a bare failure.
+_limit_text = ('Validation failed: Daily limit of 25 scheduled posts '
+               'for this date reached')
+_toasts = []
+_real_toast = view._toast
+view._toast = _toasts.append
+view.scheduled_at = '5026-11-05T12:00:00.000Z'
+view._posting = True
+
+
+def _refuse(_result):
+    raise GLib.Error(_limit_text, 'mastodon-http-error-quark', 422)
+
+
+client.post_finish = _refuse
+view.on_post_done(client, StubMediaResult(), (None, view.uploads.generation))
+del client.post_finish
+view._toast = _real_toast
+view.scheduled_at = None
+check('a refused draft shows the server\'s limit message',
+      len(_toasts) == 1 and 'Daily limit of 25' in _toasts[0]
+      and not view._posting, repr(_toasts))
 
 # The bare #.
 reset_pool(**{RECENT: [{'name': 'r%d' % n} for n in range(5)],

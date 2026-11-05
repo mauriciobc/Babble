@@ -349,6 +349,11 @@ test('image cache', python,
   env: fatal_test_env,
   timeout: 120,
 )
+test('instance limits', python,
+  args: [files('test-instance-limits.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('media limits', python,
   args: [files('test-media-limits.py')],
   env: test_env,
@@ -583,6 +588,11 @@ test('version gate call sites', python,
   args: [files('test-version-gates.py')],
   env: test_env,
   timeout: 60,
+)
+test('feature gates', python,
+  args: [files('test-feature-gates.py')],
+  env: fatal_test_env,
+  timeout: 120,
 )
 test('filter rules', python,
   args: [files('test-filter-rules.py')],

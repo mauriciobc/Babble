@@ -7,6 +7,7 @@ dialog all describe the same Mastodon types; this module is where those
 strings live so translators meet each wording once.
 """
 
+from .capabilities import NOTIFICATION_TYPE_API_VERSIONS
 from .i18n import gettext as _
 
 
@@ -110,6 +111,14 @@ FILTER_NOTIFICATION_TYPES = [
     ('added_to_collection', LABEL_ADDED_TO_COLLECTIONS),
     ('collection_update', LABEL_COLLECTION_UPDATES),
 ]
+
+def type_offered(client, kind):
+    """Whether the server can send notifications of *kind*. An unreported
+    version says yes (``when_unknown=True``): the filter then does nothing
+    on an older server, which costs less than hiding a type a newer one has."""
+    gate = NOTIFICATION_TYPE_API_VERSIONS.get(kind)
+    return gate is None or client.is_supported(gate, when_unknown=True)
+
 
 # (type, title, subtitle) rows in Preferences → Desktop notifications.
 DESKTOP_NOTIFICATION_TYPES = (

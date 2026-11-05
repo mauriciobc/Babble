@@ -180,6 +180,9 @@ def _headers(message):
     return dict(sorted(seen.items()))
 
 
+DEFAULT_INFO = {'api_versions': {'mastodon': 12}}
+
+
 class Recorder:
     """The transport stand-in; one live at a time."""
 
@@ -269,7 +272,11 @@ class Recorder:
 
     def client(self, info=None):
         client = MastodonClient(INSTANCE, token=TOKEN)
-        client.instance_info = info or {}
+        # A recorded server is a current one (API 12, Mastodon 4.8), so the
+        # version gates of capabilities.py (audit 5c) are all open and the
+        # scenarios record the request of the feature, not of its absence.
+        # A scenario that is about an older server passes its own `info`.
+        client.instance_info = DEFAULT_INFO if info is None else info
         # Remember whose client this is: see `_spawn`.
         client._golden_recorder = self
         return client
@@ -849,8 +856,13 @@ def client_post_reply_edit(rec):
                         'poll': {'options': ['a', 'b'], 'expires_in': 300}})
     api_wrapper(rec, 'reply_async', 100, 'answer',
                 params={'visibility': 'public'})
+    # The composer hands over its whole draft; an edit keeps only the keys
+    # PUT /statuses/:id permits (audit 5f), so the rest never reaches the wire.
     api_wrapper(rec, 'edit_async', '100', 'edited',
-                params={'spoiler_text': 'cw'})
+                params={'spoiler_text': 'cw', 'visibility': 'public',
+                        'in_reply_to_id': '7', 'quoted_status_id': '8',
+                        'scheduled_at': '2030-01-01T00:00:00Z',
+                        'quote_approval_policy': 'nobody'})
 
 
 @scenario
@@ -1152,6 +1164,51 @@ def fedicollections_fetch_accounts(rec):
                                    lambda _accounts: None)
 
 
+@scenario
+def fedicollections_fetch_accounts_chunks_large_batches(rec):
+    """GET /accounts?id[]= answers at most 40 ids (the server's
+    DEFAULT_ACCOUNTS_LIMIT): 85 uncached ids go out as 40 + 40 + 5, and
+    the merged answer keeps the order of the ids."""
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    ids = [str(1000 + n) for n in range(85)]
+    rec.queue[('GET', '/api/v1/accounts')] = [
+        [account(i, 'u' + i) for i in ids[:40]],
+        [account(i, 'u' + i) for i in ids[40:80]],
+        [account(i, 'u' + i) for i in ids[80:]]]
+    got = []
+    fedicollections.fetch_accounts(rec.client(), ids, got.append)
+    rec.settle()
+    check('chunked lookup answers once with every account, in order',
+          len(got) == 1 and list(got[0]) == ids, repr(got)[:200])
+    check('chunked lookup asks at most 40 ids per request',
+          [len([k for k, _v in e['query']]) for e in rec.log]
+          == [40, 40, 5], repr([len(e['query']) for e in rec.log]))
+
+
+@scenario
+def fedicollections_fetch_accounts_keeps_what_arrived_and_says_so(rec):
+    """A failed chunk does not lose the other chunks, and the reader is
+    told once, not silently shown anonymous avatars."""
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    ids = [str(2000 + n) for n in range(85)]
+    # The failing answer does not consume a queued one.
+    rec.queue[('GET', '/api/v1/accounts')] = [
+        [account(i, 'u' + i) for i in ids[:40]],
+        [account(i, 'u' + i) for i in ids[80:]]]
+    rec.fail[('GET', '/api/v1/accounts')] = [200, 500, 200]
+    got = []
+    fedicollections.fetch_accounts(rec.client(), ids, got.append,
+                                   widget=Gtk.Box())
+    rec.settle()
+    check('a failed chunk keeps the accounts of the others',
+          len(got) == 1 and list(got[0]) == ids[:40] + ids[80:],
+          repr(got)[:200])
+    check('a failed chunk is reported once',
+          len(rec.toasts) == 1, repr(rec.toasts))
+
+
 # Phase 2: read paths
 #
 # Recorded BEFORE the read screens move into src/api, so that the move can
@@ -1326,7 +1383,9 @@ pages.open_profile = lambda *args: None
 
 def _announcements_page(rec):
     from src import announcements
-    page = announcements.AnnouncementsPage(rec.client())
+    # An empty instance document, not the current-server default: the page
+    # fetches it when there is none, and the golden records that request.
+    page = announcements.AnnouncementsPage(rec.client(info={}))
     rec.settle()
     return page
 
@@ -2142,6 +2201,26 @@ def collection_edit_members_invite_remove_and_save(rec):
     dialog.sensitive_row.set_active(True)
     dialog._on_save(None)
     rec.settle()
+
+
+@p2
+def collection_edit_clearing_the_topic_sends_a_null_tag_name(rec):
+    """Collection.tag_name= with nothing leaves the tag unset (Tag
+    .find_or_create_by_names(nil) is []), and the permit list takes a
+    null scalar: clearing the topic is `tag_name: null`."""
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), collection_json('5'), on_saved=lambda: None))
+    dialog.close = lambda: None
+    rec.settle()
+    dialog.topic_row.set_text('')
+    dialog._on_save(None)
+    rec.settle()
+    check('clearing the topic is what the dialog sends',
+          rec.log[-1]['method'] == 'PATCH'
+          and rec.log[-1]['body'] is not None
+          and 'null' in json.dumps(rec.log[-1]['body']),
+          repr(rec.log[-1:]))
 
 
 @p2

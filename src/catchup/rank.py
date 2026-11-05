@@ -244,10 +244,22 @@ def _by_score_then_id(a, b):
         0 if a.score is None else a.score)
     if delta != 0:
         return -1 if delta < 0 else 1
-    a_id = a.status['id']
-    b_id = b.status['id']
-    # b.status.id.localeCompare(a.status.id): newer (larger) id first.
+    a_id = _id_order(a.status['id'])
+    b_id = _id_order(b.status['id'])
+    # Newer (larger) id first. The reference compares the strings, which
+    # orders '99999999' after '100000001'; ids are integers cast to
+    # strings, so a longer one is the newer one.
     return -1 if b_id < a_id else 1 if b_id > a_id else 0
+
+
+def _id_order(value):
+    """Sort key for a Mastodon id: numbers by value, anything else after
+    them as text (the same order as timelinebase.id_key, which a rank
+    module may not import)."""
+    try:
+        return (0, int(value), '')
+    except (TypeError, ValueError):
+        return (1, 0, str(value))
 
 
 

@@ -20,9 +20,11 @@ from .api import accounts as api_accounts  # noqa: E402
 from .api import announcements as api_announcements  # noqa: E402
 from .api import markers as api_markers  # noqa: E402
 from .api import notifications as api_notifications  # noqa: E402
+from .capabilities import NOTIFICATION_POLICY_API_VERSION  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import PagedPosts, push_page  # noqa: E402
 from .statustext import parse_content  # noqa: E402
+from .timelinebase import id_key  # noqa: E402
 
 
 # Relationships fetched for "Follow Back", shared by every notifications
@@ -32,6 +34,25 @@ from .statustext import parse_content  # noqa: E402
 RELATIONSHIP_BATCH = 40
 _RELATIONSHIPS = {}
 _RELATIONSHIPS_PENDING = set()
+
+
+UNREAD_COUNT_LIMIT = api_notifications.UNREAD_COUNT_LIMIT
+unread_badge_text = api_notifications.unread_badge_text
+
+
+def filtering_supported(client):
+    """Whether the server has the 4.3.0 notification features: the
+    policy, its requests and ``unread_count``.
+
+    ``when_unknown=True`` on purpose. The notifications page is built at
+    sign-in, possibly before ``instance_info`` has arrived, and a server
+    that says nothing may be a Mastodon too old to say (then the call
+    answers an error, which hides the banner and leaves the badge at
+    zero, as before). A *known* number under the gate is the only "no"
+    worth skipping the request for.
+    """
+    return client.is_supported(NOTIFICATION_POLICY_API_VERSION,
+                               when_unknown=True)
 
 
 class NotificationController:
@@ -350,6 +371,9 @@ class NotificationController:
         filtered-notification requests are waiting."""
         if not self.client.token:
             return
+        if not filtering_supported(self.client):
+            self.requests_banner.set_revealed(False)
+            return
         api_notifications.policy_async(self.client,
                                        callback=self.on_policy_loaded)
 
@@ -431,16 +455,23 @@ class NotificationController:
         marker = (markers or {}).get('notifications') or {}
         last_read = marker.get('last_read_id')
         newest = self.model.newest_id
-        if last_read and newest and str(last_read) >= str(newest):
+        if last_read and newest and id_key(last_read) >= id_key(newest):
             self._marked_read = True
             self._unread = 0
             self.emit('unread-changed', 0)
             return
         # Match the list's exclusions: an excluded type must not keep the
         # badge above zero forever, since the list can never clear it.
-        params = None
+        self.request_unread_count()
+
+    def request_unread_count(self):
+        """GET /notifications/unread_count (Mastodon 4.3.0), with the same
+        exclusions as the list."""
+        if not filtering_supported(self.client):
+            return
+        params = {'limit': UNREAD_COUNT_LIMIT}
         if self._applied_excluded:
-            params = {'exclude_types[]': sorted(self._applied_excluded)}
+            params['exclude_types[]'] = sorted(self._applied_excluded)
         api_notifications.unread_count_async(
             self.client, params=params, callback=self.on_unread_count)
 

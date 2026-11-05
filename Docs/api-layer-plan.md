@@ -226,6 +226,26 @@ keeps its one raw send until the hook protocol changes.
 - One commit per deviation found in phase 0 (deprecated endpoints, wrong
   parameters, missing version gates, missing scopes). Each states the docs
   page and the observable change.
+- 5b (independent audit): seven findings, six fixed and one documented; see
+  "5b" in `Docs/mastodon-api-audit.md`. Commit: `fix: numeric id order, role
+  admin bits, chunked account lookup, repeated Link keys, clearing a
+  collection topic, search offset (audit 5b)`.
+- **Phase 5 is complete.** Commits: `3282619` (registry notes for the docs
+  inconsistencies, audit items 6, 7, 9, 10, earlier), `d541809` (5b),
+  `9c9dbf2` (5c, version gates), `6501a7c` (5d, advertised limits),
+  `f772d99` (5e, form encoding), `7b4a18d` (5f, registry and request
+  corrections), and 5g (app registration: the string `redirect_uris` kept,
+  proved against server v3.5.0 to main and Doorkeeper 5.7.1 to 5.9.9; tests
+  only, see "5g" in `Docs/mastodon-api-audit.md`).
+- **Left deliberately:** no DEVIATES remain (OT-6, the annual-report
+  endpoints, was gated on API 8 in 5c; the tally's former count of 2 was
+  stale and is reconciled to 0), and the 4 ACCEPTED-UNDOCUMENTED rows (the
+  filters and admin report JSON bodies, and two more), which work against
+  current servers and whose reasons are recorded in the registry notes.
+- **Not verified live:** poll votes, admin measures and dimensions, a null
+  `tag_name` on collections, app registration (an application record cannot be
+  deleted through the API), and the 5b-5d behaviour (numeric ids, advertised
+  limits, version gates) on servers that are not at API v12.
 - **Done when:** audit table has no open rows.
 
 ## Definition of done (whole plan)

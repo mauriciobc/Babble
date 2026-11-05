@@ -3,8 +3,9 @@
 through `api.core`.
 
 The v2 filters carry their body as JSON, which the docs show as form data
-(audit FL-2, ACCEPTED-UNDOCUMENTED): that is how the filter editor has
-always sent it and what the instances accept, so it stays. The payload
+(audit FL-2, kept in 5e for the reasons in ``_JSON``): that is how the
+filter editor has always sent it and what the instances accept, so it
+stays. The payload
 itself is built by `src/filters.py` (`build_payload`), which knows the form;
 this module only sends it. ``blur`` (4.4.0) is not offered.
 
@@ -22,7 +23,17 @@ def _declare(name, method, path, scope, anchor, note=None):
                         DOCS + anchor, note=note, mastodon_version='4.0.0')
 
 
-_JSON = 'JSON body, though the docs show form data (audit FL-2)'
+_JSON = (
+    'ACCEPTED-UNDOCUMENTED (audit FL-2, kept in 5e): JSON body, the docs '
+    'show form data. '
+    'JSON is needed because `expires_in: null` clears an expiry and the form '
+    'encoder drops None (an empty `expires_in=` would also clear it, through '
+    '`Expireable#expires_in=` `interval.present?`, but that is not a '
+    'documented value), and `keywords_attributes` is an array of objects '
+    '(`id`, `keyword`, `whole_word`, `_destroy`) that a flat form cannot '
+    'carry without indexed keys the docs do not show. The controller reads '
+    '`params.permit(:title, :expires_in, :filter_action, context: [], '
+    'keywords_attributes: [...])`')
 
 INDEX = _declare('index', 'GET', '/api/v2/filters', 'read:filters', '#get')
 CREATE = _declare('create', 'POST', '/api/v2/filters', 'write:filters',

@@ -49,10 +49,14 @@ FEATURED_SUGGESTIONS = _declare(
     'read:accounts', DOCS + 'featured_tags/#suggestions',
     note='the tags the account used lately', version='3.0.0')
 FEATURE = _declare('feature', 'POST', '/featured_tags', 'write:accounts',
-                   DOCS + 'featured_tags/#feature', note='form name',
+                   DOCS + 'featured_tags/#feature',
+                   note='form name; the body carries the tag name, not an '
+                        ':id (audit item 7)',
                    version='3.0.0')
 UNFEATURE = _declare('unfeature', 'DELETE', '/featured_tags/%s',
                      'write:accounts', DOCS + 'featured_tags/#unfeature',
+                     note=':id is the id of the featured tag (from '
+                          'featured), not a tag name (audit item 7)',
                      version='3.0.0')
 TRENDING = _declare('trending', 'GET', '/trends/tags', None,
                     DOCS + 'trends/#tags',

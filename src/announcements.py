@@ -291,7 +291,9 @@ class AnnouncementRow(Gtk.ListBoxRow):
 
 
 class AnnouncementsPage(PagedList):
-    """Every announcement of the instance, dismissed ones included."""
+    """Every published announcement of the instance, dismissed ones
+    included: the server lists them all and marks each with ``read``
+    (``GET /announcements`` takes no ``with_dismissed``; audit 5f)."""
 
     __gtype_name__ = 'BabbleAnnouncementsPage'
     __gsignals__ = {
@@ -301,7 +303,7 @@ class AnnouncementsPage(PagedList):
     def __init__(self, client, **kwargs):
         super().__init__(
             client, api_announcements.list_path('index'), self._make_row,
-            params={'with_dismissed': 'true'}, paginated=False,
+            paginated=False,
             empty_title=_('No Announcements'),
             empty_icon='dialog-information-symbolic',
             empty_description=_('Messages from the server administrators '

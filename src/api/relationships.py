@@ -6,9 +6,9 @@ The verbs a profile builds from a variable (`follow`, `block`, `mute`,
 `endorse`, ...) go through :func:`action_async`, which checks the verb
 against the table below, so a UI never formats ``/accounts/%s/%s``.
 
-Carried over from the audit, not fixed here (phase 5): ``DELETE
-/domain_blocks`` sends ``domain`` in the query, the docs say form data.
-``endorse`` is gated by the caller on ``ENDORSE_API_VERSION``, which the
+``DELETE /domain_blocks`` sends ``domain`` as form data, as the docs say
+(RL-7, audit 5e). ``endorse`` is gated by the caller on
+``ENDORSE_API_VERSION``, which the
 audit marks as unverified; the 404 fallback from ``endorse`` to the
 deprecated ``pin`` stays in the caller, which has to see the 404 itself.
 """
@@ -80,8 +80,9 @@ DOMAIN_BLOCK = _declare('domain_block', 'POST', '/domain_blocks',
 DOMAIN_UNBLOCK = _declare(
     'domain_unblock', 'DELETE', '/domain_blocks', 'write:blocks',
     DOCS + 'domain_blocks/#unblock',
-    note='DEVIATES (audit RL-7): `domain` is sent in the query, the docs '
-         'say form data; fixed in phase 5', version='1.4.0')
+    note='form domain on a DELETE, as the docs show (audit RL-7, moved '
+         'from the query in 5e). Server: `params.permit(:domain)` reads '
+         'query and body alike', version='1.4.0')
 
 # Operation -> endpoint, for the callers that pick the verb at run time (the
 # `api boundary` test reads this table to accept a literal verb).
@@ -227,7 +228,7 @@ def domain_block_finish(client, result):
 
 
 def domain_unblock_async(client, domain, callback=None, cancellable=None):
-    return core.send(client, DOMAIN_UNBLOCK, params={'domain': domain},
+    return core.send(client, DOMAIN_UNBLOCK, form={'domain': domain},
                      callback=callback, cancellable=cancellable)
 
 

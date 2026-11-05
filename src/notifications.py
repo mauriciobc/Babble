@@ -25,8 +25,10 @@ from .pages import (PagedList, PagedPosts, connect_weak,  # noqa: E402
                     push_page, report_error, reveal, settings, show_toast)
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .notificationcopy import (FILTER_NOTIFICATION_TYPES,  # noqa: E402
-                               LIST_TITLE_DEFAULT, LIST_TITLES)
+                               LIST_TITLE_DEFAULT, LIST_TITLES,
+                               type_offered)
 from .notificationctrl import (NotificationController,  # noqa: E402
+                               filtering_supported,
                                _RELATIONSHIPS)
 from .entities import lift
 from .timelinedata import StatusItem  # noqa: E402
@@ -516,9 +518,9 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         page_oldest = min(ids, key=id_key)
         page_newest = max(ids, key=id_key)
         self.oldest_id = page_oldest if self.oldest_id is None \
-            else min(self.oldest_id, page_oldest)
+            else min(self.oldest_id, page_oldest, key=id_key)
         self.newest_id = page_newest if self.newest_id is None \
-            else max(self.newest_id, page_newest)
+            else max(self.newest_id, page_newest, key=id_key)
 
     def append_page(self, notifications):
         """Append an older page (newest-first); returns False when the
@@ -1561,8 +1563,9 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
                 name, None, GLib.Variant.new_boolean(kind not in excluded))
             connect_weak(action, 'change-state', self._on_type_toggled, kind)
             self.actions.add_action(action)
-            filter_menu.append(_FILTER_MENU_LABELS.get(kind, label),
-                               'notifs.' + name)
+            if type_offered(self.client, kind):
+                filter_menu.append(_FILTER_MENU_LABELS.get(kind, label),
+                                   'notifs.' + name)
         for name, handler in (('policy', self.on_open_policy),
                               ('announcements', self.on_announcement_view)):
             action = Gio.SimpleAction.new(name, None)
@@ -1574,7 +1577,8 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         filters.append_submenu(_('_Filter'), filter_menu)
         menu.append_section(None, filters)
         more = Gio.Menu()
-        more.append(_('Notification _Settings'), 'notifs.policy')
+        if filtering_supported(self.client):
+            more.append(_('Notification _Settings'), 'notifs.policy')
         more.append(_('_Announcements'), 'notifs.announcements')
         menu.append_section(None, more)
         self.menu_button = Gtk.MenuButton(icon_name='open-menu-symbolic',
@@ -1885,7 +1889,8 @@ class NotificationPolicyDialog(pages.ToastDialog):
             title=_('Show Notifications For'))
         excluded = set(settings().get_strv(EXCLUDED_TYPES_KEY))
         for kind, label in NOTIFICATION_TYPES:
-            row = Adw.SwitchRow(title=label, active=kind not in excluded)
+            row = Adw.SwitchRow(title=label, active=kind not in excluded,
+                                visible=type_offered(self.client, kind))
             row.add_prefix(Gtk.Image(icon_name=type_icon(kind)))
             connect_weak(row, 'notify::active', self._on_type_switched, kind)
             self.type_rows[kind] = row

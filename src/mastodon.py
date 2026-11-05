@@ -58,6 +58,13 @@ MAX_RATE_LIMIT_SECONDS = 3600
 # Mastodon's own default per-post attachment count, used when an
 # instance does not advertise one (Status::MEDIA_ATTACHMENTS_LIMIT).
 DEFAULT_MAX_MEDIA_ATTACHMENTS = 4
+# Poll options when ``configuration.polls.max_options`` is unsaid.
+DEFAULT_MAX_POLL_OPTIONS = 4
+# Alt text length when ``description_limit`` is unsaid: the pre-4.4 value,
+# the one an old server cannot refuse (4.4.0 raised it to 1500).
+DEFAULT_DESCRIPTION_LIMIT = 420
+# Characters a link counts for (``characters_reserved_per_url``).
+DEFAULT_URL_CHARACTERS = 23
 
 # libsoup 3 does not name HTTP 429, so the wire value is spelled out.
 HTTP_TOO_MANY_REQUESTS = 429
@@ -75,6 +82,14 @@ REST_BACKOFF_MAX = 30.0
 # POST /statuses whose response was lost *after* the server committed it
 # looked exactly like a failure, so retrying asked for the post a second
 # time and the reader got one status while the instance held two.
+# Known and accepted (audit 5f): a DELETE whose first answer was lost, then
+# repeated, finds the object gone and the caller sees a 404 for what did
+# succeed. Only a transport error or a 5xx repeats a request, so the window
+# is narrow, and the 404 is not turned into a success on purpose: a
+# successful DELETE /statuses/:id answers with the deleted status, whose text
+# a redraft needs, and a 404 cannot supply it, so a made-up success would
+# open an empty composer where an error now says what happened. The state
+# the reader wanted is the state they have.
 IDEMPOTENT_METHODS = ('GET', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE')
 
 # A parsed number below this is not an instant: 2000-01-01T00:00:00Z. It
@@ -446,10 +461,29 @@ _LINK_REL = re.compile(r'(?:^|[;\s])rel\s*=\s*(?:"([^"]*)"|([^\s;,]+))',
                        re.IGNORECASE)
 
 
+def _query_params(query):
+    """A query string as a params dict for ``request_async``: a key that
+    appears once maps to its string, a repeated one (``exclude_types[]``)
+    to the list of its values, in order. ``request_async`` encodes with
+    ``doseq``, so both forms go back out as they came in."""
+    params = {}
+    for key, val in urllib.parse.parse_qsl(query):
+        if key not in params:
+            params[key] = val
+        elif isinstance(params[key], list):
+            params[key].append(val)
+        else:
+            params[key] = [params[key], val]
+    return params
+
+
 def parse_link_header(value):
     """``{'next': {...query params}, 'prev': {...}}`` from an RFC 8288
     Link header, the way Mastodon paginates bookmarks, favourites,
-    follow lists and everything else not keyed by status id."""
+    follow lists and everything else not keyed by status id. A key the
+    URL repeats (``exclude_types[]``) holds the list of its values, so a
+    cursor spread over a request's params keeps what the first page
+    asked for."""
     links = {}
     for url, params in _LINK_PART.findall(value or ''):
         found = _LINK_REL.search(params)
@@ -459,7 +493,7 @@ def parse_link_header(value):
         # RFC 8288: rel is case-insensitive, may sit after other
         # parameters, and may hold several space-separated relations.
         for rel in (found.group(1) or found.group(2)).lower().split():
-            links[rel] = dict(urllib.parse.parse_qsl(query))
+            links[rel] = _query_params(query)
     return links
 
 
@@ -881,6 +915,61 @@ class MastodonClient(GObject.Object):
         except (TypeError, ValueError):
             return DEFAULT_MAX_MEDIA_ATTACHMENTS
         return limit if limit > 0 else DEFAULT_MAX_MEDIA_ATTACHMENTS
+
+    def poll_limits(self):
+        """``configuration.polls`` as a dict: ``max_options`` (4 when
+        unsaid, Mastodon's own default) and the three bounds the docs name
+        (docs.joinmastodon.org/entities/Instance/#polls),
+        ``max_characters_per_option``, ``min_expiration`` and
+        ``max_expiration``, each None when the server does not say. None
+        means no bound to enforce, which is the safe direction to fail in:
+        the server answers a poll it refuses. A value that is not a
+        positive integer counts as unsaid, and so does a ``max_options``
+        under two, which no poll can use.
+        """
+        polls = (((self.instance_info or {}).get('configuration') or {})
+                 .get('polls') or {})
+
+        def positive(name):
+            value = polls.get(name)
+            if isinstance(value, bool) or not isinstance(value, int) \
+                    or value <= 0:
+                return None
+            return value
+        options = positive('max_options')
+        return {
+            'max_options': options if options and options >= 2
+            else DEFAULT_MAX_POLL_OPTIONS,
+            'max_characters_per_option': positive('max_characters_per_option'),
+            'min_expiration': positive('min_expiration'),
+            'max_expiration': positive('max_expiration'),
+        }
+
+    def media_description_limit(self):
+        """Longest alt text one attachment takes.
+
+        ``configuration.media_attachments.description_limit`` (docs: 1500
+        by default since 4.4.0). A server that says nothing gets the older
+        420, because it may be a pre-4.4 Mastodon that refuses anything
+        longer with a 422; the lower number is the one that cannot fail.
+        """
+        value = self._media_configuration().get('description_limit')
+        if isinstance(value, bool) or not isinstance(value, int) \
+                or value <= 0:
+            return DEFAULT_DESCRIPTION_LIMIT
+        return value
+
+    def characters_reserved_per_url(self):
+        """How many characters a link counts for in a post
+        (``configuration.statuses.characters_reserved_per_url``), 23 until
+        the instance says."""
+        info = self.instance_info or {}
+        statuses = (info.get('configuration') or {}).get('statuses') or {}
+        value = statuses.get('characters_reserved_per_url')
+        if isinstance(value, bool) or not isinstance(value, int) \
+                or value <= 0:
+            return DEFAULT_URL_CHARACTERS
+        return value
 
     def media_size_limits(self):
         """``(image_bytes, video_bytes)`` from the instance, either None

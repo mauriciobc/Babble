@@ -493,6 +493,20 @@ class Base(unittest.TestCase):
 # region weights
 
 
+class TestTieBreakIds(Base):
+    """Equal scores break on the newer id first, and ids of different
+    digit lengths compare as numbers."""
+
+    def test_longer_id_is_newer(self):
+        def scored(id_):
+            return types.SimpleNamespace(score=1.0, status={'id': id_})
+        ordered = sorted(
+            [scored('99999999'), scored('100000001')],
+            key=__import__('functools').cmp_to_key(_rank._by_score_then_id))
+        self.assertEqual([c.status['id'] for c in ordered],
+                         ['100000001', '99999999'])
+
+
 class TestWeights(Base):
     def test_x_weights_match_the_production_defaults(self):
         self.assertEqual(dict(cr.X_WEIGHTS), {

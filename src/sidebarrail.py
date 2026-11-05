@@ -61,6 +61,7 @@ class SidebarRail(Gtk.Box):
         self._badge = None
         self._badge_row = None
         self._badge_count = 0
+        self._badge_text = ''
 
         self.account_host = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                     halign=Gtk.Align.CENTER)
@@ -138,7 +139,7 @@ class SidebarRail(Gtk.Box):
             self._badge = badge
             self._badge_row = row
             if self._badge_count > 0:
-                badge.set_text(str(self._badge_count))
+                badge.set_text(self._badge_text or str(self._badge_count))
                 badge.set_visible(True)
         else:
             row.set_child(image)
@@ -154,6 +155,11 @@ class SidebarRail(Gtk.Box):
             title = ngettext('Notifications, %d unread',
                              'Notifications, %d unread',
                              self._badge_count) % self._badge_count
+            if self._badge_text.endswith('+'):
+                # Translators: accessible label of the Notifications rail
+                # button when the count is capped; %s is a count with a
+                # plus sign, such as "100+".
+                title = _('Notifications, %s unread') % self._badge_text
         row.update_property([Gtk.AccessibleProperty.LABEL], [title])
 
     def _on_row_activated(self, _listbox, row):
@@ -176,11 +182,14 @@ class SidebarRail(Gtk.Box):
         row.set_tooltip_text(title)
         self._set_row_label(row)
 
-    def set_badge(self, count):
-        """Show *count* on the notifications row, and read it out."""
+    def set_badge(self, count, text=None):
+        """Show *count* on the notifications row, and read it out. *text*
+        replaces the number where it is only a floor, such as ``100+``."""
         self._badge_count = count
+        self._badge_text = text or ''
         if self._badge is not None:
-            self._badge.set_text('' if count <= 0 else str(count))
+            self._badge.set_text(
+                '' if count <= 0 else (text or str(count)))
             self._badge.set_visible(count > 0)
         if self._badge_row is not None:
             self._set_row_label(self._badge_row)

@@ -7,23 +7,30 @@ cancellable=None)` / `<name>_finish(client, result)` pair. The request on
 the wire is the one the notification page, its controller, the desktop
 poller and the policy dialog sent before: same verb, path, params and body.
 
-Carried over from the audit, not fixed here (phase 5): ``PATCH
-/api/v2/notifications/policy`` sends the changed fields as a JSON body, the
-docs say form data (NT-6). ``unread_count`` is ungated although it is 4.3.0
-(NT-2), and so are the policy and the requests (NT-5, NT-7, NT-8): a server
-without them answers an error the caller already handles.
+``PATCH /api/v2/notifications/policy`` sends the changed fields as form
+data, as the docs say (NT-6, audit 5e). Every field is an enum string
+(``accept``, ``filter`` or ``drop``), so the encoding is the same text.
 
-`min_version` is None throughout, so the release is in ``mastodon_version``
-and nothing here changes what the app asks of an instance.
+The 4.3.0 endpoints (``unread_count``, the policy and the requests) carry
+`min_version` 2, the number v4.3.0 reports; the page asks
+``capabilities.NOTIFICATION_POLICY_API_VERSION`` before the policy, the
+count and the Settings entry (audit 5c). It is written out here because
+this package may import nothing but the standard library and `core`;
+`api registry` holds it equal to the constant. The others are older than
+`api_versions` and stay None.
 """
 
 from . import core
 
 DOCS = 'https://docs.joinmastodon.org/methods/notifications/'
 
+# Mirrors capabilities.NOTIFICATION_POLICY_API_VERSION (see above).
+NOTIFICATION_POLICY = 2
 
-def _declare(name, method, path, scope, anchor, note=None, version=None):
-    return core.declare('notifications.' + name, method, path, scope, None,
+
+def _declare(name, method, path, scope, anchor, note=None, version=None,
+             gate=None):
+    return core.declare('notifications.' + name, method, path, scope, gate,
                         DOCS + anchor, note=note, mastodon_version=version)
 
 
@@ -34,28 +41,38 @@ INDEX = _declare('index', 'GET', '/notifications', 'read:notifications',
 UNREAD_COUNT = _declare('unread_count', 'GET', '/notifications/unread_count',
                         'read:notifications', '#unread-count',
                         note='types[] and exclude_types[], as the list',
-                        version='4.3.0')
+                        version='4.3.0', gate=NOTIFICATION_POLICY)
 CLEAR = _declare('clear', 'POST', '/notifications/clear',
                  'write:notifications', '#clear', version='1.0.0')
 DISMISS = _declare('dismiss', 'POST', '/notifications/%s/dismiss',
                    'write:notifications', '#dismiss', version='1.3.0')
 POLICY = _declare('policy', 'GET', '/api/v2/notifications/policy',
-                  'read:notifications', '#get-policy', version='4.3.0')
+                  'read:notifications', '#get-policy',
+                  version='4.3.0', gate=NOTIFICATION_POLICY)
 UPDATE_POLICY = _declare(
     'update_policy', 'PATCH', '/api/v2/notifications/policy',
     'write:notifications', '#update-the-filtering-policy',
-    note='DEVIATES (audit NT-6): the changed `for_*` fields go as a JSON '
-         'body, the docs say form data; fixed in phase 5',
-    version='4.3.0')
+    note='form `for_*` enum strings (accept, filter, drop), as the docs '
+         'show (audit NT-6, moved from JSON in 5e). Server: '
+         '`params.permit(:for_not_following ... :for_bots)` over string '
+         'enums, so form and JSON read alike. The request names are `for_*` '
+         'while the docs example response shows '
+         '`filter_*` booleans; Babble sends and reads `for_*` (audit '
+         'item 7)',
+    version='4.3.0',
+    gate=NOTIFICATION_POLICY)
 REQUESTS = _declare('requests', 'GET', '/notifications/requests',
                     'read:notifications', '#get-requests',
-                    note='Link paged', version='4.3.0')
+                    note='Link paged', version='4.3.0',
+                    gate=NOTIFICATION_POLICY)
 ACCEPT_REQUEST = _declare(
     'accept_request', 'POST', '/notifications/requests/%s/accept',
-    'write:notifications', '#accept-request', version='4.3.0')
+    'write:notifications', '#accept-request', version='4.3.0',
+    gate=NOTIFICATION_POLICY)
 DISMISS_REQUEST = _declare(
     'dismiss_request', 'POST', '/notifications/requests/%s/dismiss',
-    'write:notifications', '#dismiss-request', version='4.3.0')
+    'write:notifications', '#dismiss-request', version='4.3.0',
+    gate=NOTIFICATION_POLICY)
 
 # The two answers to a filtered-notification request, picked by
 # `answer_request_async`.
@@ -80,6 +97,23 @@ def index_async(client, params=None, callback=None, cancellable=None):
 
 def index_finish(client, result):
     return core.finish(client, result)
+
+
+# ``limit`` of unread_count: the docs default is 100 and the maximum 1000.
+# Babble sends the default explicitly because the badge's "100+" is derived
+# from it: a count that reaches it means "at least this many".
+UNREAD_COUNT_LIMIT = 100
+
+
+def unread_badge_text(count):
+    """The badge's text: the exact count, or ``100+`` once the count
+    reaches the limit the server counts up to, where it is a floor and not
+    a number."""
+    if count <= 0:
+        return ''
+    if count >= UNREAD_COUNT_LIMIT:
+        return '%d+' % UNREAD_COUNT_LIMIT
+    return str(count)
 
 
 def unread_count_async(client, params=None, callback=None,
@@ -121,8 +155,8 @@ def policy_finish(client, result):
 
 
 def update_policy_async(client, changes, callback=None, cancellable=None):
-    """Send the changed ``for_*`` fields in *changes* as a JSON body."""
-    return core.send(client, UPDATE_POLICY, json_body=changes,
+    """Send the changed ``for_*`` fields in *changes* as form data."""
+    return core.send(client, UPDATE_POLICY, form=changes,
                      callback=callback, cancellable=cancellable)
 
 

@@ -29,6 +29,7 @@ from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
 from . import emojichooser, pages, portals  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
+from .capabilities import QUOTES_API_VERSION  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
 from .composequote import QuotePaste  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
@@ -87,6 +88,33 @@ POLL_DURATIONS = [
     (86400, _('1 day')),
     (604800, _('7 days')),
 ]
+DEFAULT_POLL_DURATION = 86400
+
+
+def duration_label(seconds):
+    """A poll duration in the largest unit that divides it."""
+    for unit, label in ((86400, ngettext('%d day', '%d days', seconds // 86400)),
+                        (3600, ngettext('%d hour', '%d hours', seconds // 3600)),
+                        (60, ngettext('%d minute', '%d minutes', seconds // 60))):
+        if seconds % unit == 0:
+            return label % (seconds // unit)
+    return ngettext('%d second', '%d seconds', seconds) % seconds
+
+
+def poll_duration_choices(limits):
+    """``[(seconds, label)]`` the poll duration row offers: the fixed
+    list narrowed to ``[min_expiration, max_expiration]`` of the instance
+    (docs.joinmastodon.org/entities/Instance/#polls; either may be None).
+    When none of the fixed choices fits, the bounds themselves."""
+    low = limits.get('min_expiration')
+    high = limits.get('max_expiration')
+    choices = [(seconds, label) for seconds, label in POLL_DURATIONS
+               if (low is None or seconds >= low)
+               and (high is None or seconds <= high)]
+    if choices:
+        return choices
+    return [(seconds, duration_label(seconds))
+            for seconds in sorted({low, high} - {None})]
 
 
 def _has_setting(key):
@@ -402,6 +430,11 @@ class AttachmentRow(Gtk.ListBox):
         self.alt_entry = Adw.EntryRow(title=_('Description'))
         self.append(self.alt_entry)
 
+    def limit_description(self, limit):
+        """Cap the alt text at *limit* characters, the instance's
+        ``description_limit``."""
+        Gtk.Editable.get_delegate(self.alt_entry).set_max_length(limit)
+
 
 @dataclass(frozen=True)
 class _ThreadProgress:
@@ -663,7 +696,8 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.poll_expiry = Adw.ComboRow(
             title=_('Duration'),
             model=Gtk.StringList.new([text for _s, text in self._poll_durations]))
-        self.poll_expiry.set_selected(2)
+        self._poll_base = list(self._poll_durations)
+        self._select_default_poll_duration()
         self._poll_box.append(self.poll_expiry)
         self.poll_add = Adw.ButtonRow(title=_('_Add Choice'),
                                       use_underline=True,
@@ -671,6 +705,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         pages.connect_weak(self.poll_add, 'activated',
                            self.on_poll_add_choice)
         self._poll_box.append(self.poll_add)
+        self._apply_poll_limits()
         for _n in range(2):
             self.on_poll_add_choice(self.poll_add)
         self._poll_revealer = Gtk.Revealer(
@@ -780,6 +815,52 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                     duration_seconds=self._poll_durations[self.poll_expiry.get_selected()][0],
                     **self._scheduled_fields.get('poll_flags', {}))
 
+    def poll_limits(self):
+        """The instance's poll limits, read live like :attr:`char_limit`
+        (the cached dialog can be built before the document arrives)."""
+        reader = getattr(self.client, 'poll_limits', None)
+        if reader is not None:
+            return reader()
+        return {'max_options': MAX_POLL_CHOICES,
+                'max_characters_per_option': None,
+                'min_expiration': None, 'max_expiration': None}
+
+    def _apply_poll_limits(self):
+        """Bring the option rows and the duration row in line with the
+        instance's limits: option text length, the add button, and the
+        offered durations."""
+        limits = self.poll_limits()
+        self._poll_max = limits['max_options']
+        longest = limits['max_characters_per_option'] or 0
+        for entry in self.poll_entries:
+            Gtk.Editable.get_delegate(entry).set_max_length(longest)
+        self.poll_add.set_visible(len(self.poll_entries) < self._poll_max)
+        base = poll_duration_choices(limits)
+        if base == self._poll_base:
+            return
+        current = self._poll_durations[self.poll_expiry.get_selected()][0] \
+            if self._poll_durations and self.poll_expiry.get_selected() \
+            < len(self._poll_durations) else None
+        # Durations restored from a saved post stay offered.
+        extras = [item for item in self._poll_durations
+                  if item not in self._poll_base]
+        self._poll_base = base
+        self._poll_durations = base + extras
+        self.poll_expiry.set_model(Gtk.StringList.new(
+            [text for _s, text in self._poll_durations]))
+        values = [seconds for seconds, _l in self._poll_durations]
+        if current in values:
+            self.poll_expiry.set_selected(values.index(current))
+        else:
+            self._select_default_poll_duration()
+
+    def _select_default_poll_duration(self):
+        """A day when offered, else the offered duration nearest to it."""
+        values = [seconds for seconds, _l in self._poll_durations]
+        if values:
+            best = min(values, key=lambda v: abs(v - DEFAULT_POLL_DURATION))
+            self.poll_expiry.set_selected(values.index(best))
+
     def _poll_options(self):
         return [entry.get_text().strip() for entry in self.poll_entries
                 if entry.get_text().strip()]
@@ -809,7 +890,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                     and not 0 <= draft.language < len(LANGUAGES)) \
                 or (draft.poll.duration_seconds is None
                     and not 0 <= draft.poll.expires < len(POLL_DURATIONS)) \
-                or len(draft.poll.options) > MAX_POLL_CHOICES:
+                or len(draft.poll.options) > self.poll_limits()['max_options']:
             self._show_error(_('Could not restore draft'),
                              _('The saved draft has unsupported settings.'))
             return False
@@ -838,7 +919,8 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         if draft.poll.duration_seconds is not None:
             self._select_poll_duration(draft.poll.duration_seconds)
         else:
-            self.poll_expiry.set_selected(draft.poll.expires)
+            # A legacy draft names a position in the fixed list.
+            self._select_poll_duration(POLL_DURATIONS[draft.poll.expires][0])
         self._scheduled_fields['poll_flags'] = {
             'multiple': draft.poll.multiple, 'hide_totals': draft.poll.hide_totals}
         self.update_compose_state()
@@ -1133,7 +1215,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.poll_toggle.set_active(False)
         for entry in self.poll_entries:
             entry.set_text('')
-        self.poll_expiry.set_selected(2)
+        self._select_default_poll_duration()
         source = dict(status)
         self._pending_media_ids = [
             attachment['id']
@@ -1239,7 +1321,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             options = poll.get('options')
             expiry = poll.get('expires_in')
             if not isinstance(options, list) \
-                    or not 2 <= len(options) <= MAX_POLL_CHOICES \
+                    or not 2 <= len(options) <= self.poll_limits()['max_options'] \
                     or any(not isinstance(o, str) or not o.strip() for o in options) \
                     or len({o.strip() for o in options}) != len(options) \
                     or type(expiry) is not int or expiry <= 0:
@@ -1267,7 +1349,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.poll_toggle.set_active(False)
         for entry in self.poll_entries:
             entry.set_text('')
-        self.poll_expiry.set_selected(2)
+        self._select_default_poll_duration()
         from .scheduled import draft_scheduled_at
         self.scheduled_id = scheduled['id']
         self.scheduled_at = draft_scheduled_at() if draft \
@@ -1360,7 +1442,12 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         return countable_length(
             self.text(),
             self.spoiler_entry.get_text() if self.cw_toggle.get_active()
-            else '')
+            else '',
+            self._url_chars())
+
+    def _url_chars(self):
+        reader = getattr(self.client, 'characters_reserved_per_url', None)
+        return reader() if reader is not None else URL_PLACEHOLDER_CHARS
 
     def update_compose_state(self):
         text = self.text()
@@ -1468,6 +1555,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             self.spoiler_entry.set_text('')
 
     def on_poll_toggled(self, toggle):
+        self._apply_poll_limits()
         pages.reveal(self._poll_revealer, toggle.get_active(),
                      animate=self.get_mapped())
         if toggle.get_active():
@@ -1478,14 +1566,15 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                 entry.set_text('')
 
     def on_poll_add_choice(self, _row):
-        if len(self.poll_entries) >= MAX_POLL_CHOICES:
+        self._apply_poll_limits()
+        if len(self.poll_entries) >= self._poll_max:
             return
         entry = Adw.EntryRow(title=_('Choice %d')
                              % (len(self.poll_entries) + 1))
         pages.connect_weak(entry, 'changed', self.on_draft_changed)
         self._poll_box.insert(entry, len(self.poll_entries))
         self.poll_entries.append(entry)
-        self.poll_add.set_visible(len(self.poll_entries) < MAX_POLL_CHOICES)
+        self._apply_poll_limits()
 
     def on_mention_clicked(self, _button):
         """Start a mention at the cursor, set off from a word before it,
@@ -1684,6 +1773,9 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         if self.attachments() and must_be_alone(media_type(path)):
             return None
         row = AttachmentRow(path)
+        reader = getattr(self.client, 'media_description_limit', None)
+        if reader is not None:
+            row.limit_description(reader())
         # The row is looked up from the emitter: passing it as user data
         # would pin it through its own button and entry.
         pages.connect_weak(row.remove_button, 'clicked',
@@ -2072,6 +2164,16 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             params['in_reply_to_id'] = self.in_reply_to_id
         if self.quoted_status_id is not None:
             params['quoted_status_id'] = self.quoted_status_id
+        # Quote posts are Mastodon 4.5.0 (API 7). A server whose number is
+        # known to be lower would ignore both fields and post a plain
+        # status, so they are left off rather than sent for nothing.
+        # when_unknown=True: a quote can only have been started from a
+        # status carrying `quote_approval`, which is evidence the server
+        # has the feature, and a scheduled post restored from the server
+        # carries them back -- an unreported version must not strip them.
+        if not self.client.is_supported(QUOTES_API_VERSION, when_unknown=True):
+            params.pop('quoted_status_id', None)
+            params.pop('quote_approval_policy', None)
         if self.scheduled_at is not None:
             params['scheduled_at'] = self.scheduled_at
         # Uploaded rows first, then media reused from the edited post.
@@ -2239,7 +2341,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.poll_toggle.set_active(False)
         for entry in self.poll_entries:
             entry.set_text('')
-        self.poll_expiry.set_selected(2)
+        self._select_default_poll_duration()
         self.thread_toggle.set_active(False)
         self.clear_attachments()
         self._set_attach_sensitive(True)

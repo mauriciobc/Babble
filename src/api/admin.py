@@ -17,10 +17,12 @@ lists: a federation block, a federation allow, a blocked e-mail domain and
 an IP rule). A paged view takes its path from ``list_path(kind)`` over
 ``LISTS``.
 
-Carried over from the audit, not fixed here (phase 5): the JSON bodies of
-``PUT /admin/reports/:id``, ``POST /admin/measures`` and ``POST
-/admin/dimensions`` are documented as form data (AD-2, AD-12);
-``DELETE /admin/ip_blocks/:id`` is documented with the scope
+``POST /admin/measures`` and ``POST /admin/dimensions`` are sent as form
+data (``keys[]``, ``start_at``, ``end_at``, ``limit``), as documented (AD-12,
+audit 5e). ``PUT /admin/reports/:id`` stays JSON, though documented as form
+data (AD-2): its ``rule_ids: []`` has no form encoding (see ``_JSON_REPORT``).
+Carried over from the audit, not fixed here: ``DELETE /admin/ip_blocks/:id``
+is documented with the scope
 ``admin:write:domain_blocks``, which looks like a docs error, so the scope
 declared here is ``admin:write:ip_blocks``.
 
@@ -42,7 +44,22 @@ def _declare(name, method, path, scope, docs, anchor, note=None,
                         mastodon_version=version)
 
 
-_JSON = 'JSON body, though the docs show form data (audit %s)'
+_JSON_REPORT = (
+    'ACCEPTED-UNDOCUMENTED (audit AD-2, kept in 5e): JSON body, the docs '
+    'show form data. '
+    'JSON is needed because the dialog clears the rules with `rule_ids: []` '
+    'before it changes the category (the server refuses a category change '
+    'while rules are attached), and an empty array has no form encoding: '
+    '`rule_ids[]=` arrives as `[""]`, which Rails casts to `[nil]`, and '
+    '`Report#validate_rule_ids` (`rules.size == rule_ids&.size`) and the '
+    '`rule_ids` absence validation both reject it. The controller reads '
+    '`params.permit(:category, rule_ids: [])`')
+_FORM_DASHBOARD = (
+    'form keys[], start_at, end_at%s, as the docs show (audit AD-12, moved '
+    'from JSON in 5e). Server: `params.require(:keys)` and `params[:start_at]` '
+    '(strings to `to_datetime`)%s; Babble sends no per-key nested params '
+    '(`tag_accounts[id]` ...), the only shape a form would have to spell '
+    'differently')
 
 # Accounts
 
@@ -55,7 +72,11 @@ ACCOUNTS_PROBE = _declare(
     'accounts', '#v1',
     note='sent with limit=1 as the cheapest admin call: 200 when the token '
          'has the scope and the role, 403 when not; the v1 list is not '
-         'deprecated per the docs', version='2.9.1')
+         'deprecated per the docs. The v2 list needs the same scope and '
+         'role (3.5.0), so it could be the probe with the same 200/403 '
+         'answer; v1 is kept because it is older and the dashboard works '
+         'on servers that predate v2 (audit item 6, phase 5)',
+    version='2.9.1')
 ACCOUNT_ACTION = _declare(
     'accounts.action', 'POST', '/admin/accounts/%s/action',
     'admin:write:accounts', 'accounts', '#action',
@@ -88,7 +109,7 @@ REPORTS = _declare('reports.index', 'GET', '/admin/reports',
                    note='filter: resolved', version='2.9.1')
 REPORT_UPDATE = _declare('reports.update', 'PUT', '/admin/reports/%s',
                          'admin:write:reports', 'reports', '#update',
-                         note=_JSON % 'AD-2', version='3.5.0')
+                         note=_JSON_REPORT, version='3.5.0')
 ASSIGN_TO_SELF = _declare('reports.assign_to_self', 'POST',
                           '/admin/reports/%s/assign_to_self',
                           'admin:write:reports', 'reports',
@@ -106,11 +127,14 @@ REOPEN = _declare('reports.reopen', 'POST', '/admin/reports/%s/reopen',
 # The dashboard
 
 MEASURES = _declare('measures', 'POST', '/admin/measures', 'admin:read',
-                    'measures', '#get', note=_JSON % 'AD-12',
+                    'measures', '#get',
+                    note=_FORM_DASHBOARD % ('', ''),
                     version='3.5.0')
 DIMENSIONS = _declare('dimensions', 'POST', '/admin/dimensions',
                       'admin:read', 'dimensions', '#get',
-                      note=_JSON % 'AD-12', version='3.5.0')
+                      note=_FORM_DASHBOARD % (
+                          ', limit', ' and `limit.to_i`'),
+                      version='3.5.0')
 
 # The four rule lists
 
@@ -124,7 +148,9 @@ DOMAIN_BLOCK_CREATE = _declare(
          'private_comment, public_comment', version='4.0.0')
 DOMAIN_BLOCK_DELETE = _declare(
     'domain_blocks.delete', 'DELETE', '/admin/domain_blocks/%s',
-    'admin:write:domain_blocks', 'domain_blocks', '#delete', version='4.0.0')
+    'admin:write:domain_blocks', 'domain_blocks', '#delete',
+    note='the docs describe :id as a DomainAllow, a copy-paste slip; it is '
+         'the DomainBlock id from the list (audit item 7)', version='4.0.0')
 DOMAIN_ALLOWS = _declare('domain_allows.index', 'GET',
                          '/admin/domain_allows', 'admin:read:domain_allows',
                          'domain_allows', '#get', version='4.0.0')
@@ -134,7 +160,9 @@ DOMAIN_ALLOW_CREATE = _declare(
     note='form domain', version='4.0.0')
 DOMAIN_ALLOW_DELETE = _declare(
     'domain_allows.delete', 'DELETE', '/admin/domain_allows/%s',
-    'admin:write:domain_allows', 'domain_allows', '#delete', version='4.0.0')
+    'admin:write:domain_allows', 'domain_allows', '#delete',
+    note='the :id is the DomainAllow id from the list (audit item 7)',
+    version='4.0.0')
 EMAIL_BLOCKS = _declare(
     'email_domain_blocks.index', 'GET', '/admin/email_domain_blocks',
     'admin:read:email_domain_blocks', 'email_domain_blocks', '#get',
@@ -158,7 +186,8 @@ IP_BLOCK_DELETE = _declare(
     'ip_blocks.delete', 'DELETE', '/admin/ip_blocks/%s',
     'admin:write:ip_blocks', 'ip_blocks', '#delete',
     note='the docs name the scope admin:write:domain_blocks here, probably '
-         'a docs error (audit AD-11)', version='4.0.0')
+         'a docs error (audit AD-11); Babble requests the matching '
+         'admin:write:ip_blocks', version='4.0.0')
 
 # Verbs on an account that review it or undo a moderation state.
 ACTIONS = {
@@ -256,19 +285,26 @@ report_transition_finish = _finish
 
 # The dashboard
 
+def _dashboard_form(body):
+    """The form of a measures or dimensions request: the ``keys`` list is
+    spelled ``keys[]``, every other value is its text."""
+    return {('keys[]' if name == 'keys' else name): value
+            for name, value in body.items()}
+
+
 def measures_async(client, body, callback=None, cancellable=None):
-    """*body* is the JSON ``{start_at, end_at, keys}``."""
-    return core.send(client, MEASURES, json_body=body, callback=callback,
-                     cancellable=cancellable)
+    """*body* is ``{start_at, end_at, keys}``, sent as form data."""
+    return core.send(client, MEASURES, form=_dashboard_form(body),
+                     callback=callback, cancellable=cancellable)
 
 
 measures_finish = _finish
 
 
 def dimensions_async(client, body, callback=None, cancellable=None):
-    """*body* is the JSON ``{start_at, end_at, limit, keys}``."""
-    return core.send(client, DIMENSIONS, json_body=body, callback=callback,
-                     cancellable=cancellable)
+    """*body* is ``{start_at, end_at, limit, keys}``, sent as form data."""
+    return core.send(client, DIMENSIONS, form=_dashboard_form(body),
+                     callback=callback, cancellable=cancellable)
 
 
 dimensions_finish = _finish

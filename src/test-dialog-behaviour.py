@@ -159,8 +159,9 @@ patches = [r for r in client.requests if r[0] == 'PATCH']
 check('closing the policy after a change sends one PATCH',
       len(patches) == 1, patches)
 check('the PATCH carries only the changed field',
-      bool(patches) and patches[0][2].get('json_body') == {first_key: 'filter'},
-      patches[0][2].get('json_body') if patches else None)
+      bool(patches) and patches[0][2].get('form') == {first_key: 'filter'}
+      and patches[0][2].get('json_body') is None,
+      patches[0][2] if patches else None)
 
 
 # The policy dialog opened from Preferences: its parent is the

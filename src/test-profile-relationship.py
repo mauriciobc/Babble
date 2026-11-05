@@ -125,6 +125,20 @@ check('a non-404 stops the endorse ladder',
       and page.relationship == {} and page._busy is False
       and page.menu_updates == 1)
 
+# The regular-posts cursor is the oldest id as a number: a page that
+# crosses a digit boundary must not take '100000001' for the oldest.
+from src import profile as _profile  # noqa: E402
+_real_finish = _profile.api_accounts.statuses_finish
+_profile.api_accounts.statuses_finish = lambda client, result: [
+    {'id': '100000001'}, {'id': '99999999'}]
+try:
+    _source = _profile.AccountStatuses(None, '9')
+    _source.finish(None)
+finally:
+    _profile.api_accounts.statuses_finish = _real_finish
+check('oldest regular id compares numerically',
+      _source.oldest_regular_id == '99999999')
+
 if failures:
     print('%d failure(s)' % len(failures))
     sys.exit(1)

@@ -23,13 +23,14 @@ from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import search as api_search  # noqa: E402
+from .capabilities import ENDORSEMENTS_API_VERSION  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .profileactions import (ProfileActions,  # noqa: E402
                               endorse_action_names)  # noqa: F401
 from .mastodon import summarize_error_markup  # noqa: E402
 from .mediacache import AvatarCache, _decode_async, log_media_failure  # noqa: E402
 from .timelinepage import TimelinePage  # noqa: E402
-from .timelinebase import COLUMN_WIDTH  # noqa: E402
+from .timelinebase import COLUMN_WIDTH, id_key  # noqa: E402
 
 
 def _decode_banner(data, cancellable, done):
@@ -153,7 +154,8 @@ class AccountStatuses:
         statuses = api_accounts.statuses_finish(self.client, result)
         pinned, self.pinned_statuses = self.pinned_statuses, []
         if statuses:
-            self.oldest_regular_id = min(s['id'] for s in statuses)
+            self.oldest_regular_id = min((s['id'] for s in statuses),
+                                         key=id_key)
         return pinned + statuses
 
 
@@ -1027,9 +1029,15 @@ class ProfilePage(ProfileActions, Adw.Bin):
                 callback=handler(self._on_familiar))
         api_accounts.featured_tags_async(
             self.client, account_id, callback=handler(self._on_featured_tags))
-        api_accounts.endorsements_async(
-            self.client, account_id, params={'limit': 80},
-            callback=handler(self._on_endorsements))
+        # GET /accounts/:id/endorsements is Mastodon 4.4.0. Without the
+        # gate every profile on an older server raised a "Could not load
+        # featured profiles" toast from _request_result. A server that
+        # says nothing is told no (when_unknown=False): the section is
+        # decoration, and its absence is invisible.
+        if self.client.is_supported(ENDORSEMENTS_API_VERSION):
+            api_accounts.endorsements_async(
+                self.client, account_id, params={'limit': 80},
+                callback=handler(self._on_endorsements))
 
     def _on_familiar(self, client, result, _data=None):
         data = _request_result(client, result, self,

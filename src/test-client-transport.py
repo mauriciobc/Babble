@@ -29,7 +29,8 @@ from gi.repository import Gio, GLib  # noqa: E402
 
 from src.api import accounts, media as api_media, statuses, timelines  # noqa: E402
 from src.mastodon import (DEFAULT_RATE_LIMIT_SECONDS,  # noqa: E402
-                          MastodonClient, parse_reset_instant,
+                          MastodonClient, parse_link_header,
+                          parse_reset_instant,
                           server_clock_offset)
 
 failures = []
@@ -217,6 +218,110 @@ run_loop(lambda: (time.sleep(0.4), GLib.SOURCE_REMOVE)[1])
 sent = server.requests[0][1] if server.requests else b''
 check('no field reads client_secret=None', b'client_secret=None' not in sent,
       repr(sent))
+server.close()
+
+
+# --- audit 5e: the documented form encoding, DELETE included ---
+
+import urllib.parse  # noqa: E402
+
+from src.api import (admin as api_admin, lists as api_lists,  # noqa: E402
+                     notifications as api_notifications,
+                     polls as api_polls, relationships as api_relationships)
+
+
+def wire_of(start, reply=b'{}', script=None):
+    """Send one request through *start(client)* to a loopback server and
+    return ``(request_line, content_type, parsed_body, server)``."""
+    server = Server(reply=reply, script=script)
+    client = client_for(server.port)
+    start(client)
+    run_loop(lambda: (time.sleep(0.4), GLib.SOURCE_REMOVE)[1])
+    if not server.requests:
+        server.close()
+        return None, None, None, server
+    head, body = server.requests[0]
+    lines = head.split(b'\r\n')
+    ctype = b''
+    for line in lines[1:]:
+        if line.lower().startswith(b'content-type:'):
+            ctype = line.split(b':', 1)[1].strip()
+    server.close()
+    return lines[0].decode(), ctype.decode(), \
+        sorted(urllib.parse.parse_qsl(body.decode())), server
+
+
+FORM = 'application/x-www-form-urlencoded'
+quiet = lambda *_a: None  # noqa: E731
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_lists.remove_members_async(c, '3', ['7', '9'],
+                                             callback=quiet))
+check('remove members: DELETE with no query string',
+      line == 'DELETE /api/v1/lists/3/accounts HTTP/1.1', line)
+check('remove members: a form body, not a query',
+      ctype == FORM and body == [('account_ids[]', '7'),
+                                 ('account_ids[]', '9')], str((ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_relationships.domain_unblock_async(
+        c, 'remote.example', callback=quiet))
+check('domain unblock: DELETE with no query string',
+      line == 'DELETE /api/v1/domain_blocks HTTP/1.1', line)
+check('domain unblock: a form body, not a query',
+      ctype == FORM and body == [('domain', 'remote.example')],
+      str((ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_polls.vote_async(c, '55', [0, 2], callback=quiet))
+check('poll vote: form choices[]',
+      line == 'POST /api/v1/polls/55/votes HTTP/1.1' and ctype == FORM
+      and body == [('choices[]', '0'), ('choices[]', '2')],
+      str((line, ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_notifications.update_policy_async(
+        c, {'for_not_following': 'filter', 'for_bots': 'drop'},
+        callback=quiet))
+check('notification policy: PATCH with a form body',
+      line == 'PATCH /api/v2/notifications/policy HTTP/1.1'
+      and ctype == FORM
+      and body == [('for_bots', 'drop'), ('for_not_following', 'filter')],
+      str((line, ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_admin.measures_async(
+        c, {'start_at': '2026-01-01', 'end_at': '2026-01-30',
+            'keys': ['new_users', 'active_users']}, callback=quiet))
+check('admin measures: form keys[]',
+      line == 'POST /api/v1/admin/measures HTTP/1.1' and ctype == FORM
+      and body == sorted([('end_at', '2026-01-30'),
+                          ('keys[]', 'new_users'),
+                          ('keys[]', 'active_users'),
+                          ('start_at', '2026-01-01')]),
+      str(str((line, ctype, body))))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_admin.dimensions_async(
+        c, {'start_at': '2026-01-01', 'end_at': '2026-01-30', 'limit': 8,
+            'keys': ['sources']}, callback=quiet))
+check('admin dimensions: form keys[] and limit',
+      ctype == FORM and body == sorted([
+          ('end_at', '2026-01-30'), ('keys[]', 'sources'), ('limit', '8'),
+          ('start_at', '2026-01-01')]), str((line, ctype, body)))
+
+# A dropped DELETE is idempotent (RFC 9110) and is repeated, body intact.
+server = Server(script=['drop', b'{}'])
+client = client_for(server.port)
+api_relationships.domain_unblock_async(client, 'remote.example',
+                                       callback=quiet)
+run_loop(lambda: (time.sleep(3.0), GLib.SOURCE_REMOVE)[1])
+check('a dropped DELETE with a form body is repeated',
+      len(server.requests) == 2, '%d requests' % len(server.requests))
+check('the repeated DELETE carries the same body',
+      len(server.requests) == 2
+      and server.requests[0][1] == server.requests[1][1] == b'domain=remote.example',
+      repr([r[1] for r in server.requests]))
 server.close()
 
 
@@ -507,6 +612,62 @@ check('a page arrives through the task with its Link cursor',
       repr(finished))
 check('a response body is parsed exactly once', len(loads) == 1,
       '%d json.loads calls' % len(loads))
+
+# A Link cursor can repeat a key (exclude_types[]); folding it into a
+# dict of strings kept only the last value, so the next page asked for
+# less than the first one did.
+_link = parse_link_header(
+    '<https://x.test/api/v1/notifications?max_id=7&exclude_types%5B%5D=mention'
+    '&exclude_types%5B%5D=follow&limit=20>; rel="next"')
+check('a repeated Link key keeps every value',
+      _link.get('next', {}).get('exclude_types[]') == ['mention', 'follow'],
+      repr(_link))
+check('a single Link key stays a plain string',
+      _link['next'].get('max_id') == '7' and _link['next']['limit'] == '20',
+      repr(_link))
+_wire = MastodonClient('https://example.social')._build_message(
+    'GET', '/notifications', dict(_link['next'], limit='40')).get_uri()
+check('the repeated key goes back out on the wire',
+      _wire.get_query().count('exclude_types%5B%5D=') == 2
+      and _wire.get_query().count('max_id=7') == 1, _wire.get_query())
+
+# --- audit 5g: app registration sends redirect_uris as ONE string ---
+# Servers before Mastodon 4.3.0 permit only the scalar `redirect_uris`
+# (apps_controller.rb v3.5.0..v4.2.0), so a `redirect_uris[]` array is
+# dropped there and the registration fails with a blank redirect_uri.
+# Doorkeeper splits the string on whitespace (RedirectUriValidator and
+# URIChecker, 5.7.1 to 5.9.9), so the separator is cosmetic.
+from src.mastodon import (OAUTH_REDIRECT, OOB_REDIRECT,  # noqa: E402
+                          loopback_redirect)
+
+_reg_reply = b'{"client_id":"c","client_secret":"s"}'
+for _label, _loop in (('without a loopback', None),
+                      ('with a loopback', loopback_redirect(4242))):
+    _line, _ctype, _body, _s = wire_of(
+        lambda c, _l=_loop: c.register_app_async(loopback=_l,
+                                                 callback=quiet),
+        reply=_reg_reply)
+    _fields = dict(_body or [])
+    _uris = _fields.get('redirect_uris', '').split()
+    _want = ([_loop] if _loop else []) + [OAUTH_REDIRECT, OOB_REDIRECT]
+    check('register %s: POST /api/v1/apps, form encoded' % _label,
+          _line == 'POST /api/v1/apps HTTP/1.1' and _ctype == FORM,
+          repr((_line, _ctype)))
+    check('register %s: one redirect_uris string, no array key' % _label,
+          'redirect_uris' in _fields
+          and not any(k.endswith('[]') for k, _v in _body or []),
+          repr(_body))
+    check('register %s: the URIs are %r, whitespace separated, at most 3'
+          % (_label, _want), _uris == _want and len(_uris) <= 3,
+          repr(_uris))
+    check('register %s: scopes are the ones the authorization asks for'
+          % _label, _fields.get('scopes') == 'read write', repr(_fields))
+
+_authz = urllib.parse.urlparse(
+    MastodonClient('https://x.test').get_authorize_url()).query
+check('the authorization redirect_uri is a registered one',
+      urllib.parse.parse_qs(_authz)['redirect_uri'][0] in
+      (OAUTH_REDIRECT, OOB_REDIRECT), _authz)
 
 if failures:
     print('%d failure(s): %s' % (len(failures), ', '.join(failures)))
