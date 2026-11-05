@@ -29,7 +29,7 @@ from .profileactions import (ProfileActions,  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .mediacache import AvatarCache, _decode_async, log_media_failure  # noqa: E402
 from .timelinepage import TimelinePage  # noqa: E402
-from .timelinebase import COLUMN_WIDTH  # noqa: E402
+from .timelinebase import COLUMN_WIDTH, id_key  # noqa: E402
 
 
 def _decode_banner(data, cancellable, done):
@@ -153,7 +153,8 @@ class AccountStatuses:
         statuses = api_accounts.statuses_finish(self.client, result)
         pinned, self.pinned_statuses = self.pinned_statuses, []
         if statuses:
-            self.oldest_regular_id = min(s['id'] for s in statuses)
+            self.oldest_regular_id = min((s['id'] for s in statuses),
+                                         key=id_key)
         return pinned + statuses
 
 

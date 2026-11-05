@@ -446,10 +446,29 @@ _LINK_REL = re.compile(r'(?:^|[;\s])rel\s*=\s*(?:"([^"]*)"|([^\s;,]+))',
                        re.IGNORECASE)
 
 
+def _query_params(query):
+    """A query string as a params dict for ``request_async``: a key that
+    appears once maps to its string, a repeated one (``exclude_types[]``)
+    to the list of its values, in order. ``request_async`` encodes with
+    ``doseq``, so both forms go back out as they came in."""
+    params = {}
+    for key, val in urllib.parse.parse_qsl(query):
+        if key not in params:
+            params[key] = val
+        elif isinstance(params[key], list):
+            params[key].append(val)
+        else:
+            params[key] = [params[key], val]
+    return params
+
+
 def parse_link_header(value):
     """``{'next': {...query params}, 'prev': {...}}`` from an RFC 8288
     Link header, the way Mastodon paginates bookmarks, favourites,
-    follow lists and everything else not keyed by status id."""
+    follow lists and everything else not keyed by status id. A key the
+    URL repeats (``exclude_types[]``) holds the list of its values, so a
+    cursor spread over a request's params keeps what the first page
+    asked for."""
     links = {}
     for url, params in _LINK_PART.findall(value or ''):
         found = _LINK_REL.search(params)
@@ -459,7 +478,7 @@ def parse_link_header(value):
         # RFC 8288: rel is case-insensitive, may sit after other
         # parameters, and may hold several space-separated relations.
         for rel in (found.group(1) or found.group(2)).lower().split():
-            links[rel] = dict(urllib.parse.parse_qsl(query))
+            links[rel] = _query_params(query)
     return links
 
 

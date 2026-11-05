@@ -165,16 +165,28 @@ def forget_account(settings, account_id, instance=None):
     return active_account(settings)
 
 
+# Role permission bits that grant no administration. Mastodon's role flag
+# table is app/models/user_role.rb (FLAGS) and the Role entity page,
+# docs.joinmastodon.org/entities/Role/: everything else in it is an
+# administration or moderation permission.
+INVITE_USERS_PERMISSION = 0x10000
+VIEW_FEEDS_PERMISSION = 0x100000
+INVITE_BYPASS_APPROVAL_PERMISSION = 0x200000
+NON_ADMIN_PERMISSIONS = (INVITE_USERS_PERMISSION | VIEW_FEEDS_PERMISSION
+                         | INVITE_BYPASS_APPROVAL_PERMISSION)
+
+
 def role_is_admin(account):
     """Whether the account's role carries any administration permission
-    (every Mastodon permission bit except 'Invite users'), the
+    (every Mastodon permission bit except NON_ADMIN_PERMISSIONS: Invite
+    users, View live and topic feeds, and Invite bypass approval), the
     condition for the admin dashboard."""
     role = account.get('role') or {}
     try:
         permissions = int(role.get('permissions') or 0)
     except (TypeError, ValueError):
         return False
-    return bool(permissions & ~0x10000)
+    return bool(permissions & ~NON_ADMIN_PERMISSIONS)
 
 
 # Switcher

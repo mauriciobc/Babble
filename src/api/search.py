@@ -32,8 +32,13 @@ def search_path():
 
 def search_async(client, q, callback=None, cancellable=None, **params):
     """Search for *q*; *params* are the other query parameters (``type``,
-    ``resolve``, ``limit``, ``offset``, ...), sent as given."""
-    return core.send(client, SEARCH, params=dict(params, q=q),
+    ``resolve``, ``limit``, ``offset``, ...), sent as given, except an
+    ``offset`` of 0: the docs say any ``offset`` needs a user token (401
+    without one), so the first page leaves it out."""
+    params = dict(params, q=q)
+    if not params.get('offset'):
+        params.pop('offset', None)
+    return core.send(client, SEARCH, params=params,
                      callback=callback, cancellable=cancellable)
 
 

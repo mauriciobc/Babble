@@ -98,9 +98,31 @@ def collection_limit(account):
 _ACCOUNTS = {}
 
 
-def fetch_accounts(client, ids, callback):
+# GET /accounts?id[]= answers at most this many ids: the server raises a
+# validation error past DEFAULT_ACCOUNTS_LIMIT (= 40, in
+# app/controllers/api/base_controller.rb), though the docs name no limit.
+ACCOUNTS_CHUNK = 40
+
+_ERROR_REPORT_SECONDS = 5
+_last_error_report = [0]
+
+
+def _report_lookup_error(widget, error):
+    """Toast a failed account lookup, at most once in a few seconds: a
+    page of collection rows asks for each row's avatars at once, and one
+    outage must not stack a toast per row."""
+    now = GLib.get_monotonic_time()
+    if now - _last_error_report[0] < _ERROR_REPORT_SECONDS * 1000000:
+        return
+    _last_error_report[0] = now
+    pages.report_error(widget, _('Could not load accounts'), error)
+
+
+def fetch_accounts(client, ids, callback, widget=None):
     """``callback({id: account})`` once the accounts for *ids* are known;
-    one batched ``GET /accounts?id[]=…`` for the ones not cached."""
+    ``GET /accounts?id[]=…`` for the ones not cached, in chunks the
+    server accepts. A chunk that fails keeps the others (the callback
+    gets what arrived) and is reported on *widget* when one is given."""
     ids = [i for i in dict.fromkeys(ids) if i]
     host = getattr(client, 'instance', '')
 
@@ -113,15 +135,33 @@ def fetch_accounts(client, ids, callback):
         done()
         return
 
+    chunks = [missing[n:n + ACCOUNTS_CHUNK]
+              for n in range(0, len(missing), ACCOUNTS_CHUNK)]
+    pending = [len(chunks)]
+    first_error = []
+
+    def settled():
+        pending[0] -= 1
+        if pending[0]:
+            return
+        if first_error and widget is not None:
+            _report_lookup_error(widget, first_error[0])
+        done()
+
     def ok(data):
         for account in data or []:
             _ACCOUNTS[(host, account['id'])] = account
-        done()
+        settled()
 
-    _send_api(client,
-              lambda cb: api_accounts.by_ids_async(client, missing,
-                                                   callback=cb),
-              ok, lambda _e: done())
+    def failed(error):
+        first_error.append(error)
+        settled()
+
+    for chunk in chunks:
+        _send_api(client,
+                  lambda cb, chunk=chunk: api_accounts.by_ids_async(
+                      client, chunk, callback=cb),
+                  ok, failed)
 
 
 def remember_account(client, account):
@@ -234,7 +274,8 @@ class CollectionActions:
             present_report(self.widget, self.client, owner,
                            collection=self.collection)
 
-        fetch_accounts(self.client, [owner_id], with_owner)
+        fetch_accounts(self.client, [owner_id], with_owner,
+                       widget=self.widget)
 
     def remove_me(self):
         def go():
@@ -299,7 +340,8 @@ class AvatarStack(Gtk.Box):
             self.avatars[item['account_id']] = avatar
             self.append(avatar)
         if shown:
-            fetch_accounts(client, list(self.avatars), self._fill)
+            fetch_accounts(client, list(self.avatars), self._fill,
+                           widget=self)
 
     def _fill(self, accounts):
         from .mediacache import AvatarCache
@@ -331,7 +373,7 @@ class CollectionRow(Adw.ActionRow):
         self.add_suffix(actions.menu_button())
         if not actions.is_owner:
             fetch_accounts(client, [collection.get('account_id')],
-                           self._set_owner)
+                           self._set_owner, widget=self)
         elif collection.get('updated_at'):
             self.set_subtitle('%s · %s' % (
                 self._count_text,
@@ -973,6 +1015,11 @@ class CollectionEditDialog(pages.ToastDialog):
         if topic and topic != '#':
             body['tag_name'] = topic if topic.startswith('#') \
                 else '#' + topic
+        else:
+            # Nothing typed: no topic. `tag_name: null` is how an edit
+            # removes one (Collection#tag_name= with nil unsets the tag);
+            # a create leaves the key out.
+            body['tag_name'] = None
         return body
 
     def _on_save(self, _button):
@@ -1011,6 +1058,8 @@ class CollectionEditDialog(pages.ToastDialog):
         else:
             if not body['description']:
                 del body['description']
+            if body['tag_name'] is None:
+                del body['tag_name']
             body['account_ids'] = list(self.members)
             _send_api(self.client,
                       lambda cb: collections_api.create_async(

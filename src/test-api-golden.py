@@ -1152,6 +1152,51 @@ def fedicollections_fetch_accounts(rec):
                                    lambda _accounts: None)
 
 
+@scenario
+def fedicollections_fetch_accounts_chunks_large_batches(rec):
+    """GET /accounts?id[]= answers at most 40 ids (the server's
+    DEFAULT_ACCOUNTS_LIMIT): 85 uncached ids go out as 40 + 40 + 5, and
+    the merged answer keeps the order of the ids."""
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    ids = [str(1000 + n) for n in range(85)]
+    rec.queue[('GET', '/api/v1/accounts')] = [
+        [account(i, 'u' + i) for i in ids[:40]],
+        [account(i, 'u' + i) for i in ids[40:80]],
+        [account(i, 'u' + i) for i in ids[80:]]]
+    got = []
+    fedicollections.fetch_accounts(rec.client(), ids, got.append)
+    rec.settle()
+    check('chunked lookup answers once with every account, in order',
+          len(got) == 1 and list(got[0]) == ids, repr(got)[:200])
+    check('chunked lookup asks at most 40 ids per request',
+          [len([k for k, _v in e['query']]) for e in rec.log]
+          == [40, 40, 5], repr([len(e['query']) for e in rec.log]))
+
+
+@scenario
+def fedicollections_fetch_accounts_keeps_what_arrived_and_says_so(rec):
+    """A failed chunk does not lose the other chunks, and the reader is
+    told once, not silently shown anonymous avatars."""
+    from src import fedicollections
+    fedicollections._ACCOUNTS.clear()
+    ids = [str(2000 + n) for n in range(85)]
+    # The failing answer does not consume a queued one.
+    rec.queue[('GET', '/api/v1/accounts')] = [
+        [account(i, 'u' + i) for i in ids[:40]],
+        [account(i, 'u' + i) for i in ids[80:]]]
+    rec.fail[('GET', '/api/v1/accounts')] = [200, 500, 200]
+    got = []
+    fedicollections.fetch_accounts(rec.client(), ids, got.append,
+                                   widget=Gtk.Box())
+    rec.settle()
+    check('a failed chunk keeps the accounts of the others',
+          len(got) == 1 and list(got[0]) == ids[:40] + ids[80:],
+          repr(got)[:200])
+    check('a failed chunk is reported once',
+          len(rec.toasts) == 1, repr(rec.toasts))
+
+
 # Phase 2: read paths
 #
 # Recorded BEFORE the read screens move into src/api, so that the move can
@@ -2142,6 +2187,26 @@ def collection_edit_members_invite_remove_and_save(rec):
     dialog.sensitive_row.set_active(True)
     dialog._on_save(None)
     rec.settle()
+
+
+@p2
+def collection_edit_clearing_the_topic_sends_a_null_tag_name(rec):
+    """Collection.tag_name= with nothing leaves the tag unset (Tag
+    .find_or_create_by_names(nil) is []), and the permit list takes a
+    null scalar: clearing the topic is `tag_name: null`."""
+    from src import fedicollections
+    dialog = rec.keep(fedicollections.CollectionEditDialog(
+        rec.client(), collection_json('5'), on_saved=lambda: None))
+    dialog.close = lambda: None
+    rec.settle()
+    dialog.topic_row.set_text('')
+    dialog._on_save(None)
+    rec.settle()
+    check('clearing the topic is what the dialog sends',
+          rec.log[-1]['method'] == 'PATCH'
+          and rec.log[-1]['body'] is not None
+          and 'null' in json.dumps(rec.log[-1]['body']),
+          repr(rec.log[-1:]))
 
 
 @p2

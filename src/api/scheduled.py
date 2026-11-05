@@ -5,7 +5,9 @@ sent through `api.core`.
 A scheduled status without a ``scheduled_at`` that is far enough away is
 what the app shows as a draft; that is the caller's reading of the answer,
 not something this module decides. Creating one is ``POST /statuses`` with
-``scheduled_at`` and stays with the compose code until phase 3.
+``scheduled_at`` and stays with the compose code until phase 3. The server
+refuses (422, with the sentence the app shows) more than 25 scheduled
+statuses dated on one day and more than 300 per account; see UPDATE's note.
 
 `min_version` is None throughout: the audit records no gate in the app for
 these, so the release is in ``mastodon_version``.
@@ -24,7 +26,14 @@ def _declare(name, method, path, scope, anchor, note=None):
 INDEX = _declare('index', 'GET', '/scheduled_statuses', 'read:statuses',
                  '#get', note='paged with the Link header')
 UPDATE = _declare('update', 'PUT', '/scheduled_statuses/%s',
-                  'write:statuses', '#update', note='form scheduled_at')
+                  'write:statuses', '#update',
+                  note='form scheduled_at; limits (app/models/'
+                       'scheduled_status.rb, 422 with the sentence): 25 '
+                       'per scheduled_at date, 300 per account, and the '
+                       'total check counts the entry being changed. '
+                       'Creating one, `POST /statuses` with scheduled_at, '
+                       'has the same limits; every draft is dated the same '
+                       'day (is_draft), so 25 drafts a day')
 DELETE = _declare('delete', 'DELETE', '/scheduled_statuses/%s',
                   'write:statuses', '#cancel')
 

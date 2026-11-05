@@ -29,7 +29,8 @@ from gi.repository import Gio, GLib  # noqa: E402
 
 from src.api import accounts, media as api_media, statuses, timelines  # noqa: E402
 from src.mastodon import (DEFAULT_RATE_LIMIT_SECONDS,  # noqa: E402
-                          MastodonClient, parse_reset_instant,
+                          MastodonClient, parse_link_header,
+                          parse_reset_instant,
                           server_clock_offset)
 
 failures = []
@@ -507,6 +508,24 @@ check('a page arrives through the task with its Link cursor',
       repr(finished))
 check('a response body is parsed exactly once', len(loads) == 1,
       '%d json.loads calls' % len(loads))
+
+# A Link cursor can repeat a key (exclude_types[]); folding it into a
+# dict of strings kept only the last value, so the next page asked for
+# less than the first one did.
+_link = parse_link_header(
+    '<https://x.test/api/v1/notifications?max_id=7&exclude_types%5B%5D=mention'
+    '&exclude_types%5B%5D=follow&limit=20>; rel="next"')
+check('a repeated Link key keeps every value',
+      _link.get('next', {}).get('exclude_types[]') == ['mention', 'follow'],
+      repr(_link))
+check('a single Link key stays a plain string',
+      _link['next'].get('max_id') == '7' and _link['next']['limit'] == '20',
+      repr(_link))
+_wire = MastodonClient('https://example.social')._build_message(
+    'GET', '/notifications', dict(_link['next'], limit='40')).get_uri()
+check('the repeated key goes back out on the wire',
+      _wire.get_query().count('exclude_types%5B%5D=') == 2
+      and _wire.get_query().count('max_id=7') == 1, _wire.get_query())
 
 if failures:
     print('%d failure(s): %s' % (len(failures), ', '.join(failures)))

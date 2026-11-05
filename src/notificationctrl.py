@@ -23,6 +23,7 @@ from .api import notifications as api_notifications  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import PagedPosts, push_page  # noqa: E402
 from .statustext import parse_content  # noqa: E402
+from .timelinebase import id_key  # noqa: E402
 
 
 # Relationships fetched for "Follow Back", shared by every notifications
@@ -431,7 +432,7 @@ class NotificationController:
         marker = (markers or {}).get('notifications') or {}
         last_read = marker.get('last_read_id')
         newest = self.model.newest_id
-        if last_read and newest and str(last_read) >= str(newest):
+        if last_read and newest and id_key(last_read) >= id_key(newest):
             self._marked_read = True
             self._unread = 0
             self.emit('unread-changed', 0)

@@ -514,9 +514,9 @@ class NotificationModel(GObject.Object, Gio.ListModel, Gtk.SectionModel):
         page_oldest = min(ids, key=id_key)
         page_newest = max(ids, key=id_key)
         self.oldest_id = page_oldest if self.oldest_id is None \
-            else min(self.oldest_id, page_oldest)
+            else min(self.oldest_id, page_oldest, key=id_key)
         self.newest_id = page_newest if self.newest_id is None \
-            else max(self.newest_id, page_newest)
+            else max(self.newest_id, page_newest, key=id_key)
 
     def append_page(self, notifications):
         """Append an older page (newest-first); returns False when the

@@ -226,6 +226,10 @@ keeps its one raw send until the hook protocol changes.
 - One commit per deviation found in phase 0 (deprecated endpoints, wrong
   parameters, missing version gates, missing scopes). Each states the docs
   page and the observable change.
+- 5b (independent audit): seven findings, six fixed and one documented; see
+  "5b" in `Docs/mastodon-api-audit.md`. Commit: `fix: numeric id order, role
+  admin bits, chunked account lookup, repeated Link keys, clearing a
+  collection topic, search offset (audit 5b)`.
 - **Done when:** audit table has no open rows.
 
 ## Definition of done (whole plan)

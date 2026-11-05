@@ -163,6 +163,67 @@ check('oldest id compares numerically', _ids.oldest_id == '99999998')
 check('row id is the numeric newest',
       _ids.get_item(0).notification_id == '100000001')
 
+# The cursors widen across pages too: an older page whose ids are one
+# digit shorter must still lower oldest_id, and a newer page whose ids
+# are longer must raise newest_id.
+_wide = NotificationModel()
+_wide.append_page([make_notification(str(_i), 'mention', ACTOR,
+                                     '2026-10-05T11:30:00.000Z', STATUS)
+                   for _i in (100000001, 100000000)])
+_wide.append_page([make_notification(str(_i), 'favourite', ACTOR2,
+                                     '2026-10-04T11:30:00.000Z', STATUS)
+                   for _i in (99999999, 99999998)])
+check('oldest id lowers across a digit boundary',
+      _wide.oldest_id == '99999998')
+_narrow = NotificationModel()
+_narrow.append_page([make_notification(str(_i), 'mention', ACTOR,
+                                       '2026-10-05T11:30:00.000Z', STATUS)
+                     for _i in (99999999, 99999998)])
+_narrow.prepend_page([make_notification('100000001', 'favourite', ACTOR2,
+                                        '2026-10-06T11:30:00.000Z',
+                                        STATUS)])
+check('newest id rises across a digit boundary',
+      _narrow.newest_id == '100000001')
+
+# The unread badge asks "is the marker at or past the newest id?" and
+# that is a numeric question too.
+import types  # noqa: E402
+from src.notificationctrl import NotificationController  # noqa: E402
+
+
+def _marker_case(last_read, newest):
+    calls = []
+    emitted = []
+    real = api_notifications.unread_count_async
+    api_notifications.unread_count_async = \
+        lambda *args, **kwargs: calls.append(args)
+    try:
+        stub = types.SimpleNamespace(
+            model=types.SimpleNamespace(newest_id=newest),
+            _marked_read=False, _unread=5, _applied_excluded=(),
+            client=object(), emit=lambda *args: emitted.append(args),
+            on_unread_count=None)
+        marker_api = sys.modules['src.api.markers']
+        real_finish = marker_api.get_finish
+        marker_api.get_finish = lambda client, result: {
+            'notifications': {'last_read_id': last_read}}
+        try:
+            NotificationController._on_markers_before_unread(
+                stub, None, None)
+        finally:
+            marker_api.get_finish = real_finish
+    finally:
+        api_notifications.unread_count_async = real
+    return stub._marked_read, bool(calls)
+
+
+check('marker past the newest id is caught up across digit lengths',
+      _marker_case('100000001', '99999999') == (True, False))
+check('marker behind the newest id still asks the server',
+      _marker_case('99999999', '100000001') == (False, True))
+check('marker equal to the newest id is caught up',
+      _marker_case('42', '42') == (True, False))
+
 # Date sections: one section per calendar day.
 check('one section per day',
       model.get_section(0)[:2] == (0, 3))

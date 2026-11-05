@@ -19,7 +19,7 @@ sys.path.insert(0, srcdir)
 
 from src.accounts import (account_key, active_account, find_account,  # noqa: E402
                           find_account_by_key, forget_account,
-                          read_accounts, save_account)
+                          read_accounts, role_is_admin, save_account)
 from src.mastodon import (ADMIN_SCOPES, OAUTH_SCOPES,  # noqa: E402
                           MastodonClient, normalize_instance)
 
@@ -263,6 +263,36 @@ class TestNormalizeInstance(unittest.TestCase):
     def test_a_plaintext_instance_is_refused(self):
         with self.assertRaises(ValueError):
             normalize_instance('http://a.example')
+
+
+class TestRoleIsAdmin(unittest.TestCase):
+    """The admin dashboard is for roles with an administration flag.
+    user_role.rb names three that are not: invite_users (0x10000),
+    view_feeds (0x100000) and invite_bypass_approval (0x200000)."""
+
+    @staticmethod
+    def _role(bits):
+        return {'role': {'permissions': str(bits)}}
+
+    def test_each_non_admin_bit_alone_is_not_admin(self):
+        for bit in (0x10000, 0x100000, 0x200000):
+            self.assertFalse(role_is_admin(self._role(bit)), hex(bit))
+
+    def test_all_non_admin_bits_together_are_not_admin(self):
+        self.assertFalse(role_is_admin(
+            self._role(0x10000 | 0x100000 | 0x200000)))
+
+    def test_no_role_or_no_permissions_is_not_admin(self):
+        self.assertFalse(role_is_admin({}))
+        self.assertFalse(role_is_admin(self._role(0)))
+        self.assertFalse(role_is_admin(self._role('junk')))
+
+    def test_an_administration_flag_is_admin(self):
+        for bit in (0x1, 0x10, 0x400, 0x2, 0x20000, 0x400000):
+            self.assertTrue(role_is_admin(self._role(bit)), hex(bit))
+
+    def test_an_admin_flag_next_to_non_admin_ones_is_admin(self):
+        self.assertTrue(role_is_admin(self._role(0x10000 | 0x100000 | 0x10)))
 
 
 if __name__ == '__main__':

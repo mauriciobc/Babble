@@ -137,6 +137,52 @@ The one known live bug is listed separately below.
     message instead of a generic one.
    **DONE (5a):** checked: `announcements.py` reports reaction failures via `report_error` with the server message (`summarize_error`), not a generic one; nothing to change.
 
+### 5b: findings of the independent audit
+
+Each was checked in the code first; the test named was written to fail
+before the fix.
+
+1. **Ids compared as strings** (`notificationctrl` `str(last_read) >=
+   str(newest)`). **FIXED.** Same bug found in `NotificationModel._track_ids`
+   (`min`/`max` of two ids as strings across pages), `AccountStatuses.finish`
+   (`oldest_regular_id`) and the Catch Up tie-break
+   `rank._by_score_then_id`; all use the numeric order of
+   `timelinebase.id_key` now (rank keeps a private copy, its modules may not
+   import it). Tests: `notifications render`, `profile relationship helpers`,
+   `catchup rank` (digit-length boundary 99999999 / 100000001).
+2. **`role_is_admin` mask.** **FIXED.** `user_role.rb` FLAGS and the Role
+   entity page give three non-admin bits: `invite_users` 0x10000,
+   `view_feeds` 0x100000, `invite_bypass_approval` 0x200000, now named
+   constants in `accounts.py`. `manage_email_subscriptions` (0x400000, server
+   only, not in the docs page) counts as admin. Test: `account store`.
+3. **`GET /accounts?id[]=` unchunked, errors swallowed.** **FIXED.**
+   `DEFAULT_ACCOUNTS_LIMIT = 40` (`api/base_controller.rb`; the accounts
+   controller raises a validation error above it), so ids go out 40 at a time;
+   a failed chunk keeps the others and is toasted once (rate limited to one
+   per 5 s). Golden scenarios added.
+4. **`parse_link_header` collapsed repeated keys.** **FIXED.** A repeated key
+   is a list of values, a single key stays a string; `request_async` encodes
+   with `doseq`, so the wire is unchanged for single keys and every consumer
+   that merges the cursor into its params works as it was. Test:
+   `client transport`.
+5. **Topic cannot be cleared.** **FIXED.** `Collection#tag_name=` with nil
+   unsets the tag and the permit list takes a null scalar, so an edit sends
+   `tag_name: null` (a create leaves the key out). Unverified against a live
+   server. Golden scenario added.
+6. **Drafts and the 25 per day / 300 total limits.** **NOT A BUG, documented.**
+   Verified in `scheduled_status.rb` (DAILY_LIMIT 25 per `scheduled_at::date`,
+   TOTAL_LIMIT 300 per account, 422). Save and convert already toast the
+   server's sentence (`compose.on_post_done`, `ScheduledRow._put_schedule`);
+   test in `compose widgets`. Dates are not spread: every draft shares one
+   date by design, which caps drafts at 25 a day; recorded in the
+   `scheduled.update` note.
+7. **`offset=0` on the first search page.** **FIXED.** Sent only when above
+   0; the golden scenario `search type pages load with offsets` changed.
+
+Commit message for the set: `fix: numeric id order, role admin bits, chunked
+account lookup, repeated Link keys, clearing a collection topic, search
+offset (audit 5b)`.
+
 ## 2. Documentation sources and what could not be verified
 
 Fetched and used: `/methods/` statuses, accounts, lists, timelines,
