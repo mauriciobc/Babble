@@ -12,7 +12,7 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import pages, pluginlinks  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .statustext import is_web_link  # noqa: E402
 
@@ -54,12 +54,14 @@ def _network_session():
 
 def classify_navigation(uri, *, new_window=False, link_clicked=False,
                         user_gesture=False, button=0, modifiers=0,
-                        strip=False, resolve=False):
+                        strip=False, resolve=False, claimed=False):
     """Decide what a navigation request should do.
 
     Returns ``(action, uri)``: LOAD in the view, hand to the EXTERNAL
     launcher, ROUTE inside the app, or IGNORE. *uri* comes back changed
-    only when tracking parameters were stripped."""
+    only when tracking parameters were stripped. A *claimed* link (one a
+    plugin owns the origin of) is never ROUTEd: it stays in the view, as
+    a click inside the plugin's own panel should."""
     if not uri:
         return IGNORE, uri
     scheme = uri.split(':', 1)[0].lower() if ':' in uri else ''
@@ -72,7 +74,8 @@ def classify_navigation(uri, *, new_window=False, link_clicked=False,
     if link_clicked and (button == 2
                          or modifiers & Gdk.ModifierType.CONTROL_MASK):
         return EXTERNAL, uri
-    if link_clicked and resolve and pages.is_fediverse_link(uri):
+    if link_clicked and resolve and not claimed \
+            and pages.is_fediverse_link(uri):
         return ROUTE, uri
     if new_window and not user_gesture:
         return IGNORE, uri  # popups are blocked
@@ -89,13 +92,31 @@ def present_web(widget, uri):
             or not available():
         pages.launch_external(widget, uri)
         return
+    _show(window, uri)
+
+
+def present_panel(widget, uri, owner, title=None):
+    """Open *uri* in the web column as the page of *owner*, a plugin's
+    panel: whatever panel the column had is closed, and the column is
+    shown whatever the user chose for opening links. Returns the column,
+    or None, after opening the system browser, when there is none."""
+    window = pages.window_of(widget)
+    if window is None or not hasattr(window, 'web_split') \
+            or not available():
+        pages.launch_external(widget, uri)
+        return None
+    return _show(window, uri, owner, title)
+
+
+def _show(window, uri, owner=None, title=None):
     column = window.web_slot.get_child()
     if column is None:
         column = WebColumn()
         window.web_slot.set_child(column)
-    column.load_uri(uri)
+    column.load_uri(uri, owner=owner, title=title)
     window.web_split.set_show_sidebar(True)
     column.view.grab_focus()
+    return column
 
 
 def watch_split(split):
@@ -172,9 +193,12 @@ class WebColumn(Adw.Bin):
         self._disposed = False
         self._error_uri = None
         self._committed = False
+        self._load_failed = False  # the current load did not succeed
         self._pending_user = False  # the next navigation is ours
         self._user_nav = False
         self._handed_off = False
+        self.panel = None  # the plugin panel showing here, if any
+        self._fallback_title = None
 
         self._build_actions()
         self.view = self._build_view()
@@ -313,7 +337,16 @@ class WebColumn(Adw.Bin):
 
     # Public
 
-    def load_uri(self, uri):
+    def load_uri(self, uri, owner=None, title=None):
+        """Load *uri*. *owner* is the plugin panel loading it; a load by
+        anyone else ends the panel the column had."""
+        if self.panel is not None and self.panel is not owner:
+            self.panel._end('replaced')
+        self.panel = owner
+        if owner is None:
+            self._fallback_title = None
+        elif title is not None:
+            self._fallback_title = title
         self.stack.set_visible_child_name('page')
         self._error_uri = uri
         self._pending_user = True
@@ -352,7 +385,8 @@ class WebColumn(Adw.Bin):
             modifiers=int(action.get_modifiers()),
             strip=(config.get_boolean('strip-tracking')
                    and untargeted and user_gesture),
-            resolve=config.get_boolean('aggressive-resolving'))
+            resolve=config.get_boolean('aggressive-resolving'),
+            claimed=pluginlinks.is_claimed(uri))
         if verdict == LOAD:
             if new_window or target != uri:
                 decision.ignore()
@@ -443,6 +477,7 @@ class WebColumn(Adw.Bin):
 
     def _on_load_failed(self, _view, _event, uri, error):
         WebKit = self._webkit
+        self._load_failed = True
         if error.matches(WebKit.NetworkError.quark(),
                          int(WebKit.NetworkError.CANCELLED)) \
                 or error.matches(
@@ -454,6 +489,7 @@ class WebColumn(Adw.Bin):
         return True
 
     def _on_tls_failed(self, _view, uri, _certificate, _errors):
+        self._load_failed = True
         self._show_error(
             _('Security Certificate Not Trusted'),
             _('The connection is not private, so the page was not '
@@ -463,6 +499,7 @@ class WebColumn(Adw.Bin):
 
     def _on_terminated(self, _view, reason):
         WebKit = self._webkit
+        self._load_failed = True
         if reason == WebKit.WebProcessTerminationReason.EXCEEDED_MEMORY_LIMIT:
             description = _('The page used too much memory and was '
                             'stopped.')
@@ -475,16 +512,23 @@ class WebColumn(Adw.Bin):
 
     def _on_title_uri(self, _view, _pspec):
         shown = self._webkit.uri_for_display(self.view.get_uri() or '') or ''
-        self.title.set_title(self.view.get_title() or shown)
+        self.title.set_title(self.view.get_title() or self._fallback_title
+                             or shown)
         self.title.set_subtitle(shown)
 
     def _on_uri(self, _view, _pspec):
         self._refresh_nav()
 
     def _on_load_changed(self, _view, event):
-        if event == self._webkit.LoadEvent.COMMITTED:
+        LoadEvent = self._webkit.LoadEvent
+        if event == LoadEvent.STARTED:
+            self._load_failed = False
+        elif event == LoadEvent.COMMITTED:
             self._committed = True
             self.stack.set_visible_child_name('page')
+        elif event == LoadEvent.FINISHED and not self._load_failed \
+                and self.panel is not None:
+            self.panel._on_loaded(self.view.get_uri())
         self._refresh_nav()
 
     def _on_progress(self, _view, _pspec):
@@ -511,7 +555,7 @@ class WebColumn(Adw.Bin):
 
     def _on_reload(self, *_args):
         if self.stack.get_visible_child_name() == 'error' and self._error_uri:
-            self.load_uri(self._error_uri)
+            self.load_uri(self._error_uri, owner=self.panel)
         else:
             self.view.reload()
 
@@ -544,7 +588,50 @@ class WebColumn(Adw.Bin):
         if self._disposed:
             return
         self._disposed = True
+        if self.panel is not None:
+            self.panel._end('hidden')
         self.view.stop_loading()
         parent = self.get_parent()
         if parent is not None:
             parent.set_child(None)
+
+    # Plugin panels
+
+    def release_panel(self, panel):
+        if self.panel is panel:
+            self.panel = None
+            self._fallback_title = None
+
+    def evaluate(self, world, script, callback, cancellable=None):
+        """Run *script* in the page, in the script world *world*:
+        ``callback(value, error)``, *value* a JavaScriptCore value."""
+        def done(view, result, _data):
+            try:
+                value = view.evaluate_javascript_finish(result)
+            except GLib.Error as error:
+                callback(None, error.message)
+                return
+            callback(value, None)
+        self.view.evaluate_javascript(script, -1, world, None, cancellable,
+                                      done, None)
+
+    def add_message_handler(self, world, name, callback):
+        """Have ``callback(value)`` called for what script in *world*
+        posts to ``window.webkit.messageHandlers.<name>``; pages' own
+        script, in the main world, has no such channel. Returns a handle
+        for :meth:`remove_message_handler`, or None."""
+        content = self.view.get_user_content_manager()
+        if not content.register_script_message_handler(name, world):
+            return None
+        handler = content.connect(
+            'script-message-received::' + name,
+            lambda _content, value: callback(value))
+        return (content.weak_ref(), name, world, handler)
+
+    @staticmethod
+    def remove_message_handler(handle):
+        reference, name, world, handler = handle
+        content = reference()
+        if content is not None:
+            content.disconnect(handler)
+            content.unregister_script_message_handler(name, world)

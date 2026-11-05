@@ -130,6 +130,11 @@ posts = []
 uploads = []
 polls = []
 searches = []
+edits = []
+#: What the stub answers for /api/v2/search; a test may point it at any
+#: other payload (e.g. statuses for quote resolution). None means the
+#: default hashtag searches.
+SEARCH_ANSWER = None
 
 SEARCH_ACCOUNTS = [
     {'id': '1', 'acct': 'alice', 'username': 'alice',
@@ -191,6 +196,23 @@ class StubClient:
         return None
 
     def post_status_finish(self, result):
+        return {'id': 'invented', 'content': '<p>x</p>'}
+
+    def edit_status_async(self, status_id, text, params=None, callback=None,
+                          cancellable=None):
+        # Edits carry their target id, unlike posts.
+        form = {'status': text}
+        if params:
+            form.update(params)
+        edits.append((status_id, form))
+
+        def cb(source, result, _user_data=None):
+            callback(source, result)
+        GLib.idle_add(lambda *_: (cb(self, StubMediaResult()),
+                                  GLib.SOURCE_REMOVE)[1])
+        return None
+
+    def edit_status_finish(self, result):
         return {'id': 'invented', 'content': '<p>x</p>'}
 
     def media_upload_async(self, file_bytes, filename, content_type,
@@ -279,6 +301,8 @@ class StubClient:
             raise GLib.Error('Stub failure', Gio.io_error_quark(),
                              Gio.IOErrorEnum.FAILED)
         if result.path == '/api/v2/search':
+            if SEARCH_ANSWER is not None:
+                return SEARCH_ANSWER
             return {'hashtags': HASHTAG_ANSWER}
         if result.path in POOL_ANSWERS:
             return POOL_ANSWERS[result.path]
@@ -782,6 +806,89 @@ check('previous draft restored after reply',
                            view.buffer.get_end_iter(), False)
       == 'my in-progress draft')
 check('reply cleared', view.in_reply_to_id is None)
+
+# Reply to a post that carries a CW: the reply starts behind the same
+# CW, like Phanpy does -- the field is shown based solely on whether
+# the parent already carries one, not on a bare sensitive flag.
+view.reset()
+posts.clear()
+set_text('a draft worth keeping')
+view.start_reply('12346', 'someone@instance.social', 'public',
+                 parent={'spoiler_text': 'plot spoilers',
+                         'sensitive': True})
+pump(50)
+check('reply prefill shows the parent CW',
+      view.cw_toggle.get_active()
+      and view.spoiler_entry.get_text() == 'plot spoilers')
+check('reply with CW assigned', view.in_reply_to_id == '12346')
+view.on_post_clicked(view.post_button)
+pump(400)
+form = posts[0]
+check('reply to a CW post posts behind the CW',
+      form.get('spoiler_text') == 'plot spoilers'
+      and form.get('sensitive') is True
+      and form.get('in_reply_to_id') == '12346')
+view.reset()
+view.start_reply('12347', 'someone@instance.social', 'public',
+                 parent={'sensitive': True, 'spoiler_text': ''})
+pump(50)
+check('a sensitive-only parent shows no CW field',
+      not view.cw_toggle.get_active() and not view.spoiler_entry.get_text())
+view.reset()
+view.start_reply('12348', 'someone@instance.social', 'public',
+                 parent={'spoiler_text': ''})
+pump(50)
+check('a parent without a CW shows no CW field',
+      not view.cw_toggle.get_active() and not view.spoiler_entry.get_text())
+# A draft with a CW: the reply to a CW-free parent must not inherit it.
+view.reset()
+view.cw_toggle.set_active(True)
+view.spoiler_entry.set_text('kept draft warning')
+view.start_reply('12349', 'someone@instance.social', 'public',
+                 parent={'spoiler_text': ''})
+pump(50)
+check('a CW-free parent clears the draft CW',
+      not view.cw_toggle.get_active() and view.spoiler_entry.get_text() == '')
+# ...and a CW-carrying parent replaces it with its own.
+view.reset()
+view.cw_toggle.set_active(True)
+view.spoiler_entry.set_text('kept draft warning')
+view.start_reply('12350', 'someone@instance.social', 'public',
+                 parent={'spoiler_text': 'reply spoilers'})
+pump(50)
+check('a parent with a CW wins over the draft CW',
+      view.cw_toggle.get_active()
+      and view.spoiler_entry.get_text() == 'reply spoilers')
+view.reset()
+
+# Editing a post that is flagged sensitive without a CW keeps the flag:
+# the PUT must carry it, or the server does not.
+edits.clear()
+view.start_edit({'id': '777', 'text': 'a photo',
+                 'visibility': 'public', 'language': 'en',
+                 'sensitive': True, 'spoiler_text': '',
+                 'media_attachments': []})
+pump(50)
+check('edit loads the post', view.editing_id == '777')
+check('a sensitive post without a CW shows no CW field on edit',
+      not view.cw_toggle.get_active() and not view.spoiler_entry.get_text())
+view.on_post_clicked(view.post_button)
+pump(400)
+check('editing a sensitive post keeps the flag',
+      bool(edits) and edits[-1][0] == '777'
+      and edits[-1][1].get('sensitive') is True
+      and 'spoiler_text' not in edits[-1][1])
+view.reset()
+view.start_edit({'id': '778', 'text': 'plain post',
+                 'visibility': 'public', 'language': 'en',
+                 'spoiler_text': '',
+                 'media_attachments': []})
+pump(50)
+view.on_post_clicked(view.post_button)
+pump(400)
+check('editing a plain post does not invent sensitive',
+      edits[-1][0] == '778' and 'sensitive' not in edits[-1][1])
+view.reset()
 
 # Send without text is refused.
 posts.clear()
@@ -2568,6 +2675,98 @@ paste('pasted words')
 check('pasting text inserts it', view.text() == 'pasted words')
 check('pasting text adds no attachment', view.attachments() == [])
 view.reset()
+
+# Pasting a lone link to a post on a fediverse server attaches the
+# post as a quote instead of inserting the URL, like Mastodon's and
+# Phanpy's composers do. Everything else pastes as text.
+quote_toasts = []
+_original_capture = view._add_toast
+
+
+def _quote_capture(toast):
+    quote_toasts.append(toast)
+
+
+view._add_toast = _quote_capture
+SEARCH_ANSWER = {'statuses': [{'id': '4242',
+                               'visibility': 'public',
+                               'quote_approval': {'current_user': 'automatic'}}]}
+paste('https://instance.social/@someone/109876543210')
+settle_until(2.0, lambda: view.quoted_status_id == '4242')
+check('a pasted post link attaches as a quote',
+      view.quoted_status_id == '4242')
+check('a pasted post link inserts no text', view.text() == '')
+check('the toast offers an undo',
+      bool(quote_toasts)
+      and quote_toasts[-1].get_button_label() == _('_Undo'))
+quote_toasts[-1].emit('button-clicked')
+check('undoing the toast detaches the quote and keeps the link',
+      view.quoted_status_id is None
+      and view.text() == 'https://instance.social/@someone/109876543210')
+
+# A link that resolves to nothing quotable pastes as text instead.
+SEARCH_ANSWER = {'statuses': []}
+view.reset()
+paste('https://instance.social/@someone/109876543210')
+settle_until(2.0, lambda: view.text()
+             == 'https://instance.social/@someone/109876543210')
+check('a link that cannot be a quote pastes as text',
+      view.text() == 'https://instance.social/@someone/109876543210')
+
+# A quote already attached: the paste stays a paste, it does not
+# replace the quote silently.
+view.reset()
+SEARCH_ANSWER = {'statuses': [{'id': '4243', 'visibility': 'public'}]}
+view.quoted_status_id = 'kept'
+paste('https://instance.social/@someone/109876543210')
+settle_until(2.0, lambda: view.text()
+             == 'https://instance.social/@someone/109876543210')
+check('a paste while a quote is attached pastes as text',
+      view.text() == 'https://instance.social/@someone/109876543210'
+      and view.quoted_status_id == 'kept')
+
+# ...and while editing a published post, which cannot change its quote.
+view.reset()
+view.start_edit({'id': '777', 'text': 'edit me',
+                 'visibility': 'public', 'language': 'en',
+                 'spoiler_text': '',
+                 'media_attachments': []})
+SEARCH_ANSWER = {'statuses': [{'id': '4244', 'visibility': 'public'}]}
+paste('https://instance.social/@someone/109876543210')
+settle_until(2.0, lambda: '109876543210' in view.text())
+check('a paste while editing attaches no quote',
+      view.quoted_status_id is None
+      and 'https://instance.social/@someone/109876543210' in view.text())
+
+# The auto-attached quote goes out with the post.
+view.reset()
+posts.clear()
+SEARCH_ANSWER = {'statuses': [{'id': '4245', 'visibility': 'public',
+                               'quote_approval': {'current_user': 'automatic'}}]}
+paste('https://instance.social/@someone/109876543210')
+settle_until(2.0, lambda: view.quoted_status_id == '4245')
+set_text('my take')
+view.on_post_clicked(view.post_button)
+pump(400)
+check('the auto-attached quote goes out with the post',
+      posts and posts[0].get('quoted_status_id') == '4245')
+
+# A link whose search resolves after the composer moved on is dropped,
+# not attached to whatever draft is open by then.
+view.reset()
+SEARCH_ANSWER = {'statuses': [{'id': '4246', 'visibility': 'public'}]}
+HOLD_PATHS.add('/api/v2/search')
+paste('https://instance.social/@someone/109876543210')
+# The URL is gone at insert time; the search is held back.
+view.reset()
+client.release_requests()
+pump(100)
+check('a link resolved after a reset is dropped, not attached',
+      view.quoted_status_id is None and view.text() == '')
+HOLD_PATHS.clear()
+view.reset()
+SEARCH_ANSWER = None
+view._add_toast = _original_capture
 
 # Screenshot: taken through the portal, copied under the user cache as
 # pasted images are, and attached.

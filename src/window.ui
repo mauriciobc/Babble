@@ -635,6 +635,11 @@
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>
+    <!-- What plugins add (MainMenuExtension), filled by pluginmenu; an
+         empty section draws nothing, so with no plugin the menu is as it
+         was. Above the app-level entries so Preferences and Plugins stay
+         together. -->
+    <section id="plugin_menu_section"></section>
     <section>
       <item>
         <attribute name="label" translatable="yes">_Preferences</attribute>

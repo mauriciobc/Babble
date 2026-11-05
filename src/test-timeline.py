@@ -397,6 +397,9 @@ buffer_text = body.get_buffer().get_text(
     True)
 check('declared shortcodes render as images',
       len(anchor_images) == 3)
+check('emoji anchors show the shortcode on hover',
+      [i.get_tooltip_text() for i in anchor_images]
+      == [':ride4:', ':python:', ':gopher:'])
 check('labeled shortcodes leave the buffer',
       ':ride4:' not in buffer_text and ':gopher:' not in buffer_text)
 check('a11y label keeps raw shortcodes',

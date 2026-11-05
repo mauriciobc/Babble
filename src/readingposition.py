@@ -167,6 +167,9 @@ class ReadingPosition:
         contiguously from where the chain stopped. Not after a failure,
         which would only ask again at once."""
         self._refresh_chain = 0
+        pull_done = getattr(self, '_pull_done', None)
+        if pull_done is not None:
+            pull_done()
         if self._catching:
             self._end_catchup()
             if sweep:

@@ -1033,7 +1033,11 @@ def open_web(widget, uri):
 
     For article and web links only. OAuth, the explicit "Open in
     Browser" actions and non-web schemes must keep using
-    :func:`launch_external`, which never opens the column."""
+    :func:`launch_external`, which never opens the column. A link a
+    plugin claims goes to the plugin first (see ``pluginlinks``)."""
+    from . import pluginlinks
+    if pluginlinks.claim_link(widget, uri):
+        return
     if settings().get_boolean('open-links-in-app'):
         from . import webcolumn
         if webcolumn.available():
@@ -1062,6 +1066,9 @@ def open_link(widget, uri, mentions=None, tag=None, resolve=False):
         return
     if settings().get_boolean('strip-tracking'):
         uri = strip_tracking(uri)
+    from . import pluginlinks
+    if pluginlinks.claim_link(widget, uri):
+        return  # before any routing: a claimed /@user@host is the plugin's
     client = client_of(widget)
     if client is None:
         launch_external(widget, uri)

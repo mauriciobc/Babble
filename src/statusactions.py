@@ -484,7 +484,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
         def reply():
             window.open_compose_reply(
                 item.status_id, status['account'].get('acct', ''),
-                status.get('visibility') or 'public')
+                status.get('visibility') or 'public', parent=status)
 
         age = days_since(status.get('created_at'))
         if age > OLD_POST_DAYS and _flag('reply-to-old-post-reminder'):

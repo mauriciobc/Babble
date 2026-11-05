@@ -19,6 +19,7 @@ from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
+from . import pluginmenu  # noqa: E402
 from . import navigation  # noqa: E402
 from . import portals  # noqa: E402
 from . import sidebarmode  # noqa: E402
@@ -143,6 +144,7 @@ class BabbleWindow(Adw.ApplicationWindow):
     sidebar_compose_button = Gtk.Template.Child()
     sidebar_mode_button = Gtk.Template.Child()
     primary_menu_button = Gtk.Template.Child()
+    plugin_menu_section = Gtk.Template.Child()
     sidebar_stack = Gtk.Template.Child()
     sidebar_rail_slot = Gtk.Template.Child()
     draft_banner = Gtk.Template.Child()
@@ -313,6 +315,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         toggle_sidebar.connect('activate', self._on_toggle_sidebar)
         self.add_action(toggle_sidebar)
         self._update_session_actions()
+        self._plugin_menu = pluginmenu.MainMenu(self, self.plugin_menu_section)
 
         self.switcher = account_store.AccountSwitcher(self.settings)
         self.account_button.set_popover(self.switcher)
@@ -1250,13 +1253,14 @@ class BabbleWindow(Adw.ApplicationWindow):
             dialog.present(self)
         return dialog
 
-    def open_compose_reply(self, status_id, handle, visibility='public'):
+    def open_compose_reply(self, status_id, handle, visibility='public',
+                           parent=None):
         """Called by timeline rows to reply to a status while keeping
         any draft in progress."""
         dialog = self.ensure_composer()
         if dialog is None:
             return
-        dialog.start_reply(status_id, handle, visibility)
+        dialog.start_reply(status_id, handle, visibility, parent=parent)
         self.present_composer()
 
     def compose_with_files(self, paths=()):

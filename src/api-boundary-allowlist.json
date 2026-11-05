@@ -226,6 +226,14 @@
    "reason": "phase 2: scheduled"
   },
   {
+   "file": "src/composequote.py",
+   "function": "QuotePaste._begin_quote_attach",
+   "via": "request_async",
+   "path": "'/api/v2/search'",
+   "layer": "raw",
+   "reason": "phase 2: search"
+  },
+  {
    "file": "src/conversations.py",
    "function": "ConversationRow._delete_confirmed",
    "via": "request_async",
@@ -819,8 +827,8 @@
    "reason": "phase 2: timelines"
   },
   {
-   "file": "src/timelinepage.py",
-   "function": "TimelinePage._note_followed_tags",
+   "file": "src/timelinetags.py",
+   "function": "FollowedTags._note_followed_tags",
    "via": "request_async",
    "path": "'/followed_tags'",
    "layer": "raw",
