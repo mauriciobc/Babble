@@ -7,9 +7,9 @@ cancellable=None)` / `<name>_finish(client, result)` pair. The request on
 the wire is the one the notification page, its controller, the desktop
 poller and the policy dialog sent before: same verb, path, params and body.
 
-Carried over from the audit, not fixed here (phase 5): ``PATCH
-/api/v2/notifications/policy`` sends the changed fields as a JSON body, the
-docs say form data (NT-6).
+``PATCH /api/v2/notifications/policy`` sends the changed fields as form
+data, as the docs say (NT-6, audit 5e). Every field is an enum string
+(``accept``, ``filter`` or ``drop``), so the encoding is the same text.
 
 The 4.3.0 endpoints (``unread_count``, the policy and the requests) carry
 `min_version` 2, the number v4.3.0 reports; the page asks
@@ -52,9 +52,11 @@ POLICY = _declare('policy', 'GET', '/api/v2/notifications/policy',
 UPDATE_POLICY = _declare(
     'update_policy', 'PATCH', '/api/v2/notifications/policy',
     'write:notifications', '#update-the-filtering-policy',
-    note='DEVIATES (audit NT-6): the changed `for_*` fields go as a JSON '
-         'body, the docs say form data; fixed in phase 5. The request '
-         'names are `for_*` while the docs example response shows '
+    note='form `for_*` enum strings (accept, filter, drop), as the docs '
+         'show (audit NT-6, moved from JSON in 5e). Server: '
+         '`params.permit(:for_not_following ... :for_bots)` over string '
+         'enums, so form and JSON read alike. The request names are `for_*` '
+         'while the docs example response shows '
          '`filter_*` booleans; Babble sends and reads `for_*` (audit '
          'item 7)',
     version='4.3.0',
@@ -153,8 +155,8 @@ def policy_finish(client, result):
 
 
 def update_policy_async(client, changes, callback=None, cancellable=None):
-    """Send the changed ``for_*`` fields in *changes* as a JSON body."""
-    return core.send(client, UPDATE_POLICY, json_body=changes,
+    """Send the changed ``for_*`` fields in *changes* as form data."""
+    return core.send(client, UPDATE_POLICY, form=changes,
                      callback=callback, cancellable=cancellable)
 
 

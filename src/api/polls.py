@@ -6,9 +6,7 @@ Every function is a `<name>_async(client, ..., callback=None,
 cancellable=None)` / `<name>_finish(client, result)` pair, and the request
 on the wire is the one the poll box sent before.
 
-Carried over from the audit, not fixed here (phase 5): the vote is sent as
-JSON ``{"choices": [...]}``, the docs describe form data ``choices[]``
-(PL-2, accepted as undocumented).
+The vote is form data ``choices[]``, as the docs describe (PL-2, audit 5e).
 """
 
 from . import core
@@ -22,9 +20,11 @@ GET = core.declare('polls.get', 'GET', '/polls/%s', None, None,
                    mastodon_version='2.8.0')
 VOTE = core.declare('polls.vote', 'POST', '/polls/%s/votes', 'write:statuses',
                     None, DOCS + '#vote',
-                    note='DEVIATES (audit PL-2): JSON body '
-                         '{choices: [index...]}, the docs say form data '
-                         'choices[]; fixed in phase 5',
+                    note='form choices[] (index...), as the docs show '
+                         '(audit PL-2, moved from JSON in 5e). Server: '
+                         '`params.require(:choices)` then `Integer(choice)`, '
+                         'so the strings of a form read like the integers '
+                         'of JSON; an empty list is refused either way',
                     mastodon_version='2.8.0')
 
 
@@ -39,7 +39,8 @@ def get_finish(client, result):
 
 def vote_async(client, poll_id, choices, callback=None, cancellable=None):
     """*choices* are the option indexes."""
-    return core.send(client, VOTE, poll_id, json_body={'choices': choices},
+    return core.send(client, VOTE, poll_id,
+                     form={'choices[]': [str(c) for c in choices]},
                      callback=callback, cancellable=cancellable)
 
 

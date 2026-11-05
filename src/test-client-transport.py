@@ -221,6 +221,110 @@ check('no field reads client_secret=None', b'client_secret=None' not in sent,
 server.close()
 
 
+# --- audit 5e: the documented form encoding, DELETE included ---
+
+import urllib.parse  # noqa: E402
+
+from src.api import (admin as api_admin, lists as api_lists,  # noqa: E402
+                     notifications as api_notifications,
+                     polls as api_polls, relationships as api_relationships)
+
+
+def wire_of(start, reply=b'{}', script=None):
+    """Send one request through *start(client)* to a loopback server and
+    return ``(request_line, content_type, parsed_body, server)``."""
+    server = Server(reply=reply, script=script)
+    client = client_for(server.port)
+    start(client)
+    run_loop(lambda: (time.sleep(0.4), GLib.SOURCE_REMOVE)[1])
+    if not server.requests:
+        server.close()
+        return None, None, None, server
+    head, body = server.requests[0]
+    lines = head.split(b'\r\n')
+    ctype = b''
+    for line in lines[1:]:
+        if line.lower().startswith(b'content-type:'):
+            ctype = line.split(b':', 1)[1].strip()
+    server.close()
+    return lines[0].decode(), ctype.decode(), \
+        sorted(urllib.parse.parse_qsl(body.decode())), server
+
+
+FORM = 'application/x-www-form-urlencoded'
+quiet = lambda *_a: None  # noqa: E731
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_lists.remove_members_async(c, '3', ['7', '9'],
+                                             callback=quiet))
+check('remove members: DELETE with no query string',
+      line == 'DELETE /api/v1/lists/3/accounts HTTP/1.1', line)
+check('remove members: a form body, not a query',
+      ctype == FORM and body == [('account_ids[]', '7'),
+                                 ('account_ids[]', '9')], str((ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_relationships.domain_unblock_async(
+        c, 'remote.example', callback=quiet))
+check('domain unblock: DELETE with no query string',
+      line == 'DELETE /api/v1/domain_blocks HTTP/1.1', line)
+check('domain unblock: a form body, not a query',
+      ctype == FORM and body == [('domain', 'remote.example')],
+      str((ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_polls.vote_async(c, '55', [0, 2], callback=quiet))
+check('poll vote: form choices[]',
+      line == 'POST /api/v1/polls/55/votes HTTP/1.1' and ctype == FORM
+      and body == [('choices[]', '0'), ('choices[]', '2')],
+      str((line, ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_notifications.update_policy_async(
+        c, {'for_not_following': 'filter', 'for_bots': 'drop'},
+        callback=quiet))
+check('notification policy: PATCH with a form body',
+      line == 'PATCH /api/v2/notifications/policy HTTP/1.1'
+      and ctype == FORM
+      and body == [('for_bots', 'drop'), ('for_not_following', 'filter')],
+      str((line, ctype, body)))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_admin.measures_async(
+        c, {'start_at': '2026-01-01', 'end_at': '2026-01-30',
+            'keys': ['new_users', 'active_users']}, callback=quiet))
+check('admin measures: form keys[]',
+      line == 'POST /api/v1/admin/measures HTTP/1.1' and ctype == FORM
+      and body == sorted([('end_at', '2026-01-30'),
+                          ('keys[]', 'new_users'),
+                          ('keys[]', 'active_users'),
+                          ('start_at', '2026-01-01')]),
+      str(str((line, ctype, body))))
+
+line, ctype, body, _s = wire_of(
+    lambda c: api_admin.dimensions_async(
+        c, {'start_at': '2026-01-01', 'end_at': '2026-01-30', 'limit': 8,
+            'keys': ['sources']}, callback=quiet))
+check('admin dimensions: form keys[] and limit',
+      ctype == FORM and body == sorted([
+          ('end_at', '2026-01-30'), ('keys[]', 'sources'), ('limit', '8'),
+          ('start_at', '2026-01-01')]), str((line, ctype, body)))
+
+# A dropped DELETE is idempotent (RFC 9110) and is repeated, body intact.
+server = Server(script=['drop', b'{}'])
+client = client_for(server.port)
+api_relationships.domain_unblock_async(client, 'remote.example',
+                                       callback=quiet)
+run_loop(lambda: (time.sleep(3.0), GLib.SOURCE_REMOVE)[1])
+check('a dropped DELETE with a form body is repeated',
+      len(server.requests) == 2, '%d requests' % len(server.requests))
+check('the repeated DELETE carries the same body',
+      len(server.requests) == 2
+      and server.requests[0][1] == server.requests[1][1] == b'domain=remote.example',
+      repr([r[1] for r in server.requests]))
+server.close()
+
+
 # --- X-RateLimit-Reset, in the two shapes servers actually send ---
 
 def iso(epoch):

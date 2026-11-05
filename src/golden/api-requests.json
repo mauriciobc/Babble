@@ -3,21 +3,40 @@
   "admin accounts list filters review and undo": [
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "new_users",
-       "active_users",
-       "interactions",
-       "opened_reports",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "active_users"
+      ],
+      [
+       "keys[]",
+       "interactions"
+      ],
+      [
+       "keys[]",
+       "new_users"
+      ],
+      [
+       "keys[]",
+       "opened_reports"
+      ],
+      [
+       "keys[]",
        "resolved_reports"
       ],
-      "start_at": "2026-01-01"
-     }
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -26,22 +45,44 @@
    },
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "sources",
-       "languages",
-       "servers",
-       "software_versions",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "languages"
+      ],
+      [
+       "keys[]",
+       "servers"
+      ],
+      [
+       "keys[]",
+       "software_versions"
+      ],
+      [
+       "keys[]",
+       "sources"
+      ],
+      [
+       "keys[]",
        "space_usage"
       ],
-      "limit": 8,
-      "start_at": "2026-01-01"
-     }
+      [
+       "limit",
+       "8"
+      ],
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -200,21 +241,40 @@
   "admin dialog probes scopes and loads the dashboard": [
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "new_users",
-       "active_users",
-       "interactions",
-       "opened_reports",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "active_users"
+      ],
+      [
+       "keys[]",
+       "interactions"
+      ],
+      [
+       "keys[]",
+       "new_users"
+      ],
+      [
+       "keys[]",
+       "opened_reports"
+      ],
+      [
+       "keys[]",
        "resolved_reports"
       ],
-      "start_at": "2026-01-01"
-     }
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -223,22 +283,44 @@
    },
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "sources",
-       "languages",
-       "servers",
-       "software_versions",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "languages"
+      ],
+      [
+       "keys[]",
+       "servers"
+      ],
+      [
+       "keys[]",
+       "software_versions"
+      ],
+      [
+       "keys[]",
+       "sources"
+      ],
+      [
+       "keys[]",
        "space_usage"
       ],
-      "limit": 8,
-      "start_at": "2026-01-01"
-     }
+      [
+       "limit",
+       "8"
+      ],
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -264,21 +346,40 @@
   "admin report dialog category assignment and resolve": [
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "new_users",
-       "active_users",
-       "interactions",
-       "opened_reports",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "active_users"
+      ],
+      [
+       "keys[]",
+       "interactions"
+      ],
+      [
+       "keys[]",
+       "new_users"
+      ],
+      [
+       "keys[]",
+       "opened_reports"
+      ],
+      [
+       "keys[]",
        "resolved_reports"
       ],
-      "start_at": "2026-01-01"
-     }
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -287,22 +388,44 @@
    },
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "sources",
-       "languages",
-       "servers",
-       "software_versions",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "languages"
+      ],
+      [
+       "keys[]",
+       "servers"
+      ],
+      [
+       "keys[]",
+       "software_versions"
+      ],
+      [
+       "keys[]",
+       "sources"
+      ],
+      [
+       "keys[]",
        "space_usage"
       ],
-      "limit": 8,
-      "start_at": "2026-01-01"
-     }
+      [
+       "limit",
+       "8"
+      ],
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -422,21 +545,40 @@
   "admin reports list and resolved filter": [
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "new_users",
-       "active_users",
-       "interactions",
-       "opened_reports",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "active_users"
+      ],
+      [
+       "keys[]",
+       "interactions"
+      ],
+      [
+       "keys[]",
+       "new_users"
+      ],
+      [
+       "keys[]",
+       "opened_reports"
+      ],
+      [
+       "keys[]",
        "resolved_reports"
       ],
-      "start_at": "2026-01-01"
-     }
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -445,22 +587,44 @@
    },
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "sources",
-       "languages",
-       "servers",
-       "software_versions",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "languages"
+      ],
+      [
+       "keys[]",
+       "servers"
+      ],
+      [
+       "keys[]",
+       "software_versions"
+      ],
+      [
+       "keys[]",
+       "sources"
+      ],
+      [
+       "keys[]",
        "space_usage"
       ],
-      "limit": 8,
-      "start_at": "2026-01-01"
-     }
+      [
+       "limit",
+       "8"
+      ],
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -505,21 +669,40 @@
   "admin rule pages load add and delete": [
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "new_users",
-       "active_users",
-       "interactions",
-       "opened_reports",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "active_users"
+      ],
+      [
+       "keys[]",
+       "interactions"
+      ],
+      [
+       "keys[]",
+       "new_users"
+      ],
+      [
+       "keys[]",
+       "opened_reports"
+      ],
+      [
+       "keys[]",
        "resolved_reports"
       ],
-      "start_at": "2026-01-01"
-     }
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -528,22 +711,44 @@
    },
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "sources",
-       "languages",
-       "servers",
-       "software_versions",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "languages"
+      ],
+      [
+       "keys[]",
+       "servers"
+      ],
+      [
+       "keys[]",
+       "software_versions"
+      ],
+      [
+       "keys[]",
+       "sources"
+      ],
+      [
+       "keys[]",
        "space_usage"
       ],
-      "limit": 8,
-      "start_at": "2026-01-01"
-     }
+      [
+       "limit",
+       "8"
+      ],
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -860,21 +1065,40 @@
   "admin take action from a report and an account": [
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "new_users",
-       "active_users",
-       "interactions",
-       "opened_reports",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "active_users"
+      ],
+      [
+       "keys[]",
+       "interactions"
+      ],
+      [
+       "keys[]",
+       "new_users"
+      ],
+      [
+       "keys[]",
+       "opened_reports"
+      ],
+      [
+       "keys[]",
        "resolved_reports"
       ],
-      "start_at": "2026-01-01"
-     }
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -883,22 +1107,44 @@
    },
    {
     "body": {
-     "json": {
-      "end_at": "2026-01-30",
-      "keys": [
-       "sources",
-       "languages",
-       "servers",
-       "software_versions",
+     "form": [
+      [
+       "end_at",
+       "2026-01-30"
+      ],
+      [
+       "keys[]",
+       "languages"
+      ],
+      [
+       "keys[]",
+       "servers"
+      ],
+      [
+       "keys[]",
+       "software_versions"
+      ],
+      [
+       "keys[]",
+       "sources"
+      ],
+      [
+       "keys[]",
        "space_usage"
       ],
-      "limit": 8,
-      "start_at": "2026-01-01"
-     }
+      [
+       "limit",
+       "8"
+      ],
+      [
+       "start_at",
+       "2026-01-01"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -4219,19 +4465,22 @@
     "query": []
    },
    {
-    "body": null,
+    "body": {
+     "form": [
+      [
+       "account_ids[]",
+       "7"
+      ]
+     ]
+    },
     "headers": {
-     "Authorization": "Bearer <token>"
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "DELETE",
     "path": "/api/v1/lists/3/accounts",
-    "query": [
-     [
-      "account_ids[]",
-      "7"
-     ]
-    ]
+    "query": []
    },
    {
     "body": {
@@ -4310,19 +4559,22 @@
     "query": []
    },
    {
-    "body": null,
+    "body": {
+     "form": [
+      [
+       "account_ids[]",
+       "7"
+      ]
+     ]
+    },
     "headers": {
-     "Authorization": "Bearer <token>"
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "DELETE",
     "path": "/api/v1/lists/3/accounts",
-    "query": [
-     [
-      "account_ids[]",
-      "7"
-     ]
-    ]
+    "query": []
    }
   ],
   "list row delete": [
@@ -4738,13 +4990,16 @@
    },
    {
     "body": {
-     "json": {
-      "for_not_following": "filter"
-     }
+     "form": [
+      [
+       "for_not_following",
+       "filter"
+      ]
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "PATCH",
@@ -4839,15 +5094,16 @@
    },
    {
     "body": {
-     "json": {
-      "choices": [
-       1
+     "form": [
+      [
+       "choices[]",
+       "1"
       ]
-     }
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -4856,16 +5112,20 @@
    },
    {
     "body": {
-     "json": {
-      "choices": [
-       0,
-       2
+     "form": [
+      [
+       "choices[]",
+       "0"
+      ],
+      [
+       "choices[]",
+       "2"
       ]
-     }
+     ]
     },
     "headers": {
      "Authorization": "Bearer <token>",
-     "Content-Type": "application/json"
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "POST",
@@ -5501,19 +5761,22 @@
   ],
   "profile unblock domain": [
    {
-    "body": null,
+    "body": {
+     "form": [
+      [
+       "domain",
+       "remote.example"
+      ]
+     ]
+    },
     "headers": {
-     "Authorization": "Bearer <token>"
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "DELETE",
     "path": "/api/v1/domain_blocks",
-    "query": [
-     [
-      "domain",
-      "remote.example"
-     ]
-    ]
+    "query": []
    },
    {
     "body": null,
@@ -5533,19 +5796,22 @@
   ],
   "profile unblock domain then undo blocks": [
    {
-    "body": null,
+    "body": {
+     "form": [
+      [
+       "domain",
+       "remote.example"
+      ]
+     ]
+    },
     "headers": {
-     "Authorization": "Bearer <token>"
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "DELETE",
     "path": "/api/v1/domain_blocks",
-    "query": [
-     [
-      "domain",
-      "remote.example"
-     ]
-    ]
+    "query": []
    },
    {
     "body": null,
@@ -5793,19 +6059,22 @@
   ],
   "relations unblock domain": [
    {
-    "body": null,
+    "body": {
+     "form": [
+      [
+       "domain",
+       "remote.example"
+      ]
+     ]
+    },
     "headers": {
-     "Authorization": "Bearer <token>"
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
     },
     "host": "https://golden.example",
     "method": "DELETE",
     "path": "/api/v1/domain_blocks",
-    "query": [
-     [
-      "domain",
-      "remote.example"
-     ]
-    ]
+    "query": []
    }
   ],
   "relations unmute": [

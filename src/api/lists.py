@@ -7,9 +7,9 @@ cancellable=None)` / `<name>_finish(client, result)` pair. The request on
 the wire is the one the list editor and the lists pages sent before: same
 verb, path, form and params.
 
-Carried over from the audit, not fixed here (phase 5): ``DELETE
-/lists/:id/accounts`` sends ``account_ids[]`` in the query, the docs say
-form data (LS-6). ``exclusive`` (4.2.0) is not version-gated by the caller.
+``DELETE /lists/:id/accounts`` sends ``account_ids[]`` as form data, as the
+docs say (LS-6, audit 5e). ``exclusive`` (4.2.0) is not version-gated by the
+caller.
 
 `min_version` is None throughout: the audit records no gate in the app for
 these, so the release is in ``mastodon_version`` and nothing here changes
@@ -47,8 +47,9 @@ ADD_MEMBERS = _declare('add_members', 'POST', '/lists/%s/accounts',
 REMOVE_MEMBERS = _declare(
     'remove_members', 'DELETE', '/lists/%s/accounts', 'write:lists',
     '#accounts-remove',
-    note='DEVIATES (audit LS-6): `account_ids[]` is sent in the query, the '
-         'docs say form data; fixed in phase 5', version='2.1.0')
+    note='form account_ids[] on a DELETE, as the docs show (audit LS-6, '
+         'moved from the query in 5e). Server: `params.permit(account_ids: '
+         '[])` reads query and body alike', version='2.1.0')
 OF_ACCOUNT = _declare('of_account', 'GET', '/accounts/%s/lists',
                       'read:lists', '#lists', docs='accounts/',
                       note='the lists that have this account as a member',
@@ -139,7 +140,7 @@ def add_members_finish(client, result):
 def remove_members_async(client, list_id, account_ids, callback=None,
                          cancellable=None):
     return core.send(client, REMOVE_MEMBERS, list_id,
-                     params={'account_ids[]': account_ids},
+                     form={'account_ids[]': account_ids},
                      callback=callback, cancellable=cancellable)
 
 

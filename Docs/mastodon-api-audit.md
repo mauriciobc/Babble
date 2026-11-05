@@ -55,7 +55,7 @@ searched).
 
 ### Verdicts (distinct endpoint rows in section 3)
 
-See the tally line at the end of section 3: COMPLIANT 105, DEVIATES 4, ACCEPTED-UNDOCUMENTED 7, DEPRECATED 1, UNDOCUMENTED 1.
+See the tally line at the end of section 3: COMPLIANT 110, DEVIATES 2, ACCEPTED-UNDOCUMENTED 4, DEPRECATED 1, UNDOCUMENTED 1 (after 5e).
 
 ### Known bugs (not compliance deviations)
 
@@ -83,10 +83,43 @@ The one known live bug is listed separately below.
    JSON in the docs and are fine. Fix: either send form (`name[]` keys) or
    record "JSON accepted" as server behaviour in the registry with the
    source.
+   **DONE (5e), with two carve-outs.** Moved to form: `POST /polls/:id/votes`
+   (`choices[]`), `PATCH /api/v2/notifications/policy` (`for_*`, enum
+   strings) and `POST /admin/measures|dimensions` (`keys[]`, `start_at`,
+   `end_at`, `limit`). Each was argued per field against the controller on
+   `mastodon/mastodon` main: `votes_controller` does
+   `params.require(:choices)` and `VoteService` does `Integer(choice)`, so
+   the strings of a form read like the integers of JSON; `policies_controller`
+   does `params.permit(:for_not_following ... :for_bots)` over string enums;
+   the metrics controllers read `params.require(:keys)`, `start_at`, `end_at`
+   and `limit` (`to_datetime`, `to_i`), and Babble sends none of the per-key
+   nested params (`tag_accounts[id]`), the one shape that is spelled
+   differently. **Kept as JSON, with the reason in the endpoint note:**
+   - `POST/PUT /api/v2/filters`: `expires_in: null` clears an expiry and the
+     form encoder drops None. Evidence: `Expireable#expires_in=` is
+     `self.expires_at = interval.present? ? interval.to_i.seconds.from_now :
+     nil`, so an empty `expires_in=` would also clear it, but that value is
+     not documented, and `keywords_attributes` is an array of objects (`id`,
+     `keyword`, `whole_word`, `_destroy`; `filters_controller` permits
+     `keywords_attributes: [:id, :keyword, :whole_word, :_destroy]`) that a
+     flat form cannot carry without indexed keys the docs do not show.
+   - `PUT /admin/reports/:id`: the dialog sends `rule_ids: []` to clear the
+     rules before a category change (`reports_controller` permits
+     `:category, rule_ids: []`). An empty array has no form encoding:
+     `rule_ids[]=` arrives as `[""]`, cast to `[nil]`, and `report.rb` has
+     `validates :rule_ids, absence: true` for a non-violation category and
+     `validate_rule_ids` (`rules.size == rule_ids&.size`) for a violation, so
+     both reject it. Only JSON `[]` clears the field.
 2. **`DELETE /api/v1/domain_blocks` sends `domain` as a query parameter**
    (`profileactions.send_domain_block`, `relations.unblock`); docs say form
    data. Same for `DELETE /lists/:id/accounts` (`account_ids[]` in the
    query; docs: form) in `lists.py` 331 and 698.
+   **DONE (5e):** both now send a form body on DELETE. No transport change was
+   needed: `_build_message` already encodes `form` for any verb, libsoup sets
+   the `Content-Type` and body on a DELETE, and a dropped DELETE is still
+   repeated (it is idempotent) with the same body (`client transport`
+   covers both). Servers read query and body alike
+   (`params.permit(:domain)`, `params.permit(account_ids: [])`).
 3. **`endorse`/`unendorse` gate is `api_versions >= 6` / "4.6.0"
    (`capabilities.ENDORSE_API_VERSION`), but the accounts page says
    `endorse`/`unendorse` were added and `pin`/`unpin` deprecated in 4.4.0.**
@@ -379,7 +412,7 @@ used in section 4.
 | RL-4 | GET /mutes | `limit` | `read:mutes`; 40/80 | none | COMPLIANT |
 | RL-5 | GET /domain_blocks | `limit` | `read:blocks`; 1.4.0; 100/200 | none | COMPLIANT |
 | RL-6 | POST /domain_blocks | form `domain` | `write:blocks`; 1.4.0 | none | COMPLIANT |
-| RL-7 | DELETE /domain_blocks | query `domain` | `write:blocks`; form `domain` | none | DEVIATES [minor]: parameter in the query, docs say form data |
+| RL-7 | DELETE /domain_blocks | form `domain` | `write:blocks`; form `domain` | none | COMPLIANT after 5e (was: parameter in the query) |
 
 ### lists
 
@@ -390,7 +423,7 @@ used in section 4.
 | LS-3 | DELETE /lists/:id | none | `write:lists` | none | COMPLIANT |
 | LS-4 | GET /lists/:id/accounts | `limit=0` (all) | `read:lists`; `limit=0` documented | none | COMPLIANT |
 | LS-5 | POST /lists/:id/accounts | form `account_ids[]` | `write:lists` | none | COMPLIANT |
-| LS-6 | DELETE /lists/:id/accounts | query `account_ids[]` | `write:lists`; form `account_ids[]` | none | DEVIATES [minor]: query instead of form |
+| LS-6 | DELETE /lists/:id/accounts | form `account_ids[]` | `write:lists`; form `account_ids[]` | none | COMPLIANT after 5e (was: query instead of form) |
 
 ### timelines
 
@@ -430,7 +463,7 @@ used in section 4.
 | NT-3 | POST /notifications/clear | none | `write:notifications` | none | COMPLIANT |
 | NT-4 | POST /notifications/:id/dismiss | none | `write:notifications`; 1.3.0 | none | COMPLIANT |
 | NT-5 | GET /api/v2/notifications/policy | none | `read:notifications`; 4.3.0 | none | COMPLIANT (ungated) |
-| NT-6 | PATCH /api/v2/notifications/policy | JSON `for_*` values | `write:notifications`; 4.3.0; form data | none | ACCEPTED-UNDOCUMENTED: JSON body |
+| NT-6 | PATCH /api/v2/notifications/policy | form `for_*` values | `write:notifications`; 4.3.0; form data | none | COMPLIANT after 5e (was: JSON body) |
 | NT-7 | GET /notifications/requests | `limit` via PagedList | `read:notifications`; 4.3.0 | none | COMPLIANT (ungated) |
 | NT-8 | POST /notifications/requests/:id/accept, /dismiss | none | `write:notifications`; 4.3.0 | none | COMPLIANT (ungated) |
 | NT-9 | GET /markers | `timeline[]=notifications` | `read:statuses`; 3.0.0 | none | COMPLIANT |
@@ -441,7 +474,7 @@ used in section 4.
 | Id | Method path | Params | Docs: scope; added | Gate | Verdict |
 |---|---|---|---|---|---|
 | FL-1 | GET /api/v2/filters | none | `read:filters`; 4.0.0 | none | COMPLIANT |
-| FL-2 | POST /api/v2/filters, PUT /api/v2/filters/:id | JSON `title`, `context[]`, `filter_action`, `expires_in`, `keywords_attributes[]` | `write:filters`; form data; `blur` 4.4.0 | none | ACCEPTED-UNDOCUMENTED: JSON body (docs form only) |
+| FL-2 | POST /api/v2/filters, PUT /api/v2/filters/:id | JSON `title`, `context[]`, `filter_action`, `expires_in`, `keywords_attributes[]` | `write:filters`; form data; `blur` 4.4.0 | none | ACCEPTED-UNDOCUMENTED: JSON body (docs form only), kept in 5e (`expires_in: null` and `keywords_attributes`; see item 1) |
 | FL-3 | DELETE /api/v2/filters/:id | none | `write:filters` | none | COMPLIANT |
 
 ### media
@@ -456,7 +489,7 @@ used in section 4.
 | Id | Method path | Params | Docs: scope; added | Gate | Verdict |
 |---|---|---|---|---|---|
 | PL-1 | GET /polls/:id | none | public; 2.8.0 | none | COMPLIANT |
-| PL-2 | POST /polls/:id/votes | JSON `choices` | `write:statuses`; form `choices[]` | none | ACCEPTED-UNDOCUMENTED: JSON body |
+| PL-2 | POST /polls/:id/votes | form `choices[]` | `write:statuses`; form `choices[]` | none | COMPLIANT after 5e (was: JSON body) |
 
 ### scheduled statuses
 
@@ -485,7 +518,7 @@ used in section 4.
 | Id | Method path | Params | Docs: scope; added | Gate | Verdict |
 |---|---|---|---|---|---|
 | AD-1 | GET /admin/reports | `resolved` | `admin:read:reports`; 2.9.1; 100/200 | admin consent flow | COMPLIANT |
-| AD-2 | PUT /admin/reports/:id | JSON `category`, `rule_ids` | `admin:write:reports`; 3.5.0; form data | admin consent | ACCEPTED-UNDOCUMENTED: JSON body |
+| AD-2 | PUT /admin/reports/:id | JSON `category`, `rule_ids` | `admin:write:reports`; 3.5.0; form data | admin consent | ACCEPTED-UNDOCUMENTED: JSON body, kept in 5e (`rule_ids: []` has no form encoding; see item 1) |
 | AD-3 | POST /admin/reports/:id/assign_to_self, /unassign, /resolve, /reopen | none | `admin:write:reports` | admin consent | COMPLIANT |
 | AD-4 | GET /api/v2/admin/accounts | `origin`, `status`, `username`, `display_name`, `by_domain`, `email`, `ip` | `admin:read:accounts`; 3.5.0 | admin consent | COMPLIANT |
 | AD-5 | GET /admin/accounts (v1) | `limit=1` (scope probe) | `admin:read:accounts`; 2.9.1; not marked deprecated | admin consent | COMPLIANT (v1 not deprecated per docs) |
@@ -495,7 +528,7 @@ used in section 4.
 | AD-9 | GET/POST /admin/domain_allows, DELETE .../:id | form `domain` | `admin:*:domain_allows`; 4.0.0 | admin consent | COMPLIANT |
 | AD-10 | GET/POST /admin/email_domain_blocks, DELETE .../:id | form `domain` | `admin:*:email_domain_blocks`; 4.0.0 | admin consent | COMPLIANT |
 | AD-11 | GET/POST /admin/ip_blocks, DELETE .../:id | form `ip`, `severity`, `comment`, `expires_in` | `admin:*:ip_blocks`; docs list `admin:write:domain_blocks` for DELETE (probably a docs typo) | admin consent | COMPLIANT (docs scope conflict noted) |
-| AD-12 | POST /admin/measures, /admin/dimensions | JSON `keys`, `start_at`, `end_at`, `limit` | `admin:read`; 3.5.0; form data | admin consent | ACCEPTED-UNDOCUMENTED: JSON body |
+| AD-12 | POST /admin/measures, /admin/dimensions | form `keys[]`, `start_at`, `end_at`, `limit` | `admin:read`; 3.5.0; form data | admin consent | COMPLIANT after 5e (was: JSON body) |
 
 ### oauth, apps, instance
 
@@ -525,7 +558,7 @@ Plugin host requests (`Context.request`) go to third-party servers
 (wallabag, hashpanel). They are not Mastodon endpoints and are not
 audited.
 
-**Tally (118 table rows; a row may cover a method pair or an id family):** COMPLIANT 105, DEVIATES 4, ACCEPTED-UNDOCUMENTED 7, DEPRECATED 1, UNDOCUMENTED 1, UNVERIFIED 0. Of the COMPLIANT rows, about 15 are version-ungated 4.3 to 4.6 endpoints noted in the summary. UNVERIFIED applies to the `api_versions` number mapping (gate v6) rather than to a whole endpoint row; it is reported in section 2.
+**Tally (118 table rows; a row may cover a method pair or an id family; after 5e):** COMPLIANT 110, DEVIATES 2, ACCEPTED-UNDOCUMENTED 4, DEPRECATED 1, UNDOCUMENTED 1, UNVERIFIED 0. Of the COMPLIANT rows, about 15 are version-ungated 4.3 to 4.6 endpoints noted in the summary. UNVERIFIED applies to the `api_versions` number mapping (gate v6) rather than to a whole endpoint row; it is reported in section 2.
 
 ## 4. Call sites per endpoint (migration list)
 
