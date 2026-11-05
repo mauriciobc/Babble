@@ -1188,59 +1188,7 @@ class MastodonClient(GObject.Object):
         }
         return GLib.Error(messages[what], 'mastodon-http-error-quark', 0)
 
-    # Statuses
-
-    def post_status_async(self, text, params=None, callback=None,
-                          cancellable=None):
-        """POST /api/v1/statuses as JSON, so nested values (``poll``
-        options, ``media_ids`` arrays) keep their structure.
-
-        No ``Idempotency-Key`` is sent, and that is deliberate.
-        Mastodon reads one (api/v1/statuses_controller.rb) and keys it
-        per account in Redis for an hour (PostStatusService
-        #with_idempotency), but on a repeat it raises IdempotencyError
-        carrying the *id string*, which the controller then hands to
-        the status serializer. So the dedup does not make a retry safe --
-        it makes the retry return something that is not a status. The
-        reply is left to :data:`IDEMPOTENT_METHODS` instead.
-        """
-        body = {'status': text}
-        if params:
-            body.update(params)
-        return self._request_async('POST', '/statuses', json_body=body,
-                                   callback=callback, cancellable=cancellable)
-
-    def post_status_finish(self, result):
-        return self._finish(result)
-
-    def reply_async(self, status_id, text, params=None, callback=None,
-                    cancellable=None):
-        """POST /api/v1/statuses with ``in_reply_to_id``.
-
-        A reply is a status posted to the same endpoint; this names the
-        intent so a caller does not have to spell out the parent id.
-        """
-        body = dict(params or {})
-        body['in_reply_to_id'] = str(status_id)
-        return self.post_status_async(text, body, callback=callback,
-                                      cancellable=cancellable)
-
-    def reply_finish(self, result):
-        return self.post_status_finish(result)
-
-    def edit_status_async(self, status_id, text, params=None, callback=None,
-                          cancellable=None):
-        """PUT /api/v1/statuses/:id as JSON, mirroring
-        :meth:`post_status_async` (docs.joinmastodon.org/methods/statuses)."""
-        body = {'status': text}
-        if params:
-            body.update(params)
-        return self._request_async('PUT', '/statuses/%s' % status_id,
-                                   json_body=body, callback=callback,
-                                   cancellable=cancellable)
-
-    def edit_status_finish(self, result):
-        return self._finish(result)
+    # Statuses live in src/api/statuses.py.
 
     def multipart_async(self, method, path, fields=None, files=None,
                         callback=None, cancellable=None):
@@ -1283,35 +1231,4 @@ class MastodonClient(GObject.Object):
         self._spawn(task, message)
         return task
 
-    def media_upload_async(self, file_bytes, filename, content_type,
-                           description=None, callback=None,
-                           cancellable=None):
-        """Upload one attachment to ``POST /api/v2/media`` (docs.
-        joinmastodon.org/methods/media), multipart/form-data with a
-        ``file`` part and optional ``description`` alt text.
-
-        *file_bytes* may be a :class:`GLib.Bytes` or a ``bytes``; pass
-        the former when the caller already holds one, so the attachment
-        is not copied twice on the way out.
-
-        The v2 route answers HTTP 202 with a ``url`` of null while the
-        full-size file is processed in the background; the composer polls
-        ``GET /api/v1/media/:id`` until it appears. The v1 route it
-        replaced has been deprecated since Mastodon 3.1.3."""
-        fields = {'description': description} if description else None
-        return self.multipart_async(
-            'POST', '/api/v2/media', fields=fields,
-            files={'file': (file_bytes, filename, content_type)},
-            callback=callback, cancellable=cancellable)
-
-    def media_upload_finish(self, result):
-        return self._finish(result)
-
-    def media_status_async(self, media_id, callback=None, cancellable=None):
-        """GET /api/v1/media/:id, to poll an upload being processed."""
-        return self._request_async('GET', '/media/%s' % media_id,
-                                   callback=callback, cancellable=cancellable)
-
-    def media_status_finish(self, result):
-        return self._finish(result)
 

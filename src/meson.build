@@ -152,6 +152,7 @@ install_data(
   'api/collections_api.py',
   'api/polls.py',
   'api/reports.py',
+  'api/media.py',
   install_dir: moduledir / 'api',
 )
 

@@ -112,6 +112,7 @@ from src.api import admin as _admin  # noqa: E402
 from src.api import collections_api as _collections_api  # noqa: E402
 from src.api import polls as _polls  # noqa: E402
 from src.api import reports as _reports  # noqa: E402
+from src.api import media as _media  # noqa: E402
 
 API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'filters': _filters, 'lists': _lists,
@@ -123,7 +124,7 @@ API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'conversations': _conversations, 'instance': _instance,
                'suggestions': _suggestions, 'admin': _admin,
                'collections_api': _collections_api, 'polls': _polls,
-               'reports': _reports}
+               'reports': _reports, 'media': _media}
 # The path accessors of `src.api`: a helper handed one of these names no
 # path of its own, so the site needs no allow-list entry.
 ACCESSORS = ('list_path', 'search_path', 'familiar_followers_path')

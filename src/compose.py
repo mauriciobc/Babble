@@ -2083,23 +2083,23 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             params['media_ids'] = media_ids
         if self.editing_id is not None:
             context = (self.editing_id, self.uploads.generation)
-            self.client.edit_status_async(self.editing_id, self.text(),
-                                          params=params,
-                                          callback=lambda c, r:
-                                          self.on_post_done(c, r, context))
+            api_statuses.edit_async(self.client, self.editing_id,
+                                    self.text(), params=params,
+                                    callback=lambda c, r:
+                                    self.on_post_done(c, r, context))
         else:
             context = (None, self.uploads.generation)
-            self.client.post_status_async(self.text(), params=params,
-                                          callback=lambda c, r:
-                                          self.on_post_done(c, r, context))
+            api_statuses.post_async(self.client, self.text(), params=params,
+                                    callback=lambda c, r:
+                                    self.on_post_done(c, r, context))
 
     def on_post_done(self, client, result, _user_data=None):
         editing_id, generation = _user_data
         try:
             if editing_id is not None:
-                status = client.edit_status_finish(result)
+                status = api_statuses.edit_finish(client, result)
             else:
-                status = client.post_status_finish(result)
+                status = api_statuses.post_finish(client, result)
         except GLib.Error as e:
             if generation != self.uploads.generation:
                 return

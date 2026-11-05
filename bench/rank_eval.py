@@ -304,14 +304,6 @@ def make_client(instance, token):
     return mastodon.MastodonClient(instance, token=token)
 
 
-# The real class, held here because `self_test` swaps the module attribute
-# for `_NoNetwork` (that swap is what fails a run which reaches for the
-# network). A check that pins the write methods' verbs and paths calls
-# them unbound on this one, so it exercises the shipped methods rather
-# than the stub.
-REAL_CLIENT = mastodon.MastodonClient
-
-
 def call(client, path, params=None):
     """GET *path* and return ``(data, next_params)``.
 
@@ -739,7 +731,7 @@ def refused(what, error):
 
 
 STATUS_ACTIONS = ('favourite', 'unfavourite', 'reblog', 'unreblog',
-                  'bookmark', 'unbookmark')
+                  'bookmark', 'unbookmark', 'reply')
 # The other actions that live in `src.api`, and the module each is in.
 API_ACTIONS = {'verify_credentials': api_accounts, 'follow': api_relationships,
                'unfollow': api_relationships}
@@ -2156,6 +2148,16 @@ class FakeAccountClient:
             self._write(action, status_id, {'id': status_id, flag: True})
             callback(self, None)
             return
+        if method == 'POST' and path == '/statuses':
+            # A reply is a post with its parent named, from `src.api`.
+            body = dict(json_body or {})
+            text = body.pop('status', None)
+            parent = body.pop('in_reply_to_id', None)
+            self.asked.append(('reply', (str(parent), text, body)))
+            self.writes += 1
+            self.pending = ({'id': 'reply-1'}, self._error('reply'))
+            callback(self, None)
+            return
         self._read('request', path, params, callback)
 
     def request_finish(self, result):
@@ -2172,17 +2174,6 @@ class FakeAccountClient:
                 self.next_pages.pop(index)
                 return self._finish(result), params, None
         return self._finish(result), None, None
-
-    def reply_async(self, status_id, text, params=None, callback=None,
-                    cancellable=None):
-        self.asked.append(('reply', (str(status_id), text,
-                                     dict(params or {}))))
-        self.writes += 1
-        self.pending = ({'id': 'reply-1'}, self._error('reply'))
-        callback(self, None)
-
-    def reply_finish(self, result):
-        return self._finish(result)
 
     def _follow(self, account_id, callback):
         account_id = str(account_id)
@@ -3416,12 +3407,6 @@ def check_accounts(checks):
         # through the public request_async.
         request_async = _request_async
 
-        def post_status_async(self, text, params=None, callback=None,
-                              cancellable=None):
-            self.sent = ('POST', '/statuses', {'json_body': dict(
-                {'status': text}, **(params or {}))})
-            return 'task'
-
     endpoints = []
     for action, kwargs in (
             ('favourite_async', {}),
@@ -3455,12 +3440,12 @@ def check_accounts(checks):
                  {'reblogs': 'true', 'notify': 'false'})
 
     sent = Sent()
-    REAL_CLIENT.reply_async(sent, '9', 'hello', {'visibility': 'private'})
+    api_statuses.reply_async(sent, '9', 'hello', {'visibility': 'private'})
     checks.equal('a reply posts a status with its parent in the body',
-                 sent.sent,
-                 ('POST', '/statuses', {'json_body': {
+                 (sent.sent[0], sent.sent[1], sent.sent[2]['json_body']),
+                 ('POST', '/statuses', {
                      'status': 'hello', 'in_reply_to_id': '9',
-                     'visibility': 'private'}}))
+                     'visibility': 'private'}))
 
     # The forms and the finishes, which the verb-and-path check leaves
     # free: a reblog without its visibility, and a reply that finished as
@@ -3480,14 +3465,12 @@ def check_accounts(checks):
         def _finish(self, result):
             return ('_finish', result)
 
-        def post_status_finish(self, result):
-            return ('post_status', result)
-
         def request_finish(self, result):
             return ('request_finish', result)
 
-    checks.equal('reply_finish finishes as a posted status',
-                 REAL_CLIENT.reply_finish(Finish(), 'r'), ('post_status', 'r'))
+    checks.equal('reply_finish finishes as a request',
+                 api_statuses.reply_finish(Finish(), 'r'),
+                 ('request_finish', 'r'))
     checks.equal('follow_finish finishes as a request',
                  api_relationships.follow_finish(Finish(), 'f'),
                  ('request_finish', 'f'))

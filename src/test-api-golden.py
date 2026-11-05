@@ -807,11 +807,6 @@ def profile_unblock_domain_then_undo_blocks(rec):
 # The MastodonClient wrappers
 
 
-def wrapper(rec, name, *args, **kwargs):
-    client = rec.client()
-    getattr(client, name)(*args, callback=lambda *_a: None, **kwargs)
-
-
 def api_wrapper(rec, name, *args, module='statuses', **kwargs):
     """A `src.api.<module>` function: the client is its first argument."""
     import importlib
@@ -848,23 +843,23 @@ def client_status_wrappers(rec):
 
 @scenario
 def client_post_reply_edit(rec):
-    wrapper(rec, 'post_status_async', 'hello',
-            params={'visibility': 'unlisted', 'sensitive': True,
-                    'media_ids': ['1', '2'],
-                    'poll': {'options': ['a', 'b'], 'expires_in': 300}})
-    wrapper(rec, 'reply_async', 100, 'answer',
-            params={'visibility': 'public'})
-    wrapper(rec, 'edit_status_async', '100', 'edited',
-            params={'spoiler_text': 'cw'})
+    api_wrapper(rec, 'post_async', 'hello',
+                params={'visibility': 'unlisted', 'sensitive': True,
+                        'media_ids': ['1', '2'],
+                        'poll': {'options': ['a', 'b'], 'expires_in': 300}})
+    api_wrapper(rec, 'reply_async', 100, 'answer',
+                params={'visibility': 'public'})
+    api_wrapper(rec, 'edit_async', '100', 'edited',
+                params={'spoiler_text': 'cw'})
 
 
 @scenario
 def client_media_multipart(rec):
-    wrapper(rec, 'media_upload_async', b'\x89PNG-bytes', 'pic.png',
-            'image/png', description='alt text')
-    wrapper(rec, 'media_upload_async', GLib.Bytes.new(b'abc'), 'a.ogg',
-            'audio/ogg')
-    wrapper(rec, 'media_status_async', '500')
+    api_wrapper(rec, 'upload_async', b'\x89PNG-bytes', 'pic.png',
+                'image/png', description='alt text', module='media')
+    api_wrapper(rec, 'upload_async', GLib.Bytes.new(b'abc'), 'a.ogg',
+                'audio/ogg', module='media')
+    api_wrapper(rec, 'status_async', '500', module='media')
 
 
 @scenario
@@ -2235,6 +2230,82 @@ def report_submit_violation_with_rules_and_a_collection(rec):
     dialog.rule_checks['2'].set_active(True)
     dialog._build_comment_page()
     dialog._submit()
+    rec.settle()
+
+
+# Phase 3c: the profile editor and the posting defaults
+
+def _profile_editor(rec, **extra):
+    from src import profileedit
+    account_json = account(
+        ME, 'me', display_name='Ada Lovelace',
+        avatar_description='', header_description='',
+        show_featured=True, show_media=True, show_media_replies=False,
+        source={'note': '', 'fields': [], 'privacy': 'public',
+                'sensitive': False, 'language': 'en'})
+    account_json.update(extra)
+    info = {'api_versions': {'mastodon': 9}}
+    dialog = rec.keep(profileedit.ProfileEditDialog(
+        rec.client(info=info), account_json, Gtk.Box()))
+    dialog.force_close = lambda: None
+    return dialog
+
+
+@scenario
+def profile_edit_save_with_avatar_fields_and_tabs(rec):
+    dialog = _profile_editor(rec)
+    dialog.name_row.set_text('Ada King')
+    dialog.add_field('Pronouns', 'they/them')
+    dialog.avatar_alt.set_text('a portrait')
+    dialog.tab_rows['show_media'].set_active(False)
+    dialog.new_avatar = (b'\x89PNG-avatar', 'me.png', 'image/png')
+    dialog.new_header = (b'\xff\xd8-header', 'banner.jpg', 'image/jpeg')
+    dialog.on_save_clicked(None)
+    rec.settle()
+
+
+@scenario
+def profile_edit_save_credentials_only(rec):
+    dialog = _profile_editor(rec)
+    dialog.name_row.set_text('Ada King')
+    dialog.on_save_clicked(None)
+    rec.settle()
+
+
+@scenario
+def profile_edit_save_profile_only(rec):
+    dialog = _profile_editor(rec)
+    dialog.tab_rows['show_featured'].set_active(False)
+    dialog.on_save_clicked(None)
+    rec.settle()
+
+
+@scenario
+def posting_defaults_sync(rec):
+    from src import preferences
+
+    class Settings:
+        values = {'default-visibility': 'unlisted',
+                  'default-language': 'pt',
+                  'default-sensitive': True,
+                  'default-quote-policy': 'followers'}
+
+        def get_string(self, key):
+            return self.values[key]
+
+        def get_boolean(self, key):
+            return self.values[key]
+
+    class Window(FakeWindow):
+        client = rec.client()
+
+    settings = Settings()
+    for key in settings.values:
+        preferences.sync_posting_defaults(Window, key, settings)
+    settings.values['default-visibility'] = 'direct'   # not a server default
+    preferences.sync_posting_defaults(Window, 'default-visibility', settings)
+    settings.values['default-sensitive'] = False
+    preferences.sync_posting_defaults(Window, 'default-sensitive', settings)
     rec.settle()
 
 

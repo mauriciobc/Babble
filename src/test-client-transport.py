@@ -27,7 +27,7 @@ gi.require_version('Soup', '3.0')
 
 from gi.repository import Gio, GLib  # noqa: E402
 
-from src.api import accounts, timelines  # noqa: E402
+from src.api import accounts, media as api_media, statuses, timelines  # noqa: E402
 from src.mastodon import (DEFAULT_RATE_LIMIT_SECONDS,  # noqa: E402
                           MastodonClient, parse_reset_instant,
                           server_clock_offset)
@@ -136,14 +136,14 @@ def client_for(port, token='t'):
 server = Server(reply=b'{"id":"7","url":"https://x/1.png"}')
 client = client_for(server.port)
 outcome = {}
-task = client.media_upload_async(b'\x89PNG\r\n\x1a\n' + b'payload' * 8,
-                                 'shot.png', 'image/png',
-                                 description='a screenshot')
+task = api_media.upload_async(client, b'\x89PNG\r\n\x1a\n' + b'payload' * 8,
+                              'shot.png', 'image/png',
+                              description='a screenshot')
 
 
 def finish_upload():
     try:
-        outcome['data'] = client.media_upload_finish(task)
+        outcome['data'] = api_media.upload_finish(client, task)
     except GLib.Error as failure:
         outcome['error'] = failure.message
     return GLib.SOURCE_REMOVE
@@ -179,8 +179,8 @@ server.close()
 
 server = Server(reply=b'{"id":"8"}')
 client = client_for(server.port)
-client.media_upload_async(GLib.Bytes.new(b'raw-gbytes-body'),
-                          'a.bin', 'application/octet-stream')
+api_media.upload_async(client, GLib.Bytes.new(b'raw-gbytes-body'),
+                       'a.bin', 'application/octet-stream')
 run_loop(lambda: (time.sleep(0.4), GLib.SOURCE_REMOVE)[1])
 check('a GLib.Bytes file body is sent as-is',
       bool(server.requests) and b'raw-gbytes-body' in server.requests[0][1])
@@ -191,7 +191,7 @@ server.close()
 
 server = Server(script=['drop', b'{"id":"9"}'])
 client = client_for(server.port)
-client.post_status_async('hello world')
+statuses.post_async(client, 'hello world')
 # The dropped connection only surfaces at the session timeout, and the
 # retry would add a backoff on top of that.
 run_loop(lambda: (time.sleep(3.0), GLib.SOURCE_REMOVE)[1])

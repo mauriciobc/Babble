@@ -4096,6 +4096,98 @@
     "query": []
    }
   ],
+  "posting defaults sync": [
+   {
+    "body": {
+     "form": [
+      [
+       "source[privacy]",
+       "unlisted"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/accounts/update_credentials",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "source[language]",
+       "pt"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/accounts/update_credentials",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "source[sensitive]",
+       "true"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/accounts/update_credentials",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "source[quote_policy]",
+       "followers"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/accounts/update_credentials",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "source[sensitive]",
+       "false"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/accounts/update_credentials",
+    "query": []
+   }
+  ],
   "profile account lists": [
    {
     "body": null,
@@ -4203,6 +4295,138 @@
       "7"
      ]
     ]
+   }
+  ],
+  "profile edit save credentials only": [
+   {
+    "body": {
+     "multipart": [
+      {
+       "name": "display_name",
+       "value": "Ada King"
+      }
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "multipart/form-data; boundary=<boundary>"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/accounts/update_credentials",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/verify_credentials",
+    "query": []
+   }
+  ],
+  "profile edit save profile only": [
+   {
+    "body": {
+     "form": [
+      [
+       "show_featured",
+       "false"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/profile",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/verify_credentials",
+    "query": []
+   }
+  ],
+  "profile edit save with avatar fields and tabs": [
+   {
+    "body": {
+     "multipart": [
+      {
+       "bytes": 11,
+       "content_type": "image/png",
+       "filename": "me.png",
+       "name": "avatar"
+      },
+      {
+       "bytes": 9,
+       "content_type": "image/jpeg",
+       "filename": "banner.jpg",
+       "name": "header"
+      },
+      {
+       "name": "display_name",
+       "value": "Ada King"
+      },
+      {
+       "name": "fields_attributes[0][name]",
+       "value": "Pronouns"
+      },
+      {
+       "name": "fields_attributes[0][value]",
+       "value": "they/them"
+      }
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "multipart/form-data; boundary=<boundary>"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/accounts/update_credentials",
+    "query": []
+   },
+   {
+    "body": {
+     "form": [
+      [
+       "avatar_description",
+       "a portrait"
+      ],
+      [
+       "show_media",
+       "false"
+      ]
+     ]
+    },
+    "headers": {
+     "Authorization": "Bearer <token>",
+     "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "host": "https://golden.example",
+    "method": "PATCH",
+    "path": "/api/v1/profile",
+    "query": []
+   },
+   {
+    "body": null,
+    "headers": {
+     "Authorization": "Bearer <token>"
+    },
+    "host": "https://golden.example",
+    "method": "GET",
+    "path": "/api/v1/accounts/verify_credentials",
+    "query": []
    }
   ],
   "profile endorse 404 falls back to pin": [

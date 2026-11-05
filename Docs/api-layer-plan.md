@@ -178,9 +178,24 @@ keeps its one raw send until the hook protocol changes.
   reports, 1 `_send` internal, 1 `call` internal). Left: 3 "phase 3: accounts"
   (profileedit, preferences), 2 phase 4 internals, 3 phase 4 helper
   internals; compose and media are 3c.
+- Step 3c done, so all of phase 3's move steps are done: `core.send_multipart`
+  (over the client's public `multipart_async`, which stays as transport);
+  `statuses.post_async`/`reply_async`/`edit_async` (registry entries `create`
+  and `edit`), `media.py` (upload v2, status; new module) and
+  `accounts.update_credentials` (one endpoint, two wire forms: urlencoded for
+  the posting defaults, multipart for the profile editor) plus
+  `accounts.update_profile` (`PATCH /profile`). Four golden scenarios (profile
+  edit with avatar, header, fields and tabs; credentials only; profile only;
+  posting defaults) were added first, 224 lines and no deletion; the log is
+  unchanged by the move. `MastodonClient` lost `post_status_*`, `reply_*`,
+  `edit_status_*`, `media_upload_*` and `media_status_*`. Registry 159;
+  allow-list 8 to 5 (the 3 "phase 3: accounts" entries). The `multipart_async`
+  mechanism in `api boundary` stays as the guard against a new multipart call
+  outside `src/api`.
 - **Done when:** as phase 1; multipart/media paths covered by the recorder.
-- `core` has no multipart path yet: add `core.send_multipart` (or a `body=`
-  passthrough) when media upload moves.
+- **Left for phase 4:** the 5 allow-list sites (`completer` search, the
+  `PagedList`/`AccountListPage` internals, `ApiTimelineSource.fetch`) and the
+  Mastodon verbs still on `MastodonClient` (see its list in the phase 4 notes).
 
 ### Phase 4: close
 - Allow-list empty; `api boundary` has no exceptions.

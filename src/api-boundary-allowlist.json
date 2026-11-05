@@ -34,30 +34,6 @@
    "reason": "phase 4: generic helper internals (PagedList.refresh)"
   },
   {
-   "file": "src/preferences.py",
-   "function": "sync_posting_defaults",
-   "via": "request_async",
-   "path": "'/accounts/update_credentials'",
-   "layer": "raw",
-   "reason": "phase 3: accounts"
-  },
-  {
-   "file": "src/profileedit.py",
-   "function": "ProfileEditDialog.on_save_clicked",
-   "via": "multipart_async",
-   "path": "'/accounts/update_credentials'",
-   "layer": "helper",
-   "reason": "phase 3: accounts"
-  },
-  {
-   "file": "src/profileedit.py",
-   "function": "ProfileEditDialog.save_profile",
-   "via": "request_async",
-   "path": "'/profile'",
-   "layer": "raw",
-   "reason": "phase 3: accounts"
-  },
-  {
    "file": "src/timelinepage.py",
    "function": "ApiTimelineSource.fetch",
    "via": "request_async",

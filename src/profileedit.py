@@ -680,35 +680,36 @@ class ProfileEditDialog(pages.ToastDialog):
         self.set_saving(True)
         self._profile_form = profile_form
         if fields or files:
-            self.client.multipart_async(
-                'PATCH', '/accounts/update_credentials', fields=fields,
-                files=files, callback=self.on_credentials_saved)
+            api_accounts.update_credentials_multipart_async(
+                self.client, fields, files,
+                callback=self.on_credentials_saved)
         else:
             self.save_profile()
 
-    def _finish_saving(self, client, result):
+    def _finish_saving(self, client, result, finish):
         """True on success; failure toasts and stops saving."""
         try:
-            client.request_finish(result)
+            finish(client, result)
         except GLib.Error as error:
             self.save_failed(error)
             return False
         return True
 
     def on_credentials_saved(self, client, result, _data=None):
-        if self._finish_saving(client, result):
+        if self._finish_saving(client, result,
+                                api_accounts.update_credentials_finish):
             self.save_profile()
 
     def save_profile(self):
         if not self._profile_form:
             self.reload()
             return
-        self.client.request_async('PATCH', '/profile',
-                                  form=self._profile_form,
-                                  callback=self.on_profile_saved)
+        api_accounts.update_profile_async(
+            self.client, self._profile_form, callback=self.on_profile_saved)
 
     def on_profile_saved(self, client, result, _data=None):
-        if self._finish_saving(client, result):
+        if self._finish_saving(client, result,
+                                api_accounts.update_profile_finish):
             self.reload()
 
     def reload(self):

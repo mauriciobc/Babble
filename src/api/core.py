@@ -14,6 +14,10 @@ the one the old `<name>_async` wrapper sent. The wrappers use the private
 which the public method does not offer; those calls are not API endpoints
 of this layer and stay in `mastodon.py`.
 
+A body is JSON (``json_body``), form-encoded (``form``) or multipart
+(:func:`send_multipart`); the caller picks, and an endpoint's ``note`` says
+which forms the app sends when the docs name another.
+
 No version or scope gating happens here: a caller asks
 `client.is_supported(endpoint.min_version)` before it sends.
 """
@@ -73,6 +77,21 @@ def send(client, endpoint, *path_args, params=None, form=None,
     return client.request_async(endpoint.method, path, params=params,
                                 form=form, json_body=json_body,
                                 callback=callback, cancellable=cancellable)
+
+
+def send_multipart(client, endpoint, *path_args, fields=None, files=None,
+                   callback=None, cancellable=None):
+    """Format the path with ``path_args`` and queue a multipart/form-data
+    call through the client's public ``multipart_async``, which stays on
+    the client as transport like ``request_async``.
+
+    ``fields`` maps names to strings (a list repeats the key); ``files``
+    maps names to ``(bytes_or_GLib.Bytes, filename, content_type)``. Finish
+    with :func:`finish`."""
+    path = endpoint.path % path_args if path_args else endpoint.path
+    return client.multipart_async(endpoint.method, path, fields=fields,
+                                  files=files, callback=callback,
+                                  cancellable=cancellable)
 
 
 def finish(client, result):

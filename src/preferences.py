@@ -19,6 +19,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
 from . import pages, portals, webcolumn  # noqa: E402
+from .api import accounts as api_accounts  # noqa: E402
 from .notificationcopy import DESKTOP_NOTIFICATION_TYPES  # noqa: E402
 from .entities import (QUOTE_POLICIES as QUOTE_POLICY_CODES,  # noqa: E402
                        VISIBILITIES as VISIBILITY_CODES)
@@ -167,13 +168,12 @@ def sync_posting_defaults(window, key, settings):
 
     def done(_client, result, _data=None):
         try:
-            client.request_finish(result)
+            api_accounts.update_credentials_finish(client, result)
         except GLib.Error as error:
             pages.report_error(window, _('Could not update the server preferences'),
                                error)
 
-    client.request_async('PATCH', '/accounts/update_credentials',
-                         form=form, callback=done)
+    api_accounts.update_credentials_async(client, form, callback=done)
 
 
 # Dialog

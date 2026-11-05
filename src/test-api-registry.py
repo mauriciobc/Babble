@@ -38,22 +38,24 @@ from src.api import annual_reports, conversations, instance  # noqa: E402, F401
 from src.api import suggestions  # noqa: E402, F401
 from src.api import admin  # noqa: E402, F401
 from src.api import collections_api, polls, reports  # noqa: E402, F401
+from src.api import media  # noqa: E402, F401
 
 RESOURCE_MODULES = (statuses, accounts, relationships, lists, filters,
                     announcements, scheduled, tags, search, timelines,
                     markers, trends, notifications, conversations,
                     suggestions, instance, annual_reports, admin,
-                    collections_api, polls, reports)
+                    collections_api, polls, reports, media)
 # Modules whose endpoints a paged view reads by path: each declares LISTS.
 # `filters` has no paged view (its list is read once), `search` serves
 # only a path to completers and `markers`, `instance` and `annual_reports`
 # are read once, so they declare none; nor do `polls` and `reports`, which
-# only get or send one object.
+# only get or send one object, nor `media`, which uploads and polls one.
 PAGED_MODULES = tuple(m for m in RESOURCE_MODULES
                       if m not in (filters, search, markers, instance,
-                                   annual_reports, polls, reports))
+                                   annual_reports, polls, reports, media))
 MINIMUM_ENDPOINTS = (53 + 9 + 4 + 4 + 3 + 9 + 1 + 6 + 2 + 1 + 9
-                     + 3 + 2 + 1 + 4 + 1 + 29 + 9 + 2 + 1)  # 153
+                     + 3 + 2 + 1 + 4 + 1 + 29 + 9 + 2 + 1
+                     + 2 + 2 + 2)  # 159: statuses, accounts, media (3c)
 
 failed = False
 
@@ -185,6 +187,22 @@ client.request_finish_paged = lambda result: ([result], {'max_id': '1'}, None)
 check('finish_paged returns the body and the parsed Link parameters',
       core.finish_paged(client, 'r') == (['r'], {'max_id': '1'}, None))
 
+
+
+class MultipartClient:
+    def multipart_async(self, method, path, **kwargs):
+        self.sent = (method, path, kwargs)
+        return 'multipart-task'
+
+
+multi = MultipartClient()
+task = core.send_multipart(
+    multi, core.Endpoint('m', 'PATCH', '/m/%s', 'write', None, DOCS + 'x/#m'),
+    '7', fields={'a': 'b'}, files={'f': (b'x', 'x.bin', 'text/plain')})
+check('send_multipart formats the path and calls the public multipart_async',
+      task == 'multipart-task' and multi.sent[:2] == ('PATCH', '/m/7')
+      and multi.sent[2]['fields'] == {'a': 'b'}
+      and multi.sent[2]['files'] == {'f': (b'x', 'x.bin', 'text/plain')})
 
 
 def duplicates(registry):
