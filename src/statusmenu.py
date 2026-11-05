@@ -516,7 +516,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         def commit():
             def finished(_client, result, _data=None):
                 try:
-                    client.request_finish(result)
+                    api_statuses.delete_finish(client, result)
                 except GLib.Error as error:
                     # The post is still on the server: bring it back.
                     restore()

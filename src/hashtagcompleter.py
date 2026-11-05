@@ -150,9 +150,10 @@ def _followed(client, callback):
 
 
 _POOL_SOURCES = (
-    ('recent', api_tags.featured_suggestions_async),
-    ('featured', api_tags.featured_async),
-    ('followed', _followed))
+    ('recent', api_tags.featured_suggestions_async,
+     api_tags.featured_suggestions_finish),
+    ('featured', api_tags.featured_async, api_tags.featured_finish),
+    ('followed', _followed, api_tags.followed_finish))
 
 # {client: TagPool}. A client is one account on one server, so its pool
 # is the account's, shared by every composer of that window, and goes
@@ -169,7 +170,7 @@ class TagPool:
     lately, the ones on its profile and the ones it follows."""
 
     def __init__(self):
-        self.tags = {source: [] for source, _start in _POOL_SOURCES}
+        self.tags = {source: [] for source, _start, _finish in _POOL_SOURCES}
         # Tags remembered from posts published here, kept over a reload.
         self.remembered = []
         self.loaded_at = None
@@ -201,13 +202,13 @@ class TagPool:
         self._waiting = [] if callback is None else [callback]
         answers = {}
         failed = []
-        for source, start in _POOL_SOURCES:
-            start(client, lambda c, r, _d=None, _s=source:
-                  self._on_answer(c, r, _s, answers, failed))
+        for source, start, finish in _POOL_SOURCES:
+            start(client, lambda c, r, _d=None, _s=source, _f=finish:
+                  self._on_answer(c, r, _s, _f, answers, failed))
 
-    def _on_answer(self, client, result, source, answers, failed):
+    def _on_answer(self, client, result, source, finish, answers, failed):
         try:
-            found = client.request_finish(result)
+            found = finish(client, result)
         except GLib.Error:
             found = None
         if not isinstance(found, list):
@@ -245,7 +246,7 @@ class TagPool:
     def hits(self, query):
         """The tags whose name begins with *query*, every source."""
         query = query.lower()
-        return [tag for source, _start in _POOL_SOURCES
+        return [tag for source, _start, _finish in _POOL_SOURCES
                 for tag in self.tags[source]
                 if tag['name'].lower().startswith(query)]
 

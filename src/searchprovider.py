@@ -423,9 +423,9 @@ class SearchProvider:
         self._index_waiters[key] = [done]
         fetched = {'accounts': [], 'tags': [], 'pending': 2, 'failed': False}
 
-        def finished(field, client, result):
+        def finished(field, finish, client, result):
             try:
-                data = client.request_finish(result)
+                data = finish(client, result)
             except GLib.Error:
                 data = None
                 fetched['failed'] = True
@@ -448,10 +448,12 @@ class SearchProvider:
         from .api import tags as api_tags
         api_accounts.following_async(
             client, account['id'], params={'limit': 80},
-            callback=lambda c, r, _d=None: finished('accounts', c, r))
+            callback=lambda c, r, _d=None: finished(
+                'accounts', api_accounts.following_finish, c, r))
         api_tags.followed_async(
             client, {'limit': 100},
-            callback=lambda c, r, _d=None: finished('tags', c, r))
+            callback=lambda c, r, _d=None: finished(
+                'tags', api_tags.followed_finish, c, r))
 
     # Metas
 

@@ -74,12 +74,13 @@ def shorten(value):
     return compact_count(value)
 
 
-def _finish_with(client, start, on_ok=None, on_error=None):
-    """*start(callback)* queues the request; the answer goes to *on_ok*,
-    a failure to *on_error*."""
+def _finish_with(client, start, finish, on_ok=None, on_error=None):
+    """*start(callback)* queues the request and *finish* is the api
+    module's own ``<name>_finish``; the answer goes to *on_ok*, a failure
+    to *on_error*."""
     def finished(_client, result, _data=None):
         try:
-            data = client.request_finish(result)
+            data = finish(client, result)
         except GLib.Error as error:
             if on_error is not None:
                 on_error(error)
@@ -286,7 +287,8 @@ class WrappedDialog(pages.ToastDialog):
 
         _finish_with(
             self.client, lambda cb: api_annual_reports.get_async(
-                self.client, self.year, callback=cb), ok, failed)
+                self.client, self.year, callback=cb),
+            api_annual_reports.get_finish, ok, failed)
 
     def _set_chrome(self, visible):
         self.save_button.set_visible(visible)
@@ -361,7 +363,8 @@ class WrappedDialog(pages.ToastDialog):
 
         _finish_with(
             self.client, lambda cb: api_annual_reports.state_async(
-                self.client, year, callback=cb), ok,
+                self.client, year, callback=cb),
+            api_annual_reports.state_finish, ok,
             lambda _e: generation == self._generation and self._empty(year))
 
     def _generate(self, year):
@@ -380,7 +383,8 @@ class WrappedDialog(pages.ToastDialog):
 
         _finish_with(
             self.client, lambda cb: api_annual_reports.generate_async(
-                self.client, year, callback=cb), ok, failed)
+                self.client, year, callback=cb),
+            api_annual_reports.generate_finish, ok, failed)
 
     # Rendering
 
@@ -603,6 +607,7 @@ class WrappedDialog(pages.ToastDialog):
             _finish_with(self.client,
                          lambda cb: api_statuses.get_async(
                              self.client, status_id, callback=cb),
+                         api_statuses.get_finish,
                          lambda s: self._put_status(holder, s),
                          lambda _e: box.set_visible(False))
         return box

@@ -610,8 +610,9 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
     here: ``lambda cb: statuses.get_async(client, id, callback=cb)``.
     *finish(client, result)* decodes the answer; pass the api module's own
     ``<name>_finish`` to honour its validation or unpacking. It defaults to
-    ``client.request_finish``."""
-    decode = finish or (lambda c, result: c.request_finish(result))
+    ``api.core.finish``, the decoder of a request with no ``_finish`` of its
+    own."""
+    decode = finish or api_core.finish
 
     def finished(_client, result, _data=None):
         try:
@@ -783,7 +784,7 @@ class PagedList(PagedPosts, Adw.Bin):
         self._loading = False
         self.more_spinner.set_visible(False)
         try:
-            data, next_params, _prev = client.request_finish_paged(result)
+            data, next_params, _prev = api_core.finish_paged(client, result)
         except GLib.Error as error:
             if not self.rows:
                 self.error_page.set_description(
@@ -838,9 +839,8 @@ class PagedList(PagedPosts, Adw.Bin):
         *error_heading* (default 'Action failed').
 
         *start(callback)* queues the request through an `api` function, so
-        the path is never spelled here. *finish(client, result)* replaces
-        ``client.request_finish`` to honour the api module's own
-        ``<name>_finish``.
+        the path is never spelled here. *finish(client, result)* is the api
+        module's own ``<name>_finish``; the default is ``api.core.finish``.
 
         *remove* False keeps the row on success, for the actions that
         update it in place rather than taking it off the list -- a
@@ -857,10 +857,7 @@ class PagedList(PagedPosts, Adw.Bin):
 
         def finished(_client, result, _data=None):
             try:
-                if finish is None:
-                    self.client.request_finish(result)
-                else:
-                    finish(self.client, result)
+                (finish or api_core.finish)(self.client, result)
             except GLib.Error as error:
                 row.set_sensitive(True)
                 report_error(self, error_heading or _('Action failed'),

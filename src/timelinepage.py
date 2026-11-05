@@ -127,7 +127,8 @@ class ApiTimelineSource:
                            callback=callback)
 
     def finish(self, result):
-        data, next_params, _prev = self.client.request_finish_paged(result)
+        data, next_params, _prev = api_core.finish_paged(
+            self.client, result)
         statuses = self.extract(data) if self.extract else data
         if self.paging == 'link' and (
                 self._older_request or self._next is None):

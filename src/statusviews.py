@@ -189,7 +189,7 @@ class EditHistoryView(Adw.Bin):
 
     def _on_loaded(self, client, result, _data=None):
         try:
-            revisions = client.request_finish(result)
+            revisions = api_statuses.history_finish(client, result)
         except GLib.Error as error:
             # Adw.StatusPage parses its description as markup, so the
             # server body has to be escaped or a bare '&' blanks it.

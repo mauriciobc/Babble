@@ -69,7 +69,7 @@ MEDIA_TEXTURE_CACHE_SIZE = 48
 # least recently unmapped drop them and rebuild if scrolled back to.
 CARD_SHELLS_KEPT = 100
 
-# Envelope shape for :meth:`mastodon.MastodonClient.request_finish_paged`.
+# Envelope shape for :meth:`api.core.finish_paged`.
 _EMPTY_PAGED_ENVELOPE = GLib.Variant('s', '{"data": [], "link": ""}')
 
 

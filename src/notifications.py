@@ -1317,7 +1317,7 @@ class NotificationRow(ColumnBox):
 
         def done(_client, result, _data=None):
             try:
-                client.request_finish(result)
+                api_relationships.answer_request_finish(client, result)
             except GLib.Error as error:
                 for button in buttons:
                     button.set_sensitive(True)
@@ -1366,7 +1366,7 @@ class NotificationRow(ColumnBox):
 
         def done(_client, result, _data=None):
             try:
-                relationship = client.request_finish(result)
+                relationship = api_relationships.follow_finish(client, result)
             except GLib.Error as error:
                 if self.item is item:
                     self._bind_extras(item, client)

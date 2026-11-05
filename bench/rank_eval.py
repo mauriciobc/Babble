@@ -134,6 +134,7 @@ if ROOT not in sys.path:
 
 from src import affinity, mastodon  # noqa: E402
 from src.api import accounts as api_accounts  # noqa: E402
+from src.api import core as api_core  # noqa: E402
 from src.api import relationships as api_relationships  # noqa: E402
 from src.api import statuses as api_statuses  # noqa: E402
 import src.catchup.rank as _rank  # noqa: E402
@@ -308,7 +309,7 @@ def call(client, path, params=None):
     """GET *path* and return ``(data, next_params)``.
 
     The client answers on the main loop, so a `GLib.MainLoop` runs until
-    the callback fires, and the first two items of `request_finish_paged`'s
+    the callback fires, and the first two items of `api.core.finish_paged`'s
     three are what the caller reads. List parameters go as
     ``{'id[]': [...]}`` (the form used by Catch Up's pipeline);
     ``urlencode(doseq=True)`` in the client expands them.
@@ -318,7 +319,8 @@ def call(client, path, params=None):
 
     def finished(_client, result, _data=None):
         try:
-            page, next_params, _previous = client.request_finish_paged(result)
+            page, next_params, _previous = api_core.finish_paged(
+                client, result)
         except GLib.Error as error:
             answer['error'] = error
         except Exception as error:

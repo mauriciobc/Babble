@@ -77,7 +77,7 @@ def load_custom_emojis(client, callback):
 
     def finished(_client, result, _data=None):
         try:
-            data = client.request_finish(result)
+            data = api_instance.custom_emojis_finish(client, result)
         except GLib.Error:
             data = None
         waiting = _waiting.pop(key, [])

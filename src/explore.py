@@ -284,7 +284,7 @@ class SuggestionRow(pages.AccountRow):
 
         def finished(c, result, _d=None):
             try:
-                relationship = c.request_finish(result)
+                relationship = api_relationships.follow_finish(c, result)
             except GLib.Error as error:
                 button.set_sensitive(True)
                 pages.report_error(self, _('Could not follow'), error)
@@ -302,7 +302,7 @@ class SuggestionRow(pages.AccountRow):
 
         def finished(c, result, _d=None):
             try:
-                c.request_finish(result)
+                api_suggestions.dismiss_finish(c, result)
             except GLib.Error as error:
                 self.dismiss_button.set_sensitive(True)
                 pages.report_error(self, _('Could not dismiss the '
