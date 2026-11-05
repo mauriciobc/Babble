@@ -535,7 +535,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
         def finished(_client, result, _data=None):
             self._set_busy(False)
             try:
-                data = client.request_finish(result)
+                data = api_statuses.toggle_finish(client, result)
             except GLib.Error as error:
                 item.status.update(previous)
                 pages.report_error(self, _('Action failed'), error)
@@ -559,7 +559,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
 
         def finished(_client, result, _data=None):
             try:
-                data = client.request_finish(result)
+                data = api_statuses.reblog_finish(client, result)
             except GLib.Error as error:
                 pages.report_error(self, _('Action failed'), error)
                 return

@@ -55,10 +55,10 @@ def _is_member(item):
     return item.get('state') not in ('rejected', 'revoked')
 
 
-def _finished(client, on_ok, on_error):
+def _finished(client, finish, on_ok, on_error):
     def finished(_client, result, _data=None):
         try:
-            data = client.request_finish(result)
+            data = finish(client, result)
         except GLib.Error as error:
             if on_error is not None:
                 on_error(error)
@@ -69,10 +69,11 @@ def _finished(client, on_ok, on_error):
     return finished
 
 
-def _send_api(client, start, on_ok=None, on_error=None):
+def _send_api(client, start, finish, on_ok=None, on_error=None):
     """Send an `api` function: *start(callback)* queues the request, so
-    the path is never spelled here."""
-    return start(_finished(client, on_ok, on_error))
+    the path is never spelled here, and *finish* is that module's own
+    ``<name>_finish``."""
+    return start(_finished(client, finish, on_ok, on_error))
 
 
 def _current_account(widget=None):
@@ -161,6 +162,7 @@ def fetch_accounts(client, ids, callback, widget=None):
         _send_api(client,
                   lambda cb, chunk=chunk: api_accounts.by_ids_async(
                       client, chunk, callback=cb),
+                  api_accounts.by_ids_finish,
                   ok, failed)
 
 
@@ -284,6 +286,7 @@ class CollectionActions:
                 lambda cb: collections_api.revoke_item_async(
                     self.client, self.collection['id'], self.my_item['id'],
                     callback=cb),
+                collections_api.revoke_item_finish,
                 lambda _d: self._gone(_('You were removed from the '
                                           'collection')),
                   lambda e: pages.report_error(
@@ -301,6 +304,7 @@ class CollectionActions:
                 self.client,
                 lambda cb: collections_api.delete_async(
                     self.client, self.collection['id'], callback=cb),
+                collections_api.delete_finish,
                 lambda _d: self._gone(_('Collection deleted')),
                   lambda e: pages.report_error(
                       self.widget, _('Could not delete the collection'), e))
@@ -440,6 +444,7 @@ class CollectionsPage(Adw.Bin):
         _send_api(self.client,
                   lambda cb: api_accounts.verify_credentials_async(
                       self.client, callback=cb),
+                  api_accounts.verify_credentials_finish,
                   ok, failed)
 
     def _build(self):
@@ -541,6 +546,7 @@ class CollectionPage(Adw.Bin):
         _send_api(self.client,
                   lambda cb: collections_api.get_async(
                       self.client, self.collection_id, callback=cb),
+                  collections_api.get_finish,
                   ok, failed)
 
     def _show(self, accounts):
@@ -865,6 +871,7 @@ class CollectionEditDialog(pages.ToastDialog):
         _send_api(self.client,
                   lambda cb: collections_api.get_async(
                       self.client, self.collection['id'], callback=cb),
+                  collections_api.get_finish,
                   lambda data: (ok(data),
                                 self.members_group.set_sensitive(True)),
                   lambda e: (self.error(_('Could not load the members'), e),
@@ -909,6 +916,7 @@ class CollectionEditDialog(pages.ToastDialog):
             lambda cb: collections_api.remove_item_async(
                 self.client, self.collection['id'], entry['item']['id'],
                 callback=cb),
+            collections_api.remove_item_finish,
             lambda _d: self._remove_member(account['id']),
             lambda e: (entry['row'].set_sensitive(True),
                        self.error(_('Could not remove the account'), e)))
@@ -928,6 +936,7 @@ class CollectionEditDialog(pages.ToastDialog):
             lambda cb: collections_api.add_item_async(
                 self.client, self.collection['id'], account['id'],
                 callback=cb),
+            collections_api.add_item_finish,
             ok,
             lambda e: (row.set_sensitive(True),
                        self.error(_('Could not add the account'), e)))
@@ -958,6 +967,7 @@ class CollectionEditDialog(pages.ToastDialog):
             lambda cb: api_accounts.search_async(
                 self.client,
                 {'q': query, 'resolve': 'false', 'limit': 5}, callback=cb),
+            api_accounts.search_finish,
             ok, lambda e: self.error(_('Search failed'), e))
         return GLib.SOURCE_REMOVE
 
@@ -1054,6 +1064,7 @@ class CollectionEditDialog(pages.ToastDialog):
                       lambda cb: collections_api.update_async(
                           self.client, original['id'], changes,
                           callback=cb),
+                      collections_api.update_finish,
                       ok, failed)
         else:
             if not body['description']:
@@ -1064,6 +1075,7 @@ class CollectionEditDialog(pages.ToastDialog):
             _send_api(self.client,
                       lambda cb: collections_api.create_async(
                           self.client, body, callback=cb),
+                      collections_api.create_finish,
                       ok, failed)
 
     @staticmethod

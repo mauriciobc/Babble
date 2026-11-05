@@ -193,7 +193,7 @@ class ConversationRow(Gtk.ListBoxRow):
 
         def done(_client, result, _data=None):
             try:
-                updated = client.request_finish(result)
+                updated = api_conversations.read_finish(client, result)
             except GLib.Error as error:
                 report_error(self, _('Could not mark as read'), error)
                 return
@@ -217,7 +217,7 @@ class ConversationRow(Gtk.ListBoxRow):
 
         def done(_client, result, _data=None):
             try:
-                client.request_finish(result)
+                api_conversations.delete_finish(client, result)
             except GLib.Error as error:
                 report_error(self, _('Could not delete the conversation'),
                              error)

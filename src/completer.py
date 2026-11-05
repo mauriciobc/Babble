@@ -290,7 +290,7 @@ class TokenCompleter(Gtk.Popover):
 
     def _on_search_done(self, client, result, serial):
         try:
-            items = self.parse(client.request_finish(result))
+            items = self.parse(api_core.finish(client, result))
         except GLib.Error:
             # Cancelled, or the instance refused: a suggestion list is
             # not worth an error toast on every keystroke.

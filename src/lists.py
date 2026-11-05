@@ -375,7 +375,7 @@ class ListEditor(ToastDialog):
         if serial != self._search_serial:
             return
         try:
-            accounts = client.request_finish(result)
+            accounts = api_accounts.search_finish(client, result)
         except GLib.Error as error:
             self.toast(_('Search failed: %s') % error_text(error))
             return

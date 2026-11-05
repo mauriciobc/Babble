@@ -8,6 +8,7 @@ import functools
 from gi.repository import Gio, GLib, GObject
 
 from ..api import accounts as api_accounts
+from ..api import core as api_core
 from ..api import tags as api_tags
 from ..api import timelines as api_timelines
 from ..api import trends as api_trends
@@ -166,8 +167,8 @@ class CatchUpRun:
         if self.aborted:
             return
         try:
-            page, next_params, _prev = self.client.request_finish_paged(
-                result)
+            page, next_params, _prev = api_core.finish_paged(
+                self.client, result)
             if not isinstance(page, list):
                 raise GLib.Error('Unexpected response',
                                  'mastodon-http-error-quark', 0)
@@ -268,13 +269,13 @@ class CatchUpRun:
         def finished(_client, result, _data=None):
             if self.aborted:
                 return
-            # request_finish_paged also returns the Link header's cursors.
+            # finish_paged also returns the Link header's cursors.
             # A single page is all this ever asked for before, which
             # silently capped the endpoints Mastodon pages -- followed
             # tags most visibly, at 200 of them.
             try:
-                data, next_params, _prev = \
-                    self.client.request_finish_paged(result)
+                data, next_params, _prev = api_core.finish_paged(
+                    self.client, result)
             except GLib.Error:
                 data, next_params = None, None
             self._more[key] = next_params

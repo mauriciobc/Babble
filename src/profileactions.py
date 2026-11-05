@@ -277,7 +277,8 @@ class ProfileActions:
 
     def _send_profile_action(self, start, failed=None, on_failed=None,
                              apply=None, done=None, undo=None,
-                             undo_label=None):
+                             undo_label=None, finish=None,
+                             undo_finish=None):
         """One account action: busy, POST, apply, report, toast.
 
         The shape every mutation on this page has -- follow, unfollow,
@@ -291,13 +292,17 @@ class ProfileActions:
         decoded body and puts it on the page; the default is a
         Relationship, which is what an account action answers. *done* is
         the toast text. *undo* is the *start* of the reverse call, offered
-        as a button on the success toast.
+        as a button on the success toast. *finish* decodes the answer (the
+        api module's ``<name>_finish`` of *start*; the default is
+        ``api.relationships.action_finish``), and *undo_finish* is the
+        same for *undo*.
         """
         self._set_busy(True)
+        decode = finish or api_relationships.action_finish
 
         def finished(client, result, _data=None):
             try:
-                body = client.request_finish(result)
+                body = decode(client, result)
             except GLib.Error as error:
                 self._set_busy(False)
                 pages.report_error(self, failed or _('Action failed'),
@@ -316,7 +321,8 @@ class ProfileActions:
             undo_action = None
             if undo is not None:
                 undo_action = lambda: self._send_profile_action(  # noqa: E731
-                    undo, failed=failed, done=_('Restored'))
+                    undo, failed=failed, done=_('Restored'),
+                    finish=undo_finish)
             pages.show_toast(self, done, undo=undo_action,
                              undo_label=undo_label)
 
@@ -363,8 +369,12 @@ class ProfileActions:
         client = self.client
         send = api_relationships.domain_block_async if block \
             else api_relationships.domain_unblock_async
+        send_finish = api_relationships.domain_block_finish if block \
+            else api_relationships.domain_unblock_finish
         reverse = api_relationships.domain_unblock_async if block \
             else api_relationships.domain_block_async
+        reverse_finish = api_relationships.domain_unblock_finish if block \
+            else api_relationships.domain_block_finish
         undo_spec = None
         if undo_label:
             undo_spec = lambda callback: reverse(  # noqa: E731
@@ -375,7 +385,8 @@ class ProfileActions:
             failed=_('Could not block domain') if block
             else _('Could not unblock domain'),
             done=(_('Blocked %s') if block else _('Unblocked %s')) % domain,
-            undo=undo_spec, undo_label=undo_label)
+            undo=undo_spec, undo_label=undo_label,
+            finish=send_finish, undo_finish=reverse_finish)
 
     def on_mute(self):
         from .profile import present_mute_dialog
@@ -435,7 +446,8 @@ class ProfileActions:
 
         def finished(client, result, attempt):
             try:
-                relationship = client.request_finish(result)
+                relationship = api_relationships.action_finish(
+                    client, result)
             except GLib.Error as error:
                 if getattr(error, 'code', 0) == 404 and attempt == 0:
                     send(1)
@@ -468,7 +480,7 @@ class ProfileActions:
     def save_private_note(self, dialog, text):
         def finished(client, result, _data=None):
             try:
-                relationship = client.request_finish(result)
+                relationship = api_relationships.note_finish(client, result)
             except GLib.Error as error:
                 dialog.save_button.set_sensitive(True)
                 pages.report_error(self, _('Could not save note'), error)

@@ -248,6 +248,19 @@ keeps its one raw send until the hook protocol changes.
   limits, version gates) on servers that are not at API v12.
 - **Done when:** audit table has no open rows.
 
+### Decode cleanup (after phase 5)
+Sending was fully routed through `src/api`, but about 40 UI sites still
+decoded the answer with `client.request_finish` / `request_finish_paged`.
+Each now calls the api module's own `<name>_finish` (or `api.core.finish` /
+`finish_paged` where a generic helper started a caller-supplied path:
+`pages.PagedList`, `ApiTimelineSource`, the completers, Catch Up's paged
+GETs, `bench/rank_eval.py`), so a validation or tuple-unpacking added to a
+`*_finish` cannot be bypassed and one request has one decoder. Behaviour is
+unchanged (`core.finish` is `client.request_finish`; `api golden` is
+byte-identical). `api boundary` fails on any `request_finish` /
+`request_finish_paged` outside `src/mastodon.py` and `src/api/`, with no
+exceptions. `src/plugin.py`'s generic request is out of scope.
+
 ## Definition of done (whole plan)
 
 - `meson test -C build -j1` under headless mutter passes at least the

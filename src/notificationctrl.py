@@ -123,7 +123,7 @@ class NotificationController:
         def done(client, result, _data=None):
             self._relationship_busy = False
             try:
-                data = client.request_finish(result)
+                data = api_accounts.relationships_all_finish(client, result)
             except GLib.Error:
                 data = None
             for key, _actor in batch:

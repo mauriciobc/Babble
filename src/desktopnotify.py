@@ -440,7 +440,7 @@ def _reply(win, key, status_id):
 
     def done(c, result):
         try:
-            fetched = c.request_finish(result)
+            fetched = api_statuses.get_finish(c, result)
         except GLib.Error as error:
             from .pages import report_error
             report_error(win, _('Could not load post'), error)
@@ -500,9 +500,13 @@ def _on_activate(action, parameter, app):
 
 
 def _run(app, client, name, target_id):
+    finish = {'favourite': api_statuses.favourite_finish,
+              'boost': api_statuses.reblog_finish,
+              'follow-back': api_relationships.follow_finish}[name]
+
     def done(c, result):
         try:
-            c.request_finish(result)
+            finish(c, result)
         except GLib.Error as error:
             _report_failure(app, name, error.message)
             return

@@ -1080,7 +1080,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
 
         def got_status(_source, result):
             try:
-                post = client.request_finish(result)
+                post = api_statuses.get_finish(client, result)
             except GLib.Error:
                 return
             if current() is not None and own(post):

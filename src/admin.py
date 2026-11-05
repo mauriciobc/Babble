@@ -106,15 +106,17 @@ def account_name(admin_account):
         or account.get('acct', '')
 
 
-def send(client, start, on_ok=None, on_error=None):
+def send(client, start, finish, on_ok=None, on_error=None):
     """One request; *on_ok(data)* or *on_error(GLib.Error)*.
 
     *start(callback)* queues it, so the path is never spelled here:
-    ``lambda cb: admin_api.measures_async(client, body, callback=cb)``."""
+    ``lambda cb: admin_api.measures_async(client, body, callback=cb)``;
+    *finish* is that module's ``<name>_finish``
+    (``admin_api.measures_finish``)."""
 
     def finished(_client, result, _data=None):
         try:
-            data = client.request_finish(result)
+            data = finish(client, result)
         except GLib.Error as error:
             if on_error is not None:
                 on_error(error)
@@ -427,10 +429,12 @@ class DashboardPage(StatePage):
         send(client,
              lambda cb: admin_api.measures_async(client, measures,
                                                  callback=cb),
+             admin_api.measures_finish,
              got('measures'), failed)
         send(client,
              lambda cb: admin_api.dimensions_async(client, dimensions,
                                                    callback=cb),
+             admin_api.dimensions_finish,
              got('dimensions'), failed)
 
     def _build(self, measures, dimensions):
@@ -756,6 +760,7 @@ class ReportDialog(pages.ToastDialog):
             send(self.client,
                  lambda cb: admin_api.report_update_async(
                      self.client, self.report_id, body, callback=cb),
+                 admin_api.report_update_finish,
                  on_error=lambda e: self.error(_('Could not update the '
                                                  'report'), e))
 
@@ -784,6 +789,7 @@ class ReportDialog(pages.ToastDialog):
             send(self.client,
                  lambda cb: admin_api.report_transition_async(
                      self.client, self.report_id, path, callback=cb),
+                 admin_api.report_transition_finish,
                  ok, failed)
 
         pages.confirm(self, heading, body, label, go, destructive=False)
@@ -864,6 +870,7 @@ class AssignedRow(Adw.ActionRow):
         send(self.dialog.client,
              lambda cb: admin_api.report_transition_async(
                  self.dialog.client, self.report_id, endpoint, callback=cb),
+             admin_api.report_transition_finish,
              ok, failed)
 
 
@@ -955,6 +962,7 @@ class TakeActionDialog(pages.ToastDialog):
         send(self.client,
              lambda cb: admin_api.account_action_async(
                  self.client, self.account_id, form, callback=cb),
+             admin_api.account_action_finish,
              ok, failed)
 
 
@@ -1109,6 +1117,7 @@ class UndoRow(Adw.ActionRow):
              lambda cb: admin_api.account_review_async(
                  self.dialog.client, self.dialog.account_id, self.endpoint,
                  callback=cb),
+             admin_api.account_review_finish,
              ok, failed)
 
 
@@ -1200,6 +1209,7 @@ class AdminAccountDialog(pages.ToastDialog):
             send(self.client,
                  lambda cb: admin_api.account_review_async(
                      self.client, self.account_id, endpoint, callback=cb),
+                 admin_api.account_review_finish,
                  ok, failed)
 
         pages.confirm(self, heading % self.handle, None, label, go,
@@ -1249,6 +1259,7 @@ class RuleList(CtxRef, Adw.Bin):
             send(self.ctx.client,
                  lambda cb: admin_api.rule_delete_async(
                      self.ctx.client, self.kind, item_id, callback=cb),
+                 admin_api.rule_delete_finish,
                  ok, failed)
 
         pages.confirm(self.ctx, heading, None, label, go)
@@ -1388,6 +1399,7 @@ class AddFederationBlockDialog(pages.ToastDialog):
         send(self.client,
              lambda cb: admin_api.rule_create_async(
                  self.client, 'domain_blocks', form, callback=cb),
+             admin_api.rule_create_finish,
              ok, failed)
 
 
@@ -1421,6 +1433,7 @@ class DomainAllowsPage(RuleList):
                  lambda cb: admin_api.rule_create_async(
                      self.ctx.client, 'domain_allows', {'domain': domain},
                      callback=cb),
+                 admin_api.rule_create_finish,
                  ok,
                  lambda e: self.ctx.error(_('Could not allow the server'),
                                           e))
@@ -1467,6 +1480,7 @@ class EmailBlocksPage(RuleList):
                  lambda cb: admin_api.rule_create_async(
                      self.ctx.client, 'email_domain_blocks',
                      {'domain': domain}, callback=cb),
+                 admin_api.rule_create_finish,
                  ok,
                  lambda e: self.ctx.error(_('Could not block the domain'),
                                           e))
@@ -1595,6 +1609,7 @@ class AddIPBlockDialog(pages.ToastDialog):
         send(self.client,
              lambda cb: admin_api.rule_create_async(
                  self.client, 'ip_blocks', form, callback=cb),
+             admin_api.rule_create_finish,
              ok, failed)
 
 
@@ -1732,6 +1747,7 @@ class AdminDialog(Adw.Dialog):
         send(self.client,
              lambda cb: admin_api.accounts_probe_async(self.client,
                                                        callback=cb),
+             admin_api.accounts_probe_finish,
              on_ok=lambda _data: self._on_scopes_ok(on_done),
              on_error=lambda error: self._on_scopes_error(error, on_done))
 

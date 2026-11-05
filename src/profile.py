@@ -374,8 +374,10 @@ class PrivateNoteDialog(pages.ToastDialog):
 
 
 
-def _request_result(client, result, widget=None, what=None):
+def _request_result(client, result, finish, widget=None, what=None):
     """Decoded body of *result*, or None when the request failed.
+
+    *finish* is the api module's own ``<name>_finish`` of the request.
 
     Used for the extras that decorate a profile -- familiar followers,
     featured hashtags, endorsements -- and for reloading the account
@@ -385,7 +387,7 @@ def _request_result(client, result, widget=None, what=None):
     same way a relationship failure is.
     """
     try:
-        return client.request_finish(result)
+        return finish(client, result)
     except GLib.Error as error:
         if widget is not None and what is not None:
             pages.report_error(widget, what, error)
@@ -1040,8 +1042,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
                 callback=handler(self._on_endorsements))
 
     def _on_familiar(self, client, result, _data=None):
-        data = _request_result(client, result, self,
-                              _('Could not load familiar followers'))
+        data = _request_result(client, result,
+                               api_accounts.familiar_followers_finish, self,
+                               _('Could not load familiar followers'))
         accounts = (data[0].get('accounts') or []) if data else []
         if not accounts:
             return
@@ -1094,7 +1097,8 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self.push_subpage(_('Followers You Know'), page)
 
     def _on_featured_tags(self, client, result, _data=None):
-        tags = _request_result(client, result, self,
+        tags = _request_result(client, result,
+                               api_accounts.featured_tags_finish, self,
                                _('Could not load featured hashtags'))
         if not tags:
             return
@@ -1119,7 +1123,8 @@ class ProfilePage(ProfileActions, Adw.Bin):
         push_hashtag(self, self.client, name)
 
     def _on_endorsements(self, client, result, _data=None):
-        accounts = _request_result(client, result, self,
+        accounts = _request_result(client, result,
+                                   api_accounts.endorsements_finish, self,
                                    _('Could not load featured profiles'))
         if not accounts:
             return
@@ -1206,16 +1211,19 @@ class ProfilePage(ProfileActions, Adw.Bin):
             if generation != self._generation:
                 return
             fresh = _request_result(
-                client, result, self, _('Could not reload the profile'))
+                client, result, finish, self,
+                _('Could not reload the profile'))
             if isinstance(fresh, dict) and fresh.get('id') == account_id \
                     and fresh != self.account:
                 self.account = dict(self.account, **fresh)
                 self.refresh_header(self.account)
 
         if self._is_self():
+            finish = api_accounts.verify_credentials_finish
             api_accounts.verify_credentials_async(self.client,
                                                   callback=loaded)
         else:
+            finish = api_accounts.get_finish
             api_accounts.get_async(self.client, account_id, callback=loaded)
 
     # Relationship

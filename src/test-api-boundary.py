@@ -885,9 +885,91 @@ def check_client_calls():
     check(scanned > 50, 'client calls: scanned %d files' % scanned)
 
 
+# The decode rule. Sending goes through `src/api`, and so must decoding: a
+# UI module takes the answer with the api module's own `<name>_finish`, or
+# `api.core.finish` / `finish_paged` for a request a generic helper started
+# from a caller-supplied path. A direct `client.request_finish` /
+# `request_finish_paged` would bypass any validation or unpacking a
+# `*_finish` gains later, and would let one request be decoded two ways.
+# `src/mastodon.py` (the transport) and `src/api/` (core.finish itself) are
+# the only places that name them. File -> reason for an explicit exception;
+# empty, and each entry would need a reason.
+DECODE_NAMES = ('request_finish', 'request_finish_paged')
+DECODE_EXCEPTIONS = {}
+
+
+def decode_calls(rel, source):
+    """Lines naming `<x>.request_finish[_paged]` (called, or taken as a
+    value such as `finish=client.request_finish`) or reaching it through
+    `getattr(x, 'request_finish')`, in a file outside the transport and
+    `src/api/`."""
+    if rel in DECODE_EXCEPTIONS:
+        return []
+    out = []
+    for node in ast.walk(ast.parse(source, rel)):
+        if isinstance(node, ast.Attribute) and node.attr in DECODE_NAMES \
+                and isinstance(node.ctx, ast.Load):
+            out.append('%s:%d %s' % (rel, node.lineno, ast.unparse(node)))
+        elif isinstance(node, ast.Call) \
+                and isinstance(node.func, ast.Name) \
+                and node.func.id == 'getattr' and len(node.args) > 1 \
+                and isinstance(node.args[1], ast.Constant) \
+                and node.args[1].value in DECODE_NAMES:
+            out.append('%s:%d getattr(..., %r)' % (
+                rel, node.lineno, node.args[1].value))
+    return out
+
+
+def check_decode_calls():
+    planted = ("def f(client, result):\n"
+               "    return client.request_finish(result)\n")
+    check(decode_calls('src/x.py', planted)
+          == ['src/x.py:2 client.request_finish'],
+          'self-check: a request_finish in a UI file fails')
+    check(len(decode_calls(
+        'src/x.py', "def f(c, r):\n    return c.request_finish_paged(r)\n"
+        "g = c.request_finish\nh = getattr(c, 'request_finish')\n")) == 3,
+          'self-check: request_finish_paged, a value use and getattr fail')
+    check(decode_calls(
+        'src/x.py', "def f(client, result):\n"
+        "    return core.finish(client, result)\n"
+        "def g(client, result):\n"
+        "    return core.finish_paged(client, result)\n"
+        "def h(client, result):\n"
+        "    return statuses.get_finish(client, result)\n") == [],
+          'self-check: core.finish and an api finish pass')
+    check(decode_calls('src/x.py', "class F:\n"
+                       "    def request_finish(self, result):\n"
+                       "        return result\n") == [],
+          'self-check: defining a request_finish (a test fake) is not a call')
+    root = os.path.dirname(srcdir)
+    folders = [srcdir, os.path.join(srcdir, 'catchup'),
+               os.path.join(root, 'bench')]
+    scanned = 0
+    for folder in folders:
+        if not os.path.isdir(folder):
+            continue
+        for name in sorted(os.listdir(folder)):
+            rel = 'src/' + name if folder == srcdir else (
+                os.path.relpath(os.path.join(folder, name), root))
+            if not name.endswith('.py') or name == 'mastodon.py' \
+                    or name.startswith('test-'):
+                continue
+            scanned += 1
+            with open(os.path.join(folder, name), encoding='utf-8') as h:
+                found = decode_calls(rel, h.read())
+            for line in found:
+                print('FAIL - decode with the client directly (use the '
+                      'api module\'s <name>_finish, or api.core.finish / '
+                      'finish_paged): ' + line)
+            check(not found, 'decode calls: %s' % rel)
+    check(scanned > 50, 'decode calls: scanned %d files' % scanned)
+
+
 def main():
     self_check()
     check_client_calls()
+    check_decode_calls()
 
     with open(ALLOWLIST, encoding='utf-8') as handle:
         data = json.load(handle)
