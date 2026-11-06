@@ -11,10 +11,11 @@ import sys
 
 srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
-# The page and its controller: paging and the read marker moved with
-# ARCH-03, the policy dialog stayed on the page.
+# The page, its controller, and the policy dialog: paging and the read
+# marker moved with ARCH-03; the policy dialog moved with ARCH-18.
 source = ''
-for name in ('notifications.py', 'notificationctrl.py'):
+for name in ('notifications.py', 'notificationctrl.py',
+             'notificationpolicy.py'):
     path = os.path.join(srcdir, name)
     source += open(path, encoding='utf-8').read()
 
