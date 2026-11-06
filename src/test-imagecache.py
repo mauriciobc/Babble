@@ -82,8 +82,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'image/png')
             self.send_header('Transfer-Encoding', 'chunked')
             self.end_headers()
-            self.wfile.write(('%x\\r\\n' % len(body)).encode() + body
-                             + b'\\r\\n0\\r\\n\\r\\n')
+            self.wfile.write(('%x\r\n' % len(body)).encode() + body
+                             + b'\r\n0\r\n\r\n')
             return
         if self.path.lstrip('/') in Handler.missing:
             body = b'{"error": "no such thing"}'
