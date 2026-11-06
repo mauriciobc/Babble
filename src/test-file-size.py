@@ -56,8 +56,10 @@ EXCEPTIONS = {
                  'page containers and stay with the window.',
     'compose.py': 'the composer widget. ARCH-01 moved the upload round '
                   'to composeupload.py; ARCH-12 moved AttachmentRow and '
-                  'the attach tray to composeattach.py; what remains is '
-                  'the draft, the options and the post itself.',
+                  'the attach tray to composeattach.py; ARCH-17 moved '
+                  'mode entry and schedule chrome to composeschedule.py; '
+                  'what remains is the draft, the options and the post '
+                  'itself.',
     'profile.py': 'the profile header and tabs. ARCH-02 moved the '
                   'relationship commands to profileactions.py; the '
                   'header, fields and tabs are the page that is left.',

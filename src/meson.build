@@ -38,6 +38,7 @@ install_data(
   'compose.py',
   'composeattach.py',
   'composequote.py',
+  'composeschedule.py',
   'completer.py',
   'composeupload.py',
   'conversations.py',
