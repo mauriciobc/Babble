@@ -18,6 +18,9 @@ Needs a 1280x1024 screen to reach the pinned layout; skips (exit 77)
 when the screen is smaller, without a display, or without a bundle."""
 
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
 
 import gi

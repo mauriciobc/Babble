@@ -8,6 +8,8 @@ the default Gtk.Label handler. Exits 77 (skip) without a display."""
 import os
 import sys
 
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -27,7 +29,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 os.environ.setdefault('GSETTINGS_SCHEMA_DIR', os.path.join(builddir, 'data'))
-os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 
 gresource = os.path.join(builddir, 'src', 'babble.gresource')
 if os.path.exists(gresource):

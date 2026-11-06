@@ -12,6 +12,9 @@ request object would have passed every one of those.
 import email.utils
 import json
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import socket
 import sys
 import threading

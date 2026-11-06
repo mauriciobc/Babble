@@ -16,6 +16,7 @@ when it is unambiguous.
 """
 
 import json
+import os
 import re
 import urllib.parse
 
@@ -26,7 +27,7 @@ gi.require_version('Adw', '1')
 
 from .i18n import gettext as _  # noqa: E402
 
-from gi.repository import Adw, GObject, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from .catchup import store as catchupstore  # noqa: E402
 
@@ -83,6 +84,22 @@ def full_handle(account):
 
 # The stored list
 
+def log_account_event(message):
+    """Record a change to the stored account list in the journal.
+
+    A login that vanishes between two launches leaves nothing else to
+    go on, so every write to ``accounts`` and every forgetting says who
+    did it (the process) and why. Message level, so it shows without
+    G_MESSAGES_DEBUG; never a token.
+    """
+    GLib.log_variant(
+        'Babble', GLib.LogLevelFlags.LEVEL_MESSAGE,
+        GLib.Variant('a{sv}', {
+            'MESSAGE': GLib.Variant('s', 'accounts: ' + message),
+            'BABBLE_PID': GLib.Variant('s', str(os.getpid())),
+        }))
+
+
 def read_accounts(settings):
     accounts = []
     for entry in settings.get_strv('accounts'):
@@ -134,6 +151,8 @@ def save_account(settings, account, activate=True):
                if not same_account(other, account)]
     entries.append(json.dumps(account))
     settings.set_strv('accounts', entries)
+    log_account_event('saved %s (%d stored, activate=%s)' % (
+        account_key(account), len(entries), activate))
     if activate:
         settings.set_string('active-account', account_key(account))
 
@@ -149,6 +168,10 @@ def forget_account(settings, account_id, instance=None):
 
     stored = read_accounts(settings)
     keep = [a for a in stored if not matches(a)]
+    log_account_event('forgetting %s (%d stored, %d kept, active=%r)' % (
+        ', '.join(account_key(a) for a in stored if matches(a)) or
+        '%s#%s (not stored)' % (instance, account_id),
+        len(stored), len(keep), settings.get_string('active-account')))
     settings.set_strv('accounts', [json.dumps(a) for a in keep])
     # The Catch Up snapshots hold the account's posts: they go with the
     # login.

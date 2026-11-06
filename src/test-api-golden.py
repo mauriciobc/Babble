@@ -43,6 +43,9 @@ Exits 77 (skip) without a display or a compiled bundle."""
 import difflib
 import json
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import re
 import sys
 import types

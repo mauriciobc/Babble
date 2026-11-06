@@ -31,6 +31,9 @@ Exits 77 (skip) without a display, and fails unless GTK_A11Y=test,
 because no other backend can answer the read-back."""
 
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
 
 import gi

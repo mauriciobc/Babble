@@ -6,6 +6,9 @@ is newer, the preference, and what the page saves on the way out.
 Exits 77 (skip) without a display."""
 
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
 
 import gi

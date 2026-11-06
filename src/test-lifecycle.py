@@ -18,6 +18,9 @@ the launcher does from the installed bundle; here it comes from the
 build tree, so the test needs a configured build directory."""
 
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
