@@ -1897,8 +1897,11 @@ class NotificationPolicyDialog(pages.ToastDialog):
             types_group.add(row)
         self.page.add(types_group)
 
-        self.connect('closed', lambda _d: self.save())
+        connect_weak(self, 'closed', self._on_closed)
         self.load()
+
+    def _on_closed(self, _dialog):
+        self.save()
 
     # Policy
 

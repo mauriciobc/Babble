@@ -1174,10 +1174,15 @@ launched = []
 
 
 class RecordingLauncher:
+    can = True
+
     @staticmethod
     def new(uri):
         launched.append(uri)
         return RecordingLauncher()
+
+    def can_launch(self, _parent):
+        return RecordingLauncher.can
 
     def launch(self, *_args):
         pass
@@ -1197,6 +1202,21 @@ try:
     pages.open_link(win, 'https://[oops/x')
     check('a malformed link clicked in a post is refused, not raised',
           launched == [] and toasts == [_('Could not open link')])
+    toasts.clear()
+    launched.clear()
+    textemoji.launch_uri(win, 'mailto:a@b.example')
+    check('a mailto link reaches the UriLauncher',
+          launched == ['mailto:a@b.example'] and toasts == [])
+    RecordingLauncher.can = False
+    toasts.clear()
+    launched.clear()
+    textemoji.launch_uri(win, 'mailto:a@b.example')
+    check('a mailto without a handler toasts and skips launch',
+          launched == ['mailto:a@b.example']
+          and toasts == [_('Could not open link')])
+    RecordingLauncher.can = True
+    toasts.clear()
+    launched.clear()
     textemoji.launch_uri(win, 'https://example.social/@me')
     check('a web link is launched',
           launched == ['https://example.social/@me'])

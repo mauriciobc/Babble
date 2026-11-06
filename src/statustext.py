@@ -450,15 +450,29 @@ def url_host(parts):
 
 
 def is_web_link(uri):
-    """Whether *uri* is an http(s) address, the only kind a link from a
-    post, a profile or a card may hand to the system launcher.
+    """Whether *uri* is an http(s) address.
 
-    A server that does not sanitise its HTML can serve ``file://``,
-    ``smb://`` or any scheme some installed app handles; outside the
-    Flatpak portal a click would open that handler directly."""
+    Used for in-app routing, cards and HTTP fetches. What
+    :func:`textemoji.launch_uri` may hand to the system launcher is
+    :func:`is_launchable_uri` (web plus ``mailto``)."""
     parts = split_url(uri)
     return parts is not None and parts.scheme in ('http', 'https') \
         and bool(url_host(parts))
+
+
+def is_launchable_uri(uri):
+    """URI that launch_uri may hand to Gtk.UriLauncher / the OpenURI portal.
+
+    http(s) stay the web case. mailto is a desktop scheme the portal and
+    the user's mail client own (Flatpak GTK portal guidance; Qt docs name
+    mailto explicitly). file/javascript/data/smb stay out: untrusted HTML
+    must not steer the host outside the sandbox, and OpenURI itself
+    refuses file://.
+    """
+    if is_web_link(uri):
+        return True
+    parts = split_url(uri)
+    return parts is not None and parts.scheme == 'mailto' and bool(parts.path)
 
 
 def shorten_url_text(text):

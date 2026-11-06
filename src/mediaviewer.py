@@ -163,12 +163,7 @@ class _Download:
         self.finished = False
 
     def start(self):
-        try:
-            self.message = Soup.Message.new('GET', self.url)
-        except TypeError:
-            # An address Soup will not parse comes back as NULL, which
-            # PyGObject raises rather than returning None.
-            self.message = None
+        self.message = imagecache.get_message('GET', self.url)
         if self.message is None:
             self.fail(GLib.Error.new_literal(
                 Gio.io_error_quark(), _('Invalid media address'),
