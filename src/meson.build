@@ -369,6 +369,11 @@ test('mediaviewer helpers', python,
   env: test_env,
   timeout: 60,
 )
+test('image decode', python,
+  args: [files('test-imagedecode.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 # The media teardown test plays a video and tears it down again and
 # again: the crash it guards against is a race between the widget's
 # disposal and a thread inside GstPlay, so it needs the loop, and the

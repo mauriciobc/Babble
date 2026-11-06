@@ -107,10 +107,17 @@ def _texture_error(reason):
 # a handful is all it keeps. Shared machinery, separate budget -- it is
 # not the timeline's media cache and must not evict it.
 _viewer_store = imagecache.Store(TEXTURE_CACHE_SIZE)
-_viewer_fetcher = imagecache.Fetcher(
-    _viewer_store,
-    lambda data, key, cancellable, done: done(
-        Gdk.Texture.new_from_bytes(data), None))
+
+
+def _decode_viewer_image(data, key, cancellable, done):
+    # Remote attachments are untrusted: the same size-checked decode as
+    # avatars and timeline media, with no box, so the full-size image up
+    # to the decoded-pixel budget.
+    from .mediacache import _decode_async
+    _decode_async(data, None, cancellable, done)
+
+
+_viewer_fetcher = imagecache.Fetcher(_viewer_store, _decode_viewer_image)
 
 
 def load_texture(url, callback, cancellable=None):
