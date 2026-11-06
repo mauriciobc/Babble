@@ -30,8 +30,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.i18n import gettext as _  # noqa: E402
-from src import (mediaviewer, notificationmodel, notifications,  # noqa: E402
-                 notificationrow, profile)
+from src import (mediaplayback, mediaviewer, notificationmodel,  # noqa: E402
+                 notifications, notificationrow, profile)
 from src import (mediacache, statusactions, statusmenu, statusrow,  # noqa: E402
                   statusrun, statustext, timelinebase, timelinedata,
                   timelinepage)
@@ -522,15 +522,15 @@ prepared = [viewer.picture_drag.emit('prepare', 1.0, 1.0),
             viewer.media_drag.emit('prepare', 1.0, 1.0)]
 check('the viewer can drag its picture and its media out', all(prepared))
 del prepared
-system_state = mediaviewer._system_state
-mediaviewer._system_state = lambda name: name == 'metered'
+system_state = mediaplayback._system_state
+mediaplayback._system_state = lambda name: name == 'metered'
 viewer.attachments = [{'type': 'video',
                        'url': 'https://example.org/media/a.mp4'}]
 viewer.show_index(0)
 check('metered video waits for an explicit load',
       viewer.stack.get_visible_child_name() == 'deferred'
       and viewer.load_button.get_label() == _('Load _Video'))
-mediaviewer._system_state = system_state
+mediaplayback._system_state = system_state
 viewer.force_close()
 settle(lambda viewer=viewer: viewer._closed and not viewer.get_mapped(),
        seconds=10.0)

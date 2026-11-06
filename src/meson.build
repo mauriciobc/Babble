@@ -58,6 +58,7 @@ install_data(
   'lists.py',
   'main.py',
   'mastodon.py',
+  'mediaplayback.py',
   'mediaviewer.py',
   'navigation.py',
   'mentioncompleter.py',
