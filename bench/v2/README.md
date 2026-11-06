@@ -20,12 +20,11 @@ use does not occupy:
 
 Each row is a blind spot, and they compound:
 
-* **96px avatars always take the fast decode path.** At 96px an avatar is
-  no bigger than its cover box, so `_decode_covering`
-  (`src/mediacache.py:183-189`) loads it whole with
-  `Gdk.Texture.new_from_bytes`. At 400px it is *larger* than the box and
-  goes through the GdkPixbuf loader instead. v1 therefore measured the
-  optimised path for every avatar in the run.
+* **The current decoder has no fast remote-image path.** Every remote
+  image goes through GdkPixbuf's loader; cover images are scaled during
+  loading and all decoded images are capped at 16 MP / 8192 px per side.
+  The benchmark counts avatar and media decode calls separately, but
+  does not imply that 96px images bypass the loader.
 * **PNG is not JPEG.** Random bytes through zlib land close to the stored
   size, so PNG decoding is largely a memory copy; a real attachment's
   inverse DCT costs several times more for the same pixels. Benchmarking

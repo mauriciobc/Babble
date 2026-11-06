@@ -205,6 +205,24 @@ write_plugin('oldplug', 'raise SystemExit("must never be imported")\n',
              api_version='0')
 write_plugin('noversion', 'x = 1\n', api_version=None)
 write_plugin('emptyplug', 'x = 1\n')
+write_plugin('preferencesplug', '''
+    from gi.repository import Gtk
+    from babble import plugin
+
+    events = []
+
+
+    class Preferences(plugin.PreferencesExtension):
+        def activate(self):
+            events.append('activate')
+
+        def deactivate(self):
+            events.append('deactivate')
+
+        def create_preferences(self):
+            events.append('create')
+            return Gtk.Label(label='Preferences test')
+''')
 MENU_ONLY = '''
     from babble import plugin
 
@@ -309,6 +327,26 @@ check('a plugin with no extensions is not kept loaded',
 for plugin_id in ('oldplug', 'noversion', 'brokenplug', 'emptyplug',
                   'revfuture', 'revbad'):
     host.set_enabled(plugin_id, False)
+
+# A preferences-only plugin is a valid extension.
+host.set_enabled('preferencesplug', True)
+preferences = sys.modules['preferencesplug']
+check('a preferences-only plugin is accepted',
+      'preferencesplug' in host.contexts
+      and 'preferencesplug' not in host.errors)
+check('preferences-only extension is discovered',
+      host.has_preferences('preferencesplug'))
+settings_page = Gtk.Box()
+settings_box = Gtk.Box()
+host.attach_preferences('preferencesplug', settings_page, settings_box)
+check('preferences widget is instantiated and attached',
+      preferences.events == ['activate', 'create']
+      and settings_box.get_first_child() is not None)
+host.set_enabled('preferencesplug', False)
+check('disabling preferences-only plugin deactivates it and removes UI',
+      preferences.events == ['activate', 'create', 'deactivate']
+      and settings_box.get_first_child() is None
+      and 'preferencesplug' not in host.contexts)
 
 # The post menu.
 host.set_enabled('goodplug', True)

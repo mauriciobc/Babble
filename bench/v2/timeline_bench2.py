@@ -11,13 +11,10 @@ What it adds, and why
 ---------------------
 
 *Realistic images.* ``fixture_server2.py`` serves 400px avatars and
-1600x1200 media. At 96px an avatar fits its cover box and takes the fast
-``Gdk.Texture.new_from_bytes`` path; at 400px it takes the GdkPixbuf one.
-The run reports ``decode_avatar_fast``/``_slow`` and
-``decode_media_fast``/``_slow`` so it is *provable* which path a given
-configuration exercised -- a benchmark that silently measures only the
-fast path is worse than no benchmark. Per source, because an aggregate
-cannot tell a healthy run from a broken one (see ``classify``).
+1600x1200 media. All remote images now use GdkPixbuf; the run reports
+``decode_avatar_slow``, ``decode_media_slow`` and ``decode_raw``
+separately so full-size decodes cannot hide scaled-avatar/media costs.
+Image sizes still matter for the work done by the loader and its scaling.
 
 *Pop-in in milliseconds.* v1 reports ``frames_with_empty_shell``, a ratio
 that says nothing about how long a post sits blank. This reports the
@@ -330,60 +327,26 @@ def instrument(statusrun):
     """
     from src import mediacache
 
-    real_decode_async = mediacache._decode_async
     real_covering = mediacache._decode_covering
-    real_image_size = mediacache._image_pixel_size
 
     def classify(data, cover, scale):
-        """Which branch of _decode_covering this input takes, and for what.
+        """Classify the decoder path after the remote-image safety change.
 
-        Mirrors src/mediacache.py:183-189. cover None means the caller
-        asked for a full-size decode (the media viewer's path).
-
-        Avatars and media are counted **separately**, and that separation
-        is load-bearing. An aggregate count cannot tell a healthy run from
-        a broken one: with an aggregate, serving 96px avatars looks like a
-        small improvement, because the oversized *media* still take the
-        slow path and keep the total up. Counting avatars on their own is
-        what lets the gate notice that the fixture stopped being realistic
-        -- see the floor on decode_avatar_slow in gate.py.
+        Every remote image now goes through GdkPixbuf's loader. Full-size
+        requests are still counted separately from scaled avatars/media,
+        but there is no longer a fast Gdk.Texture.new_from_bytes branch.
         """
         if cover is None:
             return 'raw', 'media'
-        natural = real_image_size(data)
-        if natural:
-            width, height = natural
-            box_w, box_h = cover[0] * scale, cover[1] * scale
-            if width > 0 and height > 0 \
-                    and max(box_w / width, box_h / height) >= 1:
-                kind = 'fast'
-            else:
-                kind = 'slow'
-        else:
-            kind = 'slow'
         from src.timelinebase import AVATAR_DECODE_SIZE
         source = ('avatar' if tuple(cover) == (AVATAR_DECODE_SIZE,) * 2
                   else 'media')
-        return kind, source
+        return 'slow', source
 
-    # The in-flight gauge is opened and closed **inside**
-    # _decode_covering and nowhere else.
-    #
-    # An earlier version opened it in _decode_async and closed it when
-    # _decode_covering returned, which drifts permanently in two ways:
-    # full-size decodes (cover=None -- every emoji, and the media viewer)
-    # never call _decode_covering at all, and a Gio.Task with
-    # return-on-cancel can skip its worker entirely when cancelled before
-    # it starts, so the increment never gets a matching decrement. Once
-    # that happens the count can only grow and every later frame is
-    # reported as painted during decode. Clamping at zero hides the
-    # opposite mistake rather than fixing this one.
-    #
-    # _decode_covering is entered and left synchronously around the real
-    # decode, so a try/finally there cannot drift. The honest cost is that
-    # the gauge covers the decode call only, not the HTTP fetch or the
-    # cover=None path; frames_during_decode therefore means "decoding a
-    # scaled avatar or media tile", and the README says so.
+    # The in-flight gauge is opened and closed inside _decode_covering.
+    # All paths now pass through it, including full-size images, so this
+    # measures the complete synchronous loader call without task-cancel
+    # accounting drift.
 
     def classified_covering(data, cover, scale):
         kind, source = classify(data, cover, scale)
@@ -398,16 +361,7 @@ def instrument(statusrun):
             with C.lock:
                 C.decodes_inflight -= 1
 
-    def count_raw_async(data, cover, cancellable, callback):
-        # No gauge here: see above. Only the branch count, for the
-        # cover=None path that never reaches _decode_covering.
-        if cover is None:
-            with C.lock:
-                C.decode_raw += 1
-        return real_decode_async(data, cover, cancellable, callback)
-
     mediacache._decode_covering = classified_covering
-    mediacache._decode_async = count_raw_async
 
     # Pop-in: how long a post is on screen with an empty card.
     # Pop-in latency.
@@ -470,9 +424,8 @@ def start_server(total):
     argv = [sys.executable, os.path.join(HERE, 'fixture_server2.py'),
             str(total), anchor.isoformat()]
     # Image sizes are passed through rather than left to the server's
-    # defaults, so a run can be pinned to a known decode-path regime and
-    # compared against v1's (96px avatars take the fast path, 400px do
-    # not). Unset means "what a real instance serves".
+    # defaults, so a run can be pinned to a known source-size regime.
+    # Unset means "what a real instance serves".
     for env, flag in (('BENCH_AVATAR_PX', '--avatar-px'),
                       ('BENCH_MEDIA_PX', '--media-px'),
                       ('BENCH_CARD_PX', '--card-px')):

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
+import math
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -18,6 +20,11 @@ from .textemoji import (InlineEmojiText)
 
 """Avatar and media decode, and the two texture caches."""
 from .timelinebase import AVATAR_DECODE_SIZE, MEDIA_TEXTURE_CACHE_SIZE
+
+# Bound decoded allocation as well as the encoded HTTP response. This
+# still accommodates 16 MP originals while avoiding pathological headers.
+MAX_DECODE_PIXELS = 16_000_000
+MAX_DECODE_DIMENSION = 8192
 
 
 class AvatarCache:
@@ -57,20 +64,39 @@ class AvatarCache:
         return imagecache.session()
 
     @classmethod
+    def cancel(cls, avatar):
+        """Cancel the avatar request owned by *avatar*, if any."""
+        cancellable = getattr(avatar, '_babble_avatar_cancel', None)
+        if cancellable is not None:
+            avatar._babble_avatar_cancel = None
+            cancellable.cancel()
+
+    @classmethod
     def load(cls, avatar, account):
         """Fill *avatar* with the cached or freshly fetched image."""
+        # A row can be rebound while its previous avatar is still loading.
+        # Cancel only this widget's waiter; Fetcher keeps shared requests
+        # alive for every other widget still interested in the URL.
+        cls.cancel(avatar)
         url = account.get('avatar') or account.get('avatar_static') or ''
         avatar.set_custom_image(None)
         if not url:
             return
 
+        cancellable = Gio.Cancellable.new()
+        avatar._babble_avatar_cancel = cancellable
+
         def arrived(texture, _reason):
+            # Cancellation is the lifecycle boundary. The guard also
+            # protects against a completion already queued when cancelled.
+            if cancellable.is_cancelled():
+                return
             # A failure leaves the avatar on its initials, its own
             # placeholder, and uncached so a later row retries.
             if texture is not None:
                 avatar.set_custom_image(texture)
 
-        cls._fetch().fetch(url, arrived)
+        cls._fetch().fetch(url, arrived, cancellable=cancellable)
 
 
 class StatusBody(InlineEmojiText):
@@ -99,98 +125,27 @@ def _display_scale():
     return scale
 
 
-def _peek_bytes(data, count):
-    """The first *count* bytes of a ``GLib.Bytes``, without copying the
-    rest of a multi-megabyte upload."""
-    stream = Gio.MemoryInputStream.new_from_bytes(data)
-    try:
-        chunk = stream.read_bytes(count, None)
-    except GLib.Error:
-        return b''
-    return chunk.get_data() or b''
-
-
-def _jpeg_pixel_size(data):
-    """Width and height from a JPEG SOF marker, or None when the header
-    is not a JPEG we can scan. Dimensions sit a few kilobytes in, past
-    the APP segments, so this reads a bounded prefix rather than the
-    compressed image."""
-    blob = _peek_bytes(data, 65536)
-    index = 2
-    limit = len(blob)
-    while index + 8 < limit:
-        if blob[index] != 0xFF:
-            return None
-        while index < limit and blob[index] == 0xFF:
-            index += 1
-        if index >= limit:
-            return None
-        marker = blob[index]
-        index += 1
-        # Standalone markers (SOI, EOI, restart) carry no length.
-        if marker in (0xD8, 0xD9) or 0xD0 <= marker <= 0xD7:
-            continue
-        if index + 2 > limit:
-            return None
-        segment = int.from_bytes(blob[index:index + 2], 'big')
-        if segment < 2:
-            return None
-        # Start-of-frame markers except DHT (C4) and JPG (C8).
-        if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
-                      0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
-            if index + 7 > limit:
-                return None
-            height = int.from_bytes(blob[index + 3:index + 5], 'big')
-            width = int.from_bytes(blob[index + 5:index + 7], 'big')
-            if width and height:
-                return width, height
-            return None
-        index += segment
-    return None
-
-
-def _image_pixel_size(data):
-    """Width and height stored in the file header. None when the format
-    does not put them up front: the caller then decodes through
-    GdkPixbuf, which can still scale the image down."""
-    head = _peek_bytes(data, 32)
-    if head.startswith(b'\x89PNG\r\n\x1a\n') and len(head) >= 24:
-        return (int.from_bytes(head[16:20], 'big'),
-                int.from_bytes(head[20:24], 'big'))
-    if head[:6] in (b'GIF87a', b'GIF89a') and len(head) >= 10:
-        return (int.from_bytes(head[6:8], 'little'),
-                int.from_bytes(head[8:10], 'little'))
-    if head.startswith(b'\xff\xd8'):
-        return _jpeg_pixel_size(data)
-    return None
-
-
 def _decode_covering(data, cover, scale):
-    """Texture of the image in *data*, decoded no larger than it takes to
-    cover a *cover* (width, height) box of logical pixels on a display of
-    *scale*, which the caller reads on the main thread (this also runs on
-    a worker, see ``_decode_async``). None when the image cannot be read.
+    """Decode untrusted image bytes through GdkPixbuf's loader.
 
-    GdkPixbuf's loader plus the copy into a ``Gdk.MemoryTexture`` is
-    several times slower than ``Gdk.Texture.new_from_bytes``. When the
-    file is already no larger than the tile there is nothing to scale
-    away, so that copy buys neither sharpness nor a smaller texture.
-    Oversized originals still go through GdkPixbuf with ``set_size``,
-    which decodes them already scaled down instead of holding the full
-    bitmap."""
-    box_width, box_height = cover[0] * scale, cover[1] * scale
-    natural = _image_pixel_size(data)
-    if natural is not None:
-        width, height = natural
-        if width > 0 and height > 0 and max(box_width / width,
-                                             box_height / height) >= 1:
-            try:
-                return Gdk.Texture.new_from_bytes(data)
-            except GLib.Error:
-                pass
+    A cover is scaled to the box while loading. Without a cover, cap the
+    decoded dimensions and pixel count so a tiny compressed file cannot
+    request a pathological bitmap allocation. None when the format or
+    data cannot be decoded."""
+    box_width, box_height = ((cover[0] * scale, cover[1] * scale)
+                              if cover else (None, None))
 
     def prepared(loader, width, height):
-        factor = max(box_width / width, box_height / height)
+        if width <= 0 or height <= 0:
+            return
+        cover_factor = (max(box_width / width, box_height / height)
+                        if cover is not None else 1.0)
+        # The pixel/dimension budget applies even when a caller asks for
+        # a large cover box (or the full-size media viewer).
+        factor = min(
+            1.0, cover_factor,
+            math.sqrt(MAX_DECODE_PIXELS / (width * height)),
+            MAX_DECODE_DIMENSION / max(width, height))
         if factor < 1:
             loader.set_size(max(1, round(width * factor)),
                             max(1, round(height * factor)))
@@ -215,8 +170,8 @@ def _decode_covering(data, cover, scale):
 
 
 def _decode_async(data, cover, cancellable, callback):
-    """Decode *data* on a worker thread, no larger than a *cover* box
-    needs (at full size when *cover* is None), and call
+    """Decode *data* on a worker thread, scaled to a *cover* box or the
+    global decoded-pixel budget when *cover* is None, and call
     ``callback(texture, error)`` on the main context: the texture, or
     None and the reason. Nothing is called once *cancellable* fires.
 
@@ -230,10 +185,13 @@ def _decode_async(data, cover, cancellable, callback):
         # Worker thread: decoding only, no widget or display access.
         texture = error = None
         try:
-            if cover:
-                texture = _decode_covering(data, cover, scale)
+            # Remote bytes are untrusted. Decode through GdkPixbuf's
+            # loader on every path rather than passing them directly to
+            # Gdk.Texture.new_from_bytes(), which is not intended for
+            # untrusted input. A cover is scaled during loading.
+            texture = _decode_covering(data, cover, scale)
             if texture is None:
-                texture = Gdk.Texture.new_from_bytes(data)
+                error = 'unsupported or invalid image'
         except GLib.Error as failure:
             error = failure.message
         finally:

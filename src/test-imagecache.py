@@ -67,6 +67,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         Handler.served += 1
+        if self.path == '/oversize-length':
+            body = b'x' * 128
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            # The header alone is enough to reject this response.
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == '/oversize-unknown':
+            body = b'x' * 128
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            self.send_header('Transfer-Encoding', 'chunked')
+            self.end_headers()
+            self.wfile.write(('%x\\r\\n' % len(body)).encode() + body
+                             + b'\\r\\n0\\r\\n\\r\\n')
+            return
         if self.path.lstrip('/') in Handler.missing:
             body = b'{"error": "no such thing"}'
             self.send_response(404)
@@ -127,10 +145,12 @@ def main():
     base = 'http://127.0.0.1:%d/' % server.server_address[1]
     failures = []
 
-    def make(decode, limit=8):
-        return imagecache.Fetcher(imagecache.Store(limit), decode,
-                                  on_failure=lambda key, reason:
-                                  failures.append((key, reason)))
+    def make(decode, limit=8, max_bytes=None):
+        options = {'max_response_bytes': max_bytes} if max_bytes else {}
+        return imagecache.Fetcher(
+            imagecache.Store(limit), decode,
+            on_failure=lambda key, reason: failures.append((key, reason)),
+            **options)
 
     # --- 1. a cancel during the decode must not strand the key ---------
     entered = threading.Event()
@@ -248,7 +268,29 @@ def main():
           len(fetcher.inflight()) == 0, 'inflight=%d'
           % len(fetcher.inflight()))
 
-    # --- 5. the store serves a later row without a request ------------
+    # --- 5. response bodies are bounded while streaming -------------
+    decoded = []
+    never_decode = threaded(
+        lambda data, key, cancellable, done:
+        (decoded.append(data.get_size()), done('unexpected', None)))
+    for path in ('oversize-length', 'oversize-unknown'):
+        failures.clear()
+        fetcher = make(never_decode, max_bytes=32)
+        result = []
+        fetcher.fetch(base + path,
+                      lambda texture, reason: result.append((texture, reason)))
+        check('%s response is rejected before decoding' % path,
+              wait_for(lambda: bool(result))
+              and result[0][0] is None
+              and 'exceeds 32 bytes' in result[0][1],
+              repr(result))
+        check('%s leaves no request in flight' % path,
+              len(fetcher.inflight()) == 0)
+    check('oversized bodies never reach the decoder', decoded == [],
+          repr(decoded))
+
+    # --- 6. the store serves a later row without a request ------------
+
     good_decode = threaded(
         lambda data, key, cancellable, done: done('texture-for-%s' % key,
                                                   None))

@@ -788,9 +788,9 @@ IBus context leaked read-only text views [M, `CLAUDE.md:79`].
                         │
                         │  Gio.Task.run_in_thread   ◄── WORKER THREAD
                         │    _decode_covering(data, cover, scale)
-                        │      ├─ header sniff for PNG/GIF/JPEG dimensions
-                        │      └─ GdkPixbuf with set_size, if it must shrink
-                        │    fallback Gdk.Texture.new_from_bytes
+                        │      └─ GdkPixbuf PixbufLoader with set_size
+                        │         (16 MP / 8192 px cap without a cover)
+                        │    Gdk.MemoryTexture from decoded pixels
                         ▼  (main context)
         _finish(request, texture, reason)         ◄── THE ONLY TEARDOWN PATH
           ├─ if request.finished: return              (idempotent)
@@ -825,13 +825,15 @@ single `_finish`.
 large enough to cover their tile at the largest monitor scale (`_display_scale`,
 read on the main thread because GDK is not thread-safe here). Avatars decode to
 `AVATAR_DECODE_SIZE = 96`; they used to decode at full 400×400, and a full
-256-entry cache held ~156 MB. Images that already fit skip GdkPixbuf entirely and
-go straight to `Gdk.Texture.new_from_bytes`, several times faster [M,
-`PERFORMANCE.md:45`].
+256-entry cache held ~156 MB. Remote images now use GdkPixbuf's loader; cover
+images are scaled during loading; every decode is also capped at 16 MP and
+8192 px per side. This replaces the former faster but unsuitable
+`Gdk.Texture.new_from_bytes` path for untrusted remote bytes.
 
 **Costs of the design, on the record [M, `PERFORMANCE.md:73`]:** the media viewer
 does not share this cache; two on-screen sizes of one URL are two cache slots; and
-if the scaled decode fails, the full image is decoded as a fallback.
+a failed scaled decode is reported rather than retried through an unbounded
+full-image decoder.
 
 ---
 
@@ -990,7 +992,7 @@ take the identical model → run → shell → card path.
   parse_content + set_segments         ◄── HERE         statustext / textemoji
   clock_format (first use only)        ◄── HERE, 200 ms statustext.py:195
   GdkPixbuf decode                     ▸ WORKER         mediacache.py:229
-  Gdk.Texture.new_from_bytes           ▸ WORKER         mediacache.py:236
+  GdkPixbuf.PixbufLoader               ▸ WORKER         mediacache.py
 
   NEVER ON THE MAIN THREAD
   ─────────────────────

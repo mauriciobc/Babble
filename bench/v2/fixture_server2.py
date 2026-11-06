@@ -3,13 +3,10 @@
 
 Why this exists rather than reusing ``bench/fixture_server.py``: that one
 serves **96x96** avatars and 640x480 media, which is not what a Mastodon
-instance serves. The size decides which decode path ``_decode_covering``
-takes (``src/mediacache.py:183-189``): at 96px an avatar is no bigger than
-its cover box, so it is loaded whole with ``Gdk.Texture.new_from_bytes``,
-the fast path. A real 400x400 avatar is *larger* than the box and goes
-through the GdkPixbuf loader instead. The old fixture therefore measured
-the optimised path for every avatar in the run and could not see the cost
-the "avatars decoded to size" change is meant to pay.
+instance serves. The sizes let the benchmark model realistic Mastodon responses.
+All remote images now pass through GdkPixbuf's loader; cover images are
+scaled during loading, and all decoded images share the 16 MP / 8192 px
+allocation cap.
 
 Sizes here default to what instances actually serve (400px avatars,
 1600x1200 media) and can be overridden, so the old regime stays

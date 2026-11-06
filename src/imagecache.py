@@ -66,6 +66,10 @@ HTTP_TIMEOUT_SECONDS = 30
 AVATAR_CACHE_SIZE = 256
 BANNER_CACHE_SIZE = 16
 
+# Hard cap on encoded remote image data. The limit is enforced while
+# streaming, not inferred from Content-Length (which may be absent or false).
+MAX_IMAGE_RESPONSE_BYTES = 16 * 1024 * 1024
+
 _session = None
 
 # Not an error: a request nobody is waiting for any more is cancelled on
@@ -155,7 +159,7 @@ class _Request:
     """
 
     __slots__ = ('key', 'url', 'cancellable', 'waiters', 'watched',
-                 'message', 'finished')
+                 'message', 'stream', 'chunks', 'received', 'finished')
 
     def __init__(self, key, url):
         self.key = key
@@ -166,14 +170,18 @@ class _Request:
         # disconnected again and never keeps this fetcher alive.
         self.watched = []
         self.message = None
+        self.stream = None
+        self.chunks = []
+        self.received = 0
         self.finished = False
 
 
 class Fetcher:
     """Fetches one URL at most once at a time, whoever asks.
 
-    *decode* turns the response body into a texture. It is called as
-    ``decode(data, key, cancellable, callback)`` -- *key* is the cache key
+    Responses are streamed and capped at ``max_response_bytes`` before
+    decoding. *decode* turns the bounded body into a texture. It is called
+    as ``decode(data, key, cancellable, callback)`` -- *key* is the cache key
     the request was made under, which is how a decoder that needs
     something the URL does not carry (the box an attachment has to fill)
     gets at it -- and must invoke *callback* with ``(texture, reason)``,
@@ -186,10 +194,14 @@ class Fetcher:
     is a caller moving on rather than an image failing.
     """
 
-    def __init__(self, store, decode, on_failure=None):
+    def __init__(self, store, decode, on_failure=None,
+                 max_response_bytes=MAX_IMAGE_RESPONSE_BYTES):
+        if max_response_bytes <= 0:
+            raise ValueError('max_response_bytes must be positive')
         self.store = store
         self.decode = decode
         self.on_failure = on_failure
+        self.max_response_bytes = max_response_bytes
         self._inflight = {}
 
     def inflight(self):
@@ -292,36 +304,99 @@ class Fetcher:
             self._finish(request, None, 'invalid URL')
             return
         request.message = message
-        session().send_and_read_async(
+        # Wait for headers first. send_and_read_async() buffers the
+        # entire untrusted body before the caller can enforce a limit.
+        session().send_async(
             message, GLib.PRIORITY_DEFAULT, request.cancellable,
-            self._on_loaded, request)
+            self._on_response, request)
 
     def _on_request_cancelled(self, _cancellable, *data):
         self._finish(data[0], None, CANCELLED)
 
-    def _on_loaded(self, sess, result, request):
-        reason = None
-        data = None
+    @staticmethod
+    def _close_stream(stream):
         try:
-            data = sess.send_and_read_finish(result)
+            stream.close(None)
+        except GLib.Error:
+            pass
+
+    def _on_response(self, sess, result, request):
+        # Always consume the async result, even if cancellation already
+        # finalized the request while the response was being dispatched.
+        try:
+            stream = sess.send_finish(result)
         except GLib.Error as error:
-            reason = error.message
-        else:
-            status = request.message.get_status()
-            if not 200 <= status < 300:
-                # A 404 page can be an image too; never show or cache it.
-                reason = 'HTTP %d' % status
-            elif data is None or data.get_size() == 0:
-                reason = 'empty response'
-        if reason is not None:
-            self._finish(request, None, reason)
+            if not request.finished:
+                self._finish(request, None, error.message)
             return
+
+        if request.finished:
+            self._close_stream(stream)
+            return
+        status = request.message.get_status()
+        if not 200 <= status < 300:
+            self._close_stream(stream)
+            self._finish(request, None, 'HTTP %d' % status)
+            return
+
+        headers = request.message.get_response_headers()
+        content_length = headers.get_content_length()
+        if content_length > self.max_response_bytes:
+            self._close_stream(stream)
+            self._finish(request, None, 'response exceeds %d bytes'
+                         % self.max_response_bytes)
+            return
+
+        request.stream = stream
         request.message = None
-        # The key stays in flight while a worker decodes: a widget that
-        # asks again meanwhile waits instead of starting a second fetch.
-        self.decode(data, request.key, request.cancellable,
-                    lambda texture, error: self._finish(request, texture,
-                                                       error))
+        self._read_next(request)
+
+    def _read_next(self, request):
+        if request.finished:
+            return
+        request.stream.read_bytes_async(
+            min(64 * 1024, self.max_response_bytes - request.received + 1),
+            GLib.PRIORITY_DEFAULT, request.cancellable,
+            self._on_chunk, request)
+
+    def _on_chunk(self, stream, result, request):
+        if request.finished:
+            # _finish() normally closes the stream; this callback may
+            # already have been queued when cancellation won the race.
+            try:
+                stream.read_bytes_finish(result)
+            except GLib.Error:
+                pass
+            return
+        try:
+            chunk = stream.read_bytes_finish(result)
+        except GLib.Error as error:
+            self._finish(request, None, error.message)
+            return
+
+        data = chunk.get_data() or b''
+        if not data:
+            if request.received == 0:
+                self._finish(request, None, 'empty response')
+                return
+            body = GLib.Bytes.new(b''.join(request.chunks))
+            request.chunks = []
+            self._close_stream(stream)
+            request.stream = None
+            # The key stays in flight while a worker decodes: a widget
+            # asking again waits instead of starting a duplicate request.
+            self.decode(body, request.key, request.cancellable,
+                        lambda texture, error: self._finish(
+                            request, texture, error))
+            return
+
+        request.received += len(data)
+        if request.received > self.max_response_bytes:
+            self._finish(request, None, 'response exceeds %d bytes'
+                         % self.max_response_bytes)
+            return
+        request.chunks.append(data)
+        self._read_next(request)
 
     def _finish(self, request, texture, reason):
         """Deliver the outcome once, and always forget the request.
@@ -348,6 +423,13 @@ class Fetcher:
             return
         request.finished = True
         self._inflight.pop(request.key, None)
+        if request.stream is not None:
+            try:
+                request.stream.close(None)
+            except GLib.Error:
+                pass
+            request.stream = None
+        request.chunks = []
         for cancellable, handler, _waiter in request.watched:
             # Deferred, because _finish is reachable from the request's own
             # 'cancelled' handler and one of these may be firing right now.
