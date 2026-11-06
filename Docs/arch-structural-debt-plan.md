@@ -22,7 +22,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 
 | Module | Lines | Notes |
 |--------|------:|-------|
-| `compose.py` | 2501 | ARCH-01 left draft/options/post + attachments |
+| `compose.py` | ~2019 | ARCH-12 extracted attachments; ARCH-17 next |
 | `window.py` | 2161 | Declared session/stream owner; sidebar sync still here |
 | `notifications.py` | ~1987 | ARCH-03 left rows + policy + model |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
@@ -67,6 +67,10 @@ flowchart TD
 ---
 
 ## ARCH-12 — `composeattach.py` (first cut)
+
+**Status:** done — `composeattach.py` holds `AttachmentRow`,
+`ComposeAttachments`, and the paste/media helpers; `compose.py` keeps
+thin wrappers. compose ~2019 lines (was ~2501); new module under 800.
 
 **From:** `compose.py` (`BabbleComposeView` ~1887 lines).  
 **Extract:** `AttachmentRow`, attach / paste / drop / screenshot paths,

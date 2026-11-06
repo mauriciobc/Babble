@@ -674,6 +674,7 @@ recorded in the Decision log below — read that before starting anything here.*
 | ARCH-09 | **done** | **`/api/v2/instance` has no cache or in-flight coalescing** and is called from six independent sites. | `window.py:641`, `announcements.py:323`, `admin.py:749`, `report.py:171`, `timeline.py:2283`, `profileedit.py:118` | ~25 lines |
 | ARCH-10 | **done** | **A profile open costs ~8 requests**, two of which eagerly pre-load tabs that `Adw.ViewStack` is not showing. | `profile.py:1002-1009`, `:1122-1128` | ~40 lines |
 | ARCH-11 | **done** | **Parity: hide replies from non-follows.** Absent, and it is the one reading feature the references agree on (Elk, Tuba, Android all ship it as a per-column toggle). Cheap here because the plumbing already exists — `catchuprank.py:669-685` already batches `/accounts/relationships` in 40s, and `profile.py:956` already shows a "Mutuals" chip. Fits the minimal-reader stance: it *removes* noise. | `catchuprank.py:969-983`; `profile.py:956` | ~120 lines |
+| ARCH-12 | **done** | **`compose.py` attachment tray.** `AttachmentRow`, attach/drop/paste-media/screenshot and the pasted-cache helpers move to `composeattach.ComposeAttachments`; the view keeps thin wrappers and the QuotePaste paste arm. | `composeattach.py`; `Docs/arch-structural-debt-plan.md` | ~490 lines moved |
 
 ---
 

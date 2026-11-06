@@ -36,6 +36,7 @@ install_data(
   'charts.py',
   'capabilities.py',
   'compose.py',
+  'composeattach.py',
   'composequote.py',
   'completer.py',
   'composeupload.py',

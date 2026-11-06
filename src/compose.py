@@ -7,9 +7,6 @@ the reply round trip and closing the dialog keeps the draft."""
 import os
 import re
 import datetime
-import json
-import shutil
-import time
 from copy import deepcopy
 from dataclasses import dataclass
 
@@ -26,10 +23,11 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Pango, Spelling)
 
-from . import emojichooser, pages, portals  # noqa: E402
+from . import emojichooser, pages  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .capabilities import QUOTES_API_VERSION  # noqa: E402
+from .composeattach import ComposeAttachments, _prune_pasted_once  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
 from .composequote import QuotePaste  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
@@ -48,17 +46,10 @@ Spelling.init()
 
 DEFAULT_CHAR_LIMIT = 500
 URL_PLACEHOLDER_CHARS = 23
-# The fallback, for an instance that advertises no
-# statuses.max_media_attachments; Mastodon's own default is 4, and its
-# Android client hardcodes this same number while parsing the field and
-# never reading it. See BabbleComposeView.attachment_limit for the
-# instance-aware one.
-MAX_ATTACHMENTS = 4
 MAX_POLL_CHOICES = 4
 # The composer dialog's width when the window has room for it.
 COMPOSE_WIDTH = 600
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
-SCREENSHOT_PORTAL = 'org.freedesktop.portal.Screenshot'
 
 # Mastodon's Extractor: URLs (scheme optional) and remote mentions.
 _URL_RE = re.compile(
@@ -220,159 +211,6 @@ def _unparent_popovers(button):
         child = following
 
 
-def media_type(path):
-    """MIME type of the file at *path*, judged from its name and its
-    first bytes; None when it cannot be read."""
-    try:
-        with open(path, 'rb') as f:
-            head = f.read(4096)
-    except OSError:
-        return None
-    content_type, _uncertain = Gio.content_type_guess(path, head)
-    return Gio.content_type_get_mime_type(content_type)
-
-
-def is_media(mime):
-    """Whether *mime* is something Mastodon takes as an attachment."""
-    return bool(mime) and mime.startswith(('image/', 'video/', 'audio/'))
-
-
-def must_be_alone(mime):
-    """Whether *mime* is a video or audio file, which Mastodon only takes
-    as the single attachment of a post."""
-    return bool(mime) and mime.startswith(('video/', 'audio/'))
-
-
-# Pasted images, and screenshots taken from the composer, are written
-# under the user cache, not a temporary directory, and are not deleted
-# with their row: undoing a removal adds row.path back, and a local
-# draft keeps its attachment paths across restarts. Instead, the first
-# composer of a session prunes the pasted files older than
-# PASTED_MAX_AGE that no saved draft refers to. That runs before any
-# draft can be restored into a composer (which takes it off the saved
-# list), so a file still attached somewhere is never lost.
-PASTED_MAX_AGE = 7 * 24 * 3600
-_pasted_pruned = False
-
-
-def pasted_dir():
-    """Where images pasted into the composer are kept."""
-    return os.path.join(GLib.get_user_cache_dir(), 'babble', 'pasted')
-
-
-def _draft_attachment_paths():
-    """Attachment paths of the saved local drafts, or None when they
-    cannot be known (no schema installed)."""
-    if not _has_setting('local-drafts'):
-        return None
-    paths = set()
-    for raw in pages.settings().get_strv('local-drafts'):
-        try:
-            draft = json.loads(raw)
-        except ValueError:
-            continue
-        if not isinstance(draft, dict):
-            continue
-        for attachment in draft.get('attachments') or []:
-            if isinstance(attachment, dict) \
-                    and isinstance(attachment.get('path'), str):
-                paths.add(os.path.normpath(attachment['path']))
-    return paths
-
-
-def prune_pasted_images():
-    """Delete the pasted images older than PASTED_MAX_AGE that no saved
-    draft refers to. Best effort: whatever cannot be read or removed
-    waits for the next session."""
-    directory = pasted_dir()
-    try:
-        names = os.listdir(directory)
-    except OSError:
-        return
-    referenced = _draft_attachment_paths()
-    if referenced is None:
-        return
-    cutoff = time.time() - PASTED_MAX_AGE
-    for name in names:
-        path = os.path.normpath(os.path.join(directory, name))
-        try:
-            if path not in referenced and os.stat(path).st_mtime < cutoff:
-                os.unlink(path)
-        except OSError:
-            continue
-
-
-def _prune_pasted_once():
-    """Prune the pasted images when the first composer of the session is
-    built, never again: see the note above PASTED_MAX_AGE."""
-    global _pasted_pruned
-    if not _pasted_pruned:
-        _pasted_pruned = True
-        prune_pasted_images()
-
-
-def _claim_pasted_path(stem, extension):
-    """Create an empty file in :func:`pasted_dir` named *stem* and
-    *extension*, numbered when that name is taken, and return its path.
-    Raises OSError."""
-    directory = pasted_dir()
-    os.makedirs(directory, mode=0o700, exist_ok=True)
-    stem = stem.replace(os.sep, '-')
-    number = 1
-    while True:
-        name = stem + (extension if number == 1
-                       else ' %d%s' % (number, extension))
-        path = os.path.join(directory, name)
-        try:
-            # Claimed exclusively, so two composers saving at once never
-            # write the same file.
-            os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                             0o600))
-            return path
-        except FileExistsError:
-            number += 1
-
-
-def _unlink_quietly(path):
-    try:
-        os.unlink(path)
-    except OSError:
-        pass
-
-
-def save_pasted_texture(texture):
-    """Write *texture* as a PNG in :func:`pasted_dir`, under a name no
-    other file there has, and return its path. Raises OSError."""
-    # Translators: file name, without its extension, of an image pasted
-    # into the composer. It is shown on the attachment.
-    path = _claim_pasted_path(_('Pasted image'), '.png')
-    if not texture.save_to_png(path):
-        _unlink_quietly(path)
-        raise OSError(_('The image could not be saved'))
-    return path
-
-
-def save_screenshot(source):
-    """Copy the screenshot at path *source* into :func:`pasted_dir`,
-    under its own name when no other file there has it, and return the
-    copy's path. Raises OSError.
-
-    The portal's file is the user's (in GNOME, in Pictures/Screenshots)
-    and may be moved or deleted at any time, while a saved draft keeps
-    its attachments by path; the copy lives as long as a draft needs it,
-    under the pruning rules of pasted images."""
-    stem, extension = os.path.splitext(os.path.basename(source))
-    # Translators: file name, without its extension, of a screenshot
-    # taken from the composer. It is shown on the attachment.
-    path = _claim_pasted_path(stem or _('Screenshot'), extension or '.png')
-    try:
-        shutil.copyfile(source, path)
-    except OSError:
-        _unlink_quietly(path)
-        raise
-    return path
-
-
 def _end_inhibition(inhibition):
     """Give back the logout and suspend inhibition a composer holds in
     the dict *inhibition*, if any."""
@@ -380,60 +218,6 @@ def _end_inhibition(inhibition):
     inhibition.update(app=None, cookie=0)
     if cookie:
         app.uninhibit(cookie)
-
-
-class AttachmentRow(Gtk.ListBox):
-    """Media attachment: preview row with remove button and a
-    description (alt text) entry, as one boxed list."""
-
-    __gtype_name__ = 'BabbleAttachmentRow'
-
-    def __init__(self, path, **kwargs):
-        super().__init__(selection_mode=Gtk.SelectionMode.NONE, **kwargs)
-        self.add_css_class('boxed-list')
-        self.path = path
-        self.uploaded_id = None
-
-        self.content_type = media_type(path) or 'application/octet-stream'
-        # Audio has no picture to decode: its icon, without reading the
-        # whole file in an attempt bound to fail.
-        texture = None
-        if not self.content_type.startswith('audio/'):
-            try:
-                texture = Gdk.Texture.new_from_filename(path)
-            except GLib.Error:
-                pass
-        if texture is not None:
-            self.thumbnail = Gtk.Picture(paintable=texture,
-                                         content_fit=Gtk.ContentFit.COVER)
-        else:
-            self.thumbnail = Gtk.Image.new_from_icon_name(
-                'audio-x-generic-symbolic'
-                if self.content_type.startswith('audio/')
-                else 'image-x-generic-symbolic')
-        self.thumbnail.set_size_request(48, 48)
-        self.thumbnail.set_valign(Gtk.Align.CENTER)
-        self.thumbnail.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
-
-        self.remove_button = Gtk.Button(icon_name='user-trash-symbolic',
-                                        valign=Gtk.Align.CENTER)
-        self.remove_button.add_css_class('flat')
-        pages.set_accessible_label(self.remove_button, _('Remove Attachment'))
-
-        header = Adw.ActionRow(title=GLib.markup_escape_text(
-            GLib.path_get_basename(path)))
-        header.set_title_lines(1)
-        header.add_prefix(self.thumbnail)
-        header.add_suffix(self.remove_button)
-        self.append(header)
-
-        self.alt_entry = Adw.EntryRow(title=_('Description'))
-        self.append(self.alt_entry)
-
-    def limit_description(self, limit):
-        """Cap the alt text at *limit* characters, the instance's
-        ``description_limit``."""
-        Gtk.Editable.get_delegate(self.alt_entry).set_max_length(limit)
 
 
 @dataclass(frozen=True)
@@ -551,6 +335,17 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.attachments_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                        spacing=12)
         content.append(self.attachments_box)
+        # Lambdas so a test (or a later wrap) that replaces the view's
+        # helpers is what the tray calls, not the method bound at build.
+        self.attach = ComposeAttachments(
+            client, self.attachments_box,
+            on_changed=lambda: self.update_compose_state(),
+            on_toast=lambda text: self._toast(text),
+            on_error=lambda heading, body: self._show_error(heading, body),
+            is_posting=lambda: self._posting,
+            is_frozen=lambda: self._replacement is not None,
+            on_add_toast=lambda toast: self._add_toast(toast),
+            on_paste_text=lambda: self._paste_text())
         scrolled = Gtk.ScrolledWindow(
             hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
             child=Adw.Clamp(maximum_size=600, child=content))
@@ -563,9 +358,13 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                                               Gdk.DragAction.COPY)
         self.drop_target.set_gtypes([Gdk.FileList, Gio.File])
         self.drop_target.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        pages.connect_weak(self.drop_target, 'drop', self.on_drop)
         scrolled.add_controller(self.drop_target)
         toolbar_view.add_bottom_bar(self.build_action_bar())
+        self.attach.bind(
+            attach_button=self.attach_button,
+            screenshot_button=self.screenshot_button,
+            drop_target=self.drop_target,
+            text_view=self.text_view)
         # Own overlay: the composer lives in a dialog that covers the
         # window's, so feedback raised here must land inside it.
         self.set_child(Adw.ToastOverlay(child=toolbar_view))
@@ -731,16 +530,10 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
 
         self.attach_button = icon_button('mail-attachment-symbolic',
                                          _('Attach Media'))
-        pages.connect_weak(self.attach_button, 'clicked',
-                           self.on_attach_clicked)
         # Hidden until the screenshot portal is known to be there.
         self.screenshot_button = icon_button(
             'applets-screenshooter-symbolic', _('Take Screenshot'))
         self.screenshot_button.set_visible(False)
-        pages.connect_weak(self.screenshot_button, 'clicked',
-                           self.on_screenshot_clicked)
-        portals.portal_version(SCREENSHOT_PORTAL,
-                               pages.weak_method(self._on_screenshot_portal))
         self.cw_toggle = icon_button('dialog-warning-symbolic',
                                      _('Content Warning'), toggle=True)
         pages.connect_weak(self.cw_toggle, 'toggled', self.on_cw_toggled)
@@ -1107,8 +900,31 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         return True
 
     def clear_attachments(self):
-        for row in self.attachments():
-            self.attachments_box.remove(row)
+        self.attach.clear()
+
+    def attachments(self):
+        return self.attach.rows()
+
+    def attachment_limit(self):
+        return self.attach.limit()
+
+    def media_filter(self):
+        return self.attach.media_filter()
+
+    def add_attachment_path(self, path, alt=None, position=-1):
+        return self.attach.add_path(path, alt=alt, position=position)
+
+    def add_attachment_files(self, files):
+        return self.attach.add_files(files)
+
+    def _set_attach_sensitive(self, sensitive):
+        self.attach.set_attach_sensitive(sensitive)
+
+    def on_remove_attachment(self, button, row):
+        self.attach.on_remove(button, row)
+
+    def on_files_selected(self, dialog, result):
+        self.attach.on_files_selected(dialog, result)
 
     def _finish_begin(self):
         self.update_compose_state()
@@ -1649,221 +1465,15 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             self.reset()
             self.text_view.grab_focus()
 
-    def on_attach_clicked(self, _button):
-        dialog = Gtk.FileDialog(title=_('Attach Media'),
-                                default_filter=self.media_filter())
-        dialog.open_multiple(self.get_root(), None, self.on_files_selected)
-
-    def media_filter(self):
-        """The file chooser's media filter, narrowed to what this server
-        takes when it says what it takes.
-
-        An instance that advertises supported_mime_types is followed,
-        because the chooser is the only place where refusing a file
-        costs the reader nothing: the alternative is picking it, having
-        it turned away, and losing the selection. Nothing is advertised,
-        or only the useless application/octet-stream, and the three
-        broad types stand.
-        """
-        types = self.client.supported_media_types() \
-            if hasattr(self.client, 'supported_media_types') else None
-        media_filter = Gtk.FileFilter(
-            name=_('Media accepted by this server') if types
-            else _('Images, Videos and Audio'))
-        for mime in types or ('image/*', 'video/*', 'audio/*'):
-            media_filter.add_mime_type(mime)
-        return media_filter
-
-    def attachment_limit(self):
-        """How many attachments a post may carry here.
-
-        Read from the instance rather than assumed, so a server that
-        raised or lowered the limit is obeyed instead of refused at
-        four. Falls back to :data:`MAX_ATTACHMENTS` for a client that
-        cannot answer, which is only the test stubs.
-        """
-        reader = getattr(self.client, 'max_media_attachments', None)
-        return reader() if reader is not None else MAX_ATTACHMENTS
-
-    def on_files_selected(self, dialog, result):
-        try:
-            files = dialog.open_multiple_finish(result)
-        except GLib.Error as e:
-            if not e.matches(Gtk.DialogError.quark(),
-                             Gtk.DialogError.DISMISSED):
-                self._show_error(_('Could not open the file picker'),
-                                 e.message)
-            return
-        self.add_attachment_files(
-            [files.get_item(index) for index in range(files.get_n_items())])
-
-    def on_screenshot_clicked(self, _button):
-        """Take a screenshot through the portal, which lets the user
-        pick what to capture, and attach it."""
-        portals.session_bus(pages.weak_method(self._on_screenshot_bus))
-
-    def _on_screenshot_portal(self, version):
-        self.screenshot_button.set_visible(version > 0)
-
-    def _on_screenshot_bus(self, bus):
-        if bus is None:
-            self._toast(_('Could not take a screenshot'))
-            return
-        portals.portal_request(bus, SCREENSHOT_PORTAL, 'Screenshot',
-                               '(sa{sv})',
-                               ('',), {
-                                   'interactive': GLib.Variant('b', True),
-                                   'modal': GLib.Variant('b', True),
-                               }, pages.weak_method(self._on_screenshot_response))
-
-    def _on_screenshot_response(self, code, results):
-        if code == 1:  # cancelled by the user
-            return
-        uri = results.get('uri') if code == 0 else None
-        source = Gio.File.new_for_uri(uri).get_path() if uri else None
-        if not source:
-            self._toast(_('Could not take a screenshot'))
-            return
-        # Checked before copying, so a refused screenshot leaves no file.
-        if not self._room_for_attachment():
-            return
-        try:
-            path = save_screenshot(source)
-        except OSError as e:
-            self._show_error(_('Could not take a screenshot'),
-                             e.strerror or str(e))
-            return
-        self.add_attachment_files([Gio.File.new_for_path(path)])
-
-    def _room_for_attachment(self):
-        """Whether one more attachment can be added now; a toast says
-        why not."""
-        if self._replacement is not None:
-            return False
-        if self._posting:
-            self._toast_busy_posting()
-            return False
-        if len(self.attachments()) >= self.attachment_limit():
-            self._toast_attachment_limit()
-            return False
-        if self._has_lone_media():
-            self._toast_lone_media()
-            return False
-        return True
-
-    def _has_lone_media(self):
-        """Whether a video or audio file is attached: nothing can join it."""
-        return any(must_be_alone(row.content_type)
-                   for row in self.attachments())
-
-    def _can_attach_more(self):
-        return len(self.attachments()) < self.attachment_limit() \
-            and not self._has_lone_media()
-
-    def _set_attach_sensitive(self, sensitive):
-        """Attaching media and taking a screenshot go together."""
-        self.attach_button.set_sensitive(sensitive)
-        self.screenshot_button.set_sensitive(sensitive)
-
-    def add_attachment_path(self, path, alt=None, position=-1):
-        if self._replacement is not None:
-            return None
-        if not path or not self._can_attach_more():
-            return None
-        if self.attachments() and must_be_alone(media_type(path)):
-            return None
-        row = AttachmentRow(path)
-        reader = getattr(self.client, 'media_description_limit', None)
-        if reader is not None:
-            row.limit_description(reader())
-        # The row is looked up from the emitter: passing it as user data
-        # would pin it through its own button and entry.
-        pages.connect_weak(row.remove_button, 'clicked',
-                           self._on_row_remove_clicked)
-        pages.connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
-        if alt:
-            row.alt_entry.set_text(alt)
-        rows = self.attachments()
-        sibling = rows[min(position, len(rows)) - 1] if position > 0 \
-            and rows else None
-        if position == 0 or sibling is not None:
-            self.attachments_box.insert_child_after(row, sibling)
-        else:
-            self.attachments_box.append(row)
-        self._set_attach_sensitive(self._can_attach_more())
-        self.update_compose_state()
-        return row
-
-    def add_attachment_files(self, files):
-        """Attach the images, videos and audio among *files* (Gio.File
-        objects or paths), as a drop, a paste of copied files or files
-        opened from outside do, up to the attachment limit; a video or an
-        audio file goes alone, as Mastodon takes it. A toast tells what
-        had to be left out. Nothing is added while posting, as the round
-        in flight would not send it: a toast says so. Returns the rows
-        added."""
-        files = list(files)
-        if self._replacement is not None:
-            return []
-        if self._posting:
-            if files:
-                self._toast_busy_posting()
-            return []
-        added = []
-        rejected = over_limit = lone = False
-        for item in files:
-            path = item.get_path() if isinstance(item, Gio.File) else item
-            mime = media_type(path) if path else None
-            if not is_media(mime):
-                rejected = True
-            elif self._has_lone_media() or (
-                    must_be_alone(mime) and self.attachments()):
-                lone = True
-            elif len(self.attachments()) >= self.attachment_limit():
-                over_limit = True
-            else:
-                added.append(self.add_attachment_path(path))
-        if rejected:
-            self._toast(_('Only images, videos and audio can be attached'))
-        if lone:
-            self._toast_lone_media()
-        if over_limit:
-            self._toast_attachment_limit()
-        return added
-
-    def _toast_busy_posting(self):
-        self._toast(_('Wait for the post to be sent to attach files'))
-
-    def _toast_lone_media(self):
-        self._toast(_('A video or audio file must be the only attachment'))
-
-    def _toast_attachment_limit(self):
-        # Translators: %d is the most attachments a post can have.
-        limit = self.attachment_limit()
-        text = ngettext('A post can have at most %d attachment',
-                        'A post can have at most %d attachments',
-                        limit)
-        self._toast(text % limit)
-
-    def on_drop(self, _target, value, _x, _y):
-        # The value only lives through this emission: take the files out
-        # of it now.
-        files = value.get_files() if isinstance(value, Gdk.FileList) \
-            else [value]
-        return bool(self.add_attachment_files(files))
-
     def on_paste_clipboard(self, text_view):
         """Pasting copied files attaches them, and pasting a bare image
         (a screenshot, an image copied from a browser) saves it and
         attaches it. Text, including a link to a post, goes through the
         default handler; the buffer-level insert watcher turns a lone
         post link into a quote."""
-        if self._replacement is not None:
-            text_view.stop_emission_by_name('paste-clipboard')
-            return
         if self._paste_through:
             return
-        if self._read_clipboard_media(files=True):
+        if self.attach.try_clipboard_media(text_view):
             text_view.stop_emission_by_name('paste-clipboard')
             return
         # The text paste is about to run through the default handler;
@@ -1884,26 +1494,6 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         GLib.timeout_add(1000, pages.weak_method(
             self._clear_pre_paste_offset), self._paste_serial)
 
-    def _read_clipboard_media(self, files):
-        """Start reading the clipboard's files (when *files*) or image to
-        attach them; False when it holds neither, so it pastes as text."""
-        clipboard = self.text_view.get_clipboard()
-        formats = clipboard.get_formats().union_deserialize_gtypes()
-        if files and formats.contain_gtype(Gdk.FileList):
-            clipboard.read_value_async(
-                Gdk.FileList, GLib.PRIORITY_DEFAULT, None,
-                pages.weak_method(self._on_paste_files))
-            return True
-        # A clipboard set in this process holds the texture's own
-        # subclass, so contain_gtype(Gdk.Texture) alone misses it.
-        has_image = any(GObject.type_is_a(gtype, Gdk.Texture)
-                        for gtype in formats.get_gtypes())
-        if has_image and not formats.contain_gtype(GObject.TYPE_STRING):
-            clipboard.read_texture_async(
-                None, pages.weak_method(self._on_paste_texture))
-            return True
-        return False
-
     def _paste_text(self):
         """The text view's own paste, which on_paste_clipboard lets
         through."""
@@ -1922,71 +1512,6 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             self.buffer.set_text(text)
         finally:
             self._in_programmatic_insert -= 1
-
-    def _on_paste_files(self, clipboard, result):
-        try:
-            value = clipboard.read_value_finish(result)
-        except GLib.Error as e:
-            self._show_error(_('Could not paste the files'), e.message)
-            return
-        # The value only lives through this callback.
-        local = [f for f in value.get_files() if f.get_path()]
-        if local:
-            self.add_attachment_files(local)
-        elif not self._read_clipboard_media(files=False):
-            # Remote locations only, such as a copied link: their text.
-            self._paste_text()
-
-    def _on_paste_texture(self, clipboard, result):
-        try:
-            texture = clipboard.read_texture_finish(result)
-        except GLib.Error as e:
-            self._show_error(_('Could not paste the image'), e.message)
-            return
-        if texture is None:
-            return
-        # Checked before saving, so a refused paste leaves no file.
-        if not self._room_for_attachment():
-            return
-        try:
-            path = save_pasted_texture(texture)
-        except OSError as e:
-            self._show_error(_('Could not paste the image'),
-                             e.strerror or str(e))
-            return
-        self.add_attachment_path(path)
-
-    def attachments(self):
-        rows = []
-        child = self.attachments_box.get_first_child()
-        while child is not None:
-            if isinstance(child, AttachmentRow):
-                rows.append(child)
-            child = child.get_next_sibling()
-        return rows
-
-    def on_remove_attachment(self, _button, row):
-        position = self.attachments().index(row)
-        alt = row.alt_entry.get_text()
-        self.attachments_box.remove(row)
-        self._set_attach_sensitive(not self._posting
-                                   and self._can_attach_more())
-        self.update_compose_state()
-        toast = Adw.Toast(title=_('Attachment removed'),
-                          button_label=_('_Undo'),
-                          priority=Adw.ToastPriority.HIGH)
-        toast.connect('button-clicked', lambda _t: self.add_attachment_path(
-            row.path, alt=alt, position=position))
-        self._add_toast(toast)
-
-    def _on_row_remove_clicked(self, button):
-        self.on_remove_attachment(button, button.get_ancestor(AttachmentRow))
-
-    def _on_row_alt_changed(self, entry):
-        self.on_alt_changed(entry, entry.get_ancestor(AttachmentRow))
-
-    def on_alt_changed(self, _entry, _row):
-        self.update_compose_state()
 
     def _add_toast(self, toast):
         """Toasts raised inside the composer go on its own overlay: the
@@ -2084,8 +1609,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.text_view.set_editable(not cleanup)
         self.reply_banner.set_sensitive(not locked)
         self.schedule_banner.set_sensitive(not locked)
-        for widget in (self.attach_button, self.screenshot_button,
-                       self.cw_toggle, self.poll_toggle,
+        for widget in (self.cw_toggle, self.poll_toggle,
                        self.mention_button, self.emoji_button,
                        self.thread_toggle, self.visibility_row,
                        self.language_row):
@@ -2093,14 +1617,8 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         if active:
             self.mention_completer.dismiss()
             self.hashtag_completer.dismiss()
-        else:
-            self._set_attach_sensitive(not locked and self._can_attach_more())
+        self.attach.set_locked(locked)
         self.progress_spinner.set_visible(active)
-        # No drop is taken while posting, so none is outlined either.
-        self.drop_target.set_actions(Gdk.DragAction.NONE if locked
-                                     else Gdk.DragAction.COPY)
-        for row in self.attachments():
-            row.remove_button.set_sensitive(not locked)
         self.update_compose_state()
 
     def _finish_posting(self):
