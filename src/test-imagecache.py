@@ -278,7 +278,8 @@ def main():
         fetcher = make(never_decode, max_bytes=32)
         result = []
         fetcher.fetch(base + path,
-                      lambda texture, reason, result=result: result.append((texture, reason)))
+                      lambda texture, reason, result=result:
+                      result.append((texture, reason))
         check('%s response is rejected before decoding' % path,
               wait_for(lambda result=result: bool(result))
               and result[0][0] is None
