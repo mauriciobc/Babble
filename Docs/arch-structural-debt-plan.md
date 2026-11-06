@@ -22,7 +22,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 
 | Module | Lines | Notes |
 |--------|------:|-------|
-| `compose.py` | ~2019 | ARCH-12 extracted attachments; ARCH-17 next |
+| `compose.py` | ~1744 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
 | `window.py` | 2161 | Declared session/stream owner; sidebar sync still here |
 | `notifications.py` | ~1987 | ARCH-03 left rows + policy + model |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
@@ -75,8 +75,9 @@ thin wrappers. compose ~2019 lines (was ~2501); new module under 800.
 **From:** `compose.py` (`BabbleComposeView` ~1887 lines).  
 **Extract:** `AttachmentRow`, attach / paste / drop / screenshot paths,
 and the module-level paste/media helpers that only those paths use.  
-**Keep in compose:** draft machine, options (CW/poll/lang), schedule /
-modes, posting / `UploadRound`, reply/edit/quote entry points.  
+**Keep in compose (at the time):** draft machine, options (CW/poll/lang),
+schedule / modes, posting / `UploadRound`, reply/edit/quote entry points
+(schedule and modes later moved by ARCH-17).  
 **Pattern:** sibling of `composeupload.py` / `composequote.py` — a
 focused object or thin helpers the view owns, not a second dialog.
 
@@ -89,6 +90,12 @@ on `install_data`.
 ---
 
 ## ARCH-17 — `composeschedule.py`
+
+**Status:** done — `composeschedule.py` holds `_ScheduledReplacement`,
+`scheduled_content`, `ComposeSchedule` (reply/mention/edit/redraft/quote/
+scheduled entry and schedule banner/picker chrome); `compose.py` keeps
+thin forwards. compose ~1744 lines; new module under 800. EXCEPTION
+reason cites ARCH-12 and ARCH-17.
 
 **From:** `compose.py` after ARCH-12.  
 **Extract:** schedule UI and mode entry points that are not the post

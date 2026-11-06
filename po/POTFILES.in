@@ -17,6 +17,7 @@ src/clipboard.py
 src/compose.py
 src/composeattach.py
 src/composequote.py
+src/composeschedule.py
 src/composeupload.py
 src/conversations.py
 src/desktopnotify.py

@@ -28,6 +28,8 @@ from .api import scheduled as api_scheduled  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .capabilities import QUOTES_API_VERSION  # noqa: E402
 from .composeattach import ComposeAttachments, _prune_pasted_once  # noqa: E402
+from .composeschedule import (ComposeSchedule,  # noqa: E402
+                              _ScheduledReplacement)
 from .composeupload import UploadRound  # noqa: E402
 from .composequote import QuotePaste  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
@@ -243,14 +245,6 @@ class _ComposeState:
     thread: _ThreadProgress | None
 
 
-@dataclass(frozen=True)
-class _ScheduledReplacement:
-    original_id: str
-    accepted: dict
-    on_done: object
-    message: str
-
-
 class BabbleComposeView(QuotePaste, Adw.Bin):
     """Post composer content: header bar with Post, text area, options
     and toolbar. Emits ``changed`` whenever the draft state changes."""
@@ -321,8 +315,6 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         # Plain text: the title is a formatted date, not markup.
         self.schedule_banner = Adw.Banner(use_markup=False,
                                           button_label=_('_Clear Schedule'))
-        pages.connect_weak(self.schedule_banner, 'button-clicked',
-                           self.on_schedule_clear)
         toolbar_view.add_top_bar(self.schedule_banner)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
@@ -365,6 +357,9 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             screenshot_button=self.screenshot_button,
             drop_target=self.drop_target,
             text_view=self.text_view)
+        self.modes = ComposeSchedule(self)
+        self.modes.bind(schedule_button=self.schedule_button,
+                        schedule_banner=self.schedule_banner)
         # Own overlay: the composer lives in a dialog that covers the
         # window's, so feedback raised here must land inside it.
         self.set_child(Adw.ToastOverlay(child=toolbar_view))
@@ -411,8 +406,6 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         header.pack_end(self.progress_spinner)
         self.schedule_button = Gtk.Button(icon_name='alarm-symbolic')
         pages.set_accessible_label(self.schedule_button, _('Schedule Post'))
-        pages.connect_weak(self.schedule_button, 'clicked',
-                           self.on_schedule_clicked)
         header.pack_end(self.schedule_button)
         return header
 
@@ -932,63 +925,11 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
 
     def start_reply(self, status_id, handle, visibility='public',
                     parent=None):
-        """Push the current draft (if any) and prefill a reply; only one
-        level of reply stack is kept, so the prior draft is recovered
-        with :meth:`pop_reply_state` on send or cancel.
-
-        ``status_id`` None starts a brand-new message (a direct message
-        from the conversations page): the draft in progress is kept, not
-        replaced by an empty buffer. ``parent`` is the status being
-        replied to, when the caller has it; a reply to a post that
-        carries a content warning starts behind the same CW, like
-        Phanpy does -- the field is shown based solely on whether the
-        parent already carries one."""
-        if not self._accept_transition():
-            return False
-        new_message = status_id is None and not handle
-        previous = self._capture_state()
-        self._clear_submission_mode()
-        if new_message:
-            if not self.is_empty():
-                self._draft_stack = [previous]
-        else:
-            self._set_buffer('' if not handle else '@' + handle + ' ')
-            self.buffer.place_cursor(self.buffer.get_end_iter())
-            self._draft_stack = [previous]
-        if status_id is not None and parent is not None:
-            # The reply starts behind the parent's CW, like the CW
-            # behaviour claims to work, and never behind one left over
-            # from the stashed draft: the draft was set aside with its
-            # own CW, and the reply needs the parent's state.
-            parent_cw = parent.get('spoiler_text') or ''
-            if parent_cw:
-                self.cw_toggle.set_active(True)
-                self.spoiler_entry.set_text(parent_cw)
-            else:
-                self.cw_toggle.set_active(False)
-                self.spoiler_entry.set_text('')
-        self.in_reply_to_id = str(status_id) if status_id is not None else None
-        self._select_visibility(visibility)
-        self._finish_begin()
-        if status_id is not None:
-            self._load_thread(str(status_id))
-        return True
+        return self.modes.start_reply(status_id, handle, visibility,
+                                      parent=parent)
 
     def start_mention(self, account, direct=False):
-        """Prefill a mention of *account* (``direct`` for a DM)."""
-        if not self._accept_transition():
-            return False
-        acct = account.get('acct') or account.get('username') or ''
-        previous = self._capture_state()
-        self._clear_submission_mode()
-        self._set_buffer('@%s ' % acct)
-        self.buffer.place_cursor(self.buffer.get_end_iter())
-        self.in_reply_to_id = None
-        if direct:
-            self._select_visibility('direct')
-        self._draft_stack = [previous]
-        self._finish_begin()
-        return True
+        return self.modes.start_mention(account, direct=direct)
 
     def prefill_text(self, text):
         """Start a post with *text*, as shared from outside the app. A
@@ -1007,196 +948,17 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         return True
 
     def start_edit(self, status):
-        """Load an existing post into the composer for a PUT."""
-        if not self._accept_transition():
-            return False
-        self._clear_submission_mode()
-        self.editing_id = str(status.get('id') or '') or None
-        self._load_status_draft(status)
-        self._load_thread(self.editing_id, status, editing=True)
-        return True
+        return self.modes.start_edit(status)
 
     def start_redraft(self, status):
-        """Refill the composer from a just-deleted post. The server keeps
-        the media for about 24h, so the attachment ids can be reused."""
-        if not self._accept_transition():
-            return False
-        self._clear_submission_mode()
-        self._load_status_draft(status)
-        return True
-
-    def _load_status_draft(self, status):
-        """Fill in the fields shared by editing and re-drafting a post."""
-        self.clear_attachments()
-        self.poll_toggle.set_active(False)
-        for entry in self.poll_entries:
-            entry.set_text('')
-        self._select_default_poll_duration()
-        source = dict(status)
-        self._pending_media_ids = [
-            attachment['id']
-            for attachment in source.get('media_attachments') or []
-            if attachment.get('id')]
-        self._set_buffer(source.get('text') or '')
-        self.buffer.place_cursor(self.buffer.get_end_iter())
-        spoiler = source.get('spoiler_text') or ''
-        self.cw_toggle.set_active(bool(spoiler))
-        self.spoiler_entry.set_text(spoiler)
-        if source.get('sensitive'):
-            # The PUT carries a "sensitive" flag only when the caller
-            # sends one, and the server does not keep it from the post
-            # this draft came from -- the same silent loss the CW had.
-            # So the loaded post's flag is carried, as the scheduled
-            # path already does, and there is no way here to *clear*
-            # it: the composer has no control for it.
-            self._scheduled_fields['sensitive'] = True
-        self._select_visibility(source.get('visibility') or 'public')
-        self.in_reply_to_id = None
-        self._draft_stack = []
-        self._finish_begin()
+        return self.modes.start_redraft(status)
 
     def start_quote(self, status):
-        """Quote *status*: the server prepends the quoted post."""
-        if not self._accept_transition():
-            return False
-        self._clear_submission_mode()
-        self.quoted_status_id = str(status.get('id') or '') or None
-        self.in_reply_to_id = None
-        self._draft_stack = []
-        self._finish_begin()
-        return True
-
-    def _scheduled_content(self, scheduled):
-        def unsupported():
-            raise GLib.Error(_('The server returned unsupported post settings.'),
-                             'mastodon-http-error-quark', 0)
-
-        if not isinstance(scheduled, dict) or not isinstance(scheduled.get('id'), str) \
-                or not scheduled['id']:
-            unsupported()
-        params = scheduled.get('params')
-        if params is None:
-            params = {}
-        if not isinstance(params, dict):
-            unsupported()
-        content = {}
-        for key in ('text', 'spoiler_text'):
-            value = params.get(key)
-            if value is None:
-                value = ''
-            if not isinstance(value, str):
-                unsupported()
-            content[key] = value
-        visibility = params.get('visibility')
-        if visibility is None:
-            visibility = 'public'
-        if visibility not in [code for code, _label in VISIBILITIES]:
-            unsupported()
-        content['visibility'] = visibility
-        language = params.get('language')
-        if language is not None and not isinstance(language, str):
-            unsupported()
-        content['language'] = language
-        for key in ('in_reply_to_id', 'quoted_status_id'):
-            value = params.get(key)
-            if key == 'in_reply_to_id' and type(value) is int and value > 0:
-                value = str(value)
-            if value is not None and (not isinstance(value, str) or not value):
-                unsupported()
-            content[key] = value
-        sensitive = params.get('sensitive')
-        if sensitive is not None and not isinstance(sensitive, bool):
-            unsupported()
-        policy = params.get('quote_approval_policy')
-        if policy is not None and policy not in ('public', 'followers', 'nobody'):
-            unsupported()
-        content.update(sensitive=sensitive, quote_approval_policy=policy)
-        attachments = scheduled.get('media_attachments')
-        media_ids = params.get('media_ids')
-        if attachments is None:
-            attachments = []
-        if media_ids is None:
-            media_ids = []
-        if not isinstance(attachments, list) or not isinstance(media_ids, list):
-            unsupported()
-        ids = []
-        for attachment in attachments:
-            if not isinstance(attachment, dict):
-                unsupported()
-            value = attachment.get('id')
-            if not isinstance(value, str) or not value:
-                unsupported()
-            ids.append(value)
-        if any(not isinstance(value, str) or not value for value in media_ids):
-            unsupported()
-        content['media_ids'] = ids or list(media_ids)
-        poll = params.get('poll')
-        if poll is not None:
-            if not isinstance(poll, dict):
-                unsupported()
-            options = poll.get('options')
-            expiry = poll.get('expires_in')
-            if not isinstance(options, list) \
-                    or not 2 <= len(options) <= self.poll_limits()['max_options'] \
-                    or any(not isinstance(o, str) or not o.strip() for o in options) \
-                    or len({o.strip() for o in options}) != len(options) \
-                    or type(expiry) is not int or expiry <= 0:
-                unsupported()
-            flags = {key: poll.get(key, False) for key in ('multiple', 'hide_totals')}
-            if any(not isinstance(value, bool) for value in flags.values()):
-                unsupported()
-            poll = dict(options=list(options), expires_in=expiry, **flags)
-        content['poll'] = poll
-        return content
+        return self.modes.start_quote(status)
 
     def start_scheduled(self, scheduled, draft=False, on_done=None):
-        """Load a scheduled post or draft into the composer. Editing the
-        content means re-scheduling, so the old entry is dropped once the
-        new one is accepted."""
-        if not self._accept_transition():
-            return False
-        try:
-            params = self._scheduled_content(scheduled)
-        except GLib.Error as error:
-            self._show_error(_('Could not edit scheduled post'), error.message)
-            return False
-        self._clear_submission_mode()
-        self.clear_attachments()
-        self.poll_toggle.set_active(False)
-        for entry in self.poll_entries:
-            entry.set_text('')
-        self._select_default_poll_duration()
-        from .scheduled import draft_scheduled_at
-        self.scheduled_id = scheduled['id']
-        self.scheduled_at = draft_scheduled_at() if draft \
-            else scheduled.get('scheduled_at')
-        self.scheduled_on_done = on_done
-        self._pending_media_ids = params['media_ids']
-        self._set_buffer(params.get('text') or '')
-        self.buffer.place_cursor(self.buffer.get_end_iter())
-        spoiler = params.get('spoiler_text') or ''
-        self.cw_toggle.set_active(bool(spoiler))
-        self.spoiler_entry.set_text(spoiler)
-        self._select_visibility(params.get('visibility') or 'public')
-        self.in_reply_to_id = params.get('in_reply_to_id')
-        self.quoted_status_id = params['quoted_status_id']
-        self._select_language(params['language'])
-        for key in ('sensitive', 'quote_approval_policy'):
-            if params[key] is not None:
-                self._scheduled_fields[key] = params[key]
-        poll = params['poll']
-        if poll is not None:
-            self.poll_toggle.set_active(True)
-            for index, option in enumerate(poll['options']):
-                if index >= len(self.poll_entries):
-                    self.on_poll_add_choice(self.poll_add)
-                self.poll_entries[index].set_text(option)
-            self._select_poll_duration(poll['expires_in'])
-            self._scheduled_fields['poll_flags'] = {
-                key: poll[key] for key in ('multiple', 'hide_totals')}
-        self._draft_stack = []
-        self._finish_begin()
-        return True
+        return self.modes.start_scheduled(scheduled, draft=draft,
+                                          on_done=on_done)
 
     def _select_visibility(self, visibility):
         codes = [code for code, _label in VISIBILITIES]
@@ -1220,38 +982,19 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
     def is_reply(self):
         return self.in_reply_to_id is not None
 
-    # Scheduling
+    # Scheduling (thin forwards; logic lives in ComposeSchedule)
 
     def is_timed(self):
-        """True when the post goes out at a chosen time rather than now.
-        A server-side draft also carries a date, but one that is never
-        reached, so it is not a time to show."""
-        from .scheduled import is_draft
-        return self.scheduled_at is not None \
-            and not is_draft({'scheduled_at': self.scheduled_at})
+        return self.modes.is_timed()
 
-    def on_schedule_clicked(self, _button):
-        if self._replacement is not None:
-            return
-        from .scheduled import SchedulePickerDialog
-        dialog = SchedulePickerDialog(
-            self.scheduled_at, _('_Set Time'),
-            on_picked=pages.weak_method(self._on_schedule_picked))
-        dialog.present(self)
+    def on_schedule_clicked(self, button):
+        self.modes.on_schedule_clicked(button)
 
     def _on_schedule_picked(self, iso):
-        if self._replacement is not None:
-            return
-        self.scheduled_at = iso
-        self.update_compose_state()
+        self.modes._on_schedule_picked(iso)
 
-    def on_schedule_clear(self, _banner):
-        if self._replacement is not None:
-            return
-        # Back to sending now. An entry already on the server is still
-        # replaced: the post goes out and the scheduled copy is dropped.
-        self.scheduled_at = None
-        self.update_compose_state()
+    def on_schedule_clear(self, banner):
+        self.modes.on_schedule_clear(banner)
 
     def counted_length(self):
         """Characters Mastodon will count for the current draft."""
@@ -1272,25 +1015,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         preview = self._thread.preview if self._thread is not None else ''
         self.preview_label.set_label(preview)
         self.preview_label.set_visible(bool(preview))
-        timed = self.is_timed()
-        if timed:
-            from .scheduled import format_scheduled_at
-            # Translators: %s is a date and time, e.g. "October 9, 2026 ·
-            # 14:30".
-            self.schedule_banner.set_title(
-                _('Scheduled for %s') % format_scheduled_at(
-                    self.scheduled_at))
-        self.schedule_banner.set_revealed(timed)
-        self.post_button.set_label(_('_Schedule') if timed else _('_Post'))
-        self.post_button.set_tooltip_text(
-            _('Schedule (Ctrl+Enter)') if timed else _('Post (Ctrl+Enter)'))
-        # An edit of a published post cannot be moved to another time.
-        self.schedule_button.set_visible(self.editing_id is None)
-        self.schedule_button.set_sensitive(not self._posting)
-        if self._replacement is not None:
-            self.schedule_button.set_sensitive(False)
-        self.schedule_button.set_tooltip_text(
-            _('Change Time') if timed else _('Schedule Post'))
+        self.modes.update_chrome()
         limit = self.char_limit
         remaining = limit - self.counted_length()
         self.counter_label.set_text(str(remaining))
