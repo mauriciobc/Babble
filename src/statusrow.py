@@ -317,13 +317,18 @@ class StatusRow(Gtk.Overlay):
             connect_weak(self.cw_toggle, 'clicked', self._on_cw_toggle)
             box.append(self.cw_toggle)
             self.cw_box = box
-            self.main.insert_child_after(box, self.reply_box)
+            # A subclass may reparent these (ThreadPost moves everything
+            # in `main` into its own column), so insert beside the
+            # sibling's real parent rather than assuming `main`.
+            self.reply_box.get_parent().insert_child_after(
+                box, self.reply_box)
             # Only rows that have shown a content warning pay for the
             # revealer the body slides in and out of.
             revealer = Gtk.Revealer(
                 transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
-            self.main.insert_child_after(revealer, self.guarded)
-            self.main.remove(self.guarded)
+            holder = self.guarded.get_parent()
+            holder.insert_child_after(revealer, self.guarded)
+            holder.remove(self.guarded)
             revealer.set_child(self.guarded)
             self.guarded_revealer = revealer
         return self.cw_box

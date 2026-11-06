@@ -449,6 +449,13 @@ test('status text', python,
   env: test_env,
   timeout: 60,
 )
+# A ThreadPost's content warning goes beside its real siblings (needs a
+# display, and fatal criticals: the bug was a GTK critical).
+test('thread cw', python,
+  args: [files('test-thread-cw.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('thread chain', python,
   args: [files('test-threadchain.py')],
   env: test_env,
