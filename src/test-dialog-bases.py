@@ -44,7 +44,7 @@ if not os.path.exists(bundle):
 Gio.Resource.load(bundle)._register()
 
 from src import (admin, fedicollections, lists,  # noqa: E402
-                 main as babble_main, notifications, pages, profile,
+                 main as babble_main, notificationpolicy, pages, profile,
                  profileedit, wrapped)
 from src.window import BabbleWindow  # noqa: E402
 
@@ -130,7 +130,7 @@ exercise(collection_dialog, 'collection')
 check('the collection dialog keeps its Save button',
       isinstance(collection_dialog.save_button, Gtk.Button))
 
-policy_dialog = notifications.NotificationPolicyDialog(_Client())
+policy_dialog = notificationpolicy.NotificationPolicyDialog(_Client())
 exercise(policy_dialog, 'policy')
 check('the policy dialog keeps its filter rows',
       bool(policy_dialog.filter_rows))

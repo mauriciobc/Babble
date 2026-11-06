@@ -21,7 +21,7 @@ from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .statustext import parse_content, shorten_url_text  # noqa: E402
 from .timelinebase import COLUMN_WIDTH, status_filter  # noqa: E402
 from .mediabox import BlurredPicture  # noqa: E402
-from .notifications import (  # noqa: E402
+from .notificationmodel import (  # noqa: E402
     _clean_name, day_heading, notification_detail, notification_links,
     type_icon)
 

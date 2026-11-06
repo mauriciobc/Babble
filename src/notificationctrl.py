@@ -325,7 +325,6 @@ class NotificationController:
             if not self.model.loading:
                 self.load()
             return
-        from .notifications import id_key
         wanted.sort(key=lambda n: id_key(n['id']), reverse=True)
         added = self.model.prepend_page(wanted)
         self._request_relationships()
@@ -421,7 +420,7 @@ class NotificationController:
         self.banner.set_revealed(unread is not None)
         if unread is None:
             return
-        from .notifications import _instance_domain
+        from .notificationmodel import _instance_domain
         domain = _instance_domain(self.client.instance)
         text = ' '.join(
             segment['text'] for segment

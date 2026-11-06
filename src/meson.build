@@ -63,6 +63,8 @@ install_data(
   'mentioncompleter.py',
   'notificationcopy.py',
   'notificationctrl.py',
+  'notificationmodel.py',
+  'notificationpolicy.py',
   'notificationrow.py',
   'notifications.py',
   'pages.py',

@@ -37,6 +37,8 @@ src/mentioncompleter.py
 src/navigation.py
 src/notificationcopy.py
 src/notificationctrl.py
+src/notificationmodel.py
+src/notificationpolicy.py
 src/notificationrow.py
 src/notifications.py
 src/pages.py

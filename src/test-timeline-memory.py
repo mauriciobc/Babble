@@ -30,7 +30,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.i18n import gettext as _  # noqa: E402
-from src import mediaviewer, notifications, notificationrow, profile  # noqa: E402
+from src import (mediaviewer, notificationmodel, notifications,  # noqa: E402
+                 notificationrow, profile)
 from src import (mediacache, statusactions, statusmenu, statusrow,  # noqa: E402
                   statusrun, statustext, timelinebase, timelinedata,
                   timelinepage)
@@ -221,14 +222,14 @@ check('a dropped private note dialog is freed', freed(dialog_ref))
 
 actor = account(3)
 row = notificationrow.NotificationRow()
-row.bind(notifications.NotificationItem(
+row.bind(notificationmodel.NotificationItem(
     {'id': '1', 'type': 'follow_request', 'account': actor,
      'created_at': '2026-10-05T10:10:00.000Z'}), api)
 row_ref = row.weak_ref()
 del row
 check('a dropped notification row is freed', freed(row_ref))
 
-model = notifications.NotificationModel()
+model = notificationmodel.NotificationModel()
 model.append_page([{'id': '1', 'type': 'mention', 'account': actor,
                     'created_at': '2026-10-05T10:10:00.000Z',
                     'status': status(1, 'hello')}])
