@@ -63,9 +63,11 @@ EXCEPTIONS = {
     'profile.py': 'the profile header and tabs. ARCH-02 moved the '
                   'relationship commands to profileactions.py; the '
                   'header, fields and tabs are the page that is left.',
-    'notifications.py': 'the notification rows and the policy dialog. '
+    'notifications.py': 'the notification model, page and policy dialog. '
                         'ARCH-03 moved paging, filter, unread and clear '
-                        'to notificationctrl.py.',
+                        'to notificationctrl.py; ARCH-13 moved the row, '
+                        'post snapshot and column helpers to '
+                        'notificationrow.py.',
     'admin.py': 'the moderation dashboard: seven tools, each a page of '
                 'its own, behind one authorization. Splitting it buys '
                 'readability, not a seam, so it is declared.',

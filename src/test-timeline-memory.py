@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.i18n import gettext as _  # noqa: E402
-from src import mediaviewer, notifications, profile  # noqa: E402
+from src import mediaviewer, notifications, notificationrow, profile  # noqa: E402
 from src import (mediacache, statusactions, statusmenu, statusrow,  # noqa: E402
                   statusrun, statustext, timelinebase, timelinedata,
                   timelinepage)
@@ -220,7 +220,7 @@ del dialog
 check('a dropped private note dialog is freed', freed(dialog_ref))
 
 actor = account(3)
-row = notifications.NotificationRow()
+row = notificationrow.NotificationRow()
 row.bind(notifications.NotificationItem(
     {'id': '1', 'type': 'follow_request', 'account': actor,
      'created_at': '2026-10-05T10:10:00.000Z'}), api)

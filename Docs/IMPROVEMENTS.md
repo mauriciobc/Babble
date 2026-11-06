@@ -676,6 +676,7 @@ recorded in the Decision log below — read that before starting anything here.*
 | ARCH-11 | **done** | **Parity: hide replies from non-follows.** Absent, and it is the one reading feature the references agree on (Elk, Tuba, Android all ship it as a per-column toggle). Cheap here because the plumbing already exists — `catchuprank.py:669-685` already batches `/accounts/relationships` in 40s, and `profile.py:956` already shows a "Mutuals" chip. Fits the minimal-reader stance: it *removes* noise. | `catchuprank.py:969-983`; `profile.py:956` | ~120 lines |
 | ARCH-12 | **done** | **`compose.py` attachment tray.** `AttachmentRow`, attach/drop/paste-media/screenshot and the pasted-cache helpers move to `composeattach.ComposeAttachments`; the view keeps thin wrappers and the QuotePaste paste arm. | `composeattach.py`; `Docs/arch-structural-debt-plan.md` | ~490 lines moved |
 | ARCH-17 | **done** | **`compose.py` mode entry and schedule chrome.** `_ScheduledReplacement`, scheduled-payload shaping, reply/mention/edit/redraft/quote/`start_scheduled`, and the schedule banner/picker move to `composeschedule.ComposeSchedule`; the view keeps thin forwards. | `composeschedule.py`; `Docs/arch-structural-debt-plan.md` | ~275 lines moved |
+| ARCH-13 | **done** | **`notifications.py` row chrome.** `ColumnLayout`/`ColumnBox`, `make_date_heading`, `NotificationFactory`, `NotificationPost` and `NotificationRow` move to `notificationrow.py`; the model, page and policy dialog stay. | `notificationrow.py`; `Docs/arch-structural-debt-plan.md` | ~800 lines moved |
 
 ---
 
