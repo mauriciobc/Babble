@@ -89,6 +89,7 @@ install_data(
   'search.py',
   'searchprovider.py',
   'sidebarcontrol.py',
+  'sidebarhost.py',
   'sidebarmode.py',
   'sidebarrail.py',
   'sourceline.py',

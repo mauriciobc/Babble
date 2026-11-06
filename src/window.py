@@ -19,20 +19,18 @@ from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
 from . import pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
-from .api import lists as api_lists  # noqa: E402
 from .api.notifications import unread_badge_text  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from . import pluginmenu  # noqa: E402
 from . import navigation  # noqa: E402
 from . import portals  # noqa: E402
 from . import sidebarmode  # noqa: E402
-from . import sidebarrail  # noqa: E402
 from . import webcolumn  # noqa: E402
 from .capabilities import COLLECTIONS_API_VERSION  # noqa: E402
 from .mastodon import (OAUTH_REDIRECT, MastodonClient, clear_secret_async,  # noqa: E402
                        keyring_problem,
                        normalize_instance, summarize_error)
-from .sidebarcontrol import SidebarControl  # noqa: E402
+from .sidebarhost import SidebarHost  # noqa: E402
 from .sidebarrail import SidebarRail  # noqa: E402
 from .statustext import relative_time  # noqa: E402
 from .timelinepage import ApiTimelineSource, TimelinePage  # noqa: E402
@@ -202,7 +200,9 @@ class BabbleWindow(Adw.ApplicationWindow):
             notify_place_built=self._public_place_built,
             sync_streaming=self._sync_streaming,
         ))
-        self._items = {}
+        # Sidebar rebuild, mode/visibility sync and pinned entries.
+        # Runtime overlay/rail state lives on the host (ARCH-15).
+        self.sidebar_host = SidebarHost(self)
         self._held = False
         self._background_asked = False
         self._background_pending = False
@@ -219,15 +219,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         # starts. This id tells the replies apart: only the newest
         # lookup is allowed to touch the session.
         self._session_lookup = 0
-        # The sidebar's runtime state: whether the collapsed layout has
-        # its overlay open, whether the account button currently lives
-        # in the rail, and the guard that keeps a show-sidebar reply from
-        # re-entering its own sync.
-        self._overlay_open = False
-        self._rail_accounts = False
-        self._applying_sidebar_visibility = False
-        self._sidebar_visibility_id = 0
-        self._applying_sidebar_mode = False
 
     def _setup_auth(self):
         # The OAuth state machine. It owns the attempt bookkeeping, the
@@ -1359,182 +1350,46 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._pending_compose = None
         self.compose_with_files(pending)
 
-    # Sidebar
+    # Sidebar — logic lives on SidebarHost; forwards keep PlaceHost
+    # identity, connect_weak targets and the template callback stable.
 
     def make_sidebar_control(self, include_bell=True):
-        """A control strip for a page header, bound to this window.
+        """A control strip for a page header, bound to this window."""
+        return self.sidebar_host.make_control(include_bell=include_bell)
 
-        Every header gets its own: the strip follows the window's
-        sidebar properties through bindings, so nothing has to keep a
-        list of controls alive or walk them when the state changes."""
-        return SidebarControl(
-            self, self.sidebar_mode_button.get_menu_model(),
-            self.primary_menu_button.get_menu_model(),
-            include_bell=include_bell)
+    def _on_rail_activated(self, rail, tag):
+        self.sidebar_host.on_rail_activated(rail, tag)
 
-    def _on_rail_activated(self, _rail, tag):
-        self.show_page(tag)
+    def _on_sidebar_state_changed(self, settings, key):
+        self.sidebar_host.on_state_changed(settings, key)
 
-    def _on_sidebar_state_changed(self, _settings, _key):
-        if self._applying_sidebar_mode:
-            return
-        self._sync_sidebar_mode()
-        self._sync_sidebar_visibility()
-
-    def _on_sidebar_collapsed(self, split_view, _param):
-        collapsed = split_view.get_collapsed()
-        if collapsed:
-            self._overlay_open = False
-        self._sync_sidebar_mode()
-        # Collapsing: the compact breakpoint has already closed the
-        # sidebar in this pass. Expanding: whether it comes back depends
-        # on the stored state, and setting show-sidebar from inside this
-        # notification re-enters the split view's allocation (libadwaita
-        # then allocates the content pane with a negative width), so the
-        # split view waits for an idle. The window's own properties only
-        # drive the header controls, so they can be right straight away.
-        self.props.sidebar_collapsed = collapsed
-        self.props.sidebar_visible = sidebarmode.sidebar_visible(
-            self.settings.get_boolean('sidebar-hidden'), collapsed,
-            self._overlay_open)
-        self._defer_sidebar_visibility()
+    def _on_sidebar_collapsed(self, split_view, param):
+        self.sidebar_host.on_collapsed(split_view, param)
 
     def _defer_sidebar_visibility(self, *_args):
-        self._cancel_sidebar_visibility()
-        self._sidebar_visibility_id = GLib.idle_add(
-            self._apply_deferred_sidebar_visibility)
+        self.sidebar_host.defer_visibility()
 
     def _cancel_sidebar_visibility(self, *_args):
-        if self._sidebar_visibility_id:
-            GLib.source_remove(self._sidebar_visibility_id)
-            self._sidebar_visibility_id = 0
+        self.sidebar_host.cancel_visibility()
 
-    def _apply_deferred_sidebar_visibility(self):
-        self._sidebar_visibility_id = 0
-        self._sync_sidebar_visibility()
-        return GLib.SOURCE_REMOVE
+    def _on_sidebar_shown(self, split_view, param):
+        self.sidebar_host.on_shown(split_view, param)
 
-    def _on_sidebar_shown(self, split_view, _param):
-        if self._applying_sidebar_visibility:
-            return
-        shown = split_view.get_show_sidebar()
-        if split_view.get_collapsed():
-            self._overlay_open = shown
-        self.props.sidebar_visible = shown
-        self._sync_translucent_sidebar()
-
-    def _on_toggle_sidebar(self, _action, _param):
-        if self.split_view.get_collapsed():
-            self._overlay_open = not self._overlay_open
-            self._sync_sidebar_visibility()
-        else:
-            # The settings handler does the syncing.
-            self.settings.set_boolean(
-                'sidebar-hidden',
-                not self.settings.get_boolean('sidebar-hidden'))
+    def _on_toggle_sidebar(self, action, param):
+        self.sidebar_host.on_toggle(action, param)
 
     def _on_sidebar_mode_changed(self, action, value):
-        state = value.get_string()
-        # The overlay flag first, so the syncs below already see it.
-        if state == 'hidden':
-            self._overlay_open = False
-        elif state in sidebarmode.SIDEBAR_STYLES:
-            if self.split_view.get_collapsed():
-                self._overlay_open = True
-        # Each write emits its own changed:: signal, and an unchanged
-        # value emits one too, so the handler stands aside and the
-        # syncs run once, whichever keys actually changed.
-        self._applying_sidebar_mode = True
-        try:
-            if state == 'hidden':
-                self.settings.set_boolean('sidebar-hidden', True)
-            elif state in sidebarmode.SIDEBAR_STYLES:
-                self.settings.set_string('sidebar-style', state)
-                self.settings.set_boolean('sidebar-hidden', False)
-        finally:
-            self._applying_sidebar_mode = False
-        self._sync_sidebar_mode()
-        self._sync_sidebar_visibility()
-        action.set_state(value)
+        self.sidebar_host.on_mode_changed(action, value)
 
     def _sync_sidebar_mode(self):
-        """Show the full sidebar or the icon rail, and hand the account
-        button to whichever of them has room for its text."""
-        style = self.settings.get_string('sidebar-style')
-        collapsed = self.split_view.get_collapsed()
-        rail = sidebarmode.icon_rail(style, collapsed)
-        # Collapsed, the sidebar is an overlay and never a pushable
-        # page, so AdwSidebar's sidebar mode holds at every width.
-        self.sidebar_list.set_mode(Adw.SidebarMode.SIDEBAR)
-        self.sidebar_stack.set_visible_child_name('icons' if rail else 'full')
-        self.sidebar_compose_button.set_visible(not rail)
-        # The mode button serves the full sidebar and the rail alike. A
-        # dropdown arrow adds about 16px, which a 64px rail has no room
-        # for, so the rail gets the bare icon, centred.
-        self.sidebar_mode_button.set_always_show_arrow(not rail)
-        self.sidebar_mode_button.set_halign(
-            Gtk.Align.CENTER if rail else Gtk.Align.START)
-        minimum, maximum = sidebarmode.widths(style, collapsed)
-        if maximum < self.split_view.get_max_sidebar_width():
-            # Narrowing: lower the minimum first, so the pair is never
-            # left with a maximum below it.
-            self.split_view.set_min_sidebar_width(minimum)
-            self.split_view.set_max_sidebar_width(maximum)
-        else:
-            self.split_view.set_max_sidebar_width(maximum)
-            self.split_view.set_min_sidebar_width(minimum)
-        self.account_text_box.set_visible(not rail)
-        self.account_chevron.set_visible(not rail)
-        # The menu button's own padding plus the template margins are
-        # what would make a 64px rail wider than its pane.
-        for edge in ('start', 'end', 'top', 'bottom'):
-            getattr(self.account_button, 'set_margin_' + edge)(0 if rail else 6)
-        if rail and not self._rail_accounts:
-            self.sidebar_list.set_prefix(None)
-            self.sidebar_rail.set_account_button(self.account_button)
-            self._rail_accounts = True
-        elif not rail and self._rail_accounts:
-            sidebarrail.detach(self.account_button)
-            self.sidebar_list.set_prefix(self.account_button)
-            self._rail_accounts = False
-        self.sidebar_rail.set_selected(self.visible_tag())
-        # The menu reports the stored state, not the last item picked:
-        # F9 hides the sidebar without touching the menu.
-        action = self.lookup_action('sidebar-mode')
-        if action is not None:
-            state = 'hidden' if self.settings.get_boolean('sidebar-hidden') \
-                else style
-            current = action.get_state()
-            if current is None or current.get_string() != state:
-                action.set_state(GLib.Variant.new_string(state))
+        self.sidebar_host.sync_mode()
 
     def _sync_sidebar_visibility(self):
-        """Put the sidebar on screen or away, from the stored state and
-        the collapsed layout's overlay."""
-        collapsed = self.split_view.get_collapsed()
-        shown = sidebarmode.sidebar_visible(
-            self.settings.get_boolean('sidebar-hidden'),
-            collapsed, self._overlay_open)
-        self._applying_sidebar_visibility = True
-        try:
-            self.split_view.set_show_sidebar(shown)
-        finally:
-            self._applying_sidebar_visibility = False
-        self.props.sidebar_visible = shown
-        self.props.sidebar_collapsed = collapsed
-        # Collapsed, a swipe is the way in and out; pinned there is
-        # nothing to swipe.
-        self.split_view.set_enable_show_gesture(collapsed)
-        self.split_view.set_enable_hide_gesture(collapsed)
-        self._sync_translucent_sidebar()
+        self.sidebar_host.sync_visibility()
 
     def dismiss_sidebar_overlay(self):
         """Close the collapsed layout's sidebar overlay, if it is open."""
-        if not self.split_view.get_collapsed():
-            return
-        self._overlay_open = False
-        self.split_view.set_show_sidebar(False)
-        self._sync_sidebar_visibility()
+        self.sidebar_host.dismiss_overlay()
 
     def _restricted_public_places(self):
         """The public timelines this account must not see in the sidebar.
@@ -1546,7 +1401,11 @@ class BabbleWindow(Adw.ApplicationWindow):
         The topic settings (``hashtag_feeds``/``trending_link_feeds``)
         are deliberately not consulted here: the server never closes them
         to a signed-in account, it just drops the remote posts, so the
-        page still has local content and hiding it would lose read."""
+        page still has local content and hiding it would lose read.
+
+        Stays on the window (PlaceHost callback + feed policy), not on
+        the sidebar host: refresh looks it up here at call time.
+        """
         client = self.client
         if client is None:
             return set()
@@ -1563,109 +1422,14 @@ class BabbleWindow(Adw.ApplicationWindow):
         return closed
 
     def _refresh_sidebar(self, *_args):
-        """Rebuild the sidebar: the built-in places (minus the ones the
-        preferences hide), then the lists and hashtags pinned for the
-        active account. The icon rail is filled in the same pass, so
-        the two never disagree about what exists."""
-        current = self.visible_tag()
-        sidebar = self.sidebar_list
-        sidebar.remove_all()
-        self._items = {}
-        sections = {}
-        rail_groups = {}
-        hidden = {tag for tag, key in navigation.HIDE_KEYS.items()
-                  if self.settings.get_boolean(key)}
-        closed = self._restricted_public_places()
-        hidden |= closed
-        for tag in closed:
-            # A feed the server will not serve, or the reader has not
-            # opted into, keeps neither a page nor a stream.
-            self.navigation.forget(tag)
-        for tag, icon, group in navigation.PLACES:
-            if tag in hidden:
-                continue
-            section = sections.get(group)
-            if section is None:
-                section = sections[group] = Adw.SidebarSection()
-                sidebar.append(section)
-            title = navigation.place_title(tag)
-            item = Adw.SidebarItem(title=title, icon_name=icon)
-            if tag == 'notifications':
-                item.set_suffix(self.notifications_badge)
-            section.append(item)
-            self._items[tag] = item
-            rail_groups.setdefault(group, []).append((tag, icon, title))
-        rail_sections = [rail_groups[group] for group in sorted(rail_groups)]
-        if self.account is not None:
-            self._append_pinned(sidebar, rail_sections)
-        self.sidebar_rail.set_sections(rail_sections)
-        if current is not None and current in hidden:
-            self.show_page('home')
-        elif current is not None:
-            self._select_item(current)
-        self._sync_sidebar_mode()
-
-    def _append_pinned(self, sidebar, rail_sections):
-        routes = self.navigation.pinned_routes(
-            self.settings, self.account['id'])
-        if not routes:
-            return
-        section = Adw.SidebarSection(title=_('Pinned'))
-        sidebar.append(section)
-        rail_entries = []
-        list_ids = []
-        for tag, title, icon in routes:
-            if tag.startswith('list:'):
-                list_ids.append(tag[5:])
-            item = Adw.SidebarItem(title=title, icon_name=icon)
-            section.append(item)
-            self._items[tag] = item
-            rail_entries.append((tag, icon, title))
-        if rail_entries:
-            rail_sections.append(rail_entries)
-        if list_ids and not all(i in self.navigation.pinned_lists
-                                for i in list_ids):
-            self._load_pinned_list_titles()
-
-    def _load_pinned_list_titles(self):
-        client = self.client
-
-        def done(_client, result, _data=None):
-            try:
-                lists = api_lists.index_finish(client, result)
-            except GLib.Error:
-                return
-            if client is not self.client:
-                return
-            self.navigation.set_pinned_lists(lists)
-            for list_id, title in self.navigation.pinned_lists.items():
-                item = self._items.get('list:%s' % list_id)
-                if item is not None and item.get_title() != title:
-                    item.set_title(title)
-                page = self.navigation.pages.get('list:%s' % list_id)
-                if page is not None:
-                    page.set_title(title)
-                self.sidebar_rail.set_title('list:%s' % list_id, title)
-
-        api_lists.index_async(client, callback=done)
+        self.sidebar_host.refresh()
 
     def _select_item(self, tag):
-        self.sidebar_rail.set_selected(tag)
-        item = self._items.get(tag)
-        if item is None:
-            return
-        for index in range(self.sidebar_list.get_items().get_n_items()):
-            if self.sidebar_list.get_item(index) is item:
-                self.sidebar_list.set_selected(index)
-                return
+        self.sidebar_host.select_item(tag)
 
     @Gtk.Template.Callback()
     def on_sidebar_activated(self, sidebar, index):
-        item = sidebar.get_item(index)
-        for tag, candidate in self._items.items():
-            if candidate is item:
-                self.show_page(tag)
-                return
+        self.sidebar_host.on_activated(sidebar, index)
 
     # Navigation
 

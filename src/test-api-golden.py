@@ -1546,13 +1546,15 @@ def list_membership_dialog_toggles(rec):
 
 @p2
 def window_loads_pinned_list_titles(rec):
-    from src.window import BabbleWindow
+    from src.sidebarhost import SidebarHost
     stub = types.SimpleNamespace(
-        client=rec.client(), _items={}, sidebar_rail=Anything(),
-        navigation=types.SimpleNamespace(
-            set_pinned_lists=lambda lists: None, pinned_lists={},
-            pages={}))
-    BabbleWindow._load_pinned_list_titles(stub)
+        window=types.SimpleNamespace(
+            client=rec.client(), sidebar_rail=Anything(),
+            navigation=types.SimpleNamespace(
+                set_pinned_lists=lambda lists: None, pinned_lists={},
+                pages={})),
+        _items={})
+    SidebarHost._load_pinned_list_titles(stub)
     rec.settle()
 
 

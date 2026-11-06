@@ -36,7 +36,8 @@ LIMIT = 800
 
 # One seam each, extracted from window.py. A growth in one of these is
 # how a God class reappears without anybody calling it that.
-SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py')
+SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py',
+         'navigation.py', 'sidebarhost.py')
 
 # Recorded in CLAUDE.md, not silently tolerated. The reason is stated
 # here, where a future reader will meet it, and mirrored in CLAUDE.md;
@@ -49,11 +50,11 @@ EXCEPTIONS = {
                 'carrying the paging base. ARCH-06 split the timeline '
                 'around it; the state machine stays here because every '
                 'status list uses it.',
-    'window.py': 'four seams extracted (portals, auth, drafts, clipboard), '
-                 'and navigation.py now owns lazy place routing and pinned '
-                 'state. BabbleWindow still owns session state, sidebar '
-                 'widgets, and streaming lifecycle; those depend on its '
-                 'page containers and stay with the window.',
+    'window.py': 'seams extracted (portals, auth, drafts, clipboard, '
+                 'navigation, sidebarhost). BabbleWindow still owns '
+                 'session state, presentation and streaming lifecycle '
+                 'over window-owned page containers; those stay with '
+                 'the window.',
     'compose.py': 'the composer widget. ARCH-01 moved the upload round '
                   'to composeupload.py; ARCH-12 moved AttachmentRow and '
                   'the attach tray to composeattach.py; ARCH-17 moved '
