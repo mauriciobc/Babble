@@ -3,8 +3,9 @@
 """Download and stream lifetime for the media viewer.
 
 Owns libsoup file downloads and the GstPlay / ``Gtk.MediaFile`` paths
-the viewer uses for video, audio and GIFV. The chrome, zoom widget and
-``present_media`` stay on :mod:`mediaviewer`.
+the viewer uses for video, audio and GIFV. The chrome and
+``present_media`` stay on :mod:`mediaviewer`; zoom/pan is
+:mod:`mediazoom`.
 
 ``release_media`` must keep the order pinned by
 ``test-mediaviewer-teardown.py``: never clear a ``MediaStream`` while

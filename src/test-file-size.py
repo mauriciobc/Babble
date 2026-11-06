@@ -66,10 +66,11 @@ EXCEPTIONS = {
     'admin.py': 'the moderation dashboard: seven tools, each a page of '
                 'its own, behind one authorization. Splitting it buys '
                 'readability, not a seam, so it is declared.',
-    'mediaviewer.py': 'the picture viewer chrome and ZoomPicture. '
+    'mediaviewer.py': 'the picture viewer chrome and present_media. '
                       'ARCH-14 moved download, release_media and the '
                       'GstPlay / MediaFile stream paths to '
-                      'mediaplayback.py; zoom extraction is ARCH-19.',
+                      'mediaplayback.py; ARCH-19 moved ZoomPicture to '
+                      'mediazoom.py.',
     'fedicollections.py': 'Collections (Mastodon 4.6+): page, CRUD and '
                           'membership.',
     'mastodon.py': 'the transport: OAuth with PKCE (app, token and '

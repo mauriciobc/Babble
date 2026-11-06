@@ -679,6 +679,7 @@ recorded in the Decision log below — read that before starting anything here.*
 | ARCH-13 | **done** | **`notifications.py` row chrome.** `ColumnLayout`/`ColumnBox`, `make_date_heading`, `NotificationFactory`, `NotificationPost` and `NotificationRow` move to `notificationrow.py`; the model, page and policy dialog stay. | `notificationrow.py`; `Docs/arch-structural-debt-plan.md` | ~800 lines moved |
 | ARCH-18 | **done** | **`notifications.py` model and policy.** `NotificationItem`/`NotificationModel` and title/detail helpers move to `notificationmodel.py`; `NotificationPolicyDialog` and `present_notification_policy` move to `notificationpolicy.py`; the page and request list stay. | `notificationmodel.py`, `notificationpolicy.py`; `Docs/arch-structural-debt-plan.md` | ~690 lines moved |
 | ARCH-14 | **done** | **`mediaviewer.py` playback.** `download`/`_Download`, `release_media` and the GstPlay / `MediaFile` stream/audio/gifv/inhibit/unload paths move to `mediaplayback.MediaPlayback`; chrome, `ZoomPicture` and `present_media` stay. | `mediaplayback.py`; `Docs/arch-structural-debt-plan.md` | ~410 lines moved |
+| ARCH-19 | **done** | **`mediaviewer.py` zoom.** `ZoomPicture` and its `ZOOM_STEP`/`MAX_SCALE` constants move to `mediazoom.py`; chrome, DnD providers and `present_media` stay. | `mediazoom.py`; `Docs/arch-structural-debt-plan.md` | ~220 lines moved |
 
 ---
 
