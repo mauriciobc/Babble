@@ -349,6 +349,11 @@ test('image cache', python,
   env: fatal_test_env,
   timeout: 120,
 )
+test('avatar cache', python,
+  args: [files('test-avatarcache.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('instance limits', python,
   args: [files('test-instance-limits.py')],
   env: test_env,

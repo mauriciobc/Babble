@@ -57,20 +57,39 @@ class AvatarCache:
         return imagecache.session()
 
     @classmethod
+    def cancel(cls, avatar):
+        """Cancel the avatar request owned by *avatar*, if any."""
+        cancellable = getattr(avatar, '_babble_avatar_cancel', None)
+        if cancellable is not None:
+            avatar._babble_avatar_cancel = None
+            cancellable.cancel()
+
+    @classmethod
     def load(cls, avatar, account):
         """Fill *avatar* with the cached or freshly fetched image."""
+        # A row can be rebound while its previous avatar is still loading.
+        # Cancel only this widget's waiter; Fetcher keeps shared requests
+        # alive for every other widget still interested in the URL.
+        cls.cancel(avatar)
         url = account.get('avatar') or account.get('avatar_static') or ''
         avatar.set_custom_image(None)
         if not url:
             return
 
+        cancellable = Gio.Cancellable.new()
+        avatar._babble_avatar_cancel = cancellable
+
         def arrived(texture, _reason):
+            # Cancellation is the lifecycle boundary. The guard also
+            # protects against a completion already queued when cancelled.
+            if cancellable.is_cancelled():
+                return
             # A failure leaves the avatar on its initials, its own
             # placeholder, and uncached so a later row retries.
             if texture is not None:
                 avatar.set_custom_image(texture)
 
-        cls._fetch().fetch(url, arrived)
+        cls._fetch().fetch(url, arrived, cancellable=cancellable)
 
 
 class StatusBody(InlineEmojiText):
