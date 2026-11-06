@@ -26,7 +26,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | `window.py` | 2161 | Declared session/stream owner; sidebar sync still here |
 | `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
-| `mediaviewer.py` | ~1284 | ARCH-14 extracted playback; ZoomPicture remains |
+| `mediaviewer.py` | ~1058 | ARCH-14+19 extracted playback and ZoomPicture; chrome remains |
 | `profile.py` | 1391 | ARCH-02 left header/tabs |
 | `mastodon.py` | 1328 | Coherent transport — leave |
 | `pages.py` | 1239 | Shared toolkit — Phase N |
@@ -192,6 +192,13 @@ download pipeline with chrome in the same class body.
 ---
 
 ## ARCH-19 — `mediazoom.py`
+
+**Status:** done — `mediazoom.py` holds `ZoomPicture` and the
+`ZOOM_STEP`/`MAX_SCALE` constants it alone uses; `mediaviewer.py` keeps
+chrome, attachment navigation, DnD providers and the wiring that
+constructs `ZoomPicture` for images (~1058 lines, was ~1284). New
+module under 800. EXCEPTION reason cites ARCH-14 and ARCH-19
+(chrome-only remainder).
 
 **From:** `mediaviewer.py` after ARCH-14.  
 **Extract:** `ZoomPicture` and the free zoom/pan/drag helpers that only

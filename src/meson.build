@@ -60,6 +60,7 @@ install_data(
   'mastodon.py',
   'mediaplayback.py',
   'mediaviewer.py',
+  'mediazoom.py',
   'navigation.py',
   'mentioncompleter.py',
   'notificationcopy.py',
