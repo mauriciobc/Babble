@@ -732,6 +732,18 @@ test('undo actions', python,
   timeout: 60,
 )
 
+test('status toggle', python,
+  args: [files('test-status-toggle.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
+test('state stack', python,
+  args: [files('test-state-stack.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+
 # The behaviour both dialog bases promise, pinned before they are merged
 # so the merge can be checked against it.
 test('dialog bases', python,

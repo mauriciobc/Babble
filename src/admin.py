@@ -226,29 +226,27 @@ class StatePage(CtxRef, Adw.Bin):
         super().__init__(**kwargs)
         self.ctx = ctx
         self._content = None
-        self.stack = Gtk.Stack()
+        self.stack = pages.StateStack(
+            _('Loading'), _('Could Not Load'), self._on_retry,
+            markup=error_text_markup)
+        self.error_page = self.stack.error_page
         self.set_child(self.stack)
-        self.stack.add_named(pages.make_loading_page(_('Loading')), 'loading')
-        self.error_page = pages.make_error_page(
-            _('Could Not Load'), self._on_retry)
-        self.stack.add_named(self.error_page, 'error')
 
     def _on_retry(self, _button):
         self.refresh()
 
     def show_loading(self):
-        self.stack.set_visible_child_name('loading')
+        self.stack.show_loading()
 
     def show_error(self, error):
-        self.error_page.set_description(error_text_markup(error))
-        self.stack.set_visible_child_name('error')
+        self.stack.show_error(error)
 
     def show_content(self, widget):
         if self._content is not None:
             self.stack.remove(self._content)
         self._content = widget
         self.stack.add_named(widget, 'content')
-        self.stack.set_visible_child_name('content')
+        self.stack.show('content')
 
     def refresh(self):
         raise NotImplementedError

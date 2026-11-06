@@ -11,7 +11,6 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
-from .mastodon import summarize_error_markup  # noqa: E402
 from .statustext import format_time, parse_time  # noqa: E402
 
 STATS_TABS = (
@@ -162,10 +161,10 @@ class EditHistoryView(Adw.Bin):
         super().__init__()
         self.client = client
         self.status_id = (status.get('reblog') or status)['id']
-        self.stack = Gtk.Stack()
-        self.loading_page = pages.make_loading_page(_('Loading Edit History'))
-        self.error_page = pages.make_error_page(
-            _('Could Not Load Edit History'), self._on_retry)
+        self.stack = pages.StateStack(
+            _('Loading Edit History'), _('Could Not Load Edit History'),
+            self._on_retry)
+        self.error_page = self.stack.error_page
         self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                spacing=12, margin_top=12, margin_bottom=12,
                                margin_start=12, margin_end=12)
@@ -173,8 +172,6 @@ class EditHistoryView(Adw.Bin):
                           child=self.content)
         scrolled = Gtk.ScrolledWindow(vexpand=True, child=clamp)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        self.stack.add_named(self.loading_page, 'loading')
-        self.stack.add_named(self.error_page, 'error')
         self.stack.add_named(scrolled, 'list')
         self.set_child(self.stack)
         self.refresh()
@@ -183,19 +180,22 @@ class EditHistoryView(Adw.Bin):
         self.refresh()
 
     def refresh(self):
-        self.stack.set_visible_child_name('loading')
-        api_statuses.history_async(self.client, self.status_id,
-                                   callback=self._on_loaded)
+        token = self.stack.begin()
+        api_statuses.history_async(
+            self.client, self.status_id,
+            callback=lambda client, result, _data=None:
+            self._on_loaded(client, result, token))
 
-    def _on_loaded(self, client, result, _data=None):
+    def _on_loaded(self, client, result, token):
         try:
             revisions = api_statuses.history_finish(client, result)
         except GLib.Error as error:
-            # Adw.StatusPage parses its description as markup, so the
-            # server body has to be escaped or a bare '&' blanks it.
-            self.error_page.set_description(
-                summarize_error_markup(error))
-            self.stack.set_visible_child_name('error')
+            # StateStack escapes the server body: Adw.StatusPage parses
+            # its description as markup and a bare '&' blanks it.
+            if self.stack.is_current(token):
+                self.stack.show_error(error)
+            return
+        if not self.stack.is_current(token):
             return
         while (child := self.content.get_first_child()) is not None:
             self.content.remove(child)
@@ -204,7 +204,7 @@ class EditHistoryView(Adw.Bin):
             previous = revisions[index - 1] if index > 0 else None
             self.content.append(
                 self._make_card(index, revisions[index], previous))
-        self.stack.set_visible_child_name('list')
+        self.stack.show('list')
 
     def _make_card(self, index, revision, previous):
         from . import textemoji

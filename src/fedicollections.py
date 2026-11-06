@@ -515,13 +515,10 @@ class CollectionPage(Adw.Bin):
         self.client = client
         self.collection_id = collection_id
         self.collection = collection
-        self.stack = Gtk.Stack()
+        self.stack = pages.StateStack(
+            _('Loading'), _('Could Not Load'), self._on_retry)
+        self.error_page = self.stack.error_page
         self.set_child(self.stack)
-        self.stack.add_named(pages.make_loading_page(_('Loading')),
-                             'loading')
-        self.error_page = pages.make_error_page(
-            _('Could Not Load'), self._on_retry)
-        self.stack.add_named(self.error_page, 'error')
         self._body = None
         self.refresh()
 
@@ -529,9 +526,11 @@ class CollectionPage(Adw.Bin):
         self.refresh()
 
     def refresh(self):
-        self.stack.set_visible_child_name('loading')
+        token = self.stack.begin()
 
         def ok(data):
+            if not self.stack.is_current(token):
+                return
             self.collection = data.get('collection') or data
             accounts = data.get('accounts') or []
             for account in accounts:
@@ -539,9 +538,8 @@ class CollectionPage(Adw.Bin):
             self._show(accounts)
 
         def failed(error):
-            self.error_page.set_description(
-                summarize_error_markup(error))
-            self.stack.set_visible_child_name('error')
+            if self.stack.is_current(token):
+                self.stack.show_error(error)
 
         _send_api(self.client,
                   lambda cb: collections_api.get_async(
