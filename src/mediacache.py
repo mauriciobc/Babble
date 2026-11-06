@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
+import math
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -18,6 +20,11 @@ from .textemoji import (InlineEmojiText)
 
 """Avatar and media decode, and the two texture caches."""
 from .timelinebase import AVATAR_DECODE_SIZE, MEDIA_TEXTURE_CACHE_SIZE
+
+# Bound decoded allocation as well as the encoded HTTP response. This
+# still accommodates 16 MP originals while avoiding pathological headers.
+MAX_DECODE_PIXELS = 16_000_000
+MAX_DECODE_DIMENSION = 8192
 
 
 class AvatarCache:
@@ -184,32 +191,55 @@ def _image_pixel_size(data):
     return None
 
 
-def _decode_covering(data, cover, scale):
-    """Texture of the image in *data*, decoded no larger than it takes to
-    cover a *cover* (width, height) box of logical pixels on a display of
-    *scale*, which the caller reads on the main thread (this also runs on
-    a worker, see ``_decode_async``). None when the image cannot be read.
+def _decode_budget_factor(width, height):
+    """Scale (at most 1) that brings a *width* x *height* image inside the
+    decoded-pixel and per-side budgets."""
+    return min(1.0,
+               math.sqrt(MAX_DECODE_PIXELS / (width * height)),
+               MAX_DECODE_DIMENSION / max(width, height))
 
-    GdkPixbuf's loader plus the copy into a ``Gdk.MemoryTexture`` is
-    several times slower than ``Gdk.Texture.new_from_bytes``. When the
-    file is already no larger than the tile there is nothing to scale
-    away, so that copy buys neither sharpness nor a smaller texture.
-    Oversized originals still go through GdkPixbuf with ``set_size``,
-    which decodes them already scaled down instead of holding the full
-    bitmap."""
-    box_width, box_height = cover[0] * scale, cover[1] * scale
+
+def _decode_covering(data, cover, scale):
+    """Texture of the image in *data*, decoded no larger than the budget
+    allows, and no larger than it takes to cover a *cover* (width, height)
+    box of logical pixels on a display of *scale* (None: no box, the media
+    viewer's full-size request). The caller reads *scale* on the main
+    thread (this also runs on a worker, see ``_decode_async``). None when
+    the image cannot be read.
+
+    The bytes are untrusted, and a small file can declare an enormous
+    bitmap, so the decoded size is decided *before* anything allocates it.
+    The width and height come from the file header (PNG, GIF, JPEG):
+
+    * within the pixel/dimension budget and no larger than the box (or no
+      box): ``Gdk.Texture.new_from_bytes``, several times faster than
+      GdkPixbuf's loader plus the copy into a ``Gdk.MemoryTexture``;
+    * over the budget, or larger than the box: GdkPixbuf, which scales
+      while it loads (``set_size``) so the full bitmap is never held;
+    * header not readable here (WebP, AVIF, ...): GdkPixbuf too, with the
+      same budget applied from its ``size-prepared`` signal. There is no
+      unbounded fallback: an image that decoder cannot read is an error.
+    """
+    box_width, box_height = ((cover[0] * scale, cover[1] * scale)
+                             if cover else (None, None))
     natural = _image_pixel_size(data)
     if natural is not None:
         width, height = natural
-        if width > 0 and height > 0 and max(box_width / width,
-                                             box_height / height) >= 1:
+        if width > 0 and height > 0 \
+                and _decode_budget_factor(width, height) >= 1 \
+                and (cover is None
+                     or max(box_width / width, box_height / height) >= 1):
             try:
                 return Gdk.Texture.new_from_bytes(data)
             except GLib.Error:
                 pass
 
     def prepared(loader, width, height):
-        factor = max(box_width / width, box_height / height)
+        if width <= 0 or height <= 0:
+            return
+        factor = _decode_budget_factor(width, height)
+        if cover is not None:
+            factor = min(factor, max(box_width / width, box_height / height))
         if factor < 1:
             loader.set_size(max(1, round(width * factor)),
                             max(1, round(height * factor)))
@@ -235,7 +265,7 @@ def _decode_covering(data, cover, scale):
 
 def _decode_async(data, cover, cancellable, callback):
     """Decode *data* on a worker thread, no larger than a *cover* box
-    needs (at full size when *cover* is None), and call
+    needs (the decoded-pixel budget when *cover* is None), and call
     ``callback(texture, error)`` on the main context: the texture, or
     None and the reason. Nothing is called once *cancellable* fires.
 
@@ -249,10 +279,11 @@ def _decode_async(data, cover, cancellable, callback):
         # Worker thread: decoding only, no widget or display access.
         texture = error = None
         try:
-            if cover:
-                texture = _decode_covering(data, cover, scale)
+            # Remote bytes are untrusted: _decode_covering sizes the
+            # bitmap from the header before it allocates one.
+            texture = _decode_covering(data, cover, scale)
             if texture is None:
-                texture = Gdk.Texture.new_from_bytes(data)
+                error = 'unsupported or invalid image'
         except GLib.Error as failure:
             error = failure.message
         finally:

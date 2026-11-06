@@ -829,6 +829,16 @@ read on the main thread because GDK is not thread-safe here). Avatars decode to
 go straight to `Gdk.Texture.new_from_bytes`, several times faster [M,
 `PERFORMANCE.md:45`].
 
+**The decoded size is bounded before it is allocated.** The bytes are untrusted,
+and a small file can declare a huge bitmap, so `_decode_covering` reads the size
+from the header first. An image inside 16 MP and 8192 px per side that fits its
+box (or has none) goes to `Gdk.Texture.new_from_bytes`; one over the budget, or
+larger than its box, goes through GdkPixbuf with `set_size`, so the full bitmap is
+never held; a header it cannot read (WebP, AVIF) goes through GdkPixbuf with the
+same budget applied from `size-prepared`. There is no unbounded fallback. The
+encoded body is capped separately at 16 MiB while it streams
+(`imagecache.MAX_IMAGE_RESPONSE_BYTES`). `test-imagedecode.py` pins both paths.
+
 **Costs of the design, on the record [M, `PERFORMANCE.md:73`]:** the media viewer
 does not share this cache; two on-screen sizes of one URL are two cache slots; and
 if the scaled decode fails, the full image is decoded as a fallback.
