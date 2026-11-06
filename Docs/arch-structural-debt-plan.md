@@ -27,7 +27,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
 | `mediaviewer.py` | ~1058 | ARCH-14+19 extracted playback and ZoomPicture; chrome remains |
-| `profile.py` | 1391 | ARCH-02 left header/tabs |
+| `profile.py` | ~915 | ARCH-16 extracted profileheader; tabs/extras remain |
 | `mastodon.py` | 1328 | Coherent transport — leave |
 | `pages.py` | 1239 | Shared toolkit — Phase N |
 | `fedicollections.py` | 1086 | Feature pack — Phase N |
@@ -245,6 +245,11 @@ as an unsplit blob; host module under 800.
 ---
 
 ## ARCH-16 — `profileheader.py`
+
+**Status:** done — `profileheader.py` holds `HeaderCache`, chip/count
+helpers and `ProfileHeader` (refresh / stats / fields / badges);
+`profile.py` keeps tabs, extras, note/mute dialogs and thin forwards
+(~915 lines, was ~1391). EXCEPTION cites ARCH-16. New module under 800.
 
 **From:** `profile.py` (`ProfilePage` ~927).  
 **Extract:** `refresh_header` / fields / badges / banner / stats

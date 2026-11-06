@@ -274,7 +274,7 @@ class ProfileEditDialog(pages.ToastDialog):
         overlay.add_overlay(self.avatar)
         group.add(overlay)
 
-        from .profile import HeaderCache
+        from .profileheader import HeaderCache
         from .mediacache import AvatarCache
         header_url = self.account.get('header')
         if header_url and not header_url.endswith('/missing.png'):

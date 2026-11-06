@@ -52,6 +52,7 @@ src/preferences.py
 src/profile.py
 src/profileactions.py
 src/profileedit.py
+src/profileheader.py
 src/readingposition.py
 src/relations.py
 src/report.py

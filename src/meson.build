@@ -83,6 +83,7 @@ install_data(
   'profile.py',
   'profileactions.py',
   'profileedit.py',
+  'profileheader.py',
   'relations.py',
   'report.py',
   'scheduled.py',

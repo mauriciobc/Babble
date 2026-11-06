@@ -54,8 +54,8 @@ sys.path.insert(0, srcdir)
 from src.api import timelines as api_timelines  # noqa: E402
 from src.api import trends as api_trends  # noqa: E402
 from src.mastodon import MastodonClient  # noqa: E402
-from src.profile import (AccountStatuses, ProfilePage,  # noqa: E402
-                         format_count)
+from src.profile import AccountStatuses, ProfilePage  # noqa: E402
+from src.profileheader import format_count  # noqa: E402
 from src.statusrow import StatusRow  # noqa: E402
 from src.thread import ThreadPage, ThreadReply  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
