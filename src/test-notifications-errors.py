@@ -3,6 +3,9 @@
 """Pin notifications error-handling policy (TEST-07)."""
 
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import re
 import sys
 

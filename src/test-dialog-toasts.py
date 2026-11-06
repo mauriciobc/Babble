@@ -32,6 +32,9 @@ with the same name, and it resolves `from . import X as Y` aliases.
 import ast
 import glob
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
 
 srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()

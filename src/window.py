@@ -435,6 +435,12 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     def restore_account(self):
         account = self.get_stored_account()
+        account_store.log_account_event(
+            'startup: %d stored, active-account=%r, restoring %s' % (
+                len(account_store.read_accounts(self.settings)),
+                self.settings.get_string('active-account'),
+                account_store.account_key(account) if account
+                else 'nothing'))
         if account is None:
             self.main_stack.set_visible_child_name('login')
             return
@@ -457,6 +463,11 @@ class BabbleWindow(Adw.ApplicationWindow):
         def loaded(token, error=None):
             if lookup != self._session_lookup:
                 return
+            account_store.log_account_event(
+                'keyring read for %s (login_only=%s): %s' % (
+                    account_store.account_key(account), login_only,
+                    'error %s' % error.message if error is not None
+                    else 'token found' if token else 'no entry'))
             if error is not None:
                 # A locked or unreachable keyring is not a signed-out
                 # account. Keep the stored entry (and its Catch-Up

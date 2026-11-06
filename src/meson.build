@@ -467,6 +467,12 @@ test('file size rule', python,
   env: test_env,
   timeout: 60,
 )
+# Needs no display: it reads the test scripts' source only.
+test('settings isolation', python,
+  args: [files('test-settings-isolation.py')],
+  env: test_env,
+  timeout: 60,
+)
 # Needs no display: it reads the import graph only.
 test('module boundary', python,
   args: [files('test-module-boundary.py')],

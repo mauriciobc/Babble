@@ -10,6 +10,9 @@ and the tile allocation and dense packing of CATCH-UP.md section 6.
 
 import datetime
 import os
+# Never the user's real dconf: a test that builds a window restores the
+# real stored account, and one that finds no keyring entry forgets it.
+os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import random
 import subprocess
 import sys
