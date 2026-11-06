@@ -455,8 +455,8 @@ class PluginHost:
         module = sys.modules.get(info.get_module_name())
         menu_classes, page_classes, preference_classes, link_classes, \
             main_classes = _extension_classes(module)
-        if not (menu_classes or page_classes or link_classes
-                or main_classes):
+        if not (menu_classes or page_classes or preference_classes
+                or link_classes or main_classes):
             self.engine.unload_plugin(info)
             self.errors[plugin_id] = _('Adds nothing Babble can use')
             return
