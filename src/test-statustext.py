@@ -27,7 +27,7 @@ sys.path.insert(0, srcdir)
 from src import statustext  # noqa: E402
 from src.statustext import (STATS_DAYS, clock_format,  # noqa: E402
                             compact_count, format_time, history_totals,
-                            is_hashtag, is_web_link,
+                            is_hashtag, is_launchable_uri, is_web_link,
                             parse_content, relative_time,
                             shorten_url_text)
 
@@ -150,6 +150,27 @@ class TestWebLink(unittest.TestCase):
     def test_a_malformed_address_is_refused_not_raised(self):
         # urlsplit raises ValueError on an unmatched '['.
         self.assertFalse(is_web_link('https://[oops/x'))
+
+    def test_mailto_is_not_a_web_link(self):
+        self.assertFalse(is_web_link('mailto:a@b.c'))
+
+
+class TestLaunchableUri(unittest.TestCase):
+    def test_http_and_https_are_launchable(self):
+        for uri in ('https://x.test/a', 'http://x.test'):
+            self.assertTrue(is_launchable_uri(uri), uri)
+
+    def test_mailto_with_an_address_is_launchable(self):
+        self.assertTrue(is_launchable_uri('mailto:a@b.c'))
+
+    def test_empty_mailto_is_not_launchable(self):
+        self.assertFalse(is_launchable_uri('mailto:'))
+        self.assertFalse(is_launchable_uri('mailto:?subject=hi'))
+
+    def test_dangerous_schemes_stay_out(self):
+        for uri in ('file:///etc/passwd', 'javascript:alert(1)',
+                    'data:text/html,x', 'smb://host/share'):
+            self.assertFalse(is_launchable_uri(uri), uri)
 
 
 class TestShortenUrl(unittest.TestCase):

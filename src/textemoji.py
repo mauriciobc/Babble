@@ -64,18 +64,26 @@ def lookup_emoji(emojis, shortcode):
 
 
 def launch_uri(widget, uri):
-    """Open *uri* in the default handler, with a toast when that fails.
+    """Open *uri* via Gtk.UriLauncher (OpenURI portal on Flatpak).
 
-    Every link that comes from a server ends here, so only http(s) is let
-    through (see :func:`statustext.is_web_link`)."""
-    from .statustext import is_web_link
-    if not is_web_link(uri):
-        root = widget.get_root()
+    Every link that comes from a server ends here. Only URIs
+    :func:`statustext.is_launchable_uri` accepts are handed over —
+    http(s) and mailto — so federated HTML cannot steer the host to
+    file/javascript/smb. ``can_launch`` is checked first so a missing
+    mail client (or other handler) toasts instead of a silent portal
+    "success", the same idea as ``window.help_available``."""
+    from .statustext import is_launchable_uri
+    root = widget.get_root()
+    if not is_launchable_uri(uri):
         if hasattr(root, 'show_toast'):
             root.show_toast(_('Could not open link'))
         return
-    Gtk.UriLauncher.new(uri).launch(widget.get_root(), None,
-                                    _on_uri_launched, widget)
+    launcher = Gtk.UriLauncher.new(uri)
+    if not launcher.can_launch(root):
+        if hasattr(root, 'show_toast'):
+            root.show_toast(_('Could not open link'))
+        return
+    launcher.launch(root, None, _on_uri_launched, widget)
 
 
 def _on_uri_launched(launcher, result, widget):

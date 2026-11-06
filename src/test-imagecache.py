@@ -313,6 +313,21 @@ def main():
           bool(second) and second[0][0] and Handler.served == 1,
           'served=%d' % Handler.served)
 
+    # --- 7. get_message only builds Soup for http(s) ------------------
+    msg = imagecache.get_message('GET', 'https://example.test/img.png')
+    check('get_message accepts https', msg is not None)
+    check('get_message refuses file://',
+          imagecache.get_message('GET', 'file:///etc/passwd') is None)
+    check('get_message refuses javascript:',
+          imagecache.get_message('GET', 'javascript:alert(1)') is None)
+    check('get_message refuses ftp://',
+          imagecache.get_message('GET', 'ftp://example.test/img.png') is None)
+    check('get_message refuses data:',
+          imagecache.get_message(
+              'GET', 'data:image/png;base64,AAAA') is None)
+    check('get_message refuses a malformed https URL',
+          imagecache.get_message('GET', 'https://[oops') is None)
+
     server.shutdown()
     if FAILURES:
         print('\n%d failure(s): %s' % (len(FAILURES), ', '.join(FAILURES)))

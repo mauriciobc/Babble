@@ -88,6 +88,22 @@ def session():
     return _session
 
 
+def get_message(method, url):
+    """Soup.Message for a remote http(s) URL, or None if unusable.
+
+    Soup returns NULL (TypeError in PyGObject) for schemes it will not
+    parse; is_web_link also refuses file/javascript/ftp/data so a federated
+    payload cannot steer the shared session off the web.
+    """
+    from .statustext import is_web_link
+    if not is_web_link(url):
+        return None
+    try:
+        return Soup.Message.new(method, url)
+    except TypeError:
+        return None
+
+
 class Store:
     """A bounded LRU of decoded textures, keyed however its owner likes."""
 
@@ -303,7 +319,7 @@ class Fetcher:
         # it entirely -- which is exactly how a key used to get stranded.
         request.cancellable.connect_after(
             'cancelled', self._on_request_cancelled, request)
-        message = Soup.Message.new('GET', request.url)
+        message = get_message('GET', request.url)
         if message is None:
             self._finish(request, None, 'invalid URL')
             return
