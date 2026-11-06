@@ -201,7 +201,7 @@ page = profile.ProfilePage(api, account(
 page._on_familiar(api, [{'accounts': [account(3), account(4)]}])
 page._on_featured_tags(api, [{'name': 'tag', 'statuses_count': 3}])
 page._on_endorsements(api, [account(n) for n in range(5, 10)])
-page._open_image_on_click(page.avatar, 'https://e.org/a.png', None)
+page.header._open_image_on_click(page.avatar, 'https://e.org/a.png', None)
 page._relationship_known = True
 page.set_relationship({'id': '1', 'following': True, 'note': 'note'})
 page_ref = page.weak_ref()

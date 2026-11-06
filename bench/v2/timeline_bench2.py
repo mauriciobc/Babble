@@ -212,7 +212,7 @@ class Counters:
         """
         from src.mediacache import AvatarCache, _TextureCache
         from src.textemoji import EmojiTextures
-        from src.profile import HeaderCache
+        from src.profileheader import HeaderCache
         from src import mediaviewer
         total = 0
         seen = set()

@@ -61,9 +61,11 @@ EXCEPTIONS = {
                   'mode entry and schedule chrome to composeschedule.py; '
                   'what remains is the draft, the options and the post '
                   'itself.',
-    'profile.py': 'the profile header and tabs. ARCH-02 moved the '
-                  'relationship commands to profileactions.py; the '
-                  'header, fields and tabs are the page that is left.',
+    'profile.py': 'the profile page: tabs, extras and note/mute dialogs. '
+                  'ARCH-02 moved relationship commands to '
+                  'profileactions.py; ARCH-16 moved banner/cache/chips '
+                  'and header refresh/stats/fields/badges to '
+                  'profileheader.py.',
     'admin.py': 'the moderation dashboard: seven tools, each a page of '
                 'its own, behind one authorization. Splitting it buys '
                 'readability, not a seam, so it is declared.',
