@@ -23,7 +23,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | Module | Lines | Notes |
 |--------|------:|-------|
 | `compose.py` | ~1744 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
-| `window.py` | 2161 | Declared session/stream owner; sidebar sync still here |
+| `window.py` | ~1925 | ARCH-15 extracted sidebarhost; session/stream owner remains |
 | `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
 | `mediaviewer.py` | ~1058 | ARCH-14+19 extracted playback and ZoomPicture; chrome remains |
@@ -217,6 +217,14 @@ module under 800.
 ---
 
 ## ARCH-15 — `sidebarhost.py`
+
+**Status:** done — `sidebarhost.py` holds rebuild, mode/visibility
+sync, pinned append/load and the overlay/rail runtime state;
+`window.py` keeps template widgets, `_restricted_public_places`,
+`_on_stream_event` and thin forwards (~1925 lines, was ~2161).
+`navigation.py` and `sidebarhost.py` are in `SEAMS`. EXCEPTION text
+no longer names “sidebar widgets” as an unsplit blob. New module
+under 800.
 
 **From:** `window.py` (~L1362–1630 sync/rebuild/pinned).  
 **Extract:** an object that takes the window’s settings / navigation /
