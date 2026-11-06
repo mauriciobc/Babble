@@ -77,8 +77,9 @@ Gio.Resource.load(bundle)._register()
 
 Adw.init()
 
-from src import (explore, statusviews, hashtags, notifications, pages, profile,  # noqa: E402
-                 relations, statusactions, statusmenu)
+from src import (explore, statusviews, hashtags, notifications,  # noqa: E402
+                 notificationrow, pages, profile, relations,
+                 statusactions, statusmenu)
 from src.mastodon import MastodonClient  # noqa: E402
 from src.statusactions import StatusActions  # noqa: E402
 from src.statusmenu import StatusMenuButton  # noqa: E402
@@ -998,7 +999,7 @@ def request_item(**extra):
 @scenario
 def notification_answer_follow_request(rec):
     for verb in ('authorize', 'reject'):
-        row = notifications.NotificationRow()
+        row = notificationrow.NotificationRow()
         row.client = rec.client()
         row.item = None
         row._request_buttons = (Gtk.Button(), Gtk.Button())
@@ -1008,7 +1009,7 @@ def notification_answer_follow_request(rec):
 
 @scenario
 def notification_follow_back(rec):
-    row = notifications.NotificationRow()
+    row = notificationrow.NotificationRow()
     row.client = rec.client()
     row.item = None
     row._follow_button = Gtk.Button()

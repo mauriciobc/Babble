@@ -34,7 +34,7 @@ gresource = os.path.join(builddir, 'src', 'babble.gresource')
 if os.path.exists(gresource):
     Gio.Resource.load(gresource)._register()
 
-from src import hashtags, notifications, pages, statustext  # noqa: E402
+from src import hashtags, notificationrow, pages, statustext  # noqa: E402
 from src import textemoji  # noqa: E402
 
 failures = []
@@ -119,7 +119,7 @@ check('an ordinary link still goes to the web destination',
 # The notification post preview used to hand links to Gtk.Label's
 # default handler. It now routes them itself.
 
-post = notifications.NotificationPost()
+post = notificationrow.NotificationPost()
 win.set_child(post)
 post._show(statustext.parse_content(
     '<p>news <a class="hashtag" href="%s">%s</a></p>' % ACCENTED))
