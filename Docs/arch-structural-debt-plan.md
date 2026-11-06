@@ -24,7 +24,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 |--------|------:|-------|
 | `compose.py` | ~1744 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
 | `window.py` | 2161 | Declared session/stream owner; sidebar sync still here |
-| `notifications.py` | ~1181 | ARCH-13 extracted rows; model + policy remain |
+| `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
 | `mediaviewer.py` | ~1694 | `MediaViewer` class alone ~1k |
 | `profile.py` | 1391 | ARCH-02 left header/tabs |
@@ -139,6 +139,13 @@ under 800.
 ---
 
 ## ARCH-18 — `notificationmodel.py` + `notificationpolicy.py`
+
+**Status:** done — `notificationmodel.py` holds `NotificationItem`,
+`NotificationModel`, and title/detail helpers; `notificationpolicy.py`
+holds `NotificationPolicyDialog` and `present_notification_policy`;
+`notifications.py` keeps the page and request list (~490 lines, was
+~1181). EXCEPTION for notifications dropped (≤ 800). Both new modules
+under 800.
 
 **From:** `notifications.py` after ARCH-13.  
 **Extract (one PR, two modules):**

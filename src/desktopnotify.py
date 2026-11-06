@@ -340,7 +340,7 @@ class DesktopNotifier(GObject.Object):
             self.handle(notification)
 
 
-from .notifications import id_key as _id_key  # noqa: E402
+from .timelinebase import id_key as _id_key  # noqa: E402
 from .accounts import account_key, find_account_by_key  # noqa: E402
 from .mastodon import MastodonClient, summarize_error  # noqa: E402
 from .api import notifications as api_notifications  # noqa: E402

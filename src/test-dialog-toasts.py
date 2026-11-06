@@ -94,7 +94,7 @@ EXPECTED = {
     ('hashtags', 'MultiHashtagEditor'),
     ('lists', 'ListEditor'),
     ('lists', '_MembershipDialog'),
-    ('notifications', 'NotificationPolicyDialog'),
+    ('notificationpolicy', 'NotificationPolicyDialog'),
     ('pages', 'ToastDialog'),
     ('pluginspage', 'PluginsDialog'),
     ('preferences', 'PreferencesDialog'),

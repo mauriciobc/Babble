@@ -672,7 +672,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self.settings.set_strv('desktop-notification-types', enabled)
 
     def _on_policy_activated(self, _row):
-        from .notifications import present_notification_policy
+        from .notificationpolicy import present_notification_policy
         present_notification_policy(self, self.window.client)
 
     def _on_filters_activated(self, _row):

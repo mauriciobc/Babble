@@ -132,7 +132,7 @@ check('the report index/read is not gated: GET /annual_reports/2025 sent',
       bool(client.sent('GET', '/annual_reports/2025')), client.requests)
 
 # -- 2. Notifications: policy, requests and unread_count are 4.3.0 -----
-from src import notifications  # noqa: E402
+from src import notificationpolicy, notifications  # noqa: E402
 from src.api import notifications as api_notifications  # noqa: E402
 
 
@@ -179,7 +179,7 @@ original_finish = api_notifications.policy_finish
 
 def policy_dialog(policy):
     client = RecordingClient(caps.NOTIFICATION_POLICY_API_VERSION)
-    dialog = notifications.NotificationPolicyDialog(client)
+    dialog = notificationpolicy.NotificationPolicyDialog(client)
     api_notifications.policy_finish = lambda _c, _r: policy
     try:
         dialog.on_loaded(client, None)
@@ -188,7 +188,7 @@ def policy_dialog(policy):
     return client, dialog
 
 
-five = {key: 'accept' for key, _t, _s in notifications.POLICY_FIELDS
+five = {key: 'accept' for key, _t, _s in notificationpolicy.POLICY_FIELDS
         if key != 'for_bots'}
 _client, old = policy_dialog(five)
 check('Bots row hidden when the policy has no for_bots key',
@@ -350,13 +350,14 @@ check('a type with no gate is offered on the oldest server',
       type_offered(RecordingClient(0), 'mention'))
 check('every gated type is a type the filter lists',
       set(caps.NOTIFICATION_TYPE_API_VERSIONS)
-      <= {k for k, _l in notifications.NOTIFICATION_TYPES})
+      <= {k for k, _l in notificationpolicy.NOTIFICATION_TYPES})
 
 for label, version in (('below', caps.QUOTES_API_VERSION - 1),
                        ('at', caps.COLLECTIONS_API_VERSION)):
-    dialog = notifications.NotificationPolicyDialog(RecordingClient(version))
+    dialog = notificationpolicy.NotificationPolicyDialog(
+        RecordingClient(version))
     shown = {k for k, row in dialog.type_rows.items() if row.get_visible()}
-    want = {k for k, _l in notifications.NOTIFICATION_TYPES
+    want = {k for k, _l in notificationpolicy.NOTIFICATION_TYPES
             if type_offered(RecordingClient(version), k)}
     check('the type switches follow the gate on a server %s it' % label,
           shown == want, (shown, want))

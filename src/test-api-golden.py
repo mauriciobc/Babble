@@ -1740,7 +1740,8 @@ def catchup_followed_tags_trends_and_relationships(rec):
 
 @p2
 def notification_policy_dialog_loads_and_saves(rec):
-    dialog = notifications.NotificationPolicyDialog(rec.client())
+    from src import notificationpolicy
+    dialog = notificationpolicy.NotificationPolicyDialog(rec.client())
     rec.settle()
     dialog.filter_rows['for_not_following'].set_selected(1)
     dialog.save()

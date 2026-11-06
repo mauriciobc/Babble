@@ -41,11 +41,12 @@ from src.mastodon import MastodonClient  # noqa: E402
 from src import filterrules, notificationcopy, pages  # noqa: E402
 from src.mediabox import BlurredPicture  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
+from src.notificationmodel import (  # noqa: E402
+    NotificationItem, NotificationModel, day_heading, notification_detail,
+    notification_title)
 from src.notificationrow import NotificationPost, NotificationRow  # noqa: E402
-from src.notifications import (NotificationItem, NotificationModel,  # noqa: E402
-                               NotificationRequestRow,
-                               NotificationsPage, day_heading,
-                               notification_detail, notification_title)
+from src.notifications import (NotificationRequestRow,  # noqa: E402
+                               NotificationsPage)
 
 failures = []
 

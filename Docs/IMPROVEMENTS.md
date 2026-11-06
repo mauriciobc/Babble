@@ -677,6 +677,7 @@ recorded in the Decision log below — read that before starting anything here.*
 | ARCH-12 | **done** | **`compose.py` attachment tray.** `AttachmentRow`, attach/drop/paste-media/screenshot and the pasted-cache helpers move to `composeattach.ComposeAttachments`; the view keeps thin wrappers and the QuotePaste paste arm. | `composeattach.py`; `Docs/arch-structural-debt-plan.md` | ~490 lines moved |
 | ARCH-17 | **done** | **`compose.py` mode entry and schedule chrome.** `_ScheduledReplacement`, scheduled-payload shaping, reply/mention/edit/redraft/quote/`start_scheduled`, and the schedule banner/picker move to `composeschedule.ComposeSchedule`; the view keeps thin forwards. | `composeschedule.py`; `Docs/arch-structural-debt-plan.md` | ~275 lines moved |
 | ARCH-13 | **done** | **`notifications.py` row chrome.** `ColumnLayout`/`ColumnBox`, `make_date_heading`, `NotificationFactory`, `NotificationPost` and `NotificationRow` move to `notificationrow.py`; the model, page and policy dialog stay. | `notificationrow.py`; `Docs/arch-structural-debt-plan.md` | ~800 lines moved |
+| ARCH-18 | **done** | **`notifications.py` model and policy.** `NotificationItem`/`NotificationModel` and title/detail helpers move to `notificationmodel.py`; `NotificationPolicyDialog` and `present_notification_policy` move to `notificationpolicy.py`; the page and request list stay. | `notificationmodel.py`, `notificationpolicy.py`; `Docs/arch-structural-debt-plan.md` | ~690 lines moved |
 
 ---
 

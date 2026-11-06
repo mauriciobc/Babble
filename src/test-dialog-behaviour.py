@@ -59,7 +59,7 @@ if not os.path.exists(bundle):
 Gio.Resource.load(bundle)._register()
 
 from src import (fedicollections, lists, main as babble_main,  # noqa: E402
-                 notifications, profileedit, search, wrapped)
+                 notificationpolicy, profileedit, search, wrapped)
 from src.window import BabbleWindow  # noqa: E402
 
 failures = []
@@ -139,8 +139,9 @@ check('an existing collection offers Save',
 # -- notification policy -----------------------------------------------
 def policy_dialog():
     client = _Client()
-    dialog = notifications.NotificationPolicyDialog(client, window)
-    loaded = {key: 'accept' for key, _t, _s in notifications.POLICY_FIELDS}
+    dialog = notificationpolicy.NotificationPolicyDialog(client, window)
+    loaded = {key: 'accept'
+              for key, _t, _s in notificationpolicy.POLICY_FIELDS}
     dialog.on_loaded(client, loaded)
     dialog.present(window)
     pump()
@@ -154,7 +155,7 @@ patches = [r for r in client.requests if r[0] == 'PATCH']
 check('closing the policy unchanged sends nothing', not patches, patches)
 
 client, changed = policy_dialog()
-first_key = notifications.POLICY_FIELDS[0][0]
+first_key = notificationpolicy.POLICY_FIELDS[0][0]
 changed.filter_rows[first_key].set_selected(1)
 changed.close()
 pump()
@@ -239,9 +240,9 @@ prefs.add_toast = lambda toast: on_prefs.append(toast.get_title())
 window_add = window.add_toast
 window.add_toast = lambda toast: on_window.append(toast.get_title())
 client = _Client()
-nested = notifications.NotificationPolicyDialog(client, prefs)
+nested = notificationpolicy.NotificationPolicyDialog(client, prefs)
 nested.on_loaded(client, {key: 'accept'
-                          for key, _t, _s in notifications.POLICY_FIELDS})
+                          for key, _t, _s in notificationpolicy.POLICY_FIELDS})
 nested.present(prefs)
 pump()
 nested.filter_rows[first_key].set_selected(1)
