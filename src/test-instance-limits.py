@@ -47,8 +47,9 @@ builddir = os.environ.get('BABBLE_BUILDDIR') or os.path.dirname(
 Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))._register()
 
 from src.mastodon import MastodonClient  # noqa: E402
-from src.compose import (POLL_DURATIONS, AttachmentRow,  # noqa: E402
+from src.compose import (POLL_DURATIONS,  # noqa: E402
                          BabbleComposeView, poll_duration_choices)
+from src.composeattach import AttachmentRow  # noqa: E402
 from src.api import notifications as api_notifications  # noqa: E402
 
 failures = []

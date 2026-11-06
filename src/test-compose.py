@@ -44,9 +44,10 @@ srcroot = os.path.dirname(os.path.abspath(srcdir))
 sys.path.insert(0, srcroot)
 sys.path.insert(0, srcdir)
 
-from src.compose import (MAX_ATTACHMENTS, VISIBILITIES,  # noqa: E402
+from src.compose import (VISIBILITIES,  # noqa: E402
                          BabbleComposeView, ComposeDialog, countable_length)
-from src import compose, emojichooser, scheduled  # noqa: E402
+from src.composeattach import MAX_ATTACHMENTS  # noqa: E402
+from src import compose, composeattach, emojichooser, scheduled  # noqa: E402
 from src.drafts import Attachment, Draft  # noqa: E402
 from src.hashtagcompleter import (MAX_SUGGESTIONS,  # noqa: E402
                                   hashtag_query, is_name_char, merge_casing,
@@ -2589,9 +2590,12 @@ view.on_files_selected(StubFileDialog([png_a, notes, clip]), None)
 check('the file dialog path refuses what a drop refuses',
       [row.path for row in view.attachments()] == [png_a]
       and collect_toasts() == [ONLY_MEDIA, LONE_MEDIA])
-check('compose.is_media takes audio', compose.is_media('audio/ogg')
-      and compose.is_media('video/mp4') and compose.is_media('image/png')
-      and not compose.is_media('text/plain') and not compose.is_media(None))
+check('composeattach.is_media takes audio',
+      composeattach.is_media('audio/ogg')
+      and composeattach.is_media('video/mp4')
+      and composeattach.is_media('image/png')
+      and not composeattach.is_media('text/plain')
+      and not composeattach.is_media(None))
 view.reset()
 view.set_posting_ui(True)
 check('no drop is taken while posting',
@@ -2839,7 +2843,7 @@ def take_screenshot(*answers):
 
 
 def cached_files():
-    return sorted(os.listdir(compose.pasted_dir()))
+    return sorted(os.listdir(composeattach.pasted_dir()))
 
 
 check('the screenshot button is labelled Take Screenshot',
@@ -2864,7 +2868,7 @@ check('a screenshot taken is attached', len(rows) == 1
       and collect_toasts() == [])
 shot_copy = rows[0].path if rows else ''
 check('the screenshot is copied under the user cache, keeping its name',
-      shot_copy == os.path.join(compose.pasted_dir(),
+      shot_copy == os.path.join(composeattach.pasted_dir(),
                                 os.path.basename(shot)))
 with open(shot_copy or os.devnull, 'rb') as f:
     check('the copy holds the screenshot', f.read() == PNG_BYTES)
@@ -3169,8 +3173,8 @@ del shared
 
 # Pasted images outlive their rows, for undo and saved drafts; the old
 # ones no saved draft refers to are pruned.
-pasted_dir = compose.pasted_dir()
-week_ago = time.time() - compose.PASTED_MAX_AGE - 60
+pasted_dir = composeattach.pasted_dir()
+week_ago = time.time() - composeattach.PASTED_MAX_AGE - 60
 old_loose = os.path.join(pasted_dir, 'old loose.png')
 old_saved = os.path.join(pasted_dir, 'old saved.png')
 for path in (old_loose, old_saved):
@@ -3179,7 +3183,7 @@ for path in (old_loose, old_saved):
     os.utime(path, (week_ago, week_ago))
 local_settings.set_strv('local-drafts', [json.dumps(
     {'attachments': [{'path': old_saved, 'alt': ''}]})])
-compose.prune_pasted_images()
+composeattach.prune_pasted_images()
 check('an old pasted image no draft refers to is pruned',
       not os.path.exists(old_loose))
 check('an old pasted image a saved draft refers to is kept',
