@@ -50,7 +50,7 @@ class AvatarCache:
                 lambda data, key, cancellable, done: _decode_async(
                     data, (AVATAR_DECODE_SIZE,) * 2, cancellable,
                     lambda texture, error: done(
-                        texture, error and error.message)),
+                        texture, _reason_text(error))),
                 on_failure=log_media_failure)
         return cls._fetcher
 
@@ -263,6 +263,16 @@ def _decode_covering(data, cover, scale):
                                  pixbuf.get_rowstride())
 
 
+def _reason_text(error):
+    """The text of a decode failure. ``_decode_async`` reports a string
+    (its worker already took ``GLib.Error.message``); calling ``.message``
+    on it raised inside the callback, so the request never finished and its
+    URL stayed in flight forever, leaving every avatar for it blank."""
+    if error is None or isinstance(error, str):
+        return error
+    return getattr(error, 'message', str(error))
+
+
 def _decode_async(data, cover, cancellable, callback):
     """Decode *data* on a worker thread, no larger than a *cover* box
     needs (the decoded-pixel budget when *cover* is None), and call
@@ -365,7 +375,7 @@ def _media_decode_for_key(data, key, cancellable, done):
     cover = key[1] if isinstance(key, tuple) else None
     _decode_async(data, cover, cancellable,
                   lambda texture, error: done(texture,
-                                              error and error.message))
+                                              _reason_text(error)))
 
 
 class _TextureCache:

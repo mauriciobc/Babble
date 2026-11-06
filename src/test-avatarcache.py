@@ -80,6 +80,31 @@ check('unbinding cancels the request in flight', cancel3.is_cancelled())
 mediacache.AvatarCache.cancel(avatar)
 check('and cancelling twice is harmless', True)
 
+# A decode failure must end the request, not strand its URL in flight.
+from src import imagecache  # noqa: E402
+
+real = imagecache.Fetcher(
+    imagecache.Store(4),
+    lambda data, key, cancellable, done: mediacache._decode_async(
+        data, (96, 96), cancellable,
+        lambda texture, error: done(texture,
+                                    mediacache._reason_text(error))))
+outcome = []
+request = imagecache._Request('u', 'https://x.example/bad.png')
+real._inflight['u'] = request
+request.waiters.append(lambda texture, reason: outcome.append(reason))
+real.decode(GLib.Bytes.new(b'not an image'), 'u', request.cancellable,
+            lambda texture, error: real._finish(request, texture, error))
+ctx = GLib.MainContext.default()
+for _ in range(500):
+    ctx.iteration(False)
+    if outcome:
+        break
+    GLib.usleep(2000)
+check('an undecodable image fails with a reason', bool(outcome and outcome[0]),
+      repr(outcome))
+check('and its URL is not left in flight', 'u' not in real._inflight)
+
 if FAILURES:
     print('\n%d failure(s): %s' % (len(FAILURES), ', '.join(FAILURES)))
     sys.exit(1)
