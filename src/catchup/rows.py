@@ -230,6 +230,7 @@ class CatchUpRow(Gtk.Box):
         self.item = None
         for holder in self.pictures:
             holder.picture.set_paintable(None)
+        AvatarCache.cancel(self.avatar)
         self.avatar.set_custom_image(None)
 
 
