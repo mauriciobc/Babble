@@ -789,7 +789,7 @@ IBus context leaked read-only text views [M, `CLAUDE.md:79`].
                         │  Gio.Task.run_in_thread   ◄── WORKER THREAD
                         │    _decode_covering(data, cover, scale)
                         │      └─ GdkPixbuf PixbufLoader with set_size
-                        │         (16 MP / 8192 px cap without a cover)
+                        │         (16 MP / 8192 px decoded-pixel cap)
                         │    Gdk.MemoryTexture from decoded pixels
                         ▼  (main context)
         _finish(request, texture, reason)         ◄── THE ONLY TEARDOWN PATH
