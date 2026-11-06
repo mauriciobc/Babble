@@ -377,12 +377,10 @@ class FiltersList(Adw.Bin):
         self.client = client
         self.navigation_view = navigation_view
         self.items = []
-        self.stack = Gtk.Stack()
-        self.stack.add_named(pages.make_loading_page(_('Loading Filters')),
-                             'loading')
-        self.error_page = pages.make_error_page(
-            _('Could Not Load Filters'), self._on_retry)
-        self.stack.add_named(self.error_page, 'error')
+        self.stack = pages.StateStack(
+            _('Loading Filters'), _('Could Not Load Filters'),
+            self._on_retry)
+        self.error_page = self.stack.error_page
         self.empty_page = Adw.StatusPage(
             icon_name='babble-filter-symbolic', title=_('No Filters'),
             description=_('Hide or warn about posts that match keywords'))
@@ -405,17 +403,21 @@ class FiltersList(Adw.Bin):
         self.refresh()
 
     def refresh(self):
-        self.stack.set_visible_child_name('loading')
-        api_filters.index_async(self.client, callback=self._on_loaded)
+        token = self.stack.begin()
+        api_filters.index_async(
+            self.client, callback=lambda client, result, _data=None:
+            self._on_loaded(client, result, token))
 
-    def _on_loaded(self, client, result, _data=None):
+    def _on_loaded(self, client, result, token):
         try:
-            self.items = api_filters.index_finish(client, result)
+            items = api_filters.index_finish(client, result)
         except GLib.Error as error:
-            self.error_page.set_description(
-                pages.summarize_error_markup(error))
-            self.stack.set_visible_child_name('error')
+            if self.stack.is_current(token):
+                self.stack.show_error(error)
             return
+        if not self.stack.is_current(token):
+            return
+        self.items = items
         self._populate()
 
     def _populate(self):
@@ -423,7 +425,7 @@ class FiltersList(Adw.Bin):
             self.listbox.remove(row)
         for item in self.items:
             self.listbox.append(self._make_row(item))
-        self.stack.set_visible_child_name('list' if self.items else 'empty')
+        self.stack.show('list' if self.items else 'empty')
 
     def _make_row(self, item):
         row = Adw.ActionRow(title=GLib.markup_escape_text(item['title']),

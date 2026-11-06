@@ -665,6 +665,44 @@ def make_error_page(title, on_retry):
     return page
 
 
+class StateStack(Gtk.Stack):
+    """A Gtk.Stack with the standard 'loading' and 'error' pages; the
+    caller adds its content pages with ``add_named``. ``begin()`` starts
+    a load and returns a token, ``is_current(token)`` is False once a
+    newer load began, so a late reply can be dropped. *on_retry* follows
+    :func:`make_error_page` (a bound method is held weakly); *markup*
+    turns an error into the escaped description."""
+
+    __gtype_name__ = 'BabbleStateStack'
+
+    def __init__(self, loading_title, error_title, on_retry, markup=None):
+        super().__init__()
+        self._generation = 0
+        self._markup = markup or summarize_error_markup
+        self.loading_page = make_loading_page(loading_title)
+        self.error_page = make_error_page(error_title, on_retry)
+        self.add_named(self.loading_page, 'loading')
+        self.add_named(self.error_page, 'error')
+
+    def begin(self):
+        self._generation += 1
+        self.show_loading()
+        return self._generation
+
+    def is_current(self, token):
+        return token == self._generation
+
+    def show_loading(self):
+        self.set_visible_child_name('loading')
+
+    def show_error(self, error):
+        self.error_page.set_description(self._markup(error))
+        self.set_visible_child_name('error')
+
+    def show(self, name):
+        self.set_visible_child_name(name)
+
+
 # Paged list
 
 class PagedList(PagedPosts, Adw.Bin):

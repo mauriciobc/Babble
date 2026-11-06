@@ -15,7 +15,6 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
-from .mastodon import summarize_error_markup  # noqa: E402
 from .timelinebase import COLUMN_WIDTH  # noqa: E402
 from .timelinedata import StatusItem  # noqa: E402
 from .statusrow import StatusRow  # noqa: E402
@@ -235,7 +234,9 @@ class ThreadPage(Adw.Bin):
         self.item = item
         self.status = item.status
 
-        self.stack = Gtk.Stack()
+        self.stack = pages.StateStack(
+            _('Loading Thread'), _('Could Not Load Thread'), self.on_retry)
+        self.error_page = self.stack.error_page
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar()
         if callable(sidebar_control):
@@ -243,13 +244,6 @@ class ThreadPage(Adw.Bin):
         toolbar.add_top_bar(header)
         toolbar.set_content(self.stack)
         self.set_child(toolbar)
-
-        self.loading_page = pages.make_loading_page(_('Loading Thread'))
-        self.stack.add_named(self.loading_page, 'loading')
-
-        self.error_page = pages.make_error_page(_('Could Not Load Thread'),
-                                                self.on_retry)
-        self.stack.add_named(self.error_page, 'error')
 
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_vexpand(True)
@@ -268,23 +262,26 @@ class ThreadPage(Adw.Bin):
     # Data
 
     def load(self):
-        self.stack.set_visible_child_name('loading')
-        api_statuses.context_async(self.client, self.status['id'],
-                                   callback=self.on_context_loaded)
+        token = self.stack.begin()
+        api_statuses.context_async(
+            self.client, self.status['id'],
+            callback=lambda client, result, _data=None:
+            self.on_context_loaded(client, result, token))
 
     def on_retry(self, _button):
         self.load()
 
-    def on_context_loaded(self, client, result, _user_data=None):
+    def on_context_loaded(self, client, result, token):
         try:
             ancestors, descendants = api_statuses.context_finish(client, result)
         except GLib.Error as e:
-            self.error_page.set_description(
-                summarize_error_markup(e))
-            self.stack.set_visible_child_name('error')
+            if self.stack.is_current(token):
+                self.stack.show_error(e)
+            return
+        if not self.stack.is_current(token):
             return
         self.build(ancestors, descendants)
-        self.stack.set_visible_child_name('list')
+        self.stack.show('list')
 
     # Rendering
 
