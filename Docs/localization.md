@@ -8,21 +8,19 @@ starts.
 ## Translation status
 
 Generated from `msgfmt --statistics`. **All four catalogues are
-machine-assisted and still need review by native speakers** — the identical
-counts below are a sign of that, not of four careful translations.
+machine-assisted and still need review by native speakers**, even though
+they are now complete.
 
 | Language | Translated | Fuzzy | Untranslated |
 |---|---|---|---|
-| `de` | 1576 | 62 | 1 |
-| `es` | 1576 | 62 | 1 |
-| `fr` | 1576 | 62 | 1 |
-| `pt_BR` | 1576 | 62 | 1 |
+| `de` | 1843 | 0 | 0 |
+| `es` | 1843 | 0 | 0 |
+| `fr` | 1843 | 0 | 0 |
+| `pt_BR` | 1843 | 0 | 0 |
 
-Fuzzy entries are machine guesses carried over from an earlier run of
-`babble-update-po`. They are not used at runtime, and they are the highest
-value thing for a reviewer to look at. The current batch is mostly the menu
-access keys: a mnemonic is part of the string, so adding one re-words it and
-leaves `msgmerge`'s guess for the old wording behind.
+There are no fuzzy or untranslated entries left. Fuzzy entries are
+machine guesses carried over from an earlier run of `babble-update-po`
+when a string is renamed; they are not used at runtime (see below).
 
 ## Flatpak
 
