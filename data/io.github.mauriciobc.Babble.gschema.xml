@@ -160,6 +160,10 @@
       <default>true</default>
       <summary>Show link preview cards under posts</summary>
     </key>
+    <key name="bluesky-native" type="b">
+      <default>true</default>
+      <summary>Show Bluesky posts natively</summary>
+    </key>
     <key name="show-interaction-counters" type="b">
       <default>true</default>
       <summary>Show reply, boost and favorite counts on post actions</summary>

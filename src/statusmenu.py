@@ -17,6 +17,8 @@ from gi.repository import (GLib, GObject, Gio,  # noqa: E402
 from . import pages, pluginhost  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
+from .blueskycard import view_on_bluesky  # noqa: E402
+from .bskytext import bridged_ref  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
                         )
@@ -53,7 +55,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
     }
 
     MENU_ACTIONS = (
-        'reply', 'quote', 'view', 'open-browser', 'copy', 'stats',
+        'reply', 'quote', 'view', 'open-browser', 'bluesky', 'copy', 'stats',
         'history', 'translate', 'mute-conversation', 'pin', 'edit',
         'delete', 'redraft', 'revoke-quote', 'report', 'mention', 'mute',
         'block')
@@ -158,6 +160,9 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         links.append(_('_View Post'), 'row.view')
         links.append(_('Open in _Browser'), 'row.open-browser')
         links.append(_('_Copy Link'), 'row.copy')
+        if bridged_ref(status) is not None:
+            # S: B is Open in _Browser, and the other letters here are taken.
+            links.append(_('View on Blue_sky'), 'row.bluesky')
         if status.get('visibility') != 'direct' or own:
             links.append(_('View S_tats'), 'row.stats')
         if status.get('edited_at'):
@@ -296,6 +301,11 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
     def _menu_open_browser(self, *_args):
         if self.item is not None and self.item.status_url:
             launch_uri(self, self.item.status_url)
+
+    def _menu_bluesky(self, *_args):
+        ref = bridged_ref(self.item.status) if self.item is not None else None
+        if ref is not None:
+            view_on_bluesky(self, *ref)
 
     def _menu_copy(self, *_args):
         if self.item is None or not self.item.status_url:

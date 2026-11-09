@@ -88,6 +88,7 @@ TIMELINE_MAX_ITEMS = 400
 DEFAULT_FLAGS = {
     'collapse-long-posts': True,
     'show-preview-cards': True,
+    'bluesky-native': True,
     'show-interaction-counters': True,
     'reply-to-old-post-reminder': True,
     'copy-private-link-reminder': True,

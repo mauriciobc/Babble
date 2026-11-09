@@ -51,8 +51,11 @@ class _ContentParser(HTMLParser):
     # Elements whose text is source, not prose.
     UNPRINTABLE_TAGS = {'script', 'style'}
 
-    def __init__(self):
+    def __init__(self, drop_quote_inline=False):
         super().__init__(convert_charrefs=True)
+        self._drop_quote = drop_quote_inline
+        self._quote_depth = 0  # tags open inside a dropped quote-inline
+        self._quote_tag = None
         self.segments = []
         self._href = None
         self._hashtag = False
@@ -60,6 +63,15 @@ class _ContentParser(HTMLParser):
         self._unprintable = 0
 
     def handle_starttag(self, tag, attrs):
+        if self._quote_depth:
+            if tag == self._quote_tag:
+                self._quote_depth += 1
+            return
+        if self._is_quote_inline(tag, attrs):
+            self._flush()
+            self._quote_tag = tag
+            self._quote_depth = 1
+            return
         if tag in self.UNPRINTABLE_TAGS:
             self._unprintable += 1
             return
@@ -84,10 +96,22 @@ class _ContentParser(HTMLParser):
                 self.segments.append({'text': '\n', 'href': None,
                                       'br': True})
 
+    def _is_quote_inline(self, tag, attrs):
+        """The "RE: <link>" fallback a server appends to a quote: a span
+        (Bridgy Fed) or a paragraph (Mastodon) of class ``quote-inline``."""
+        return self._drop_quote and tag in ('span', 'p') \
+            and 'quote-inline' in (dict(attrs).get('class') or '').split()
+
     def handle_startendtag(self, tag, attrs):
+        if self._quote_depth or self._is_quote_inline(tag, attrs):
+            return  # self-closing: nothing inside it to drop or to open
         self.handle_starttag(tag, attrs)
 
     def handle_endtag(self, tag):
+        if self._quote_depth:
+            if tag == self._quote_tag:
+                self._quote_depth -= 1
+            return
         if tag in self.UNPRINTABLE_TAGS:
             self._unprintable = max(0, self._unprintable - 1)
             return
@@ -101,7 +125,7 @@ class _ContentParser(HTMLParser):
             self._flush()
 
     def handle_data(self, data):
-        if self._unprintable:
+        if self._unprintable or self._quote_depth:
             return
         self._buffer.append(data)
 
@@ -116,7 +140,7 @@ class _ContentParser(HTMLParser):
         self.segments.append(segment)
 
 
-def parse_content(html_text):
+def parse_content(html_text, drop_quote_inline=False):
     """Convert status HTML to a list of segments.
 
     Text segments are ``{'text', 'href', 'sp_before', 'sp_after'}`` (the
@@ -124,10 +148,14 @@ def parse_content(html_text):
     punctuation after a link does not get a stray space). A segment
     rendered from an ``<a class="hashtag">`` also carries ``hashtag:
     True``. A line break is a ``'newline'`` segment flagged ``br`` and a
-    paragraph break the same segment without the flag."""
+    paragraph break the same segment without the flag.
+
+    *drop_quote_inline* skips ``<span class="quote-inline">``, the "RE:
+    <link>" line a server appends to a quote post for clients that cannot
+    show the quote; the caller asks for it when it shows the quote itself."""
     if not html_text:
         return []
-    parser = _ContentParser()
+    parser = _ContentParser(drop_quote_inline)
     try:
         parser.feed(html_text)
         parser.close()

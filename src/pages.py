@@ -1099,6 +1099,11 @@ def open_link(widget, uri, mentions=None, tag=None, resolve=False):
     from . import pluginlinks
     if pluginlinks.claim_link(widget, uri):
         return  # before any routing: a claimed /@user@host is the plugin's
+    from . import blueskycard, bskytext
+    bsky = bskytext.post_ref(uri) if blueskycard.enabled() else None
+    if bsky is not None:
+        blueskycard.open_post(widget, *bsky)  # a post, not a profile or tag
+        return
     client = client_of(widget)
     if client is None:
         launch_external(widget, uri)

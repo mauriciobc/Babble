@@ -7,6 +7,8 @@ src/accounts.py
 src/admin.py
 src/announcements.py
 src/auth.py
+src/blueskycard.py
+src/blueskythread.py
 src/catchup/page.py
 src/catchup/page_controls.py
 src/catchup/pipeline.py
