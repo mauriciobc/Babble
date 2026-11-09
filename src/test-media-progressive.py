@@ -215,6 +215,102 @@ check('Retry streams again and lands on the error page again',
 viewer.close()
 wait(lambda: not mediaengine._releasing, 5)
 
+# (e2) A GIFV obeys the live autoplay check; a video never does.
+gtk_settings = Gtk.Settings.get_default()
+saved_motion = gtk_settings.get_property('gtk-interface-reduced-motion')
+saved_anim = gtk_settings.get_property('gtk-enable-animations')
+saved_state = mediaplayback._system_state
+
+
+def gifv(url):
+    return {'type': 'gifv', 'url': url, 'description': 'g'}
+
+
+def open_gifv():
+    v = mediaviewer.present_media(parent, [gifv(fast.base + '/media.ogg')])
+    wait(lambda: frame_drawn(v), 8)
+    return v
+
+
+try:
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    gtk_settings.set_property('gtk-enable-animations', True)
+    check('the check is True with nothing against motion',
+          mediaplayback.may_autoplay_loop())
+
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    check('the check is False under reduced motion',
+          not mediaplayback.may_autoplay_loop())
+    viewer = open_gifv()
+    settle(0.5)
+    check('a GIFV does not autoplay under reduced motion',
+          viewer._stream is not None and not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    check('... and nothing it did not pause is resumed',
+          not viewer._stream.get_playing())
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+
+    viewer = open_gifv()
+    check('a GIFV autoplays', wait(viewer._stream.get_playing, 5))
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    check('reduced motion pauses a playing GIFV',
+          not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    check('... and clearing it resumes the GIFV it paused',
+          wait(viewer._stream.get_playing, 5))
+
+    gtk_settings.set_property('gtk-enable-animations', False)
+    check('turning animations off pauses it',
+          not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-enable-animations', True)
+    check('... and on resumes it', wait(viewer._stream.get_playing, 5))
+
+    from src import sysstate
+    mediaplayback._system_state = lambda name: name == 'power-saver'
+    sysstate.monitor().notify('power-saver')
+    check('power saving pauses the GIFV', not viewer._stream.get_playing())
+    mediaplayback._system_state = lambda name: False
+    sysstate.monitor().notify('power-saver')
+    check('... and leaving it resumes the GIFV',
+          wait(viewer._stream.get_playing, 5))
+
+    # A GIFV the user paused is the user's.
+    viewer._on_gifv_clicked(None, 1, 0, 0, viewer._stream)
+    check('a click pauses the GIFV', not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    settle(0.3)
+    check('a GIFV the user paused is not resumed',
+          not viewer._stream.get_playing())
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+
+    # Another attachment: the gate leaves a video alone.
+    viewer = mediaviewer.present_media(
+        parent, [video(fast.base + '/media.ogg')])
+    wait(lambda: frame_drawn(viewer), 8)
+    check('a video autoplays', wait(viewer._stream.get_playing, 5))
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    mediaplayback._system_state = lambda name: name == 'power-saver'
+    sysstate.monitor().notify('power-saver')
+    check('a video is never paused by the gate',
+          viewer._stream.get_playing())
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+finally:
+    gtk_settings.set_property('gtk-interface-reduced-motion', saved_motion)
+    gtk_settings.set_property('gtk-enable-animations', saved_anim)
+    mediaplayback._system_state = saved_state
+
 # (f) Every request carried Babble's User-Agent.
 agents = slow.agents + fast.agents
 check('the requests were recorded', len(agents) >= 4, repr(agents))

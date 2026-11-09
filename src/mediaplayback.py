@@ -188,6 +188,20 @@ def _system_state(name):
     return bool(sysstate.monitor().get_property(name))
 
 
+def may_autoplay_loop(widget=None):
+    """Whether looping, muted media (a GIFV) may run by itself: animations
+    are on, the user has not asked for reduced motion, and the system is
+    not saving power. Read live, so the viewer can follow a change."""
+    gtk_settings = (Gtk.Settings.get_for_display(widget.get_display())
+                    if widget is not None else Gtk.Settings.get_default())
+    if not gtk_settings.get_property('gtk-enable-animations'):
+        return False
+    if gtk_settings.get_property('gtk-interface-reduced-motion') \
+            == Gtk.ReducedMotion.REDUCE:
+        return False
+    return not _system_state('power-saver')
+
+
 def release_media(bin_widget, stream):
     """Pause *stream*, detach it from its engine and take the media widget
     out of *bin_widget*. The engine stays alive: the viewer stops it
@@ -215,8 +229,42 @@ class MediaPlayback:
     _autoplayed = False
     # The pending source that shows the buffering spinner.
     _buffering_timeout = 0
+    # The GIFV playing was paused by the autoplay gate (not by the user),
+    # and the gate resumes it when it opens again.
+    _gate_paused = False
+    # The gate's signals are connected once per viewer.
+    _gate_connected = False
+
+    def _connect_loop_gate(self):
+        """Follow the autoplay check while a GIFV is shown. Connected once
+        (the handlers only act on a GIFV, so a later attachment of another
+        kind is untouched) and released with the viewer."""
+        if self._gate_connected:
+            return
+        self._gate_connected = True
+        from . import sysstate
+        pages.connect_weak(sysstate.monitor(), 'notify::power-saver',
+                           self._on_loop_gate_changed)
+        gtk_settings = Gtk.Settings.get_default()
+        for name in ('gtk-enable-animations', 'gtk-interface-reduced-motion'):
+            pages.connect_weak(gtk_settings, 'notify::' + name,
+                               self._on_loop_gate_changed)
+
+    def _on_loop_gate_changed(self, *_args):
+        stream = self._stream
+        if stream is None or self._stream_kind != 'gifv' \
+                or not stream.is_prepared():
+            return
+        if may_autoplay_loop(self):
+            if self._gate_paused:
+                self._gate_paused = False
+                stream.play()
+        elif stream.get_playing():
+            self._gate_paused = True
+            stream.pause()
 
     def _unload_media(self):
+        self._gate_paused = False
         self._set_inhibited(False)
         stream = self._stream
         self._stream = None
@@ -312,8 +360,8 @@ class MediaPlayback:
             view.add_controller(click)
             # A looping animation is decoration: it waits for a click
             # when animations are off or the system saves power.
-            autoplay = Gtk.Settings.get_default().get_property(
-                'gtk-enable-animations') and not _system_state('power-saver')
+            autoplay = may_autoplay_loop(self)
+            self._connect_loop_gate()
         elif kind == 'video':
             view = Gtk.Video(hexpand=True, vexpand=True)
             view.set_media_stream(stream)
@@ -373,6 +421,8 @@ class MediaPlayback:
         return box
 
     def _on_gifv_clicked(self, gesture, n_press, x, y, stream):
+        # The user decides now: whatever the gate paused stays theirs.
+        self._gate_paused = False
         if stream.get_playing():
             stream.pause()
         else:
