@@ -219,7 +219,7 @@ class ComposeSchedule(GObject.Object):
             return False
         view._clear_submission_mode()
         view.editing_id = str(status.get('id') or '') or None
-        self._load_status_draft(status)
+        self._load_status_draft(status, show_media=True)
         view._load_thread(view.editing_id, status, editing=True)
         return True
 
@@ -233,7 +233,7 @@ class ComposeSchedule(GObject.Object):
         self._load_status_draft(status)
         return True
 
-    def _load_status_draft(self, status):
+    def _load_status_draft(self, status, show_media=False):
         """Fill in the fields shared by editing and re-drafting a post."""
         view = self._host()
         view.clear_attachments()
@@ -242,10 +242,16 @@ class ComposeSchedule(GObject.Object):
             entry.set_text('')
         view._select_default_poll_duration()
         source = dict(status)
-        view._pending_media_ids = [
-            attachment['id']
-            for attachment in source.get('media_attachments') or []
-            if attachment.get('id')]
+        attachments = [a for a in source.get('media_attachments') or []
+                       if a.get('id')]
+        if show_media:
+            # An edit shows the media as rows, so the description can be
+            # changed; the rows carry the ids.
+            view._pending_media_ids = []
+            for attachment in attachments:
+                view.attach.add_existing(attachment)
+        else:
+            view._pending_media_ids = [a['id'] for a in attachments]
         view._set_buffer(source.get('text') or '')
         view.buffer.place_cursor(view.buffer.get_end_iter())
         spoiler = source.get('spoiler_text') or ''

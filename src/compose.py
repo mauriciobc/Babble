@@ -589,7 +589,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             cw_text=self.spoiler_entry.get_text(),
             attachments=[Attachment(path=row.path,
                                     alt=row.alt_entry.get_text())
-                         for row in self.attachments()],
+                         for row in self.attachments() if not row.existing],
             poll=self.poll_state(),
             in_reply_to_id=self.in_reply_to_id)
 
@@ -777,7 +777,10 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         return _ComposeState(
             self.snapshot(), self.editing_id, self.quoted_status_id,
             self.scheduled_id, self.scheduled_at, self.scheduled_on_done,
-            tuple(self._pending_media_ids), deepcopy(self._scheduled_fields),
+            tuple(self._pending_media_ids)
+            + tuple(row.uploaded_id for row in self.attachments()
+                    if row.existing),
+            deepcopy(self._scheduled_fields),
             self._thread)
 
     def _restore_state(self, state):
@@ -1424,9 +1427,17 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                      if row.uploaded_id]
         media_ids += [mid for mid in self._pending_media_ids
                       if mid not in media_ids]
-        if media_ids:
+        if media_ids or self.editing_id is not None:
+            # An edit sends the list even when empty: that is how every
+            # attachment is taken off.
             params['media_ids'] = media_ids
         if self.editing_id is not None:
+            # The server keeps a kept attachment's old description unless
+            # it is sent again.
+            params['media_attributes'] = [
+                {'id': row.uploaded_id,
+                 'description': row.alt_entry.get_text()}
+                for row in self.attachments() if row.existing]
             context = (self.editing_id, self.uploads.generation)
             api_statuses.edit_async(self.client, self.editing_id,
                                     self.text(), params=params,
