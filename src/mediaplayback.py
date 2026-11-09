@@ -234,6 +234,8 @@ class MediaPlayback:
     _gate_paused = False
     # The gate's signals are connected once per viewer.
     _gate_connected = False
+    # The last answer of the autoplay check, so only a change acts.
+    _gate_open = True
     # The volume the current video or audio stream started at.
     _loaded_volume = None
 
@@ -247,17 +249,19 @@ class MediaPlayback:
         from . import sysstate
         pages.connect_weak(sysstate.monitor(), 'notify::power-saver',
                            self._on_loop_gate_changed)
-        gtk_settings = Gtk.Settings.get_default()
+        gtk_settings = Gtk.Settings.get_for_display(self.get_display())
         for name in ('gtk-enable-animations', 'gtk-interface-reduced-motion'):
             pages.connect_weak(gtk_settings, 'notify::' + name,
                                self._on_loop_gate_changed)
 
     def _on_loop_gate_changed(self, *_args):
         stream = self._stream
-        if stream is None or self._stream_kind != 'gifv' \
-                or not stream.is_prepared():
+        if stream is None or self._stream_kind != 'gifv':
             return
-        if may_autoplay_loop(self):
+        was_open, self._gate_open = self._gate_open, may_autoplay_loop(self)
+        if not stream.is_prepared() or was_open == self._gate_open:
+            return
+        if self._gate_open:
             if self._gate_paused:
                 self._gate_paused = False
                 stream.play()
@@ -380,7 +384,9 @@ class MediaPlayback:
             view.add_controller(click)
             # A looping animation is decoration: it waits for a click
             # when animations are off or the system saves power.
-            autoplay = may_autoplay_loop(self)
+            # Decided when the stream is prepared, not now.
+            autoplay = True
+            self._gate_open = may_autoplay_loop(self)
             self._connect_loop_gate()
         elif kind == 'video':
             # Offload lets the compositor scan the video out directly.
@@ -533,7 +539,15 @@ class MediaPlayback:
         # duration that arrived late) must not restart a paused video.
         if autoplay and not self._autoplayed:
             self._autoplayed = True
-            stream.play()
+            if self._stream_kind != 'gifv':
+                stream.play()
+            else:
+                self._gate_open = may_autoplay_loop(self)
+                if self._gate_open:
+                    stream.play()
+                else:
+                    # Held by the gate: it starts when the gate opens.
+                    self._gate_paused = True
         if self._first_focus:
             self._first_focus = False
             child = self.media_bin.get_child()

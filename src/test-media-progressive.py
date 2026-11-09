@@ -250,13 +250,34 @@ try:
     viewer = open_gifv()
     settle(0.5)
     check('a GIFV does not autoplay under reduced motion',
-          viewer._stream is not None and not viewer._stream.get_playing())
+          viewer._stream.is_prepared() and not viewer._stream.get_playing())
     gtk_settings.set_property('gtk-interface-reduced-motion',
                               Gtk.ReducedMotion.NO_PREFERENCE)
-    check('... and nothing it did not pause is resumed',
-          not viewer._stream.get_playing())
+    check('... and it starts when the gate opens (case B)',
+          viewer._stream.is_prepared() and wait(viewer._stream.get_playing, 5))
     viewer.close()
     wait(lambda: not mediaengine._releasing, 5)
+
+    # Case A: open at start, closed before the stream is prepared.
+    viewer = mediaviewer.present_media(
+        parent, [gifv(fast.base + '/media.ogg')])
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    wait(lambda: frame_drawn(viewer), 8)
+    settle(0.5)
+    check('a gate closed while loading holds the GIFV (case A)',
+          viewer._stream.is_prepared() and not viewer._stream.get_playing())
+    # A click starts it; an unrelated notify must not pause it.
+    viewer._on_gifv_clicked(None, 1, 0, 0, viewer._stream)
+    check('a click starts a held GIFV', viewer._stream.get_playing())
+    from src import sysstate
+    sysstate.monitor().notify('power-saver')
+    check('an unrelated notify leaves a clicked GIFV playing',
+          viewer._stream.get_playing())
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
 
     viewer = open_gifv()
     check('a GIFV autoplays', wait(viewer._stream.get_playing, 5))
@@ -275,7 +296,6 @@ try:
     gtk_settings.set_property('gtk-enable-animations', True)
     check('... and on resumes it', wait(viewer._stream.get_playing, 5))
 
-    from src import sysstate
     mediaplayback._system_state = lambda name: name == 'power-saver'
     sysstate.monitor().notify('power-saver')
     check('power saving pauses the GIFV', not viewer._stream.get_playing())
