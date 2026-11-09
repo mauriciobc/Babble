@@ -214,6 +214,10 @@ def release_media(bin_widget, stream):
     del child
 
 
+# The lowest volume the viewer remembers.
+MIN_SAVED_VOLUME = 0.05
+
+
 class MediaPlayback:
     """Mixin: streaming, GstPlay lifetime and idle inhibition.
 
@@ -282,7 +286,10 @@ class MediaPlayback:
                 or self._loaded_volume is None:
             return
         volume = min(1.0, max(0.0, stream.get_volume()))
-        if abs(volume - self._loaded_volume) > 1e-6:
+        # A near-silent slider position is not a preference: it would
+        # make every later video open silent.
+        if volume >= MIN_SAVED_VOLUME \
+                and abs(volume - self._loaded_volume) > 1e-6:
             pages.settings().set_double('media-viewer-volume', volume)
         self._loaded_volume = None
 

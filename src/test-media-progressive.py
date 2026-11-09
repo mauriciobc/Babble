@@ -363,6 +363,32 @@ viewer.close()
 wait(lambda: not mediaengine._releasing, 5)
 check('a GIFV does not touch the saved volume',
       abs(store.get_double('media-viewer-volume') - 0.4) < 1e-6)
+# A near-silent volume is not remembered.
+store.set_double('media-viewer-volume', 0.7)
+viewer = mediaviewer.present_media(parent, [video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+viewer._stream.set_volume(0.01)
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+check('a near-silent volume is not saved',
+      abs(store.get_double('media-viewer-volume') - 0.7) < 1e-6)
+
+# A reused engine does not stay muted after a GIFV.
+store.reset('media-viewer-volume')
+viewer = mediaviewer.present_media(
+    parent, [gifv(fast.base + '/media.ogg'), video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+engine = viewer._engine
+check('a GIFV mutes the engine', engine.play.get_mute())
+viewer.show_index(1)
+wait(lambda: frame_drawn(viewer), 8)
+check('the same engine is reused', viewer._engine is engine)
+check('a video after a GIFV is not muted', not engine.play.get_mute())
+check('... and has the stream volume',
+      abs(engine.play.get_volume() - viewer._stream.get_volume()) < 1e-6,
+      str(engine.play.get_volume()))
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
 store.reset('media-viewer-volume')
 
 # (f) Every request carried Babble's User-Agent.
