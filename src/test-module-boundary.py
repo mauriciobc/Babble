@@ -125,6 +125,179 @@ def all_imports(tree):
     return found
 
 
+def module_name(path):
+    """The dotted name of a source under `src/` (`catchup.page`, `pages`,
+    `api` for `src/api/__init__.py`), or None for one outside it."""
+    if not path.startswith('src/'):
+        return None
+    parts = path[len('src/'):-len('.py')].split('/')
+    if parts[-1] == '__init__':
+        parts = parts[:-1]
+    return '.'.join(parts)
+
+
+def _is_type_checking(test):
+    return (isinstance(test, ast.Name) and test.id == 'TYPE_CHECKING'
+            or isinstance(test, ast.Attribute)
+            and test.attr == 'TYPE_CHECKING')
+
+
+def load_time_imports(tree):
+    """The import statements that run when the module loads: everything
+    outside a function body (a class body runs at load, a def does not),
+    and outside an `if TYPE_CHECKING:` block."""
+    found = []
+
+    def visit(node):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.Lambda)):
+            return
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            found.append(node)
+            return
+        if isinstance(node, ast.If) and _is_type_checking(node.test):
+            for item in node.orelse:
+                visit(item)
+            return
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+    visit(tree)
+    return found
+
+
+def import_targets(node, package, modules):
+    """The modules of *modules* an import statement executes, for an
+    importer whose package is *package* (`''` at the top of `src`).
+
+    `from X import name` runs X, and X.name too when that is a module.
+    Every enclosing package of a target runs first, so each is a target
+    as well, except the importer's own packages: those are already
+    loading before the importer can run, whatever it imports."""
+    if isinstance(node, ast.Import):
+        bases = [(alias.name[len('src.'):], ()) for alias in node.names
+                 if alias.name.startswith('src.')]
+    elif node.level:
+        parts = package.split('.') if package else []
+        if node.level - 1 > len(parts):
+            return set()
+        base = '.'.join(parts[:len(parts) - (node.level - 1)])
+        if node.module:
+            base = base + '.' + node.module if base else node.module
+        bases = [(base, [alias.name for alias in node.names])]
+    elif node.module == 'src' or (node.module or '').startswith('src.'):
+        bases = [(node.module[len('src.'):] if node.module != 'src' else '',
+                  [alias.name for alias in node.names])]
+    else:
+        return set()
+    own = set()
+    if package:
+        parts = package.split('.')
+        own = {'.'.join(parts[:i]) for i in range(1, len(parts) + 1)}
+    targets = set()
+    for base, names in bases:
+        named = [base] + [base + '.' + name if base else name
+                          for name in names]
+        for module in named:
+            if module not in modules:
+                continue
+            parts = module.split('.')
+            for i in range(1, len(parts) + 1):
+                prefix = '.'.join(parts[:i])
+                if prefix in modules and prefix not in own:
+                    targets.add(prefix)
+    return targets
+
+
+def load_time_cycles(sources):
+    """R9: every cycle among the `src/` modules through imports that run
+    at load time, one line per strongly connected group.
+
+    A cycle there either fails at import (a name read from a module that
+    is still half loaded) or depends on the order the first import comes
+    from. The plugin and link modules (`pages`, `pluginlinks`,
+    `pluginhost`, `pluginmenu`, `pluginpanel`, `webcolumn`) call each
+    other in a loop on purpose and keep it safe only by importing lazily,
+    inside functions; this rule is what keeps one of those imports from
+    moving to the top of its file."""
+    names = {}
+    for path in sources:
+        name = module_name(path)
+        if name:
+            names[path] = name
+    modules = set(names.values())
+    edges = {}
+    for path in sorted(names):
+        importer = names[path]
+        package = (importer if path.endswith('/__init__.py')
+                   else importer.rpartition('.')[0])
+        try:
+            tree = ast.parse(sources[path], filename=path)
+        except SyntaxError:
+            continue  # reported as unparsable by violations()
+        for node in load_time_imports(tree):
+            for target in import_targets(node, package, modules):
+                if target != importer:
+                    edges.setdefault(importer, {}).setdefault(
+                        target, '%s:%d' % (path, node.lineno))
+
+    # Tarjan's strongly connected components; the graph is a few hundred
+    # modules, so recursion depth is not a concern.
+    index, low, stack, on_stack, groups = {}, {}, [], set(), []
+
+    def connect(module):
+        index[module] = low[module] = len(index)
+        stack.append(module)
+        on_stack.add(module)
+        for target in sorted(edges.get(module, ())):
+            if target not in index:
+                connect(target)
+                low[module] = min(low[module], low[target])
+            elif target in on_stack:
+                low[module] = min(low[module], index[target])
+        if low[module] == index[module]:
+            group = set()
+            while True:
+                member = stack.pop()
+                on_stack.discard(member)
+                group.add(member)
+                if member == module:
+                    break
+            if len(group) > 1:
+                groups.append(group)
+
+    for module in sorted(edges):
+        if module not in index:
+            connect(module)
+
+    found = []
+    for group in sorted(groups, key=min):
+        # The shortest cycle through the group's first module, by BFS
+        # inside the group, so the report names a path one can follow.
+        start = min(group)
+        previous = {start: None}
+        queue = [start]
+        end = None
+        while queue and end is None:
+            module = queue.pop(0)
+            for target in sorted(edges.get(module, ())):
+                if target == start:
+                    end = module
+                    break
+                if target in group and target not in previous:
+                    previous[target] = module
+                    queue.append(target)
+        path = [end]
+        while previous[path[-1]] is not None:
+            path.append(previous[path[-1]])
+        path.reverse()
+        steps = ['%s (%s)' % (module, edges[module][following])
+                 for module, following
+                 in zip(path, path[1:] + [start], strict=True)]
+        found.append('R9: load-time import cycle: %s -> %s'
+                     % (' -> '.join(steps), start))
+    return found
+
+
 def violations(sources: dict[str, str]) -> list[str]:
     """Every boundary violation in *sources*, as `RULE file:line detail`.
 
@@ -221,12 +394,21 @@ def violations(sources: dict[str, str]) -> list[str]:
                     elif not (node.level == 1
                               and (node.module == 'core'
                                    or (node.module is None
-                                       and names == {'core'}))):
+                                       and names == {'core'})
+                                   or (path == 'src/api/timelines.py'
+                                       and (node.module == 'lists'
+                                            or (node.module is None
+                                                and names <= {'core',
+                                                              'lists'}))))):
+                        # The one sibling import: the list timeline is
+                        # declared once, in lists.TIMELINE, and
+                        # timelines.list_path() serves it from there.
                         found.append('R8: %s:%d imports %s%s: src/api may'
                                      ' use only the standard library and'
                                      ' core'
                                      % (path, node.lineno,
                                         '.' * node.level, node.module or ''))
+    found.extend(load_time_cycles(sources))
     return found
 
 
@@ -306,6 +488,46 @@ self_check('R8 rejects src/api importing the client',
 self_check('R8 rejects one resource module importing another',
            {'src/api/accounts.py': 'from . import statuses\n'},
            'R8: src/api/accounts.py:1 imports .')
+self_check('R9 catches two modules importing each other at load time',
+           {'src/alpha.py': 'from . import beta\n',
+            'src/beta.py': 'import os\nfrom .alpha import thing\n'},
+           'R9: load-time import cycle: alpha (src/alpha.py:1) -> '
+           'beta (src/beta.py:2) -> alpha')
+self_check('R9 follows a cycle through a subpackage and a class body',
+           {'src/catchup/__init__.py': '',
+            'src/catchup/tiles.py': 'from .. import gamma\n',
+            'src/gamma.py': 'class C:\n    from .catchup import tiles\n'},
+           'R9: load-time import cycle: catchup.tiles (src/catchup/'
+           'tiles.py:1) -> gamma (src/gamma.py:2) -> catchup.tiles')
+self_check('R9 catches a cycle through a package __init__',
+           {'src/catchup/__init__.py': 'from .. import gamma\n',
+            'src/catchup/tiles.py': '',
+            'src/gamma.py': 'from .catchup.tiles import X\n'},
+           'R9: load-time import cycle: catchup (src/catchup/__init__.py:1)'
+           ' -> gamma (src/gamma.py:1) -> catchup')
+check('R9 accepts a cycle closed by an import inside a function',
+      not violations({'src/alpha.py': 'from . import beta\n',
+                      'src/beta.py': 'def f():\n    from . import alpha\n'}))
+check('R9 accepts a cycle closed under TYPE_CHECKING',
+      not violations({'src/alpha.py': 'from . import beta\n',
+                      'src/beta.py': 'from typing import TYPE_CHECKING\n'
+                                     'if TYPE_CHECKING:\n'
+                                     '    from . import alpha\n'}))
+check('R9 accepts a submodule importing its own package',
+      not violations({'src/catchup/__init__.py': 'from . import tiles\n',
+                      'src/catchup/tiles.py': 'from . import rank\n',
+                      'src/catchup/rank.py': ''}))
+self_check('R8 keeps the timelines exception to lists alone',
+           {'src/api/timelines.py': 'from . import core, statuses\n'},
+           'R8: src/api/timelines.py:1 imports .')
+self_check('R8 keeps the lists exception to timelines alone',
+           {'src/api/accounts.py': 'from . import lists\n'},
+           'R8: src/api/accounts.py:1 imports .')
+check('R8 accepts timelines importing lists',
+      not [line for line in violations({
+          'src/api/timelines.py': 'from . import core, lists\n'
+                                  'from .lists import TIMELINE\n'})
+          if line.startswith('R8')])
 check('R8 accepts the standard library and core',
       not [line for line in violations({
           'src/api/accounts.py':
@@ -356,6 +578,8 @@ RULES = (
     ('R5', 'affinity imports no ranker modules'),
     ('R6', 'Catch Up tiles construct controls through tileactions'),
     ('R7', 'Catch Up imports no window-owned module'),
+    ('R8', 'src/api imports only the standard library and core'),
+    ('R9', 'no import cycle among src modules at load time'),
 )
 for rule, label in RULES:
     hits = [line for line in FOUND if line.startswith(rule + ':')]
