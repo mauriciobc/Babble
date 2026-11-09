@@ -53,12 +53,24 @@ def wants_inline_dropped(status):
         return True
     if status.get('poll') or status.get('media_attachments'):
         return False
-    return bool(quote_data(status.get('card')))
+    card = status.get('card')
+    return bool(quote_data(card)) and bool(
+        card.get('title') or card.get('description'))
 
 
 def open_post(widget, actor, rkey):
     from . import blueskythread
     blueskythread.push_bluesky_thread(widget, actor, rkey)
+
+
+def view_on_bluesky(widget, actor, rkey):
+    """The menu's "View on Bluesky": the native page, or the web page when
+    the setting is off, since that setting means never contacting Bluesky
+    from Babble."""
+    if enabled():
+        open_post(widget, actor, rkey)
+    else:
+        pages.launch_external(widget, bskytext.web_url(actor, rkey))
 
 
 class _FixedPicture(Gtk.Picture):

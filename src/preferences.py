@@ -364,7 +364,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Reveal posts with a content warning'))
         self._switch(posts, 'show-preview-cards',
                      _('Link Preview _Cards'))
-        self._switch(posts, 'bluesky-native', _('_Bluesky Posts'),
+        self._switch(posts, 'bluesky-native', _('Blues_ky Posts'),
                      _('Bluesky links open in Babble, which contacts '
                        'Bluesky’s servers'))
         self._switch(posts, 'show-interaction-counters',

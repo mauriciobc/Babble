@@ -17,7 +17,7 @@ from gi.repository import (GLib, GObject, Gio,  # noqa: E402
 from . import pages, pluginhost  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
-from .blueskycard import open_post as open_bluesky_post  # noqa: E402
+from .blueskycard import view_on_bluesky  # noqa: E402
 from .bskytext import bridged_ref  # noqa: E402
 from .pages import connect_weak  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
@@ -305,7 +305,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
     def _menu_bluesky(self, *_args):
         ref = bridged_ref(self.item.status) if self.item is not None else None
         if ref is not None:
-            open_bluesky_post(self, *ref)
+            view_on_bluesky(self, *ref)
 
     def _menu_copy(self, *_args):
         if self.item is None or not self.item.status_url:

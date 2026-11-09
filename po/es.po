@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-09 11:58-0300\n"
+"POT-Creation-Date: 2026-11-09 12:11-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -1584,71 +1584,111 @@ msgstr ""
 msgid "Moderation access granted"
 msgstr "Acceso a la moderación concedido"
 
-#: src/blueskycard.py:113 src/blueskycard.py:174
+#: src/blueskycard.py:125 src/blueskycard.py:186
 msgid "Bluesky"
 msgstr ""
 
-#: src/blueskycard.py:132 src/blueskythread.py:109
+#: src/blueskycard.py:144 src/blueskythread.py:120
 #, fuzzy, python-format
 msgid "Bluesky post by %(author)s: %(text)s"
 msgstr "Publicación citada de %(author)s: %(text)s"
 
-#: src/blueskycard.py:177
+#: src/blueskycard.py:189
 msgid "Bridged from Bluesky"
 msgstr ""
 
-#: src/blueskythread.py:38
+#: src/blueskythread.py:47
 #, fuzzy
 msgid "Bluesky Post"
 msgstr "Citar publicación"
 
-#: src/blueskythread.py:57
+#: src/blueskythread.py:67
 #, fuzzy
 msgid "Post by a blocked account"
 msgstr "Sin cuentas bloqueadas"
 
-#: src/blueskythread.py:58
+#: src/blueskythread.py:68
 #, fuzzy
 msgid "Post not found"
 msgstr "No se encontraron publicaciones"
 
-#: src/blueskythread.py:112
+#: src/blueskythread.py:123
 msgid "Bluesky hides this post from people who are not signed in."
 msgstr ""
 
-#: src/blueskythread.py:115 src/blueskythread.py:209
+#: src/blueskythread.py:126 src/blueskythread.py:240
 #, fuzzy
 msgid "Open on Bluesky"
 msgstr "Abrir en el navegador"
 
-#: src/blueskythread.py:149
+#: src/blueskythread.py:164
 #, fuzzy
 msgid "Quoted post unavailable"
 msgstr "Cita no disponible"
 
-#: src/blueskythread.py:167
+#: src/blueskythread.py:182
 msgid "Open Video on Bluesky"
 msgstr ""
 
-#: src/blueskythread.py:213
+#. Translators: %s is a number, such as 3 or 1.5K
+#: src/blueskythread.py:197
+#, fuzzy, python-format
+msgid "%s reply"
+msgid_plural "%s replies"
+msgstr[0] "%d respuesta"
+msgstr[1] "%d respuestas"
+
+#. Translators: %s is a number, such as 3 or 1.5K
+#: src/blueskythread.py:202
+#, fuzzy, python-format
+msgid "%s repost"
+msgid_plural "%s reposts"
+msgstr[0] "%s publicó"
+msgstr[1] "%s publicó"
+
+#. Translators: %s is a number, such as 3 or 1.5K
+#: src/blueskythread.py:207
+#, fuzzy, python-format
+msgid "%s quote"
+msgid_plural "%s quotes"
+msgstr[0] "citas"
+msgstr[1] "citas"
+
+#. Translators: %s is a number, such as 3 or 1.5K
+#: src/blueskythread.py:212
+#, fuzzy, python-format
+msgid "%s like"
+msgid_plural "%s likes"
+msgstr[0] "Quedan %s"
+msgstr[1] "Quedan %s"
+
+#: src/blueskythread.py:244
 #, fuzzy
 msgid "Loading Post"
 msgstr "Cargando perfil"
 
-#: src/blueskythread.py:213
+#: src/blueskythread.py:244
 #, fuzzy
 msgid "Could Not Load Post"
 msgstr "No se pudo cargar"
 
-#: src/blueskythread.py:241
+#: src/blueskythread.py:285
+msgid "Bluesky is busy. Try again in a moment."
+msgstr ""
+
+#: src/blueskythread.py:287
 msgid "This post is unavailable on Bluesky."
 msgstr ""
 
-#: src/blueskythread.py:265 src/thread.py:306
+#: src/blueskythread.py:288
+msgid "Bluesky did not answer. Check your connection and try again."
+msgstr ""
+
+#: src/blueskythread.py:310 src/thread.py:306
 msgid "Selected post"
 msgstr "Publicación seleccionada"
 
-#: src/blueskythread.py:272
+#: src/blueskythread.py:317
 msgid "More Replies on Bluesky"
 msgstr ""
 
@@ -5254,7 +5294,7 @@ msgstr "_Tarjetas de vista previa de enlaces"
 
 #: src/preferences.py:367
 #, fuzzy
-msgid "_Bluesky Posts"
+msgid "Blues_ky Posts"
 msgstr "Publicaciones nuevas"
 
 #: src/preferences.py:368
@@ -7549,62 +7589,62 @@ msgstr "Mostrar advertencia de contenido: %s"
 #. Translators: date and 12-hour time, a GDateTime format
 #. string, e.g. "9 Oct 2026, 2:47 PM"; see the
 #. g_date_time_format() docs
-#: src/statustext.py:329
+#: src/statustext.py:337
 msgid "%-d %b %Y, %-I:%M %p"
 msgstr "%-d %b %Y, %-I:%M %p"
 
 #. Translators: 12-hour time, a GDateTime format string, e.g.
 #. "2:47 PM"; see the g_date_time_format() docs
-#: src/statustext.py:333
+#: src/statustext.py:341
 msgid "%-I:%M %p"
 msgstr "%-I:%M %p"
 
 #. Translators: a GDateTime format string, e.g. "9 Oct 2026, 10:47";
 #. see the g_date_time_format() docs
-#: src/statustext.py:337
+#: src/statustext.py:345
 msgid "%-d %b %Y, %H:%M"
 msgstr "%-d de %b de %Y, %H:%M"
 
 #. Translators: 24-hour time, a GDateTime format string, e.g.
 #. "14:47"; see the g_date_time_format() docs
-#: src/statustext.py:341
+#: src/statustext.py:349
 msgid "%H:%M"
 msgstr "%H:%M"
 
 #. Translators: compact age of a post in seconds, e.g. "42s"
-#: src/statustext.py:385
+#: src/statustext.py:393
 #, python-format
 msgid "%ds"
 msgstr "%ds"
 
 #. Translators: compact age of a post in minutes, e.g. "5m"
-#: src/statustext.py:389 src/timelinebase.py:156
+#: src/statustext.py:397 src/timelinebase.py:156
 #, python-format
 msgid "%dm"
 msgstr "%dmin"
 
 #. Translators: compact age of a post in hours, e.g. "3h"
-#: src/statustext.py:393 src/timelinebase.py:158
+#: src/statustext.py:401 src/timelinebase.py:158
 #, python-format
 msgid "%dh"
 msgstr "%dh"
 
 #. Translators: compact age of a post in days, e.g. "12d"
-#: src/statustext.py:397 src/timelinebase.py:159
+#: src/statustext.py:405 src/timelinebase.py:159
 #, python-format
 msgid "%dd"
 msgstr "%dd"
 
 #. Translators: date of a post older than a year, a GDateTime format
 #. string, e.g. "Oct 2025"; see the g_date_time_format() docs
-#: src/statustext.py:401
+#: src/statustext.py:409
 msgid "%b %Y"
 msgstr "%b %Y"
 
 #. Translators: compact count in thousands, e.g. "3.4K"; %s is the
 #. number. Write it as "3.4 Tsd." in German, "3,4 mil" in Spanish
 #. and "3,4 mil" in Brazilian Portuguese. Keep the %s.
-#: src/statustext.py:427
+#: src/statustext.py:435
 #, python-format
 msgid "%sK"
 msgstr "%s mil"
@@ -7612,7 +7652,7 @@ msgstr "%s mil"
 #. Translators: compact count in millions, e.g. "2.1M"; %s is the
 #. number. German uses "Mio.", French "M" is fine, Portuguese
 #. uses "mi". Keep the %s.
-#: src/statustext.py:432
+#: src/statustext.py:440
 #, python-format
 msgid "%sM"
 msgstr "%s M"
@@ -7620,7 +7660,7 @@ msgstr "%s M"
 #. Translators: compact count in billions, e.g. "1.2B"; %s is the
 #. number. German uses "Mrd.", French "Md", Portuguese "bi".
 #. Keep the %s.
-#: src/statustext.py:437
+#: src/statustext.py:445
 #, python-format
 msgid "%sB"
 msgstr "%s mil M"

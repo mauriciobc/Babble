@@ -174,13 +174,17 @@ class TestLabelsAndEmbeds(unittest.TestCase):
 
     def test_images_adapter(self):
         embed = {'$type': 'app.bsky.embed.images#view', 'images': [
-            {'thumb': 't1', 'fullsize': 'f1', 'alt': 'one',
+            {'thumb': 'https://x/t1', 'fullsize': 'https://x/f1',
+             'alt': 'one',
              'aspectRatio': {'width': 4, 'height': 3}},
-            {'thumb': 't2', 'fullsize': 'f2', 'alt': ''}]}
+            {'thumb': 'https://x/t2', 'fullsize': 'https://x/f2',
+             'alt': ''},
+            {}, 'junk', {'fullsize': 'javascript:x'}]}
         out = bskytext.attachments(embed)
         self.assertEqual([a['type'] for a in out], ['image', 'image'])
-        self.assertEqual(out[0]['url'], 'f1')
-        self.assertEqual(out[0]['preview_url'], 't1')
+        self.assertEqual(out[0]['url'], 'https://x/f1')
+        self.assertEqual(out[0]['preview_url'], 'https://x/t1')
+        self.assertEqual(len(out), 2)
         self.assertEqual(out[0]['description'], 'one')
 
     def test_video_is_a_poster_only(self):
@@ -194,10 +198,10 @@ class TestLabelsAndEmbeds(unittest.TestCase):
     def test_external_and_quote_with_media(self):
         ext = {'$type': 'app.bsky.embed.external#view', 'external': {
             'uri': 'https://e.com', 'title': 'T', 'description': 'D',
-            'thumb': 'th'}}
+            'thumb': 'https://x/th'}}
         card = bskytext.external(ext)
         self.assertEqual((card['url'], card['title'], card['image']),
-                         ('https://e.com', 'T', 'th'))
+                         ('https://e.com', 'T', 'https://x/th'))
         record = {'$type': 'app.bsky.embed.record#viewRecord',
                   'uri': AT, 'author': fx.author(), 'value': {'text': 'q'},
                   'embeds': []}
@@ -213,7 +217,100 @@ class TestLabelsAndEmbeds(unittest.TestCase):
         self.assertEqual(data['rkey'], RKEY)
 
 
+class TestSafety(unittest.TestCase):
+    def facet(self, **feature):
+        return [{'index': {'byteStart': 0, 'byteEnd': 3},
+                 'features': [feature]}]
+
+    def test_unsafe_link_keeps_text_drops_href(self):
+        for uri in ('javascript:alert(1)', 'file:///etc/passwd', 'x', None):
+            out = bskytext.segments('abc def', self.facet(
+                **{'$type': bskytext.FACET_LINK, 'uri': uri}))
+            self.assertEqual(out[0]['text'], 'abc')
+            self.assertIsNone(out[0]['href'], uri)
+        out = bskytext.segments('abc', self.facet(
+            **{'$type': bskytext.FACET_LINK, 'uri': 'HTTPS://x.com/'}))
+        self.assertEqual(out[0]['href'], 'HTTPS://x.com/')
+
+    def test_mention_needs_a_did(self):
+        for did in ('x/../y?z', None, 5, 'did:plc:'):
+            out = bskytext.segments('abc', self.facet(
+                **{'$type': bskytext.FACET_MENTION, 'did': did}))
+            self.assertIsNone(out[0]['href'], did)
+
+    def test_external_unsafe_url(self):
+        embed = {'$type': 'app.bsky.embed.external#view', 'external': {
+            'uri': 'javascript:x', 'title': 'T', 'thumb': 'file:///x'}}
+        card = bskytext.external(embed)
+        self.assertEqual((card['url'], card['title'], card['image']),
+                         ('', 'T', None))
+
+    def test_dot_rkeys(self):
+        for rkey in ('.', '..', '%2e', '%2e%2e', '.%2e'):
+            self.assertIsNone(bskytext.post_ref(
+                'https://bsky.app/profile/a.bsky.social/post/' + rkey), rkey)
+            self.assertIsNone(bskytext.post_ref(
+                'at://a.bsky.social/app.bsky.feed.post/' + rkey), rkey)
+
+    def test_card_odd_values(self):
+        url = 'https://bsky.app/profile/a.bsky.social/post/3k'
+        for width, height in (('x', 'x'), (None, None), ('100', '100'),
+                              (1.5, 1.5), (True, True), ([], {})):
+            data = bskytext.card_post({'url': url, 'image': 'https://i/x',
+                                       'width': width, 'height': height})
+            self.assertEqual(data['picture'], 'https://i/x')
+        data = bskytext.card_post({'url': url, 'title': 5,
+                                   'description': ['x']})
+        self.assertEqual((data['name'], data['text']),
+                         ('a.bsky.social', ''))
+
+    def test_junk_everywhere(self):
+        junk = [None, 5, 'x', [], {}, [None, 'x', 5], {'labels': 'porn'},
+                {'labels': [None, {'val': ['u']}, {'val': 'porn'}]},
+                {'$type': 'app.bsky.embed.images', 'images': 'x'},
+                {'$type': 'app.bsky.embed.recordWithMedia', 'media': None,
+                 'record': 'x'},
+                {'$type': 'app.bsky.embed.record', 'record': {
+                    '$type': 'app.bsky.embed.record#viewRecord',
+                    'author': None, 'value': 5, 'embeds': 5, 'uri': 3}}]
+        for item in junk:
+            bskytext.segments(item, item)
+            bskytext.segments('héllo', [item, {'index': item}])
+            bskytext.moderation(item)
+            bskytext.attachments(item)
+            bskytext.video_poster(item)
+            bskytext.external(item)
+            bskytext.quote_card_data(item)
+            bskytext.card_post(item)
+            quoted = bskytext.quoted(item)
+            self.assertTrue(quoted is None or isinstance(quoted, dict))
+        self.assertEqual(
+            bskytext.moderation({'labels': [{'val': ['u']}]}),
+            {'sensitive': False, 'withheld': False})
+
+    def test_sensitive_quote_has_no_picture(self):
+        image = {'$type': 'app.bsky.embed.images#view', 'images': [
+            {'thumb': 'https://x/t', 'fullsize': 'https://x/f'}]}
+        record = {'uri': AT, 'author': fx.author(), 'value': {'text': 'q'},
+                  'embeds': [image], 'labels': [{'val': 'porn'}]}
+        self.assertIsNone(bskytext.quote_card_data(record)['picture'])
+        record['labels'] = []
+        self.assertEqual(bskytext.quote_card_data(record)['picture'],
+                         'https://x/t')
+
+
 class TestQuoteInline(unittest.TestCase):
+    def test_paragraph_form_and_self_closing(self):
+        html = ('<p>Body</p><p class="quote-inline">RE: <a href="'
+                'https://x/y">https://x/y</a></p>')
+        text = ''.join(s['text'] for s in parse_content(html, True))
+        self.assertEqual(text, 'Body')
+        self.assertIn('RE:', ''.join(s['text'] for s in parse_content(html)))
+        html = '<p>a<span class="quote-inline"/> b</p>'
+        self.assertEqual(''.join(
+            s['text'] for s in parse_content(html, True)).replace(' ', ''),
+            'ab')
+
     def test_default_keeps_line(self):
         text = ''.join(s['text'] for s in parse_content(fx.STATUS['content']))
         self.assertIn('RE:', text)

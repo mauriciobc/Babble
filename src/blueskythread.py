@@ -34,10 +34,20 @@ BLOCKED = 'app.bsky.feed.defs#blockedPost'
 def push_bluesky_thread(widget, actor, rkey):
     """Open the native thread page for the post *rkey* by *actor* (a DID or
     a handle); the web page when there is no window to push onto."""
-    page = BlueskyThreadPage(actor, rkey)
-    if pages.push_page(widget, _('Bluesky Post'), page,
-                       tag='bsky-%s' % rkey) is None:
+    window = pages.window_of(widget)
+    tag = 'bsky-%s' % rkey
+    if window is None:
         pages.launch_external(widget, bskytext.web_url(actor, rkey))
+        return None
+    existing = window.navigation_view.find_page(tag)
+    if existing is not None:
+        window.navigation_view.pop_to_page(existing)
+        return None
+    page = BlueskyThreadPage(actor, rkey)
+    if pages.push_page(widget, _('Bluesky Post'), page, tag=tag) is None:
+        return None
+    # Only a page that is really on the stack asks Bluesky for anything.
+    page.load()
     return page
 
 
@@ -73,6 +83,7 @@ class BlueskyPostView(Gtk.Box):
         moderation = bskytext.moderation(post)
         name = author.get('displayName') or author.get('handle') or '?'
         self.web_url = ''
+        sensitive = moderation['sensitive']
         ref = bskytext.post_ref(post.get('uri') or '')
         if ref:
             self.web_url = bskytext.web_url(
@@ -131,10 +142,12 @@ class BlueskyPostView(Gtk.Box):
             media.set_media(images, moderation['sensitive'], {})
             self.append(media)
         video = bskytext.video_poster(embed)
-        if video:
+        if video and not sensitive:
             self.append(self._video(video))
         card = bskytext.external(embed)
         if card:
+            if sensitive:
+                card['image'] = None  # a thumbnail would show unblurred
             self.append(CardPreview(card))
         self._quoted(embed)
         if focused:
@@ -142,6 +155,8 @@ class BlueskyPostView(Gtk.Box):
 
     def _quoted(self, embed):
         record = bskytext.quoted(embed)
+        if record is not None and bskytext.moderation(record)['withheld']:
+            record = None
         if record is not None:
             self.append(BlueskyQuoteCard(bskytext.quote_card_data(record)))
         elif bskytext.embed_kind(embed) in (
@@ -170,16 +185,32 @@ class BlueskyPostView(Gtk.Box):
 
     @staticmethod
     def _counts(post):
+        def count(key):
+            value = post.get(key)
+            return value if isinstance(value, int) \
+                and not isinstance(value, bool) and value > 0 else 0
+
         parts = []
-        for key, singular, plural in (
-                ('replyCount', '%s reply', '%s replies'),
-                ('repostCount', '%s repost', '%s reposts'),
-                ('quoteCount', '%s quote', '%s quotes'),
-                ('likeCount', '%s like', '%s likes')):
-            count = int(post.get(key) or 0)
-            if count:
-                parts.append(ngettext(singular, plural, count)
-                             % compact_count(count))
+        n = count('replyCount')
+        if n:
+            # Translators: %s is a number, such as 3 or 1.5K
+            parts.append(ngettext('%s reply', '%s replies', n)
+                         % compact_count(n))
+        n = count('repostCount')
+        if n:
+            # Translators: %s is a number, such as 3 or 1.5K
+            parts.append(ngettext('%s repost', '%s reposts', n)
+                         % compact_count(n))
+        n = count('quoteCount')
+        if n:
+            # Translators: %s is a number, such as 3 or 1.5K
+            parts.append(ngettext('%s quote', '%s quotes', n)
+                         % compact_count(n))
+        n = count('likeCount')
+        if n:
+            # Translators: %s is a number, such as 3 or 1.5K
+            parts.append(ngettext('%s like', '%s likes', n)
+                         % compact_count(n))
         label = Gtk.Label(label=' · '.join(parts), xalign=0.0, wrap=True,
                           visible=bool(parts))
         label.add_css_class('caption')
@@ -222,7 +253,12 @@ class BlueskyThreadPage(Adw.Bin):
         scrolled.set_child(clamp)
         self.stack.add_named(scrolled, 'list')
         self.set_child(self.stack)
-        self.load()
+        # No request here: whoever pushes the page calls load().
+
+    def do_unroot(self):
+        bluesky.cancel(self._request)
+        self._request = None
+        Adw.Bin.do_unroot(self)
 
     def load(self):
         bluesky.cancel(self._request)
@@ -236,12 +272,21 @@ class BlueskyThreadPage(Adw.Bin):
     def _on_thread(self, thread, error):
         if not self.stack.is_current(self._token):
             return
-        if thread is None or thread.get('$type') != THREAD_POST:
-            self.stack.show_error(
-                error or _('This post is unavailable on Bluesky.'))
+        if not isinstance(thread, dict) \
+                or thread.get('$type') != THREAD_POST:
+            self.stack.show_error(self._describe(error))
             return
         self.build(thread)
         self.stack.show('list')
+
+    @staticmethod
+    def _describe(error):
+        if error == bluesky.RATE_LIMITED:
+            return _('Bluesky is busy. Try again in a moment.')
+        if error in (bluesky.UNAVAILABLE, None):
+            return _('This post is unavailable on Bluesky.')
+        return _('Bluesky did not answer. Check your connection and try '
+                 'again.')
 
     def build(self, thread):
         pages.clear_children(self.thread_box)
@@ -256,10 +301,10 @@ class BlueskyThreadPage(Adw.Bin):
         chain.add_css_class('thread-card')
         for node in parents:
             if node.get('$type') == THREAD_POST:
-                chain.append(BlueskyPostView(node['post']))
+                chain.append(BlueskyPostView((node.get('post') or {})))
             else:
                 chain.append(_node_notice(node))
-        focused = BlueskyPostView(thread['post'], focused=True)
+        focused = BlueskyPostView((thread.get('post') or {}), focused=True)
         focused.add_css_class('thread-focused')
         focused.update_property([Gtk.AccessibleProperty.DESCRIPTION],
                                 [_('Selected post')])
@@ -277,7 +322,9 @@ class BlueskyThreadPage(Adw.Bin):
             self.thread_box.append(more)
 
     def _append_replies(self, parent_box, replies, depth):
-        for node in replies:
+        for node in replies if isinstance(replies, list) else ():
+            if not isinstance(node, dict):
+                continue
             if self._replies_shown >= MAX_REPLIES:
                 self._replies_hidden = True
                 return
@@ -292,7 +339,7 @@ class BlueskyThreadPage(Adw.Bin):
                 column.add_css_class('thread-nested')
                 column.set_margin_start(
                     INDENT if depth < MAX_NESTING else 0)
-            column.append(BlueskyPostView(node['post']))
+            column.append(BlueskyPostView((node.get('post') or {})))
             parent_box.append(column)
             self._append_replies(column, node.get('replies') or [],
                                  depth + 1)

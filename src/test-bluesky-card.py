@@ -206,6 +206,7 @@ check('with attachments the RE: line stays',
 
 # AC3: click with the setting on pushes the thread; off opens the link.
 pushed, opened = [], []
+real_push = blueskythread.push_bluesky_thread
 blueskythread.push_bluesky_thread = lambda widget, actor, rkey: pushed.append(
     (actor, rkey))
 pages.open_link = lambda widget, uri, *a, **k: opened.append(uri)
@@ -273,6 +274,7 @@ check('a DID is not resolved', len(sent) == 1
 bluesky.get_thread_async = lambda actor, rkey, callback: (
     callback(fx.thread(), None) or {'cancellable': None})
 page = blueskythread.BlueskyThreadPage(fx.DID, fx.RKEY)
+page.load()
 views = [w for w in walk(page.thread_box)
          if isinstance(w, blueskythread.BlueskyPostView)]
 check('thread page shows parent, focus and two replies', len(views) == 4,
@@ -299,6 +301,7 @@ many = fx.node(fx.post('Focus', rkey='3f'), replies=[
 bluesky.get_thread_async = lambda actor, rkey, callback: (
     callback(many, None) or {'cancellable': None})
 big = blueskythread.BlueskyThreadPage(fx.DID, fx.RKEY)
+big.load()
 shown = [w for w in walk(big.thread_box)
          if isinstance(w, blueskythread.BlueskyPostView)]
 check('replies are capped at 60 and a link follows',
@@ -310,14 +313,29 @@ check('replies are capped at 60 and a link follows',
 bluesky.get_thread_async = lambda actor, rkey, callback: (
     callback(None, 'HTTP 500') or {'cancellable': None})
 failed = blueskythread.BlueskyThreadPage(fx.DID, fx.RKEY)
-check('a 500 shows the error state',
+failed.load()
+check('a failure shows the error state',
       failed.stack.get_visible_child_name() == 'error')
+described = {
+    bluesky.UNAVAILABLE: 'This post is unavailable on Bluesky.',
+    bluesky.RATE_LIMITED: 'Bluesky is busy. Try again in a moment.',
+    bluesky.FAILED: 'Bluesky did not answer. Check your connection and '
+                    'try again.',
+    'HTTP 500': 'Bluesky did not answer. Check your connection and '
+                'try again.'}
+for kind, text in described.items():
+    check('error %r reads %r' % (kind, text[:24]),
+          blueskythread.BlueskyThreadPage._describe(kind) == text)
+check('no raw HTTP text is shown', all(
+    'HTTP' not in blueskythread.BlueskyThreadPage._describe(k)
+    for k in described))
 
 # Memory: a page popped while its fetch is pending is freed.
 pending = []
 bluesky.get_thread_async = lambda actor, rkey, callback: (
     pending.append(callback) or {'cancellable': None})
 page = blueskythread.BlueskyThreadPage(fx.DID, fx.RKEY)
+page.load()
 ref = page.weak_ref()
 del page
 
@@ -339,6 +357,113 @@ row_ref, card_ref = row.weak_ref(), row.card_box.get_first_child().weak_ref()
 del row, item
 check('a row with a Bluesky card is freed', freed(row_ref))
 check('its Bluesky card is freed', freed(card_ref))
+
+# Item 4: moderation on the focused post and on a quoted record.
+ext = {'$type': 'app.bsky.embed.external#view', 'external': {
+    'uri': 'https://e.com', 'title': 'T', 'thumb': 'https://e.com/t.jpg'}}
+video = {'$type': 'app.bsky.embed.video#view', 'thumbnail': 'https://v/p',
+         'playlist': 'https://v/p.m3u8'}
+loads.clear()
+shown = blueskythread.BlueskyPostView(fx.post(
+    'x', embed=ext, labels=[{'val': 'porn'}]))
+check('a sensitive post shows no external thumbnail', not loads, loads)
+video_view = blueskythread.BlueskyPostView(fx.post(
+    'x', embed=video, labels=[{'val': 'porn'}]))
+check('a sensitive post shows no video poster',
+      not any(isinstance(w, Gtk.Overlay) for w in walk(video_view)))
+plain_video = blueskythread.BlueskyPostView(fx.post('x', embed=video))
+check('a plain post shows the video poster',
+      any(isinstance(w, Gtk.Overlay) for w in walk(plain_video)))
+record = {'$type': 'app.bsky.embed.record#viewRecord',
+          'uri': 'at://did:plc:abc/app.bsky.feed.post/3q',
+          'author': fx.author(), 'value': {'text': 'q'}, 'embeds': [],
+          'labels': [{'val': '!hide'}]}
+hidden = blueskythread.BlueskyPostView(fx.post('x', embed={
+    '$type': 'app.bsky.embed.record#view', 'record': record}))
+check('a withheld quoted post is a notice, not a card',
+      not any(isinstance(w, blueskycard.BlueskyQuoteCard)
+              for w in walk(hidden))
+      and any(isinstance(w, Gtk.Label)
+              and w.get_label() == 'Quoted post unavailable'
+              for w in walk(hidden)))
+
+# Item 6: the page asks for nothing until it is on the stack.
+requests = []
+bluesky.get_thread_async = lambda actor, rkey, callback: (
+    requests.append((actor, rkey)) or {'cancellable': None})
+quiet = blueskythread.BlueskyThreadPage(fx.DID, fx.RKEY)
+check('constructing a thread page sends nothing', requests == [])
+
+
+class _Window:
+    def __init__(self):
+        self.navigation_view = Adw.NavigationView()
+        self.navigation_view.add(Adw.NavigationPage(
+            child=Gtk.Label(), title='Root', tag='root'))
+
+
+fake = _Window()
+blueskythread.push_bluesky_thread = real_push
+launched = []
+pages.window_of = lambda widget: fake
+pages.launch_external = lambda widget, uri: launched.append(uri)
+first = blueskythread.push_bluesky_thread(Gtk.Label(), fx.DID, 'k1')
+check('pushing a thread page sends one request',
+      requests == [(fx.DID, 'k1')] and first is not None, requests)
+again = blueskythread.push_bluesky_thread(Gtk.Label(), fx.DID, 'k1')
+check('a page already on the stack sends no request',
+      again is None and len(requests) == 1, requests)
+pages.window_of = lambda widget: None
+none = blueskythread.push_bluesky_thread(Gtk.Label(), fx.DID, 'k2')
+check('with no window nothing is requested, the web page opens',
+      none is None and len(requests) == 1
+      and launched == ['https://bsky.app/profile/%s/post/k2' % fx.DID],
+      (requests, launched))
+
+# Item 7: the menu item with the setting off never contacts Bluesky.
+settings.set_boolean('bluesky-native', False)
+launched.clear()
+blueskycard.view_on_bluesky(Gtk.Label(), fx.DID, fx.RKEY)
+check('View on Bluesky with the setting off opens the web page',
+      launched == ['https://bsky.app/profile/%s/post/%s' % (fx.DID, fx.RKEY)]
+      and len(requests) == 1, launched)
+settings.set_boolean('bluesky-native', True)
+
+# Item 10: cancelling stops the whole chain, even a cache hit.
+statechain = []
+real2 = importlib.reload(bluesky)
+real2._dids['bob.test'] = 'did:plc:bob'
+real2._get_json = lambda *a: statechain.append(a) or Gio.Cancellable.new()
+got = []
+state = real2.get_thread_async('bob.test', '3k', lambda *a: got.append(a))
+real2.cancel(state)
+for _ in range(20):
+    context.iteration(False)
+check('a cancelled cache-hit chain sends and answers nothing',
+      statechain == [] and got == [], (statechain, got))
+state = real2.get_thread_async('did:plc:bob', '3k', lambda *a: got.append(a))
+real2.cancel(state)
+statechain[0][2]({'thread': fx.thread()}, None)
+check('a cancelled request never calls back', got == [])
+state = real2.get_thread_async('did:plc:bob', '3k', lambda *a: got.append(a))
+statechain[-1][2](['not', 'a', 'dict'], None)
+check('a non-dict reply is an error, not an exception',
+      got and got[-1][0] is None and got[-1][1] is not None, got)
+bluesky.get_thread_async = lambda actor, rkey, callback: {'cancellable': None}
+
+# Item 3: the post meta line stays with the Bluesky card, in a window.
+window = Gtk.Window(default_width=600, default_height=500)
+meta_row, _item = bind(fx.STATUS)
+window.set_child(meta_row)
+window.present()
+for _ in range(200):
+    context.iteration(False)
+check('post meta is visible with the Bluesky card',
+      meta_row.post_meta.get_visible() and meta_row.post_meta.get_mapped()
+      and meta_row.post_meta.get_height() > 0
+      and meta_row.post_meta.get_label().startswith('Public'),
+      (meta_row.post_meta.get_label(), meta_row.post_meta.get_height()))
+window.destroy()
 
 check('only the thread page reached Bluesky',
       all(name == 'get_thread_async' for name in calls) or calls == [],

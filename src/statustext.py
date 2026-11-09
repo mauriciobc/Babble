@@ -54,7 +54,8 @@ class _ContentParser(HTMLParser):
     def __init__(self, drop_quote_inline=False):
         super().__init__(convert_charrefs=True)
         self._drop_quote = drop_quote_inline
-        self._quote_depth = 0  # spans open inside a dropped quote-inline
+        self._quote_depth = 0  # tags open inside a dropped quote-inline
+        self._quote_tag = None
         self.segments = []
         self._href = None
         self._hashtag = False
@@ -62,15 +63,14 @@ class _ContentParser(HTMLParser):
         self._unprintable = 0
 
     def handle_starttag(self, tag, attrs):
-        if tag == 'span' and self._drop_quote:
-            if self._quote_depth:
-                self._quote_depth += 1
-                return
-            if 'quote-inline' in (dict(attrs).get('class') or '').split():
-                self._flush()
-                self._quote_depth = 1
-                return
         if self._quote_depth:
+            if tag == self._quote_tag:
+                self._quote_depth += 1
+            return
+        if self._is_quote_inline(tag, attrs):
+            self._flush()
+            self._quote_tag = tag
+            self._quote_depth = 1
             return
         if tag in self.UNPRINTABLE_TAGS:
             self._unprintable += 1
@@ -96,12 +96,20 @@ class _ContentParser(HTMLParser):
                 self.segments.append({'text': '\n', 'href': None,
                                       'br': True})
 
+    def _is_quote_inline(self, tag, attrs):
+        """The "RE: <link>" fallback a server appends to a quote: a span
+        (Bridgy Fed) or a paragraph (Mastodon) of class ``quote-inline``."""
+        return self._drop_quote and tag in ('span', 'p') \
+            and 'quote-inline' in (dict(attrs).get('class') or '').split()
+
     def handle_startendtag(self, tag, attrs):
+        if self._quote_depth or self._is_quote_inline(tag, attrs):
+            return  # self-closing: nothing inside it to drop or to open
         self.handle_starttag(tag, attrs)
 
     def handle_endtag(self, tag):
         if self._quote_depth:
-            if tag == 'span':
+            if tag == self._quote_tag:
                 self._quote_depth -= 1
             return
         if tag in self.UNPRINTABLE_TAGS:
