@@ -14,6 +14,8 @@ from gi.repository import (Adw, Gdk, GLib, Gtk, Pango)
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
+from .blueskycard import (bridged_badge, card_wanted, fill_card_box,
+                           wants_inline_dropped)
 from .statustext import parse_content
 from .textemoji import InlineEmojiText, emoji_bank, status_emoji_bank
 from .sourceline import SourceLine
@@ -22,7 +24,7 @@ from .statusactions import (CollectionCard, QuoteCard, StatusActions,
 from .statusmenu import StatusMenuButton
 from . import tileactions
 from .mediacache import AvatarCache, StatusBody
-from .mediabox import BoostCarousel, CardPreview, MediaBox, _rewatch
+from .mediabox import BoostCarousel, MediaBox, _rewatch
 from .pollbox import PollBox
 from .timelinedata import BoostCarouselItem
 from .timelinebase import (VISIBILITY_INFO, _collapse_view, _flag,
@@ -529,7 +531,7 @@ class StatusRow(Gtk.Overlay):
         self.media_box.set_media(
             attachments, bool(status.get('sensitive')) and not has_cw, ui,
             blur=self.media_blur)
-        show_card = _flag('show-preview-cards') and not poll and not quote \
+        show_card = card_wanted(status) and not poll and not quote \
             and not attachments
         self._show_card(status.get('card') if show_card else None)
         tileactions.tile_action_bar(item, self.client, bar=self.actions)
@@ -579,6 +581,7 @@ class StatusRow(Gtk.Overlay):
                 [Gtk.AccessibleProperty.LABEL],
                 [_('Edited. Show edit history')])
         self.pinned_badge.set_visible(bool(status.get('pinned')))
+        bridged_badge(self, status)
 
     def _bind_reply_line(self, item):
         status = item.status
@@ -600,7 +603,7 @@ class StatusRow(Gtk.Overlay):
         status = item.status
         html = (item.translation or {}).get('content') \
             or status.get('content', '')
-        segments = parse_content(html)
+        segments = parse_content(html, wants_inline_dropped(status))
         self.content.link_mentions = status.get('mentions')
         self.content.set_emoji_size(
             32 if _flag('enlarge-custom-emojis') else 20)
@@ -760,12 +763,7 @@ class StatusRow(Gtk.Overlay):
         self._clear_body_height()
 
     def _show_card(self, card):
-        pages.clear_children(self.card_box)
-        if not card or not (card.get('title') or card.get('description')):
-            self.card_box.set_visible(False)
-            return
-        self.card_box.set_visible(True)
-        self.card_box.append(CardPreview(card))
+        fill_card_box(self.card_box, card)
 
     def _on_profile_clicked(self, _button):
         if self.item is not None:

@@ -94,6 +94,10 @@ install_data(
   'sidebarmode.py',
   'sidebarrail.py',
   'sourceline.py',
+  'bluesky.py',
+  'blueskycard.py',
+  'blueskythread.py',
+  'bskytext.py',
   'statustext.py',
   'statusviews.py',
   'streaming.py',
@@ -457,6 +461,18 @@ test('status text', python,
   args: [files('test-statustext.py')],
   env: test_env,
   timeout: 60,
+)
+# Needs no display and no network: Bluesky URL forms, the card, facets.
+test('bluesky text', python,
+  args: [files('test-bskytext.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs a display; the Bluesky module is a fake, so no network.
+test('bluesky card', python,
+  args: [files('test-bluesky-card.py')],
+  env: fatal_test_env,
+  timeout: 90,
 )
 # A ThreadPost's content warning goes beside its real siblings (needs a
 # display, and fatal criticals: the bug was a GTK critical).
