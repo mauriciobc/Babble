@@ -383,7 +383,12 @@ class MediaPlayback:
             autoplay = may_autoplay_loop(self)
             self._connect_loop_gate()
         elif kind == 'video':
-            view = Gtk.Video(hexpand=True, vexpand=True)
+            # Offload lets the compositor scan the video out directly.
+            # It applies on Wayland with dmabuf-capable frames; GTK
+            # renders normally otherwise.
+            view = Gtk.Video(
+                hexpand=True, vexpand=True,
+                graphics_offload=Gtk.GraphicsOffloadEnabled.ENABLED)
             view.set_media_stream(stream)
             view.add_css_class('media-viewer-video')
             self._restore_volume(stream)

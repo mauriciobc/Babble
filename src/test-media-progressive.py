@@ -120,6 +120,10 @@ elapsed = time.monotonic() - started
 check('the first frame comes before the whole file was served',
       at_frame < SIZE and elapsed < SIZE / RATE / 2,
       '%d of %d bytes after %.1f s' % (at_frame, SIZE, elapsed))
+check('the video has graphics offload enabled',
+      isinstance(viewer.media_bin.get_child(), Gtk.Video)
+      and viewer.media_bin.get_child().get_graphics_offload()
+      == Gtk.GraphicsOffloadEnabled.ENABLED)
 check('the viewer shows the media page',
       viewer.stack.get_visible_child_name() == 'media',
       viewer.stack.get_visible_child_name())
