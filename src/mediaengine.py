@@ -59,14 +59,18 @@ class Engine:
     ``media-info`` (a ``PlayMediaInfo``), ``seek-done`` (position),
     ``end-of-stream``, ``error`` (a ``GLib.Error``), ``missing-plugin``
     (description, installer detail), ``frame`` and ``size``.
+
+    *user_agent*, when given, is set on the HTTP source of a streamed
+    URI: reverse proxies refuse the library default.
     """
 
-    def __init__(self, owner=None):
+    def __init__(self, owner=None, user_agent=None):
         Gst.init(None)
         sink = Gst.ElementFactory.make('gtk4paintablesink')
         if sink is None:
             raise RuntimeError('gtk4paintablesink is not available')
         self.owner = owner
+        self.user_agent = user_agent
         self.sink = sink
         self.paintable = sink.props.paintable
         outer = sink
@@ -108,7 +112,9 @@ class Engine:
         self._connect(self.adapter, 'error', self._on_error)
         self._connect(self.paintable, 'invalidate-contents', self._on_frame)
         self._connect(self.paintable, 'invalidate-size', self._on_size)
-        bus = self.play.get_pipeline().get_bus()
+        pipeline = self.play.get_pipeline()
+        self._connect(pipeline, 'source-setup', self._on_source_setup)
+        bus = pipeline.get_bus()
         if bus is not None:
             bus.add_signal_watch()
             self._bus = bus
@@ -179,6 +185,12 @@ class Engine:
 
     def _on_size(self, _paintable):
         self._emit('size')
+
+    def _on_source_setup(self, _pipeline, source):
+        # Runs on a GStreamer thread: set a property and touch nothing else.
+        agent = self.user_agent
+        if agent and source.find_property('user-agent') is not None:
+            source.set_property('user-agent', agent)
 
     def _on_bus_message(self, _bus, message):
         # GstPlay watches this bus from its own thread, so this handler

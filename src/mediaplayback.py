@@ -2,8 +2,10 @@
 
 """Download and stream lifetime for the media viewer.
 
-Owns libsoup file downloads and the playback path the viewer uses for
-video, audio and GIFV: one :class:`mediaengine.Engine` (a GstPlay and its
+Owns libsoup file downloads (Save As, Open With) and the playback path the
+viewer uses for video, audio and GIFV, which streams the remote URL
+straight into the engine (souphttpsrc, Range requests, no temporary
+copy): one :class:`mediaengine.Engine` (a GstPlay and its
 sink) per viewer, created on the first stream, wrapped for each attachment
 in a :class:`mediastream.EngineStream`. Moving between attachments reuses
 the engine (``stop()`` then ``load()``); closing the viewer releases it,
@@ -13,9 +15,6 @@ on :mod:`mediaviewer`; zoom/pan is :mod:`mediazoom`.
 Never free the engine directly: ``test-mediaviewer-teardown.py`` drives
 the real open/close path to hold that.
 """
-
-import os
-import urllib.parse
 
 import gi
 
@@ -29,9 +28,13 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import imagecache  # noqa: E402
+from . import mastodon  # noqa: E402
 from . import pages  # noqa: E402
 
 CHUNK_SIZE = 64 * 1024
+
+# Buffering shows a spinner only once it has lasted this long.
+BUFFERING_DELAY_MS = 1000
 
 
 def _http_session():
@@ -198,10 +201,10 @@ def release_media(bin_widget, stream):
 
 
 class MediaPlayback:
-    """Mixin: stream download, GstPlay lifetime and idle inhibition.
+    """Mixin: streaming, GstPlay lifetime and idle inhibition.
 
     :class:`mediaviewer.MediaViewer` is the widget. These methods need it
-    as ``self`` (stack, media bin, progress, stream state) the same way
+    as ``self`` (stack, media bin, spinners, stream state) the same way
     :class:`profileactions.ProfileActions` needs the profile page.
     """
 
@@ -210,6 +213,8 @@ class MediaPlayback:
     _engine = None
     # The current stream has already autoplayed.
     _autoplayed = False
+    # The pending source that shows the buffering spinner.
+    _buffering_timeout = 0
 
     def _unload_media(self):
         self._set_inhibited(False)
@@ -220,10 +225,7 @@ class MediaPlayback:
         if self._engine is not None:
             # Navigation: keep the GstPlay, the next stream loads into it.
             self._engine.stop()
-        media = self._temp_media
-        self._temp_media = None
-        if media is not None:
-            self._discard_temp(media)
+        self._hide_buffering()
         self.deferred_picture.set_paintable(None)
         self.picture.set_texture(None)
         self._actions['copy-image'].set_enabled(False)
@@ -234,23 +236,17 @@ class MediaPlayback:
         if engine is not None:
             engine.release()
 
-    def _discard_temp(self, media):
-        # Fire and forget: deleting a cancelled download's copy fails
-        # silently and the empty directory is gone with the sandbox.
-        media.delete_async(GLib.PRIORITY_DEFAULT, None, None)
-        directory = media.get_parent()
-        if directory is not None:
-            directory.delete_async(GLib.PRIORITY_DEFAULT, None, None)
-
     def _show_stream(self, attachment, url):
         if _system_state('metered'):
             self._show_deferred(attachment)
         else:
-            self._download_stream(attachment, url)
+            self._start_stream(attachment, url)
 
     def _show_deferred(self, attachment):
         """On a metered connection: the preview and a button that starts
-        the download, instead of fetching a stream nobody asked for."""
+        the stream, instead of fetching one nobody asked for. Only the
+        start is gated: playback the user began goes on if metering turns
+        on, and closing the viewer ends the read."""
         from .mediaviewer import load_texture
         if attachment.get('type') == 'audio':
             self.load_button.set_label(_('Load _Audio'))
@@ -274,59 +270,22 @@ class MediaPlayback:
         attachment = self.current()
         url = attachment.get('url') or attachment.get('remote_url')
         if url:
-            self._download_stream(attachment, url)
+            self._start_stream(attachment, url)
 
-    def _download_stream(self, attachment, url):
+    def _start_stream(self, attachment, url):
+        """Load the remote *url* into the engine: no download first. The
+        spinner page stays until the stream is prepared; an error before
+        that shows the error page."""
         self._show_loading()
-        cancellable = self._cancellable
-        try:
-            directory = GLib.dir_make_tmp('babble-media-XXXXXX')
-        except GLib.Error as error:
-            self._show_error(_('Could Not Load Media'), error.message)
-            return
-        # Download the media with libsoup, like every other fetch in the
-        # app, and play the local, seekable copy: gvfs's http backend is
-        # unavailable inside a Flatpak sandbox, and a downloaded file
-        # always seeks.
-        path = os.path.basename(urllib.parse.unquote(
-            urllib.parse.urlsplit(url).path)).replace(os.sep, '_').strip()
-        destination = Gio.File.new_for_path(
-            os.path.join(directory, path or 'media'))
-        self._temp_media = destination
-        self.progress.set_fraction(0)
-        self.progress.set_visible(True)
-
-        def progress(fraction):
-            if self._closed:
-                return
-            if fraction < 0:
-                self.progress.pulse()
-            else:
-                self.progress.set_fraction(fraction)
-
-        def download_done(error):
-            if cancellable is not self._cancellable \
-                    or cancellable.is_cancelled():
-                # The media was replaced or the viewer closed while the
-                # download ran; the temp copy is discarded by the unload.
-                return
-            self.progress.set_visible(False)
-            if error is None:
-                self._start_stream(attachment, destination)
-            else:
-                self._show_error(_('Could Not Load Media'), error.message)
-
-        download(url, destination, progress, download_done, cancellable)
-
-    def _start_stream(self, attachment, destination):
         try:
             # Imported here: GStreamer is not loaded until media plays.
             from . import mediaengine
             from .mediastream import EngineStream
             if self._engine is None:
-                self._engine = mediaengine.Engine()
+                self._engine = mediaengine.Engine(
+                    user_agent=mastodon.user_agent())
             stream = EngineStream(self._engine)
-            self._engine.load(destination.get_uri())
+            self._engine.load(url)
         except (ImportError, ValueError, RuntimeError):
             self._show_error(
                 _('Could Not Load Media'),
@@ -369,6 +328,8 @@ class MediaPlayback:
                            autoplay)
         pages.connect_weak(stream, 'notify::playing', self._on_stream_playing)
         pages.connect_weak(stream, 'notify::ended', self._on_stream_playing)
+        pages.connect_weak(stream, 'notify::buffering',
+                           self._on_stream_buffering)
         if stream.get_error() is not None:
             self._on_stream_error(stream, None)
         elif stream.is_prepared():
@@ -420,11 +381,35 @@ class MediaPlayback:
     def _on_stream_error(self, stream, _pspec):
         if stream is not self._stream:
             return
+        self._hide_buffering()
         self._set_inhibited(False)
         error = stream.get_error()
         self._show_error(
             _('Could Not Load Media'),
             error.message if error is not None else '')
+
+    def _on_stream_buffering(self, stream, _pspec):
+        if stream is not self._stream:
+            return
+        if not stream.get_property('buffering'):
+            self._hide_buffering()
+        elif not self._buffering_timeout:
+            # A short stall is not worth a spinner.
+            self._buffering_timeout = GLib.timeout_add(
+                BUFFERING_DELAY_MS, self._on_buffering_timeout)
+
+    def _on_buffering_timeout(self):
+        self._buffering_timeout = 0
+        stream = self._stream
+        if stream is not None and stream.get_property('buffering'):
+            self.buffering_spinner.set_visible(True)
+        return False
+
+    def _hide_buffering(self):
+        if self._buffering_timeout:
+            GLib.source_remove(self._buffering_timeout)
+            self._buffering_timeout = 0
+        self.buffering_spinner.set_visible(False)
 
     def _on_stream_playing(self, stream, _pspec):
         if stream is not self._stream:
@@ -462,7 +447,9 @@ class MediaPlayback:
             self._inhibit_app, self._inhibit_cookie = app, cookie
 
     def _on_stream_prepared(self, stream, _pspec, autoplay):
-        if stream is not self._stream or not stream.is_prepared():
+        # gerror() also prepares a stream; an error is not a media page.
+        if stream is not self._stream or not stream.is_prepared() \
+                or stream.get_error() is not None:
             return
         self.stack.set_visible_child_name('media')
         # Only the first prepare autoplays: a stream prepared again (a

@@ -63,7 +63,7 @@ jobs:
 
       - name: Check the media stack
         run: |
-          for e in playbin3 souphttpsrc oggdemux theoradec gtk4paintablesink glsinkbin; do
+          for e in playbin3 souphttpsrc oggdemux theoradec theoraenc oggmux videotestsrc gtk4paintablesink glsinkbin; do
             gst-inspect-1.0 --exists "$e" || { echo "::error::missing GStreamer element $e"; exit 1; }
           done
           python3 -c "import gi; gi.require_version('GstPlay', '1.0'); gi.require_version('GstPbutils', '1.0'); from gi.repository import GstPlay, GstPbutils"

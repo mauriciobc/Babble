@@ -34,6 +34,17 @@ except ImportError:  # loaded as a top-level module by the standalone tests
 # call at once, uploads included, since they share the one session.
 USER_AGENT = 'Babble/%s (+https://github.com/mauriciobc/Babble)'
 
+
+def user_agent():
+    """Babble's User-Agent, with the running version."""
+    try:
+        import babble as _app_meta
+        version = getattr(_app_meta, 'VERSION', '0.1')
+    except ImportError:
+        version = '0.1'
+    return USER_AGENT % version
+
+
 # Adw.Toast renders its title as plain text, so an untrusted server body
 # must reach it with nothing that Pango or a widget could interpret and
 # nothing long enough to blow out the toast. HTML is stripped and the
@@ -582,12 +593,7 @@ class MastodonClient(GObject.Object):
         self._redirect_uri = OAUTH_REDIRECT
         self._rate_limited_until = 0.0
         self._session = Soup.Session()
-        try:
-            import babble as _app_meta
-            _version = getattr(_app_meta, 'VERSION', '0.1')
-        except ImportError:
-            _version = '0.1'
-        self._session.props.user_agent = USER_AGENT % _version
+        self._session.props.user_agent = user_agent()
         self._session.set_timeout(HTTP_TIMEOUT_SECONDS)
         self._pending = {}
 

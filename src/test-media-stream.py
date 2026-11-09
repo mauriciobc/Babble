@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """EngineStream: a Gtk.MediaStream driving a mediaengine.Engine.
 
-Under a real ``Gtk.Video``: prepared from the preroll (no duration
-needed), autoplay, playing/ended/error, seeking by ``seek-done`` and by
-the fallback timeout, a source that cannot seek, ``detach()`` making
-every vfunc a no-op, a looping GIFV in a ``Gtk.Picture``, audio in
-``Gtk.MediaControls``, and a missing H.264 decoder naming codecs-extra.
+Under a real ``Gtk.Video``: prepared once from the preroll (after a short
+wait for a duration), buffering, autoplay, playing/ended/error, seeking by
+``seek-done`` and by the fallback timeout, a source that cannot seek,
+``detach()`` making every vfunc a no-op, a looping GIFV in a
+``Gtk.Picture``, audio in ``Gtk.MediaControls``, and a missing H.264
+decoder naming codecs-extra.
 """
 
 import faulthandler
@@ -28,8 +29,9 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
+gi.require_version('GstPlay', '1.0')
 
-from gi.repository import Adw, GLib, Gst, GstPbutils, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gst, GstPbutils, GstPlay, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -192,7 +194,8 @@ check('a position near the target completes it',
       not seeker.get_property('seeking'))
 del engine.seek
 
-# Unknown duration: CLOCK_TIME_NONE is 0, and a later real one is kept.
+# Unknown duration: CLOCK_TIME_NONE is 0; prepared once, on the first real
+# duration or after the wait, and never prepared again.
 NONE = 0xFFFFFFFFFFFFFFFF
 
 
@@ -225,16 +228,52 @@ check('CLOCK_TIME_NONE converts to 0', mediastream._to_us(NONE) == 0
       and mediastream._to_us(-5) == 0 and mediastream._to_us(None) == 0
       and mediastream._to_us(2000000000) == 2000000)
 unknown._engine_event('media-info', Info(NONE))
-check('an unknown duration prepares the stream with 0',
-      unknown.is_prepared() and unknown.get_duration() == 0,
-      str(unknown.get_duration()))
+check('an unknown duration waits for a duration before preparing',
+      not unknown.is_prepared())
+prepared_count = []
+unknown.connect('notify::prepared', lambda *_: prepared_count.append(1))
 unknown._engine_event('duration', NONE)
-check('a later unknown duration changes nothing',
-      unknown.get_duration() == 0)
+check('an unknown duration event changes nothing', not unknown.is_prepared())
 unknown._engine_event('duration', 2000000000)
-check('a real duration arriving later is taken',
-      unknown.is_prepared() and unknown.get_duration() == 2000000,
-      str(unknown.get_duration()))
+check('the first known duration prepares the stream with it',
+      unknown.is_prepared() and unknown.get_duration() == 2000000
+      and len(prepared_count) == 1, str(unknown.get_duration()))
+unknown._engine_event('duration', 3000000000)
+check('a later duration is stored but the stream is not prepared again',
+      len(prepared_count) == 1 and unknown._duration_us == 3000000
+      and unknown.is_prepared())
+
+# No duration within DURATION_WAIT_MS: prepared with 0, never again.
+engine = mediaengine.Engine()
+late = mediastream.EngineStream(engine)
+live.append((engine, late))
+engine.uri = 'fake://clip'
+late._engine_event('media-info', Info(NONE))
+check('the media info alone does not prepare an unknown duration',
+      not late.is_prepared())
+check('after the wait the stream is prepared with duration 0',
+      wait(late.is_prepared, 2) and late.get_duration() == 0)
+late_count = []
+late.connect('notify::prepared', lambda *_: late_count.append(1))
+late._engine_event('duration', 5000000000)
+check('a duration after that is not prepared again',
+      not late_count and late._duration_us == 5000000
+      and late.get_duration() == 0)
+
+# Buffering: only a prepared stream reports it.
+engine = mediaengine.Engine()
+buffered = mediastream.EngineStream(engine)
+live.append((engine, buffered))
+engine.uri = 'fake://clip'
+buffered._engine_event('state-changed', GstPlay.PlayState.BUFFERING)
+check('buffering before the stream is prepared is not reported',
+      not buffered.get_property('buffering'))
+buffered._engine_event('media-info', Info(1000000000))
+buffered._engine_event('state-changed', GstPlay.PlayState.BUFFERING)
+check('buffering a prepared stream is reported',
+      buffered.get_property('buffering'))
+buffered._engine_event('state-changed', GstPlay.PlayState.PLAYING)
+check('any other state clears it', not buffered.get_property('buffering'))
 
 # A deferred load: media A's queued info must not prepare B's stream.
 engine, first = make()

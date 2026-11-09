@@ -8,7 +8,8 @@ cycles (SIGSEGV in ``g_type_check_instance_is_fundamentally_a`` under
 The precise trigger is not identified; waiting for STOPPED removed it in
 every variant tested. The crash is a race and cannot be asserted on
 directly, so this drives the real path
--- ``present_media()``, the download from a loopback server, play,
+-- ``present_media()``, the stream from a loopback server (no download,
+no temporary copy), play,
 ``viewer.close()``, ``gc`` -- 50 times, alternating a video and a GIFV,
 and checks what a correct teardown leaves behind:
 
@@ -90,10 +91,25 @@ def wait(condition, timeout=10.0):
 # video downloads at once and a GIFV autoplays.
 mediaplayback._system_state = lambda name: False
 
-directory = os.path.dirname(fixture.write_clip())
-base, stop_server = fixture.serve(directory)
-VIDEO = {'type': 'video', 'url': base + '/clip.ogg', 'description': 'v'}
-GIFV = {'type': 'gifv', 'url': base + '/clip.ogg', 'description': 'g'}
+def stray_dirs():
+    root = GLib.get_tmp_dir()
+    return sorted(set(n for n in os.listdir(root)
+                      if n.startswith('babble-media-')) - BEFORE)
+
+
+BEFORE = set()
+# The viewer streams: a download here would be a regression.
+downloads = []
+mediaplayback.download = lambda *args, **kwargs: downloads.append(args)
+
+clip = fixture.write_clip()
+BEFORE.update(n for n in os.listdir(GLib.get_tmp_dir())
+              if n.startswith('babble-media-'))
+server = fixture.MediaServer(clip)
+base = server.base
+stop_server = server.stop
+VIDEO = {'type': 'video', 'url': base + '/media.ogg', 'description': 'v'}
+GIFV = {'type': 'gifv', 'url': base + '/media.ogg', 'description': 'g'}
 
 window = Adw.ApplicationWindow(content=Gtk.Overlay(), default_width=900,
                                default_height=700)
@@ -180,6 +196,10 @@ check('no cycle hit the release timeout',
       repr([e.how for e in released]))
 check('no engine is left behind', not mediaengine._all,
       '%d left' % len(mediaengine._all))
+check('nothing was downloaded and no temporary copy kept',
+      not downloads and not stray_dirs(),
+      repr(downloads))
+check('the viewer streamed the URL', '/media.ogg' in server.requests)
 check('%d open/close cycles of a playing video and GIFV' % CYCLES, True)
 
 stop_server()

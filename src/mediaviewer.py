@@ -231,7 +231,7 @@ class MediaViewer(MediaPlayback, Adw.Bin):
     attachment would keep a margin on every side. Here the viewer *is* the
     window's content, and filling it means filling the screen.
 
-    Stream download, GstPlay lifetime and idle inhibition live on the
+    Streaming, GstPlay lifetime and idle inhibition live on the
     :class:`mediaplayback.MediaPlayback` mixin (ARCH-14).
     """
 
@@ -250,7 +250,6 @@ class MediaViewer(MediaPlayback, Adw.Bin):
             self.window = root if isinstance(root, Gtk.Window) else None
         self._cancellable = None
         self._stream = None
-        self._temp_media = None
         self._closed = False
         self._we_fullscreened = False
         self._fullscreen_handler = None
@@ -457,6 +456,13 @@ class MediaViewer(MediaPlayback, Adw.Bin):
             valign=Gtk.Align.START, visible=False)
         self.progress.add_css_class('osd')
         self.overlay.add_overlay(self.progress)
+
+        # Shown by a stream that has been rebuffering for a second.
+        self.buffering_spinner = Adw.Spinner(
+            halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
+            width_request=48, height_request=48, visible=False)
+        _label(self.buffering_spinner, _('Loading'))
+        self.overlay.add_overlay(self.buffering_spinner)
 
         self._build_bottom()
 
@@ -688,6 +694,7 @@ class MediaViewer(MediaPlayback, Adw.Bin):
         self.zoom_controls.set_visible(False)
 
     def _show_error(self, title, description, retry=True, browser=True):
+        self._hide_buffering()
         self.error_page.set_title(title)
         self.error_page.set_description(description)
         self.retry_button.set_visible(retry)
@@ -769,10 +776,8 @@ class MediaViewer(MediaPlayback, Adw.Bin):
     def _on_media_drag_prepare(self, source, _x, _y):
         attachment = self.current()
         url = attachment.get('url') or attachment.get('remote_url')
-        # The temporary copy is complete once the stream plays it.
-        file = self._temp_media if self._stream is not None else None
-        if file is None:
-            file = self._local_file(url)
+        # A copy from Save As or Open With if there is one, else the URL.
+        file = self._local_file(url)
         if file is None and not url:
             return None
         set_drag_icon_name(
