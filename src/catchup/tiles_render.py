@@ -25,7 +25,7 @@ from . import digest as catchupdigest, digest_layout  # noqa: E402
 from .. import mediacache, mediabox, statusactions
 from .. import timelinebase
 from ..accounts import plain_name
-from ..pages import connect_weak
+from ..weakrefs import connect_weak
 from ..textemoji import status_emoji_bank  # noqa: E402
 from .geometry import (
     FOOTER_HEIGHT, INSET_TEXT_CHARS, MAX_COLUMN, NEWS_IMAGE_SHARE,

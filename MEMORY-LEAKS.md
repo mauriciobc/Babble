@@ -106,7 +106,7 @@ Restart with `python3 bench/memwatch.py --chain <Type>` and repeat 2–3 cycles.
 
 | Chain ends with | Cause | Fix |
 |---|---|---|
-| `builtins.method <bound method X.m of …>` → `no Python referrer` | `emitter.connect(signal, self.m)` (or `GLib.timeout_add`, `idle_add`, a callback kwarg) on something that outlives `self`: the C closure owns the bound method | `pages.connect_weak(emitter, signal, self.m)` / `pages.weak_method(self.m)`; disconnect or remove the source in teardown |
+| `builtins.method <bound method X.m of …>` → `no Python referrer` | `emitter.connect(signal, self.m)` (or `GLib.timeout_add`, `idle_add`, a callback kwarg) on something that outlives `self`: the C closure owns the bound method | `connect_weak(emitter, signal, self.m)` / `weak_method(self.m)` (`src/weakrefs.py`, also re-exported as `pages.connect_weak`); disconnect or remove the source in teardown |
 | `builtins.function` / `cell` → `no Python referrer` | A lambda or closure capturing `self`, connected the same way | Same as above; don't capture `self` in lambdas given to C |
 | `module babble.x` via a dict/list | Module- or class-level cache/registry | Cap it (OrderedDict LRU like the texture caches), key by weak ref, or remove on teardown |
 | `no Python referrer` straight away | GTK keeps it: still parented somewhere, a popover/menu model, an IBus-style input context, a toggle reference | Inspect with `GTK_DEBUG=interactive`; check `get_parent()`. For text views, see the `gtk-im-context-simple` pin in `src/textemoji.py` |

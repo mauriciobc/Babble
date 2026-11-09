@@ -14,7 +14,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, Gdk, Gtk, Pango)
 
 from . import pages  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 from .statustext import (parse_content,  # noqa: E402
                          shorten_url_text, split_url, url_host)
 

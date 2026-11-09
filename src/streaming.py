@@ -34,7 +34,7 @@ gi.require_version('Soup', '3.0')
 from gi.repository import Gio, GLib, GObject, Soup  # noqa: E402
 
 from . import sysstate  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 
 BACKOFF_START = 2
 BACKOFF_MAX = 60

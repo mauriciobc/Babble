@@ -21,7 +21,7 @@ from .geometry import (
     MIN_COLUMN, MIN_TILES, NATURAL_COLUMNS, NATURAL_WIDTH,
     _soft_breaks, cell_rect, columns_for, grid_height, tile_key,
 )
-from ..pages import connect_weak, weak_method
+from ..weakrefs import connect_weak, weak_method
 
 def _first_icon(names):
     """The first of *names* the icon theme has (the last one otherwise)."""

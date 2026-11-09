@@ -15,7 +15,7 @@ from gi.repository import (GLib, GObject, Gio,  # noqa: E402
                            Gtk)
 
 from . import filterrules  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 
 """Run shells: several posts by one author drawn as one card."""
 from .timelinebase import CARD_SHELLS_KEPT

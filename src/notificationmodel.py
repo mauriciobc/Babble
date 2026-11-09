@@ -19,7 +19,7 @@ from gi.repository import Gio, GLib, GObject, Gtk  # noqa: E402
 
 from .entities import lift  # noqa: E402
 from .notificationcopy import (LIST_TITLE_DEFAULT, LIST_TITLES)  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 from .statustext import relative_time  # noqa: E402
 from .timelinedata import StatusItem  # noqa: E402
 from .timelinebase import id_key  # noqa: E402

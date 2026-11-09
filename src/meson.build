@@ -115,6 +115,7 @@ install_data(
   'mediacache.py',
   'mediabox.py',
   'webcolumn.py',
+  'weakrefs.py',
   'window.py',
   'wrapped.py',
   install_dir: moduledir,

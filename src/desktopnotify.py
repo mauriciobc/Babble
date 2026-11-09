@@ -25,7 +25,7 @@ from gi.repository import GLib, Gio, GObject  # noqa: E402
 
 from . import sysstate  # noqa: E402
 from .accounts import plain_name, strip_shortcodes  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 from .notificationcopy import (DESKTOP_TITLE_DEFAULT,  # noqa: E402
                                DESKTOP_TITLES)
 from .statustext import parse_content  # noqa: E402

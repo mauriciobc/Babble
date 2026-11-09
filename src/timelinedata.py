@@ -13,7 +13,7 @@ gi.require_version('Graphene', '1.0')
 from gi.repository import (GObject, Gio,  # noqa: E402
                            )
 
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 from .statustext import (relative_time)
 
 """Status rows' data: StatusItem, boost grouping and TimelineModel."""

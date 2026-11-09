@@ -17,7 +17,7 @@ from gi.repository import (GLib, GObject, Gio,  # noqa: E402
 from . import pages, pluginhost  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
                         )
 

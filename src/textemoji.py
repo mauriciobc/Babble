@@ -26,7 +26,7 @@ gi.require_version('Soup', '3.0')
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import imagecache  # noqa: E402
-from .pages import connect_weak, weak_method  # noqa: E402
+from .weakrefs import connect_weak, weak_method  # noqa: E402
 
 EMOJI_RE = re.compile(r':([A-Za-z0-9_+\-]+):')
 

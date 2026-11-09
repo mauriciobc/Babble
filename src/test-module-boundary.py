@@ -227,6 +227,16 @@ def violations(sources: dict[str, str]) -> list[str]:
                                      ' core'
                                      % (path, node.lineno,
                                         '.' * node.level, node.module or ''))
+        if path == 'src/weakrefs.py':
+            # R9: the weak-reference helpers are a leaf. Data models and
+            # managers import them to avoid depending on `pages`, which
+            # only holds while this module imports nothing of Babble's.
+            for name, line, _relative in all_imports(tree):
+                if _relative or name.split('.')[0] not in (
+                        sys.stdlib_module_names):
+                    found.append('R9: %s:%d imports %s: weakrefs is a'
+                                 ' leaf and may use only the standard'
+                                 ' library' % (path, line, name))
     return found
 
 
@@ -312,6 +322,16 @@ check('R8 accepts the standard library and core',
           'import dataclasses\nfrom typing import Optional\n'
           'from . import core\nfrom .core import send\n'})
           if line.startswith('R8')])
+self_check('R9 rejects weakrefs importing pages',
+           {'src/weakrefs.py': 'from . import pages\n'},
+           'R9: src/weakrefs.py:1 imports ')
+self_check('R9 rejects weakrefs importing GObject',
+           {'src/weakrefs.py': 'import gi\n'},
+           'R9: src/weakrefs.py:1 imports gi')
+check('R9 accepts weakrefs on the standard library',
+      not [line for line in violations({
+          'src/weakrefs.py': 'import functools\n'})
+          if line.startswith('R9')])
 check('the checker accepts navigation importing the catchup package',
       not violations({'src/navigation.py':
                       'from .catchup import CatchUpPage\n'}))
@@ -356,6 +376,7 @@ RULES = (
     ('R5', 'affinity imports no ranker modules'),
     ('R6', 'Catch Up tiles construct controls through tileactions'),
     ('R7', 'Catch Up imports no window-owned module'),
+    ('R9', 'weakrefs imports only the standard library'),
 )
 for rule, label in RULES:
     hits = [line for line in FOUND if line.startswith(rule + ':')]

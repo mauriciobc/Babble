@@ -18,7 +18,7 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
 from .api import polls  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 from .textemoji import InlineEmojiText, poll_emoji_bank  # noqa: E402
 from .timelinebase import time_left  # noqa: E402
 

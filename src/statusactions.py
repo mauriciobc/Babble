@@ -16,7 +16,7 @@ from gi.repository import (Adw, GLib, GObject, Gtk, Pango)
 from .entities import (STATUS_MERGE_KEYS as MERGE_KEYS)
 from . import pages  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 from .textemoji import (InlineEmojiText, emoji_bank)
 
 """Quote and collection cards, and the reply/boost/favourite bar."""

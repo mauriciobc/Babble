@@ -20,7 +20,7 @@ from gi.repository import Adw, Gio, GLib  # noqa: E402
 from . import pages  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .capabilities import ENDORSE_API_VERSION  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakrefs import connect_weak  # noqa: E402
 
 
 def endorse_action_names(endorse, endorse_api_supported):
