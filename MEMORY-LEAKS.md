@@ -131,6 +131,8 @@ Restart with `--tracemalloc 10` (slow: use 3–5 cycles, not 10). Each probe lis
 4. Gate: `xvfb-run -a meson test -C build` and `./autoresearch.sh` must keep `live_rows=0`, `live_items=0`, with `retained_mb` no worse.
 5. Record the finding and figures in `PERFORMANCE.md`.
 
+Media engine handlers (`src/mediaengine.py`): connect them once, in `__init__`, keep the ids, and disconnect every one on release. Events reach the owner by `owner._engine_event(name, *args)`, a method call; a handler closure that captured the owner or the stream kept it alive (RSS 554 -> 2226 MB over 12 cycles in the bench). `media engine` and `mediaviewer teardown` check that the GstPlay and the viewer are finalized.
+
 ## 6. Report template
 
 ```

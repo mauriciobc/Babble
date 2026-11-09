@@ -2,14 +2,16 @@
 
 """Download and stream lifetime for the media viewer.
 
-Owns libsoup file downloads and the GstPlay / ``Gtk.MediaFile`` paths
-the viewer uses for video, audio and GIFV. The chrome and
-``present_media`` stay on :mod:`mediaviewer`; zoom/pan is
-:mod:`mediazoom`.
+Owns libsoup file downloads and the playback path the viewer uses for
+video, audio and GIFV: one :class:`mediaengine.Engine` (a GstPlay and its
+sink) per viewer, created on the first stream, wrapped for each attachment
+in a :class:`mediastream.EngineStream`. Moving between attachments reuses
+the engine (``stop()`` then ``load()``); closing the viewer releases it,
+deferred (see :mod:`mediaengine`). The chrome and ``present_media`` stay
+on :mod:`mediaviewer`; zoom/pan is :mod:`mediazoom`.
 
-``release_media`` must keep the order pinned by
-``test-mediaviewer-teardown.py``: never clear a ``MediaStream`` while
-the ``Gtk.Video`` that plays it may still be alive.
+Never free the engine directly: ``test-mediaviewer-teardown.py`` drives
+the real open/close path to hold that.
 """
 
 import os
@@ -184,28 +186,14 @@ def _system_state(name):
 
 
 def release_media(bin_widget, stream):
-    """Stop *stream* and take the media widget out of *bin_widget*.
-
-    A video widget owns a GstPlay pipeline, and the pipeline owns a
-    signal-adapter thread that watches it. The stream is one of the
-    things that thread watches, so freeing the stream while the widget
-    is still alive frees what the thread is using: the thread then
-    dereferences it and the process dies with SIGSEGV in
-    ``g_type_check_instance_is_fundamentally_a`` (coredumpctl 45798).
-
-    So the stream is not cleared here. It is released together with the
-    widget -- the widget holds it for as long as it plays it, and the
-    widget's own disposal is what takes the pipeline down, in the order
-    that was written to be taken down in. Clearing the file first is
-    what opens the window, and waiting for the pipeline to go quiet
-    does not close it: a paused GstPlay still has its adapter thread.
-    """
+    """Pause *stream*, detach it from its engine and take the media widget
+    out of *bin_widget*. The engine stays alive: the viewer stops it
+    (navigation) or releases it (close), and it is never freed here."""
     child = bin_widget.get_child()
     if stream is not None:
         stream.pause()
+        stream.detach()
     bin_widget.set_child(None)
-    # Dropping our reference to the widget disposes it when we hold the
-    # last one, and the pipeline goes down with it.
     del child
 
 
@@ -217,12 +205,21 @@ class MediaPlayback:
     :class:`profileactions.ProfileActions` needs the profile page.
     """
 
+    # The viewer's engine, created by the first stream and released on
+    # close.
+    _engine = None
+    # The current stream has already autoplayed.
+    _autoplayed = False
+
     def _unload_media(self):
         self._set_inhibited(False)
         stream = self._stream
         self._stream = None
         self._stream_kind = None
         release_media(self.media_bin, stream)
+        if self._engine is not None:
+            # Navigation: keep the GstPlay, the next stream loads into it.
+            self._engine.stop()
         media = self._temp_media
         self._temp_media = None
         if media is not None:
@@ -230,6 +227,12 @@ class MediaPlayback:
         self.deferred_picture.set_paintable(None)
         self.picture.set_texture(None)
         self._actions['copy-image'].set_enabled(False)
+
+    def _release_engine(self):
+        """Closing the viewer: hand the engine to its deferred release."""
+        engine, self._engine = self._engine, None
+        if engine is not None:
+            engine.release()
 
     def _discard_temp(self, media):
         # Fire and forget: deleting a cancelled download's copy fails
@@ -281,11 +284,10 @@ class MediaPlayback:
         except GLib.Error as error:
             self._show_error(_('Could Not Load Media'), error.message)
             return
-        # Gtk.MediaFile reads remote files through gvfs, whose http
-        # backend is unavailable inside a Flatpak sandbox (and hesitates
-        # with buffering hiccups on the host as well). Download the media
-        # with libsoup instead, like every other fetch in the app, and
-        # hand the stream a local, seekable copy.
+        # Download the media with libsoup, like every other fetch in the
+        # app, and play the local, seekable copy: gvfs's http backend is
+        # unavailable inside a Flatpak sandbox, and a downloaded file
+        # always seeks.
         path = os.path.basename(urllib.parse.unquote(
             urllib.parse.urlsplit(url).path)).replace(os.sep, '_').strip()
         destination = Gio.File.new_for_path(
@@ -317,8 +319,21 @@ class MediaPlayback:
         download(url, destination, progress, download_done, cancellable)
 
     def _start_stream(self, attachment, destination):
-        stream = Gtk.MediaFile.new_for_file(destination)
+        try:
+            # Imported here: GStreamer is not loaded until media plays.
+            from . import mediaengine
+            from .mediastream import EngineStream
+            if self._engine is None:
+                self._engine = mediaengine.Engine()
+            stream = EngineStream(self._engine)
+            self._engine.load(destination.get_uri())
+        except (ImportError, ValueError, RuntimeError):
+            self._show_error(
+                _('Could Not Load Media'),
+                _('Playback is not available on this system.'))
+            return
         self._stream = stream
+        self._autoplayed = False
         kind = attachment.get('type')
         self._stream_kind = kind
         if kind == 'gifv':
@@ -450,7 +465,10 @@ class MediaPlayback:
         if stream is not self._stream or not stream.is_prepared():
             return
         self.stack.set_visible_child_name('media')
-        if autoplay:
+        # Only the first prepare autoplays: a stream prepared again (a
+        # duration that arrived late) must not restart a paused video.
+        if autoplay and not self._autoplayed:
+            self._autoplayed = True
             stream.play()
         if self._first_focus:
             self._first_focus = False

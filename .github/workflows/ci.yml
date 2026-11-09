@@ -50,6 +50,9 @@ jobs:
             libpeas libpeas-loader-python \
             mutter mesa-libGLES libglvnd-devel \
             xorg-x11-server-Xvfb \
+            gstreamer1 gstreamer1-plugins-base gstreamer1-plugins-good \
+            gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-libs \
+            gstreamer1-plugin-gtk4 \
             dbus-daemon dbus-x11
           # webkitgtk6.0 is a runtime dependency only (the web column
           # imports it lazily), but without it `web column` skips, and
@@ -57,6 +60,13 @@ jobs:
           # Secret needs a session bus to answer at all, and D-Bus
           # refuses to start without a machine id.
           [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+
+      - name: Check the media stack
+        run: |
+          for e in playbin3 souphttpsrc oggdemux theoradec gtk4paintablesink glsinkbin; do
+            gst-inspect-1.0 --exists "$e" || { echo "::error::missing GStreamer element $e"; exit 1; }
+          done
+          python3 -c "import gi; gi.require_version('GstPlay', '1.0'); gi.require_version('GstPbutils', '1.0'); from gi.repository import GstPlay, GstPbutils"
 
       - name: Configure
         run: meson setup build
@@ -177,6 +187,16 @@ jobs:
             --compose-url-policy=full \
             --repo=repo builddir \
             build-aux/flatpak/io.github.mauriciobc.Babble.json
+
+      - name: Check the runtime's media stack
+        # avdec_h264 is reported, not asserted: it exists only when the
+        # codecs-extra extension is installed, and this image may not
+        # carry it.
+        run: |
+          flatpak-builder --run builddir build-aux/flatpak/io.github.mauriciobc.Babble.json \
+            sh -c 'for e in souphttpsrc playbin3 gtk4paintablesink glsinkbin; do gst-inspect-1.0 --exists "$e" || exit 1; done
+                   python3 -c "import gi; gi.require_version(\"GstPlay\", \"1.0\"); from gi.repository import GstPlay"
+                   gst-inspect-1.0 --exists avdec_h264 && echo "avdec_h264 present (codecs-extra)" || echo "::warning::no software H.264 decoder: codecs-extra not in this image"'
 
       - name: Lint the bundle
         # The build step only proves the manifest builds. This is what

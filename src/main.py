@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
 import re
 import sys
 import urllib.parse
@@ -221,6 +222,15 @@ class BabbleApplication(Adw.Application):
         for win in self.get_windows():
             if hasattr(win, 'streaming'):
                 win.streaming.stop()
+        # A playing GstPlay freed by interpreter teardown crashes.
+        # Only if media was ever played: GStreamer is not imported just
+        # to be shut down.
+        engine = sys.modules.get(__package__ + '.mediaengine')
+        if engine is not None:
+            try:
+                engine.shutdown_all()
+            except Exception:  # noqa: BLE001
+                logging.exception('media engine shutdown failed')
         Adw.Application.do_shutdown(self)
 
     def do_dbus_register(self, connection, object_path):

@@ -3,7 +3,7 @@
 """Zoom and pan for a full-size image attachment.
 
 :class:`ZoomPicture` is the texture view the media viewer builds for
-image attachments. Playback (GstPlay / ``Gtk.MediaFile``) lives in
+image attachments. Playback (GstPlay engine) lives in
 :mod:`mediaplayback`; the viewer chrome that constructs this widget
 stays in :mod:`mediaviewer`.
 """
