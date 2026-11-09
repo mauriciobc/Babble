@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from gi.repository import Gio
 
-from src.mediaviewer import _texture_error, download  # noqa: E402
+from src.mediaplayback import download  # noqa: E402
+from src.mediaviewer import _texture_error  # noqa: E402
 
 failures = []
 

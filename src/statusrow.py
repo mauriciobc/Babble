@@ -773,7 +773,7 @@ class StatusRow(Gtk.Overlay):
         url = self.item.status_url if self.item is not None else ''
         if not url:
             return None
-        from .mediaviewer import link_provider
+        from .mediaexport import link_provider
         if self.avatar.get_mapped():
             source.set_icon(Gtk.WidgetPaintable.new(self.avatar),
                             self.avatar.get_width() // 2,

@@ -43,7 +43,7 @@ import gi  # noqa: E402
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -182,6 +182,30 @@ def one_cycle(cycle):
 
 for cycle in range(CYCLES):
     one_cycle(cycle)
+
+
+def key_controller(viewer):
+    controllers = viewer.observe_controllers()
+    return next((controllers.get_item(i) for i in range(len(controllers))
+                 if isinstance(controllers.get_item(i),
+                               Gtk.EventControllerKey)), None)
+
+
+# Keys reach the viewer: Right moves on, Escape closes.
+keyed = mediaviewer.present_media(parent, [VIDEO, GIFV], 0)
+keys = key_controller(keyed)
+check('the viewer has a key controller', keys is not None)
+if keys is not None:
+    check('Right is handled',
+          keys.emit('key-pressed', Gdk.KEY_Right, 0, 0) is True)
+    check('Right shows the next attachment',
+          keyed.index == 1 and keyed.current() is GIFV,
+          'index %r' % keyed.index)
+    check('Escape is handled',
+          keys.emit('key-pressed', Gdk.KEY_Escape, 0, 0) is True)
+    check('Escape closes the viewer', keyed._closed)
+keyed = keys = None
+wait(lambda: not mediaengine._releasing, 5)
 
 problems.pop('_n')
 for name in ('the clip starts playing', 'the viewer lets go of the stream',
