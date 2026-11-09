@@ -234,6 +234,8 @@ class MediaPlayback:
     _gate_paused = False
     # The gate's signals are connected once per viewer.
     _gate_connected = False
+    # The volume the current video or audio stream started at.
+    _loaded_volume = None
 
     def _connect_loop_gate(self):
         """Follow the autoplay check while a GIFV is shown. Connected once
@@ -263,8 +265,26 @@ class MediaPlayback:
             self._gate_paused = True
             stream.pause()
 
+    def _restore_volume(self, stream):
+        """Start a video or audio stream at the remembered volume."""
+        volume = pages.settings().get_double('media-viewer-volume')
+        self._loaded_volume = volume
+        stream.set_volume(volume)
+
+    def _save_volume(self, stream):
+        """Remember the volume the user left a video or audio stream at,
+        when they changed it. The muted state is not kept."""
+        if stream is None or self._stream_kind not in ('video', 'audio') \
+                or self._loaded_volume is None:
+            return
+        volume = min(1.0, max(0.0, stream.get_volume()))
+        if abs(volume - self._loaded_volume) > 1e-6:
+            pages.settings().set_double('media-viewer-volume', volume)
+        self._loaded_volume = None
+
     def _unload_media(self):
         self._gate_paused = False
+        self._save_volume(self._stream)
         self._set_inhibited(False)
         stream = self._stream
         self._stream = None
@@ -366,9 +386,11 @@ class MediaPlayback:
             view = Gtk.Video(hexpand=True, vexpand=True)
             view.set_media_stream(stream)
             view.add_css_class('media-viewer-video')
+            self._restore_volume(stream)
             autoplay = True
         else:
             view = self._audio_view(attachment, stream)
+            self._restore_volume(stream)
             autoplay = True
         self.media_bin.set_child(view)
         pages.connect_weak(stream, 'notify::error', self._on_stream_error)

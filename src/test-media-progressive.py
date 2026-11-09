@@ -311,6 +311,36 @@ finally:
     gtk_settings.set_property('gtk-enable-animations', saved_anim)
     mediaplayback._system_state = saved_state
 
+# (e3) The viewer remembers the volume of video and audio, not a GIFV's.
+from src import pages  # noqa: E402
+
+store = pages.settings()
+store.reset('media-viewer-volume')
+viewer = mediaviewer.present_media(parent, [video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+check('a video starts at the default volume',
+      abs(viewer._stream.get_volume() - 1.0) < 1e-6,
+      str(viewer._stream.get_volume()))
+viewer._stream.set_volume(0.4)
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+check('closing saves the changed volume',
+      abs(store.get_double('media-viewer-volume') - 0.4) < 1e-6)
+viewer = mediaviewer.present_media(parent, [video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+check('the next video opens at that volume',
+      abs(viewer._stream.get_volume() - 0.4) < 1e-6,
+      str(viewer._stream.get_volume()))
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+viewer = open_gifv()
+viewer._stream.set_volume(0.9)
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+check('a GIFV does not touch the saved volume',
+      abs(store.get_double('media-viewer-volume') - 0.4) < 1e-6)
+store.reset('media-viewer-volume')
+
 # (f) Every request carried Babble's User-Agent.
 agents = slow.agents + fast.agents
 check('the requests were recorded', len(agents) >= 4, repr(agents))
