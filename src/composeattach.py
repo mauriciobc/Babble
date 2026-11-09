@@ -198,22 +198,38 @@ class AttachmentRow(Gtk.ListBox):
 
     __gtype_name__ = 'BabbleAttachmentRow'
 
-    def __init__(self, path, **kwargs):
+    def __init__(self, path, media=None, **kwargs):
         super().__init__(selection_mode=Gtk.SelectionMode.NONE, **kwargs)
         self.add_css_class('boxed-list')
         self.path = path
-        self.uploaded_id = None
+        # *media* is an attachment the server already holds (an edited
+        # post's): it has an id and nothing to upload.
+        self.media = media
+        self.existing = media is not None
+        self.uploaded_id = str(media['id']) if self.existing else None
 
-        self.content_type = media_type(path) or 'application/octet-stream'
+        if self.existing:
+            kind = media.get('type') or 'image'
+            self.content_type = 'audio/' if kind == 'audio' else kind + '/'
+        else:
+            self.content_type = media_type(path) or 'application/octet-stream'
         # Audio has no picture to decode: its icon, without reading the
         # whole file in an attempt bound to fail.
         texture = None
-        if not self.content_type.startswith('audio/'):
+        if self.existing:
+            preview = media.get('preview_url') or media.get('url')
+            if preview and not self.content_type.startswith('audio/'):
+                texture = Gtk.Picture(content_fit=Gtk.ContentFit.COVER)
+                from .mediacache import _TextureCache
+                _TextureCache.load(preview, texture, cover=(48, 48))
+        elif not self.content_type.startswith('audio/'):
             try:
                 texture = Gdk.Texture.new_from_filename(path)
             except GLib.Error:
                 pass
-        if texture is not None:
+        if isinstance(texture, Gtk.Picture):
+            self.thumbnail = texture
+        elif texture is not None:
             self.thumbnail = Gtk.Picture(paintable=texture,
                                          content_fit=Gtk.ContentFit.COVER)
         else:
@@ -231,13 +247,16 @@ class AttachmentRow(Gtk.ListBox):
         pages.set_accessible_label(self.remove_button, _('Remove Attachment'))
 
         header = Adw.ActionRow(title=GLib.markup_escape_text(
-            GLib.path_get_basename(path)))
+            GLib.path_get_basename(path) if not self.existing
+            else (media.get('type') or 'image').capitalize()))
         header.set_title_lines(1)
         header.add_prefix(self.thumbnail)
         header.add_suffix(self.remove_button)
         self.append(header)
 
         self.alt_entry = Adw.EntryRow(title=_('Description'))
+        if self.existing and media.get('description'):
+            self.alt_entry.set_text(media['description'])
         self.append(self.alt_entry)
 
     def limit_description(self, limit):
@@ -369,6 +388,29 @@ class ComposeAttachments(GObject.Object):
         pages.connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
         if alt:
             row.alt_entry.set_text(alt)
+        rows = self.rows()
+        sibling = rows[min(position, len(rows)) - 1] if position > 0 \
+            and rows else None
+        if position == 0 or sibling is not None:
+            self.box.insert_child_after(row, sibling)
+        else:
+            self.box.append(row)
+        self.set_attach_sensitive(self._can_attach_more())
+        self._on_changed()
+        return row
+
+    def add_existing(self, media, position=-1):
+        """Show an attachment the server already holds, so its
+        description can be edited or the attachment removed."""
+        if self._is_frozen() or not media.get('id'):
+            return None
+        row = AttachmentRow(None, media=media)
+        reader = getattr(self.client, 'media_description_limit', None)
+        if reader is not None:
+            row.limit_description(reader())
+        pages.connect_weak(row.remove_button, 'clicked',
+                           self._on_row_remove_clicked)
+        pages.connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
         rows = self.rows()
         sibling = rows[min(position, len(rows)) - 1] if position > 0 \
             and rows else None
@@ -590,8 +632,13 @@ class ComposeAttachments(GObject.Object):
         toast = Adw.Toast(title=_('Attachment removed'),
                           button_label=_('_Undo'),
                           priority=Adw.ToastPriority.HIGH)
-        toast.connect('button-clicked', lambda _t: self.add_path(
-            row.path, alt=alt, position=position))
+        if row.existing:
+            media = dict(row.media, description=alt)
+            toast.connect('button-clicked', lambda _t: self.add_existing(
+                media, position=position))
+        else:
+            toast.connect('button-clicked', lambda _t: self.add_path(
+                row.path, alt=alt, position=position))
         self._on_add_toast(toast)
 
     def _on_row_remove_clicked(self, button):
