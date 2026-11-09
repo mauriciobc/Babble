@@ -197,7 +197,7 @@ msgstr "Mostrar cartões de visualização de link abaixo das postagens"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:165
 msgid "Show Bluesky posts natively"
-msgstr ""
+msgstr "Mostrar publicações do Bluesky de forma nativa"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:169
 msgid "Show reply, boost and favorite counts on post actions"
@@ -1578,103 +1578,96 @@ msgstr "Acesso à moderação concedido"
 
 #: src/blueskycard.py:125 src/blueskycard.py:186
 msgid "Bluesky"
-msgstr ""
+msgstr "Bluesky"
 
 #: src/blueskycard.py:144 src/blueskythread.py:120
-#, fuzzy, python-format
+#, python-format
 msgid "Bluesky post by %(author)s: %(text)s"
-msgstr "Publicação citada de %(author)s: %(text)s"
+msgstr "Publicação do Bluesky de %(author)s: %(text)s"
 
 #: src/blueskycard.py:189
 msgid "Bridged from Bluesky"
-msgstr ""
+msgstr "Conectado a partir do Bluesky"
 
 #: src/blueskythread.py:47
-#, fuzzy
 msgid "Bluesky Post"
-msgstr "Citar publicação"
+msgstr "Publicação do Bluesky"
 
 #: src/blueskythread.py:67
-#, fuzzy
 msgid "Post by a blocked account"
-msgstr "Nenhuma conta bloqueada"
+msgstr "Publicação de uma conta bloqueada"
 
 #: src/blueskythread.py:68
-#, fuzzy
 msgid "Post not found"
-msgstr "Nenhuma publicação encontrada"
+msgstr "Publicação não encontrada"
 
 #: src/blueskythread.py:123
 msgid "Bluesky hides this post from people who are not signed in."
-msgstr ""
+msgstr "O Bluesky oculta esta publicação de quem não está conectado."
 
 #: src/blueskythread.py:126 src/blueskythread.py:240
-#, fuzzy
 msgid "Open on Bluesky"
-msgstr "Abrir no navegador"
+msgstr "Abrir no Bluesky"
 
 #: src/blueskythread.py:164
-#, fuzzy
 msgid "Quoted post unavailable"
-msgstr "Citação indisponível"
+msgstr "Publicação citada indisponível"
 
 #: src/blueskythread.py:182
 msgid "Open Video on Bluesky"
-msgstr ""
+msgstr "Abrir vídeo no Bluesky"
 
 #. Translators: %s is a number, such as 3 or 1.5K
 #: src/blueskythread.py:197
-#, fuzzy, python-format
+#, python-format
 msgid "%s reply"
 msgid_plural "%s replies"
-msgstr[0] "%d resposta"
-msgstr[1] "%d respostas"
+msgstr[0] "%s resposta"
+msgstr[1] "%s respostas"
 
 #. Translators: %s is a number, such as 3 or 1.5K
 #: src/blueskythread.py:202
-#, fuzzy, python-format
+#, python-format
 msgid "%s repost"
 msgid_plural "%s reposts"
-msgstr[0] "%s publicou"
-msgstr[1] "%s publicou"
+msgstr[0] "%s repostagem"
+msgstr[1] "%s repostagens"
 
 #. Translators: %s is a number, such as 3 or 1.5K
 #: src/blueskythread.py:207
-#, fuzzy, python-format
+#, python-format
 msgid "%s quote"
 msgid_plural "%s quotes"
-msgstr[0] "citações"
-msgstr[1] "citações"
+msgstr[0] "%s citação"
+msgstr[1] "%s citações"
 
 #. Translators: %s is a number, such as 3 or 1.5K
 #: src/blueskythread.py:212
-#, fuzzy, python-format
+#, python-format
 msgid "%s like"
 msgid_plural "%s likes"
-msgstr[0] "%s restantes"
-msgstr[1] "%s restantes"
+msgstr[0] "%s curtida"
+msgstr[1] "%s curtidas"
 
 #: src/blueskythread.py:244
-#, fuzzy
 msgid "Loading Post"
-msgstr "Carregando perfil"
+msgstr "Carregando publicação"
 
 #: src/blueskythread.py:244
-#, fuzzy
 msgid "Could Not Load Post"
-msgstr "Não foi possível carregar"
+msgstr "Não foi possível carregar a publicação"
 
 #: src/blueskythread.py:285
 msgid "Bluesky is busy. Try again in a moment."
-msgstr ""
+msgstr "O Bluesky está ocupado. Tente novamente em instantes."
 
 #: src/blueskythread.py:287
 msgid "This post is unavailable on Bluesky."
-msgstr ""
+msgstr "Esta publicação está indisponível no Bluesky."
 
 #: src/blueskythread.py:288
 msgid "Bluesky did not answer. Check your connection and try again."
-msgstr ""
+msgstr "O Bluesky não respondeu. Verifique sua conexão e tente novamente."
 
 #: src/blueskythread.py:310 src/thread.py:306
 msgid "Selected post"
@@ -1682,7 +1675,7 @@ msgstr "Publicação selecionada"
 
 #: src/blueskythread.py:317
 msgid "More Replies on Bluesky"
-msgstr ""
+msgstr "Mais respostas no Bluesky"
 
 #: src/catchup/page.py:135
 msgid "Could Not Catch Up"
@@ -5292,13 +5285,12 @@ msgid "Link Preview _Cards"
 msgstr "_Cartões de prévia de links"
 
 #: src/preferences.py:367
-#, fuzzy
 msgid "Blues_ky Posts"
-msgstr "Novas publicações"
+msgstr "Publicações do _Bluesky"
 
 #: src/preferences.py:368
 msgid "Bluesky links open in Babble, which contacts Bluesky’s servers"
-msgstr ""
+msgstr "Links do Bluesky abrem no Babble, que contata os servidores do Bluesky"
 
 #: src/preferences.py:371
 msgid "_Interaction Counters"
@@ -7298,7 +7290,7 @@ msgstr "_Ver publicação"
 #. S: B is Open in _Browser, and the other letters here are taken.
 #: src/statusmenu.py:165
 msgid "View on Blue_sky"
-msgstr ""
+msgstr "Ver no _Bluesky"
 
 #: src/statusmenu.py:167
 msgid "View S_tats"
