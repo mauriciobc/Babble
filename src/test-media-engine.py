@@ -223,9 +223,12 @@ for _cycle in range(24):
 check('24 load/release cycles leave nothing releasing',
       not mediaengine._releasing and not mediaengine._all,
       '%d left' % len(mediaengine._all))
-growth = samples[-1] - samples[-11]
-check('RSS plateaus: grew %d MB over the last 10 cycles' % growth,
-      growth <= 30, 'samples %r' % samples)
+# Peak against peak: the allocator's arenas make RSS flip between two
+# levels (489/524 MB on CI), so endpoint-to-endpoint read 35 MB of
+# "growth" where there was none. A leak raises the peak itself.
+growth = max(samples[-10:]) - max(samples[-20:-10])
+check('RSS plateaus: peak grew %d MB over the last 10 cycles' % growth,
+      growth <= 20, 'samples %r' % samples)
 check('no cycle hit the release timeout',
       all(e.how != 'timeout' for e in hows),
       repr([e.how for e in hows if e.how == 'timeout']))

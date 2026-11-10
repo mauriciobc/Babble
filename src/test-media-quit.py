@@ -32,10 +32,13 @@ def load_fixture():
 
 
 def child():
-    # A hung quit would otherwise only show as the parent's timeout: dump
-    # every thread's Python stack and exit before that.
+    # A hung child would otherwise only show as the parent's timeout: dump
+    # every thread's Python stack and exit before that. 25 s leaves the
+    # 15 s fallback quit room, and ten hung children still finish inside
+    # meson's 300 s, so the dumps reach the log (flushed: a SIGTERM from
+    # meson would drop buffered output).
     import faulthandler
-    faulthandler.dump_traceback_later(45, exit=True)
+    faulthandler.dump_traceback_later(25, exit=True)
     # The viewer's loop gate builds sysstate's monitor, whose
     # Gio.NetworkMonitor.get_default() hung about 1 child in 10 on the CI
     # runner (no NetworkManager in the container; the dump stopped in
@@ -116,10 +119,11 @@ failures = []
 
 def check(name, condition, detail=''):
     if condition:
-        print('ok - %s' % name)
+        print('ok - %s' % name, flush=True)
     else:
         failures.append(name)
-        print('FAIL - %s%s' % (name, (' [%s]' % detail) if detail else ''))
+        print('FAIL - %s%s' % (name, (' [%s]' % detail) if detail else ''),
+              flush=True)
 
 
 # The application really calls it.
@@ -142,7 +146,7 @@ for run in range(RUNS):
     try:
         done = subprocess.run(
             [sys.executable, os.path.abspath(__file__), '--child'],
-            capture_output=True, text=True, timeout=60)
+            capture_output=True, text=True, timeout=30)
         code, out = done.returncode, done.stdout
         quit_line = [line for line in out.splitlines()
                      if line.startswith('QUIT ')]
