@@ -35,6 +35,7 @@ src/main.py
 src/mastodon.py
 src/mediabox.py
 src/mediaexport.py
+src/mediainline.py
 src/mediaplayback.py
 src/mediastream.py
 src/mediaviewer.py
