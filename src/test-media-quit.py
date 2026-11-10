@@ -39,12 +39,6 @@ def child():
     # meson would drop buffered output).
     import faulthandler
     faulthandler.dump_traceback_later(25, exit=True)
-    # The viewer's loop gate builds sysstate's monitor, whose
-    # Gio.NetworkMonitor.get_default() hung about 1 child in 10 on the CI
-    # runner (no NetworkManager in the container; the dump stopped in
-    # SystemState.__init__). This test is about quitting, so give GIO its
-    # trivial monitor: always online, never metered.
-    os.environ['GIO_USE_NETWORK_MONITOR'] = 'base'
     sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
     sys.path.insert(0, srcdir)
     import gi
@@ -53,6 +47,24 @@ def child():
     from gi.repository import Adw, Gio, GLib, Gtk
     from src import mediaengine, mediaplayback, mediaviewer
     mediaplayback._system_state = lambda name: False
+
+    # The viewer's loop gate builds sysstate's monitor, and on the CI
+    # runner Gio.NetworkMonitor.get_default() in SystemState.__init__
+    # hung about 1 child in 10 -- also with GIO_USE_NETWORK_MONITOR=base,
+    # so it is GIO's setup, not the backend. Never reproduced locally or
+    # in the same Fedora image. This test is about quitting: hand the
+    # gate a monitor that is plain properties.
+    from gi.repository import GObject
+    from src import sysstate
+
+    class FakeMonitor(GObject.Object):
+        __gsignals__ = {
+            'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+        }
+        online = GObject.Property(type=bool, default=True)
+        metered = GObject.Property(type=bool, default=False)
+        power_saver = GObject.Property(type=bool, default=False)
+    sysstate._monitor = FakeMonitor()
     fixture = load_fixture()
     # Range-capable, like a real media server: since the viewer streams,
     # souphttpsrc refuses a server without Range (GStreamer 1.28.9) and
