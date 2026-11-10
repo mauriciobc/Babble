@@ -8,6 +8,11 @@
 # that pass the arguments read better that way, and switching styles
 # would touch every translated string for no gain.
 
+# Research scratch (benchmark spikes, notes, the generated code graph)
+# is kept as a record of how decisions were measured, not maintained
+# as project code.
+extend-exclude = ["reports", "research_notes", "graphify-out"]
+
 [lint]
 # pycodestyle errors and warnings, pyflakes, and the bugs that
 # actually bite. Deliberately not the full default set: a linter that
