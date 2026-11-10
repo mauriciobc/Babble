@@ -1,0 +1,37 @@
+{
+  "_comment": "Limits for bench/compare.py. Every gated metric is higher-is-worse. A metric FAILS only if BOTH limits given for it are exceeded: the increase over the baseline is more than max_increase_pct percent AND more than max_increase in absolute units (so a tiny metric near 0 is not failed by a large percentage of nothing). If only one limit is given, that one alone decides. Derived from three baseline invocations on one machine; see PERFORMANCE.md. cpu_ms and wall_ms are reported but not gated: cpu_ms counts every thread.",
+  "metrics": {
+    "main_ms": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    },
+    "stall_max_ms": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    },
+    "stall_p99_ms": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    },
+    "stalls_over_16ms": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    },
+    "frames_with_empty_shell": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    },
+    "peak_rss_mb": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    },
+    "rss_growth_mb": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    },
+    "retained_mb": {
+      "max_increase_pct": 1000,
+      "max_increase": 1000
+    }
+  }
+}
