@@ -32,6 +32,10 @@ def load_fixture():
 
 
 def child():
+    # A hung quit would otherwise only show as the parent's timeout: dump
+    # every thread's Python stack and exit before that.
+    import faulthandler
+    faulthandler.dump_traceback_later(45, exit=True)
     sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
     sys.path.insert(0, srcdir)
     import gi
@@ -136,7 +140,7 @@ for run in range(RUNS):
         code, out = done.returncode, done.stdout
         quit_line = [line for line in out.splitlines()
                      if line.startswith('QUIT ')]
-        detail = quit_line[-1] if quit_line else done.stderr[-400:]
+        detail = quit_line[-1] if quit_line else done.stderr[-3000:]
     except subprocess.TimeoutExpired:
         code, out, detail = None, '', 'timed out'
     check('quit while playing, run %d: exit 0 and engines dropped' % (run + 1),
