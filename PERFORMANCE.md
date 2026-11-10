@@ -330,3 +330,22 @@ FAIL: main_ms, stall_max_ms, retained_mb, wall_stall_max_ms
 ```
 
 It fails on the same four metrics as round 2, for the same reasons; nothing was optimized further and no limit was changed. The Pause Animation button changed nothing measurable against round 2 (peak 476 against 474.1 MB, growth 161.9 against 161.8, retained 162 against 161.9, `stall_max_ms` 147 against 143; `main_ms` rose by 92 ms over a baseline that was itself 75 ms lower in this session, within the run-to-run spread of 100-150 ms seen before). The baseline moved between sessions (`main_ms` 1439 then 1364), so figures are comparable within a session only.
+
+**Re-measured after the off state was made inert** (the player no longer watches scrolling or schedules a frame callback while the key is off), baseline re-measured from the same `68b287f` worktree, standard `bench/limits.json`, exit 0:
+
+```
+main_ms                      1273.9     1236.5      -37.4 +10% and +100  PASS
+stall_max_ms                   22.6         23       +0.4 +40% and +8    PASS
+stall_p99_ms                    8.2        8.1       -0.1 +15% and +1.5  PASS
+stalls_over_16ms                  4          4       +0.0 +2             PASS
+frames_with_empty_shell          16         16       +0.0 +30% and +4    PASS
+peak_rss_mb                   389.7      388.9       -0.8 +3% and +8     PASS
+rss_growth_mb                    77       78.5       +1.5 +5% and +5     PASS
+retained_mb                    77.1       78.6       +1.5 +5% and +5     PASS
+wall_stall_max_ms                24       24.3       +0.3 +40% and +10   PASS
+wall_stall_p99_ms               9.3          9       -0.3 +15% and +2    PASS
+wall_stalls_over_16ms             7          6       -1.0 +8             PASS
+cpu_ms                       2108.1     2065.5      -42.6 -              report-only
+wall_ms                        7395     7374.4      -20.6 -              report-only
+PASS
+```
