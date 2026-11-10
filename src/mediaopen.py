@@ -61,6 +61,34 @@ class MediaOpener:
         widget.add_controller(keys)
         widget.set_cursor_from_name('pointer')
 
+    def set_media_enabled(self, widget, enabled):
+        """A thumbnail made openable by :meth:`make_media_openable` that
+        is covered must not look or act like a button. The role is fixed
+        at construction, so it is taken out of the tab order, loses its
+        pointer and is reported disabled instead."""
+        widget.set_focusable(enabled)
+        widget.set_cursor_from_name('pointer' if enabled else None)
+        widget.update_state([Gtk.AccessibleState.DISABLED], [not enabled])
+
+    def fill_thumbnails(self, box, attachments, picture_class, height):
+        """Append a picture per attachment to *box*, each one a button
+        for the viewer (unless covered) and "Processing…" when the
+        server has no picture for it yet."""
+        from .mediacache import _TextureCache
+        for index, attachment in enumerate(attachments):
+            picture = picture_class(
+                content_fit=Gtk.ContentFit.COVER, can_shrink=True,
+                hexpand=True)
+            picture.set_size_request(-1, height)
+            picture.set_alternative_text(
+                attachment.get('description') or _('Attachment'))
+            picture.add_css_class('card')
+            picture.add_css_class('darkenable')
+            url = attachment.get('preview_url') or attachment.get('url')
+            if url:
+                _TextureCache.load(url, picture)
+            box.append(self.wrap_thumbnail(picture, index, attachment, url))
+
     def wrap_thumbnail(self, picture, index, attachment, url):
         """*picture* in an overlay that is a button for *attachment*
         (unless the media is covered) and says "Processing…" while the

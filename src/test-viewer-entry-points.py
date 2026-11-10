@@ -254,10 +254,44 @@ check('clicking a Catch Up row thumbnail opens the viewer at 1',
 calls.clear()
 check('Space on a Catch Up row thumbnail opens it',
       press(holders[0], Gdk.KEY_space) is True and calls[0][1] == 0)
+check('an open Catch Up row thumbnail is focusable with a pointer',
+      holders[0].get_focusable() and holders[0].get_cursor() is not None)
 row.bind(StatusItem(post(23, [media(24)], sensitive=True)))
 calls.clear()
 check('a covered Catch Up row thumbnail does not open',
       row.open_media(0) is False and not calls)
+covered_holder = row.pictures[0]
+check('a covered Catch Up row thumbnail is out of the tab order',
+      not covered_holder.get_focusable())
+check('and has no pointer cursor', covered_holder.get_cursor() is None)
+row.bind(row_item)
+check('binding an open post makes the holder a button again',
+      row.pictures[0].get_focusable()
+      and row.pictures[0].get_cursor() is not None)
+
+# The click must be claimed, or the list's single-click activation opens
+# the thread of the row as well. A recording stand-in for the gesture.
+
+
+class FakeGesture:
+    def __init__(self):
+        self.states = []
+
+    def set_state(self, state):
+        self.states.append(state)
+
+
+mediaviewer.present_media = record
+note.bind(item)
+fake = FakeGesture()
+note._on_media_released(fake, 1, 0.0, 0.0, 1)
+check('a click that opens the viewer claims the sequence',
+      fake.states == [Gtk.EventSequenceState.CLAIMED])
+note.bind(StatusItem(post(30, [media(31)], sensitive=True)))
+fake = FakeGesture()
+note._on_media_released(fake, 1, 0.0, 0.0, 0)
+check('a click on covered media is not claimed, so the row still opens',
+      fake.states == [])
 
 # ---------------------------------------------------------------------
 # PeerTube cards
@@ -351,8 +385,10 @@ check('and says the server is still processing it',
       in viewer.error_page.get_description())
 check('with Open in Browser when the post has an address',
       viewer.error_browser_button.get_visible())
-check('and Retry, since it may be ready in a moment',
-      viewer.retry_button.get_visible())
+check('and no Retry, which could only show the same stale attachment',
+      not viewer.retry_button.get_visible())
+check('the message tells the reader to reopen the post',
+      'Open the post again' in viewer.error_page.get_description())
 launched = []
 real_launch = textemoji.launch_uri
 textemoji.launch_uri = lambda widget, uri: launched.append(uri)

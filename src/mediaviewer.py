@@ -253,12 +253,13 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         kind = attachment.get('type')
         if not url:
             # The server is still transcoding: neither its copy nor the
-            # original has an address yet. Retry asks again.
+            # original has an address yet. The attachment is a snapshot,
+            # so Retry could only show the same thing: reopen the post.
             self._show_error(
                 _('Media Still Processing'),
                 _('This media is still being processed by your server. '
-                  'Try again in a moment.'),
-                retry=True, browser=bool(self.status_url))
+                  'Open the post again in a moment.'),
+                retry=False, browser=bool(self.status_url))
         elif kind == 'image':
             self._gate_remote('show', attachment, url, is_remote)
         elif kind in ('video', 'gifv', 'audio'):

@@ -17,7 +17,7 @@ from .api import relationships as api_relationships  # noqa: E402
 from .pages import connect_weak, launch_external, reveal, report_error  # noqa: E402
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .notificationctrl import _RELATIONSHIPS  # noqa: E402
-from .mediacache import AvatarCache, _TextureCache  # noqa: E402
+from .mediacache import AvatarCache  # noqa: E402
 from .statustext import parse_content, shorten_url_text  # noqa: E402
 from .timelinebase import COLUMN_WIDTH, status_filter  # noqa: E402
 from .mediabox import BlurredPicture  # noqa: E402
@@ -310,20 +310,9 @@ class NotificationPost(MediaOpener, Gtk.Box):
             label.add_css_class('dimmed')
             self.media_box.append(label)
             return
-        for index, attachment in enumerate(attachments):
-            picture = (BlurredPicture if blur else Gtk.Picture)(
-                content_fit=Gtk.ContentFit.COVER, can_shrink=True,
-                hexpand=True)
-            picture.set_size_request(-1, self.THUMBNAIL_HEIGHT)
-            picture.set_alternative_text(
-                attachment.get('description') or _('Attachment'))
-            picture.add_css_class('card')
-            picture.add_css_class('darkenable')
-            url = attachment.get('preview_url') or attachment.get('url')
-            if url:
-                _TextureCache.load(url, picture)
-            self.media_box.append(
-                self.wrap_thumbnail(picture, index, attachment, url))
+        self.fill_thumbnails(
+            self.media_box, attachments,
+            BlurredPicture if blur else Gtk.Picture, self.THUMBNAIL_HEIGHT)
 
     def bind(self, item):
         self._item = item

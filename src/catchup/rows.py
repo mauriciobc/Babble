@@ -214,6 +214,7 @@ class CatchUpRow(MediaOpener, Gtk.Box):
                     [Gtk.AccessibleProperty.LABEL],
                     [media[slot].get('description') or _('Attachment')])
                 holder.hidden.set_visible(hide)
+                self.set_media_enabled(holder, not hide)
                 url = media[slot].get('preview_url') or media[slot].get('url')
                 if url and not hide:
                     holder.picture.set_visible(True)

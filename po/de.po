@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-10 14:25-0300\n"
+"POT-Creation-Date: 2026-11-10 14:43-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -1124,7 +1124,7 @@ msgstr "Ablehnen"
 msgid "Reject %s?"
 msgstr "%s ablehnen?"
 
-#: src/admin.py:1173 src/notificationrow.py:695
+#: src/admin.py:1173 src/notificationrow.py:684
 msgid "_Reject"
 msgstr "_Ablehnen"
 
@@ -2092,7 +2092,7 @@ msgid "Groups"
 msgstr "Gruppen"
 
 #: src/catchup/pipeline.py:357 src/catchup/rows.py:59
-#: src/notificationrow.py:338 src/notifications.py:393 src/statusrow.py:431
+#: src/notificationrow.py:327 src/notifications.py:393 src/statusrow.py:431
 msgid "Filtered"
 msgstr "Gefiltert"
 
@@ -2219,7 +2219,7 @@ msgstr "%s werden angezeigt"
 
 #. Translators: the row of a post hidden behind a filter; %s names
 #. the filter(s)
-#: src/catchup/rows.py:58 src/notificationrow.py:338 src/notifications.py:393
+#: src/catchup/rows.py:58 src/notificationrow.py:327 src/notifications.py:393
 #: src/statusrow.py:431
 #, python-format
 msgid "Filtered: %s"
@@ -2252,15 +2252,15 @@ msgid "Thread"
 msgstr "Unterhaltung"
 
 #: src/catchup/rows.py:151 src/catchup/rows.py:215 src/mediabox.py:628
-#: src/mediaopen.py:77 src/mediaviewer.py:282 src/notificationrow.py:319
+#: src/mediaopen.py:84 src/mediaopen.py:105 src/mediaviewer.py:283
 msgid "Attachment"
 msgstr "Anhang"
 
-#: src/catchup/rows.py:287
+#: src/catchup/rows.py:288
 msgid "Posts over time"
 msgstr "Beiträge im Zeitverlauf"
 
-#: src/catchup/rows.py:288
+#: src/catchup/rows.py:289
 #, python-format
 msgid "%(shown)s of %(total)s"
 msgstr "%(shown)s von %(total)s"
@@ -2321,7 +2321,7 @@ msgid "Hashtag"
 msgstr "Schlagwort"
 
 #: src/catchup/tiles_render.py:757 src/explore.py:294
-#: src/notificationrow.py:741 src/profile.py:526
+#: src/notificationrow.py:730 src/profile.py:526
 msgid "Following"
 msgstr "Folge ich"
 
@@ -3030,7 +3030,7 @@ msgstr "_Folgen"
 msgid "Dismiss Suggestion"
 msgstr "Vorschlag verwerfen"
 
-#: src/explore.py:290 src/notificationrow.py:769
+#: src/explore.py:290 src/notificationrow.py:758
 msgid "Could not follow"
 msgstr "Folgen fehlgeschlagen"
 
@@ -4001,11 +4001,11 @@ msgid_plural "%d Boosts"
 msgstr[0] "%d-mal geteilt"
 msgstr[1] "%d-mal geteilt"
 
-#: src/mediabox.py:440 src/mediabox.py:541 src/mediaviewer.py:280
+#: src/mediabox.py:440 src/mediabox.py:541 src/mediaviewer.py:281
 msgid "Image"
 msgstr "Bild"
 
-#: src/mediabox.py:440 src/mediaviewer.py:280
+#: src/mediabox.py:440 src/mediaviewer.py:281
 msgid "Video"
 msgstr "Video"
 
@@ -4013,7 +4013,7 @@ msgstr "Video"
 msgid "Animated Image"
 msgstr "Animiertes Bild"
 
-#: src/mediabox.py:441 src/mediaviewer.py:281
+#: src/mediabox.py:441 src/mediaviewer.py:282
 msgid "Audio"
 msgstr "Audio"
 
@@ -4139,49 +4139,50 @@ msgstr "Keine Medien"
 msgid "This post has no media."
 msgstr "Dieser Beitrag enthält keine Medien."
 
-#: src/mediaviewer.py:258
+#: src/mediaviewer.py:259
 msgid "Media Still Processing"
 msgstr "Medium wird noch verarbeitet"
 
-#: src/mediaviewer.py:259
+#: src/mediaviewer.py:260
 msgid ""
-"This media is still being processed by your server. Try again in a moment."
+"This media is still being processed by your server. Open the post again in a "
+"moment."
 msgstr ""
-"Dieses Medium wird noch von Ihrem Server verarbeitet. Versuchen Sie es in "
-"einem Moment erneut."
+"Dieses Medium wird noch von Ihrem Server verarbeitet. Öffnen Sie den Beitrag "
+"in einem Moment erneut."
 
-#: src/mediaviewer.py:268
+#: src/mediaviewer.py:269
 msgid "Preview Not Available"
 msgstr "Vorschau nicht verfügbar"
 
-#: src/mediaviewer.py:269
+#: src/mediaviewer.py:270
 msgid "This kind of attachment cannot be shown here."
 msgstr "Diese Art von Anhang kann hier nicht angezeigt werden."
 
-#: src/mediaviewer.py:281
+#: src/mediaviewer.py:282
 msgid "Animated GIF"
 msgstr "Animiertes GIF"
 
 #. Translators: position in a media gallery, e.g. "2 of 4"
-#: src/mediaviewer.py:296
+#: src/mediaviewer.py:297
 #, python-brace-format
 msgid "{current} of {total}"
 msgstr "{current} von {total}"
 
-#: src/mediaviewer.py:314
+#: src/mediaviewer.py:315
 #, python-brace-format
 msgid "Attachment {current} of {total}"
 msgstr "Anhang {current} von {total}"
 
-#: src/mediaviewer.py:363
+#: src/mediaviewer.py:364
 msgid "Could Not Load Image"
 msgstr "Bild konnte nicht geladen werden"
 
-#: src/mediaviewer.py:415
+#: src/mediaviewer.py:416
 msgid "Exit Fullscreen"
 msgstr "Vollbild verlassen"
 
-#: src/mediaviewer.py:415 src/mediaviewerchrome.py:69
+#: src/mediaviewer.py:416 src/mediaviewerchrome.py:69
 msgid "Fullscreen"
 msgstr "Vollbild"
 
@@ -4838,50 +4839,50 @@ msgid_plural "%d sensitive attachments"
 msgstr[0] "%d heikler Anhang"
 msgstr[1] "%d heikle Anhänge"
 
-#: src/notificationrow.py:423 src/notificationrow.py:427
+#: src/notificationrow.py:412 src/notificationrow.py:416
 msgid "Dismiss Notification"
 msgstr "Benachrichtigung verwerfen"
 
-#: src/notificationrow.py:613
+#: src/notificationrow.py:602
 #, python-format
 msgid "%d more person"
 msgid_plural "%d more people"
 msgstr[0] "%d weitere Person"
 msgstr[1] "%d weitere Personen"
 
-#: src/notificationrow.py:665
+#: src/notificationrow.py:654
 msgid "_View Reports"
 msgstr "Meldungen _anzeigen"
 
-#: src/notificationrow.py:667
+#: src/notificationrow.py:656
 msgid "_View"
 msgstr "_Anzeigen"
 
-#: src/notificationrow.py:689
+#: src/notificationrow.py:678
 msgid "Request accepted"
 msgstr "Anfrage angenommen"
 
-#: src/notificationrow.py:692
+#: src/notificationrow.py:681
 msgid "Request rejected"
 msgstr "Anfrage abgelehnt"
 
-#: src/notificationrow.py:697
+#: src/notificationrow.py:686
 msgid "_Accept"
 msgstr "_Annehmen"
 
-#: src/notificationrow.py:720
+#: src/notificationrow.py:709
 msgid "Could not answer the request"
 msgstr "Auf die Anfrage konnte nicht geantwortet werden"
 
-#: src/notificationrow.py:743
+#: src/notificationrow.py:732
 msgid "Follow request sent"
 msgstr "Folgeanfrage gesendet"
 
-#: src/notificationrow.py:748
+#: src/notificationrow.py:737
 msgid "_Follow Back"
 msgstr "_Zurückfolgen"
 
-#: src/notificationrow.py:798
+#: src/notificationrow.py:787
 #, python-format
 msgid "%(title)s, %(time)s"
 msgstr "%(title)s, %(time)s"
