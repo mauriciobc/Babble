@@ -466,7 +466,7 @@ class MediaBox(Gtk.Box):
         else:
             self.append(content)
         if visual:
-            content.append(self._build_grid(visual, blur))
+            content.append(self._build_grid(visual, blur, ui))
         for index, attachment in enumerate(self._attachments):
             if attachment.get('type') not in ('image', 'video', 'gifv'):
                 content.append(self._file_row(index, attachment))
@@ -487,7 +487,7 @@ class MediaBox(Gtk.Box):
                          covered, ui)
             self.append(hide)
 
-    def _build_grid(self, visual, blur=False):
+    def _build_grid(self, visual, blur=False, ui=None):
         count = len(visual)
         if count == 1:
             columns, tile_height = 1, 260
@@ -513,7 +513,7 @@ class MediaBox(Gtk.Box):
             if kind == 'gifv' and not blur:
                 # Plays inline while it is the most visible one in view.
                 overlay = GifvTile(
-                    attachment, picture, focusable=True,
+                    attachment, ui, picture, focusable=True,
                     accessible_role=Gtk.AccessibleRole.BUTTON)
             else:
                 overlay = Gtk.Overlay(

@@ -400,6 +400,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Autoplay Animated Me_dia'),
                      _('Play animated GIFs by themselves. Reduced motion '
                        'and power saving always stop them'))
+        self._switch(media, 'inline-animated-media',
+                     _('Play A_nimated GIFs in Timelines'),
+                     _('Plays one at a time. Uses more memory'))
         self._combo_enum(
             media, 'media-autoload', _('Load Media Automaticall_y'),
             MEDIA_AUTOLOAD_CHOICES,

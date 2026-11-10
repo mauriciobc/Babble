@@ -22,9 +22,13 @@ tile that is mapped in the window and lives as long as the window.
   window hidden or closed, or while the media viewer is open (it has its
   own engine), the engine is handed to its deferred release. It is never
   dropped directly (see :mod:`mediaengine`).
-* **No controls.** A GIFV is a muted loop with no sound or progress to
-  control; the Autoplay Animated Media preference, the animation settings
-  and power saving turn it off for everyone, and a click opens the viewer.
+* **Off by default.** ``inline-animated-media`` must be on as well, and
+  with it off no engine is ever created; tiles still register (a few
+  dictionary operations), which the bench measured as free.
+* **Pause.** A tile that plays shows a Pause Animation button, built when
+  it first plays. The choice is kept in the row's ``ui`` by attachment id,
+  so recycling keeps it, and a paused tile is not resumed on its own; a
+  click on the tile itself opens the viewer.
 
 GStreamer is imported only when the first tile plays.
 """
@@ -34,6 +38,8 @@ import itertools
 import gi
 
 gi.require_version('Gtk', '4.0')
+
+from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Gdk, GLib, GObject, Gtk  # noqa: E402
 
@@ -46,6 +52,8 @@ from .remotemedia import media_url  # noqa: E402
 MIN_VISIBLE = 0.5
 # How long the engine is kept without a candidate before it is released.
 RELEASE_DELAY_MS = 2000
+# The key of the row's ``ui`` that holds the attachment ids the user paused.
+PAUSED_KEY = 'inline_paused'
 
 _tokens = itertools.count(1)
 
@@ -80,15 +88,19 @@ class GifvTile(Gtk.Overlay):
 
     __gtype_name__ = 'BabbleGifvTile'
 
-    def __init__(self, attachment, picture, **kwargs):
+    def __init__(self, attachment, ui, picture, **kwargs):
         super().__init__(**kwargs)
         self.token = next(_tokens)
         self.attachment = attachment
+        self.ui = ui if ui is not None else {}
         self.picture = picture
         self._poster = None
         self._shown = False
+        self._button = None
         self._player = None
         pages.connect_weak(picture, 'notify::paintable', self._on_paintable)
+        if self.user_paused:
+            self._sync_button()
 
     def do_map(self):
         Gtk.Overlay.do_map(self)
@@ -115,10 +127,23 @@ class GifvTile(Gtk.Overlay):
         for it, or a late poster would replace the video."""
         return isinstance(self.picture.get_paintable(), Gdk.Texture)
 
+    @property
+    def user_paused(self):
+        return self.attachment.get('id') in self.ui.get(PAUSED_KEY, ())
+
+    def set_user_paused(self, paused):
+        ids = self.ui.setdefault(PAUSED_KEY, set())
+        if paused:
+            ids.add(self.attachment.get('id'))
+        else:
+            ids.discard(self.attachment.get('id'))
+        self._sync_button()
+
     def show_stream(self, stream):
         self._poster = self.picture.get_paintable()
         self.picture.set_paintable(stream)
         self._shown = True
+        self._sync_button()
 
     def show_poster(self):
         """Put the poster back; a no-op when the stream was never shown."""
@@ -126,6 +151,41 @@ class GifvTile(Gtk.Overlay):
             self.picture.set_paintable(self._poster)
         self._poster = None
         self._shown = False
+        self._sync_button()
+
+    def _sync_button(self):
+        """The Pause Animation button: built the first time a tile plays
+        or is paused, so idle tiles carry no extra widget."""
+        paused = self.user_paused
+        if self._button is None:
+            if not (self._shown or paused):
+                return
+            self._button = Gtk.Button(
+                halign=Gtk.Align.END, valign=Gtk.Align.START,
+                margin_top=6, margin_end=6)
+            self._button.add_css_class('osd')
+            self._button.add_css_class('circular')
+            pages.connect_weak(self._button, 'clicked', self._on_clicked)
+            self.add_overlay(self._button)
+        button = self._button
+        button.set_visible(self._shown or paused)
+        if paused:
+            button.set_icon_name('media-playback-start-symbolic')
+            # Translators: the button over an animated image that you
+            # paused; it starts the animation again.
+            pages.set_accessible_label(button, _('Play Animation'))
+        else:
+            button.set_icon_name('media-playback-pause-symbolic')
+            # Translators: the button over an animated image that plays;
+            # it stops the animation.
+            pages.set_accessible_label(button, _('Pause Animation'))
+
+    def _on_clicked(self, _button):
+        paused = not self.user_paused
+        self.set_user_paused(paused)
+        player = self._player() if self._player is not None else None
+        if player is not None:
+            player.user_toggled(self, paused)
 
 
 class InlinePlayer(GObject.Object):
@@ -144,6 +204,7 @@ class InlinePlayer(GObject.Object):
         self._shown = False
         self._frame_seen = False
         self._frame_handler = 0
+        self._pinned = 0
         self._failed = set()
         self._unavailable = False
         self._viewer_open = False
@@ -200,8 +261,8 @@ class InlinePlayer(GObject.Object):
             pages.connect_weak(gtk_settings, 'notify::' + name,
                                self._on_moved)
         settings = pages.settings()
-        for key in ('autoplay-animated-media', 'media-autoload',
-                    'remote-media'):
+        for key in ('inline-animated-media', 'autoplay-animated-media',
+                    'media-autoload', 'remote-media'):
             pages.connect_weak(settings, 'changed::' + key, self._on_moved)
 
     # Re-evaluation: one pass for any number of causes
@@ -267,6 +328,10 @@ class InlinePlayer(GObject.Object):
         return live
 
     def _gates_open(self, root):
+        """The player's own switch first, then what every autoplaying
+        GIFV answers to."""
+        if not pages.settings().get_boolean('inline-animated-media'):
+            return False
         if not mediaplayback.may_autoplay_loop(root):
             return False
         mode = pages.settings().get_string('media-autoload')
@@ -287,7 +352,7 @@ class InlinePlayer(GObject.Object):
         tiles = self._live_tiles()
         if not tiles or not self._gates_open(root):
             return None
-        best = best_key = None
+        best = best_key = frozen = None
         for tile in tiles:
             # The active tile shows the stream, not its poster.
             if not self._may_fetch(tile) or not (
@@ -297,13 +362,25 @@ class InlinePlayer(GObject.Object):
             fraction = visible_fraction(
                 tile, scrolled if scrolled is not None else root)
             if fraction < MIN_VISIBLE - 1e-6:
+                if self._pinned == tile.token:
+                    self._pinned = 0
                 continue
-            # The largest share wins; a tie keeps the tile that plays,
-            # then takes the topmost.
+            if tile.user_paused:
+                if tile.token == self._active:
+                    frozen = tile
+                continue
+            # A tile the reader just started wins; then the largest share;
+            # a tie keeps the tile that plays, then takes the topmost.
             top = tile.compute_bounds(root)[1].get_y()
-            key = (round(fraction, 3), tile.token == self._active, -top)
+            key = (tile.token == self._pinned, round(fraction, 3),
+                   tile.token == self._active, -top)
             if best_key is None or key > best_key:
                 best, best_key = tile, key
+        # A tile the reader paused keeps its frozen frame, and the others
+        # wait, while it is in view; only a tile the reader started takes
+        # over.
+        if frozen is not None and not (best_key and best_key[0]):
+            return frozen
         return best
 
     def _active_tile(self):
@@ -386,6 +463,22 @@ class InlinePlayer(GObject.Object):
             self._failed.add(media_url(tile.attachment)[0])
         self._stop_active()
         self._arm_release()
+        self.schedule()
+
+    def user_toggled(self, tile, paused):
+        """The Pause Animation button was pressed on *tile*, whose choice
+        is already stored."""
+        if paused:
+            if self._pinned == tile.token:
+                self._pinned = 0
+        else:
+            self._pinned = tile.token
+        if self._active == tile.token and self._stream is not None \
+                and self._stream.is_prepared():
+            if paused:
+                self._stream.pause()
+            else:
+                self._stream.play()
         self.schedule()
 
     def _stop_active(self):

@@ -168,6 +168,11 @@
       <summary>Play animated GIFs by themselves</summary>
       <description>Mastodon GIFs are muted loops. When off, they wait for a click. Reduced motion, disabled animations and power saving stop them even when this is on.</description>
     </key>
+    <key name="inline-animated-media" type="b">
+      <default>false</default>
+      <summary>Play animated GIFs inside timelines</summary>
+      <description>Plays the animated GIF that is most in view in a timeline, one at a time. It needs autoplay of animated media to be on too. It uses more memory than still pictures and may pause the window briefly the first time one plays.</description>
+    </key>
     <key name="media-autoload" enum="io.github.mauriciobc.Babble.MediaAutoload">
       <default>'unmetered'</default>
       <summary>When video, audio and animated GIFs load without a click</summary>

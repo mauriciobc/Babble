@@ -7,9 +7,11 @@ playing from the Range-capable fixture server through the real engine.
 Checks that one tile at a time plays, the 50% rule, that switching reuses
 the engine, that scrolling away restores the poster and the engine is
 released later, that every gate closes playback live and opens it again,
-the
-viewer taking over, the remote-media rule, a window closed while
-playing, and that nothing is left alive. The sysstate monitor is a fake
+that nothing plays and no engine exists while Play Animated GIFs in
+Timelines is off (its default), the Pause Animation button (keyboard,
+kept across a rebind), the viewer taking over, the remote-media rule, a
+window closed while playing, and that nothing is left alive. The sysstate
+monitor is a fake
 of plain properties: the real one asks Gio.NetworkMonitor, which can hang
 on a CI runner.
 """
@@ -149,9 +151,12 @@ threading.Thread(target=poster_server.serve_forever, daemon=True).start()
 POSTER_URL = 'http://127.0.0.1:%d/poster.png' % poster_server.server_address[1]
 
 
-def reset_environment():
-    for key in ('autoplay-animated-media', 'media-autoload', 'remote-media'):
+def reset_environment(inline=True):
+    for key in ('autoplay-animated-media', 'media-autoload', 'remote-media',
+                'inline-animated-media'):
         settings.reset(key)
+    # Off is the default; every check below needs playback, so it is on.
+    settings.set_boolean('inline-animated-media', inline)
     monitor.set_property('metered', False)
     monitor.set_property('power-saver', False)
     gtk_settings.set_property('gtk-enable-animations', True)
@@ -251,16 +256,40 @@ def stopped(scene):
     return not scene.shown()
 
 
-# 1. One tile at a time, the poster until the first frame.
-reset_environment()
+# 0. Off by default: nothing plays and no engine is made; the key is live.
+reset_environment(inline=False)
+check('Play Animated GIFs in Timelines is off by default',
+      settings.get_boolean('inline-animated-media') is False)
 check('the shipped release delay is 2 s', SHIPPED_DELAY == 2000,
       repr(SHIPPED_DELAY))
+scene = Scene(count=3)
+settle(1.5)
+check('with the key off no tile plays and no engine is created',
+      stopped(scene) and not mediaengine._all
+      and scene.player._engine is None and scene.player._stream is None,
+      repr(scene.shown()))
+check('with the key off the tiles carry no pause button',
+      all(t._button is None for t in scene.tiles))
+settings.set_boolean('inline-animated-media', True)
+check('turning the key on plays live', wait(lambda: scene.playing(), 10))
+settings.set_boolean('inline-animated-media', False)
+check('turning it off stops live and restores the poster',
+      wait(lambda: stopped(scene), 5) and isinstance(
+          scene.tiles[0].picture.get_paintable(), Gdk.Texture))
+check('and releases the engine',
+      wait(lambda: scene.player._engine is None and not mediaengine._all, 5),
+      repr(mediaengine._all))
+scene.close()
+
+# 1. One tile at a time, the poster until the first frame.
+reset_environment(inline=False)
 scene = Scene()
 log = []
 first = scene.tiles[0]
 first.picture.connect(
     'notify::paintable',
     lambda p, _s: log.append(type(p.get_paintable()).__name__))
+settings.set_boolean('inline-animated-media', True)
 check('a visible GIFV starts playing by itself',
       wait(lambda: scene.playing(), 10))
 check('the poster was replaced by the stream in one step, never blank',
@@ -272,10 +301,13 @@ check('only one tile plays and only one engine exists',
       '%s %d' % (scene.shown(), len(mediaengine._all)))
 check('the stream loops, muted',
       scene.player._stream.get_loop() and scene.player._stream.get_muted())
-check('a playing tile has no controls, only its picture and badges',
-      first.get_first_child() is first.picture
-      and all(isinstance(c, Gtk.Label)
-              for c in list(widget_children(first))[1:]))
+check('only the playing tile has a Pause Animation button, and it says so',
+      first._button is not None and first._button.get_visible()
+      and first._button.get_icon_name() == 'media-playback-pause-symbolic'
+      and first._button.get_tooltip_text() == 'Pause Animation'
+      and all(t._button is None for t in scene.tiles[1:])
+      and not any(isinstance(c, Gtk.Button)
+                  for t in scene.tiles[1:] for c in widget_children(t)))
 opened = []
 scene.boxes[0]._open = opened.append
 scene.boxes[0]._on_tile_clicked(Gtk.GestureClick(), 1, 0, 0, 0)
@@ -404,6 +436,52 @@ check('remote-media ask again: it stays stopped', stopped(scene))
 scene.close()
 settings.reset('remote-media')
 
+# 6. The Pause Animation button.
+scene = Scene(count=3)
+check('start for pause', wait(lambda: scene.playing(), 10))
+tile = scene.tiles[0]
+button = tile._button
+tile.grab_focus()
+reached = False
+for _step in range(12):
+    scene.window.child_focus(Gtk.DirectionType.TAB_FORWARD)
+    if scene.window.get_focus() is button:
+        reached = True
+        break
+check('Tab reaches the Pause Animation button inside the tile', reached)
+button.activate()
+# A button's activate shows it pressed for a moment before it clicks.
+check('activating it pauses: the stream stops and the choice is stored',
+      wait(lambda: 'att0' in scene.uis[0].get(mediainline.PAUSED_KEY, ()), 3)
+      and wait(lambda: not scene.player._stream.get_playing(), 3))
+check('the button now says Play Animation',
+      button.get_tooltip_text() == 'Play Animation'
+      and button.get_icon_name() == 'media-playback-start-symbolic')
+settle(0.5)
+check('a paused tile is not resumed by itself, and keeps its frozen '
+      'frame while the other tiles wait',
+      scene.shown() == [0] and not scene.player._stream.get_playing())
+# Rows recycle: the same ui, the same attachment, a new tile.
+scene.boxes[0].set_media([attachment(0)], False, scene.uis[0])
+new_tile = tile_of(scene.boxes[0])
+wait(lambda t=new_tile: isinstance(t.picture.get_paintable(), Gdk.Texture),
+     10)
+settle(1.0)
+check('the choice survives a rebind: the new tile is paused, with its '
+      'poster and a Play Animation button',
+      new_tile.user_paused and not shows_stream(new_tile)
+      and new_tile._button is not None and new_tile._button.get_visible()
+      and new_tile._button.get_tooltip_text() == 'Play Animation')
+check('a paused tile is not picked while it is paused',
+      0 not in scene.shown())
+new_tile._button.activate()
+check('pressing Play Animation resumes it even beside another full tile',
+      wait(lambda t=new_tile: shows_stream(t)
+           and scene.player._stream.get_playing(), 10))
+check('and the stored choice is gone',
+      'att0' not in scene.uis[0].get(mediainline.PAUSED_KEY, ()))
+scene.close()
+
 # 7. The viewer takes over.
 scene = Scene(count=2)
 check('start for the viewer', wait(lambda: scene.playing(), 10))
@@ -434,7 +512,7 @@ check('closing the window leaves no engine once the release is done',
       wait(lambda: not mediaengine._all and not mediaengine._releasing, 10),
       repr(mediaengine._all))
 scene.__dict__.clear()
-del scene, first
+del scene, first, tile, button, new_tile
 for _round in range(5):
     gc.collect()
     settle(0.1)
