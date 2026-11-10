@@ -349,12 +349,15 @@ class MediaPlayback:
         read."""
         from .mediaviewer import load_texture
         if metered:
-            self.load_button.set_tooltip_text(
-                _('Media is not downloaded automatically on a metered '
-                  'connection'))
+            reason = _('Media is not downloaded automatically on a metered '
+                       'connection')
         else:
-            self.load_button.set_tooltip_text(
-                _('You chose not to load media automatically'))
+            reason = _('You chose not to load media automatically')
+        # The tooltip is all a sighted user sees of the reason; a screen
+        # reader hears it as the button's description.
+        self.load_button.set_tooltip_text(reason)
+        self.load_button.update_property(
+            [Gtk.AccessibleProperty.DESCRIPTION], [reason])
         if attachment.get('type') == 'audio':
             self.load_button.set_label(_('Load _Audio'))
         else:

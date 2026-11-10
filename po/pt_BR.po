@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-10 10:54-0300\n"
+"POT-Creation-Date: 2026-11-10 11:07-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -1846,7 +1846,7 @@ msgid ""
 msgstr ""
 "Uma linha do tempo separada para quem você segue, com uma visão geral rápida"
 
-#: src/catchup/page_controls.py:37 src/preferences.py:542
+#: src/catchup/page_controls.py:37 src/preferences.py:531
 msgid "_Catch Up"
 msgstr "_Catch Up"
 
@@ -2050,7 +2050,7 @@ msgid "Replies"
 msgstr "Respostas"
 
 #: src/catchup/pipeline.py:355 src/catchup/pipeline.py:373
-#: src/notificationcopy.py:63 src/preferences.py:410 src/statusrow.py:635
+#: src/notificationcopy.py:63 src/preferences.py:550 src/statusrow.py:635
 #: src/statusviews.py:25 src/statusviews.py:112
 msgid "Boosts"
 msgstr "Impulsos"
@@ -3465,7 +3465,7 @@ msgid "Hide or warn about posts that match keywords"
 msgstr "Ocultar ou avisar sobre publicações que correspondem a palavras-chave"
 
 #: src/filters.py:392 src/filters.py:486 src/filters.py:490
-#: src/preferences.py:498
+#: src/preferences.py:487
 msgid "Filters"
 msgstr "Filtros"
 
@@ -4043,33 +4043,33 @@ msgstr "O servidor respondeu com HTTP {status}"
 msgid "Invalid media address"
 msgstr "Endereço de mídia inválido"
 
-#: src/mediaplayback.py:353
+#: src/mediaplayback.py:352
 msgid "Media is not downloaded automatically on a metered connection"
 msgstr "A mídia não é baixada automaticamente em uma conexão medida"
 
-#: src/mediaplayback.py:357
+#: src/mediaplayback.py:355
 msgid "You chose not to load media automatically"
 msgstr "Você escolheu não carregar a mídia automaticamente"
 
-#: src/mediaplayback.py:359
+#: src/mediaplayback.py:362
 msgid "Load _Audio"
 msgstr "Carregar _Áudio"
 
-#: src/mediaplayback.py:361
+#: src/mediaplayback.py:364
 msgid "Load _Video"
 msgstr "Carregar _Vídeo"
 
-#: src/mediaplayback.py:398 src/mediaplayback.py:506
+#: src/mediaplayback.py:401 src/mediaplayback.py:509
 msgid "Could Not Load Media"
 msgstr "Não foi possível carregar a mídia"
 
-#: src/mediaplayback.py:399
+#: src/mediaplayback.py:402
 msgid "Playback is not available on this system."
 msgstr "A reprodução não está disponível neste sistema."
 
 #. Translators: why the session is kept from going idle, shown by
 #. the desktop where it lists apps blocking suspend or screen lock.
-#: src/mediaplayback.py:561
+#: src/mediaplayback.py:564
 msgid "Playing media"
 msgstr "Reproduzindo mídia"
 
@@ -5415,11 +5415,255 @@ msgstr "Carregar mídia a_utomaticamente"
 msgid "For video, audio and animated GIFs. Images always load"
 msgstr "Para vídeo, áudio e GIFs animados. As imagens sempre são carregadas"
 
-#: src/preferences.py:411
+#: src/preferences.py:410
+msgid "Home Timeline"
+msgstr "Linha do tempo inicial"
+
+#: src/preferences.py:412
+msgid "Hidden Replies From Non-_Follows"
+msgstr "_Respostas ocultas de quem você não segue"
+
+#: src/preferences.py:413
+msgid ""
+"On the home timeline, hide posts that are replies from accounts you do not "
+"follow"
+msgstr ""
+"Na timeline inicial, oculte postagens que são respostas de contas que você "
+"não segue"
+
+#: src/preferences.py:415
+msgid "Hidden Boosts on _Home"
+msgstr "Impu_lsos ocultos no início"
+
+#: src/preferences.py:416
+msgid ""
+"On the home timeline, show only posts and replies by the people you follow, "
+"without their boosts"
+msgstr ""
+"Na linha do tempo inicial, mostrar só as postagens e respostas de quem você "
+"segue, sem os impulsos dele"
+
+#: src/preferences.py:419
+msgid "Remembered _Reading Position"
+msgstr "Posi_ção de leitura lembrada"
+
+#: src/preferences.py:420
+msgid ""
+"Reopen the home timeline at the post you were reading, with a button for "
+"newer posts"
+msgstr ""
+"Reabre a linha do tempo inicial na publicação que você estava lendo, com um "
+"botão para as mais novas"
+
+#: src/preferences.py:430
+msgid "Links"
+msgstr "Links"
+
+#: src/preferences.py:432
+msgid "_Tracking Parameter Removal"
+msgstr "R_emoção de parâmetros de rastreamento"
+
+#: src/preferences.py:433
+msgid "This option can lead to broken links when enabled"
+msgstr "Esta opção pode causar links quebrados quando ativada"
+
+#: src/preferences.py:435
+msgid "R_emote Links in Babble"
+msgstr "Links remotos no _Babble"
+
+#: src/preferences.py:436
+msgid "Open links to posts and profiles on other servers inside the app"
+msgstr ""
+"Abre links para publicações e perfis de outros servidores dentro do "
+"aplicativo"
+
+#: src/preferences.py:440
+msgid "_Web Links Beside the Timeline"
+msgstr "Links da web ao lado da linha do _tempo"
+
+#: src/preferences.py:441
+msgid ""
+"Show other links in a column instead of the browser. Pages keep no cookies "
+"once Babble closes"
+msgstr ""
+"Mostrar outros links em uma coluna em vez do navegador. As páginas não "
+"mantêm cookies depois que o Babble fecha"
+
+#: src/preferences.py:445
+msgid "_JavaScript on Web Pages"
+msgstr "_JavaScript em páginas da web"
+
+#: src/preferences.py:446
+msgid "Many sites do not work without it"
+msgstr "Muitos sites não funcionam sem isso"
+
+#: src/preferences.py:450
+msgid "Copied Link S_uggestions"
+msgstr "Su_gestões de links copiados"
+
+#: src/preferences.py:451
+msgid "Check the clipboard for post and profile links when Babble is focused"
+msgstr ""
+"Verifique a área de transferência por links de postagens e perfis quando o "
+"Babble estiver em foco"
+
+#: src/preferences.py:456
+msgid "Boosts and Reminders"
+msgstr "Impulsos e lembretes"
+
+#: src/preferences.py:458
+msgid "Advanced Boost _Dialog"
+msgstr "_Diálogo de impulso avançado"
+
+#: src/preferences.py:459
+msgid "Change boost visibility, quote and confirm boosting"
+msgstr "Altera a visibilidade do impulso, cita e confirma o impulso"
+
+#: src/preferences.py:461
+msgid "Old Post Reply _Warning"
+msgstr "_Aviso ao responder a publicações antigas"
+
+#: src/preferences.py:463
+msgid "Private Post Lin_k Warning"
+msgstr "Aviso para _links de publicações privadas"
+
+#: src/preferences.py:465
+msgid "Missing Alt Text _Boost Warning"
+msgstr "Aviso ao impulsionar sem _texto alternativo"
+
+#: src/preferences.py:469
+msgid "Background"
+msgstr "Segundo plano"
+
+#: src/preferences.py:471
+msgid "Background _Mode"
+msgstr "_Modo em segundo plano"
+
+#: src/preferences.py:472
+msgid "Keep running after the window is closed to deliver notifications"
+msgstr "Continua em execução após fechar a janela para entregar notificações"
+
+#: src/preferences.py:476
+msgid "_Quick Post Shortcut"
+msgstr "Atalho _de Postagem Rápida"
+
+#: src/preferences.py:477
+msgid ""
+"Open the composer from anywhere with a system-wide shortcut, which can be "
+"changed in the system settings"
+msgstr ""
+"Abra o compositor de qualquer lugar com um atalho do sistema, que pode ser "
+"alterado nas configurações do sistema"
+
+#: src/preferences.py:488
+msgid "Hide or warn about posts that match keywords, on every device you use"
+msgstr ""
+"Oculte ou avise sobre publicações que correspondem a palavras-chave, em "
+"todos os dispositivos que você usa"
+
+#: src/preferences.py:490
+msgid "Mana_ge Filters"
+msgstr "Gerenciar _filtros"
+
+#: src/preferences.py:491
+msgid "Create, edit and delete filters"
+msgstr "Crie, edite e exclua filtros"
+
+#: src/preferences.py:502
+msgid "Restart Babble to use the new language"
+msgstr "Reinicie o Babble para usar o novo idioma"
+
+#: src/preferences.py:512 src/search.py:614 src/shortcuts-dialog.ui:50
+msgid "Timelines"
+msgstr "Linhas do tempo"
+
+#: src/preferences.py:515
+msgid "Live Updates"
+msgstr "Atualizações ao vivo"
+
+#: src/preferences.py:516
+msgid "Li_ve Timelines"
+msgstr "Linhas do _tempo ao vivo"
+
+#: src/preferences.py:517
+msgid "Receive new posts and notifications in real time"
+msgstr "Receba novas publicações e notificações em tempo real"
+
+#: src/preferences.py:519
+msgid "Live _Public Timelines"
+msgstr "Linhas do tempo _públicas ao vivo"
+
+#: src/preferences.py:520
+msgid "This will increase memory usage when browsing high traffic timelines"
+msgstr ""
+"Isso aumentará o uso de memória ao navegar em linhas do tempo de alto tráfego"
+
+#: src/preferences.py:524
+msgid "Refresh"
+msgstr "Atualização"
+
+#: src/preferences.py:525
+msgid "Used while live updates are off or unavailable"
+msgstr ""
+"Usada enquanto as atualizações ao vivo estão desligadas ou indisponíveis"
+
+#: src/preferences.py:526
+msgid "_Automatic Refresh"
+msgstr "Atualização _automática"
+
+#: src/preferences.py:529 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
+#: src/sidebarrail.py:79 src/window.ui:473 src/window.ui:479
+msgid "Sidebar"
+msgstr "Barra lateral"
+
+#: src/preferences.py:530
+msgid "Choose which timelines the sidebar offers"
+msgstr "Escolha quais linhas do tempo a barra lateral oferece"
+
+#: src/preferences.py:532
+msgid "Summarize what you missed in your home timeline"
+msgstr "Resuma o que você perdeu em sua timeline inicial"
+
+#: src/preferences.py:534
+msgid "_Explore"
+msgstr "_Explorar"
+
+#: src/preferences.py:535
+msgid "Show posts trending on your server"
+msgstr "Mostra publicações em alta no seu servidor"
+
+#: src/preferences.py:536
+msgid "_Local Timeline"
+msgstr "Linha do tempo _local"
+
+#: src/preferences.py:537
+msgid "Show posts from your server"
+msgstr "Mostra publicações do seu servidor"
+
+#: src/preferences.py:538
+msgid "_Federated Timeline"
+msgstr "Linha do tempo _federada"
+
+#: src/preferences.py:539
+msgid "Show posts from all known servers"
+msgstr "Mostra publicações de todos os servidores conhecidos"
+
+#: src/preferences.py:542
+msgid "Disabled _Timelines"
+msgstr "Linhas do tempo _desativadas"
+
+#: src/preferences.py:543
+msgid ""
+"Your server has turned these timelines off, but this account may still read "
+"them"
+msgstr ""
+"Seu servidor desligou essas timelines, mas esta conta ainda pode lê-las"
+
+#: src/preferences.py:551
 msgid "_Boosts Carousel"
 msgstr "Carrossel de _impulsos"
 
-#: src/preferences.py:412
+#: src/preferences.py:552
 msgid ""
 "When a page of posts is mostly boosts, fold them into a horizontal carousel "
 "instead of one row each. Applies to timelines opened afterwards"
@@ -5428,261 +5672,17 @@ msgstr ""
 "em um carrossel horizontal em vez de uma linha para cada um. Vale para "
 "linhas do tempo abertas depois"
 
-#: src/preferences.py:415
+#: src/preferences.py:555
 msgid "Si_ngle Boost per Post"
 msgstr "_Um impulso por publicação"
 
-#: src/preferences.py:416
+#: src/preferences.py:556
 msgid ""
 "Show only the first boost of a post that several people boosted. Applies to "
 "timelines opened afterwards"
 msgstr ""
 "Mostra só o primeiro impulso de um post impulsionado por várias pessoas. "
 "Vale para linhas do tempo abertas depois"
-
-#: src/preferences.py:421
-msgid "Home Timeline"
-msgstr "Linha do tempo inicial"
-
-#: src/preferences.py:423
-msgid "Hidden Replies From Non-_Follows"
-msgstr "_Respostas ocultas de quem você não segue"
-
-#: src/preferences.py:424
-msgid ""
-"On the home timeline, hide posts that are replies from accounts you do not "
-"follow"
-msgstr ""
-"Na timeline inicial, oculte postagens que são respostas de contas que você "
-"não segue"
-
-#: src/preferences.py:426
-msgid "Hidden Boosts on _Home"
-msgstr "Impu_lsos ocultos no início"
-
-#: src/preferences.py:427
-msgid ""
-"On the home timeline, show only posts and replies by the people you follow, "
-"without their boosts"
-msgstr ""
-"Na linha do tempo inicial, mostrar só as postagens e respostas de quem você "
-"segue, sem os impulsos dele"
-
-#: src/preferences.py:430
-msgid "Remembered _Reading Position"
-msgstr "Posi_ção de leitura lembrada"
-
-#: src/preferences.py:431
-msgid ""
-"Reopen the home timeline at the post you were reading, with a button for "
-"newer posts"
-msgstr ""
-"Reabre a linha do tempo inicial na publicação que você estava lendo, com um "
-"botão para as mais novas"
-
-#: src/preferences.py:441
-msgid "Links"
-msgstr "Links"
-
-#: src/preferences.py:443
-msgid "_Tracking Parameter Removal"
-msgstr "R_emoção de parâmetros de rastreamento"
-
-#: src/preferences.py:444
-msgid "This option can lead to broken links when enabled"
-msgstr "Esta opção pode causar links quebrados quando ativada"
-
-#: src/preferences.py:446
-msgid "R_emote Links in Babble"
-msgstr "Links remotos no _Babble"
-
-#: src/preferences.py:447
-msgid "Open links to posts and profiles on other servers inside the app"
-msgstr ""
-"Abre links para publicações e perfis de outros servidores dentro do "
-"aplicativo"
-
-#: src/preferences.py:451
-msgid "_Web Links Beside the Timeline"
-msgstr "Links da web ao lado da linha do _tempo"
-
-#: src/preferences.py:452
-msgid ""
-"Show other links in a column instead of the browser. Pages keep no cookies "
-"once Babble closes"
-msgstr ""
-"Mostrar outros links em uma coluna em vez do navegador. As páginas não "
-"mantêm cookies depois que o Babble fecha"
-
-#: src/preferences.py:456
-msgid "_JavaScript on Web Pages"
-msgstr "_JavaScript em páginas da web"
-
-#: src/preferences.py:457
-msgid "Many sites do not work without it"
-msgstr "Muitos sites não funcionam sem isso"
-
-#: src/preferences.py:461
-msgid "Copied Link S_uggestions"
-msgstr "Su_gestões de links copiados"
-
-#: src/preferences.py:462
-msgid "Check the clipboard for post and profile links when Babble is focused"
-msgstr ""
-"Verifique a área de transferência por links de postagens e perfis quando o "
-"Babble estiver em foco"
-
-#: src/preferences.py:467
-msgid "Boosts and Reminders"
-msgstr "Impulsos e lembretes"
-
-#: src/preferences.py:469
-msgid "Advanced Boost _Dialog"
-msgstr "_Diálogo de impulso avançado"
-
-#: src/preferences.py:470
-msgid "Change boost visibility, quote and confirm boosting"
-msgstr "Altera a visibilidade do impulso, cita e confirma o impulso"
-
-#: src/preferences.py:472
-msgid "Old Post Reply _Warning"
-msgstr "_Aviso ao responder a publicações antigas"
-
-#: src/preferences.py:474
-msgid "Private Post Lin_k Warning"
-msgstr "Aviso para _links de publicações privadas"
-
-#: src/preferences.py:476
-msgid "Missing Alt Text _Boost Warning"
-msgstr "Aviso ao impulsionar sem _texto alternativo"
-
-#: src/preferences.py:480
-msgid "Background"
-msgstr "Segundo plano"
-
-#: src/preferences.py:482
-msgid "Background _Mode"
-msgstr "_Modo em segundo plano"
-
-#: src/preferences.py:483
-msgid "Keep running after the window is closed to deliver notifications"
-msgstr "Continua em execução após fechar a janela para entregar notificações"
-
-#: src/preferences.py:487
-msgid "_Quick Post Shortcut"
-msgstr "Atalho _de Postagem Rápida"
-
-#: src/preferences.py:488
-msgid ""
-"Open the composer from anywhere with a system-wide shortcut, which can be "
-"changed in the system settings"
-msgstr ""
-"Abra o compositor de qualquer lugar com um atalho do sistema, que pode ser "
-"alterado nas configurações do sistema"
-
-#: src/preferences.py:499
-msgid "Hide or warn about posts that match keywords, on every device you use"
-msgstr ""
-"Oculte ou avise sobre publicações que correspondem a palavras-chave, em "
-"todos os dispositivos que você usa"
-
-#: src/preferences.py:501
-msgid "Mana_ge Filters"
-msgstr "Gerenciar _filtros"
-
-#: src/preferences.py:502
-msgid "Create, edit and delete filters"
-msgstr "Crie, edite e exclua filtros"
-
-#: src/preferences.py:513
-msgid "Restart Babble to use the new language"
-msgstr "Reinicie o Babble para usar o novo idioma"
-
-#: src/preferences.py:523 src/search.py:614 src/shortcuts-dialog.ui:50
-msgid "Timelines"
-msgstr "Linhas do tempo"
-
-#: src/preferences.py:526
-msgid "Live Updates"
-msgstr "Atualizações ao vivo"
-
-#: src/preferences.py:527
-msgid "Li_ve Timelines"
-msgstr "Linhas do _tempo ao vivo"
-
-#: src/preferences.py:528
-msgid "Receive new posts and notifications in real time"
-msgstr "Receba novas publicações e notificações em tempo real"
-
-#: src/preferences.py:530
-msgid "Live _Public Timelines"
-msgstr "Linhas do tempo _públicas ao vivo"
-
-#: src/preferences.py:531
-msgid "This will increase memory usage when browsing high traffic timelines"
-msgstr ""
-"Isso aumentará o uso de memória ao navegar em linhas do tempo de alto tráfego"
-
-#: src/preferences.py:535
-msgid "Refresh"
-msgstr "Atualização"
-
-#: src/preferences.py:536
-msgid "Used while live updates are off or unavailable"
-msgstr ""
-"Usada enquanto as atualizações ao vivo estão desligadas ou indisponíveis"
-
-#: src/preferences.py:537
-msgid "_Automatic Refresh"
-msgstr "Atualização _automática"
-
-#: src/preferences.py:540 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
-#: src/sidebarrail.py:79 src/window.ui:473 src/window.ui:479
-msgid "Sidebar"
-msgstr "Barra lateral"
-
-#: src/preferences.py:541
-msgid "Choose which timelines the sidebar offers"
-msgstr "Escolha quais linhas do tempo a barra lateral oferece"
-
-#: src/preferences.py:543
-msgid "Summarize what you missed in your home timeline"
-msgstr "Resuma o que você perdeu em sua timeline inicial"
-
-#: src/preferences.py:545
-msgid "_Explore"
-msgstr "_Explorar"
-
-#: src/preferences.py:546
-msgid "Show posts trending on your server"
-msgstr "Mostra publicações em alta no seu servidor"
-
-#: src/preferences.py:547
-msgid "_Local Timeline"
-msgstr "Linha do tempo _local"
-
-#: src/preferences.py:548
-msgid "Show posts from your server"
-msgstr "Mostra publicações do seu servidor"
-
-#: src/preferences.py:549
-msgid "_Federated Timeline"
-msgstr "Linha do tempo _federada"
-
-#: src/preferences.py:550
-msgid "Show posts from all known servers"
-msgstr "Mostra publicações de todos os servidores conhecidos"
-
-#: src/preferences.py:553
-msgid "Disabled _Timelines"
-msgstr "Linhas do tempo _desativadas"
-
-#: src/preferences.py:554
-msgid ""
-"Your server has turned these timelines off, but this account may still read "
-"them"
-msgstr ""
-"Seu servidor desligou essas timelines, mas esta conta ainda pode lê-las"
 
 #: src/preferences.py:573
 msgid "Posting"

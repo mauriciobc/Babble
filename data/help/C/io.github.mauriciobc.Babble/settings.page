@@ -68,8 +68,8 @@
       are muted loops, and when it is off they wait for a click instead of
       playing by themselves. Reduced motion, turned-off animations and
       power saving in your system settings always stop them from playing
-      by themselves, even when this setting is on. Videos with sound never
-      start by themselves because of it.
+      by themselves, even when this setting is on. It does not affect videos
+      with sound.
     </p>
     <p>
       <gui>Load Media Automatically</gui> covers video, audio and animated
