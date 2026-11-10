@@ -101,6 +101,7 @@ class Engine:
         self._stop_timeout = 0
         self._bus = None
         self._handlers = []
+        self._ua_handlers = []
         _all.add(self)
 
         self._connect(self.adapter, 'state-changed', self._on_state)
@@ -113,10 +114,15 @@ class Engine:
         self._connect(self.paintable, 'invalidate-contents', self._on_frame)
         self._connect(self.paintable, 'invalidate-size', self._on_size)
         pipeline = self.play.get_pipeline()
-        self._connect(pipeline, 'source-setup', self._on_source_setup)
-        # A typefinder or a demuxer may open its own HTTP source (the
-        # probe of a redirect target, say); name it too.
-        self._connect(pipeline, 'deep-element-added', self._on_deep_element)
+        # These two outlive _disconnect_all: a source created while the
+        # engine winds down (a load in flight when it is released) must
+        # still be named. They set one property from a string and reach
+        # neither the owner nor anything else, so they cannot leak.
+        self._ua_handlers = [
+            (pipeline, pipeline.connect('source-setup',
+                                        self._on_source_setup)),
+            (pipeline, pipeline.connect('deep-element-added',
+                                        self._on_deep_element))]
         bus = pipeline.get_bus()
         if bus is not None:
             bus.add_signal_watch()
@@ -244,6 +250,8 @@ class Engine:
         self._start_load(uri)
 
     def _start_load(self, uri):
+        if self.released or self.play is None:
+            return
         self.uri = uri
         self._ever_loaded = True
         self._fresh = True
@@ -343,6 +351,12 @@ class Engine:
         return False
 
     def _drop(self):
+        handlers, self._ua_handlers = self._ua_handlers, []
+        for obj, handler_id in handlers:
+            try:
+                obj.disconnect(handler_id)
+            except (TypeError, RuntimeError):
+                pass
         self.play = self.adapter = self.sink = self.paintable = None
         _releasing.discard(self)
         _all.discard(self)
