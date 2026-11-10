@@ -378,11 +378,11 @@ class PreferencesDialog(Adw.PreferencesDialog):
             subtitle=_('Loading media your server has no copy of lets the '
                        'author’s server see your IP address'))
         self._switch(posts, 'autoplay-animated-media',
-                     _('Autoplay A_nimated Media'),
+                     _('Autoplay Animated Me_dia'),
                      _('Play animated GIFs by themselves. Reduced motion '
                        'and power saving always stop them'))
         self._combo_enum(
-            posts, 'media-autoload', _('Load Media A_utomatically'),
+            posts, 'media-autoload', _('Load Media Automaticall_y'),
             MEDIA_AUTOLOAD_CHOICES,
             subtitle=_('For video, audio and animated GIFs. Images always '
                        'load'))

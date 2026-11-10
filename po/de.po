@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-10 10:34-0300\n"
+"POT-Creation-Date: 2026-11-10 10:44-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: German\n"
@@ -5355,7 +5355,7 @@ msgid ""
 msgstr ""
 
 #: src/preferences.py:381
-msgid "Autoplay A_nimated Media"
+msgid "Autoplay Animated Me_dia"
 msgstr "Animierte Medien _automatisch abspielen"
 
 #: src/preferences.py:382
@@ -5367,7 +5367,7 @@ msgstr ""
 "Energiesparmodus stoppen sie immer"
 
 #: src/preferences.py:385
-msgid "Load Media A_utomatically"
+msgid "Load Media Automaticall_y"
 msgstr "Medien a_utomatisch laden"
 
 #: src/preferences.py:387

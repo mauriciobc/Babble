@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-10 10:34-0300\n"
+"POT-Creation-Date: 2026-11-10 10:44-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -5351,7 +5351,7 @@ msgstr ""
 "seu endereço IP"
 
 #: src/preferences.py:381
-msgid "Autoplay A_nimated Media"
+msgid "Autoplay Animated Me_dia"
 msgstr "_Reproduzir mídia animada automaticamente"
 
 #: src/preferences.py:382
@@ -5363,7 +5363,7 @@ msgstr ""
 "energia sempre os param"
 
 #: src/preferences.py:385
-msgid "Load Media A_utomatically"
+msgid "Load Media Automaticall_y"
 msgstr "Carregar mídia a_utomaticamente"
 
 #: src/preferences.py:387

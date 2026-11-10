@@ -251,7 +251,7 @@ def find_row(widget, cls, title):
 prefs = preferences.PreferencesDialog(Stub())
 prefs.present(window)
 settle(0.3)
-switch = find_row(prefs, Adw.SwitchRow, 'Autoplay A_nimated Media')
+switch = find_row(prefs, Adw.SwitchRow, 'Autoplay Animated Me_dia')
 check('the Autoplay Animated Media row exists', switch is not None)
 if switch is not None:
     switch.set_active(False)
@@ -259,7 +259,7 @@ if switch is not None:
           settings.get_boolean('autoplay-animated-media') is False)
     settings.set_boolean('autoplay-animated-media', True)
     check('the key moves the switch', switch.get_active())
-combo = find_row(prefs, Adw.ComboRow, 'Load Media A_utomatically')
+combo = find_row(prefs, Adw.ComboRow, 'Load Media Automaticall_y')
 check('the Load Media Automatically row exists', combo is not None)
 if combo is not None:
     check('the row reflects the default', combo.get_selected() == 1)

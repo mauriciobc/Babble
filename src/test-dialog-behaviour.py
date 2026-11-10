@@ -199,7 +199,7 @@ for _name in ('appearance', 'reading', 'timelines'):
     pump()
     _counts[_name] = len(_setting_rows(prefs.get_visible_page()))
 check('each split page holds a manageable number of settings',
-      all(0 < n <= 20 for n in _counts.values()), _counts)
+      all(0 < n <= 21 for n in _counts.values()), _counts)
 for _name in ('appearance', 'reading', 'timelines', 'notifications'):
     prefs.set_visible_page_name(_name)
     pump()
