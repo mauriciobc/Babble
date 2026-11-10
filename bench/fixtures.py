@@ -100,10 +100,14 @@ def _media(base, rng, sid):
     out = []
     for i in range(rng.choice((1, 1, 2, 3, 4))):
         kind = rng.choice(('image', 'image', 'image', 'gifv', 'video'))
-        url = '%s/img/media/%d-%d.png' % (base, sid, i)
+        url = preview = '%s/img/media/%d-%d.png' % (base, sid, i)
+        if kind == 'gifv':
+            # A real clip to play (see fixture_server.py); the poster
+            # stays a PNG.
+            url = '%s/clip/%d-%d.ogg' % (base, sid, i)
         out.append({
             'id': '%d%d' % (sid, i), 'type': kind, 'url': url,
-            'preview_url': url, 'remote_url': None,
+            'preview_url': preview, 'remote_url': None,
             'description': _sentence(rng, 8) if rng.random() < 0.7 else None,
             'blurhash': 'UBL_:rOpGG-oBUNG,qRj2so|=eE1w^n4S5NH',
             'meta': {'original': {'width': 640, 'height': 480,
