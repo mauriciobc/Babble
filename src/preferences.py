@@ -407,17 +407,6 @@ class PreferencesDialog(Adw.PreferencesDialog):
                        'load'))
         page.add(media)
 
-        boosts = Adw.PreferencesGroup(title=_('Boosts'))
-        self._switch(boosts, 'boosts-carousel', _('_Boosts Carousel'),
-                     _('When a page of posts is mostly boosts, fold them '
-                       'into a horizontal carousel instead of one row each. '
-                       'Applies to timelines opened afterwards'))
-        self._switch(boosts, 'dedupe-boosts', _('Si_ngle Boost per Post'),
-                     _('Show only the first boost of a post that several '
-                       'people boosted. Applies to timelines opened '
-                       'afterwards'))
-        page.add(boosts)
-
         home = Adw.PreferencesGroup(title=_('Home Timeline'))
         self._switch(home, 'hide-replies-non-follows',
                      _('Hidden Replies From Non-_Follows'),
@@ -558,6 +547,16 @@ class PreferencesDialog(Adw.PreferencesDialog):
         page.add(refresh)
         page.add(sidebar)
 
+        boosts = Adw.PreferencesGroup(title=_('Boosts'))
+        self._switch(boosts, 'boosts-carousel', _('_Boosts Carousel'),
+                     _('When a page of posts is mostly boosts, fold them '
+                       'into a horizontal carousel instead of one row each. '
+                       'Applies to timelines opened afterwards'))
+        self._switch(boosts, 'dedupe-boosts', _('Si_ngle Boost per Post'),
+                     _('Show only the first boost of a post that several '
+                       'people boosted. Applies to timelines opened '
+                       'afterwards'))
+        page.add(boosts)
         return page
 
     def _restricted_feeds_available(self):
