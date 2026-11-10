@@ -26,7 +26,8 @@ that release can undo every one of them. Events reach the owner by a
 method call, ``owner._engine_event(name, *args)``; a closure that
 captured the owner would leak it (see MEMORY-LEAKS.md).
 
-This module imports only Gst, GstPlay, GstPbutils, GLib and Gtk.
+This module imports only ctypes (for ``malloc_trim``), Gst, GstPlay,
+GstPbutils, GLib and Gtk.
 """
 
 import ctypes

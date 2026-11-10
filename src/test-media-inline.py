@@ -194,7 +194,7 @@ class Scene:
     """An Adw window over a scrolled column of MediaBoxes, each with one
     GIFV, optionally between two tall spacers."""
 
-    def __init__(self, count=5, spacers=False, remote=False):
+    def __init__(self, count=5, spacers=False, remote=False, paused=()):
         self.overlay = Gtk.Overlay()
         self.scrolled = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
         self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
@@ -206,7 +206,8 @@ class Scene:
         self.uis = []
         self.boxes = []
         for index in range(count):
-            ui = {}
+            ui = {mediainline.PAUSED_KEY: {'att%d' % index}} \
+                if index in paused else {}
             box = MediaBox()
             box.set_media([attachment(index, remote)], False, ui)
             self.content.append(box)
@@ -280,6 +281,48 @@ check('and releases the engine',
       wait(lambda: scene.player._engine is None and not mediaengine._all, 5),
       repr(mediaengine._all))
 scene.close()
+
+# 0b. Off means inert: no per-scroll work, no dead button.
+evaluations = []
+real_evaluate = mediainline.InlinePlayer._evaluate
+
+
+def counting_evaluate(self):
+    evaluations.append(1)
+    return real_evaluate(self)
+
+
+mediainline.InlinePlayer._evaluate = counting_evaluate
+reset_environment(inline=False)
+scene = Scene(count=3, spacers=True, paused=(0,))
+settle(0.5)
+player = scene.player
+del evaluations[:]
+for value in (100, 400, 900, 1500, 2000, 0):
+    scene.scroll(value)
+check('with the key off scrolling does no evaluation',
+      not evaluations, repr(len(evaluations)))
+check('with the key off no after-paint or idle handler is pending and no '
+      'adjustment is watched',
+      player._painted == 0 and player._idle == 0 and not player._watched,
+      '%r %r %r' % (player._painted, player._idle, player._watched))
+check('with the key off a user-paused tile has no button',
+      scene.tiles[0].user_paused and scene.tiles[0]._button is None)
+settings.set_boolean('inline-animated-media', True)
+check('turning the key on watches the scrolling and shows the Play '
+      'Animation button of a paused tile',
+      bool(player._watched) and scene.tiles[0]._button is not None
+      and scene.tiles[0]._button.get_visible()
+      and scene.tiles[0]._button.get_tooltip_text() == 'Play Animation')
+settings.set_boolean('inline-animated-media', False)
+check('turning it off unwatches the scrolling and hides that button',
+      not player._watched and not scene.tiles[0]._button.get_visible())
+del evaluations[:]
+scene.scroll(500)
+scene.scroll(0)
+check('and scrolling does no evaluation again', not evaluations)
+scene.close()
+del player
 
 # 1. One tile at a time, the poster until the first frame.
 reset_environment(inline=False)
@@ -481,6 +524,57 @@ check('pressing Play Animation resumes it even beside another full tile',
 check('and the stored choice is gone',
       'att0' not in scene.uis[0].get(mediainline.PAUSED_KEY, ()))
 scene.close()
+
+# 6b. The playing tile goes away (its row is removed): playback stops,
+# nothing dangles, and the release is armed.
+reset_environment()
+scene = Scene(count=1)
+check('start for the removal', wait(lambda: scene.playing(), 10))
+player = scene.player
+engine = player._engine
+old_tile = scene.tiles[0]
+scene.content.remove(scene.boxes[0])
+# At once, with the main loop not turned: it is the unmap that stops it,
+# not a later evaluation.
+check('removing the playing tile stops it at once: no active tile, no '
+      'stream',
+      player._active is None and player._stream is None,
+      '%r %r' % (player._active, player._stream))
+check('its poster is back on the dropped picture',
+      isinstance(old_tile.picture.get_paintable(), Gdk.Texture))
+check('and the release is armed, with the engine still there for now',
+      wait(lambda: player._release_source != 0, 3)
+      and player._engine is engine)
+check('the engine is then released and dropped',
+      wait(lambda: player._engine is None and not mediaengine._all, 5))
+del old_tile
+scene.close()
+
+# 6c. Rows replaced while the window and the player live are freed.
+scene = Scene(count=2)
+check('start for the replacement', wait(lambda: scene.playing(), 10))
+weak_window = scene.window.weak_ref()
+weak_player = scene.player.weak_ref()
+weak_old = [scene.tiles[0].weak_ref(), scene.boxes[0].weak_ref(),
+            scene.tiles[0].picture.weak_ref()]
+scene.content.remove(scene.boxes[0])
+replacement = MediaBox()
+replacement.set_media([attachment(9)], False, {})
+scene.content.prepend(replacement)
+scene.boxes[0] = replacement
+scene.tiles[0] = tile_of(replacement)
+for _round in range(5):
+    gc.collect()
+    settle(0.1)
+check('the replaced tile, its picture and its box are freed while the '
+      'window and the player live',
+      wait(lambda: all(r() is None for r in weak_old), 5)
+      and weak_window() is not None and weak_player() is not None,
+      repr([r() for r in weak_old]))
+check('and playback goes on with the rest',
+      wait(lambda: scene.player._stream is not None, 10))
+scene.close()
+del replacement
 
 # 7. The viewer takes over.
 scene = Scene(count=2)

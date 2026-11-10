@@ -150,8 +150,6 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         if self.window is None and parent is not None:
             root = parent.get_root()
             self.window = root if isinstance(root, Gtk.Window) else None
-        # The viewer has its own engine: inline playback gives way.
-        mediainline.viewer_opened(self.window)
         self._cancellable = None
         self._stream = None
         self._closed = False
@@ -518,6 +516,9 @@ def present_media(parent_widget, attachments, index=0):
         dialog.close()
     viewer = MediaViewer(parent_widget, attachments, index)
     window = viewer.window
+    # Only once it exists: a viewer that failed to build never closes, so
+    # it must not leave inline playback off. It has its own engine.
+    mediainline.viewer_opened(window)
     overlay = media_overlay(window)
     if overlay is None:
         # A window without one (a test's, say): give the viewer a window of

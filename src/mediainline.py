@@ -58,6 +58,11 @@ PAUSED_KEY = 'inline_paused'
 _tokens = itertools.count(1)
 
 
+def inline_enabled():
+    """Whether Play Animated GIFs in Timelines is on."""
+    return pages.settings().get_boolean('inline-animated-media')
+
+
 def visible_fraction(tile, viewport):
     """The share of *tile* that lies inside *viewport*'s own bounds, 0..1."""
     found, rect = tile.compute_bounds(viewport)
@@ -153,12 +158,18 @@ class GifvTile(Gtk.Overlay):
         self._shown = False
         self._sync_button()
 
+    def sync_button(self):
+        self._sync_button()
+
     def _sync_button(self):
         """The Pause Animation button: built the first time a tile plays
-        or is paused, so idle tiles carry no extra widget."""
+        or is paused, so idle tiles carry no extra widget. Only while
+        Play Animated GIFs in Timelines is on: with it off a paused tile
+        would carry a button that starts nothing."""
+        enabled = inline_enabled()
         paused = self.user_paused
         if self._button is None:
-            if not (self._shown or paused):
+            if not enabled or not (self._shown or paused):
                 return
             self._button = Gtk.Button(
                 halign=Gtk.Align.END, valign=Gtk.Align.START,
@@ -168,7 +179,7 @@ class GifvTile(Gtk.Overlay):
             pages.connect_weak(self._button, 'clicked', self._on_clicked)
             self.add_overlay(self._button)
         button = self._button
-        button.set_visible(self._shown or paused)
+        button.set_visible(enabled and (self._shown or paused))
         if paused:
             button.set_icon_name('media-playback-start-symbolic')
             # Translators: the button over an animated image that you
@@ -213,6 +224,8 @@ class InlinePlayer(GObject.Object):
         self._clock = None
         self._release_source = 0
         self._gates_connected = False
+        # The key's last known state: off, nothing below does any work.
+        self._on = False
         pages.connect_weak(root, 'unmap', self._on_root_unmap)
         pages.connect_weak(root, 'map', self._on_root_map)
         pages.connect_weak(root, 'close-request', self._on_root_close)
@@ -222,10 +235,10 @@ class InlinePlayer(GObject.Object):
     def register(self, tile):
         self._tiles[tile.token] = tile.weak_ref()
         self._connect_gates()
-        scrolled = _scrolled_ancestor(tile)
-        if scrolled is not None:
-            self._watch(scrolled.get_vadjustment())
-        self.schedule()
+        tile.sync_button()
+        if self._on:
+            self._watch_tile(tile)
+            self.schedule()
 
     def unregister(self, tile):
         if self._active == tile.token:
@@ -233,17 +246,51 @@ class InlinePlayer(GObject.Object):
         self._tiles.pop(tile.token, None)
         self.schedule()
 
+    def _watch_tile(self, tile):
+        scrolled = _scrolled_ancestor(tile)
+        if scrolled is not None:
+            self._watch(scrolled.get_vadjustment())
+
     def _watch(self, adjustment):
-        """Follow a scrolled window's vertical adjustment, once."""
+        """Follow a scrolled window's vertical adjustment, once. Only
+        while the key is on: off, a scroll costs the player nothing."""
         key = hash(adjustment)
         known = self._watched.get(key)
-        if known is not None and known() is adjustment:
+        if known is not None and known[0]() is adjustment:
             return
-        self._watched = {k: r for k, r in self._watched.items()
-                         if r() is not None}
-        self._watched[key] = adjustment.weak_ref()
-        pages.connect_weak(adjustment, 'value-changed', self._on_moved)
-        pages.connect_weak(adjustment, 'changed', self._on_moved)
+        self._watched = {k: v for k, v in self._watched.items()
+                         if v[0]() is not None}
+        self._watched[key] = (adjustment.weak_ref(), [
+            pages.connect_weak(adjustment, 'value-changed', self._on_moved),
+            pages.connect_weak(adjustment, 'changed', self._on_moved)])
+
+    def _unwatch_all(self):
+        watched, self._watched = self._watched, {}
+        for ref, ids in watched.values():
+            adjustment = ref()
+            if adjustment is not None:
+                for handler in ids:
+                    adjustment.disconnect(handler)
+
+    def _on_key_changed(self, *_args):
+        """Play Animated GIFs in Timelines changed: start or stop all
+        per-scroll work, and bring the tiles' buttons along."""
+        on = inline_enabled()
+        if on == self._on:
+            return
+        self._on = on
+        tiles = [t for t in (r() for r in self._tiles.values())
+                 if t is not None]
+        if on:
+            for tile in tiles:
+                self._watch_tile(tile)
+            self.schedule()
+        else:
+            self._unwatch_all()
+            self._cancel_pending()
+            self._evaluate()
+        for tile in tiles:
+            tile.sync_button()
 
     def _connect_gates(self):
         """Follow every gate, once per player (the viewer's loop gate
@@ -251,6 +298,7 @@ class InlinePlayer(GObject.Object):
         if self._gates_connected:
             return
         self._gates_connected = True
+        self._on = inline_enabled()
         from . import sysstate
         monitor = sysstate.monitor()
         for name in ('power-saver', 'metered'):
@@ -261,8 +309,10 @@ class InlinePlayer(GObject.Object):
             pages.connect_weak(gtk_settings, 'notify::' + name,
                                self._on_moved)
         settings = pages.settings()
-        for key in ('inline-animated-media', 'autoplay-animated-media',
-                    'media-autoload', 'remote-media'):
+        pages.connect_weak(settings, 'changed::inline-animated-media',
+                           self._on_key_changed)
+        for key in ('autoplay-animated-media', 'media-autoload',
+                    'remote-media'):
             pages.connect_weak(settings, 'changed::' + key, self._on_moved)
 
     # Re-evaluation: one pass for any number of causes
@@ -274,7 +324,7 @@ class InlinePlayer(GObject.Object):
         """Evaluate once, after the next frame. A scroll moves the tiles
         only when the frame lays them out, so positions read earlier
         (from an idle, say) are the ones from before the scroll."""
-        if self._idle or self._painted:
+        if not self._on or self._idle or self._painted:
             return
         root = self._root()
         clock = root.get_frame_clock() if root is not None else None
@@ -575,8 +625,9 @@ def player_for(widget):
 
 
 def viewer_opened(window):
-    """The media viewer opened on *window*: it has its own engine."""
-    player = player_for(window)
+    """The media viewer opened on *window*: it has its own engine. With
+    no player there is nothing playing inline to give way."""
+    player = existing_player(window)
     if player is not None:
         player.viewer_opened()
 
