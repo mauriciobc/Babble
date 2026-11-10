@@ -59,6 +59,16 @@ REMOTE_MEDIA_CHOICES = (
     ('load', _('Always Load')),
     ('never', _('Never Load')))
 
+# Translators: the choices of "Load Media Automatically": a streamed video,
+# audio or animated GIF loads at once, loads unless the connection is
+# metered (data-limited), or waits for a click.
+MEDIA_AUTOLOAD_CHOICES = (
+    # Translators: load media automatically, in every case
+    ('always', _('Always')),
+    ('unmetered', _('Not on Metered Connections')),
+    # Translators: never load media automatically
+    ('never', _('Never')))
+
 # Labels are this page's; the codes belong to the entity, shared with
 # the composer's visibility menu.
 _QUOTE_LABELS = {
@@ -354,22 +364,6 @@ class PreferencesDialog(Adw.PreferencesDialog):
         posts = Adw.PreferencesGroup(title=_('Posts'))
         self._switch(posts, 'collapse-long-posts',
                      _('Collapsed _Long Posts'))
-        self._switch(posts, 'letterbox-media', _('Letterboxed _Media'),
-                     _('Scale down and letterbox media to fill the '
-                       'image containers instead of cropping them'))
-        self._toggle_enum(
-            posts, 'media-viewer-mode', _('Photo _Viewer'),
-            MEDIA_VIEWER_MODES,
-            subtitle=_('How a photo opens in the viewer: as a box over '
-                       'the window, or filling it'))
-        self._combo_enum(
-            posts, 'remote-media', _('Media From _Other Servers'),
-            REMOTE_MEDIA_CHOICES,
-            subtitle=_('Loading media your server has no copy of lets the '
-                       'author’s server see your IP address'))
-        self._switch(posts, 'show-sensitive-media', _('_Sensitive Media'),
-                     _('Reveal sensitive media instead of hiding it '
-                       'behind a warning'))
         self._switch(posts, 'show-spoilers', _('S_poilers'),
                      _('Reveal posts with a content warning'))
         self._switch(posts, 'show-preview-cards',
@@ -385,16 +379,33 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Actions stay available in each post’s menu'))
         page.add(posts)
 
-        boosts = Adw.PreferencesGroup(title=_('Boosts'))
-        self._switch(boosts, 'boosts-carousel', _('_Boosts Carousel'),
-                     _('When a page of posts is mostly boosts, fold them '
-                       'into a horizontal carousel instead of one row each. '
-                       'Applies to timelines opened afterwards'))
-        self._switch(boosts, 'dedupe-boosts', _('Si_ngle Boost per Post'),
-                     _('Show only the first boost of a post that several '
-                       'people boosted. Applies to timelines opened '
-                       'afterwards'))
-        page.add(boosts)
+        media = Adw.PreferencesGroup(title=_('Media'))
+        self._switch(media, 'letterbox-media', _('Letterboxed _Media'),
+                     _('Scale down and letterbox media to fill the '
+                       'image containers instead of cropping them'))
+        self._toggle_enum(
+            media, 'media-viewer-mode', _('Photo _Viewer'),
+            MEDIA_VIEWER_MODES,
+            subtitle=_('How a photo opens in the viewer: as a box over '
+                       'the window, or filling it'))
+        self._combo_enum(
+            media, 'remote-media', _('Media From _Other Servers'),
+            REMOTE_MEDIA_CHOICES,
+            subtitle=_('Loading media your server has no copy of lets the '
+                       'author’s server see your IP address'))
+        self._switch(media, 'show-sensitive-media', _('_Sensitive Media'),
+                     _('Reveal sensitive media instead of hiding it '
+                       'behind a warning'))
+        self._switch(media, 'autoplay-animated-media',
+                     _('Autoplay Animated Me_dia'),
+                     _('Play animated GIFs by themselves. Reduced motion '
+                       'and power saving always stop them'))
+        self._combo_enum(
+            media, 'media-autoload', _('Load Media Automaticall_y'),
+            MEDIA_AUTOLOAD_CHOICES,
+            subtitle=_('For video, audio and animated GIFs. Images always '
+                       'load'))
+        page.add(media)
 
         home = Adw.PreferencesGroup(title=_('Home Timeline'))
         self._switch(home, 'hide-replies-non-follows',
@@ -535,6 +546,17 @@ class PreferencesDialog(Adw.PreferencesDialog):
         page.add(live)
         page.add(refresh)
         page.add(sidebar)
+
+        boosts = Adw.PreferencesGroup(title=_('Boosts'))
+        self._switch(boosts, 'boosts-carousel', _('_Boosts Carousel'),
+                     _('When a page of posts is mostly boosts, fold them '
+                       'into a horizontal carousel instead of one row each. '
+                       'Applies to timelines opened afterwards'))
+        self._switch(boosts, 'dedupe-boosts', _('Si_ngle Boost per Post'),
+                     _('Show only the first boost of a post that several '
+                       'people boosted. Applies to timelines opened '
+                       'afterwards'))
+        page.add(boosts)
         return page
 
     def _restricted_feeds_available(self):
