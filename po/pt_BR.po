@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-09 21:32-0300\n"
+"POT-Creation-Date: 2026-11-10 09:20-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
@@ -2022,7 +2022,7 @@ msgid "Replies"
 msgstr "Respostas"
 
 #: src/catchup/pipeline.py:355 src/catchup/pipeline.py:373
-#: src/notificationcopy.py:63 src/preferences.py:388 src/statusrow.py:666
+#: src/notificationcopy.py:63 src/preferences.py:388 src/statusrow.py:635
 #: src/statusviews.py:25 src/statusviews.py:112
 msgid "Boosts"
 msgstr "Impulsos"
@@ -2041,7 +2041,7 @@ msgid "Groups"
 msgstr "Grupos"
 
 #: src/catchup/pipeline.py:357 src/catchup/rows.py:58
-#: src/notificationrow.py:335 src/notifications.py:393 src/statusrow.py:462
+#: src/notificationrow.py:335 src/notifications.py:393 src/statusrow.py:431
 msgid "Filtered"
 msgstr "Filtrada"
 
@@ -2169,7 +2169,7 @@ msgstr "Mostrando %s"
 #. Translators: the row of a post hidden behind a filter; %s names
 #. the filter(s)
 #: src/catchup/rows.py:57 src/notificationrow.py:335 src/notifications.py:393
-#: src/statusrow.py:462
+#: src/statusrow.py:431
 #, python-format
 msgid "Filtered: %s"
 msgstr "Filtrada: %s"
@@ -2214,7 +2214,7 @@ msgid "Trending"
 msgstr "Em alta"
 
 #: src/catchup/tiles.py:392 src/profileheader.py:454 src/profileheader.py:505
-#: src/statusrow.py:219 src/statusrow.py:618
+#: src/statusrow.py:220 src/statusrow.py:587
 msgid "Show More"
 msgstr "Mostrar mais"
 
@@ -2353,7 +2353,7 @@ msgid_plural "%d seconds"
 msgstr[0] "%d segundo"
 msgstr[1] "%d segundos"
 
-#: src/compose.py:310 src/statusrow.py:599
+#: src/compose.py:310 src/statusrow.py:568
 msgid "Replying to a post"
 msgstr "Respondendo a uma publicação"
 
@@ -4749,7 +4749,7 @@ msgid_plural "%d votes"
 msgstr[0] "%d voto"
 msgstr[1] "%d votos"
 
-#: src/notificationrow.py:281 src/statusrow.py:91
+#: src/notificationrow.py:281 src/statusrow.py:92
 msgid "Show _Anyway"
 msgstr "Mostrar _mesmo assim"
 
@@ -5835,7 +5835,7 @@ msgstr[1] "Mostrar todos os %d perfis"
 msgid "No Featured Profiles"
 msgstr "Nenhum perfil em destaque"
 
-#: src/profile.py:686 src/sidebarhost.py:281 src/statusrow.py:154
+#: src/profile.py:686 src/sidebarhost.py:281 src/statusrow.py:155
 msgid "Pinned"
 msgstr "Fixadas"
 
@@ -6457,7 +6457,7 @@ msgstr "A propriedade deste link foi verificada em %s"
 msgid "Verified Link"
 msgstr "Link verificado"
 
-#: src/profileheader.py:505 src/statusrow.py:618
+#: src/profileheader.py:505 src/statusrow.py:587
 msgid "Show Less"
 msgstr "Mostrar menos"
 
@@ -7373,7 +7373,7 @@ msgid "View Edit _History"
 msgstr "Ver _histórico de edições"
 
 #. Not _Translate: View S_tats already takes T in this menu.
-#: src/statusmenu.py:178 src/statusrow.py:346
+#: src/statusmenu.py:178 src/statusrow.py:315
 msgid "Show _Original"
 msgstr "Mostrar _original"
 
@@ -7559,89 +7559,89 @@ msgstr ""
 "Essa conta não poderá mais seguir você nem ver suas publicações, e as "
 "publicações dela serão ocultadas."
 
-#. Fills the header up to the time and menu, so its hover pill
-#. reads as the header's left side, not a box hugging the name.
-#: src/statusrow.py:110
-msgid "View Profile"
-msgstr "Ver perfil"
-
-#: src/statusrow.py:128
-msgid "Bot"
-msgstr "Robô"
-
-#: src/statusrow.py:168
-msgid "Edited"
-msgstr "Editada"
-
-#: src/statusrow.py:393
-#, python-format
-msgid "Post %(position)d of %(total)d in Thread"
-msgstr "Publicação %(position)d de %(total)d na conversa"
-
-#: src/statusrow.py:434
-#, python-format
-msgid "Post by %(author)s, boosted by %(booster)s"
-msgstr "Publicação de %(author)s, impulsionada por %(booster)s"
-
-#: src/statusrow.py:438
-#, python-format
-msgid "Post by %s"
-msgstr "Publicação de %s"
-
-#: src/statusrow.py:550
-#, python-format
-msgid "Translated from %(language)s using %(provider)s"
-msgstr "Traduzido do %(language)s usando %(provider)s"
-
-#: src/statusrow.py:553
-#, python-format
-msgid "Translated using %s"
-msgstr "Traduzido usando %s"
-
-#: src/statusrow.py:555
-msgid "Translated"
-msgstr "Traduzido"
-
-#: src/statusrow.py:574
-#, python-format
-msgid "Language: %s"
-msgstr "Idioma: %s"
-
-#: src/statusrow.py:578
-#, python-format
-msgid "Edited %s"
-msgstr "Editada %s"
-
-#: src/statusrow.py:582
-msgid "Edited. Show edit history"
-msgstr "Editada. Mostrar histórico de edições"
-
-#: src/statusrow.py:594
-msgid "Replying to themselves"
-msgstr "Respondendo a si mesmo"
-
-#: src/statusrow.py:598
-#, python-format
-msgid "Replying to @%s"
-msgstr "Respondendo a @%s"
-
-#: src/statusrow.py:682
+#: src/statusfold.py:62
 msgid "Hide Content"
 msgstr "Ocultar conteúdo"
 
-#: src/statusrow.py:683
+#: src/statusfold.py:63
 msgid "Show Content"
 msgstr "Mostrar conteúdo"
 
-#: src/statusrow.py:686
+#: src/statusfold.py:66
 #, python-format
 msgid "Hide content warning: %s"
 msgstr "Ocultar aviso de conteúdo: %s"
 
-#: src/statusrow.py:687
+#: src/statusfold.py:67
 #, python-format
 msgid "Show content warning: %s"
 msgstr "Mostrar aviso de conteúdo: %s"
+
+#. Fills the header up to the time and menu, so its hover pill
+#. reads as the header's left side, not a box hugging the name.
+#: src/statusrow.py:111
+msgid "View Profile"
+msgstr "Ver perfil"
+
+#: src/statusrow.py:129
+msgid "Bot"
+msgstr "Robô"
+
+#: src/statusrow.py:169
+msgid "Edited"
+msgstr "Editada"
+
+#: src/statusrow.py:362
+#, python-format
+msgid "Post %(position)d of %(total)d in Thread"
+msgstr "Publicação %(position)d de %(total)d na conversa"
+
+#: src/statusrow.py:403
+#, python-format
+msgid "Post by %(author)s, boosted by %(booster)s"
+msgstr "Publicação de %(author)s, impulsionada por %(booster)s"
+
+#: src/statusrow.py:407
+#, python-format
+msgid "Post by %s"
+msgstr "Publicação de %s"
+
+#: src/statusrow.py:519
+#, python-format
+msgid "Translated from %(language)s using %(provider)s"
+msgstr "Traduzido do %(language)s usando %(provider)s"
+
+#: src/statusrow.py:522
+#, python-format
+msgid "Translated using %s"
+msgstr "Traduzido usando %s"
+
+#: src/statusrow.py:524
+msgid "Translated"
+msgstr "Traduzido"
+
+#: src/statusrow.py:543
+#, python-format
+msgid "Language: %s"
+msgstr "Idioma: %s"
+
+#: src/statusrow.py:547
+#, python-format
+msgid "Edited %s"
+msgstr "Editada %s"
+
+#: src/statusrow.py:551
+msgid "Edited. Show edit history"
+msgstr "Editada. Mostrar histórico de edições"
+
+#: src/statusrow.py:563
+msgid "Replying to themselves"
+msgstr "Respondendo a si mesmo"
+
+#: src/statusrow.py:567
+#, python-format
+msgid "Replying to @%s"
+msgstr "Respondendo a @%s"
 
 #. Translators: date and 12-hour time, a GDateTime format
 #. string, e.g. "9 Oct 2026, 2:47 PM"; see the

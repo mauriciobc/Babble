@@ -119,6 +119,7 @@ install_data(
   'statusrun.py',
   'statusactions.py',
   'statusmenu.py',
+  'statusfold.py',
   'statusrow.py',
   'tileactions.py',
   'mediacache.py',
