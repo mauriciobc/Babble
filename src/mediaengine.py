@@ -29,6 +29,7 @@ captured the owner would leak it (see MEMORY-LEAKS.md).
 This module imports only Gst, GstPlay, GstPbutils, GLib and Gtk.
 """
 
+import ctypes
 import gc
 import time
 
@@ -43,6 +44,31 @@ from gi.repository import GLib, Gst, GstPbutils, GstPlay, Gtk  # noqa: E402,F401
 
 # How long release waits for STOPPED before dropping the engine anyway.
 STOP_TIMEOUT_MS = 1000
+
+# The idle source that returns freed heap to the system, or 0.
+_trim_source = 0
+
+
+def _trim_heap():
+    global _trim_source
+    _trim_source = 0
+    try:
+        ctypes.CDLL('libc.so.6').malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+    return False
+
+
+def schedule_trim():
+    """Give the heap an engine freed back to the system, once, from an
+    idle. A pipeline's streaming threads leave their memory in glibc
+    arenas, and each load and stop on the same engine added about 16 MB
+    of resident memory that ``malloc_trim`` takes back (measured; about
+    2 ms)."""
+    global _trim_source
+    if not _trim_source:
+        _trim_source = GLib.idle_add(_trim_heap)
+
 
 # Engines that were asked to release and have not been dropped yet. A
 # strong reference: the engine must outlive the viewer that closed it.
@@ -156,6 +182,7 @@ class Engine:
         if stopped:
             self._stopping = False
             self._clear_stop_timeout()
+            schedule_trim()
         self._fresh = False
         if self.released:
             if stopped:
@@ -360,6 +387,7 @@ class Engine:
         self.play = self.adapter = self.sink = self.paintable = None
         _releasing.discard(self)
         _all.discard(self)
+        schedule_trim()
 
 
 def shutdown_all(timeout_s=1.0):

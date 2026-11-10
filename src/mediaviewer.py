@@ -44,6 +44,7 @@ from gi.repository import (  # noqa: E402
 )
 
 from . import imagecache  # noqa: E402
+from . import mediainline  # noqa: E402
 from . import pages  # noqa: E402
 from .mediaexport import MediaExport  # noqa: E402
 from .mediaplayback import MediaPlayback  # noqa: E402
@@ -149,6 +150,8 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         if self.window is None and parent is not None:
             root = parent.get_root()
             self.window = root if isinstance(root, Gtk.Window) else None
+        # The viewer has its own engine: inline playback gives way.
+        mediainline.viewer_opened(self.window)
         self._cancellable = None
         self._stream = None
         self._closed = False
@@ -457,6 +460,7 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         self._cancel_loads()
         self._unload_media()
         self._release_engine()
+        mediainline.viewer_closed(self.window)
         if self.window is not None:
             self.window.disconnect(self._fullscreen_handler)
             if self._we_fullscreened:
