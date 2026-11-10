@@ -179,7 +179,8 @@ class MediaExport:
 
     def open_in_browser(self):
         attachment = self.current()
-        url = attachment.get('remote_url') or attachment.get('url')
+        url = (attachment.get('remote_url') or attachment.get('url')
+               or getattr(self, 'status_url', None))
         if not url:
             return False
         from .textemoji import launch_uri

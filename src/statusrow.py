@@ -499,7 +499,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
         attachments = status.get('media_attachments') or []
         self.media_box.set_media(
             attachments, bool(status.get('sensitive')) and not has_cw, ui,
-            blur=self.media_blur)
+            blur=self.media_blur, status_url=status.get('url'))
         show_card = card_wanted(status) and not poll and not quote \
             and not attachments
         self._show_card(status.get('card') if show_card else None)

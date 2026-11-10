@@ -142,9 +142,11 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
     # Set by a breakpoint while the window is too small for the box.
     compact = GObject.Property(type=bool, default=False)
 
-    def __init__(self, parent, attachments, index=0):
+    def __init__(self, parent, attachments, index=0, status_url=None):
         super().__init__()
         self.attachments = [a for a in attachments if isinstance(a, dict)]
+        # The post, for Open in Browser when an attachment has no address.
+        self.status_url = status_url
         self.index = 0
         self.window = pages.window_of(parent)
         if self.window is None and parent is not None:
@@ -250,10 +252,14 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         url, is_remote = media_url(attachment)
         kind = attachment.get('type')
         if not url:
+            # The server is still transcoding: neither its copy nor the
+            # original has an address yet. The attachment is a snapshot,
+            # so Retry could only show the same thing: reopen the post.
             self._show_error(
-                _('Preview Not Available'),
-                _('This attachment has no address to load.'),
-                retry=False, browser=False)
+                _('Media Still Processing'),
+                _('This media is still being processed by your server. '
+                  'Open the post again in a moment.'),
+                retry=False, browser=bool(self.status_url))
         elif kind == 'image':
             self._gate_remote('show', attachment, url, is_remote)
         elif kind in ('video', 'gifv', 'audio'):
@@ -500,11 +506,13 @@ def _enclosing_dialog(widget):
     return None
 
 
-def present_media(parent_widget, attachments, index=0):
+def present_media(parent_widget, attachments, index=0, status_url=None):
     """Open the media viewer on *attachments* (Mastodon media_attachments
     dicts) at *index* as an overlay of the window of *parent_widget*;
-    returns the viewer. A dialog holds the widget it was opened from
-    above that overlay, so it closes instead of hiding the image."""
+    returns the viewer. *status_url* is the post's address, which Open in
+    Browser uses for media that has none of its own yet. A dialog holds
+    the widget it was opened from above that overlay, so it closes
+    instead of hiding the image."""
     global _open_viewer
     if _open_viewer is not None:
         _open_viewer.close()
@@ -514,7 +522,7 @@ def present_media(parent_widget, attachments, index=0):
         if window is not None:
             parent_widget = window
         dialog.close()
-    viewer = MediaViewer(parent_widget, attachments, index)
+    viewer = MediaViewer(parent_widget, attachments, index, status_url)
     window = viewer.window
     # Only once it exists: a viewer that failed to build never closes, so
     # it must not leave inline playback off. It has its own engine.
