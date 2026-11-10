@@ -142,6 +142,7 @@ class Engine:
         self._frame_lock = threading.Lock()
         self._latest = None
         self._frame_idle = False
+        self._info = self._info_key = None
         outer = None
         # *gl* false is an inline GIFV: small, decoded in software, with
         # no need for a GL context. gtk4paintablesink creates one on the
@@ -242,6 +243,9 @@ class Engine:
         sink.props.max_buffers = 2
         sink.props.drop = True
         sink.props.enable_last_sample = False
+        # Only new-sample is wired, no new-preroll: a paused inline engine
+        # shows no frame until play() (mediainline always plays from
+        # _on_prepared, so the poster is never replaced by a paused frame).
         self.sink = sink
         self.paintable = FrameHolder()
         return sink
@@ -259,16 +263,24 @@ class Engine:
         if sample is None:
             return Gst.FlowReturn.OK
         buffer = sample.get_buffer()
-        info = GstVideo.VideoInfo.new_from_caps(sample.get_caps())
+        caps = sample.get_caps()
+        # The caps rarely change: parse them once per distinct caps.
+        if self._info_key is None or not caps.is_equal(self._info_key):
+            self._info = GstVideo.VideoInfo.new_from_caps(caps)
+            self._info_key = caps
+        info = self._info
+        # A buffer's own GstVideoMeta says what its stride is.
+        meta = GstVideo.buffer_get_video_meta(buffer)
+        stride = meta.stride[0] if meta is not None else info.stride[0]
         ok, mapped = buffer.map(Gst.MapFlags.READ)
         if not ok:
             return Gst.FlowReturn.OK
         try:
-            data = bytes(mapped.data)
+            data = GLib.Bytes.new(mapped.data)
         finally:
             buffer.unmap(mapped)
         with self._frame_lock:
-            self._latest = (info.width, info.height, info.stride[0], data)
+            self._latest = (info.width, info.height, stride, data)
             if self._frame_idle:
                 return Gst.FlowReturn.OK
             self._frame_idle = True
@@ -293,14 +305,14 @@ class Engine:
                 holder, FrameHolder):
             return False
         width, height, stride, data = frame
-        if len(data) < stride * height:
+        if data.get_size() < stride * height:
             return False
         resized = (holder.texture is None
                    or holder.texture.get_width() != width
                    or holder.texture.get_height() != height)
         holder.texture = Gdk.MemoryTexture.new(
             width, height, Gdk.MemoryFormat.R8G8B8A8,
-            GLib.Bytes.new(data), stride)
+            data, stride)
         if resized:
             self._emit('size')
         self._emit('frame')

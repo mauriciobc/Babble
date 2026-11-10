@@ -307,6 +307,24 @@ check('... and its GstPlay and appsink are finalized',
 check('... and it let go of the frame',
       engine.paintable is None and engine._latest is None)
 
+# Without GstApp or GstVideo an inline engine falls back to the sink.
+real_make = mediaengine.Engine._make_frame_sink
+mediaengine.Engine._make_frame_sink = lambda self: None
+try:
+    owner = Owner()
+    engine = mediaengine.Engine(owner, gl=False)
+finally:
+    mediaengine.Engine._make_frame_sink = real_make
+check('the fallback uses gtk4paintablesink',
+      engine.sink.get_factory().get_name() == 'gtk4paintablesink'
+      and not isinstance(engine.paintable, mediaengine.FrameHolder))
+engine.load(URI)
+check('... and still prerolls',
+      wait(lambda: 'media-info' in owner.events
+           and engine.state.value_nick == 'paused', 5), repr(owner.events))
+engine.release()
+wait(lambda: engine.play is None, 5)
+
 # Release right after load(), before the first state change, also after a
 # stop (the viewer's navigation): every request carries the engine's
 # User-Agent and none starts once release has had a second to finish.
