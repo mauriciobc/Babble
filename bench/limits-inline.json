@@ -1,5 +1,5 @@
 {
-  "_comment": "Limits for an inline-playback candidate (use with --limits bench/limits-inline.json). Identical to limits.json except peak_rss_mb and rss_growth_mb, which allow the memory of ONE playback engine: absolute +90 MB (the plan's E5 measured +74 MB per engine; the rest is margin). The relative limit is dropped for those two, so the absolute one decides. More than one live engine is out of budget by design (the plan allows at most one active tile). retained_mb keeps +5 MB: the engine must be released at teardown, which is the leak check. Limits for bench/compare.py. Every gated metric is higher-is-worse. A metric FAILS only if BOTH limits given for it are exceeded: the increase over the baseline is more than max_increase_pct percent AND more than max_increase in absolute units (so a tiny metric near 0 is not failed by a large percentage of nothing). If only one limit is given, that one alone decides. Derived from three baseline invocations of BENCH_RUNS=5 on one machine (main 8f7eb03); see PERFORMANCE.md, \"Timeline limits for inline playback\". cpu_ms and wall_ms are reported but not gated: cpu_ms counts every thread. wall_stall_* are wall-clock dispatch times (they see a blocked main thread, and also count preemption by other processes, so their limits are wider than the CPU ones).",
+  "_comment": "Limits for an inline-playback candidate (use with --limits bench/limits-inline.json). Identical to limits.json except peak_rss_mb and rss_growth_mb, which allow the memory of ONE playback engine: absolute +90 MB (the plan's E5 measured +74 MB per engine; the rest is margin). The relative limit is dropped for those two, so the absolute one decides. More than one live engine is out of budget by design (the plan allows at most one active tile). retained_mb allows the one-time entry cost, absolute +20 MB over an inline-off baseline (+14 measured after #103: the GStreamer libraries and plugin registry stay mapped once loaded). It is not the leak check; inline_cycle_growth_mb is: mean RSS growth per engine cycle over cycles 2..N in one process (bench/inline_cycles.py), absolute, below 1.0 MB. inline_frames_shown must be above 0: a run that shows no inline frame is a bug, not a speed-up. Those two rules judge the candidate alone (must_exceed, must_be_below). Limits for bench/compare.py. Every gated metric is higher-is-worse. A metric FAILS only if BOTH limits given for it are exceeded: the increase over the baseline is more than max_increase_pct percent AND more than max_increase in absolute units (so a tiny metric near 0 is not failed by a large percentage of nothing). If only one limit is given, that one alone decides. Derived from three baseline invocations of BENCH_RUNS=5 on one machine (main 8f7eb03); see PERFORMANCE.md, \"Timeline limits for inline playback\". cpu_ms and wall_ms are reported but not gated: cpu_ms counts every thread. wall_stall_* are wall-clock dispatch times (they see a blocked main thread, and also count preemption by other processes, so their limits are wider than the CPU ones).",
   "metrics": {
     "main_ms": {
       "max_increase_pct": 10,
@@ -27,8 +27,13 @@
       "max_increase": 90
     },
     "retained_mb": {
-      "max_increase_pct": 5,
-      "max_increase": 5
+      "max_increase": 20
+    },
+    "inline_frames_shown": {
+      "must_exceed": 0
+    },
+    "inline_cycle_growth_mb": {
+      "must_be_below": 1.0
     },
     "wall_stall_max_ms": {
       "max_increase_pct": 40,

@@ -7,6 +7,9 @@ bench/fixture_server.py through MastodonClient, is scrolled to the end
 of streaming updates/edits/deletes, and is then torn down. Prints one
 JSON line with CPU time, wall time and memory figures.
 
+inline_frames_shown counts the inline GIFV streams that showed a frame
+(0 with BENCH_INLINE off), so a faster run that played nothing is visible.
+
 cpu_ms is process CPU (every thread). main_ms, stall_max_ms,
 stall_p99_ms and stalls_over_16ms come from the thread CPU time of each
 main-loop dispatch (and each simulated stream message) during the
@@ -62,6 +65,13 @@ dispatches = []
 # count a main thread that is blocked or preempted without using CPU.
 wall_dispatches = []
 recording = False
+
+
+def inline_requested():
+    """BENCH_INLINE: only 1, true or yes (any case) mean on; 0, empty and
+    unset are off."""
+    return os.environ.get('BENCH_INLINE', '').strip().lower() in (
+        '1', 'true', 'yes')
 
 
 def rss_kb():
@@ -166,11 +176,23 @@ def run(port, anchor):
     from src.mastodon import MastodonClient
     from src import statusrow, statusrun, timelinedata, timelinepage
 
-    if os.environ.get('BENCH_INLINE'):
+    if inline_requested():
         # The opt-in cost: Play Animated GIFs in Timelines on. Off, the
         # default, is what ships.
         from src import pages
         pages.settings().set_boolean('inline-animated-media', True)
+    # Streams that showed a frame: GifvTile.show_stream is where the
+    # player swaps a tile's poster for the video, at the first frame.
+    # Counted here so the metric needs no hook in the app.
+    from src import mediainline
+    streams_shown = [0]
+    real_show_stream = mediainline.GifvTile.show_stream
+
+    def counting_show_stream(tile, stream):
+        streams_shown[0] += 1
+        return real_show_stream(tile, stream)
+
+    mediainline.GifvTile.show_stream = counting_show_stream
 
     client = MastodonClient('https://bench.invalid')
     # The client refuses plain http by design; the fixture instance is
@@ -293,6 +315,7 @@ def run(port, anchor):
         'wall_stalls_over_16ms': sum(1 for d in walls if d > 16.0),
         'frames': frames[0],
         'frames_with_empty_shell': frames[1],
+        'inline_frames_shown': streams_shown[0],
         'peak_rss_mb': round(
             resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),
         'rss_growth_mb': round((rss_peak_phase - rss_start) / 1024.0, 1),

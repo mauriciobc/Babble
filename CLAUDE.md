@@ -57,6 +57,8 @@ Performance benchmark (timeline workload against a local fixture server, run und
 ./autoresearch.sh            # prints METRIC key=value lines
 ```
 
+`BENCH_INLINE=1` (also `true`/`yes`; `0`, empty and unset are off) turns inline GIFV playback on. Then the run also reports `inline_frames_shown` (distinct inline streams that showed a frame; 0 with inline off) and `inline_cycle_growth_mb` (mean RSS growth per engine create/play/release cycle over cycles 2..N, from `bench/inline_cycles.py`), and `bench/limits-inline.json` requires the first to be above 0 and the second below 1.0 MB, both on the candidate alone.
+
 `bench/timeline_bench.py` is the workload, and `bench/fixture_server.py` with `bench/fixtures.py` serve the fake instance. `PERFORMANCE.md` records baseline vs. current figures and why each optimization was made. Read it before changing timeline rendering.
 
 Ranked timeline evaluation (`bench/rank_eval.py`, never installed): `collect` records one account's home timeline into `${XDG_CACHE_HOME:-~/.cache}/babble-eval/`, `evaluate` judges it day by day against `bench/rank_eval_gates.json` (the maintainer's file, H0), `aggregate` folds the per-account summaries into the Gate A record, and `self-test` checks the harness against a synthetic world with no network (`meson test -C build 'rank eval'`).
