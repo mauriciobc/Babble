@@ -36,6 +36,12 @@ def child():
     # every thread's Python stack and exit before that.
     import faulthandler
     faulthandler.dump_traceback_later(45, exit=True)
+    # The viewer's loop gate builds sysstate's monitor, whose
+    # Gio.NetworkMonitor.get_default() hung about 1 child in 10 on the CI
+    # runner (no NetworkManager in the container; the dump stopped in
+    # SystemState.__init__). This test is about quitting, so give GIO its
+    # trivial monitor: always online, never metered.
+    os.environ['GIO_USE_NETWORK_MONITOR'] = 'base'
     sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
     sys.path.insert(0, srcdir)
     import gi
