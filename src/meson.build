@@ -399,6 +399,13 @@ test('media stream', python,
   env: fatal_test_env,
   timeout: 180,
 )
+# The viewer streams from a loopback server (Range, redirect, throttle,
+# 404): fatal criticals, as for the teardown test.
+test('media progressive', python,
+  args: [files('test-media-progressive.py')],
+  env: fatal_test_env,
+  timeout: 180,
+)
 test('media quit', python,
   args: [files('test-media-quit.py')],
   env: fatal_test_env,

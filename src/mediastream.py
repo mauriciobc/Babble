@@ -7,9 +7,16 @@ all take a ``Gtk.MediaStream``. This one forwards play, pause, seek and
 audio to the engine's GstPlay and draws the engine's
 ``gtk4paintablesink`` paintable, so the widgets stay as they were.
 
-* **Prepared from the preroll**, not from the duration: ``load()``
-  prerolls, and the first media info says which streams exist and
-  whether the source is seekable.
+* **Prepared from the preroll**, once: ``load()`` prerolls, and the first
+  media info says which streams exist and whether the source is seekable.
+  A streamed source may not know its duration yet, so the stream waits for
+  it up to ``DURATION_WAIT_MS`` after the media info, then prepares with 0.
+  A clip prepared with an unknown duration keeps duration 0, so the seek
+  bar is inactive for it. It is never prepared again; a later duration
+  only updates the stored value (the end position), not
+  ``Gtk.MediaStream.get_duration()``.
+* **Buffering** is a property: true while the engine reports BUFFERING
+  after the stream is prepared.
 * **No seek on a source that cannot seek**: GstPlay would error out
   ("Could not seek in resource"), so ``do_seek`` calls ``seek_failed()``
   and never reaches the engine.
@@ -24,10 +31,15 @@ gi.require_version('GstPlay', '1.0')
 
 from .i18n import gettext as _  # noqa: E402
 
-from gi.repository import Gio, GLib, Gtk  # noqa: E402
+
+from gi.repository import Gio, GLib, GObject, GstPlay, Gtk  # noqa: E402
 
 # A seek that never reports completion is given up on after this long.
 SEEK_FALLBACK_MS = 2000
+
+# How long after the first media info the stream waits for a duration
+# before it is prepared with none.
+DURATION_WAIT_MS = 300
 
 # A position within this of the seek target counts as the seek having landed.
 SEEK_TOLERANCE_US = 300000
@@ -66,6 +78,9 @@ def _to_us(nanoseconds):
 class EngineStream(Gtk.MediaStream):
     __gtype_name__ = 'BabbleEngineStream'
 
+    # The engine is rebuffering a prepared stream.
+    buffering = GObject.Property(type=bool, default=False)
+
     def __init__(self, engine):
         super().__init__()
         self.engine = engine
@@ -78,6 +93,13 @@ class EngineStream(Gtk.MediaStream):
         self._failed = False
         self._has_audio = False
         self._has_video = False
+        # The first media info arrived and the prepare is waiting for a
+        # duration.
+        self._pending_prepare = False
+        self._prepare_timeout = 0
+        # A media info for this stream's URI arrived: only then can a
+        # duration event be tied to it (one has no URI of its own).
+        self._info_seen = False
         engine.owner = self
 
     # Lifetime
@@ -88,6 +110,8 @@ class EngineStream(Gtk.MediaStream):
         if self._seek_timeout:
             GLib.source_remove(self._seek_timeout)
             self._seek_timeout = 0
+        self._cancel_prepare_timeout()
+        self.buffering = False
         if engine is not None and engine.owner is self:
             engine.owner = None
 
@@ -102,38 +126,60 @@ class EngineStream(Gtk.MediaStream):
         # A stale message from the media loaded before this one.
         if info.get_uri() != self.engine.uri:
             return
-        duration = _to_us(info.get_duration())
-        if not self.is_prepared():
-            self._duration_us = duration
-            self._seekable = bool(info.is_seekable())
-            self._has_audio = bool(info.get_audio_streams())
-            self._has_video = bool(info.get_video_streams())
-            self.stream_prepared(self._has_audio, self._has_video,
-                                 self._seekable, self._duration_us)
-        else:
+        self._info_seen = True
+        duration = _to_us(info.get_duration()) or self._duration_us
+        if self.is_prepared():
             self._set_duration(duration)
+            return
+        self._seekable = bool(info.is_seekable())
+        self._has_audio = bool(info.get_audio_streams())
+        self._has_video = bool(info.get_video_streams())
+        if duration > 0:
+            self._duration_us = duration
+            self._prepare()
+        elif not self._pending_prepare:
+            self._pending_prepare = True
+            self._prepare_timeout = GLib.timeout_add(
+                DURATION_WAIT_MS, self._on_prepare_timeout)
 
-    def _on_state_changed(self, _state):
-        pass
+    def _prepare(self):
+        self._pending_prepare = False
+        self._cancel_prepare_timeout()
+        self.stream_prepared(self._has_audio, self._has_video,
+                             self._seekable, self._duration_us)
+        if self.engine is not None:
+            # A slow start is already buffering.
+            self.buffering = (
+                self.engine.state == GstPlay.PlayState.BUFFERING)
+
+    def _cancel_prepare_timeout(self):
+        if self._prepare_timeout:
+            GLib.source_remove(self._prepare_timeout)
+            self._prepare_timeout = 0
+
+    def _on_prepare_timeout(self):
+        self._prepare_timeout = 0
+        if self._pending_prepare and not self.is_prepared():
+            self._prepare()
+        return False
+
+    def _on_state_changed(self, state):
+        self.buffering = (self.is_prepared()
+                          and state == GstPlay.PlayState.BUFFERING)
 
     def _on_duration(self, duration):
+        if not self._info_seen:
+            return
         self._set_duration(_to_us(duration))
 
     def _set_duration(self, duration):
-        """A real duration after a prepare without one. A stream's
-        duration is only set by preparing it, so it is prepared again;
-        a playing stream is kept playing."""
-        if duration <= 0 or duration == self._duration_us:
+        """A duration reported by the engine. Before the prepare it ends
+        the wait; after it, it only updates the stored value."""
+        if duration <= 0:
             return
-        known = self._duration_us
         self._duration_us = duration
-        if known == 0 and self.is_prepared():
-            playing = self.get_playing()
-            self.stream_unprepared()
-            self.stream_prepared(self._has_audio, self._has_video,
-                                 self._seekable, duration)
-            if playing:
-                self.play()
+        if self._pending_prepare and not self.is_prepared():
+            self._prepare()
 
     def _on_position(self, position):
         # The fallback for a seek-done that never comes: only a position
@@ -141,7 +187,10 @@ class EngineStream(Gtk.MediaStream):
         if self._seeking and abs(position // 1000
                                  - self._seek_target_us) <= SEEK_TOLERANCE_US:
             self._seek_done(position)
-        self.update(position // 1000)
+        # update() needs a prepared stream; a streamed source may report
+        # positions before its media info.
+        if self.is_prepared():
+            self.update(position // 1000)
 
     def _on_seek_done(self, position):
         self._seek_done(position)
@@ -154,7 +203,8 @@ class EngineStream(Gtk.MediaStream):
             GLib.source_remove(self._seek_timeout)
             self._seek_timeout = 0
         self.seek_success()
-        self.update(position // 1000)
+        if self.is_prepared():
+            self.update(position // 1000)
 
     def _on_seek_timeout(self):
         self._seek_timeout = 0
@@ -164,6 +214,9 @@ class EngineStream(Gtk.MediaStream):
         return False
 
     def _on_end_of_stream(self):
+        if not self.is_prepared():
+            # A clip shorter than the duration wait: prepare, then end.
+            self._prepare()
         if self.get_loop():
             self.engine.seek(0)
             self.engine.start()

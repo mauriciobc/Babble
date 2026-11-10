@@ -13,6 +13,7 @@ os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import tempfile  # noqa: E402
 import http.server  # noqa: E402
 import threading  # noqa: E402
+import time  # noqa: E402
 
 # A one-second 32x32 Theora clip in Ogg: enough for GstPlay to have a
 # pipeline with a decoder and a sink in it, small enough to carry in the
@@ -116,21 +117,154 @@ def write_clip(directory=None):
     return path
 
 
-def serve(directory):
-    """Serve *directory* on 127.0.0.1 from a thread; returns
-    (base_url, stop). Plain http.server: no Range support."""
-    class Handler(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=directory, **kwargs)
+def write_long_clip(directory, seconds=20, kbps=300):
+    """A *seconds*-long Theora/Ogg clip encoded now with GStreamer's
+    base plugins (theoraenc, oggmux), written as long.ogg: big enough that
+    a throttled server needs seconds to send it, while the first frame is
+    in the first few KB. Returns its path."""
+    import gi
+    gi.require_version('Gst', '1.0')
+    from gi.repository import Gst
+    Gst.init(None)
+    path = os.path.join(directory, 'long.ogg')
+    pipeline = Gst.parse_launch(
+        'videotestsrc num-buffers=%d pattern=snow ! '
+        'video/x-raw,width=160,height=120,framerate=10/1 ! '
+        'theoraenc bitrate=%d ! oggmux name=mux' % (seconds * 10, kbps))
+    sink = Gst.ElementFactory.make('filesink')
+    sink.set_property('location', path)
+    pipeline.add(sink)
+    pipeline.get_by_name('mux').link(sink)
+    pipeline.set_state(Gst.State.PLAYING)
+    bus = pipeline.get_bus()
+    message = bus.timed_pop_filtered(
+        60 * Gst.SECOND, Gst.MessageType.EOS | Gst.MessageType.ERROR)
+    pipeline.set_state(Gst.State.NULL)
+    if message is None or message.type == Gst.MessageType.ERROR:
+        raise RuntimeError('could not encode the long clip')
+    return path
 
-        def log_message(self, *args):
+
+class MediaServer:
+    """A loopback server that streams one file the way a CDN does.
+
+    * ``/media.ogg``: the file, with ``Accept-Ranges`` and 206 answers.
+      When ``rate`` is set, every response sends its first ``burst`` bytes
+      at once (the head and the tail a demuxer reads to find the
+      duration) and the rest at ``rate`` bytes per second;
+    * ``/redirect.ogg``: a 302 to ``/media.ogg``;
+    * ``/norange.ogg``: the file, always 200, ``Accept-Ranges: none``.
+      A server that ignores Range and sends no ``Accept-Ranges`` at all
+      fails the preroll for a demuxer that reads the tail (Ogg: "Server
+      does not support seeking"); it plays a faststart MP4, only
+      unseekable (measured). Babble has deliberately no download
+      fallback: the user gets the error page with Retry and Open in
+      Browser. A server that says "none" plays;
+    * anything else: 404.
+
+    ``bytes_served`` counts the body bytes written, ``agents`` holds the
+    User-Agent of every request, and ``requests`` the paths.
+    """
+
+    CHUNK = 256
+
+    def __init__(self, path, rate=None, burst=65536):
+        with open(path, 'rb') as handle:
+            self.data = handle.read()
+        self.rate = rate
+        self.burst = burst
+        self.bytes_served = 0
+        self.agents = []
+        self.requests = []
+        self._lock = threading.Lock()
+        outer = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
+
+            def log_message(self, *args):
+                pass
+
+            def handle(self):
+                # A client that hangs up mid-body (a closed viewer) is
+                # the point of some tests, not an error.
+                try:
+                    super().handle()
+                except OSError:
+                    pass
+
+            def do_GET(self):
+                outer._handle(self)
+
+            def do_HEAD(self):
+                outer._handle(self, head=True)
+
+        self.server = http.server.ThreadingHTTPServer(
+            ('127.0.0.1', 0), Handler)
+        self.server.daemon_threads = True
+        self.thread = threading.Thread(
+            target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = 'http://127.0.0.1:%d' % self.server.server_address[1]
+
+    def _handle(self, request, head=False):
+        with self._lock:
+            self.agents.append(request.headers.get('User-Agent'))
+            self.requests.append(request.path)
+        path = request.path
+        if path == '/redirect.ogg':
+            request.send_response(302)
+            request.send_header('Location', '/media.ogg')
+            request.send_header('Content-Length', '0')
+            request.end_headers()
+            return
+        if path not in ('/media.ogg', '/norange.ogg'):
+            body = b'not found'
+            request.send_response(404)
+            request.send_header('Content-Length', str(len(body)))
+            request.end_headers()
+            request.wfile.write(body)
+            return
+        data = self.data
+        start, end, status = 0, len(data) - 1, 200
+        ranges = path == '/media.ogg'
+        header = request.headers.get('Range')
+        if ranges and header and header.startswith('bytes='):
+            first, _dash, last = header[6:].partition('-')
+            if first:
+                start = int(first)
+                end = int(last) if last else len(data) - 1
+            else:
+                start = max(len(data) - int(last), 0)
+            end = min(end, len(data) - 1)
+            status = 206
+        request.send_response(status)
+        request.send_header('Content-Type', 'video/ogg')
+        request.send_header('Content-Length', str(end - start + 1))
+        if ranges:
+            request.send_header('Accept-Ranges', 'bytes')
+        else:
+            request.send_header('Accept-Ranges', 'none')
+        if status == 206:
+            request.send_header(
+                'Content-Range', 'bytes %d-%d/%d' % (start, end, len(data)))
+        request.end_headers()
+        if head:
+            return
+        position = start
+        try:
+            while position <= end:
+                chunk = data[position:min(position + self.CHUNK, end + 1)]
+                request.wfile.write(chunk)
+                request.wfile.flush()
+                with self._lock:
+                    self.bytes_served += len(chunk)
+                position += len(chunk)
+                if self.rate and position - start >= self.burst:
+                    time.sleep(len(chunk) / self.rate)
+        except (BrokenPipeError, ConnectionResetError, OSError):
             pass
 
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
-    def stop():
-        server.shutdown()
-        server.server_close()
-    return 'http://127.0.0.1:%d' % server.server_address[1], stop
+    def stop(self):
+        self.server.shutdown()
+        self.server.server_close()
