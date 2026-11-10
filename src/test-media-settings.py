@@ -259,7 +259,17 @@ if switch is not None:
           settings.get_boolean('autoplay-animated-media') is False)
     settings.set_boolean('autoplay-animated-media', True)
     check('the key moves the switch', switch.get_active())
+def group_title(widget):
+    while widget is not None and not isinstance(widget, Adw.PreferencesGroup):
+        widget = widget.get_parent()
+    return widget.get_title() if widget is not None else None
+
+
+check('Autoplay Animated Media is in the Media group',
+      switch is not None and group_title(switch) == 'Media')
 combo = find_row(prefs, Adw.ComboRow, 'Load Media Automaticall_y')
+check('Load Media Automatically is in the Media group',
+      combo is not None and group_title(combo) == 'Media')
 check('the Load Media Automatically row exists', combo is not None)
 if combo is not None:
     check('the row reflects the default', combo.get_selected() == 1)

@@ -47,7 +47,8 @@
       When it has none, the original lives on the author's server, and
       loading it lets that server see your IP address and that you viewed
       it. <gui>Media From
-      Other Servers</gui> in the <gui>Reading</gui> page of Preferences
+      Other Servers</gui> in the <gui>Media</gui> group of the <gui>Reading</gui>
+      page of Preferences
       decides what Babble does: <gui>Ask Each Time</gui> asks each time, with a
       choice to remember the answer, <gui>Always Load</gui> loads the original,
       and <gui>Never Load</gui> does not. Media your server holds is
@@ -59,8 +60,8 @@
   <section id="autoplay">
     <title>Autoplay and loading media</title>
     <p>
-      Two settings in the <gui>Reading</gui> page of Preferences decide
-      when animated media and video start.
+      Two settings in the <gui>Media</gui> group of the <gui>Reading</gui>
+      page of Preferences decide when animated media and video start.
     </p>
     <p>
       <gui>Autoplay Animated Media</gui> is on by default. Animated GIFs
