@@ -286,3 +286,47 @@ FAIL: main_ms, stall_max_ms, retained_mb, wall_stall_max_ms
 It fails again, so by the stop condition inline playback does not ship on by default: it needs its own preference, off by default (`inline-animated-media`, because `autoplay-animated-media` also drives the viewer), or the phase stops. This is not added here. Why the failures are structural and not a tuning matter: the first engine is created on the main thread in one dispatch of 100-140 ms (the limit is 22 ms), and what the first engine loads (the GL context and drivers, GStreamer's plugins) stays resident after it is released (+85 MB against a limit of +5%). Per run, one in five had a main-thread stall of 1.3-1.4 s (`stall_max_ms` 1331 and 1428 in the two rounds, CPU time, not waiting), which the median hides; the cause was not found. The per-run values are in the `BENCH_JSON` files of the session; they are not committed.
 
 Finding that decided the fixture: GStreamer 1.28.8 cannot seek an Ogg stream back to its start over HTTP once it has ended (`Failed to seek to 0:00:00`, "duplicate event found" in `basesrc`; it works over `file://`, and an MP4 or WebM served by the same server loops). The viewer has the same limit for Ogg; real GIFVs are MP4, so the clip is simply longer than any run.
+
+### Shipped off by default (same day)
+
+By the stop condition inline playback ships off: a boolean `inline-animated-media` (Preferences, Reading, Media, "Play Animated GIFs in Timelines"; default off) must be on as well as everything else the player checks. With it off no engine is created and tiles only register (a few dictionary operations); the bench shows it costs nothing. `BENCH_INLINE=1` makes `bench/timeline_bench.py` set the key before the workload (the app has no such switch). Baseline again main `68b287f` with the same served media (main's tree plus only the two fixture files), `BENCH_RUNS=5` each, nothing else running.
+
+**The shipping configuration (key off), standard `bench/limits.json`, exit 0:**
+
+```
+main_ms                      1363.7     1390.2      +26.5 +10% and +100  PASS
+stall_max_ms                   23.7       23.9       +0.2 +40% and +8    PASS
+stall_p99_ms                    8.6        9.1       +0.5 +15% and +1.5  PASS
+stalls_over_16ms                  5          3       -2.0 +2             PASS
+frames_with_empty_shell          16         15       -1.0 +30% and +4    PASS
+peak_rss_mb                   388.8      388.9       +0.1 +3% and +8     PASS
+rss_growth_mb                  76.9       78.8       +1.9 +5% and +5     PASS
+retained_mb                      77       78.8       +1.8 +5% and +5     PASS
+wall_stall_max_ms              25.2       25.4       +0.2 +40% and +10   PASS
+wall_stall_p99_ms               9.5         10       +0.5 +15% and +2    PASS
+wall_stalls_over_16ms             7          7       +0.0 +8             PASS
+cpu_ms                       2273.1     2318.2      +45.1 -              report-only
+wall_ms                        7410     7516.7     +106.7 -              report-only
+PASS
+```
+
+**The opt-in cost (key on, with the Pause Animation button), `--limits bench/limits-inline.json`, exit 1:**
+
+```
+main_ms                      1363.7     1713.8     +350.1 +10% and +100  FAIL
+stall_max_ms                   23.7      147.2     +123.5 +40% and +8    FAIL
+stall_p99_ms                    8.6        8.8       +0.2 +15% and +1.5  PASS
+stalls_over_16ms                  5          3       -2.0 +2             PASS
+frames_with_empty_shell          16         17       +1.0 +30% and +4    PASS
+peak_rss_mb                   388.8        476      +87.2 +90            PASS
+rss_growth_mb                  76.9      161.9      +85.0 +90            PASS
+retained_mb                      77        162      +85.0 +5% and +5     FAIL
+wall_stall_max_ms              25.2      158.7     +133.5 +40% and +10   FAIL
+wall_stall_p99_ms               9.5       10.2       +0.7 +15% and +2    PASS
+wall_stalls_over_16ms             7          6       -1.0 +8             PASS
+cpu_ms                       2273.1     3014.1     +741.0 -              report-only
+wall_ms                        7410     8522.2    +1112.2 -              report-only
+FAIL: main_ms, stall_max_ms, retained_mb, wall_stall_max_ms
+```
+
+It fails on the same four metrics as round 2, for the same reasons; nothing was optimized further and no limit was changed. The Pause Animation button changed nothing measurable against round 2 (peak 476 against 474.1 MB, growth 161.9 against 161.8, retained 162 against 161.9, `stall_max_ms` 147 against 143; `main_ms` rose by 92 ms over a baseline that was itself 75 ms lower in this session, within the run-to-run spread of 100-150 ms seen before). The baseline moved between sessions (`main_ms` 1439 then 1364), so figures are comparable within a session only.
