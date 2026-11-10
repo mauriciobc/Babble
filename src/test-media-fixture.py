@@ -117,26 +117,6 @@ def write_clip(directory=None):
     return path
 
 
-def serve(directory):
-    """Serve *directory* on 127.0.0.1 from a thread; returns
-    (base_url, stop). Plain http.server: no Range support."""
-    class Handler(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=directory, **kwargs)
-
-        def log_message(self, *args):
-            pass
-
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
-    def stop():
-        server.shutdown()
-        server.server_close()
-    return 'http://127.0.0.1:%d' % server.server_address[1], stop
-
-
 def write_long_clip(directory, seconds=20, kbps=300):
     """A *seconds*-long Theora/Ogg clip encoded now with GStreamer's
     base plugins (theoraenc, oggmux), written as long.ogg: big enough that
