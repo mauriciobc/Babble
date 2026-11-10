@@ -82,10 +82,13 @@ class ReactionButton(Gtk.ToggleButton):
         box = Gtk.Box(spacing=6)
         url = reaction.get('url') or reaction.get('static_url')
         if url:
-            from .textemoji import EmojiTextures
-            image = Gtk.Image(pixel_size=16,
-                              accessible_role=Gtk.AccessibleRole.PRESENTATION)
-            EmojiTextures.bind(image, url)
+            from .emojianim import EmojiImage
+            image = EmojiImage(
+                pixel_size=16,
+                accessible_role=Gtk.AccessibleRole.PRESENTATION)
+            # The first frame until it moves, the original after.
+            image.bind(reaction.get('static_url') or url,
+                       reaction.get('url'))
             box.append(image)
         else:
             box.append(Gtk.Label(label=reaction['name']))

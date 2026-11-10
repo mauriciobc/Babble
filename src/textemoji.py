@@ -25,7 +25,7 @@ gi.require_version('Soup', '3.0')
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
-from . import imagecache  # noqa: E402
+from . import emojianim, imagecache  # noqa: E402
 from .pages import connect_weak, weak_method  # noqa: E402
 
 EMOJI_RE = re.compile(r':([A-Za-z0-9_+\-]+):')
@@ -112,6 +112,9 @@ def emoji_bank_from(emojis):
         url = emoji.get('static_url') or emoji.get('url')
         if code and url:
             bank[code] = url
+            # The bank stays the static image; the original that moves
+            # is looked up from it when the emoji is drawn.
+            emojianim.register(emoji.get('static_url'), emoji.get('url'))
     return bank
 
 
@@ -428,14 +431,15 @@ class InlineEmojiText(Gtk.TextView):
                 self._links.append((start, end, tag.babble_href))
 
         def emoji_anchor(url, shortcode):
-            image = Gtk.Image(accessible_role=Gtk.AccessibleRole.PRESENTATION)
+            image = emojianim.EmojiImage(
+                accessible_role=Gtk.AccessibleRole.PRESENTATION)
             image.set_pixel_size(self._emoji_size)
             image.add_css_class('custom-emoji')
             # The shortcode as a tooltip, like the reference frontend's
             # title attribute: a bare emoji image gives no other hint of
             # what it stands for.
             image.set_tooltip_text(':%s:' % shortcode)
-            EmojiTextures.bind(image, url)
+            image.bind(url)
             anchor = self._buffer.create_child_anchor(
                 self._buffer.get_end_iter())
             self.add_child_at_anchor(image, anchor)
