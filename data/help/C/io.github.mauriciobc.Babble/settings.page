@@ -60,7 +60,7 @@
   <section id="autoplay">
     <title>Autoplay and loading media</title>
     <p>
-      Two settings in the <gui>Media</gui> group of the <gui>Reading</gui>
+      Three settings in the <gui>Media</gui> group of the <gui>Reading</gui>
       page of Preferences decide when animated media and video start.
     </p>
     <p>
@@ -70,6 +70,18 @@
       power saving in your system settings always stop them from playing
       by themselves, even when this setting is on. It does not affect videos
       with sound.
+    </p>
+    <p>
+      <gui>Play Animated GIFs in Timelines</gui> is off by default. When it
+      is on, the animated GIF that is most in view in a timeline plays in
+      place, one at a time. It costs more than a still picture: it uses more
+      memory, and the window may pause briefly the first time one plays,
+      which is why it is off until you ask for it. <gui>Autoplay Animated
+      Media</gui>, <gui>Load Media Automatically</gui>, <gui>Media From
+      Other Servers</gui>, reduced motion and power saving all still apply.
+      A playing GIF has a <gui>Pause Animation</gui> button on it; a GIF you
+      paused stays paused, and the button then says <gui>Play
+      Animation</gui>. Clicking the GIF itself opens it in the viewer.
     </p>
     <p>
       <gui>Load Media Automatically</gui> covers video, audio and animated

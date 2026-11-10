@@ -26,9 +26,11 @@ that release can undo every one of them. Events reach the owner by a
 method call, ``owner._engine_event(name, *args)``; a closure that
 captured the owner would leak it (see MEMORY-LEAKS.md).
 
-This module imports only Gst, GstPlay, GstPbutils, GLib and Gtk.
+This module imports only ctypes (for ``malloc_trim``), Gst, GstPlay,
+GstPbutils, GLib and Gtk.
 """
 
+import ctypes
 import gc
 import time
 
@@ -43,6 +45,31 @@ from gi.repository import GLib, Gst, GstPbutils, GstPlay, Gtk  # noqa: E402,F401
 
 # How long release waits for STOPPED before dropping the engine anyway.
 STOP_TIMEOUT_MS = 1000
+
+# The idle source that returns freed heap to the system, or 0.
+_trim_source = 0
+
+
+def _trim_heap():
+    global _trim_source
+    _trim_source = 0
+    try:
+        ctypes.CDLL('libc.so.6').malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+    return False
+
+
+def schedule_trim():
+    """Give the heap an engine freed back to the system, once, from an
+    idle. A pipeline's streaming threads leave their memory in glibc
+    arenas, and each load and stop on the same engine added about 16 MB
+    of resident memory that ``malloc_trim`` takes back (measured; about
+    2 ms)."""
+    global _trim_source
+    if not _trim_source:
+        _trim_source = GLib.idle_add(_trim_heap)
+
 
 # Engines that were asked to release and have not been dropped yet. A
 # strong reference: the engine must outlive the viewer that closed it.
@@ -61,10 +88,11 @@ class Engine:
     (description, installer detail), ``frame`` and ``size``.
 
     *user_agent*, when given, is set on the HTTP source of a streamed
-    URI: reverse proxies refuse the library default.
+    URI: reverse proxies refuse the library default. *gl* is false for
+    inline GIFVs, which keep their frames in system memory.
     """
 
-    def __init__(self, owner=None, user_agent=None):
+    def __init__(self, owner=None, user_agent=None, gl=True):
         Gst.init(None)
         sink = Gst.ElementFactory.make('gtk4paintablesink')
         if sink is None:
@@ -74,7 +102,10 @@ class Engine:
         self.sink = sink
         self.paintable = sink.props.paintable
         outer = sink
-        if self.paintable.props.gl_context:
+        # *gl* false keeps frames in system memory (no glsinkbin): a GIFV
+        # is small and decodes in software, and the GL path measured
+        # about 45 MB more resident memory in the timeline benchmark.
+        if gl and self.paintable.props.gl_context:
             gl_sink = Gst.ElementFactory.make('glsinkbin')
             if gl_sink is not None:
                 gl_sink.props.sink = sink
@@ -156,6 +187,7 @@ class Engine:
         if stopped:
             self._stopping = False
             self._clear_stop_timeout()
+            schedule_trim()
         self._fresh = False
         if self.released:
             if stopped:
@@ -360,6 +392,7 @@ class Engine:
         self.play = self.adapter = self.sink = self.paintable = None
         _releasing.discard(self)
         _all.discard(self)
+        schedule_trim()
 
 
 def shutdown_all(timeout_s=1.0):

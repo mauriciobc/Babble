@@ -44,6 +44,7 @@ from gi.repository import (  # noqa: E402
 )
 
 from . import imagecache  # noqa: E402
+from . import mediainline  # noqa: E402
 from . import pages  # noqa: E402
 from .mediaexport import MediaExport  # noqa: E402
 from .mediaplayback import MediaPlayback  # noqa: E402
@@ -457,6 +458,7 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         self._cancel_loads()
         self._unload_media()
         self._release_engine()
+        mediainline.viewer_closed(self.window)
         if self.window is not None:
             self.window.disconnect(self._fullscreen_handler)
             if self._we_fullscreened:
@@ -514,6 +516,9 @@ def present_media(parent_widget, attachments, index=0):
         dialog.close()
     viewer = MediaViewer(parent_widget, attachments, index)
     window = viewer.window
+    # Only once it exists: a viewer that failed to build never closes, so
+    # it must not leave inline playback off. It has its own engine.
+    mediainline.viewer_opened(window)
     overlay = media_overlay(window)
     if overlay is None:
         # A window without one (a test's, say): give the viewer a window of

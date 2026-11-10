@@ -96,8 +96,11 @@ sysstate._monitor = monitor
 settings = pages.settings()
 
 # Schema defaults.
-for key in ('autoplay-animated-media', 'media-autoload'):
+for key in ('autoplay-animated-media', 'media-autoload',
+            'inline-animated-media'):
     settings.reset(key)
+check('Play Animated GIFs in Timelines defaults to off',
+      settings.get_boolean('inline-animated-media') is False)
 check('Autoplay Animated Media defaults to on',
       settings.get_boolean('autoplay-animated-media') is True)
 check('Load Media Automatically defaults to unmetered',
@@ -267,6 +270,18 @@ def group_title(widget):
 
 check('Autoplay Animated Media is in the Media group',
       switch is not None and group_title(switch) == 'Media')
+inline = find_row(prefs, Adw.SwitchRow, 'Play A_nimated GIFs in Timelines')
+check('the Play Animated GIFs in Timelines row exists, off, in the Media '
+      'group, with the cost in its subtitle',
+      inline is not None and not inline.get_active()
+      and group_title(inline) == 'Media'
+      and 'memory' in inline.get_subtitle())
+if inline is not None:
+    inline.set_active(True)
+    check('its switch writes the key',
+          settings.get_boolean('inline-animated-media') is True)
+    settings.set_boolean('inline-animated-media', False)
+    check('the key moves its switch', not inline.get_active())
 combo = find_row(prefs, Adw.ComboRow, 'Load Media Automaticall_y')
 check('Load Media Automatically is in the Media group',
       combo is not None and group_title(combo) == 'Media')

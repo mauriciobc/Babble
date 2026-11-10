@@ -25,6 +25,7 @@ surface a status row draws.
 """
 from .timelinebase import decodable_attachment_url, _flag, COLUMN_WIDTH
 from .mediacache import _TextureCache, AvatarCache
+from .mediainline import GifvTile
 from .timelinedata import StatusItem
 
 
@@ -465,7 +466,7 @@ class MediaBox(Gtk.Box):
         else:
             self.append(content)
         if visual:
-            content.append(self._build_grid(visual, blur))
+            content.append(self._build_grid(visual, blur, ui))
         for index, attachment in enumerate(self._attachments):
             if attachment.get('type') not in ('image', 'video', 'gifv'):
                 content.append(self._file_row(index, attachment))
@@ -486,7 +487,7 @@ class MediaBox(Gtk.Box):
                          covered, ui)
             self.append(hide)
 
-    def _build_grid(self, visual, blur=False):
+    def _build_grid(self, visual, blur=False, ui=None):
         count = len(visual)
         if count == 1:
             columns, tile_height = 1, 260
@@ -509,9 +510,15 @@ class MediaBox(Gtk.Box):
                 kind=BlurredPicture if blur else Gtk.Picture, hexpand=True)
             # Focusable like Catch Up's tile in tiles_render.py: a bare
             # Overlay with only GestureClick is unreachable from the keyboard.
-            overlay = Gtk.Overlay(
-                focusable=True,
-                accessible_role=Gtk.AccessibleRole.BUTTON)
+            if kind == 'gifv' and not blur:
+                # Plays inline while it is the most visible one in view.
+                overlay = GifvTile(
+                    attachment, ui, picture, focusable=True,
+                    accessible_role=Gtk.AccessibleRole.BUTTON)
+            else:
+                overlay = Gtk.Overlay(
+                    focusable=True,
+                    accessible_role=Gtk.AccessibleRole.BUTTON)
             overlay.add_css_class('media-tile')
             overlay.update_property(
                 [Gtk.AccessibleProperty.LABEL], [caption])
