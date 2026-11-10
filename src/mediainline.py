@@ -332,7 +332,7 @@ class InlinePlayer(GObject.Object):
             from .mediastream import EngineStream
             if self._engine is None:
                 self._engine = mediaengine.Engine(
-                    user_agent=mastodon.user_agent())
+                    user_agent=mastodon.user_agent(), gl=False)
             stream = EngineStream(self._engine)
             self._engine.load(url)
         except (ImportError, ValueError, RuntimeError):

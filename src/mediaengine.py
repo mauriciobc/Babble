@@ -87,10 +87,11 @@ class Engine:
     (description, installer detail), ``frame`` and ``size``.
 
     *user_agent*, when given, is set on the HTTP source of a streamed
-    URI: reverse proxies refuse the library default.
+    URI: reverse proxies refuse the library default. *gl* is false for
+    inline GIFVs, which keep their frames in system memory.
     """
 
-    def __init__(self, owner=None, user_agent=None):
+    def __init__(self, owner=None, user_agent=None, gl=True):
         Gst.init(None)
         sink = Gst.ElementFactory.make('gtk4paintablesink')
         if sink is None:
@@ -100,7 +101,10 @@ class Engine:
         self.sink = sink
         self.paintable = sink.props.paintable
         outer = sink
-        if self.paintable.props.gl_context:
+        # *gl* false keeps frames in system memory (no glsinkbin): a GIFV
+        # is small and decodes in software, and the GL path measured
+        # about 45 MB more resident memory in the timeline benchmark.
+        if gl and self.paintable.props.gl_context:
             gl_sink = Gst.ElementFactory.make('glsinkbin')
             if gl_sink is not None:
                 gl_sink.props.sink = sink
