@@ -26,7 +26,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | `window.py` | ~1925 | ARCH-15 extracted sidebarhost; session/stream owner remains |
 | `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
-| `mediaviewer.py` | ~1058 | ARCH-14+19 extracted playback and ZoomPicture; chrome remains |
+| `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
 | `profile.py` | ~915 | ARCH-16 extracted profileheader; tabs/extras remain |
 | `mastodon.py` | 1328 | Coherent transport — leave |
 | `pages.py` | 1239 | Shared toolkit — Phase N |

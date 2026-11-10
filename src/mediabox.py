@@ -623,7 +623,7 @@ class MediaBox(Gtk.Box):
         texture = source.get_widget().get_child().get_paintable()
         if not isinstance(texture, Gdk.Texture):
             texture = None
-        from .mediaviewer import media_provider, set_drag_texture
+        from .mediaexport import media_provider, set_drag_texture
         if texture is not None:
             set_drag_texture(source, texture)
         # A video's tile is its preview frame, not the attachment.

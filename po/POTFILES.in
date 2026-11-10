@@ -34,9 +34,11 @@ src/lists.py
 src/main.py
 src/mastodon.py
 src/mediabox.py
+src/mediaexport.py
 src/mediaplayback.py
 src/mediastream.py
 src/mediaviewer.py
+src/mediaviewerchrome.py
 src/mentioncompleter.py
 src/navigation.py
 src/notificationcopy.py

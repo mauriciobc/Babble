@@ -110,7 +110,7 @@ CLIP = (
 def write_clip(directory=None):
     """The clip written to *directory* (a fresh temp dir) as clip.ogg;
     returns its path."""
-    directory = directory or tempfile.mkdtemp(prefix='babble-media-')
+    directory = directory or tempfile.mkdtemp(prefix='babble-test-clip-')
     path = os.path.join(directory, 'clip.ogg')
     with open(path, 'wb') as handle:
         handle.write(base64.b64decode(CLIP))
