@@ -66,7 +66,8 @@ def request(widget, url, is_remote, on_allowed, on_denied):
         # Translators: {host} is the address of the server that holds the
         # original, such as example.social.
         body=_('Your server has no copy of this media. Loading it from '
-               '{host} lets that server see your IP address.').format(
+               '{host} lets that server see your IP address and that '
+               'you viewed it.').format(
                    host=host_of(url) or _('another server')))
     remember = Gtk.CheckButton(label=_('_Remember This Choice'),
                                use_underline=True, halign=Gtk.Align.CENTER)
@@ -96,13 +97,15 @@ def _present_late(dialog, widget, on_denied):
 
 def _on_response(_dialog, response, remember, on_allowed, on_denied):
     allowed = response == 'load'
-    if remember.get_active():
+    remembered = remember.get_active()
+    if remembered:
         pages.settings().set_string('remote-media',
                                     'load' if allowed else 'never')
     if allowed:
         on_allowed()
     else:
-        on_denied(False)
+        # A remembered Cancel is now the setting: say where to change it.
+        on_denied(remembered)
 
 
 class RemoteGate:

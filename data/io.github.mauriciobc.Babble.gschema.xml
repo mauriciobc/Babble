@@ -156,7 +156,7 @@
     <key name="remote-media" enum="io.github.mauriciobc.Babble.RemoteMedia">
       <default>'ask'</default>
       <summary>Whether to load media your server has no copy of from the original server</summary>
-      <description>Mastodon servers keep a copy of the media in posts they show you. When your server has none, the original lives on the author's server, and loading it lets that server see your IP address. "ask" asks each time, "load" loads it, "never" does not.</description>
+      <description>Mastodon servers keep a copy of the media in posts they show you. When your server has none, the original lives on the author's server, and loading it lets that server see your IP address and that you viewed it. "ask" asks each time, "load" loads it, "never" does not.</description>
     </key>
     <key name="show-sensitive-media" type="b">
       <default>false</default>

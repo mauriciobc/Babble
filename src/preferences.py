@@ -55,8 +55,8 @@ MEDIA_VIEWER_MODES = (
     ('fullscreen', _('Window')))
 
 REMOTE_MEDIA_CHOICES = (
-    ('ask', _('Ask')),
-    ('load', _('Load')),
+    ('ask', _('Ask Each Time')),
+    ('load', _('Always Load')),
     ('never', _('Never Load')))
 
 # Labels are this page's; the codes belong to the entity, shared with
@@ -365,9 +365,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._combo_enum(
             posts, 'remote-media', _('Media From _Other Servers'),
             REMOTE_MEDIA_CHOICES,
-            subtitle=_('When your server has no copy of a post’s media, '
-                       'loading the original lets the author’s server see '
-                       'your IP address'))
+            subtitle=_('Loading media your server has no copy of lets the '
+                       'author’s server see your IP address'))
         self._switch(posts, 'show-sensitive-media', _('_Sensitive Media'),
                      _('Reveal sensitive media instead of hiding it '
                        'behind a warning'))

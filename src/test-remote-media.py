@@ -28,7 +28,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('GstPlay', '1.0')
 
-from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -195,6 +195,10 @@ viewer = mediaviewer.present_media(parent, [remote()])
 settle(0.3)
 answer('cancel', remember=True)
 settle(0.3)
+check('Remember + Cancel tells where to change it',
+      stack(viewer) == 'error'
+      and 'Preferences' in viewer.error_page.get_description(),
+      viewer.error_page.get_description())
 check('Remember + Cancel sets never',
       settings.get_string('remote-media') == 'never')
 check('and makes no request', other.requests == [])
@@ -239,6 +243,69 @@ settle(0.3)
 check('Save As asks', dialog_up() is not None)
 answer('cancel')
 check('Save As Cancel makes no request', other.requests == [])
+viewer.close()
+
+# Open With under never makes no request either.
+settings.set_string('remote-media', 'never')
+viewer = mediaviewer.present_media(parent, [remote()])
+settle(0.3)
+check('Open With reports an attachment', viewer.open_with())
+settle(0.3)
+check('Open With under never makes no request and shows no dialog',
+      other.requests == [] and dialog_up() is None)
+viewer.close()
+settings.set_string('remote-media', 'ask')
+
+# An image goes through the gate too.
+png = os.path.join(os.path.dirname(clip), 'picture.png')
+Gdk.MemoryTexture.new(8, 8, Gdk.MemoryFormat.R8G8B8A8,
+                      GLib.Bytes.new(bytes(8 * 8 * 4)), 32
+                      ).save_to_png(png)
+picture_server = fixture.MediaServer(png)
+picture = {'type': 'image', 'url': None, 'description': 'p',
+           'remote_url': picture_server.base + '/media.ogg'}
+viewer = mediaviewer.present_media(parent, [picture])
+settle(0.5)
+check('an image asks', dialog_up() is not None)
+check('and makes no request before Load', picture_server.requests == [])
+answer('load')
+check('Load shows the image', wait(lambda: stack(viewer) == 'image', 10),
+      stack(viewer))
+check('the image came from the other server',
+      len(picture_server.requests) > 0)
+viewer.close()
+
+# Closing the viewer under the question, then clicking Load: nothing
+# happens (fatal criticals would fail the run on a critical).
+errors = []
+sys.excepthook = lambda *args: errors.append(args)
+other.requests.clear()
+viewer = mediaviewer.present_media(parent, [remote()])
+settle(0.3)
+check('the question is up', dialog_up() is not None)
+viewer.close()
+answer('load')
+settle(0.5)
+check('Load after the viewer closed makes no request',
+      other.requests == [], repr(other.requests))
+check('and raises nothing', not errors, repr(errors))
+sys.excepthook = sys.__excepthook__
+
+# The metered Load button asks before any request.
+mediaplayback._system_state = lambda name: name == 'metered'
+viewer = mediaviewer.present_media(parent, [remote()])
+settle(0.5)
+check('metered: the preview page waits, with no dialog and no request',
+      stack(viewer) == 'deferred' and dialog_up() is None
+      and other.requests == [], stack(viewer))
+viewer._on_load_clicked(None)
+settle(0.3)
+check('metered: Load asks first', dialog_up() is not None)
+check('and still no request', other.requests == [])
+answer('load')
+mediaplayback._system_state = lambda name: False
+check('metered: after Load it plays',
+      wait(lambda: playing(viewer), 10) and len(other.requests) > 0)
 viewer.close()
 
 # The gate's own contract.
