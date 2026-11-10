@@ -985,6 +985,7 @@ class MediaViewer(MediaPlayback, Adw.Bin):
             _open_viewer = None
         self._cancel_loads()
         self._unload_media()
+        self._release_engine()
         if self.window is not None:
             self.window.disconnect(self._fullscreen_handler)
             if self._we_fullscreened:

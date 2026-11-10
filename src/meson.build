@@ -58,7 +58,9 @@ install_data(
   'lists.py',
   'main.py',
   'mastodon.py',
+  'mediaengine.py',
   'mediaplayback.py',
+  'mediastream.py',
   'mediaviewer.py',
   'mediazoom.py',
   'navigation.py',
@@ -386,6 +388,21 @@ test('image decode', python,
   args: [files('test-imagedecode.py')],
   env: fatal_test_env,
   timeout: 120,
+)
+test('media engine', python,
+  args: [files('test-media-engine.py')],
+  env: fatal_test_env,
+  timeout: 180,
+)
+test('media stream', python,
+  args: [files('test-media-stream.py')],
+  env: fatal_test_env,
+  timeout: 180,
+)
+test('media quit', python,
+  args: [files('test-media-quit.py')],
+  env: fatal_test_env,
+  timeout: 300,
 )
 # The media teardown test plays a video and tears it down again and
 # again: the crash it guards against is a race between the widget's

@@ -71,7 +71,7 @@ EXCEPTIONS = {
                 'readability, not a seam, so it is declared.',
     'mediaviewer.py': 'the picture viewer chrome and present_media. '
                       'ARCH-14 moved download, release_media and the '
-                      'GstPlay / MediaFile stream paths to '
+                      'GstPlay engine stream paths to '
                       'mediaplayback.py; ARCH-19 moved ZoomPicture to '
                       'mediazoom.py.',
     'fedicollections.py': 'Collections (Mastodon 4.6+): page, CRUD and '

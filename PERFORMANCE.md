@@ -152,3 +152,7 @@ The first-painted-row figure did not move (25–74 ms on both trees); the open a
 
 **Rows build their parts on demand.** `NotificationRow.__init__` built a `NotificationPost` (byline, content, poll, media) and the whole cluster strip (avatar stack, people box, revealer, expander) for every row, hidden when the notification did not need them. Most notifications are single-actor affairs with no post, so a follow row carried 14 widgets it never showed. The post is now built on the first bind that has a status, the cluster strip on the first merged notification, and both are kept and hidden when a recycled row no longer needs them. A follow row is 16 widgets instead of 30, a status row 25 instead of 30; a cluster still needs all 51, and its first bind absorbs the construction that the constructor used to pay. `src/test-notifications.py` pins both the lazy build and the recycling.
 
+
+## Media playback engine (2026-11-09)
+
+The viewer plays through a per-viewer GstPlay with `gtk4paintablesink`, wrapped in a Python `Gtk.MediaStream`, instead of `Gtk.MediaFile`. Python costs +0.06-0.12 ms per frame in the wrapper's vfuncs, with 0 main-loop stalls (E4). Creating the engine costs +74 MB (E5), so it is made on the first video, GIFV or audio and never for an image. While playing, the NVIDIA hardware decoder adds about 135 MB; the VA-API and software paths plateau at 436-458 MB (E6). Figures are from `reports/video-playback-bench/`.
