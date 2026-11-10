@@ -68,6 +68,12 @@ def _trim_heap():
     return False
 
 
+def warm_up():
+    """Initialise GStreamer ahead of the first engine, so that engine's
+    creation does not pay for it (about 12 ms) on top of the import."""
+    Gst.init(None)
+
+
 def schedule_trim():
     """Give the heap an engine freed back to the system, once, from an
     idle. A pipeline's streaming threads leave their memory in glibc

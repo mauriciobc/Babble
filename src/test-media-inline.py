@@ -271,8 +271,13 @@ check('with the key off no tile plays and no engine is created',
       repr(scene.shown()))
 check('with the key off the tiles carry no pause button',
       all(t._button is None for t in scene.tiles))
+check('with the key off GStreamer is not warmed up',
+      scene.player._warm_stage == 0 and not scene.player._warm_source)
 settings.set_boolean('inline-animated-media', True)
 check('turning the key on plays live', wait(lambda: scene.playing(), 10))
+check('... and GStreamer was loaded in two idle steps',
+      wait(lambda: scene.player._warm_stage == 2, 5),
+      repr(scene.player._warm_stage))
 settings.set_boolean('inline-animated-media', False)
 check('turning it off stops live and restores the poster',
       wait(lambda: stopped(scene), 5) and isinstance(
