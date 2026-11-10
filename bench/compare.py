@@ -19,6 +19,7 @@ measured on the same machine. Standard library only.
 """
 import argparse
 import json
+import math
 import os
 import sys
 
@@ -28,21 +29,38 @@ REPORT_ONLY = ('cpu_ms', 'wall_ms')
 def load(path):
     with open(path) as f:
         data = json.load(f)
-    return data.get('median', data)
+    if isinstance(data, dict) and 'median' in data:
+        data = data['median']
+    if not isinstance(data, dict):
+        raise ValueError('%s: expected a JSON object of metrics' % path)
+    return data
+
+
+def number(value, what):
+    """*value* as a finite float, or ValueError: a NaN compares False
+    with everything, so it would otherwise pass every limit silently."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) \
+            or not math.isfinite(value):
+        raise ValueError('%s is %r, not a finite number' % (what, value))
+    return float(value)
 
 
 def judge(name, base, cand, limit):
     """Return (delta, limit text, ok) for one gated metric."""
+    base = number(base, '%s baseline' % name)
+    cand = number(cand, '%s candidate' % name)
     delta = cand - base
     pct = 100.0 * delta / base if base else (0.0 if delta <= 0 else float('inf'))
     over = []
     text = []
     if 'max_increase_pct' in limit:
-        over.append(pct > limit['max_increase_pct'])
-        text.append('+%g%%' % limit['max_increase_pct'])
+        bound = number(limit['max_increase_pct'], '%s limit' % name)
+        over.append(pct > bound)
+        text.append('+%g%%' % bound)
     if 'max_increase' in limit:
-        over.append(delta > limit['max_increase'])
-        text.append('+%g' % limit['max_increase'])
+        bound = number(limit['max_increase'], '%s limit' % name)
+        over.append(delta > bound)
+        text.append('+%g' % bound)
     if not over:
         raise ValueError('%s: limit has neither max_increase_pct nor '
                          'max_increase' % name)
@@ -52,6 +70,8 @@ def judge(name, base, cand, limit):
 def compare(base, cand, limits, out=print):
     """Print the table; return the names of the failing metrics."""
     failed = []
+    if not isinstance(limits.get('metrics'), dict) or not limits['metrics']:
+        raise ValueError('the limits file gates no metrics')
     for name, limit in limits['metrics'].items():
         if name not in base or name not in cand:
             where = 'baseline' if name not in base else 'candidate'
@@ -107,6 +127,21 @@ def self_test():
     nobase = dict(base)
     del nobase['abs_only']
     check('missing baseline metric fails', dict(base), ['abs_only'], base=nobase)
+    # Bad input is an error (exit 2), never a pass and never a "breach".
+    for label, bad in (('NaN candidate', dict(base, both=float('nan'))),
+                       ('string candidate', dict(base, both='12')),
+                       ('null candidate', dict(base, both=None)),
+                       ('bool candidate', dict(base, both=True))):
+        try:
+            compare(base, bad, limits, out=lambda s: None)
+            problems.append('%s was accepted' % label)
+        except ValueError:
+            print('ok - %s is an input error' % label)
+    try:
+        compare(base, dict(base), {'metrics': {}}, out=lambda s: None)
+        problems.append('empty limits passed')
+    except ValueError:
+        print('ok - an empty limits file is an input error')
     here = os.path.dirname(os.path.abspath(__file__))
     shipped = json.load(open(os.path.join(here, 'limits.json')))
     inline = json.load(open(os.path.join(here, 'limits-inline.json')))
