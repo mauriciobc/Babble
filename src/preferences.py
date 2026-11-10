@@ -59,6 +59,16 @@ REMOTE_MEDIA_CHOICES = (
     ('load', _('Always Load')),
     ('never', _('Never Load')))
 
+# Translators: the choices of "Load Media Automatically": a streamed video,
+# audio or animated GIF loads at once, loads unless the connection is
+# metered (data-limited), or waits for a click.
+MEDIA_AUTOLOAD_CHOICES = (
+    # Translators: load media automatically, in every case
+    ('always', _('Always')),
+    ('unmetered', _('Not on Metered Connections')),
+    # Translators: never load media automatically
+    ('never', _('Never')))
+
 # Labels are this page's; the codes belong to the entity, shared with
 # the composer's visibility menu.
 _QUOTE_LABELS = {
@@ -367,6 +377,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
             REMOTE_MEDIA_CHOICES,
             subtitle=_('Loading media your server has no copy of lets the '
                        'author’s server see your IP address'))
+        self._switch(posts, 'autoplay-animated-media',
+                     _('Autoplay A_nimated Media'),
+                     _('Play animated GIFs by themselves. Reduced motion '
+                       'and power saving always stop them'))
+        self._combo_enum(
+            posts, 'media-autoload', _('Load Media A_utomatically'),
+            MEDIA_AUTOLOAD_CHOICES,
+            subtitle=_('For video, audio and animated GIFs. Images always '
+                       'load'))
         self._switch(posts, 'show-sensitive-media', _('_Sensitive Media'),
                      _('Reveal sensitive media instead of hiding it '
                        'behind a warning'))

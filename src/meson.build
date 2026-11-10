@@ -416,6 +416,13 @@ test('remote media', python,
   env: fatal_test_env,
   timeout: 180,
 )
+# Autoplay Animated Media and Load Media Automatically, with a fake
+# sysstate monitor.
+test('media settings', python,
+  args: [files('test-media-settings.py')],
+  env: fatal_test_env,
+  timeout: 180,
+)
 test('media quit', python,
   args: [files('test-media-quit.py')],
   env: fatal_test_env,

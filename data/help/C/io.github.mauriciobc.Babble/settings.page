@@ -56,6 +56,30 @@
     </p>
   </section>
 
+  <section id="autoplay">
+    <title>Autoplay and loading media</title>
+    <p>
+      Two settings in the <gui>Reading</gui> page of Preferences decide
+      when animated media and video start.
+    </p>
+    <p>
+      <gui>Autoplay Animated Media</gui> is on by default. Animated GIFs
+      are muted loops, and when it is off they wait for a click instead of
+      playing by themselves. Reduced motion, turned-off animations and
+      power saving in your system settings always stop them from playing
+      by themselves, even when this setting is on. Videos with sound never
+      start by themselves because of it.
+    </p>
+    <p>
+      <gui>Load Media Automatically</gui> covers video, audio and animated
+      GIFs, which are streamed. <gui>Always</gui> loads them at once,
+      <gui>Not on Metered Connections</gui> (the default) loads them unless
+      your system marks the connection as metered, and <gui>Never</gui>
+      waits for you to press <gui>Load Video</gui> or <gui>Load Audio</gui>.
+      Images and preview thumbnails always load.
+    </p>
+  </section>
+
   <section id="language">
     <title>Language</title>
     <p>
