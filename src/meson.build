@@ -119,6 +119,7 @@ install_data(
   'statusrun.py',
   'statusactions.py',
   'statusmenu.py',
+  'statusfold.py',
   'statusrow.py',
   'tileactions.py',
   'mediacache.py',
@@ -520,6 +521,12 @@ test('thread cw', python,
   args: [files('test-thread-cw.py')],
   env: fatal_test_env,
   timeout: 60,
+)
+# The CW toggle and Show More on a real StatusRow (needs a display).
+test('status fold', python,
+  args: [files('test-status-fold.py')],
+  env: fatal_test_env,
+  timeout: 90,
 )
 test('thread chain', python,
   args: [files('test-threadchain.py')],
