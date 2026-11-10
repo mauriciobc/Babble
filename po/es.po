@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-10 12:19-0300\n"
+"POT-Creation-Date: 2026-11-10 14:25-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -1127,7 +1127,7 @@ msgstr "Rechazar"
 msgid "Reject %s?"
 msgstr "¿Rechazar a %s?"
 
-#: src/admin.py:1173 src/notificationrow.py:692
+#: src/admin.py:1173 src/notificationrow.py:695
 msgid "_Reject"
 msgstr "_Rechazar"
 
@@ -2087,8 +2087,8 @@ msgstr "Etiquetas seguidas"
 msgid "Groups"
 msgstr "Grupos"
 
-#: src/catchup/pipeline.py:357 src/catchup/rows.py:58
-#: src/notificationrow.py:335 src/notifications.py:393 src/statusrow.py:431
+#: src/catchup/pipeline.py:357 src/catchup/rows.py:59
+#: src/notificationrow.py:338 src/notifications.py:393 src/statusrow.py:431
 msgid "Filtered"
 msgstr "Filtrada"
 
@@ -2215,7 +2215,7 @@ msgstr "Mostrando %s"
 
 #. Translators: the row of a post hidden behind a filter; %s names
 #. the filter(s)
-#: src/catchup/rows.py:57 src/notificationrow.py:335 src/notifications.py:393
+#: src/catchup/rows.py:58 src/notificationrow.py:338 src/notifications.py:393
 #: src/statusrow.py:431
 #, python-format
 msgid "Filtered: %s"
@@ -2225,33 +2225,38 @@ msgstr "Filtrada: %s"
 #. the warning
 #. Translators: one-line inbox preview; the message body is
 #. hidden behind this content warning
-#: src/catchup/rows.py:64 src/conversations.py:51 src/notifications.py:395
+#: src/catchup/rows.py:65 src/conversations.py:51 src/notifications.py:395
 #, python-format
 msgid "CW: %s"
 msgstr "AC: %s"
 
 #. Translators: %s is the name of the person who boosted the post
-#: src/catchup/rows.py:75 src/catchup/tiles_render.py:317 src/sourceline.py:71
+#: src/catchup/rows.py:76 src/catchup/tiles_render.py:320 src/sourceline.py:71
 #, python-format
 msgid "%s boosted"
 msgstr "%s impulsó"
 
-#: src/catchup/rows.py:76
+#: src/catchup/rows.py:77
 #, python-format
 msgid "%(name)s and %(count)d other boosted"
 msgid_plural "%(name)s and %(count)d others boosted"
 msgstr[0] "%(name)s y %(count)d más lo impulsó"
 msgstr[1] "%(name)s y %(count)d más lo impulsaron"
 
-#: src/catchup/rows.py:123 src/thread.py:41
+#: src/catchup/rows.py:124 src/thread.py:41
 msgid "Thread"
 msgstr "Hilo"
 
-#: src/catchup/rows.py:278
+#: src/catchup/rows.py:151 src/catchup/rows.py:215 src/mediabox.py:628
+#: src/mediaopen.py:77 src/mediaviewer.py:282 src/notificationrow.py:319
+msgid "Attachment"
+msgstr "Adjunto"
+
+#: src/catchup/rows.py:287
 msgid "Posts over time"
 msgstr "Publicaciones en el tiempo"
 
-#: src/catchup/rows.py:279
+#: src/catchup/rows.py:288
 #, python-format
 msgid "%(shown)s of %(total)s"
 msgstr "%(shown)s de %(total)s"
@@ -2265,7 +2270,7 @@ msgstr "Tendencia"
 msgid "Show More"
 msgstr "Mostrar más"
 
-#: src/catchup/tiles_render.py:286 src/thread.py:200
+#: src/catchup/tiles_render.py:289 src/thread.py:200
 #: plugins/hashpanel/babble_hashpanel.py:229
 #, python-format
 msgid "%d reply"
@@ -2273,14 +2278,14 @@ msgid_plural "%d replies"
 msgstr[0] "%d respuesta"
 msgstr[1] "%d respuestas"
 
-#: src/catchup/tiles_render.py:288 plugins/hashpanel/babble_hashpanel.py:228
+#: src/catchup/tiles_render.py:291 plugins/hashpanel/babble_hashpanel.py:228
 #, python-format
 msgid "%d boost"
 msgid_plural "%d boosts"
 msgstr[0] "%d impulso"
 msgstr[1] "%d impulsos"
 
-#: src/catchup/tiles_render.py:290 plugins/hashpanel/babble_hashpanel.py:226
+#: src/catchup/tiles_render.py:293 plugins/hashpanel/babble_hashpanel.py:226
 #, python-format
 msgid "%d favorite"
 msgid_plural "%d favorites"
@@ -2290,29 +2295,29 @@ msgstr[1] "%d favoritos"
 #. Translators: shown above a post boosted by several people;
 #. the first %s is the first booster's name, %d the number of
 #. others, e.g. "Ana and 2 others boosted".
-#: src/catchup/tiles_render.py:313
+#: src/catchup/tiles_render.py:316
 #, python-format
 msgid "%s and %d other boosted"
 msgid_plural "%s and %d others boosted"
 msgstr[0] "%s y %d más lo impulsó"
 msgstr[1] "%s y %d más lo impulsaron"
 
-#: src/catchup/tiles_render.py:600 src/catchup/tiles_render.py:619
+#: src/catchup/tiles_render.py:606 src/catchup/tiles_render.py:625
 #: src/explore.py:397
 msgid "News"
 msgstr "Noticias"
 
-#: src/catchup/tiles_render.py:638 src/explore.py:117 src/webcolumn.py:324
+#: src/catchup/tiles_render.py:644 src/explore.py:117 src/webcolumn.py:324
 msgid "Open in Browser"
 msgstr "Abrir en el navegador"
 
-#: src/catchup/tiles_render.py:732 src/catchup/tiles_render.py:745
+#: src/catchup/tiles_render.py:738 src/catchup/tiles_render.py:751
 #: src/searchprovider.py:574 plugins/nareal/babble_nareal.py:452
 msgid "Hashtag"
 msgstr "Etiqueta"
 
-#: src/catchup/tiles_render.py:751 src/explore.py:294
-#: src/notificationrow.py:738 src/profile.py:526
+#: src/catchup/tiles_render.py:757 src/explore.py:294
+#: src/notificationrow.py:741 src/profile.py:526
 msgid "Following"
 msgstr "Siguiendo"
 
@@ -3020,7 +3025,7 @@ msgstr "_Seguir"
 msgid "Dismiss Suggestion"
 msgstr "Descartar sugerencia"
 
-#: src/explore.py:290 src/notificationrow.py:766
+#: src/explore.py:290 src/notificationrow.py:769
 msgid "Could not follow"
 msgstr "No se pudo seguir"
 
@@ -3225,7 +3230,7 @@ msgid "Edit Collection"
 msgstr "Editar colección"
 
 #: src/fedicollections.py:748 src/filters.py:178 src/hashtags.py:463
-#: src/lists.py:170 src/mediaexport.py:199 src/profile.py:235
+#: src/lists.py:170 src/mediaexport.py:200 src/profile.py:235
 #: src/profileedit.py:235
 msgid "_Save"
 msgstr "_Guardar"
@@ -3979,48 +3984,44 @@ msgstr "El servidor no devolvió un token de acceso."
 msgid "The server did not return a valid account."
 msgstr "El servidor no devolvió una cuenta válida."
 
-#: src/mediabox.py:255
+#: src/mediabox.py:286
 msgid "Show Previous Boosts"
 msgstr "Mostrar impulsos anteriores"
 
-#: src/mediabox.py:257
+#: src/mediabox.py:288
 msgid "Show Next Boosts"
 msgstr "Mostrar impulsos siguientes"
 
-#: src/mediabox.py:320
+#: src/mediabox.py:351
 #, python-format
 msgid "%d Boost"
 msgid_plural "%d Boosts"
 msgstr[0] "%d impulso"
 msgstr[1] "%d impulsos"
 
-#: src/mediabox.py:409 src/mediabox.py:507 src/mediaviewer.py:277
+#: src/mediabox.py:440 src/mediabox.py:541 src/mediaviewer.py:280
 msgid "Image"
 msgstr "Imagen"
 
-#: src/mediabox.py:409 src/mediaviewer.py:277
+#: src/mediabox.py:440 src/mediaviewer.py:280
 msgid "Video"
 msgstr "Vídeo"
 
-#: src/mediabox.py:410
+#: src/mediabox.py:441
 msgid "Animated Image"
 msgstr "Imagen animada"
 
-#: src/mediabox.py:410 src/mediaviewer.py:278
+#: src/mediabox.py:441 src/mediaviewer.py:281
 msgid "Audio"
 msgstr "Audio"
 
-#: src/mediabox.py:476 src/mediabox.py:652
+#: src/mediabox.py:510 src/mediabox.py:692
 msgid "Show Sensitive Content"
 msgstr "Mostrar contenido sensible"
 
-#: src/mediabox.py:483 src/mediabox.py:649
+#: src/mediabox.py:517 src/mediabox.py:689
 msgid "Hide Sensitive Content"
 msgstr "Ocultar contenido sensible"
-
-#: src/mediabox.py:589 src/mediaviewer.py:279 src/notificationrow.py:317
-msgid "Attachment"
-msgstr "Adjunto"
 
 #: src/mediaexport.py:68 src/statusviews.py:144 src/statusviews.py:150
 msgid "media"
@@ -4034,38 +4035,42 @@ msgstr "URL copiada"
 msgid "Image copied"
 msgstr "Imagen copiada"
 
-#: src/mediaexport.py:199
+#: src/mediaexport.py:200
 msgid "Save Media"
 msgstr "Guardar multimedia"
 
-#: src/mediaexport.py:209 src/mediaexport.py:235
+#: src/mediaexport.py:210 src/mediaexport.py:236
 msgid "Could not save media"
 msgstr "No se pudo guardar el contenido multimedia"
 
-#: src/mediaexport.py:232
+#: src/mediaexport.py:233
 #, python-brace-format
 msgid "Saved “{name}”"
 msgstr "«{name}» guardado"
 
-#: src/mediaexport.py:257 src/mediaexport.py:276 src/mediaexport.py:294
+#: src/mediaexport.py:258 src/mediaexport.py:277 src/mediaexport.py:295
 msgid "Could not open media"
 msgstr "No se han podido abrir los medios"
 
-#: src/mediaexport.py:303
+#: src/mediaexport.py:304
 msgid "Show in _Folder"
 msgstr "Mostrar en la _carpeta"
 
 #. Translators: the button over an animated image that you
 #. paused; it starts the animation again.
-#: src/mediainline.py:176
+#: src/mediainline.py:187
 msgid "Play Animation"
 msgstr "Reproducir animación"
 
 #. Translators: the button over an animated image that plays;
 #. it stops the animation.
-#: src/mediainline.py:181
+#: src/mediainline.py:192
 msgid "Pause Animation"
 msgstr "Pausar animación"
+
+#: src/mediaopen.py:24
+msgid "Processing…"
+msgstr "Procesando…"
 
 #: src/mediaplayback.py:52 src/mediaviewer.py:86
 #, python-brace-format
@@ -4130,42 +4135,49 @@ msgstr "Sin multimedia"
 msgid "This post has no media."
 msgstr "Esta publicación no tiene multimedia."
 
-#: src/mediaviewer.py:256 src/mediaviewer.py:265
+#: src/mediaviewer.py:258
+msgid "Media Still Processing"
+msgstr "El contenido aún se está procesando"
+
+#: src/mediaviewer.py:259
+msgid ""
+"This media is still being processed by your server. Try again in a moment."
+msgstr ""
+"Tu servidor aún está procesando este contenido. Inténtalo de nuevo en un "
+"momento."
+
+#: src/mediaviewer.py:268
 msgid "Preview Not Available"
 msgstr "Vista previa no disponible"
 
-#: src/mediaviewer.py:257
-msgid "This attachment has no address to load."
-msgstr "Este adjunto no tiene ninguna dirección que cargar."
-
-#: src/mediaviewer.py:266
+#: src/mediaviewer.py:269
 msgid "This kind of attachment cannot be shown here."
 msgstr "Este tipo de adjunto no se puede mostrar aquí."
 
-#: src/mediaviewer.py:278
+#: src/mediaviewer.py:281
 msgid "Animated GIF"
 msgstr "GIF animado"
 
 #. Translators: position in a media gallery, e.g. "2 of 4"
-#: src/mediaviewer.py:293
+#: src/mediaviewer.py:296
 #, python-brace-format
 msgid "{current} of {total}"
 msgstr "{current} de {total}"
 
-#: src/mediaviewer.py:311
+#: src/mediaviewer.py:314
 #, python-brace-format
 msgid "Attachment {current} of {total}"
 msgstr "Adjunto {current} de {total}"
 
-#: src/mediaviewer.py:360
+#: src/mediaviewer.py:363
 msgid "Could Not Load Image"
 msgstr "No se pudo cargar la imagen"
 
-#: src/mediaviewer.py:412
+#: src/mediaviewer.py:415
 msgid "Exit Fullscreen"
 msgstr "Salir de pantalla completa"
 
-#: src/mediaviewer.py:412 src/mediaviewerchrome.py:69
+#: src/mediaviewer.py:415 src/mediaviewerchrome.py:69
 msgid "Fullscreen"
 msgstr "Pantalla completa"
 
@@ -4800,72 +4812,72 @@ msgstr "Ajustes de notificaciones actualizados"
 msgid "Could not save notification settings"
 msgstr "No se pudieron guardar los ajustes de notificaciones"
 
-#: src/notificationrow.py:177
+#: src/notificationrow.py:178
 msgid "Read More"
 msgstr "Leer más"
 
-#: src/notificationrow.py:266 src/pollbox.py:179
+#: src/notificationrow.py:267 src/pollbox.py:179
 #, python-format
 msgid "%d vote"
 msgid_plural "%d votes"
 msgstr[0] "%d voto"
 msgstr[1] "%d votos"
 
-#: src/notificationrow.py:281 src/statusrow.py:92
+#: src/notificationrow.py:282 src/statusrow.py:92
 msgid "Show _Anyway"
 msgstr "Mostrar _de todos modos"
 
-#: src/notificationrow.py:303
+#: src/notificationrow.py:305
 #, python-format
 msgid "%d sensitive attachment"
 msgid_plural "%d sensitive attachments"
 msgstr[0] "%d adjunto sensible"
 msgstr[1] "%d adjuntos sensibles"
 
-#: src/notificationrow.py:420 src/notificationrow.py:424
+#: src/notificationrow.py:423 src/notificationrow.py:427
 msgid "Dismiss Notification"
 msgstr "Descartar notificación"
 
-#: src/notificationrow.py:610
+#: src/notificationrow.py:613
 #, python-format
 msgid "%d more person"
 msgid_plural "%d more people"
 msgstr[0] "%d persona más"
 msgstr[1] "%d personas más"
 
-#: src/notificationrow.py:662
+#: src/notificationrow.py:665
 msgid "_View Reports"
 msgstr "_Ver denuncias"
 
-#: src/notificationrow.py:664
+#: src/notificationrow.py:667
 msgid "_View"
 msgstr "_Ver"
 
-#: src/notificationrow.py:686
+#: src/notificationrow.py:689
 msgid "Request accepted"
 msgstr "Solicitud aceptada"
 
-#: src/notificationrow.py:689
+#: src/notificationrow.py:692
 msgid "Request rejected"
 msgstr "Solicitud rechazada"
 
-#: src/notificationrow.py:694
+#: src/notificationrow.py:697
 msgid "_Accept"
 msgstr "_Aceptar"
 
-#: src/notificationrow.py:717
+#: src/notificationrow.py:720
 msgid "Could not answer the request"
 msgstr "No se pudo responder a la solicitud"
 
-#: src/notificationrow.py:740
+#: src/notificationrow.py:743
 msgid "Follow request sent"
 msgstr "Solicitud de seguimiento enviada"
 
-#: src/notificationrow.py:745
+#: src/notificationrow.py:748
 msgid "_Follow Back"
 msgstr "_Seguir también"
 
-#: src/notificationrow.py:795
+#: src/notificationrow.py:798
 #, python-format
 msgid "%(title)s, %(time)s"
 msgstr "%(title)s, %(time)s"
@@ -8711,3 +8723,6 @@ msgstr ""
 #: plugins/wallabag/babble_wallabag.py:408
 msgid "Your password is used once to sign in and is not stored"
 msgstr "Tu contraseña se usa una vez para iniciar sesión y no se guarda"
+
+#~ msgid "This attachment has no address to load."
+#~ msgstr "Este adjunto no tiene ninguna dirección que cargar."
