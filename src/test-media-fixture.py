@@ -195,6 +195,8 @@ class MediaServer:
         self.burst = burst
         self.bytes_served = 0
         self.agents = []
+        # (method, path, User-Agent, Range) of every request, for a diagnosable failure.
+        self.pairs = []
         self.requests = []
         self._lock = threading.Lock()
         outer = self
@@ -231,6 +233,9 @@ class MediaServer:
         with self._lock:
             self.agents.append(request.headers.get('User-Agent'))
             self.requests.append(request.path)
+            self.pairs.append((request.command, request.path,
+                               request.headers.get('User-Agent'),
+                               request.headers.get('Range')))
         path = request.path
         if path == '/redirect.ogg':
             request.send_response(302)

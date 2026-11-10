@@ -114,6 +114,9 @@ class Engine:
         self._connect(self.paintable, 'invalidate-size', self._on_size)
         pipeline = self.play.get_pipeline()
         self._connect(pipeline, 'source-setup', self._on_source_setup)
+        # A typefinder or a demuxer may open its own HTTP source (the
+        # probe of a redirect target, say); name it too.
+        self._connect(pipeline, 'deep-element-added', self._on_deep_element)
         bus = pipeline.get_bus()
         if bus is not None:
             bus.add_signal_watch()
@@ -191,6 +194,12 @@ class Engine:
         agent = self.user_agent
         if agent and source.find_property('user-agent') is not None:
             source.set_property('user-agent', agent)
+
+    def _on_deep_element(self, _pipeline, _bin, element):
+        # A GStreamer thread again: only set the property.
+        agent = self.user_agent
+        if agent and element.find_property('user-agent') is not None:
+            element.set_property('user-agent', agent)
 
     def _on_bus_message(self, _bus, message):
         # GstPlay watches this bus from its own thread, so this handler
