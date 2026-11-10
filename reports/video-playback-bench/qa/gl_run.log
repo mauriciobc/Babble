@@ -1,0 +1,97 @@
+libmutter-Message: 17:28:55.661: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=314463 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+fusermount3: failed to access mountpoint /run/user/1000/gvfs: Permission denied
+libmutter-Message: 17:28:55.791: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 17:28:55.802: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 17:28:55.803: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 17:28:55.804: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 17:28:55.804: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 17:28:55.806: Obtained a high priority EGL context
+libmutter-Message: 17:28:55.822: Added virtual monitor Meta-0
+
+(mutter:314463): libmutter-WARNING **: 17:28:55.824: WL: unable to lock lockfile /run/user/1000/wayland-0.lock, maybe another compositor is running
+
+libmutter-Message: 17:28:55.824: Using Wayland display name 'wayland-1'
+=== test-media-stream (GSK_RENDERER=gl)
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.4' (uid=1000 pid=314494 comm="python3 src/test-media-stream.py")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.5' (uid=1000 pid=314500 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.5' (uid=1000 pid=314500 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gnome' requested by ':1.5' (uid=1000 pid=314500 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.gnome.Settings.GlobalShortcutsProvider' requested by ':1.8' (uid=1000 pid=314523 comm="/usr/lib/xdg-desktop-portal-gnome")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.gnome.Settings.GlobalShortcutsProvider'
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gnome'
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.5' (uid=1000 pid=314500 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.11' (uid=1000 pid=314548 comm="/usr/lib/xdg-desktop-portal-gtk")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.13' (uid=1000 pid=314561 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.13' (uid=1000 pid=314561 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+** (xdg-desktop-portal-gtk:314548): WARNING **: 17:28:56.611: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.13' (uid=1000 pid=314561 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:314548): WARNING **: 17:28:56.612: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (xdg-desktop-portal-gtk:314548): WARNING **: 17:28:56.613: atk-bridge: get_device_events_reply: unknown signature
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.freedesktop.secrets' requested by ':1.5' (uid=1000 pid=314500 comm="/usr/lib/xdg-desktop-portal")
+discover_other_daemon: 1GNOME_KEYRING_CONTROL=/run/user/1000/keyring
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+ok - prepared from the preroll
+ok - the preroll found a video
+ok - seekable comes from the media info
+ok - Gtk.Video autoplays
+ok - the stream reports a position
+ok - the video has a size
+ok - a seek completes through seek-done
+ok - the clip ends
+ok - an ended stream is not playing
+ok - a seek the engine never reports is given up on
+ok - no seek is forwarded when not seekable
+ok - an unreadable source reports an error
+ok - a missing H.264 decoder names codecs-extra
+ok - the message holds no GStreamer element name
+ok - another missing codec names the codec
+ok - after detach() no vfunc reaches the engine
+ok - after detach() the intrinsic size is empty
+ok - after detach() the engine has no owner
+ok - a GIFV plays
+ok - a looping GIFV outlives the clip
+ok - the stream prepares under Gtk.MediaControls
+ok - the controls hold the stream
+ok - every engine is released
+
+all media stream checks passed
+rc=0
+=== test-mediaviewer-teardown (GSK_RENDERER=gl)
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Activating service name='org.gtk.vfs.Metadata' requested by ':1.18' (uid=1000 pid=314638 comm="python3 src/test-mediaviewer-teardown.py")
+dbus-daemon[314462]: [session uid=1000 pid=314462 pidfd=5] Successfully activated service 'org.gtk.vfs.Metadata'
+ok - moving between attachments reuses the engine
+ok - the clip starts playing (50 cycles)
+ok - the viewer lets go of the stream (50 cycles)
+ok - the stream is detached (50 cycles)
+ok - the stream is not playing (50 cycles)
+ok - the child is taken out of the bin (50 cycles)
+ok - the engine is released (50 cycles)
+ok - the engine is kept until STOPPED (50 cycles)
+ok - the GstPlay is finalized (50 cycles)
+ok - the releasing set empties (50 cycles)
+ok - the viewer is disposed (50 cycles)
+ok - no engine is left behind
+ok - 50 open/close cycles of a playing video and GIFV
+
+all media teardown checks passed
+rc=0
+Gdk-Message: 17:29:09.254: Lost connection to Wayland compositor.
+Gdk-Message: 17:29:09.254: Lost connection to Wayland compositor.
+Gdk-Message: 17:29:09.254: Error reading events from display: Pipe quebrado
+libmutter-Message: 17:29:09.261: Removed virtual monitor Meta-0
+A connection to the bus can't be made
+
+(/usr/lib/xdg-desktop-portal:314500): xdg-desktop-portal-WARNING **: 17:29:09.318: Failed to create secret proxy: Erro ao chamar StartServiceByName para org.freedesktop.secrets: A conexão está fechada

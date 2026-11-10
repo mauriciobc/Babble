@@ -1,0 +1,97 @@
+libmutter-Message: 19:27:32.304: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=391164 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+libmutter-Message: 19:27:32.434: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 19:27:32.445: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 19:27:32.446: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 19:27:32.447: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 19:27:32.447: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 19:27:32.449: Obtained a high priority EGL context
+libmutter-Message: 19:27:32.466: Added virtual monitor Meta-0
+libmutter-Message: 19:27:32.468: Using Wayland display name 'wayland-0'
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.3' (uid=1000 pid=391204 comm="python3 src/test-media-quit.py --child")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.4' (uid=1000 pid=391212 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.4' (uid=1000 pid=391212 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gnome' requested by ':1.4' (uid=1000 pid=391212 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.gnome.Settings.GlobalShortcutsProvider' requested by ':1.7' (uid=1000 pid=391236 comm="/usr/lib/xdg-desktop-portal-gnome")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.gnome.Settings.GlobalShortcutsProvider'
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gnome'
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.4' (uid=1000 pid=391212 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.10' (uid=1000 pid=391256 comm="/usr/lib/xdg-desktop-portal-gtk")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=391269 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=391269 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+** (xdg-desktop-portal-gtk:391256): WARNING **: 19:27:33.343: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=391269 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:391256): WARNING **: 19:27:33.344: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (xdg-desktop-portal-gtk:391256): WARNING **: 19:27:33.344: atk-bridge: get_device_events_reply: unknown signature
+
+(/usr/lib/xdg-desktop-portal:391212): xdg-desktop-portal-WARNING **: 19:27:33.348: Failed to connect to PipeWire: Couldn't connect to PipeWire
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Activating service name='org.freedesktop.secrets' requested by ':1.4' (uid=1000 pid=391212 comm="/usr/lib/xdg-desktop-portal")
+** Message: 19:27:33.354: couldn't access control socket: /tmp/tmp.6QG7UlzHvX/keyring/control: Arquivo ou diretório inexistente
+discover_other_daemon: 0dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+dbus-daemon[391163]: [session uid=1000 pid=391163 pidfd=5] Successfully activated service 'org.freedesktop.secrets'
+quit 1 exit=0 QUIT playing=True engines=1 left=0
+quit 2 exit=0 QUIT playing=True engines=1 left=0
+quit 3 exit=0 QUIT playing=True engines=1 left=0
+quit 4 exit=0 QUIT playing=True engines=1 left=0
+quit 5 exit=0 QUIT playing=True engines=1 left=0
+quit 6 exit=0 QUIT playing=True engines=1 left=0
+quit 7 exit=0 QUIT playing=True engines=1 left=0
+quit 8 exit=0 QUIT playing=True engines=1 left=0
+quit 9 exit=0 QUIT playing=True engines=1 left=0
+quit 10 exit=0 QUIT playing=True engines=1 left=0
+quit 11 exit=0 QUIT playing=True engines=1 left=0
+quit 12 exit=0 QUIT playing=True engines=1 left=0
+quit 13 exit=0 QUIT playing=True engines=1 left=0
+quit 14 exit=0 QUIT playing=True engines=1 left=0
+quit 15 exit=0 QUIT playing=True engines=1 left=0
+quit 16 exit=0 QUIT playing=True engines=1 left=0
+quit 17 exit=0 QUIT playing=True engines=1 left=0
+quit 18 exit=0 QUIT playing=True engines=1 left=0
+quit 19 exit=0 QUIT playing=True engines=1 left=0
+quit 20 exit=0 QUIT playing=True engines=1 left=0
+quit 21 exit=0 QUIT playing=True engines=1 left=0
+quit 22 exit=0 QUIT playing=True engines=1 left=0
+quit 23 exit=0 QUIT playing=True engines=1 left=0
+quit 24 exit=0 QUIT playing=True engines=1 left=0
+quit 25 exit=0 QUIT playing=True engines=1 left=0
+quit 26 exit=0 QUIT playing=True engines=1 left=0
+quit 27 exit=0 QUIT playing=True engines=1 left=0
+quit 28 exit=0 QUIT playing=True engines=1 left=0
+quit 29 exit=0 QUIT playing=True engines=1 left=0
+quit 30 exit=0 QUIT playing=True engines=1 left=0
+quit 31 exit=0 QUIT playing=True engines=1 left=0
+quit 32 exit=0 QUIT playing=True engines=1 left=0
+quit 33 exit=0 QUIT playing=True engines=1 left=0
+quit 34 exit=0 QUIT playing=True engines=1 left=0
+quit 35 exit=0 QUIT playing=True engines=1 left=0
+quit 36 exit=0 QUIT playing=True engines=1 left=0
+quit 37 exit=0 QUIT playing=True engines=1 left=0
+quit 38 exit=0 QUIT playing=True engines=1 left=0
+quit 39 exit=0 QUIT playing=True engines=1 left=0
+quit 40 exit=0 QUIT playing=True engines=1 left=0
+quit 41 exit=0 QUIT playing=True engines=1 left=0
+quit 42 exit=0 QUIT playing=True engines=1 left=0
+quit 43 exit=0 QUIT playing=True engines=1 left=0
+quit 44 exit=0 QUIT playing=True engines=1 left=0
+quit 45 exit=0 QUIT playing=True engines=1 left=0
+quit 46 exit=0 QUIT playing=True engines=1 left=0
+quit 47 exit=0 QUIT playing=True engines=1 left=0
+quit 48 exit=0 QUIT playing=True engines=1 left=0
+quit 49 exit=0 QUIT playing=True engines=1 left=0
+quit 50 exit=0 QUIT playing=True engines=1 left=0
+Gdk-Message: 19:28:45.137: Lost connection to Wayland compositor.
+Gdk-Message: 19:28:45.137: Error reading events from display: Pipe quebrado
+libmutter-Message: 19:28:45.143: Removed virtual monitor Meta-0
+A connection to the bus can't be made

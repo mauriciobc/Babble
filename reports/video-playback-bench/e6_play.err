@@ -1,0 +1,4 @@
+[ALSOFT] (EE) Failed to connect PipeWire event context (errno: 112)
+[ALSOFT] (EE) Failed to connect PipeWire event context (errno: 112)
+
+** (process:287621): WARNING **: 16:43:20.786: Error writing credentials to socket: Erro ao enviar mensagem: Pipe quebrado

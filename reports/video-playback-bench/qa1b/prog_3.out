@@ -1,0 +1,18 @@
+ok - the first frame is drawn
+ok - the first frame comes before the whole file was served
+ok - the viewer shows the media page
+ok - no temporary copy is made
+ok - the bytes served stop growing after the viewer closes
+ok - the engine is released
+ok - a redirected source plays
+ok - ... through the redirect target
+ok - a source without Range plays
+ok - ... and reports itself as not seekable
+ok - a seek on it does not error
+ok - a 404 shows the error page
+ok - ... with Retry
+ok - the requests were recorded
+ok - every request carried Babble's User-Agent
+ok - no engine is left behind
+
+all media progressive checks passed

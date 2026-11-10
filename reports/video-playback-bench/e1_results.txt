@@ -1,0 +1,12 @@
+immediate-1 SUMMARY mode=immediate cycles=100 first_frames=100 no_frame=0 stopped_seen=0 stop_timeouts=0 finalized=100/100 rss=557 stop_ms_min=None stop_ms_max=None cores=0
+deferred-1 SUMMARY mode=deferred cycles=100 first_frames=100 no_frame=0 stopped_seen=100 stop_timeouts=0 finalized=100/100 rss=556 stop_ms_min=8 stop_ms_max=15 cores=0
+immediate-2 SUMMARY mode=immediate cycles=100 first_frames=100 no_frame=0 stopped_seen=0 stop_timeouts=0 finalized=100/100 rss=556 stop_ms_min=None stop_ms_max=None cores=0
+deferred-2 SUMMARY mode=deferred cycles=100 first_frames=100 no_frame=0 stopped_seen=100 stop_timeouts=0 finalized=100/100 rss=557 stop_ms_min=8 stop_ms_max=16 cores=0
+immediate-3 SUMMARY mode=immediate cycles=100 first_frames=100 no_frame=0 stopped_seen=0 stop_timeouts=0 finalized=100/100 rss=556 stop_ms_min=None stop_ms_max=None cores=0
+deferred-3 SUMMARY mode=deferred cycles=100 first_frames=100 no_frame=0 stopped_seen=100 stop_timeouts=0 finalized=100/100 rss=557 stop_ms_min=8 stop_ms_max=15 cores=0
+immediate-4 SUMMARY mode=immediate cycles=100 first_frames=100 no_frame=0 stopped_seen=0 stop_timeouts=0 finalized=100/100 rss=556 stop_ms_min=None stop_ms_max=None cores=0
+deferred-4 SUMMARY mode=deferred cycles=100 first_frames=100 no_frame=0 stopped_seen=100 stop_timeouts=0 finalized=100/100 rss=557 stop_ms_min=8 stop_ms_max=15 cores=0
+immediate-5 SUMMARY mode=immediate cycles=100 first_frames=100 no_frame=0 stopped_seen=0 stop_timeouts=0 finalized=100/100 rss=556 stop_ms_min=None stop_ms_max=None cores=0
+deferred-5 SUMMARY mode=deferred cycles=100 first_frames=100 no_frame=0 stopped_seen=100 stop_timeouts=0 finalized=100/100 rss=569 stop_ms_min=8 stop_ms_max=15 cores=0
+sandbox-deferred-live SUMMARY mode=deferred cycles=100 first_frames=100 no_frame=0 stopped_seen=100 stop_timeouts=0 finalized=100/100 rss=476 stop_ms_min=9 stop_ms_max=17 cores=0
+DONE

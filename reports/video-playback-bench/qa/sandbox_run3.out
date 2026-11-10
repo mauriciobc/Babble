@@ -1,0 +1,6 @@
+  4.15s first frame at 4.12s prepared=True dur_us=18446744073709551
+  4.15s elements: aacparse,aconv,audioconvert,audioresample,autoaudiosink,avdec_aac,bin,capsfilter,decodebin3,deinterlace,glcolorbalance,glcolorconvert,glsinkbin,glupload,gtk4paintablesink,h264parse,identity,multiqueue,nvh264dec,parsebin,playsink,pulsesink,qtdemux,queue,scaletempo,souphttpsrc,streamsynchronizer,tee,typefind,uridecodebin3,urisourcebin,vconv,videoconvert,videoscale
+  7.15s after seek ts_us=10999644 playing=True error=None
+  7.15s audio sinks: autoaudiosink,glsinkbin,gtk4paintablesink,playsink,pulsesink
+  8.66s engine dropped: True  releasing=0 all=0
+  8.67s exit clean

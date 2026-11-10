@@ -1,0 +1,12 @@
+suite exit=0
+Ok:                98  
+Fail:              0   
+Skipped:           1   
+crash run 1 mutter_exit=0 SUMMARY cycles=50 played=50 no_play=0 last=[cycle 50 kind=gifv played=True]
+crash run 2 mutter_exit=0 SUMMARY cycles=50 played=50 no_play=0 last=[cycle 50 kind=gifv played=True]
+crash run 3 mutter_exit=0 SUMMARY cycles=50 played=50 no_play=0 last=[cycle 50 kind=gifv played=True]
+crash run 4 mutter_exit=0 SUMMARY cycles=50 played=50 no_play=0 last=[cycle 50 kind=gifv played=True]
+crash run 5 mutter_exit=0 SUMMARY cycles=50 played=50 no_play=0 last=[cycle 50 kind=gifv played=True]
+quit ok=20/20
+python cores since start: 0
+DONE

@@ -1,0 +1,10 @@
+LIBS base h264=False hevc=False vp9=True av1=True
+LIBS codecs-extra h264=True hevc=True vp9=True av1=True
+ELEMENT avdec_h264 yes
+ELEMENT avdec_h265 yes
+ELEMENT vah264dec yes
+ELEMENT vah265dec yes
+ELEMENT nvh264dec yes
+ELEMENT nvh265dec yes
+ELEMENT openh264dec no
+LOADED libavcodec: /usr/lib/x86_64-linux-gnu/codecs-extra/lib/libavcodec.so.62.28.102, /usr/lib/x86_64-linux-gnu/libavcodec.so.62.28.102

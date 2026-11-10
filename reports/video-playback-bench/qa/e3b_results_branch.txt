@@ -1,0 +1,11 @@
+run 1 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 2 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 3 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 4 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 5 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 6 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 7 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 8 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 9 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+run 10 mutter_exit=0 last=[cycle 50 kind=gifv played=True] SUMMARY cycles=50 played=50 no_play=0 criticals=0 cores=0
+DONE

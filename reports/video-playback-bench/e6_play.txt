@@ -1,0 +1,8 @@
+cdn run=1 PLAY uri=https://files.mastodon.social/media_attachments/files/117/587/728/606/060/718/original/cd45d56eb63e2f35.mp4 first_frame_ms=2107 seek_to=20.0 pos_after_seek_s=21.96 seek_done=True error=None
+cdn run=2 PLAY uri=https://files.mastodon.social/media_attachments/files/117/587/728/606/060/718/original/cd45d56eb63e2f35.mp4 first_frame_ms=731 seek_to=20.0 pos_after_seek_s=22.08 seek_done=True error=None
+redirect run=1 PLAY uri=http://127.0.0.1:18777/r/h264_1080p60.mp4 first_frame_ms=611 seek_to=5.0 pos_after_seek_s=7.89 seek_done=True error=None
+redirect run=2 PLAY uri=http://127.0.0.1:18777/r/h264_1080p60.mp4 first_frame_ms=745 seek_to=5.0 pos_after_seek_s=7.9 seek_done=True error=None
+norange run=1 PLAY uri=http://127.0.0.1:18777/norange/h264_1080p60.mp4 first_frame_ms=762 seek_to=5.0 pos_after_seek_s=None seek_done=False error=Error from element /GstPlayBin3:playbin3/GstURIDecodeBin3:uridecodebin3/GstURISourceBin:urisourcebin0/GstSoupHTTPSrc:souphttpsrc0: Não foi possível realizar uma busca no recurso.
+norange run=2 PLAY uri=http://127.0.0.1:18777/norange/h264_1080p60.mp4 first_frame_ms=762 seek_to=5.0 pos_after_seek_s=None seek_done=False error=Error from element /GstPlayBin3:playbin3/GstURIDecodeBin3:uridecodebin3/GstURISourceBin:urisourcebin0/GstSoupHTTPSrc:souphttpsrc0: Não foi possível realizar uma busca no recurso.
+plain run=1 PLAY uri=http://127.0.0.1:18777/f/h264_1080p60.mp4 first_frame_ms=811 seek_to=5.0 pos_after_seek_s=7.9 seek_done=True error=None
+plain run=2 PLAY uri=http://127.0.0.1:18777/f/h264_1080p60.mp4 first_frame_ms=635 seek_to=5.0 pos_after_seek_s=7.9 seek_done=True error=None

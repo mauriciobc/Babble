@@ -1,0 +1,8 @@
+F: /run/user/1000/.flatpak/org.gnome.Platform/xdg-run/pulse is not a symlink to "../../flatpak/pulse" as expected: readlinkat: Argumento inválido
+
+(python3:2): Gtk-CRITICAL **: 17:27:19.797: Unable to register the application: GDBus.Error:org.freedesktop.DBus.Error.NameHasNoOwner: Could not activate remote peer 'org.a11y.atspi.Registry': unit failed
+Traceback (most recent call last):
+  File "<stdin>", line 42, in poll
+  File "<stdin>", line 38, in sinks
+  File "<stdin>", line 37, in walk
+TypeError: 'Iterator' object is not iterable

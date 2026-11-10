@@ -1,0 +1,24 @@
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! decodebin3 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! decodebin3 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! decodebin3 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! avdec_h264 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! avdec_h264 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! avdec_h264 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! vah264dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! vah264dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! vah264dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! nvh264dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! nvh264dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h264_1080p60.mp4 ! qtdemux ! h264parse ! nvh264dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! decodebin3 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! decodebin3 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! decodebin3 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! avdec_h265 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! avdec_h265 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! avdec_h265 ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! vah265dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! vah265dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! vah265dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! nvh265dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! nvh265dec ! fakesink sync=false name=out
+PIPELINE souphttpsrc location=http://127.0.0.1:18776/f/h265_1080p60.mp4 ! qtdemux ! h265parse ! nvh265dec ! fakesink sync=false name=out

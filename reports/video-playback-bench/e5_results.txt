@@ -1,0 +1,7 @@
+run 1 E5 mode=engine baseline=299.7 created=374.0 playing=559.0 released=422.4 cycles24=560.1
+run 1 E5 FAILED mode=mediafile exit=1
+run 2 E5 mode=engine baseline=300.0 created=374.3 playing=559.2 released=422.6 cycles24=560.4
+run 2 E5 FAILED mode=mediafile exit=1
+run 3 E5 mode=engine baseline=299.9 created=374.2 playing=558.9 released=422.2 cycles24=554.5
+run 3 E5 FAILED mode=mediafile exit=1
+DONE

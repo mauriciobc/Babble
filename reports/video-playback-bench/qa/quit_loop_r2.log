@@ -1,0 +1,100 @@
+libmutter-Message: 17:58:19.121: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=334317 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+fusermount3: failed to access mountpoint /run/user/1000/gvfs: Permission denied
+libmutter-Message: 17:58:19.239: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 17:58:19.247: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 17:58:19.248: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 17:58:19.249: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 17:58:19.249: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 17:58:19.250: Obtained a high priority EGL context
+libmutter-Message: 17:58:19.263: Added virtual monitor Meta-0
+
+(mutter:334317): libmutter-WARNING **: 17:58:19.265: WL: unable to lock lockfile /run/user/1000/wayland-0.lock, maybe another compositor is running
+
+libmutter-Message: 17:58:19.265: Using Wayland display name 'wayland-1'
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.2' (uid=1000 pid=334352 comm="python3 src/test-media-quit.py --child")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.3' (uid=1000 pid=334360 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.3' (uid=1000 pid=334360 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gnome' requested by ':1.3' (uid=1000 pid=334360 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.gnome.Settings.GlobalShortcutsProvider' requested by ':1.6' (uid=1000 pid=334383 comm="/usr/lib/xdg-desktop-portal-gnome")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.gnome.Settings.GlobalShortcutsProvider'
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gnome'
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.3' (uid=1000 pid=334360 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.9' (uid=1000 pid=334406 comm="/usr/lib/xdg-desktop-portal-gtk")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.11' (uid=1000 pid=334419 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.11' (uid=1000 pid=334419 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+** (xdg-desktop-portal-gtk:334406): WARNING **: 17:58:19.981: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.11' (uid=1000 pid=334419 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:334406): WARNING **: 17:58:19.983: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (xdg-desktop-portal-gtk:334406): WARNING **: 17:58:19.983: atk-bridge: get_device_events_reply: unknown signature
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Activating service name='org.freedesktop.secrets' requested by ':1.3' (uid=1000 pid=334360 comm="/usr/lib/xdg-desktop-portal")
+discover_other_daemon: 1GNOME_KEYRING_CONTROL=/run/user/1000/keyring
+dbus-daemon[334316]: [session uid=1000 pid=334316 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+quit 1 exit=0 QUIT playing=True engines=1 left=0
+quit 2 exit=0 QUIT playing=True engines=1 left=0
+quit 3 exit=0 QUIT playing=True engines=1 left=0
+quit 4 exit=0 QUIT playing=True engines=1 left=0
+quit 5 exit=0 QUIT playing=True engines=1 left=0
+quit 6 exit=0 QUIT playing=True engines=1 left=0
+quit 7 exit=0 QUIT playing=True engines=1 left=0
+quit 8 exit=0 QUIT playing=True engines=1 left=0
+quit 9 exit=0 QUIT playing=True engines=1 left=0
+quit 10 exit=0 QUIT playing=True engines=1 left=0
+quit 11 exit=0 QUIT playing=True engines=1 left=0
+quit 12 exit=0 QUIT playing=True engines=1 left=0
+quit 13 exit=0 QUIT playing=True engines=1 left=0
+quit 14 exit=0 QUIT playing=True engines=1 left=0
+quit 15 exit=0 QUIT playing=True engines=1 left=0
+quit 16 exit=0 QUIT playing=True engines=1 left=0
+quit 17 exit=0 QUIT playing=True engines=1 left=0
+quit 18 exit=0 QUIT playing=True engines=1 left=0
+quit 19 exit=0 QUIT playing=True engines=1 left=0
+
+(/usr/lib/xdg-desktop-portal:334360): xdg-desktop-portal-WARNING **: 17:58:44.989: Failed to create secret proxy: Erro ao chamar StartServiceByName para org.freedesktop.secrets: O tempo limite foi alcançado
+quit 20 exit=0 QUIT playing=True engines=1 left=0
+quit 21 exit=0 QUIT playing=True engines=1 left=0
+quit 22 exit=0 QUIT playing=True engines=1 left=0
+quit 23 exit=0 QUIT playing=True engines=1 left=0
+quit 24 exit=0 QUIT playing=True engines=1 left=0
+quit 25 exit=0 QUIT playing=True engines=1 left=0
+quit 26 exit=0 QUIT playing=True engines=1 left=0
+quit 27 exit=0 QUIT playing=True engines=1 left=0
+quit 28 exit=0 QUIT playing=True engines=1 left=0
+quit 29 exit=0 QUIT playing=True engines=1 left=0
+quit 30 exit=0 QUIT playing=True engines=1 left=0
+quit 31 exit=0 QUIT playing=True engines=1 left=0
+quit 32 exit=0 QUIT playing=True engines=1 left=0
+quit 33 exit=0 QUIT playing=True engines=1 left=0
+quit 34 exit=0 QUIT playing=True engines=1 left=0
+quit 35 exit=0 QUIT playing=True engines=1 left=0
+quit 36 exit=0 QUIT playing=True engines=1 left=0
+quit 37 exit=0 QUIT playing=True engines=1 left=0
+quit 38 exit=0 QUIT playing=True engines=1 left=0
+quit 39 exit=0 QUIT playing=True engines=1 left=0
+quit 40 exit=0 QUIT playing=True engines=1 left=0
+quit 41 exit=0 QUIT playing=True engines=1 left=0
+quit 42 exit=0 QUIT playing=True engines=1 left=0
+quit 43 exit=0 QUIT playing=True engines=1 left=0
+quit 44 exit=0 QUIT playing=True engines=1 left=0
+quit 45 exit=0 QUIT playing=True engines=1 left=0
+quit 46 exit=0 QUIT playing=True engines=1 left=0
+quit 47 exit=0 QUIT playing=True engines=1 left=0
+quit 48 exit=0 QUIT playing=True engines=1 left=0
+quit 49 exit=0 QUIT playing=True engines=1 left=0
+quit 50 exit=0 QUIT playing=True engines=1 left=0
+Gdk-Message: 17:59:23.361: Error reading events from display: Pipe quebrado
+Gdk-Message: 17:59:23.361: Lost connection to Wayland compositor.
+libmutter-Message: 17:59:23.367: Removed virtual monitor Meta-0
+A connection to the bus can't be made
