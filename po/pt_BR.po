@@ -163,10 +163,14 @@ msgstr ""
 #: data/io.github.mauriciobc.Babble.gschema.xml:138
 msgid "Sidebar presentation when it is expanded: full labels, or an icon rail"
 msgstr ""
+"Apresentação da barra lateral quando expandida: rótulos completos ou uma "
+"faixa de ícones"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:142
 msgid "Hide the expanded sidebar; the content header keeps the shell controls"
 msgstr ""
+"Ocultar a barra lateral expandida; o cabeçalho do conteúdo mantém os "
+"controles da estrutura"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:146
 msgid "Collapse long posts behind a Show More button"
@@ -186,7 +190,8 @@ msgstr ""
 #: data/io.github.mauriciobc.Babble.gschema.xml:158
 msgid ""
 "Whether to load media your server has no copy of from the original server"
-msgstr "Se a mídia que seu servidor não tem deve ser carregada do servidor original"
+msgstr ""
+"Se a mídia que seu servidor não tem deve ser carregada do servidor original"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:159
 msgid ""
@@ -194,7 +199,12 @@ msgid ""
 "server has none, the original lives on the author's server, and loading it "
 "lets that server see your IP address and that you viewed it. \"ask\" asks "
 "each time, \"load\" loads it, \"never\" does not."
-msgstr "Os servidores Mastodon guardam uma cópia da mídia das publicações que mostram a você. Quando seu servidor não tem uma, o original fica no servidor do autor, e carregá-lo permite que esse servidor veja seu endereço IP e saiba que você o visualizou. \"ask\" pergunta a cada vez, \"load\" carrega, \"never\" não carrega."
+msgstr ""
+"Os servidores Mastodon guardam uma cópia da mídia das publicações que "
+"mostram a você. Quando seu servidor não tem uma, o original fica no servidor "
+"do autor, e carregá-lo permite que esse servidor veja seu endereço IP e "
+"saiba que você o visualizou. \"ask\" pergunta a cada vez, \"load\" carrega, "
+"\"never\" não carrega."
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:163
 msgid "Reveal media marked as sensitive without a click"
@@ -252,11 +262,13 @@ msgstr "Ocultar impulsos na linha do tempo inicial"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:203
 msgid "Reopen the home timeline at the post you were reading"
-msgstr ""
+msgstr "Reabrir a timeline inicial na publicação que você estava lendo"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:207
 msgid "The post each account was reading on the home timeline, by account key"
 msgstr ""
+"A publicação que cada conta estava lendo na timeline inicial, por chave da "
+"conta"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:211
 msgid "Ask for visibility (and offer quoting) before boosting"
@@ -275,17 +287,19 @@ msgstr ""
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:223
 msgid "Open web links in a column beside the timeline"
-msgstr ""
+msgstr "Abrir links web em uma coluna ao lado da timeline"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:224
 msgid ""
 "When off, or when WebKitGTK is not installed, web links open in the default "
 "browser."
 msgstr ""
+"Quando desativado, ou quando o WebKitGTK não está instalado, os links web "
+"abrem no navegador padrão."
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:228
 msgid "Let pages opened in Babble run JavaScript"
-msgstr ""
+msgstr "Permitir que páginas abertas no Babble executem JavaScript"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:232
 msgid "Offer to open post and profile links found on the clipboard"
@@ -402,11 +416,15 @@ msgid ""
 "The volume the media viewer last played video and audio at, from 0 (silent) "
 "to 1 (full). It is restored when the next video or audio opens. Whether the "
 "sound was muted is not remembered, and GIFVs stay muted."
-msgstr "O volume em que o visualizador de mídia tocou vídeo e áudio pela última vez, de 0 (mudo) a 1 (máximo). Ele é restaurado quando o próximo vídeo ou áudio é aberto. Não se lembra se o som estava silenciado, e GIFVs continuam silenciados."
+msgstr ""
+"O volume em que o visualizador de mídia tocou vídeo e áudio pela última vez, "
+"de 0 (mudo) a 1 (máximo). Ele é restaurado quando o próximo vídeo ou áudio é "
+"aberto. Não se lembra se o som estava silenciado, e GIFVs continuam "
+"silenciados."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:9
 msgid "Mauricio Castro"
-msgstr ""
+msgstr "Mauricio Castro"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:12
 msgid ""
@@ -442,14 +460,16 @@ msgstr "Linha do tempo inicial com publicações, mídia e a barra de ações"
 msgid ""
 "Catch Up: the posts you missed over a window you choose, ranked as a grid"
 msgstr ""
+"Catch Up: as publicações que você perdeu em um intervalo à sua escolha, "
+"classificadas como uma grade"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:42
 msgid "A hashtag timeline, with a quoted post"
-msgstr ""
+msgstr "Uma timeline de hashtag, com uma publicação citada"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:46
 msgid "Writing a post, with a poll and the language picker"
-msgstr ""
+msgstr "Escrevendo uma publicação, com uma enquete e o seletor de idioma"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:65
 msgid ""
@@ -457,12 +477,18 @@ msgid ""
 "Two ship with it: Wallabag, to save a post's link for later, and Hashpanel, "
 "for the daily hashtags of the Brazilian fediverse."
 msgstr ""
+"O Babble agora pode ser estendido com plugins, ativados na nova página "
+"Plugins. Dois acompanham o app: Wallabag, para salvar o link de uma "
+"publicação para ler depois, e Hashpanel, para as hashtags diárias do "
+"fediverso brasileiro."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:71
 msgid ""
 "The composer suggests hashtags as you type, and can schedule a new post. "
 "Home reopens at the post you were reading."
 msgstr ""
+"O compositor sugere hashtags conforme você digita e pode agendar uma nova "
+"publicação. O Início reabre na publicação que você estava lendo."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:75
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:97
@@ -471,29 +497,30 @@ msgstr "Outras alterações:"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:77
 msgid "Deleting a post and removing a boost can be undone."
-msgstr ""
+msgstr "Excluir uma publicação e remover um impulso podem ser desfeitos."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:78
-#, fuzzy
 msgid "A single notification can be dismissed."
-msgstr "Pedido de notificação dispensado"
+msgstr "Uma única notificação pode ser dispensada."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:79
 msgid "Boosts can be hidden on Home, and Home filters apply at once."
 msgstr ""
+"Impulsos podem ser ocultados no Início, e os filtros do Início são aplicados "
+"de uma vez."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:80
 msgid "Editing a scheduled post keeps its poll, duration and language."
-msgstr ""
+msgstr "Editar uma publicação agendada mantém sua enquete, duração e idioma."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:81
-#, fuzzy
 msgid "Removing an account also removes its saved credentials."
-msgstr "Não foi possível remover a entrada"
+msgstr "Remover uma conta também remove suas credenciais salvas."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:82
 msgid "A missing keyring is reported clearly instead of failing quietly."
 msgstr ""
+"Um chaveiro ausente é relatado claramente em vez de falhar em silêncio."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:88
 msgid ""
@@ -548,7 +575,6 @@ msgstr ""
 "latinas no texto da interface."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:106
-#, fuzzy
 msgid ""
 "Translations: nothing already translated was lost. This release adds 35 "
 "strings to the template — chiefly the GSettings summaries, which had never "
@@ -556,14 +582,15 @@ msgid ""
 "access key, a mnemonic being part of the string. The new and re-worded "
 "entries show in English until a translator gets to them."
 msgstr ""
-"Traduções: nada já traduzido foi perdido. Esta versão adiciona 89 novas "
-"strings para traduzir — principalmente os resumos do GSettings, que só agora "
-"entraram no modelo de tradução. Eles são mostrados em inglês até que um "
-"tradutor os revise."
+"Traduções: nada já traduzido foi perdido. Esta versão adiciona 35 strings ao "
+"modelo — principalmente os resumos do GSettings, que nunca haviam chegado a "
+"um tradutor — e reformula cerca de 55 rótulos de menu que ganharam uma tecla "
+"de acesso, já que uma tecla de atalho faz parte da string. As entradas novas "
+"e reformuladas aparecem em inglês até que um tradutor as revise."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:118
 msgid "Initial public release."
-msgstr ""
+msgstr "Primeira versão pública."
 
 #: src/accounts.py:253 src/admin.py:1625 src/search.py:503
 msgid "Accounts"
@@ -833,12 +860,10 @@ msgid "Could not update the report"
 msgstr "Não foi possível atualizar a denúncia"
 
 #: src/admin.py:796
-#, fuzzy
 msgid "Mark This Report as Resolved?"
 msgstr "Marcar esta denúncia como resolvida?"
 
 #: src/admin.py:800
-#, fuzzy
 msgid "Reopen This Report?"
 msgstr "Reabrir esta denúncia?"
 
@@ -1012,7 +1037,6 @@ msgid "_Undo"
 msgstr "_Desfazer"
 
 #: src/admin.py:1100
-#, fuzzy
 msgid "Undo This Action?"
 msgstr "Desfazer esta ação?"
 
@@ -1513,14 +1537,12 @@ msgid "Authorization failed"
 msgstr "A autorização falhou"
 
 #: src/auth.py:434
-#, fuzzy
 msgid "Authorization denied"
-msgstr "A autorização falhou"
+msgstr "Autorização negada"
 
 #: src/auth.py:435
-#, fuzzy
 msgid "Return to Babble to try again."
-msgstr "Retorne ao Babble e tente fazer login novamente."
+msgstr "Retorne ao Babble para tentar novamente."
 
 #: src/auth.py:441
 msgid "Babble could not use this login"
@@ -1582,12 +1604,11 @@ msgstr ""
 
 #: src/auth.py:634
 msgid "Authorize moderation with the account already signed in to Babble."
-msgstr ""
+msgstr "Autorize a moderação com a conta já conectada ao Babble."
 
 #: src/auth.py:638
-#, fuzzy
 msgid "The signed-in account changed while moderation was being authorized."
-msgstr "A conta mudou antes de a moderação ser autorizada."
+msgstr "A conta conectada mudou enquanto a moderação era autorizada."
 
 #: src/auth.py:656 src/auth.py:670
 msgid "The system keyring refused to store the login."
@@ -1595,7 +1616,7 @@ msgstr "O chaveiro do sistema recusou-se a armazenar a sessão."
 
 #: src/auth.py:677
 msgid "Moderation access was saved for the account you switched away from."
-msgstr ""
+msgstr "O acesso à moderação foi salvo para a conta de que você se afastou."
 
 #: src/auth.py:685
 msgid "Moderation access granted"
@@ -1715,14 +1736,14 @@ msgstr "Abrindo o Catch Up…"
 #: src/catchup/page.py:293
 #, python-format
 msgid "(%d h back)"
-msgstr ""
+msgstr "(%d h atrás)"
 
 #: src/catchup/page.py:299 src/catchup/page.py:307 src/catchup/page.py:326
-#, fuzzy, python-format
+#, python-format
 msgid "%d post evaluated"
 msgid_plural "%d posts evaluated"
-msgstr[0] "Publicação excluída"
-msgstr[1] "Publicação excluída"
+msgstr[0] "%d publicação avaliada"
+msgstr[1] "%d publicações avaliadas"
 
 #: src/catchup/page.py:361 src/catchup/page.py:372
 #: src/catchup/page_controls.py:56
@@ -1915,39 +1936,32 @@ msgstr[0] "Última %d hora"
 msgstr[1] "Últimas %d horas"
 
 #: src/catchup/pipeline.py:100
-#, fuzzy
 msgid "Since the _last catch-up"
-msgstr "Desde o último Catch Up"
+msgstr "Desde o _último Catch Up"
 
 #: src/catchup/pipeline.py:102
-#, fuzzy
 msgid "As _far back as possible"
-msgstr "O mais longe possível"
+msgstr "O _mais longe possível"
 
 #: src/catchup/pipeline.py:104
-#, fuzzy
 msgid "Last _hour"
-msgstr "Última hora"
+msgstr "Última _hora"
 
 #: src/catchup/pipeline.py:106
-#, fuzzy
 msgid "Last _3 hours"
-msgstr "Última hora"
+msgstr "Últimas _3 horas"
 
 #: src/catchup/pipeline.py:108
-#, fuzzy
 msgid "Last _6 hours"
-msgstr "Última hora"
+msgstr "Últimas _6 horas"
 
 #: src/catchup/pipeline.py:110
-#, fuzzy
 msgid "Last 1_2 hours"
-msgstr "Última hora"
+msgstr "Últimas 1_2 horas"
 
 #: src/catchup/pipeline.py:112
-#, fuzzy
 msgid "Last 2_4 hours"
-msgstr "Última hora"
+msgstr "Últimas 2_4 horas"
 
 #: src/catchup/pipeline.py:120
 msgid "Highlights since your last catch-up"
@@ -2336,8 +2350,8 @@ msgstr[1] "%d minutos"
 #, python-format
 msgid "%d second"
 msgid_plural "%d seconds"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%d segundo"
+msgstr[1] "%d segundos"
 
 #: src/compose.py:310 src/statusrow.py:599
 msgid "Replying to a post"
@@ -2424,26 +2438,25 @@ msgid "Characters Left"
 msgstr "Caracteres restantes"
 
 #: src/compose.py:680
-#, fuzzy
 msgid "Could not restore draft"
-msgstr "Não foi possível reagendar"
+msgstr "Não foi possível restaurar o rascunho"
 
 #: src/compose.py:681
 msgid "The saved draft has unsupported settings."
-msgstr ""
+msgstr "O rascunho salvo tem configurações não suportadas."
 
 #: src/compose.py:753
 msgid "Remove the original scheduled post before starting another post."
 msgstr ""
+"Remova a publicação agendada original antes de iniciar outra publicação."
 
 #: src/compose.py:757
 msgid "Finish sending this post first."
-msgstr ""
+msgstr "Termine de enviar esta publicação primeiro."
 
 #: src/compose.py:809
-#, fuzzy
 msgid "End of the previous post"
-msgstr "Não foi possível remover sua publicação"
+msgstr "Fim da publicação anterior"
 
 #: src/compose.py:1116
 #, python-format
@@ -2509,19 +2522,20 @@ msgid "Post sent"
 msgstr "Publicação enviada"
 
 #: src/compose.py:1548
-#, fuzzy
 msgid "Could not remove original scheduled post"
-msgstr "Não foi possível remover sua publicação"
+msgstr "Não foi possível remover a publicação agendada original"
 
 #: src/compose.py:1567
 msgid ""
 "The replacement was saved, but the original scheduled post could not be "
 "removed. Both may be published."
 msgstr ""
+"A substituição foi salva, mas a publicação agendada original não pôde ser "
+"removida. Ambas podem ser publicadas."
 
 #: src/compose.py:1569
 msgid "_Retry Removal"
-msgstr ""
+msgstr "_Tentar remover novamente"
 
 #. Translators: dialog title when editing a post that is
 #. part of a thread; the first number is its position, the
@@ -2529,7 +2543,7 @@ msgstr ""
 #: src/compose.py:1694
 #, python-format
 msgid "Edit Post · %(index)d/%(total)d"
-msgstr ""
+msgstr "Editar publicação · %(index)d/%(total)d"
 
 #: src/compose.py:1697
 msgid "Edit Post"
@@ -2544,7 +2558,7 @@ msgstr "Editar publicação agendada"
 #: src/compose.py:1704
 #, python-format
 msgid "Thread · Post %d"
-msgstr ""
+msgstr "Conversa · Publicação %d"
 
 #: src/compose.py:1707
 msgid "Quote Post"
@@ -2556,25 +2570,24 @@ msgid "Reply"
 msgstr "Responder"
 
 #: src/compose.py:1718
-#, fuzzy
 msgid "Leave Duplicate Scheduled Posts?"
-msgstr "Excluir publicação agendada?"
+msgstr "Manter publicações agendadas duplicadas?"
 
 #: src/compose.py:1719
 msgid ""
 "The replacement was saved, but the original is still scheduled. Closing "
 "leaves both entries on the server."
 msgstr ""
+"A substituição foi salva, mas o original ainda está agendado. Fechar mantém "
+"ambas as entradas no servidor."
 
 #: src/compose.py:1721
-#, fuzzy
 msgid "_Keep Open"
-msgstr "_Abrir"
+msgstr "_Manter aberto"
 
 #: src/compose.py:1722
-#, fuzzy
 msgid "_Close Anyway"
-msgstr "Fechar janela"
+msgstr "_Fechar mesmo assim"
 
 #. Translators: file name, without its extension, of an image pasted
 #. into the composer. It is shown on the attachment.
@@ -2649,17 +2662,15 @@ msgstr "Anexo removido"
 
 #: src/composequote.py:148
 msgid "Post attached as a quote"
-msgstr ""
+msgstr "Publicação anexada como citação"
 
 #: src/composeschedule.py:40
-#, fuzzy
 msgid "The server returned unsupported post settings."
-msgstr "O servidor não retornou números para este período."
+msgstr "O servidor retornou configurações de publicação não suportadas."
 
 #: src/composeschedule.py:296
-#, fuzzy
 msgid "Could not edit scheduled post"
-msgstr "Não foi possível reagendar"
+msgstr "Não foi possível editar a publicação agendada"
 
 #: src/composeschedule.py:353
 msgid "_Set Time"
@@ -2709,14 +2720,12 @@ msgstr[0] "%d anexo"
 msgstr[1] "%d anexos"
 
 #: src/conversations.py:129
-#, fuzzy
 msgid "_Mark as Read"
-msgstr "Marcar como lida"
+msgstr "_Marcar como lida"
 
 #: src/conversations.py:130
-#, fuzzy
 msgid "_Delete Conversation"
-msgstr "Excluir conversa"
+msgstr "_Excluir conversa"
 
 #: src/conversations.py:135
 msgid "Conversation Options"
@@ -2834,9 +2843,8 @@ msgid "Could not load post"
 msgstr "Não foi possível carregar a postagem"
 
 #: src/desktopnotify.py:489
-#, fuzzy
 msgid "Could not read the login from the keyring"
-msgstr "Não foi possível renderizar a imagem"
+msgstr "Não foi possível ler o login do chaveiro"
 
 #: src/desktopnotify.py:493
 msgid "The login for that account is gone from the keyring"
@@ -3497,14 +3505,12 @@ msgid "Edit Timeline"
 msgstr "Editar linha do tempo"
 
 #: src/hashtags.py:217
-#, fuzzy
 msgid "_Remove from Featured Tags"
-msgstr "Remover das hashtags em destaque"
+msgstr "_Remover das hashtags em destaque"
 
 #: src/hashtags.py:218 src/profileactions.py:110
-#, fuzzy
 msgid "_Feature on Profile"
-msgstr "Destacar no perfil"
+msgstr "_Destacar no perfil"
 
 #: src/hashtags.py:223 src/hashtags.py:642 src/profileactions.py:210
 msgid "_Unfollow"
@@ -3865,9 +3871,8 @@ msgid "Babble only connects over HTTPS: %s"
 msgstr "O Babble só se conecta por HTTPS: %s"
 
 #: src/mastodon.py:700
-#, fuzzy
 msgid "Operation canceled"
-msgstr "Conversa excluída"
+msgstr "Operação cancelada"
 
 #: src/mastodon.py:705
 msgid "Request failed"
@@ -3878,9 +3883,8 @@ msgid "Invalid address"
 msgstr "Endereço inválido"
 
 #: src/mastodon.py:764
-#, fuzzy
 msgid "The server returned an invalid JSON response."
-msgstr "O servidor não retornou números para este período."
+msgstr "O servidor retornou uma resposta JSON inválida."
 
 #: src/mastodon.py:778
 #, python-format
@@ -3903,33 +3907,28 @@ msgid "The server did not return an application id."
 msgstr "O servidor não retornou um ID de aplicativo."
 
 #: src/mastodon.py:1085
-#, fuzzy
 msgid "The server did not return an application secret."
-msgstr "O servidor não retornou um ID de aplicativo."
+msgstr "O servidor não retornou um segredo de aplicativo."
 
 #: src/mastodon.py:1168
 msgid "This login cannot be signed out on the server."
 msgstr "Esta sessão não pode ser encerrada no servidor."
 
 #: src/mastodon.py:1250
-#, fuzzy
 msgid "Authorization was denied."
-msgstr "A autorização falhou"
+msgstr "A autorização foi negada."
 
 #: src/mastodon.py:1252
-#, fuzzy
 msgid "The server could not authorize this request."
-msgstr "Não foi possível atualizar o pedido"
+msgstr "O servidor não pôde autorizar esta solicitação."
 
 #: src/mastodon.py:1276
-#, fuzzy
 msgid "The server did not return an access token."
-msgstr "O servidor não retornou um ID de aplicativo."
+msgstr "O servidor não retornou um token de acesso."
 
 #: src/mastodon.py:1287
-#, fuzzy
 msgid "The server did not return a valid account."
-msgstr "O servidor não retornou um ID de aplicativo."
+msgstr "O servidor não retornou uma conta válida."
 
 #: src/mediabox.py:254
 msgid "Show Previous Boosts"
@@ -4045,7 +4044,9 @@ msgstr "Reproduzindo mídia"
 msgid ""
 "This video uses a format that needs the codecs-extra extension. Install it "
 "and try again."
-msgstr "Este vídeo usa um formato que precisa da extensão codecs-extra. Instale-a e tente novamente."
+msgstr ""
+"Este vídeo usa um formato que precisa da extensão codecs-extra. Instale-a e "
+"tente novamente."
 
 #. Translators: {codec} is the name of the missing decoder, as GStreamer
 #. words it, for example "Vorbis audio decoder".
@@ -4808,89 +4809,72 @@ msgid "%(title)s, %(time)s"
 msgstr "%(title)s, %(time)s"
 
 #: src/notifications.py:40
-#, fuzzy
 msgid "_Mentions"
-msgstr "Menções"
+msgstr "_Menções"
 
 #: src/notifications.py:41
-#, fuzzy
 msgid "_New Posts"
-msgstr "Novas publicações"
+msgstr "_Novas publicações"
 
 #: src/notifications.py:42
-#, fuzzy
 msgid "_Boosts"
-msgstr "Impulsos"
+msgstr "_Impulsos"
 
 #: src/notifications.py:43
-#, fuzzy
 msgid "_Favorites"
-msgstr "Favoritos"
+msgstr "_Favoritos"
 
 #: src/notifications.py:44
-#, fuzzy
 msgid "Foll_ows"
-msgstr "Seguidores"
+msgstr "Segu_idores"
 
 #: src/notifications.py:45
-#, fuzzy
 msgid "Follow _Requests"
-msgstr "Pedidos para seguir"
+msgstr "Pedidos para _seguir"
 
 #: src/notifications.py:46
-#, fuzzy
 msgid "_Polls"
-msgstr "Enquetes"
+msgstr "_Enquetes"
 
 #: src/notifications.py:47
-#, fuzzy
 msgid "Post _Edits"
-msgstr "Edições de publicações"
+msgstr "_Edições de publicações"
 
 #: src/notifications.py:48
-#, fuzzy
 msgid "_Quotes"
-msgstr "Citações"
+msgstr "_Citações"
 
 #: src/notifications.py:49
-#, fuzzy
 msgid "Quote E_dits"
-msgstr "Edições de citações"
+msgstr "Edições de _citações"
 
 #: src/notifications.py:50
-#, fuzzy
 msgid "_Sign-Ups"
-msgstr "Cadastros"
+msgstr "_Cadastros"
 
 #: src/notifications.py:51
-#, fuzzy
 msgid "Repor_ts"
-msgstr "Denúncias"
+msgstr "Denúnc_ias"
 
 #: src/notifications.py:52
-#, fuzzy
 msgid "Se_vered Relationships"
-msgstr "Relações rompidas"
+msgstr "Relações _rompidas"
 
 #: src/notifications.py:53
-#, fuzzy
 msgid "Moderation _Warnings"
-msgstr "Advertências da moderação"
+msgstr "Advertências da _moderação"
 
 #: src/notifications.py:54
-#, fuzzy
 msgid "_Annual Reports"
-msgstr "Relatórios anuais"
+msgstr "_Relatórios anuais"
 
 #: src/notifications.py:55
-#, fuzzy
 msgid "Added to _Collections"
-msgstr "Adicionado a Coleções"
+msgstr "Adicionado a _Coleções"
 
 #: src/notifications.py:56
-#, fuzzy
 msgid "Collection _Updates"
-msgstr "Atualizações de Coleção"
+msgstr "Atualizações de _Coleção"
 
 #: src/notifications.py:114
 msgid "Loading Notifications"
@@ -4919,14 +4903,12 @@ msgid "Filter Notifications"
 msgstr "Filtrar notificações"
 
 #: src/notifications.py:233
-#, fuzzy
 msgid "_Filter"
-msgstr "Filtrar"
+msgstr "_Filtrar"
 
 #: src/notifications.py:237
-#, fuzzy
 msgid "Notification _Settings"
-msgstr "Configurações de notificação"
+msgstr "Configurações de _notificação"
 
 #: src/notifications.py:238
 msgid "_Announcements"
@@ -5010,23 +4992,20 @@ msgid "The server sent a reply that could not be read"
 msgstr "O servidor enviou uma resposta que não pôde ser lida"
 
 #: src/pluginhost.py:428
-#, fuzzy
 msgid "Not installed"
-msgstr "Não definido"
+msgstr "Não instalado"
 
 #: src/pluginhost.py:433
 msgid "Made for another version of Babble"
 msgstr "Feito para outra versão do Babble"
 
 #: src/pluginhost.py:444
-#, fuzzy
 msgid "Needs a newer version of Babble"
-msgstr "Feito para outra versão do Babble"
+msgstr "Precisa de uma versão mais recente do Babble"
 
 #: src/pluginhost.py:453
-#, fuzzy
 msgid "Could not be loaded; the system log has the details"
-msgstr "Não foi possível renderizar a imagem"
+msgstr "Não foi possível carregar; o registro do sistema tem os detalhes"
 
 #: src/pluginhost.py:461
 msgid "Adds nothing Babble can use"
@@ -5054,9 +5033,8 @@ msgid "Plugins"
 msgstr "Plugins"
 
 #: src/pluginspage.py:110
-#, fuzzy
 msgid "Plugins Are Unavailable"
-msgstr "Citação indisponível"
+msgstr "Plugins indisponíveis"
 
 #: src/pluginspage.py:111
 msgid "Babble needs libpeas 2 and its Python loader to load plugins"
@@ -5065,9 +5043,8 @@ msgstr ""
 "plugins"
 
 #: src/pluginspage.py:122
-#, fuzzy
 msgid "Included With Babble"
-msgstr "Conectado com Babble"
+msgstr "Incluído com o Babble"
 
 #: src/pluginspage.py:129
 msgid "Installed by You"
@@ -5082,9 +5059,8 @@ msgstr ""
 "e publicar com a sua conta. Só ative plugins em que você confia."
 
 #: src/pluginspage.py:135
-#, fuzzy
 msgid "_Open Plugins Folder"
-msgstr "_Abrir no navegador"
+msgstr "_Abrir pasta de plugins"
 
 #: src/pollbox.py:123 src/statusviews.py:274
 msgid "Your vote"
@@ -5329,7 +5305,9 @@ msgstr "Mídia de _outros servidores"
 msgid ""
 "Loading media your server has no copy of lets the author’s server see your "
 "IP address"
-msgstr "Carregar mídia que seu servidor não tem permite que o servidor do autor veja seu endereço IP"
+msgstr ""
+"Carregar mídia que seu servidor não tem permite que o servidor do autor veja "
+"seu endereço IP"
 
 #: src/preferences.py:370
 msgid "_Sensitive Media"
@@ -5471,6 +5449,8 @@ msgid ""
 "Show other links in a column instead of the browser. Pages keep no cookies "
 "once Babble closes"
 msgstr ""
+"Mostrar outros links em uma coluna em vez do navegador. As páginas não "
+"mantêm cookies depois que o Babble fecha"
 
 #: src/preferences.py:434
 msgid "_JavaScript on Web Pages"
@@ -5478,7 +5458,7 @@ msgstr "_JavaScript em páginas da web"
 
 #: src/preferences.py:435
 msgid "Many sites do not work without it"
-msgstr ""
+msgstr "Muitos sites não funcionam sem isso"
 
 #: src/preferences.py:439
 msgid "Copied Link S_uggestions"
@@ -5909,19 +5889,16 @@ msgid "No account found for %s"
 msgstr "Nenhuma conta encontrada para %s"
 
 #: src/profileactions.py:94
-#, fuzzy
 msgid "_Mention"
-msgstr "Mencionar"
+msgstr "_Mencionar"
 
 #: src/profileactions.py:96
-#, fuzzy
 msgid "_Direct Message"
-msgstr "Mensagem direta"
+msgstr "_Mensagem direta"
 
 #: src/profileactions.py:100
-#, fuzzy
 msgid "Copy _Handle"
-msgstr "Copiar identificador"
+msgstr "Copiar _identificador"
 
 #: src/profileactions.py:101 src/statusmenu.py:162 src/webcolumn.py:311
 msgid "_Copy Link"
@@ -5932,69 +5909,56 @@ msgid "Open in _Browser"
 msgstr "Abrir no _navegador"
 
 #: src/profileactions.py:108
-#, fuzzy
 msgid "Receive Post _Notifications"
-msgstr "Receber notificações de publicações"
+msgstr "Receber _notificações de publicações"
 
 #: src/profileactions.py:112
-#, fuzzy
 msgid "Show Boo_sts"
-msgstr "Mostrar impulsos"
+msgstr "Mostrar im_pulsos"
 
 #: src/profileactions.py:113
-#, fuzzy
 msgid "Hide Boo_sts"
-msgstr "Ocultar impulsos"
+msgstr "Ocultar im_pulsos"
 
 #: src/profileactions.py:117
-#, fuzzy
 msgid "Add or Remove from _Lists…"
-msgstr "Adicionar ou remover de listas…"
+msgstr "Adicionar ou remover de _listas…"
 
 #: src/profileactions.py:119
-#, fuzzy
 msgid "_Private Note…"
-msgstr "Nota privada…"
+msgstr "_Nota privada…"
 
 #: src/profileactions.py:121
-#, fuzzy
 msgid "_Remove from Followers"
-msgstr "Remover dos seguidores"
+msgstr "_Remover dos seguidores"
 
 #: src/profileactions.py:129
-#, fuzzy
 msgid "Unmu_te"
-msgstr "Deixar de silenciar"
+msgstr "Deixar de silenc_iar"
 
 #: src/profileactions.py:129
-#, fuzzy
 msgid "M_ute…"
-msgstr "Silenciar…"
+msgstr "Silenc_iar…"
 
 #: src/profileactions.py:133
-#, fuzzy
 msgid "Unbloc_k"
-msgstr "Desbloquear"
+msgstr "Desbloque_ar"
 
 #: src/profileactions.py:133
-#, fuzzy
 msgid "Bloc_k…"
-msgstr "Bloquear…"
+msgstr "Bloque_ar…"
 
 #: src/profileactions.py:138
-#, fuzzy
 msgid "Unblock Dom_ain"
-msgstr "Desbloquear domínio"
+msgstr "Desbloquear _domínio"
 
 #: src/profileactions.py:139
-#, fuzzy
 msgid "Block Dom_ain…"
-msgstr "Bloquear domínio…"
+msgstr "Bloquear _domínio…"
 
 #: src/profileactions.py:142
-#, fuzzy
 msgid "R_eport…"
-msgstr "Denunciar…"
+msgstr "D_enunciar…"
 
 #. A section title is drawn as a plain label: an underscore in
 #. it shows up as an underscore.
@@ -6415,14 +6379,12 @@ msgid "Could not save profile: %s"
 msgstr "Não foi possível salvar o perfil: %s"
 
 #: src/profileheader.py:176
-#, fuzzy
 msgid "View Header Image"
-msgstr "Imagem de cabeçalho"
+msgstr "Ver imagem de cabeçalho"
 
 #: src/profileheader.py:247
-#, fuzzy
 msgid "View Avatar"
-msgstr "Avatar"
+msgstr "Ver avatar"
 
 #: src/profileheader.py:301
 msgid "In Memoriam"
@@ -6576,7 +6538,9 @@ msgstr "Carregar mídia de outro servidor?"
 msgid ""
 "Your server has no copy of this media. Loading it from {host} lets that "
 "server see your IP address and that you viewed it."
-msgstr "Seu servidor não tem uma cópia desta mídia. Carregá-la de {host} permite que esse servidor veja seu endereço IP e saiba que você a visualizou."
+msgstr ""
+"Seu servidor não tem uma cópia desta mídia. Carregá-la de {host} permite que "
+"esse servidor veja seu endereço IP e saiba que você a visualizou."
 
 #: src/remotemedia.py:71
 msgid "another server"
@@ -7124,9 +7088,8 @@ msgid "Reload"
 msgstr "Recarregar"
 
 #: src/shortcuts-dialog.ui:65
-#, fuzzy
 msgid "Toggle Sidebar"
-msgstr "Barra lateral"
+msgstr "Alternar barra lateral"
 
 #: src/shortcuts-dialog.ui:71
 msgid "Go Back"
@@ -7214,26 +7177,23 @@ msgstr "Rolar para o topo"
 
 #: src/shortcuts-dialog.ui:210
 msgid "Web Column"
-msgstr ""
+msgstr "Coluna web"
 
 #: src/shortcuts-dialog.ui:213 src/webcolumn.py:293
 msgid "Hide Web Column"
-msgstr ""
+msgstr "Ocultar coluna web"
 
 #: src/shortcuts-dialog.ui:219 src/webcolumn.py:297
-#, fuzzy
 msgid "Back"
 msgstr "Voltar"
 
 #: src/shortcuts-dialog.ui:225 src/webcolumn.py:299
-#, fuzzy
 msgid "Forward"
-msgstr "Encaminhada"
+msgstr "Avançar"
 
 #: src/shortcuts-dialog.ui:231
-#, fuzzy
 msgid "Reload Page"
-msgstr "Recarregar"
+msgstr "Recarregar página"
 
 #: src/shortcuts-dialog.ui:239
 msgid "Composer"
@@ -7250,11 +7210,11 @@ msgstr "Fechar editor"
 #. Translators: accessible label of the Notifications rail
 #. button; %d is the number of unread notifications.
 #: src/sidebarrail.py:155
-#, fuzzy, python-format
+#, python-format
 msgid "Notifications, %d unread"
 msgid_plural "Notifications, %d unread"
-msgstr[0] "Notificações"
-msgstr[1] "Notificações"
+msgstr[0] "Notificações, %d não lida"
+msgstr[1] "Notificações, %d não lidas"
 
 #. Translators: accessible label of the Notifications rail
 #. button when the count is capped; %s is a count with a
@@ -7268,9 +7228,9 @@ msgstr "Notificações, %s não lidas"
 #. followed hashtag; %s is the hashtag name without the leading
 #. '#'.
 #: src/sourceline.py:87
-#, fuzzy, python-format
+#, python-format
 msgid "From hashtag %s"
-msgstr "Principais hashtags"
+msgstr "Da hashtag %s"
 
 #: src/statusactions.py:38
 msgid "Quote Pending"
@@ -7418,7 +7378,6 @@ msgid "Show _Original"
 msgstr "Mostrar _original"
 
 #: src/statusmenu.py:179
-#, fuzzy
 msgid "Tr_anslate"
 msgstr "_Traduzir"
 
@@ -7444,9 +7403,8 @@ msgstr "Quem pode _citar"
 
 #. Not _Remove…: Delete and _Redraft takes R in the same menu.
 #: src/statusmenu.py:198
-#, fuzzy
 msgid "Remove My Post _From Quote"
-msgstr "_Remover minha publicação da citação"
+msgstr "Remover _minha publicação da citação"
 
 #: src/statusmenu.py:205
 msgid "Delete and _Redraft"
@@ -7456,19 +7414,19 @@ msgstr "Excluir e _reescrever"
 #. section: _Mute Conversation (M), Open in _Browser (B) and
 #. Show _Original (O) already hold those letters in it.
 #: src/statusmenu.py:213
-#, fuzzy, python-format
+#, python-format
 msgid "Ment_ion %s"
-msgstr "Mencionar %s"
+msgstr "Mencion_ar %s"
 
 #: src/statusmenu.py:214
-#, fuzzy, python-format
+#, python-format
 msgid "M_ute %s"
-msgstr "Silenciar %s?"
+msgstr "Silenc_iar %s"
 
 #: src/statusmenu.py:215
-#, fuzzy, python-format
+#, python-format
 msgid "Bloc_k %s"
-msgstr "Bloquear %s?"
+msgstr "Bloque_ar %s"
 
 #: src/statusmenu.py:216
 msgid "_Report Post…"
@@ -7828,19 +7786,16 @@ msgid "Mentioned People Only"
 msgstr "Somente pessoas mencionadas"
 
 #: src/timelinebase.py:180
-#, fuzzy
 msgid "_Anyone"
-msgstr "Qualquer pessoa"
+msgstr "_Qualquer pessoa"
 
 #: src/timelinebase.py:181
-#, fuzzy
 msgid "My _Followers"
-msgstr "Meus seguidores"
+msgstr "Meus _seguidores"
 
 #: src/timelinebase.py:182
-#, fuzzy
 msgid "_Nobody"
-msgstr "Ninguém"
+msgstr "_Ninguém"
 
 #: src/timelinepage.py:270
 msgid "Loading Timeline"
@@ -7871,46 +7826,44 @@ msgstr[0] "%d nova postagem"
 msgstr[1] "%d novas postagens"
 
 #: src/webcolumn.py:309
-#, fuzzy
 msgid "_Reload"
-msgstr "Recarregar"
+msgstr "_Recarregar"
 
 #: src/webcolumn.py:315
-#, fuzzy
 msgid "Page Actions"
-msgstr "Tomar ação"
+msgstr "Ações da página"
 
 #: src/webcolumn.py:482
-#, fuzzy
 msgid "Open Link in _Browser"
-msgstr "Abrir no _navegador"
+msgstr "Abrir link no _navegador"
 
 #: src/webcolumn.py:507
-#, fuzzy
 msgid "Page Did Not Load"
-msgstr "Não foi possível carregar"
+msgstr "A página não carregou"
 
 #: src/webcolumn.py:514
 msgid "Security Certificate Not Trusted"
-msgstr ""
+msgstr "Certificado de segurança não confiável"
 
 #: src/webcolumn.py:515
 msgid ""
 "The connection is not private, so the page was not loaded. You can open it "
 "in your browser instead."
 msgstr ""
+"A conexão não é privada, então a página não foi carregada. Você pode abri-la "
+"no seu navegador."
 
 #: src/webcolumn.py:524
 msgid "The page used too much memory and was stopped."
-msgstr ""
+msgstr "A página usou muita memória e foi interrompida."
 
 #: src/webcolumn.py:527
 msgid "The page stopped responding."
-msgstr ""
+msgstr "A página parou de responder."
 
 #: src/webcolumn.py:528
 msgid "Page Crashed"
-msgstr ""
+msgstr "A página travou"
 
 #: src/window.py:302
 msgid "Mutes & Blocks"
@@ -7925,9 +7878,9 @@ msgid "Scheduled Posts"
 msgstr "Publicações agendadas"
 
 #: src/window.py:474
-#, fuzzy, python-format
+#, python-format
 msgid "Could not read the login for @%s from the keyring"
-msgstr "O login de @%s não está mais no chaveiro"
+msgstr "Não foi possível ler o login de @%s do chaveiro"
 
 #: src/window.py:485
 #, python-format
@@ -7977,11 +7930,12 @@ msgid ""
 "The account was removed from Babble, but the system keyring could not remove "
 "all of its credentials."
 msgstr ""
+"A conta foi removida do Babble, mas o chaveiro do sistema não conseguiu "
+"remover todas as suas credenciais."
 
 #: src/window.py:767
-#, fuzzy
 msgid "Could not remove all saved credentials"
-msgstr "Não foi possível remover a entrada"
+msgstr "Não foi possível remover todas as credenciais salvas"
 
 #: src/window.py:788 src/window.ui:387 src/window.ui:389
 msgid "Switch Account"
@@ -8130,18 +8084,17 @@ msgid "Restore"
 msgstr "Restaurar"
 
 #: src/window.ui:571
-#, fuzzy
 msgid "_Full Sidebar"
-msgstr "Barra lateral"
+msgstr "_Barra lateral completa"
 
 #: src/window.ui:576
 msgid "Icons _Only"
-msgstr ""
+msgstr "Somente _ícones"
 
 #. Translators: the sidebar is hidden, not narrow.
 #: src/window.ui:582
 msgid "_Hidden"
-msgstr ""
+msgstr "_Oculto"
 
 #: src/window.ui:595
 msgid "_Open Profile"
@@ -8176,9 +8129,8 @@ msgid "#Fedi_Wrapped"
 msgstr "#Fedi_Wrapped"
 
 #: src/window.ui:633
-#, fuzzy
 msgid "Admin Dash_board"
-msgstr "Painel de administração"
+msgstr "Painel de _administração"
 
 #: src/window.ui:645 src/window.ui:669
 msgid "_Preferences"
@@ -8405,52 +8357,48 @@ msgid "Open Hashpanel"
 msgstr "Abrir o Hashpanel"
 
 #: plugins/hashpanel/babble_hashpanel.py:180
-#, fuzzy
 msgid "This Week"
-msgstr "1 semana"
+msgstr "Esta semana"
 
 #: plugins/hashpanel/babble_hashpanel.py:183
-#, fuzzy
 msgid "Top Post Today"
-msgstr "Nenhuma publicação encontrada"
+msgstr "Publicação mais popular de hoje"
 
 #: plugins/hashpanel/babble_hashpanel.py:201
-#, fuzzy
 msgid "Today’s Hashtag"
-msgstr "Principais hashtags"
+msgstr "Hashtag de hoje"
 
 #. Translators: %s is a weekday, or several, as in "Tuesday's
 #. hashtag".
 #: plugins/hashpanel/babble_hashpanel.py:207
-#, fuzzy, python-format
+#, python-format
 msgid "%s’s Hashtag"
-msgstr "Hashtag"
+msgstr "Hashtag de %s"
 
 #: plugins/hashpanel/babble_hashpanel.py:219
-#, fuzzy
 msgid "Hashpanel could not be reached"
-msgstr "A imagem não pôde ser salva"
+msgstr "Não foi possível alcançar o Hashpanel"
 
 #. Translators: %s is a list of counts, as in "4 favorites ·
 #. 7 boosts · 1 reply".
 #: plugins/hashpanel/babble_hashpanel.py:232
-#, fuzzy, python-format
+#, python-format
 msgid "Today: %s"
-msgstr "Hoje"
+msgstr "Hoje: %s"
 
 #: plugins/hashpanel/babble_hashpanel.py:251
 #, python-format
 msgid "%d post this week"
 msgid_plural "%d posts this week"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%d publicação esta semana"
+msgstr[1] "%d publicações esta semana"
 
 #: plugins/hashpanel/babble_hashpanel.py:255
 #, python-format
 msgid "%d the week before"
 msgid_plural "%d the week before"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%d na semana anterior"
+msgstr[1] "%d na semana anterior"
 
 #: plugins/hashpanel/babble_hashpanel.py:274
 msgid ""
@@ -8474,122 +8422,119 @@ msgstr "Servidor do Hashpanel salvo"
 #. the name of a service.
 #: plugins/nareal/babble_nareal.py:220
 msgid "Ask me anything, anonymously, on Na Real:"
-msgstr ""
+msgstr "Pergunte-me qualquer coisa, anonimamente, no Na Real:"
 
 #: plugins/nareal/babble_nareal.py:300
 msgid "Na Real needs JavaScript. Turn it on in Preferences."
-msgstr ""
+msgstr "O Na Real precisa de JavaScript. Ative-o nas Preferências."
 
 #. Translators: shown when the Na Real page does not tell
 #. Babble the user's link. Na Real is the name of a service.
 #: plugins/nareal/babble_nareal.py:325
 msgid "Couldn’t read your Na Real link."
-msgstr ""
+msgstr "Não foi possível ler seu link do Na Real."
 
 #. Translators: a main menu entry that opens the user's
 #. questions on Na Real; the underscore marks the access key.
 #. Na Real is the name of a service.
 #: plugins/nareal/babble_nareal.py:353
-#, fuzzy
 msgid "My _Questions"
-msgstr "Nenhuma sugestão"
+msgstr "Minhas _perguntas"
 
 #. Translators: a main menu entry that starts a post with the
 #. user's Na Real link; the underscore marks the access key.
 #. Na Real is the name of a service.
 #: plugins/nareal/babble_nareal.py:357
 msgid "_Share My Questions Link"
-msgstr ""
+msgstr "_Compartilhar meu link de perguntas"
 
 #: plugins/nareal/babble_nareal.py:366
-#, fuzzy
 msgid "Sign in to Babble first."
-msgstr "Faça login para postar o arquivo"
+msgstr "Entre no Babble primeiro."
 
 #. Na Real has never seen this user: signing in from the
 #. dashboard is what creates the page.
 #: plugins/nareal/babble_nareal.py:377
 msgid "You are not on Na Real yet. Sign in from My Questions first."
-msgstr ""
+msgstr "Você ainda não está no Na Real. Entre primeiro por Minhas Perguntas."
 
 #: plugins/nareal/babble_nareal.py:405
 msgid "Anonymous questions for the fediverse"
-msgstr ""
+msgstr "Perguntas anônimas para o fediverso"
 
 #: plugins/nareal/babble_nareal.py:408
-#, fuzzy
 msgid "Open Na Real"
-msgstr "Abrir o Hashpanel"
+msgstr "Abrir o Na Real"
 
 #: plugins/nareal/babble_nareal.py:438
 msgid ""
 "Na Real is run by each community on its own server. Enter the address of the "
 "one you use."
 msgstr ""
+"O Na Real é executado por cada comunidade em seu próprio servidor. Informe o "
+"endereço do que você usa."
 
 #: plugins/nareal/babble_nareal.py:448
 msgid ""
 "Added to the invitation you share from the main menu, and the hashtag that "
 "shows the Na Real banner."
 msgstr ""
+"Adicionado ao convite que você compartilha a partir do menu principal e à "
+"hashtag que mostra o banner do Na Real."
 
 #: plugins/nareal/babble_nareal.py:474
 msgid "That is your own server. Use the address of a Na Real server."
-msgstr ""
+msgstr "Esse é o seu próprio servidor. Use o endereço de um servidor Na Real."
 
 #: plugins/nareal/babble_nareal.py:485
-#, fuzzy
 msgid "Na Real server saved"
-msgstr "Servidor do Hashpanel salvo"
+msgstr "Servidor Na Real salvo"
 
 #: plugins/nareal/babble_nareal.py:491
 msgid "Use a single hashtag, without spaces"
-msgstr ""
+msgstr "Use uma única hashtag, sem espaços"
 
 #: plugins/nareal/babble_nareal.py:501
 msgid "Na Real hashtag saved"
-msgstr ""
+msgstr "Hashtag do Na Real salva"
 
 #: plugins/wallabag/babble_wallabag.py:172
 #: plugins/wallabag/babble_wallabag.py:204
 #: plugins/wallabag/babble_wallabag.py:224
 msgid "Wait for the current Wallabag request to finish."
-msgstr ""
+msgstr "Aguarde a solicitação atual do Wallabag terminar."
 
 #. Translators: %s is the system keyring failure.
 #: plugins/wallabag/babble_wallabag.py:212
-#, fuzzy, python-format
+#, python-format
 msgid "Could not remove Wallabag credentials: %s"
-msgstr "Não foi possível salvar a lista: %s"
+msgstr "Não foi possível remover as credenciais do Wallabag: %s"
 
 #: plugins/wallabag/babble_wallabag.py:240
-#, fuzzy
 msgid "The server did not accept these details"
-msgstr "O servidor não aceitou a mídia"
+msgstr "O servidor não aceitou esses dados"
 
 #: plugins/wallabag/babble_wallabag.py:242
 msgid "No Wallabag server answered at this address"
 msgstr "Nenhum servidor Wallabag respondeu neste endereço"
 
 #: plugins/wallabag/babble_wallabag.py:246
-#, fuzzy
 msgid "The server sent no token"
-msgstr "Este servidor não tem emojis personalizados"
+msgstr "O servidor não enviou nenhum token"
 
 #. Translators: %s is the system keyring failure.
 #: plugins/wallabag/babble_wallabag.py:265
-#, fuzzy, python-format
+#, python-format
 msgid "Could not save Wallabag credentials: %s"
-msgstr "Não foi possível salvar a lista: %s"
+msgstr "Não foi possível salvar as credenciais do Wallabag: %s"
 
 #: plugins/wallabag/babble_wallabag.py:292
 msgid "Save to _Wallabag"
 msgstr "Salvar no _Wallabag"
 
 #: plugins/wallabag/babble_wallabag.py:294
-#, fuzzy
 msgid "Save to _Wallabag…"
-msgstr "Salvar como imagem…"
+msgstr "Salvar no _Wallabag…"
 
 #: plugins/wallabag/babble_wallabag.py:307
 msgid "Saved to Wallabag"
@@ -8598,19 +8543,17 @@ msgstr "Salvo no Wallabag"
 #. Translators: %s is the reason, as the server or the
 #. network gave it.
 #: plugins/wallabag/babble_wallabag.py:311
-#, fuzzy, python-format
+#, python-format
 msgid "Could not save to Wallabag: %s"
-msgstr "Não foi possível salvar a lista: %s"
+msgstr "Não foi possível salvar no Wallabag: %s"
 
 #: plugins/wallabag/babble_wallabag.py:329
-#, fuzzy
 msgid "Account"
-msgstr "Contas"
+msgstr "Conta"
 
 #: plugins/wallabag/babble_wallabag.py:333
-#, fuzzy
 msgid "Saved posts go to this account"
-msgstr "Conte-nos o que está acontecendo com esta conta"
+msgstr "Publicações salvas vão para esta conta"
 
 #. Translators: a Wallabag account, by its username and the
 #. server's host name.
@@ -8624,9 +8567,8 @@ msgid "Sign _Out"
 msgstr "_Sair"
 
 #: plugins/wallabag/babble_wallabag.py:350
-#, fuzzy
 msgid "Not signed in"
-msgstr "%s se cadastrou"
+msgstr "Não conectado"
 
 #: plugins/wallabag/babble_wallabag.py:351
 msgid "_Sign In…"
@@ -8671,170 +8613,3 @@ msgstr ""
 #: plugins/wallabag/babble_wallabag.py:408
 msgid "Your password is used once to sign in and is not stored"
 msgstr "Sua senha é usada uma vez para entrar e não é armazenada"
-
-#~ msgid "Ask"
-#~ msgstr "Perguntar"
-
-#~ msgid "Load"
-#~ msgstr "Carregar"
-
-#~ msgid "mauriciobc"
-#~ msgstr "mauriciobc"
-
-#, python-format
-#~ msgid "Scanning timeline… %(count)d post evaluated (%(hours)d h back)"
-#~ msgid_plural ""
-#~ "Scanning timeline… %(count)d posts evaluated (%(hours)d h back)"
-#~ msgstr[0] ""
-#~ "Analisando a linha do tempo… %(count)d publicação avaliada (%(hours)d h "
-#~ "atrás)"
-#~ msgstr[1] ""
-#~ "Analisando a linha do tempo… %(count)d publicações avaliadas (%(hours)d h "
-#~ "atrás)"
-
-#~ msgid "Newer Posts"
-#~ msgstr "Publicações mais novas"
-
-#~ msgid "As a Box over the Window"
-#~ msgstr "Como uma caixa sobre a janela"
-
-#~ msgid "Fill the Window"
-#~ msgstr "Preencher a janela"
-
-#~ msgid "_Open Photos"
-#~ msgstr "_Abrir Fotos"
-
-#~ msgid "Reveal _Sensitive Media by Default"
-#~ msgstr "_Revelar mídia sensível por padrão"
-
-#~ msgid "Reveal S_poilers by Default"
-#~ msgstr "Revelar _spoilers por padrão"
-
-#~ msgid "Hide D_uplicate Boosts"
-#~ msgstr "_Ocultar impulsos duplicados"
-
-#~ msgid "Behavior"
-#~ msgstr "Comportamento"
-
-#~ msgid "Offer to Open _Copied Links"
-#~ msgstr "Oferta para Abrir _Links Copiados"
-
-#~ msgid "Warn Before Replying to an _Old Post"
-#~ msgstr "Avisar antes de responder a uma publicação _antiga"
-
-#~ msgid "Warn Before Copying a Link to a _Private Post"
-#~ msgstr "Avisar antes de copiar o link de uma publicação _privada"
-
-#~ msgid "Warn Before Boosting Media Without _Alt Text"
-#~ msgstr "Avisar antes de impulsionar mídia sem _texto alternativo"
-
-#~ msgid "_Run in Background"
-#~ msgstr "_Executar em segundo plano"
-
-#~ msgid "Stream _Public Timelines"
-#~ msgstr "Transmitir linhas do tempo _públicas"
-
-#~ msgid "_Group"
-#~ msgstr "_Agrupar"
-
-#~ msgid "A thread, with the focused post and its replies"
-#~ msgstr "Uma conversa, com a publicação em foco e suas respostas"
-
-#~ msgid "Copy Link"
-#~ msgstr "Copiar link"
-
-#, python-format
-#~ msgid "_Mute %s"
-#~ msgstr "_Silenciar %s"
-
-#, python-format
-#~ msgid "_Block %s"
-#~ msgstr "_Bloquear %s"
-
-#~ msgid "Admin _Dashboard"
-#~ msgstr "_Painel de administração"
-
-#, fuzzy
-#~ msgid "Favourite"
-#~ msgstr "Favoritar"
-
-#~ msgid "_Done"
-#~ msgstr "_Concluído"
-
-#, python-format
-#~ msgid "%s now follows you"
-#~ msgstr "%s agora segue você"
-
-#, python-format
-#~ msgid "%s now follow you"
-#~ msgstr "%s agora seguem você"
-
-#, python-format
-#~ msgid "%s wants to follow you"
-#~ msgstr "%s quer seguir você"
-
-#, python-format
-#~ msgid "%s want to follow you"
-#~ msgstr "%s querem seguir você"
-
-#, python-format
-#~ msgid "%s edited a post"
-#~ msgstr "%s editou uma publicação"
-
-#, python-format
-#~ msgid "%s sent a notification"
-#~ msgstr "%s enviou uma notificação"
-
-#~ msgid "Try Again"
-#~ msgstr "Tentar novamente"
-
-#~ msgid "Who can quote your new posts"
-#~ msgstr "Quem pode citar suas novas publicações"
-
-#~ msgid "Notification filtering is not available"
-#~ msgstr "A filtragem de notificações não está disponível"
-
-#, python-format
-#~ msgid "Restored %s"
-#~ msgstr "%s restaurado"
-
-#~ msgid "_New Post"
-#~ msgstr "_Nova publicação"
-
-#~ msgid "_Refresh"
-#~ msgstr "_Atualizar"
-
-#~ msgid "_Quit"
-#~ msgstr "Sa_ir"
-
-#~ msgid "English"
-#~ msgstr "English"
-
-#~ msgid "Español"
-#~ msgstr "Español"
-
-#~ msgid "Français"
-#~ msgstr "Français"
-
-#~ msgid "Deutsch"
-#~ msgstr "Deutsch"
-
-#~ msgid "Italiano"
-#~ msgstr "Italiano"
-
-#~ msgid "Português"
-#~ msgstr "Português"
-
-#~ msgid "Русский"
-#~ msgstr "Русский"
-
-#~ msgid "中文"
-#~ msgstr "中文"
-
-#, python-format
-#~ msgid ""
-#~ "%s. Administrator permissions are required, and the app needs to be "
-#~ "authorised for the admin scopes."
-#~ msgstr ""
-#~ "%s. São necessárias permissões de administrador, e o aplicativo precisa "
-#~ "estar autorizado para os escopos de administração."
