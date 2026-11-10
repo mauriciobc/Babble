@@ -122,10 +122,16 @@ pump(lambda: row.content.get_mapped() and row.content.get_height() > 0)
 check('expand control appears', row.expand_button.get_visible()
       and row.expand_button.get_label() == 'Show More')
 collapsed_height = row.content.get_height()
+collapsed_chars = row.content.get_buffer().get_char_count()
 row.expand_button.emit('clicked')
 check('expanded flag flipped', item.ui['expanded'] is True)
 check('label became Show Less',
       row.expand_button.get_label() == 'Show Less')
+# The flag, the animation and even the height pass when the body is
+# never re-rendered (measured, with _render_body skipped): the text is
+# what proves the post expanded.
+check('the body text grew',
+      row.content.get_buffer().get_char_count() > collapsed_chars)
 check('animation ran to its end',
       pump(lambda: row._body_tick is None and row._body_animation is None
            and row.content._height_override is None))

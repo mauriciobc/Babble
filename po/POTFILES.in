@@ -71,8 +71,8 @@ src/sidebarhost.py
 src/sidebarrail.py
 src/sourceline.py
 src/statusactions.py
-src/statusmenu.py
 src/statusfold.py
+src/statusmenu.py
 src/statusrow.py
 src/statustext.py
 src/statusviews.py

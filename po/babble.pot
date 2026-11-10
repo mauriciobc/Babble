@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-10 09:20-0300\n"
+"POT-Creation-Date: 2026-11-10 09:30-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -7106,6 +7106,24 @@ msgstr ""
 msgid "_Quote"
 msgstr ""
 
+#: src/statusfold.py:62
+msgid "Hide Content"
+msgstr ""
+
+#: src/statusfold.py:63
+msgid "Show Content"
+msgstr ""
+
+#: src/statusfold.py:66
+#, python-format
+msgid "Hide content warning: %s"
+msgstr ""
+
+#: src/statusfold.py:67
+#, python-format
+msgid "Show content warning: %s"
+msgstr ""
+
 #: src/statusmenu.py:160
 msgid "_View Post"
 msgstr ""
@@ -7302,24 +7320,6 @@ msgstr ""
 msgid ""
 "They will no longer be able to follow your account or see your posts, and "
 "their posts will be hidden."
-msgstr ""
-
-#: src/statusfold.py:62
-msgid "Hide Content"
-msgstr ""
-
-#: src/statusfold.py:63
-msgid "Show Content"
-msgstr ""
-
-#: src/statusfold.py:66
-#, python-format
-msgid "Hide content warning: %s"
-msgstr ""
-
-#: src/statusfold.py:67
-#, python-format
-msgid "Show content warning: %s"
 msgstr ""
 
 #. Fills the header up to the time and menu, so its hover pill
