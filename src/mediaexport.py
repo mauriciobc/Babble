@@ -30,6 +30,7 @@ from gi.repository import (  # noqa: E402
 
 from . import pages  # noqa: E402
 from .mediaplayback import download  # noqa: E402
+from .remotemedia import media_url  # noqa: E402
 
 # Open With copies older than this are deleted before the next one is
 # downloaded; the app they were handed to has long since read them.
@@ -187,14 +188,17 @@ class MediaExport:
 
     def save_as(self):
         attachment = self.current()
-        url = attachment.get('url') or attachment.get('remote_url')
+        url, is_remote = media_url(attachment)
         if not url:
             return False
+        self._gate_remote('save', attachment, url, is_remote)
+        return True
+
+    def _save_dialog(self, attachment, url):
         dialog = Gtk.FileDialog(
             title=_('Save Media'), accept_label=_('_Save'),
             initial_name=suggested_filename(attachment))
         dialog.save(self.window, None, self._on_save_chosen, url)
-        return True
 
     def _on_save_chosen(self, dialog, result, url):
         try:
@@ -238,16 +242,20 @@ class MediaExport:
         """Download the current attachment into the cache directory and
         offer the apps that can open it."""
         attachment = self.current()
-        url = attachment.get('url') or attachment.get('remote_url')
+        url, is_remote = media_url(attachment)
         if not url:
             return False
+        self._gate_remote('open-with', attachment, url, is_remote)
+        return True
+
+    def _open_with_download(self, attachment, url):
         directory = os.path.join(GLib.get_user_cache_dir(), 'babble',
                                  'open-with')
         try:
             os.makedirs(directory, exist_ok=True)
         except OSError:
             self._notify(_('Could not open media'))
-            return False
+            return
         prune_old_files(directory)
         destination = Gio.File.new_for_path(
             os.path.join(directory, suggested_filename(attachment)))
@@ -271,7 +279,6 @@ class MediaExport:
             self.launch_file(destination)
 
         download(url, destination, progress, done, self._downloads)
-        return True
 
     def launch_file(self, file):
         launcher = Gtk.FileLauncher.new(file)

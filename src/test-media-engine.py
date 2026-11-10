@@ -252,6 +252,36 @@ check('shutdown_all drops the playing engine',
 check('... by STOPPED, not the timeout', engine.how == 'stopped',
       repr(engine.how))
 
+# Release right after load(), before the first state change, also after a
+# stop (the viewer's navigation): every request carries the engine's
+# User-Agent and none starts once release has had a second to finish.
+AGENT = 'Babble-engine-test/1.0'
+server = fixture.MediaServer(fixture.write_clip())
+URL = server.base + '/media.ogg'
+for variant in ('load', 'stop then load'):
+    for _round in range(8):
+        owner = Owner()
+        engine = mediaengine.Engine(owner, user_agent=AGENT)
+        if variant == 'stop then load':
+            engine.load(URL)
+            wait(lambda engine=engine: engine.state.value_nick == 'paused', 5)
+            engine.stop()
+            engine.load(URL)
+        else:
+            engine.load(URL)
+        engine.release()
+        wait(lambda engine=engine: engine.play is None, 5)
+    wait(lambda: False, 1.0)
+    quiet = len(server.pairs)
+    wait(lambda: False, 1.0)
+    check('%s: every request carries the engine User-Agent' % variant,
+          all(pair[2] == AGENT for pair in server.pairs),
+          repr([pair for pair in server.pairs if pair[2] != AGENT]))
+    check('%s: no request starts after release plus a second' % variant,
+          len(server.pairs) == quiet, '%d then %d' % (quiet,
+                                                       len(server.pairs)))
+    server.pairs.clear()
+
 faulthandler.cancel_dump_traceback_later()
 if failures:
     print('\n%d media engine check(s) failed: %s'

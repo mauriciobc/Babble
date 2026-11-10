@@ -21,6 +21,11 @@
     <value nick="box" value="0"/>
     <value nick="fullscreen" value="1"/>
   </enum>
+  <enum id="io.github.mauriciobc.Babble.RemoteMedia">
+    <value nick="ask" value="0"/>
+    <value nick="load" value="1"/>
+    <value nick="never" value="2"/>
+  </enum>
   <enum id="io.github.mauriciobc.Babble.QuotePolicy">
     <value nick="public" value="0"/>
     <value nick="followers" value="1"/>
@@ -147,6 +152,11 @@
     <key name="media-viewer-mode" enum="io.github.mauriciobc.Babble.MediaViewerMode">
       <default>'box'</default>
       <summary>How the media viewer opens photos: as a box over the window, or filling it</summary>
+    </key>
+    <key name="remote-media" enum="io.github.mauriciobc.Babble.RemoteMedia">
+      <default>'ask'</default>
+      <summary>Whether to load media your server has no copy of from the original server</summary>
+      <description>Mastodon servers keep a copy of the media in posts they show you. When your server has none, the original lives on the author's server, and loading it lets that server see your IP address and that you viewed it. "ask" asks each time, "load" loads it, "never" does not.</description>
     </key>
     <key name="show-sensitive-media" type="b">
       <default>false</default>

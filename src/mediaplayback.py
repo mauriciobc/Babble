@@ -30,6 +30,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 from . import imagecache  # noqa: E402
 from . import mastodon  # noqa: E402
 from . import pages  # noqa: E402
+from .remotemedia import media_url  # noqa: E402
 
 CHUNK_SIZE = 64 * 1024
 
@@ -315,11 +316,11 @@ class MediaPlayback:
         if engine is not None:
             engine.release()
 
-    def _show_stream(self, attachment, url):
+    def _show_stream(self, attachment, url, is_remote):
         if _system_state('metered'):
             self._show_deferred(attachment)
         else:
-            self._start_stream(attachment, url)
+            self._gate_remote('show', attachment, url, is_remote)
 
     def _show_deferred(self, attachment):
         """On a metered connection: the preview and a button that starts
@@ -347,9 +348,9 @@ class MediaPlayback:
 
     def _on_load_clicked(self, _button):
         attachment = self.current()
-        url = attachment.get('url') or attachment.get('remote_url')
+        url, is_remote = media_url(attachment)
         if url:
-            self._start_stream(attachment, url)
+            self._gate_remote('show', attachment, url, is_remote)
 
     def _start_stream(self, attachment, url):
         """Load the remote *url* into the engine: no download first. The

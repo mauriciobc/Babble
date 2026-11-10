@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-09 12:11-0300\n"
+"POT-Creation-Date: 2026-11-09 21:32-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: French\n"
@@ -39,73 +39,75 @@ msgid "New Post"
 msgstr "Nouveau message"
 
 #: data/io.github.mauriciobc.Babble.desktop.in:22 src/filters.py:29
-#: src/navigation.py:37 src/preferences.py:630 src/sidebarcontrol.py:83
+#: src/navigation.py:37 src/preferences.py:640 src/sidebarcontrol.py:83
 #: src/sidebarcontrol.py:86 src/window.ui:509 src/window.ui:511
 #: src/window.ui:526
 msgid "Notifications"
 msgstr "Notifications"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:36
+#: data/io.github.mauriciobc.Babble.gschema.xml:41
 msgid "Width of the window in logical pixels"
 msgstr "Largeur de la fenêtre en pixels logiques"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:40
+#: data/io.github.mauriciobc.Babble.gschema.xml:45
 msgid "Height of the window in logical pixels"
 msgstr "Hauteur de la fenêtre en pixels logiques"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:44
+#: data/io.github.mauriciobc.Babble.gschema.xml:49
 msgid "Whether the window is maximized"
 msgstr "Si la fenêtre est maximisée"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:48
+#: data/io.github.mauriciobc.Babble.gschema.xml:53
 msgid "ID of the active account"
 msgstr "ID du compte actif"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:60
+#: data/io.github.mauriciobc.Babble.gschema.xml:65
 msgid "Timeline refresh interval in seconds; 0 turns automatic refresh off"
 msgstr ""
 "Intervalle de rafraîchissement de la chronologie en secondes ; 0 désactive "
 "le rafraîchissement automatique"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:64
+#: data/io.github.mauriciobc.Babble.gschema.xml:69
 msgid "Enabled plugins"
 msgstr "Extensions activées"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:65
+#: data/io.github.mauriciobc.Babble.gschema.xml:70
 msgid ""
 "Module names of the plugins to load, as in their .plugin files. Empty means "
 "libpeas is never loaded."
-msgstr "Noms de modules des extensions à charger, tels qu’ils figurent dans leurs fichiers .plugin. Vide signifie que libpeas n’est jamais chargé."
+msgstr ""
+"Noms de modules des extensions à charger, tels qu’ils figurent dans leurs "
+"fichiers .plugin. Vide signifie que libpeas n’est jamais chargé."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:69
+#: data/io.github.mauriciobc.Babble.gschema.xml:74
 msgid "Known accounts as JSON strings"
 msgstr "Comptes connus sous forme de chaînes JSON"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:73
+#: data/io.github.mauriciobc.Babble.gschema.xml:78
 msgid "Interface text size class"
 msgstr "Classe de taille du texte de l’interface"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:77
+#: data/io.github.mauriciobc.Babble.gschema.xml:82
 msgid "Visibility preset used for new posts"
 msgstr "Préréglage de visibilité utilisé pour les nouveaux messages"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:81
+#: data/io.github.mauriciobc.Babble.gschema.xml:86
 msgid "Hide the Catch Up page from the sidebar"
 msgstr "Masquer la page Catch Up de la barre latérale"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:85
+#: data/io.github.mauriciobc.Babble.gschema.xml:90
 msgid "Hide the Explore page from the sidebar"
 msgstr "Masquer la page Explorer de la barre latérale"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:89
+#: data/io.github.mauriciobc.Babble.gschema.xml:94
 msgid "Hide the Local timeline from the sidebar"
 msgstr "Masquer la chronologie locale de la barre latérale"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:93
+#: data/io.github.mauriciobc.Babble.gschema.xml:98
 msgid "Hide the Federated timeline from the sidebar"
 msgstr "Masquer la chronologie fédérée de la barre latérale"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:97
+#: data/io.github.mauriciobc.Babble.gschema.xml:102
 msgid ""
 "Show local and federated timelines the server disabled but this account may "
 "still read"
@@ -113,11 +115,11 @@ msgstr ""
 "Afficher les chronologies locale et fédérée désactivées par le serveur mais "
 "que ce compte peut encore lire"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:101
+#: data/io.github.mauriciobc.Babble.gschema.xml:106
 msgid "Style preference: follow the system, light or dark"
 msgstr "Préférence de style : suivre le système, clair ou sombre"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:105
+#: data/io.github.mauriciobc.Babble.gschema.xml:110
 msgid ""
 "Language of the interface, as a gettext locale name such as pt_BR; empty "
 "follows the system. Applied on the next start"
@@ -125,30 +127,30 @@ msgstr ""
 "Langue de l’interface, sous forme de nom de locale gettext tel que pt_BR ; "
 "vide suit le système. Appliqué au prochain démarrage"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:109 src/preferences.py:322
+#: data/io.github.mauriciobc.Babble.gschema.xml:114 src/preferences.py:327
 msgid "Increase the line height in posts"
 msgstr "Augmenter l’interligne dans les messages"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:113
+#: data/io.github.mauriciobc.Babble.gschema.xml:118
 msgid "Dim post media while the dark style is in use"
 msgstr "Atténuer les médias des messages pendant l’utilisation du style sombre"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:117
+#: data/io.github.mauriciobc.Babble.gschema.xml:122
 msgid "Render favorite, boost and follow notifications less prominently"
 msgstr ""
 "Afficher les notifications de favoris, boost et abonnement de manière moins "
 "visible"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:121
+#: data/io.github.mauriciobc.Babble.gschema.xml:126
 msgid "Render custom emojis in posts at a larger size"
 msgstr ""
 "Afficher les emojis personnalisés dans les messages en plus grande taille"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:125
+#: data/io.github.mauriciobc.Babble.gschema.xml:130
 msgid "Slightly enlarge custom emojis under the pointer"
 msgstr "Agrandir légèrement les emojis personnalisés sous le pointeur"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:129
+#: data/io.github.mauriciobc.Babble.gschema.xml:134
 msgid ""
 "Blur the desktop behind a translucent sidebar, where the compositor supports "
 "it"
@@ -157,61 +159,78 @@ msgstr ""
 "le prend en chargeFlouter le bureau derrière la barre latérale. Nécessite un "
 "compositeur prenant en charge le flou d’arrière-plan"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:133
+#: data/io.github.mauriciobc.Babble.gschema.xml:138
 msgid "Sidebar presentation when it is expanded: full labels, or an icon rail"
-msgstr "Présentation de la barre latérale dépliée : étiquettes complètes ou rail d’icônes"
+msgstr ""
+"Présentation de la barre latérale dépliée : étiquettes complètes ou rail "
+"d’icônes"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:137
+#: data/io.github.mauriciobc.Babble.gschema.xml:142
 msgid "Hide the expanded sidebar; the content header keeps the shell controls"
-msgstr "Masquer la barre latérale dépliée ; l’en-tête de contenu conserve les contrôles de l’application"
+msgstr ""
+"Masquer la barre latérale dépliée ; l’en-tête de contenu conserve les "
+"contrôles de l’application"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:141
+#: data/io.github.mauriciobc.Babble.gschema.xml:146
 msgid "Collapse long posts behind a Show More button"
 msgstr "Réduire les longs messages derrière un bouton « Voir plus »"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:145
+#: data/io.github.mauriciobc.Babble.gschema.xml:150
 msgid "Letterbox media instead of cropping it to the preview frame"
 msgstr ""
 "Afficher les médias en mode letterbox au lieu de les rogner dans le cadre "
 "d’aperçu"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:149
+#: data/io.github.mauriciobc.Babble.gschema.xml:154
 msgid ""
 "How the media viewer opens photos: as a box over the window, or filling it"
 msgstr ""
 "Comment le visionneuse de médias ouvre les photos : comme boîte par-dessus "
 "la fenêtre, ou en la remplissant"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:153
+#: data/io.github.mauriciobc.Babble.gschema.xml:158
+msgid ""
+"Whether to load media your server has no copy of from the original server"
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:159
+msgid ""
+"Mastodon servers keep a copy of the media in posts they show you. When your "
+"server has none, the original lives on the author's server, and loading it "
+"lets that server see your IP address and that you viewed it. \"ask\" asks "
+"each time, \"load\" loads it, \"never\" does not."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:163
 msgid "Reveal media marked as sensitive without a click"
 msgstr "Révéler les médias marqués comme sensibles sans cliquer"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:157
+#: data/io.github.mauriciobc.Babble.gschema.xml:167
 msgid "Expand posts behind content warnings by default"
 msgstr ""
 "Développer les messages derrière les avertissements de contenu par défaut"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:161
+#: data/io.github.mauriciobc.Babble.gschema.xml:171
 msgid "Show link preview cards under posts"
 msgstr "Afficher les cartes d’aperçu des liens sous les messages"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:165
+#: data/io.github.mauriciobc.Babble.gschema.xml:175
 msgid "Show Bluesky posts natively"
 msgstr "Afficher les messages Bluesky nativement"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:169
+#: data/io.github.mauriciobc.Babble.gschema.xml:179
 msgid "Show reply, boost and favorite counts on post actions"
 msgstr ""
 "Afficher les compteurs de réponses, boosts et favoris sur les actions de "
 "message"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:173
+#: data/io.github.mauriciobc.Babble.gschema.xml:183
 msgid "Show the reply, boost and favorite actions on every post in timelines"
 msgstr ""
 "Afficher les actions de réponse, boost et favori sur chaque message dans les "
 "chronologies"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:177
+#: data/io.github.mauriciobc.Babble.gschema.xml:187
 msgid ""
 "Group bursts of boosts into a horizontal carousel instead of listing each "
 "boost in the timeline"
@@ -221,67 +240,70 @@ msgstr ""
 "surtout composée de partages, les regroupe dans un carrousel horizontal au "
 "lieu d’une ligne chacun. S’applique aux fils ouverts ensuite"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:181
+#: data/io.github.mauriciobc.Babble.gschema.xml:191
 msgid "Show only the first boost of a post that several people boosted"
 msgstr ""
 "Afficher uniquement le premier boost d’un message boosté par plusieurs "
 "personnesN’affiche que le premier partage d’un message partagé par plusieurs "
 "personnes. S’applique aux fils ouverts ensuite"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:185
+#: data/io.github.mauriciobc.Babble.gschema.xml:195
 msgid "Hide reply posts on the home timeline from people you do not follow"
 msgstr ""
 "Masquer les messages de réponse sur la chronologie d’accueil des personnes "
 "que vous ne suivez pas"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:189
+#: data/io.github.mauriciobc.Babble.gschema.xml:199
 msgid "Hide boosts on the home timeline"
 msgstr "Masquer les partages dans l’accueil"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:193
+#: data/io.github.mauriciobc.Babble.gschema.xml:203
 msgid "Reopen the home timeline at the post you were reading"
 msgstr "Rouvrir le fil d’accueil au message que vous étiez en train de lire"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:197
+#: data/io.github.mauriciobc.Babble.gschema.xml:207
 msgid "The post each account was reading on the home timeline, by account key"
-msgstr "Le message que chaque compte lisait sur le fil d’accueil, par clé de compte"
+msgstr ""
+"Le message que chaque compte lisait sur le fil d’accueil, par clé de compte"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:201
+#: data/io.github.mauriciobc.Babble.gschema.xml:211
 msgid "Ask for visibility (and offer quoting) before boosting"
 msgstr "Demander la visibilité (et proposer une citation) avant de booster"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:205
+#: data/io.github.mauriciobc.Babble.gschema.xml:215
 msgid "Remove tracking parameters from opened links"
 msgstr "Supprimer les paramètres de suivi des liens ouverts"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:209
+#: data/io.github.mauriciobc.Babble.gschema.xml:219
 msgid "Open links to posts and profiles on other servers inside Babble"
 msgstr ""
 "Ouvrir les liens vers des messages et profils sur d’autres serveurs à "
 "l’intérieur de BabbleOuvrir dans l’application les liens vers des messages "
 "et profils d’autres serveurs"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:213
+#: data/io.github.mauriciobc.Babble.gschema.xml:223
 msgid "Open web links in a column beside the timeline"
 msgstr "Ouvrir les liens web dans une colonne à côté du fil"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:214
+#: data/io.github.mauriciobc.Babble.gschema.xml:224
 msgid ""
 "When off, or when WebKitGTK is not installed, web links open in the default "
 "browser."
-msgstr "Désactivé, ou si WebKitGTK n’est pas installé, les liens web s’ouvrent dans le navigateur par défaut."
+msgstr ""
+"Désactivé, ou si WebKitGTK n’est pas installé, les liens web s’ouvrent dans "
+"le navigateur par défaut."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:218
+#: data/io.github.mauriciobc.Babble.gschema.xml:228
 msgid "Let pages opened in Babble run JavaScript"
 msgstr "Autoriser les pages ouvertes dans Babble à exécuter du JavaScript"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:222
+#: data/io.github.mauriciobc.Babble.gschema.xml:232
 msgid "Offer to open post and profile links found on the clipboard"
 msgstr ""
 "Proposer d’ouvrir les liens de messages et profils trouvés dans le presse-"
 "papiers"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:223
+#: data/io.github.mauriciobc.Babble.gschema.xml:233
 msgid ""
 "When the window gains focus, check the clipboard for a link to a post, "
 "profile or hashtag and offer to open it in Babble."
@@ -289,31 +311,31 @@ msgstr ""
 "Lorsque la fenêtre gagne le focus, vérifier le presse-papiers pour un lien "
 "vers un message, profil ou hashtag et proposer de l’ouvrir dans Babble."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:227
+#: data/io.github.mauriciobc.Babble.gschema.xml:237
 msgid "Warn before replying to a post older than three months"
 msgstr "Avertir avant de répondre à un message de plus de trois mois"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:231
+#: data/io.github.mauriciobc.Babble.gschema.xml:241
 msgid "Warn before copying a link to a non-public post"
 msgstr "Avertir avant de copier un lien vers un message non public"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:235
+#: data/io.github.mauriciobc.Babble.gschema.xml:245
 msgid "Warn before boosting a post with media that lacks alt text"
 msgstr ""
 "Avertir avant de booster un message avec des médias sans texte alternatif"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:239
+#: data/io.github.mauriciobc.Babble.gschema.xml:249
 msgid "Keep running after the window closes to deliver notifications"
 msgstr ""
 "Continuer à fonctionner après la fermeture de la fenêtre pour délivrer les "
 "notificationsContinuer à fonctionner après la fermeture de la fenêtre pour "
 "afficher les notifications"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:243
+#: data/io.github.mauriciobc.Babble.gschema.xml:253
 msgid "Bind a system-wide shortcut that opens the composer"
 msgstr "Lier un raccourci système qui ouvre le compositeur"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:244
+#: data/io.github.mauriciobc.Babble.gschema.xml:254
 msgid ""
 "Registered through the XDG GlobalShortcuts portal; the key combination is "
 "chosen in the system settings."
@@ -321,74 +343,85 @@ msgstr ""
 "Enregistré via le portail XDG GlobalShortcuts ; la combinaison de touches "
 "est choisie dans les paramètres du système."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:248
+#: data/io.github.mauriciobc.Babble.gschema.xml:258
 msgid "Stream new posts and notifications in real time"
 msgstr "Fluxer les nouveaux messages et notifications en temps réel"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:252
+#: data/io.github.mauriciobc.Babble.gschema.xml:262
 msgid "Also stream the Local and Federated timelines"
 msgstr "Fluxer également les chronologies locale et fédérée"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:256
+#: data/io.github.mauriciobc.Babble.gschema.xml:266
 msgid "ISO 639-1 language of new posts; empty follows the system locale"
 msgstr ""
 "Langue ISO 639-1 des nouveaux messages ; vide suit la langue du système"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:260
+#: data/io.github.mauriciobc.Babble.gschema.xml:270
 msgid "Default quote policy on your server account (not per post in Babble)"
 msgstr ""
 "Politique de citation par défaut sur votre compte de serveur (pas par "
 "message dans Babble)"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:264
+#: data/io.github.mauriciobc.Babble.gschema.xml:274
 msgid "Mark new posts sensitive in the composer and on your server"
 msgstr ""
 "Marquer les nouveaux messages comme sensibles dans le compositeur et sur "
 "votre serveur"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:268
+#: data/io.github.mauriciobc.Babble.gschema.xml:278
 msgid "Notification types announced on the desktop"
 msgstr "Types de notifications annoncés sur le bureau"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:272
+#: data/io.github.mauriciobc.Babble.gschema.xml:282
 msgid "Combine desktop notifications of the same type and post"
 msgstr ""
 "Regrouper les notifications de bureau du même type et messageRegrouper en "
 "une seule les notifications de même type et de même message"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:276
+#: data/io.github.mauriciobc.Babble.gschema.xml:286
 msgid "Notification types hidden from the Notifications page"
 msgstr "Types de notifications masqués de la page Notifications"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:280
+#: data/io.github.mauriciobc.Babble.gschema.xml:290
 msgid "Most recent search queries, newest first"
 msgstr "Requêtes de recherche les plus récentes, d’abord les plus récentes"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:284
+#: data/io.github.mauriciobc.Babble.gschema.xml:294
 msgid "Shortcodes of recently inserted custom emojis, newest first"
 msgstr ""
 "Codes courts des emojis personnalisés insérés récemment, d’abord les plus "
 "récents"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:288
+#: data/io.github.mauriciobc.Babble.gschema.xml:298
 msgid "Lists pinned to the sidebar, as \"account-id/list-id\""
 msgstr "Listes épinglées à la barre latérale, comme \"account-id/list-id\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:292
+#: data/io.github.mauriciobc.Babble.gschema.xml:302
 msgid "Hashtags pinned to the sidebar, as \"account-id/tag\""
 msgstr "Hashtags épinglés à la barre latérale, comme \"account-id/tag\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:296
+#: data/io.github.mauriciobc.Babble.gschema.xml:306
 msgid "Saved multi-hashtag timelines as JSON {\"title\", \"tags\": [...]}"
 msgstr ""
 "Chronologies multi-hashtag enregistrées au format JSON {\"title\", \"tags\": "
 "[...]}"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:300
+#: data/io.github.mauriciobc.Babble.gschema.xml:310
 msgid "Unsent composer drafts as JSON, newest first"
 msgstr ""
 "Brouillons de compositeur non envoyés au format JSON, d’abord les plus "
 "récents"
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:315
+msgid "Volume of videos and audio in the media viewer"
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:316
+msgid ""
+"The volume the media viewer last played video and audio at, from 0 (silent) "
+"to 1 (full). It is restored when the next video or audio opens. Whether the "
+"sound was muted is not remembered, and GIFVs stay muted."
+msgstr ""
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:9
 msgid "Mauricio Castro"
@@ -427,7 +460,9 @@ msgstr "Fil d’accueil avec messages, médias et barre d’actions"
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:38
 msgid ""
 "Catch Up: the posts you missed over a window you choose, ranked as a grid"
-msgstr "Catch Up : les messages que vous avez manqués sur une période de votre choix, classés en grille"
+msgstr ""
+"Catch Up : les messages que vous avez manqués sur une période de votre "
+"choix, classés en grille"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:42
 msgid "A hashtag timeline, with a quoted post"
@@ -442,13 +477,20 @@ msgid ""
 "Babble can now be extended with plugins, turned on from a new Plugins page. "
 "Two ship with it: Wallabag, to save a post's link for later, and Hashpanel, "
 "for the daily hashtags of the Brazilian fediverse."
-msgstr "Babble peut désormais être étendu avec des extensions, activables depuis une nouvelle page Extensions. Deux sont livrées avec : Wallabag, pour enregistrer le lien d’un message pour plus tard, et Hashpanel, pour les mots-clics quotidiens du fédivers brésilien."
+msgstr ""
+"Babble peut désormais être étendu avec des extensions, activables depuis une "
+"nouvelle page Extensions. Deux sont livrées avec : Wallabag, pour "
+"enregistrer le lien d’un message pour plus tard, et Hashpanel, pour les mots-"
+"clics quotidiens du fédivers brésilien."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:71
 msgid ""
 "The composer suggests hashtags as you type, and can schedule a new post. "
 "Home reopens at the post you were reading."
-msgstr "L’éditeur suggère des mots-clics pendant la saisie et peut programmer un nouveau message. Accueil se rouvre au message que vous étiez en train de lire."
+msgstr ""
+"L’éditeur suggère des mots-clics pendant la saisie et peut programmer un "
+"nouveau message. Accueil se rouvre au message que vous étiez en train de "
+"lire."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:75
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:97
@@ -457,7 +499,8 @@ msgstr "Autres changements :"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:77
 msgid "Deleting a post and removing a boost can be undone."
-msgstr "La suppression d’un message et le retrait d’un partage peuvent être annulés."
+msgstr ""
+"La suppression d’un message et le retrait d’un partage peuvent être annulés."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:78
 msgid "A single notification can be dismissed."
@@ -465,11 +508,14 @@ msgstr "Une notification peut être ignorée."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:79
 msgid "Boosts can be hidden on Home, and Home filters apply at once."
-msgstr "Les partages peuvent être masqués sur Accueil, et les filtres d’Accueil s’appliquent d’un coup."
+msgstr ""
+"Les partages peuvent être masqués sur Accueil, et les filtres d’Accueil "
+"s’appliquent d’un coup."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:80
 msgid "Editing a scheduled post keeps its poll, duration and language."
-msgstr "Modifier un message programmé conserve son sondage, sa durée et sa langue."
+msgstr ""
+"Modifier un message programmé conserve son sondage, sa durée et sa langue."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:81
 msgid "Removing an account also removes its saved credentials."
@@ -477,7 +523,9 @@ msgstr "Retirer un compte supprime aussi ses identifiants enregistrés."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:82
 msgid "A missing keyring is reported clearly instead of failing quietly."
-msgstr "Un trousseau manquant est signalé clairement au lieu d’échouer silencieusement."
+msgstr ""
+"Un trousseau manquant est signalé clairement au lieu d’échouer "
+"silencieusement."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:88
 msgid ""
@@ -540,7 +588,13 @@ msgid ""
 "reached a translator — and re-words about 55 menu labels that gained an "
 "access key, a mnemonic being part of the string. The new and re-worded "
 "entries show in English until a translator gets to them."
-msgstr "Traductions : rien de déjà traduit n’a été perdu. Cette version ajoute 35 chaînes au modèle — principalement les résumés GSettings, qui n’étaient jamais parvenus à un traducteur — et reformule environ 55 libellés de menu qui ont gagné une touche d’accès, un mnémonique faisant partie de la chaîne. Les entrées nouvelles et reformulées s’affichent en anglais jusqu’à ce qu’un traducteur s’en occupe."
+msgstr ""
+"Traductions : rien de déjà traduit n’a été perdu. Cette version ajoute 35 "
+"chaînes au modèle — principalement les résumés GSettings, qui n’étaient "
+"jamais parvenus à un traducteur — et reformule environ 55 libellés de menu "
+"qui ont gagné une touche d’accès, un mnémonique faisant partie de la chaîne. "
+"Les entrées nouvelles et reformulées s’affichent en anglais jusqu’à ce qu’un "
+"traducteur s’en occupe."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:118
 msgid "Initial public release."
@@ -577,7 +631,8 @@ msgid "Trend over the selected period"
 msgstr "Tendance sur la période sélectionnée"
 
 #: src/admin.py:230 src/catchup/page.py:131 src/fedicollections.py:519
-#: src/mediaviewer.py:343 src/pages.py:744 src/wrapped.py:240
+#: src/mediaviewerchrome.py:113 src/mediaviewerchrome.py:235 src/pages.py:744
+#: src/wrapped.py:240
 msgid "Loading"
 msgstr "Chargement"
 
@@ -897,8 +952,8 @@ msgstr "Prendre une mesure"
 #: src/fedicollections.py:744 src/hashtags.py:460 src/lists.py:166
 #: src/notificationctrl.py:590 src/pages.py:493 src/pages.py:521
 #: src/profile.py:203 src/profile.py:232 src/profileedit.py:230
-#: src/scheduled.py:124 src/search.py:584 src/statusactions.py:621
-#: src/statusactions.py:673 src/window.py:1884
+#: src/remotemedia.py:75 src/scheduled.py:124 src/search.py:584
+#: src/statusactions.py:621 src/statusactions.py:673 src/window.py:1884
 msgid "_Cancel"
 msgstr "_Annuler"
 
@@ -1575,7 +1630,8 @@ msgstr "Le trousseau système a refusé d’enregistrer la connexion."
 
 #: src/auth.py:677
 msgid "Moderation access was saved for the account you switched away from."
-msgstr "L’accès de modération a été enregistré pour le compte que vous avez quitté."
+msgstr ""
+"L’accès de modération a été enregistré pour le compte que vous avez quitté."
 
 #: src/auth.py:685
 msgid "Moderation access granted"
@@ -1713,7 +1769,7 @@ msgstr "Analyse du fil…"
 msgid "Preparing your catch-up…"
 msgstr "Préparation de votre Catch Up…"
 
-#: src/catchup/page.py:476 src/explore.py:395 src/preferences.py:349
+#: src/catchup/page.py:476 src/explore.py:395 src/preferences.py:354
 #: src/profile.py:684 src/search.py:505 src/timelinepage.py:223
 msgid "Posts"
 msgstr "Messages"
@@ -1777,7 +1833,7 @@ msgstr ""
 "Une chronologie à part pour vos abonnements, avec une vue d’ensemble en un "
 "coup d’œil"
 
-#: src/catchup/page_controls.py:37 src/preferences.py:510
+#: src/catchup/page_controls.py:37 src/preferences.py:520
 msgid "_Catch Up"
 msgstr "Catch _Up"
 
@@ -1981,7 +2037,7 @@ msgid "Replies"
 msgstr "Réponses"
 
 #: src/catchup/pipeline.py:355 src/catchup/pipeline.py:373
-#: src/notificationcopy.py:63 src/preferences.py:378 src/statusrow.py:666
+#: src/notificationcopy.py:63 src/preferences.py:388 src/statusrow.py:666
 #: src/statusviews.py:25 src/statusviews.py:112
 msgid "Boosts"
 msgstr "Partages"
@@ -2249,21 +2305,21 @@ msgid "Open copied collection?"
 msgstr "Ouvrir la collection copiée ?"
 
 #: src/compose.py:72 src/fedicollections.py:583 src/fedicollections.py:784
-#: src/preferences.py:68 src/profileedit.py:42 src/scheduled.py:401
+#: src/preferences.py:73 src/profileedit.py:42 src/scheduled.py:401
 #: src/search.py:620 src/timelinebase.py:172
 msgid "Public"
 msgstr "Public"
 
 #: src/compose.py:73 src/fedicollections.py:584 src/fedicollections.py:789
-#: src/preferences.py:69 src/scheduled.py:402 src/timelinebase.py:173
+#: src/preferences.py:74 src/scheduled.py:402 src/timelinebase.py:173
 msgid "Unlisted"
 msgstr "Non répertorié"
 
-#: src/compose.py:74 src/preferences.py:70 src/profileedit.py:44
+#: src/compose.py:74 src/preferences.py:75 src/profileedit.py:44
 msgid "Followers only"
 msgstr "Abonnés uniquement"
 
-#: src/compose.py:75 src/preferences.py:71 src/scheduled.py:404
+#: src/compose.py:75 src/preferences.py:76 src/scheduled.py:404
 msgid "Direct"
 msgstr "Direct"
 
@@ -2406,7 +2462,8 @@ msgstr "Le brouillon enregistré contient des réglages non pris en charge."
 
 #: src/compose.py:753
 msgid "Remove the original scheduled post before starting another post."
-msgstr "Retirez le message programmé d’origine avant de commencer un autre message."
+msgstr ""
+"Retirez le message programmé d’origine avant de commencer un autre message."
 
 #: src/compose.py:757
 msgid "Finish sending this post first."
@@ -2487,7 +2544,9 @@ msgstr "Impossible de retirer le message programmé d’origine"
 msgid ""
 "The replacement was saved, but the original scheduled post could not be "
 "removed. Both may be published."
-msgstr "La remplacement a été enregistré, mais le message programmé d’origine n’a pas pu être retiré. Les deux peuvent être publiés."
+msgstr ""
+"La remplacement a été enregistré, mais le message programmé d’origine n’a "
+"pas pu être retiré. Les deux peuvent être publiés."
 
 #: src/compose.py:1569
 msgid "_Retry Removal"
@@ -2533,7 +2592,9 @@ msgstr "Conserver des messages programmés en double ?"
 msgid ""
 "The replacement was saved, but the original is still scheduled. Closing "
 "leaves both entries on the server."
-msgstr "La remplacement a été enregistré, mais l’original est toujours programmé. Fermer laisse les deux entrées sur le serveur."
+msgstr ""
+"La remplacement a été enregistré, mais l’original est toujours programmé. "
+"Fermer laisse les deux entrées sur le serveur."
 
 #: src/compose.py:1721
 msgid "_Keep Open"
@@ -3135,7 +3196,7 @@ msgid "Edit Collection"
 msgstr "Modifier la collection"
 
 #: src/fedicollections.py:748 src/filters.py:178 src/hashtags.py:463
-#: src/lists.py:170 src/mediaviewer.py:839 src/profile.py:235
+#: src/lists.py:170 src/mediaexport.py:199 src/profile.py:235
 #: src/profileedit.py:235
 msgid "_Save"
 msgstr "_Enregistrer"
@@ -3398,7 +3459,7 @@ msgstr ""
 "Masquer les messages correspondant à des mots-clés ou avertir à leur sujet"
 
 #: src/filters.py:392 src/filters.py:486 src/filters.py:490
-#: src/preferences.py:466
+#: src/preferences.py:476
 msgid "Filters"
 msgstr "Filtres"
 
@@ -3813,77 +3874,77 @@ msgstr "Impossible de charger les listes : %s"
 
 #. Translators: toast when a web+ap:// or web+mastodon:// link
 #. is opened before any account is signed in.
-#: src/main.py:334
+#: src/main.py:344
 msgid "Sign in to open this link"
 msgstr "Se connecter pour ouvrir ce lien"
 
-#: src/main.py:375
+#: src/main.py:385
 msgid "translator-credits"
 msgstr "crédits des traducteurs"
 
-#: src/mastodon.py:288
+#: src/mastodon.py:299
 #, python-format
 msgid "Invalid server address: %s"
 msgstr "Adresse de serveur non valide : %s"
 
-#: src/mastodon.py:290
+#: src/mastodon.py:301
 #, python-format
 msgid "Babble only connects over HTTPS: %s"
 msgstr "Babble ne se connecte qu’en HTTPS : %s"
 
-#: src/mastodon.py:694
+#: src/mastodon.py:700
 msgid "Operation canceled"
 msgstr "Opération annulée"
 
-#: src/mastodon.py:699
+#: src/mastodon.py:705
 msgid "Request failed"
 msgstr "La demande a échoué"
 
-#: src/mastodon.py:707
+#: src/mastodon.py:713
 msgid "Invalid address"
 msgstr "Adresse invalide"
 
-#: src/mastodon.py:758
+#: src/mastodon.py:764
 msgid "The server returned an invalid JSON response."
 msgstr "Le serveur a renvoyé une réponse JSON invalide."
 
-#: src/mastodon.py:772
+#: src/mastodon.py:778
 #, python-format
 msgid "Rate limited by this server. Trying again in %d second."
 msgid_plural "Rate limited by this server. Trying again in %d seconds."
 msgstr[0] "Ce serveur limite les requêtes. Nouvel essai dans %d seconde."
 msgstr[1] "Ce serveur limite les requêtes. Nouvel essai dans %d secondes."
 
-#: src/mastodon.py:817
+#: src/mastodon.py:823
 #, python-format
 msgid "Invalid address: %s"
 msgstr "Adresse non valide : %s"
 
-#: src/mastodon.py:1074
+#: src/mastodon.py:1080
 msgid "The server did not return an application id."
 msgstr "Le serveur n’a pas retourné d’ID d’application."
 
-#: src/mastodon.py:1079
+#: src/mastodon.py:1085
 msgid "The server did not return an application secret."
 msgstr "Le serveur n’a pas renvoyé de secret d’application."
 
-#: src/mastodon.py:1162
+#: src/mastodon.py:1168
 msgid "This login cannot be signed out on the server."
 msgstr "Cette connexion ne peut pas être révoquée sur le serveur."
 
-#: src/mastodon.py:1244
+#: src/mastodon.py:1250
 msgid "Authorization was denied."
 msgstr "L’autorisation a été refusée."
 
-#: src/mastodon.py:1246
+#: src/mastodon.py:1252
 msgid "The server could not authorize this request."
 msgstr "Le serveur n’a pas pu autoriser cette demande."
 
-#: src/mastodon.py:1270
+#: src/mastodon.py:1276
 msgid "The server did not return an access token."
 msgstr "Le serveur n’a pas renvoyé de jeton d’accès."
 
-#: src/mastodon.py:1281
+#: src/mastodon.py:1287
 msgid "The server did not return a valid account."
 msgstr "Le serveur n’a pas renvoyé de compte valide."
 
@@ -3902,11 +3963,11 @@ msgid_plural "%d Boosts"
 msgstr[0] "%d partage"
 msgstr[1] "%d partages"
 
-#: src/mediabox.py:408 src/mediabox.py:506 src/mediaviewer.py:624
+#: src/mediabox.py:408 src/mediabox.py:506 src/mediaviewer.py:274
 msgid "Image"
 msgstr "Image"
 
-#: src/mediabox.py:408 src/mediaviewer.py:624
+#: src/mediabox.py:408 src/mediaviewer.py:274
 msgid "Video"
 msgstr "Vidéo"
 
@@ -3914,7 +3975,7 @@ msgstr "Vidéo"
 msgid "Animated Image"
 msgstr "Image animée"
 
-#: src/mediabox.py:409 src/mediaviewer.py:625
+#: src/mediabox.py:409 src/mediaviewer.py:275
 msgid "Audio"
 msgstr "Audio"
 
@@ -3926,189 +3987,209 @@ msgstr "Afficher le contenu sensible"
 msgid "Hide Sensitive Content"
 msgstr "Masquer le contenu sensible"
 
-#: src/mediabox.py:582 src/mediaviewer.py:626 src/notificationrow.py:317
+#: src/mediabox.py:582 src/mediaviewer.py:276 src/notificationrow.py:317
 msgid "Attachment"
 msgstr "Pièce jointe"
 
-#: src/mediaplayback.py:46 src/mediaviewer.py:81
-#, python-brace-format
-msgid "The server answered with HTTP {status}"
-msgstr "Le serveur a répondu avec HTTP {status}"
-
-#: src/mediaplayback.py:80 src/mediaviewer.py:76
-msgid "Invalid media address"
-msgstr "Adresse de média non valide"
-
-#: src/mediaplayback.py:253
-msgid "Load _Audio"
-msgstr "Charger _Audio"
-
-#: src/mediaplayback.py:255
-msgid "Load _Video"
-msgstr "Charger _Vidéo"
-
-#: src/mediaplayback.py:282 src/mediaplayback.py:315 src/mediaplayback.py:411
-msgid "Could Not Load Media"
-msgstr "Impossible de charger le média"
-
-#. Translators: why the session is kept from going idle, shown by
-#. the desktop where it lists apps blocking suspend or screen lock.
-#: src/mediaplayback.py:443
-msgid "Playing media"
-msgstr "Lecture de médias"
-
-#: src/mediaviewer.py:155 src/statusviews.py:144 src/statusviews.py:150
+#: src/mediaexport.py:68 src/statusviews.py:144 src/statusviews.py:150
 msgid "media"
 msgstr "média"
 
-#: src/mediaviewer.py:286 src/profile.py:688 src/search.py:607
-msgid "Media"
-msgstr "Média"
-
-#: src/mediaviewer.py:291 src/mediaviewer.py:293
-msgid "Close"
-msgstr "_Fermer"
-
-#: src/mediaviewer.py:299 src/mediaviewer.py:820
-msgid "Fullscreen"
-msgstr "Plein écran"
-
-#: src/mediaviewer.py:305
-msgid "_Copy URL"
-msgstr "_Copier l’URL"
-
-#: src/mediaviewer.py:306
-msgid "Copy _Image"
-msgstr "_Copier l’image"
-
-#: src/mediaviewer.py:312 src/mediaviewer.py:398
-msgid "_Open in Browser"
-msgstr "_Ouvrir dans le navigateur"
-
-#: src/mediaviewer.py:313
-msgid "Open _With…"
-msgstr "Ouvrir _Avec…"
-
-#: src/mediaviewer.py:316 src/mediaviewer.py:317
-msgid "More Actions"
-msgstr "Plus d’actions"
-
-#: src/mediaviewer.py:321
-msgid "Save As…"
-msgstr "Enregistrer sous…"
-
-#: src/mediaviewer.py:376
-msgid "Media is not downloaded automatically on a metered connection"
-msgstr ""
-"Les médias ne sont pas téléchargés automatiquement sur une connexion limitée"
-
-#: src/mediaviewer.py:391 src/pages.py:656
-msgid "_Try Again"
-msgstr "_Réessayer"
-
-#: src/mediaviewer.py:410
-msgid "Previous Attachment"
-msgstr "Pièce jointe précédente"
-
-#: src/mediaviewer.py:418
-msgid "Next Attachment"
-msgstr "Pièce jointe suivante"
-
-#: src/mediaviewer.py:433
-msgid "Zoom Out"
-msgstr "Zoom arrière"
-
-#: src/mediaviewer.py:437
-msgid "Toggle Fit and Actual Size"
-msgstr "Basculer entre ajusté et taille réelle"
-
-#: src/mediaviewer.py:443
-msgid "Zoom In"
-msgstr "Zoom avant"
-
-#: src/mediaviewer.py:447
-msgid "Fit to Window"
-msgstr "Ajuster à la fenêtre"
-
-#: src/mediaviewer.py:548
-msgid "ALT"
-msgstr "ALT"
-
-#: src/mediaviewer.py:549 src/mediaviewer.py:551
-msgid "Show or Hide Description"
-msgstr "Afficher ou masquer la description"
-
-#: src/mediaviewer.py:600
-msgid "No Media"
-msgstr "Aucun média"
-
-#: src/mediaviewer.py:600
-msgid "This post has no media."
-msgstr "Ce message ne contient aucun média."
-
-#: src/mediaviewer.py:610 src/mediaviewer.py:619
-msgid "Preview Not Available"
-msgstr "Aperçu non disponible"
-
-#: src/mediaviewer.py:611
-msgid "This attachment has no address to load."
-msgstr "Cette pièce jointe n’a aucune adresse à charger."
-
-#: src/mediaviewer.py:620
-msgid "This kind of attachment cannot be shown here."
-msgstr "Ce type de pièce jointe ne peut pas être affiché ici."
-
-#: src/mediaviewer.py:625
-msgid "Animated GIF"
-msgstr "GIF animé"
-
-#. Translators: position in a media gallery, e.g. "2 of 4"
-#: src/mediaviewer.py:640
-#, python-brace-format
-msgid "{current} of {total}"
-msgstr "{current} sur {total}"
-
-#: src/mediaviewer.py:658
-#, python-brace-format
-msgid "Attachment {current} of {total}"
-msgstr "Pièce jointe {current} sur {total}"
-
-#: src/mediaviewer.py:706
-msgid "Could Not Load Image"
-msgstr "Impossible de charger l’image"
-
-#: src/mediaviewer.py:738
+#: src/mediaexport.py:136
 msgid "URL copied"
 msgstr "URL copiée"
 
-#: src/mediaviewer.py:749
+#: src/mediaexport.py:147
 msgid "Image copied"
 msgstr "Image copiée"
 
-#: src/mediaviewer.py:820
-msgid "Exit Fullscreen"
-msgstr "Quitter le plein écran"
-
-#: src/mediaviewer.py:839
+#: src/mediaexport.py:199
 msgid "Save Media"
 msgstr "Enregistrer le média"
 
-#: src/mediaviewer.py:850 src/mediaviewer.py:876
+#: src/mediaexport.py:209 src/mediaexport.py:235
 msgid "Could not save media"
 msgstr "Impossible d’enregistrer le média"
 
-#: src/mediaviewer.py:873
+#: src/mediaexport.py:232
 #, python-brace-format
 msgid "Saved “{name}”"
 msgstr "« {name} » enregistré"
 
-#: src/mediaviewer.py:894 src/mediaviewer.py:913 src/mediaviewer.py:932
+#: src/mediaexport.py:257 src/mediaexport.py:276 src/mediaexport.py:294
 msgid "Could not open media"
 msgstr "Impossible d’ouvrir les médias"
 
-#: src/mediaviewer.py:941
+#: src/mediaexport.py:303
 msgid "Show in _Folder"
 msgstr "Afficher dans le _dossier"
+
+#: src/mediaplayback.py:52 src/mediaviewer.py:85
+#, python-brace-format
+msgid "The server answered with HTTP {status}"
+msgstr "Le serveur a répondu avec HTTP {status}"
+
+#: src/mediaplayback.py:86 src/mediaviewer.py:80
+msgid "Invalid media address"
+msgstr "Adresse de média non valide"
+
+#: src/mediaplayback.py:332
+msgid "Load _Audio"
+msgstr "Charger _Audio"
+
+#: src/mediaplayback.py:334
+msgid "Load _Video"
+msgstr "Charger _Vidéo"
+
+#: src/mediaplayback.py:371 src/mediaplayback.py:479
+msgid "Could Not Load Media"
+msgstr "Impossible de charger le média"
+
+#: src/mediaplayback.py:372
+msgid "Playback is not available on this system."
+msgstr ""
+
+#. Translators: why the session is kept from going idle, shown by
+#. the desktop where it lists apps blocking suspend or screen lock.
+#: src/mediaplayback.py:534
+msgid "Playing media"
+msgstr "Lecture de médias"
+
+#. Translators: shown when a video cannot be played because the
+#. system lacks its decoder. "codecs-extra" is the name of the
+#. Flatpak extension and is not translated.
+#: src/mediastream.py:61
+msgid ""
+"This video uses a format that needs the codecs-extra extension. Install it "
+"and try again."
+msgstr ""
+
+#. Translators: {codec} is the name of the missing decoder, as GStreamer
+#. words it, for example "Vorbis audio decoder".
+#: src/mediastream.py:65
+#, python-brace-format
+msgid "This media needs a codec that is not installed: {codec}"
+msgstr ""
+
+#: src/mediaviewer.py:243
+msgid "No Media"
+msgstr "Aucun média"
+
+#: src/mediaviewer.py:243
+msgid "This post has no media."
+msgstr "Ce message ne contient aucun média."
+
+#: src/mediaviewer.py:253 src/mediaviewer.py:262
+msgid "Preview Not Available"
+msgstr "Aperçu non disponible"
+
+#: src/mediaviewer.py:254
+msgid "This attachment has no address to load."
+msgstr "Cette pièce jointe n’a aucune adresse à charger."
+
+#: src/mediaviewer.py:263
+msgid "This kind of attachment cannot be shown here."
+msgstr "Ce type de pièce jointe ne peut pas être affiché ici."
+
+#: src/mediaviewer.py:275
+msgid "Animated GIF"
+msgstr "GIF animé"
+
+#. Translators: position in a media gallery, e.g. "2 of 4"
+#: src/mediaviewer.py:290
+#, python-brace-format
+msgid "{current} of {total}"
+msgstr "{current} sur {total}"
+
+#: src/mediaviewer.py:308
+#, python-brace-format
+msgid "Attachment {current} of {total}"
+msgstr "Pièce jointe {current} sur {total}"
+
+#: src/mediaviewer.py:357
+msgid "Could Not Load Image"
+msgstr "Impossible de charger l’image"
+
+#: src/mediaviewer.py:409
+msgid "Exit Fullscreen"
+msgstr "Quitter le plein écran"
+
+#: src/mediaviewer.py:409 src/mediaviewerchrome.py:69
+msgid "Fullscreen"
+msgstr "Plein écran"
+
+#: src/mediaviewerchrome.py:56 src/profile.py:688 src/search.py:607
+msgid "Media"
+msgstr "Média"
+
+#: src/mediaviewerchrome.py:61 src/mediaviewerchrome.py:63
+msgid "Close"
+msgstr "_Fermer"
+
+#: src/mediaviewerchrome.py:75
+msgid "_Copy URL"
+msgstr "_Copier l’URL"
+
+#: src/mediaviewerchrome.py:76
+msgid "Copy _Image"
+msgstr "_Copier l’image"
+
+#: src/mediaviewerchrome.py:82 src/mediaviewerchrome.py:168
+msgid "_Open in Browser"
+msgstr "_Ouvrir dans le navigateur"
+
+#: src/mediaviewerchrome.py:83
+msgid "Open _With…"
+msgstr "Ouvrir _Avec…"
+
+#: src/mediaviewerchrome.py:86 src/mediaviewerchrome.py:87
+msgid "More Actions"
+msgstr "Plus d’actions"
+
+#: src/mediaviewerchrome.py:91
+msgid "Save As…"
+msgstr "Enregistrer sous…"
+
+#: src/mediaviewerchrome.py:146
+msgid "Media is not downloaded automatically on a metered connection"
+msgstr ""
+"Les médias ne sont pas téléchargés automatiquement sur une connexion limitée"
+
+#: src/mediaviewerchrome.py:161 src/pages.py:656
+msgid "_Try Again"
+msgstr "_Réessayer"
+
+#: src/mediaviewerchrome.py:180
+msgid "Previous Attachment"
+msgstr "Pièce jointe précédente"
+
+#: src/mediaviewerchrome.py:188
+msgid "Next Attachment"
+msgstr "Pièce jointe suivante"
+
+#: src/mediaviewerchrome.py:203
+msgid "Zoom Out"
+msgstr "Zoom arrière"
+
+#: src/mediaviewerchrome.py:207
+msgid "Toggle Fit and Actual Size"
+msgstr "Basculer entre ajusté et taille réelle"
+
+#: src/mediaviewerchrome.py:213
+msgid "Zoom In"
+msgstr "Zoom avant"
+
+#: src/mediaviewerchrome.py:217
+msgid "Fit to Window"
+msgstr "Ajuster à la fenêtre"
+
+#: src/mediaviewerchrome.py:286
+msgid "ALT"
+msgstr "ALT"
+
+#: src/mediaviewerchrome.py:287 src/mediaviewerchrome.py:289
+msgid "Show or Hide Description"
+msgstr "Afficher ou masquer la description"
 
 #: src/mentioncompleter.py:59
 msgid "Suggested Accounts"
@@ -4948,7 +5029,9 @@ msgstr "N’ajoute rien d’utilisable par Babble"
 
 #: src/pluginhost.py:525
 msgid "Stopped working and was turned off; the system log has the details"
-msgstr "A cessé de fonctionner et a été désactivée ; le journal système contient les détails"
+msgstr ""
+"A cessé de fonctionner et a été désactivée ; le journal système contient les "
+"détails"
 
 #. Translators: %s is a plugin's name.
 #: src/pluginhost.py:537
@@ -4972,7 +5055,9 @@ msgstr "Extensions indisponibles"
 
 #: src/pluginspage.py:111
 msgid "Babble needs libpeas 2 and its Python loader to load plugins"
-msgstr "Babble a besoin de libpeas 2 et de son chargeur Python pour charger les extensions"
+msgstr ""
+"Babble a besoin de libpeas 2 et de son chargeur Python pour charger les "
+"extensions"
 
 #: src/pluginspage.py:122
 msgid "Included With Babble"
@@ -4986,7 +5071,10 @@ msgstr "Installées par vous"
 msgid ""
 "Plugins you install can do anything Babble can, including reading and "
 "posting with your account. Only turn on plugins you trust."
-msgstr "Les extensions que vous installez peuvent faire tout ce que Babble peut faire, y compris lire et publier avec votre compte. N’activez que des extensions de confiance."
+msgstr ""
+"Les extensions que vous installez peuvent faire tout ce que Babble peut "
+"faire, y compris lire et publier avec votre compte. N’activez que des "
+"extensions de confiance."
 
 #: src/pluginspage.py:135
 msgid "_Open Plugins Folder"
@@ -5088,75 +5176,87 @@ msgstr "Boîte"
 msgid "Window"
 msgstr "Fenêtre"
 
+#: src/preferences.py:58
+msgid "Ask Each Time"
+msgstr ""
+
+#: src/preferences.py:59
+msgid "Always Load"
+msgstr ""
+
 #: src/preferences.py:60
+msgid "Never Load"
+msgstr ""
+
+#: src/preferences.py:65
 msgid "Everyone"
 msgstr "Tout le monde"
 
-#: src/preferences.py:61 src/profile.py:519
+#: src/preferences.py:66 src/profile.py:519
 msgid "Followers"
 msgstr "Abonnés"
 
-#: src/preferences.py:62
+#: src/preferences.py:67
 msgid "Only me"
 msgstr "Moi uniquement"
 
-#: src/preferences.py:177
+#: src/preferences.py:182
 msgid "Could not update the server preferences"
 msgstr "Impossible de mettre à jour les préférences du serveur"
 
 #. Five pages of settings: searchable, so a row can be found by its
 #. name instead of hunted for down the list.
-#: src/preferences.py:193 src/shortcuts-dialog.ui:12
+#: src/preferences.py:198 src/shortcuts-dialog.ui:12
 msgid "Preferences"
 msgstr "Préférences"
 
-#: src/preferences.py:305
+#: src/preferences.py:310
 msgid "Appearance"
 msgstr "Apparence"
 
-#: src/preferences.py:311
+#: src/preferences.py:316
 msgid "_Language"
 msgstr "_Langue"
 
-#: src/preferences.py:312 src/preferences.py:610
+#: src/preferences.py:317 src/preferences.py:620
 msgid "System language"
 msgstr "Langue du système"
 
-#: src/preferences.py:313
+#: src/preferences.py:318
 msgid "Takes effect the next time Babble starts"
 msgstr "Prend effet au prochain démarrage de Babble"
 
-#: src/preferences.py:316
+#: src/preferences.py:321
 msgid "_Color Scheme"
 msgstr "Jeu de _couleurs"
 
-#: src/preferences.py:319
+#: src/preferences.py:324
 msgid "_Text Size"
 msgstr "_Taille du texte"
 
-#: src/preferences.py:320
+#: src/preferences.py:325
 msgid "Set the text size used in the interface"
 msgstr "Définir la taille du texte utilisée dans l’interface"
 
-#: src/preferences.py:321
+#: src/preferences.py:326
 msgid "Large Line _Height"
 msgstr "_Interligne plus grand"
 
-#: src/preferences.py:324
+#: src/preferences.py:329
 msgid "Dimmed Trivial _Notifications"
 msgstr "_Notifications anodines atténuées"
 
-#: src/preferences.py:325
+#: src/preferences.py:330
 msgid "Notifications like favorites and boosts will be less visible"
 msgstr ""
 "Les notifications telles que les favoris et les partages seront moins "
 "visibles"
 
-#: src/preferences.py:327
+#: src/preferences.py:332
 msgid "T_ranslucent Sidebar"
 msgstr "_Barre latérale transparente"
 
-#: src/preferences.py:328
+#: src/preferences.py:333
 msgid ""
 "Blur the desktop behind the sidebar. Needs a compositor that supports "
 "background blur"
@@ -5164,41 +5264,41 @@ msgstr ""
 "Flouter le bureau derrière la barre latérale. Nécessite un compositeur "
 "prenant en charge le flou d’arrière-plan"
 
-#: src/preferences.py:332
+#: src/preferences.py:337
 msgid "Images and Emojis"
 msgstr "Images et émojis"
 
-#: src/preferences.py:334
+#: src/preferences.py:339
 msgid "Darkened _Images in Dark Mode"
 msgstr "Images _assombries en mode sombre"
 
-#: src/preferences.py:336
+#: src/preferences.py:341
 msgid "Large Custom _Emojis"
 msgstr "Grands _émojis personnalisés"
 
-#: src/preferences.py:338
+#: src/preferences.py:343
 msgid "Custom Emoji _Zoom on Hover"
 msgstr "_Zoom des émojis personnalisés au survol"
 
-#: src/preferences.py:339
+#: src/preferences.py:344
 msgid "Slightly increases the size of custom emojis when you hover over them"
 msgstr ""
 "Augmente légèrement la taille des émojis personnalisés lorsque vous les "
 "survolez"
 
-#: src/preferences.py:346
+#: src/preferences.py:351
 msgid "Reading"
 msgstr "Lecture"
 
-#: src/preferences.py:351
+#: src/preferences.py:356
 msgid "Collapsed _Long Posts"
 msgstr "_Messages longs repliés"
 
-#: src/preferences.py:352
+#: src/preferences.py:357
 msgid "Letterboxed _Media"
 msgstr "Médias _avec bandes"
 
-#: src/preferences.py:353
+#: src/preferences.py:358
 msgid ""
 "Scale down and letterbox media to fill the image containers instead of "
 "cropping them"
@@ -5206,68 +5306,79 @@ msgstr ""
 "Réduire les médias et les encadrer de bandes pour remplir les conteneurs "
 "d’image au lieu de les rogner"
 
-#: src/preferences.py:356
+#: src/preferences.py:361
 msgid "Photo _Viewer"
 msgstr "_Visionneuse de photos"
 
-#: src/preferences.py:358
+#: src/preferences.py:363
 msgid ""
 "How a photo opens in the viewer: as a box over the window, or filling it"
 msgstr ""
 "Comment une photo s’ouvre dans le visionneuse : comme boîte par-dessus la "
 "fenêtre, ou en la remplissant"
 
-#: src/preferences.py:360
+#: src/preferences.py:366
+msgid "Media From _Other Servers"
+msgstr ""
+
+#: src/preferences.py:368
+msgid ""
+"Loading media your server has no copy of lets the author’s server see your "
+"IP address"
+msgstr ""
+
+#: src/preferences.py:370
 msgid "_Sensitive Media"
 msgstr "Médias _sensibles"
 
-#: src/preferences.py:361
+#: src/preferences.py:371
 msgid "Reveal sensitive media instead of hiding it behind a warning"
 msgstr ""
 "Afficher les médias sensibles au lieu de les masquer derrière un "
 "avertissement"
 
-#: src/preferences.py:363
+#: src/preferences.py:373
 msgid "S_poilers"
 msgstr "_Divulgâcheurs"
 
-#: src/preferences.py:364
+#: src/preferences.py:374
 msgid "Reveal posts with a content warning"
 msgstr "Afficher les messages avec avertissement de contenu"
 
-#: src/preferences.py:366
+#: src/preferences.py:376
 msgid "Link Preview _Cards"
 msgstr "_Cartes d’aperçu des liens"
 
-#: src/preferences.py:367
+#: src/preferences.py:377
 msgid "Blues_ky Posts"
 msgstr "Messages Blues_ky"
 
-#: src/preferences.py:368
+#: src/preferences.py:378
 msgid "Bluesky links open in Babble, which contacts Bluesky’s servers"
-msgstr "Les liens Bluesky s’ouvrent dans Babble, qui contacte les serveurs de Bluesky"
+msgstr ""
+"Les liens Bluesky s’ouvrent dans Babble, qui contacte les serveurs de Bluesky"
 
-#: src/preferences.py:371
+#: src/preferences.py:381
 msgid "_Interaction Counters"
 msgstr "Compteurs d’_interactions"
 
-#: src/preferences.py:372
+#: src/preferences.py:382
 msgid "Reply, boost and favorite counts on post actions"
 msgstr "Nombre de réponses, partages et favoris sur les actions du message"
 
-#: src/preferences.py:374
+#: src/preferences.py:384
 msgid "Post _Actions on Timelines"
 msgstr "Actions des messages dans les _fils"
 
-#: src/preferences.py:375
+#: src/preferences.py:385
 msgid "Actions stay available in each post’s menu"
 msgstr "Les actions restent disponibles dans le menu de chaque message"
 
-#: src/preferences.py:379
+#: src/preferences.py:389
 msgid "_Boosts Carousel"
 msgstr "Carrousel des _partages"
 
-#: src/preferences.py:380
+#: src/preferences.py:390
 msgid ""
 "When a page of posts is mostly boosts, fold them into a horizontal carousel "
 "instead of one row each. Applies to timelines opened afterwards"
@@ -5276,11 +5387,11 @@ msgstr ""
 "dans un carrousel horizontal au lieu d’une ligne chacun. S’applique aux fils "
 "ouverts ensuite"
 
-#: src/preferences.py:383
+#: src/preferences.py:393
 msgid "Si_ngle Boost per Post"
 msgstr "_Un seul partage par message"
 
-#: src/preferences.py:384
+#: src/preferences.py:394
 msgid ""
 "Show only the first boost of a post that several people boosted. Applies to "
 "timelines opened afterwards"
@@ -5288,15 +5399,15 @@ msgstr ""
 "N’affiche que le premier partage d’un message partagé par plusieurs "
 "personnes. S’applique aux fils ouverts ensuite"
 
-#: src/preferences.py:389
+#: src/preferences.py:399
 msgid "Home Timeline"
 msgstr "Fil d’accueil"
 
-#: src/preferences.py:391
+#: src/preferences.py:401
 msgid "Hidden Replies From Non-_Follows"
 msgstr "_Réponses masquées des comptes non suivis"
 
-#: src/preferences.py:392
+#: src/preferences.py:402
 msgid ""
 "On the home timeline, hide posts that are replies from accounts you do not "
 "follow"
@@ -5304,11 +5415,11 @@ msgstr ""
 "Sur la chronologie d’accueil, masquer les messages qui sont des réponses de "
 "comptes que vous ne suivez pas"
 
-#: src/preferences.py:394
+#: src/preferences.py:404
 msgid "Hidden Boosts on _Home"
 msgstr "Partages masqués dans _l’accueil"
 
-#: src/preferences.py:395
+#: src/preferences.py:405
 msgid ""
 "On the home timeline, show only posts and replies by the people you follow, "
 "without their boosts"
@@ -5316,11 +5427,11 @@ msgstr ""
 "Dans le fil d’accueil, n’afficher que les messages et réponses des comptes "
 "que vous suivez, sans leurs partages"
 
-#: src/preferences.py:398
+#: src/preferences.py:408
 msgid "Remembered _Reading Position"
 msgstr "P_osition de lecture mémorisée"
 
-#: src/preferences.py:399
+#: src/preferences.py:409
 msgid ""
 "Reopen the home timeline at the post you were reading, with a button for "
 "newer posts"
@@ -5328,99 +5439,101 @@ msgstr ""
 "Rouvre le fil d’accueil au message que vous lisiez, avec un bouton pour les "
 "plus récents"
 
-#: src/preferences.py:409
+#: src/preferences.py:419
 msgid "Links"
 msgstr "Liens"
 
-#: src/preferences.py:411
+#: src/preferences.py:421
 msgid "_Tracking Parameter Removal"
 msgstr "Suppr_ession des paramètres de suivi"
 
-#: src/preferences.py:412
+#: src/preferences.py:422
 msgid "This option can lead to broken links when enabled"
 msgstr "Cette option peut casser certains liens lorsqu’elle est activée"
 
-#: src/preferences.py:414
+#: src/preferences.py:424
 msgid "R_emote Links in Babble"
 msgstr "Liens distants dans _Babble"
 
-#: src/preferences.py:415
+#: src/preferences.py:425
 msgid "Open links to posts and profiles on other servers inside the app"
 msgstr ""
 "Ouvrir dans l’application les liens vers des messages et profils d’autres "
 "serveurs"
 
-#: src/preferences.py:419
+#: src/preferences.py:429
 msgid "_Web Links Beside the Timeline"
 msgstr "Liens _web à côté du fil"
 
-#: src/preferences.py:420
+#: src/preferences.py:430
 msgid ""
 "Show other links in a column instead of the browser. Pages keep no cookies "
 "once Babble closes"
-msgstr "Afficher les autres liens dans une colonne plutôt que dans le navigateur. Les pages ne conservent aucun cookie une fois Babble fermé"
+msgstr ""
+"Afficher les autres liens dans une colonne plutôt que dans le navigateur. "
+"Les pages ne conservent aucun cookie une fois Babble fermé"
 
-#: src/preferences.py:424
+#: src/preferences.py:434
 msgid "_JavaScript on Web Pages"
 msgstr "_JavaScript sur les pages web"
 
-#: src/preferences.py:425
+#: src/preferences.py:435
 msgid "Many sites do not work without it"
 msgstr "De nombreux sites ne fonctionnent pas sans"
 
-#: src/preferences.py:429
+#: src/preferences.py:439
 msgid "Copied Link S_uggestions"
 msgstr "Su_ggestions de liens copiés"
 
-#: src/preferences.py:430
+#: src/preferences.py:440
 msgid "Check the clipboard for post and profile links when Babble is focused"
 msgstr ""
 "Vérifier le presse-papiers pour les liens de messages et profils lorsque "
 "Babble a le focus"
 
-#: src/preferences.py:435
+#: src/preferences.py:445
 msgid "Boosts and Reminders"
 msgstr "Partages et rappels"
 
-#: src/preferences.py:437
+#: src/preferences.py:447
 msgid "Advanced Boost _Dialog"
 msgstr "Boîte _de dialogue de partage avancée"
 
-#: src/preferences.py:438
+#: src/preferences.py:448
 msgid "Change boost visibility, quote and confirm boosting"
 msgstr "Modifier la visibilité du partage, citer et confirmer le partage"
 
-#: src/preferences.py:440
+#: src/preferences.py:450
 msgid "Old Post Reply _Warning"
 msgstr "_Avertissement avant de répondre à un ancien message"
 
-#: src/preferences.py:442
+#: src/preferences.py:452
 msgid "Private Post Lin_k Warning"
 msgstr "Avertissement pour les liens de messages _privés"
 
-#: src/preferences.py:444
+#: src/preferences.py:454
 msgid "Missing Alt Text _Boost Warning"
 msgstr "Avertissement de partage _sans texte alternatif"
 
-#: src/preferences.py:448
+#: src/preferences.py:458
 msgid "Background"
 msgstr "Arrière-plan"
 
-#: src/preferences.py:450
+#: src/preferences.py:460
 msgid "Background _Mode"
 msgstr "_Mode arrière-plan"
 
-#: src/preferences.py:451
+#: src/preferences.py:461
 msgid "Keep running after the window is closed to deliver notifications"
 msgstr ""
 "Continuer à fonctionner après la fermeture de la fenêtre pour afficher les "
 "notifications"
 
-#: src/preferences.py:455
+#: src/preferences.py:465
 msgid "_Quick Post Shortcut"
 msgstr "_Raccourci de publication rapide"
 
-#: src/preferences.py:456
+#: src/preferences.py:466
 msgid ""
 "Open the composer from anywhere with a system-wide shortcut, which can be "
 "changed in the system settings"
@@ -5428,105 +5541,105 @@ msgstr ""
 "Ouvrir le compositeur de n’importe où avec un raccourci système, modifiable "
 "dans les paramètres du système"
 
-#: src/preferences.py:467
+#: src/preferences.py:477
 msgid "Hide or warn about posts that match keywords, on every device you use"
 msgstr ""
 "Masquer les messages correspondant à des mots-clés ou avertir à leur sujet, "
 "sur tous vos appareils"
 
-#: src/preferences.py:469
+#: src/preferences.py:479
 msgid "Mana_ge Filters"
 msgstr "G_érer les filtres"
 
-#: src/preferences.py:470
+#: src/preferences.py:480
 msgid "Create, edit and delete filters"
 msgstr "Créer, modifier et supprimer des filtres"
 
-#: src/preferences.py:481
+#: src/preferences.py:491
 msgid "Restart Babble to use the new language"
 msgstr "Redémarrez Babble pour utiliser la nouvelle langue"
 
-#: src/preferences.py:491 src/search.py:614 src/shortcuts-dialog.ui:50
+#: src/preferences.py:501 src/search.py:614 src/shortcuts-dialog.ui:50
 msgid "Timelines"
 msgstr "Fils"
 
-#: src/preferences.py:494
+#: src/preferences.py:504
 msgid "Live Updates"
 msgstr "Mises à jour en direct"
 
-#: src/preferences.py:495
+#: src/preferences.py:505
 msgid "Li_ve Timelines"
 msgstr "Fils en _direct"
 
-#: src/preferences.py:496
+#: src/preferences.py:506
 msgid "Receive new posts and notifications in real time"
 msgstr "Recevoir les nouveaux messages et notifications en temps réel"
 
-#: src/preferences.py:498
+#: src/preferences.py:508
 msgid "Live _Public Timelines"
 msgstr "Fils _publics en direct"
 
-#: src/preferences.py:499
+#: src/preferences.py:509
 msgid "This will increase memory usage when browsing high traffic timelines"
 msgstr ""
 "Cela augmentera l’utilisation de la mémoire lors de la consultation de fils "
 "très actifs"
 
-#: src/preferences.py:503
+#: src/preferences.py:513
 msgid "Refresh"
 msgstr "Actualisation"
 
-#: src/preferences.py:504
+#: src/preferences.py:514
 msgid "Used while live updates are off or unavailable"
 msgstr ""
 "Utilisée lorsque les mises à jour en direct sont désactivées ou indisponibles"
 
-#: src/preferences.py:505
+#: src/preferences.py:515
 msgid "_Automatic Refresh"
 msgstr "Actualisation _automatique"
 
-#: src/preferences.py:508 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
+#: src/preferences.py:518 src/sidebarcontrol.py:50 src/sidebarcontrol.py:54
 #: src/sidebarrail.py:79 src/window.ui:473 src/window.ui:479
 msgid "Sidebar"
 msgstr "Barre latérale"
 
-#: src/preferences.py:509
+#: src/preferences.py:519
 msgid "Choose which timelines the sidebar offers"
 msgstr "Choisissez les fils proposés dans la barre latérale"
 
-#: src/preferences.py:511
+#: src/preferences.py:521
 msgid "Summarize what you missed in your home timeline"
 msgstr "Résumer ce que vous avez manqué dans votre chronologie d’accueil"
 
-#: src/preferences.py:513
+#: src/preferences.py:523
 msgid "_Explore"
 msgstr "_Explorer"
 
-#: src/preferences.py:514
+#: src/preferences.py:524
 msgid "Show posts trending on your server"
 msgstr "Afficher les messages tendance sur votre serveur"
 
-#: src/preferences.py:515
+#: src/preferences.py:525
 msgid "_Local Timeline"
 msgstr "Fil _local"
 
-#: src/preferences.py:516
+#: src/preferences.py:526
 msgid "Show posts from your server"
 msgstr "Afficher les messages de votre serveur"
 
-#: src/preferences.py:517
+#: src/preferences.py:527
 msgid "_Federated Timeline"
 msgstr "Fil _fédéré"
 
-#: src/preferences.py:518
+#: src/preferences.py:528
 msgid "Show posts from all known servers"
 msgstr "Afficher les messages de tous les serveurs connus"
 
-#: src/preferences.py:521
+#: src/preferences.py:531
 msgid "Disabled _Timelines"
 msgstr "F_ils désactivés"
 
-#: src/preferences.py:522
+#: src/preferences.py:532
 msgid ""
 "Your server has turned these timelines off, but this account may still read "
 "them"
@@ -5534,25 +5647,25 @@ msgstr ""
 "Votre serveur a désactivé ces chronologies, mais ce compte peut encore les "
 "lire"
 
-#: src/preferences.py:541
+#: src/preferences.py:551
 msgid "Posting"
 msgstr "Publication"
 
-#: src/preferences.py:545
+#: src/preferences.py:555
 msgid "Defaults for New Posts"
 msgstr "Valeurs par défaut des nouveaux messages"
 
-#: src/preferences.py:546
+#: src/preferences.py:556
 msgid "Changes are also saved to your server preferences"
 msgstr ""
 "Les modifications sont aussi enregistrées dans les préférences de votre "
 "serveur"
 
-#: src/preferences.py:548
+#: src/preferences.py:558
 msgid "Default _Visibility"
 msgstr "_Visibilité par défaut"
 
-#: src/preferences.py:558
+#: src/preferences.py:568
 msgid "Default _Quote Policy"
 msgstr "Politique de _citation par défaut"
 
@@ -5561,58 +5674,58 @@ msgstr "Politique de _citation par défaut"
 #. source preferences, which is where this is
 #. sent. Say so, rather than letting the row
 #. read as a Babble-side switch.
-#: src/preferences.py:564
+#: src/preferences.py:574
 msgid "Saved to your server preferences, so it applies to every new post"
 msgstr ""
 "Enregistré dans les préférences de votre serveur et appliqué à chaque "
 "nouveau message"
 
-#: src/preferences.py:569
+#: src/preferences.py:579
 msgid "Media Marked _Sensitive"
 msgstr "_Médias marqués comme sensibles"
 
-#: src/preferences.py:575
+#: src/preferences.py:585
 msgid "Server _Preferences"
 msgstr "P_références du serveur"
 
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:602 src/window.py:1780 src/window.py:1785
+#: src/preferences.py:612 src/window.py:1780 src/window.py:1785
 msgid "Could not open the web browser"
 msgstr "Impossible d’ouvrir le navigateur"
 
-#: src/preferences.py:611
+#: src/preferences.py:621
 msgid "Default _Language"
 msgstr "_Langue par défaut"
 
-#: src/preferences.py:634
+#: src/preferences.py:644
 msgid "Desktop Notifications"
 msgstr "Notifications de bureau"
 
-#: src/preferences.py:635
+#: src/preferences.py:645
 msgid "Announced while the window is not focused"
 msgstr "Annoncées lorsque la fenêtre n’a pas le focus"
 
-#: src/preferences.py:644
+#: src/preferences.py:654
 msgid "Grouped _Notifications"
 msgstr "_Notifications groupées"
 
-#: src/preferences.py:645
+#: src/preferences.py:655
 msgid "Combine notifications of the same type and post into one"
 msgstr ""
 "Regrouper en une seule les notifications de même type et de même message"
 
-#: src/preferences.py:655 plugins/hashpanel/babble_hashpanel.py:278
+#: src/preferences.py:665 plugins/hashpanel/babble_hashpanel.py:278
 #: plugins/nareal/babble_nareal.py:441 plugins/wallabag/babble_wallabag.py:391
 msgid "Server"
 msgstr "Serveur"
 
-#: src/preferences.py:657
+#: src/preferences.py:667
 msgid "Notification _Filtering"
 msgstr "_Filtrage des notifications"
 
-#: src/preferences.py:658
+#: src/preferences.py:668
 msgid "Choose whose notifications reach you"
 msgstr "Choisissez de qui vous recevez des notifications"
 
@@ -6439,6 +6552,49 @@ msgstr "Aucun domaine bloqué"
 #: src/relations.py:190
 msgid "Domains"
 msgstr "Domaines"
+
+#: src/remotemedia.py:65
+msgid "Load Media From Another Server?"
+msgstr ""
+
+#. Translators: {host} is the address of the server that holds the
+#. original, such as example.social.
+#: src/remotemedia.py:68
+#, python-brace-format
+msgid ""
+"Your server has no copy of this media. Loading it from {host} lets that "
+"server see your IP address and that you viewed it."
+msgstr ""
+
+#: src/remotemedia.py:71
+msgid "another server"
+msgstr ""
+
+#: src/remotemedia.py:72
+msgid "_Remember This Choice"
+msgstr ""
+
+#: src/remotemedia.py:76
+msgid "_Load"
+msgstr ""
+
+#: src/remotemedia.py:151
+msgid "Loading media from other servers is turned off"
+msgstr ""
+
+#: src/remotemedia.py:156
+msgid ""
+"Your server has no copy of this media. Open it in the browser to view it on "
+"the original server."
+msgstr ""
+
+#: src/remotemedia.py:160
+msgid "To change this, set Media From Other Servers in Preferences."
+msgstr ""
+
+#: src/remotemedia.py:162
+msgid "Media Not Stored by Your Server"
+msgstr ""
 
 #: src/report.py:34
 msgid "It’s Spam"
@@ -7715,7 +7871,9 @@ msgstr "Certificat de sécurité non fiable"
 msgid ""
 "The connection is not private, so the page was not loaded. You can open it "
 "in your browser instead."
-msgstr "La connexion n’est pas privée, la page n’a donc pas été chargée. Vous pouvez l’ouvrir dans votre navigateur."
+msgstr ""
+"La connexion n’est pas privée, la page n’a donc pas été chargée. Vous pouvez "
+"l’ouvrir dans votre navigateur."
 
 #: src/webcolumn.py:524
 msgid "The page used too much memory and was stopped."
@@ -7793,7 +7951,9 @@ msgstr "La connexion de %s sera supprimée de cet appareil."
 msgid ""
 "The account was removed from Babble, but the system keyring could not remove "
 "all of its credentials."
-msgstr "Le compte a été retiré de Babble, mais le trousseau système n’a pas pu supprimer tous ses identifiants."
+msgstr ""
+"Le compte a été retiré de Babble, mais le trousseau système n’a pas pu "
+"supprimer tous ses identifiants."
 
 #: src/window.py:767
 msgid "Could not remove all saved credentials"
@@ -8266,7 +8426,9 @@ msgstr[1] "%d la semaine précédente"
 msgid ""
 "Hashpanel follows the daily hashtags of the Brazilian fediverse. Babble asks "
 "it only about the hashtags it follows."
-msgstr "Hashpanel suit les mots-clics quotidiens du fédivers brésilien. Babble ne lui demande que les mots-clics qu’il suit."
+msgstr ""
+"Hashpanel suit les mots-clics quotidiens du fédivers brésilien. Babble ne "
+"lui demande que les mots-clics qu’il suit."
 
 #: plugins/hashpanel/babble_hashpanel.py:293
 #: plugins/nareal/babble_nareal.py:470 plugins/wallabag/babble_wallabag.py:451
@@ -8316,7 +8478,9 @@ msgstr "Connectez-vous d’abord à Babble."
 #. dashboard is what creates the page.
 #: plugins/nareal/babble_nareal.py:377
 msgid "You are not on Na Real yet. Sign in from My Questions first."
-msgstr "Vous n’êtes pas encore sur Na Real. Connectez-vous d’abord depuis Mes Questions."
+msgstr ""
+"Vous n’êtes pas encore sur Na Real. Connectez-vous d’abord depuis Mes "
+"Questions."
 
 #: plugins/nareal/babble_nareal.py:405
 msgid "Anonymous questions for the fediverse"
@@ -8330,13 +8494,17 @@ msgstr "Ouvrir Na Real"
 msgid ""
 "Na Real is run by each community on its own server. Enter the address of the "
 "one you use."
-msgstr "Na Real est géré par chaque communauté sur son propre serveur. Saisissez l’adresse de celui que vous utilisez."
+msgstr ""
+"Na Real est géré par chaque communauté sur son propre serveur. Saisissez "
+"l’adresse de celui que vous utilisez."
 
 #: plugins/nareal/babble_nareal.py:448
 msgid ""
 "Added to the invitation you share from the main menu, and the hashtag that "
 "shows the Na Real banner."
-msgstr "Ajouté à l’invitation que vous partagez depuis le menu principal, et au mot-clic qui affiche la bannière Na Real."
+msgstr ""
+"Ajouté à l’invitation que vous partagez depuis le menu principal, et au mot-"
+"clic qui affiche la bannière Na Real."
 
 #: plugins/nareal/babble_nareal.py:474
 msgid "That is your own server. Use the address of a Na Real server."
@@ -8462,168 +8630,11 @@ msgstr "Mot de passe"
 msgid ""
 "Use app.wallabag.it for the hosted service. Create a client under API "
 "Clients Management in Wallabag to get its ID and secret."
-msgstr "Utilisez app.wallabag.it pour le service hébergé. Créez un client dans Gestion des clients API dans Wallabag pour obtenir son ID et son secret."
+msgstr ""
+"Utilisez app.wallabag.it pour le service hébergé. Créez un client dans "
+"Gestion des clients API dans Wallabag pour obtenir son ID et son secret."
 
 #: plugins/wallabag/babble_wallabag.py:408
 msgid "Your password is used once to sign in and is not stored"
-msgstr "Votre mot de passe sert une fois à vous connecter et n’est pas enregistré"
-
-#~ msgid "mauriciobc"
-#~ msgstr "mauriciobc"
-
-#, python-format
-#~ msgid "Scanning timeline… %(count)d post evaluated (%(hours)d h back)"
-#~ msgid_plural ""
-#~ "Scanning timeline… %(count)d posts evaluated (%(hours)d h back)"
-#~ msgstr[0] ""
-#~ "Analyse du fil… %(count)d publication évaluée (%(hours)d h en arrière)"
-#~ msgstr[1] ""
-#~ "Analyse du fil… %(count)d publications évaluées (%(hours)d h en arrière)"
-
-#~ msgid "Newer Posts"
-#~ msgstr "Messages plus récents"
-
-#~ msgid "As a Box over the Window"
-#~ msgstr "Comme boîte par-dessus la fenêtre"
-
-#~ msgid "Fill the Window"
-#~ msgstr "Remplir la fenêtre"
-
-#~ msgid "_Open Photos"
-#~ msgstr "_Ouvrir les photos"
-
-#~ msgid "Reveal _Sensitive Media by Default"
-#~ msgstr "Afficher les médias _sensibles par défaut"
-
-#~ msgid "Reveal S_poilers by Default"
-#~ msgstr "Afficher les _divulgâchages par défaut"
-
-#~ msgid "Hide D_uplicate Boosts"
-#~ msgstr "Mas_quer les partages dupliqués"
-
-#~ msgid "Behavior"
-#~ msgstr "Comportement"
-
-#~ msgid "Offer to Open _Copied Links"
-#~ msgstr "Proposer d’ouvrir les _Liens copiés"
-
-#~ msgid "Warn Before Replying to an _Old Post"
-#~ msgstr "Avertir avant de répondre à un message _ancien"
-
-#~ msgid "Warn Before Copying a Link to a _Private Post"
-#~ msgstr "Avertir avant de _copier le lien d’un message privé"
-
-#~ msgid "Warn Before Boosting Media Without _Alt Text"
-#~ msgstr "Avertir avant de partager des médias sans _texte alternatif"
-
-#~ msgid "_Run in Background"
-#~ msgstr "_Fonctionner en arrière-plan"
-
-#~ msgid "Stream _Public Timelines"
-#~ msgstr "Fils _publics en continu"
-
-#~ msgid "_Group"
-#~ msgstr "_Regrouper"
-
-#~ msgid "A thread, with the focused post and its replies"
-#~ msgstr "Un fil de discussion, avec le message ciblé et ses réponses"
-
-#~ msgid "Copy Link"
-#~ msgstr "Copier le lien"
-
-#, python-format
-#~ msgid "_Mute %s"
-#~ msgstr "_Masquer %s"
-
-#, python-format
-#~ msgid "_Block %s"
-#~ msgstr "_Bloquer %s"
-
-#~ msgid "Admin _Dashboard"
-#~ msgstr "_Tableau de bord d’administration"
-
-#, fuzzy
-#~ msgid "Favourite"
-#~ msgstr "Ajouter aux favoris"
-
-#~ msgid "_Done"
-#~ msgstr "_Terminé"
-
-#, python-format
-#~ msgid "%s now follows you"
-#~ msgstr "%s vous suit désormais"
-
-#, python-format
-#~ msgid "%s now follow you"
-#~ msgstr "%s vous suivent désormais"
-
-#, python-format
-#~ msgid "%s wants to follow you"
-#~ msgstr "%s souhaite vous suivre"
-
-#, python-format
-#~ msgid "%s want to follow you"
-#~ msgstr "%s souhaitent vous suivre"
-
-#, python-format
-#~ msgid "%s edited a post"
-#~ msgstr "%s a modifié un message"
-
-#, python-format
-#~ msgid "%s sent a notification"
-#~ msgstr "%s a envoyé une notification"
-
-#~ msgid "Try Again"
-#~ msgstr "Réessayer"
-
-#~ msgid "Who can quote your new posts"
-#~ msgstr "Qui peut citer vos nouveaux messages"
-
-#~ msgid "Notification filtering is not available"
-#~ msgstr "Le filtrage des notifications n’est pas disponible"
-
-#, python-format
-#~ msgid "Restored %s"
-#~ msgstr "%s rétabli"
-
-#~ msgid "_New Post"
-#~ msgstr "_Nouveau message"
-
-#~ msgid "_Refresh"
-#~ msgstr "_Actualiser"
-
-#~ msgid "_Quit"
-#~ msgstr "_Quitter"
-
-#~ msgid "English"
-#~ msgstr "English"
-
-#~ msgid "Español"
-#~ msgstr "Español"
-
-#~ msgid "Français"
-#~ msgstr "Français"
-
-#~ msgid "Deutsch"
-#~ msgstr "Deutsch"
-
-#~ msgid "Italiano"
-#~ msgstr "Italiano"
-
-#~ msgid "Português"
-#~ msgstr "Português"
-
-#~ msgid "Русский"
-#~ msgstr "Русский"
-
-#~ msgid "中文"
-#~ msgstr "中文"
-
-#, python-format
-#~ msgid ""
-#~ "%s. Administrator permissions are required, and the app needs to be "
-#~ "authorised for the admin scopes."
-#~ msgstr ""
-#~ "%s. Des droits d’administration sont nécessaires, et l’application doit "
-#~ "être autorisée pour les portées d’administration."
-
+msgstr ""
+"Votre mot de passe sert une fois à vous connecter et n’est pas enregistré"

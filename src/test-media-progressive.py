@@ -394,8 +394,10 @@ store.reset('media-viewer-volume')
 # (f) Every request carried Babble's User-Agent.
 agents = slow.agents + fast.agents
 check('the requests were recorded', len(agents) >= 4, repr(agents))
-check('every request carried Babble\'s User-Agent',
-      all(a and a.startswith('Babble/') for a in agents), repr(set(agents)))
+bad = [pair for pair in slow.pairs + fast.pairs
+       if not (pair[2] and pair[2].startswith('Babble/'))]
+check('every request carried Babble\'s User-Agent', not bad,
+      'offending (method, path, agent, range): %r of %d requests' % (bad, len(agents)))
 
 check('no engine is left behind', wait(lambda: not mediaengine._all, 5),
       '%d left' % len(mediaengine._all))

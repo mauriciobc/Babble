@@ -54,6 +54,11 @@ MEDIA_VIEWER_MODES = (
     ('box', _('Box')),
     ('fullscreen', _('Window')))
 
+REMOTE_MEDIA_CHOICES = (
+    ('ask', _('Ask Each Time')),
+    ('load', _('Always Load')),
+    ('never', _('Never Load')))
+
 # Labels are this page's; the codes belong to the entity, shared with
 # the composer's visibility menu.
 _QUOTE_LABELS = {
@@ -357,6 +362,11 @@ class PreferencesDialog(Adw.PreferencesDialog):
             MEDIA_VIEWER_MODES,
             subtitle=_('How a photo opens in the viewer: as a box over '
                        'the window, or filling it'))
+        self._combo_enum(
+            posts, 'remote-media', _('Media From _Other Servers'),
+            REMOTE_MEDIA_CHOICES,
+            subtitle=_('Loading media your server has no copy of lets the '
+                       'author’s server see your IP address'))
         self._switch(posts, 'show-sensitive-media', _('_Sensitive Media'),
                      _('Reveal sensitive media instead of hiding it '
                        'behind a warning'))
