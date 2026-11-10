@@ -40,6 +40,21 @@
     </p>
   </section>
 
+  <section id="remote-media">
+    <title>Media from other servers</title>
+    <p>
+      Your server keeps a copy of the media in the posts it shows you.
+      When it has none, the original lives on the author's server, and
+      loading it lets that server see your IP address. <gui>Media From
+      Other Servers</gui> in the <gui>Reading</gui> page of Preferences
+      decides what Babble does: <gui>Ask</gui> asks each time, with a
+      choice to remember the answer, <gui>Load</gui> loads the original,
+      and <gui>Never Load</gui> does not. Media your server holds is
+      never asked about. When the original is not loaded, the viewer
+      offers to open it in your browser instead.
+    </p>
+  </section>
+
   <section id="language">
     <title>Language</title>
     <p>

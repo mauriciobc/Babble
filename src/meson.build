@@ -65,6 +65,7 @@ install_data(
   'mediaviewer.py',
   'mediaviewerchrome.py',
   'mediazoom.py',
+  'remotemedia.py',
   'navigation.py',
   'mentioncompleter.py',
   'notificationcopy.py',
@@ -405,6 +406,12 @@ test('media stream', python,
 # 404): fatal criticals, as for the teardown test.
 test('media progressive', python,
   args: [files('test-media-progressive.py')],
+  env: fatal_test_env,
+  timeout: 180,
+)
+# The remote-media gate with a loopback server as "the other server".
+test('remote media', python,
+  args: [files('test-remote-media.py')],
   env: fatal_test_env,
   timeout: 180,
 )

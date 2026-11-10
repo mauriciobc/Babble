@@ -47,6 +47,7 @@ from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
 from .mediaexport import MediaExport  # noqa: E402
 from .mediaplayback import MediaPlayback  # noqa: E402
+from .remotemedia import RemoteGate, media_url  # noqa: E402
 from .mediaviewerchrome import (  # noqa: E402
     MediaViewerChrome, _label,
 )
@@ -122,7 +123,8 @@ def load_texture(url, callback, cancellable=None):
     _viewer_fetcher.fetch(url, arrived, cancellable=cancellable)
 
 
-class MediaViewer(MediaPlayback, MediaExport, MediaViewerChrome, Adw.Bin):
+class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
+                  Adw.Bin):
     """Browsing a list of Mastodon media attachments.
 
     An overlay of the window, not an :class:`Adw.Dialog`: a dialog floats
@@ -162,6 +164,13 @@ class MediaViewer(MediaPlayback, MediaExport, MediaViewerChrome, Adw.Bin):
         self._inhibit_cookie = 0
         # Saved and Open With copies by URL, offered when dragging out.
         self._local_files = {}
+        # Remote URLs the user allowed in this viewer, and the counter
+        # that drops an answer to a question about an earlier attachment.
+        self._remote_allowed = set()
+        self._remote_token = 0
+        self._remote_actions = {
+            'show': '_show_loaded', 'save': '_save_dialog',
+            'open-with': '_open_with_download'}
 
         self._build()
         if self.window is not None:
@@ -237,7 +246,7 @@ class MediaViewer(MediaPlayback, MediaExport, MediaViewerChrome, Adw.Bin):
         self.index = min(max(int(index), 0), len(self.attachments) - 1)
         attachment = self.current()
         self._update_chrome(attachment)
-        url = attachment.get('url') or attachment.get('remote_url')
+        url, is_remote = media_url(attachment)
         kind = attachment.get('type')
         if not url:
             self._show_error(
@@ -245,14 +254,21 @@ class MediaViewer(MediaPlayback, MediaExport, MediaViewerChrome, Adw.Bin):
                 _('This attachment has no address to load.'),
                 retry=False, browser=False)
         elif kind == 'image':
-            self._show_image(url)
+            self._gate_remote('show', attachment, url, is_remote)
         elif kind in ('video', 'gifv', 'audio'):
-            self._show_stream(attachment, url)
+            self._show_stream(attachment, url, is_remote)
         else:
             self._show_error(
                 _('Preview Not Available'),
                 _('This kind of attachment cannot be shown here.'),
                 retry=False, browser=True)
+
+    def _show_loaded(self, attachment, url):
+        """The gate let *url* through: fetch and show it."""
+        if attachment.get('type') == 'image':
+            self._show_image(url)
+        else:
+            self._start_stream(attachment, url)
 
     def _kind_title(self, attachment):
         return {'image': _('Image'), 'video': _('Video'),
