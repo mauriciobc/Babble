@@ -4,10 +4,11 @@ Babble's strings live in this directory. Four languages are shipped: `de`,
 `es`, `fr` and `pt_BR`.
 
 **All four catalogues are machine-assisted and need review by native
-speakers.** You are welcome — corrections are the point. The
-[fuzzy](../Docs/localization.md#translation-status) entries are machine
-guesses carried over from an earlier catalogue merge; they are the highest
-value thing to look at.
+speakers.** You are welcome — corrections are the point. The catalogues
+are currently complete (no fuzzy or untranslated entries; see
+[translation status](../Docs/localization.md#translation-status)), so
+reviewing and refining existing translations is the highest-value thing
+to look at.
 
 ## Working on a catalogue
 
