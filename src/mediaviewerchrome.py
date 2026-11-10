@@ -132,8 +132,8 @@ class MediaViewerChrome:
                            self._on_media_drag_prepare)
         self.media_bin.add_controller(self.media_drag)
 
-        # Video, audio and GIFVs waiting to be downloaded on a metered
-        # connection: the preview with a button to load them.
+        # Video, audio and GIFVs waiting to be loaded (a metered connection
+        # or the user's choice): the preview with a button to load them.
         self.deferred = Gtk.Overlay(hexpand=True, vexpand=True)
         self.deferred_picture = Gtk.Picture(
             content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True,
@@ -142,9 +142,7 @@ class MediaViewerChrome:
         self.deferred.set_child(self.deferred_picture)
         self.load_button = Gtk.Button(
             use_underline=True, halign=Gtk.Align.CENTER,
-            valign=Gtk.Align.CENTER,
-            tooltip_text=_('Media is not downloaded automatically on a '
-                           'metered connection'))
+            valign=Gtk.Align.CENTER)
         self.load_button.add_css_class('pill')
         self.load_button.add_css_class('suggested-action')
         pages.connect_weak(self.load_button, 'clicked', self._on_load_clicked)

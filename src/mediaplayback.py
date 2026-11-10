@@ -189,10 +189,22 @@ def _system_state(name):
     return bool(sysstate.monitor().get_property(name))
 
 
+def should_defer_stream(mode, metered):
+    """Whether video, audio and GIFVs wait for a click instead of loading
+    at once. *mode* is the ``media-autoload`` key: 'always' never waits,
+    'never' always waits, 'unmetered' waits on a metered connection."""
+    if mode == 'never':
+        return True
+    return mode == 'unmetered' and bool(metered)
+
+
 def may_autoplay_loop(widget=None):
-    """Whether looping, muted media (a GIFV) may run by itself: animations
-    are on, the user has not asked for reduced motion, and the system is
-    not saving power. Read live, so the viewer can follow a change."""
+    """Whether looping, muted media (a GIFV) may run by itself: the user
+    has not turned off Autoplay Animated Media, animations are on, no
+    reduced motion is asked for, and the system is not saving power. Read
+    live, so the viewer can follow a change."""
+    if not pages.settings().get_boolean('autoplay-animated-media'):
+        return False
     gtk_settings = (Gtk.Settings.get_for_display(widget.get_display())
                     if widget is not None else Gtk.Settings.get_default())
     if not gtk_settings.get_property('gtk-enable-animations'):
@@ -258,6 +270,9 @@ class MediaPlayback:
         for name in ('gtk-enable-animations', 'gtk-interface-reduced-motion'):
             pages.connect_weak(gtk_settings, 'notify::' + name,
                                self._on_loop_gate_changed)
+        pages.connect_weak(pages.settings(),
+                           'changed::autoplay-animated-media',
+                           self._on_loop_gate_changed)
 
     def _on_loop_gate_changed(self, *_args):
         stream = self._stream
@@ -317,17 +332,29 @@ class MediaPlayback:
             engine.release()
 
     def _show_stream(self, attachment, url, is_remote):
-        if _system_state('metered'):
-            self._show_deferred(attachment)
+        mode = pages.settings().get_string('media-autoload')
+        if mode == 'never':
+            self._show_deferred(attachment, False)
+        elif should_defer_stream(mode, _system_state('metered')):
+            self._show_deferred(attachment, True)
         else:
             self._gate_remote('show', attachment, url, is_remote)
 
-    def _show_deferred(self, attachment):
-        """On a metered connection: the preview and a button that starts
-        the stream, instead of fetching one nobody asked for. Only the
-        start is gated: playback the user began goes on if metering turns
-        on, and closing the viewer ends the read."""
+    def _show_deferred(self, attachment, metered=True):
+        """The preview and a button that starts the stream, instead of
+        fetching one nobody asked for: on a metered connection
+        (*metered*), or because the user chose never to load media
+        automatically. Only the start is gated: playback the user began
+        goes on if metering turns on, and closing the viewer ends the
+        read."""
         from .mediaviewer import load_texture
+        if metered:
+            self.load_button.set_tooltip_text(
+                _('Media is not downloaded automatically on a metered '
+                  'connection'))
+        else:
+            self.load_button.set_tooltip_text(
+                _('You chose not to load media automatically'))
         if attachment.get('type') == 'audio':
             self.load_button.set_label(_('Load _Audio'))
         else:
