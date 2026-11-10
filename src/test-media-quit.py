@@ -32,10 +32,13 @@ def load_fixture():
 
 
 def child():
-    # A hung quit would otherwise only show as the parent's timeout: dump
-    # every thread's Python stack and exit before that.
+    # A hung child would otherwise only show as the parent's timeout: dump
+    # every thread's Python stack and exit before that. 25 s leaves the
+    # 15 s fallback quit room, and ten hung children still finish inside
+    # meson's 300 s, so the dumps reach the log (flushed: a SIGTERM from
+    # meson would drop buffered output).
     import faulthandler
-    faulthandler.dump_traceback_later(45, exit=True)
+    faulthandler.dump_traceback_later(25, exit=True)
     sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
     sys.path.insert(0, srcdir)
     import gi
@@ -44,6 +47,24 @@ def child():
     from gi.repository import Adw, Gio, GLib, Gtk
     from src import mediaengine, mediaplayback, mediaviewer
     mediaplayback._system_state = lambda name: False
+
+    # The viewer's loop gate builds sysstate's monitor, and on the CI
+    # runner Gio.NetworkMonitor.get_default() in SystemState.__init__
+    # hung about 1 child in 10 -- also with GIO_USE_NETWORK_MONITOR=base,
+    # so it is GIO's setup, not the backend. Never reproduced locally or
+    # in the same Fedora image. This test is about quitting: hand the
+    # gate a monitor that is plain properties.
+    from gi.repository import GObject
+    from src import sysstate
+
+    class FakeMonitor(GObject.Object):
+        __gsignals__ = {
+            'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+        }
+        online = GObject.Property(type=bool, default=True)
+        metered = GObject.Property(type=bool, default=False)
+        power_saver = GObject.Property(type=bool, default=False)
+    sysstate._monitor = FakeMonitor()
     fixture = load_fixture()
     # Range-capable, like a real media server: since the viewer streams,
     # souphttpsrc refuses a server without Range (GStreamer 1.28.9) and
@@ -110,10 +131,11 @@ failures = []
 
 def check(name, condition, detail=''):
     if condition:
-        print('ok - %s' % name)
+        print('ok - %s' % name, flush=True)
     else:
         failures.append(name)
-        print('FAIL - %s%s' % (name, (' [%s]' % detail) if detail else ''))
+        print('FAIL - %s%s' % (name, (' [%s]' % detail) if detail else ''),
+              flush=True)
 
 
 # The application really calls it.
@@ -136,7 +158,7 @@ for run in range(RUNS):
     try:
         done = subprocess.run(
             [sys.executable, os.path.abspath(__file__), '--child'],
-            capture_output=True, text=True, timeout=60)
+            capture_output=True, text=True, timeout=30)
         code, out = done.returncode, done.stdout
         quit_line = [line for line in out.splitlines()
                      if line.startswith('QUIT ')]

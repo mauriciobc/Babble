@@ -101,6 +101,10 @@ class EngineStream(Gtk.MediaStream):
         # duration event be tied to it (one has no URI of its own).
         self._info_seen = False
         engine.owner = self
+        # A reused engine keeps the last stream's audio (a GIFV mutes
+        # it); a setter that changes nothing emits nothing, so start from
+        # this stream's own state.
+        engine.set_audio(self.get_muted(), self.get_volume())
 
     # Lifetime
 

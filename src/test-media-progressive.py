@@ -120,6 +120,10 @@ elapsed = time.monotonic() - started
 check('the first frame comes before the whole file was served',
       at_frame < SIZE and elapsed < SIZE / RATE / 2,
       '%d of %d bytes after %.1f s' % (at_frame, SIZE, elapsed))
+check('the video has graphics offload enabled',
+      isinstance(viewer.media_bin.get_child(), Gtk.Video)
+      and viewer.media_bin.get_child().get_graphics_offload()
+      == Gtk.GraphicsOffloadEnabled.ENABLED)
 check('the viewer shows the media page',
       viewer.stack.get_visible_child_name() == 'media',
       viewer.stack.get_visible_child_name())
@@ -214,6 +218,178 @@ check('Retry streams again and lands on the error page again',
       and wait(lambda: viewer.stack.get_visible_child_name() == 'error', 8))
 viewer.close()
 wait(lambda: not mediaengine._releasing, 5)
+
+# (e2) A GIFV obeys the live autoplay check; a video never does.
+gtk_settings = Gtk.Settings.get_default()
+saved_motion = gtk_settings.get_property('gtk-interface-reduced-motion')
+saved_anim = gtk_settings.get_property('gtk-enable-animations')
+saved_state = mediaplayback._system_state
+
+
+def gifv(url):
+    return {'type': 'gifv', 'url': url, 'description': 'g'}
+
+
+def open_gifv():
+    v = mediaviewer.present_media(parent, [gifv(fast.base + '/media.ogg')])
+    wait(lambda: frame_drawn(v), 8)
+    return v
+
+
+try:
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    gtk_settings.set_property('gtk-enable-animations', True)
+    check('the check is True with nothing against motion',
+          mediaplayback.may_autoplay_loop())
+
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    check('the check is False under reduced motion',
+          not mediaplayback.may_autoplay_loop())
+    viewer = open_gifv()
+    settle(0.5)
+    check('a GIFV does not autoplay under reduced motion',
+          viewer._stream.is_prepared() and not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    check('... and it starts when the gate opens (case B)',
+          viewer._stream.is_prepared() and wait(viewer._stream.get_playing, 5))
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+
+    # Case A: open at start, closed before the stream is prepared.
+    viewer = mediaviewer.present_media(
+        parent, [gifv(fast.base + '/media.ogg')])
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    wait(lambda: frame_drawn(viewer), 8)
+    settle(0.5)
+    check('a gate closed while loading holds the GIFV (case A)',
+          viewer._stream.is_prepared() and not viewer._stream.get_playing())
+    # A click starts it; an unrelated notify must not pause it.
+    viewer._on_gifv_clicked(None, 1, 0, 0, viewer._stream)
+    check('a click starts a held GIFV', viewer._stream.get_playing())
+    from src import sysstate
+    sysstate.monitor().notify('power-saver')
+    check('an unrelated notify leaves a clicked GIFV playing',
+          viewer._stream.get_playing())
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+
+    viewer = open_gifv()
+    check('a GIFV autoplays', wait(viewer._stream.get_playing, 5))
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    check('reduced motion pauses a playing GIFV',
+          not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    check('... and clearing it resumes the GIFV it paused',
+          wait(viewer._stream.get_playing, 5))
+
+    gtk_settings.set_property('gtk-enable-animations', False)
+    check('turning animations off pauses it',
+          not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-enable-animations', True)
+    check('... and on resumes it', wait(viewer._stream.get_playing, 5))
+
+    mediaplayback._system_state = lambda name: name == 'power-saver'
+    sysstate.monitor().notify('power-saver')
+    check('power saving pauses the GIFV', not viewer._stream.get_playing())
+    mediaplayback._system_state = lambda name: False
+    sysstate.monitor().notify('power-saver')
+    check('... and leaving it resumes the GIFV',
+          wait(viewer._stream.get_playing, 5))
+
+    # A GIFV the user paused is the user's.
+    viewer._on_gifv_clicked(None, 1, 0, 0, viewer._stream)
+    check('a click pauses the GIFV', not viewer._stream.get_playing())
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.NO_PREFERENCE)
+    settle(0.3)
+    check('a GIFV the user paused is not resumed',
+          not viewer._stream.get_playing())
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+
+    # Another attachment: the gate leaves a video alone.
+    viewer = mediaviewer.present_media(
+        parent, [video(fast.base + '/media.ogg')])
+    wait(lambda: frame_drawn(viewer), 8)
+    check('a video autoplays', wait(viewer._stream.get_playing, 5))
+    gtk_settings.set_property('gtk-interface-reduced-motion',
+                              Gtk.ReducedMotion.REDUCE)
+    mediaplayback._system_state = lambda name: name == 'power-saver'
+    sysstate.monitor().notify('power-saver')
+    check('a video is never paused by the gate',
+          viewer._stream.get_playing())
+    viewer.close()
+    wait(lambda: not mediaengine._releasing, 5)
+finally:
+    gtk_settings.set_property('gtk-interface-reduced-motion', saved_motion)
+    gtk_settings.set_property('gtk-enable-animations', saved_anim)
+    mediaplayback._system_state = saved_state
+
+# (e3) The viewer remembers the volume of video and audio, not a GIFV's.
+from src import pages  # noqa: E402
+
+store = pages.settings()
+store.reset('media-viewer-volume')
+viewer = mediaviewer.present_media(parent, [video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+check('a video starts at the default volume',
+      abs(viewer._stream.get_volume() - 1.0) < 1e-6,
+      str(viewer._stream.get_volume()))
+viewer._stream.set_volume(0.4)
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+check('closing saves the changed volume',
+      abs(store.get_double('media-viewer-volume') - 0.4) < 1e-6)
+viewer = mediaviewer.present_media(parent, [video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+check('the next video opens at that volume',
+      abs(viewer._stream.get_volume() - 0.4) < 1e-6,
+      str(viewer._stream.get_volume()))
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+viewer = open_gifv()
+viewer._stream.set_volume(0.9)
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+check('a GIFV does not touch the saved volume',
+      abs(store.get_double('media-viewer-volume') - 0.4) < 1e-6)
+# A near-silent volume is not remembered.
+store.set_double('media-viewer-volume', 0.7)
+viewer = mediaviewer.present_media(parent, [video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+viewer._stream.set_volume(0.01)
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+check('a near-silent volume is not saved',
+      abs(store.get_double('media-viewer-volume') - 0.7) < 1e-6)
+
+# A reused engine does not stay muted after a GIFV.
+store.reset('media-viewer-volume')
+viewer = mediaviewer.present_media(
+    parent, [gifv(fast.base + '/media.ogg'), video(fast.base + '/media.ogg')])
+wait(lambda: frame_drawn(viewer), 8)
+engine = viewer._engine
+check('a GIFV mutes the engine', engine.play.get_mute())
+viewer.show_index(1)
+wait(lambda: frame_drawn(viewer), 8)
+check('the same engine is reused', viewer._engine is engine)
+check('a video after a GIFV is not muted', not engine.play.get_mute())
+check('... and has the stream volume',
+      abs(engine.play.get_volume() - viewer._stream.get_volume()) < 1e-6,
+      str(engine.play.get_volume()))
+viewer.close()
+wait(lambda: not mediaengine._releasing, 5)
+store.reset('media-viewer-volume')
 
 # (f) Every request carried Babble's User-Agent.
 agents = slow.agents + fast.agents

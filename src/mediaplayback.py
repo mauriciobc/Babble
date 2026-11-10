@@ -188,6 +188,20 @@ def _system_state(name):
     return bool(sysstate.monitor().get_property(name))
 
 
+def may_autoplay_loop(widget=None):
+    """Whether looping, muted media (a GIFV) may run by itself: animations
+    are on, the user has not asked for reduced motion, and the system is
+    not saving power. Read live, so the viewer can follow a change."""
+    gtk_settings = (Gtk.Settings.get_for_display(widget.get_display())
+                    if widget is not None else Gtk.Settings.get_default())
+    if not gtk_settings.get_property('gtk-enable-animations'):
+        return False
+    if gtk_settings.get_property('gtk-interface-reduced-motion') \
+            == Gtk.ReducedMotion.REDUCE:
+        return False
+    return not _system_state('power-saver')
+
+
 def release_media(bin_widget, stream):
     """Pause *stream*, detach it from its engine and take the media widget
     out of *bin_widget*. The engine stays alive: the viewer stops it
@@ -198,6 +212,10 @@ def release_media(bin_widget, stream):
         stream.detach()
     bin_widget.set_child(None)
     del child
+
+
+# The lowest volume the viewer remembers.
+MIN_SAVED_VOLUME = 0.05
 
 
 class MediaPlayback:
@@ -215,8 +233,69 @@ class MediaPlayback:
     _autoplayed = False
     # The pending source that shows the buffering spinner.
     _buffering_timeout = 0
+    # The GIFV playing was paused by the autoplay gate (not by the user),
+    # and the gate resumes it when it opens again.
+    _gate_paused = False
+    # The gate's signals are connected once per viewer.
+    _gate_connected = False
+    # The last answer of the autoplay check, so only a change acts.
+    _gate_open = True
+    # The volume the current video or audio stream started at.
+    _loaded_volume = None
+
+    def _connect_loop_gate(self):
+        """Follow the autoplay check while a GIFV is shown. Connected once
+        (the handlers only act on a GIFV, so a later attachment of another
+        kind is untouched) and released with the viewer."""
+        if self._gate_connected:
+            return
+        self._gate_connected = True
+        from . import sysstate
+        pages.connect_weak(sysstate.monitor(), 'notify::power-saver',
+                           self._on_loop_gate_changed)
+        gtk_settings = Gtk.Settings.get_for_display(self.get_display())
+        for name in ('gtk-enable-animations', 'gtk-interface-reduced-motion'):
+            pages.connect_weak(gtk_settings, 'notify::' + name,
+                               self._on_loop_gate_changed)
+
+    def _on_loop_gate_changed(self, *_args):
+        stream = self._stream
+        if stream is None or self._stream_kind != 'gifv':
+            return
+        was_open, self._gate_open = self._gate_open, may_autoplay_loop(self)
+        if not stream.is_prepared() or was_open == self._gate_open:
+            return
+        if self._gate_open:
+            if self._gate_paused:
+                self._gate_paused = False
+                stream.play()
+        elif stream.get_playing():
+            self._gate_paused = True
+            stream.pause()
+
+    def _restore_volume(self, stream):
+        """Start a video or audio stream at the remembered volume."""
+        volume = pages.settings().get_double('media-viewer-volume')
+        self._loaded_volume = volume
+        stream.set_volume(volume)
+
+    def _save_volume(self, stream):
+        """Remember the volume the user left a video or audio stream at,
+        when they changed it. The muted state is not kept."""
+        if stream is None or self._stream_kind not in ('video', 'audio') \
+                or self._loaded_volume is None:
+            return
+        volume = min(1.0, max(0.0, stream.get_volume()))
+        # A near-silent slider position is not a preference: it would
+        # make every later video open silent.
+        if volume >= MIN_SAVED_VOLUME \
+                and abs(volume - self._loaded_volume) > 1e-6:
+            pages.settings().set_double('media-viewer-volume', volume)
+        self._loaded_volume = None
 
     def _unload_media(self):
+        self._gate_paused = False
+        self._save_volume(self._stream)
         self._set_inhibited(False)
         stream = self._stream
         self._stream = None
@@ -312,15 +391,24 @@ class MediaPlayback:
             view.add_controller(click)
             # A looping animation is decoration: it waits for a click
             # when animations are off or the system saves power.
-            autoplay = Gtk.Settings.get_default().get_property(
-                'gtk-enable-animations') and not _system_state('power-saver')
+            # Decided when the stream is prepared, not now.
+            autoplay = True
+            self._gate_open = may_autoplay_loop(self)
+            self._connect_loop_gate()
         elif kind == 'video':
-            view = Gtk.Video(hexpand=True, vexpand=True)
+            # Offload lets the compositor scan the video out directly.
+            # It applies on Wayland with dmabuf-capable frames; GTK
+            # renders normally otherwise.
+            view = Gtk.Video(
+                hexpand=True, vexpand=True,
+                graphics_offload=Gtk.GraphicsOffloadEnabled.ENABLED)
             view.set_media_stream(stream)
             view.add_css_class('media-viewer-video')
+            self._restore_volume(stream)
             autoplay = True
         else:
             view = self._audio_view(attachment, stream)
+            self._restore_volume(stream)
             autoplay = True
         self.media_bin.set_child(view)
         pages.connect_weak(stream, 'notify::error', self._on_stream_error)
@@ -373,6 +461,8 @@ class MediaPlayback:
         return box
 
     def _on_gifv_clicked(self, gesture, n_press, x, y, stream):
+        # The user decides now: whatever the gate paused stays theirs.
+        self._gate_paused = False
         if stream.get_playing():
             stream.pause()
         else:
@@ -456,7 +546,15 @@ class MediaPlayback:
         # duration that arrived late) must not restart a paused video.
         if autoplay and not self._autoplayed:
             self._autoplayed = True
-            stream.play()
+            if self._stream_kind != 'gifv':
+                stream.play()
+            else:
+                self._gate_open = may_autoplay_loop(self)
+                if self._gate_open:
+                    stream.play()
+                else:
+                    # Held by the gate: it starts when the gate opens.
+                    self._gate_paused = True
         if self._first_focus:
             self._first_focus = False
             child = self.media_bin.get_child()

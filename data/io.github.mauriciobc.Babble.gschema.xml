@@ -299,5 +299,11 @@
       <default>[]</default>
       <summary>Unsent composer drafts as JSON, newest first</summary>
     </key>
+    <key name="media-viewer-volume" type="d">
+      <range min="0" max="1"/>
+      <default>1.0</default>
+      <summary>Volume of videos and audio in the media viewer</summary>
+      <description>The volume the media viewer last played video and audio at, from 0 (silent) to 1 (full). It is restored when the next video or audio opens. Whether the sound was muted is not remembered, and GIFVs stay muted.</description>
+    </key>
   </schema>
 </schemalist>
