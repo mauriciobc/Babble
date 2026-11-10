@@ -674,6 +674,12 @@ test('rank eval', python,
   env: test_env,
   timeout: 120,
 )
+# Needs no display: judges synthetic baseline/candidate figures.
+test('bench compare', python,
+  args: [files('../bench/compare.py'), '--self-test'],
+  env: test_env,
+  timeout: 60,
+)
 test('capability gates', python,
   args: [files('test-capability.py')],
   env: test_env,

@@ -6,6 +6,8 @@
 # figure: process CPU (cpu_ms), main-thread dispatch CPU and stalls
 # (main_ms, stall_max_ms, stall_p99_ms, stalls_over_16ms), painted frames
 # and frames showing an empty run shell, phases, and memory.
+# BENCH_JSON=<path> also writes {"median": {...}, "runs": [{...}, ...]} there
+# for bench/compare.py; the printed output is the same with or without it.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -27,12 +29,17 @@ for i in $(seq "$RUNS"); do
     grep -q '^{' "$work/run$i.json" || { cat "$work/run$i.err" >&2; exit 1; }
 done
 
-python3 - "$work" "$RUNS" <<'EOF'
+python3 - "$work" "$RUNS" "${BENCH_JSON:-}" <<'EOF'
 import json, statistics, sys
-work, runs = sys.argv[1], int(sys.argv[2])
+work, runs, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 results = [json.loads(open('%s/run%d.json' % (work, i)).read().strip().splitlines()[-1])
            for i in range(1, runs + 1)]
 print('runs cpu_ms: %s' % [r['cpu_ms'] for r in results], file=sys.stderr)
 for key in results[0]:
     print('METRIC %s=%s' % (key, statistics.median(r[key] for r in results)))
+if out:
+    with open(out, 'w') as f:
+        json.dump({'median': {k: statistics.median(r[k] for r in results)
+                              for k in results[0]},
+                   'runs': results}, f, indent=1)
 EOF

@@ -1,0 +1,47 @@
+{
+  "_comment": "Limits for bench/compare.py. Every gated metric is higher-is-worse. A metric FAILS only if BOTH limits given for it are exceeded: the increase over the baseline is more than max_increase_pct percent AND more than max_increase in absolute units (so a tiny metric near 0 is not failed by a large percentage of nothing). If only one limit is given, that one alone decides. Derived from three baseline invocations of BENCH_RUNS=5 on one machine (main 8f7eb03); see PERFORMANCE.md, \"Timeline limits for inline playback\". cpu_ms and wall_ms are reported but not gated: cpu_ms counts every thread. wall_stall_* are wall-clock dispatch times (they see a blocked main thread, and also count preemption by other processes, so their limits are wider than the CPU ones).",
+  "metrics": {
+    "main_ms": {
+      "max_increase_pct": 10,
+      "max_increase": 100
+    },
+    "stall_max_ms": {
+      "max_increase_pct": 40,
+      "max_increase": 8
+    },
+    "stall_p99_ms": {
+      "max_increase_pct": 15,
+      "max_increase": 1.5
+    },
+    "stalls_over_16ms": {
+      "max_increase": 2
+    },
+    "frames_with_empty_shell": {
+      "max_increase_pct": 30,
+      "max_increase": 4
+    },
+    "peak_rss_mb": {
+      "max_increase_pct": 3,
+      "max_increase": 8
+    },
+    "rss_growth_mb": {
+      "max_increase_pct": 5,
+      "max_increase": 5
+    },
+    "retained_mb": {
+      "max_increase_pct": 5,
+      "max_increase": 5
+    },
+    "wall_stall_max_ms": {
+      "max_increase_pct": 40,
+      "max_increase": 10
+    },
+    "wall_stall_p99_ms": {
+      "max_increase_pct": 15,
+      "max_increase": 2
+    },
+    "wall_stalls_over_16ms": {
+      "max_increase": 8
+    }
+  }
+}

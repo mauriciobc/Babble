@@ -156,3 +156,85 @@ The first-painted-row figure did not move (25–74 ms on both trees); the open a
 ## Media playback engine (2026-11-09)
 
 The viewer plays through a per-viewer GstPlay with `gtk4paintablesink`, wrapped in a Python `Gtk.MediaStream`, instead of `Gtk.MediaFile`. Python costs +0.06-0.12 ms per frame in the wrapper's vfuncs, with 0 main-loop stalls (E4). Creating the engine costs +74 MB (E5), so it is made on the first video, GIFV or audio and never for an image. While playing, the NVIDIA hardware decoder adds about 135 MB; the VA-API and software paths plateau at 436-458 MB (E6). Figures are from `reports/video-playback-bench/`.
+
+## Timeline limits for inline playback (2026-11-10)
+
+Inline muted video in the timeline (phase 2 of the video playback plan) must not make scrolling worse, so `bench/compare.py` judges a candidate run of `./autoresearch.sh` against a baseline run of main, metric by metric, with limits in `bench/limits.json`. The limits below were measured, not guessed.
+
+**Baseline:** main at `8f7eb03`, one machine (the author's Arch Linux desktop, Xvfb 1280x1024, Cairo renderer, `BENCH_RUNS=5`). Figures are machine-specific; compare only two files measured on the same machine. Three separate invocations, run back to back with nothing else running. Each cell is the five runs of one invocation, then their median.
+
+| metric | invocation 1 | invocation 2 | invocation 3 |
+|---|---|---|---|
+| `main_ms` | 1298.5, 1354, 1318.4, 1329.9, 1208.1; **1318.4** | 1322.1, 1361.7, 1367.9, 1281.7, 1321.5; **1322.1** | 1282.5, 1284.8, 1373.6, 1371.1, 1341.3; **1341.3** |
+| `stall_max_ms` | 15.7, 23.2, 14.5, 21.8, 16.9; **16.9** | 17.3, 16, 22.9, 14.7, 21.4; **17.3** | 22.2, 13.7, 22.9, 15.2, 21.9; **21.9** |
+| `stall_p99_ms` | 8.2, 8.5, 8.9, 8.5, 7.5; **8.5** | 8, 8.7, 8.2, 8.5, 8.1; **8.2** | 8.1, 8.1, 8.8, 9, 8; **8.1** |
+| `stalls_over_16ms` | 0, 1, 0, 3, 1; **1** | 1, 0, 1, 0, 1; **1** | 1, 0, 1, 0, 1; **1** |
+| `frames_with_empty_shell` | 16, 16, 14, 14, 14; **14** | 14, 14, 15, 16, 15; **15** | 13, 16, 14, 14, 17; **14** |
+| `peak_rss_mb` | 388.5, 388.8, 388.4, 388.4, 389.5; **388.5** | 387.5, 389.6, 387.5, 388.9, 390.9; **388.9** | 389, 387.5, 388.6, 388.1, 387.9; **388.1** |
+| `rss_growth_mb` | 78.6, 78.6, 78.3, 78.4, 78.7; **78.6** | 77.9, 79.7, 77.5, 78.7, 80.1; **78.7** | 78.3, 77.8, 78.8, 77.7, 77.8; **77.8** |
+| `retained_mb` | 78.7, 78.7, 78.4, 78.5, 78.8; **78.7** | 78, 79.8, 77.6, 78.8, 80.2; **78.8** | 78.4, 77.9, 78.8, 77.8, 77.8; **77.9** |
+| `cpu_ms` | 2100.9, 2180.4, 2162.6, 2227.4, 1988.5; **2162.6** | 2132.1, 2193.1, 2201.5, 2101.4, 2146.6; **2146.6** | 2065.5, 2100.4, 2180.5, 2222.5, 2176.3; **2176.3** |
+| `wall_ms` | 7378.1, 7366.4, 7367.2, 7508.1, 7229.8; **7367.2** | 7481.7, 7491.5, 7501.8, 7376.8, 7381.5; **7481.7** | 7266.7, 7490.3, 7365.8, 7612.9, 7493.5; **7490.3** |
+
+Spread of the three medians (max - min, and as a share of their median), and the widest spread inside one invocation's five runs:
+
+| metric | median spread | within one invocation | limit (fails only if BOTH are exceeded) |
+|---|---:|---:|---|
+| `main_ms` | 22.9 (1.7%) | 145.9 | +10% and +100 |
+| `stall_max_ms` | 5 (28.9%) | 9.2 | +40% and +8 |
+| `stall_p99_ms` | 0.4 (4.9%) | 1.4 | +15% and +1.5 |
+| `stalls_over_16ms` | 0 (0.0%) | 3 | +2 |
+| `frames_with_empty_shell` | 1 (7.1%) | 4 | +30% and +4 |
+| `peak_rss_mb` | 0.8 (0.2%) | 3.4 | +3% and +8 |
+| `rss_growth_mb` | 0.9 (1.1%) | 2.6 | +5% and +5 |
+| `retained_mb` | 0.9 (1.1%) | 2.6 | +5% and +5 |
+
+**Why these limits.** Each is at least about twice the spread between invocation medians, and the absolute side is sized to the run-to-run spread, because a candidate is judged on one invocation.
+
+- `main_ms` (spread 23 ms, 1.7%; runs within one invocation spread up to 146 ms, 11%): +10% and +100 ms.
+- `stall_max_ms` is bimodal, about 14-17 ms or 21-23 ms in any five runs, so its median hops between the two (spread 5.0 ms, 29%): +40% and +8 ms, which clears the hop and still catches a 30 ms stall.
+- `stall_p99_ms` is steady (spread 0.4 ms): +15% and +1.5 ms.
+- `stalls_over_16ms` is a count of 0-3 per run with a median of 1: a percentage means nothing there, so only an absolute +2 applies.
+- `frames_with_empty_shell` (spread 1, within one invocation 4): +30% and +4 frames.
+- `peak_rss_mb`, `rss_growth_mb`, `retained_mb` are very stable (spread 0.8-0.9 MB): +3% and +8 MB for peak, +5% and +5 MB for the two growth figures. A playing video engine costs far more than this (Media playback engine, above), so inline playback has to earn its memory, or stay off.
+- `cpu_ms` and `wall_ms` are printed and not gated: `cpu_ms` counts every thread (decoder threads included), and `wall_ms` includes fixed waits.
+
+Only three medians stand behind these limits, so they are a floor on how noisy the machine can be, not a proof. If a clean main-against-main comparison ever fails, widen the limit and record the run here.
+
+**What the gate can and cannot see.** `main_ms` and the stall figures are main-thread *CPU* time per dispatch, so a main-thread `time.sleep()` is invisible to them (it only shows up as `frames_with_empty_shell` and `wall_ms`); a busy loop is not. Forced regression, to show the gate can fail: 20 ms of main-thread CPU burned in `StatusRow.bind` (never committed) failed `main_ms` (1322 to 2387), `stall_max_ms` (17.3 to 29), `stall_p99_ms` (8.2 to 25.3), `stalls_over_16ms` (1 to 62) and `frames_with_empty_shell` (15 to 52). Main compared against itself passed in all three pairings of the invocations above.
+
+**Wall-clock stalls (added the same day).** The figures above are thread CPU time, so they cannot see a main thread that is blocked without using CPU (a lock, I/O, a synchronous GStreamer state change): a 20 ms `time.sleep` in `StatusRow.bind` left every stall figure unchanged. `bench/timeline_bench.py` now also times each dispatch with `time.monotonic()` and emits `wall_stall_max_ms`, `wall_stall_p99_ms` and `wall_stalls_over_16ms` (the existing keys are unchanged). Three more fresh invocations of `BENCH_RUNS=5` on main with the new bench, nothing else running (the first table's invocations predate these keys; the CPU figures of this second set are in the compare outputs below and moved a little, e.g. `stall_max_ms` medians 22.6, 21.9, 22.4 against 16.9, 17.3, 21.9, and `main_ms` medians 1323.8, 1245.1, 1333.8 with a within-invocation spread up to 284 ms):
+
+| metric | invocation 1 | invocation 2 | invocation 3 |
+|---|---|---|---|
+| `wall_stall_max_ms` | 23.7, 24.8, 23.7, 24.9, 22.9; **23.7** | 26.2, 23.4, 22.3, 17, 23.4; **23.4** | 24.1, 22.9, 24.6, 23.5, 23.5; **23.5** |
+| `wall_stall_p99_ms` | 8.8, 8.3, 9.6, 8.9, 9.1; **8.9** | 9, 10.7, 8.4, 9, 8.8; **9** | 8.7, 9.1, 10.5, 8.8, 10.3; **9.1** |
+| `wall_stalls_over_16ms` | 8, 4, 11, 7, 5; **7** | 6, 13, 4, 3, 8; **6** | 6, 10, 14, 6, 13; **10** |
+
+| metric | median spread | within one invocation | limit |
+|---|---:|---:|---|
+| `wall_stall_max_ms` | 0.3 | 9.2 | +40% and +10 |
+| `wall_stall_p99_ms` | 0.2 | 2.3 | +15% and +2 |
+| `wall_stalls_over_16ms` | 4 | 10 | +8 |
+
+Wall stalls also count preemption by other processes on the machine, which is why their limits are wider than the CPU ones: `wall_stall_max_ms` is +40% and +10 ms (one run in five dipped to 17.0 and one reached 26.2), `wall_stall_p99_ms` is +15% and +2 ms (within-invocation spread up to 2.3 ms), and `wall_stalls_over_16ms`, a count of 3-14 per run with medians 7, 6, 10, is an absolute +8 only. The `main_ms` limit (+10% and +100 ms) held in the three main-against-main comparisons of this set, whose medians spread 89 ms (6.7%); if it ever trips on a clean main, widen it.
+
+Validation with the new bench: all three main-against-main pairings (invocations 1-2, 2-3, 1-3) exit 0 with PASS on every gated metric, old and new. The 20 ms sleep in `StatusRow.bind` now fails `wall_stall_max_ms` (23.4 to 40.2), `wall_stall_p99_ms` (9.0 to 28.3) and `wall_stalls_over_16ms` (6 to 64), plus `main_ms`, `stall_p99_ms` and `frames_with_empty_shell`. The 20 ms CPU burn still fails `main_ms`, `stall_p99_ms`, `stalls_over_16ms`, `frames_with_empty_shell`, `wall_stall_p99_ms` and `wall_stalls_over_16ms` (`stall_max_ms` passes at +8.0, exactly on its limit, and `wall_stall_max_ms` at +7.1).
+
+**Memory budget for inline playback.** The limits above allow only +5 MB of growth, so any inline playback would fail memory by construction (one engine is +74 MB, E5 in the media engine section above). `bench/limits-inline.json` is identical to `bench/limits.json` except `peak_rss_mb` and `rss_growth_mb`, which allow an absolute +90 MB (the 74 MB of one engine plus margin) with no relative limit. `retained_mb` keeps +5 MB: the engine must be released at teardown, which is the leak check. More than one live engine is out of budget by design (the plan allows at most one active tile). The `bench compare` self-test checks that the two files gate the same metrics and differ only in those two.
+
+**Running it.** Measure the baseline on the same machine, from a worktree of main, then the candidate, then compare; run nothing else meanwhile.
+
+```sh
+git worktree add ../babble-main main
+(cd ../babble-main && BENCH_RUNS=5 BENCH_JSON=/tmp/base.json ./autoresearch.sh)
+BENCH_RUNS=5 BENCH_JSON=/tmp/cand.json ./autoresearch.sh      # on the candidate branch
+python3 bench/compare.py /tmp/base.json /tmp/cand.json         # exit 1 on a breach
+# inline playback enabled: add --limits bench/limits-inline.json
+```
+
+`BENCH_JSON` also keeps every per-run value, so a failure can be read run by run. `python3 bench/compare.py --self-test` (`meson test -C build 'bench compare'`) checks the rule itself.
+
+**STOP CONDITION.** An inline-playback change must pass `bench/compare.py` against a main baseline measured on the same machine, on the default workload with inline playback enabled. If it fails, it gets one optimization pass; if it still fails, inline playback ships off by default behind its preference, or the phase stops.
+
+The inline-enabled comparison uses `--limits bench/limits-inline.json` (one engine's memory allowed, nothing else relaxed); a change that keeps more than one engine alive is out of budget by design.
