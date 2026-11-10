@@ -426,6 +426,13 @@ web_test_env.set('GSETTINGS_BACKEND', 'memory')
 web_test_env.set('GDK_DEBUG', 'no-portals')
 web_test_env.set('NO_AT_BRIDGE', '1')
 web_test_env.set('GTK_A11Y', 'none')
+# The suite's locale and renderer pins (see test_env): without
+# GSK_RENDERER the column picked a GL renderer, and on Fedora rawhide's
+# Mesa (Zink, "failed to choose pdev") the test hung until meson's
+# timeout -- on main, with no change to Babble.
+web_test_env.set('LANG', 'C')
+web_test_env.set('LC_ALL', 'C')
+web_test_env.set('GSK_RENDERER', 'cairo')
 web_test_env.set('WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS', '1')
 web_test_env.set('G_DEBUG', 'fatal-criticals')
 test('web column', python,
