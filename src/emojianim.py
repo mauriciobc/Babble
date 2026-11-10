@@ -30,12 +30,14 @@ from its map and unmap vfuncs, so it connects no signal, and rows the
 list view recycles cost nothing once unmapped.
 """
 
+import collections
+
 import gi
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
 
-from gi.repository import GLib, GObject, Gdk, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import imagecache  # noqa: E402
 
@@ -56,6 +58,15 @@ MAX_DIMENSION = 256
 # Browsers treat a frame delay of 10 ms or less as 100 ms.
 MIN_FRAME_MS = 20
 DEFAULT_FRAME_MS = 100
+# A mapped image waits this long before it fetches, so rows flung past
+# and the first layout's map/unmap churn start nothing.
+DEFER_MS = 150
+# At most this many glycin decodes at once; the rest queue.
+MAX_DECODES = 2
+# A glycin load that has not finished by now is given up on.
+WATCHDOG_MS = 10000
+# A failed URL is not asked for again for this long.
+FAILURE_TTL_MS = 60000
 
 # static_url -> url, for the emoji that move.
 _animated_urls = {}
@@ -177,14 +188,30 @@ class _Decoder:
         self.delays = []
         self.cost = 0
         self.request = None
+        self.watchdog = 0
+        self.watchdog = GLib.timeout_add(WATCHDOG_MS, self._on_watchdog)
         try:
             loader = Gly.Loader.new_for_bytes(data)
             loader.load_async(cancellable, self._on_image)
         except Exception as error:
             self._finish(None, str(error))
 
+    def _on_watchdog(self):
+        self.watchdog = 0
+        if self.done is None:
+            return GLib.SOURCE_REMOVE
+        # Report first, so the request is forgotten with the failure
+        # noted, then cancel whatever glycin is still doing.
+        self._finish(None, 'timed out')
+        if self.cancellable is not None:
+            self.cancellable.cancel()
+        return GLib.SOURCE_REMOVE
+
     def _finish(self, value, reason=None):
         done, self.done = self.done, None
+        if self.watchdog:
+            GLib.source_remove(self.watchdog)
+            self.watchdog = 0
         self.image = self.request = None
         self.frames = []
         if done is not None:
@@ -239,8 +266,36 @@ class _Decoder:
         self._next()
 
 
+_decoding = 0
+_queued = collections.deque()
+
+
 def _decode(data, _key, cancellable, done):
-    _Decoder(data, cancellable, done)
+    """Decode *data*, at most MAX_DECODES at a time."""
+    _queued.append((data, cancellable, done))
+    _pump_decodes()
+
+
+def _pump_decodes():
+    global _decoding
+    while _queued and _decoding < MAX_DECODES:
+        data, cancellable, done = _queued.popleft()
+        if cancellable is not None and cancellable.is_cancelled():
+            done(None, imagecache.CANCELLED)
+            continue
+        _decoding += 1
+        _Decoder(data, cancellable, _slot_done(done))
+
+
+def _slot_done(done):
+    def finished(value, reason):
+        global _decoding
+        _decoding -= 1
+        try:
+            done(value, reason)
+        finally:
+            GLib.idle_add(_pump_decodes)
+    return finished
 
 
 class _Clock:
@@ -285,40 +340,70 @@ class _Clock:
     def _tick(self):
         self.source = 0
         now = self._now()
-        for anim in list(self.active):
-            # A few ms of slack so animations a hair apart share a wake.
-            if anim.deadline <= now + 2:
-                anim.advance(now)
-        self._arm()
+        try:
+            for anim in list(self.active):
+                # A few ms of slack so animations a hair apart share a
+                # wake.
+                if anim.deadline <= now + 2:
+                    anim.advance(now)
+        finally:
+            self._arm()
         return GLib.SOURCE_REMOVE
 
 
 class _Manager:
     def __init__(self):
         self.store = BudgetStore(CACHE_BUDGET_BYTES)
-        self.fetcher = imagecache.Fetcher(self.store, _decode)
+        self.fetcher = imagecache.Fetcher(self.store, _decode,
+                                          on_failure=self._on_failure)
         self.clock = _Clock()
         # id(image) -> GObject weak reference, for the mapped images
         # that have an animated original.
         self.mapped = {}
+        # url -> monotonic ms until which it is not asked for again.
+        self.failed = {}
         self.watching = False
+
+    @staticmethod
+    def _now():
+        return GLib.get_monotonic_time() // 1000
+
+    def _on_failure(self, url, _reason):
+        if len(self.failed) > 512:
+            now = self._now()
+            self.failed = {u: t for u, t in self.failed.items() if t > now}
+        self.failed[url] = self._now() + FAILURE_TTL_MS
+
+    def _has_failed(self, url):
+        until = self.failed.get(url)
+        if until is None:
+            return False
+        if until <= self._now():
+            del self.failed[url]
+            return False
+        return True
 
     def image_mapped(self, image):
         key = id(image)
         if key not in self.mapped:
             self.mapped[key] = image.weak_ref(self._forget, key)
+        image._registered = True
         self._watch(image)
         if gate_open(image):
             self.show(image)
 
     def image_unmapped(self, image):
         self.hide(image)
+        image.cancel_pending()
+        image._registered = False
         self.mapped.pop(id(image), None)
 
     def _forget(self, key):
         self.mapped.pop(key, None)
 
     def show(self, image):
+        """Display the animation when it is cached; otherwise start a
+        deferred fetch."""
         url = image.animated_url
         if image.anim is not None or url is None:
             return
@@ -328,15 +413,17 @@ class _Manager:
         if found is not None:
             image.attach(found)
             return
-        if available():
-            # The waiter is weak: a request in flight must not keep an
-            # image alive.
-            self.fetcher.fetch(url, self._waiter(image))
+        if available() and not self._has_failed(url):
+            image.defer_fetch()
 
-    @staticmethod
-    def _waiter(image):
-        from .pages import weak_method
-        return weak_method(image._on_animation)
+    def request(self, image):
+        """Fetch *image*'s original now (the deferral has passed)."""
+        url = image.animated_url
+        if url is None or image.anim is not None or self._has_failed(url):
+            return
+        image.cancel_fetch()
+        cancellable = image._cancellable = Gio.Cancellable.new()
+        self.fetcher.fetch(url, _Waiter(image, url), cancellable)
 
     def attach(self, anim):
         anim.users += 1
@@ -404,6 +491,11 @@ class EmojiImage(Gtk.Image):
         self.anim = None
         self._static = None
         self._url = None
+        # Registered with the manager (mapped, with an original).
+        self._registered = False
+        # The deferred fetch's timeout, and the fetch's cancellable.
+        self._defer = 0
+        self._cancellable = None
 
     def bind(self, static_url, animated=None):
         """Show *static_url*, then *animated* (default: the registered
@@ -411,6 +503,7 @@ class EmojiImage(Gtk.Image):
         from .textemoji import EmojiTextures
         if self.anim is not None:
             self.detach()
+        self.cancel_pending()
         self._url = static_url
         self._static = None
         self.animated_url = animated or animated_url(static_url)
@@ -418,6 +511,8 @@ class EmojiImage(Gtk.Image):
             self.animated_url = None
         if self.animated_url is not None and self.get_mapped():
             manager().image_mapped(self)
+        elif self._registered:
+            manager().image_unmapped(self)
         EmojiTextures.bind(_StaticTarget(self), static_url)
 
     def _set_static(self, texture):
@@ -425,9 +520,36 @@ class EmojiImage(Gtk.Image):
         if self.anim is None:
             self.set_from_paintable(texture)
 
-    def _on_animation(self, anim, _reason):
+    def defer_fetch(self):
+        if self._defer or self._cancellable is not None:
+            return
+        from .pages import weak_method
+        self._defer = GLib.timeout_add(DEFER_MS,
+                                       weak_method(self._on_deferred))
+
+    def _on_deferred(self):
+        self._defer = 0
+        if self.get_mapped() and gate_open(self):
+            manager().request(self)
+        return GLib.SOURCE_REMOVE
+
+    def cancel_fetch(self):
+        cancellable, self._cancellable = self._cancellable, None
+        if cancellable is not None:
+            cancellable.cancel()
+
+    def cancel_pending(self):
+        if self._defer:
+            GLib.source_remove(self._defer)
+            self._defer = 0
+        self.cancel_fetch()
+
+    def _on_animation(self, url, anim):
+        if url != self.animated_url:
+            return
+        self._cancellable = None
         if anim is None or anim is _STATIC or self.anim is not None \
-                or not self.get_mapped() or self.animated_url is None:
+                or not self.get_mapped():
             return
         if not gate_open(self):
             return
@@ -449,9 +571,23 @@ class EmojiImage(Gtk.Image):
             manager().image_mapped(self)
 
     def do_unmap(self):
-        if self.animated_url is not None:
+        if self._registered:
             manager().image_unmapped(self)
         Gtk.Image.do_unmap(self)
+
+
+class _Waiter:
+    """Receives a fetch's outcome for one image and the URL it asked
+    for, held weakly; the image ignores it if it was rebound since."""
+
+    def __init__(self, image, url):
+        self._ref = image.weak_ref()
+        self._url = url
+
+    def __call__(self, anim, _reason):
+        image = self._ref()
+        if image is not None:
+            image._on_animation(self._url, anim)
 
 
 class _StaticTarget:

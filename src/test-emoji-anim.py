@@ -43,6 +43,8 @@ Adw.init()
 
 from src import emojianim, textemoji  # noqa: E402
 
+emojianim.DEFER_MS = 20
+
 FIXTURES = os.path.join(srcdir, 'fixtures', 'emoji')
 failures = []
 
@@ -72,9 +74,14 @@ def settle(seconds=0.3):
     pump(None, seconds)
 
 
+hits = {}
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        path = os.path.join(FIXTURES, os.path.basename(self.path))
+        hits[self.path] = hits.get(self.path, 0) + 1
+        path = os.path.join(FIXTURES,
+                            os.path.basename(self.path.split('?')[0]))
         if not os.path.isfile(path):
             self.send_error(404)
             return
@@ -231,6 +238,94 @@ broken = make(url=BASE + 'nothing.png')
 settle(0.5)
 check(broken.anim is None and not manager.fetcher.inflight(),
       'a failing fetch leaves the static image and nothing in flight')
+
+# A failure is remembered: unmapping and mapping again asks no more
+
+check(hits.get('/nothing.png') == 1 and not broken.anim
+      and manager._has_failed(BASE + 'nothing.png'),
+      'the failing URL was asked for once and is remembered as failed')
+broken.set_visible(False)
+settle(0.05)
+broken.set_visible(True)
+settle(0.4)
+check(hits.get('/nothing.png') == 1,
+      'a failed URL is not fetched again on the next map')
+
+# A late decode for A never lands on an image rebound to B
+
+calls = []
+real_fetch = manager.fetcher.fetch
+manager.fetcher.fetch = lambda url, waiter, cancellable=None, key=None: \
+    calls.append((url, waiter, cancellable))
+late = make(url=BASE + 'a.png?late-a', static=BASE + 's.png')
+check(pump(lambda: bool(calls)), 'the held fetch for A was requested')
+late.bind(BASE + 's.png', BASE + 'a.png?late-b')
+check(calls[0][2].is_cancelled(),
+      'rebinding cancels the previous URL\'s interest')
+done_a, _r = decode('a.png')
+calls[0][1](done_a, None)
+check(late.anim is None, 'A completing after a rebind to B does not show A')
+pump(lambda: len(calls) > 1)
+calls[-1][1](done_a, None)
+check(late.anim is done_a, 'the current URL\'s result is shown')
+manager.fetcher.fetch = real_fetch
+box.remove(late)
+late = None
+
+# Unmapping before the deferral fires starts no fetch
+
+emojianim.DEFER_MS = 300
+quick = make(url=BASE + 'a.png?quick')
+pump(lambda: quick.get_mapped())
+quick.set_visible(False)
+settle(0.7)
+check(hits.get('/a.png?quick') is None and not quick._defer,
+      'unmapping before the deferral fires starts no fetch')
+emojianim.DEFER_MS = 20
+box.remove(quick)
+quick = None
+
+# The watchdog gives up on a hung glycin load and clears the request
+
+
+class HungLoader:
+    started = []
+
+    @staticmethod
+    def new_for_bytes(_data):
+        return HungLoader()
+
+    def load_async(self, cancellable, _callback):
+        HungLoader.started.append(cancellable)
+
+
+class FakeGly:
+    Loader = HungLoader
+
+
+real_gly, real_watchdog = emojianim.Gly, emojianim.WATCHDOG_MS
+emojianim.Gly, emojianim.WATCHDOG_MS = FakeGly, 150
+hung = make(url=BASE + 'a.png?hung')
+check(pump(lambda: bool(HungLoader.started)), 'the hung load started')
+check(pump(lambda: BASE + 'a.png?hung' in manager.failed)
+      and not manager.fetcher.inflight() and emojianim._decoding == 0,
+      'the watchdog fails the load, clears it and frees the decode slot')
+box.remove(hung)
+hung = None
+
+# Decodes are capped, the rest wait
+
+HungLoader.started.clear()
+results = []
+real_max = emojianim.MAX_DECODES
+for _n in range(5):
+    emojianim._decode(read('a.png'), None, None,
+                      lambda value, reason: results.append(reason))
+check(len(HungLoader.started) == real_max,
+      'only MAX_DECODES decodes run at once')
+check(pump(lambda: len(results) == 5, 3),
+      'the queued decodes run as slots free up')
+emojianim.Gly, emojianim.WATCHDOG_MS = real_gly, real_watchdog
 
 # Freed
 

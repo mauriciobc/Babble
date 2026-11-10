@@ -53,6 +53,7 @@ jobs:
             gstreamer1 gstreamer1-plugins-base gstreamer1-plugins-good \
             gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-libs \
             gstreamer1-plugin-gtk4 \
+            glycin-libs glycin-gtk4-libs glycin-loaders \
             dbus-daemon dbus-x11
           # webkitgtk6.0 is a runtime dependency only (the web column
           # imports it lazily), but without it `web column` skips, and
