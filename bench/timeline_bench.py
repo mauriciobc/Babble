@@ -166,6 +166,12 @@ def run(port, anchor):
     from src.mastodon import MastodonClient
     from src import statusrow, statusrun, timelinedata, timelinepage
 
+    if os.environ.get('BENCH_INLINE'):
+        # The opt-in cost: Play Animated GIFs in Timelines on. Off, the
+        # default, is what ships.
+        from src import pages
+        pages.settings().set_boolean('inline-animated-media', True)
+
     client = MastodonClient('https://bench.invalid')
     # The client refuses plain http by design; the fixture instance is
     # loopback-only, so point the already-built client at it.
