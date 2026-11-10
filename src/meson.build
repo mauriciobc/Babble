@@ -109,6 +109,7 @@ install_data(
   'streaming.py',
   'sysstate.py',
   'textemoji.py',
+  'emojianim.py',
   'thread.py',
   'threadchain.py',
   'timelinebase.py',
@@ -258,6 +259,12 @@ test('timeline render', python,
 # conditions (TEST-09).
 test('timeline memory', python,
   args: [files('test-timeline-memory.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+# Needs a display and glycin; a loopback server, no network.
+test('emoji anim', python,
+  args: [files('test-emoji-anim.py')],
   env: fatal_test_env,
   timeout: 60,
 )
