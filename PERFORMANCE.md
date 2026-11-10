@@ -349,3 +349,73 @@ cpu_ms                       2108.1     2065.5      -42.6 -              report-
 wall_ms                        7395     7374.4      -20.6 -              report-only
 PASS
 ```
+
+## Cheaper inline playback (2026-11-10)
+
+Baseline: main `49800d2` (PR #102), worktree of its own, same session, same machine, `BENCH_RUNS=5` each, nothing else running, same served media (a 103 KB Ogg/Theora clip). `inline on` is `BENCH_INLINE=1`. Every run is listed; figures are `[run1, ..., run5]`.
+
+**The maintainer's candidates (`fix/inline-long-stall`, `c813489`) were measured and not adopted.** Two things in them are not what they claim:
+
+- `autoresearch.sh` there defaults `BENCH_INLINE` to 1, and `bench/timeline_bench.py` tests `os.environ.get('BENCH_INLINE')` for truth, so `BENCH_INLINE=0` (and an empty value, which `${...:-1}` turns into 1) still turns inline on: the documented "override to measure the baseline" does not work. The off figures below use `061be78`'s `autoresearch.sh`.
+- With `pause()` removed from `Engine.load()` the pipeline never starts. Standalone (`GstPlay`, `set_uri` only, 1.5 s): no state change, no media info, no frame. `play.pause()` itself returns in 0.1 ms, so there was no 120 ms to save. In the bench, a probe on `InlinePlayer` counted 7 starts and **0 streams shown** at `c813489` (7 and 7 at its base `061be78`): nothing played, which is why "inline on" looked faster and grew RSS by 10 MB instead of 85. The ~1.3 s outliers do not appear because no engine ever runs.
+
+Measured on `061be78` (base) and `c813489`, key on, `limits-inline.json` as on main: base `stall_max_ms` [112.4, 127.3, 1297.6, 151.0, 1292.8] (two outliers of five), `retained_mb` [159.6, 159.0, 161.4, 160.0, 160.8]; `c813489` `stall_max_ms` [49.6, 55.8, 47.8, 46.5, 46.0], `retained_mb` [89.7, 87.1, 88.6, 87.8, 87.9] with no video ever shown. Key off, the two trees are indistinguishable.
+
+**Lazy paintable (candidate 1) does not remove the stall, it moves it.** `gtk4paintablesink` creates its GL context on the main thread on its first READY/PAUSED, whatever the caps. Standalone, a 2 ms ticker on the main loop: eager `sink.props.paintable` costs 61-91 ms in `Engine.__init__`; lazy, there is no gap there, and a 68-72 ms gap at 95-100 ms, when the pipeline prerolls. The 61-91 ms and the +78 MB of driver libraries are the sink's, not the access's.
+
+**What worked: an inline engine does not use `gtk4paintablesink`.** `Engine(gl=False)` decodes into an `appsink` (RGBA, `max-buffers=2`, `drop=true`), copies each frame in the streaming thread, and hands the newest to the main thread as a `Gdk.MemoryTexture`; `mediaengine.FrameHolder` stands in for the sink's paintable. Standalone, one engine, 160x120 Theora, 3 s, two runs each (`gtk4paintablesink` against appsink): construction 68.1 and 81.4 ms against 3.6 and 3.1 ms; longest main-thread gap 68.9 and 82.0 ms against 4.0 and 3.4 ms; RSS growth 78.1 and 77.8 MB against 6.8 and 6.7 MB; 31 against 30 frames. The viewer (`gl=True`) is unchanged.
+
+The first play still pays for loading GStreamer on the main thread: importing the `Gst` typelib 25 ms and `Gst.init()` 11-14 ms (the other typelibs under 2 ms; `import mediaengine` 27-36 ms and `Engine(gl=False)` 14 ms in one go). `InlinePlayer` now does the two in separate idle sources once the key is on and a tile is registered.
+
+**Timeline bench, final tree (`83fb18c`), key off, `bench/limits.json`:**
+
+```
+main_ms                      1381.9     1346.7      -35.2 +10% and +100  PASS
+stall_max_ms                   22.7       23.1       +0.4 +40% and +8    PASS
+stall_p99_ms                    8.6        8.7       +0.1 +15% and +1.5  PASS
+stalls_over_16ms                  4          4       +0.0 +2             PASS
+frames_with_empty_shell          15         16       +1.0 +30% and +4    PASS
+peak_rss_mb                   389.3      389.5       +0.2 +3% and +8     PASS
+rss_growth_mb                  76.9       78.6       +1.7 +5% and +5     PASS
+retained_mb                      77       78.7       +1.7 +5% and +5     PASS
+wall_stall_max_ms              24.4       24.2       -0.2 +40% and +10   PASS
+wall_stall_p99_ms               9.7        9.6       -0.1 +15% and +2    PASS
+wall_stalls_over_16ms             8          8       +0.0 +8             PASS
+PASS
+```
+
+**Key on, against main with the key off, `bench/limits-inline.json` (unchanged), exit 1:**
+
+```
+main_ms                      1381.9     1428.2      +46.3 +10% and +100  PASS
+stall_max_ms                   22.7       32.4       +9.7 +40% and +8    FAIL
+stall_p99_ms                    8.6        8.4       -0.2 +15% and +1.5  PASS
+stalls_over_16ms                  4          6       +2.0 +2             PASS
+frames_with_empty_shell          15         18       +3.0 +30% and +4    PASS
+peak_rss_mb                   389.3      404.5      +15.2 +90            PASS
+rss_growth_mb                  76.9       90.8      +13.9 +90            PASS
+retained_mb                      77         91      +14.0 +5% and +5     FAIL
+wall_stall_max_ms              24.4       32.7       +8.3 +40% and +10   PASS
+wall_stall_p99_ms               9.7        9.6       -0.1 +15% and +2    PASS
+wall_stalls_over_16ms             8          8       +0.0 +8             PASS
+FAIL: stall_max_ms, retained_mb
+```
+
+Per run, key on (main with the GL sink, then this tree), same session:
+
+```
+                     main, key on                         this tree, key on
+main_ms              [1597.7, 1465.3, 1448.1, 1565.1, 1488.1]  [1298.2, 1503.1, 1476.4, 1354.9, 1428.2]
+stall_max_ms         [114.0, 120.9, 119.9, 106.2, 132.6]       [32.4, 32.0, 29.9, 33.0, 33.9]
+wall_stall_max_ms    [121.2, 124.5, 123.7, 110.2, 141.9]       [32.7, 32.2, 30.0, 33.2, 34.0]
+retained_mb          [159.0, 159.5, 160.4, 161.1, 160.1]       [91.4, 91.0, 90.4, 90.3, 91.1]
+peak_rss_mb          [473.6, 474.6, 474.4, 476.4, 474.9]       [405.4, 403.7, 404.5, 403.8, 405.2]
+```
+
+Key off, same session: main `stall_max_ms` [22.4, 22.8, 23.0, 19.7, 22.7], this tree [23.1, 23.1, 24.1, 23.0, 20.6]; `retained_mb` main [77.0, 77.0, 76.3, 76.7, 78.0], this tree [79.4, 78.7, 77.1, 78.6, 79.0].
+
+**Gates on the final tree.** Viewer crash gate (`e3b_viewer.py`, real `present_media()`, alternating video and GIFV): 5 x 50 = 250 cycles, 250 played, 0 crashes, 0 criticals; quit while playing 20/20; `media inline` 20/20; `media inline` "poster replaced in one step, never blank" passes; full suite 104 passed, 0 failed, 1 skipped (`streaming helpers`) under headless mutter at 1280x1024; 0 python core dumps. `media engine` gained checks for the appsink engine (frame, size before frame, a load clears the previous frame, finalisation of the GstPlay and the appsink), and the clearing check was shown to fail with the clearing removed.
+
+**The ~1.3 s outlier.** With the GL sink and the key on it showed in 2 of 5 runs of `061be78` (1297.6 and 1292.8 ms), and on main in 0, 1 (1307.7 ms, wall 2364.5 ms) and 0 of 5 runs in three sessions; with the appsink engine it showed in 0 of 15 runs (the same three sessions). It was not caught in the act (a probe with a main-thread watchdog perturbs the run and found none in 10), so the cause is still not known; it only appears on the path that creates a GL context.
+
+**Why key on still fails `limits-inline.json`.** `stall_max_ms` 32.4 against a ceiling of about 31: the longest dispatch is now the `Gst` typelib import (25 ms), which cannot be split. `retained_mb` +14 MB: the GStreamer libraries and plugin registry stay mapped after the engine is released, which is not a leak. Measured with this tree, an inline engine created, loaded, played 0.5 s and released ten times in one process (RSS in MB, after each cycle): 307.1, 307.8, 308.1, 308.5, 308.6, 308.7, 308.8, 308.9, 308.8, 308.9 from a start of 296.9, so the first cycle costs +10.2 MB and cycles two to ten together +1.8 MB; with the GL sink (main) 378.2 for the first, 379.3 for the tenth, from 297.2, so +81.0 and +1.1. A leak check that asks `retained_mb` to stay within +5 MB of a run that never loaded GStreamer cannot tell the first from a leak; one that compares the retained memory after N engines with after one (growth per extra engine under 1 MB) can.

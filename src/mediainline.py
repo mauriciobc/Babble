@@ -217,6 +217,9 @@ class InlinePlayer(GObject.Object):
         self._frame_handler = 0
         self._pinned = 0
         self._failed = set()
+        # The GStreamer warm-up: 0 not started, 1 module imported, 2 done.
+        self._warm_stage = 0
+        self._warm_source = 0
         self._unavailable = False
         self._viewer_open = False
         self._idle = 0
@@ -238,7 +241,35 @@ class InlinePlayer(GObject.Object):
         tile.sync_button()
         if self._on:
             self._watch_tile(tile)
+            self._warm_up()
             self.schedule()
+
+    def _warm_up(self):
+        """Load GStreamer in two idle steps before the first tile plays.
+        The first play otherwise imports it in one dispatch of about
+        45 ms (the typelib 25 ms, ``Gst.init`` 12 ms, measured), longer
+        than three frames, in the middle of a scroll; each step is
+        shorter than two."""
+        if self._warm_stage >= 2 or self._warm_source or self._unavailable:
+            return
+        self._warm_source = GLib.idle_add(
+            pages.weak_method(self._on_warm_step),
+            priority=GLib.PRIORITY_DEFAULT_IDLE)
+
+    def _on_warm_step(self):
+        self._warm_source = 0
+        try:
+            # Imported here: GStreamer is not loaded until media may play.
+            from . import mediaengine
+            if self._warm_stage == 0:
+                self._warm_stage = 1
+                self._warm_up()
+            else:
+                mediaengine.warm_up()
+                self._warm_stage = 2
+        except (ImportError, ValueError, RuntimeError):
+            self._unavailable = True
+        return GLib.SOURCE_REMOVE
 
     def unregister(self, tile):
         if self._active == tile.token:
@@ -284,6 +315,8 @@ class InlinePlayer(GObject.Object):
         if on:
             for tile in tiles:
                 self._watch_tile(tile)
+            if tiles:
+                self._warm_up()
             self.schedule()
         else:
             self._unwatch_all()

@@ -26,22 +26,30 @@ that release can undo every one of them. Events reach the owner by a
 method call, ``owner._engine_event(name, *args)``; a closure that
 captured the owner would leak it (see MEMORY-LEAKS.md).
 
-This module imports only ctypes (for ``malloc_trim``), Gst, GstPlay,
-GstPbutils, GLib and Gtk.
+This module imports only ctypes (for ``malloc_trim``), threading, Gst,
+GstPlay, GstPbutils, GLib, Gdk and Gtk, and GstApp and GstVideo when the
+first inline engine is made.
 """
 
 import ctypes
 import gc
+import threading
 import time
 
 import gi
 
 gi.require_version('Gtk', '4.0')
+gi.require_version('Gdk', '4.0')
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPlay', '1.0')
 gi.require_version('GstPbutils', '1.0')
 
-from gi.repository import GLib, Gst, GstPbutils, GstPlay, Gtk  # noqa: E402,F401
+from gi.repository import (  # noqa: E402,F401
+    Gdk, GLib, Gst, GstPbutils, GstPlay, Gtk)
+
+# GstApp and GstVideo, imported when the first appsink engine is made: the
+# viewer's engine does not need them.
+GstApp = GstVideo = None
 
 # How long release waits for STOPPED before dropping the engine anyway.
 STOP_TIMEOUT_MS = 1000
@@ -58,6 +66,12 @@ def _trim_heap():
     except (OSError, AttributeError):
         pass
     return False
+
+
+def warm_up():
+    """Initialise GStreamer ahead of the first engine, so that engine's
+    creation does not pay for it (about 12 ms) on top of the import."""
+    Gst.init(None)
 
 
 def schedule_trim():
@@ -78,6 +92,31 @@ _releasing = set()
 _all = set()
 
 
+class FrameHolder:
+    """The ``paintable`` of an appsink engine: the newest frame as a
+    ``Gdk.MemoryTexture``. :class:`mediastream.EngineStream` forwards its
+    paintable vfuncs to these methods, exactly as it does to the sink's
+    paintable, so it is a duck-typed stand-in, not a Gdk.Paintable."""
+
+    def __init__(self):
+        self.texture = None
+
+    def snapshot(self, snapshot, width, height):
+        if self.texture is not None:
+            self.texture.snapshot(snapshot, width, height)
+
+    def get_intrinsic_width(self):
+        return self.texture.get_width() if self.texture is not None else 0
+
+    def get_intrinsic_height(self):
+        return self.texture.get_height() if self.texture is not None else 0
+
+    def get_intrinsic_aspect_ratio(self):
+        if self.texture is None or self.texture.get_height() <= 0:
+            return 0.0
+        return self.texture.get_width() / self.texture.get_height()
+
+
 class Engine:
     """One GstPlay with its ``gtk4paintablesink``, owned by one viewer.
 
@@ -89,27 +128,43 @@ class Engine:
 
     *user_agent*, when given, is set on the HTTP source of a streamed
     URI: reverse proxies refuse the library default. *gl* is false for
-    inline GIFVs, which keep their frames in system memory.
+    inline GIFVs, which take their frames in system memory through an
+    appsink and a ``Gdk.MemoryTexture`` and never create a GL context.
     """
 
     def __init__(self, owner=None, user_agent=None, gl=True):
         Gst.init(None)
-        sink = Gst.ElementFactory.make('gtk4paintablesink')
-        if sink is None:
-            raise RuntimeError('gtk4paintablesink is not available')
         self.owner = owner
         self.user_agent = user_agent
-        self.sink = sink
-        self.paintable = sink.props.paintable
-        outer = sink
-        # *gl* false keeps frames in system memory (no glsinkbin): a GIFV
-        # is small and decodes in software, and the GL path measured
-        # about 45 MB more resident memory in the timeline benchmark.
-        if gl and self.paintable.props.gl_context:
-            gl_sink = Gst.ElementFactory.make('glsinkbin')
-            if gl_sink is not None:
-                gl_sink.props.sink = sink
-                outer = gl_sink
+        self.sink = None
+        self.paintable = None
+        # The newest frame of an appsink engine, and its hand-off.
+        self._frame_lock = threading.Lock()
+        self._latest = None
+        self._frame_idle = False
+        self._info = self._info_key = None
+        outer = None
+        # *gl* false is an inline GIFV: small, decoded in software, with
+        # no need for a GL context. gtk4paintablesink creates one on the
+        # main thread whatever the caps (about 70 ms, and the driver
+        # libraries it loads stay resident, +78 MB measured), so the
+        # frames go to an appsink and become a Gdk.MemoryTexture instead.
+        # The viewer (*gl* true) keeps the sink and, with a GL context,
+        # glsinkbin.
+        if not gl:
+            outer = self._make_frame_sink()
+        if outer is None:
+            sink = Gst.ElementFactory.make('gtk4paintablesink')
+            if sink is None:
+                raise RuntimeError('gtk4paintablesink is not available')
+            self.sink = sink
+            self.paintable = sink.props.paintable
+            outer = sink
+            if gl and self.paintable.props.gl_context:
+                gl_sink = Gst.ElementFactory.make('glsinkbin')
+                if gl_sink is not None:
+                    gl_sink.props.sink = sink
+                    outer = gl_sink
         self.play = GstPlay.Play(
             video_renderer=GstPlay.PlayVideoOverlayVideoRenderer.new_with_sink(
                 None, outer))
@@ -142,8 +197,12 @@ class Engine:
         self._connect(self.adapter, 'seek-done', self._on_seek_done)
         self._connect(self.adapter, 'end-of-stream', self._on_end)
         self._connect(self.adapter, 'error', self._on_error)
-        self._connect(self.paintable, 'invalidate-contents', self._on_frame)
-        self._connect(self.paintable, 'invalidate-size', self._on_size)
+        if isinstance(self.paintable, FrameHolder):
+            self._connect(self.sink, 'new-sample', self._on_new_sample)
+        else:
+            self._connect(self.paintable, 'invalidate-contents',
+                          self._on_frame)
+            self._connect(self.paintable, 'invalidate-size', self._on_size)
         pipeline = self.play.get_pipeline()
         # These two outlive _disconnect_all: a source created while the
         # engine winds down (a load in flight when it is released) must
@@ -160,8 +219,104 @@ class Engine:
             self._bus = bus
             self._connect(bus, 'message', self._on_bus_message)
 
+    def _make_frame_sink(self):
+        """An appsink for software frames, with its :class:`FrameHolder`
+        as ``paintable``; None when GstApp or GstVideo is missing (the
+        caller then falls back to ``gtk4paintablesink``)."""
+        global GstApp, GstVideo
+        try:
+            if GstApp is None:
+                gi.require_version('GstApp', '1.0')
+                gi.require_version('GstVideo', '1.0')
+                from gi.repository import GstApp as _app, GstVideo as _video
+                GstApp, GstVideo = _app, _video
+            sink = Gst.ElementFactory.make('appsink')
+        except (ValueError, ImportError):
+            return None
+        if sink is None:
+            return None
+        sink.props.caps = Gst.Caps.from_string('video/x-raw,format=RGBA')
+        sink.props.emit_signals = True
+        sink.props.sync = True
+        # Two buffers and dropping: a frame that the main thread has not
+        # taken by the next one is stale, and nothing may queue up.
+        sink.props.max_buffers = 2
+        sink.props.drop = True
+        sink.props.enable_last_sample = False
+        # Only new-sample is wired, no new-preroll: a paused inline engine
+        # shows no frame until play() (mediainline always plays from
+        # _on_prepared, so the poster is never replaced by a paused frame).
+        self.sink = sink
+        self.paintable = FrameHolder()
+        return sink
+
     def _connect(self, obj, signal, callback):
         self._handlers.append((obj, obj.connect(signal, callback)))
+
+    # Frames of an appsink engine
+
+    def _on_new_sample(self, sink):
+        """A GStreamer streaming thread: copy the frame out and hand it
+        to the main thread, touching nothing else. Frames arriving
+        before the main thread has taken the last one replace it."""
+        sample = sink.pull_sample()
+        if sample is None:
+            return Gst.FlowReturn.OK
+        buffer = sample.get_buffer()
+        caps = sample.get_caps()
+        # The caps rarely change: parse them once per distinct caps.
+        if self._info_key is None or not caps.is_equal(self._info_key):
+            self._info = GstVideo.VideoInfo.new_from_caps(caps)
+            self._info_key = caps
+        info = self._info
+        # A buffer's own GstVideoMeta says what its stride is.
+        meta = GstVideo.buffer_get_video_meta(buffer)
+        stride = meta.stride[0] if meta is not None else info.stride[0]
+        ok, mapped = buffer.map(Gst.MapFlags.READ)
+        if not ok:
+            return Gst.FlowReturn.OK
+        try:
+            data = GLib.Bytes.new(mapped.data)
+        finally:
+            buffer.unmap(mapped)
+        with self._frame_lock:
+            self._latest = (info.width, info.height, stride, data)
+            if self._frame_idle:
+                return Gst.FlowReturn.OK
+            self._frame_idle = True
+        GLib.idle_add(self._publish_frame)
+        return Gst.FlowReturn.OK
+
+    def _clear_frame(self):
+        """Forget the previous media's frame, on the main thread: one
+        still queued for it must not count as the first frame of the next
+        media."""
+        with self._frame_lock:
+            self._latest = None
+        if isinstance(self.paintable, FrameHolder):
+            self.paintable.texture = None
+
+    def _publish_frame(self):
+        with self._frame_lock:
+            frame, self._latest = self._latest, None
+            self._frame_idle = False
+        holder = self.paintable
+        if frame is None or self._finished or not isinstance(
+                holder, FrameHolder):
+            return False
+        width, height, stride, data = frame
+        if data.get_size() < stride * height:
+            return False
+        resized = (holder.texture is None
+                   or holder.texture.get_width() != width
+                   or holder.texture.get_height() != height)
+        holder.texture = Gdk.MemoryTexture.new(
+            width, height, Gdk.MemoryFormat.R8G8B8A8,
+            data, stride)
+        if resized:
+            self._emit('size')
+        self._emit('frame')
+        return False
 
     def _disconnect_all(self):
         handlers, self._handlers = self._handlers, []
@@ -276,6 +431,7 @@ class Engine:
         # Set now, so a message still queued from the previous media no
         # longer matches the URI a new stream checks against.
         self.uri = uri
+        self._clear_frame()
         if self._stopping:
             self._pending_uri = uri
             return
@@ -287,6 +443,7 @@ class Engine:
         self.uri = uri
         self._ever_loaded = True
         self._fresh = True
+        self._clear_frame()
         self.play.set_uri(uri)
         self.play.pause()
 
@@ -390,6 +547,8 @@ class Engine:
             except (TypeError, RuntimeError):
                 pass
         self.play = self.adapter = self.sink = self.paintable = None
+        with self._frame_lock:
+            self._latest = None
         _releasing.discard(self)
         _all.discard(self)
         schedule_trim()

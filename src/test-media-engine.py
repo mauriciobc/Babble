@@ -252,6 +252,79 @@ check('shutdown_all drops the playing engine',
 check('... by STOPPED, not the timeout', engine.how == 'stopped',
       repr(engine.how))
 
+# An inline engine (gl=False) takes software frames through an appsink and
+# never makes a GL context; the viewer's engine keeps gtk4paintablesink.
+viewer_engine = mediaengine.Engine(Owner())
+check('the viewer engine keeps gtk4paintablesink',
+      viewer_engine.sink.get_factory().get_name() == 'gtk4paintablesink'
+      and not isinstance(viewer_engine.paintable, mediaengine.FrameHolder))
+viewer_engine.release()
+owner = Owner()
+engine = mediaengine.Engine(owner, gl=False)
+check('an inline engine decodes into an appsink',
+      engine.sink.get_factory().get_name() == 'appsink'
+      and isinstance(engine.paintable, mediaengine.FrameHolder))
+engine.load(URI)
+engine.set_audio(True, 0.0)
+check('the inline engine prerolls',
+      wait(lambda: engine.state.value_nick == 'paused', 5))
+check('nothing shows before the first frame',
+      engine.paintable.texture is None
+      and engine.paintable.get_intrinsic_width() == 0
+      and 'frame' not in owner.events)
+engine.start()
+check('the inline engine produces a frame',
+      wait(lambda: 'frame' in owner.events, 5), repr(owner.events))
+texture = engine.paintable.texture
+check('... as a texture of the clip size, announced before it',
+      texture is not None and texture.get_width() > 0
+      and engine.paintable.get_intrinsic_width() == texture.get_width()
+      and engine.paintable.get_intrinsic_height() == texture.get_height()
+      and 'size' in owner.events
+      and owner.events.index('size') < owner.events.index('frame'),
+      repr(owner.events))
+frames_before = owner.events.count('frame')
+check('the inline engine keeps producing frames',
+      wait(lambda: owner.events.count('frame') > frames_before + 2, 5))
+# A reload must not show the last frame of the previous media as the first
+# of the next: the texture is cleared with the load.
+engine.stop()
+engine.owner = owner
+engine.load(URI)
+check('a load clears the previous media frame',
+      engine.paintable.texture is None)
+finalized = []
+engine.play.weak_ref(lambda *_: finalized.append(True))
+sink_finalized = []
+engine.sink.weak_ref(lambda *_: sink_finalized.append(True))
+engine.release()
+check('the inline engine releases by STOPPED',
+      wait(lambda: engine.play is None, 5) and engine.how in
+      ('stopped', 'settled'), repr(engine.how))
+check('... and its GstPlay and appsink are finalized',
+      wait(lambda: (gc.collect() or True) and finalized and sink_finalized,
+           5), 'play=%r sink=%r' % (finalized, sink_finalized))
+check('... and it let go of the frame',
+      engine.paintable is None and engine._latest is None)
+
+# Without GstApp or GstVideo an inline engine falls back to the sink.
+real_make = mediaengine.Engine._make_frame_sink
+mediaengine.Engine._make_frame_sink = lambda self: None
+try:
+    owner = Owner()
+    engine = mediaengine.Engine(owner, gl=False)
+finally:
+    mediaengine.Engine._make_frame_sink = real_make
+check('the fallback uses gtk4paintablesink',
+      engine.sink.get_factory().get_name() == 'gtk4paintablesink'
+      and not isinstance(engine.paintable, mediaengine.FrameHolder))
+engine.load(URI)
+check('... and still prerolls',
+      wait(lambda: 'media-info' in owner.events
+           and engine.state.value_nick == 'paused', 5), repr(owner.events))
+engine.release()
+wait(lambda: engine.play is None, 5)
+
 # Release right after load(), before the first state change, also after a
 # stop (the viewer's navigation): every request carries the engine's
 # User-Agent and none starts once release has had a second to finish.
