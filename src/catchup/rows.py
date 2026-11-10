@@ -15,6 +15,7 @@ from gi.repository import Adw, GObject, Gtk, Pango  # noqa: E402
 from .. import accounts as account_store, pages  # noqa: E402
 from .digest import plain_text  # noqa: E402
 from ..mediacache import AvatarCache, _TextureCache  # noqa: E402
+from ..mediaopen import MediaOpener  # noqa: E402
 from ..statustext import compact_count, relative_time  # noqa: E402
 from ..timelinedata import StatusItem  # noqa: E402
 from .pipeline import MAX_THUMBS, PEEK_CHARS, THUMB_SIZE, posts_phrase  # noqa: E402
@@ -96,7 +97,7 @@ class _Stat(Gtk.Box):
         self.label.set_label(compact_count(count))
 
 
-class CatchUpRow(Gtk.Box):
+class CatchUpRow(MediaOpener, Gtk.Box):
     """One post of the All posts list, light on purpose: avatar, name and
     time, boosters, one line of text, up to three thumbnails, the counts.
     Rows are recycled by the list view; :meth:`bind` resets everything."""
@@ -142,10 +143,14 @@ class CatchUpRow(Gtk.Box):
 
         self.thumbs = Gtk.Box(spacing=4, visible=False)
         self.pictures = []
-        for _n in range(MAX_THUMBS):
+        for slot in range(MAX_THUMBS):
             holder = Gtk.Overlay(width_request=THUMB_SIZE,
                                  height_request=THUMB_SIZE, visible=False,
-                                 overflow=Gtk.Overflow.HIDDEN)
+                                 overflow=Gtk.Overflow.HIDDEN,
+                                 accessible_role=Gtk.AccessibleRole.BUTTON)
+            label = _('Attachment')
+            # A button for the viewer; bind sets the real label.
+            self.make_media_openable(holder, slot, label)
             holder.add_css_class('card')
             picture = Gtk.Picture(content_fit=Gtk.ContentFit.COVER,
                                   can_shrink=True,
@@ -201,9 +206,13 @@ class CatchUpRow(Gtk.Box):
         sensitive = bool(status.get('sensitive')) and not \
             settings.get_boolean('show-sensitive-media')
         hide = cover or sensitive
+        self.set_media_source(item, hide, media)
         for slot, holder in enumerate(self.pictures):
             if slot < len(media):
                 holder.set_visible(True)
+                holder.update_property(
+                    [Gtk.AccessibleProperty.LABEL],
+                    [media[slot].get('description') or _('Attachment')])
                 holder.hidden.set_visible(hide)
                 url = media[slot].get('preview_url') or media[slot].get('url')
                 if url and not hide:

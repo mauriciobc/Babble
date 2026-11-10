@@ -21,6 +21,7 @@ from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .statustext import parse_content, shorten_url_text  # noqa: E402
 from .timelinebase import COLUMN_WIDTH, status_filter  # noqa: E402
 from .mediabox import BlurredPicture  # noqa: E402
+from .mediaopen import MediaOpener  # noqa: E402
 from .notificationmodel import (  # noqa: E402
     _clean_name, day_heading, notification_detail, notification_links,
     type_icon)
@@ -129,7 +130,7 @@ class NotificationFactory(Gtk.SignalListItemFactory):
         self.rows.pop(list_item.get_position(), None)
 
 
-class NotificationPost(Gtk.Box):
+class NotificationPost(MediaOpener, Gtk.Box):
     """Compact read-only snapshot of the post a notification is about;
     the surrounding row opens the thread."""
 
@@ -297,6 +298,7 @@ class NotificationPost(Gtk.Box):
         while (child := self.media_box.get_first_child()) is not None:
             self.media_box.remove(child)
         attachments = item.media[:self.MAX_THUMBNAILS]
+        self.set_media_source(item, bool(blur or item.sensitive))
         self.media_box.set_visible(bool(attachments))
         if attachments and item.sensitive:
             label = Gtk.Label(
@@ -308,7 +310,7 @@ class NotificationPost(Gtk.Box):
             label.add_css_class('dimmed')
             self.media_box.append(label)
             return
-        for attachment in attachments:
+        for index, attachment in enumerate(attachments):
             picture = (BlurredPicture if blur else Gtk.Picture)(
                 content_fit=Gtk.ContentFit.COVER, can_shrink=True,
                 hexpand=True)
@@ -317,10 +319,11 @@ class NotificationPost(Gtk.Box):
                 attachment.get('description') or _('Attachment'))
             picture.add_css_class('card')
             picture.add_css_class('darkenable')
-            self.media_box.append(picture)
             url = attachment.get('preview_url') or attachment.get('url')
             if url:
                 _TextureCache.load(url, picture)
+            self.media_box.append(
+                self.wrap_thumbnail(picture, index, attachment, url))
 
     def bind(self, item):
         self._item = item

@@ -36,6 +36,7 @@ from .tiles import (
     _AvatarStack, _FitText, _first_icon, _icon, _label, _pill,
     _trending_pill)
 from .. import tileactions
+from ..mediaopen import MediaOpener
 
 
 def _markup(text):
@@ -215,7 +216,7 @@ class _Tile(Gtk.Widget):
         return picture
 
 
-class PostTile(_Tile):
+class PostTile(MediaOpener, _Tile):
     """A post: boost line, header, text, media or link card, actions."""
 
     __gtype_name__ = 'BabbleCatchUpPostTile'
@@ -226,6 +227,7 @@ class PostTile(_Tile):
         self.blur = self.cw_hidden or (
             bool(self.item.status.get('sensitive'))
             and not flag('show-sensitive-media'))
+        self._media_covered = self.blur
 
     def __init__(self, context, placed):
         self.post = placed.ref
@@ -239,6 +241,7 @@ class PostTile(_Tile):
         self._refresh_prefs()
         self.media = [a for a in status.get('media_attachments') or []
                       if a.get('type') in ('image', 'video', 'gifv')]
+        self.set_media_source(self.item, self.blur, self.media)
         self.trending = catchupdigest.is_trending_post(
             self.post, context.trending_keys)
         self._segments = statustext.parse_content(status.get('content'))
@@ -411,19 +414,22 @@ class PostTile(_Tile):
         """The picture of an attachment. *play* centres a play glyph on a
         video: only where no text is drawn over the picture (the badge in
         the corner says it everywhere else)."""
-        picture = self.picture(
-            self._media_url(attachment), self.blur,
-            attachment.get('description') or '', cover)
+        url = self._media_url(attachment)
+        picture = self.picture(url, self.blur,
+                               attachment.get('description') or '', cover)
+        # A button that opens the viewer at this attachment, unless the
+        # media is covered; the click then opens the thread, as before.
+        overlay = self.wrap_thumbnail(
+            picture, self.media.index(attachment), attachment, url)
+        overlay.set_vexpand(True)
         if play and attachment.get('type') in ('video', 'gifv'):
-            overlay = Gtk.Overlay(child=picture)
             play = _icon('media-playback-start-symbolic', 20)
             play.set_halign(Gtk.Align.CENTER)
             play.set_valign(Gtk.Align.CENTER)
             play.add_css_class('osd')
             play.add_css_class('catchup-play')
             overlay.add_overlay(play)
-            return overlay
-        return picture
+        return overlay
 
     def _media_badge(self):
         kind = self.media[0].get('type')

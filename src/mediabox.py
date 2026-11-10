@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
+import re
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -26,6 +28,7 @@ surface a status row draws.
 from .timelinebase import decodable_attachment_url, _flag, COLUMN_WIDTH
 from .mediacache import _TextureCache, AvatarCache
 from .mediainline import GifvTile
+from .mediaopen import processing_badge
 from .timelinedata import StatusItem
 
 
@@ -81,6 +84,26 @@ def _rewatch(watch, item, callback):
     return watch
 
 
+_PEERTUBE_PATH = re.compile(
+    r'^/(?:videos/(?:watch|embed)/[^/]+|w/(?:p/)?[^/]+)/?$')
+_IFRAME_SRC = re.compile(r'<iframe[^>]*?\ssrc\s*=\s*["\']([^"\']+)', re.I)
+
+
+def is_peertube_card(card):
+    """True for a video preview card of a PeerTube instance.
+
+    PeerTube has no marker in the card, only its URL shapes: the page is
+    ``/w/<id>`` or ``/videos/watch/<id>`` and the embed in the card's
+    ``html`` is ``/videos/embed/<id>``. A ``video`` card is required, so a
+    ``/w/…`` article elsewhere (Wikipedia's ``/w/index.php``) is not."""
+    if not isinstance(card, dict) or card.get('type') != 'video':
+        return False
+    urls = [card.get('url') or '']
+    urls += _IFRAME_SRC.findall(card.get('html') or '')
+    return any(_PEERTUBE_PATH.match(split_url(url).path)
+               for url in urls if split_url(url))
+
+
 class CardPreview(Gtk.Button):
     """Link/quote preview card built from status.card, Phanpy-style:
     portrait-cropped thumbnail on the LEFT (~40% of the card), text block
@@ -126,14 +149,22 @@ class CardPreview(Gtk.Button):
             content.append(thumb)
         content.append(text)
         self.set_child(content)
+        self._peertube = is_peertube_card(card)
         if self._href:
+            connect_weak(self, 'clicked', self._on_clicked)
+        else:
+            self.set_sensitive(False)
+
+    def _on_clicked(self, _button):
+        if self._peertube:
+            # A PeerTube video plays on its own site, in the browser:
+            # not in the web column, and not as a fediverse post.
+            pages.launch_external(self, self._href)
+        else:
             # Through open_link, like a link in the post text: tracking
             # stripped, posts and profiles opened in the app, and the
             # web column when it is on.
-            self.connect('clicked',
-                         lambda _b: pages.open_link(self, self._href))
-        else:
-            self.set_sensitive(False)
+            pages.open_link(self, self._href)
 
 
 class _SlotPicture(Gtk.Picture):
@@ -446,9 +477,12 @@ class MediaBox(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add_css_class('status-media-box')
         self._attachments = []
+        self._status_url = None
 
-    def set_media(self, attachments, sensitive, ui=None, blur=False):
+    def set_media(self, attachments, sensitive, ui=None, blur=False,
+                  status_url=None):
         pages.clear_children(self)
+        self._status_url = status_url
         ui = ui if ui is not None else {}
         self._attachments = list(attachments or [])
         if not self._attachments:
@@ -557,6 +591,11 @@ class MediaBox(Gtk.Box):
             if url:
                 _TextureCache.load(url, picture,
                                    (COLUMN_WIDTH // columns, tile_height))
+            else:
+                # Still being processed by the server: no picture yet.
+                # Say so rather than leave a blank tile; a click opens
+                # the viewer, which explains or loads the original.
+                overlay.add_overlay(processing_badge())
         if footnotes:
             notes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             for note in footnotes:
@@ -639,7 +678,8 @@ class MediaBox(Gtk.Box):
 
     def _open(self, index):
         from .mediaviewer import present_media
-        present_media(self, self._attachments, index)
+        present_media(self, self._attachments, index,
+                      status_url=self._status_url)
 
     def _toggle_sensitive(self, button, covered, ui):
         revealed = not covered.get_reveal_child()
