@@ -203,6 +203,26 @@ Only three medians stand behind these limits, so they are a floor on how noisy t
 
 **What the gate can and cannot see.** `main_ms` and the stall figures are main-thread *CPU* time per dispatch, so a main-thread `time.sleep()` is invisible to them (it only shows up as `frames_with_empty_shell` and `wall_ms`); a busy loop is not. Forced regression, to show the gate can fail: 20 ms of main-thread CPU burned in `StatusRow.bind` (never committed) failed `main_ms` (1322 to 2387), `stall_max_ms` (17.3 to 29), `stall_p99_ms` (8.2 to 25.3), `stalls_over_16ms` (1 to 62) and `frames_with_empty_shell` (15 to 52). Main compared against itself passed in all three pairings of the invocations above.
 
+**Wall-clock stalls (added the same day).** The figures above are thread CPU time, so they cannot see a main thread that is blocked without using CPU (a lock, I/O, a synchronous GStreamer state change): a 20 ms `time.sleep` in `StatusRow.bind` left every stall figure unchanged. `bench/timeline_bench.py` now also times each dispatch with `time.monotonic()` and emits `wall_stall_max_ms`, `wall_stall_p99_ms` and `wall_stalls_over_16ms` (the existing keys are unchanged). Three more fresh invocations of `BENCH_RUNS=5` on main with the new bench, nothing else running (the first table's invocations predate these keys; the CPU figures of this second set are in the compare outputs below and moved a little, e.g. `stall_max_ms` medians 22.6, 21.9, 22.4 against 16.9, 17.3, 21.9, and `main_ms` medians 1323.8, 1245.1, 1333.8 with a within-invocation spread up to 284 ms):
+
+| metric | invocation 1 | invocation 2 | invocation 3 |
+|---|---|---|---|
+| `wall_stall_max_ms` | 23.7, 24.8, 23.7, 24.9, 22.9; **23.7** | 26.2, 23.4, 22.3, 17, 23.4; **23.4** | 24.1, 22.9, 24.6, 23.5, 23.5; **23.5** |
+| `wall_stall_p99_ms` | 8.8, 8.3, 9.6, 8.9, 9.1; **8.9** | 9, 10.7, 8.4, 9, 8.8; **9** | 8.7, 9.1, 10.5, 8.8, 10.3; **9.1** |
+| `wall_stalls_over_16ms` | 8, 4, 11, 7, 5; **7** | 6, 13, 4, 3, 8; **6** | 6, 10, 14, 6, 13; **10** |
+
+| metric | median spread | within one invocation | limit |
+|---|---:|---:|---|
+| `wall_stall_max_ms` | 0.3 | 9.2 | +40% and +10 |
+| `wall_stall_p99_ms` | 0.2 | 2.3 | +15% and +2 |
+| `wall_stalls_over_16ms` | 4 | 10 | +8 |
+
+Wall stalls also count preemption by other processes on the machine, which is why their limits are wider than the CPU ones: `wall_stall_max_ms` is +40% and +10 ms (one run in five dipped to 17.0 and one reached 26.2), `wall_stall_p99_ms` is +15% and +2 ms (within-invocation spread up to 2.3 ms), and `wall_stalls_over_16ms`, a count of 3-14 per run with medians 7, 6, 10, is an absolute +8 only. The `main_ms` limit (+10% and +100 ms) held in the three main-against-main comparisons of this set, whose medians spread 89 ms (6.7%); if it ever trips on a clean main, widen it.
+
+Validation with the new bench: all three main-against-main pairings (invocations 1-2, 2-3, 1-3) exit 0 with PASS on every gated metric, old and new. The 20 ms sleep in `StatusRow.bind` now fails `wall_stall_max_ms` (23.4 to 40.2), `wall_stall_p99_ms` (9.0 to 28.3) and `wall_stalls_over_16ms` (6 to 64), plus `main_ms`, `stall_p99_ms` and `frames_with_empty_shell`. The 20 ms CPU burn still fails `main_ms`, `stall_p99_ms`, `stalls_over_16ms`, `frames_with_empty_shell`, `wall_stall_p99_ms` and `wall_stalls_over_16ms` (`stall_max_ms` passes at +8.0, exactly on its limit, and `wall_stall_max_ms` at +7.1).
+
+**Memory budget for inline playback.** The limits above allow only +5 MB of growth, so any inline playback would fail memory by construction (one engine is +74 MB, E5 in the media engine section above). `bench/limits-inline.json` is identical to `bench/limits.json` except `peak_rss_mb` and `rss_growth_mb`, which allow an absolute +90 MB (the 74 MB of one engine plus margin) with no relative limit. `retained_mb` keeps +5 MB: the engine must be released at teardown, which is the leak check. More than one live engine is out of budget by design (the plan allows at most one active tile). The `bench compare` self-test checks that the two files gate the same metrics and differ only in those two.
+
 **Running it.** Measure the baseline on the same machine, from a worktree of main, then the candidate, then compare; run nothing else meanwhile.
 
 ```sh
@@ -210,8 +230,11 @@ git worktree add ../babble-main main
 (cd ../babble-main && BENCH_RUNS=5 BENCH_JSON=/tmp/base.json ./autoresearch.sh)
 BENCH_RUNS=5 BENCH_JSON=/tmp/cand.json ./autoresearch.sh      # on the candidate branch
 python3 bench/compare.py /tmp/base.json /tmp/cand.json         # exit 1 on a breach
+# inline playback enabled: add --limits bench/limits-inline.json
 ```
 
 `BENCH_JSON` also keeps every per-run value, so a failure can be read run by run. `python3 bench/compare.py --self-test` (`meson test -C build 'bench compare'`) checks the rule itself.
 
 **STOP CONDITION.** An inline-playback change must pass `bench/compare.py` against a main baseline measured on the same machine, on the default workload with inline playback enabled. If it fails, it gets one optimization pass; if it still fails, inline playback ships off by default behind its preference, or the phase stops.
+
+The inline-enabled comparison uses `--limits bench/limits-inline.json` (one engine's memory allowed, nothing else relaxed); a change that keeps more than one engine alive is out of budget by design.

@@ -107,13 +107,31 @@ def self_test():
     nobase = dict(base)
     del nobase['abs_only']
     check('missing baseline metric fails', dict(base), ['abs_only'], base=nobase)
-    shipped = json.load(open(os.path.join(os.path.dirname(__file__),
-                                          'limits.json')))
+    here = os.path.dirname(os.path.abspath(__file__))
+    shipped = json.load(open(os.path.join(here, 'limits.json')))
+    inline = json.load(open(os.path.join(here, 'limits-inline.json')))
     for name in ('main_ms', 'stall_max_ms', 'stall_p99_ms',
-                 'stalls_over_16ms', 'frames_with_empty_shell',
-                 'peak_rss_mb', 'rss_growth_mb', 'retained_mb'):
+                 'stalls_over_16ms', 'wall_stall_max_ms',
+                 'wall_stall_p99_ms', 'wall_stalls_over_16ms',
+                 'frames_with_empty_shell', 'peak_rss_mb', 'rss_growth_mb',
+                 'retained_mb'):
         if name not in shipped['metrics']:
             problems.append('limits.json does not gate %s' % name)
+    if set(inline['metrics']) != set(shipped['metrics']):
+        problems.append('limits-inline.json gates a different metric set')
+    memory = ('peak_rss_mb', 'rss_growth_mb')
+    for name in shipped['metrics']:
+        same = inline['metrics'].get(name) == shipped['metrics'][name]
+        if (name in memory) == same:
+            problems.append('limits-inline.json %s %s' % (
+                name, 'must differ' if same else 'must equal limits.json'))
+    for name in memory:
+        if inline['metrics'].get(name, {}).get('max_increase', 0) < 74:
+            problems.append('limits-inline.json %s allows less than one '
+                            'engine (74 MB)' % name)
+    if not problems:
+        print('ok - limits.json gates every metric; limits-inline.json '
+              'differs only in peak_rss_mb and rss_growth_mb')
     for problem in problems:
         print('FAIL - %s' % problem)
     return 1 if problems else 0

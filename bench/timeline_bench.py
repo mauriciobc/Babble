@@ -13,6 +13,10 @@ main-loop dispatch (and each simulated stream message) during the
 measured run, so work moved off the main thread shows up there. frames
 counts painted frames of the window, and frames_with_empty_shell those
 where a mapped StatusRunRow had a bound run but no cards yet (pop-in).
+wall_stall_max_ms, wall_stall_p99_ms and wall_stalls_over_16ms are the same
+dispatches timed with time.monotonic(), so a main thread that is blocked
+(locks, I/O, synchronous state changes) or preempted counts, which the
+CPU figures cannot see.
 """
 
 import datetime
@@ -54,6 +58,9 @@ if type(_iteration).__name__ != 'FunctionInfo':
 
 # Main-thread CPU seconds of each dispatch, recorded while `recording`.
 dispatches = []
+# The same dispatches in wall-clock seconds (time.monotonic), which also
+# count a main thread that is blocked or preempted without using CPU.
+wall_dispatches = []
 recording = False
 
 
@@ -76,10 +83,12 @@ def settle(limit=30.0):
     while True:
         now = time.monotonic()
         t0 = time.thread_time()
+        w0 = time.monotonic()
         dispatched = _iteration(ctx, False)
         if dispatched:
             if recording:
                 dispatches.append(time.thread_time() - t0)
+                wall_dispatches.append(time.monotonic() - w0)
             last = now
         elif now - last >= QUIET:
             return
@@ -93,9 +102,11 @@ def timed(func, *args):
     """Run one main-thread unit of work (as a dispatch would) and record
     its thread CPU time like a main-loop dispatch."""
     t0 = time.thread_time()
+    w0 = time.monotonic()
     func(*args)
     if recording:
         dispatches.append(time.thread_time() - t0)
+        wall_dispatches.append(time.monotonic() - w0)
 
 
 def has_empty_shell(widget, run_row_type):
@@ -253,6 +264,9 @@ def run(port, anchor):
     recording = False
     stalls = sorted(d * 1000.0 for d in dispatches)
     p99 = stalls[max(0, -(-len(stalls) * 99 // 100) - 1)] if stalls else 0.0
+    walls = sorted(d * 1000.0 for d in wall_dispatches)
+    wall_p99 = (walls[max(0, -(-len(walls) * 99 // 100) - 1)]
+                if walls else 0.0)
 
     gc.collect()
     live_rows = sum(1 for o in gc.get_objects()
@@ -268,6 +282,9 @@ def run(port, anchor):
         'stall_max_ms': round(stalls[-1] if stalls else 0.0, 1),
         'stall_p99_ms': round(p99, 1),
         'stalls_over_16ms': sum(1 for d in stalls if d > 16.0),
+        'wall_stall_max_ms': round(walls[-1] if walls else 0.0, 1),
+        'wall_stall_p99_ms': round(wall_p99, 1),
+        'wall_stalls_over_16ms': sum(1 for d in walls if d > 16.0),
         'frames': frames[0],
         'frames_with_empty_shell': frames[1],
         'peak_rss_mb': round(
