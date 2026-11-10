@@ -192,8 +192,12 @@ jobs:
         # avdec_h264 is reported, not asserted: it exists only when the
         # codecs-extra extension is installed, and this image may not
         # carry it.
+        #
+        # flatpak build, not flatpak-builder --run: --run goes through
+        # rofiles-fuse, which dies here for want of a machine-id (see the
+        # build step), and --run does not take --disable-rofiles-fuse.
         run: |
-          flatpak-builder --run builddir build-aux/flatpak/io.github.mauriciobc.Babble.json \
+          flatpak build builddir \
             sh -c 'for e in souphttpsrc playbin3 gtk4paintablesink glsinkbin; do gst-inspect-1.0 --exists "$e" || exit 1; done
                    python3 -c "import gi; gi.require_version(\"GstPlay\", \"1.0\"); from gi.repository import GstPlay"
                    gst-inspect-1.0 --exists avdec_h264 && echo "avdec_h264 present (codecs-extra)" || echo "::warning::no software H.264 decoder: codecs-extra not in this image"'

@@ -41,7 +41,10 @@ def child():
     from src import mediaengine, mediaplayback, mediaviewer
     mediaplayback._system_state = lambda name: False
     fixture = load_fixture()
-    base, stop_server = fixture.serve(os.path.dirname(fixture.write_clip()))
+    # Range-capable, like a real media server: since the viewer streams,
+    # souphttpsrc refuses a server without Range (GStreamer 1.28.9) and
+    # an Ogg clip never prerolls.
+    server = fixture.MediaServer(fixture.write_clip())
     result = {}
 
     class App(Adw.Application):
@@ -56,11 +59,13 @@ def child():
             window.present()
             viewer = mediaviewer.present_media(
                 window.get_content(),
-                [{'type': 'gifv', 'url': base + '/clip.ogg'}])
+                [{'type': 'gifv', 'url': server.base + '/media.ogg'}])
             self.viewer = viewer
 
             def poll():
                 stream = viewer._stream
+                if stream is not None and stream.get_error() is not None:
+                    result['error'] = stream.get_error().message
                 if stream is not None and stream.get_playing():
                     result['playing'] = True
                     GLib.timeout_add(300, self._quit)
@@ -81,10 +86,10 @@ def child():
 
     app = App()
     code = app.run([])
-    stop_server()
-    print('QUIT playing=%s engines=%s left=%s' % (
-        result.get('playing'), result.get('engines'), result.get('left')),
-        flush=True)
+    server.stop()
+    print('QUIT playing=%s engines=%s left=%s error=%s' % (
+        result.get('playing'), result.get('engines'), result.get('left'),
+        result.get('error')), flush=True)
     sys.exit(code)
 
 
@@ -129,7 +134,9 @@ for run in range(RUNS):
             [sys.executable, os.path.abspath(__file__), '--child'],
             capture_output=True, text=True, timeout=60)
         code, out = done.returncode, done.stdout
-        detail = (done.stdout + done.stderr)[-400:]
+        quit_line = [line for line in out.splitlines()
+                     if line.startswith('QUIT ')]
+        detail = quit_line[-1] if quit_line else done.stderr[-400:]
     except subprocess.TimeoutExpired:
         code, out, detail = None, '', 'timed out'
     check('quit while playing, run %d: exit 0 and engines dropped' % (run + 1),
