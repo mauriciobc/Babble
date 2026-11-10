@@ -1,0 +1,2 @@
+
+(python3:2): GStreamer-WARNING **: 16:37:58.364: Failed to load plugin '/usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstlibav.so': /usr/lib/x86_64-linux-gnu/codecs-extra/lib/libavformat.so.62: undefined symbol: avpriv_h264_has_num_reorder_frames, version LIBAVCODEC_62

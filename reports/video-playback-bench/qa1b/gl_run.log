@@ -1,0 +1,114 @@
+libmutter-Message: 19:29:34.073: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=394718 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+libmutter-Message: 19:29:34.226: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 19:29:34.240: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 19:29:34.241: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 19:29:34.242: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 19:29:34.242: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 19:29:34.244: Obtained a high priority EGL context
+libmutter-Message: 19:29:34.261: Added virtual monitor Meta-0
+libmutter-Message: 19:29:34.264: Using Wayland display name 'wayland-0'
+=== test-media-stream (GSK_RENDERER=gl)
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.5' (uid=1000 pid=394760 comm="python3 src/test-media-stream.py")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.6' (uid=1000 pid=394773 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.6' (uid=1000 pid=394773 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gnome' requested by ':1.6' (uid=1000 pid=394773 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.gnome.Settings.GlobalShortcutsProvider' requested by ':1.9' (uid=1000 pid=394797 comm="/usr/lib/xdg-desktop-portal-gnome")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.gnome.Settings.GlobalShortcutsProvider'
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gnome'
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.6' (uid=1000 pid=394773 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.12' (uid=1000 pid=394838 comm="/usr/lib/xdg-desktop-portal-gtk")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.14' (uid=1000 pid=394851 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.14' (uid=1000 pid=394851 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+** (xdg-desktop-portal-gtk:394838): WARNING **: 19:29:35.133: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.14' (uid=1000 pid=394851 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:394838): WARNING **: 19:29:35.135: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (xdg-desktop-portal-gtk:394838): WARNING **: 19:29:35.135: atk-bridge: get_device_events_reply: unknown signature
+
+(/usr/lib/xdg-desktop-portal:394773): xdg-desktop-portal-WARNING **: 19:29:35.140: Failed to connect to PipeWire: Couldn't connect to PipeWire
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Activating service name='org.freedesktop.secrets' requested by ':1.6' (uid=1000 pid=394773 comm="/usr/lib/xdg-desktop-portal")
+** Message: 19:29:35.146: couldn't access control socket: /tmp/tmp.IiuJoCZE80/keyring/control: Arquivo ou diretório inexistente
+discover_other_daemon: 0dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+dbus-daemon[394716]: [session uid=1000 pid=394716 pidfd=5] Successfully activated service 'org.freedesktop.secrets'
+ok - prepared from the preroll
+ok - the preroll found a video
+ok - seekable comes from the media info
+ok - Gtk.Video autoplays
+ok - the stream reports a position
+ok - the video has a size
+ok - a seek completes through seek-done
+ok - the clip ends
+ok - an ended stream is not playing
+ok - a seek the engine never reports is given up on
+ok - no seek is forwarded when not seekable
+ok - an unreadable source reports an error
+ok - a missing H.264 decoder names codecs-extra
+ok - the message holds no GStreamer element name
+ok - another missing codec names the codec
+ok - a missing decoder posted on the bus reaches the stream
+ok - ... naming codecs-extra
+ok - ... and heard on the main thread
+ok - a position outside 300 ms of the target does not complete it
+ok - the seek is under way
+ok - a stale pre-seek position does not complete the seek
+ok - a position near the target completes it
+ok - CLOCK_TIME_NONE converts to 0
+ok - an unknown duration waits for a duration before preparing
+ok - an unknown duration event changes nothing
+ok - the first known duration prepares the stream with it
+ok - a later duration is stored but the stream is not prepared again
+ok - the media info alone does not prepare an unknown duration
+ok - after the wait the stream is prepared with duration 0
+ok - a duration after that is not prepared again
+ok - buffering before the stream is prepared is not reported
+ok - buffering a prepared stream is reported
+ok - any other state clears it
+ok - the old media's info does not prepare the new stream
+ok - after detach() no vfunc reaches the engine
+ok - after detach() the intrinsic size is empty
+ok - after detach() the engine has no owner
+ok - a GIFV plays
+ok - a looping GIFV outlives the clip
+ok - the stream prepares under Gtk.MediaControls
+ok - the controls hold the stream
+ok - every engine is released
+
+all media stream checks passed
+rc=0
+=== test-media-progressive (GSK_RENDERER=gl)
+ok - the first frame is drawn
+ok - the first frame comes before the whole file was served
+ok - the viewer shows the media page
+ok - no temporary copy is made
+ok - the bytes served stop growing after the viewer closes
+ok - the engine is released
+ok - a redirected source plays
+ok - ... through the redirect target
+ok - a source without Range plays
+ok - ... and reports itself as not seekable
+ok - a seek on it does not error
+ok - a 404 shows the error page
+ok - ... with Retry
+ok - the requests were recorded
+ok - every request carried Babble's User-Agent
+ok - no engine is left behind
+
+all media progressive checks passed
+rc=0
+Gdk-Message: 19:29:46.854: Error reading events from display: Pipe quebrado
+Gdk-Message: 19:29:46.854: Lost connection to Wayland compositor.
+Gdk-Message: 19:29:46.854: Lost connection to Wayland compositor.
+libmutter-Message: 19:29:46.861: Removed virtual monitor Meta-0
+A connection to the bus can't be made

@@ -1,0 +1,201 @@
+libmutter-Message: 22:20:59.641: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=556607 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+fusermount3: failed to access mountpoint /run/user/1000/gvfs: Permission denied
+libmutter-Message: 22:20:59.734: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 22:20:59.743: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 22:20:59.743: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 22:20:59.744: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 22:20:59.744: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 22:20:59.745: Obtained a high priority EGL context
+libmutter-Message: 22:20:59.758: Added virtual monitor Meta-0
+
+(mutter:556607): libmutter-WARNING **: 22:20:59.760: WL: unable to lock lockfile /run/user/1000/wayland-0.lock, maybe another compositor is running
+
+libmutter-Message: 22:20:59.760: Using Wayland display name 'wayland-1'
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.2' (uid=1000 pid=556640 comm="python3 reports/video-playback-bench/e3b_viewer.py")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.3' (uid=1000 pid=556647 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.3' (uid=1000 pid=556647 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gnome' requested by ':1.3' (uid=1000 pid=556647 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.gnome.Settings.GlobalShortcutsProvider' requested by ':1.6' (uid=1000 pid=556671 comm="/usr/lib/xdg-desktop-portal-gnome")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.gnome.Settings.GlobalShortcutsProvider'
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gnome'
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.3' (uid=1000 pid=556647 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.9' (uid=1000 pid=556696 comm="/usr/lib/xdg-desktop-portal-gtk")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.11' (uid=1000 pid=556709 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.11' (uid=1000 pid=556709 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:556696): WARNING **: 22:21:00.371: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.11' (uid=1000 pid=556709 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:556696): WARNING **: 22:21:00.373: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (xdg-desktop-portal-gtk:556696): WARNING **: 22:21:00.373: atk-bridge: get_device_events_reply: unknown signature
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Activating service name='org.freedesktop.secrets' requested by ':1.3' (uid=1000 pid=556647 comm="/usr/lib/xdg-desktop-portal")
+discover_other_daemon: 1GNOME_KEYRING_CONTROL=/run/user/1000/keyring
+dbus-daemon[556605]: [session uid=1000 pid=556605 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+
+(mutter:556607): libmutter-WARNING **: 22:21:01.198: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:01.228: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 1 kind=video played=True
+cycle 2 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:05.028: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:05.053: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 3 kind=video played=True
+cycle 4 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:08.854: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:08.883: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 5 kind=video played=True
+cycle 6 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:12.665: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:12.689: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 7 kind=video played=True
+cycle 8 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:16.477: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:16.505: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 9 kind=video played=True
+cycle 10 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:20.296: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:20.326: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 11 kind=video played=True
+cycle 12 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:24.108: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:24.139: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(/usr/lib/xdg-desktop-portal:556647): xdg-desktop-portal-WARNING **: 22:21:25.403: Failed to create secret proxy: Error calling StartServiceByName for org.freedesktop.secrets: Timeout was reached
+cycle 13 kind=video played=True
+cycle 14 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:27.924: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:27.952: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 15 kind=video played=True
+cycle 16 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:31.753: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:31.783: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 17 kind=video played=True
+cycle 18 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:35.620: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:35.651: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 19 kind=video played=True
+cycle 20 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:39.483: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:39.508: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 21 kind=video played=True
+cycle 22 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:43.305: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:43.331: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 23 kind=video played=True
+cycle 24 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:47.135: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:47.166: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 25 kind=video played=True
+cycle 26 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:50.943: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:50.970: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 27 kind=video played=True
+cycle 28 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:54.814: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:54.839: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 29 kind=video played=True
+cycle 30 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:21:58.668: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:21:58.689: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 31 kind=video played=True
+cycle 32 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:02.493: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:02.512: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 33 kind=video played=True
+cycle 34 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:06.317: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:06.343: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 35 kind=video played=True
+cycle 36 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:10.179: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:10.210: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 37 kind=video played=True
+cycle 38 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:14.053: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:14.082: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 39 kind=video played=True
+cycle 40 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:17.918: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:17.947: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 41 kind=video played=True
+cycle 42 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:21.783: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:21.816: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 43 kind=video played=True
+cycle 44 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:25.658: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:25.684: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 45 kind=video played=True
+cycle 46 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:29.520: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:29.553: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 47 kind=video played=True
+cycle 48 kind=gifv played=True
+
+(mutter:556607): libmutter-WARNING **: 22:22:33.376: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+
+(mutter:556607): libmutter-WARNING **: 22:22:33.405: Failed to inhibit: GDBus.Error:org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.ScreenSaver was not provided by any .service files
+cycle 49 kind=video played=True
+cycle 50 kind=gifv played=True
+SUMMARY cycles=50 played=50 no_play=0
+Gdk-Message: 22:22:37.067: Lost connection to Wayland compositor.
+Gdk-Message: 22:22:37.067: Error reading events from display: Broken pipe
+libmutter-Message: 22:22:37.077: Removed virtual monitor Meta-0
+A connection to the bus can't be made

@@ -1,0 +1,7 @@
+  1.80s source-setup souphttpsrc user-agent prop='Babble/0.1 (+https://github.com/mauriciobc/Babble)'
+  2.84s first frame at 2.77s prepared=True dur_us=43120000
+  2.85s elements: aacparse,aconv,audioconvert,audioresample,autoaudiosink,avdec_aac,bin,capsfilter,decodebin3,deinterlace,fakesink,glcolorbalance,glcolorconvert,glsinkbin,glupload,gtk4paintablesink,h264parse,identity,multiqueue,nvh264dec,parsebin,playsink,qtdemux,queue,scaletempo,souphttpsrc,streamsynchronizer,tee,typefind,uridecodebin3,urisourcebin,vconv,videoconvert,videoscale,volume
+  7.85s after seek ts_us=501633 playing=True error=None
+  7.85s audio sinks: autoaudiosink,fakesink,glsinkbin,gtk4paintablesink,playsink
+  9.35s engine dropped: True  releasing=0 all=0
+  9.36s exit clean

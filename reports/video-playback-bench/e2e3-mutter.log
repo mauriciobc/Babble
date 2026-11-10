@@ -1,0 +1,34 @@
+libmutter-Message: 15:43:14.418: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[262172]: [session uid=1000 pid=262172 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=262173 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[262172]: [session uid=1000 pid=262172 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+fusermount3: failed to access mountpoint /run/user/1000/gvfs: Permission denied
+libmutter-Message: 15:43:14.542: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 15:43:14.552: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 15:43:14.553: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 15:43:14.554: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 15:43:14.554: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 15:43:14.556: Obtained a high priority EGL context
+libmutter-Message: 15:43:14.571: Added virtual monitor Meta-0
+
+(mutter:262173): libmutter-WARNING **: 15:43:14.574: WL: unable to lock lockfile /run/user/1000/wayland-0.lock, maybe another compositor is running
+
+libmutter-Message: 15:43:14.574: Using Wayland display name 'wayland-1'
+./e2e3_run.sh, linha 8: 262210 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 262520 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 263034 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 263427 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 263638 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 263930 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 264137 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 264941 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 265141 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 265248 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 265363 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 265853 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 265968 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 266073 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 266378 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 266673 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+./e2e3_run.sh, linha 8: 266784 Falha de segmentação     timeout 30 python3 "$D/quit_check.py" $m "file://$MEDIA/video.mp4" > "$D/quit-run.log" 2> /dev/null
+libmutter-Message: 16:01:29.263: Removed virtual monitor Meta-0
+A connection to the bus can't be made

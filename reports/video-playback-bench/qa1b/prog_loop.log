@@ -1,0 +1,53 @@
+libmutter-Message: 19:28:50.353: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=393728 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+libmutter-Message: 19:28:50.475: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 19:28:50.484: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 19:28:50.485: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 19:28:50.486: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 19:28:50.486: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 19:28:50.487: Obtained a high priority EGL context
+libmutter-Message: 19:28:50.500: Added virtual monitor Meta-0
+libmutter-Message: 19:28:50.502: Using Wayland display name 'wayland-0'
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.5' (uid=1000 pid=393768 comm="python3 src/test-media-progressive.py")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.6' (uid=1000 pid=393774 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.6' (uid=1000 pid=393774 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gnome' requested by ':1.6' (uid=1000 pid=393774 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.gnome.Settings.GlobalShortcutsProvider' requested by ':1.9' (uid=1000 pid=393798 comm="/usr/lib/xdg-desktop-portal-gnome")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.gnome.Settings.GlobalShortcutsProvider'
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gnome'
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.6' (uid=1000 pid=393774 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.12' (uid=1000 pid=393821 comm="/usr/lib/xdg-desktop-portal-gtk")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.14' (uid=1000 pid=393834 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.14' (uid=1000 pid=393834 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+** (xdg-desktop-portal-gtk:393821): WARNING **: 19:28:51.209: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.14' (uid=1000 pid=393834 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:393821): WARNING **: 19:28:51.211: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (xdg-desktop-portal-gtk:393821): WARNING **: 19:28:51.211: atk-bridge: get_device_events_reply: unknown signature
+
+(/usr/lib/xdg-desktop-portal:393774): xdg-desktop-portal-WARNING **: 19:28:51.215: Failed to connect to PipeWire: Couldn't connect to PipeWire
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Activating service name='org.freedesktop.secrets' requested by ':1.6' (uid=1000 pid=393774 comm="/usr/lib/xdg-desktop-portal")
+** Message: 19:28:51.220: couldn't access control socket: /tmp/tmp.rwH3P8s931/keyring/control: Arquivo ou diretório inexistente
+discover_other_daemon: 0dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+dbus-daemon[393727]: [session uid=1000 pid=393727 pidfd=5] Successfully activated service 'org.freedesktop.secrets'
+progressive run 1 rc=0 dur=7.235366413s fails=0
+progressive run 2 rc=0 dur=6.710644198s fails=0
+progressive run 3 rc=0 dur=6.582962330s fails=0
+progressive run 4 rc=0 dur=6.702724750s fails=0
+progressive run 5 rc=0 dur=6.629326845s fails=0
+Gdk-Message: 19:29:24.433: Lost connection to Wayland compositor.
+Gdk-Message: 19:29:24.433: Error reading events from display: Pipe quebrado
+Gdk-Message: 19:29:24.433: Lost connection to Wayland compositor.
+libmutter-Message: 19:29:24.440: Removed virtual monitor Meta-0
+A connection to the bus can't be made

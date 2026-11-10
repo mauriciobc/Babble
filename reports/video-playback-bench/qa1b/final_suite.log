@@ -1,0 +1,337 @@
+libmutter-Message: 19:34:02.156: Running Mutter (using mutter 51.1) as a Wayland display server
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.gtk.vfs.Daemon' requested by ':1.0' (uid=1000 pid=398732 comm="mutter --headless --wayland --no-x11 --virtual-mon")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.gtk.vfs.Daemon'
+libmutter-Message: 19:34:03.720: Added device '/dev/dri/renderD129' (nvidia-drm) using no mode setting.
+libmutter-Message: 19:34:03.728: Added device '/dev/dri/renderD128' (i915) using no mode setting.
+libmutter-Message: 19:34:03.729: Created gbm renderer for '/dev/dri/renderD129'
+libmutter-Message: 19:34:03.729: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 19:34:03.729: Boot VGA GPU /dev/dri/renderD128 selected as primary
+** Message: 19:34:03.731: Obtained a high priority EGL context
+libmutter-Message: 19:34:03.743: Added virtual monitor Meta-0
+libmutter-Message: 19:34:03.745: Using Wayland display name 'wayland-0'
+ninja: Entering directory `/home/mauriciobc/Documentos/Code/Babble/build'
+ninja: no work to do.
+ 1/99 babble:validate desktop file        OK               0.01s
+ 2/99 babble:validate metainfo            OK               0.02s
+ 3/99 babble:validate gschema             OK               0.00s
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.portal.Desktop' requested by ':1.3' (uid=1000 pid=398788 comm="/usr/bin/python3 /home/mauriciobc/Documentos/Code/")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.impl.portal.PermissionStore' requested by ':1.4' (uid=1000 pid=398805 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.PermissionStore'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.portal.Documents' requested by ':1.4' (uid=1000 pid=398805 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.freedesktop.portal.Documents'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gnome' requested by ':1.4' (uid=1000 pid=398805 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.gnome.Settings.GlobalShortcutsProvider' requested by ':1.7' (uid=1000 pid=398830 comm="/usr/lib/xdg-desktop-portal-gnome")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.gnome.Settings.GlobalShortcutsProvider'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gnome'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.impl.portal.desktop.gtk' requested by ':1.4' (uid=1000 pid=398805 comm="/usr/lib/xdg-desktop-portal")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.a11y.Bus' requested by ':1.10' (uid=1000 pid=398904 comm="/usr/lib/xdg-desktop-portal-gtk")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.a11y.Bus'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.freedesktop.impl.portal.desktop.gtk'
+
+** (xdg-desktop-portal-gtk:398904): WARNING **: 19:34:04.694: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (xdg-desktop-portal-gtk:398904): WARNING **: 19:34:04.696: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (xdg-desktop-portal-gtk:398904): WARNING **: 19:34:04.696: atk-bridge: get_device_events_reply: unknown signature
+
+(/usr/lib/xdg-desktop-portal:398805): xdg-desktop-portal-WARNING **: 19:34:04.698: Failed to connect to PipeWire: Couldn't connect to PipeWire
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.secrets' requested by ':1.4' (uid=1000 pid=398805 comm="/usr/lib/xdg-desktop-portal")
+** Message: 19:34:04.703: couldn't access control socket: /tmp/tmp.E6vTousTje/keyring/control: Arquivo ou diretório inexistente
+discover_other_daemon: 0dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.freedesktop.portal.Desktop'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.freedesktop.secrets'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.gtk.vfs.Metadata' requested by ':1.3' (uid=1000 pid=398788 comm="/usr/bin/python3 /home/mauriciobc/Documentos/Code/")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.gtk.vfs.Metadata'
+ 4/99 babble:timeline render              OK              12.88s
+ 5/99 babble:timeline memory              OK              19.09s
+ 6/99 babble:home filters                 OK               2.54s
+ 7/99 babble:reading position             FAIL             0.86s   exit status 1
+>>> LC_ALL=C MSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_summary=1:print_stacktrace=1 GDK_DEBUG=no-portals BABBLE_BUILDDIR=/home/mauriciobc/Documentos/Code/Babble/build MALLOC_PERTURB_=38 GTK_A11Y=none NO_AT_BRIDGE=1 UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_summary=1:print_stacktrace=1 BABBLE_SRCDIR=/home/mauriciobc/Documentos/Code/Babble/src G_DEBUG=fatal-criticals ASAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_summary=1 GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR=/home/mauriciobc/Documentos/Code/Babble/build/data GSK_RENDERER=cairo MESON_TEST_ITERATION=1 LANG=C /usr/bin/python3 /home/mauriciobc/Documentos/Code/Babble/build/../src/test-reading-position.py
+――――――――――――――――――――――――――――――――――――― ✀  ―――――――――――――――――――――――――――――――――――――
+stdout:
+ok - nothing is remembered at first
+ok - a position round-trips
+ok - the same id on another instance does not collide
+ok - None forgets one account only
+ok - a non-numeric id gives no anchor
+ok - a large id gets room for float rounding in the server's feed
+ok - the first page asks for the remembered post, inclusive
+ok - the newer posts are fetched at once, contiguously, with min_id
+ok - they are above the remembered post, in order
+ok - the cursors are the page's own
+ok - the button counts them
+ok - the catch-up is over
+ok - the button goes away when used
+ok - the catch-up request is out
+ok - a streamed post is not inserted ahead of the catch-up
+ok - it is fetched in order once the catch-up ends
+ok - and the page is live again
+ok - a superseded catch-up is asked for again and ends
+ok - the button ends the pinning
+ok - a fully filtered anchored page still catches up
+ok - a deleted post opens at the nearest older
+ok - an empty anchored page falls back to the newest
+ok - and forgets the position
+ok - another account's position is ignored
+ok - with the preference off the page opens at the newest
+ok - and nothing is read or written
+ok - the public timeline does not resume
+ok - the anchored page opens on the remembered post
+ok - the remembered post is still the top post
+ok - with the newer posts above it
+ok - the reader can scroll up to them
+ok - the button goes to the top
+ok - a short catch-up keeps the post where it was
+ok - a post inserted above a scrolled reader leaves their place
+ok - the top of a fresh page is the newest post
+ok - reading from the newest post leaves nothing to resume
+ok - the top post is found at 0% of the list
+ok - the top post is found at 5% of the list
+ok - the top post is found at 30% of the list
+ok - the top post is found at 60% of the list
+ok - the top post is found at 90% of the list
+ok - scrolled down, the top is an older post
+ok - it is saved
+ok - a pause schedules a save
+ok - closing leaves no save timer
+FAIL - an unseen window still saves the last post seen: 00097 vs 00100
+ok - a row mostly cut off at the top is not the top post
+ok - a row barely cut off still is
+1 failed
+stderr:
+/home/mauriciobc/Documentos/Code/Babble/build/../src/test-reading-position.py:451: DeprecationWarning: Gtk.Widget.hide is deprecated
+  window.hide()
+――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+
+ 8/99 babble:navigation window            OK               0.27s
+ 9/99 babble:stream dispatch              OK               0.22s
+10/99 babble:keyring errors               OK               0.27s
+11/99 babble:thread profile render        OK              10.55s
+12/99 babble:compose widgets              OK              55.17s
+13/99 babble:compose transactions         OK               3.61s
+14/99 babble:notifications render         OK               2.59s
+15/99 babble:oauth callback               OK              15.87s
+16/99 babble:oauth loopback               OK               4.06s
+17/99 babble:error summary                OK               0.12s
+18/99 babble:admin permissions            OK               0.16s
+19/99 babble:entities                     OK               0.02s
+20/99 babble:profile relationship helpers OK               0.17s
+21/99 babble:mastodon rest retry          OK               0.12s
+22/99 babble:client transport             OK              14.18s
+23/99 babble:boost card                   OK               0.73s
+24/99 babble:card prefetch                OK               2.08s
+25/99 babble:image cache                  OK               4.19s
+26/99 babble:avatar cache                 OK               0.16s
+27/99 babble:instance limits              OK               0.28s
+28/99 babble:media limits                 OK               0.10s
+29/99 babble:mediaviewer helpers          OK               0.15s
+30/99 babble:image decode                 OK               1.85s
+31/99 babble:media engine                 OK              10.17s
+32/99 babble:media stream                 OK               4.71s
+33/99 babble:media progressive            OK              10.58s
+34/99 babble:media quit                   OK              14.52s
+35/99 babble:mediaviewer teardown         OK              11.02s
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+36/99 babble:web column                   OK               1.88s
+37/99 babble:mediabox keyboard            OK               0.21s
+38/99 babble:notifications error policy   OK               0.02s
+39/99 babble:search helpers               OK               0.22s
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.gnome.keyring.SystemPrompter' requested by ':1.14' (uid=1000 pid=398926 comm="/usr/bin/gnome-keyring-daemon --start --foreground")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Successfully activated service 'org.gnome.keyring.SystemPrompter'
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (gcr-prompter:402221): WARNING **: 19:37:30.555: AT-SPI: Could not obtain desktop path or name
+
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+
+** (gcr-prompter:402221): WARNING **: 19:37:30.556: atk-bridge: GetRegisteredEvents returned message with unknown signature
+
+** (gcr-prompter:402221): WARNING **: 19:37:30.556: atk-bridge: get_device_events_reply: unknown signature
+40/99 babble:streaming helpers            SKIP            10.74s   exit status 77
+41/99 babble:account store                OK               0.18s
+42/99 babble:local drafts                 OK               0.10s
+43/99 babble:preferences schema           OK               0.21s
+44/99 babble:hashtag links                OK               0.21s
+45/99 babble:status text                  OK               0.13s
+46/99 babble:bluesky text                 OK               0.12s
+47/99 babble:bluesky card                 OK               0.42s
+48/99 babble:thread cw                    OK               0.23s
+49/99 babble:thread chain                 OK               0.10s
+50/99 babble:catchup imports              OK               0.30s
+51/99 babble:catchup prewarm              OK               0.63s
+52/99 babble:catchup digest               OK               0.32s
+53/99 babble:file size rule               OK               0.06s
+54/99 babble:settings isolation           OK               0.03s
+55/99 babble:module boundary              OK               1.23s
+56/99 babble:api boundary                 OK               3.19s
+57/99 babble:api registry                 OK               0.04s
+58/99 babble:api golden                   OK               1.94s
+59/99 babble:navigation                   OK               0.14s
+60/99 babble:plugin boundary              OK               0.04s
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+61/99 babble:plugins                      OK               5.89s
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+62/99 babble:plugin links                 OK               1.63s
+63/99 babble:plugin menu                  OK               0.49s
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+64/99 babble:plugin panel                 OK               8.08s
+65/99 babble:wallabag plugin              OK               1.38s
+66/99 babble:hashpanel plugin             OK               2.62s
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activating service name='org.freedesktop.systemd1' requested by ':1.12' (uid=1000 pid=398917 comm="/usr/bin/dbus-broker-launch --config-file=/usr/sha")
+dbus-daemon[398731]: [session uid=1000 pid=398731 pidfd=5] Activated service 'org.freedesktop.systemd1' failed: Process org.freedesktop.systemd1 exited with status 1
+67/99 babble:nareal plugin                OK              63.00s
+68/99 babble:affinity                     OK               0.05s
+69/99 babble:rank eval                    OK               1.01s
+70/99 babble:capability gates             OK               0.12s
+71/99 babble:version gate call sites      OK               0.96s
+72/99 babble:feature gates                OK               0.70s
+73/99 babble:filter rules                 OK               0.16s
+74/99 babble:stream events                OK               0.17s
+75/99 babble:catchup rank                 OK               1.20s
+76/99 babble:search provider              OK               0.93s
+77/99 babble:catchup page                 OK              18.45s
+78/99 babble:collections                  OK               0.15s
+79/99 babble:catchup grid                 OK               4.01s
+80/99 babble:app lifecycle                OK               0.38s
+81/99 babble:schedule dialog              OK               0.19s
+82/99 babble:sidebar state                OK               0.03s
+83/99 babble:sidebar widgets              OK               0.17s
+84/99 babble:ui strings                   OK               0.85s
+85/99 babble:style css                    OK               0.11s
+86/99 babble:a11y readback                OK               5.23s
+87/99 babble:dialog toasts                OK               0.36s
+88/99 babble:undo actions                 OK               0.21s
+89/99 babble:status toggle                OK               0.24s
+90/99 babble:state stack                  OK               0.23s
+91/99 babble:dialog bases                 OK               3.06s
+92/99 babble:dialog behaviour             OK              11.80s
+93/99 babble:breakpoints                  OK               5.04s
+94/99 babble:translucent sidebar          OK               1.34s
+95/99 babble:wrapped styles               OK               2.07s
+96/99 babble:po check de                  OK               0.02s
+97/99 babble:po check es                  OK               0.02s
+98/99 babble:po check fr                  OK               0.02s
+99/99 babble:po check pt_BR               OK               0.02s
+
+Summary of Failures:
+
+ 7/99 babble:reading position             FAIL             0.86s   exit status 1
+
+Ok:                97  
+Fail:              1   
+Skipped:           1   
+
+Full log written to /home/mauriciobc/Documentos/Code/Babble/build/meson-logs/testlog.txt
+Mutter terminated with a failure: The command exited with a nonzero status: 256
+
+Gdk-Message: 19:40:12.484: Lost connection to Wayland compositor.
+Gdk-Message: 19:40:12.484: Error reading events from display: Pipe quebrado
+Gdk-Message: 19:40:12.484: Error reading events from display: Pipe quebrado
+
+** (gnome-keyring-daemon:398926): WARNING **: 19:40:12.489: couldn't prompt for password: The operation was cancelled
+
+(gnome-keyring-daemon:398926): GLib-GIO-CRITICAL **: 19:40:12.489: g_dbus_interface_skeleton_get_object_path: assertion 'G_IS_DBUS_INTERFACE_SKELETON (interface_)' failed
+
+(gnome-keyring-daemon:398926): GLib-GIO-CRITICAL **: 19:40:12.489: g_dbus_interface_skeleton_get_connection: assertion 'G_IS_DBUS_INTERFACE_SKELETON (interface_)' failed
+
+(gnome-keyring-daemon:398926): GLib-GIO-CRITICAL **: 19:40:12.489: g_dbus_connection_emit_signal: assertion 'G_IS_DBUS_CONNECTION (connection)' failed
+libmutter-Message: 19:40:13.972: Removed virtual monitor Meta-0
+A connection to the bus can't be made

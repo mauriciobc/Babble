@@ -1,0 +1,6 @@
+nvidia run=1 used=decodebin3,nvh264dec E5 mode=engine baseline=300.0 created=374.2 playing=559.1 released=422.5 cycles24=560.5
+nvidia run=2 used=decodebin3,nvh264dec E5 mode=engine baseline=299.9 created=374.2 playing=558.9 released=422.3 cycles24=554.6
+va run=1 used=decodebin3,vah264dec E5 mode=engine baseline=299.9 created=374.3 playing=424.4 released=424.5 cycles24=439.1
+va run=2 used=decodebin3,vah264dec E5 mode=engine baseline=299.9 created=374.1 playing=424.0 released=424.2 cycles24=435.9
+software run=1 used=avdec_h264,decodebin3 E5 mode=engine baseline=299.7 created=374.1 playing=432.1 released=431.6 cycles24=457.6
+software run=2 used=avdec_h264,decodebin3 E5 mode=engine baseline=299.9 created=374.3 playing=428.0 released=427.4 cycles24=453.2

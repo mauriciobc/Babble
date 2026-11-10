@@ -1,0 +1,6 @@
+ninja: Entering directory `/home/mauriciobc/Documentos/Code/Babble/build'
+ninja: no work to do.
+INFO: autodetecting backend as ninja
+INFO: calculating backend command to run: /usr/bin/ninja -C /home/mauriciobc/Documentos/Code/Babble/build
+
+All checks passed!

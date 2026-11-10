@@ -1,0 +1,21 @@
+GNOME_KEYRING_CONTROL=/run/user/1000/keyring
+quit 1 exit=0 QUIT playing=True engines=1 left=0
+quit 2 exit=0 QUIT playing=True engines=1 left=0
+quit 3 exit=0 QUIT playing=True engines=1 left=0
+quit 4 exit=0 QUIT playing=True engines=1 left=0
+quit 5 exit=0 QUIT playing=True engines=1 left=0
+quit 6 exit=0 QUIT playing=True engines=1 left=0
+quit 7 exit=0 QUIT playing=True engines=1 left=0
+quit 8 exit=0 QUIT playing=True engines=1 left=0
+quit 9 exit=0 QUIT playing=True engines=1 left=0
+quit 10 exit=0 QUIT playing=True engines=1 left=0
+quit 11 exit=0 QUIT playing=True engines=1 left=0
+quit 12 exit=0 QUIT playing=True engines=1 left=0
+quit 13 exit=0 QUIT playing=True engines=1 left=0
+quit 14 exit=0 QUIT playing=True engines=1 left=0
+quit 15 exit=0 QUIT playing=True engines=1 left=0
+quit 16 exit=0 QUIT playing=True engines=1 left=0
+quit 17 exit=0 QUIT playing=True engines=1 left=0
+quit 18 exit=0 QUIT playing=True engines=1 left=0
+quit 19 exit=0 QUIT playing=True engines=1 left=0
+quit 20 exit=0 QUIT playing=True engines=1 left=0

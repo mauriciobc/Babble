@@ -1,0 +1,3 @@
+F: /run/user/1000/.flatpak/org.gnome.Platform/xdg-run/pulse is not a symlink to "../../flatpak/pulse" as expected: readlinkat: Argumento inválido
+
+(python3:2): Gtk-CRITICAL **: 17:28:39.053: Unable to register the application: GDBus.Error:org.freedesktop.DBus.Error.NameHasNoOwner: Could not activate remote peer 'org.a11y.atspi.Registry': unit failed

@@ -1,0 +1,2 @@
+no-socket AUDIO pulse_socket=False sink=fakesink result=eos
+with-socket AUDIO pulse_socket=True sink=pulsesink result=eos
