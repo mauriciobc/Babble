@@ -34,6 +34,9 @@ from .statustext import is_web_link, split_url  # noqa: E402
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 COLUMN_WIDTH = 660
 PAGE_SIZE = 40
+# How close to the bottom (in pixels) a scrolled list gets before it asks
+# for its next page. One number for ``PagedPosts`` and ``PagedList``.
+PRELOAD = 800
 
 _settings = None
 
@@ -143,6 +146,12 @@ def _unlock_bottom(page_ref):
     return GLib.SOURCE_REMOVE
 
 
+def near_bottom(adjustment, preload=PRELOAD):
+    """Whether *adjustment*'s view is within *preload* pixels of the end."""
+    bottom = adjustment.get_value() + adjustment.get_page_size()
+    return bottom >= adjustment.get_upper() - preload
+
+
 class PagedPosts:
     """The paging state machine every status list runs.
 
@@ -151,6 +160,10 @@ class PagedPosts:
     preload distances, ``since_id`` in one and ``min_id`` in another, and
     a generation guard present in two of the three. A list that pages
     wrongly does not look wrong, so the fix is one implementation.
+
+    ``PagedList`` no longer inherits this: it pages boxed rows by the
+    ``Link`` header, not by status id. What the two share is the preload
+    distance, :data:`PRELOAD`, and :func:`near_bottom`.
 
     Subclasses supply the model and how to put items in it; this owns the
     flags, the cursors and the three requests:
@@ -166,11 +179,13 @@ class PagedPosts:
     (Mastodon requires it there), ``since_id`` for a timeline.
     """
 
-    # One page size for every status list. These were 20, 20 and 40.
+    # One page size for every status list (timelines and notifications).
+    # The Link-paged boxed lists of ``PagedList`` page by the module's
+    # ``PAGE_SIZE``, 40.
     PAGE_SIZE = 20
-    # How close to the bottom a list gets before fetching the next page.
-    # These were 800, 800 and 600.
-    PRELOAD = 800
+    # How close to the bottom a list gets before fetching the next page:
+    # the module's one number, shared with ``PagedList``.
+    PRELOAD = PRELOAD
     # How long the bottom lock is held after a page goes out. Long enough
     # that one flick of the wheel cannot queue a second request, short
     # enough that a reader who stops scrolling is never left waiting.
@@ -308,8 +323,7 @@ class PagedPosts:
 
     def on_scroll_near_end(self, adjustment):
         """Whether the list is within ``PRELOAD`` of the bottom."""
-        bottom = adjustment.get_value() + adjustment.get_page_size()
-        return bottom >= adjustment.get_upper() - self.PRELOAD
+        return near_bottom(adjustment, self.PRELOAD)
 
 
 # Navigation
@@ -705,27 +719,49 @@ class StateStack(Gtk.Stack):
 
 # Paged list
 
-class PagedList(PagedPosts, Adw.Bin):
-    """Infinite boxed list over a Link-paginated endpoint.
+class PagedList(Adw.Bin):
+    """A paged list: boxed rows that load page by page as the reader
+    scrolls, over a Link-paginated endpoint.
 
     ``fetch_path``/``params`` describe the request; ``make_row(item)``
     builds one Gtk.Widget per JSON item (return None to skip it).
     ``extract(data)`` maps the response to the item list (default: the
-    response itself). Loading, empty and error states are built in;
-    ``refresh()`` reloads from the top, ``remove_row(row)`` drops a row
-    (and shows the empty state when it was the last one).
+    response itself). Loading, empty and error states are built in.
 
-    Inherits the paging flags and cursors from PagedPosts, but follows
-    ``Link: rel=next`` rather than a status id, so it keeps its own
-    ``load_more`` where a timeline has ``load_older``."""
+    Three things move together: ``rows`` (the row widgets, in order),
+    ``list_box`` (their parent) and the page of ``stack`` that shows:
+    ``loading``, ``error``, ``empty`` or ``list``. Only the operations
+    below change them, so a caller never touches them:
+
+    * :meth:`refresh` reloads from the top; :meth:`load_more` follows
+      ``Link: rel=next`` (the page size is the module's ``PAGE_SIZE``);
+    * :meth:`append_row`, :meth:`prepend_row`, :meth:`remove_row` change
+      one row (removing the last shows the empty state, or keeps filling
+      while more pages exist);
+    * ``finish(client, result)`` decodes a response the way the api
+      module's own ``<name>_finish_paged`` does (default
+      ``api.core.finish_paged``);
+    * ``page_filter(items)`` drops items of one decoded page client-side.
+      When a page filters to nothing while more pages follow, the next
+      one is asked for;
+    * ``make_placeholder()`` builds a row shown in the list in place of
+      the empty state whenever there are no rows, and dropped again as
+      soon as one exists.
+
+    The list is a child of its page, so a hook that is a method of that
+    page goes through :func:`weak_method`, like ``make_row``: a bound
+    method would close a cycle through C that keeps the page alive.
+
+    It follows the ``Link`` header, not a status id, so it shares with
+    ``PagedPosts`` only the preload distance (:data:`PRELOAD`)."""
 
     __gtype_name__ = 'BabblePagedList'
 
     def __init__(self, client, fetch_path, make_row, params=None,
                  empty_title=None, empty_icon='edit-find-symbolic',
                  empty_description=None, extract=None, paginated=True,
-                 header=None, method='GET', **kwargs):
-        PagedPosts.__init__(self)
+                 header=None, method='GET', finish=None, page_filter=None,
+                 make_placeholder=None, **kwargs):
         super().__init__(**kwargs)
         self.client = client
         self.fetch_path = fetch_path
@@ -734,6 +770,10 @@ class PagedList(PagedPosts, Adw.Bin):
         self.extract = extract or (lambda data: data)
         self.paginated = paginated
         self.method = method
+        self.finish = finish or api_core.finish_paged
+        self.page_filter = page_filter
+        self.make_placeholder = make_placeholder
+        self.placeholder = None
         self._next = None
         self._loading = False
         self._generation = 0
@@ -784,6 +824,7 @@ class PagedList(PagedPosts, Adw.Bin):
         self._generation += 1
         self._next = None
         self._loading = True
+        self._drop_placeholder()
         for row in self.rows:
             self.list_box.remove(row)
         self.rows = []
@@ -799,7 +840,7 @@ class PagedList(PagedPosts, Adw.Bin):
             cancellable=None)
 
     def _on_scroll(self, adjustment):
-        if self.on_scroll_near_end(adjustment):
+        if near_bottom(adjustment):
             self.load_more()
 
     def load_more(self):
@@ -822,7 +863,7 @@ class PagedList(PagedPosts, Adw.Bin):
         self._loading = False
         self.more_spinner.set_visible(False)
         try:
-            data, next_params, _prev = api_core.finish_paged(client, result)
+            data, next_params, _prev = self.finish(client, result)
         except GLib.Error as error:
             if not self.rows:
                 self.error_page.set_description(
@@ -833,6 +874,13 @@ class PagedList(PagedPosts, Adw.Bin):
             return
         items = self.extract(data) or []
         self._next = next_params if self.paginated and items else None
+        if self.page_filter is not None:
+            items = self.page_filter(items)
+            if not items and self._next:
+                # The page filtered to nothing but more follow: ask for
+                # the next one rather than show an empty list.
+                self.load_more()
+                return
         self.append_items(items)
 
     def append_items(self, items):
@@ -842,21 +890,50 @@ class PagedList(PagedPosts, Adw.Bin):
                 continue
             self.list_box.append(row)
             self.rows.append(row)
-        self.stack.set_visible_child_name('list' if self.rows else 'empty')
+        self._settle()
         if self.rows and self._next:
             # Short first pages never scroll: keep filling.
             GLib.idle_add(self._maybe_fill)
 
     def _maybe_fill(self):
         adjustment = self.scrolled.get_vadjustment()
-        if adjustment.get_upper() <= adjustment.get_page_size() + self.PRELOAD:
+        if adjustment.get_upper() <= adjustment.get_page_size() + PRELOAD:
             self.load_more()
         return GLib.SOURCE_REMOVE
+
+    def _drop_placeholder(self):
+        if self.placeholder is not None:
+            self.list_box.remove(self.placeholder)
+            self.placeholder = None
+
+    def _settle(self):
+        """Show the page the rows call for: the list when there are rows,
+        else the placeholder row if the caller asked for one, else the
+        empty state."""
+        if self.rows:
+            self._drop_placeholder()
+            self.stack.set_visible_child_name('list')
+        elif self.make_placeholder is not None:
+            if self.placeholder is None:
+                self.placeholder = self.make_placeholder()
+                if self.placeholder is not None:
+                    self.list_box.append(self.placeholder)
+            self.stack.set_visible_child_name(
+                'list' if self.placeholder is not None else 'empty')
+        else:
+            self.stack.set_visible_child_name('empty')
+
+    def append_row(self, row):
+        """Add *row* after the last one (the counterpart of
+        :meth:`prepend_row`), showing the list."""
+        self.list_box.append(row)
+        self.rows.append(row)
+        self._settle()
 
     def prepend_row(self, row):
         self.list_box.prepend(row)
         self.rows.insert(0, row)
-        self.stack.set_visible_child_name('list')
+        self._settle()
 
     def remove_row(self, row):
         if row in self.rows:
@@ -867,8 +944,10 @@ class PagedList(PagedPosts, Adw.Bin):
         if self._next:
             # More pages exist: fill them instead of claiming emptiness.
             GLib.idle_add(self._maybe_fill)
+            if self.make_placeholder is not None:
+                self._settle()
             return
-        self.stack.set_visible_child_name('empty')
+        self._settle()
 
     def mutate_row_api(self, row, start, on_done=None, error_heading=None,
                        remove=True, finish=None):
