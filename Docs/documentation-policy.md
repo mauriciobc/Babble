@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Title** | Babble documentation policy — what gets documented, who writes it, who approves it, and when it changes |
-| **Identifier / version** | `BABBLE-POL-001` — v1.0 — draft for review |
+| **Identifier / version** | `BABBLE-POL-001` — v1.1 — draft for review |
 | **Date of issue** | 2026-11-11 |
 | **Author** | The Babble maintainers |
 | **Approved by** | The maintainer, in the merge of [PR #107](https://github.com/mauriciobc/Babble/pull/107) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
@@ -15,7 +15,7 @@
 
 ## 1. Why this document exists
 
-The project writes a lot of documentation: a user manual, two languages of in-app help, twenty-seven files under `Docs/`, three reference documents at the repository root, and four translation catalogues. That volume has a failure mode, and it is not "too little documentation" — it is **documentation that has drifted from the software**. A feature ships, the help page does not mention it, a label changes and the manual keeps naming the old one, a plan document describes an architecture that was cut two releases ago. Nothing breaks; the documentation just stops being true.
+The project writes a lot of documentation: a user manual, two languages of in-app help, twenty-eight files under `Docs/`, three reference documents at the repository root, and four translation catalogues. That volume has a failure mode, and it is not "too little documentation" — it is **documentation that has drifted from the software**. A feature ships, the help page does not mention it, a label changes and the manual keeps naming the old one, a plan document describes an architecture that was cut two releases ago. Nothing breaks; the documentation just stops being true.
 
 This policy exists to make that failure visible and cheap to prevent. It follows ISO/IEC/IEEE 12207's six activities — plan, produce, review and approve, manage configuration, distribute, maintain — mapped onto a small project where one person maintains the code and AI assistants write much of the prose.
 
@@ -59,6 +59,7 @@ What the project documents, who reads it, and when it is produced. "Standard" na
 | `Docs/mastodon-compat.md` | Contributors | Markdown | 15289 | With every capability change | Every gate, and the server version behind it | Current |
 | `Docs/localization.md` | Contributors and translators | Markdown | 26514 | With every change to the i18n setup | Languages, status, and how to add one | Current |
 | `Docs/IMPROVEMENTS.md` | Contributors | Markdown | 15289 (record) | Continuously | Every finding, its decision, and what was deferred | Current |
+| `Docs/glossary.md` | Contributors | Markdown | — | With every new concept the code is built around | Every domain term the code and the tests name, defined in plain words, agreeing with the manual's glossary where both name the same thing | Current |
 | `Docs/*-plan.md`, `Docs/*-audit.md`, `Docs/*-study.md`, `Docs/*-review*.md` | Contributors | Markdown | 15289 (plan / report) | With the work they describe | The plan or the findings, with acceptance criteria | Some are historical; see section 11 |
 
 ### 3.3 For translators
@@ -341,4 +342,5 @@ The first is enforced by the suite. The second and third are cheap searches; the
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.1 | 2026-11-11 | The Babble maintainers | The inventory (section 3.2) lists `Docs/glossary.md`, a working note for contributors (the domain terms the code is built around), and section 1 counts twenty-eight files under `Docs/` instead of twenty-seven. What the policy says is unchanged. |
 | 1.0 | 2026-11-11 | The Babble maintainers | First version. Written after the user manual and the Portuguese help pages, which showed what was missing: a written-down rito, a named approver, and a test that keeps the documents true of the code. Approved in the merge of PR #107. |
