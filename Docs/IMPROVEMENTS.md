@@ -682,6 +682,7 @@ recorded in the Decision log below — read that before starting anything here.*
 | ARCH-19 | **done** | **`mediaviewer.py` zoom.** `ZoomPicture` and its `ZOOM_STEP`/`MAX_SCALE` constants move to `mediazoom.py`; chrome, DnD providers and `present_media` stay. | `mediazoom.py`; `Docs/arch-structural-debt-plan.md` | ~220 lines moved |
 | ARCH-15 | **done** | **`window.py` sidebar host.** Rebuild, mode/visibility sync, pinned append/load and overlay/rail runtime state move to `sidebarhost.SidebarHost`; the window keeps template widgets, feed-restriction policy, stream dispatch and thin forwards. `navigation.py` joins `SEAMS`. | `sidebarhost.py`; `Docs/arch-structural-debt-plan.md` | ~240 lines moved |
 | ARCH-16 | **done** | **`profile.py` header.** Banner/cache/chip helpers and `refresh_header` / stats / fields / badges move to `profileheader.ProfileHeader`; tabs, extras, note/mute dialogs and relationship UI via `ProfileActions` stay. | `profileheader.py`; `Docs/arch-structural-debt-plan.md` | ~475 lines moved |
+| ARCH-20 | **done** | **`window.py` stream router.** The streams the built places want and the routing of each event move to `streamrouter.StreamRouter`, which reaches pages through a `StreamHost` of callables; the window keeps the socket lifecycle, the polling fallback and the reconnect catch-up. `navigation.py` hands over the list and hashtag places so the place-key format stays there. `streamrouter.py` joins `SEAMS`. | `streamrouter.py`; `Docs/arch-structural-debt-plan.md` | ~106 lines moved |
 
 ---
 
