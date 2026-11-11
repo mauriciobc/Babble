@@ -119,6 +119,10 @@ def event(stream, name, payload):
 
 
 pushed = {'id': 'S1'}
+# The pages themselves (place_page hands back the navigation page around
+# them), as the router finds them.
+local = routing.public_pages['local']
+federated = routing.public_pages['federated']
 local.on_stream_update = record('local.update')
 federated.on_stream_update = record('federated.update')
 check('a local update reaches the local page and nothing else',
