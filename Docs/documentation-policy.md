@@ -388,6 +388,6 @@ The first is enforced by the suite. The second and third are cheap searches; the
 
 | Version | Date | Author | Change |
 |---|---|---|---|
-| 1.2 | 2026-11-11 | The Babble maintainers | The inventory (section 3.2) lists `Docs/glossary.md`, a working note for contributors (the domain terms the code is built around; it stays in English, as section 3.5 says of working notes), and section 1 counts twenty-eight files under `Docs/` instead of twenty-seven. What the policy says is unchanged. |
 | 1.0 | 2026-11-11 | The Babble maintainers | First version. Written after the user manual and the Portuguese help pages, which showed what was missing: a written-down rito, a named approver, and a test that keeps the documents true of the code. Approved in the merge of PR #107. |
 | 1.1 | 2026-11-11 | The Babble maintainers | The documentation is written twice: a new section on the two language trees, the naming rule for a translation, and the mechanical check that holds the two editions together. |. Approved in the merge of PR #108.
+| 1.2 | 2026-11-11 | The Babble maintainers | A content correction under section 4.2 (MINOR): the inventory (section 3.2) lists `Docs/glossary.md`, a working note for contributors (the domain terms the code is built around; it stays in English, as section 3.5 says of working notes), and section 1 counts twenty-eight files under `Docs/` instead of twenty-seven. What the policy says is unchanged. |

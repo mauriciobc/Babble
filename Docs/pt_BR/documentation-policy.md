@@ -387,6 +387,6 @@ O primeiro é imposto pela suíte. O segundo e o terceiro são buscas baratas; o
 
 | Versão | Data | Autor | Alteração |
 |---|---|---|---|
-| 1.2 | 2026-11-11 | Os mantenedores do Babble | O inventário (seção 3.2) lista `Docs/glossary.md`, uma nota de trabalho para contribuidores (os termos de domínio em que o código se apoia; fica em inglês, como a seção 3.5 diz das notas de trabalho), e a seção 1 conta vinte e oito arquivos sob `Docs/` em vez de vinte e sete. O que a política diz não muda. |
 | 1.0 | 2026-11-11 | Os mantenedores do Babble | Primeira versão. Escrita depois do manual do usuário e das páginas de ajuda em português, que mostraram o que faltava: um rito escrito, um aprovador nomeado e um teste que mantém a documentação fiel ao código. Aprovada na fusão do PR #107. |
 | 1.1 | 2026-11-11 | Os mantenedores do Babble | A documentação é escrita duas vezes: uma nova secção sobre as duas árvores de idiomas, a regra de nomenclatura de uma tradução, e a verificação mecânica que mantém as duas edições em passo. |. Approved in the merge of PR #108.
+| 1.2 | 2026-11-11 | Os mantenedores do Babble | Uma correção de conteúdo nos termos da seção 4.2 (MINOR): o inventário (seção 3.2) lista `Docs/glossary.md`, uma nota de trabalho para contribuidores (os termos de domínio em que o código se apoia; fica em inglês, como a seção 3.5 diz das notas de trabalho), e a seção 1 conta vinte e oito arquivos sob `Docs/` em vez de vinte e sete. O que a política diz não muda. |
