@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" id="index" xml:lang="pt_BR">
+
+  <info>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Ajuda do Babble</title>
+    <title type="link">Ajuda do Babble</title>
+    <desc>Leia e publique no Mastodon com o Babble.</desc>
+    <credit type="author">
+      <name>Mauricio Castro</name>
+    </credit>
+    <revision date="2026-11-11" version="0.3.0"/>
+    <include xmlns="http://www.w3.org/2001/XInclude" href="legal.xml"/>
+  </info>
+
+  <title>Ajuda do Babble</title>
+
+  <p>
+    O Babble é um cliente Mastodon para GNOME. Estas páginas cobrem a
+    entrada na conta, a leitura, a escrita e as partes do ambiente de
+    trabalho às quais o aplicativo se integra.
+  </p>
+
+  <section id="start" style="2column">
+    <title>Primeiros passos</title>
+  </section>
+
+  <section id="reading" style="2column">
+    <title>Leitura</title>
+  </section>
+
+  <section id="writing" style="2column">
+    <title>Escrita</title>
+  </section>
+
+  <section id="desktop" style="2column">
+    <title>Integração com o ambiente de trabalho</title>
+  </section>
+
+  <section id="settings" style="2column">
+    <title>Configurações</title>
+  </section>
+
+  <section id="plugins" style="2column">
+    <title>Plugins</title>
+  </section>
+
+  <section id="problems" style="2column">
+    <title>Problemas comuns</title>
+  </section>
+
+  <section id="keys" style="2column">
+    <title>Teclado</title>
+  </section>
+
+</page>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="writing" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#writing"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Escrita</title>
+    <title type="link">Escrita</title>
+    <desc>O compositor, a mídia, as enquetes, os rascunhos e as publicações agendadas.</desc>
+  </info>
+
+  <title>Escrita</title>
+
+  <section id="composer">
+    <title>O compositor</title>
+    <p>
+      <gui>New Post</gui>, ou <key>Ctrl+N</key>, abre o compositor. Ele
+      verifica a ortografia e completa <gui>@menções</gui> e hashtags
+      enquanto você escreve.
+    </p>
+    <p>
+      A barra inferior traz <gui>Attach Media</gui>,
+      <gui>Take Screenshot</gui>, <gui>Content Warning</gui>,
+      <gui>Poll</gui>, <gui>Mention</gui>, <gui>Insert Emoji</gui> e
+      <gui>Keep Open for a Thread</gui>, além do seletor de visibilidade,
+      do seletor de idioma e do contador de caracteres restantes.
+    </p>
+  </section>
+
+  <section id="media">
+    <title>Mídia</title>
+    <p>
+      Anexe mídia escolhendo-a no compositor, colando ou arrastando-a
+      para dentro dele, ou tirando uma captura de tela pelo portal do
+      sistema.
+    </p>
+    <p>
+      Cada anexo tem um campo <gui>Description</gui>: é o texto
+      alternativo, o que um leitor de tela lê e o que quem não enxerga a
+      imagem usa. Escreva-o.
+    </p>
+  </section>
+
+  <section id="polls">
+    <title>Enquetes</title>
+    <p>
+      Ligue <gui>Poll</gui> para adicionar opções e um prazo de
+      encerramento. Uma enquete não pode conviver com mídia, e as opções
+      precisam ser diferentes entre si.
+    </p>
+  </section>
+
+  <section id="quoting">
+    <title>Citações</title>
+    <p>
+      O botão <gui>Quote</gui> publica um comentário junto com a
+      publicação citada. Colar o endereço de uma publicação também a
+      transforma em citação, e o <gui>Undo</gui> desfaz a troca.
+    </p>
+  </section>
+
+  <section id="sending">
+    <title>Envio e rascunhos</title>
+    <p>
+      <key>Ctrl+Enter</key> envia. Escape fecha o compositor sem enviar.
+      Os rascunhos são guardados para você: feche o compositor com algo
+      meio escrito e o Babble o oferece de volta na próxima vez.
+    </p>
+    <p>
+      Para enviar uma publicação mais tarde, use <gui>Schedule Post</gui>
+      no cabeçalho do compositor e escolha uma data e hora pelo menos
+      cinco minutos à frente. A hora escolhida aparece sobre a
+      publicação, e <gui>Post</gui> vira <gui>Schedule</gui>;
+      <gui>Clear Schedule</gui> envia agora. As publicações agendadas
+      ficam listadas em <gui>Scheduled Posts</gui>, no menu principal,
+      onde podem ser editadas, reagendadas ou apagadas.
+    </p>
+  </section>
+
+</page>

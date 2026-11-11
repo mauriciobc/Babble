@@ -43,7 +43,7 @@ install_data(
 # page is a directory beside the English one and one more language below.
 # They are not translated through po/: a Mallard page is its own
 # document, not a string table, so a translator edits the page.
-help_languages = ['C']
+help_languages = ['C', 'pt_BR']
 foreach help_lang : help_languages
   install_data(
     files(

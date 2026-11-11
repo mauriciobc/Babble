@@ -31,3 +31,7 @@ babble.syscap
 .kiro/
 skills/
 skills-lock.json
+
+# Research notes and reports, not project sources
+/reports/
+/research_notes/

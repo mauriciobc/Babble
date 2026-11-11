@@ -30,6 +30,25 @@
   </section>
 
   <section id="sending">
+  <section id="polls">
+    <title>Polls</title>
+    <p>
+      Turn on <gui>Poll</gui> to add choices and an expiry. A poll cannot
+      be combined with media, and the choices must differ from each
+      other.
+    </p>
+  </section>
+
+  <section id="quoting">
+    <title>Quotes</title>
+    <p>
+      The <gui>Quote</gui> button posts a comment along with the quoted
+      post. Pasting the address of a post turns it into a quote too, and
+      <gui>Undo</gui> takes the change back.
+    </p>
+  </section>
+
+
     <title>Sending and drafts</title>
     <p>
       Ctrl+Enter sends. Escape closes the composer without sending.
