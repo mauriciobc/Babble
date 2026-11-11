@@ -1,54 +1,35 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""``BabbleWindow._on_stream_event`` routes each Streams event to the page
-that owns it, and to nothing else.
+"""``StreamRouter`` routes each Streams event to the page that owns it, and
+to nothing else, and answers which streams the open places want.
 
-``test-stream-events`` only reads the handler's source for the branch
-names, so a branch that called the wrong page, or the wrong method on the
-right page, would pass it. This runs the unbound handler on a recording
-stand-in and asserts the exact calls per event.
+``test-stream-events`` holds the router's declared table against the
+documented events; a branch that called the wrong page, or the wrong method
+on the right page, would pass it. This drives the router through its
+interface with plain callables and recorders, and asserts the exact calls
+per event, in order.
 
 A plain recorder accepts any method name, so every method it records is
-also checked to exist on the real class. Exits 77 (skip) without a
-display."""
+also checked to exist on the real class. The router imports no window, so
+this needs no display."""
 
 import os
-# Never the user's real dconf: a test that builds a window restores the
-# real stored account, and one that finds no keyring entry forgets it.
+# Never the user's real dconf.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
-import types
 
-import gi
-
-gi.require_version('Gtk', '4.0')
-gi.require_version('Adw', '1')
-
-from gi.repository import Adw, Gio  # noqa: E402
-
-if not os.environ.get('DISPLAY') \
-        and not os.environ.get('WAYLAND_DISPLAY'):
-    print('SKIP - no display available')
-    sys.exit(77)
-
-srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
-builddir = os.environ.get('BABBLE_BUILDDIR') or os.getcwd()
+srcdir = os.environ.get('BABBLE_SRCDIR') \
+    or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
-sys.path.insert(0, srcdir)
-
-bundle = os.path.join(builddir, 'src', 'babble.gresource')
-if not os.path.exists(bundle):
-    print('SKIP - no compiled babble.gresource; run meson compile first')
-    sys.exit(77)
-Adw.init()
-Gio.Resource.load(bundle)._register()
 
 from src.conversations import ConversationsPage  # noqa: E402
 from src.desktopnotify import DesktopNotifier  # noqa: E402
+from src.navigation import StreamPlace  # noqa: E402
 from src.notifications import NotificationsPage  # noqa: E402
-from src.streaming import FEDERATED, LOCAL, USER  # noqa: E402
+from src.streamrouter import StreamHost, StreamRouter  # noqa: E402
+from src.streaming import (DIRECT, FEDERATED, LOCAL, USER,  # noqa: E402
+                           hashtag_stream, list_stream)
 from src.timelinepage import TimelinePage  # noqa: E402
-from src.window import BabbleWindow  # noqa: E402
 
 failures = []
 
@@ -69,50 +50,73 @@ class Recorder:
         self._log = log
 
     def __getattr__(self, method):
+        if method.startswith('__'):
+            raise AttributeError(method)
+
         def call(*args):
             self._log.append((self._name, method, args))
         return call
 
 
-def build(with_pages=True):
-    log = []
-    rec = {name: Recorder(name, log) for name in (
-        'home', 'local', 'federated', 'notifications', 'conversations',
-        'list', 'tagpage',
-        'notifier', 'window', 'other')}
-    fake = types.SimpleNamespace(
-        timeline_page=rec['home'] if with_pages else None,
-        notifications_page=rec['notifications'] if with_pages else None,
-        navigation=types.SimpleNamespace(
-            public_pages={'local': rec['local'],
-                          'federated': rec['federated']}
-            if with_pages else {},
-            children={'conversations': rec['conversations']}
-            if with_pages else {}),
-        notifier=rec['notifier'],
-        _place_streams=lambda: {('list', '12'): [rec['list']],
-                                ('hashtag', 'rust'): [rec['tagpage']]}
-        if with_pages else {},
-        _timeline_pages=lambda: (
-            [rec['home'], rec['local'], rec['federated']]
-            if with_pages else []),
-        _refresh_admin_tool=lambda tool: log.append(
-            ('window', '_refresh_admin_tool', (tool,))),
-        note_background_notification=lambda payload: log.append(
-            ('window', 'note_background_notification', (payload,))))
-    return fake, log
+class TimelineRecorder(Recorder):
+    """A recorded page the host calls a timeline page."""
+
+
+class World:
+    """The window's side of the host, as plain values the test sets."""
+
+    def __init__(self, with_pages=True, public=True):
+        self.log = []
+        rec = self.rec = {
+            name: TimelineRecorder(name, self.log)
+            for name in ('home', 'local', 'federated', 'list', 'tagpage')}
+        for name in ('notifications', 'conversations', 'notifier'):
+            rec[name] = Recorder(name, self.log)
+        self.public = public
+        self.home = rec['home'] if with_pages else None
+        self.notifications = rec['notifications'] if with_pages else None
+        self.public_pages = {'local': rec['local'],
+                             'federated': rec['federated']} \
+            if with_pages else {}
+        self.places = {'conversations': rec['conversations']} \
+            if with_pages else {}
+        self.stream_places = [
+            StreamPlace('list', '12', rec['list'], False),
+            StreamPlace('tag', 'rust', rec['tagpage'], False)] \
+            if with_pages else []
+        self.timelines = [rec['list'], rec['tagpage']] \
+            if with_pages else []
+
+    def host(self):
+        log = self.log
+        return StreamHost(
+            home_page=lambda: self.home,
+            notifications_page=lambda: self.notifications,
+            public_pages=lambda: self.public_pages,
+            place=self.places.get,
+            stream_places=lambda: list(self.stream_places),
+            place_timelines=lambda: list(self.timelines),
+            is_timeline=lambda page: isinstance(page, TimelineRecorder),
+            live_public=lambda: self.public,
+            refresh_admin_tool=lambda tool: log.append(
+                ('window', 'refresh_admin_tool', (tool,))),
+            notifier_handle=lambda payload: log.append(
+                ('notifier', 'handle', (payload,))),
+            note_background_notification=lambda payload: log.append(
+                ('window', 'note_background_notification', (payload,))))
 
 
 def dispatch(name, stream=USER, with_pages=True):
-    fake, log = build(with_pages)
+    world = World(with_pages)
     payload = {'id': 'P-%s' % name}
-    BabbleWindow._on_stream_event(fake, None, stream, name, payload)
-    return log, payload
+    StreamRouter(world.host()).route(stream, name, payload)
+    return world.log, payload
 
 
 def all_pages(method, payload):
     return [('home', method, (payload,)), ('local', method, (payload,)),
-            ('federated', method, (payload,))]
+            ('federated', method, (payload,)),
+            ('list', method, (payload,)), ('tagpage', method, (payload,))]
 
 
 def expected(name, payload, stream=USER):
@@ -133,7 +137,7 @@ def expected(name, payload, stream=USER):
         'announcement.reaction': [],
         'add': [],
         'remove': [],
-        'report': [('window', '_refresh_admin_tool', ('reports',))],
+        'report': [('window', 'refresh_admin_tool', ('reports',))],
         'notification': [('notifications', 'on_stream_notification', p),
                          ('notifier', 'handle', p),
                          ('window', 'note_background_notification', p)],
@@ -182,12 +186,107 @@ log, _payload = dispatch('no-such-event')
 check('an unknown event does nothing', log == [])
 
 real = {'home': TimelinePage, 'local': TimelinePage,
-        'federated': TimelinePage, 'notifications': NotificationsPage,
-        'conversations': ConversationsPage, 'notifier': DesktopNotifier,
-        'window': BabbleWindow}
+        'federated': TimelinePage, 'list': TimelinePage,
+        'tagpage': TimelinePage, 'notifications': NotificationsPage,
+        'conversations': ConversationsPage, 'notifier': DesktopNotifier}
 for target, method in sorted(seen):
+    if target == 'window':
+        # Window-owned effects: `navigation window` follows them on the
+        # real window.
+        continue
     check('%s.%s exists on %s' % (target, method, real[target].__name__),
           callable(getattr(real[target], method, None)))
+
+# What is looked up when: nothing is held between events.
+world = World()
+router = StreamRouter(world.host())
+router.route(USER, 'update', {'id': 'first'})
+world.home = world.rec['local']
+del world.log[:]
+router.route(USER, 'update', {'id': 'second'})
+check('the router looks a page up at each event, holding none',
+      world.log == [('local', 'on_stream_update', ({'id': 'second'},))])
+
+# Timeline pages: home, the public ones, then each place's, and only
+# timeline pages (the conversations page is not one).
+world = World()
+world.timelines.append(world.rec['conversations'])
+check('the timeline pages are home, public, then the places\' own',
+      StreamRouter(world.host()).timeline_pages()
+      == [world.rec['home'], world.rec['local'], world.rec['federated'],
+          world.rec['list'], world.rec['tagpage']])
+check('and none at all while nothing is built',
+      StreamRouter(World(with_pages=False).host()).timeline_pages() == [])
+
+
+# The wanted streams, from every setting and every built place.
+def wanted(public=True, conversations=False, local=False, federated=False,
+           places=()):
+    world = World(with_pages=False, public=public)
+    rec = world.rec
+    if conversations:
+        world.places['conversations'] = rec['conversations']
+    if local:
+        world.public_pages['local'] = rec['local']
+    if federated:
+        world.public_pages['federated'] = rec['federated']
+    world.stream_places = list(places)
+    return StreamRouter(world.host()).wanted_streams()
+
+
+def place(kind, key, multi=False, page=True):
+    return StreamPlace(kind, key, TimelineRecorder('p', []) if page else None,
+                       multi)
+
+
+check('nothing built wants nothing', wanted() == set())
+check('nothing built wants nothing with public updates off',
+      wanted(public=False) == set())
+check('the conversations place wants the direct stream',
+      wanted(conversations=True) == {DIRECT})
+check('and wants it whether or not public updates are on',
+      wanted(public=False, conversations=True) == {DIRECT})
+check('a built local page wants the local stream',
+      wanted(local=True) == {LOCAL})
+check('a built federated page wants the federated stream',
+      wanted(federated=True) == {FEDERATED})
+check('both public pages want both streams',
+      wanted(local=True, federated=True) == {LOCAL, FEDERATED})
+check('public-live-updates off drops both public streams',
+      wanted(public=False, local=True, federated=True) == set())
+check('a list place wants its list stream',
+      wanted(places=[place('list', '12')]) == {list_stream('12')})
+check('a list stream is not gated by public-live-updates',
+      wanted(public=False, places=[place('list', '12')])
+      == {list_stream('12')})
+check('a hashtag place wants its tag stream, lower-cased',
+      wanted(places=[place('tag', 'Rust')]) == {hashtag_stream('rust')})
+check('public-live-updates off drops a hashtag stream',
+      wanted(public=False, places=[place('tag', 'rust')]) == set())
+check('a hashtag page over several tags wants no stream',
+      wanted(places=[place('tag', 'rust', multi=True)]) == set())
+check('a place without a timeline page wants no stream',
+      wanted(places=[place('list', '12', page=False),
+                     place('tag', 'rust', page=False)]) == set())
+check('two hashtag places of one tag want one stream',
+      wanted(places=[place('tag', 'rust'), place('tag', 'RUST')])
+      == {hashtag_stream('rust')})
+check('everything built at once adds up',
+      wanted(conversations=True, local=True, federated=True,
+             places=[place('list', '1'), place('list', '2'),
+                     place('tag', 'a'), place('tag', 'b', multi=True)])
+      == {DIRECT, LOCAL, FEDERATED, list_stream('1'), list_stream('2'),
+          hashtag_stream('a')})
+check('everything built with public updates off keeps the reader\'s own',
+      wanted(public=False, conversations=True, local=True, federated=True,
+             places=[place('list', '1'), place('tag', 'a')])
+      == {DIRECT, list_stream('1')})
+
+world = World()
+streams = StreamRouter(world.host()).place_streams()
+check('place_streams groups the pages by stream',
+      streams == {('list', '12'): [world.rec['list']],
+                  ('hashtag', 'rust'): [world.rec['tagpage']]})
 
 if failures:
     print('%d failure(s)' % len(failures))

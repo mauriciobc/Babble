@@ -14,6 +14,7 @@ import os
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
+import types
 
 import gi
 
@@ -93,12 +94,74 @@ check('they are timeline pages, found by tag',
       and all(isinstance(page, TimelinePage)
               for page in routing.public_pages.values()))
 check('the window counts them among its timeline pages',
-      all(page in window._timeline_pages()
+      all(page in window.stream_router.timeline_pages()
           for page in routing.public_pages.values()))
 check('it started a stream for each',
       bool(wanted) and {LOCAL, FEDERATED} <= wanted[-1])
 check('and switched on the auto-refresh of each',
       all(page._auto_refresh_id for page in routing.public_pages.values()))
+
+# The stream router's host, on the real window: one event through the
+# window's own handler (the one the manager's signal is connected to)
+# reaches the real page, so a callable wired to the wrong window member
+# cannot pass. The pages' methods are recorded, not run.
+calls = []
+
+
+def record(label):
+    return lambda *args: calls.append((label,) + args)
+
+
+def event(stream, name, payload):
+    del calls[:]
+    window._on_stream_event(None, stream, name, payload)
+    return list(calls)
+
+
+pushed = {'id': 'S1'}
+local.on_stream_update = record('local.update')
+federated.on_stream_update = record('federated.update')
+check('a local update reaches the local page and nothing else',
+      event(LOCAL, 'update', pushed) == [('local.update', pushed)])
+check('a federated update reaches the federated page',
+      event(FEDERATED, 'update', pushed) == [('federated.update', pushed)])
+window.timeline_page = TimelinePage(window.client, mode='home',
+                                    autoload=False)
+window.timeline_page.on_stream_update = record('home.update')
+check('a user-stream update reaches the window\'s home timeline',
+      event(('user',), 'update', pushed) == [('home.update', pushed)])
+local.on_stream_delete = record('local.delete')
+federated.on_stream_delete = record('federated.delete')
+window.timeline_page.on_stream_delete = record('home.delete')
+# The public pages are also built places, so the fan-out has always
+# reached them a second time through the places; kept as it was.
+check('a delete reaches the home, local and federated timelines',
+      event(('user',), 'delete', '7')
+      == [('home.delete', '7'), ('local.delete', '7'),
+          ('federated.delete', '7'), ('local.delete', '7'),
+          ('federated.delete', '7')])
+window.timeline_page.refresh = record('home.refresh')
+check('filters_changed refreshes the home timeline',
+      event(('user',), 'filters_changed', None) == [('home.refresh',)])
+window.notifications_page = types.SimpleNamespace(
+    on_stream_notification=record('notifications.notification'))
+window.notifier.handle = record('notifier.handle')
+window.note_background_notification = record('window.note')
+mention = {'id': 'N1', 'type': 'mention'}
+check('a notification reaches the page, the notifier and the window, '
+      'in that order',
+      event(('user',), 'notification', mention)
+      == [('notifications.notification', mention),
+          ('notifier.handle', mention), ('window.note', mention)])
+window._refresh_admin_tool = record('window.admin')
+check('a report asks the window to refresh the admin tool',
+      event(('user',), 'report', None) == [('window.admin', 'reports')])
+window.timeline_page = None
+window.notifications_page = None
+del local.on_stream_update, federated.on_stream_update
+del local.on_stream_delete, federated.on_stream_delete
+del window.notifier.handle, window.note_background_notification
+del window._refresh_admin_tool
 
 # A feed the server will not serve: the sidebar refresh drops its page,
 # its child and its stream, and leaves the other alone.

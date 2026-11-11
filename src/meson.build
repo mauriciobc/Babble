@@ -108,6 +108,7 @@ install_data(
   'statustext.py',
   'statusviews.py',
   'streaming.py',
+  'streamrouter.py',
   'sysstate.py',
   'textemoji.py',
   'emojianim.py',
@@ -286,6 +287,7 @@ test('navigation window', python,
   env: fatal_test_env,
   timeout: 60,
 )
+# Needs no display: the router imports no window.
 test('stream dispatch', python,
   args: [files('test-stream-dispatch.py')],
   env: fatal_test_env,

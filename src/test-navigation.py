@@ -215,6 +215,38 @@ with patch.dict(sys.modules, {
     check('clear drops every public page',
           not routing.public_pages)
 
+    # What the stream router reads: the list and hashtag places, with the
+    # key format parsed here and nowhere else.
+    class Timeline:
+        pass
+
+    timeline, multi_timeline = Timeline(), Timeline()
+    routing.children.update({
+        'home-ish': Timeline(),
+        'list:42': types.SimpleNamespace(timeline=timeline),
+        'tag:cats': types.SimpleNamespace(timeline=timeline, multi=False),
+        'tag:a b': types.SimpleNamespace(timeline=multi_timeline,
+                                         multi=True),
+        'tag:bare': object(),
+        'conversations': object()})
+    places = routing.stream_places()
+    check('stream_places lists the list and hashtag places in build order',
+          [(p.kind, p.key) for p in places]
+          == [('list', '42'), ('tag', 'cats'), ('tag', 'a b'),
+              ('tag', 'bare')])
+    check('each carries its timeline page and whether it spans several tags',
+          [p.page for p in places]
+          == [timeline, timeline, multi_timeline, None]
+          and [p.multi for p in places] == [False, False, True, False])
+    check('a place without a timeline attribute has no page',
+          places[3].page is None)
+    check('place_timelines gives a place\'s timeline, or the child itself',
+          routing.place_timelines()[1] is timeline
+          and routing.place_timelines()[0] is routing.children['home-ish']
+          and routing.place_timelines()[-1]
+          is routing.children['conversations'])
+    routing.clear()
+
 if failures:
     raise SystemExit('%d navigation checks failed' % len(failures))
 print('all navigation checks passed')

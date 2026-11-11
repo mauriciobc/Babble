@@ -82,6 +82,20 @@ class PlaceHost:
     sync_streaming: Callable[[], None]
 
 
+@dataclass
+class StreamPlace:
+    """A built list or hashtag place, as the stream router sees it.
+
+    ``kind`` is ``'list'`` or ``'tag'``, ``key`` the list id or the tag
+    name (the part of the place's tag after the prefix), ``page`` the
+    place's timeline (None when the place has none) and ``multi`` whether
+    it is a hashtag page over several tags."""
+    kind: str
+    key: str
+    page: Any
+    multi: bool
+
+
 class Navigation:
     """Per-window page cache and lazy factory for secondary places."""
 
@@ -97,6 +111,28 @@ class Navigation:
         ``children``, so there is nothing to keep in step with it."""
         return {tag: self.children[tag] for tag in PUBLIC_TAGS
                 if tag in self.children}
+
+    def stream_places(self):
+        """The built list and hashtag places, in build order, as
+        :class:`StreamPlace` records. The ``list:``/``tag:`` key format
+        is read here and nowhere else."""
+        found = []
+        for tag, child in self.children.items():
+            for prefix, kind in (('list:', 'list'), ('tag:', 'tag')):
+                if tag.startswith(prefix):
+                    found.append(StreamPlace(
+                        kind, tag[len(prefix):],
+                        getattr(child, 'timeline', None),
+                        bool(getattr(child, 'multi', False))))
+                    break
+        return found
+
+    def place_timelines(self):
+        """Each built place's timeline: its ``timeline`` attribute when it
+        has one (list and hashtag pages wrap a timeline), else the child
+        itself. The caller decides which of them are timeline pages."""
+        return [getattr(child, 'timeline', child)
+                for child in self.children.values()]
 
     def forget(self, tag):
         self.pages.pop(tag, None)
