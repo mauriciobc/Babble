@@ -3,11 +3,14 @@
 """The media policy's decisions (mediapolicy.py), over explicit states.
 
 Needs no display and no system monitor: every decision is a pure function
-of a :class:`MediaState`, so each truth table is walked in full. The real
-reader and the signal list are exercised by the media settings, inline and
-viewer tests, which install a fake monitor.
+of a :class:`MediaState`, so each truth table is walked in full. The reader
+is checked field by field against memory GSettings and a fake monitor, and
+``connect_changes`` is checked for the handlers it refuses. What needs a
+display (GTK's two settings in the reader, and every signal of
+``connect_changes`` being delivered) is in ``test-media-settings.py``.
 """
 
+import functools
 import itertools
 import os
 # Never the user's real dconf (see the settings isolation rule).
@@ -19,10 +22,22 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.path.dirname(
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import mediapolicy  # noqa: E402
+from gi.repository import GObject  # noqa: E402
+
+from src import mediapolicy, pages, sysstate  # noqa: E402
 from src.mediapolicy import MediaState  # noqa: E402
 
 failures = []
+
+
+class FakeMonitor(GObject.Object):
+    """The system state as plain properties (no Gio monitor)."""
+    __gsignals__ = {
+        'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+    online = GObject.Property(type=bool, default=True)
+    metered = GObject.Property(type=bool, default=False)
+    power_saver = GObject.Property(type=bool, default=False)
 
 
 def check(name, condition, detail=''):
@@ -65,18 +80,35 @@ check('may_loop ignores the autoload mode and the metered state',
       all(mediapolicy.may_loop(MediaState(autoload=mode, metered=metered))
           for mode in AUTOLOADS for metered in BOOLS))
 
-# stream_deferral: every (mode, metered) pair.
-for mode, metered, expected in (
-        ('always', True, None), ('always', False, None),
-        ('unmetered', True, mediapolicy.DEFER_METERED),
-        ('unmetered', False, None),
-        ('never', True, mediapolicy.DEFER_NEVER),
-        ('never', False, mediapolicy.DEFER_NEVER)):
-    got = mediapolicy.stream_deferral(
-        MediaState(autoload=mode, metered=metered))
+# stream_deferral: every (mode, metered) pair. The table is judged by a
+# function that returns the mismatches, so the same judge can be run
+# against a deliberately wrong rule at the end.
+DEFERRAL_TABLE = (
+    ('always', True, None), ('always', False, None),
+    ('unmetered', True, mediapolicy.DEFER_METERED),
+    ('unmetered', False, None),
+    ('never', True, mediapolicy.DEFER_NEVER),
+    ('never', False, mediapolicy.DEFER_NEVER))
+
+
+def deferral_mismatches(rule):
+    """The rows of DEFERRAL_TABLE that *rule* (a function of a state)
+    answers differently from the table: ``(mode, metered, expected, got)``."""
+    found = []
+    for mode, metered, expected in DEFERRAL_TABLE:
+        got = rule(MediaState(autoload=mode, metered=metered))
+        if got != expected:
+            found.append((mode, metered, expected, got))
+    return found
+
+
+for mode, metered, expected in DEFERRAL_TABLE:
     check('stream_deferral %s, %s is %s' % (
         mode, 'metered' if metered else 'unmetered', expected),
-        got == expected, repr(got))
+        not [m for m in deferral_mismatches(mediapolicy.stream_deferral)
+             if m[:2] == (mode, metered)])
+check('stream_deferral matches every row of the table',
+      deferral_mismatches(mediapolicy.stream_deferral) == [])
 check('the two reasons differ',
       mediapolicy.DEFER_NEVER != mediapolicy.DEFER_METERED)
 check('stream_deferral ignores motion and power settings',
@@ -134,28 +166,107 @@ check('the GTK properties cover animations and reduced motion',
 check('the system properties cover power saving and metering',
       set(mediapolicy.SYSTEM_PROPERTIES) == {'power-saver', 'metered'})
 
-# The test can fail: the comparisons above are the ones that would catch a
-# wrong rule, so run them against a deliberately wrong one (a policy that
-# defers on 'always' when metered) and require that they disagree.
+# read_state, field by field: change one source at a time and require that
+# exactly the matching field of the state changes. A swapped pair
+# (power_saver and metered, autoplay and inline) fails here. Memory
+# GSettings and a fake monitor need no display; the two GTK fields are
+# checked in test-media-settings.py, which has one.
+def changed_fields(before, after):
+    return {name for name in MediaState._fields
+            if getattr(before, name) != getattr(after, name)}
+
+
+settings = pages.settings()
+for key in mediapolicy.SETTINGS_KEYS:
+    settings.reset(key)
+monitor = FakeMonitor()
+sysstate._monitor = monitor
+base = mediapolicy.read_state()
+for name, change, expected in (
+        ('autoplay-animated-media',
+         lambda: settings.set_boolean('autoplay-animated-media', False),
+         {'autoplay'}),
+        ('media-autoload',
+         lambda: settings.set_string('media-autoload', 'never'),
+         {'autoload'}),
+        ('remote-media',
+         lambda: settings.set_string('remote-media', 'never'),
+         {'remote'}),
+        ('inline-animated-media',
+         lambda: settings.set_boolean('inline-animated-media', True),
+         {'inline'}),
+        ('power-saver',
+         lambda: monitor.set_property('power-saver', True),
+         {'power_saver'}),
+        ('metered',
+         lambda: monitor.set_property('metered', True),
+         {'metered'})):
+    change()
+    got = changed_fields(base, mediapolicy.read_state())
+    check('read_state: %s changes only %s' % (name, sorted(expected)),
+          got == expected, repr(sorted(got)))
+    for key in mediapolicy.SETTINGS_KEYS:
+        settings.reset(key)
+    monitor.set_property('power-saver', False)
+    monitor.set_property('metered', False)
+check('read_state is back to the base after the resets',
+      mediapolicy.read_state() == base)
+check('read_state reads the schema defaults',
+      (base.autoplay, base.autoload, base.remote, base.inline,
+       base.power_saver, base.metered)
+      == (True, 'unmetered', 'ask', False, False, False))
+
+
+# connect_changes accepts a bound GObject method and a module-level
+# function, and refuses anything that could pin its owner through the
+# process-wide emitters (nothing is connected when it raises).
+class PlainObject:
+    def method(self, *args):
+        pass
+
+
+def module_level_handler(*args):
+    pass
+
+
+def refused(handler):
+    try:
+        mediapolicy.connect_changes(handler)
+    except TypeError:
+        return True
+    return False
+
+
+def nested_handler():
+    def inner(*args):
+        pass
+    return inner
+
+
+check('connect_changes refuses a lambda', refused(lambda *a: None))
+check('connect_changes refuses a functools.partial',
+      refused(functools.partial(module_level_handler, 1)))
+check('connect_changes refuses a bound method of a plain object',
+      refused(PlainObject().method))
+check('connect_changes refuses a nested function', refused(nested_handler()))
+check('connect_changes refuses a builtin', refused(print))
+check('connect_changes refuses a non-callable', refused(None))
+
+# The test can fail: run the same judge that passes the real rule against a
+# deliberately wrong one (it defers whenever the connection is metered,
+# even on 'always', and reports 'metered' instead of 'never') and require
+# that the judge reports exactly those rows. The expected failure is
+# only asserted, never printed as FAIL or counted in the exit status.
 def wrong_deferral(state):
     if state.metered:
         return mediapolicy.DEFER_METERED
     return mediapolicy.stream_deferral(state)
 
 
-disagreements = [
-    (mode, metered)
-    for mode, metered in itertools.product(AUTOLOADS, BOOLS)
-    if wrong_deferral(MediaState(autoload=mode, metered=metered))
-    != mediapolicy.stream_deferral(MediaState(autoload=mode,
-                                              metered=metered))]
-check('a wrong rule is detected by the table (metered rows differ)',
-      disagreements == [('always', True), ('never', True)],
-      repr(disagreements))
-check('a wrong expectation is not equal to the real answer',
-      mediapolicy.stream_deferral(MediaState(autoload='always',
-                                             metered=True))
-      != mediapolicy.DEFER_METERED)
+caught = deferral_mismatches(wrong_deferral)
+check('the table reports a wrong rule (two rows fail)',
+      [m[:2] for m in caught] == [('always', True), ('never', True)],
+      repr(caught))
 
 if failures:
     print('%d check(s) failed' % len(failures))

@@ -26,6 +26,7 @@ dialog and the Remember This Choice write. The system monitor
 """
 
 import collections
+import types
 
 import gi
 
@@ -150,16 +151,44 @@ def connect_changes(handler, widget=None):
     metered state. This is the one list of those signals.
 
     *handler* takes ``*args`` and should recompute the answer it needs,
-    acting only on a change. A bound method of a GObject is held weakly
-    (:func:`pages.connect_weak`), so a widget or player that connects its
-    own method forms no cycle through C and is freed as before. Any other
-    callable (a module-level function, which lives as long as the process)
-    is connected directly: it holds nothing to leak, and a weak reference
-    to a function would drop it at once."""
+    acting only on a change. Exactly two kinds are accepted, because the
+    emitters (the settings object, the system monitor) live for the whole
+    process, so whatever a handler references lives as long:
+
+    * a bound method of a ``GObject.Object``, held weakly
+      (:func:`pages.connect_weak`): a widget or player that connects its
+      own method forms no cycle through C and is freed as before;
+    * a module-level function, connected directly: it is defined once, at
+      import, and refers to nothing but module globals, so it can pin
+      nothing that is not already process-wide. A weak reference to a
+      function would drop it at once.
+
+    A module-level function is a ``types.FunctionType`` whose
+    ``__qualname__`` equals its ``__name__`` (no ``Class.`` prefix and no
+    ``<locals>``, so a closure defined inside a method is out) and that
+    is not a lambda (a lambda's name is ``<lambda>``). That is sufficient
+    because a closure that could capture a widget can only be created
+    inside a function, which puts ``<locals>`` in its qualified name, and
+    a method or partial is not a plain function. Anything else (a lambda,
+    a ``functools.partial``, a bound method of a plain Python object, a
+    nested function) raises :exc:`TypeError` before anything is
+    connected."""
     from . import pages, sysstate
 
+    if isinstance(handler, types.MethodType) \
+            and isinstance(handler.__self__, GObject.Object):
+        weak = True
+    elif isinstance(handler, types.FunctionType) \
+            and handler.__qualname__ == handler.__name__ \
+            and handler.__name__ != '<lambda>':
+        weak = False
+    else:
+        raise TypeError(
+            'connect_changes takes a bound method of a GObject or a '
+            'module-level function, not %r' % (handler,))
+
     def connect(emitter, signal):
-        if isinstance(getattr(handler, '__self__', None), GObject.Object):
+        if weak:
             pages.connect_weak(emitter, signal, handler)
         else:
             emitter.connect(signal, handler)
