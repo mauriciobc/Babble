@@ -45,8 +45,7 @@ def child():
     gi.require_version('Gtk', '4.0')
     gi.require_version('Adw', '1')
     from gi.repository import Adw, Gio, GLib, Gtk
-    from src import mediaengine, mediaplayback, mediaviewer
-    mediaplayback._system_state = lambda name: False
+    from src import mediaengine, mediaviewer
 
     # The viewer's loop gate builds sysstate's monitor, and on the CI
     # runner Gio.NetworkMonitor.get_default() in SystemState.__init__

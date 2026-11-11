@@ -43,7 +43,7 @@ import gi  # noqa: E402
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, GObject, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -53,6 +53,7 @@ if not os.environ.get('DISPLAY') \
 Adw.init()
 
 from src import mediaengine, mediaplayback, mediaviewer  # noqa: E402
+from src import sysstate  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
     'media_fixture', os.path.join(srcdir, 'test-media-fixture.py'))
@@ -88,8 +89,20 @@ def wait(condition, timeout=10.0):
 
 
 # The connection is not metered and the machine not saving power, so a
-# video downloads at once and a GIFV autoplays.
-mediaplayback._system_state = lambda name: False
+# video downloads at once and a GIFV autoplays. The monitor is plain
+# properties: the real one asks Gio.NetworkMonitor, which can hang on a CI
+# runner.
+class FakeMonitor(GObject.Object):
+    __gsignals__ = {
+        'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+    online = GObject.Property(type=bool, default=True)
+    metered = GObject.Property(type=bool, default=False)
+    power_saver = GObject.Property(type=bool, default=False)
+
+
+sysstate._monitor = FakeMonitor()
+
 
 def stray_dirs():
     root = GLib.get_tmp_dir()

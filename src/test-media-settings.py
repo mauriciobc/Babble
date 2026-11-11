@@ -3,7 +3,7 @@
 """The two media preferences: Autoplay Animated Media and Load Media
 Automatically.
 
-Checks the schema defaults, the autoplay check (``may_autoplay_loop``)
+Checks the schema defaults, the autoplay check (``mediapolicy.may_loop``)
 with the key and with the system overriding it, the defer decision for
 every (mode, metered) pair, the real viewer for both (a deferred page
 with the right explanation, a GIFV held and released live when the key
@@ -47,7 +47,8 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import mediaengine, mediaplayback, mediaviewer  # noqa: E402
+from src import mediaengine, mediaviewer  # noqa: E402
+from src import mediapolicy  # noqa: E402
 from src import pages, preferences, sysstate  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
@@ -118,20 +119,22 @@ gtk_settings = Gtk.Settings.get_default()
 gtk_settings.set_property('gtk-enable-animations', True)
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.NO_PREFERENCE)
-check('autoplay is allowed with the defaults',
-      mediaplayback.may_autoplay_loop())
+def may_autoplay_loop():
+    return mediapolicy.may_loop(mediapolicy.read_state())
+
+
+check('autoplay is allowed with the defaults', may_autoplay_loop())
 settings.set_boolean('autoplay-animated-media', False)
-check('autoplay is off when the key is off',
-      not mediaplayback.may_autoplay_loop())
+check('autoplay is off when the key is off', not may_autoplay_loop())
 settings.set_boolean('autoplay-animated-media', True)
 monitor.set_property('power-saver', True)
 check('power saving overrides the key when it is on',
-      not mediaplayback.may_autoplay_loop())
+      not may_autoplay_loop())
 monitor.set_property('power-saver', False)
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.REDUCE)
 check('reduced motion overrides the key when it is on',
-      not mediaplayback.may_autoplay_loop())
+      not may_autoplay_loop())
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.NO_PREFERENCE)
 
@@ -142,7 +145,8 @@ for mode, metered, expected in (
         ('never', True, True), ('never', False, True)):
     check('%s, %s: %s' % (mode, 'metered' if metered else 'unmetered',
                           'defers' if expected else 'loads'),
-          mediaplayback.should_defer_stream(mode, metered) is expected)
+          (mediapolicy.stream_deferral(mediapolicy.MediaState(
+              autoload=mode, metered=metered)) is not None) is expected)
 
 # The real viewer.
 clip = fixture.write_clip()
