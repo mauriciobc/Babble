@@ -62,6 +62,7 @@ install_data(
   'mediaexport.py',
   'mediainline.py',
   'mediaplayback.py',
+  'mediapolicy.py',
   'mediastream.py',
   'mediaviewer.py',
   'mediaviewerchrome.py',
@@ -431,6 +432,12 @@ test('media settings', python,
   args: [files('test-media-settings.py')],
   env: fatal_test_env,
   timeout: 180,
+)
+# The media policy's decisions over explicit states; needs no display.
+test('media policy', python,
+  args: [files('test-media-policy.py')],
+  env: test_env,
+  timeout: 60,
 )
 test('media inline', python,
   args: [files('test-media-inline.py')],
