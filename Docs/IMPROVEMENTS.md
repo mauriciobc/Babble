@@ -563,16 +563,32 @@ argument rather than a copy: whether refresh asks for `since_id`
 lists remain distinct, because a Link cursor is not a status id and the
 base cannot fake one. Final resolutions:
 
-* `pages.PagedList` only borrows the base for a place to live and initializes
-  the generation guard; its `load`/`load_more`/`refresh` and `_on_scroll`
-  keep their own bodies, because a Link-paged end says nothing about the
-  last row in the way a status id does.
+* `pages.PagedList` kept its own `refresh`/`load_more`/`_on_scroll`, because
+  a Link-paged end says nothing about the last row in the way a status id
+  does. It first borrowed the base for a place to live; it no longer
+  inherits `PagedPosts` at all (a later change, below), and shares only the
+  preload distance, `pages.PRELOAD` with `pages.near_bottom()`.
 * The module-level `PAGE_SIZE` in `pages.py` is *still 40* for lists. The base
   uses 20, which is the page size every (status/older, status/newer, status
   refresh) list uses; reusing the list value would have doubled those
   requests.
 * Regression coverage: timeline, notification, and thread-profile test scripts
   pass under the consolidated shape.
+* **`PagedList`'s interface (later change).** Three callers had reached into
+  its internals for what it lacked: `scheduled._FilteredList` copied
+  `_on_loaded` to filter each page, `ListsPage._on_created` appended a row
+  by hand, and `hashtags._FollowedTagsList` overrode three methods to keep a
+  placeholder row. `PagedList` now has `append_row`, `finish=` (the api
+  module's own `*_finish_paged`), `page_filter=` (a page that filters to
+  nothing while more follow asks for the next) and `make_placeholder=`; the
+  two subclasses are gone and `lists.py` makes one call. The list is its
+  own class, with the invariant (`rows`, `list_box` and the visible stack
+  page move together) written in its docstring and pinned by the `paged
+  list` test. Page sizes are unchanged: status lists 20, Link-paged boxed
+  lists 40. One behaviour differs on purpose: a placeholder is now dropped
+  when a row arrives; before, a page that arrived after the last row had
+  been removed left the placeholder above the new rows. Not changed:
+  cancelling requests, the generation guard, the rest of `pages.py`.
 
 ### 2.3 Translated-string tables (duplication translators can see)
 

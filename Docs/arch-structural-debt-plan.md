@@ -29,9 +29,9 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
 | `profile.py` | ~915 | ARCH-16 extracted profileheader; tabs/extras remain |
 | `mastodon.py` | 1328 | Coherent transport — leave |
-| `pages.py` | 1239 | Shared toolkit — Phase N |
+| `pages.py` | 1323 | Shared toolkit — Phase N. `PagedList`'s interface was settled on its own (IMPROVEMENTS CLEAN-08) and grew the file by about 80 lines; the sprawl is untouched |
 | `fedicollections.py` | 1086 | Feature pack — Phase N |
-| `hashtags.py` | 832 | Marginal |
+| `hashtags.py` | 802 | Marginal |
 
 Catch Up (hard fail over 800, no EXCEPTION):
 
