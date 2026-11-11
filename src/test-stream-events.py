@@ -95,11 +95,16 @@ def gaps(documented, table):
               for name in sorted(set(documented) - routed)]
     broken += ['%s is routed but not documented, so it is a typo' % name
                for name in sorted(routed - set(documented))]
-    broken += ['%s names no router method: %s' % (name, handler)
+    # A misspelt handler cannot get this far: the table holds references,
+    # so it raises when the module is imported. What can still go wrong is
+    # an entry that is not one of the router's own handlers (a name left
+    # as a string, or some other callable).
+    broken += ['%s is not a router handler: %r' % (name, handler)
                for name, handler in sorted(table.items())
                if handler is not None
-               and not callable(getattr(streamrouter.StreamRouter,
-                                        handler, None))]
+               and getattr(streamrouter.StreamRouter,
+                           getattr(handler, '__name__', ''), None)
+               is not handler]
     return broken
 
 
@@ -112,25 +117,25 @@ for name in sorted(routed - set(DOCUMENTED)):
     check('%s is not a documented event, so it is a typo' % name, False)
 check('the route table covers the documented set exactly',
       routed == set(DOCUMENTED))
-check('every route names a method the router has',
+check('every route is one of the router\'s own handlers, or None',
       not [line for line in gaps(DOCUMENTED, streamrouter.ROUTES)
-           if 'names no router method' in line])
+           if 'is not a router handler' in line])
 
 # The rule must be able to fail: a synthetic table with an event decoded
-# and documented but not routed, one routed but not documented, and a
-# route naming no method.
+# and documented but not routed, one routed but not documented, and an
+# entry that is not a handler (a name left as a string).
 synthetic = dict(streamrouter.ROUTES)
 del synthetic['follow_request']
-synthetic['follow-request'] = '_notifications_refresh'
-synthetic['report'] = '_no_such_method'
+synthetic['follow-request'] = streamrouter.StreamRouter._notifications_refresh
+synthetic['report'] = '_report'
 broken = gaps(DOCUMENTED, synthetic)
 check('an event documented but not routed is caught',
       'follow_request is documented but not routed' in broken)
 check('an event routed but not documented is caught',
       'follow-request is routed but not documented, so it is a typo'
       in broken)
-check('a route naming no method is caught',
-      'report names no router method: _no_such_method' in broken)
+check('an entry that is not a handler is caught',
+      "report is not a router handler: '_report'" in broken)
 check('a complete table is not flagged by the same rule',
       gaps(DOCUMENTED, streamrouter.ROUTES) == [])
 

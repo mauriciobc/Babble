@@ -199,14 +199,20 @@ federated.on_stream_delete = record('federated.delete')
 list_page.on_stream_delete = record('list.delete')
 tag_page.on_stream_delete = record('tag.delete')
 window.timeline_page.on_stream_delete = record('home.delete')
-# The public pages are also built places, so the fan-out has always
-# reached them a second time through the places; kept as it was.
-check('a delete reaches the home, public, list and hashtag timelines',
-      event(('user',), 'delete', '7')
-      == [('home.delete', '7'), ('local.delete', '7'),
-          ('federated.delete', '7'), ('local.delete', '7'),
-          ('federated.delete', '7'), ('list.delete', '7'),
-          ('tag.delete', '7')])
+deleted = event(('user',), 'delete', '7')
+check('a delete reaches the home, public, list and hashtag timelines, '
+      'each at least once, and nothing else',
+      {entry[0] for entry in deleted} == {
+          'home.delete', 'local.delete', 'federated.delete', 'list.delete',
+          'tag.delete'}
+      and all(entry[1:] == ('7',) for entry in deleted))
+# KNOWN: the public pages are also built places, so the fan-out reaches
+# local and federated twice. This documents existing behaviour, not a
+# requirement: remove this check with the fix that stops the duplicate.
+check('known: local and federated are reached twice by delete',
+      [entry[0] for entry in deleted].count('local.delete') == 2
+      and [entry[0] for entry in deleted].count('federated.delete') == 2
+      and [entry[0] for entry in deleted].count('home.delete') == 1)
 window.timeline_page.refresh = record('home.refresh')
 check('filters_changed refreshes the home timeline',
       event(('user',), 'filters_changed', None) == [('home.refresh',)])

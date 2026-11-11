@@ -21,6 +21,14 @@ records.
 ``TimelinePage`` is not imported: the host's ``is_timeline`` says which
 objects are timeline pages, so the router stays free of widget code and
 can be driven with plain recorders.
+
+The events it routes are declared as a table, ``ROUTES``, at the end of
+the module: event name to the handler itself (``StreamRouter._update``),
+or None for an event that is decoded but deliberately needs no work, with
+the reason beside it. The table holds references, not names, so a
+misspelt handler fails when the module is imported. ``routed_events()``
+lists the table, and ``test-stream-events`` holds it against the
+documented set.
 """
 
 from collections.abc import Callable
@@ -52,56 +60,13 @@ class StreamHost:
     note_background_notification: Callable[[Any], None]
 
 
-# Every event the Streams API can send, mapped to the router method that
-# handles it. None marks an event that is decoded but deliberately needs
-# no work; the reason is kept beside it. ``test-stream-events`` holds
-# this table against the documented set.
-ROUTES = {
-    'update': '_update',
-    'delete': '_delete',
-    'status.update': '_status_update',
-    # Filters were changed (here or in another client). Their effect is
-    # baked into each status's `filtered` list by the server, so only a
-    # refetch shows it.
-    'filters_changed': '_filters_changed',
-    # notifications_merged: accepted notification requests finished
-    # merging into the stream, so the loaded list is stale.
-    #
-    # follow_request: a new request. It arrives on the user stream and
-    # becomes a notification only once the server has written it, so the
-    # list is refetched rather than patched -- the same reason
-    # notifications_merged reloads.
-    'notifications_merged': '_notifications_refresh',
-    'follow_request': '_notifications_refresh',
-    # A new announcement, or one withdrawn. The banner counts unread
-    # ones, so it has to be asked again.
-    'announcement': '_announcements',
-    'announcement.delete': '_announcements',
-    # Someone else's reaction on an announcement. Babble shows only your
-    # own reactions, which are applied optimistically, so there is
-    # nothing here to redraw.
-    'announcement.reaction': None,
-    # A new report, for a moderator with the dashboard open.
-    'report': '_report',
-    # Collection membership (Mastodon 4.6+). The payload is the bare
-    # string "collection": membership changes a Collection page's member
-    # list, which it refetches when reopened.
-    'add': None,
-    'remove': None,
-    'notification': '_notification',
-    'conversation': '_conversation',
-    # An end-to-end encrypted direct message. Babble reads conversations
-    # over /conversations and holds no keys for them, so there is nothing
-    # to open -- but the event says a message arrived, and the list
-    # refetches to show it.
-    'encrypted_message': '_encrypted_message',
-}
-
-
 class StreamRouter:
-    """Maps the built places to streams, and an event to its pages."""
+    """Maps the built places to streams, and an event to its pages.
 
-    ROUTES = ROUTES
+    ``ROUTES`` (declared after the class, which it refers to) is the table
+    of events it routes."""
+
+    ROUTES: dict = {}
 
     def __init__(self, host: StreamHost):
         self.host = host
@@ -173,7 +138,7 @@ class StreamRouter:
         table is ignored."""
         handler = self.ROUTES.get(name)
         if handler is not None:
-            getattr(self, handler)(stream, payload)
+            handler(self, stream, payload)
 
     def _update(self, stream, payload):
         if stream[:1] in (('list',), ('hashtag',)):
@@ -237,3 +202,48 @@ class StreamRouter:
         conversations = self.host.place('conversations')
         if conversations is not None:
             conversations.refresh()
+
+
+# Every event the Streams API can send, mapped to the handler that routes
+# it. None marks an event that is decoded but deliberately needs no work;
+# the reason is kept beside it.
+StreamRouter.ROUTES = ROUTES = {
+    'update': StreamRouter._update,
+    'delete': StreamRouter._delete,
+    'status.update': StreamRouter._status_update,
+    # Filters were changed (here or in another client). Their effect is
+    # baked into each status's `filtered` list by the server, so only a
+    # refetch shows it.
+    'filters_changed': StreamRouter._filters_changed,
+    # notifications_merged: accepted notification requests finished
+    # merging into the stream, so the loaded list is stale.
+    #
+    # follow_request: a new request. It arrives on the user stream and
+    # becomes a notification only once the server has written it, so the
+    # list is refetched rather than patched -- the same reason
+    # notifications_merged reloads.
+    'notifications_merged': StreamRouter._notifications_refresh,
+    'follow_request': StreamRouter._notifications_refresh,
+    # A new announcement, or one withdrawn. The banner counts unread
+    # ones, so it has to be asked again.
+    'announcement': StreamRouter._announcements,
+    'announcement.delete': StreamRouter._announcements,
+    # Someone else's reaction on an announcement. Babble shows only your
+    # own reactions, which are applied optimistically, so there is
+    # nothing here to redraw.
+    'announcement.reaction': None,
+    # A new report, for a moderator with the dashboard open.
+    'report': StreamRouter._report,
+    # Collection membership (Mastodon 4.6+). The payload is the bare
+    # string "collection": membership changes a Collection page's member
+    # list, which it refetches when reopened.
+    'add': None,
+    'remove': None,
+    'notification': StreamRouter._notification,
+    'conversation': StreamRouter._conversation,
+    # An end-to-end encrypted direct message. Babble reads conversations
+    # over /conversations and holds no keys for them, so there is nothing
+    # to open -- but the event says a message arrived, and the list
+    # refetches to show it.
+    'encrypted_message': StreamRouter._encrypted_message,
+}
