@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="start" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#start"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Primeiros passos</title>
+    <title type="link">Primeiros passos</title>
+    <desc>Entre no seu servidor e deixe o Babble guardar o token.</desc>
+  </info>
+
+  <title>Primeiros passos</title>
+
+  <p>
+    O Babble é um cliente Mastodon. Ele lê e publica em qualquer servidor
+    Mastodon, e também nos outros servidores com os quais aquele federeia.
+  </p>
+
+  <section id="server">
+    <title>Seu servidor</title>
+    <p>
+      Escreva o endereço do seu servidor na tela de boas-vindas e escolha
+      <gui>Continue</gui> ou <gui>Continue with…</gui>.
+    </p>
+    <p>
+      O navegador abre a página de entrada do próprio servidor. O Babble
+      nunca vê sua senha: o servidor devolve um token, e é só esse token que
+      fica guardado, no chaveiro do sistema.
+    </p>
+    <note style="important">
+      <title>Pergunte uma vez só</title>
+      <p>
+        O Babble pede os escopos <sys>read write</sys>. As permissões de
+        moderação são pedidas à parte, e apenas quando você abre o painel
+        de administração.
+      </p>
+    </note>
+    <p>
+      Se o navegador não voltar sozinho, o Babble oferece um botão
+      <gui>Enter Authorization Code…</gui> para você colar à mão o código
+      que o servidor exibiu.
+    </p>
+  </section>
+
+  <section id="accounts">
+    <title>Contas</title>
+    <p>
+      O Babble guarda cada login no chaveiro do sistema, e por isso precisa
+      de um serviço de chaveiro em execução, como o GNOME Keyring ou o
+      KeePassXC. Se não houver nenhum, o aplicativo avisa ao iniciar e ao
+      entrar, e mantém a conta que já tinha. Comece um serviço de chaveiro
+      e reinicie o Babble.
+    </p>
+    <p>
+      O botão da conta, no alto da barra lateral, troca de conta e remove
+      contas. Cada conta guarda seus rascunhos e seus instantâneos do
+      <app>Catch Up</app> separadamente.
+    </p>
+    <p>
+      Depois de entrar, <link xref="reading">Leitura</link> cobre os
+      feeds, e <link xref="writing">Escrita</link> cobre o compositor.
+    </p>
+  </section>
+
+</page>

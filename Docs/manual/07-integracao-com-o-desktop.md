@@ -18,6 +18,10 @@ O Babble foi feito para o GNOME, e usa o que o GNOME oferece em vez de recriar. 
 
 **O que a coluna não faz:**
 
+**Se der errado:** se o link abrir no navegador mesmo com a preferência ligada, o WebKitGTK não está instalado — nesse caso a opção nem aparece nas Preferências. Se a página abrir em branco, desligue `JavaScript on Web Pages` e recarregue; muitos sites dependem dele. Veja [11.12](11-solucao-de-problemas.md#1112-um-recurso-não-aparece).
+
+**O que a coluna não faz:**
+
 - Não guarda cookies nem histórico depois que o Babble fecha.
 - Não pede sua localização, sua câmera nem seu microfone.
 - Não baixa arquivos: um download é entregue ao seu navegador.
@@ -127,6 +131,10 @@ Para ativá-lo, ligue o Babble em **Configurações do sistema → Busca → Pro
 1. Feche a janela do Babble. O aplicativo continua rodando.
 2. O ícone do Babble no painel continua lá, e o painel rápido mostra as menções que chegaram.
 3. Clique no ícone para trazer a janela de volta.
+
+**Resultado:** o aplicativo continua rodando sem janela, o ícone do Babble permanece no painel e as notificações continuam chegando. O painel rápido do GNOME mostra quantas menções chegaram enquanto você estava away.
+
+**Se der errado:** se o processo do Babble terminar junto com a janela, o portal de segundo plano não está disponível — a preferência fica sem efeito e o aplicativo sai com a janela. Veja [11.12](11-solucao-de-problemas.md#1112-um-recurso-não-aparece).
 
 **O que precisa:** o portal de segundo plano. Sem ele, a preferência não tem efeito e o aplicativo sai com a janela.
 

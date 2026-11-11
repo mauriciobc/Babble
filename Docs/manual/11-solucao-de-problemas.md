@@ -84,7 +84,7 @@ Esse log é a melhor fonte quando um plugin falha: a página `Plugins` mostra o 
 | A publicação não aparece, e no lugar há uma barra `Filtered: {nome}` | Um filtro do seu servidor casou com ela | Clique em `Show Anyway`, ou revise o filtro em Preferências → Reading → `Manage Filters`. |
 | A publicação nem aparece, nem há barra nenhuma | O filtro é do tipo `Hide`, e ele remove a publicação sem avisar | O filtro está no servidor; ajuste-o lá, ou peça a quem administra o servidor. |
 | A mídia está coberta, mas o texto aparece | Um filtro do tipo `Blur` casou com ela | É o comportamento do `Blur`. |
-| As republicações desapareceram da `Home` | `Hidden Boosts on Home` está ligado | Desligue a preferência. |
+| Os impulsos desapareceram da `Home` | `Hidden Boosts on Home` está ligado | Desligue a preferência. |
 | As respostas de contas que você não segue sumiram | `Hidden Replies From Non-Follows` está ligado | Desligue a preferência. |
 
 ## 11.9 O Catch Up está incompleto

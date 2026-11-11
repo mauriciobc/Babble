@@ -370,7 +370,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `New Direct Message` | Nova mensagem direta |
 | `New Followers` | Novos seguidores |
 | `New List` | Nova lista |
-| `New Multi-Hashtag Timeline` | Nova linha do tempo de várias hashtags |
+| `New Multi-Hashtag Timeline` | Nova timeline de várias hashtags |
 | `New Post` | Nova publicação |
 | `New Posts` | Novas publicações |
 | `New Reports` | Novas denúncias |
@@ -477,7 +477,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Restore` | Restaurar |
 | `Save As…` | Salvar como… |
 | `Save Media` | Salvar mídia |
-| `Scanning timeline…` | Analisando a linha do tempo… |
+| `Scanning timeline…` | Analisando a timeline… |
 | `Schedule (Ctrl+Enter)` | Agendar (Ctrl+Enter) |
 | `Scheduled Posts` | Publicações agendadas |
 | `Scroll Page Down` | Rolar página para baixo |

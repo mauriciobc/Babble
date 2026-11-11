@@ -64,7 +64,7 @@ As páginas são `Appearance`, `Reading`, `Timelines`, `Posting` e `Notification
 | Preferência | Subtítulo | Controle | Efeito |
 |---|---|---|---|
 | `Hidden Replies From Non-Follows` | On the home timeline, hide posts that are replies from accounts you do not follow | Interruptor | Esconde respostas de quem você não segue, na `Home`. |
-| `Hidden Boosts on Home` | On the home timeline, show only posts and replies by the people you follow, without their boosts | Interruptor | Esconde as republicações, na `Home`. |
+| `Hidden Boosts on Home` | On the home timeline, show only posts and replies by the people you follow, without their boosts | Interruptor | Esconde os impulsos, na `Home`. |
 | `Remembered Reading Position` | Reopen the home timeline at the post you were reading, with a button for newer posts | Interruptor (ligado) | A `Home` reabre onde você parou. |
 
 ### Grupo `Links`

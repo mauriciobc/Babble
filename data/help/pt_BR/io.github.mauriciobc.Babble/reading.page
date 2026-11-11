@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="reading" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#reading"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Leitura</title>
+    <title type="link">Leitura</title>
+    <desc>As timelines, as atualizações ao vivo e os links ao lado delas.</desc>
+  </info>
+
+  <title>Leitura</title>
+
+  <section id="sidebar">
+    <title>A barra lateral</title>
+    <p>
+      Os lugares da barra lateral são os feeds que você lê. <gui>Home</gui>
+      é a timeline das contas que você segue, <gui>Notifications</gui>
+      junta as menções e o resto, e <gui>Conversations</gui> guarda as
+      mensagens diretas. <gui>Local</gui> e <gui>Federated</gui> são as
+      timelines públicas do seu servidor e de todos os servidores
+      conhecidos.
+    </p>
+    <p>
+      O botão no rodapé da barra lateral muda o tamanho dela: com
+      rótulos, só com ícones, ou escondida.
+    </p>
+  </section>
+
+  <section id="posts">
+    <title>Publicações</title>
+    <p>
+      Cada publicação tem uma barra de ações com <gui>Reply</gui>,
+      <gui>Boost</gui>, <gui>Quote</gui>, <gui>Favorite</gui> e
+      <gui>Bookmark</gui>. O botão de três pontinhos abre o resto: editar,
+      apagar, fixar no perfil, silenciar, bloquear e denunciar.
+    </p>
+    <p>
+      Uma publicação com aviso de conteúdo vem escondida atrás de um botão
+      <gui>Show Content</gui>, a não ser que a preferência
+      <gui>Spoilers</gui> esteja ligada. As publicações longas vêm
+      recolhidas atrás de <gui>Show More</gui>.
+    </p>
+  </section>
+
+  <section id="updates">
+    <title>Atualizações ao vivo e recarregamento</title>
+    <p>
+      Com as atualizações ao vivo ligadas, as publicações novas chegam
+      assim que são postadas. Quando o fluxo não consegue se conectar, o
+      Babble continua consultando o servidor e recupera o que perdeu quando
+      a conexão volta.
+    </p>
+    <p>
+      Para recarregar na mão, puxe a página para baixo no topo, ou use
+      <key>Ctrl+R</key> e <key>F5</key>.
+    </p>
+  </section>
+
+  <section id="catchup">
+    <title>Catch Up</title>
+    <p>
+      <gui>Catch Up</gui> é a ferramenta de recuperação: escolha uma
+      janela de tempo, e ele ranqueia as publicações que você perdeu pela
+      importância que têm para você, guardando esse resultado como um
+      instantâneo que você pode percorrer.
+    </p>
+  </section>
+
+  <section id="search">
+    <title>Busca</title>
+    <p>
+      <gui>Search</gui> procura contas, hashtags e publicações. Os
+      operadores <sys>from:</sys>, <sys>has:</sys>, <sys>is:</sys>,
+      <sys>language:</sys>, <sys>before:</sys>, <sys>after:</sys>,
+      <sys>during:</sys> e <sys>in:</sys> restringem o resultado, e um
+      prefixo <sys>-</sys> nega o operador. Nem todo servidor implementa
+      todos eles.
+    </p>
+  </section>
+
+  <section id="links">
+    <title>Links ao lado da timeline</title>
+    <p>
+      Por padrão, os links abrem no seu navegador. Ligue <gui>Open Web
+      Links Beside the Timeline</gui> em
+      <link xref="settings">Configurações</link> e eles abrem numa coluna
+      ao lado da timeline, ou sobre ela quando a janela é estreita. Links
+      para publicações e perfis continuam abrindo dentro do Babble, e
+      Ctrl+clique ou o clique do meio mandam o link para o navegador.
+    </p>
+    <p>
+      As páginas da coluna não guardam cookies nem histórico depois que o
+      Babble fecha, não pedem sua localização, câmera ou microfone, e
+      nunca baixam arquivos: um download é entregue ao seu navegador.
+      <gui>Open in Browser</gui> no menu da coluna faz o mesmo pela
+      página que você está lendo.
+    </p>
+  </section>
+
+</page>

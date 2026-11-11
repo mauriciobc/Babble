@@ -118,11 +118,15 @@ Para extrair vídeo ou áudio, o que vai para fora é o arquivo baixado ou o end
 
 **Objetivo:** guardar o arquivo no seu computador.
 
+**Pré-condições:** a mídia está aberta no visualizador, e você tem permissão de escrita na pasta de destino.
+
 1. Abra a mídia no visualizador.
 2. Clique em `Save As…`.
 3. Escolha o destino. O diálogo se chama `Save Media` e o botão é `_Save`. O nome sugerido vem do endereço do arquivo; sem ele, é `media` com a extensão correspondente ao tipo.
 
 **Resultado:** um toast `Saved “{nome}”` aparece, com um botão `Show in Folder` que abre o gerenciador de arquivos no lugar certo. Durante o download, uma barra de progresso fica no visualizador.
+
+**Se der errado:** se o aviso for `Could not save media`, o destino não é gravável ou a conexão caiu no meio. Para mídia que o seu servidor não tem, veja [5.7](#57-mídia-que-está-em-outro-servidor).
 
 **Se der errado:** `Could not save media`.
 

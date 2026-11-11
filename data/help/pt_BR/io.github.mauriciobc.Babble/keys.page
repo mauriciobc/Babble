@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="keys" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#keys"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Teclado</title>
+    <title type="link">Teclado</title>
+    <desc>Os atalhos que funcionam em qualquer lugar do Babble.</desc>
+  </info>
+
+  <title>Teclado</title>
+
+  <p>
+    <link xref="settings">Ctrl+,</link> abre as Configurações,
+    <link xref="reading">Ctrl+1</link> até
+    <link xref="reading">Ctrl+9</link> saltam entre os lugares,
+    <link xref="reading">Alt+Left</link> volta e
+    <link xref="reading">Ctrl+R</link> recarrega. Aperte <key>F1</key>
+    para esta ajuda, ou <key>Ctrl+?</key> para ver todos os atalhos.
+  </p>
+  <p>
+    Com o foco numa página da coluna web, <key>Ctrl+R</key> e
+    <key>F5</key> recarregam a página, <key>Alt+Left</key> e
+    <key>Alt+Right</key> voltam e avançam, e <key>Escape</key> ou
+    <key>Ctrl+W</key> escondem a coluna.
+  </p>
+
+  <section id="shortcuts">
+    <title>Todos os atalhos</title>
+    <p>
+      A lista completa abre com <key>Ctrl+?</key>. Seguem os que funcionam
+      de qualquer lugar da janela.
+    </p>
+    <list>
+      <item><key>Ctrl+N</key> abre o compositor</item>
+      <item><key>Ctrl+F</key> pesquisa</item>
+      <item><key>Ctrl+R</key> recarrega a timeline</item>
+      <item><key>Ctrl+1</key>–<key>Ctrl+9</key> saltam entre os lugares da barra lateral</item>
+      <item><key>Alt+Left</key> volta, <key>Alt+Right</key> avança</item>
+      <item><key>Ctrl+,</key> abre as Configurações</item>
+      <item><key>F9</key> mostra ou esconde a barra lateral</item>
+      <item><key>F1</key> abre esta ajuda</item>
+      <item><key>Ctrl+?</key> lista todos os atalhos</item>
+    </list>
+  </section>
+
+</page>

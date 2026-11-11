@@ -81,11 +81,15 @@ O contador fica âmbar quando restam 20 % ou menos, e vermelho quando passa do l
 
 **Objetivo:** escrever o `@` de alguém sem errar o identificador.
 
+**Pré-condições:** o compositor está aberto.
+
 1. Clique no botão `Mention` (ícone de pessoa) na barra inferior, ou digite `@` seguido do início do nome.
 2. A lista `Suggested Accounts` aparece. Diga um nome para restringir: *"Type a name to search"*.
 3. Clique na conta desejada.
 
 **Resultado:** o `@conta@servidor` é inserido no texto, com um espaço depois.
+
+**Se der errado:** se a conta não aparecer na lista, digite mais letras: a busca só traz contas que o seu servidor conhece. Para uma conta de outro servidor que o seu nunca viu, digite o identificador completo (`fulano@exemplo.social`) e o Babble resolve. Se a menção ficar sem negrito nem cor, o servidor não a reconheceu como menção — mas ela ainda funciona como texto.
 
 Se você digitar o identificador completo (`fulano@exemplo.social`), o Babble resolve a conta mesmo que o seu servidor nunca a tenha visto.
 
@@ -134,6 +138,8 @@ Responda a uma publicação que tem aviso de conteúdo e o compositor abre com o
 
 **Restrições:** uma enquete não pode conviver com mídia, e as opções precisam ser diferentes entre si. O servidor recusa com `A poll cannot be combined with media` e `Poll choices must be unique`.
 
+**Se der errado:** se o botão `Poll` não existir ou não tiver efeito, o seu servidor pode não permitir enquetes. O servidor também recusa a publicação com `Add at least two poll choices` e `Poll choices must be unique`. Veja [10.6](10-referencia.md#106-mensagens-e-avisos).
+
 ### Como votar
 
 Na publicação, uma enquete em aberto é um formulário: escolha as opções e clique em `_Vote`. O botão `Show Results` mostra o resultado sem votar.
@@ -146,11 +152,15 @@ Se a conexão falhar ao votar, o aviso é `Vote failed`.
 
 **Objetivo:** comentar uma publicação mantendo-a à vista dos seus seguidores.
 
+**Pré-condições:** a publicação pode ser citada — o servidor precisa suportar citações (Mastodon 4.5 ou posterior) e o autor precisa permitir.
+
 1. Clique em `Quote` na barra de ações da publicação, ou em `Quote` no menu `Boost With Visibility`.
 2. Escreva o seu comentário. A publicação citada vai junto, com o seu texto na frente.
 3. Publique.
 
 **Resultado:** o título do compositor passa a ser `Quote Post`, e a publicação sai como uma citação.
+
+**Se der errado:** se a citação não aparecer na publicação depois de enviada, o servidor é anterior ao Mastodon 4.5 e não suporta citações. Se o endereço colado não virou cartão, ou porque a publicação não pode ser citada, ou porque você digitou o endereço em vez de colá-lo — digitar não converte. Veja [10.7](10-referencia.md#107-limites).
 
 ### Citar colando o endereço
 
@@ -208,6 +218,8 @@ O Babble guarda até **5 rascunhos**, e cada conta tem os seus: um rascunho de u
 
 **Resultado:** o compositor mostra a faixa `Scheduled for {data}` com um botão `_Clear Schedule`. O botão `_Post` passa a ser `_Schedule`, e o tooltip para `Schedule (Ctrl+Enter)`. A publicação fica agendada no servidor.
 
+**Se der errado:** se o seletor recusar a data, o horário precisa ser pelo menos 5 minutos no futuro — e o fuso horário tem de estar certo. Se a publicação agendada não aparecer na página `Scheduled Posts`, o servidor pode ter recusado o agendamento; tente de novo. Veja [11.12](11-solucao-de-problemas.md#1112-um-recurso-não-aparece).
+
 Para agendar sem abrir o seletor de data, o botão de alarme também funciona depois que a data está marcada: o tooltip vira `Change Time`.
 
 ### A página `Scheduled Posts`
@@ -245,11 +257,15 @@ Se a publicação não puder ser carregada para edição, o aviso é `Could not 
 
 **Objetivo:** escrever várias publicações que se respondem.
 
+**Pré-condições:** o compositor está aberto e a primeira publicação ainda não saiu.
+
 1. Ligue o botão `Keep Open for a Thread`, na barra inferior do compositor.
 2. Publique a primeira.
 3. O compositor **fica aberto**, com o texto limpo e o título `Thread · Post 2`. A linha `End of the previous post` mostra o fim do que você acabou de publicar, para você saber o que está respondendo.
 
 **Resultado:** cada publicação seguinte sai como resposta da anterior. Ao terminar, feche o compositor.
+
+**Se der errado:** se o título não virar `Thread · Post 2`, o interruptor `Keep Open for a Thread` não ficou ligado. Se o compositor fechar sozinho no meio, o servidor recusou a publicação anterior — veja o toast. Para desfazer o fio já publicado, apague as publicações uma a uma, pelo menu `More Options`.
 
 ## 4.17 Fixar e citar nas suas publicações
 

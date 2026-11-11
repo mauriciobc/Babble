@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="settings" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#settings"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Configurações</title>
+    <title type="link">Configurações</title>
+    <desc>O tamanho do texto da interface, a atualização, as notificações e os padrões de uma publicação nova.</desc>
+  </info>
+
+  <title>Configurações</title>
+
+  <section id="opening">
+    <title>Abrir as configurações</title>
+    <p>
+      <link xref="keys">Ctrl+,</link> abre as Configurações, e elas podem
+      ser pesquisadas digitando.
+    </p>
+  </section>
+
+  <section id="interface">
+    <title>Interface</title>
+    <p>
+      Elas cobrem o tamanho do texto e a altura das linhas da interface,
+      como as publicações são recarregadas, as notificações do desktop e
+      do servidor, e os padrões de que uma publicação nova parte.
+    </p>
+  </section>
+
+  <section id="server">
+    <title>Configurações do servidor</title>
+    <p>
+      Algumas configurações só chegam até o seu servidor: a visibilidade
+      padrão, o idioma e os avisos de conteúdo ficam nas preferências do
+      servidor, e por isso acompanham você em qualquer outro cliente
+      Mastodon.
+    </p>
+  </section>
+
+  <section id="remote-media">
+    <title>Mídia de outros servidores</title>
+    <p>
+      Seu servidor guarda uma cópia da mídia das publicações que ele
+      mostra. Quando não tem cópia, o original fica no servidor do autor,
+      e carregá-lo deixa esse servidor ver o seu endereço IP e saber que
+      você abriu aquela publicação. <gui>Media From Other Servers</gui>,
+      no grupo <gui>Media</gui> da página <gui>Reading</gui> das
+      Configurações, decide o que o Babble faz: <gui>Ask Each Time</gui>
+      pergunta a cada vez, com a opção de lembrar a resposta;
+      <gui>Always Load</gui> carrega o original; e <gui>Never Load</gui>
+      não carrega. Mídia que o seu servidor tem nunca é perguntada. Quando
+      o original não é carregado, o visualizador oferece abri-lo no
+      navegador.
+    </p>
+  </section>
+
+  <section id="autoplay">
+    <title>Reprodução automática e carregamento de mídia</title>
+    <p>
+      Três configurações no grupo <gui>Media</gui> da página
+      <gui>Reading</gui> decidem quando a mídia animada e o vídeo começam.
+    </p>
+    <p>
+      <gui>Autoplay Animated Media</gui> vem ligada. Os GIFs animados são
+      laços silenciosos, e quando ela está desligada esperam um clique
+      em vez de tocarem sozinhos. Movimento reduzido, animações desligadas
+      e a economia de energia do sistema sempre os impedem de tocar
+      sozinhos, mesmo com a configuração ligada. Ela não afeta vídeos com
+      som.
+    </p>
+    <p>
+      <gui>Play Animated GIFs in Timelines</gui> vem desligada. Quando
+      está ligada, o GIF mais visível da timeline toca no lugar, um de cada
+      vez. Isso custa mais que uma imagem parada: usa mais memória, e a
+      janela pode pausar por um instante na primeira vez que um deles
+      toca, e é por isso que ela fica desligada até você pedir. As outras
+      restrições continuam valendo. Um GIF que toca tem um botão
+      <gui>Pause Animation</gui>; um GIF que você pausou continua pausado,
+      e o botão passa a dizer <gui>Play Animation</gui>. Clicar no GIF
+      mesmo abre o visualizador.
+    </p>
+    <p>
+      <gui>Load Media Automatically</gui> cobre vídeo, áudio e GIFs
+      animados, que são transmitidos. <gui>Always</gui> carrega tudo de
+      imediato, <gui>Not on Metered Connections</gui> (o padrão) carrega a
+      menos que o sistema marque a conexão como limitada, e
+      <gui>Never</gui> espera você apertar <gui>Load Video</gui> ou
+      <gui>Load Audio</gui>. Imagens e miniaturas sempre carregam.
+    </p>
+  </section>
+
+  <section id="language">
+    <title>Idioma</title>
+    <p>
+      Mudar o idioma da interface só vale na próxima vez que o Babble
+      iniciar.
+    </p>
+  </section>
+
+</page>

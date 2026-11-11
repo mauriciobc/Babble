@@ -53,7 +53,7 @@
 
 **Hashtag** — a `#assunto` dentro de uma publicação, que cria uma página com todas as que a usam.
 
-**Impulso** — ver **Boost**.
+**Impulso** — ver **Boost**. É também a republicação de uma publicação de outra pessoa, que aparece na sua timeline como se fosse de quem impulsionou.
 
 **Instantâneo (snapshot)** — a cópia congelada de um Catch Up, gravada no seu computador.
 
@@ -93,7 +93,7 @@
 
 **Toast** — a faixa de mensagem que aparece na parte de baixo da janela, sobre o conteúdo.
 
-**Timeline (linha do tempo)** — a lista de publicações, da mais recente para a mais antiga.
+**Timeline** — a lista de publicações, da mais recente para a mais antiga.
 
 **Tradução automática** — a tradução que o servidor faz de uma publicação para o idioma da interface.
 
@@ -196,12 +196,15 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | 9 — Plugins | `src/plugin.py`, `src/pluginhost.py`, `src/pluginspage.py`, `plugins/` |
 | 10 — Referência | `src/main.py`, `src/shortcuts-dialog.ui`, `src/window.ui`, `src/capabilities.py`, `po/pt_BR.po` |
 | 11 — Solução de problemas | Todos os módulos acima, mais `src/accounts.py` e o log do sistema |
+| Ajuda embutida (F1) | `data/help/C/` (inglês) e `data/help/pt_BR/` (português), registrados em `help_languages`, em `data/meson.build` |
 
 ## 12.4 Suporte
 
 | Onde | O que você encontra |
 |---|---|
 | **F1**, ou `Help` no menu principal | A ajuda instalada, dentro do aplicativo. Resume o essencial. |
+| `data/help/pt_BR/` | As páginas de ajuda em português, instaladas ao lado das de inglês. |
+| `data/help/C/` | As páginas de ajuda em inglês. |
 | Este manual | A referência completa, com procedimentos, mensagens e limites. |
 | `Docs/features.md` | A lista de recursos do projeto, em termos técnicos. |
 | `Docs/mastodon-compat.md` | Onde cada recurso depende da versão do servidor. |
@@ -217,6 +220,7 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | Regra | Motivo |
 |---|---|
 | Um rótulo citado no manual tem de existir no código | O manual cita rótulos em inglês; um rótulo que muda quebra a correspondência. |
+| As páginas de ajuda e o manual não divergem | A ajuda (`data/help/`) é um resumo; este manual é a referência. As duas traduções de cada página de ajuda existem lado a lado, em `data/help/C/` e `data/help/pt_BR/`, com os mesmos identificadores de seção — mudar uma é mudar a outra. |
 | Um atalho citado tem de estar registrado | Os atalhos vivem em `src/main.py` e em `src/shortcuts-dialog.ui`. |
 | Um limite citado tem de vir do servidor | Os limites são declarados pela instância, e o manual os descreve como tal. |
 | A tabela de rótulos é gerada a partir de `po/pt_BR.po` | Ela reflete o que está traduzido de fato na versão instalada. |

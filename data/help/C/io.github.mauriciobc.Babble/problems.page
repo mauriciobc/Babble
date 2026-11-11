@@ -50,4 +50,15 @@
     </p>
   </section>
 
+
+  <section id="log">
+    <title>The system log</title>
+    <p>
+      The application's decisions about accounts and sessions are in the
+      system log, and it is where the reason for a plugin having failed
+      comes from:
+    </p>
+    <code>journalctl --user -g 'accounts:' -f</code>
+  </section>
+
 </page>

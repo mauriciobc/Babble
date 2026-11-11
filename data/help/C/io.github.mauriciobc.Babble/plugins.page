@@ -73,6 +73,20 @@
   </section>
 
   <section id="plugin-problems">
+  <section id="nareal">
+    <title>Na Real</title>
+    <p>
+      <link href="https://codeberg.org/thiagojedi/na-real">Na Real</link> is
+      an anonymous Q&amp;A app for the fediverse: someone asks an account
+      a question without saying who they are, and the account answers. The
+      plugin adds two entries to the main menu, <gui>My Questions</gui>
+      (the dashboard) and <gui>Share My Questions Link</gui> (the
+      composer, with an invitation and your public link), and nothing to
+      anyone's post or profile.
+    </p>
+  </section>
+
+
   <title>When a Plugin Does Not Work</title>
   <p>
     A plugin that cannot be loaded, or that stops working, shows why under

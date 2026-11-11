@@ -18,6 +18,8 @@ Notificações são o que o servidor avisa que aconteceu com você: alguém menc
 
 **Estados possíveis:** `Loading Notifications` durante a carga, `Could Not Load Notifications` em caso de falha, e `No Notifications` — *"Mentions, boosts and follows will appear here"* — quando não há nada.
 
+**Se der errado:** se a página ficar em `Loading Notifications`, o servidor pode estar limitando requisições. Se mostrar `Could Not Load Notifications`, recarregue a janela com **Ctrl+R**. Veja [11.4](11-solucao-de-problemas.md#114-as-timelines-não-atualizam).
+
 ### Notificações agrupadas
 
 Quando várias pessoas fazem a mesma coisa com a mesma publicação, o Babble as junta em uma linha só. A linha mostra um leque de avatares sobrepostos e um contador `+N`; um botão expande o grupo e mostra quem é. Clicar em uma pessoa abre o perfil dela.
@@ -138,6 +140,8 @@ A linha mostra até três avatares, os nomes, a hora relativa e um resumo da úl
 
 **Resultado:** a pessoa passa a seguir você (ou não). A página fica vazia com `No Follow Requests` — *"Requests appear here when your account is locked."*
 
+**Se der errado:** se a página ficar vazia mesmo havendo pedidos, sua conta provavelmente não está bloqueada — nesse caso o servidor não cria pedidos. Ajuste o bloqueio nas preferências do servidor, em `Server Preferences`.
+
 Os mesmos botões aparecem nas notificações de pedido, sem precisar abrir a página.
 
 ## 3.6 Silenciados e bloqueados
@@ -154,6 +158,8 @@ Os mesmos botões aparecem nas notificações de pedido, sem precisar abrir a p�
 
 **Resultado:** a ação é imediata e a linha some da lista.
 
+**Se der errado:** se a linha não sumir, o servidor pode ter recusado. Feche e reabra a página. Para desfazer um silenciamento ou bloqueio, use a mesma ação de novo, ou o item correspondente no menu do perfil. Veja [11.4](11-solucao-de-problemas.md#114-as-timelines-não-atualizam).
+
 Para silenciar ou bloquear, use o menu da publicação (`Mute {conta}`, `Block {conta}`) ou o menu do perfil (`Mute…`, `Block…`, `Block Domain…`).
 
 ## 3.7 Anúncios do servidor
@@ -167,6 +173,8 @@ Para silenciar ou bloquear, use o menu da publicação (`Mute {conta}`, `Block {
 **Resultado:** cada anúncio aparece como um cartão, com o conteúdo formatado, a data de publicação e de atualização e a data do evento. Os anúncios não lidos recebem um selo `Unread` e o botão `Mark as Read`. O cabeçalho tem `Mark All as Read`.
 
 Se o seu servidor não publica anúncios, a página fica vazia.
+
+**Se der errado:** se a página der erro ao abrir, o servidor pode ter mudado o formato dos anúncios. O botão `Mark All as Read` só existe quando há pelo menos um anúncio.
 
 ## 3.8 Referência: tipos de notificação
 

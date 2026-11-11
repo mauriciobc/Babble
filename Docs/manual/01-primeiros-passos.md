@@ -69,6 +69,8 @@ O Babble guarda quantas contas você quiser, de servidores diferentes. Todas fic
 
 **Resultado:** a nova conta entra na lista. O Babble continua na conta anterior até você trocar.
 
+**Se der errado:** se a nova conta não aparecer na lista depois da autorização, o chaveiro pode não estar gravando — veja [11.3](11-solucao-de-problemas.md#113-o-chaveiro-não-guarda-o-login). Se o servidor recusar o pedido, veja [11.2](11-solucao-de-problemas.md#112-o-login-não-avança).
+
 ### Como trocar de conta
 
 **Objetivo:** passar a ler e publicar como outra conta.
@@ -79,6 +81,8 @@ O Babble guarda quantas contas você quiser, de servidores diferentes. Todas fic
 2. Clique na conta desejada na lista.
 
 **Resultado:** a interface recarrega para a conta escolhida, e a marca de verificação ao lado dela passa a ser a atual. A troca troca também o servidor: o que você vê em `Local`, por exemplo, passa a ser a timeline pública do outro servidor.
+
+**Se der errado:** se a troca não acontecer, o servidor pode estar limitando requisições — tente de novo em instantes. Se a conta sumiu da lista, ela foi removida do aparelho: entre de novo pela tela de boas-vindas. Veja [11.14](11-solucao-de-problemas.md#1114-não-consigo-mais-usar-uma-conta).
 
 ### Como sair de uma conta
 
@@ -97,6 +101,8 @@ O Babble guarda quantas contas você quiser, de servidores diferentes. Todas fic
 ## 1.4 Abrir a ajuda
 
 O Babble traz uma ajuda própria, instalada junto, que abre com `F1` ou pelo item `Help` do menu principal. Ela cobre o essencial de forma resumida e está disponível em inglês.
+
+A ajuda está disponível em **inglês** e em **português (pt-BR)**: o leitor de ajuda escolhe a pasta de idioma pelo idioma do sistema, de modo que a página aparece na língua do seu ambiente. As páginas em português ficam em `data/help/pt_BR/` e são instaladas ao lado das de inglês, em `data/help/C/`.
 
 Este manual é a referência completa: ele explica o *porquê* de cada comportamento, lista limites e mensagens de erro e registra as decisões que o aplicativo toma em situations ambíguas.
 

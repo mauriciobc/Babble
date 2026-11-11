@@ -11,7 +11,7 @@ A barra lateral é a lista de destinos do aplicativo. Cada item é um *lugar* (*
 
 | Lugar | O que mostra |
 |---|---|
-| `Home` | As publicações das contas que você segue, mais as republicações delas. |
+| `Home` | As publicações das contas que você segue, mais os impulsos delas. |
 | `Catch Up` | O resumo ranqueado do que você deixou de ler. Ver [capítulo 6](06-catch-up.md). |
 | `Notifications` | Menções, impulsos, favoritos, seguidores e o resto. Ver [capítulo 3](03-notificacoes-e-mensagens.md). |
 | `Conversations` | As mensagens diretas. Ver [capítulo 3](03-notificacoes-e-mensagens.md). |
@@ -55,6 +55,8 @@ A barra lateral é a lista de destinos do aplicativo. Cada item é um *lugar* (*
 
 **Resultado:** o item aparece numa seção `Pinned`, no fim da barra lateral. Uma lista fixada mostra o título real da lista; uma hashtag fixada mostra `#nome`.
 
+**Se der errado:** se a estrela não aparecer no cabeçalho, a página ainda não terminou de carregar — volte para a `Home` e abra a lista de novo. Para desfazer, clique na mesma estrela (`Unpin from Sidebar`).
+
 ## 2.2 A timeline `Home`
 
 `Home` é a timeline das publicações das contas que você segue. A ordem é cronológica, da mais recente para a mais antiga, e é a única página que atualiza ao vivo por padrão.
@@ -68,7 +70,7 @@ Quando chegam publicações novas enquanto você está rolado mais para baixo, a
 Duas preferências mudam o que aparece na `Home`, e só nela:
 
 - **Hidden Replies From Non-Follows** (`hide-replies-non-follows`) — esconde as respostas vindas de contas que você não segue. É a opção mais útil para quem quer a `Home` como uma conversa entre contas que acompanha.
-- **Hidden Boosts on Home** (`hide-boosts-home`) — esconde as republicações e deixa só o que as contas que você segue escreveram.
+- **Hidden Boosts on Home** (`hide-boosts-home`) — esconde os impulsos e deixa só o que as contas que você segue escreveram.
 
 Uma terceira, **Remembered Reading Position** (`resume-reading-position`), faz a `Home` reabrir exatamente onde você parou, com um botão para as publicações mais novas. Ela vem ligada por padrão.
 
@@ -121,7 +123,7 @@ Quando **Post Actions on Timelines** está desligada — o padrão — a barra d
 
 Duas permissões podem pedir a sua confirmação antes do impulso:
 
-- **Advanced Boost Dialog** (`advanced-boost-dialog`) — abre a caixa `Boost With Visibility`, onde você escolhe quem vê a republicação: `Visible for all`, `Visible for all, but not in public timelines` ou `Visible for your followers only`. É onde você também decide entre `Boost` e `Quote`.
+- **Advanced Boost Dialog** (`advanced-boost-dialog`) — abre a caixa `Boost With Visibility`, onde você escolhe quem vê o impulso: `Visible for all`, `Visible for all, but not in public timelines` ou `Visible for your followers only`. É onde você também decide entre `Boost` e `Quote`.
 - **Missing Alt Text Boost Warning** (`boost-alt-text-reminder`) — se o post tem mídia sem descrição, o Babble avisa: *"Some of your followers might not be able to understand it."* Você pode marcar `Don't remind me again`.
 
 ### Responder a um post antigo
@@ -216,6 +218,10 @@ Você gerencia os filtros em Preferências → Reading → `Manage Filters`, ou 
 2. Use as abas no topo: `Profile`, `Posts`, `Replies`, `Media`, `Featured`, `Likes`, `Follows`, `Followers`. Quais abas existem depende do servidor e das escolhas da conta.
 3. O botão na barra inferior é a relação: `Follow`, `Unfollow`, `Follow Back`, `Withdraw Request`, `Unblock` ou `Unblock Domain`.
 
+**Resultado:** o perfil abre como uma folha sobre a janela, com o cabeçalho, as abas e o botão de relação. Clicar em `Follow` passa a conta a aparecer na sua `Home`.
+
+**Se der errado:** se o perfil não carregar, o servidor pode estar lento ou limitando requisições: feche a folha e abra de novo. Se aparecer a mensagem `This user has chosen to not make this information available`, a conta escondeu os contadores de seguidores — o botão `Follow` continua funcionando. Veja [11.12](11-solucao-de-problemas.md#1112-um-recurso-não-aparece).
+
 **O que o cabeçalho mostra:** avatar e imagem de capa (clicáveis, abrem no visualizador), nome, `@conta`, bio, campos de perfil, links verificados (`Verified Link`), `Joined {data}`, `Last post {data}` e a nota de migração de conta, quando existe. Uma bio longa ganha um `Show More` / `Show Less`.
 
 **Selos que aparecem no perfil:** `In Memoriam`, `Suspended`, `Unverified Handle`, `Locked`, `Automated`, `Group`, `Requested`, `Mutuals`, `Follows you`, `Blocks you`, `Blocked`, `Domain Blocked` e `Muted`.
@@ -233,7 +239,7 @@ Você gerencia os filtros em Preferências → Reading → `Manage Filters`, ou 
 | `Open in Browser` | Abre o perfil no navegador. |
 | `Receive Post Notifications` | Liga ou desliga as notificações de publicações dessa conta. |
 | `Feature on Profile` | Destaque a conta no seu perfil. |
-| `Show Boosts` / `Hide Boosts` | Mostra ou esconde as republicações no seu perfil. |
+| `Show Boosts` / `Hide Boosts` | Mostra ou esconde os impulsos no seu perfil. |
 | `Add or Remove from Lists…` | Abre a folha `Add to Lists`. |
 | `Private Note…` | Abre uma nota privada, que só você vê. |
 | `Remove from Followers` | Remove a conta de quem te segue. |
@@ -276,7 +282,9 @@ Uma **lista** é um conjunto nomeado de contas, com uma timeline só dela. As li
 
 **Resultado:** a lista aparece na página `Lists` e pode ser fixada na barra lateral.
 
-### A linha do tempo de uma lista
+**Se der errado:** se a lista não aparecer depois de salva, o servidor pode ter recusado o título — tente um título diferente. Para corrigir, use `Edit List` na própria lista. A lista vazia é normal: ela só ganha publicações depois que você adicionar membros.
+
+### A timeline de uma lista
 
 A página de uma lista tem `Edit List` e o botão de fixar no cabeçalho. Quando está vazia, ela diz `No Posts in This List` e explica: *"Add members to the list to see their posts"*.
 
@@ -323,6 +331,8 @@ Ela tem duas seções:
 
 **Resultado:** a timeline aparece em `Hashtags` e pode ser fixada na barra lateral.
 
+**Se der errado:** se nada for salvo, o servidor recusou — confira se as três listas somam no máximo 5 hashtags, o limite do aplicativo. O aviso `At most {n} hashtags can be combined` aparece quando o limite é ultrapassado.
+
 O limite é de 5 hashtags somadas nas três listas; ao ultrapassá-lo, o aplicativo avisa `At most {n} hashtags can be combined`.
 
 ## 2.12 Explorar
@@ -351,6 +361,8 @@ A aba `For You` tem um botão `_Follow` por conta e um botão de dispensar. A pr
 3. Os resultados aparecem agrupados em `Accounts`, `Hashtags` e `Posts`. Cada grupo tem um botão `See All …`.
 
 **Resultado:** a página `Search` mostra os três grupos. Se nada casar, `No Results` — *"Nothing matched “{termo}”"*.
+
+**Se der errado:** se a página mostrar `Search Failed`, o servidor não respondeu. Tente de novo, ou recarregue a janela com **Ctrl+R**. Se a busca por operadores não trouxer nada, o motivo é quase sempre o servidor: nem todo servidor implementa todos os operadores. Veja [2.13](#213-busca).
 
 ### Operadores de busca
 
@@ -396,7 +408,7 @@ Colar no campo de busca o endereço de uma publicação ou de um perfil resolve 
 
 ## 2.15 Publicações repetidas: o carrossel de impulsos
 
-Quando uma página é composta principalmente de republicações, o Babble as agrupa num carrossel horizontal em vez de uma linha cada. As setas do carrossel dizem `Show Previous Boosts` e `Show Next Boosts`.
+Quando uma página é composta principalmente de impulsos, o Babble as agrupa num carrossel horizontal em vez de uma linha cada. As setas do carrossel dizem `Show Previous Boosts` e `Show Next Boosts`.
 
 Dois controles independentes:
 
