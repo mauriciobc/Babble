@@ -1,6 +1,6 @@
 # 3 — Notificações e mensagens diretas
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 3 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 3 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Notificações são o que o servidor avisa que aconteceu com você: alguém mencionou sua publicação, alguém impulsionou, alguém pediu para te seguir. Este capítulo cobre a caixa de notificações, as mensagens diretas e as três caixas de administração da sua conta — pedidos para seguir, silenciamentos e bloqueios.

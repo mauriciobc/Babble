@@ -1,6 +1,6 @@
 # 5 — Mídia: anexar, visualizar, salvar
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 5 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 5 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Mídia é tudo o que não é texto: imagens, vídeos, GIFs animados e áudio. Este capítulo vai do "como anexo isso" ao "como salvo aquilo", e passa pela decisão que o Babble toma por você quando a mídia não está no seu servidor.

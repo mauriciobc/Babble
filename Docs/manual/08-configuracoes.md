@@ -1,6 +1,6 @@
 # 8 — Preferências: referência completa
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 8 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 8 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Este capítulo é de **referência**: ele lista cada preferência, o que ela faz e quando ela tem efeito. Não há passo a passo aqui — para isso, veja os capítulos de função.

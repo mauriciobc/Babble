@@ -1,6 +1,6 @@
 # 11 — Solução de problemas
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 11 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 11 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Cada item abaixo traz o **sintoma** (o que você vê), a **causa provável** e a **ação** que resolve. Se o sintoma não estiver aqui, o [capítulo 10](10-referencia.md) tem a lista de mensagens por área.

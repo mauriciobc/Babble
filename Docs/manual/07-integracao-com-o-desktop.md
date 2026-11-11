@@ -1,6 +1,6 @@
 # 7 — Integração com o ambiente GNOME
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 7 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 7 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 O Babble foi feito para o GNOME, e usa o que o GNOME oferece em vez de recriar. Este capítulo lista cada integração, o que ela faz e o que ela precisa.

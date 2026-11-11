@@ -1,6 +1,6 @@
 # 1 — Primeiros passos
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 1 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 1 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Este capítulo traz o caminho entre abrir o aplicativo e conseguir ler o seu feed: entrar na conta, entender o que o aplicativo pede ao servidor, gerir várias contas e sair.
