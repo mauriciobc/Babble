@@ -115,14 +115,20 @@ All [R].
     (`timelinepage.py:568-581`).
   - **Page size**: `PAGE_SIZE` is 20 (`timelinebase.py:42`).
 - **How a sidebar place is wired**:
-  - A built place goes into `_place_children` (`window.py:1268`). From
-    there it is part of `_timeline_pages()` (`window.py:869-873`), so stream
+  - A built place goes into `Navigation.children` (`navigation.py`,
+    filled by `place_page`). From there its timeline is part of
+    `StreamRouter.timeline_pages()` (`streamrouter.py`), so stream
     deletes and edits reach it with no new code.
-  - Stream `update` events go to Home only (`window.py:877-885`).
+  - Stream `update` events go to the page that owns the stream: the
+    local and federated pages by their public streams, a list or hashtag
+    place by its own stream (`StreamRouter.route`), and Home for the
+    reader's own stream. A new place gets no updates unless it has a
+    stream of its own.
   - Auto-refresh is applied to Home and the public pages only
-    (`window.py:2124-2128`).
+    (`BabbleWindow._apply_auto_refresh`).
   - Ctrl+R and F5 (`win.reload`) refresh the visible page through its
-    `refresh()` method (`main.py:164`, `window.py:1773-1797`).
+    `refresh()` method (accelerators in `main.py`,
+    `BabbleWindow.on_reload`).
 - **The home feed's server limit**: Mastodon keeps at most 800 entries per
   home feed (`FeedManager::MAX_ITEMS`). Home in Babble keeps 400 rows
   (`TIMELINE_MAX_ITEMS`, `timelinebase.py:85`).
@@ -425,7 +431,7 @@ What follows from this:
   left, with X's served filter applied before the slate adjustments.
 - **No stream inserts and no auto-refresh.** Neither is wired for this
   place today, and none is added. Stream deletes and edits still arrive,
-  through `_timeline_pages()`.
+  through `StreamRouter.timeline_pages()`.
 
 `append_old` reads a page that held nothing new and whose smallest id did
 not move back as the end (`timelinedata.py:408-427`). Ranked pages have no

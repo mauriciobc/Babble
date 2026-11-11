@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """Every documented Streams event is decoded and routed, none silently
-dropped. Needs no display and no server: it reads ``window.py`` for the
-branch names and imports ``streaming`` for the payload classification.
+dropped. Needs no display and no server: it asks the stream router for
+the events it declares and imports ``streaming`` for the payload
+classification.
 
 Two failures this guards against, and both shipped:
 
@@ -10,14 +11,13 @@ Two failures this guards against, and both shipped:
   document, and ``add`` / ``remove`` -- Mastodon 4.3's collection
   membership -- were missing. Their payloads were emitted to the owner
   as raw JSON *strings*, which no handler could read.
-* ``window._on_stream_event`` handled seven of the documented events
-  and dropped the rest without a word. ``follow_request`` was the one
-  that hurt: the request arrived, the server wrote the notification, and
-  the list the reader was looking at never learned of it until they
-  pulled to refresh.
+* the window's event handler (now the router's route table) handled
+  seven of the documented events and dropped the rest without a word.
+  ``follow_request`` was the one that hurt: the request arrived, the
+  server wrote the notification, and the list the reader was looking at
+  never learned of it until they pulled to refresh.
 """
 
-import ast
 import os
 # Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
@@ -28,7 +28,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
-from src import streaming  # noqa: E402
+from src import streaming, streamrouter  # noqa: E402
 
 failures = 0
 
@@ -71,39 +71,73 @@ check('every JSON-payload event is decoded',
 
 # An event decoded but not routed is dead weight; an event routed but not
 # documented is a typo. The two together mean the list above is complete.
-window_path = os.path.join(srcdir, 'window.py')
-with open(window_path, encoding='utf-8') as source:
-    tree = ast.parse(source.read(), window_path)
+#
+# The stream router declares the events it routes as a table, so this asks
+# it instead of reading source.
+class _Host:
+    """A host whose every callable would fail a test that used it."""
 
-handler = next((node for node in ast.walk(tree)
-                if isinstance(node, ast.FunctionDef)
-                and node.name == '_on_stream_event'), None)
-check('the window still routes stream events', handler is not None)
+    def __getattr__(self, name):
+        raise AssertionError('the table is read without a host call: %s'
+                             % name)
 
-branched = set()
-if handler is not None:
-    for node in ast.walk(handler):
-        # ``if name == 'update':`` and ``if name in ('a', 'b'):`` both.
-        literals = []
-        if isinstance(node, ast.Compare) and len(node.ops) == 1 \
-                and isinstance(node.ops[0], (ast.Eq, ast.In)):
-            right = node.comparators[0]
-            literals = list(right.elts) if isinstance(
-                right, (ast.Tuple, ast.List, ast.Set)) else [right]
-        elif isinstance(node, ast.Assign) \
-                and isinstance(node.value, (ast.Tuple, ast.List, ast.Set)):
-            literals = list(node.value.elts)
-        for literal in literals:
-            if isinstance(literal, ast.Constant) \
-                    and isinstance(literal.value, str):
-                branched.add(literal.value)
 
+def router_with(table):
+    class Router(streamrouter.StreamRouter):
+        ROUTES = table
+    return Router(_Host())
+
+
+def gaps(documented, table):
+    """The rules the table is held to, as the labels it breaks."""
+    routed = router_with(table).routed_events()
+    broken = ['%s is documented but not routed' % name
+              for name in sorted(set(documented) - routed)]
+    broken += ['%s is routed but not documented, so it is a typo' % name
+               for name in sorted(routed - set(documented))]
+    # A misspelt handler cannot get this far: the table holds references,
+    # so it raises when the module is imported. What can still go wrong is
+    # an entry that is not one of the router's own handlers (a name left
+    # as a string, or some other callable).
+    broken += ['%s is not a router handler: %r' % (name, handler)
+               for name, handler in sorted(table.items())
+               if handler is not None
+               and getattr(streamrouter.StreamRouter,
+                           getattr(handler, '__name__', ''), None)
+               is not handler]
+    return broken
+
+
+router = router_with(streamrouter.ROUTES)
+routed = router.routed_events()
+check('the router declares its routes', bool(routed))
 for name in sorted(DOCUMENTED):
-    check('%s reaches the window' % name, name in branched)
-for name in sorted(branched - set(DOCUMENTED)):
+    check('%s reaches the router' % name, name in routed)
+for name in sorted(routed - set(DOCUMENTED)):
     check('%s is not a documented event, so it is a typo' % name, False)
-check('the branch list covers the documented set exactly',
-      branched == set(DOCUMENTED))
+check('the route table covers the documented set exactly',
+      routed == set(DOCUMENTED))
+check('every route is one of the router\'s own handlers, or None',
+      not [line for line in gaps(DOCUMENTED, streamrouter.ROUTES)
+           if 'is not a router handler' in line])
+
+# The rule must be able to fail: a synthetic table with an event decoded
+# and documented but not routed, one routed but not documented, and an
+# entry that is not a handler (a name left as a string).
+synthetic = dict(streamrouter.ROUTES)
+del synthetic['follow_request']
+synthetic['follow-request'] = streamrouter.StreamRouter._notifications_refresh
+synthetic['report'] = '_report'
+broken = gaps(DOCUMENTED, synthetic)
+check('an event documented but not routed is caught',
+      'follow_request is documented but not routed' in broken)
+check('an event routed but not documented is caught',
+      'follow-request is routed but not documented, so it is a typo'
+      in broken)
+check('an entry that is not a handler is caught',
+      "report is not a router handler: '_report'" in broken)
+check('a complete table is not flagged by the same rule',
+      gaps(DOCUMENTED, streamrouter.ROUTES) == [])
 
 if failures:
     print('%d checks failed' % failures)

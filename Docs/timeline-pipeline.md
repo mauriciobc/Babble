@@ -945,28 +945,32 @@ Also reachable from: the auto-refresh timer (`_on_auto_refresh`,
 timelinepage.py:360 — at the top every tick, scrolled away every
 `AUTO_REFRESH_SCROLLED_TICKS = 2` ticks), the pull-down gesture
 (`_RefreshGesture`, timelinepage.py:777), and `filters_changed` streaming events
-(window.py:865).
+(routed by `streamrouter.py`).
 
 ---
 
 ## 13. Streaming
 
-`streaming.py` is a separate WebSocket transport; `window.py:842 _on_stream_event`
-routes payloads into the same page methods the HTTP path uses, so streamed posts
-take the identical model → run → shell → card path.
+`streaming.py` is a separate WebSocket transport. The window hands each event
+to the stream router (`streamrouter.py`, `StreamRouter.route`), which routes it
+by its `ROUTES` table into the same page methods the HTTP path uses, so
+streamed posts take the identical model → run → shell → card path. The router
+reaches pages through a host of callables the window passes in and holds none
+of them.
 
 ```
-  streaming.py:380 _on_message ─► :401 emit('event', stream, event, payload)
+  streaming.py  StreamingManager._on_message ─► emit('event', stream, event, payload)
         │
-  window.py:842 _on_stream_event
-        ├─ 'update'          ─► the right page's on_stream_update(payload)
-        │                        local/federated by stream, else timeline_page
+  window.py  _on_stream_event ─► StreamRouter.route(stream, name, payload)
+        ├─ 'update'          ─► the right page's on_stream_update(payload):
+        │                        local/federated/list/hashtag by stream,
+        │                        else the home timeline
         ├─ 'delete'          ─► every timeline page's on_stream_delete(id)
         ├─ 'status.update'   ─► every timeline page's on_stream_status_update
         ├─ 'filters_changed' ─► home + notifications refresh()
         └─ … notifications / conversations / admin
 
-  TimelinePage.on_stream_update(status)       timelinepage.py:749
+  TimelinePage.on_stream_update(status)
         ├─ model.insert_new([status])         ◄── one insert, one signal
         ├─ _note_followed_tags([status])
         ├─ oldest_id is None ─► oldest_id = status['id']
@@ -977,7 +981,8 @@ take the identical model → run → shell → card path.
         └─ stack -> 'list'
 ```
 
-`_on_stream_connection_changed` (window.py:824) holds a `_stream_dropped` flag and
+`BabbleWindow._on_stream_connection_changed` (which stays in the window, with
+the rest of the stream lifecycle) holds a `_stream_dropped` flag and
 `refresh()`es once when the socket comes back, so the gap is filled.
 
 ---

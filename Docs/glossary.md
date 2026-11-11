@@ -67,3 +67,25 @@ turns on Play Animated GIFs in Timelines, and it follows every rule above, live:
 the playing GIFV stops when one of them stops allowing it and starts again
 when they allow it.
 Where the answer would be to ask about remote media, it does not play.
+
+**Stream**
+One live feed the server can push to the app over its single open connection:
+the reader's own (home and notifications), the direct messages, the public feed
+of this server or of everyone it knows, one list, or one hashtag. A page that is
+open only updates live while the stream it follows is subscribed.
+
+**Place's stream**
+The stream a built place follows, if it has one. Home follows the reader's own
+stream; Conversations follows the direct messages; Local and Federated follow
+their public feeds, only while live public updates are on; a list follows its
+own list stream; a hashtag page follows its tag's stream, but only while live
+public updates are on, and a page over several tags follows none, because one
+tag's stream cannot apply the server's rules for combining tags.
+
+**Stream router**
+The part that knows two things: which streams the open places want, and which
+page should receive each event the server pushes. It looks pages up when an
+event arrives and keeps none of them, so a page that was closed is not held
+alive. It does not own the connection: opening and closing it, falling back to
+polling when it is down, and catching up after it comes back stay with the
+window.

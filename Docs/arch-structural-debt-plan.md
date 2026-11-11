@@ -8,8 +8,8 @@ now read like a license to keep growing the leftovers.
 **Goal:** one named seam at a time, each module under or honestly
 re-justified against `LIMIT = 800`, in the same style as ARCH-01…03 and
 ARCH-06 (extract → `install_data` → update `EXCEPTIONS` reason → tests
-green). No big-bang rewrite. No moving `_on_stream_event` without a
-`PlaceHost`-style indirection.
+green). No big-bang rewrite. `_on_stream_event` moved only with a
+`PlaceHost`-style indirection (ARCH-20).
 
 **Out of this plan’s wave:** admin tool packing, `pages.py` toolkit
 sprawl, `fedicollections` dialogs, finishing ARCH-04 entity adoption,
@@ -23,7 +23,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | Module | Lines | Notes |
 |--------|------:|-------|
 | `compose.py` | ~1744 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
-| `window.py` | ~1925 | ARCH-15 extracted sidebarhost; session/stream owner remains |
+| `window.py` | ~1819 | ARCH-15 extracted sidebarhost, ARCH-20 the stream router; session and stream lifecycle remain |
 | `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
 | `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
@@ -61,7 +61,8 @@ flowchart TD
   A19[ARCH-19 mediazoom]
   A15[ARCH-15 sidebarhost]
   A16[ARCH-16 profileheader]
-  A12 --> A17 --> A13 --> A18 --> A14 --> A19 --> A15 --> A16
+  A20[ARCH-20 streamrouter]
+  A12 --> A17 --> A13 --> A18 --> A14 --> A19 --> A15 --> A16 --> A20
 ```
 
 ---
@@ -221,7 +222,8 @@ module under 800.
 **Status:** done — `sidebarhost.py` holds rebuild, mode/visibility
 sync, pinned append/load and the overlay/rail runtime state;
 `window.py` keeps template widgets, `_restricted_public_places`,
-`_on_stream_event` and thin forwards (~1925 lines, was ~2161).
+stream dispatch (later moved by ARCH-20) and thin forwards (~1925 lines,
+was ~2161).
 `navigation.py` and `sidebarhost.py` are in `SEAMS`. EXCEPTION text
 no longer names “sidebar widgets” as an unsplit blob. New module
 under 800.
@@ -231,7 +233,8 @@ under 800.
 rail / control callbacks and owns `_refresh_sidebar`,
 `_sync_sidebar_mode` / `_sync_sidebar_visibility`, pinned append/load.  
 **Do not extract:** `_on_stream_event` (page-container ownership;
-documented window exception).  
+documented window exception then; ARCH-20 later moved it behind a
+host of callables).  
 **Pattern:** one level above `sidebarmode` / `sidebarrail` /
 `sidebarcontrol`.
 
@@ -264,6 +267,32 @@ under ~700 if possible, or still EXCEPTION with an honest remainder.
 
 ---
 
+## ARCH-20 — `streamrouter.py`
+
+**Status:** done — `streamrouter.py` (249 lines) holds the stream
+router: which streams the built places want (`wanted_streams`,
+`place_streams`), which timeline pages exist (`timeline_pages`) and who
+receives each event (`route`, over the declared `ROUTES` table, the
+deliberately ignored events included). It reaches pages through a
+`StreamHost` of callables, as `navigation` does through `PlaceHost`, and
+holds no page, window or client. `navigation.py` gains
+`stream_places()` and `place_timelines()` so the `list:` / `tag:` key
+format stays there. `window.py` keeps the lifecycle (socket start and
+stop, polling fallback, reconnect catch-up, background status) and hands
+each event over (~1819 lines, was ~1925). `streamrouter.py` is in
+`SEAMS`.
+
+**From:** `window.py` (`_sync_streaming`'s `wanted`, `_place_streams`,
+`_timeline_pages`, `_on_stream_event`).  
+**Keep:** `StreamingManager` wiring, `live-updates`, polling,
+`_on_stream_connection_changed`, `_schedule_background_status`.  
+**Pattern:** `PlaceHost`-style indirection; routing declared as data.
+
+**Verify:** `stream dispatch` (the router with plain recorders and the
+wanted-streams mapping), `stream events` (the table against the
+documented set), `navigation`, `navigation window` (one event through
+the real window); `file size rule`.
+
 ## Phase N (explicitly deferred)
 
 - **`admin.py`:** split by tool page only when a tool must change in
@@ -273,8 +302,8 @@ under ~700 if possible, or still EXCEPTION with an honest remainder.
   PR, not as a file-size drive.
 - **`fedicollections.py` / `hashtags.py` / `mastodon.py`:** leave unless
   they grow or a feature forces a seam.
-- **Stream dispatch table:** clarity PR on `window.py` if desired; not
-  a file-size seam and not a dependency inversion.
+- **Stream dispatch table:** done as ARCH-20, with the dependency
+  inversion this entry once said it was not.
 
 ---
 
