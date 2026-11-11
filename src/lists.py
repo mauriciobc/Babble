@@ -599,10 +599,7 @@ class ListsPage(Adw.Bin):
                             on_saved=self._on_created)
 
     def _on_created(self, list_json, _created):
-        row = ListRow(self, list_json)
-        self.paged.rows.append(row)
-        self.paged.list_box.append(row)
-        self.paged.stack.set_visible_child_name('list')
+        self.paged.append_row(ListRow(self, list_json))
 
 
 # Add an account to lists

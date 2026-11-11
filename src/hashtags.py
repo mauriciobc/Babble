@@ -752,45 +752,13 @@ class SavedTimelinesGroup(Gtk.Box):
             on_deleted=lambda _d: self.reload())
 
 
-class _FollowedTagsList(pages.PagedList):
-    """PagedList that keeps the list visible (with a placeholder row)
-    when nothing is followed, so the saved timelines above stay
-    reachable."""
-
-    __gtype_name__ = 'BabbleFollowedTagsList'
-
-    def __init__(self, *args, **kwargs):
-        self.placeholder = None
-        super().__init__(*args, **kwargs)
-
-    def _drop_placeholder(self):
-        if self.placeholder is not None:
-            self.list_box.remove(self.placeholder)
-            self.placeholder = None
-
-    def _show_placeholder(self):
-        if self.rows or self.placeholder is not None:
-            return
-        row = Adw.ActionRow(title=_('No followed hashtags'),
-                            subtitle=_('Follow a hashtag from its page to '
-                                       'see its posts in Home'),
-                            selectable=False, activatable=False)
-        row.add_css_class('dimmed')
-        self.list_box.append(row)
-        self.placeholder = row
-        self.stack.set_visible_child_name('list')
-
-    def refresh(self):
-        self._drop_placeholder()
-        super().refresh()
-
-    def append_items(self, items):
-        super().append_items(items)
-        self._show_placeholder()
-
-    def remove_row(self, row):
-        super().remove_row(row)
-        self._show_placeholder()
+def _no_followed_tags_row():
+    row = Adw.ActionRow(title=_('No followed hashtags'),
+                        subtitle=_('Follow a hashtag from its page to '
+                                   'see its posts in Home'),
+                        selectable=False, activatable=False)
+    row.add_css_class('dimmed')
+    return row
 
 
 class FollowedHashtagsPage(Adw.Bin):
@@ -807,13 +775,15 @@ class FollowedHashtagsPage(Adw.Bin):
         header.append(self.saved)
         header.append(pages.section_label(_('Followed Hashtags')))
         page = self.weak_ref()  # the list is a child: no strong cycle
-        self.paged = _FollowedTagsList(
+        # A placeholder row stands in for the empty state, so the saved
+        # timelines above the list stay reachable when nothing is followed.
+        self.paged = pages.PagedList(
             client, api_tags.list_path('followed'), lambda tag: TagRow(page(), tag),
             empty_title=_('No Followed Hashtags'),
             empty_icon='edit-find-symbolic',
             empty_description=_('Follow a hashtag from its page to see its '
                                 'posts in your home timeline'),
-            header=header)
+            header=header, make_placeholder=_no_followed_tags_row)
         self.set_child(self.paged)
         self.add_button = pages.icon_button(
             'list-add-symbolic', _('New Multi-Hashtag Timeline'))
