@@ -441,17 +441,15 @@ class _Manager:
             image.detach()
 
     def _watch(self, image):
-        """Follow the gate's inputs, once for the process."""
+        """Follow the gate's inputs (the media policy's signal list), once
+        for the process. The handler is a module function, which the policy
+        connects directly: nothing here is held that could outlive an image
+        (the manager holds images by weak reference)."""
         if self.watching:
             return
         self.watching = True
-        from . import pages, sysstate
-        sysstate.monitor().connect('notify::power-saver', _on_gate_changed)
-        gtk_settings = Gtk.Settings.get_for_display(image.get_display())
-        for name in ('gtk-enable-animations', 'gtk-interface-reduced-motion'):
-            gtk_settings.connect('notify::' + name, _on_gate_changed)
-        pages.settings().connect('changed::autoplay-animated-media',
-                                 _on_gate_changed)
+        from . import mediapolicy
+        mediapolicy.connect_changes(_on_gate_changed, image)
 
     def gate_changed(self):
         for key, ref in list(self.mapped.items()):

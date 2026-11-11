@@ -2,9 +2,12 @@
 
 """The media policy: may this media load, or play, right now?
 
-Four places used to answer this from the same fragments (the viewer, the
-inline player, the remote-media gate and animated emoji). This module is
-the one that reads the gates and the one that decides:
+This module is the only place that reads the media gates (the settings
+keys, GTK's motion settings, the system's power and metering state) and the
+only place that decides from them. Its callers are the media viewer
+(:mod:`mediaplayback`), the inline GIFV player (:mod:`mediainline`), the
+remote-media gate (:mod:`remotemedia`) and animated custom emoji
+(:mod:`emojianim`); each asks it and acts on the answer.
 
 * :class:`MediaState` is an immutable value holding everything an answer
   depends on, and :func:`read_state` builds it from GSettings, GTK's
@@ -28,7 +31,7 @@ import gi
 
 gi.require_version('Gtk', '4.0')
 
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import GObject, Gtk  # noqa: E402
 
 # Why a stream may not start by itself (see stream_deferral).
 DEFER_NEVER = 'never'
@@ -144,20 +147,33 @@ def connect_changes(handler, widget=None):
     """Call *handler* whenever something that can change an answer
     changes: the four settings keys, GTK's animation settings (of
     *widget*'s display, else the default) and the system's power-saver and
-    metered state. *handler* is a bound method of a GObject and is held
-    weakly (:func:`pages.connect_weak`); it takes ``*args`` and should
-    recompute the answer it needs, acting only on a change."""
+    metered state. This is the one list of those signals.
+
+    *handler* takes ``*args`` and should recompute the answer it needs,
+    acting only on a change. A bound method of a GObject is held weakly
+    (:func:`pages.connect_weak`), so a widget or player that connects its
+    own method forms no cycle through C and is freed as before. Any other
+    callable (a module-level function, which lives as long as the process)
+    is connected directly: it holds nothing to leak, and a weak reference
+    to a function would drop it at once."""
     from . import pages, sysstate
+
+    def connect(emitter, signal):
+        if isinstance(getattr(handler, '__self__', None), GObject.Object):
+            pages.connect_weak(emitter, signal, handler)
+        else:
+            emitter.connect(signal, handler)
+
     monitor = sysstate.monitor()
     for name in SYSTEM_PROPERTIES:
-        pages.connect_weak(monitor, 'notify::' + name, handler)
+        connect(monitor, 'notify::' + name)
     if widget is not None:
         gtk_settings = Gtk.Settings.get_for_display(widget.get_display())
     else:
         gtk_settings = Gtk.Settings.get_default()
     if gtk_settings is not None:
         for name in GTK_PROPERTIES:
-            pages.connect_weak(gtk_settings, 'notify::' + name, handler)
+            connect(gtk_settings, 'notify::' + name)
     settings = pages.settings()
     for key in SETTINGS_KEYS:
-        pages.connect_weak(settings, 'changed::' + key, handler)
+        connect(settings, 'changed::' + key)
