@@ -7,11 +7,13 @@ app; it is not a formal item under the
 [documentation policy](documentation-policy.md).
 
 It is not the manual's glossary. [Chapter 12 of the user
-manual](manual/12-glossario.md) defines terms for people who use Babble, in
-Portuguese, in the words the app shows. This one defines the ideas behind the
-code, in English, and where both name the same thing (the media preferences,
-for instance) they must agree; the manual's [section
-5.8](manual/05-midia.md) describes the same preferences from the reader's side.
+manual](manual/12-glossary.md) (also in [Portuguese](pt_BR/manual/12-glossario.md))
+defines terms for people who use Babble, in the words the app shows. This one
+defines the ideas behind the code, and where both name the same thing (the
+media preferences, for instance) they must agree; the manual's [section
+5.8](manual/05-media.md) describes the same preferences from the reader's
+side. As a working note, this one stays in English
+([section 3.5 of the policy](documentation-policy.md)).
 
 Entries are domain language only. Where to find the code is in `CLAUDE.md`.
 

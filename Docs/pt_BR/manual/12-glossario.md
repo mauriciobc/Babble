@@ -151,7 +151,7 @@
 | Ganchos de teclado | [10.1](10-referencia.md#101-atalhos-de-teclado) |
 | Hashtags | [2.11](02-leitura.md#211-hashtags), [4.6](04-escrita.md#46-hashtags) |
 | Idioma da interface | [8.2](08-configuracoes.md#82-página-appearance) |
-| Instalar o aplicativo | `Docs/building.md` |
+| Instalar o aplicativo | `Docs/pt_BR/building.md` |
 | Listas | [2.10](02-leitura.md#210-listas) |
 | Live updates | [2.2](02-leitura.md#22-a-timeline-home), [8.4](08-configuracoes.md#84-página-timelines) |
 | Local e Federated | [2.14](02-leitura.md#214-favoritos-itens-salvos-local-e-federated) |
@@ -197,7 +197,7 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | 10 — Referência | `src/main.py`, `src/shortcuts-dialog.ui`, `src/window.ui`, `src/capabilities.py`, `po/pt_BR.po` |
 | 11 — Solução de problemas | Todos os módulos acima, mais `src/accounts.py` e o log do sistema |
 | Ajuda embutida (F1) | `data/help/C/` (inglês) e `data/help/pt_BR/` (português), registrados em `help_languages`, em `data/meson.build` |
-| O rito que rege este manual | `Docs/documentation-policy.md` (a política do projeto), verificada por `src/test-docs.py` |
+| O rito que rege este manual | `Docs/pt_BR/documentation-policy.md` (a política do projeto), verificada por `src/test-docs.py` |
 
 ## 12.4 Suporte
 
@@ -207,10 +207,10 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | `data/help/pt_BR/` | As páginas de ajuda em português, instaladas ao lado das de inglês. |
 | `data/help/C/` | As páginas de ajuda em inglês. |
 | Este manual | A referência completa, com procedimentos, mensagens e limites. |
-| `Docs/features.md` | A lista de recursos do projeto, em termos técnicos. |
-| `Docs/mastodon-compat.md` | Onde cada recurso depende da versão do servidor. |
-| `Docs/desktop-integration.md` | O que cada integração com o GNOME precisa. |
-| `Docs/building.md` | Como compilar, instalar e rodar os testes. |
+| `Docs/pt_BR/features.md` | A lista de recursos do projeto, em termos técnicos. |
+| `Docs/pt_BR/mastodon-compat.md` | Onde cada recurso depende da versão do servidor. |
+| `Docs/pt_BR/desktop-integration.md` | O que cada integração com o GNOME precisa. |
+| `Docs/pt_BR/building.md` | Como compilar, instalar e rodar os testes. |
 | `github.com/mauriciobc/Babble` | O código-fonte e a página do projeto. |
 | A página de problemas do projeto | Relatar um defeito. |
 
@@ -226,6 +226,7 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | Um limite citado tem de vir do servidor | Os limites são declarados pela instância, e o manual os descreve como tal. |
 | A tabela de rótulos é gerada a partir de `po/pt_BR.po` | Ela reflete o que está traduzido de fato na versão instalada. |
 | Mudar de versão do aplicativo obriga a revisar o manual | Recursos novos podem entrar em qualquer capítulo. |
+| As duas edições do manual não divergem | A edição em inglês é a fonte; a edição em português do Brasil espelha-a, capítulo por capítulo. Uma alteração é feita em inglês e traduzida no mesmo pull request. |
 
 O manual é atualizado junto com o aplicativo. A versão e a data estão no [cabeçalho](README.md), e o histórico de revisões fica ao lado dele.
 
@@ -234,6 +235,7 @@ O **processo** que rege estas regras — quem escreve, quem revê, quem aprova, 
 - as páginas de ajuda em todos os idiomas carregam os mesmos ficheiros e os mesmos identificadores, e as referências cruzadas resolvem-se dentro de cada conjunto;
 - cada idioma presente em `data/help/` está registado em `help_languages`, e cada ficheiro que a instalação instala existe em cada idioma;
 - cada capítulo do manual carrega o bloco de identificação, e todas as ligações e âncoras resolvem-se;
+- as duas edições do manual carregam os mesmos capítulos, e todas as ligações e âncoras de ambas resolvem-se;
 - a tabela de rótulos do capítulo 10 é a que o catálogo de tradução produz.
 
 Para regenerar a tabela depois de uma mudança no catálogo:

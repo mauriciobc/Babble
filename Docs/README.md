@@ -3,21 +3,24 @@
 The [README](../README.md) is for people deciding whether to install Babble.
 Everything else is here.
 
+**This is the English edition.** A Brazilian Portuguese edition of the
+formal set lives in [`pt_BR/`](pt_BR/README.md): [português (pt-BR)](pt_BR/README.md).
+
 ## For users
 
-| | |
-|---|---|
-| [The user manual](manual/README.md) | The complete guide, in Portuguese (pt-BR): signing in, reading, writing, media, Catch Up, settings, plugins, troubleshooting |
-| [What Babble does](features.md) | The full feature list, and which server versions each needs |
-| [Building and testing](building.md) | Dependencies, meson, the Flatpak manifest, the test suite |
-| [Signing in](signing-in.md) | What Babble asks for, and how the browser hands the login back |
-| [Desktop integration](desktop-integration.md) | Every GNOME feature Babble uses, and what each needs |
+| | | |
+|---|---|---|
+| [The user manual](manual/README.md) | The complete guide: signing in, reading, writing, media, Catch Up, settings, plugins, troubleshooting | [pt-BR](pt_BR/manual/README.md) |
+| [What Babble does](features.md) | The full feature list, and which server versions each needs | [pt-BR](pt_BR/features.md) |
+| [Building and testing](building.md) | Dependencies, meson, the Flatpak manifest, the test suite | [pt-BR](pt_BR/building.md) |
+| [Signing in](signing-in.md) | What Babble asks for, and how the browser hands the login back | [pt-BR](pt_BR/signing-in.md) |
+| [Desktop integration](desktop-integration.md) | Every GNOME feature Babble uses, and what each needs | [pt-BR](pt_BR/desktop-integration.md) |
 
 ## For contributors
 
 | | |
 |---|---|
-| [Localization](localization.md) | Languages, translation status, and how to add one |
+| [Localization](localization.md) | Languages, translation status, and how to add one | 
 | [Mastodon API compatibility](mastodon-compat.md) | Where Babble gates on server capabilities, and why |
 | [Improvement register](IMPROVEMENTS.md) | Open findings, decisions, and what was deferred |
 | [Glossary of domain terms](glossary.md) | The concepts the code is built around (the media policy and its gates), so module and test names stay consistent; the manual's glossary is the one for users |
@@ -52,6 +55,27 @@ are easy to break by accident.
 The policy is a formal item of its own, and the rules it says can be
 checked mechanically are checked by `src/test-docs.py`, which runs with
 the suite.
+
+### The two languages
+
+The formal set -- this index, the manual, and the six reference
+documents above -- is written twice. The rule is one sentence:
+
+> The English edition lives where the file already is. A Brazilian
+> Portuguese edition lives beside it, under `Docs/pt_BR/`, mirroring the
+> path exactly.
+
+So a translation of `features.md` is `pt_BR/features.md`, and the manual's
+chapters are `manual/NN-<english-slug>.md` and
+`pt_BR/manual/NN-<portuguese-slug>.md`.
+
+The documents under "For contributors" are the project's own working
+notes: audits, plans, benchmarks and registers, whose audience is the
+people doing the work. They stay in English, which is what the
+[policy](documentation-policy.md) says about them.
+
+English is the source. A change is made in English and translated, in
+the same pull request.
 
 ## For translators
 
