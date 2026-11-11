@@ -269,7 +269,7 @@ under ~700 if possible, or still EXCEPTION with an honest remainder.
 
 ## ARCH-20 — `streamrouter.py`
 
-**Status:** done — `streamrouter.py` (239 lines) holds the stream
+**Status:** done — `streamrouter.py` (249 lines) holds the stream
 router: which streams the built places want (`wanted_streams`,
 `place_streams`), which timeline pages exist (`timeline_pages`) and who
 receives each event (`route`, over the declared `ROUTES` table, the
