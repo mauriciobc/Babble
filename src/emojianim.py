@@ -21,7 +21,7 @@ animation for as long as the image is on screen.
 * **One clock** for all of them: a single GLib timeout that exists only
   while an animation has a mapped image, wakes at the earliest next
   frame and invalidates only the paintables whose frame changed.
-* **Gates** are ``mediaplayback.may_autoplay_loop`` (the user's switch,
+* **Gates** are the loop rule of :mod:`mediapolicy` (the user's switch,
   animations off, reduced motion, power saver), followed live; closed,
   the image keeps its static frame and nothing is fetched.
 
@@ -90,8 +90,8 @@ def available():
 
 def gate_open(widget):
     """Whether animation may run at all.  Read live; tests replace it."""
-    from . import mediaplayback
-    return mediaplayback.may_autoplay_loop(widget)
+    from . import mediapolicy
+    return mediapolicy.may_loop(mediapolicy.read_state(widget))
 
 
 # The outcome stored for an image that is not animated.

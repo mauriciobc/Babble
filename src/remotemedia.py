@@ -6,7 +6,9 @@ A Mastodon attachment has ``url``, the copy the user's server cached, and
 tells a server the user did not choose their IP address, client and
 viewing time, so Babble goes through one gate first: the
 ``remote-media`` setting (``ask``, ``load`` or ``never``), and for
-``ask`` a dialog. A cached ``url`` never asks.
+``ask`` a dialog. A cached ``url`` never asks. The decision (allow, ask or
+deny) is :func:`mediapolicy.remote_access`; this module owns the dialog
+and writes the choice back when the reader asks to remember it.
 
 Only fetches go through the gate. Opening the original in the browser,
 copying a URL and dragging one out do not fetch anything here.
@@ -23,6 +25,7 @@ gi.require_version('Gtk', '4.0')
 from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
+from . import mediapolicy  # noqa: E402
 from . import pages  # noqa: E402
 
 
@@ -53,12 +56,11 @@ def request(widget, url, is_remote, on_allowed, on_denied):
     if not is_remote:
         on_allowed()
         return None
-    settings = pages.settings()
-    choice = settings.get_string('remote-media')
-    if choice == 'load':
+    decision = mediapolicy.remote_access(mediapolicy.read_state(), True)
+    if decision == mediapolicy.ALLOW:
         on_allowed()
         return None
-    if choice == 'never':
+    if decision == mediapolicy.DENY:
         on_denied(True)
         return None
     dialog = Adw.AlertDialog(

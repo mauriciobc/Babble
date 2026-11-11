@@ -12,6 +12,10 @@ the engine (``stop()`` then ``load()``); closing the viewer releases it,
 deferred (see :mod:`mediaengine`). The chrome and ``present_media`` stay
 on :mod:`mediaviewer`; zoom/pan is :mod:`mediazoom`.
 
+Whether a stream may start by itself and whether a GIFV may loop are the
+questions of :mod:`mediapolicy`; this module asks it and acts on the
+answer (the reason strings are the viewer's own).
+
 Never free the engine directly: ``test-mediaviewer-teardown.py`` drives
 the real open/close path to hold that.
 """
@@ -29,6 +33,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import imagecache  # noqa: E402
 from . import mastodon  # noqa: E402
+from . import mediapolicy  # noqa: E402
 from . import pages  # noqa: E402
 from .remotemedia import media_url  # noqa: E402
 
@@ -182,39 +187,6 @@ class _Download:
         self.succeed()
 
 
-def _system_state(name):
-    """The ``sysstate`` monitor's boolean property *name* ('metered',
-    'power-saver'); False when the monitor is unavailable."""
-    from . import sysstate
-    return bool(sysstate.monitor().get_property(name))
-
-
-def should_defer_stream(mode, metered):
-    """Whether video, audio and GIFVs wait for a click instead of loading
-    at once. *mode* is the ``media-autoload`` key: 'always' never waits,
-    'never' always waits, 'unmetered' waits on a metered connection."""
-    if mode == 'never':
-        return True
-    return mode == 'unmetered' and bool(metered)
-
-
-def may_autoplay_loop(widget=None):
-    """Whether looping, muted media (a GIFV) may run by itself: the user
-    has not turned off Autoplay Animated Media, animations are on, no
-    reduced motion is asked for, and the system is not saving power. Read
-    live, so the viewer can follow a change."""
-    if not pages.settings().get_boolean('autoplay-animated-media'):
-        return False
-    gtk_settings = (Gtk.Settings.get_for_display(widget.get_display())
-                    if widget is not None else Gtk.Settings.get_default())
-    if not gtk_settings.get_property('gtk-enable-animations'):
-        return False
-    if gtk_settings.get_property('gtk-interface-reduced-motion') \
-            == Gtk.ReducedMotion.REDUCE:
-        return False
-    return not _system_state('power-saver')
-
-
 def release_media(bin_widget, stream):
     """Pause *stream*, detach it from its engine and take the media widget
     out of *bin_widget*. The engine stays alive: the viewer stops it
@@ -263,22 +235,20 @@ class MediaPlayback:
         if self._gate_connected:
             return
         self._gate_connected = True
-        from . import sysstate
-        pages.connect_weak(sysstate.monitor(), 'notify::power-saver',
-                           self._on_loop_gate_changed)
-        gtk_settings = Gtk.Settings.get_for_display(self.get_display())
-        for name in ('gtk-enable-animations', 'gtk-interface-reduced-motion'):
-            pages.connect_weak(gtk_settings, 'notify::' + name,
-                               self._on_loop_gate_changed)
-        pages.connect_weak(pages.settings(),
-                           'changed::autoplay-animated-media',
-                           self._on_loop_gate_changed)
+        mediapolicy.connect_changes(self._on_loop_gate_changed, self)
+
+    def _loop_gate_open(self):
+        """The loop rule of the media policy, for this viewer's display."""
+        return mediapolicy.may_loop(mediapolicy.read_state(self))
 
     def _on_loop_gate_changed(self, *_args):
+        # Called for every signal the policy lists, not only the loop
+        # rule's: it acts on a GIFV only, recomputes, and does nothing
+        # unless the answer changed.
         stream = self._stream
         if stream is None or self._stream_kind != 'gifv':
             return
-        was_open, self._gate_open = self._gate_open, may_autoplay_loop(self)
+        was_open, self._gate_open = self._gate_open, self._loop_gate_open()
         if not stream.is_prepared() or was_open == self._gate_open:
             return
         if self._gate_open:
@@ -332,10 +302,10 @@ class MediaPlayback:
             engine.release()
 
     def _show_stream(self, attachment, url, is_remote):
-        mode = pages.settings().get_string('media-autoload')
-        if mode == 'never':
+        deferral = mediapolicy.stream_deferral(mediapolicy.read_state(self))
+        if deferral == mediapolicy.DEFER_NEVER:
             self._show_deferred(attachment, False)
-        elif should_defer_stream(mode, _system_state('metered')):
+        elif deferral == mediapolicy.DEFER_METERED:
             self._show_deferred(attachment, True)
         else:
             self._gate_remote('show', attachment, url, is_remote)
@@ -424,7 +394,7 @@ class MediaPlayback:
             # when animations are off or the system saves power.
             # Decided when the stream is prepared, not now.
             autoplay = True
-            self._gate_open = may_autoplay_loop(self)
+            self._gate_open = self._loop_gate_open()
             self._connect_loop_gate()
         elif kind == 'video':
             # Offload lets the compositor scan the video out directly.
@@ -580,7 +550,7 @@ class MediaPlayback:
             if self._stream_kind != 'gifv':
                 stream.play()
             else:
-                self._gate_open = may_autoplay_loop(self)
+                self._gate_open = self._loop_gate_open()
                 if self._gate_open:
                     stream.play()
                 else:
