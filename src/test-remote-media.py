@@ -305,7 +305,7 @@ sys.excepthook = sys.__excepthook__
 
 # The metered Load button asks before any request.
 monitor.set_property('metered', True)
-viewer =mediaviewer.present_media(parent, [remote()])
+viewer = mediaviewer.present_media(parent, [remote()])
 settle(0.5)
 check('metered: the preview page waits, with no dialog and no request',
       stack(viewer) == 'deferred' and dialog_up() is None

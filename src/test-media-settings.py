@@ -119,22 +119,24 @@ gtk_settings = Gtk.Settings.get_default()
 gtk_settings.set_property('gtk-enable-animations', True)
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.NO_PREFERENCE)
-def may_autoplay_loop():
+
+
+def loop_allowed():
     return mediapolicy.may_loop(mediapolicy.read_state())
 
 
-check('autoplay is allowed with the defaults', may_autoplay_loop())
+check('autoplay is allowed with the defaults', loop_allowed())
 settings.set_boolean('autoplay-animated-media', False)
-check('autoplay is off when the key is off', not may_autoplay_loop())
+check('autoplay is off when the key is off', not loop_allowed())
 settings.set_boolean('autoplay-animated-media', True)
 monitor.set_property('power-saver', True)
 check('power saving overrides the key when it is on',
-      not may_autoplay_loop())
+      not loop_allowed())
 monitor.set_property('power-saver', False)
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.REDUCE)
 check('reduced motion overrides the key when it is on',
-      not may_autoplay_loop())
+      not loop_allowed())
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.NO_PREFERENCE)
 

@@ -238,7 +238,7 @@ saved_motion = gtk_settings.get_property('gtk-interface-reduced-motion')
 saved_anim = gtk_settings.get_property('gtk-enable-animations')
 
 
-def may_autoplay_loop():
+def loop_allowed():
     return mediapolicy.may_loop(mediapolicy.read_state())
 
 
@@ -257,12 +257,12 @@ try:
                               Gtk.ReducedMotion.NO_PREFERENCE)
     gtk_settings.set_property('gtk-enable-animations', True)
     check('the check is True with nothing against motion',
-          may_autoplay_loop())
+          loop_allowed())
 
     gtk_settings.set_property('gtk-interface-reduced-motion',
                               Gtk.ReducedMotion.REDUCE)
     check('the check is False under reduced motion',
-          not may_autoplay_loop())
+          not loop_allowed())
     viewer = open_gifv()
     settle(0.5)
     check('a GIFV does not autoplay under reduced motion',
