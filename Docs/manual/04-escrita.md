@@ -1,6 +1,6 @@
 # 4 — Escrita: o compositor, enquetes, citações e rascunhos
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 4 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 4 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 O compositor do Babble é uma caixa de diálogo sobre a janela principal. Ela guarda o que você escreveu, verifica a ortografia, completa menções e hashtags e sabe o que o seu servidor aceita.

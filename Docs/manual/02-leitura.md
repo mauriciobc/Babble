@@ -1,6 +1,6 @@
 # 2 — Leitura: timelines, fios, perfis e busca
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 2 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 2 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Este capítulo é o centro do manual: as seis respostas à pergunta "de onde vem o que eu leio".

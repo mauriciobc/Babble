@@ -1,6 +1,6 @@
 # 12 — Glossário, índice remissivo e suporte
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 12 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 12 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 ## 12.1 Glossário
@@ -197,6 +197,7 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | 10 — Referência | `src/main.py`, `src/shortcuts-dialog.ui`, `src/window.ui`, `src/capabilities.py`, `po/pt_BR.po` |
 | 11 — Solução de problemas | Todos os módulos acima, mais `src/accounts.py` e o log do sistema |
 | Ajuda embutida (F1) | `data/help/C/` (inglês) e `data/help/pt_BR/` (português), registrados em `help_languages`, em `data/meson.build` |
+| O rito que rege este manual | `Docs/documentation-policy.md` (a política do projeto), verificada por `src/test-docs.py` |
 
 ## 12.4 Suporte
 
@@ -227,3 +228,16 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | Mudar de versão do aplicativo obriga a revisar o manual | Recursos novos podem entrar em qualquer capítulo. |
 
 O manual é atualizado junto com o aplicativo. A versão e a data estão no [cabeçalho](README.md), e o histórico de revisões fica ao lado dele.
+
+O **processo** que rege estas regras — quem escreve, quem revê, quem aprova, o que é uma baseline, quando um documento é revisto e quando é retirado — não está neste manual, mas na [política de documentação](../documentation-policy.md). Ela é a política do projeto, e o manual é um dos seus itens formais. As duas coisas que a política promete são verificadas por `src/test-docs.py`, que corre na CI:
+
+- as páginas de ajuda em todos os idiomas carregam os mesmos ficheiros e os mesmos identificadores, e as referências cruzadas resolvem-se dentro de cada conjunto;
+- cada idioma presente em `data/help/` está registado em `help_languages`, e cada ficheiro que a instalação instala existe em cada idioma;
+- cada capítulo do manual carrega o bloco de identificação, e todas as ligações e âncoras resolvem-se;
+- a tabela de rótulos do capítulo 10 é a que o catálogo de tradução produz.
+
+Para regenerar a tabela depois de uma mudança no catálogo:
+
+```sh
+python3 src/test-docs.py --write-table
+```

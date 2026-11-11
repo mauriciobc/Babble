@@ -1,6 +1,6 @@
 # 6 — Catch Up: recuperar o que você perdeu
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 6 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 6 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 O `Catch Up` é a resposta do Babble para a pergunta que toda rede social deixa para trás: *o que eu perdi?*

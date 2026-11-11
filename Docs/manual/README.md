@@ -3,12 +3,12 @@
 | | |
 |---|---|
 | **Título** | Manual do Usuário do Babble — leitura, escrita e integração com o GNOME |
-| **Identificador / versão** | `BABBLE-MAN-001` — v1.0 — rascunho para revisão |
+| **Identificador / versão** | `BABBLE-MAN-001` — v1.0 — aprovado |
 | **Data de emissão** | 2026-11-11 |
 | **Autoria** | Equipe do Babble |
-| **Aprovação** | [A DEFINIR: nome e data de quem aprova a publicação deste manual] |
+| **Aprovação** | Aprovada na fusão do [PR #106](https://github.com/mauriciobc/Babble/pull/106), em 2026-11-11, por mauriciobc. O rito que rege esta aprovação está em [a política de documentação](../documentation-policy.md), e o verificador que a aplica é `src/test-docs.py`. |
 | **Software descrito** | Babble 0.3.0 (`io.github.mauriciobc.Babble`) |
-| **Normas de referência** | ISO/IEC 26514 (documentação de usuário); ISO/IEC/IEEE 15289 (identificação do item de informação) |
+| **Normas de referência** | ISO/IEC 26514 (documentação de usuário); ISO/IEC/IEEE 15289 (identificação do item de informação); ISO/IEC/IEEE 12207 (governança do processo de documentação, pela [política de documentação](../documentation-policy.md)) |
 | **Escopo** | Cobre o uso do Babble 0.3.0 como cliente Mastodon para GNOME: entrar na conta, ler, interagir, publicar, tratar mídia, instalar e configurar plugins, e integrar o aplicativo ao ambiente de trabalho. **Não cobre** a instalação a partir do código-fonte, o desenvolvimento, a arquitetura interna, a API do Mastodon, a política de tradução nem o processo de publicação do projeto. A documentação técnica correspondente está em `Docs/building.md`, `Docs/features.md`, `Docs/mastodon-compat.md` e `Docs/desktop-integration.md`. |
 | **Propósito** | Permitir que uma pessoa que usa o Babble pela primeira vez, ou que conhece o aplicativo por alto, execute as tarefas do dia a dia — ler o feed, responder, publicar, recuperar o que perdeu — sem depender de conhecimento não declarado. Destina-se ao usuário final; não é um documento de desenvolvimento. |
 | **Público-alvo** | Pessoas usuárias do Babble em um desktop GNOME 51 ou posterior. |

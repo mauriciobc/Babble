@@ -1,6 +1,6 @@
 # 10 — Referência: atalhos, menus, mensagens e limites
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 10 — v1.0 — rascunho para revisão
+> **Documento:** `BABBLE-MAN-001` — capítulo 10 — v1.0 — aprovado
 > **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Este capítulo é material de consulta. Ele não se lê do começo ao fim: você procura a linha de que precisa.
@@ -131,6 +131,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 
 **Rótulos que não aparecem na tabela não têm tradução em português (pt-BR) no aplicativo 0.3.0** — nesse caso, a interface mostra o texto em inglês. A tradução do aplicativo está incompleta em 0.3.0, e essa tabela cresce a cada versão.
 
+<!-- label-table:start -->
 | Rótulo em inglês | Em português (pt-BR) |
 |---|---|
 | `1 day` | 1 dia |
@@ -370,7 +371,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `New Direct Message` | Nova mensagem direta |
 | `New Followers` | Novos seguidores |
 | `New List` | Nova lista |
-| `New Multi-Hashtag Timeline` | Nova timeline de várias hashtags |
+| `New Multi-Hashtag Timeline` | Nova linha do tempo de várias hashtags |
 | `New Post` | Nova publicação |
 | `New Posts` | Novas publicações |
 | `New Reports` | Novas denúncias |
@@ -477,7 +478,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Restore` | Restaurar |
 | `Save As…` | Salvar como… |
 | `Save Media` | Salvar mídia |
-| `Scanning timeline…` | Analisando a timeline… |
+| `Scanning timeline…` | Analisando a linha do tempo… |
 | `Schedule (Ctrl+Enter)` | Agendar (Ctrl+Enter) |
 | `Scheduled Posts` | Publicações agendadas |
 | `Scroll Page Down` | Rolar página para baixo |
@@ -486,6 +487,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Search` | Pesquisar |
 | `Search Custom Emoji` | Pesquisar emoji personalizado |
 | `Search Emoji` | Pesquisar emoji |
+| `Search Failed` | A pesquisa falhou |
 | `Search In` | Pesquisar em |
 | `Send Post` | Enviar publicação |
 | `Server` | Servidor |
@@ -577,6 +579,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `_Vote` | _Votar |
 | `following` | seguindo |
 | `media` | mídia |
+<!-- label-table:end -->
 
 ## 10.6 Mensagens e avisos
 
