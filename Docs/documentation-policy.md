@@ -3,13 +3,13 @@
 | | |
 |---|---|
 | **Title** | Babble documentation policy — what gets documented, who writes it, who approves it, and when it changes |
-| **Identifier / version** | `BABBLE-POL-001` — v1.0 — draft for review |
+| **Identifier / version** | `BABBLE-POL-001` — v1.1 — approved |
 | **Date of issue** | 2026-11-11 |
 | **Author** | The Babble maintainers |
-| **Approved by** | The maintainer, in the merge of [PR #107](https://github.com/mauriciobc/Babble/pull/107) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
-| **Scope** | Every document the project ships or keeps: the user manual, the in-app help pages, the reference and plan documents under `Docs/`, the working notes at the repository root, and the translation catalogues. It covers **how** those documents are planned, written, reviewed, approved, versioned, distributed and retired. It does not cover the software itself, the release process, or what the documents say. |
+| **Approved by** | The maintainer, in the merge of [PR #108](https://github.com/mauriciobc/Babble/pull/108) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
+| **Scope** | Every document the project ships or keeps: the user manual, the in-app help pages, the reference and plan documents under `Docs/`, the working notes at the repository root, and the translation catalogues -- each in English and, where the set says so, in Brazilian Portuguese. It covers **how** those documents are planned, written, translated, reviewed, approved, versioned, distributed and retired. It does not cover the software itself, the release process, or what the documents say. |
 | **Purpose** | To keep the documentation true of the software it describes, without paying for that with process the project cannot sustain. A policy that nobody follows is worse than none, because it is then cited as if it were. |
-| **References** | ISO/IEC/IEEE 12207 (governance of the documentation process); ISO/IEC/IEEE 15289 (content and identification of information items); ISO/IEC 26514 (user documentation); ISO/IEC/IEEE 29148 (requirements). Project documents: [the user manual](manual/README.md), [Docs/README.md](README.md) (the index), [Docs/flathub.md](flathub.md) (a policy of the same kind, for a different subject). |
+| **References** | ISO/IEC/IEEE 12207 (governance of the documentation process); ISO/IEC/IEEE 15289 (content and identification of information items); ISO/IEC 26514 (user documentation); ISO/IEC/IEEE 29148 (requirements). Project documents: [the user manual](manual/README.md), [Docs/README.md](README.md) (the index), [Docs/flathub.md](flathub.md) (a policy of the same kind, for a different subject). The Brazilian Portuguese edition of this policy is [Docs/pt_BR/documentation-policy.md](pt_BR/documentation-policy.md). |
 | **Traceability** | Section 3 names the documentation set; section 12 maps the documents to the code they describe. |
 | **Review** | At each release, and whenever the process itself changes. |
 
@@ -39,12 +39,12 @@ What the project documents, who reads it, and when it is produced. "Standard" na
 | Item | Audience | Format | Standard | Produced when | Completeness criterion | Status |
 |---|---|---|---|---|---|---|
 | `README.md` | People deciding whether to install | Markdown | 26514 (orientation) | With every release | Says what the app does, what it needs, and how to run it | Current |
-| `Docs/features.md` | Users and contributors | Markdown | 26514 | With every feature | Every feature listed, with the server version it needs | Current |
-| `Docs/manual/` | Users | Markdown, pt-BR | 26514 + 15289 | With every user-visible change | Every procedure carries the full model; no broken cross-references; the label table is current | Current |
+| `Docs/features.md`, `Docs/pt_BR/features.md` | Users and contributors | Markdown, English and pt-BR | 26514 | With every feature | Every feature listed, with the server version it needs | Current |
+| `Docs/manual/`, `Docs/pt_BR/manual/` | Users | Markdown, English and pt-BR | 26514 + 15289 | With every user-visible change | Every procedure carries the full model; no broken cross-references; the label table is current; both editions carry the same sections | Current |
 | `data/help/` | Users, inside the app | Mallard | GNOME help conventions | With every user-visible change | Every language set carries the same pages and ids; every cross-reference resolves | Current |
-| `Docs/building.md` | Users building from source | Markdown | 26514 | When the build changes | Every dependency, the manifest, and the test suite | Current |
-| `Docs/signing-in.md` | Users | Markdown | 26514 | When the login flow changes | The scopes, both redirect paths, and what is stored | Current |
-| `Docs/desktop-integration.md` | Users and contributors | Markdown | 26514 | When an integration changes | Every GNOME feature, and what each needs | Current |
+| `Docs/building.md`, `Docs/pt_BR/building.md` | Users building from source | Markdown, English and pt-BR | 26514 | When the build changes | Every dependency, the manifest, and the test suite | Current |
+| `Docs/signing-in.md`, `Docs/pt_BR/signing-in.md` | Users | Markdown, English and pt-BR | 26514 | When the login flow changes | The scopes, both redirect paths, and what is stored | Current |
+| `Docs/desktop-integration.md`, `Docs/pt_BR/desktop-integration.md` | Users and contributors | Markdown, English and pt-BR | 26514 | When an integration changes | Every GNOME feature, and what each needs | Current |
 | `Docs/ROADMAP.MD` | Users and contributors | Markdown | — | With every release | What the project is betting on, and what it dropped | Current |
 
 ### 3.2 For contributors and maintainers
@@ -78,13 +78,56 @@ Two kinds of document, with two different levels of rigour:
 
 The line is not "important" versus "unimportant". It is "does this make a promise to a reader" versus "does this record what we are doing". A plan document that is read by nobody but its author is a working note even if it is long.
 
+### 3.5 The two languages
+
+The formal set is written twice: once in English, once in Brazilian
+Portuguese. The rule is one sentence.
+
+> **The English edition lives where the file already is. A Brazilian
+> Portuguese edition lives beside it, under `Docs/pt_BR/`, mirroring the
+> path exactly.**
+
+So `Docs/features.md` has its translation at
+`Docs/pt_BR/features.md`, and the manual's thirteen chapters are
+`Docs/manual/NN-<english-slug>.md` and
+`Docs/pt_BR/manual/NN-<portuguese-slug>.md`. The numbering prefix keeps
+the two in the same order; the file names are translated, because a
+reader opens them.
+
+What follows from the rule:
+
+- **The English tree is the source.** A change is made in English and
+  translated, never the other way round. The Portuguese edition does not
+  get ahead: when the two disagree, English is right and the translation
+  is behind.
+- **The two carry the same content.** The same sections, in the same
+  order, saying the same things. A translation is a translation, not a
+  rewrite: it does not add, drop or reorganise.
+- **Anchors follow the language.** A link inside the English tree points
+  inside the English tree, and one inside the Portuguese tree points
+  inside the Portuguese tree. Cross-references are resolved when the
+  translation is made, not left for a reader to discover.
+- **The working notes stay in English.** Section 3.4 classifies them:
+  they are the project's own record, read by the people doing the work.
+  Translating twelve thousand lines of audit records and task lists would
+  double the maintenance cost of every revision and reach nobody who
+  does not already read the code.
+- **Generated blocks stay generated.** The endpoint table in
+  `mastodon-compat.md` is written by `src/test-api-registry.py` and is
+  never edited by hand; in the Portuguese edition it is kept byte for
+  byte, with the note saying so. The label table in chapter 10 maps
+  English interface labels to their Portuguese ones, so it belongs to the
+  Portuguese edition; the English edition says where the table is
+  instead of repeating it in English.
+
 ## 4. Naming and versioning
 
 ### 4.1 Names
 
 - Formal items: `BABBLE-<KIND>-<NNN>`, where kind is `MAN` (manual), `POL` (policy), `REF` (reference), `RPT` (report), `PLN` (plan).
 - Files: lower case, hyphen separated (`mastodon-compat.md`, `documentation-policy.md`). The exception is the three reference documents at the repository root, whose names are established (`PERFORMANCE.md`, `MEMORY-LEAKS.md`, `CATCH-UP.md`) and are kept.
-- The manual's chapters: `NN-<slug>.md`, numbered in reading order, with `README.md` as the front matter.
+- The manual's chapters: `NN-<slug>.md`, numbered in reading order, with `README.md` as the front matter. The slug is translated with the chapter.
+- A Brazilian Portuguese edition: `Docs/pt_BR/<path>`, mirroring the English path. The directory is named after the locale, as `data/help/<lang>/` already is.
 - Never `final`, `final_v2`, `new`, or a date in place of a version. The history lives in the version and in git, not in the file name.
 
 ### 4.2 Versions
@@ -200,6 +243,7 @@ Rules that can be a test are a test, and the test runs in CI. This is the part o
 | Every language directory under `data/help/` is registered in `help_languages`, and every registered language has a directory | `src/test-docs.py` |
 | Every file the meson install list names exists, for every registered language | `src/test-docs.py` |
 | The manual's label table is the one the translation catalogue produces | `src/test-docs.py`, with `--write-table` to regenerate |
+| The two documentation trees are in step: every formal item in one has its counterpart in the other, and the chapters of the manual carry the same sections | `src/test-docs.py` |
 | Every link and anchor in the manual resolves | `src/test-docs.py` |
 | Every chapter of the manual carries an identification block | `src/test-docs.py` |
 | The code still behaves as the suite says it does | the meson suite |
@@ -230,9 +274,9 @@ A change that touches the code and its documentation goes in **one** pull reques
 
 | Item | Lives in | Reached by | Who may change it |
 |---|---|---|---|
-| The manual | `Docs/manual/` | The repository; `Docs/README.md` links it | Anyone, through a pull request |
+| The manual | `Docs/manual/` (English), `Docs/pt_BR/manual/` (Portuguese) | The repository; `Docs/README.md` and `Docs/pt_BR/README.md` link them | Anyone, through a pull request |
 | The help pages | `data/help/<lang>/` | Installed with the application, under `share/help/<lang>/`; opened with F1 | Anyone, through a pull request |
-| The reference and plan documents | `Docs/` | The repository; `Docs/README.md` indexes them | Anyone, through a pull request |
+| The reference and plan documents | `Docs/` (English), `Docs/pt_BR/` (Portuguese, for the formal set) | The repository; the two indexes list them | Anyone, through a pull request |
 | The working notes | Repository root | The repository | Anyone, through a pull request |
 | The translation catalogues | `po/` | The repository; built into the application | Anyone, through a pull request |
 
@@ -305,6 +349,7 @@ A document is updated when its trigger fires. Not "sometime": on the change that
 | The build changes | `Docs/building.md`, the flatpak manifest |
 | The login flow changes | `Docs/signing-in.md`, the manual's first chapter |
 | A string changes | The catalogue, and the manual's label table |
+| A formal item changes in English | Its Portuguese edition, in the same pull request |
 | A release is cut | A new baseline; the manual's software version |
 
 ### 14.2 Periodic review
@@ -326,6 +371,7 @@ Four measures, all of them countable without a tool:
 | Formal items carrying a complete identification block | `src/test-docs.py` | 100 % |
 | `[A DEFINIR: …]` markers left in approved items | A search over `Docs/manual/` | 0 |
 | Documents in `Docs/` not listed in `Docs/README.md` | A search over the index | 0 |
+| Formal items in one language with no counterpart in the other | `src/test-docs.py` | 0 |
 | Released features absent from the manual and the help pages | Reading the release against the manual | 0 |
 
 The first is enforced by the suite. The second and third are cheap searches; the fourth is the one that needs a person, which is why it is written down.
@@ -342,3 +388,4 @@ The first is enforced by the suite. The second and third are cheap searches; the
 | Version | Date | Author | Change |
 |---|---|---|---|
 | 1.0 | 2026-11-11 | The Babble maintainers | First version. Written after the user manual and the Portuguese help pages, which showed what was missing: a written-down rito, a named approver, and a test that keeps the documents true of the code. Approved in the merge of PR #107. |
+| 1.1 | 2026-11-11 | The Babble maintainers | The documentation is written twice: a new section on the two language trees, the naming rule for a translation, and the mechanical check that holds the two editions together. |. Approved in the merge of PR #108.

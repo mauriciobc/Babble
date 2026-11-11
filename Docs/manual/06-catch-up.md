@@ -1,131 +1,131 @@
-# 6 — Catch Up: recuperar o que você perdeu
+# 6 — Catch Up: recovering what you missed
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 6 — v1.0 — aprovado
-> **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
+> **Document:** `BABBLE-MAN-001` — chapter 6 — v1.0 — approved
+> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
 
-O `Catch Up` é a resposta do Babble para a pergunta que toda rede social deixa para trás: *o que eu perdi?*
+`Catch Up` is Babble's answer to the question every social network leaves behind: *what did I miss?*
 
-## 6.1 O que é
+## 6.1 What it is
 
-O `Catch Up` é uma **timeline separada**, que não é a sua `Home`. A diferença está em duas decisões que ele toma por você:
+`Catch Up` is a **separate timeline**, not your `Home`. The difference lies in two decisions it takes on your behalf:
 
-1. **Ele volta no tempo.** Você escolhe uma janela — a última hora, as últimas 6 horas, desde o seu último catch-up — e o Babble percorre a sua `Home` para trás até lá.
-2. **Ele ranqueia.** O que encontra não vem em ordem cronológica: vem ordenado por quanto vale a sua atenção.
+1. **It goes back in time.** You choose a window — the last hour, the last 6 hours, since your last catch-up — and Babble walks your `Home` backwards until it reaches it.
+2. **It ranks.** What it finds does not come in chronological order: it comes sorted by how much it is worth your attention.
 
-O resultado é gravado como um **instantâneo** (*snapshot*): um arquivo local, por conta, que não muda mais. Você pode voltar a ele dias depois e ver exatamente o mesmo conjunto de publicações, mesmo que o feed já tenha seguido em frente.
+The result is stored as a **snapshot**: a local file, per account, that never changes again. You can come back to it days later and see exactly the same set of posts, even if the feed has moved on.
 
-Tudo é calculado no seu computador. O Babble fala com o servidor apenas pela API de cliente — o mesmo caminho que usa para ler a `Home`.
+Everything is computed on your computer. Babble talks to the server only through the client API — the same path it uses to read `Home`.
 
-O lugar `Catch Up` fica logo depois de `Home` na barra lateral. Se você não o quer à vista, Preferências → Timelines → Sidebar → `Catch Up` o esconde.
+The `Catch Up` place sits right after `Home` in the sidebar. If you do not want it in sight, Preferences → Timelines → Sidebar → `Catch Up` hides it.
 
-## 6.2 Fazer um catch-up
+## 6.2 Running a catch-up
 
-**Objetivo:** ver um resumo do que você deixou de ler.
+**Objective:** see a summary of what you missed.
 
-**Pré-condições:** você está conectado à sua conta.
+**Pre-conditions:** you are signed in to your account.
 
-1. Clique em `Catch Up` na barra lateral.
-2. A página inicial mostra o título `Catch Up` e a descrição *"A separate timeline for your followings, offering a high-level view at a glance"*.
-3. Escolha o período no botão do canto superior direito (ou no menu inicial): `Last hour`, `Last 3 hours`, `Last 6 hours`, `Last 12 hours`, `Last 24 hours`, `Since the last catch-up` ou `As far back as possible`.
-4. Clique em `_Catch Up`.
+1. Click `Catch Up` in the sidebar.
+2. The home page shows the title `Catch Up` and the description *"A separate timeline for your followings, offering a high-level view at a glance"*.
+3. Choose the period in the button at the top right corner (or in the start menu): `Last hour`, `Last 3 hours`, `Last 6 hours`, `Last 12 hours`, `Last 24 hours`, `Since the last catch-up` or `As far back as possible`.
+4. Click `_Catch Up`.
 
-**Resultado:** o Babble percorre a timeline e mostra o progresso — `Scanning timeline…`, com a contagem `"{n} posts evaluated"` e o intervalo `({n} h back)`. Ao terminar, aparecem os resultados.
+**Result:** Babble walks the timeline and shows the progress — `Scanning timeline…`, with the count `"{n} posts evaluated"` and the span `({n} h back)`. When it finishes, the results appear.
 
-**Se der errado:** o botão `_Cancel` interrompe a varredura e mostra o que já foi juntado. O catch-up consome até cerca de 30 requisições ao servidor, e servidores com limite de taxa podem responder `The server is limiting requests, so this catch-up is incomplete. Try again in {n} minutes.`
+**If it goes wrong:** the `_Cancel` button stops the scan and shows what has been gathered so far. A catch-up uses up to about 30 server requests, and servers with a rate limit may answer `The server is limiting requests, so this catch-up is incomplete. Try again in {n} minutes.`
 
-## 6.3 A grade de destaques
+## 6.3 The highlights grid
 
-O primeiro lugar da página é uma grade de *destaques*: um conjunto de cartões de tamanho variado, escolhido pelo ranqueamento. Cada cartão é um tipo diferente de informação:
+The first thing on the page is a grid of *highlights*: a set of cards of varying sizes, chosen by the ranking. Each card is a different kind of information:
 
-| Tipo de cartão | O que mostra |
+| Card type | What it shows |
 |---|---|
-| Publicação | O post, com as contagens de respostas, impulsos e favoritos, e quem impulsionou (`{conta} boosted`, `{conta} and {n} other boosted`). |
-| Notícia | Um link em alta, com o rótulo `News` e um botão `Open in Browser`. |
-| Hashtag | Uma tag em alta, com o rótulo `Hashtag`, o nome `#tag`, a linha de uso e a marca `Following` se você segue a tag. |
+| Post | The post, with the counts of replies, boosts and favorites, and who boosted it (`{account} boosted`, `{account} and {n} other boosted`). |
+| News | A trending link, with the `News` label and an `Open in Browser` button. |
+| Hashtag | A trending tag, with the `Hashtag` label, the name `#tag`, the usage line and the `Following` mark if you follow the tag. |
 
-Publicações que estão em alta no momento recebem o selo `Trending`.
+Posts that are trending at the moment get the `Trending` badge.
 
-O botão `Show More` expande a grade — quantas páginas aparecem é lembrado para cada instantâneo.
+The `Show More` button expands the grid — how many pages appear is remembered for each snapshot.
 
-## 6.4 A lista de todas as publicações
+## 6.4 The list of all posts
 
-Abaixo da grade, a seção `All posts` lista **todas** as publicações do instantâneo, uma por linha, de forma compacta: avatar, nome, uma linha de resumo (o texto do aviso de conteúdo, quando há um; o corpo, quando não), até três miniaturas, as contagens de respostas, impulsos e favoritos, a hora relativa e a marca `Thread` nas publicações que iniciaram um fio.
+Below the grid, the `All posts` section lists **all** the posts in the snapshot, one per row, in a compact form: avatar, name, a one-line summary (the content warning text, when there is one; the body, when there is not), up to three thumbnails, the counts of replies, boosts and favorites, the relative time and the `Thread` mark on posts that started a thread.
 
-Clicar em uma linha abre o fio.
+Clicking a row opens the thread.
 
-Acima da lista há dois controles:
+Above the list there are two controls:
 
-- **Uma fileira de pontos** — um ponto por publicação, em ordem cronológica, mostrando a distribuição no tempo. Os pontos que passam pelos filtros atuais ficam destacados. O leitor de tela anuncia `Posts over time` e `"{mostrados} of {total}"`.
-- **Uma fileira de avatares** — os autores, com a contagem de publicações de cada um, do mais ativo para o menos.
+- **A row of dots** — one dot per post, in chronological order, showing the distribution over time. The dots that pass the current filters stand out. The screen reader announces `Posts over time` and `"{shown} of {total}"`.
+- **A row of avatars** — the authors, with the count of posts by each, from the most active to the least.
 
-## 6.5 Filtrar e ordenar
+## 6.5 Filtering and sorting
 
-O botão de opções da lista (`List Options`) abre um painel com três controles:
+The list options button (`List Options`) opens a panel with three controls:
 
 ### `Category`
 
-Filtra por tipo de publicação. As categorias são `All`, `Original`, `Replies`, `Boosts`, `Quotes`, `Followed tags`, `Groups` e `Filtered`. Cada uma mostra a contagem.
+Filters by post type. The categories are `All`, `Original`, `Replies`, `Boosts`, `Quotes`, `Followed tags`, `Groups` and `Filtered`. Each one shows the count.
 
 ### `Author`
 
-Um seletor com `All authors` e, abaixo, cada autor com a contagem de publicações.
+A selector with `All authors` and, below it, each author with their post count.
 
 ### `Sort by`
 
-| Ordenação | O que significa |
+| Sort | What it means |
 |---|---|
-| `Time` | Cronológica. É a padrão, do mais antigo para o mais novo. |
-| `Replies` | Quantas respostas a publicação atraiu. |
-| `Likes` | Quantos favoritos. |
-| `Boosts` | Quantos impulsos. |
-| `Density` | Concentração de conversa — quantas pessoas falaram sobre o mesmo assunto. |
-| `Relevance` | O que o ranqueamento achou mais relevante. |
+| `Time` | Chronological. It is the default, oldest first. |
+| `Replies` | How many replies the post attracted. |
+| `Likes` | How many favorites. |
+| `Boosts` | How many boosts. |
+| `Density` | Conversation concentration — how many people talked about the same topic. |
+| `Relevance` | What the ranking found most relevant. |
 
-Duas chaves alternam o sentido: `Ascending` e `Descending`. E há o interruptor `Group by author`, que junta as publicações do mesmo autor.
+Two keys toggle the direction: `Ascending` and `Descending`. And there is the `Group by author` switch, which brings the posts by the same author together.
 
-O botão `_Reset Filters` volta tudo ao padrão.
+The `_Reset Filters` button puts everything back to the default.
 
-Cada mudança é confirmada por um toast que descreve o que mudou — por exemplo, *"Showing boosts, most likes first, grouped by authors"*.
+Every change is confirmed by a toast that describes what changed — for example, *"Showing boosts, most likes first, grouped by authors"*.
 
-## 6.6 Os instantâneos anteriores
+## 6.6 Previous snapshots
 
-O menu de período tem uma seção `Previous catch-ups`, com os três últimos instantâneos da conta. Cada um é rotulado `{início} – {fim} · {n} publicações}` e tem um botão de remoção (`Remove This Catch-Up`).
+The period menu has a `Previous catch-ups` section, with the account's three most recent snapshots. Each one is labelled `{start} – {end} · {n} posts` and has a remove button (`Remove This Catch-Up`).
 
-Remover exige confirmação: `Remove This Catch-Up?` — *"It will be deleted from this device."*
+Removing asks for confirmation: `Remove This Catch-Up?` — *"It will be deleted from this device."*
 
-Abrir um instantâneo antigo não refaz a varredura: ele simplesmente reabre o arquivo já gravado.
+Opening an old snapshot does not rescan anything: it simply reopens the file that was already written.
 
-## 6.7 Os avisos que o Catch Up pode exibir
+## 6.7 The notices Catch Up can show
 
-| Faixa | O que significa |
+| Banner | What it means |
 |---|---|
-| `Covers {intervalo} ({n} posts)` | A cobertura foi menor do que a janela pedida — o servidor entrega no máximo 800 publicações da `Home`. |
-| `Only {n} post in {intervalo}` | Houve pouco movimento no período. A faixa oferece `Catch up on 24 hours`. |
-| `The server is limiting requests…` | A varredura foi interrompida pelo limite de taxa do servidor. |
-| `This catch-up could not be saved…` | O instantâneo não pôde ser gravado e não estará lá da próxima vez. |
+| `Covers {interval} ({n} posts)` | The coverage was smaller than the requested window — the server delivers at most 800 posts from `Home`. |
+| `Only {n} post in {interval}` | There was little activity in the period. The banner offers `Catch up on 24 hours`. |
+| `The server is limiting requests…` | The scan was cut short by the server's rate limit. |
+| `This catch-up could not be saved…` | The snapshot could not be written, and it will not be there next time. |
 
-O rodapé do menu de período avisa sobre o limite de 800: *"Your server might only show a maximum of 800 posts in the Home timeline regardless of the time range."*
+The footer of the period menu warns about the limit of 800: *"Your server might only show a maximum of 800 posts in the Home timeline regardless of the time range."*
 
-## 6.8 Como o ranqueamento funciona
+## 6.8 How the ranking works
 
-Esta seção é conceitual: ela explica o critério para que você entenda o que está no topo da grade.
+This section is conceptual: it explains the criterion, so that you understand what sits at the top of the grid.
 
-O ranqueamento é uma **porta, função por função,** do modelo "For You" do Elk — um cliente Mastodon cuja ordenação é uma transcrição do ranqueador de código aberto da X (o `home-mixer` do `x-algorithm`). O Babble não treina modelo nenhum: ele calcula, no seu computador, um conjunto de *cabeças de ação* (responder, favoritar, impulsionar, permanecer na tela, velocidade de interação, alcance, volume do autor) e as combina com os pesos que a X usa em produção.
+The ranking is a **port, function by function,** of the "For You" model of Elk — a Mastodon client whose ordering is a transcription of X's open source ranker (the `home-mixer` of `x-algorithm`). Babble trains no model at all: it computes, on your computer, a set of *action heads* (reply, favorite, boost, dwell, interaction speed, reach, author volume) and combines them with the weights X uses in production.
 
-Três regras merecem menção:
+Three rules deserve a mention:
 
-- **Seguidor mútuo.** Uma publicação original de alguém que você segue e que segue você ganha um impulso forte na cabeça de respostas.
-- **Vídeo.** O sinal de qualidade de vídeo só conta para vídeos com mais de 10 segundos, e para autores com poucos seguidores.
-- **Diversidade.** Depois da pontuação, o Babble reordena para não mostrar cinco respostas do mesmo fio nem o mesmo autor o tempo todo.
+- **Mutual follower.** An original post by someone you follow and who follows you gets a strong boost in the reply head.
+- **Video.** The video quality signal only counts for videos longer than 10 seconds, and for authors with few followers.
+- **Diversity.** After scoring, Babble reorders so that you do not get five replies from the same thread, or the same author all the time.
 
-A ordenação por `Relevance` na lista de todas as publicações usa exatamente essa pontuação. As demais ordenações — `Replies`, `Likes`, `Boosts`, `Density` — são contagens diretas, sem modelo.
+The `Relevance` sorting in the list of all posts uses exactly that score. The other sortings — `Replies`, `Likes`, `Boosts`, `Density` — are direct counts, with no model.
 
-## 6.9 Resumo
+## 6.9 Summary
 
-| Pergunta | Resposta |
+| Question | Answer |
 |---|---|
-| Perdi mensagens, como recupero? | `Catch Up` na barra lateral. |
-| Quanto tempo ele volta? | De 1 a 24 horas, desde o último catch-up, ou o máximo que o servidor der. |
-| Ele muda com o tempo? | Não. O resultado é gravado como instantâneo. |
-| Onde fica guardado? | No seu computador, por conta. |
-| Custa requisições ao servidor? | Sim, até cerca de 30 por catch-up. |
+| I missed posts, how do I recover them? | `Catch Up` in the sidebar. |
+| How far back does it go? | From 1 to 24 hours, since the last catch-up, or as far as the server allows. |
+| Does it change over time? | No. The result is stored as a snapshot. |
+| Where is it kept? | On your computer, per account. |
+| Does it cost server requests? | Yes, up to about 30 per catch-up. |

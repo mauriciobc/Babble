@@ -252,7 +252,7 @@ Você gerencia os filtros em Preferências → Reading → `Manage Filters`, ou 
 
 `Open Profile`, no menu principal, abre o seu perfil. A diferença em relação ao perfil dos outros: o botão da barra inferior vira `Edit Profile`, e o menu `More Options` perde os itens que só fazem sentido para o outro (`Follow`, `Mention`, `Direct Message`).
 
-O diálogo `Edit Profile` tem quatro grupos:
+O diálogo `Edit Profile` tem os seguintes grupos:
 
 - **Images** — `Avatar`, `Avatar Description`, `Header Image`, `Header Description`, cada um com um botão `Choose…`.
 - **About** — `Display Name` e `Bio`.
