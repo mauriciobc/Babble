@@ -211,26 +211,59 @@ for language in languages:
 # --- the manual --------------------------------------------------------
 
 manual_dir = os.path.join(root, 'Docs', 'manual')
+manual_pt = os.path.join(root, 'Docs', 'pt_BR', 'manual')
 chapters = sorted(name for name in os.listdir(manual_dir)
                    if name.endswith('.md'))
 check('the manual has a chapter per file (%d)' % len(chapters),
       len(chapters) >= 2)
 
-for name in chapters:
-    text = read(os.path.join(manual_dir, name))
-    if name == 'README.md':
-        for field in ('Identificador / versão', 'Data de emissão',
-                      'Escopo', 'Propósito', 'Histórico'):
-            check('the manual front matter names %s' % field, field in text)
-        # The field names travel with the item: a manual written in
-        # Portuguese calls the approval field "Aprovação". What is fixed
-        # is the field, not its label.
-        check('the manual front matter names the approval',
-              'Aprovado por' in text or 'Aprovação' in text)
-        continue
-    check('%s carries the manual identifier' % name, 'BABBLE-MAN-001' in text)
-    check('%s carries a version and a status' % name,
-          re.search(r'v\d+\.\d+\s+—\s+\w', text) is not None)
+# The manual exists in two languages. The two editions carry the same
+# chapters, matched by their number, and the same sections.
+chapters_pt = sorted(name for name in os.listdir(manual_pt)
+                      if name.endswith('.md'))
+check('the Portuguese manual has the same number of chapters (%d vs %d)'
+      % (len(chapters), len(chapters_pt)), len(chapters) == len(chapters_pt))
+
+
+def number_of(name):
+    """The chapter number of a manual file, or None for the front
+    matter."""
+    match = re.match(r'(\d+)-', name)
+    return match.group(1) if match else None
+
+
+numbers_en = sorted(filter(None, (number_of(n) for n in chapters)))
+numbers_pt = sorted(filter(None, (number_of(n) for n in chapters_pt)))
+check('both editions carry the same chapter numbers',
+      numbers_en == numbers_pt)
+
+for language, directory, names in (('EN', manual_dir, chapters),
+                                   ('PT', manual_pt, chapters_pt)):
+    for name in names:
+        text = read(os.path.join(directory, name))
+        if name == 'README.md':
+            fields = (('Identificador / versão', 'Identifier / version'),
+                      ('Data de emissão', 'Date of issue'),
+                      ('Escopo', 'Scope'), ('Propósito', 'Purpose'))
+            for portuguese, english in fields:
+                check('the %s manual front matter names %s' % (language,
+                                                              portuguese),
+                      portuguese in text or english in text)
+            # The change history is a section, not a field, and its title
+            # travels with the item.
+            check('the %s manual carries a change history' % language,
+                  re.search(r'(?i)hist[oó]rico|history', text) is not None)
+            # The field names travel with the item: a manual written in
+            # Portuguese calls the approval field "Aprovação". What is
+            # fixed is the field, not its label.
+            check('the %s manual front matter names the approval' % language,
+                  'Aprovado por' in text or 'Aprovação' in text
+                  or 'Approved by' in text)
+            continue
+        check('%s/%s carries the manual identifier' % (language, name),
+              'BABBLE-MAN-001' in text)
+        check('%s/%s carries a version and a status' % (language, name),
+              re.search(r'v\d+\.\d+\s+—\s+\w', text) is not None)
 
 # Every link and anchor in the manual resolves.
 
@@ -248,19 +281,21 @@ def anchors_of(path):
 
 
 broken = []
-for name in chapters:
-    path = os.path.join(manual_dir, name)
-    text = read(path)
-    for target in re.findall(r'\]\(([^)]+)\)', text):
-        if target.startswith(('http://', 'https://', 'mailto:')):
-            continue
-        filename, _, anchor = target.partition('#')
-        other = os.path.join(manual_dir, filename) if filename else path
-        if filename and not os.path.exists(other):
-            broken.append('%s -> %s' % (name, target))
-            continue
-        if anchor and anchor not in anchors_of(other):
-            broken.append('%s -> %s' % (name, target))
+for language, directory, names in (('EN', manual_dir, chapters),
+                                   ('PT', manual_pt, chapters_pt)):
+    for name in names:
+        path = os.path.join(directory, name)
+        text = read(path)
+        for target in re.findall(r'\]\(([^)]+)\)', text):
+            if target.startswith(('http://', 'https://', 'mailto:')):
+                continue
+            filename, _, anchor = target.partition('#')
+            other = os.path.join(directory, filename) if filename else path
+            if filename and not os.path.exists(other):
+                broken.append('%s/%s -> %s' % (language, name, target))
+                continue
+            if anchor and anchor not in anchors_of(other):
+                broken.append('%s/%s -> %s' % (language, name, target))
 for item in broken:
     print('    %s does not resolve' % item)
 check('every link in the manual resolves (%d broken)' % len(broken),
@@ -270,7 +305,11 @@ check('every link in the manual resolves (%d broken)' % len(broken),
 
 TABLE_START = '<!-- label-table:start -->'
 TABLE_END = '<!-- label-table:end -->'
-CHAPTER_TEN = os.path.join(manual_dir, '10-referencia.md')
+# The table maps English interface labels to their Portuguese ones, so
+# it belongs to the Brazilian Portuguese edition of chapter 10. The
+# English edition says where the table is instead of repeating it.
+CHAPTER_TEN = os.path.join(root, 'Docs', 'pt_BR', 'manual',
+                           '10-referencia.md')
 
 
 def catalogue(path):
@@ -318,10 +357,15 @@ def is_a_label(candidate):
 
 
 def cited_labels():
-    """The interface text the manual cites, outside its own label table."""
+    """The interface text the manual cites, outside its own label table.
+
+    The table lives in the Brazilian Portuguese edition, so that is the
+    tree that is scanned: the table lists the labels the manual quotes,
+    and both editions quote the same ones.
+    """
     found = set()
-    for name in chapters:
-        text = read(os.path.join(manual_dir, name))
+    for name in chapters_pt:
+        text = read(os.path.join(manual_pt, name))
         if name == '10-referencia.md':
             start = text.find(TABLE_START)
             end = text.find(TABLE_END)
@@ -375,12 +419,85 @@ check('the manual label table is current '
       '(regenerate: python3 src/test-docs.py --write-table)',
       fresh is not None and fresh == chapter_ten)
 
+# --- the two documentation trees ----------------------------------------
+
+# The formal set is written twice: English where the file already is,
+# Brazilian Portuguese under Docs/pt_BR/, mirroring the path. The
+# working notes are the project's own record and stay in English; a
+# translation of one of those would be a duplicate nobody asked for, so
+# the rule is enforced in both directions.
+BILINGUAL = ('README.md', 'features.md', 'building.md', 'signing-in.md',
+             'desktop-integration.md', 'localization.md',
+             'mastodon-compat.md', 'documentation-policy.md')
+
+docs_dir = os.path.join(root, 'Docs')
+docs_pt = os.path.join(docs_dir, 'pt_BR')
+
+for name in BILINGUAL:
+    check('Docs/%s exists' % name,
+          os.path.exists(os.path.join(docs_dir, name)))
+    check('Docs/pt_BR/%s exists' % name,
+          os.path.exists(os.path.join(docs_pt, name)))
+
+untranslated = []
+for name in BILINGUAL:
+    if not os.path.exists(os.path.join(docs_pt, name)):
+        untranslated.append(name)
+for name in untranslated:
+    print('    Docs/%s has no Brazilian Portuguese edition' % name)
+check('every formal document has a Brazilian Portuguese edition (%d missing)'
+      % len(untranslated), not untranslated)
+
+# The other way round: a Portuguese edition of something the policy
+# calls a working note is a duplicate.
+orphans = []
+for name in sorted(os.listdir(docs_pt)):
+    if name.endswith('.md') and name not in BILINGUAL:
+        orphans.append(name)
+for name in orphans:
+    print('    Docs/pt_BR/%s translates a document the policy calls a '
+          'working note' % name)
+check('no working note has a Brazilian Portuguese edition (%d orphans)'
+      % len(orphans), not orphans)
+
+# The link check runs over the Portuguese reference documents too.
+broken_pt = []
+for name in sorted(os.listdir(docs_pt)):
+    if not name.endswith('.md'):
+        continue
+    path = os.path.join(docs_pt, name)
+    text = read(path)
+    for target in re.findall(r'\]\(([^)]+)\)', text):
+        if target.startswith(('http://', 'https://', 'mailto:')):
+            continue
+        filename, _, anchor = target.partition('#')
+        other = os.path.join(docs_pt, filename) if filename else path
+        if filename and not os.path.exists(other):
+            broken_pt.append('%s -> %s' % (name, target))
+            continue
+        if anchor and anchor not in anchors_of(other):
+            broken_pt.append('%s -> %s' % (name, target))
+for item in broken_pt:
+    print('    %s does not resolve' % item)
+check('every link in the Portuguese documents resolves (%d broken)'
+      % len(broken_pt), not broken_pt)
+
 # --- the policy --------------------------------------------------------
 
 policy = read(os.path.join(root, 'Docs', 'documentation-policy.md'))
 for field in ('BABBLE-POL-001', 'Approved by', 'Scope', 'Purpose',
               'Change history'):
     check('the documentation policy names %s' % field, field in policy)
+
+policy_pt_path = os.path.join(docs_pt, 'documentation-policy.md')
+check('the policy has a Brazilian Portuguese edition',
+      os.path.exists(policy_pt_path))
+if os.path.exists(policy_pt_path):
+    policy_pt = read(policy_pt_path)
+    for field in ('BABBLE-POL-001', 'Aprovado por', 'Âmbito', 'Propósito',
+                  'Histórico'):
+        check('the Brazilian Portuguese policy names %s' % field,
+              field in policy_pt)
 
 if failures:
     print('%d checks failed' % failures)

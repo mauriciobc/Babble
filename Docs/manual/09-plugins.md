@@ -1,86 +1,86 @@
 # 9 — Plugins
 
-> **Documento:** `BABBLE-MAN-001` — capítulo 9 — v1.0 — aprovado
-> **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
+> **Document:** `BABBLE-MAN-001` — chapter 9 — v1.0 — approved
+> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
 
-Um plugin acrescenta uma função ao Babble: um item no menu de uma publicação, um painel numa página de hashtag, um par de entradas no menu principal, uma página de configurações própria. Ele é código de terceiros rodando dentro do aplicativo, com as mesmas permissões do aplicativo.
+A plugin adds a feature to Babble: an item in the menu of a post, a panel on a hashtag page, a pair of entries in the main menu, a settings page of its own. It is third-party code running inside the application, with the same permissions as the application.
 
-## 9.1 A página `Plugins`
+## 9.1 The `Plugins` page
 
-**Objetivo:** ver, ligar e desligar os plugins.
+**Objective:** see, enable and disable plugins.
 
-**Pré-condições:** o `libpeas 2` e seu carregador de Python estão instalados.
+**Pre-conditions:** `libpeas 2` and its Python loader are installed.
 
-1. Abra o menu principal e escolha `Plugins`. A página se divide em dois grupos:
-   - **`Included With Babble`** — os plugins que vêm com o aplicativo, revisados junto com ele.
-   - **`Installed by You`** — os plugins que você instalou.
-2. Ligue ou desligue cada plugin com o interruptor ao lado do nome.
-3. Se o plugin tiver configurações, o botão com uma engrenagem abre a subpágina delas.
+1. Open the main menu and choose `Plugins`. The page splits into two groups:
+   - **`Included With Babble`** — the plugins that ship with the application, reviewed along with it.
+   - **`Installed by You`** — the plugins you installed.
+2. Turn each plugin on or off with the switch next to its name.
+3. If the plugin has settings, the button with a gear opens their subpage.
 
-**Resultado:** a mudança vale a partir da próxima vez que o plugin for usado; desligar um plugin remove o que ele acrescentava.
+**Result:** the change takes effect the next time the plugin is used; turning a plugin off removes what it had added.
 
-**Se der errado:** se o `libpeas` não estiver instalado, a página mostra `Plugins Are Unavailable` — *"Babble needs libpeas 2 and its Python loader to load plugins"*. Nada mais acontece, e o resto do aplicativo funciona normalmente.
+**If it goes wrong:** if `libpeas` is not installed, the page shows `Plugins Are Unavailable` — *"Babble needs libpeas 2 and its Python loader to load plugins"*. Nothing else happens, and the rest of the application works normally.
 
-## 9.2 Onde colocar um plugin
+## 9.2 Where to put a plugin
 
-O botão `Open Plugins Folder` abre a pasta onde o Babble procura plugins:
+The `Open Plugins Folder` button opens the folder where Babble looks for plugins:
 
-| Situação | Caminho |
+| Situation | Path |
 |---|---|
-| Instalação comum | `~/.local/share/babble/plugins` |
-| Instalação em Flatpak | `~/.var/app/io.github.mauriciobc.Babble/data/babble/plugins` |
+| Regular installation | `~/.local/share/babble/plugins` |
+| Flatpak installation | `~/.var/app/io.github.mauriciobc.Babble/data/babble/plugins` |
 
-O Babble também procura plugins em `BABBLE_PLUGIN_PATH` (a variável de ambiente) e na pasta `plugins/` ao lado do pacote instalado.
+Babble also looks for plugins in `BABBLE_PLUGIN_PATH` (the environment variable) and in the `plugins/` folder next to the installed package.
 
-Um plugin é uma pasta com um arquivo `.plugin` e um módulo Python dentro. A pasta precisa ter um nome próprio, e o módulo é nomeado `babble_<nome>` para não colidir com nenhum pacote instalado.
+A plugin is a folder holding a `.plugin` file and a Python module. The folder needs a name of its own, and the module is named `babble_<name>` so that it does not collide with any installed package.
 
-## 9.3 Aviso importante
+## 9.3 Important warning
 
-> **Só ligue plugins em que você confie.**
+> **Only turn on plugins you trust.**
 
-Um plugin roda como parte do Babble e pode fazer tudo o que o Babble faz — inclusive ler e publicar com a sua conta. Os plugins que vêm com o aplicativo são revisados junto com ele; qualquer outro é tão seguro quanto quem o escreveu.
+A plugin runs as part of Babble and can do everything Babble does — including reading and posting with your account. The plugins that ship with the application are reviewed along with it; any other one is as safe as whoever wrote it.
 
-O grupo `Installed by You` traz a descrição: *"Plugins you install can do anything Babble can, including reading and posting with your account. Only turn on plugins you trust."*
+The `Installed by You` group carries the description: *"Plugins you install can do anything Babble can, including reading and posting with your account. Only turn on plugins you trust."*
 
-## 9.4 Os plugins que vêm com o Babble
+## 9.4 The plugins that ship with Babble
 
 ### Wallabag
 
-Acrescenta `Save to Wallabag` ao menu de cada publicação, para guardar o endereço do post e lê-lo depois no [Wallabag](https://wallabag.org).
+Adds `Save to Wallabag` to the menu of every post, to keep the address of the post and read it later in [Wallabag](https://wallabag.org).
 
-**Configuração, na primeira vez:** o plugin pede o endereço do servidor Wallabag (`app.wallabag.it` para o serviço hospedado, ou o seu), o **ID** e o **segredo** de um cliente de API — que você cria no Wallabag, em `API Clients Management` —, e o seu nome de usuário e a sua senha.
+**Setup, the first time:** the plugin asks for the address of the Wallabag server (`app.wallabag.it` for the hosted service, or your own), the **ID** and **secret** of an API client — which you create in Wallabag, under `API Clients Management` — and your username and password.
 
-A senha é usada uma vez, para entrar, e **não é guardada**. O chaveiro guarda o segredo do cliente e um token que mantém você assinado; se o token expirar, o plugin volta a pedir a entrada. O item `Sign Out` está nas configurações do plugin.
+The password is used once, to sign in, and **is not stored**. The keyring keeps the client secret and a token that keeps you signed in; if the token expires, the plugin asks you to sign in again. The `Sign Out` item is in the plugin's settings.
 
 ### Hashpanel
 
-O [Hashpanel](https://github.com/mauriciobc/hashpanel) acompanha as hashtags diárias do fediverse brasileiro — `#segundaficha`, por exemplo, às segundas.
+[Hashpanel](https://github.com/mauriciobc/hashpanel) follows the daily hashtags of the Brazilian fediverse — `#segundaficha`, for instance, on Mondays.
 
-Na página de uma hashtag que ele acompanha, o plugin mostra de quem é o dia, os favoritos, impulsos e respostas do dia, a comparação da semana com a anterior, e o post mais popular do dia.
+On the page of a hashtag it follows, the plugin shows whose day it is, the day's favorites, boosts and replies, the week's comparison with the previous one, and the most popular post of the day.
 
-O plugin **só pergunta ao Hashpanel sobre as hashtags que ele acompanha**: abrir qualquer outra hashtag não envia nada ao Hashpanel. A página `Hashtag Panel` nas configurações permite trocar o servidor do Hashpanel.
+The plugin **only asks Hashpanel about the hashtags it follows**: opening any other hashtag sends nothing to Hashpanel. The `Hashtag Panel` page in the settings lets you change the Hashpanel server.
 
 ### Na Real
 
-O [Na Real](https://codeberg.org/thiagojedi/na-real) é um aplicativo de perguntas e respostas anônimas do fediverse: alguém faz uma pergunta a uma conta, sem se identificar, e a conta responde.
+[Na Real](https://codeberg.org/thiagojedi/na-real) is an anonymous question-and-answer application for the fediverse: someone asks a question of an account, without identifying themselves, and the account answers.
 
-O plugin acrescenta duas entradas ao **menu principal** do Babble:
+The plugin adds two entries to the **main menu** of Babble:
 
-- `My Questions` — o painel com as perguntas dirigidas a você;
-- `Share My Questions Link` — o compositor, com um convite e o seu endereço público.
+- `My Questions` — the panel with the questions addressed to you;
+- `Share My Questions Link` — the composer, with an invitation and your public address.
 
-Ele não acrescenta nada às publicações nem aos perfis. Como o Na Real é um aplicativo da web que precisa de JavaScript, o plugin o mostra na coluna web do Babble e programa um pouco a página: no formulário de entrada, o servidor da sua conta já vem preenchido (o clique em `Log in` continua sendo seu); nas listas de perguntas, o link `Ver postagem` abre o fio dentro do Babble; o botão de compartilhar do Na Real abre o compositor do Babble em vez de copiar o endereço; e a hashtag do próprio Na Real ganha uma linha que a abre.
+It adds nothing to posts or profiles. Because Na Real is a web application that needs JavaScript, the plugin shows it in Babble's web column and does a little programming of the page: in the sign-in form, the server of your account is already filled in (clicking `Log in` is still yours); in the question lists, the `Ver postagem` link opens the thread inside Babble; Na Real's share button opens Babble's composer instead of copying the address; and Na Real's own hashtag gains a line that opens it.
 
-Cada instalação do Na Real é um servidor próprio, e qual usar é uma configuração do plugin.
+Each installation of Na Real is a server of its own, and which one to use is a plugin setting.
 
-## 9.5 Quando um plugin não funciona
+## 9.5 When a plugin does not work
 
-| Situação | O que aparece |
+| Situation | What appears |
 |---|---|
-| O plugin não pôde ser carregado | Uma mensagem sob o nome dele, com um sinal de aviso. Ele é tentado de novo na próxima vez que o Babble iniciar. |
-| O plugin parou de funcionar | O motivo aparece sob o nome, com um sinal de aviso, **e o plugin é desligado**. O Babble avisa que o desligou. |
-| O plugin foi feito para outra versão do Babble | Ele não é carregado. |
+| The plugin could not be loaded | A message under its name, with a warning sign. It is tried again the next time Babble starts. |
+| The plugin stopped working | The reason appears under the name, with a warning sign, **and the plugin is turned off**. Babble tells you that it turned it off. |
+| The plugin was made for a different version of Babble | It is not loaded. |
 
-O detalhe técnico de cada caso fica no log do sistema — veja [11.6](11-solucao-de-problemas.md#116-o-log-do-sistema).
+The technical detail of each case is in the system log — see [11.6](11-troubleshooting.md#116-the-system-log).
 
-Um detalhe importante: **o Python não consegue descarregar um módulo**. Um plugin que foi carregado e falhou continua registrado até o Babble reiniciar. Por isso a mensagem de falha só some de verdade depois de reiniciar o aplicativo.
+One important detail: **Python cannot unload a module**. A plugin that was loaded and failed stays registered until Babble restarts. That is why the failure message only really goes away after you restart the application.

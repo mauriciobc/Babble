@@ -126,8 +126,6 @@ Para extrair vídeo ou áudio, o que vai para fora é o arquivo baixado ou o end
 
 **Resultado:** um toast `Saved “{nome}”` aparece, com um botão `Show in Folder` que abre o gerenciador de arquivos no lugar certo. Durante o download, uma barra de progresso fica no visualizador.
 
-**Se der errado:** se o aviso for `Could not save media`, o destino não é gravável ou a conexão caiu no meio. Para mídia que o seu servidor não tem, veja [5.7](#57-mídia-que-está-em-outro-servidor).
-
 **Se der errado:** `Could not save media`.
 
 ## 5.7 Mídia que está em outro servidor
