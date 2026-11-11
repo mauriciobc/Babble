@@ -3,10 +3,10 @@
 | | |
 |---|---|
 | **Title** | Babble documentation policy — what gets documented, who writes it, who approves it, and when it changes |
-| **Identifier / version** | `BABBLE-POL-001` — v1.1 — in review |
+| **Identifier / version** | `BABBLE-POL-001` — v1.1 — approved |
 | **Date of issue** | 2026-11-11 |
 | **Author** | The Babble maintainers |
-| **Approved by** | The maintainer, in the merge of [PR #107](https://github.com/mauriciobc/Babble/pull/107) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
+| **Approved by** | The maintainer, in the merge of [PR #108](https://github.com/mauriciobc/Babble/pull/108) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
 | **Scope** | Every document the project ships or keeps: the user manual, the in-app help pages, the reference and plan documents under `Docs/`, the working notes at the repository root, and the translation catalogues -- each in English and, where the set says so, in Brazilian Portuguese. It covers **how** those documents are planned, written, translated, reviewed, approved, versioned, distributed and retired. It does not cover the software itself, the release process, or what the documents say. |
 | **Purpose** | To keep the documentation true of the software it describes, without paying for that with process the project cannot sustain. A policy that nobody follows is worse than none, because it is then cited as if it were. |
 | **References** | ISO/IEC/IEEE 12207 (governance of the documentation process); ISO/IEC/IEEE 15289 (content and identification of information items); ISO/IEC 26514 (user documentation); ISO/IEC/IEEE 29148 (requirements). Project documents: [the user manual](manual/README.md), [Docs/README.md](README.md) (the index), [Docs/flathub.md](flathub.md) (a policy of the same kind, for a different subject). The Brazilian Portuguese edition of this policy is [Docs/pt_BR/documentation-policy.md](pt_BR/documentation-policy.md). |
@@ -388,4 +388,4 @@ The first is enforced by the suite. The second and third are cheap searches; the
 | Version | Date | Author | Change |
 |---|---|---|---|
 | 1.0 | 2026-11-11 | The Babble maintainers | First version. Written after the user manual and the Portuguese help pages, which showed what was missing: a written-down rito, a named approver, and a test that keeps the documents true of the code. Approved in the merge of PR #107. |
-| 1.1 | 2026-11-11 | The Babble maintainers | The documentation is written twice: a new section on the two language trees, the naming rule for a translation, and the mechanical check that holds the two editions together. |
+| 1.1 | 2026-11-11 | The Babble maintainers | The documentation is written twice: a new section on the two language trees, the naming rule for a translation, and the mechanical check that holds the two editions together. |. Approved in the merge of PR #108.
