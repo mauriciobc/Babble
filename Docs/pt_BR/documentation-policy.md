@@ -3,10 +3,10 @@
 | | |
 |---|---|
 | **Título** | Política de documentação do Babble — o que é documentado, quem escreve, quem aprova e quando muda |
-| **Identificador / versão** | `BABBLE-POL-001` — v1.2 — em revisão |
+| **Identificador / versão** | `BABBLE-POL-001` — v1.2 — aprovado |
 | **Data de emissão** | 2026-11-11 |
 | **Autoria** | Os mantenedores do Babble |
-| **Aprovado por** | Pendente: a v1.2 é aprovada pelo mantenedor na fusão do pull request que a traz, e esse pull request é citado aqui na fusão. A v1.1 foi aprovada na fusão do [PR #108](https://github.com/mauriciobc/Babble/pull/108) (2026-11-11). O pull request é o registro: contém o diff, a revisão, a execução da CI e a fusão. |
+| **Aprovado por** | O mantenedor, na fusão do [PR #109](https://github.com/mauriciobc/Babble/pull/109) (2026-11-11). O pull request é o registro: contém o diff, a revisão, a execução da CI e a fusão. |
 | **Âmbito** | Todos os documentos que o projeto distribui ou mantém: o manual do usuário, as páginas de ajuda no aplicativo, os documentos de referência e de plano sob `Docs/`, as notas de trabalho na raiz do repositório e os catálogos de tradução — cada um em inglês e, onde o conjunto assim o diz, em português do Brasil. Cobre **como** esses documentos são planejados, escritos, traduzidos, revisados, aprovados, versionados, distribuídos e aposentados. Não cobre o software em si, o processo de versão estável, nem o que os documentos dizem. |
 | **Propósito** | Manter a documentação fiel ao software que descreve, sem pagar esse preço com um processo que o projeto não consegue sustentar. Uma política que ninguém segue é pior do que nenhuma, porque passa a ser citada como se fosse. |
 | **Referências** | ISO/IEC/IEEE 12207 (governança do processo de documentação); ISO/IEC/IEEE 15289 (conteúdo e identificação dos itens de informação); ISO/IEC 26514 (documentação do usuário); ISO/IEC/IEEE 29148 (requisitos). Documentos do projeto: [o manual do usuário](manual/README.md), [Docs/README.md](README.md) (o índice), [Docs/flathub.md](../flathub.md) (uma política do mesmo tipo, para outro assunto). A edição brasileira desta política é [Docs/pt_BR/documentation-policy.md](../pt_BR/documentation-policy.md). |
@@ -389,4 +389,4 @@ O primeiro é imposto pela suíte. O segundo e o terceiro são buscas baratas; o
 |---|---|---|---|
 | 1.0 | 2026-11-11 | Os mantenedores do Babble | Primeira versão. Escrita depois do manual do usuário e das páginas de ajuda em português, que mostraram o que faltava: um rito escrito, um aprovador nomeado e um teste que mantém a documentação fiel ao código. Aprovada na fusão do PR #107. |
 | 1.1 | 2026-11-11 | Os mantenedores do Babble | A documentação é escrita duas vezes: uma nova secção sobre as duas árvores de idiomas, a regra de nomenclatura de uma tradução, e a verificação mecânica que mantém as duas edições em passo. |. Approved in the merge of PR #108.
-| 1.2 | 2026-11-11 | Os mantenedores do Babble | Uma correção de conteúdo nos termos da seção 4.2 (MINOR): o inventário (seção 3.2) lista `Docs/glossary.md`, uma nota de trabalho para contribuidores (os termos de domínio em que o código se apoia; fica em inglês, como a seção 3.5 diz das notas de trabalho), e a seção 1 conta vinte e oito arquivos sob `Docs/` em vez de vinte e sete. O que a política diz não muda. |
+| 1.2 | 2026-11-11 | Os mantenedores do Babble | Uma correção de conteúdo nos termos da seção 4.2 (MINOR): o inventário (seção 3.2) lista `Docs/glossary.md`, uma nota de trabalho para contribuidores (os termos de domínio em que o código se apoia; fica em inglês, como a seção 3.5 diz das notas de trabalho), e a seção 1 conta vinte e oito arquivos sob `Docs/` em vez de vinte e sete. O que a política diz não muda. Aprovada na fusão do PR #109. |
