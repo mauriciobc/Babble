@@ -75,24 +75,25 @@ class World:
         self.public = public
         self.home = rec['home'] if with_pages else None
         self.notifications = rec['notifications'] if with_pages else None
-        self.public_pages = {'local': rec['local'],
-                             'federated': rec['federated']} \
-            if with_pages else {}
-        self.places = {'conversations': rec['conversations']} \
+        # Shaped like the real navigation: local and federated are built
+        # places (its ``children``), and each place's timeline is listed
+        # once, in build order.
+        self.places = {'local': rec['local'],
+                       'federated': rec['federated'],
+                       'conversations': rec['conversations']} \
             if with_pages else {}
         self.stream_places = [
             StreamPlace('list', '12', rec['list'], False),
             StreamPlace('tag', 'rust', rec['tagpage'], False)] \
             if with_pages else []
-        self.timelines = [rec['list'], rec['tagpage']] \
-            if with_pages else []
+        self.timelines = [rec['local'], rec['federated'], rec['list'],
+                          rec['tagpage']] if with_pages else []
 
     def host(self):
         log = self.log
         return StreamHost(
             home_page=lambda: self.home,
             notifications_page=lambda: self.notifications,
-            public_pages=lambda: self.public_pages,
             place=self.places.get,
             stream_places=lambda: list(self.stream_places),
             place_timelines=lambda: list(self.timelines),
@@ -113,6 +114,7 @@ def dispatch(name, stream=USER, with_pages=True):
     return world.log, payload
 
 
+# In delivery order: home, then the built places' timelines.
 TIMELINES = ('home', 'local', 'federated', 'list', 'tagpage')
 # The events that fan out to every timeline page: the method each calls,
 # and whether the conversations place hears it too (after the timelines).
@@ -121,15 +123,15 @@ FAN_OUT = {'delete': ('on_stream_delete', True),
 
 
 def fans_out(log, name, payload):
-    """Every timeline page got the event (each at least once), nothing
-    else did, and the conversations place, where it hears it, came last.
-    How many times a page is reached is not asserted here."""
+    """Every timeline page got the event exactly once, in the order home,
+    then the places as built, nothing else did, and the conversations
+    place, where it hears it, came last."""
     method, conversations = FAN_OUT[name]
     p = (payload,)
     heard = [entry for entry in log if entry[0] != 'conversations']
     last = [entry for entry in log if entry[0] == 'conversations']
     return (all(entry[1:] == (method, p) for entry in heard)
-            and {entry[0] for entry in heard} == set(TIMELINES)
+            and [entry[0] for entry in heard] == list(TIMELINES)
             and last == ([('conversations', method, p)]
                          if conversations else [])
             and (not last or log[-1] == last[0]))
@@ -221,32 +223,26 @@ router.route(USER, 'update', {'id': 'second'})
 check('the router looks a page up at each event, holding none',
       world.log == [('local', 'on_stream_update', ({'id': 'second'},))])
 
-# Timeline pages: home, the public ones, then each place's, and only
+# Timeline pages: home, then each built place's, each once, and only
 # timeline pages (the conversations page is not one).
 world = World()
 world.timelines.append(world.rec['conversations'])
 found = StreamRouter(world.host()).timeline_pages()
-check('the timeline pages are home, the public ones and the places\' own, '
-      'and only timeline pages',
-      all(any(page is world.rec[name] for page in found)
-          for name in TIMELINES)
-      and not any(page is world.rec['conversations'] for page in found))
+check('the timeline pages are home then the places\' own, each once, in '
+      'that order, and only timeline pages',
+      [next(name for name, rec in world.rec.items() if rec is page)
+       for page in found] == list(TIMELINES))
 check('and none at all while nothing is built',
       StreamRouter(World(with_pages=False).host()).timeline_pages() == [])
 
-# KNOWN: local and federated are reached twice by a fan-out. They are in
-# the host's public pages and also among the built places (as the real
-# navigation has them), so timeline_pages() lists each twice. This
-# documents existing behaviour, not a requirement: remove this check with
-# the fix that stops the duplicate.
-world = World()
-world.timelines = [world.rec['local'], world.rec['federated']] \
-    + world.timelines
-StreamRouter(world.host()).route(USER, 'delete', {'id': 'D'})
-check('known: local and federated are reached twice by delete',
-      [entry[0] for entry in world.log].count('local') == 2
-      and [entry[0] for entry in world.log].count('federated') == 2
-      and [entry[0] for entry in world.log].count('home') == 1)
+# Local and federated are built places and are not listed a second time as
+# public pages: a delete and a status update reach each page once.
+for event in ('delete', 'status.update'):
+    world = World()
+    StreamRouter(world.host()).route(USER, event, {'id': 'D'})
+    names = [entry[0] for entry in world.log]
+    check('%s reaches local and federated once each, and home once' % event,
+          all(names.count(name) == 1 for name in TIMELINES))
 
 
 # The wanted streams, from every setting and every built place.
@@ -257,9 +253,9 @@ def wanted(public=True, conversations=False, local=False, federated=False,
     if conversations:
         world.places['conversations'] = rec['conversations']
     if local:
-        world.public_pages['local'] = rec['local']
+        world.places['local'] = rec['local']
     if federated:
-        world.public_pages['federated'] = rec['federated']
+        world.places['federated'] = rec['federated']
     world.stream_places = list(places)
     return StreamRouter(world.host()).wanted_streams()
 
