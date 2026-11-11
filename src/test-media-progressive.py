@@ -36,7 +36,7 @@ gi.require_version('Adw', '1')
 
 gi.require_version('GstPlay', '1.0')
 
-from gi.repository import Adw, GLib, GstPlay, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, GObject, GstPlay, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -46,6 +46,7 @@ if not os.environ.get('DISPLAY') \
 Adw.init()
 
 from src import mediaengine, mediaplayback, mediaviewer  # noqa: E402
+from src import mediapolicy, sysstate  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
     'media_fixture', os.path.join(srcdir, 'test-media-fixture.py'))
@@ -79,8 +80,20 @@ def settle(seconds):
     wait(lambda: False, seconds)
 
 
+class FakeMonitor(GObject.Object):
+    """The system state as plain properties: the real monitor asks
+    Gio.NetworkMonitor, which can hang on a CI runner."""
+    __gsignals__ = {
+        'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+    online = GObject.Property(type=bool, default=True)
+    metered = GObject.Property(type=bool, default=False)
+    power_saver = GObject.Property(type=bool, default=False)
+
+
 # Not metered, not saving power: a video streams at once.
-mediaplayback._system_state = lambda name: False
+monitor = FakeMonitor()
+sysstate._monitor = monitor
 
 directory = os.path.dirname(fixture.write_clip())
 media_path = fixture.write_long_clip(directory)
@@ -223,7 +236,10 @@ wait(lambda: not mediaengine._releasing, 5)
 gtk_settings = Gtk.Settings.get_default()
 saved_motion = gtk_settings.get_property('gtk-interface-reduced-motion')
 saved_anim = gtk_settings.get_property('gtk-enable-animations')
-saved_state = mediaplayback._system_state
+
+
+def loop_allowed():
+    return mediapolicy.may_loop(mediapolicy.read_state())
 
 
 def gifv(url):
@@ -241,12 +257,12 @@ try:
                               Gtk.ReducedMotion.NO_PREFERENCE)
     gtk_settings.set_property('gtk-enable-animations', True)
     check('the check is True with nothing against motion',
-          mediaplayback.may_autoplay_loop())
+          loop_allowed())
 
     gtk_settings.set_property('gtk-interface-reduced-motion',
                               Gtk.ReducedMotion.REDUCE)
     check('the check is False under reduced motion',
-          not mediaplayback.may_autoplay_loop())
+          not loop_allowed())
     viewer = open_gifv()
     settle(0.5)
     check('a GIFV does not autoplay under reduced motion',
@@ -270,7 +286,6 @@ try:
     # A click starts it; an unrelated notify must not pause it.
     viewer._on_gifv_clicked(None, 1, 0, 0, viewer._stream)
     check('a click starts a held GIFV', viewer._stream.get_playing())
-    from src import sysstate
     sysstate.monitor().notify('power-saver')
     check('an unrelated notify leaves a clicked GIFV playing',
           viewer._stream.get_playing())
@@ -296,10 +311,10 @@ try:
     gtk_settings.set_property('gtk-enable-animations', True)
     check('... and on resumes it', wait(viewer._stream.get_playing, 5))
 
-    mediaplayback._system_state = lambda name: name == 'power-saver'
+    monitor.set_property('power-saver', True)
     sysstate.monitor().notify('power-saver')
     check('power saving pauses the GIFV', not viewer._stream.get_playing())
-    mediaplayback._system_state = lambda name: False
+    monitor.set_property('power-saver', False)
     sysstate.monitor().notify('power-saver')
     check('... and leaving it resumes the GIFV',
           wait(viewer._stream.get_playing, 5))
@@ -324,7 +339,7 @@ try:
     check('a video autoplays', wait(viewer._stream.get_playing, 5))
     gtk_settings.set_property('gtk-interface-reduced-motion',
                               Gtk.ReducedMotion.REDUCE)
-    mediaplayback._system_state = lambda name: name == 'power-saver'
+    monitor.set_property('power-saver', True)
     sysstate.monitor().notify('power-saver')
     check('a video is never paused by the gate',
           viewer._stream.get_playing())
@@ -333,7 +348,7 @@ try:
 finally:
     gtk_settings.set_property('gtk-interface-reduced-motion', saved_motion)
     gtk_settings.set_property('gtk-enable-animations', saved_anim)
-    mediaplayback._system_state = saved_state
+    monitor.set_property('power-saver', False)
 
 # (e3) The viewer remembers the volume of video and audio, not a GIFV's.
 from src import pages  # noqa: E402

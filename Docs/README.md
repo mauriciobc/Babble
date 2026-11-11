@@ -23,6 +23,7 @@ formal set lives in [`pt_BR/`](pt_BR/README.md): [português (pt-BR)](pt_BR/READ
 | [Localization](localization.md) | Languages, translation status, and how to add one | 
 | [Mastodon API compatibility](mastodon-compat.md) | Where Babble gates on server capabilities, and why |
 | [Improvement register](IMPROVEMENTS.md) | Open findings, decisions, and what was deferred |
+| [Glossary of domain terms](glossary.md) | The concepts the code is built around (the media policy and its gates), so module and test names stay consistent; the manual's glossary is the one for users |
 | [Profiling the running app](performance-profiling.md) | The scripted-UI baseline on `main`, how to record a comparison, and every finding so far |
 | [GNOME review](gnome-review.md) | HIG, GTK4/libadwaita, architecture and packaging audit of one revision |
 | [GTK 4/libadwaita UI patterns](gtk4-ui-patterns.md) | How eight GTK 4 apps (chosen for coverage, not popularity) build their UI, plus how Babble compares to them and to our internal skill |

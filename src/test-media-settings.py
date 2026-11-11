@@ -3,7 +3,7 @@
 """The two media preferences: Autoplay Animated Media and Load Media
 Automatically.
 
-Checks the schema defaults, the autoplay check (``may_autoplay_loop``)
+Checks the schema defaults, the autoplay check (``mediapolicy.may_loop``)
 with the key and with the system overriding it, the defer decision for
 every (mode, metered) pair, the real viewer for both (a deferred page
 with the right explanation, a GIFV held and released live when the key
@@ -13,6 +13,7 @@ on a CI runner.
 """
 
 import faulthandler
+import gc
 import importlib.util
 import os
 # Never the user's real dconf (see the settings isolation rule).
@@ -47,7 +48,8 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import mediaengine, mediaplayback, mediaviewer  # noqa: E402
+from src import mediaengine, mediaviewer  # noqa: E402
+from src import mediapolicy  # noqa: E402
 from src import pages, preferences, sysstate  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
@@ -118,20 +120,24 @@ gtk_settings = Gtk.Settings.get_default()
 gtk_settings.set_property('gtk-enable-animations', True)
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.NO_PREFERENCE)
-check('autoplay is allowed with the defaults',
-      mediaplayback.may_autoplay_loop())
+
+
+def loop_allowed():
+    return mediapolicy.may_loop(mediapolicy.read_state())
+
+
+check('autoplay is allowed with the defaults', loop_allowed())
 settings.set_boolean('autoplay-animated-media', False)
-check('autoplay is off when the key is off',
-      not mediaplayback.may_autoplay_loop())
+check('autoplay is off when the key is off', not loop_allowed())
 settings.set_boolean('autoplay-animated-media', True)
 monitor.set_property('power-saver', True)
 check('power saving overrides the key when it is on',
-      not mediaplayback.may_autoplay_loop())
+      not loop_allowed())
 monitor.set_property('power-saver', False)
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.REDUCE)
 check('reduced motion overrides the key when it is on',
-      not mediaplayback.may_autoplay_loop())
+      not loop_allowed())
 gtk_settings.set_property('gtk-interface-reduced-motion',
                           Gtk.ReducedMotion.NO_PREFERENCE)
 
@@ -142,7 +148,116 @@ for mode, metered, expected in (
         ('never', True, True), ('never', False, True)):
     check('%s, %s: %s' % (mode, 'metered' if metered else 'unmetered',
                           'defers' if expected else 'loads'),
-          mediaplayback.should_defer_stream(mode, metered) is expected)
+          (mediapolicy.stream_deferral(mediapolicy.MediaState(
+              autoload=mode, metered=metered)) is not None) is expected)
+
+# read_state, the two GTK fields: each changes alone (the keys and the
+# monitor are checked in test-media-policy.py, which needs no display).
+for key in mediapolicy.SETTINGS_KEYS:
+    settings.reset(key)
+gtk_settings.set_property('gtk-enable-animations', True)
+gtk_settings.set_property('gtk-interface-reduced-motion',
+                          Gtk.ReducedMotion.NO_PREFERENCE)
+base = mediapolicy.read_state()
+
+
+def changed_fields(before, after):
+    return {name for name in mediapolicy.MediaState._fields
+            if getattr(before, name) != getattr(after, name)}
+
+
+gtk_settings.set_property('gtk-enable-animations', False)
+check('read_state: gtk-enable-animations changes only animations',
+      changed_fields(base, mediapolicy.read_state()) == {'animations'})
+gtk_settings.set_property('gtk-enable-animations', True)
+gtk_settings.set_property('gtk-interface-reduced-motion',
+                          Gtk.ReducedMotion.REDUCE)
+check('read_state: reduced motion changes only reduced_motion',
+      changed_fields(base, mediapolicy.read_state()) == {'reduced_motion'})
+gtk_settings.set_property('gtk-interface-reduced-motion',
+                          Gtk.ReducedMotion.NO_PREFERENCE)
+check('read_state is back to the base', mediapolicy.read_state() == base)
+
+
+# connect_changes: every signal of the three lists reaches a bound GObject
+# method and a module-level function, and the method's owner is freed once
+# dropped. The function stays connected to the process-wide settings,
+# monitor and Gtk.Settings, so it records only while ``recording`` is set.
+calls = []
+recording = False
+
+
+def record_call(*args):
+    if recording:
+        calls.append('function')
+
+
+class Listener(GObject.Object):
+    def __init__(self):
+        super().__init__()
+        self.hits = 0
+
+    def on_change(self, *args):
+        self.hits += 1
+
+
+triggers = {
+    'notify::power-saver': (
+        lambda: monitor.set_property('power-saver', True),
+        lambda: monitor.set_property('power-saver', False)),
+    'notify::metered': (
+        lambda: monitor.set_property('metered', True),
+        lambda: monitor.set_property('metered', False)),
+    'notify::gtk-enable-animations': (
+        lambda: gtk_settings.set_property('gtk-enable-animations', False),
+        lambda: gtk_settings.set_property('gtk-enable-animations', True)),
+    'notify::gtk-interface-reduced-motion': (
+        lambda: gtk_settings.set_property('gtk-interface-reduced-motion',
+                                          Gtk.ReducedMotion.REDUCE),
+        lambda: gtk_settings.set_property('gtk-interface-reduced-motion',
+                                          Gtk.ReducedMotion.NO_PREFERENCE)),
+    'changed::autoplay-animated-media': (
+        lambda: settings.set_boolean('autoplay-animated-media', False),
+        lambda: settings.set_boolean('autoplay-animated-media', True)),
+    'changed::media-autoload': (
+        lambda: settings.set_string('media-autoload', 'never'),
+        lambda: settings.set_string('media-autoload', 'unmetered')),
+    'changed::remote-media': (
+        lambda: settings.set_string('remote-media', 'never'),
+        lambda: settings.set_string('remote-media', 'ask')),
+    'changed::inline-animated-media': (
+        lambda: settings.set_boolean('inline-animated-media', True),
+        lambda: settings.set_boolean('inline-animated-media', False)),
+}
+listed = (['notify::' + n for n in mediapolicy.SYSTEM_PROPERTIES]
+          + ['notify::' + n for n in mediapolicy.GTK_PROPERTIES]
+          + ['changed::' + k for k in mediapolicy.SETTINGS_KEYS])
+check('every listed signal has a trigger here, and no other',
+      sorted(listed) == sorted(triggers), repr(sorted(listed)))
+
+listener = Listener()
+mediapolicy.connect_changes(listener.on_change)
+mediapolicy.connect_changes(record_call)
+for signal, (do, undo) in triggers.items():
+    hits, before = listener.hits, len(calls)
+    recording = True
+    do()
+    recording = False
+    undo()
+    check('%s reaches the bound method' % signal, listener.hits > hits)
+    check('%s reaches the module-level function' % signal,
+          len(calls) > before)
+ref = listener.weak_ref()
+del listener
+gc.collect()
+check('the owner of a connected method is freed', ref() is None)
+# One more change: the dead handler disconnects itself, the function stays.
+recording = True
+triggers['notify::metered'][0]()
+check('the function still hears a signal after the owner is gone',
+      len(calls) > 0)
+recording = False
+triggers['notify::metered'][1]()
 
 # The real viewer.
 clip = fixture.write_clip()

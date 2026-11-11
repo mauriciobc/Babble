@@ -28,7 +28,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('GstPlay', '1.0')
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -44,7 +44,7 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import mediaplayback, mediaviewer, pages, preferences  # noqa: E402
+from src import mediaviewer, pages, preferences, sysstate  # noqa: E402
 from src import remotemedia  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
@@ -79,7 +79,19 @@ def settle(seconds):
     wait(lambda: False, seconds)
 
 
-mediaplayback._system_state = lambda name: False
+class FakeMonitor(GObject.Object):
+    """The system state as plain properties: the real monitor asks
+    Gio.NetworkMonitor, which can hang on a CI runner."""
+    __gsignals__ = {
+        'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+    online = GObject.Property(type=bool, default=True)
+    metered = GObject.Property(type=bool, default=False)
+    power_saver = GObject.Property(type=bool, default=False)
+
+
+monitor = FakeMonitor()
+sysstate._monitor = monitor
 
 clip = fixture.write_clip()
 other = fixture.MediaServer(clip)
@@ -292,7 +304,7 @@ check('and raises nothing', not errors, repr(errors))
 sys.excepthook = sys.__excepthook__
 
 # The metered Load button asks before any request.
-mediaplayback._system_state = lambda name: name == 'metered'
+monitor.set_property('metered', True)
 viewer = mediaviewer.present_media(parent, [remote()])
 settle(0.5)
 check('metered: the preview page waits, with no dialog and no request',
@@ -303,7 +315,7 @@ settle(0.3)
 check('metered: Load asks first', dialog_up() is not None)
 check('and still no request', other.requests == [])
 answer('load')
-mediaplayback._system_state = lambda name: False
+monitor.set_property('metered', False)
 check('metered: after Load it plays',
       wait(lambda: playing(viewer), 10) and len(other.requests) > 0)
 viewer.close()

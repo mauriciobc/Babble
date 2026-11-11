@@ -11,10 +11,11 @@ tile that is mapped in the window and lives as long as the window.
 * **Tiles** (:class:`GifvTile`, built by :mod:`mediabox`) register on map
   and unregister on unmap, so a recycled row costs the player nothing. The
   player holds them by GObject weak reference.
-* **Gates**, read live: ``mediaplayback.may_autoplay_loop`` (the key, the
-  animation settings, power saving), ``media-autoload`` with the metered
-  state, and ``remote-media``. A tile whose only copy is on another server
-  is never played unless that setting is ``load``: nothing here asks.
+* **Gates**, read live through :mod:`mediapolicy` (the inline key, the
+  loop rule, ``media-autoload`` with the metered state, and
+  ``remote-media``), once per evaluation. A tile whose only copy is on
+  another server is never played unless that setting is ``load``:
+  nothing here asks.
 * **Switching** tiles is ``stop()`` then ``load()`` on the same engine. The
   tile keeps its poster until the first frame arrives, and gets it back
   when it stops being the active one.
@@ -44,7 +45,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Gdk, GLib, GObject, Gtk  # noqa: E402
 
 from . import mastodon  # noqa: E402
-from . import mediaplayback  # noqa: E402
+from . import mediapolicy  # noqa: E402
 from . import pages  # noqa: E402
 from .remotemedia import media_url  # noqa: E402
 
@@ -326,27 +327,19 @@ class InlinePlayer(GObject.Object):
             tile.sync_button()
 
     def _connect_gates(self):
-        """Follow every gate, once per player (the viewer's loop gate
-        follows the same signals)."""
+        """Follow every gate, once per player. The signals that can change
+        an answer are the media policy's list; the player's own switch is
+        also connected to ``_on_key_changed`` (first, so ``_on`` is
+        current when the policy's handler runs), because turning it on or
+        off is the player's lifecycle (it starts and stops the per-scroll
+        work), not only a re-evaluation."""
         if self._gates_connected:
             return
         self._gates_connected = True
         self._on = inline_enabled()
-        from . import sysstate
-        monitor = sysstate.monitor()
-        for name in ('power-saver', 'metered'):
-            pages.connect_weak(monitor, 'notify::' + name, self._on_moved)
-        root = self._root()
-        gtk_settings = Gtk.Settings.get_for_display(root.get_display())
-        for name in ('gtk-enable-animations', 'gtk-interface-reduced-motion'):
-            pages.connect_weak(gtk_settings, 'notify::' + name,
-                               self._on_moved)
-        settings = pages.settings()
-        pages.connect_weak(settings, 'changed::inline-animated-media',
+        pages.connect_weak(pages.settings(), 'changed::inline-animated-media',
                            self._on_key_changed)
-        for key in ('autoplay-animated-media', 'media-autoload',
-                    'remote-media'):
-            pages.connect_weak(settings, 'changed::' + key, self._on_moved)
+        mediapolicy.connect_changes(self._on_moved, self._root())
 
     # Re-evaluation: one pass for any number of causes
 
@@ -410,35 +403,35 @@ class InlinePlayer(GObject.Object):
                 live.append(tile)
         return live
 
-    def _gates_open(self, root):
-        """The player's own switch first, then what every autoplaying
-        GIFV answers to."""
-        if not pages.settings().get_boolean('inline-animated-media'):
-            return False
-        if not mediaplayback.may_autoplay_loop(root):
-            return False
-        mode = pages.settings().get_string('media-autoload')
-        return not mediaplayback.should_defer_stream(
-            mode, mediaplayback._system_state('metered'))
+    def _gates_state(self, root):
+        """The media state when an inline tile may play under it, else
+        None. The player's own switch is read first on its own, so with it
+        off nothing else (GTK's settings, the system monitor) is touched.
+        One read per evaluation: :meth:`_may_fetch` reuses it."""
+        if not inline_enabled():
+            return None
+        state = mediapolicy.read_state(root)
+        return state if mediapolicy.inline_may_play(state) else None
 
-    def _may_fetch(self, tile):
+    def _may_fetch(self, tile, state):
         """The remote-media rule: a copy on another server plays only when
-        the user said to load such media; nothing is asked from here."""
+        the policy allows it without asking; nothing is asked from here."""
         url, is_remote = media_url(tile.attachment)
         if not url or url in self._failed:
             return False
-        return (not is_remote
-                or pages.settings().get_string('remote-media') == 'load')
+        return mediapolicy.remote_access(state, is_remote) \
+            == mediapolicy.ALLOW
 
     def _pick(self, root):
         """The tile that should play, or None."""
         tiles = self._live_tiles()
-        if not tiles or not self._gates_open(root):
+        state = self._gates_state(root) if tiles else None
+        if state is None:
             return None
         best = best_key = frozen = None
         for tile in tiles:
             # The active tile shows the stream, not its poster.
-            if not self._may_fetch(tile) or not (
+            if not self._may_fetch(tile, state) or not (
                     tile.token == self._active or tile.poster_ready()):
                 continue
             scrolled = _scrolled_ancestor(tile)

@@ -18,7 +18,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, GObject, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -30,14 +30,29 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src.i18n import gettext as _  # noqa: E402
-from src import (mediaplayback, mediaviewer, notificationmodel,  # noqa: E402
-                 notifications, notificationrow, profile)
+from src import (mediaviewer, notificationmodel,  # noqa: E402
+                 notifications, notificationrow, profile, sysstate)
 from src import (mediacache, statusactions, statusmenu, statusrow,  # noqa: E402
                   statusrun, statustext, timelinebase, timelinedata,
                   timelinepage)
 
 
 failures = []
+
+
+class FakeMonitor(GObject.Object):
+    """The system state as plain properties: the real monitor asks
+    Gio.NetworkMonitor, which can hang on a CI runner."""
+    __gsignals__ = {
+        'network-changed': (GObject.SignalFlags.RUN_FIRST, None, ()),
+    }
+    online = GObject.Property(type=bool, default=True)
+    metered = GObject.Property(type=bool, default=False)
+    power_saver = GObject.Property(type=bool, default=False)
+
+
+default_monitor = FakeMonitor()
+sysstate._monitor = default_monitor
 
 
 def check(name, condition):
@@ -522,15 +537,16 @@ prepared = [viewer.picture_drag.emit('prepare', 1.0, 1.0),
             viewer.media_drag.emit('prepare', 1.0, 1.0)]
 check('the viewer can drag its picture and its media out', all(prepared))
 del prepared
-system_state = mediaplayback._system_state
-mediaplayback._system_state = lambda name: name == 'metered'
+metered_monitor = FakeMonitor()
+metered_monitor.set_property('metered', True)
+sysstate._monitor = metered_monitor
 viewer.attachments = [{'type': 'video',
                        'url': 'https://example.org/media/a.mp4'}]
 viewer.show_index(0)
 check('metered video waits for an explicit load',
       viewer.stack.get_visible_child_name() == 'deferred'
       and viewer.load_button.get_label() == _('Load _Video'))
-mediaplayback._system_state = system_state
+sysstate._monitor = default_monitor
 viewer.force_close()
 settle(lambda viewer=viewer: viewer._closed and not viewer.get_mapped(),
        seconds=10.0)
