@@ -28,13 +28,18 @@ manual calls it an animated GIF.
 **Autoload**
 The Load Media Automatically choice: always, only on an unmetered connection,
 or never. It covers video, audio and GIFVs (images always load). It decides
-whether they start without a click; when they do not, the reader sees the
-preview and a button that starts it.
+whether they start without a click. When they do not, the media viewer shows
+the preview and a button that starts it; a GIFV in the timeline simply stays
+still.
 
 **Metered deferral**
 Holding back a download that nobody asked for because the connection is
-metered (it costs the reader data). It applies only to the start of a stream:
-something already playing is not stopped when the connection becomes metered.
+metered (it costs the reader data), when Autoload is set to not load on
+metered connections. In the media viewer it applies only to the start of a
+stream: a video the reader has started is not stopped when the connection
+becomes metered. A GIFV playing in the timeline (Inline playback) is
+different: it is stopped when the connection becomes metered and starts again
+when it stops being metered, because nobody asked for that one to play.
 
 **Autoplay of looping media**
 A GIFV may run by itself only when the reader has Autoplay Animated Media on,
@@ -56,5 +61,7 @@ or never; a copy on the reader's own server is always loaded.
 **Inline playback**
 Playing GIFVs in the timeline itself, one at a time (the one most in view),
 instead of waiting for a click to open the viewer. It is off unless the reader
-turns on Play Animated GIFs in Timelines, and it follows every rule above.
+turns on Play Animated GIFs in Timelines, and it follows every rule above, live:
+the playing GIFV stops when one of them stops allowing it and starts again
+when they allow it.
 Where the answer would be to ask about remote media, it does not play.

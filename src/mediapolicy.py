@@ -139,7 +139,11 @@ def remote_access(state, is_remote):
 def inline_may_play(state):
     """Whether a GIFV tile in the timeline may play: Play Animated GIFs
     in Timelines is on, the loop rule allows it and a stream may start.
-    The remote-media rule is per tile and is :func:`remote_access`."""
+    Unlike the viewer, the inline player asks this live: when the answer
+    turns False (power saving, reduced motion, a metered connection under
+    'unmetered') the playing tile stops, and it resumes when the answer
+    turns True. The remote-media rule is per tile and is
+    :func:`remote_access`."""
     return (state.inline and may_loop(state)
             and stream_deferral(state) is None)
 
@@ -158,21 +162,27 @@ def connect_changes(handler, widget=None):
     * a bound method of a ``GObject.Object``, held weakly
       (:func:`pages.connect_weak`): a widget or player that connects its
       own method forms no cycle through C and is freed as before;
-    * a module-level function, connected directly: it is defined once, at
-      import, and refers to nothing but module globals, so it can pin
-      nothing that is not already process-wide. A weak reference to a
+    * a module-level function, connected directly. A weak reference to a
       function would drop it at once.
 
-    A module-level function is a ``types.FunctionType`` whose
-    ``__qualname__`` equals its ``__name__`` (no ``Class.`` prefix and no
-    ``<locals>``, so a closure defined inside a method is out) and that
-    is not a lambda (a lambda's name is ``<lambda>``). That is sufficient
-    because a closure that could capture a widget can only be created
-    inside a function, which puts ``<locals>`` in its qualified name, and
-    a method or partial is not a plain function. Anything else (a lambda,
-    a ``functools.partial``, a bound method of a plain Python object, a
-    nested function) raises :exc:`TypeError` before anything is
-    connected."""
+    What is checked for a function: it is a ``types.FunctionType``; its
+    ``__qualname__`` equals its ``__name__`` (no ``Class.`` prefix, no
+    ``<locals>``) and it is not a lambda; it has no closure
+    (``__closure__`` is None); it has no default argument values
+    (``__defaults__`` and ``__kwdefaults__`` are None); and its
+    ``__dict__`` is empty. The last matters because ``functools.wraps``
+    copies the wrapped function's names onto a wrapper, so the names alone
+    would let a decorator's closure through, and it also records
+    ``__wrapped__`` in ``__dict__``. Anything else (a lambda, a
+    ``functools.partial``, a bound method of a plain Python object, a
+    nested function, a wrapper) raises :exc:`TypeError` before anything is
+    connected.
+
+    What is not checked, and stays the caller's responsibility: a function
+    can still reach an object through the module globals it reads (a
+    module-level variable that is later set to a widget) or through an
+    attribute that something else sets on it after the check. This is a
+    guard against the usual ways of pinning a widget, not a proof."""
     from . import pages, sysstate
 
     if isinstance(handler, types.MethodType) \
@@ -180,7 +190,11 @@ def connect_changes(handler, widget=None):
         weak = True
     elif isinstance(handler, types.FunctionType) \
             and handler.__qualname__ == handler.__name__ \
-            and handler.__name__ != '<lambda>':
+            and handler.__name__ != '<lambda>' \
+            and handler.__closure__ is None \
+            and handler.__defaults__ is None \
+            and handler.__kwdefaults__ is None \
+            and not handler.__dict__:
         weak = False
     else:
         raise TypeError(

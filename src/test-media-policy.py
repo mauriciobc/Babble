@@ -249,6 +249,26 @@ check('connect_changes refuses a functools.partial',
 check('connect_changes refuses a bound method of a plain object',
       refused(PlainObject().method))
 check('connect_changes refuses a nested function', refused(nested_handler()))
+def wrapping_decorator(widget):
+    """What QA used: a wrapper that copies a module-level function's names
+    with functools.wraps and captures an object in its closure."""
+    @functools.wraps(module_level_handler)
+    def wrapper(*args):
+        return widget
+    return wrapper
+
+
+DEFAULT_HOLDER = PlainObject()
+
+
+def with_default(extra=DEFAULT_HOLDER):
+    pass
+
+
+check('connect_changes refuses a functools.wraps closure',
+      refused(wrapping_decorator(PlainObject())))
+check('connect_changes refuses a function with a default value',
+      refused(with_default))
 check('connect_changes refuses a builtin', refused(print))
 check('connect_changes refuses a non-callable', refused(None))
 
