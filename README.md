@@ -55,6 +55,7 @@ The [full feature list](Docs/features.md) covers everything below in detail.
 
 | | |
 |---|---|
+| [User manual](Docs/manual/README.md) | The complete guide for users, in Portuguese (pt-BR): signing in, reading, writing, media, Catch Up, settings, plugins, and troubleshooting |
 | [Building and testing](Docs/building.md) | Dependencies, meson, the Flatpak manifest, running the tests |
 | [Signing in](Docs/signing-in.md) | What Babble asks for, and how the browser hands the login back |
 | [Desktop integration](Docs/desktop-integration.md) | Every GNOME feature Babble uses, and what each needs |
