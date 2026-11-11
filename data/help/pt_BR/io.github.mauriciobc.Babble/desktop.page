@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="desktop" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#desktop"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Integração com o ambiente de trabalho</title>
+    <title type="link">Integração com o ambiente de trabalho</title>
+    <desc>Manipuladores de link, o gerenciador de arquivos, a busca e a execução em segundo plano.</desc>
+  </info>
+
+  <title>Integração com o ambiente de trabalho</title>
+
+  <section id="links">
+    <title>Links abrem no Babble</title>
+    <p>
+      O Babble se registra como manipulador dos redirecionamentos de
+      entrada <sys>babble://</sys>, dos links de objeto
+      <sys>web+ap://</sys> e das intenções <sys>web+mastodon://</sys>,
+      de modo que um link vindo de outro aplicativo abre aqui, e não no
+      navegador.
+    </p>
+  </section>
+
+  <section id="files">
+    <title>Arquivos</title>
+    <p>
+      Arquivos entregues ao Babble — uma imagem escolhida no seu
+      gerenciador de arquivos, digamos — abrem no compositor, prontos para
+      serem publicados.
+    </p>
+  </section>
+
+  <section id="search">
+    <title>Busca</title>
+    <p>
+      O Babble aparece na busca do panorama de Atividades como provedor de
+      busca, onde você pode consultar uma publicação sem abrir a janela
+      antes.
+    </p>
+  </section>
+
+  <section id="background">
+    <title>Executar em segundo plano</title>
+    <p>
+      Com <gui>Keep Running in the Background</gui> ligado, fechar a
+      janela deixa o Babble rodando para as notificações continuarem
+      chegando; o ícone do painel traz a janela de volta.
+    </p>
+  </section>
+
+</page>

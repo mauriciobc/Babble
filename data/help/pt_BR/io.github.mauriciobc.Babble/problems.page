@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="problems" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#problems"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Problemas comuns</title>
+    <title type="link">Problemas comuns</title>
+    <desc>Rede, entradas, chaveiro e compatibilidade com o servidor.</desc>
+  </info>
+
+  <title>Problemas comuns</title>
+
+  <section id="network">
+    <title>Rede</title>
+    <p>
+      Se o computador não tem rede, o Babble avisa em uma faixa e continua
+      tentando; a faixa some sozinha quando a rede volta.
+    </p>
+  </section>
+
+  <section id="login">
+    <title>Entradas</title>
+    <p>
+      Se uma entrada sumir do chaveiro, o Babble esquece essa conta em vez
+      de tentar para sempre. Entre de novo pela tela de boas-vindas.
+    </p>
+    <p>
+      Se o navegador não voltar sozinho depois da autorização, use
+      <gui>Enter Authorization Code…</gui> na tela de boas-vindas e cole o
+      código que o servidor exibiu.
+    </p>
+  </section>
+
+  <section id="keyring">
+    <title>Chaveiro</title>
+    <p>
+      O Babble guarda cada login no chaveiro do sistema, e por isso precisa
+      de um serviço de chaveiro em execução, como o GNOME Keyring ou o
+      KeePassXC. Se não houver nenhum, o aplicativo avisa ao iniciar e ao
+      entrar, e mantém a conta que já tinha. Comece um serviço de chaveiro
+      e reinicie o Babble. Em um Flatpak, o aplicativo precisa da
+      permissão para falar com <code>org.freedesktop.secrets</code>.
+    </p>
+  </section>
+
+  <section id="server">
+    <title>Compatibilidade com o servidor</title>
+    <p>
+      Um servidor que não suporta um recurso o esconde: Coleções e o
+      Painel de Administração aparecem só onde o servidor os tem, de modo
+      que um Mastodon mais antigo mostra um menu menor, e não um erro.
+    </p>
+  </section>
+
+  <section id="log">
+    <title>O log do sistema</title>
+    <p>
+      As decisões do aplicativo sobre contas e sessões ficam no log do
+      sistema, e é de lá que sai o motivo de um plugin ter falhado:
+    </p>
+    <code>journalctl --user -g 'accounts:' -f</code>
+  </section>
+
+</page>

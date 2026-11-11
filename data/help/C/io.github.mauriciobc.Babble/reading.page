@@ -25,6 +25,22 @@
   </section>
 
   <section id="updates">
+  <section id="posts">
+    <title>Posts</title>
+    <p>
+      Every post has an action bar with <gui>Reply</gui>, <gui>Boost</gui>,
+      <gui>Quote</gui>, <gui>Favorite</gui> and <gui>Bookmark</gui>. The
+      three-dot button opens the rest: edit, delete, pin to the profile,
+      mute, block and report.
+    </p>
+    <p>
+      A post with a content warning comes hidden behind a
+      <gui>Show Content</gui> button, unless the <gui>Spoilers</gui>
+      preference is on. Long posts come folded behind <gui>Show More</gui>.
+    </p>
+  </section>
+
+
     <title>Live updates and catch up</title>
     <p>
       With live updates on, new posts arrive as they are posted. When the

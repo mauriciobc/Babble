@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<page xmlns="http://projectmallard.org/1.0/"
+      type="guide" style="task" id="plugins" xml:lang="pt_BR">
+
+  <info>
+    <link type="guide" xref="index#plugins"/>
+    <title type="link" role="trail">Ajuda do Babble</title>
+    <title type="text">Plugins</title>
+    <title type="link">Plugins</title>
+    <desc>Ligue os plugins e veja o que os que acompanham o aplicativo fazem.</desc>
+  </info>
+
+  <title>Plugins</title>
+
+  <p>
+    Plugins acrescentam coisas ao Babble: uma entrada no menu de uma
+    publicação, um painel na página de uma hashtag, e configurações
+    próprias. Abra <gui>Plugins</gui> no menu principal para vê-los. Todo
+    plugin começa desligado; o interruptor ao lado do nome liga, e o
+    botão com uma engrenagem abre as configurações dele, quando há.
+  </p>
+  <p>
+    <gui>Included With Babble</gui> lista os plugins que vêm com o
+    aplicativo. <gui>Installed by You</gui> lista os que você instalou,
+    colocando a pasta de um plugin na pasta que <gui>Open Plugins
+    Folder</gui> abre:
+    <file>~/.local/share/babble/plugins</file>, ou
+    <file>~/.var/app/io.github.mauriciobc.Babble/data/babble/plugins</file>
+    quando o Babble está instalado como Flatpak.
+  </p>
+  <note style="warning">
+    <title>Ligue só plugins em que você confie</title>
+    <p>
+      Um plugin roda como parte do Babble e pode fazer tudo o que o Babble
+      faz, inclusive ler e publicar com a sua conta. Os plugins que
+      acompanham o aplicativo são revisados junto com ele; qualquer outro
+      é tão seguro quanto quem o escreveu.
+    </p>
+  </note>
+
+  <section id="wallabag">
+    <title>Wallabag</title>
+    <p>
+      Acrescenta <gui>Save to Wallabag</gui> ao menu de cada publicação,
+      para guardar o endereço dela e ler depois no
+      <link href="https://wallabag.org">Wallabag</link>. Na primeira vez,
+      ele pede que você entre: o endereço do servidor
+      (<sys>app.wallabag.it</sys> para o serviço hospedado, ou o seu), o
+      ID e o segredo de um cliente de API, que você cria no Wallabag em
+      <gui>API Clients Management</gui>, e o seu nome de usuário e a sua
+      senha.
+    </p>
+    <p>
+      A senha é usada uma vez para entrar e não é guardada. O chaveiro
+      guarda o segredo do cliente e um token que mantém você assinado; se
+      ele expirar, o Babble pede que você entre de novo.
+      <gui>Sign Out</gui> está nas configurações do plugin.
+    </p>
+  </section>
+
+  <section id="hashpanel">
+    <title>Hashpanel</title>
+    <p>
+      O <link href="https://github.com/mauriciobc/hashpanel">Hashpanel</link>
+      acompanha as hashtags diárias do fediverse brasileiro, como
+      <sys>#segundaficha</sys> às segundas. Na página de uma hashtag que
+      ele acompanha, o plugin mostra de quem é o dia, os favoritos,
+      impulsos e respostas do dia, a comparação da semana com a anterior,
+      e a publicação mais popular do dia.
+    </p>
+    <p>
+      O Babble pergunta ao Hashpanel apenas sobre as hashtags que ele
+      acompanha: abrir qualquer outra hashtag não manda nada ao
+      Hashpanel. Outro servidor do Hashpanel pode ser definido nas
+      configurações do plugin.
+    </p>
+  </section>
+
+  <section id="nareal">
+    <title>Na Real</title>
+    <p>
+      O <link href="https://codeberg.org/thiagojedi/na-real">Na Real</link>
+      é um aplicativo de perguntas e respostas anônimas do fediverse:
+      alguém faz uma pergunta a uma conta, sem se identificar, e a conta
+      responde. O plugin acrescenta duas entradas ao menu principal,
+      <gui>My Questions</gui> (o painel) e <gui>Share My Questions
+      Link</gui> (o compositor, com um convite e o seu endereço público), e
+      nada às publicações nem aos perfis.
+    </p>
+  </section>
+
+  <section id="plugin-problems">
+    <title>Quando um plugin não funciona</title>
+    <p>
+      Um plugin que não pôde ser carregado, ou que parou de funcionar,
+      mostra o motivo sob o nome dele em <gui>Plugins</gui>, com um sinal
+      de aviso; um que parou de funcionar também é desligado, e o Babble
+      avisa. O log do sistema tem os detalhes. Um plugin que não pôde ser
+      carregado é tentado de novo na próxima vez que o Babble inicia, e um
+      feito para outra versão do Babble não é carregado.
+    </p>
+  </section>
+
+</page>

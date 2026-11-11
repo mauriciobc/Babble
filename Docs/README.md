@@ -7,6 +7,7 @@ Everything else is here.
 
 | | |
 |---|---|
+| [The user manual](manual/README.md) | The complete guide, in Portuguese (pt-BR): signing in, reading, writing, media, Catch Up, settings, plugins, troubleshooting |
 | [What Babble does](features.md) | The full feature list, and which server versions each needs |
 | [Building and testing](building.md) | Dependencies, meson, the Flatpak manifest, the test suite |
 | [Signing in](signing-in.md) | What Babble asks for, and how the browser hands the login back |
@@ -41,6 +42,23 @@ are easy to break by accident.
 | `MEMORY-LEAKS.md` | The leak patterns found so far, and how to check for them |
 | `CATCH-UP.md` | The Catch Up feature specification |
 
+## How the documentation is governed
+
+| | |
+|---|---|
+| [Documentation policy](documentation-policy.md) | What gets documented, who writes it, who approves it, and when it changes |
+
+The policy is a formal item of its own, and the rules it says can be
+checked mechanically are checked by `src/test-docs.py`, which runs with
+the suite.
+
 ## For translators
 
 [po/README.md](../po/README.md).
+
+The help pages are not translated through `po/`: a Mallard page is a
+document of its own, so a translation is a translated page beside the
+English one under `data/help/<lang>/`, added to `help_languages` in
+`data/meson.build`. The two sets are kept in step -- the same files, the
+same page and section ids -- and `src/test-docs.py` is what holds them
+there.

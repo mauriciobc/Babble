@@ -589,6 +589,14 @@ test('file size rule', python,
   env: test_env,
   timeout: 60,
 )
+# Needs no display: it reads the documentation, the help pages and the
+# translation catalogue, and writes nothing but the generated label table
+# when asked with --write-table.
+test('documentation', python,
+  args: [files('test-docs.py')],
+  env: test_env,
+  timeout: 60,
+)
 # Needs no display: it reads the test scripts' source only.
 test('settings isolation', python,
   args: [files('test-settings-isolation.py')],
