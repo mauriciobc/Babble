@@ -623,6 +623,12 @@ test('api registry', python,
   env: test_env,
   timeout: 60,
 )
+# Needs a display; a fake client, no network.
+test('paged list', python,
+  args: [files('test-paged-list.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('api golden', python,
   args: [files('test-api-golden.py')],
   env: fatal_test_env,

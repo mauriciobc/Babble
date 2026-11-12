@@ -45,11 +45,13 @@ SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py',
 # repeated here to go stale.
 EXCEPTIONS = {
     'pages.py': 'the shared page toolkit: navigation, feedback, the toast '
-                'and error surfaces, the paged list and the paging state '
-                'machine every status list shares (CLEAN-08). It grew by '
-                'carrying the paging base. ARCH-06 split the timeline '
-                'around it; the state machine stays here because every '
-                'status list uses it.',
+                'and error surfaces, PagedList (the boxed list that loads '
+                'page by page, a class of its own that shares only the '
+                'preload distance with the paging base) and the paging '
+                'state machine every status list shares, PagedPosts '
+                '(CLEAN-08). ARCH-06 split the timeline around it; the '
+                'state machine stays here because every status list uses '
+                'it.',
     'window.py': 'seams extracted (portals, auth, drafts, clipboard, '
                  'navigation, sidebarhost, streamrouter). BabbleWindow '
                  'still owns session state, presentation and the '
@@ -76,9 +78,12 @@ EXCEPTIONS = {
                    'revoke calls), the keyring, rate limiting, the paging '
                    'envelope, the instance-info cache and capability '
                    'gates. Every endpoint lives in src/api/ (phase 4).',
-    'hashtags.py': 'the followed-tag list plus a hashtag timeline. '
-                   'The timeline is TimelinePage (ARCH-06); the list '
-                   'and the saved-definition editor are this module.',
+    'hashtags.py': 'the followed-hashtags page (rows over pages.PagedList, '
+                   'with a placeholder row), the saved multi-hashtag '
+                   'timelines above it and their editor, plus a hashtag '
+                   'timeline. The paged list is pages.PagedList and the '
+                   'timeline is TimelinePage (ARCH-06); the rows, the '
+                   'page and the saved-definition editor are this module.',
 }
 
 failures = 0
