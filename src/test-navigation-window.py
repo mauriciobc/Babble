@@ -200,19 +200,24 @@ list_page.on_stream_delete = record('list.delete')
 tag_page.on_stream_delete = record('tag.delete')
 window.timeline_page.on_stream_delete = record('home.delete')
 deleted = event(('user',), 'delete', '7')
-check('a delete reaches the home, public, list and hashtag timelines, '
-      'each at least once, and nothing else',
-      {entry[0] for entry in deleted} == {
+check('a delete reaches the home, local, federated, list and hashtag '
+      'timelines exactly once each, and nothing else',
+      sorted(entry[0] for entry in deleted) == sorted((
           'home.delete', 'local.delete', 'federated.delete', 'list.delete',
-          'tag.delete'}
+          'tag.delete'))
       and all(entry[1:] == ('7',) for entry in deleted))
-# KNOWN: the public pages are also built places, so the fan-out reaches
-# local and federated twice. This documents existing behaviour, not a
-# requirement: remove this check with the fix that stops the duplicate.
-check('known: local and federated are reached twice by delete',
-      [entry[0] for entry in deleted].count('local.delete') == 2
-      and [entry[0] for entry in deleted].count('federated.delete') == 2
-      and [entry[0] for entry in deleted].count('home.delete') == 1)
+for label, page in (('home', window.timeline_page), ('local', local),
+                    ('federated', federated), ('list', list_page),
+                    ('tag', tag_page)):
+    page.on_stream_status_update = record('%s.status' % label)
+edited = event(('user',), 'status.update', '8')
+check('a status.update reaches the same five timelines exactly once each',
+      sorted(entry[0] for entry in edited) == sorted((
+          'home.status', 'local.status', 'federated.status', 'list.status',
+          'tag.status'))
+      and all(entry[1:] == ('8',) for entry in edited))
+for page in (local, federated, list_page, tag_page):
+    del page.on_stream_status_update
 window.timeline_page.refresh = record('home.refresh')
 check('filters_changed refreshes the home timeline',
       event(('user',), 'filters_changed', None) == [('home.refresh',)])

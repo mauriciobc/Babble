@@ -49,7 +49,6 @@ class StreamHost:
     """
     home_page: Callable[[], Any]
     notifications_page: Callable[[], Any]
-    public_pages: Callable[[], dict]
     place: Callable[[str], Any]
     stream_places: Callable[[], list]
     place_timelines: Callable[[], list]
@@ -85,10 +84,9 @@ class StreamRouter:
         if host.place('conversations') is not None:
             wanted.add(DIRECT)
         if host.live_public():
-            public = host.public_pages()
-            if 'local' in public:
+            if host.place('local') is not None:
                 wanted.add(LOCAL)
-            if 'federated' in public:
+            if host.place('federated') is not None:
                 wanted.add(FEDERATED)
         wanted.update(self.place_streams())
         return wanted
@@ -119,11 +117,16 @@ class StreamRouter:
         return found
 
     def timeline_pages(self):
-        """Every timeline page there is: home, the public ones, and each
-        built place's own timeline."""
+        """Every timeline page there is, each once: home first, then each
+        built place's own timeline in the order the places were built.
+
+        The local and federated pages are built places, so
+        ``place_timelines`` already lists them; a separate term for the
+        public pages would deliver an event to them twice. Each place
+        builds a timeline of its own (two hashtag places never share
+        one), so nothing else repeats."""
         host = self.host
-        found = [host.home_page(), *host.public_pages().values(),
-                 *host.place_timelines()]
+        found = [host.home_page(), *host.place_timelines()]
         return [page for page in found if host.is_timeline(page)]
 
     # Who receives each event
@@ -146,9 +149,9 @@ class StreamRouter:
                 page.on_stream_update(payload)
             return
         if stream == LOCAL:
-            target = self.host.public_pages().get('local')
+            target = self.host.place('local')
         elif stream == FEDERATED:
-            target = self.host.public_pages().get('federated')
+            target = self.host.place('federated')
         else:
             target = self.host.home_page()
         if target is not None:
