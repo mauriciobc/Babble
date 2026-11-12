@@ -275,6 +275,9 @@ next reviewer does not re-derive it.
 | DEF-06 | deferred | The app icon uses eleven gradients, three baked specular strokes and a black outline; the HIG asks for flat fills. | The artwork must be redrawn, not edited, and an icon is not a review finding a code change can settle. |
 | DEF-07 | deferred | No `-Dprofile=Devel`, so the app id is hard-coded in 24 places across the meson files. | Real and mechanical, and worth doing before a devel install is needed; it touches every installed filename, which is a bad pairing with a release. |
 | DEF-08 | deferred | Screenshots are 1090×790; the curation guidance says ≤1000×700. | Only matters when curating for Flathub. |
+| DEF-09 | deferred | A `PagedList` hook (`make_row`, `extract`, `finish`, `page_filter`, `make_placeholder`) that is a plain bound method of the page that owns the list leaks the page and the list: a cycle through C that Python's collector cannot see. | No caller does it today (the pages use `weak_method`, a classmethod, or are subclasses passing their own methods), and the `PagedList` docstring says what to pass. If a guard is wanted: one private wrapper in `PagedList.__init__` that holds such a hook weakly, for all five hooks together, with defined behaviour when the owner is gone. Decided: no guard in the `refactor/paged-list` branch. |
+| DEF-10 | deferred | Two reach-ins into a `PagedList` remain that want an operation: `lists.py` adds a button to the empty state with `paged.empty_page.set_child(...)`, and `relations.py` sets the empty icon and description by hand because `AccountListPage` hardcodes them. | Configuration, not state: nothing breaks. An `empty_action=` argument for the first, and passing `empty_icon` / `empty_description` through `AccountListPage` for the second. |
+| DEF-11 | deferred | If `page_filter`, `extract`, `make_row`, or a non-`GLib.Error` raised by `finish` raises inside `PagedList._on_loaded`, the list stays on the loading page. Unchanged from before the branch. | To be handled with the later request-lifetime work (cancelling requests and the generation guard), where a failed page is defined once. |
 
 ### Second pass: what a review of the first pass caught
 
@@ -610,9 +613,13 @@ base cannot fake one. Final resolutions:
   empty page first and added the placeholder only if it had none. The
   list now decides in one method (`_settle`): rows mean the list and no
   placeholder; no rows and a placeholder hook mean the list with the
-  placeholder; otherwise the empty page. 38 of 39 scripted scenarios on the
-  scheduled, drafts, followed-tags and lists pages were identical in
-  requests, stack page and rows; the one difference was (a).
+  placeholder; otherwise the empty page. An independent old-versus-new
+  comparison of 71 scenarios (518 steps) across the scheduled and drafts
+  pages, followed hashtags, lists, conversations, announcements, blocked
+  domains and an account list found 67 identical and 4 differing; all 4
+  were on the Followed Hashtags page and all were instances of (a), (b)
+  and (c). Open items that came out of this change are DEF-09 to DEF-11
+  above.
 
 ### 2.3 Translated-string tables (duplication translators can see)
 

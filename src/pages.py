@@ -741,9 +741,10 @@ class PagedList(Adw.Bin):
     * ``finish(client, result)`` decodes a response the way the api
       module's own ``<name>_finish_paged`` does (default
       ``api.core.finish_paged``);
-    * ``page_filter(items)`` drops items of one decoded page client-side.
-      When a page filters to nothing while more pages follow, the next
-      one is asked for;
+    * ``page_filter(items)`` drops items of one page client-side; it sees
+      the items after ``extract``, and ``finish`` returns
+      ``(data, next_params, prev_params)``. When a page filters to nothing
+      while more pages follow, the next one is asked for;
     * ``make_placeholder()`` builds a row shown in the list in place of
       the empty state whenever there are no rows, and dropped again as
       soon as one exists.
@@ -756,8 +757,13 @@ class PagedList(Adw.Bin):
     its list are never freed. So such a hook goes through
     :func:`weak_method`, as ``make_row`` does for the callers; a module
     function, a lambda that captures no widget, or a classmethod (the
-    bound callable holds the class, not the page) is fine. The ``paged
-    list`` test frees a page each way and the real pages that pass hooks.
+    bound callable holds the class, not the page) is fine. So is a
+    subclass of ``PagedList`` passing its own bound method to
+    ``super().__init__`` (``AccountListPage``, ``ConversationsPage`` and
+    the other shipped subclasses do): the list is then the owner itself,
+    and there is no second object to form a cycle with. The ``paged
+    list`` test covers a ``weak_method`` hook, a classmethod, and the
+    real drafts and followed-hashtags pages being freed.
 
     It follows the ``Link`` header, not a status id, so it shares with
     ``PagedPosts`` only the preload distance (:data:`PRELOAD`)."""
