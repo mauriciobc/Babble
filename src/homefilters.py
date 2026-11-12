@@ -24,10 +24,14 @@ class HomeFilters:
     is mixed into.
 
     The relationship lookup has no stale-answer guard of its own: when it
-    answers, ``on_done`` runs the page's ``_finish_*`` method, which drops
-    a page that has been superseded (``_superseded``), clears the busy
-    flags and releases the bottom lock. A late answer only fills
-    ``_following_ids``, which is keyed by author and so never stale."""
+    answers, ``on_done`` runs the page's ``_finish_*`` method.
+    ``_finish_page_loaded`` and ``_finish_older_loaded`` drop a superseded
+    page (``_superseded`` clears the busy flags; the older one also
+    releases the bottom lock). ``_finish_refresh_loaded`` has no such
+    check: a stale refresh is applied, which is harmless because
+    ``insert_new`` skips posts already seen and the cursor only moves
+    forward. A late answer only fills ``_following_ids``, which is keyed
+    by author and so never stale."""
 
     def _remember_follows(self, relationships):
         """Record what the server said about a batch of authors.
