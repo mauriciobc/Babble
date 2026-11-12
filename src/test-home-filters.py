@@ -275,10 +275,20 @@ class _HeldClient(_Server):
     def __init__(self, posts):
         super().__init__(posts)
         self.held = []                     # [{'ids': [...], 'callback': f}]
+        self.hold_timeline = False
+        self.timeline_held = []            # [(callback, result)]
+
+    def release_timeline(self, index):
+        callback, result = self.timeline_held[index]
+        callback(self, result)
 
     def request_async(self, method, path, params=None, callback=None,
                       **_kw):
         if path != '/accounts/relationships':
+            if self.hold_timeline and path == '/timelines/home':
+                real = callback
+                callback = (lambda c, r, _real=real:
+                            self.timeline_held.append((_real, r)))
             return super().request_async(method, path, params=params,
                                          callback=callback, **_kw)
         self.held.append({'ids': list(params['id[]']), 'callback': callback})
@@ -532,6 +542,54 @@ client.answer(0, error=True)
 check('failed lookup, superseded refresh: nothing lost, no duplicate',
       shown(page)[0] == 61 and len(shown(page)) == len(set(shown(page)))
       and page._refresh_chain == 0 and flags_clear(page))
+
+# The refresh chain must end by the path the refresh actually took. A
+# refresh chain that has run (a full page continued it) and then ends on a
+# short, non-empty page whose lookup answers late ends in
+# _finish_refresh_loaded; the empty-page path resets the counter too, so
+# only a short page with posts pins this one. _pull_done is the hook the
+# pull-to-refresh spinner hangs on: it runs once per chain end.
+client, page = held_home(plain(1, 20))
+pulled = []
+page._pull_done = lambda: pulled.append(True)
+client.grow(plain(21, 40))                       # a full page, no replies
+client.grow(plain(41, 42) + [reply(43, 21)] + plain(44, 45))   # short
+page.refresh()
+check('chain end: the full page continued the chain; the short page waits '
+      'for its lookup',
+      page._refresh_chain == 1 and len(client.held) == 1
+      and shown(page)[0] == 40 and not pulled)
+client.answer(0, following={'21'})
+check('chain end: a short non-empty last page lands',
+      shown(page)[:6] == [45, 44, 43, 42, 41, 40])
+check('chain end: the chain ended (counter reset, spinner hook ran once)',
+      page._refresh_chain == 0 and pulled == [True])
+sent = len(client.timeline_requests())
+client.grow([status(46)])
+page.refresh()
+check('chain end: the next refresh can start',
+      len(client.timeline_requests()) == sent + 1
+      and client.timeline_requests()[-1].get('min_id') == '00045'
+      and shown(page)[0] == 46 and flags_clear(page))
+
+# A refresh whose own response is superseded ends the chain too (the
+# hook runs, the flags clear) instead of leaving a pull spinner running.
+client, page = held_home(plain(1, 60))
+pulled = []
+page._pull_done = lambda: pulled.append(True)
+client.hold_timeline = True
+client.grow([status(61)])
+page.refresh()                                   # response held
+check('superseded refresh: its response is out, the model is loading',
+      len(client.timeline_held) == 1 and page.model.loading and not pulled)
+page.load_older()                                # takes its place
+client.release_timeline(0)                       # the stale refresh answers
+check('superseded refresh: the stale page is dropped',
+      61 not in shown(page))
+check('superseded refresh: the chain ended (spinner hook ran once)',
+      pulled == [True] and page._refresh_chain == 0)
+check('superseded refresh: the flags are clear',
+      not page.model.loading and not page._loading_older)
 pages.settings().reset('hide-replies-non-follows')
 
 # Only the home timeline is filtered.
