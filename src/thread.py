@@ -265,8 +265,8 @@ class ThreadPage(Adw.Bin):
         token = self.stack.begin()
         api_statuses.context_async(
             self.client, self.status['id'],
-            callback=lambda client, result, _data=None:
-            self.on_context_loaded(client, result, token))
+            callback=self.stack.callback(self.on_context_loaded, token),
+            cancellable=token.cancellable)
 
     def on_retry(self, _button):
         self.load()

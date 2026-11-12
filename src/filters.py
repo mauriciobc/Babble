@@ -405,8 +405,9 @@ class FiltersList(Adw.Bin):
     def refresh(self):
         token = self.stack.begin()
         api_filters.index_async(
-            self.client, callback=lambda client, result, _data=None:
-            self._on_loaded(client, result, token))
+            self.client,
+            callback=self.stack.callback(self._on_loaded, token),
+            cancellable=token.cancellable)
 
     def _on_loaded(self, client, result, token):
         try:

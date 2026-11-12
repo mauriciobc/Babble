@@ -183,8 +183,8 @@ class EditHistoryView(Adw.Bin):
         token = self.stack.begin()
         api_statuses.history_async(
             self.client, self.status_id,
-            callback=lambda client, result, _data=None:
-            self._on_loaded(client, result, token))
+            callback=self.stack.callback(self._on_loaded, token),
+            cancellable=token.cancellable)
 
     def _on_loaded(self, client, result, token):
         try:
