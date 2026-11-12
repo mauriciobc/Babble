@@ -275,6 +275,9 @@ next reviewer does not re-derive it.
 | DEF-06 | deferred | The app icon uses eleven gradients, three baked specular strokes and a black outline; the HIG asks for flat fills. | The artwork must be redrawn, not edited, and an icon is not a review finding a code change can settle. |
 | DEF-07 | deferred | No `-Dprofile=Devel`, so the app id is hard-coded in 24 places across the meson files. | Real and mechanical, and worth doing before a devel install is needed; it touches every installed filename, which is a bad pairing with a release. |
 | DEF-08 | deferred | Screenshots are 1090×790; the curation guidance says ≤1000×700. | Only matters when curating for Flathub. |
+| DEF-09 | deferred | A `PagedList` hook (`make_row`, `extract`, `finish`, `page_filter`, `make_placeholder`) that is a plain bound method of the page that owns the list leaks the page and the list: a cycle through C that Python's collector cannot see. | No caller does it today (the pages use `weak_method`, a classmethod, or are subclasses passing their own methods), and the `PagedList` docstring says what to pass. If a guard is wanted: one private wrapper in `PagedList.__init__` that holds such a hook weakly, for all five hooks together, with defined behaviour when the owner is gone. Decided: no guard in the `refactor/paged-list` branch. |
+| DEF-10 | deferred | Two reach-ins into a `PagedList` remain that want an operation: `lists.py` adds a button to the empty state with `paged.empty_page.set_child(...)`, and `relations.py` sets the empty icon and description by hand because `AccountListPage` hardcodes them. | Configuration, not state: nothing breaks. An `empty_action=` argument for the first, and passing `empty_icon` / `empty_description` through `AccountListPage` for the second. |
+| DEF-11 | deferred | If `page_filter`, `extract`, `make_row`, or a non-`GLib.Error` raised by `finish` raises inside `PagedList._on_loaded`, the list stays on the loading page. Unchanged from before the branch. | To be handled with the later request-lifetime work (cancelling requests and the generation guard), where a failed page is defined once. |
 
 ### Second pass: what a review of the first pass caught
 
@@ -563,16 +566,60 @@ argument rather than a copy: whether refresh asks for `since_id`
 lists remain distinct, because a Link cursor is not a status id and the
 base cannot fake one. Final resolutions:
 
-* `pages.PagedList` only borrows the base for a place to live and initializes
-  the generation guard; its `load`/`load_more`/`refresh` and `_on_scroll`
-  keep their own bodies, because a Link-paged end says nothing about the
-  last row in the way a status id does.
+* `pages.PagedList` kept its own `refresh`/`load_more`/`_on_scroll`, because
+  a Link-paged end says nothing about the last row in the way a status id
+  does. It first borrowed the base for a place to live; it no longer
+  inherits `PagedPosts` at all (a later change, below), and shares only the
+  preload distance, `pages.PRELOAD` with `pages.near_bottom()`.
 * The module-level `PAGE_SIZE` in `pages.py` is *still 40* for lists. The base
   uses 20, which is the page size every (status/older, status/newer, status
   refresh) list uses; reusing the list value would have doubled those
   requests.
 * Regression coverage: timeline, notification, and thread-profile test scripts
   pass under the consolidated shape.
+* **`PagedList`'s interface (later change).** Three callers had reached into
+  its internals for what it lacked: `scheduled._FilteredList` copied
+  `_on_loaded` to filter each page, `ListsPage._on_created` appended a row
+  by hand, and `hashtags._FollowedTagsList` overrode three methods to keep a
+  placeholder row. `PagedList` now has `append_row`, `finish=` (the api
+  module's own `*_finish_paged`), `page_filter=` (a page that filters to
+  nothing while more follow asks for the next) and `make_placeholder=`; the
+  two subclasses are gone and `lists.py` makes one call. The list is its
+  own class, with the invariant (`rows`, `list_box` and the visible stack
+  page move together) written in its docstring and pinned by the `paged
+  list` test. Page sizes are unchanged: status lists 20, Link-paged boxed
+  lists 40. Not changed: cancelling requests, the generation guard, the
+  rest of `pages.py`.
+
+  Three behaviour changes of this branch, all on the Followed Hashtags
+  page, where the old `_FollowedTagsList` kept a placeholder row ("No
+  followed hashtags") in place of the empty page so the saved timelines
+  above the list stay reachable. The maintainer approved keeping them as
+  fixes; each has a named check in `src/test-paged-list.py`:
+
+  * (a) The last followed tag is removed while more pages exist, and the
+    next page brings a tag. Before: the placeholder row stayed above the
+    tag. Now: only the tag.
+  * (b) The same, but the next page arrives empty. Before: the stack
+    switched to the full empty page, which hides the saved timelines above
+    the list (what the placeholder exists to prevent), and the placeholder
+    row stayed in the list box, hidden. Now: the list stays, with the
+    placeholder.
+  * (c) `remove_row` is called with a row that is not in the list while
+    the placeholder shows and no more pages exist. Before: the stack
+    flipped to the empty page. Now: the list stays.
+
+  The cause was one rule written in three places: the old subclass set the
+  empty page first and added the placeholder only if it had none. The
+  list now decides in one method (`_settle`): rows mean the list and no
+  placeholder; no rows and a placeholder hook mean the list with the
+  placeholder; otherwise the empty page. An independent old-versus-new
+  comparison of 71 scenarios (518 steps) across the scheduled and drafts
+  pages, followed hashtags, lists, conversations, announcements, blocked
+  domains and an account list found 67 identical and 4 differing; all 4
+  were on the Followed Hashtags page and all were instances of (a), (b)
+  and (c). Open items that came out of this change are DEF-09 to DEF-11
+  above.
 
 ### 2.3 Translated-string tables (duplication translators can see)
 

@@ -29,9 +29,9 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
 | `profile.py` | ~915 | ARCH-16 extracted profileheader; tabs/extras remain |
 | `mastodon.py` | 1328 | Coherent transport — leave |
-| `pages.py` | 1239 | Shared toolkit — Phase N |
+| `pages.py` | 1336 | Shared toolkit — Phase N. `PagedList`'s interface was settled on its own (IMPROVEMENTS CLEAN-08) and grew the file by about 90 lines; the sprawl is untouched |
 | `fedicollections.py` | 1086 | Feature pack — Phase N |
-| `hashtags.py` | 832 | Marginal |
+| `hashtags.py` | 802 | Marginal |
 
 Catch Up (hard fail over 800, no EXCEPTION):
 
@@ -310,8 +310,16 @@ the real window); `file size rule`.
 - **`pages.py`:** do not carve paging/`call_api` early; unify silent
   `admin.send` / `fedicollections._send_api` only as a small helper
   PR, not as a file-size drive.
+- **`pages.py`, `PagedList` follow-ups (open, not scheduled):** a guard
+  for a plain bound-method hook of the owning page (DEF-09), two
+  reach-ins that want an operation, `empty_action=` and the empty icon
+  and description through `AccountListPage` (DEF-10), and a list that
+  stays on the loading page when a hook raises (DEF-11, with the later
+  request-lifetime work). All three are in `IMPROVEMENTS.md`.
 - **`fedicollections.py` / `hashtags.py` / `mastodon.py`:** leave unless
-  they grow or a feature forces a seam.
+  they grow or a feature forces a seam. `hashtags.py` is at 802 lines
+  against the limit of 800 as a declared exception: the next deletion of
+  two or more lines must remove its entry in `src/test-file-size.py`.
 - **Stream dispatch table:** done as ARCH-20, with the dependency
   inversion this entry once said it was not.
 

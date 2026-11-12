@@ -25,7 +25,6 @@ from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 from . import pages  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
 from .pages import weak_method  # noqa: E402
-from .mastodon import summarize_error_markup  # noqa: E402
 from .statustext import clock_format  # noqa: E402
 
 # Tuba: scheduled statuses dated in a year after this one are drafts.
@@ -524,46 +523,6 @@ class ScheduledRow(Gtk.ListBoxRow):
 
 # Pages
 
-class _FilteredList(pages.PagedList):
-    """PagedList that filters each page client-side.
-
-    The endpoint mixes scheduled posts and drafts, so a page can filter to
-    nothing while more pages follow: keep fetching until something shows
-    up or the pages run out."""
-
-    __gtype_name__ = 'BabbleScheduledFilteredList'
-
-    def __init__(self, client, make_row, want_drafts, **kwargs):
-        self.want_drafts = want_drafts
-        super().__init__(client, api_scheduled.list_path('index'), make_row,
-                         **kwargs)
-
-    def _on_loaded(self, client, result, generation):
-        if generation != self._generation:
-            return
-        self._loading = False
-        self.more_spinner.set_visible(False)
-        try:
-            data, next_params, _prev = api_scheduled.index_finish_paged(
-                client, result)
-        except GLib.Error as error:
-            if not self.rows:
-                self.error_page.set_description(
-                    summarize_error_markup(error))
-                self.stack.set_visible_child_name('error')
-            else:
-                pages.report_error(self, _('Could not load more'), error)
-            return
-        data = data or []
-        self._next = next_params if data else None
-        items = [item for item in data
-                 if is_draft(item) == self.want_drafts]
-        if not items and self._next:
-            self.load_more()
-            return
-        self.append_items(items)
-
-
 class _ScheduledPage(Adw.Bin):
     """Shared implementation of the two pages."""
 
@@ -574,11 +533,22 @@ class _ScheduledPage(Adw.Bin):
         self.client = client
         # The list and its rows live inside the page: hand them weak
         # callbacks so they do not keep the page alive through C.
-        self.list = _FilteredList(
-            client, weak_method(self._make_row), self.DRAFTS,
+        # The endpoint mixes scheduled posts and drafts, so a page can
+        # filter to nothing while more pages follow: PagedList keeps
+        # fetching until something shows up or the pages run out.
+        self.list = pages.PagedList(
+            client, api_scheduled.list_path('index'),
+            weak_method(self._make_row),
+            finish=api_scheduled.index_finish_paged,
+            page_filter=self._wanted,
             empty_title=empty_title, empty_icon=empty_icon,
             empty_description=empty_description)
         self.set_child(self.list)
+
+    @classmethod
+    def _wanted(cls, items):
+        # A classmethod bound to the class, not the page: no cycle.
+        return [item for item in items if is_draft(item) == cls.DRAFTS]
 
     def _make_row(self, scheduled):
         return ScheduledRow(self.client, scheduled, draft=self.DRAFTS,
