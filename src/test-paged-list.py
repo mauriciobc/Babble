@@ -38,7 +38,7 @@ sys.path.insert(0, srcdir)
 
 Adw.init()
 
-from src import pages  # noqa: E402
+from src import hashtags, pages, scheduled  # noqa: E402
 
 failures = []
 CONTEXT = GLib.MainContext.default()
@@ -414,6 +414,31 @@ check('with more pages, the last row removed shows the placeholder',
 sent = len(client.sent)
 settle()
 check('... while the next page is asked for', len(client.sent) == sent + 1)
+client.answer([item(2)], None)
+check('placeholder fix (a): the next page brings a row after the last was '
+      'removed: the row, no placeholder above it',
+      lst.placeholder is None and texts(lst) == ['row 2']
+      and len(children(lst)) == 1 and in_step(lst)
+      and page_name(lst) == 'list')
+
+client, lst = build(make_placeholder=make_placeholder)
+client.answer([item(1)], {'max_id': '1'})
+del lst._maybe_fill
+settle()
+lst.remove_row(lst.rows[0])
+settle()
+client.answer([], None)
+check('placeholder fix (b): the next page arrives empty after the last '
+      'row was removed: the list and its placeholder stay, not the empty '
+      'page', page_name(lst) == 'list' and lst.rows == []
+      and children(lst) == [lst.placeholder])
+
+client, lst = build(make_placeholder=make_placeholder)
+client.answer([])
+lst.remove_row(Adw.ActionRow(title='not in the list'))
+check('placeholder fix (c): removing a row that is not in the list while '
+      'the placeholder shows leaves the list, not the empty page',
+      page_name(lst) == 'list' and children(lst) == [lst.placeholder])
 
 client, lst = build(make_placeholder=lambda: None)
 client.answer([])
@@ -434,6 +459,20 @@ check('near_bottom: within the preload of the end is near',
 check('near_bottom takes a distance',
       not pages.near_bottom(Gtk.Adjustment(value=0, lower=0, upper=2000,
                                            page_size=100), 100))
+
+# The scroll handler
+
+client, lst = build()
+client.answer([item(1)], {'max_id': '1'})
+vadjustment = lst.scrolled.get_vadjustment()
+vadjustment.configure(0, 0, 5000, 10, 100, 500)
+vadjustment.set_value(100)
+check('a scroll far from the bottom asks for nothing',
+      len(client.sent) == 1)
+vadjustment.set_value(4000)
+check('a scroll within the preload of the bottom asks for the next page',
+      len(client.sent) == 2
+      and client.sent[1].params == {'max_id': '1'})
 
 # Freed once dropped
 
@@ -489,6 +528,85 @@ del owner
 settle()
 check('a page whose list holds weak hooks to it is freed with its list',
       all(freed(ref) for ref in refs))
+
+
+class ClassHookOwner(Adw.Bin):
+    """A page that passes a classmethod as the filter, as scheduled.py
+    does: the bound callable holds the class, not the page."""
+
+    KEEP = 'a'
+
+    def __init__(self):
+        super().__init__()
+        self.client = FakeClient()
+        self.list = pages.PagedList(
+            self.client, '/things', pages.weak_method(self._row),
+            page_filter=self._wanted)
+        self.set_child(self.list)
+
+    @classmethod
+    def _wanted(cls, items):
+        return [data for data in items if data.get('kind') == cls.KEEP]
+
+    def _row(self, data):
+        return make_row(data)
+
+
+owner = ClassHookOwner()
+owner.client.answer([item(1, kind='a'), item(2, kind='b')], None)
+check('the classmethod filter keeps only what it wants',
+      texts(owner.list) == ['row 1'])
+owner.list.remove_row(owner.list.rows[0])
+refs = [owner.weak_ref(), owner.list.weak_ref()]
+owner.client.sent.clear()
+del owner
+settle()
+check('a page whose list holds a classmethod-bound filter is freed with '
+      'its list', all(freed(ref) for ref in refs))
+
+
+class PageClient(FakeClient):
+    """What the real pages ask of a client besides paging."""
+
+    instance_info = None
+
+    def __getattr__(self, name):
+        if name.endswith('_async'):
+            return lambda *args, **kwargs: None
+        raise AttributeError(name)
+
+
+client = PageClient()
+page = scheduled.DraftPostsPage(client)
+draft = {'id': 'd1', 'scheduled_at': '8026-06-01T10:00:00.000Z',
+         'params': {'text': 'draft'}}
+post = {'id': 'p1', 'scheduled_at': '2031-06-01T10:00:00.000Z',
+        'params': {'text': 'post'}}
+client.answer([post, draft, dict(draft, id='d2')], None)
+check('the real drafts page filters a page to its drafts',
+      [row.scheduled['id'] for row in page.list.rows] == ['d1', 'd2'])
+page.list.remove_row(page.list.rows[0])
+refs = [page.weak_ref(), page.list.weak_ref(),
+        page.list.rows[0].weak_ref()]
+client.sent.clear()
+del page, client
+settle()
+check('the real drafts page, its list and a row are freed after a page '
+      'and a removal', all(freed(ref) for ref in refs))
+
+client = PageClient()
+page = hashtags.FollowedHashtagsPage(client)
+client.answer([{'name': 'one', 'url': 'u', 'history': []},
+               {'name': 'two', 'url': 'u', 'history': []}], None)
+page.paged.remove_row(page.paged.rows[0])
+page.paged.remove_row(page.paged.rows[0])
+refs = [page.weak_ref(), page.paged.weak_ref(),
+        page.paged.placeholder.weak_ref()]
+client.sent.clear()
+del page, client
+settle()
+check('the real followed hashtags page, its list and its placeholder are '
+      'freed after a page and removals', all(freed(ref) for ref in refs))
 
 # The test can fail
 

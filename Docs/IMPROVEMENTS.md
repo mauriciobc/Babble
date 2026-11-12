@@ -585,10 +585,34 @@ base cannot fake one. Final resolutions:
   own class, with the invariant (`rows`, `list_box` and the visible stack
   page move together) written in its docstring and pinned by the `paged
   list` test. Page sizes are unchanged: status lists 20, Link-paged boxed
-  lists 40. One behaviour differs on purpose: a placeholder is now dropped
-  when a row arrives; before, a page that arrived after the last row had
-  been removed left the placeholder above the new rows. Not changed:
-  cancelling requests, the generation guard, the rest of `pages.py`.
+  lists 40. Not changed: cancelling requests, the generation guard, the
+  rest of `pages.py`.
+
+  Three behaviour changes of this branch, all on the Followed Hashtags
+  page, where the old `_FollowedTagsList` kept a placeholder row ("No
+  followed hashtags") in place of the empty page so the saved timelines
+  above the list stay reachable. The maintainer approved keeping them as
+  fixes; each has a named check in `src/test-paged-list.py`:
+
+  * (a) The last followed tag is removed while more pages exist, and the
+    next page brings a tag. Before: the placeholder row stayed above the
+    tag. Now: only the tag.
+  * (b) The same, but the next page arrives empty. Before: the stack
+    switched to the full empty page, which hides the saved timelines above
+    the list (what the placeholder exists to prevent), and the placeholder
+    row stayed in the list box, hidden. Now: the list stays, with the
+    placeholder.
+  * (c) `remove_row` is called with a row that is not in the list while
+    the placeholder shows and no more pages exist. Before: the stack
+    flipped to the empty page. Now: the list stays.
+
+  The cause was one rule written in three places: the old subclass set the
+  empty page first and added the placeholder only if it had none. The
+  list now decides in one method (`_settle`): rows mean the list and no
+  placeholder; no rows and a placeholder hook mean the list with the
+  placeholder; otherwise the empty page. 38 of 39 scripted scenarios on the
+  scheduled, drafts, followed-tags and lists pages were identical in
+  requests, stack page and rows; the one difference was (a).
 
 ### 2.3 Translated-string tables (duplication translators can see)
 

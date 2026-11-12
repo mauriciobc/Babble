@@ -748,9 +748,16 @@ class PagedList(Adw.Bin):
       the empty state whenever there are no rows, and dropped again as
       soon as one exists.
 
-    The list is a child of its page, so a hook that is a method of that
-    page goes through :func:`weak_method`, like ``make_row``: a bound
-    method would close a cycle through C that keeps the page alive.
+    What a caller must pass. The list keeps ``make_row``, ``extract``,
+    ``finish``, ``page_filter`` and ``make_placeholder`` for as long as it
+    lives, and the list is a child of its page. A hook that is a plain
+    bound method of the page (or of any GObject that owns the list) closes
+    a cycle through C that Python's collector cannot see, and the page and
+    its list are never freed. So such a hook goes through
+    :func:`weak_method`, as ``make_row`` does for the callers; a module
+    function, a lambda that captures no widget, or a classmethod (the
+    bound callable holds the class, not the page) is fine. The ``paged
+    list`` test frees a page each way and the real pages that pass hooks.
 
     It follows the ``Link`` header, not a status id, so it shares with
     ``PagedPosts`` only the preload distance (:data:`PRELOAD`)."""
