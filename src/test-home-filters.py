@@ -433,9 +433,11 @@ check('refresh: newest_id is the newest the server sent',
       page.model.newest_id == '00064')
 check('refresh: the chain ended and the flags are clear',
       page._refresh_chain == 0 and flags_clear(page))
+# The fake server is deterministic: 40 posts are shown once the older page
+# has landed, then 61, 62 and 63 join them; 64 is a stranger's reply.
 check('refresh: the list is in server order',
       shown(page) == sorted(shown(page), reverse=True)
-      and older_len <= len(shown(page)))
+      and older_len == 40 and len(shown(page)) == 43)
 sent = len(client.timeline_requests())
 page.refresh()
 check('refresh: the next refresh asks above the new cursor',
@@ -463,9 +465,15 @@ check('refresh chain: it ended (cursor past the page, no request left)',
       and page.model.newest_id == '00040')
 check('refresh chain: a quiet server ends it with a short page',
       client.timeline_requests()[-1].get('min_id') == '00040'
-      and requests <= 6)
+      and requests == 5)   # first page, two refreshes, two chain steps
 
 # Two lookups answering in the opposite order from which they were sent.
+# The fake answers differently for author 21 on purpose (a stranger to the
+# second request, followed to the first request's late answer). That can only
+# happen on a server if a follow or unfollow lands between the two lookups.
+# The check pins that a late answer causes no duplicate and no hang, and that
+# the relationship table takes the last answer to arrive; it does not claim
+# that either answer is the right one.
 client, page = held_home(plain(1, 60))
 client.grow([reply(61, 21)])
 page.refresh()                             # R1, lookup 0
