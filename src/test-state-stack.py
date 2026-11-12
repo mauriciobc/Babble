@@ -203,18 +203,46 @@ def page_of(factory, rerun, label):
     check('%s: a page dropped mid-load is freed' % label, ref() is None)
     check('%s: and its request is cancelled' % label,
           pending.is_cancelled())
-    client.callbacks[1](client, ['late'], None)
-    check('%s: its late answer is a harmless no-op' % label, True)
+    toasts = len(shown)
+    requests = len(client.callbacks)
+    for value in (['late'], GLib.Error.new_literal(
+            Gio.io_error_quark(), 'late', Gio.IOErrorEnum.FAILED)):
+        client.callbacks[1](client, value, None)
+    check('%s: the late answers of a freed page (real, failed) change '
+          'nothing and report nothing' % label,
+          len(shown) == toasts and len(client.callbacks) == requests)
+
+    # A CANCELLED error the page did not cause is shown, with Retry.
+    other = Client()
+    page = factory(other)
+    other.callbacks[0](other, GLib.Error.new_literal(
+        Gio.io_error_quark(), 'Operation was cancelled',
+        Gio.IOErrorEnum.CANCELLED), None)
+    check('%s: a foreign CANCELLED shows the error page' % label,
+          page.stack.get_visible_child_name() == 'error')
+    check('%s: ... with a Try Again button' % label,
+          isinstance(page.error_page.get_child(), Gtk.Button))
+    del page
 
 
-page_of(lambda c: FiltersList(c, Adw.NavigationView()),
-        lambda p: p.refresh(), 'filters')
-page_of(lambda c: EditHistoryView(c, {'id': '1'}),
-        lambda p: p.refresh(), 'edit history')
-page_of(lambda c: CollectionPage(c, 'c1'),
-        lambda p: p.refresh(), 'collection')
-page_of(lambda c: ThreadPage(c, StatusItem({'id': '1', 'content': ''})),
-        lambda p: p.load(), 'thread')
+def run_user(factory, rerun, label):
+    try:
+        page_of(factory, rerun, label)
+    except Exception as error:       # one user failing must not hide the rest
+        check('%s: ran to completion' % label, False, repr(error))
+
+
+shown = []
+pages.show_toast = lambda *args, **kwargs: shown.append(args)
+
+run_user(lambda c: FiltersList(c, Adw.NavigationView()),
+         lambda p: p.refresh(), 'filters')
+run_user(lambda c: EditHistoryView(c, {'id': '1'}),
+         lambda p: p.refresh(), 'edit history')
+run_user(lambda c: CollectionPage(c, 'c1'),
+         lambda p: p.refresh(), 'collection')
+run_user(lambda c: ThreadPage(c, StatusItem({'id': '1', 'content': ''})),
+         lambda p: p.load(), 'thread')
 
 client = Client()
 page = FiltersList(client, Adw.NavigationView())

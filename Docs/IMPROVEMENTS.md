@@ -628,46 +628,69 @@ base cannot fake one. Final resolutions:
   and its answer was then thrown away. `src/requestscope.py` is the one
   place that is now written: `RequestScope.begin()` starts a generation and
   cancels the last, `start()` joins the current one, `close()` cancels all,
-  and `ticket.wanted()` is the question a callback asks first, before it
-  decodes (a cancelled `Gio.Task` raises CANCELLED on propagate even when
-  the real answer had arrived, and a cancelled request still calls its
-  callback). Adopters: `PagedList` (its `_generation` is gone), `StateStack`
-  (`begin()` now returns a ticket; thread, filters, edit history and
-  collection pass `token.cancellable` to their api call and hand it a weak
-  callback), and `call_api(ticket=)`, opt-in for a read. A page closes its
+  and `ticket.callback(handler)` is the callback a read hands the api call:
+  it asks `ticket.wanted()` before the handler decodes anything (a
+  cancelled `Gio.Task` raises CANCELLED on propagate even when the real
+  answer had arrived, and a cancelled request still calls its callback),
+  holds the handler's owner weakly, and drops an answer only when the scope
+  itself cancelled or superseded it; any other error, a CANCELLED one
+  included, is the reader's to see. Adopters: `PagedList` (its
+  `_generation` is gone) and `StateStack` (`begin()` now returns a ticket;
+  thread, filters, edit history and the collection page pass
+  `token.cancellable` and `token.callback(handler)` to their api call, and
+  their handlers no longer check `is_current`). `call_api` is unchanged: it
+  is for writes and for reads whose answer is always wanted. A page closes its
   scope in `do_dispose`: measured with a scratch script, a cached place page
   receives `unmap` and `unroot` when the reader navigates away (so those are
   the wrong hooks) and nothing when it is shown again, `dispose` only when
   `forget` or `clear()` drops it, and a popped sub-page `unmap`, `unroot`,
   `dispose`.
 
-  Behaviour changes, and nothing else (`api golden` is unchanged: the same
-  requests are issued, in the same order, with the same parameters):
+  Behaviour changes, and nothing else. For live pages `api golden` is
+  unchanged: the same requests are issued, in the same order, with the same
+  parameters.
 
   | | Before | After |
   |---|---|---|
-  | A read superseded by a newer one of the same `PagedList` or `StateStack` page (refresh, Try Again, a later page outrun by a refresh) | ran to completion, answer ignored | the request is cancelled, answer ignored |
-  | A read of an adopter whose page is dropped while it loads | held the page alive until it answered, then ignored | the page is freed (the callback holds it weakly), its scope is closed, the request is cancelled |
-  | The answer to a cancelled read | could be decoded; a CANCELLED error reached the error page on the first page of a `PagedList` | dropped before decoding, no error page, no toast |
+  | A read superseded by a newer read of the same `PagedList` or `StateStack` page (a refresh, Try Again, a later page outrun by a refresh) | the request ran to completion and its answer was ignored | the request is cancelled and its answer dropped, with no error and no toast |
+  | A page of those adopters dropped while a read is out | the request's callback kept the page alive until the answer came, and the answer was then applied to a page nobody could see (a dropped drafts page issued one more `load_more` request, a failure toasted "Could not load more", and one scenario raised `AttributeError`) | the callback holds the page weakly, the page is freed when its last reference drops, its scope is closed and the request is cancelled, so none of that happens |
   | A page hidden and shown again while it loads | answer shown | unchanged: the scope is not closed on hide |
   | A write | answer always delivered | unchanged: no write takes a ticket |
 
-  `call_api(ticket=)` is adopted by none of its six read callers: the poll
-  refresh (`pollbox.py`), `statusmenu.py` source and translate, the quoted
-  post (`statusactions.py`) and the two search-provider lookups have no
-  owner whose end clearly means the answer is unwanted (rows are recycled,
-  a menu is a one-shot, the search provider has no per-query object), and
-  an owner invented for them would be a guess. `blueskythread.py` uses
-  `StateStack` for its pages but its request is `bluesky.get_thread_async`,
-  not a Mastodon call, and it already cancels through `bluesky.cancel` and
-  `do_unroot`; it keeps `begin()`/`is_current()` and nothing else changed.
-  Left for later, in this order: timelines and notifications
-  (`PagedPosts`), search and typeahead, profile, admin and Wrapped, the
-  composer's state epochs, and the error helpers that are not silent on
-  CANCELLED (`summarize_error`, `summarize_error_markup`,
-  `ToastDialog.error`). DEF-09 and DEF-11 are still open: the request
-  callback is now held weakly, the hooks are not, and a hook that raises in
-  `_on_loaded` still leaves the list on the loading page.
+  A CANCELLED error the scope did not cause is shown as any other error
+  (the error page with Try Again on a first page, the "Could not load more"
+  toast on a later one), as before this branch.
+
+  `blueskythread.py` uses `StateStack` for its pages but its request is
+  `bluesky.get_thread_async`, not a Mastodon call, and it already cancels
+  through `bluesky.cancel` and `do_unroot`; it keeps `begin()` and
+  `is_current()` (the same question as `ticket.wanted()`) and nothing else
+  changed. `call_api` has six read callers (the poll refresh, `statusmenu.py`
+  source and translate, the quoted post, the two search-provider lookups)
+  and none has an owner whose end clearly means the answer is unwanted, so
+  it stays as it was.
+
+  Left for later, in this order: timelines and notifications (`PagedPosts`;
+  its dropped answers must reset the loading flags and release the bottom
+  lock, which is what `Ticket.callback(..., on_drop=)` is for), search and
+  typeahead, profile, admin and Wrapped, the composer's state epochs, and
+  the error helpers that are not silent on CANCELLED (`summarize_error`,
+  `summarize_error_markup`, `ToastDialog.error`). DEF-09 and DEF-11 are
+  still open: the request callback is now held weakly, the hooks are not,
+  and a hook that raises in `_on_loaded` still leaves the list on the
+  loading page. Also open, found by QA:
+
+  * The conversations page is not freed at `_teardown_session` until a
+    `gc.collect()`, so its cancel is delayed; the cause is not yet found.
+  * `instance_info_async` coalesces waiters on one request sent with the
+    first caller's cancellable: a scope must never hand its cancellable to a
+    coalesced request, because cancelling it would fail every waiter.
+  * The transport's retry timer (`_maybe_retry` / `_rest_retry`) is not
+    removed on cancel, so a cancelled request calls back after the back-off
+    (about a second in QA's run); the callback drops it silently.
+  * `pluginsupport.Scope`, `catchup.fetch.CatchUpRun` and `auth.py` are
+    existing scopes that could converge on this vocabulary (`close()` /
+    `closed`); not now.
 
 ### 2.3 Translated-string tables (duplication translators can see)
 

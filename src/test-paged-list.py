@@ -19,7 +19,6 @@ import os
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
-import types
 
 import gi
 
@@ -40,6 +39,7 @@ sys.path.insert(0, srcdir)
 Adw.init()
 
 from src import hashtags, pages, scheduled  # noqa: E402
+from src.api import core as api_core  # noqa: E402
 
 failures = []
 CONTEXT = GLib.MainContext.default()
@@ -699,6 +699,7 @@ check('a failure that is not a cancel still shows the error page',
 
 owner = Owner()
 pending = owner.client.sent[0]
+pending_client = owner.client
 refs = [owner.weak_ref(), owner.list.weak_ref()]
 check('a list loading its first page has its request out, not cancelled',
       not pending.cancellable.is_cancelled())
@@ -707,19 +708,66 @@ settle()
 check('a list dropped mid-load is freed, with its request still out',
       all(freed(ref) for ref in refs))
 check('and its request was cancelled', pending.cancellable.is_cancelled())
-pending.callback(None, ('cancelled',), None)
-check('the late answer of a freed list is a harmless no-op', True)
+dead_client = pending_client
+before, decoded_before = len(reported), dead_client.finished
+pending.callback(dead_client, ('cancelled',), None)
+pending.callback(dead_client, ('ok', [item(1)], None), None)
+pending.callback(dead_client, ('error', 'boom'), None)
+check('the late answers of a freed list (cancelled, real, failed) are '
+      'dropped: nothing decoded, nothing reported',
+      len(reported) == before and dead_client.finished == decoded_before)
 
 owner = Owner()
 owner.client.answer([item(1)], {'max_id': '1'})
 owner.list.load_more()
 pending = owner.client.sent[-1]
+dead_client = owner.client
 refs = [owner.weak_ref(), owner.list.weak_ref(), owner.list.rows[0].weak_ref()]
 del owner
 settle()
 check('a list dropped while loading a later page is freed and the page '
       'request cancelled',
       all(freed(ref) for ref in refs) and pending.cancellable.is_cancelled())
+before, decoded_before = len(reported), dead_client.finished
+sent_before = len(dead_client.sent)
+pending.callback(dead_client, ('error', 'boom'), None)
+check('its late failure reports nothing (no toast, no further request)',
+      len(reported) == before and dead_client.finished == decoded_before
+      and len(dead_client.sent) == sent_before)
+
+# A CANCELLED error the list did not cause is shown, not swallowed
+
+client, lst = build()
+cancelled_request = client.sent[0]
+check('the first page is not cancelled by anything', not
+      cancelled_request.cancellable.is_cancelled())
+cancelled_request.callback(client, ('cancelled',), None)
+check('a foreign CANCELLED on the first page shows the error page',
+      page_name(lst) == 'error' and lst.rows == [])
+check('... with a Try Again button', isinstance(
+    lst.error_page.get_child(), Gtk.Button))
+lst._on_retry(None)
+check('... and Retry loads again', len(client.sent) == 2
+      and page_name(lst) == 'loading')
+
+client, lst = build()
+client.answer([item(1)], {'max_id': '1'})
+lst.load_more()
+before = len(reported)
+client.sent[-1].callback(client, ('cancelled',), None)
+check('a foreign CANCELLED on a later page toasts, keeping the rows',
+      len(reported) == before + 1
+      and reported[-1][0] == 'Could not load more'
+      and texts(lst) == ['row 1'] and page_name(lst) == 'list')
+
+# load_more joins the generation: it cancels nothing still out
+
+client, lst = build()
+client.answer([item(1)], {'max_id': '1'})
+lst.load_more()
+check('load_more does not cancel the request of the same generation',
+      not client.sent[0].cancellable.is_cancelled()
+      and not client.sent[1].cancellable.is_cancelled())
 
 # Hidden and shown again: a cached page is not closed
 
@@ -748,99 +796,18 @@ window.destroy()
 del window, holder, lst, other
 settle()
 
-# call_api: a write is never cancelled, a read in a scope is
-
-from src.requestscope import RequestScope  # noqa: E402
-
-
-def decode_one(client_, result):
-    return client_.request_finish_paged(result)[0]
-
-
-client = FakeClient()
-starts = []
-done = []
-
-
-def start_write(callback, *extra):
-    starts.append(extra)
-    client.request_async('POST', '/w', callback=callback)
-
-
-scope = RequestScope()
-scope.begin()
-scope.begin()
-scope.close()
-pages.call_api(None, client, start_write, done.append, 'Write failed',
-               finish=decode_one)
-client.answer([1], None)
-check('a write through call_api is started with no cancellable and its '
-      'answer is delivered, whatever any scope did',
-      starts == [()] and client.sent[0].cancellable is None
-      and done == [[1]])
-
-client = FakeClient()
-done = []
-before = len(reported)
-scope = RequestScope()
-ticket = scope.begin()
-
-
-def start_read(callback, cancellable):
-    client.request_async('GET', '/r', callback=callback,
-                         cancellable=cancellable)
-
-
-pages.call_api(None, client, start_read, done.append, 'Read failed',
-               finish=decode_one, ticket=ticket)
-check('a read in a scope is started with the scope\'s cancellable',
-      client.sent[0].cancellable is ticket.cancellable)
-client.answer([2], None)
-check('a read whose answer is wanted is delivered', done == [[2]])
-
-pages.call_api(None, client, start_read, done.append, 'Read failed',
-               finish=decode_one, ticket=scope.begin())
-stale = client.sent[1]
-scope.begin()
-finished_before = client.finished
-client.answer([3], None, request=stale)
-check('a superseded read is cancelled and its answer dropped before '
-      'decoding, with no toast',
-      stale.cancellable.is_cancelled() and done == [[2]]
-      and client.finished == finished_before and len(reported) == before)
-
-client = FakeClient()
-done = []
-pages.call_api(None, client, start_read, done.append, 'Read failed',
-               finish=decode_one, ticket=scope.begin())
-scope.close()
-client.fail()
-check('a read of a closed scope is dropped, even a failure',
-      done == [] and len(reported) == before)
-
-client = FakeClient()
-pages.call_api(None, client, start_read, done.append, 'Read failed',
-               finish=decode_one, ticket=scope.start())
-check('a read started in a closed scope is already cancelled',
-      client.sent[0].cancellable.is_cancelled())
-
-scope = RequestScope()
-client = FakeClient()
-pages.call_api(None, client, start_read, done.append, 'Read failed',
-               finish=decode_one, ticket=scope.begin())
-client.fail()
-check('a failure of a wanted read is still reported',
-      reported[-1] == ('Read failed', 'boom'))
-
 # The test can fail
 
 
 class NoGuard(pages.PagedList):
-    """PagedList without its generation guard: a stale page lands."""
+    """PagedList whose callback skips the ticket's question: a stale page
+    lands (and, the request being uncancelled, decodes)."""
 
-    def _on_loaded(self, client, result, ticket):
-        super()._on_loaded(client, result,
-                           types.SimpleNamespace(wanted=lambda _e=None: True))
+    def _request(self, ticket, params):
+        weak = pages.weak_method(self._on_loaded)
+        api_core.send_path(
+            self.client, self.method, self.fetch_path, params=params,
+            callback=lambda c, r, _d=None: weak(c, r), cancellable=None)
 
 
 check('self-check: the superseded-refresh check fails on a list with no '

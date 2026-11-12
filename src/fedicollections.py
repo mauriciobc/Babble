@@ -529,17 +529,14 @@ class CollectionPage(Adw.Bin):
         token = self.stack.begin()
         collections_api.get_async(
             self.client, self.collection_id,
-            callback=self.stack.callback(self._on_loaded, token),
+            callback=token.callback(self._on_loaded),
             cancellable=token.cancellable)
 
-    def _on_loaded(self, client, result, token):
+    def _on_loaded(self, client, result):
         try:
             data = collections_api.get_finish(client, result)
         except GLib.Error as error:
-            if self.stack.is_current(token):
-                self.stack.show_error(error)
-            return
-        if not self.stack.is_current(token):
+            self.stack.show_error(error)
             return
         self.collection = data.get('collection') or data
         accounts = data.get('accounts') or []

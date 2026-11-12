@@ -97,9 +97,9 @@ starts a new generation of reads when it loads again, which cancels the ones
 it asked for before; it closes the scope when it is really going away, which
 cancels them all. Hidden is not going away: a place the reader has left stays
 built so it can be shown again, and a read still out for it is kept and its
-answer shown. An answer that is no longer wanted, or whose request was
-cancelled, is dropped without a message, because the cancelling was the
-program's own doing. A write is never part of a scope: cancelling cannot undo
+answer shown. An answer that the scope itself superseded or cancelled is
+dropped without a message, because the cancelling was the program's own
+doing; any other error is shown. A write is never part of a scope: cancelling cannot undo
 it, because the server may already have acted.
 
 **Superseded**

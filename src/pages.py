@@ -617,7 +617,7 @@ class ToastDialog(Adw.Dialog):
 
 
 def call_api(widget, client, start, on_done=None, error_heading=None,
-             finish=None, ticket=None):
+             finish=None):
     """Fire one request and hand the decoded body to *on_done(data)*;
     failures toast *error_heading* (default 'Action failed').
 
@@ -626,20 +626,10 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
     *finish(client, result)* decodes the answer; pass the api module's own
     ``<name>_finish`` to honour its validation or unpacking. It defaults to
     ``api.core.finish``, the decoder of a request with no ``_finish`` of its
-    own.
-
-    A WRITE passes no *ticket*: it is never cancelled and its answer is
-    always delivered, because the server may already have acted. A READ
-    whose answer stops being wanted with its owner passes *ticket*, from a
-    :class:`requestscope.RequestScope` the owner closes: then
-    ``start(callback, cancellable)`` is called instead, with
-    ``ticket.cancellable`` to hand the api function, and an answer that is
-    stale or cancelled is dropped, before decoding, with no toast."""
+    own."""
     decode = finish or api_core.finish
 
     def finished(_client, result, _data=None):
-        if ticket is not None and not ticket.wanted():
-            return
         try:
             data = decode(client, result)
         except GLib.Error as error:
@@ -648,9 +638,7 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
         if on_done is not None:
             on_done(data)
 
-    if ticket is None:
-        return start(finished)
-    return start(finished, ticket.cancellable)
+    return start(finished)
 
 
 # Status pages
@@ -696,11 +684,12 @@ class StateStack(Gtk.Stack):
     """A Gtk.Stack with the standard 'loading' and 'error' pages; the
     caller adds its content pages with ``add_named``. ``begin()`` starts
     a load and returns its ticket (a :class:`requestscope.Ticket`): the
-    load's read passes ``token.cancellable`` to its api call, so a newer
-    ``begin()`` cancels it, and ``is_current(token)`` is False once a newer
-    load began or the stack was freed, so a late reply is dropped.
-    *on_retry* follows
-    :func:`make_error_page` (a bound method is held weakly); *markup*
+    load's read passes ``token.cancellable`` and ``token.callback(handler)``
+    to its api call, so a newer ``begin()`` cancels it and its answer never
+    reaches the handler, which holds the page weakly. ``is_current(token)``
+    asks the same question as the ticket (False once a newer load began or
+    the stack was freed), for a caller with a request of its own.
+    *on_retry* follows :func:`make_error_page` (a bound method is held weakly); *markup*
     turns an error into the escaped description."""
 
     __gtype_name__ = 'BabbleStateStack'
@@ -723,17 +712,9 @@ class StateStack(Gtk.Stack):
         return token
 
     def is_current(self, token):
-        """Whether the answer for *token* is still wanted: no newer
-        :meth:`begin`, the stack not gone, and not cancelled. Ask before
-        decoding, and treat False as "drop it, silently"."""
+        """Whether the answer for *token* is still wanted: the same
+        question as ``token.wanted()``."""
         return token.wanted()
-
-    def callback(self, method, token):
-        """The callback for a read started with *token*: ``method(client,
-        result, token)``, held weakly. A page whose load is still out
-        can then be freed, which cancels the load."""
-        weak = weak_method(method)
-        return lambda client, result, _data=None: weak(client, result, token)
 
     def do_dispose(self):
         # The stack is freed with its page, and only then: a page that is
@@ -882,10 +863,9 @@ class PagedList(Adw.Bin):
         list weakly, so a list dropped while loading is freed (and its
         scope closed, which cancels the request) rather than kept alive
         by it."""
-        weak = weak_method(self._on_loaded)
         api_core.send_path(
             self.client, self.method, self.fetch_path, params=params,
-            callback=lambda c, r, _d=None: weak(c, r, ticket),
+            callback=ticket.callback(self._on_loaded),
             cancellable=ticket.cancellable)
 
     def refresh(self):
@@ -915,20 +895,16 @@ class PagedList(Adw.Bin):
         params.update(self._next)
         self._request(self._scope.start(), params)
 
-    def _on_loaded(self, client, result, ticket):
-        # Before decoding: an answer of a superseded refresh, of a closed
-        # list or of a cancelled request must not touch this list, and
-        # decoding a cancelled one raises CANCELLED even when the real
-        # answer had arrived, which would reach the error page.
-        if not ticket.wanted():
-            return
+    def _on_loaded(self, client, result):
+        # Only a wanted answer gets here: the ticket's callback dropped
+        # one of a superseded refresh, of a closed list or of a cancelled
+        # request before this decodes it. Any other error, a CANCELLED one
+        # the list did not cause included, is shown.
         self._loading = False
         self.more_spinner.set_visible(False)
         try:
             data, next_params, _prev = self.finish(client, result)
         except GLib.Error as error:
-            if not ticket.wanted(error):
-                return
             if not self.rows:
                 self.error_page.set_description(
                     summarize_error_markup(error))

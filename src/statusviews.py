@@ -183,19 +183,16 @@ class EditHistoryView(Adw.Bin):
         token = self.stack.begin()
         api_statuses.history_async(
             self.client, self.status_id,
-            callback=self.stack.callback(self._on_loaded, token),
+            callback=token.callback(self._on_loaded),
             cancellable=token.cancellable)
 
-    def _on_loaded(self, client, result, token):
+    def _on_loaded(self, client, result):
         try:
             revisions = api_statuses.history_finish(client, result)
         except GLib.Error as error:
             # StateStack escapes the server body: Adw.StatusPage parses
             # its description as markup and a bare '&' blanks it.
-            if self.stack.is_current(token):
-                self.stack.show_error(error)
-            return
-        if not self.stack.is_current(token):
+            self.stack.show_error(error)
             return
         while (child := self.content.get_first_child()) is not None:
             self.content.remove(child)
