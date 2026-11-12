@@ -184,7 +184,6 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._hide_boosts = (
             home and settings.get_boolean('hide-boosts-home'))
         self._following_ids = {}
-        self._reply_filter_generation = 0
         self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.
