@@ -56,7 +56,9 @@ weak reference, as ``pages.weak_method`` does, written out here because
 ``pages`` imports this module and a scope must stay free of widget code), so
 a request in flight keeps neither the page nor the scope's owner alive."""
 
-from gi.repository import Gio
+import types
+
+from gi.repository import GObject, Gio
 
 
 class Ticket:
@@ -85,7 +87,18 @@ class Ticket:
         first. When the answer is not wanted, ``on_drop(owner)`` is called
         if given (a page resetting its loading flags, say) and *method* is
         not; when the owner is already freed, nothing is. A third argument
-        the transport may pass is ignored."""
+        the transport may pass is ignored.
+
+        Only a bound method whose ``__self__`` is a ``GObject.Object`` is
+        accepted. A plain function, a lambda, a ``functools.partial``, a
+        builtin or a bound method of a non-GObject raises :exc:`TypeError`
+        at once: none of them has a GObject weak reference to hold, so it
+        would be held strongly and keep its owner alive, or fail later."""
+        if not (isinstance(method, types.MethodType)
+                and isinstance(method.__self__, GObject.Object)):
+            raise TypeError(
+                'Ticket.callback takes a bound method of a GObject, '
+                'not %r' % (method,))
         func = method.__func__
         target = method.__self__.weak_ref()
 

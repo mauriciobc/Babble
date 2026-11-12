@@ -8,6 +8,7 @@ skips."""
 import os
 # Never the user's real dconf.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
+import functools
 import gc
 import sys
 
@@ -257,6 +258,37 @@ check('a callback whose owner was freed calls neither handler nor on_drop',
 check('the scope holds only plain state',
       all(isinstance(value, (int, bool, Gio.Cancellable))
           for value in vars(held[0]._scope).values()))
+
+
+# callback() refuses what it cannot hold weakly, before anything happens
+def plain_function(client, result):
+    pass
+
+
+class PlainOwner:
+    def handle(self, client, result):
+        pass
+
+
+def refused(handler):
+    try:
+        RequestScope().begin().callback(handler)
+    except TypeError:
+        return True
+    except Exception:
+        return False
+    return False
+
+
+check('callback refuses a plain function', refused(plain_function))
+check('callback refuses a lambda', refused(lambda client, result: None))
+check('callback refuses a functools.partial',
+      refused(functools.partial(plain_function, 1)))
+check('callback refuses a bound method of a plain object',
+      refused(PlainOwner().handle))
+check('callback refuses a builtin', refused(len))
+check('callback still accepts a bound method of a GObject',
+      callable(RequestScope().begin().callback(Owner().handle)))
 
 
 # The checks above can fail: a scope that never cancels on begin is seen.
