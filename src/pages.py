@@ -29,6 +29,7 @@ from gi.repository import Adw, Gdk, GLib, Gio, Gtk, Pango  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .api import search as api_search  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
+from .requestscope import RequestScope  # noqa: E402
 from .statustext import is_web_link, split_url  # noqa: E402
 
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
@@ -616,7 +617,7 @@ class ToastDialog(Adw.Dialog):
 
 
 def call_api(widget, client, start, on_done=None, error_heading=None,
-             finish=None):
+             finish=None, ticket=None):
     """Fire one request and hand the decoded body to *on_done(data)*;
     failures toast *error_heading* (default 'Action failed').
 
@@ -625,10 +626,20 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
     *finish(client, result)* decodes the answer; pass the api module's own
     ``<name>_finish`` to honour its validation or unpacking. It defaults to
     ``api.core.finish``, the decoder of a request with no ``_finish`` of its
-    own."""
+    own.
+
+    A WRITE passes no *ticket*: it is never cancelled and its answer is
+    always delivered, because the server may already have acted. A READ
+    whose answer stops being wanted with its owner passes *ticket*, from a
+    :class:`requestscope.RequestScope` the owner closes: then
+    ``start(callback, cancellable)`` is called instead, with
+    ``ticket.cancellable`` to hand the api function, and an answer that is
+    stale or cancelled is dropped, before decoding, with no toast."""
     decode = finish or api_core.finish
 
     def finished(_client, result, _data=None):
+        if ticket is not None and not ticket.wanted():
+            return
         try:
             data = decode(client, result)
         except GLib.Error as error:
@@ -637,7 +648,9 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
         if on_done is not None:
             on_done(data)
 
-    return start(finished)
+    if ticket is None:
+        return start(finished)
+    return start(finished, ticket.cancellable)
 
 
 # Status pages
@@ -682,8 +695,11 @@ def make_error_page(title, on_retry):
 class StateStack(Gtk.Stack):
     """A Gtk.Stack with the standard 'loading' and 'error' pages; the
     caller adds its content pages with ``add_named``. ``begin()`` starts
-    a load and returns a token, ``is_current(token)`` is False once a
-    newer load began, so a late reply can be dropped. *on_retry* follows
+    a load and returns its ticket (a :class:`requestscope.Ticket`): the
+    load's read passes ``token.cancellable`` to its api call, so a newer
+    ``begin()`` cancels it, and ``is_current(token)`` is False once a newer
+    load began or the stack was freed, so a late reply is dropped.
+    *on_retry* follows
     :func:`make_error_page` (a bound method is held weakly); *markup*
     turns an error into the escaped description."""
 
@@ -691,7 +707,7 @@ class StateStack(Gtk.Stack):
 
     def __init__(self, loading_title, error_title, on_retry, markup=None):
         super().__init__()
-        self._generation = 0
+        self._scope = RequestScope()
         self._markup = markup or summarize_error_markup
         self.loading_page = make_loading_page(loading_title)
         self.error_page = make_error_page(error_title, on_retry)
@@ -699,12 +715,33 @@ class StateStack(Gtk.Stack):
         self.add_named(self.error_page, 'error')
 
     def begin(self):
-        self._generation += 1
+        """Start a load: show the loading page, cancel the load it
+        replaces, and return its ticket. The load's read passes
+        ``token.cancellable`` to its api call."""
+        token = self._scope.begin()
         self.show_loading()
-        return self._generation
+        return token
 
     def is_current(self, token):
-        return token == self._generation
+        """Whether the answer for *token* is still wanted: no newer
+        :meth:`begin`, the stack not gone, and not cancelled. Ask before
+        decoding, and treat False as "drop it, silently"."""
+        return token.wanted()
+
+    def callback(self, method, token):
+        """The callback for a read started with *token*: ``method(client,
+        result, token)``, held weakly. A page whose load is still out
+        can then be freed, which cancels the load."""
+        weak = weak_method(method)
+        return lambda client, result, _data=None: weak(client, result, token)
+
+    def do_dispose(self):
+        # The stack is freed with its page, and only then: a page that is
+        # merely hidden or cached keeps its stack, and its answer.
+        scope = getattr(self, '_scope', None)
+        if scope is not None:
+            scope.close()
+        Gtk.Stack.do_dispose(self)
 
     def show_loading(self):
         self.set_visible_child_name('loading')
@@ -789,7 +826,7 @@ class PagedList(Adw.Bin):
         self.placeholder = None
         self._next = None
         self._loading = False
-        self._generation = 0
+        self._scope = RequestScope()
         self.rows = []
 
         self.stack = Gtk.Stack()
@@ -833,8 +870,26 @@ class PagedList(Adw.Bin):
         if callback is not None:
             callback()
 
+    def do_dispose(self):
+        # Freed, not hidden: a cached page keeps its list and its answer.
+        scope = getattr(self, '_scope', None)
+        if scope is not None:
+            scope.close()
+        Adw.Bin.do_dispose(self)
+
+    def _request(self, ticket, params):
+        """Send one page in *ticket*'s generation. The callback holds the
+        list weakly, so a list dropped while loading is freed (and its
+        scope closed, which cancels the request) rather than kept alive
+        by it."""
+        weak = weak_method(self._on_loaded)
+        api_core.send_path(
+            self.client, self.method, self.fetch_path, params=params,
+            callback=lambda c, r, _d=None: weak(c, r, ticket),
+            cancellable=ticket.cancellable)
+
     def refresh(self):
-        self._generation += 1
+        ticket = self._scope.begin()    # cancels the pages still out
         self._next = None
         self._loading = True
         self._drop_placeholder()
@@ -845,12 +900,7 @@ class PagedList(Adw.Bin):
         params = dict(self.params)
         if self.paginated:
             params.setdefault('limit', PAGE_SIZE)
-        generation = self._generation
-        api_core.send_path(
-            self.client, self.method, self.fetch_path, params=params,
-            callback=lambda c, r, _d=None, g=generation:
-                self._on_loaded(c, r, g),
-            cancellable=None)
+        self._request(ticket, params)
 
     def _on_scroll(self, adjustment):
         if near_bottom(adjustment):
@@ -863,21 +913,22 @@ class PagedList(Adw.Bin):
         self.more_spinner.set_visible(True)
         params = dict(self.params)
         params.update(self._next)
-        generation = self._generation
-        api_core.send_path(
-            self.client, self.method, self.fetch_path, params=params,
-            callback=lambda c, r, _d=None, g=generation:
-                self._on_loaded(c, r, g))
+        self._request(self._scope.start(), params)
 
-    def _on_loaded(self, client, result, generation):
-        # A response from a superseded refresh must not touch this list.
-        if generation != self._generation:
+    def _on_loaded(self, client, result, ticket):
+        # Before decoding: an answer of a superseded refresh, of a closed
+        # list or of a cancelled request must not touch this list, and
+        # decoding a cancelled one raises CANCELLED even when the real
+        # answer had arrived, which would reach the error page.
+        if not ticket.wanted():
             return
         self._loading = False
         self.more_spinner.set_visible(False)
         try:
             data, next_params, _prev = self.finish(client, result)
         except GLib.Error as error:
+            if not ticket.wanted(error):
+                return
             if not self.rows:
                 self.error_page.set_description(
                     summarize_error_markup(error))

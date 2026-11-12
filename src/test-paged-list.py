@@ -19,6 +19,7 @@ import os
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
+import types
 
 import gi
 
@@ -69,15 +70,18 @@ def freed(ref, attempts=5):
 
 
 class Request:
-    def __init__(self, method, path, params, callback):
+    def __init__(self, method, path, params, callback, cancellable):
         self.method = method
         self.path = path
         self.params = params
         self.callback = callback
+        self.cancellable = cancellable
 
 
 class FakeClient:
-    """The two calls ``PagedList`` makes of a client."""
+    """The two calls ``PagedList`` makes of a client. It models the real
+    transport's cancellation: a cancelled request still calls back, and
+    finishing it raises CANCELLED even when its answer had arrived."""
 
     def __init__(self):
         self.sent = []
@@ -86,22 +90,32 @@ class FakeClient:
     def request_async(self, method, path, params=None, form=None,
                       json_body=None, callback=None, cancellable=None):
         self.sent.append(Request(method, path, dict(params or {}),
-                                 callback))
+                                 callback, cancellable))
 
     def request_finish_paged(self, result):
         self.finished += 1
+        if result[0] == 'cancelled':
+            raise GLib.Error.new_literal(
+                Gio.io_error_quark(), 'Operation was cancelled',
+                Gio.IOErrorEnum.CANCELLED)
         if result[0] == 'error':
             raise GLib.Error.new_literal(
                 Gio.io_error_quark(), result[1], Gio.IOErrorEnum.FAILED)
         return result[1], result[2], None
 
+    def _deliver(self, request, result):
+        if request.cancellable is not None \
+                and request.cancellable.is_cancelled():
+            result = ('cancelled',)
+        request.callback(self, result, None)
+
     def answer(self, items, next_params=None, request=None):
         request = request or self.sent[-1]
-        request.callback(self, ('ok', items, next_params), None)
+        self._deliver(request, ('ok', items, next_params))
 
     def fail(self, request=None, message='boom'):
         request = request or self.sent[-1]
-        request.callback(self, ('error', message), None)
+        self._deliver(request, ('error', message))
 
 
 def item(number, **extra):
@@ -608,14 +622,225 @@ settle()
 check('the real followed hashtags page, its list and its placeholder are '
       'freed after a page and removals', all(freed(ref) for ref in refs))
 
+# Cancellation: a superseded or abandoned read is cancelled, and a
+# cancelled answer never reaches the list.
+
+client, lst = build()
+first = client.sent[0]
+lst.refresh()
+second = client.sent[1]
+check('a superseded first page is cancelled, the newer one is not',
+      first.cancellable.is_cancelled()
+      and not second.cancellable.is_cancelled())
+
+client, lst = build()
+client.answer([item(1)], {'max_id': '1'})
+lst.load_more()
+late = client.sent[-1]
+check('a later page is started in the current generation: not cancelled, '
+      'and sharing the first page\'s cancellable',
+      not late.cancellable.is_cancelled()
+      and late.cancellable is client.sent[0].cancellable)
+lst.refresh()
+check('a superseded later page is cancelled by the refresh that outran it',
+      late.cancellable.is_cancelled()
+      and not client.sent[-1].cancellable.is_cancelled())
+
+client, lst = build()
+first = client.sent[0]
+before = len(reported)
+lst.refresh()
+second = client.sent[1]
+client.answer([item(1)], request=first)
+check('a cancelled first page (its answer had arrived) shows neither the '
+      'error page nor a toast, and is not decoded',
+      page_name(lst) == 'loading' and lst.rows == []
+      and len(reported) == before and client.finished == 0)
+client.fail(request=first)
+check('nor does a cancelled failure', page_name(lst) == 'loading'
+      and len(reported) == before and client.finished == 0)
+client.answer([item(2)], request=second)
+check('the newer load still lands after the cancelled answer arrived',
+      texts(lst) == ['row 2'] and page_name(lst) == 'list' and in_step(lst))
+
+client, lst = build()
+client.answer([item(1), item(2)], {'max_id': '2'})
+lst.load_more()
+late = client.sent[-1]
+lst._scope.close()
+before = len(reported)
+decoded_before = client.finished
+client.answer([item(3)], None, request=late)
+client.fail(request=late)
+check('a cancelled answer of load_more leaves the rows, the page and the '
+      'error state alone',
+      texts(lst) == ['row 1', 'row 2'] and page_name(lst) == 'list'
+      and len(reported) == before and client.finished == decoded_before
+      and in_step(lst))
+
+client, lst = build()
+client.answer([item(1)], {'max_id': '1'})
+lst.load_more()
+late = client.sent[-1]
+lst.refresh()
+before = len(reported)
+client.fail(request=late)
+check('a cancelled failure of a superseded later page reports nothing',
+      len(reported) == before and page_name(lst) == 'loading')
+
+# A real failure of the current load still shows
+
+client, lst = build()
+client.fail()
+check('a failure that is not a cancel still shows the error page',
+      page_name(lst) == 'error')
+
+# Closed while loading: cancelled and freed
+
+owner = Owner()
+pending = owner.client.sent[0]
+refs = [owner.weak_ref(), owner.list.weak_ref()]
+check('a list loading its first page has its request out, not cancelled',
+      not pending.cancellable.is_cancelled())
+del owner
+settle()
+check('a list dropped mid-load is freed, with its request still out',
+      all(freed(ref) for ref in refs))
+check('and its request was cancelled', pending.cancellable.is_cancelled())
+pending.callback(None, ('cancelled',), None)
+check('the late answer of a freed list is a harmless no-op', True)
+
+owner = Owner()
+owner.client.answer([item(1)], {'max_id': '1'})
+owner.list.load_more()
+pending = owner.client.sent[-1]
+refs = [owner.weak_ref(), owner.list.weak_ref(), owner.list.rows[0].weak_ref()]
+del owner
+settle()
+check('a list dropped while loading a later page is freed and the page '
+      'request cancelled',
+      all(freed(ref) for ref in refs) and pending.cancellable.is_cancelled())
+
+# Hidden and shown again: a cached page is not closed
+
+client, lst = build()
+other = Gtk.Label(label='elsewhere')
+holder = Gtk.Stack()
+holder.add_named(lst, 'list')
+holder.add_named(other, 'other')
+window = Gtk.Window(child=holder)
+window.present()
+settle()
+pending = client.sent[0]
+holder.set_visible_child_name('other')
+settle()
+lst.set_visible(False)
+settle()
+lst.set_visible(True)
+holder.set_visible_child_name('list')
+settle()
+check('a list hidden and shown again mid-load keeps its request',
+      not pending.cancellable.is_cancelled())
+client.answer([item(1), item(2)])
+check('and its answer lands',
+      texts(lst) == ['row 1', 'row 2'] and page_name(lst) == 'list')
+window.destroy()
+del window, holder, lst, other
+settle()
+
+# call_api: a write is never cancelled, a read in a scope is
+
+from src.requestscope import RequestScope  # noqa: E402
+
+
+def decode_one(client_, result):
+    return client_.request_finish_paged(result)[0]
+
+
+client = FakeClient()
+starts = []
+done = []
+
+
+def start_write(callback, *extra):
+    starts.append(extra)
+    client.request_async('POST', '/w', callback=callback)
+
+
+scope = RequestScope()
+scope.begin()
+scope.begin()
+scope.close()
+pages.call_api(None, client, start_write, done.append, 'Write failed',
+               finish=decode_one)
+client.answer([1], None)
+check('a write through call_api is started with no cancellable and its '
+      'answer is delivered, whatever any scope did',
+      starts == [()] and client.sent[0].cancellable is None
+      and done == [[1]])
+
+client = FakeClient()
+done = []
+before = len(reported)
+scope = RequestScope()
+ticket = scope.begin()
+
+
+def start_read(callback, cancellable):
+    client.request_async('GET', '/r', callback=callback,
+                         cancellable=cancellable)
+
+
+pages.call_api(None, client, start_read, done.append, 'Read failed',
+               finish=decode_one, ticket=ticket)
+check('a read in a scope is started with the scope\'s cancellable',
+      client.sent[0].cancellable is ticket.cancellable)
+client.answer([2], None)
+check('a read whose answer is wanted is delivered', done == [[2]])
+
+pages.call_api(None, client, start_read, done.append, 'Read failed',
+               finish=decode_one, ticket=scope.begin())
+stale = client.sent[1]
+scope.begin()
+finished_before = client.finished
+client.answer([3], None, request=stale)
+check('a superseded read is cancelled and its answer dropped before '
+      'decoding, with no toast',
+      stale.cancellable.is_cancelled() and done == [[2]]
+      and client.finished == finished_before and len(reported) == before)
+
+client = FakeClient()
+done = []
+pages.call_api(None, client, start_read, done.append, 'Read failed',
+               finish=decode_one, ticket=scope.begin())
+scope.close()
+client.fail()
+check('a read of a closed scope is dropped, even a failure',
+      done == [] and len(reported) == before)
+
+client = FakeClient()
+pages.call_api(None, client, start_read, done.append, 'Read failed',
+               finish=decode_one, ticket=scope.start())
+check('a read started in a closed scope is already cancelled',
+      client.sent[0].cancellable.is_cancelled())
+
+scope = RequestScope()
+client = FakeClient()
+pages.call_api(None, client, start_read, done.append, 'Read failed',
+               finish=decode_one, ticket=scope.begin())
+client.fail()
+check('a failure of a wanted read is still reported',
+      reported[-1] == ('Read failed', 'boom'))
+
 # The test can fail
 
 
 class NoGuard(pages.PagedList):
     """PagedList without its generation guard: a stale page lands."""
 
-    def _on_loaded(self, client, result, generation):
-        super()._on_loaded(client, result, self._generation)
+    def _on_loaded(self, client, result, ticket):
+        super()._on_loaded(client, result,
+                           types.SimpleNamespace(wanted=lambda _e=None: True))
 
 
 check('self-check: the superseded-refresh check fails on a list with no '
