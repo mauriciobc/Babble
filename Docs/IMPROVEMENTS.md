@@ -621,6 +621,54 @@ base cannot fake one. Final resolutions:
   and (c). Open items that came out of this change are DEF-09 to DEF-11
   above.
 
+* **The request scope (`refactor/request-scope`).** "Ignore the answer to a
+  request that is no longer wanted" was a hand-written generation counter
+  in each page, and nothing cancelled a request: `pages.py` never made a
+  `Gio.Cancellable`, so a superseded or abandoned read ran to completion
+  and its answer was then thrown away. `src/requestscope.py` is the one
+  place that is now written: `RequestScope.begin()` starts a generation and
+  cancels the last, `start()` joins the current one, `close()` cancels all,
+  and `ticket.wanted()` is the question a callback asks first, before it
+  decodes (a cancelled `Gio.Task` raises CANCELLED on propagate even when
+  the real answer had arrived, and a cancelled request still calls its
+  callback). Adopters: `PagedList` (its `_generation` is gone), `StateStack`
+  (`begin()` now returns a ticket; thread, filters, edit history and
+  collection pass `token.cancellable` to their api call and hand it a weak
+  callback), and `call_api(ticket=)`, opt-in for a read. A page closes its
+  scope in `do_dispose`: measured with a scratch script, a cached place page
+  receives `unmap` and `unroot` when the reader navigates away (so those are
+  the wrong hooks) and nothing when it is shown again, `dispose` only when
+  `forget` or `clear()` drops it, and a popped sub-page `unmap`, `unroot`,
+  `dispose`.
+
+  Behaviour changes, and nothing else (`api golden` is unchanged: the same
+  requests are issued, in the same order, with the same parameters):
+
+  | | Before | After |
+  |---|---|---|
+  | A read superseded by a newer one of the same `PagedList` or `StateStack` page (refresh, Try Again, a later page outrun by a refresh) | ran to completion, answer ignored | the request is cancelled, answer ignored |
+  | A read of an adopter whose page is dropped while it loads | held the page alive until it answered, then ignored | the page is freed (the callback holds it weakly), its scope is closed, the request is cancelled |
+  | The answer to a cancelled read | could be decoded; a CANCELLED error reached the error page on the first page of a `PagedList` | dropped before decoding, no error page, no toast |
+  | A page hidden and shown again while it loads | answer shown | unchanged: the scope is not closed on hide |
+  | A write | answer always delivered | unchanged: no write takes a ticket |
+
+  `call_api(ticket=)` is adopted by none of its six read callers: the poll
+  refresh (`pollbox.py`), `statusmenu.py` source and translate, the quoted
+  post (`statusactions.py`) and the two search-provider lookups have no
+  owner whose end clearly means the answer is unwanted (rows are recycled,
+  a menu is a one-shot, the search provider has no per-query object), and
+  an owner invented for them would be a guess. `blueskythread.py` uses
+  `StateStack` for its pages but its request is `bluesky.get_thread_async`,
+  not a Mastodon call, and it already cancels through `bluesky.cancel` and
+  `do_unroot`; it keeps `begin()`/`is_current()` and nothing else changed.
+  Left for later, in this order: timelines and notifications
+  (`PagedPosts`), search and typeahead, profile, admin and Wrapped, the
+  composer's state epochs, and the error helpers that are not silent on
+  CANCELLED (`summarize_error`, `summarize_error_markup`,
+  `ToastDialog.error`). DEF-09 and DEF-11 are still open: the request
+  callback is now held weakly, the hooks are not, and a hook that raises in
+  `_on_loaded` still leaves the list on the loading page.
+
 ### 2.3 Translated-string tables (duplication translators can see)
 
 Worse than code duplication: translators meet near-duplicate msgids.
