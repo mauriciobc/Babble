@@ -287,8 +287,9 @@ class _HeldClient(_Server):
         if path != '/accounts/relationships':
             if self.hold_timeline and path == '/timelines/home':
                 real = callback
-                callback = (lambda c, r, _real=real:
-                            self.timeline_held.append((_real, r)))
+
+                def callback(_client, result, _real=real):
+                    self.timeline_held.append((_real, result))
             return super().request_async(method, path, params=params,
                                          callback=callback, **_kw)
         self.held.append({'ids': list(params['id[]']), 'callback': callback})
