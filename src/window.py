@@ -281,7 +281,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.stream_router = StreamRouter(StreamHost(
             home_page=lambda: self.timeline_page,
             notifications_page=lambda: self.notifications_page,
-            public_pages=lambda: nav.public_pages,
             place=lambda tag: nav.children.get(tag),
             stream_places=nav.stream_places,
             place_timelines=nav.place_timelines,

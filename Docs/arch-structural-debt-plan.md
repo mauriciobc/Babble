@@ -23,7 +23,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | Module | Lines | Notes |
 |--------|------:|-------|
 | `compose.py` | ~1744 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
-| `window.py` | ~1819 | ARCH-15 extracted sidebarhost, ARCH-20 the stream router; session and stream lifecycle remain |
+| `window.py` | ~1818 | ARCH-15 extracted sidebarhost, ARCH-20 the stream router; session and stream lifecycle remain |
 | `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
 | `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
@@ -269,7 +269,7 @@ under ~700 if possible, or still EXCEPTION with an honest remainder.
 
 ## ARCH-20 — `streamrouter.py`
 
-**Status:** done — `streamrouter.py` (249 lines) holds the stream
+**Status:** done — `streamrouter.py` (252 lines) holds the stream
 router: which streams the built places want (`wanted_streams`,
 `place_streams`), which timeline pages exist (`timeline_pages`) and who
 receives each event (`route`, over the declared `ROUTES` table, the
@@ -279,8 +279,18 @@ holds no page, window or client. `navigation.py` gains
 `stream_places()` and `place_timelines()` so the `list:` / `tag:` key
 format stays there. `window.py` keeps the lifecycle (socket start and
 stop, polling fallback, reconnect catch-up, background status) and hands
-each event over (~1819 lines, was ~1925). `streamrouter.py` is in
+each event over (~1818 lines, was ~1925). `streamrouter.py` is in
 `SEAMS`.
+
+**Follow-up fix:** the first cut delivered a `delete` and a
+`status.update` to the local and federated pages twice, because
+`timeline_pages()` listed the public pages and `place_timelines()`
+listed the same pages again as built places. The public-pages term is
+gone, and with it the host's `public_pages` callable: the router asks
+`place('local')` / `place('federated')`, which is the same page (the
+public pages were a filtered view of the built places). Each page now
+receives each of those two events once: home first, then the built
+places in build order; the conversations place hears `delete` last.
 
 **From:** `window.py` (`_sync_streaming`'s `wanted`, `_place_streams`,
 `_timeline_pages`, `_on_stream_event`).  
