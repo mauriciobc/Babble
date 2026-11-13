@@ -512,7 +512,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             # Only the request that still owns the older-page slot may
             # release it. A refresh can supersede this page and a later
             # older request can already own the slot by the time we answer.
-            if self._older_generation == generation:
+            if generation is None or self._older_generation == generation:
                 self._loading_older = False
                 self._older_generation = None
                 self._release_bottom()
@@ -555,7 +555,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
                 self._older_generation = None
                 self._release_bottom()
             return
-        if self._older_generation == generation:
+        if generation is None or self._older_generation == generation:
             self._loading_older = False
             self._older_generation = None
         if not statuses and raw_oldest is not None:
