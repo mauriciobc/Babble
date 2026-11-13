@@ -3,10 +3,10 @@
 | | |
 |---|---|
 | **Title** | Babble documentation policy — what gets documented, who writes it, who approves it, and when it changes |
-| **Identifier / version** | `BABBLE-POL-001` — v1.2 — approved |
+| **Identifier / version** | `BABBLE-POL-001` — v1.3 — in review |
 | **Date of issue** | 2026-11-11 |
 | **Author** | The Babble maintainers |
-| **Approved by** | The maintainer, in the merge of [PR #109](https://github.com/mauriciobc/Babble/pull/109) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
+| **Approved by** | Pending: v1.3 is approved by the maintainer in the merge of the pull request that carries it, and that pull request is cited here at the merge. v1.2 was approved in the merge of [PR #109](https://github.com/mauriciobc/Babble/pull/109) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
 | **Scope** | Every document the project ships or keeps: the user manual, the in-app help pages, the reference and plan documents under `Docs/`, the working notes at the repository root, and the translation catalogues -- each in English and, where the set says so, in Brazilian Portuguese. It covers **how** those documents are planned, written, translated, reviewed, approved, versioned, distributed and retired. It does not cover the software itself, the release process, or what the documents say. |
 | **Purpose** | To keep the documentation true of the software it describes, without paying for that with process the project cannot sustain. A policy that nobody follows is worse than none, because it is then cited as if it were. |
 | **References** | ISO/IEC/IEEE 12207 (governance of the documentation process); ISO/IEC/IEEE 15289 (content and identification of information items); ISO/IEC 26514 (user documentation); ISO/IEC/IEEE 29148 (requirements). Project documents: [the user manual](manual/README.md), [Docs/README.md](README.md) (the index), [Docs/flathub.md](flathub.md) (a policy of the same kind, for a different subject). The Brazilian Portuguese edition of this policy is [Docs/pt_BR/documentation-policy.md](pt_BR/documentation-policy.md). |
@@ -15,7 +15,7 @@
 
 ## 1. Why this document exists
 
-The project writes a lot of documentation: a user manual, two languages of in-app help, twenty-eight files under `Docs/`, three reference documents at the repository root, and four translation catalogues. That volume has a failure mode, and it is not "too little documentation" — it is **documentation that has drifted from the software**. A feature ships, the help page does not mention it, a label changes and the manual keeps naming the old one, a plan document describes an architecture that was cut two releases ago. Nothing breaks; the documentation just stops being true.
+The project writes a lot of documentation: a user manual, two languages of in-app help, twenty-nine files under `Docs/`, three reference documents at the repository root, and four translation catalogues. That volume has a failure mode, and it is not "too little documentation" — it is **documentation that has drifted from the software**. A feature ships, the help page does not mention it, a label changes and the manual keeps naming the old one, a plan document describes an architecture that was cut two releases ago. Nothing breaks; the documentation just stops being true.
 
 This policy exists to make that failure visible and cheap to prevent. It follows ISO/IEC/IEEE 12207's six activities — plan, produce, review and approve, manage configuration, distribute, maintain — mapped onto a small project where one person maintains the code and AI assistants write much of the prose.
 
@@ -391,3 +391,4 @@ The first is enforced by the suite. The second and third are cheap searches; the
 | 1.0 | 2026-11-11 | The Babble maintainers | First version. Written after the user manual and the Portuguese help pages, which showed what was missing: a written-down rito, a named approver, and a test that keeps the documents true of the code. Approved in the merge of PR #107. |
 | 1.1 | 2026-11-11 | The Babble maintainers | The documentation is written twice: a new section on the two language trees, the naming rule for a translation, and the mechanical check that holds the two editions together. |. Approved in the merge of PR #108.
 | 1.2 | 2026-11-11 | The Babble maintainers | A content correction under section 4.2 (MINOR): the inventory (section 3.2) lists `Docs/glossary.md`, a working note for contributors (the domain terms the code is built around; it stays in English, as section 3.5 says of working notes), and section 1 counts twenty-eight files under `Docs/` instead of twenty-seven. What the policy says is unchanged. Approved in the merge of PR #109. |
+| 1.3 | 2026-11-13 | The Babble maintainers | A content correction under section 4.2 (MINOR): section 1 counts twenty-nine files under `Docs/` instead of twenty-eight, because `Docs/architecture-candidates-5-7-plan.md` is a new working note (a plan, already covered by the `Docs/*-plan.md` row of section 3.2, so the inventory is unchanged). What the policy says is unchanged. |
