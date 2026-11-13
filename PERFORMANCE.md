@@ -419,3 +419,31 @@ Key off, same session: main `stall_max_ms` [22.4, 22.8, 23.0, 19.7, 22.7], this 
 **The ~1.3 s outlier.** With the GL sink and the key on it showed in 2 of 5 runs of `061be78` (1297.6 and 1292.8 ms), and on main in 0, 1 (1307.7 ms, wall 2364.5 ms) and 0 of 5 runs in three sessions; with the appsink engine it showed in 0 of 15 runs (the same three sessions). It was not caught in the act (a probe with a main-thread watchdog perturbs the run and found none in 10), so the cause is still not known; it only appears on the path that creates a GL context.
 
 **Why key on still fails `limits-inline.json`.** `stall_max_ms` 32.4 against a ceiling of about 31: the longest dispatch is now the `Gst` typelib import (25 ms), which cannot be split. `retained_mb` +14 MB: the GStreamer libraries and plugin registry stay mapped after the engine is released, which is not a leak. Measured with this tree, an inline engine created, loaded, played 0.5 s and released ten times in one process (RSS in MB, after each cycle): 307.1, 307.8, 308.1, 308.5, 308.6, 308.7, 308.8, 308.9, 308.8, 308.9 from a start of 296.9, so the first cycle costs +10.2 MB and cycles two to ten together +1.8 MB; with the GL sink (main) 378.2 for the first, 379.3 for the tenth, from 297.2, so +81.0 and +1.1. A leak check that asks `retained_mb` to stay within +5 MB of a run that never loaded GStreamer cannot tell the first from a leak; one that compares the retained memory after N engines with after one (growth per extra engine under 1 MB) can.
+
+## Architecture candidates 5–7 — media engine slot (phase 2)
+
+Flake baseline on unmodified `origin/main` under headless mutter 1280×1024 (`meson test -C build -j1`), twenty runs each:
+
+```
+SUMMARY media progressive pass=20 fail=0
+SUMMARY media inline pass=20 fail=0
+```
+
+Inline limits compare (`BENCH_RUNS=5`, `BENCH_INLINE=1`, `--limits bench/limits-inline.json`), same machine, after the engine-slot change:
+
+```
+main_ms                      1367.7       1395      +27.3 +10% and +100  PASS
+stall_max_ms                   30.4       30.9       +0.5 +40% and +8    PASS
+stall_p99_ms                    7.6        7.8       +0.2 +15% and +1.5  PASS
+stalls_over_16ms                  5          6       +1.0 +2             PASS
+frames_with_empty_shell          15         14       -1.0 +30% and +4    PASS
+peak_rss_mb                   417.8      417.7       -0.1 +90            PASS
+rss_growth_mb                  97.5       98.7       +1.2 +90            PASS
+retained_mb                    97.5       98.9       +1.4 +5% and +5     PASS
+wall_stall_max_ms              30.6       31.1       +0.5 +40% and +10   PASS
+wall_stall_p99_ms               8.5        8.5       +0.0 +15% and +2    PASS
+wall_stalls_over_16ms             7          7       +0.0 +8             PASS
+cpu_ms                       2485.6     2592.9     +107.3 -              report-only
+wall_ms                      8150.5     8161.7      +11.2 -              report-only
+PASS
+```
