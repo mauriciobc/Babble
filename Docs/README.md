@@ -32,6 +32,7 @@ formal set lives in [`pt_BR/`](pt_BR/README.md): [português (pt-BR)](pt_BR/READ
 | [GNOME review remediation plan](gnome-review-remediation-plan.md) | Phased fixes for that audit |
 | [Ranked timeline: design](timeline-algorithm.md) | A proposed ranked sidebar place: BYOTA and X's For You compared, the hypothesis, evaluation gates, and the boundary with Catch Up |
 | [Ranked timeline: implementation plan](ranked-timeline-plan.md) | Slices, user stories and agent-ready tasks with acceptance criteria and a definition of done |
+| [Architecture candidates 5 to 7: plan](architecture-candidates-5-7-plan.md) | Compose mode transitions as data, a playback session behind the media viewer, and a named image decode interface: current state, decisions for the maintainer, phases, tests and stop conditions |
 | [Roadmap](ROADMAP.MD) | What the project is betting on |
 
 `CLAUDE.md` in the repository root is the working notes for AI agents
