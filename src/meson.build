@@ -120,6 +120,7 @@ install_data(
   'timelinetags.py',
   'homefilters.py',
   'readingposition.py',
+  'requestscope.py',
   'statusrun.py',
   'statusactions.py',
   'statusmenu.py',
@@ -620,6 +621,12 @@ test('api boundary', python,
 # Needs no display: it imports the registry and runs the checker.
 test('api registry', python,
   args: [files('test-api-registry.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: real Gio.Cancellable and Gio.Task objects only.
+test('request scope', python,
+  args: [files('test-request-scope.py')],
   env: test_env,
   timeout: 60,
 )

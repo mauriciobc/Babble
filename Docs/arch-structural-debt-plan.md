@@ -29,7 +29,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
 | `profile.py` | ~915 | ARCH-16 extracted profileheader; tabs/extras remain |
 | `mastodon.py` | 1328 | Coherent transport — leave |
-| `pages.py` | 1336 | Shared toolkit — Phase N. `PagedList`'s interface was settled on its own (IMPROVEMENTS CLEAN-08) and grew the file by about 90 lines; the sprawl is untouched |
+| `pages.py` | 1363 | Shared toolkit — Phase N. `PagedList`'s interface was settled on its own (IMPROVEMENTS CLEAN-08) and grew the file by about 90 lines, and the request scope's adoption by `PagedList` and `StateStack` about 25 more; the sprawl is untouched |
 | `fedicollections.py` | 1086 | Feature pack — Phase N |
 | `hashtags.py` | 802 | Marginal |
 
@@ -314,8 +314,23 @@ the real window); `file size rule`.
   for a plain bound-method hook of the owning page (DEF-09), two
   reach-ins that want an operation, `empty_action=` and the empty icon
   and description through `AccountListPage` (DEF-10), and a list that
-  stays on the loading page when a hook raises (DEF-11, with the later
-  request-lifetime work). All three are in `IMPROVEMENTS.md`.
+  stays on the loading page when a hook raises (DEF-11, still open after
+  the request scope below). All three are in `IMPROVEMENTS.md`.
+- **Request scope (`refactor/request-scope`, first step done):**
+  `src/requestscope.py` is adopted by `PagedList` and `StateStack` (thread,
+  filters, edit history, collection page); `call_api` is for writes and for
+  reads whose answer is always wanted, and a read whose owner has a scope
+  takes its callback from the scope's ticket and calls the api module
+  directly. Behaviour changes, with before and after, and the open items
+  QA found are in `IMPROVEMENTS.md` (section 2.2). One family per change
+  from here, in this order: timelines
+  and notifications (`PagedPosts`), search and typeahead, profile, admin and
+  Wrapped, the composer's state epochs, then the error helpers that are
+  not silent on CANCELLED (`summarize_error`, `summarize_error_markup`,
+  `ToastDialog.error`). A write is never cancelled. `blueskythread.py` keeps
+  its own `bluesky.cancel`. Existing scopes (`pluginsupport.Scope`,
+  `catchup.fetch.CatchUpRun`, `auth.py`) could converge on the vocabulary
+  (`close()` / `closed`), not now.
 - **`fedicollections.py` / `hashtags.py` / `mastodon.py`:** leave unless
   they grow or a feature forces a seam. `hashtags.py` is at 802 lines
   against the limit of 800 as a declared exception: the next deletion of
