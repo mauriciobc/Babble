@@ -255,11 +255,15 @@ class PagedPosts:
             self._older_pending = True
             return
         self._lock_bottom()
+        # This request supersedes any in-flight first-page or refresh
+        # request. Relinquish its loading flag now; its late callback must
+        # not clear state belonging to a later request.
+        self.model.loading = False
         self._loading_older = True
+        self._older_generation = self._generation + 1
         self._request({'limit': self.PAGE_SIZE,
                        'max_id': self.model.oldest_id},
                       self.on_older_loaded)
-        self._older_generation = self._generation
 
     def _lock_bottom(self):
         """Hold the bottom lock, with a deadline.
@@ -321,8 +325,8 @@ class PagedPosts:
         if self.model.newest_id is not None:
             params[self._newer_cursor] = self.model.newest_id
         self.model.loading = True
+        self._refresh_generation = self._generation + 1
         self._request(params, self.on_refresh_loaded)
-        self._refresh_generation = self._generation
 
     # Scroll
 
