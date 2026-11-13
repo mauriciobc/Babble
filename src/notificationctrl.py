@@ -198,11 +198,19 @@ class NotificationController:
 
     def on_older_loaded(self, client, result, generation=None):
         # A response from a superseded request must not write rows
-        # of the old filter into the new model.
+        # of the old filter into the new model or release a lock owned by
+        # a later older-page request.
         if generation is not None and self._superseded(generation):
-            self._release_bottom()
+            if self._older_generation == generation:
+                self._loading_older = False
+                self._older_generation = None
+                self._release_bottom()
             return
-        self._loading_older = False
+        if generation is None or self._older_generation == generation:
+            self._loading_older = False
+            self._older_generation = None
+        else:
+            return
         try:
             notifications = self._finish(result)
         except GLib.Error:
@@ -351,6 +359,7 @@ class NotificationController:
         # cursor. The bottom lock belongs to the superseded request, so
         # it ends with it rather than holding the next scroll out.
         self._loading_older = False
+        self._older_generation = None
         self._release_bottom()
         self.load()
 
