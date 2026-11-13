@@ -21,6 +21,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Gdk', '4.0')
 gi.require_version('Gsk', '4.0')
+gi.require_version('Soup', '3.0')
 
 from .i18n import gettext as _  # noqa: E402
 
@@ -28,13 +29,159 @@ from gi.repository import (  # noqa: E402
     Adw, Gdk, Gio, GLib, GObject, Graphene, Gsk, Gtk,
 )
 
+from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
-from .mediaplayback import download  # noqa: E402
 from .remotemedia import media_url  # noqa: E402
 
 # Open With copies older than this are deleted before the next one is
 # downloaded; the app they were handed to has long since read them.
 OPEN_WITH_MAX_AGE = 24 * 60 * 60
+
+CHUNK_SIZE = 64 * 1024
+
+
+def _http_session():
+    """The session every media request shares, with the app's timeout."""
+    return imagecache.session()
+
+
+def _check_status(message):
+    """Raise a GLib.Error when *message* ended in a non-2xx status."""
+    status = message.get_status()
+    if status < 200 or status >= 300:
+        raise GLib.Error.new_literal(
+            Gio.io_error_quark(),
+            _('The server answered with HTTP {status}').format(
+                status=status),
+            Gio.IOErrorEnum.FAILED)
+
+
+def download(url, destination, on_progress=None, on_done=None,
+             cancellable=None):
+    """Stream *url* into the Gio.File *destination*.
+
+    ``on_progress(fraction)`` gets 0..1 when the size is known, else -1.
+    ``on_done(error)`` gets None on success. The destination is replaced
+    atomically, so a failed or cancelled download leaves nothing behind.
+    """
+    _Download(url, destination, on_progress, on_done, cancellable).start()
+
+
+class _Download:
+    def __init__(self, url, destination, on_progress, on_done, cancellable):
+        self.url = url
+        self.destination = destination
+        self.on_progress = on_progress
+        self.on_done = on_done
+        self.cancellable = cancellable
+        self.message = None
+        self.source = None
+        self.output = None
+        self.received = 0
+        self.total = 0
+        self.finished = False
+
+    def start(self):
+        self.message = imagecache.get_message('GET', self.url)
+        if self.message is None:
+            self.fail(GLib.Error.new_literal(
+                Gio.io_error_quark(), _('Invalid media address'),
+                Gio.IOErrorEnum.INVALID_ARGUMENT))
+            return
+        _http_session().send_async(
+            self.message, GLib.PRIORITY_DEFAULT, self.cancellable,
+            self.on_sent)
+
+    def fail(self, error):
+        if self.finished:
+            return
+        self.finished = True
+        if self.output is not None:
+            # Closing with a cancelled cancellable discards the temporary
+            # file instead of renaming it over the destination.
+            discard = Gio.Cancellable()
+            discard.cancel()
+            self.output.close_async(GLib.PRIORITY_DEFAULT, discard, None)
+        if self.source is not None:
+            self.source.close_async(GLib.PRIORITY_DEFAULT, None, None)
+        if self.on_done is not None:
+            self.on_done(error)
+
+    def succeed(self):
+        if self.finished:
+            return
+        self.finished = True
+        if self.on_done is not None:
+            self.on_done(None)
+
+    def on_sent(self, session, result):
+        try:
+            self.source = session.send_finish(result)
+            _check_status(self.message)
+        except GLib.Error as error:
+            self.fail(error)
+            return
+        self.total = self.message.get_response_headers().get_content_length()
+        self.destination.replace_async(
+            None, False, Gio.FileCreateFlags.REPLACE_DESTINATION,
+            GLib.PRIORITY_DEFAULT, self.cancellable, self.on_opened)
+
+    def on_opened(self, destination, result):
+        try:
+            self.output = destination.replace_finish(result)
+        except GLib.Error as error:
+            self.fail(error)
+            return
+        self.read()
+
+    def read(self):
+        self.source.read_bytes_async(
+            CHUNK_SIZE, GLib.PRIORITY_DEFAULT, self.cancellable,
+            self.on_read)
+
+    def on_read(self, source, result):
+        try:
+            chunk = source.read_bytes_finish(result)
+        except GLib.Error as error:
+            self.fail(error)
+            return
+        if chunk.get_size() == 0:
+            self.output.close_async(
+                GLib.PRIORITY_DEFAULT, self.cancellable, self.on_closed)
+            return
+        self.received += chunk.get_size()
+        if self.on_progress is not None:
+            self.on_progress(self.received / self.total
+                             if self.total > 0 else -1)
+        self.write(chunk)
+
+    def write(self, chunk):
+        self.output.write_bytes_async(
+            chunk, GLib.PRIORITY_DEFAULT, self.cancellable,
+            self.on_written, chunk)
+
+    def on_written(self, output, result, chunk):
+        try:
+            written = output.write_bytes_finish(result)
+        except GLib.Error as error:
+            self.fail(error)
+            return
+        if written < chunk.get_size():
+            data = chunk.get_data()[written:]
+            self.write(GLib.Bytes.new(data))
+            return
+        self.read()
+
+    def on_closed(self, output, result):
+        try:
+            output.close_finish(result)
+        except GLib.Error as error:
+            self.output = None
+            self.fail(error)
+            return
+        self.output = None
+        self.source.close_async(GLib.PRIORITY_DEFAULT, None, None)
+        self.succeed()
 
 
 def prune_old_files(directory, max_age=OPEN_WITH_MAX_AGE):

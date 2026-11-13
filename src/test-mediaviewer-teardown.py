@@ -52,7 +52,7 @@ if not os.environ.get('DISPLAY') \
 
 Adw.init()
 
-from src import mediaengine, mediaplayback, mediaviewer  # noqa: E402
+from src import mediaengine, mediaexport, mediaviewer  # noqa: E402
 from src import sysstate  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
@@ -113,7 +113,7 @@ def stray_dirs():
 BEFORE = set()
 # The viewer streams: a download here would be a regression.
 downloads = []
-mediaplayback.download = lambda *args, **kwargs: downloads.append(args)
+mediaexport.download = lambda *args, **kwargs: downloads.append(args)
 
 clip = fixture.write_clip()
 BEFORE.update(n for n in os.listdir(GLib.get_tmp_dir())
