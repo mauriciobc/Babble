@@ -613,12 +613,8 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
                                generation=None):
         # The reply-filter lookup is asynchronous too. Re-check ownership
         # here, not only when the HTTP response arrives.
-        if generation is not None:
-            if generation != self._refresh_generation:
-                return
-            if self._superseded(generation):
-                self._chain_ended()
-                return
+        if generation is not None and generation != self._refresh_generation:
+            return
         if statuses:
             pinned = self._catching and self._pin_item is not None
             if pinned:
