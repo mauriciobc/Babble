@@ -934,8 +934,15 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.text_view.grab_focus()
 
     def begin(self, transition):
-        """Apply one :class:`composetransition.Transition`."""
+        """Apply a Transition. A callable is built after accept, before mutate."""
         if not self._accept_transition():
+            return False
+        try:
+            if callable(transition):
+                transition = transition()
+        except composetransition.UnsupportedSettings as error:
+            self._show_error(_('Could not edit scheduled post'),
+                             str(error))
             return False
         stash = transition.stack in (composetransition.PUSH,
                                      composetransition.PUSH_IF_NOT_EMPTY)
@@ -1024,19 +1031,17 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         return self.begin(composetransition.quote(status))
 
     def start_scheduled(self, scheduled, draft=False, on_done=None):
+        return self.begin(lambda: self._scheduled_transition(
+            scheduled, draft=draft, on_done=on_done))
+
+    def _scheduled_transition(self, scheduled, draft=False, on_done=None):
         from .scheduled import draft_scheduled_at
-        try:
-            transition = composetransition.scheduled(
-                scheduled,
-                max_poll_options=self.poll_limits()['max_options'],
-                at=(draft_scheduled_at() if draft
-                    else scheduled.get('scheduled_at')),
-                on_done=on_done)
-        except composetransition.UnsupportedSettings as error:
-            self._show_error(_('Could not edit scheduled post'),
-                             str(error))
-            return False
-        return self.begin(transition)
+        return composetransition.scheduled(
+            scheduled,
+            max_poll_options=self.poll_limits()['max_options'],
+            at=(draft_scheduled_at() if draft
+                else scheduled.get('scheduled_at')),
+            on_done=on_done)
 
     def _select_visibility(self, visibility):
         codes = [code for code, _label in VISIBILITIES]
