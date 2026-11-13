@@ -1016,9 +1016,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             account, direct=direct))
 
     def prefill_text(self, text):
-        """Start a post with *text*, as shared from outside the app. A
-        draft in progress is kept on the draft stack, for the banner
-        above the buffer to bring back."""
+        """Start a post with *text*; a draft in progress is stacked."""
         return self.begin(composetransition.prefill(text))
 
     def start_edit(self, status):
