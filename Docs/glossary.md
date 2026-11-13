@@ -106,3 +106,8 @@ it, because the server may already have acted.
 A read that a newer read of the same page has replaced: the page reloaded, or
 the reader pressed Try Again, before the first answer came. Its answer is
 ignored and, with a request scope, the request itself is cancelled.
+
+**Engine slot**
+The one place that creates a media engine and its stream: the viewer and
+the inline GIFV player both ask it to start, stop (keep the engine) or
+release. It builds the stream before loading the URL.

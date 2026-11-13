@@ -210,7 +210,8 @@ class InlinePlayer(GObject.Object):
         self._root = root.weak_ref(pages.weak_method(self._on_root_gone))
         self._tiles = {}
         self._watched = {}
-        self._engine = None
+        from .mediaengineslot import EngineSlot
+        self._engine_slot = EngineSlot()
         self._stream = None
         self._active = None
         self._shown = False
@@ -476,19 +477,18 @@ class InlinePlayer(GObject.Object):
 
     # Playing
 
+    @property
+    def _engine(self):
+        return self._engine_slot.engine
+
     def _start(self, tile):
         self._cancel_release()
         url = media_url(tile.attachment)[0]
+        from .mediaengineslot import PlaybackUnavailable
         try:
-            # Imported here: GStreamer is not loaded until media plays.
-            from . import mediaengine
-            from .mediastream import EngineStream
-            if self._engine is None:
-                self._engine = mediaengine.Engine(
-                    user_agent=mastodon.user_agent(), gl=False)
-            stream = EngineStream(self._engine)
-            self._engine.load(url)
-        except (ImportError, ValueError, RuntimeError):
+            stream = self._engine_slot.start(
+                url, user_agent=mastodon.user_agent(), gl=False)
+        except PlaybackUnavailable:
             self._unavailable = True
             self._release_engine()
             return
@@ -566,13 +566,9 @@ class InlinePlayer(GObject.Object):
         self._shown = False
         self._frame_seen = False
         self._frame_handler = 0
-        if stream is not None:
-            stream.pause()
-            stream.detach()
+        self._engine_slot.stop(stream)
         if tile is not None:
             tile.show_poster()
-        if self._engine is not None:
-            self._engine.stop()
 
     # Release
 
@@ -595,9 +591,7 @@ class InlinePlayer(GObject.Object):
 
     def _release_engine(self):
         self._cancel_release()
-        engine, self._engine = self._engine, None
-        if engine is not None:
-            engine.release()
+        self._engine_slot.release()
 
     def shutdown(self):
         """Stop, restore the poster and hand the engine to its release."""

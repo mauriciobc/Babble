@@ -189,7 +189,7 @@ Each chapter of the manual corresponds to a set of the application's modules. Th
 | 2 — Reading | `src/timelinepage.py`, `src/statusrow.py`, `src/statusfold.py`, `src/statusactions.py`, `src/statusmenu.py`, `src/statusviews.py`, `src/profile.py`, `src/profileactions.py`, `src/explore.py`, `src/hashtags.py`, `src/lists.py`, `src/search.py`, `src/filterrules.py`, `src/statustext.py` |
 | 3 — Notifications and direct messages | `src/notifications.py`, `src/notificationrow.py`, `src/notificationctrl.py`, `src/notificationcopy.py`, `src/notificationpolicy.py`, `src/conversations.py`, `src/announcements.py`, `src/relations.py` |
 | 4 — Writing | `src/compose.py`, `src/composeattach.py`, `src/composeupload.py`, `src/composequote.py`, `src/composeschedule.py`, `src/drafts.py`, `src/scheduled.py`, `src/mentioncompleter.py`, `src/hashtagcompleter.py`, `src/emojichooser.py`, `src/pollbox.py` |
-| 5 — Media | `src/mediabox.py`, `src/mediaviewer.py`, `src/mediaviewerchrome.py`, `src/mediazoom.py`, `src/mediaexport.py`, `src/mediainline.py`, `src/mediaplayback.py`, `src/remotemedia.py` |
+| 5 — Media | `src/mediabox.py`, `src/mediaviewer.py`, `src/mediaviewerchrome.py`, `src/mediazoom.py`, `src/mediaexport.py`, `src/mediainline.py`, `src/mediaplayback.py`, `src/mediaengineslot.py`, `src/remotemedia.py` |
 | 6 — Catch Up | `src/catchup/` (`rank.py`, `rank_model.py`, `rank_text.py`, and the other modules of the package) |
 | 7 — Desktop integration | `src/portals.py`, `src/clipboard.py`, `src/desktopnotify.py`, `src/searchprovider.py`, `src/mediabox.py`, `src/composeattach.py`, `src/sysstate.py` |
 | 8 — Preferences | `src/preferences.py`, `data/io.github.mauriciobc.Babble.gschema.xml` |

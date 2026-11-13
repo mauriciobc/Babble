@@ -63,9 +63,9 @@ class MediaPlayback:
     :class:`profileactions.ProfileActions` needs the profile page.
     """
 
-    # The viewer's engine, created by the first stream and released on
-    # close.
-    _engine = None
+    # The viewer's engine slot, created by the first stream and released
+    # on close. Read ``_engine`` for the live Engine, if any.
+    _engine_slot = None
     # The current stream has already autoplayed.
     _autoplayed = False
     # The pending source that shows the buffering spinner.
@@ -131,6 +131,17 @@ class MediaPlayback:
             pages.settings().set_double('media-viewer-volume', volume)
         self._loaded_volume = None
 
+    @property
+    def _engine(self):
+        slot = self._engine_slot
+        return None if slot is None else slot.engine
+
+    def _ensure_slot(self):
+        if self._engine_slot is None:
+            from .mediaengineslot import EngineSlot
+            self._engine_slot = EngineSlot()
+        return self._engine_slot
+
     def _unload_media(self):
         self._gate_paused = False
         self._save_volume(self._stream)
@@ -139,9 +150,10 @@ class MediaPlayback:
         self._stream = None
         self._stream_kind = None
         release_media(self.media_bin, stream)
-        if self._engine is not None:
+        if self._engine_slot is not None:
             # Navigation: keep the GstPlay, the next stream loads into it.
-            self._engine.stop()
+            # release_media already paused and detached the stream.
+            self._engine_slot.stop()
         self._hide_buffering()
         self.deferred_picture.set_paintable(None)
         self.picture.set_texture(None)
@@ -149,9 +161,9 @@ class MediaPlayback:
 
     def _release_engine(self):
         """Closing the viewer: hand the engine to its deferred release."""
-        engine, self._engine = self._engine, None
-        if engine is not None:
-            engine.release()
+        slot, self._engine_slot = self._engine_slot, None
+        if slot is not None:
+            slot.release()
 
     def _show_stream(self, attachment, url, is_remote):
         deferral = mediapolicy.stream_deferral(mediapolicy.read_state(self))
@@ -209,16 +221,11 @@ class MediaPlayback:
         spinner page stays until the stream is prepared; an error before
         that shows the error page."""
         self._show_loading()
+        from .mediaengineslot import PlaybackUnavailable
         try:
-            # Imported here: GStreamer is not loaded until media plays.
-            from . import mediaengine
-            from .mediastream import EngineStream
-            if self._engine is None:
-                self._engine = mediaengine.Engine(
-                    user_agent=mastodon.user_agent())
-            stream = EngineStream(self._engine)
-            self._engine.load(url)
-        except (ImportError, ValueError, RuntimeError):
+            stream = self._ensure_slot().start(
+                url, user_agent=mastodon.user_agent(), gl=True)
+        except PlaybackUnavailable:
             self._show_error(
                 _('Could Not Load Media'),
                 _('Playback is not available on this system.'))
