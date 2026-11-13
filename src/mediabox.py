@@ -26,7 +26,7 @@ The poll widget lives in :mod:`pollbox`; this module owns the attachment
 surface a status row draws.
 """
 from .timelinebase import decodable_attachment_url, _flag, COLUMN_WIDTH
-from .mediacache import _TextureCache, AvatarCache
+from .mediacache import TextureCache, AvatarCache
 from .mediainline import GifvTile
 from .mediaopen import processing_badge
 from .timelinedata import StatusItem
@@ -140,7 +140,7 @@ class CardPreview(Gtk.Button):
             # Square at minimum, CARD_THUMB_W wide when there is room.
             image = status_picture(CARD_THUMB_H, CARD_THUMB_H,
                                    presentation=True)
-            _TextureCache.load(card['image'], image,
+            TextureCache.load(card['image'], image,
                                (CARD_THUMB_W, CARD_THUMB_W))
             thumb = Adw.Clamp(maximum_size=CARD_THUMB_W,
                               tightening_threshold=CARD_THUMB_W,
@@ -249,7 +249,7 @@ class _BoostCard(Gtk.Button):
                                      kind=_SlotPicture)
             url = decodable_attachment_url(media[0])
             if url:
-                _TextureCache.load(url, picture, (BOOST_CARD_WIDTH, 96))
+                TextureCache.load(url, picture, (BOOST_CARD_WIDTH, 96))
             # Over a fixed slot rather than measured: a picture is sized
             # height-for-width and asks again when its texture lands.
             slot = Gtk.Overlay(child=Gtk.Box(height_request=96))
@@ -589,7 +589,7 @@ class MediaBox(Gtk.Box):
             grid.attach(overlay, slot % columns, slot // columns, 1, 1)
             url = decodable_attachment_url(attachment)
             if url:
-                _TextureCache.load(url, picture,
+                TextureCache.load(url, picture,
                                    (COLUMN_WIDTH // columns, tile_height))
             else:
                 # Still being processed by the server: no picture yet.
@@ -665,7 +665,7 @@ class MediaBox(Gtk.Box):
             return None
         attachment = self._attachments[index]
         url = attachment.get('url') or attachment.get('remote_url')
-        # The tile shows its texture from _TextureCache once decoded.
+        # The tile shows its texture from TextureCache once decoded.
         texture = source.get_widget().get_child().get_paintable()
         if not isinstance(texture, Gdk.Texture):
             texture = None

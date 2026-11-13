@@ -100,8 +100,8 @@ def _decode_viewer_image(data, key, cancellable, done):
     # Remote attachments are untrusted: the same size-checked decode as
     # avatars and timeline media, with no box, so the full-size image up
     # to the decoded-pixel budget.
-    from .mediacache import _decode_async
-    _decode_async(data, None, cancellable, done)
+    from .mediacache import decode_async
+    decode_async(data, None, cancellable, done)
 
 
 _viewer_fetcher = imagecache.Fetcher(_viewer_store, _decode_viewer_image)

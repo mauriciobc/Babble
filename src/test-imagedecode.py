@@ -2,7 +2,7 @@
 """How remote image bytes are decoded, and how large a bitmap they may ask for.
 
 The bytes are untrusted: a few hundred kilobytes can declare a bitmap of
-hundreds of megapixels. ``mediacache._decode_covering`` therefore decides
+hundreds of megapixels. ``mediacache.decode_covering`` therefore decides
 the decoded size from the file header *before* anything allocates it:
 
   * inside the budget and no larger than its box: ``Gdk.Texture`` (fast);
@@ -87,7 +87,7 @@ Gdk.Texture.new_from_bytes = staticmethod(spy)
 
 def decode(data, cover=None, scale=1.0):
     del direct[:]
-    texture = mediacache._decode_covering(GLib.Bytes.new(data), cover, scale)
+    texture = mediacache.decode_covering(GLib.Bytes.new(data), cover, scale)
     return texture, bool(direct)
 
 

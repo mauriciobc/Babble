@@ -177,7 +177,7 @@ def link_card_content(link):
     a footer line. Catch-Up news tiles draw their own box; they share
     :func:`link_card_footer_text`, which is where a sharer list replaces
     the "N people talking" count."""
-    from .mediacache import _TextureCache
+    from .mediacache import TextureCache
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
     image_url = link.get('image')
@@ -190,7 +190,7 @@ def link_card_content(link):
         picture.add_css_class('link-card-image')
         picture.add_css_class('darkenable')
         box.append(picture)
-        _TextureCache.load(image_url, picture)
+        TextureCache.load(image_url, picture)
 
     text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                    margin_top=12, margin_bottom=12, margin_start=12,

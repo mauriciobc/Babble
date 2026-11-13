@@ -207,7 +207,7 @@ class Fetcher:
     gets at it -- and must invoke *callback* with ``(texture, reason)``,
     *reason* being None on success. *cancellable* is the request's own,
     not a caller's, so a decoder that drops its callback when cancelled
-    (as ``mediacache._decode_async`` does) cannot strand the request: the
+    (as ``mediacache.decode_async`` does) cannot strand the request: the
     teardown is driven from here instead. *on_failure* is called with
     ``(key, reason)`` once per failed request rather than once per waiter,
     which is what a log line wants -- and never for a cancellation, which
@@ -314,7 +314,7 @@ class Fetcher:
 
     def _start(self, request):
         # Tearing down is driven by the request's own cancellable, not by
-        # the decoder calling back. _decode_async drops its callback when
+        # the decoder calling back. decode_async drops its callback when
         # the task is cancelled, so a decoder-driven teardown could skip
         # it entirely -- which is exactly how a key used to get stranded.
         request.cancellable.connect_after(
@@ -433,10 +433,10 @@ class Fetcher:
         decode failure, and cancellation. That is what makes forgetting
         the key reliable. It was not, and the failure was permanent:
 
-          * ``_TextureCache.load`` cancels the request a picture had in
+          * ``TextureCache.load`` cancels the request a picture had in
             flight every time that picture is rebound, which a scrolling
             timeline does constantly;
-          * ``_decode_async`` drops its callback when its cancellable
+          * ``decode_async`` drops its callback when its cancellable
             fires, so if that happened while the worker was decoding,
             neither the success nor the failure path ran;
           * the key therefore stayed in ``_inflight`` for the life of the

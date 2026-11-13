@@ -2,10 +2,10 @@
 """The image fetcher's request lifecycle, including the cancel paths.
 
 The behaviour pinned here is a bug that was permanent and invisible.
-``_TextureCache.load`` cancels whatever request a picture had in flight
+``TextureCache.load`` cancels whatever request a picture had in flight
 every time that picture is rebound, which a scrolling timeline does
 constantly. If the cancellation landed while the worker was decoding,
-``mediacache._decode_async`` dropped its callback -- so neither the
+``mediacache.decode_async`` dropped its callback -- so neither the
 success nor the failure path ran, and the URL's key stayed in
 ``Fetcher._inflight`` for the life of the process.
 
@@ -121,7 +121,7 @@ def wait_for(predicate, limit=10.0):
 
 
 def threaded(worker):
-    """A decoder shaped like ``mediacache._decode_async``: it runs on a
+    """A decoder shaped like ``mediacache.decode_async``: it runs on a
     worker thread and delivers its callback on the main context.
 
     Both halves matter. Without the worker the decode would run inside

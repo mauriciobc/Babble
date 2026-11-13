@@ -74,7 +74,7 @@ class MediaOpener:
         """Append a picture per attachment to *box*, each one a button
         for the viewer (unless covered) and "Processing…" when the
         server has no picture for it yet."""
-        from .mediacache import _TextureCache
+        from .mediacache import TextureCache
         for index, attachment in enumerate(attachments):
             picture = picture_class(
                 content_fit=Gtk.ContentFit.COVER, can_shrink=True,
@@ -86,7 +86,7 @@ class MediaOpener:
             picture.add_css_class('darkenable')
             url = attachment.get('preview_url') or attachment.get('url')
             if url:
-                _TextureCache.load(url, picture)
+                TextureCache.load(url, picture)
             box.append(self.wrap_thumbnail(picture, index, attachment, url))
 
     def wrap_thumbnail(self, picture, index, attachment, url):

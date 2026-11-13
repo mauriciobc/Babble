@@ -47,7 +47,7 @@ class AvatarCache:
                 # Instances serve 400px avatars and the largest one shown
                 # is 96; decoded at full size, a full avatar cache held
                 # ~156 MB.
-                lambda data, key, cancellable, done: _decode_async(
+                lambda data, key, cancellable, done: decode_async(
                     data, (AVATAR_DECODE_SIZE,) * 2, cancellable,
                     lambda texture, error: done(
                         texture, _reason_text(error))),
@@ -199,12 +199,12 @@ def _decode_budget_factor(width, height):
                MAX_DECODE_DIMENSION / max(width, height))
 
 
-def _decode_covering(data, cover, scale):
+def decode_covering(data, cover, scale):
     """Texture of the image in *data*, decoded no larger than the budget
     allows, and no larger than it takes to cover a *cover* (width, height)
     box of logical pixels on a display of *scale* (None: no box, the media
     viewer's full-size request). The caller reads *scale* on the main
-    thread (this also runs on a worker, see ``_decode_async``). None when
+    thread (this also runs on a worker, see ``decode_async``). None when
     the image cannot be read.
 
     The bytes are untrusted, and a small file can declare an enormous
@@ -264,7 +264,7 @@ def _decode_covering(data, cover, scale):
 
 
 def _reason_text(error):
-    """The text of a decode failure. ``_decode_async`` reports a string
+    """The text of a decode failure. ``decode_async`` reports a string
     (its worker already took ``GLib.Error.message``); calling ``.message``
     on it raised inside the callback, so the request never finished and its
     URL stayed in flight forever, leaving every avatar for it blank."""
@@ -273,7 +273,7 @@ def _reason_text(error):
     return getattr(error, 'message', str(error))
 
 
-def _decode_async(data, cover, cancellable, callback):
+def decode_async(data, cover, cancellable, callback):
     """Decode *data* on a worker thread, no larger than a *cover* box
     needs (the decoded-pixel budget when *cover* is None), and call
     ``callback(texture, error)`` on the main context: the texture, or
@@ -289,9 +289,9 @@ def _decode_async(data, cover, cancellable, callback):
         # Worker thread: decoding only, no widget or display access.
         texture = error = None
         try:
-            # Remote bytes are untrusted: _decode_covering sizes the
+            # Remote bytes are untrusted: decode_covering sizes the
             # bitmap from the header before it allocates one.
-            texture = _decode_covering(data, cover, scale)
+            texture = decode_covering(data, cover, scale)
             if texture is None:
                 error = 'unsupported or invalid image'
         except GLib.Error as failure:
@@ -369,16 +369,16 @@ def _media_decode_for_key(data, key, cancellable, done):
     """Decode one attachment's bytes for the box it has to fill.
 
     The cover rides on the cache key (``(url, cover)``, set in
-    ``_TextureCache.load``) rather than being passed separately, so one
+    ``TextureCache.load``) rather than being passed separately, so one
     Fetcher -- and so one coalescing table -- serves every tile.
     """
     cover = key[1] if isinstance(key, tuple) else None
-    _decode_async(data, cover, cancellable,
+    decode_async(data, cover, cancellable,
                   lambda texture, error: done(texture,
                                               _reason_text(error)))
 
 
-class _TextureCache:
+class TextureCache:
     """Decoded media textures shared between rows by URL and box."""
 
     # Bounded: scrolling a media-heavy timeline would otherwise keep

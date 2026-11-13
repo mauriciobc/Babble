@@ -14,7 +14,7 @@ from gi.repository import Adw, GObject, Gtk, Pango  # noqa: E402
 
 from .. import accounts as account_store, pages  # noqa: E402
 from .digest import plain_text  # noqa: E402
-from ..mediacache import AvatarCache, _TextureCache  # noqa: E402
+from ..mediacache import AvatarCache, TextureCache  # noqa: E402
 from ..mediaopen import MediaOpener  # noqa: E402
 from ..statustext import compact_count, relative_time  # noqa: E402
 from ..timelinedata import StatusItem  # noqa: E402
@@ -218,7 +218,7 @@ class CatchUpRow(MediaOpener, Gtk.Box):
                 url = media[slot].get('preview_url') or media[slot].get('url')
                 if url and not hide:
                     holder.picture.set_visible(True)
-                    _TextureCache.load(url, holder.picture,
+                    TextureCache.load(url, holder.picture,
                                        cover=(THUMB_SIZE, THUMB_SIZE))
                 else:
                     holder.picture.set_visible(False)

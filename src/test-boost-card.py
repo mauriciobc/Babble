@@ -76,7 +76,7 @@ def inscriptions(widget):
 
 Adw.init()
 mediacache.AvatarCache.load = staticmethod(lambda avatar, account: None)
-mediacache._TextureCache.load = staticmethod(
+mediacache.TextureCache.load = staticmethod(
     lambda url, picture, cover=None: None)
 
 LONG = '<p>' + ' '.join(['A boost long enough to need more than three '

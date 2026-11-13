@@ -19,7 +19,7 @@ from . import bskytext  # noqa: E402
 from . import pages  # noqa: E402
 from .blueskycard import BlueskyQuoteCard  # noqa: E402
 from .mediabox import CardPreview, MediaBox, status_picture  # noqa: E402
-from .mediacache import AvatarCache, _TextureCache  # noqa: E402
+from .mediacache import AvatarCache, TextureCache  # noqa: E402
 from .statustext import compact_count, relative_time  # noqa: E402
 from .textemoji import InlineEmojiText  # noqa: E402
 from .thread import INDENT, MAX_NESTING  # noqa: E402
@@ -167,7 +167,7 @@ class BlueskyPostView(Gtk.Box):
         overlay = Gtk.Overlay()
         picture = status_picture(-1, 200, presentation=True, hexpand=True)
         if video.get('poster'):
-            _TextureCache.load(video['poster'], picture,
+            TextureCache.load(video['poster'], picture,
                                (COLUMN_WIDTH, 200))
         overlay.set_child(picture)
         play = Gtk.Image(icon_name='media-playback-start-symbolic',

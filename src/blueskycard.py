@@ -22,7 +22,7 @@ from gi.repository import Adw, Gtk, Pango  # noqa: E402
 from . import bskytext  # noqa: E402
 from . import pages  # noqa: E402
 from .mediabox import CardPreview, status_picture  # noqa: E402
-from .mediacache import AvatarCache, _TextureCache  # noqa: E402
+from .mediacache import AvatarCache, TextureCache  # noqa: E402
 from .timelinebase import COLUMN_WIDTH, _flag  # noqa: E402
 
 PICTURE_HEIGHT = 110
@@ -136,7 +136,7 @@ class BlueskyQuoteCard(Gtk.Button):
         if data.get('picture'):
             picture = status_picture(-1, PICTURE_HEIGHT, presentation=True,
                                      kind=_FixedPicture)
-            _TextureCache.load(data['picture'], picture,
+            TextureCache.load(data['picture'], picture,
                                (COLUMN_WIDTH, PICTURE_HEIGHT))
             box.append(picture)
         self.update_property(

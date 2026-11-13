@@ -85,7 +85,7 @@ from src import imagecache  # noqa: E402
 
 real = imagecache.Fetcher(
     imagecache.Store(4),
-    lambda data, key, cancellable, done: mediacache._decode_async(
+    lambda data, key, cancellable, done: mediacache.decode_async(
         data, (96, 96), cancellable,
         lambda texture, error: done(texture,
                                     mediacache._reason_text(error))))

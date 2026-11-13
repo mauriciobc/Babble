@@ -209,7 +209,7 @@ class _Tile(Gtk.Widget):
         picture.set_hexpand(True)
         picture.set_vexpand(True)
         if url:
-            mediacache._TextureCache.load(
+            mediacache.TextureCache.load(
                 url, picture,
                 cover or span_cover(self.placed.colspan,
                                     self.placed.rowspan))

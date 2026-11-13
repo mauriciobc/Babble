@@ -174,7 +174,7 @@ from src import mediacache, statusrow, timelinedata  # noqa: E402
 
 # No network and no textures: the row only has to be built and bound.
 mediacache.AvatarCache.load = staticmethod(lambda avatar, account: None)
-mediacache._TextureCache.load = staticmethod(
+mediacache.TextureCache.load = staticmethod(
     lambda url, picture, cover=None: None)
 
 

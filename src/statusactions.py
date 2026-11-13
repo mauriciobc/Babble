@@ -20,7 +20,7 @@ from .pages import connect_weak  # noqa: E402
 from .textemoji import (InlineEmojiText, emoji_bank)
 
 """Quote and collection cards, and the reply/boost/favourite bar."""
-from .mediacache import AvatarCache, _TextureCache
+from .mediacache import AvatarCache, TextureCache
 from .timelinebase import (
     COLUMN_WIDTH, OLD_POST_DAYS, VISIBILITY_INFO, _flag, _has_schema,
     _own_account_id, can_quote, days_since, decodable_attachment_url,
@@ -113,7 +113,7 @@ class QuoteCard(Gtk.Button):
             picture = status_picture(-1, 110, presentation=True)
             url = decodable_attachment_url(media[0])
             if url:
-                _TextureCache.load(url, picture, (COLUMN_WIDTH, 110))
+                TextureCache.load(url, picture, (COLUMN_WIDTH, 110))
             box.append(picture)
         self.update_property(
             [Gtk.AccessibleProperty.LABEL],

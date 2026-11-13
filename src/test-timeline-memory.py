@@ -412,7 +412,7 @@ def drag_sources(widget):
 texture = Gdk.MemoryTexture.new(4, 4, Gdk.MemoryFormat.R8G8B8A8,
                                 GLib.Bytes.new(b'\x80' * 64), 16)
 picture_url = 'https://example.org/media/a.png'
-mediacache._TextureCache.store.put(
+mediacache.TextureCache.store.put(
     (picture_url, (timelinebase.COLUMN_WIDTH, 260)), texture)
 pictured = dict(status(2, 'pictured'), url='https://example.org/@user2/2',
                 media_attachments=[{'id': '1', 'type': 'image',
@@ -574,7 +574,7 @@ viewer.force_close()
 settle(lambda: viewer._closed)
 sheet.force_close()
 host.destroy()
-mediacache._TextureCache.store.clear()
+mediacache.TextureCache.store.clear()
 
 # Weak hookups must survive PyGObject dropping and re-creating the Python
 # wrapper of a widget that only GTK holds.

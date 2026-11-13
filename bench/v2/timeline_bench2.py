@@ -210,7 +210,7 @@ class Counters:
         a request that will never complete -- the signature of the
         stranded-``_inflight`` bug, which no widget count would show.
         """
-        from src.mediacache import AvatarCache, _TextureCache
+        from src.mediacache import AvatarCache, TextureCache
         from src.textemoji import EmojiTextures
         from src.profileheader import HeaderCache
         from src import mediaviewer
@@ -218,7 +218,7 @@ class Counters:
         seen = set()
         # Each owner keeps its fetcher under a different name, and some
         # build it lazily, so collect them defensively rather than assume.
-        for fetcher in (_TextureCache.fetcher,
+        for fetcher in (TextureCache.fetcher,
                         EmojiTextures._fetch(),
                         HeaderCache.fetcher,
                         mediaviewer._viewer_fetcher,
@@ -330,12 +330,12 @@ def instrument(statusrun):
     """
     from src import mediacache
 
-    real_decode_async = mediacache._decode_async
-    real_covering = mediacache._decode_covering
+    real_async = mediacache.decode_async
+    real_covering = mediacache.decode_covering
     real_image_size = mediacache._image_pixel_size
 
     def classify(data, cover, scale):
-        """Which branch of _decode_covering this input takes, and for what.
+        """Which branch of decode_covering this input takes, and for what.
 
         Mirrors src/mediacache.py:183-189. cover None means the caller
         asked for a full-size decode (the media viewer's path).
@@ -367,19 +367,19 @@ def instrument(statusrun):
         return kind, source
 
     # The in-flight gauge is opened and closed **inside**
-    # _decode_covering and nowhere else.
+    # decode_covering and nowhere else.
     #
-    # An earlier version opened it in _decode_async and closed it when
-    # _decode_covering returned, which drifts permanently in two ways:
+    # An earlier version opened it in decode_async and closed it when
+    # decode_covering returned, which drifts permanently in two ways:
     # full-size decodes (cover=None -- every emoji, and the media viewer)
-    # never call _decode_covering at all, and a Gio.Task with
+    # never call decode_covering at all, and a Gio.Task with
     # return-on-cancel can skip its worker entirely when cancelled before
     # it starts, so the increment never gets a matching decrement. Once
     # that happens the count can only grow and every later frame is
     # reported as painted during decode. Clamping at zero hides the
     # opposite mistake rather than fixing this one.
     #
-    # _decode_covering is entered and left synchronously around the real
+    # decode_covering is entered and left synchronously around the real
     # decode, so a try/finally there cannot drift. The honest cost is that
     # the gauge covers the decode call only, not the HTTP fetch or the
     # cover=None path; frames_during_decode therefore means "decoding a
@@ -400,14 +400,14 @@ def instrument(statusrun):
 
     def count_raw_async(data, cover, cancellable, callback):
         # No gauge here: see above. Only the branch count, for the
-        # cover=None path that never reaches _decode_covering.
+        # cover=None path that never reaches decode_covering.
         if cover is None:
             with C.lock:
                 C.decode_raw += 1
-        return real_decode_async(data, cover, cancellable, callback)
+        return real_async(data, cover, cancellable, callback)
 
-    mediacache._decode_covering = classified_covering
-    mediacache._decode_async = count_raw_async
+    mediacache.decode_covering = classified_covering
+    mediacache.decode_async = count_raw_async
 
     # Pop-in: how long a post is on screen with an empty card.
     # Pop-in latency.

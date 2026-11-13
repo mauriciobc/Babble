@@ -156,13 +156,13 @@ class EmojiTextures:
     @classmethod
     def _fetch(cls):
         if cls.fetcher is None:
-            from .mediacache import _decode_async
+            from .mediacache import decode_async
             cls.fetcher = imagecache.Fetcher(
                 cls.store,
                 # An inline emoji is drawn at 20-32 px; the server's file
                 # is usually that size already, so decode it whole rather
                 # than scaling a header down to nothing.
-                lambda data, key, cancellable, done: _decode_async(
+                lambda data, key, cancellable, done: decode_async(
                     data, None, cancellable,
                     lambda texture, error: done(texture,
                                                 error and error.message)))

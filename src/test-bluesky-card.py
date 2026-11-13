@@ -74,11 +74,11 @@ for _name in ('get_thread_async', 'resolve_handle_async', '_get_json'):
 # Texture loads are held until the test completes them.
 loads = []
 avatar_loads = []
-mediacache._TextureCache.load = classmethod(
+mediacache.TextureCache.load = classmethod(
     lambda cls, url, picture, cover=None: loads.append((url, picture)))
 mediacache.AvatarCache.load = classmethod(
     lambda cls, avatar, account: avatar_loads.append((avatar, account)))
-blueskycard._TextureCache.load = mediacache._TextureCache.load
+blueskycard.TextureCache.load = mediacache.TextureCache.load
 blueskycard.AvatarCache.load = mediacache.AvatarCache.load
 
 

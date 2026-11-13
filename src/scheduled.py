@@ -368,7 +368,7 @@ class ScheduledRow(Gtk.ListBoxRow):
 
     @staticmethod
     def _make_thumbnails(attachments):
-        from .mediacache import _TextureCache
+        from .mediacache import TextureCache
         box = Gtk.Box(spacing=6, halign=Gtk.Align.START)
         for attachment in attachments[:MAX_THUMBNAILS]:
             picture = _Thumbnail(
@@ -380,7 +380,7 @@ class ScheduledRow(Gtk.ListBoxRow):
                 attachment.get('url')
                 if attachment.get('type') == 'image' else None)
             if url:
-                _TextureCache.load(url, picture)
+                TextureCache.load(url, picture)
             box.append(picture)
         return box
 

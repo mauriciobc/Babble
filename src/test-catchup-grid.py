@@ -92,7 +92,7 @@ def fake_avatar(avatar, account):
     loads.append(('avatar', account.get('id')))
 
 
-mediacache._TextureCache.load = staticmethod(fake_media)
+mediacache.TextureCache.load = staticmethod(fake_media)
 mediacache.AvatarCache.load = staticmethod(fake_avatar)
 
 NOW = datetime.datetime.now(datetime.timezone.utc)

@@ -23,14 +23,14 @@ from gi.repository import Adw, Gdk, GLib, GObject, Gtk, Pango  # noqa: E402
 from . import imagecache  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
-from .mediacache import AvatarCache, _decode_async, log_media_failure  # noqa: E402
+from .mediacache import AvatarCache, decode_async, log_media_failure  # noqa: E402
 from .textemoji import (EMOJI_RE, InlineEmojiText, content_segments,  # noqa: E402
                         emoji_bank)
 
 
 def _decode_banner(data, cancellable, done):
     """Decode a profile banner whole, at whatever size it is."""
-    _decode_async(data, None, cancellable,
+    decode_async(data, None, cancellable,
                   lambda texture, error: done(texture,
                                               error and error.message))
 

@@ -220,8 +220,8 @@ class AttachmentRow(Gtk.ListBox):
             preview = media.get('preview_url') or media.get('url')
             if preview and not self.content_type.startswith('audio/'):
                 texture = Gtk.Picture(content_fit=Gtk.ContentFit.COVER)
-                from .mediacache import _TextureCache
-                _TextureCache.load(preview, texture, cover=(48, 48))
+                from .mediacache import TextureCache
+                TextureCache.load(preview, texture, cover=(48, 48))
         elif not self.content_type.startswith('audio/'):
             try:
                 texture = Gdk.Texture.new_from_filename(path)
