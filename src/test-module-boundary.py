@@ -408,6 +408,32 @@ def violations(sources: dict[str, str]) -> list[str]:
                                      ' core'
                                      % (path, node.lineno,
                                         '.' * node.level, node.module or ''))
+        if path == 'src/composetransition.py':
+            # R10: composer transitions are pure data on the standard
+            # library. No gi, no gettext, no sibling app modules: builders
+            # and scheduled_content stay display-free.
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        top = alias.name.split('.')[0]
+                        if top not in sys.stdlib_module_names:
+                            found.append('R10: %s:%d imports %s: '
+                                         'composetransition may use only '
+                                         'the standard library'
+                                         % (path, node.lineno, alias.name))
+                elif isinstance(node, ast.ImportFrom):
+                    if node.level != 0:
+                        found.append('R10: %s:%d has a relative import: '
+                                     'composetransition may use only the '
+                                     'standard library'
+                                     % (path, node.lineno))
+                        continue
+                    top = (node.module or '').split('.')[0]
+                    if top not in sys.stdlib_module_names:
+                        found.append('R10: %s:%d imports %s: '
+                                     'composetransition may use only the '
+                                     'standard library'
+                                     % (path, node.lineno, node.module))
     found.extend(load_time_cycles(sources))
     return found
 
@@ -534,6 +560,17 @@ check('R8 accepts the standard library and core',
           'import dataclasses\nfrom typing import Optional\n'
           'from . import core\nfrom .core import send\n'})
           if line.startswith('R8')])
+self_check('R10 rejects composetransition importing gi',
+           {'src/composetransition.py': 'import gi\n'},
+           'R10: src/composetransition.py:1 imports gi')
+self_check('R10 rejects composetransition relative imports',
+           {'src/composetransition.py': 'from . import entities\n'},
+           'R10: src/composetransition.py:1 has a relative import')
+check('R10 accepts composetransition on the standard library',
+      not [line for line in violations({
+          'src/composetransition.py':
+          'import dataclasses\nfrom typing import Optional\n'})
+          if line.startswith('R10')])
 check('the checker accepts navigation importing the catchup package',
       not violations({'src/navigation.py':
                       'from .catchup import CatchUpPage\n'}))
@@ -580,6 +617,7 @@ RULES = (
     ('R7', 'Catch Up imports no window-owned module'),
     ('R8', 'src/api imports only the standard library and core'),
     ('R9', 'no import cycle among src modules at load time'),
+    ('R10', 'composetransition imports only the standard library'),
 )
 for rule, label in RULES:
     hits = [line for line in FOUND if line.startswith(rule + ':')]

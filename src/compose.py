@@ -30,6 +30,7 @@ from .capabilities import QUOTES_API_VERSION  # noqa: E402
 from .composeattach import ComposeAttachments, _prune_pasted_once  # noqa: E402
 from .composeschedule import (ComposeSchedule,  # noqa: E402
                               _ScheduledReplacement)
+from . import composetransition  # noqa: E402
 from .composeupload import UploadRound  # noqa: E402
 from .composequote import QuotePaste  # noqa: E402
 from .drafts import (Attachment, Draft, Poll, drop_local_draft,  # noqa: E402
@@ -712,6 +713,12 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.update_compose_state()
         return True
 
+    def is_posting(self):
+        return bool(self._posting)
+
+    def is_frozen(self):
+        return self._replacement is not None
+
     def is_empty(self):
         return not (self.text() or self.attachments()
                     or self.spoiler_entry.get_text()
@@ -926,42 +933,110 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.update_compose_state()
         self.text_view.grab_focus()
 
+    def begin(self, transition):
+        """Apply one :class:`composetransition.Transition`."""
+        if not self._accept_transition():
+            return False
+        stash = transition.stack in (composetransition.PUSH,
+                                     composetransition.PUSH_IF_NOT_EMPTY)
+        previous = self._capture_state() if stash else None
+        if not self._clear_submission_mode():
+            return False
+        if transition.stack is composetransition.PUSH:
+            self._draft_stack = [previous]
+        elif transition.stack is composetransition.PUSH_IF_NOT_EMPTY:
+            if not self.is_empty():
+                self._draft_stack = [previous]
+        elif transition.stack is composetransition.CLEAR:
+            self._draft_stack = []
+        if transition.text is not composetransition.KEEP:
+            self._set_buffer(transition.text)
+            self.buffer.place_cursor(self.buffer.get_end_iter())
+        if transition.cw is not composetransition.KEEP:
+            active, spoiler = transition.cw
+            self.cw_toggle.set_active(bool(active))
+            self.spoiler_entry.set_text(spoiler)
+        if transition.visibility is not composetransition.KEEP:
+            self._select_visibility(transition.visibility)
+        if transition.language is not composetransition.KEEP:
+            self._select_language(transition.language)
+        if transition.media is not composetransition.KEEP:
+            clear, pending_ids, existing = transition.media
+            if clear:
+                self.clear_attachments()
+            self._pending_media_ids = list(pending_ids)
+            for attachment in existing:
+                self.attach.add_existing(attachment)
+        if transition.poll is not composetransition.KEEP:
+            self.poll_toggle.set_active(False)
+            for entry in self.poll_entries:
+                entry.set_text('')
+            self._select_default_poll_duration()
+            if transition.poll is not composetransition.CLEAR:
+                poll = transition.poll
+                self.poll_toggle.set_active(True)
+                for index, option in enumerate(poll['options']):
+                    if index >= len(self.poll_entries):
+                        self.on_poll_add_choice(self.poll_add)
+                    self.poll_entries[index].set_text(option)
+                self._select_poll_duration(poll['expires_in'])
+        if transition.in_reply_to_id is not composetransition.KEEP:
+            self.in_reply_to_id = transition.in_reply_to_id
+        if transition.quoted_status_id is not composetransition.KEEP:
+            self.quoted_status_id = transition.quoted_status_id
+        if transition.editing_id is not composetransition.KEEP:
+            self.editing_id = transition.editing_id
+        if transition.scheduled is not composetransition.KEEP:
+            scheduled_id, scheduled_at, on_done = transition.scheduled
+            self.scheduled_id = scheduled_id
+            self.scheduled_at = scheduled_at
+            self.scheduled_on_done = on_done
+        if transition.scheduled_fields is not composetransition.KEEP:
+            self._scheduled_fields.update(transition.scheduled_fields)
+        self._finish_begin()
+        if transition.thread_lookup is not None:
+            status_id, status, editing = transition.thread_lookup
+            self._load_thread(status_id, status, editing=editing)
+        return True
+
     def start_reply(self, status_id, handle, visibility='public',
                     parent=None):
-        return self.modes.start_reply(status_id, handle, visibility,
-                                      parent=parent)
+        return self.begin(composetransition.reply(
+            status_id, handle, visibility, parent=parent))
 
     def start_mention(self, account, direct=False):
-        return self.modes.start_mention(account, direct=direct)
+        return self.begin(composetransition.mention(
+            account, direct=direct))
 
     def prefill_text(self, text):
         """Start a post with *text*, as shared from outside the app. A
         draft in progress is kept on the draft stack, for the banner
         above the buffer to bring back."""
-        if not self._accept_transition():
-            return False
-        previous = self._capture_state()
-        self._clear_submission_mode()
-        if not self.is_empty():
-            self._draft_stack = [previous]
-        self._set_buffer(text)
-        self.buffer.place_cursor(self.buffer.get_end_iter())
-        self.in_reply_to_id = None
-        self._finish_begin()
-        return True
+        return self.begin(composetransition.prefill(text))
 
     def start_edit(self, status):
-        return self.modes.start_edit(status)
+        return self.begin(composetransition.edit(status))
 
     def start_redraft(self, status):
-        return self.modes.start_redraft(status)
+        return self.begin(composetransition.redraft(status))
 
     def start_quote(self, status):
-        return self.modes.start_quote(status)
+        return self.begin(composetransition.quote(status))
 
     def start_scheduled(self, scheduled, draft=False, on_done=None):
-        return self.modes.start_scheduled(scheduled, draft=draft,
-                                          on_done=on_done)
+        from .scheduled import draft_scheduled_at
+        try:
+            transition = composetransition.scheduled(
+                scheduled,
+                max_poll_options=self.poll_limits()['max_options'],
+                at=(draft_scheduled_at() if draft
+                    else scheduled.get('scheduled_at')),
+                on_done=on_done)
+        except composetransition.UnsupportedSettings as error:
+            self._show_error(_('Could not edit scheduled post'),
+                             str(error))
+            return False
+        return self.begin(transition)
 
     def _select_visibility(self, visibility):
         codes = [code for code, _label in VISIBILITIES]

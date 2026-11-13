@@ -90,6 +90,14 @@ on `install_data`.
 
 ---
 
+## ARCH-21 — `composetransition.py` (candidate 5)
+
+**Status:** done — mode transitions are frozen `Transition` values in
+`composetransition.py` (stdlib-only; module-boundary R10); the view applies
+them through `begin()`; `ComposeSchedule` is schedule chrome only. See
+`Docs/architecture-candidates-5-7-plan.md` §4. The compose EXCEPTION reason
+cites ARCH-17 and this work.
+
 ## ARCH-17 — `composeschedule.py`
 
 **Status:** done — `composeschedule.py` holds `_ScheduledReplacement`,

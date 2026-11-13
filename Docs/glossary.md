@@ -106,3 +106,15 @@ it, because the server may already have acted.
 A read that a newer read of the same page has replaced: the page reloaded, or
 the reader pressed Try Again, before the first answer came. Its answer is
 ignored and, with a request scope, the request itself is cancelled.
+
+**Composer transition**
+A frozen description of how the composer should look when the reader starts a
+reply, mention, edit, redraft, quote, scheduled edit or shared-text prefill:
+which fields to keep, which to write, whether to stash the draft in progress,
+and whether to look the thread up. Builders in `composetransition` produce it;
+`BabbleComposeView.begin` applies it once.
+
+**Draft stack**
+At most one stashed composer state held while a reply, mention or shared-text
+prefill is in progress, so Cancel Reply (or finishing the post) can bring the
+previous draft back. Edit, redraft, quote and scheduled entry clear it.

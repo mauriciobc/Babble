@@ -62,7 +62,10 @@ EXCEPTIONS = {
                   'to composeupload.py; ARCH-12 moved AttachmentRow and '
                   'the attach tray to composeattach.py; ARCH-17 moved '
                   'mode entry and schedule chrome to composeschedule.py; '
-                  'what remains is the draft, the options and the post '
+                  'architecture candidate 5 (ARCH-21) moved the mode '
+                  'transitions themselves to composetransition.py and '
+                  'left begin() here as the single apply path; what '
+                  'remains is the draft, the options and the post '
                   'itself.',
     'profile.py': 'the profile page: tabs, extras and note/mute dialogs. '
                   'ARCH-02 moved relationship commands to '
