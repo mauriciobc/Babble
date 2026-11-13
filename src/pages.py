@@ -196,8 +196,8 @@ class PagedPosts:
 
     def _paging_init(self, newer_cursor='since_id'):
         self._generation = 0
+        self._refresh_generation = 0
         self._loading_older = False
-        self._older_generation = None
         self._newer_cursor = newer_cursor
         self._bottom_locked = False
         self._older_pending = False
@@ -209,9 +209,10 @@ class PagedPosts:
         """Queue one page request, tagged with its generation.
 
         A response that outlived its request is dropped rather than
-        spliced into the model. Busy flags belong to the request that most
-        recently set them; a stale callback must never clear state owned by
-        its replacement.
+        spliced into the model -- a superseded refresh would otherwise
+        land stale posts in a list the reader is looking at. Dropping it
+        also clears the busy flags, or a discarded first page would leave
+        the list reading as loading forever.
         """
         self._generation += 1
         generation = self._generation
@@ -226,6 +227,7 @@ class PagedPosts:
     def _superseded(self, generation):
         if generation == self._generation:
             return False
+        self.model.loading = False
         return True
 
     # The three requests
@@ -233,10 +235,6 @@ class PagedPosts:
     def load(self):
         if self.model.loading:
             return
-        # A first-page load takes over the paging generation as well as
-        # the model-loading flag; an older response is now only stale work.
-        self._loading_older = False
-        self._older_generation = None
         self.model.loading = True
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('loading')
@@ -259,12 +257,7 @@ class PagedPosts:
             self._older_pending = True
             return
         self._lock_bottom()
-        # This request supersedes any in-flight first-page or refresh
-        # request. Relinquish its loading flag now; its late callback must
-        # not clear state belonging to a later request.
-        self.model.loading = False
         self._loading_older = True
-        self._older_generation = self._generation + 1
         self._request({'limit': self.PAGE_SIZE,
                        'max_id': self.model.oldest_id},
                       self.on_older_loaded)
@@ -321,10 +314,6 @@ class PagedPosts:
             self.load()
             return
         self.model.exhausted = False
-        # A refresh supersedes an older-page request. Its eventual callback
-        # no longer owns the older-page flag and must not clear a newer one.
-        self._loading_older = False
-        self._older_generation = None
         params = {'limit': self.PAGE_SIZE}
         if self.model.newest_id is not None:
             params[self._newer_cursor] = self.model.newest_id

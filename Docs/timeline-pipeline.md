@@ -1092,16 +1092,13 @@ compare it with itself when the lookup answered. Nothing ever incremented the
 counter (it arrived with the reply filter, ARCH-11, and has never had an
 increment), so the guard could not fire, and it has been deleted.
 
-The lookup still calls `on_done` on success and failure, but refreshes now
-carry their paging generation through that asynchronous callback. A newer
-refresh owns the catch-up chain; an older lookup result is ignored rather than
-inserting posts out of order or resetting the newer chain. `_superseded` only
-reports staleness and never clears shared loading flags. The request that takes
-over explicitly relinquishes the previous request's flags, while an older-page
-callback may clear `_loading_older` and release the bottom lock only if its
-generation still owns that slot. `src/test-home-filters.py` holds relationship
-and timeline answers back to verify these ownership boundaries, including a
-failed refresh whose raw cursor must still advance.
+The lookup still calls `on_done` on success and failure. A refresh carries its
+paging generation through that asynchronous callback (`_refresh_generation`),
+so a refresh overtaken by a newer one is ignored when its lookup answers rather
+than moving the catch-up chain. Older pages and first pages are dropped where
+the lookup's `on_done` lands, in the `_finish_*` methods, by the paging guard.
+`src/test-home-filters.py` holds relationship and timeline answers back to pin
+these boundaries.
 
 ### 15.8 `_showing_cache` cleared on a superseded first page [R, currently unreachable]
 

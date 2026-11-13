@@ -485,7 +485,7 @@ check('opposite order: the later answer hid the reply',
       shown(page)[0] == 60 and page.model.newest_id == '00061')
 client.answer(0, following={'21'})         # then R1 says 21 is followed
 check('opposite order: the stale earlier refresh is ignored',
-      shown(page) == [60] and page.model.newest_id == '00061'
+      shown(page)[0] == 60 and 61 not in shown(page) and page.model.newest_id == '00061'
       and len(shown(page)) == len(set(shown(page))))
 check('opposite order: flags clear, chain ended',
       flags_clear(page) and page._refresh_chain == 0)

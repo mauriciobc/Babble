@@ -196,7 +196,6 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             newer_cursor='min_id' if source is None
             or getattr(source, 'paging', None) == 'id' else 'since_id')
         self._refresh_chain = 0
-        self._refresh_generation = 0
         self._followed_tags = None
         self._followed_loading = False
         self._followed_waiting = []
@@ -509,23 +508,16 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
 
     def on_older_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
-            # Only the request that still owns the older-page slot may
-            # release it. A refresh can supersede this page and a later
-            # older request can already own the slot by the time we answer.
-            if generation is None or self._older_generation == generation:
-                self._loading_older = False
-                self._older_generation = None
-                self._release_bottom()
+            self._loading_older = False
+            self._release_bottom()
             return
         try:
             statuses = self._finish(result)
         except GLib.Error:
             # A failed page releases the lock, so the reader can try again
             # instead of waiting out the debounce for nothing.
-            if self._older_generation == generation:
-                self._loading_older = False
-                self._older_generation = None
-                self._release_bottom()
+            self._loading_older = False
+            self._release_bottom()
             return
         # Nothing is released yet. Clearing the in-flight flag before the
         # reply filter is what let a scroll at the bottom, during that
@@ -550,14 +542,10 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
     def _finish_older_loaded(self, statuses, generation=None, before=0,
                              raw_oldest=None):
         if generation is not None and self._superseded(generation):
-            if self._older_generation == generation:
-                self._loading_older = False
-                self._older_generation = None
-                self._release_bottom()
-            return
-        if generation is None or self._older_generation == generation:
             self._loading_older = False
-            self._older_generation = None
+            self._release_bottom()
+            return
+        self._loading_older = False
         if not statuses and raw_oldest is not None:
             # Every post of a non-empty page was filtered out: page past it.
             self.model.oldest_id = raw_oldest
