@@ -197,6 +197,7 @@ class PagedPosts:
     def _paging_init(self, newer_cursor='since_id'):
         self._generation = 0
         self._loading_older = False
+        self._older_generation = None
         self._newer_cursor = newer_cursor
         self._bottom_locked = False
         self._older_pending = False
@@ -208,10 +209,9 @@ class PagedPosts:
         """Queue one page request, tagged with its generation.
 
         A response that outlived its request is dropped rather than
-        spliced into the model -- a superseded refresh would otherwise
-        land stale posts in a list the reader is looking at. Dropping it
-        also clears the busy flags, or a discarded first page would leave
-        the list reading as loading forever.
+        spliced into the model. Busy flags belong to the request that most
+        recently set them; a stale callback must never clear state owned by
+        its replacement.
         """
         self._generation += 1
         generation = self._generation
@@ -226,8 +226,6 @@ class PagedPosts:
     def _superseded(self, generation):
         if generation == self._generation:
             return False
-        self.model.loading = False
-        self._loading_older = False
         return True
 
     # The three requests
@@ -261,6 +259,7 @@ class PagedPosts:
         self._request({'limit': self.PAGE_SIZE,
                        'max_id': self.model.oldest_id},
                       self.on_older_loaded)
+        self._older_generation = self._generation
 
     def _lock_bottom(self):
         """Hold the bottom lock, with a deadline.
@@ -314,11 +313,16 @@ class PagedPosts:
             self.load()
             return
         self.model.exhausted = False
+        # A refresh supersedes an older-page request. Its eventual callback
+        # no longer owns the older-page flag and must not clear a newer one.
+        self._loading_older = False
+        self._older_generation = None
         params = {'limit': self.PAGE_SIZE}
         if self.model.newest_id is not None:
             params[self._newer_cursor] = self.model.newest_id
         self.model.loading = True
         self._request(params, self.on_refresh_loaded)
+        self._refresh_generation = self._generation
 
     # Scroll
 
