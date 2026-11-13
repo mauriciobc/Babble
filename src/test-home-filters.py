@@ -540,6 +540,7 @@ page.refresh()
 client.answer(0, error=True)
 check('failed lookup, refresh: lands, strangers hidden, chain ended',
       shown(page)[0] == 60 and 61 not in shown(page)
+      and page.model.newest_id == '00062'
       and page._refresh_chain == 0 and flags_clear(page))
 
 client, page = held_home(plain(1, 60))
@@ -592,12 +593,17 @@ page.refresh()                                   # response held
 check('superseded refresh: its response is out, the model is loading',
       len(client.timeline_held) == 1 and page.model.loading and not pulled)
 page.load_older()                                # takes its place
+check('superseded refresh: the older request owns its loading flag',
+      page._loading_older and len(client.timeline_held) == 2)
 client.release_timeline(0)                       # the stale refresh answers
 check('superseded refresh: the stale page is dropped',
       61 not in shown(page))
+check('superseded refresh: pending older request stays marked busy',
+      page._loading_older and not page.model.loading)
+client.release_timeline(1)                       # the older page now answers
 check('superseded refresh: the chain ended (spinner hook ran once)',
       pulled == [True] and page._refresh_chain == 0)
-check('superseded refresh: the flags are clear',
+check('superseded refresh: flags clear after the owned request ends',
       not page.model.loading and not page._loading_older)
 pages.settings().reset('hide-replies-non-follows')
 
