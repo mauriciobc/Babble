@@ -454,18 +454,20 @@ page.refresh()
 check('refresh chain: two lookups out for the same full page',
       len(client.held) == 2)
 client.answer(0, following={'21'})
-check('refresh chain: the first answer continued the chain with a request',
-      39 in shown(page) and 40 not in shown(page))
+check('refresh chain: the stale first answer is ignored',
+      39 not in shown(page) and 40 not in shown(page)
+      and page._refresh_chain == 0)
 client.answer(1, following={'21'})
-check('refresh chain: the late answer duplicates nothing',
-      len(shown(page)) == len(set(shown(page))))
+check('refresh chain: the current answer lands and continues once',
+      39 in shown(page) and 40 not in shown(page)
+      and len(shown(page)) == len(set(shown(page))))
 requests = len(client.timeline_requests())
 check('refresh chain: it ended (cursor past the page, no request left)',
       page._refresh_chain == 0 and flags_clear(page)
       and page.model.newest_id == '00040')
 check('refresh chain: a quiet server ends it with a short page',
       client.timeline_requests()[-1].get('min_id') == '00040'
-      and requests == 5)   # first page, two refreshes, two chain steps
+      and requests == 4)   # first page, two refreshes, one chain step
 
 # Two lookups answering in the opposite order from which they were sent.
 # The fake answers differently for author 21 on purpose (a stranger to the
@@ -482,8 +484,8 @@ client.answer(1, following=())            # R2 first: 21 is a stranger
 check('opposite order: the later answer hid the reply',
       shown(page)[0] == 60 and page.model.newest_id == '00061')
 client.answer(0, following={'21'})         # then R1 says 21 is followed
-check('opposite order: the earlier answer, late, adds the reply once',
-      shown(page)[:2] == [61, 60]
+check('opposite order: the stale earlier refresh is ignored',
+      shown(page) == [60] and page.model.newest_id == '00061'
       and len(shown(page)) == len(set(shown(page))))
 check('opposite order: flags clear, chain ended',
       flags_clear(page) and page._refresh_chain == 0)
