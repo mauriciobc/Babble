@@ -527,25 +527,22 @@ class CollectionPage(Adw.Bin):
 
     def refresh(self):
         token = self.stack.begin()
+        collections_api.get_async(
+            self.client, self.collection_id,
+            callback=token.callback(self._on_loaded),
+            cancellable=token.cancellable)
 
-        def ok(data):
-            if not self.stack.is_current(token):
-                return
-            self.collection = data.get('collection') or data
-            accounts = data.get('accounts') or []
-            for account in accounts:
-                remember_account(self.client, account)
-            self._show(accounts)
-
-        def failed(error):
-            if self.stack.is_current(token):
-                self.stack.show_error(error)
-
-        _send_api(self.client,
-                  lambda cb: collections_api.get_async(
-                      self.client, self.collection_id, callback=cb),
-                  collections_api.get_finish,
-                  ok, failed)
+    def _on_loaded(self, client, result):
+        try:
+            data = collections_api.get_finish(client, result)
+        except GLib.Error as error:
+            self.stack.show_error(error)
+            return
+        self.collection = data.get('collection') or data
+        accounts = data.get('accounts') or []
+        for account in accounts:
+            remember_account(self.client, account)
+        self._show(accounts)
 
     def _show(self, accounts):
         collection = self.collection

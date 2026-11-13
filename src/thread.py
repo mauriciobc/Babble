@@ -265,20 +265,17 @@ class ThreadPage(Adw.Bin):
         token = self.stack.begin()
         api_statuses.context_async(
             self.client, self.status['id'],
-            callback=lambda client, result, _data=None:
-            self.on_context_loaded(client, result, token))
+            callback=token.callback(self.on_context_loaded),
+            cancellable=token.cancellable)
 
     def on_retry(self, _button):
         self.load()
 
-    def on_context_loaded(self, client, result, token):
+    def on_context_loaded(self, client, result):
         try:
             ancestors, descendants = api_statuses.context_finish(client, result)
         except GLib.Error as e:
-            if self.stack.is_current(token):
-                self.stack.show_error(e)
-            return
-        if not self.stack.is_current(token):
+            self.stack.show_error(e)
             return
         self.build(ancestors, descendants)
         self.stack.show('list')
