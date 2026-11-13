@@ -233,6 +233,10 @@ class PagedPosts:
     def load(self):
         if self.model.loading:
             return
+        # A first-page load takes over the paging generation as well as
+        # the model-loading flag; an older response is now only stale work.
+        self._loading_older = False
+        self._older_generation = None
         self.model.loading = True
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('loading')
