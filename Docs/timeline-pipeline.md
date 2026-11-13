@@ -1092,19 +1092,16 @@ compare it with itself when the lookup answered. Nothing ever incremented the
 counter (it arrived with the reply filter, ARCH-11, and has never had an
 increment), so the guard could not fire, and it has been deleted.
 
-It was not needed. A late answer only fills `_following_ids`, which is keyed by
-author id, and then calls `on_done`, which runs `_finish_page_loaded`,
-`_finish_older_loaded` or `_finish_refresh_loaded`. The first two drop a
-superseded page through `_superseded`, which clears `model.loading` and
-`_loading_older`, and `_finish_older_loaded` releases the bottom lock. The
-refresh insert has no such check and does not need one: `insert_new` skips posts
-already seen, `newest_id` only moves forward, and the refresh chain ends through
-`_chain_ended`. Making the counter live would have been harmful, because
-returning from the lookup callback without calling `on_done` leaves
-`model.loading` or `_loading_older` set and the bottom lock held (the "stuck on
-loading" symptom). `src/test-home-filters.py` holds the lookup's answer back
-on each path (first page, older page, refresh, two answers in the opposite
-order, a failed lookup) and pins this.
+The lookup still calls `on_done` on success and failure, but refreshes now
+carry their paging generation through that asynchronous callback. A newer
+refresh owns the catch-up chain; an older lookup result is ignored rather than
+inserting posts out of order or resetting the newer chain. `_superseded` only
+reports staleness and never clears shared loading flags. The request that takes
+over explicitly relinquishes the previous request's flags, while an older-page
+callback may clear `_loading_older` and release the bottom lock only if its
+generation still owns that slot. `src/test-home-filters.py` holds relationship
+and timeline answers back to verify these ownership boundaries, including a
+failed refresh whose raw cursor must still advance.
 
 ### 15.8 `_showing_cache` cleared on a superseded first page [R, currently unreachable]
 
