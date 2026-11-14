@@ -200,6 +200,7 @@ class NotificationController:
         # A response from a superseded request must not write rows
         # of the old filter into the new model.
         if generation is not None and self._superseded(generation):
+            self._loading_older = False
             self._release_bottom()
             return
         self._loading_older = False

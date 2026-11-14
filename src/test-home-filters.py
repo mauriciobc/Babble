@@ -260,6 +260,355 @@ check('its cursor moved to the newest id the server sent',
       page.model.newest_id == '00060')
 check('no boost got through', all(int(i) <= 20 for i in ids(page)))
 
+# A relationship lookup that answers late. The Home reply filter asks who
+# the authors of a page's replies are before the page may land, and the
+# answer can arrive after something newer has taken the page's place (a
+# refresh, an older page, a reload). These scenarios hold the answer until
+# the test releases it, and pin what the paging guard in the _finish_*
+# methods does with it: a superseded page is dropped, the busy flags and
+# the bottom lock end clear, nothing is duplicated, the refresh chain ends.
+# (A per-lookup generation counter used to sit around the lookup and was
+# never incremented; these checks are why it was not needed.)
+class _HeldClient(_Server):
+    """A server whose /accounts/relationships answers wait for the test."""
+
+    def __init__(self, posts):
+        super().__init__(posts)
+        self.held = []                     # [{'ids': [...], 'callback': f}]
+        self.hold_timeline = False
+        self.timeline_held = []            # [(callback, result)]
+
+    def release_timeline(self, index):
+        callback, result = self.timeline_held[index]
+        callback(self, result)
+
+    def request_async(self, method, path, params=None, callback=None,
+                      **_kw):
+        if path != '/accounts/relationships':
+            if self.hold_timeline and path == '/timelines/home':
+                real = callback
+
+                def callback(_client, result, _real=real):
+                    self.timeline_held.append((_real, result))
+            return super().request_async(method, path, params=params,
+                                         callback=callback, **_kw)
+        self.held.append({'ids': list(params['id[]']), 'callback': callback})
+
+    def request_finish(self, result):
+        if isinstance(result, GLib.Error):
+            raise result
+        return result
+
+    def answer(self, index, following=(), error=False):
+        entry = self.held[index]
+        if error:
+            entry['callback'](self, GLib.Error('lookup failed'))
+        else:
+            entry['callback'](self, [
+                {'id': i, 'following': i in following}
+                for i in entry['ids']])
+
+    def timeline_requests(self):
+        return list(self.params)
+
+
+def held_home(posts):
+    pages.settings().set_boolean('hide-replies-non-follows', True)
+    client = _HeldClient(posts)
+    return client, home_page(client, False)
+
+
+def plain(first, last):
+    return [status(n) for n in range(first, last + 1)]
+
+
+def flags_clear(page):
+    return not page.model.loading and not page._loading_older \
+        and not page._bottom_locked
+
+
+def shown(page):
+    return [int(i) for i in ids(page)]
+
+
+# First page: while its lookup is out the model is loading, and nothing
+# can supersede it (load, refresh and load_older all decline), so there is
+# no stale first page to drop. The answer lands it and the page pages on.
+client, page = held_home(plain(1, 58) + [reply(59, 22), reply(60, 21)])
+check('first page: the lookup is out, the model is loading',
+      len(client.held) == 1 and page.model.loading)
+requests = len(client.timeline_requests())
+page.load()
+page.refresh()
+page.load_older()
+check('first page: load, refresh and load_older decline while it is out',
+      len(client.timeline_requests()) == requests)
+client.answer(0, following={'21'})
+check('first page: the answer lands the followed reply, not the stranger',
+      shown(page)[:3] == [60, 58, 57] and 59 not in shown(page))
+check('first page: flags end clear', flags_clear(page))
+# The filtered page is short, so it already topped itself up from the
+# server (the strangers' lookup has been answered); one more is still
+# possible.
+requests = len(client.timeline_requests())
+page.load_older()
+check('first page: the page can page on afterwards',
+      len(client.timeline_requests()) == requests + 1)
+
+# First page, reloaded over a non-empty list: the reload's lookup is out,
+# an older page (the reader at the bottom) takes its place and lands.
+client, page = held_home(plain(1, 60))
+client.grow([reply(61, 21), reply(62, 22)])
+page.load()
+check('reload: a lookup is out for the reload',
+      len(client.held) == 1 and page.model.loading)
+page.load_older()
+check('reload: the older page went out and landed',
+      21 in shown(page) and page.model.loading and not page._loading_older)
+before = shown(page)
+client.answer(0, following={'21'})
+check('reload: the stale page is kept out of the model',
+      shown(page) == before and 61 not in shown(page))
+check('reload: flags end clear after the stale answer', flags_clear(page))
+page.refresh()
+check('reload: a refresh then completes the page normally',
+      shown(page)[:2] == [61, 60] and 62 not in shown(page))
+check('reload: the refresh left the flags clear', flags_clear(page))
+
+# Older page: its lookup is out (flag set, bottom locked) when a refresh
+# supersedes it. The stale answer drops the page, clears the flags, frees
+# the lock, and the page can be asked for again.
+client, page = held_home(plain(1, 38) + [reply(39, 21), reply(40, 22)]
+                         + plain(41, 60))
+check('older: the first page needs no lookup', not client.held)
+page.load_older()
+check('older: its lookup is out, flag set, bottom locked',
+      len(client.held) == 1 and page._loading_older and page._bottom_locked)
+client.grow([status(61)])
+page.refresh()
+check('older: a refresh took its place and landed',
+      shown(page)[0] == 61 and page._loading_older and page._bottom_locked)
+before = shown(page)
+older_requests = [p for p in client.timeline_requests() if 'max_id' in p]
+client.answer(0, following={'21'})
+check('older: the stale page is kept out of the model',
+      shown(page) == before)
+check('older: flags end clear and the bottom lock is released',
+      flags_clear(page))
+page.load_older()
+again = [p for p in client.timeline_requests() if 'max_id' in p]
+check('older: the reader can page again, from the same cursor',
+      len(again) == len(older_requests) + 1
+      and again[-1]['max_id'] == '00041')
+# Both authors were recorded by the stale answer (21 followed, 22 not), so
+# the second try needs no new lookup and lands at once.
+check('older: the second try needed no lookup', len(client.held) == 1)
+check('older: the second try lands the followed reply only',
+      39 in shown(page) and 40 not in shown(page) and flags_clear(page))
+check('older: no duplicates', len(shown(page)) == len(set(shown(page))))
+
+# Refresh, then a second refresh and an older page, then the first
+# lookup answers. The refresh insert is idempotent; the cursor never
+# goes backwards; the chain ends.
+client, page = held_home(plain(1, 60))
+client.grow(plain(61, 62) + [reply(63, 21), reply(64, 22)])
+page.refresh()
+check('refresh: a lookup is out, the model is not loading',
+      len(client.held) == 1 and not page.model.loading)
+page.refresh()                             # a second refresh, same page
+check('refresh: the second refresh asked again with its own lookup',
+      len(client.held) == 2)
+page.load_older()                          # and an older page lands
+older_len = len(shown(page))
+client.answer(1, following={'21'})
+after_second = shown(page)
+check('refresh: the second answer landed the followed reply',
+      64 not in after_second and 63 in after_second
+      and 62 in after_second)
+client.answer(0, following={'21'})
+check('refresh: the late first answer adds nothing and duplicates nothing',
+      shown(page) == after_second
+      and len(shown(page)) == len(set(shown(page))))
+check('refresh: newest_id is the newest the server sent',
+      page.model.newest_id == '00064')
+check('refresh: the chain ended and the flags are clear',
+      page._refresh_chain == 0 and flags_clear(page))
+# The fake server is deterministic: 40 posts are shown once the older page
+# has landed, then 61, 62 and 63 join them; 64 is a stranger's reply.
+check('refresh: the list is in server order',
+      shown(page) == sorted(shown(page), reverse=True)
+      and older_len == 40 and len(shown(page)) == 43)
+sent = len(client.timeline_requests())
+page.refresh()
+check('refresh: the next refresh asks above the new cursor',
+      client.timeline_requests()[-1].get('min_id') == '00064'
+      and len(client.timeline_requests()) == sent + 1)
+
+# A refresh that is a full page continues the chain; the late answer of a
+# superseded refresh must not run the chain twice past the cap, and must
+# end it.
+client, page = held_home(plain(1, 20))
+client.grow(plain(21, 38) + [reply(39, 21), reply(40, 22)])   # a full page
+page.refresh()
+page.refresh()
+check('refresh chain: two lookups out for the same full page',
+      len(client.held) == 2)
+client.answer(0, following={'21'})
+check('refresh chain: the stale first answer is ignored',
+      39 not in shown(page) and 40 not in shown(page)
+      and page._refresh_chain == 0)
+client.answer(1, following={'21'})
+check('refresh chain: the current answer lands and continues once',
+      39 in shown(page) and 40 not in shown(page)
+      and len(shown(page)) == len(set(shown(page))))
+requests = len(client.timeline_requests())
+check('refresh chain: it ended (cursor past the page, no request left)',
+      page._refresh_chain == 0 and flags_clear(page)
+      and page.model.newest_id == '00040')
+check('refresh chain: a quiet server ends it with a short page',
+      client.timeline_requests()[-1].get('min_id') == '00040'
+      and requests == 4)   # first page, two refreshes, one chain step
+
+# Two lookups answering in the opposite order from which they were sent.
+# The fake answers differently for author 21 on purpose (a stranger to the
+# second request, followed to the first request's late answer). That can only
+# happen on a server if a follow or unfollow lands between the two lookups.
+# The check pins that a late answer causes no duplicate and no hang, and that
+# the relationship table takes the last answer to arrive; it does not claim
+# that either answer is the right one.
+client, page = held_home(plain(1, 60))
+client.grow([reply(61, 21)])
+page.refresh()                             # R1, lookup 0
+page.refresh()                             # R2, lookup 1
+client.answer(1, following=())            # R2 first: 21 is a stranger
+check('opposite order: the later answer hid the reply',
+      shown(page)[0] == 60 and page.model.newest_id == '00061')
+client.answer(0, following={'21'})         # then R1 says 21 is followed
+check('opposite order: the stale earlier refresh is ignored',
+      shown(page)[0] == 60 and 61 not in shown(page) and page.model.newest_id == '00061'
+      and len(shown(page)) == len(set(shown(page))))
+check('opposite order: flags clear, chain ended',
+      flags_clear(page) and page._refresh_chain == 0)
+
+client, page = held_home(plain(1, 38) + [reply(39, 21), reply(40, 22)]
+                         + plain(41, 60))
+page.load_older()                          # older, lookup 0
+client.grow([reply(61, 22)])
+page.refresh()                             # refresh, lookup 1
+client.answer(1, following={'22'})
+check('opposite order: the refresh landed first',
+      shown(page)[0] == 61)
+client.answer(0, following={'21'})
+check('opposite order: the older answer, late, is dropped cleanly',
+      39 not in shown(page) and flags_clear(page))
+
+# A failed late lookup, on each path: the page is filtered with what is
+# known (strangers hidden) or dropped when superseded, and nothing hangs.
+client, page = held_home(plain(1, 58) + [reply(59, 22), reply(60, 21)])
+client.answer(0, error=True)
+check('failed lookup, first page: lands with the strangers hidden',
+      shown(page)[:2] == [58, 57] and flags_clear(page))
+
+client, page = held_home(plain(1, 60))
+client.grow([reply(61, 21)])
+page.load()
+page.load_older()
+client.answer(0, error=True)
+check('failed lookup, superseded reload: dropped, flags clear',
+      61 not in shown(page) and flags_clear(page))
+
+client, page = held_home(plain(1, 38) + [reply(39, 21), reply(40, 22)]
+                         + plain(41, 60))
+page.load_older()
+client.answer(0, error=True)
+check('failed lookup, older page: lands, strangers hidden, lock free',
+      39 not in shown(page) and 38 in shown(page) and flags_clear(page))
+page.load_older()
+check('failed lookup, older page: the reader pages on',
+      len(client.timeline_requests()) > 2)
+
+client, page = held_home(plain(1, 38) + [reply(39, 21), reply(40, 22)]
+                         + plain(41, 60))
+page.load_older()
+client.grow([status(61)])
+page.refresh()
+client.answer(0, error=True)
+check('failed lookup, superseded older page: dropped, flags clear',
+      38 not in shown(page) and flags_clear(page))
+
+client, page = held_home(plain(1, 60))
+client.grow([reply(61, 21), reply(62, 22)])
+page.refresh()
+client.answer(0, error=True)
+check('failed lookup, refresh: lands, strangers hidden, chain ended',
+      shown(page)[0] == 60 and 61 not in shown(page)
+      and page.model.newest_id == '00062'
+      and page._refresh_chain == 0 and flags_clear(page))
+
+client, page = held_home(plain(1, 60))
+client.grow([reply(61, 21)])
+page.refresh()
+page.refresh()
+client.answer(1, following={'21'})
+client.answer(0, error=True)
+check('failed lookup, superseded refresh: nothing lost, no duplicate',
+      shown(page)[0] == 61 and len(shown(page)) == len(set(shown(page)))
+      and page._refresh_chain == 0 and flags_clear(page))
+
+# The refresh chain must end by the path the refresh actually took. A
+# refresh chain that has run (a full page continued it) and then ends on a
+# short, non-empty page whose lookup answers late ends in
+# _finish_refresh_loaded; the empty-page path resets the counter too, so
+# only a short page with posts pins this one. _pull_done is the hook the
+# pull-to-refresh spinner hangs on: it runs once per chain end.
+client, page = held_home(plain(1, 20))
+pulled = []
+page._pull_done = lambda: pulled.append(True)
+client.grow(plain(21, 40))                       # a full page, no replies
+client.grow(plain(41, 42) + [reply(43, 21)] + plain(44, 45))   # short
+page.refresh()
+check('chain end: the full page continued the chain; the short page waits '
+      'for its lookup',
+      page._refresh_chain == 1 and len(client.held) == 1
+      and shown(page)[0] == 40 and not pulled)
+client.answer(0, following={'21'})
+check('chain end: a short non-empty last page lands',
+      shown(page)[:6] == [45, 44, 43, 42, 41, 40])
+check('chain end: the chain ended (counter reset, spinner hook ran once)',
+      page._refresh_chain == 0 and pulled == [True])
+sent = len(client.timeline_requests())
+client.grow([status(46)])
+page.refresh()
+check('chain end: the next refresh can start',
+      len(client.timeline_requests()) == sent + 1
+      and client.timeline_requests()[-1].get('min_id') == '00045'
+      and shown(page)[0] == 46 and flags_clear(page))
+
+# A refresh whose own response is superseded ends the chain too (the
+# hook runs, the flags clear) instead of leaving a pull spinner running.
+client, page = held_home(plain(1, 60))
+pulled = []
+page._pull_done = lambda: pulled.append(True)
+client.hold_timeline = True
+client.grow([status(61)])
+page.refresh()                                   # response held
+check('superseded refresh: its response is out, the model is loading',
+      len(client.timeline_held) == 1 and page.model.loading and not pulled)
+page.load_older()                                # takes its place
+check('superseded refresh: the older request owns its loading flag',
+      page._loading_older and len(client.timeline_held) == 2)
+client.release_timeline(0)                       # the stale refresh answers
+check('superseded refresh: the stale page is dropped',
+      61 not in shown(page))
+check('superseded refresh: pending older request stays marked busy',
+      page._loading_older and not page.model.loading)
+client.release_timeline(1)                       # the older page now answers
+check('superseded refresh: the chain ended (spinner hook ran once)',
+      pulled == [True] and page._refresh_chain == 0)
+check('superseded refresh: flags clear after the owned request ends',
+      not page.model.loading and not page._loading_older)
+pages.settings().reset('hide-replies-non-follows')
+
 # Only the home timeline is filtered.
 pages.settings().set_boolean('hide-boosts-home', True)
 public = timelinepage.TimelinePage(_Client([]), mode='public',

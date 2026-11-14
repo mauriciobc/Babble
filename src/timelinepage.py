@@ -184,7 +184,6 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._hide_boosts = (
             home and settings.get_boolean('hide-boosts-home'))
         self._following_ids = {}
-        self._reply_filter_generation = 0
         self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.
@@ -509,6 +508,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
 
     def on_older_loaded(self, client, result, generation=None):
         if generation is not None and self._superseded(generation):
+            self._loading_older = False
             self._release_bottom()
             return
         try:
@@ -542,6 +542,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
     def _finish_older_loaded(self, statuses, generation=None, before=0,
                              raw_oldest=None):
         if generation is not None and self._superseded(generation):
+            self._loading_older = False
             self._release_bottom()
             return
         self._loading_older = False
@@ -566,6 +567,10 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._fill_filtered()
 
     def on_refresh_loaded(self, client, result, generation=None):
+        # A later refresh owns the catch-up chain. An earlier response (or
+        # its delayed relationship lookup) must not reset that chain.
+        if generation is not None and generation != self._refresh_generation:
+            return
         if generation is not None and self._superseded(generation):
             self._chain_ended()
             return
@@ -590,9 +595,14 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         raw_count = len(statuses)
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_refresh_loaded(
-                filtered, raw_newest, raw_count))
+                filtered, raw_newest, raw_count, generation))
 
-    def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0):
+    def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0,
+                               generation=None):
+        # The reply-filter lookup is asynchronous too. Re-check ownership
+        # here, not only when the HTTP response arrives.
+        if generation is not None and generation != self._refresh_generation:
+            return
         if statuses:
             pinned = self._catching and self._pin_item is not None
             if pinned:

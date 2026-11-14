@@ -196,6 +196,7 @@ class PagedPosts:
 
     def _paging_init(self, newer_cursor='since_id'):
         self._generation = 0
+        self._refresh_generation = 0
         self._loading_older = False
         self._newer_cursor = newer_cursor
         self._bottom_locked = False
@@ -227,7 +228,6 @@ class PagedPosts:
         if generation == self._generation:
             return False
         self.model.loading = False
-        self._loading_older = False
         return True
 
     # The three requests
@@ -318,6 +318,7 @@ class PagedPosts:
         if self.model.newest_id is not None:
             params[self._newer_cursor] = self.model.newest_id
         self.model.loading = True
+        self._refresh_generation = self._generation + 1
         self._request(params, self.on_refresh_loaded)
 
     # Scroll

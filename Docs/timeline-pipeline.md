@@ -424,16 +424,14 @@ timeline (`source is None`).
                                      │
                                      ▼   ◄── EXTRA ROUND TRIP before any paint
                                   loaded(client, result)
-                                     ├─ generation != self._reply_filter_generation ─► RETURN
                                      ├─ GLib.Error ─► filter with what we have
                                      └─ merge following ids into _following_ids
                                         on_done(filtered)
 
-  NOTE [R]: the guard above compares `self._reply_filter_generation` with a
-  snapshot of itself. The counter is initialised at timelinepage.py:215 and is
-  NEVER incremented anywhere in the tree, so the comparison is always False and
-  the guard never fires. It is dead code. Harmless only because
-  _finish_page_loaded / _finish_older_loaded re-check the real paging generation.
+  NOTE: an earlier version of `loaded` compared a `_reply_filter_generation`
+  counter with a snapshot of itself. Nothing ever incremented it, so the
+  guard could not fire, and it has been removed (see 15.7). A superseded page
+  is dropped where the lookup's `on_done` lands, in the `_finish_*` methods.
 ```
 
 `_following_ids` is a per-page cache of "does the viewer follow this author",
@@ -1087,13 +1085,20 @@ timelinepage.py:385 — 20 `insert(0, …)` calls, so 20 `items-changed`, 20
 `RunModel._rebuild` passes and 20 relayouts. Measured as 259–279 ms either way
 with a single `splice`, so it was kept [M, `PERFORMANCE.md:66`].
 
-### 15.7 The dead reply-filter guard [R]
+### 15.7 The dead reply-filter guard [removed]
 
-timelinepage.py:543-547 — `generation` is a snapshot of
-`self._reply_filter_generation` compared against itself, and that counter is
-never incremented anywhere in the tree. The guard can never fire; the real check
-is the one in `_finish_page_loaded`. The comment above it describes behaviour the
-code does not have.
+`_with_home_reply_filter` used to snapshot `self._reply_filter_generation` and
+compare it with itself when the lookup answered. Nothing ever incremented the
+counter (it arrived with the reply filter, ARCH-11, and has never had an
+increment), so the guard could not fire, and it has been deleted.
+
+The lookup still calls `on_done` on success and failure. A refresh carries its
+paging generation through that asynchronous callback (`_refresh_generation`),
+so a refresh overtaken by a newer one is ignored when its lookup answers rather
+than moving the catch-up chain. Older pages and first pages are dropped where
+the lookup's `on_done` lands, in the `_finish_*` methods, by the paging guard.
+`src/test-home-filters.py` holds relationship and timeline answers back to pin
+these boundaries.
 
 ### 15.8 `_showing_cache` cleared on a superseded first page [R, currently unreachable]
 

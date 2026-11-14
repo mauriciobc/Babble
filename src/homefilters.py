@@ -20,8 +20,15 @@ from .timelinedata import (  # noqa: E402
 
 class HomeFilters:
     """Needs ``client``, ``model``, ``_hide_boosts``,
-    ``_hide_replies_non_follows``, ``_following_ids`` and
-    ``_reply_filter_generation`` from the page it is mixed into."""
+    ``_hide_replies_non_follows`` and ``_following_ids`` from the page it
+    is mixed into.
+
+    The relationship lookup has no stale-answer guard of its own: when it
+    answers, ``on_done`` runs the page's ``_finish_*`` method. Refresh
+    completion re-checks its paging generation there, because a newer
+    refresh may have started while the relationship lookup was pending.
+    The follow table is keyed by author, so recording a late relationship
+    answer remains safe even when its page is discarded."""
 
     def _remember_follows(self, relationships):
         """Record what the server said about a batch of authors.
@@ -69,12 +76,9 @@ class HomeFilters:
             on_done(filter_replies_from_non_follows(
                 statuses, viewer_id, self._following_ids))
             return
-        generation = self._reply_filter_generation
         ids = list(unknown)[:40]
 
         def loaded(client, result, _data=None):
-            if generation != self._reply_filter_generation:
-                return
             try:
                 # The whole list. accounts.relationships_finish returns
                 # the first entry only, for the profile page that asks
