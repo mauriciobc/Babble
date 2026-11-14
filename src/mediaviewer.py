@@ -22,9 +22,9 @@ not start on their own.
 
 The module is split along three seams: widget construction is the
 :class:`mediaviewerchrome.MediaViewerChrome` mixin, copy, save, open and
-drag-out are :class:`mediaexport.MediaExport` (with the drag content
-helpers other modules import from there), and streaming and download
-are :class:`mediaplayback.MediaPlayback`. What stays here is the
+drag-out are :class:`mediaexport.MediaExport` (with the file download
+and the drag content helpers other modules import from there), and
+streaming is :class:`mediaplayback.MediaPlayback`. What stays here is the
 viewer's state, navigation, display, zoom, fullscreen, keys, closing and
 ``present_media``.
 """

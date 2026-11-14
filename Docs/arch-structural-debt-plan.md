@@ -26,7 +26,7 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 | `window.py` | ~1818 | ARCH-15 extracted sidebarhost, ARCH-20 the stream router; session and stream lifecycle remain |
 | `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
-| `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
+| `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (now 457, with the file download moved there from `mediaplayback.py` by candidate 6 phase 1). No longer a file-size exception |
 | `profile.py` | ~915 | ARCH-16 extracted profileheader; tabs/extras remain |
 | `mastodon.py` | 1328 | Coherent transport — leave |
 | `pages.py` | 1363 | Shared toolkit — Phase N. `PagedList`'s interface was settled on its own (IMPROVEMENTS CLEAN-08) and grew the file by about 90 lines, and the request scope's adoption by `PagedList` and `StateStack` about 25 more; the sprawl is untouched |
@@ -171,8 +171,8 @@ both new modules under 800.
 
 ## ARCH-14 — `mediaplayback.py`
 
-**Status:** done — `mediaplayback.py` holds `download`/`_Download`,
-`release_media`, `_system_state`, and the `MediaPlayback` mixin
+**Status:** done — `mediaplayback.py` held `download`/`_Download` (moved on to
+`mediaexport.py` by candidate 6 phase 1), and holds `release_media`, `_system_state`, and the `MediaPlayback` mixin
 (stream start/audio/gifv/inhibit/unload); `mediaviewer.py` keeps chrome,
 `ZoomPicture` and `present_media` (~1284 lines, was ~1694). New module
 under 800. EXCEPTION reason cites ARCH-14 (zoom is ARCH-19).
