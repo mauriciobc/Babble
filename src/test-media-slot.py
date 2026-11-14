@@ -94,6 +94,10 @@ check('stream is built before load',
       slot.engine.calls[:2] == [('stream',), ('load', 'https://example/v.mp4')])
 check('start records user_agent and gl',
       slot.engine.user_agent == 'BabbleTest' and slot.engine.gl is True)
+inline = EngineSlot()
+inline.start('https://example/g.mp4', user_agent='BabbleTest', gl=False)
+check('an inline start makes a gl=False engine', inline.engine.gl is False)
+inline.release()
 engine = slot.engine
 slot.stop(stream)
 check('stop pauses detaches and stops without release',
