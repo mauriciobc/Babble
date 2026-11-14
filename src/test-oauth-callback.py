@@ -15,6 +15,7 @@ reply, a fresh login and a duplicated dispatch.
 
 Exits 77 (skip) when no display is available."""
 
+import atexit
 import json
 import os
 import subprocess
@@ -25,13 +26,36 @@ import types
 # Own Xvfb + X11 backend: the window under test is a real one, so the
 # session's WAYLAND_DISPLAY must not leak in.
 _xvfb = None
+
+def _xvfb_dies_with_us():
+    # Runs in the child before exec: the kernel sends Xvfb SIGTERM when
+    # this test process dies, however it dies (an exception, meson's
+    # timeout, SIGKILL), so an Xvfb can never outlive the test.
+    import ctypes
+    import signal
+    ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+
+
+def _stop_xvfb():
+    if _xvfb is not None and _xvfb.poll() is None:
+        _xvfb.terminate()
+        try:
+            _xvfb.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _xvfb.kill()
+            _xvfb.wait()
+
+
+atexit.register(_stop_xvfb)
+
 if not os.environ.get('BABBLE_KEEP_DISPLAY'):
     for _n in range(81, 90):
         if os.path.exists('/tmp/.X11-unix/X%d' % _n):
             continue
         _xvfb = subprocess.Popen(
             ['Xvfb', ':%d' % _n, '-screen', '0', '1280x1024x24'],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            preexec_fn=_xvfb_dies_with_us)
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline \
                 and not os.path.exists('/tmp/.X11-unix/X%d' % _n):
