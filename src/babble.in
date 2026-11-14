@@ -92,5 +92,10 @@ if __name__ == '__main__':
             os.environ['LANGUAGE'] = language
             use_time_locale(language)
 
+    import babble
+    # The package's own VERSION is only a placeholder for code imported
+    # outside the launcher (the tests). Requests, the stream and plugins
+    # read babble.VERSION for the User-Agent, so give it the real one.
+    babble.VERSION = VERSION
     from babble import main
     sys.exit(main.main(VERSION))
