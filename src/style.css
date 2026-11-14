@@ -209,6 +209,18 @@ picture.broken-image {
   margin-top: 12px;
 }
 
+/* A Bluesky post that quotes another draws the quoted one inside its
+   card: a tinted block, so the nesting reads without a second border. */
+.quote-preview {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background-color: var(--card-shade-color);
+}
+
+.quote-preview .quote-preview {
+  padding: 6px 8px;
+}
+
 .notifications-badge {
   min-width: 18px;
   min-height: 18px;

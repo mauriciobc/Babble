@@ -204,6 +204,97 @@ media_row, _ = bind(with_media)
 check('with attachments the RE: line stays',
       'RE:' in text_of(media_row.content))
 
+# A quoted post whose author keeps it from readers who are not signed in:
+# the card says why the post has no text, instead of repeating Bluesky's
+# notice as if it were the text of the post.
+hidden_row, _ = bind(fx.SIGNED_OUT_STATUS)
+hidden_card = hidden_row.card_box.get_first_child()
+check('the card is still a Bluesky card',
+      isinstance(hidden_card, blueskycard.BlueskyQuoteCard))
+hidden_labels = [w.get_label() for w in walk(hidden_card)
+                 if isinstance(w, Gtk.Label)]
+check('the card says the post is for signed-in readers',
+      'Bluesky hides this post from people who are not signed in.'
+      in hidden_labels, hidden_labels)
+check('the notice is not shown as the text of the post',
+      fx.SIGNED_OUT_NOTICE not in hidden_labels, hidden_labels)
+check('the RE: line is still dropped',
+      'RE:' not in text_of(hidden_row.content))
+
+# A post that quotes a post that quotes another: the chain is drawn.
+inner = fx.record('Inner post', rkey='3in')
+middle = fx.record('Middle post', rkey='3mid',
+                   embeds=[fx.quote_embed(inner)])
+view = blueskythread.BlueskyPostView(
+    fx.post('Outer post', embed=fx.quote_embed(middle)))
+cards = [w for w in walk(view) if isinstance(w, blueskycard.BlueskyQuoteCard)]
+previews = [w for w in walk(view)
+            if isinstance(w, blueskycard.QuotePreview)]
+check('the quoted post is a card', len(cards) == 1, len(cards))
+check('the quote inside the quote is drawn', len(previews) == 1,
+      len(previews))
+texts = [w.get_label() for w in walk(view) if isinstance(w, Gtk.Label)]
+check('the nested posts show their text',
+      'Middle post' in texts and 'Inner post' in texts, texts)
+check('the nested post is not a button inside the button',
+      bool(previews)
+      and not any(isinstance(w, Gtk.Button) for w in walk(previews[0])))
+
+# The chain stops: a quote of a quote of a quote is not drawn.
+third = fx.record('Third', rkey='3t')
+second = fx.record('Second', rkey='3s', embeds=[fx.quote_embed(third)])
+first = fx.record('First', rkey='3f', embeds=[fx.quote_embed(second)])
+deep = blueskythread.BlueskyPostView(
+    fx.post('Deep', embed=fx.quote_embed(first)))
+deep_previews = [w for w in walk(deep)
+                 if isinstance(w, blueskycard.QuotePreview)]
+check('the chain stops at two quotes', len(deep_previews) == 2,
+      len(deep_previews))
+
+# The server's preview card is its crawler at work.  When it kept none,
+# the quoted post is fetched from Bluesky, and the card waits for it.
+asked = []
+bluesky.get_post_async = lambda actor, rkey, callback: (
+    asked.append((actor, rkey, callback)) or {'cancellable': None})
+no_card = copy.deepcopy(fx.STATUS)
+no_card['card'] = None
+quote_row, _ = bind(no_card)
+pending = quote_row.card_box.get_first_child()
+check('a quote without a preview card waits for Bluesky',
+      isinstance(pending, blueskycard.BlueskyQuoteCard)
+      and pending.data.get('pending'), pending)
+check('the RE: line is dropped while the quote is on its way',
+      'RE:' not in text_of(quote_row.content))
+check('the quoted post is asked for by its address',
+      asked and asked[0][:2] == ('did:plc:6zulsu3flxsklsaoxdsx52h4',
+                                 '3mzuxm3z6nk24'), asked)
+check('the server\'s card is not asked for again',
+      len(asked) == 1, asked)
+
+before = height(quote_row)
+asked[0][2](fx.post_view('The quoted post', name='Bob',
+                          rkey='3mzuxm3z6nk24'), None)
+filled = quote_row.card_box.get_first_child()
+labels = [w.get_label() for w in walk(filled) if isinstance(w, Gtk.Label)]
+check('the card shows the quoted post',
+      'The quoted post' in labels, labels)
+check('the card names the author of the quoted post',
+      '@bob.bsky.social' in labels, labels)
+check('the row does not move when the post arrives',
+      height(quote_row) == before, (before, height(quote_row)))
+
+# A late answer does not land on a row that has moved on to another post.
+asked.clear()
+other = copy.deepcopy(fx.STATUS)
+other['id'] = '116000000000000002'
+moved_row, _ = bind(no_card)
+moved_row.bind(timelinedata.StatusItem(other), _Client())
+asked[0][2](fx.post_view('Too late'), None)
+labels = [w.get_label() for w in walk(moved_row.card_box)
+          if isinstance(w, Gtk.Label)]
+check('a late answer does not overwrite another post\'s card',
+      'Too late' not in labels, labels)
+
 # AC3: click with the setting on pushes the thread; off opens the link.
 pushed, opened = [], []
 real_push = blueskythread.push_bluesky_thread
@@ -384,7 +475,8 @@ check('a withheld quoted post is a notice, not a card',
       not any(isinstance(w, blueskycard.BlueskyQuoteCard)
               for w in walk(hidden))
       and any(isinstance(w, Gtk.Label)
-              and w.get_label() == 'Quoted post unavailable'
+              and w.get_label() == 'Bluesky hides this post from people who '
+              'are not signed in.'
               for w in walk(hidden)))
 
 # Item 6: the page asks for nothing until it is on the stack.

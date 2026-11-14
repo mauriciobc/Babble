@@ -37,6 +37,17 @@ FACET_LINK = 'app.bsky.richtext.facet#link'
 FACET_MENTION = 'app.bsky.richtext.facet#mention'
 FACET_TAG = 'app.bsky.richtext.facet#tag'
 
+# Bluesky's og:description for a post whose author keeps it from readers
+# who are not signed in: a notice about the post, not the post's text.  A
+# Mastodon preview card carries it verbatim, so a card drawn from one
+# would show the notice as if it were what the post says.
+SIGNED_OUT_NOTICE = ('This author has chosen to make their posts visible '
+                     'only to people who are signed in.')
+
+# How many quotes deep a card draws.  A post may quote a post that quotes
+# another, and the chain stops here rather than growing without end.
+MAX_QUOTE_DEPTH = 2
+
 
 def _dicts(items):
     """The dict elements of *items*, which may be anything."""
@@ -127,21 +138,34 @@ def _side(value):
         and not isinstance(value, bool) else 0
 
 
+def is_signed_out_notice(text):
+    """Whether *text* is Bluesky's "only for signed-in readers" notice
+    rather than the text of a post."""
+    return _text(text).strip() == SIGNED_OUT_NOTICE
+
+
 def card_post(card):
     """What a Mastodon preview card says about the Bluesky post it links
     to, or None when it is not one.  A dict with ``name``, ``handle``,
-    ``text``, ``url``, ``blurhash`` and one of ``avatar`` or ``picture``
-    (or neither): Mastodon re-hosts the og:image, so its shape is the
-    signal; a square of at most 256 px is the author's avatar, anything
-    else (or a size that is not known) is a picture of the post."""
+    ``text``, ``url``, ``blurhash``, ``hidden`` and one of ``avatar`` or
+    ``picture`` (or neither): Mastodon re-hosts the og:image, so its shape
+    is the signal; a square of at most 256 px is the author's avatar,
+    anything else (or a size that is not known) is a picture of the post.
+
+    A description that is Bluesky's "only for signed-in readers" notice
+    says nothing about the post, so ``text`` is empty and ``hidden`` is
+    set: the card then says why the post has no text instead of
+    repeating the notice as if it were the post."""
     if not isinstance(card, dict):
         return None
     ref = post_ref(card.get('url') or '')
     if ref is None:
         return None
     name, handle = _split_title(_text(card.get('title')), ref[0])
+    description = _text(card.get('description'))
+    hidden = is_signed_out_notice(description)
     result = {'name': name, 'handle': handle,
-              'text': _text(card.get('description')),
+              'text': '' if hidden else description, 'hidden': hidden,
               'url': card.get('url'), 'actor': ref[0], 'rkey': ref[1],
               'blurhash': card.get('blurhash'),
               'avatar': None, 'picture': None}
@@ -314,30 +338,71 @@ def quoted(embed):
     return record
 
 
-def quote_card_data(record):
+def post_view_record(post):
+    """A quoted record view -- the shape :func:`quote_card_data` reads --
+    from an AppView post view, which is what ``getPosts`` answers with:
+    the record under ``record``, the author beside it and the resolved
+    embed under ``embed``."""
+    post = post if isinstance(post, dict) else {}
+    record = post.get('record')
+    record = record if isinstance(record, dict) else {}
+    author = post.get('author')
+    embed = post.get('embed')
+    return {'uri': post.get('uri'),
+            'author': author if isinstance(author, dict) else {},
+            'value': {'text': _text(record.get('text')),
+                      'createdAt': _text(record.get('createdAt')),
+                      'facets': record.get('facets')},
+            'embeds': [embed] if isinstance(embed, dict) else [],
+            'labels': post.get('labels') or []}
+
+
+def nested_quote(record):
+    """The record view that *record* quotes, or None.  A post that quotes
+    a post that quotes another keeps the second quote in its own embeds."""
+    for embed in _dicts(record.get('embeds')):
+        found = quoted(embed)
+        if found is not None:
+            return found
+    return None
+
+
+def quote_card_data(record, depth=MAX_QUOTE_DEPTH):
     """The ``card_post``-shaped dict for a quoted record view.  A sensitive
-    record has no picture."""
+    record has no picture.
+
+    The quoted post's own quote comes along in ``quote``, so a post that
+    quotes a post that quotes another carries the whole chain; ``video``
+    is the poster of a quoted video.  The chain stops after *depth*
+    nested quotes, so a card cannot grow without end."""
     record = record if isinstance(record, dict) else {}
     author = record.get('author')
     author = author if isinstance(author, dict) else {}
     value = record.get('value')
     value = value if isinstance(value, dict) else {}
     picture = None
+    video = None
     if not moderation(record)['sensitive']:
-        embeds = record.get('embeds')
-        for embed in embeds if isinstance(embeds, list) else ():
+        for embed in _dicts(record.get('embeds')):
             found = attachments(embed)
-            if found:
+            if found and picture is None:
                 picture = found[0]['preview_url']
-                break
+            poster = video_poster(embed)
+            if poster and video is None:
+                video = poster
     ref = post_ref(record.get('uri') or '')
     avatar = author.get('avatar')
+    nested = nested_quote(record)
     return {'name': _text(author.get('displayName'))
             or _text(author.get('handle')),
             'handle': _text(author.get('handle')),
             'text': _text(value.get('text')),
-            'url': web_url(_text(author.get('did')) or ref[0], ref[1])
+            'url': web_url(_text(author.get('handle'))
+                           or _text(author.get('did')) or ref[0], ref[1])
             if ref else None,
             'avatar': avatar if _is_web(avatar) else None,
             'picture': picture, 'blurhash': None,
-            'actor': ref[0] if ref else '', 'rkey': ref[1] if ref else ''}
+            'actor': ref[0] if ref else '', 'rkey': ref[1] if ref else '',
+            'video': video,
+            'quote': quote_card_data(nested, depth - 1)
+            if nested is not None and depth > 0 else None}

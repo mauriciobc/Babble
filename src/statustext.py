@@ -140,6 +140,53 @@ class _ContentParser(HTMLParser):
         self.segments.append(segment)
 
 
+class _QuoteInlineParser(HTMLParser):
+    """Finds the link of the "RE: <link>" line a server appends to a quote
+    post: the element of class ``quote-inline`` and the first anchor
+    inside it."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.url = None
+        self._quote = None
+        self._depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if self._quote is None:
+            if 'quote-inline' in (attrs.get('class') or '').split():
+                self._quote = tag
+                self._depth = 1
+            return
+        if tag == self._quote:
+            self._depth += 1
+        elif tag == 'a' and self.url is None:
+            self.url = attrs.get('href')
+
+    def handle_endtag(self, tag):
+        if self._quote is not None and tag == self._quote:
+            self._depth -= 1
+            if self._depth == 0:
+                self._quote = None
+
+
+def quote_inline_url(html_text):
+    """The URL of the "RE: <link>" line a server appends to a quote post,
+    or None.  A post bridged from Bluesky carries the post it quotes
+    there, which is the only address of it a server may keep."""
+    if not html_text or 'quote-inline' not in html_text:
+        # The line is rare, and this keeps the timeline's rows from
+        # parsing their content a second time.
+        return None
+    parser = _QuoteInlineParser()
+    try:
+        parser.feed(html_text)
+        parser.close()
+    except Exception:
+        return None
+    return parser.url
+
+
 def parse_content(html_text, drop_quote_inline=False):
     """Convert status HTML to a list of segments.
 

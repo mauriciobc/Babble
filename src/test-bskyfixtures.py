@@ -47,6 +47,24 @@ STATUS = {
     'card': CARD,
 }
 
+# The same post shape, for a quoted post whose author keeps it from
+# readers who are not signed in: Bluesky's og:description is then the
+# notice below instead of the text of the post.  Copied from
+# mastodon.social, for a reply that quotes another post.
+SIGNED_OUT_NOTICE = ('This author has chosen to make their posts visible '
+                     'only to people who are signed in.')
+
+SIGNED_OUT_CARD = {
+    'url': 'https://bsky.app/profile/did:plc:q3qzi7yobgbhgr666ih4tizc/'
+           'post/3n2bm2at3j22e',
+    'title': 'andreia-carbonari (@andreia-carbonari.bsky.social)',
+    'description': SIGNED_OUT_NOTICE,
+    'type': 'link', 'provider_name': 'Bluesky Social',
+    'width': 0, 'height': 0, 'image': None, 'blurhash': None,
+}
+
+SIGNED_OUT_STATUS = dict(STATUS, card=SIGNED_OUT_CARD)
+
 
 def author(handle='alice.bsky.social', name='Alice'):
     return {'did': 'did:plc:' + handle.split('.')[0].ljust(24, 'a'),
@@ -69,6 +87,45 @@ def post(text, handle='alice.bsky.social', name='Alice', rkey='3aaa',
 def node(post_view, parent=None, replies=()):
     return {'$type': 'app.bsky.feed.defs#threadViewPost', 'post': post_view,
             'parent': parent, 'replies': list(replies)}
+
+
+def record(text='Quoted post', handle='bob.bsky.social', name='Bob',
+           rkey='3quo', embeds=(), **extra):
+    """A quoted post, as the AppView sends it: a ``viewRecord``."""
+    who = author(handle, name)
+    data = {'$type': 'app.bsky.embed.record#viewRecord',
+            'uri': 'at://%s/app.bsky.feed.post/%s' % (who['did'], rkey),
+            'cid': 'bafyreicq' + rkey,
+            'author': who,
+            'value': {'$type': 'app.bsky.feed.post', 'text': text,
+                      'createdAt': '2026-11-08T12:00:00Z',
+                      'langs': ['pt']},
+            'embeds': list(embeds), 'labels': []}
+    data.update(extra)
+    return data
+
+
+def quote_embed(record_view):
+    """The embed a post carries when it quotes *record_view*."""
+    return {'$type': 'app.bsky.embed.record#view', 'record': record_view}
+
+
+def post_view(text='Quoted post', handle='bob.bsky.social', name='Bob',
+              rkey='3quo', embed=None, **extra):
+    """A post as ``getPosts`` answers: the record under ``record`` and the
+    resolved embed under ``embed``."""
+    who = author(handle, name)
+    data = {'uri': 'at://%s/app.bsky.feed.post/%s' % (who['did'], rkey),
+            'cid': 'bafyreicq' + rkey,
+            'author': who,
+            'record': {'$type': 'app.bsky.feed.post', 'text': text,
+                       'createdAt': '2026-11-08T12:00:00Z', 'langs': ['pt']},
+            'embed': embed, 'labels': [],
+            'indexedAt': '2026-11-08T12:00:00Z',
+            'replyCount': 0, 'repostCount': 0, 'likeCount': 0,
+            'quoteCount': 0}
+    data.update(extra)
+    return data
 
 
 NOT_FOUND = {'$type': 'app.bsky.feed.defs#notFoundPost',

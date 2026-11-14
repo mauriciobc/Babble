@@ -128,6 +128,87 @@ class TestCardPost(unittest.TestCase):
             dict(fx.CARD, url='https://bsky.app/profile/' + DID)))
 
 
+class TestSignedOutNotice(unittest.TestCase):
+    """Bluesky's og:description for a post whose author keeps it from
+    readers who are not signed in: a notice, not the text of the post."""
+
+    def test_recognised(self):
+        self.assertTrue(bskytext.is_signed_out_notice(
+            bskytext.SIGNED_OUT_NOTICE))
+        self.assertTrue(bskytext.is_signed_out_notice(
+            '  ' + bskytext.SIGNED_OUT_NOTICE + '  '))
+        for text in ('a post', '', None, 5):
+            self.assertFalse(bskytext.is_signed_out_notice(text), text)
+
+    def test_the_card_does_not_repeat_it_as_the_text(self):
+        data = bskytext.card_post(fx.SIGNED_OUT_CARD)
+        self.assertEqual(data['text'], '')
+        self.assertTrue(data['hidden'])
+        self.assertEqual(data['name'], 'andreia-carbonari')
+        self.assertEqual(data['handle'], 'andreia-carbonari.bsky.social')
+
+    def test_a_real_description_is_the_text(self):
+        data = bskytext.card_post(fx.CARD)
+        self.assertEqual(data['text'], fx.CARD['description'])
+        self.assertFalse(data['hidden'])
+
+
+class TestNestedQuotes(unittest.TestCase):
+    """A post may quote a post that quotes another: the chain is part of
+    what the post says."""
+
+    def test_the_quoted_post_comes_along(self):
+        inner = fx.record('Inner post', rkey='3in')
+        middle = fx.record('Middle post', rkey='3mid',
+                           embeds=[fx.quote_embed(inner)])
+        data = bskytext.quote_card_data(middle)
+        self.assertEqual(data['text'], 'Middle post')
+        self.assertEqual(data['quote']['text'], 'Inner post')
+        self.assertEqual(data['quote']['handle'], 'bob.bsky.social')
+        self.assertIsNone(data['quote']['quote'])
+
+    def test_the_chain_stops(self):
+        third = fx.record('Third', rkey='3t')
+        second = fx.record('Second', rkey='3s',
+                           embeds=[fx.quote_embed(third)])
+        first = fx.record('First', rkey='3f',
+                          embeds=[fx.quote_embed(second)])
+        data = bskytext.quote_card_data(first)
+        self.assertEqual(data['quote']['text'], 'Second')
+        self.assertEqual(data['quote']['quote']['text'], 'Third')
+        self.assertIsNone(data['quote']['quote']['quote'])
+
+    def test_a_quoted_video_keeps_its_poster(self):
+        video = {'$type': 'app.bsky.embed.video#view',
+                 'thumbnail': 'https://cdn/poster', 'alt': 'clip'}
+        data = bskytext.quote_card_data(
+            fx.record('With video', embeds=[video]))
+        self.assertEqual(data['video'],
+                         {'poster': 'https://cdn/poster', 'alt': 'clip'})
+        self.assertIsNone(data['picture'])
+
+    def test_a_quoted_picture_is_kept(self):
+        image = {'$type': 'app.bsky.embed.images#view', 'images': [
+            {'thumb': 'https://x/t', 'fullsize': 'https://x/f'}]}
+        data = bskytext.quote_card_data(
+            fx.record('With image', embeds=[image]))
+        self.assertEqual(data['picture'], 'https://x/t')
+        self.assertIsNone(data['video'])
+
+    def test_a_post_view_is_a_quoted_record(self):
+        embed = fx.quote_embed(fx.record('Inner', rkey='3in'))
+        post = {'uri': AT, 'author': fx.author(),
+                'record': {'text': 'q', 'createdAt': '2026-11-08T12:00:00Z'},
+                'embed': embed, 'labels': []}
+        record = bskytext.post_view_record(post)
+        self.assertEqual(record['value']['text'], 'q')
+        self.assertEqual(record['embeds'], [embed])
+        data = bskytext.quote_card_data(record, 0)
+        self.assertEqual(data['text'], 'q')
+        self.assertIsNone(data['quote'])
+        self.assertEqual(bskytext.post_view_record(None)['value']['text'], '')
+
+
 class TestSegments(unittest.TestCase):
     def test_utf8_byte_offsets(self):
         text = 'não 😀 link here'

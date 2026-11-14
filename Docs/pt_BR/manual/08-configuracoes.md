@@ -43,7 +43,7 @@ As páginas são `Appearance`, `Reading`, `Timelines`, `Posting` e `Notification
 | `Collapsed Long Posts` | — | Interruptor (ligado) | Publicações longas e quase só de links ou hashtags vêm recolhidas, com o botão `Show More`. |
 | `Spoilers` | Reveal posts with a content warning | Interruptor | **Ligado**, o conteúdo de um post com aviso de conteúdo vem revelado. Desligado, vem escondido. |
 | `Link Preview Cards` | — | Interruptor (ligado) | Mostra o cartão de pré-visualização dos links. |
-| `Bluesky Posts` | Bluesky links open in Babble, which contacts Bluesky’s servers | Interruptor (ligado) | Abre posts do Bluesky dentro do aplicativo. Desligado, abre no navegador. **Ligado, o aplicativo contata os servidores do Bluesky.** |
+| `Bluesky Posts` | Bluesky links open in Babble, which contacts Bluesky’s servers | Interruptor (ligado) | Abre posts do Bluesky dentro do aplicativo, e pergunta ao Bluesky pela publicação que uma publicação cita quando o servidor não guardou prévia dela. Desligado, abre no navegador. **Ligado, o aplicativo contata os servidores do Bluesky.** |
 | `Interaction Counters` | Reply, boost and favorite counts on post actions | Interruptor (ligado) | Mostra as contagens na barra de ações. |
 | `Post Actions on Timelines` | Actions stay available in each post’s menu | Interruptor (desligado) | Desligado, a barra de ações some das timelines e os botões vão para o menu `More Options` do post. |
 

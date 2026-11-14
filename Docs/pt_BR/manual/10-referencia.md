@@ -178,6 +178,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Bio` | Biografia |
 | `Blocked` | Bloqueado |
 | `Blocks you` | Bloqueia você |
+| `Bluesky` | Bluesky |
 | `Bookmark` | Salvar |
 | `Bookmarks` | Itens salvos |
 | `Boost` | Impulsionar |
