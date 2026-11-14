@@ -81,6 +81,10 @@ Nothing here needs a design decision.
 | BUG-16 | **done** | **Search stuck on its loading state** whenever a result set held a post. `make_post_row` passed a lambda to `pages.connect_weak`, which accepts only a bound method, so building the row raised. Present at `da2eeab`, before this register. | `search.py` `make_post_row`; `pages.py:46-64` | The other 258 `connect_weak` / `weak_method` call sites were checked; this was the only non-method. |
 | BUG-17 | **done** | **Adding an account never opened the browser.** `BabbleWindow.open_url` was deleted when the OAuth flow moved into `auth.py` (`8ae87cd`) while `_on_auth_browser` still called it. Every login test replaced `win.open_url`, so nothing failed. | `window.py` `_on_auth_browser`; `test-oauth-callback.py:798`, `test-oauth-loopback.py:110` | Restored with the portal launch plus a default-handler fallback; a test now calls the real method. |
 | BUG-18 | **done** | **`po/POTFILES.in` listed the deleted `src/timeline.py` and omitted the nine modules split out of it.** `xgettext` could not run, and a regeneration would have dropped those modules' strings. | `po/POTFILES.in` | `test-file-size.py` now checks that every listed file exists and every module that translates is listed. |
+| BUG-19 | **done** | **A Bluesky post that quotes another post lost the quote inside the quote.** `quote_card_data` took the quoted record's text and its first picture and dropped the rest: a post quoting a post that quotes another showed the first quote and nothing else, and the quoted post's video and its own quote never reached the screen. | `bskytext.py` `quote_card_data` (before: no `quote` and no `video` in the dict); `blueskycard.py` `BlueskyQuoteCard` | Found on the live post `did:plc:xgwilwgow3m4qqpeqzurzmge/post/3n2bw5veruc2u`, which quotes a post that quotes a third one (with a video). `quote_card_data` now walks the chain (`MAX_QUOTE_DEPTH` levels) and `blueskycard.QuotePreview` draws a quoted post inside the card that quotes it. |
+| BUG-20 | **done** | **The Bluesky quote card showed Bluesky's "signed-in only" notice as if it were the text of the post.** A Mastodon preview card copies the og:description, and for a post whose author keeps it from readers who are not signed in that description is the notice, not the post. | `bskytext.py` `card_post` (before: `text` was `card['description']` whatever it was); `blueskycard.py` `BlueskyQuoteCard` | The same live post as BUG-19: its quoted post is by an author with the `!no-unauthenticated` label, so the card read "This author has chosen to make their posts visible only to people who are signed in." under the author's name. `card_post` now recognises the notice (`SIGNED_OUT_NOTICE`), leaves the text empty and sets `hidden`; the card says why the post has no text, as the thread page does. |
+| BUG-21 | **done** | **A quoted Bluesky post said the author's name twice.** The card's head drew the display name and the handle, and a Bluesky author with no display name is named by the handle alone. | `blueskycard.py` `_quote_head` (before: the name label was always drawn) | The name is drawn only when it differs from the handle. |
+| BUG-22 | **done** | **A quoted Bluesky post was invisible when the server kept neither a quote nor a preview card of it.** A server that speaks the quote extension answers with a `quote`; the rest leave a preview card behind, which is the crawler's work and often is not there. Then the "RE: <link>" line the bridge left in the text was the only address of the quoted post, and the row showed a bare URL. | `blueskycard.py` `quoted_ref` (before: nothing read the "RE:" line) and `fetch_quote` (before: it did not exist) | Measured on 240 statuses of one bridged account: 38 carried the "RE:" line, 6 had a server quote, 30 had a preview card, **2 had neither**. The line itself names the quoted post, so the post is fetched from the AppView (`getPosts`) and drawn like any other quote card. |
 
 ### Resolutions
 
@@ -207,6 +211,51 @@ has a regression test that fails on the old code. A scan of every
 two patterns. The lesson for the seams (ARCH-01…03, 06) is that a green
 suite said less than it appeared to: the split moved code that was never
 exercised, and "done" was recorded before the app was run.
+
+**BUG-19…21 (the Bluesky quote chain, 2026-11-14).** Found by reading
+the live post the reader reported —
+`did:plc:xgwilwgow3m4qqpeqzurzmge/post/3n2bw5veruc2u`, a bridged reply
+that quotes a post which quotes a third one (with a video). Three fixes,
+one shape: **a quoted post is a post, and the card that draws it must
+carry what the post says.** `bskytext.quote_card_data` now walks the
+chain of quotes (`MAX_QUOTE_DEPTH` levels, so a card cannot grow without
+end) and hands the video poster along with it; `blueskycard.QuotePreview`
+draws a quoted post inside the card that quotes it, as a plain box — a
+button inside the card's button would be out of reach by keyboard, and the
+quoted post opens from the card's thread page anyway. The timeline card
+comes from the Mastodon preview card alone, so it cannot carry a chain:
+one level is what a preview card holds, and the thread page is where the
+chain is read.
+
+The second fix is about a preview card that says something else. For a
+post whose author keeps it from readers who are not signed in, Bluesky's
+og:description is the notice "This author has chosen to make their posts
+visible only to people who are signed in." — and a Mastodon card copies
+it verbatim, so the card showed the notice as if it were the text of the
+post. `card_post` now recognises it (`SIGNED_OUT_NOTICE`), leaves the
+text empty and sets `hidden`; the card says why the post has no text,
+which is what the thread page already did for the same label. The policy
+itself is unchanged: Babble is not signed in to Bluesky, and an author
+who asks not to be shown to readers who are not signed in is not shown.
+
+**BUG-22 (the quoted post the server kept nothing of, 2026-11-14).**
+A server that speaks the quote extension answers with a `quote` for a
+post that quotes another; the rest leave a preview card behind, which is
+the crawler's work and often is not there. Measured on 240 statuses of
+one bridged account, 38 posts carried the "RE:" line the bridge leaves
+in the text, 6 had a server quote, 30 had a preview card, and **2 had
+neither** — and then that line was the only address of the quoted post:
+the row showed a bare URL and nothing of what was quoted.
+
+The line names the post, so the post can be asked for: `statustext`
+reads the "RE:" link (`quote_inline_url`), `bskytext` turns it into an
+address (`post_ref`), and the card is drawn from the AppView's answer
+(`getPosts`, one post, cached for the session). The card waits for that
+answer with the height the text will have, so the row does not move when
+the post arrives — the same rule the pictures follow. This is the one
+place the timeline talks to Bluesky, it is behind the setting that
+already says the application contacts Bluesky's servers, and it happens
+only for a quote the server kept nothing of.
 
 ### Accepted, documented — do not "fix"
 

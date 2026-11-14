@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""The public Bluesky AppView, for the read-only thread page and nothing
-else.  The timeline never reaches this module: a quote card is built from
-the Mastodon preview card alone, and Bluesky is contacted only when the
-reader opens a post.
+"""The public Bluesky AppView, for the read-only thread page and for the
+post a post quotes when the server kept no preview card of it.
 
-Functions, not a client: this is not the Mastodon API and goes nowhere near
-``MastodonClient``.  Replies come as ``(data, error)``; a caller that is a
-widget wraps its callback with ``pages.weak_method``."""
+A quote card is built from the Mastodon preview card alone, and Bluesky
+is contacted only when the reader opens a post, or when a post quotes
+another one and the server kept nothing about it.  Functions, not a
+client: this is not the Mastodon API and goes nowhere near
+``MastodonClient``.  Replies come as ``(data, error)``; a caller that is
+a widget wraps its callback with ``pages.weak_method``."""
 
 import json
 import os
@@ -34,6 +35,11 @@ FAILED = 'failed'
 
 # handle -> DID, for the session.
 _dids = {}
+
+# (DID, rkey) -> the post view, for the session.  The timeline asks for
+# the same quoted post once per post it shows, and the answer does not
+# change while the session lasts.
+_posts = {}
 
 
 def appview():
@@ -136,6 +142,68 @@ def get_thread_async(actor, rkey, callback):
             '/xrpc/app.bsky.feed.getPostThread',
             {'uri': bskytext.at_uri(did, rkey), 'depth': THREAD_DEPTH,
              'parentHeight': THREAD_PARENT_HEIGHT}, answer)
+
+    if bskytext.is_did(actor):
+        fetch(actor)
+        return state
+
+    def resolved(did, error):
+        if state['cancelled']:
+            return
+        if did:
+            fetch(did)
+        else:
+            callback(None, error)
+
+    state['cancellable'] = resolve_handle_async(actor, resolved)
+    return state
+
+
+def get_post_async(actor, rkey, callback):
+    """``callback(post, error)`` for the post *rkey* by *actor* (a DID or
+    a handle).  A handle is resolved first, as for the thread.
+
+    The post comes in the shape the thread page reads: the record, the
+    author and the resolved embed, so a quoted post can be drawn from it
+    the way a thread one is.  The answer is kept for the session: the
+    same quoted post is asked for once, however many posts quote it.
+
+    Returns a state for :func:`cancel`; once cancelled no step of the
+    chain goes on and *callback* is never called."""
+    state = {'cancellable': None, 'cancelled': False}
+
+    def answer(data, error):
+        if state['cancelled']:
+            return
+        post = None
+        for found in (data or {}).get('posts') or ():
+            if isinstance(found, dict):
+                post = found
+                ref = bskytext.post_ref(found.get('uri') or '')
+                if ref is not None:
+                    _posts[ref] = found
+                break
+        if post is None:
+            callback(None, error or UNAVAILABLE)
+        else:
+            callback(post, None)
+
+    def fetch(did):
+        if state['cancelled']:
+            return
+        key = (did, rkey)
+        if key in _posts:
+            post = _posts[key]
+
+            def cached():
+                if not state['cancelled']:
+                    callback(post, None)
+                return False
+            GLib.idle_add(cached)
+            return
+        state['cancellable'] = _get_json(
+            '/xrpc/app.bsky.feed.getPosts',
+            {'uris': bskytext.at_uri(did, rkey)}, answer)
 
     if bskytext.is_did(actor):
         fetch(actor)

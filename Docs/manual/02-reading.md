@@ -174,6 +174,19 @@ The `More Options` button, at the top right of every post, opens a menu that is 
 
 Active plugins can add their own items to this menu.
 
+### A post from Bluesky
+
+A post that comes from Bluesky through the *Bridgy Fed* bridge is marked `Bluesky`, and its menu carries `View on Bluesky`.
+
+When the **Bluesky Posts** preference (`bluesky-native`) is on, such a post reads natively:
+
+- A post that quotes another Bluesky post shows the quoted post as a card, under the post's own text, with the quoted author, the handle and the quoted text. The `RE:` line the bridge leaves in the text is not shown, because the card says the same thing and says it better.
+- Clicking the card opens the quoted post on a read-only Bluesky page, inside Babble. There the post, the posts it quotes and the replies to it are all shown, one inside the other.
+- A post whose author keeps it from readers who are not signed in shows the notice *Bluesky hides this post from people who are not signed in*, in place of the text. The same is true of the quoted post inside a card.
+- When the server kept no preview of the quoted post at all, Babble asks Bluesky for it — **the application contacts Bluesky’s servers** — and the card waits for the answer.
+
+When the preference is off, the post is read like any other post, and a `bsky.app` link opens in the browser.
+
 ## 2.6 Content warnings and long posts
 
 ### Content warnings

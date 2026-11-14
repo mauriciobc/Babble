@@ -14,6 +14,7 @@ from gi.repository import (Adw, Gdk, Gtk, Pango)
 from . import filterrules  # noqa: E402
 from . import pages  # noqa: E402
 from .pages import connect_weak  # noqa: E402
+from . import blueskycard  # noqa: E402
 from .blueskycard import (bridged_badge, card_wanted, fill_card_box,
                            wants_inline_dropped)
 from .statustext import parse_content
@@ -503,6 +504,10 @@ class StatusRow(StatusFold, Gtk.Overlay):
         show_card = card_wanted(status) and not poll and not quote \
             and not attachments
         self._show_card(status.get('card') if show_card else None)
+        if show_card:
+            # The server's preview card is its crawler at work; when it
+            # did not keep one, the quoted post is fetched from Bluesky.
+            blueskycard.fetch_quote(self.card_box, status)
         tileactions.tile_action_bar(item, self.client, bar=self.actions)
 
     def _bind_translation(self, item):

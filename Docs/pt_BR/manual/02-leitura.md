@@ -174,6 +174,19 @@ O botão `More Options`, no canto superior direito de cada publicação, abre um
 
 Plugins ativos podem acrescentar itens próprios a este menu.
 
+### Uma publicação do Bluesky
+
+Uma publicação que vem do Bluesky pela ponte *Bridgy Fed* é marcada com `Bluesky`, e o menu dela traz `View on Bluesky`.
+
+Quando a preferência **Bluesky Posts** (`bluesky-native`) está ligada, essa publicação é lida de forma nativa:
+
+- Uma publicação que cita outra publicação do Bluesky mostra a publicação citada como um cartão, abaixo do texto, com a autoria citada, o identificador e o texto citado. A linha `RE:` que a ponte deixa no texto não é mostrada, porque o cartão diz a mesma coisa e diz melhor.
+- Clicar no cartão abre a publicação citada em uma página do Bluesky somente leitura, dentro do Babble. Lá são mostradas a publicação, as publicações que ela cita e as respostas a ela, uma dentro da outra.
+- Uma publicação cujo autor a esconde de quem não está conectado mostra o aviso *O Bluesky oculta esta publicação de quem não está conectado*, no lugar do texto. O mesmo vale para a publicação citada dentro de um cartão.
+- Quando o servidor não guardou prévia nenhuma da publicação citada, o Babble pergunta ao Bluesky por ela — **o aplicativo contata os servidores do Bluesky** — e o cartão espera a resposta.
+
+Quando a preferência está desligada, a publicação é lida como qualquer outra, e um link `bsky.app` é aberto no navegador.
+
 ## 2.6 Avisos de conteúdo e publicações longas
 
 ### Avisos de conteúdo

@@ -14,6 +14,10 @@ The full feature inventory. The [README](../README.md) has the short version.
 - Direct messages, bookmarks, favorites, lists, followed hashtags, and saved
   multi-hashtag timelines.
 - Quote posts, edit history, and who boosted or favorited something.
+- Posts that come from Bluesky through the *Bridgy Fed* bridge read natively:
+  a post that quotes another one shows the quoted post as a card, and the
+  card opens a read-only Bluesky page with the post, the posts it quotes
+  and the replies to it.
 - Custom emoji inline wherever a `:shortcode:` turns up, and a media viewer
   with zoom, video, audio and alt text.
 - Instance announcements, with reactions.

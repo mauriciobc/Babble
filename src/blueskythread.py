@@ -156,7 +156,11 @@ class BlueskyPostView(Gtk.Box):
     def _quoted(self, embed):
         record = bskytext.quoted(embed)
         if record is not None and bskytext.moderation(record)['withheld']:
-            record = None
+            # The author keeps the post from readers who are not signed
+            # in: say why, instead of saying it is unavailable.
+            self.append(_notice(_('Bluesky hides this post from people who '
+                                  'are not signed in.')))
+            return
         if record is not None:
             self.append(BlueskyQuoteCard(bskytext.quote_card_data(record)))
         elif bskytext.embed_kind(embed) in (

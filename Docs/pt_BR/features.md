@@ -15,6 +15,10 @@ O inventário completo de recursos. O [README](../README.md) traz a versão curt
 - Mensagens diretas, itens salvos, favoritos, listas, hashtags seguidas e
   timelines salvas de múltiplas hashtags.
 - Citações, histórico de edições e quem impulsionou ou favoritou alguma coisa.
+- Publicações que vêm do Bluesky pela ponte *Bridgy Fed* são lidas de forma
+  nativa: uma publicação que cita outra mostra a publicação citada como um
+  cartão, e o cartão abre uma página do Bluesky somente leitura com a
+  publicação, as publicações que ela cita e as respostas a ela.
 - Emoji personalizado em linha onde aparecer um `:shortcode:`, e um visualizador
   de mídia com zoom, vídeo, áudio e texto alternativo.
 - Anúncios da instância, com reações.

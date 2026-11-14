@@ -43,7 +43,7 @@ The pages are `Appearance`, `Reading`, `Timelines`, `Posting` and `Notifications
 | `Collapsed Long Posts` | — | Switch (on) | Long posts made up mostly of links or hashtags arrive collapsed, with the `Show More` button. |
 | `Spoilers` | Reveal posts with a content warning | Switch | **On**, the content of a post with a content warning arrives revealed. Off, it arrives hidden. |
 | `Link Preview Cards` | — | Switch (on) | Shows the link preview card. |
-| `Bluesky Posts` | Bluesky links open in Babble, which contacts Bluesky’s servers | Switch (on) | Opens Bluesky posts inside the application. Off, it opens in the browser. **When on, the application contacts Bluesky’s servers.** |
+| `Bluesky Posts` | Bluesky links open in Babble, which contacts Bluesky’s servers | Switch (on) | Opens Bluesky posts inside the application, and asks Bluesky for the post a post quotes when the server kept no preview of it. Off, it opens in the browser. **When on, the application contacts Bluesky’s servers.** |
 | `Interaction Counters` | Reply, boost and favorite counts on post actions | Switch (on) | Shows the counts in the action bar. |
 | `Post Actions on Timelines` | Actions stay available in each post’s menu | Switch (off) | When off, the action bar disappears from the timelines and the buttons move to the post’s `More Options` menu. |
 
