@@ -940,9 +940,12 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         try:
             if callable(transition):
                 transition = transition()
-        except composetransition.UnsupportedSettings as error:
+        except composetransition.UnsupportedSettings:
+            # The builder stays free of gettext, so the reason it raises
+            # is shown here, translated.
             self._show_error(_('Could not edit scheduled post'),
-                             str(error))
+                             _('The server returned unsupported post '
+                               'settings.'))
             return False
         stash = transition.stack in (composetransition.PUSH,
                                      composetransition.PUSH_IF_NOT_EMPTY)
@@ -1037,8 +1040,11 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         return composetransition.scheduled(
             scheduled,
             max_poll_options=self.poll_limits()['max_options'],
+            # Read only from a dict: the builder refuses anything else,
+            # and must be the one to do so.
             at=(draft_scheduled_at() if draft
-                else scheduled.get('scheduled_at')),
+                else scheduled.get('scheduled_at')
+                if isinstance(scheduled, dict) else None),
             on_done=on_done)
 
     def _select_visibility(self, visibility):

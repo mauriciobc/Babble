@@ -191,6 +191,20 @@ except ct.UnsupportedSettings:
     raised = True
 check('scheduled refuses an unknown visibility', raised)
 
+# --- The duplicated visibility codes stay equal to entities' -------------
+
+import ast  # noqa: E402
+
+_entities = ast.parse(open(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'entities.py'),
+    encoding='utf-8').read())
+_codes = next(
+    ast.literal_eval(node.value) for node in _entities.body
+    if isinstance(node, ast.Assign)
+    and any(getattr(t, 'id', None) == 'VISIBILITIES' for t in node.targets))
+check('the visibility codes equal entities.VISIBILITIES',
+      ct._VISIBILITIES == frozenset(_codes))
+
 # --- Free-check when a display is available ----------------------------
 
 has_display = bool(os.environ.get('DISPLAY')
@@ -207,6 +221,18 @@ if has_display:
     client = MastodonClient('https://example.social')
     view = BabbleComposeView(client)
     dialog = ComposeDialog(client)
+    view.start_reply('1', 'a')
+    view.prefill_text('shared')
+    check('a prefill after a reply leaves no reply target or thread',
+          view.in_reply_to_id is None and view._thread is None)
+    view.reset()
+    try:
+        refused = view.start_scheduled(None) is False
+    except Exception:  # noqa: BLE001 - the regression was an AttributeError
+        refused = False
+    check('a scheduled payload that is not an object is refused, not raised',
+          refused)
+    view.reset()
     view_ref = view.weak_ref()
     dialog_ref = dialog.weak_ref()
     for starter in (
