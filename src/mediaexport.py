@@ -8,7 +8,8 @@ needs the viewer as ``self``: the current attachment, the toast overlay,
 the progress bar and the downloads' cancellable). The module-level helpers
 (drag content providers, drag icons, the Save As file name and the Open
 With cache pruning) build no viewer and are also used by the timeline's
-media boxes and status rows.
+media boxes and status rows. :func:`download` is the libsoup file
+download the save and open-with paths use.
 """
 
 import os
