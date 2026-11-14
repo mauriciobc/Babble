@@ -26,9 +26,11 @@ class EngineSlot:
         """Return a new stream for *url*, creating the engine if needed.
 
         The stream is constructed before ``engine.load(url)``. On
-        ``ImportError``, ``ValueError`` or ``RuntimeError`` the slot is
-        left with no usable engine and :class:`PlaybackUnavailable` is
-        raised.
+        ``ImportError``, ``ValueError`` or ``RuntimeError``
+        :class:`PlaybackUnavailable` is raised and the slot keeps whatever
+        engine it has: whether to release it is the caller's decision, as
+        it was before the slot (the inline player releases; the viewer
+        keeps its engine for the next attachment and releases on close).
         """
         try:
             from . import mediaengine
@@ -39,7 +41,6 @@ class EngineSlot:
             stream = EngineStream(self._engine)
             self._engine.load(url)
         except (ImportError, ValueError, RuntimeError) as error:
-            self._abandon()
             raise PlaybackUnavailable(str(error)) from error
         return stream
 
@@ -59,12 +60,3 @@ class EngineSlot:
         engine, self._engine = self._engine, None
         if engine is not None:
             engine.release()
-
-    def _abandon(self):
-        """A failed start must not leave a half-built engine behind."""
-        engine, self._engine = self._engine, None
-        if engine is not None:
-            try:
-                engine.release()
-            except Exception:
-                pass

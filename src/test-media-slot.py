@@ -56,27 +56,35 @@ class RecordingStream:
 
 
 def install(engine_cls=RecordingEngine, stream_cls=RecordingStream):
-    """Inject recording stand-ins into EngineSlot.start."""
+    """Put recording stand-ins where the real EngineSlot.start imports
+    them from (``src.mediaengine``, ``src.mediastream``), so the real
+    method runs and GStreamer is never loaded."""
     import types
+    import src
 
-    mediaengine = types.SimpleNamespace(Engine=engine_cls)
-    mediastream = types.SimpleNamespace(EngineStream=stream_cls)
-    real_start = EngineSlot.start
+    names = ('mediaengine', 'mediastream')
+    saved = {name: (sys.modules.get('src.' + name),
+                    getattr(src, name, None)) for name in names}
+    fakes = {'mediaengine': types.ModuleType('src.mediaengine'),
+             'mediastream': types.ModuleType('src.mediastream')}
+    fakes['mediaengine'].Engine = engine_cls
+    fakes['mediastream'].EngineStream = stream_cls
+    for name, module in fakes.items():
+        sys.modules['src.' + name] = module
+        setattr(src, name, module)
 
-    def start(self, url, *, user_agent, gl):
-        try:
-            if self._engine is None:
-                self._engine = mediaengine.Engine(
-                    user_agent=user_agent, gl=gl)
-            stream = mediastream.EngineStream(self._engine)
-            self._engine.load(url)
-        except (ImportError, ValueError, RuntimeError) as error:
-            self._abandon()
-            raise PlaybackUnavailable(str(error)) from error
-        return stream
-
-    EngineSlot.start = start
-    return lambda: setattr(EngineSlot, 'start', real_start)
+    def restore():
+        for name, (module, attribute) in saved.items():
+            if module is None:
+                sys.modules.pop('src.' + name, None)
+            else:
+                sys.modules['src.' + name] = module
+            if attribute is None:
+                if hasattr(src, name):
+                    delattr(src, name)
+            else:
+                setattr(src, name, attribute)
+    return restore
 
 
 slot = EngineSlot()
@@ -96,8 +104,10 @@ stream2 = slot.start('https://example/w.mp4', user_agent='BabbleTest', gl=True)
 check('second start reuses the engine', slot.engine is engine)
 slot.release()
 check('release clears once', slot.engine is None and engine.released)
+calls = list(engine.calls)
 slot.release()
-check('second release is a no-op', True)
+check('second release is a no-op',
+      slot.engine is None and engine.calls == calls)
 restore()
 
 # Failed start leaves no engine.
@@ -115,7 +125,8 @@ try:
 except PlaybackUnavailable:
     raised = True
 check('failed Engine construction raises PlaybackUnavailable', raised)
-check('failed start leaves no engine', slot.engine is None)
+check('a failed Engine construction leaves no engine',
+      slot.engine is None)
 restore()
 
 
@@ -132,7 +143,9 @@ try:
 except PlaybackUnavailable:
     raised = True
 check('failed load raises PlaybackUnavailable', raised)
-check('failed load leaves no engine', slot.engine is None)
+check('a failed load keeps the engine and does not release it (the '
+      'caller decides, as before the slot)',
+      slot.engine is not None and not slot.engine.released)
 restore()
 
 if failures:

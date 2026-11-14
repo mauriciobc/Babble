@@ -566,9 +566,14 @@ class InlinePlayer(GObject.Object):
         self._shown = False
         self._frame_seen = False
         self._frame_handler = 0
-        self._engine_slot.stop(stream)
+        if stream is not None:
+            stream.pause()
+            stream.detach()
         if tile is not None:
             tile.show_poster()
+        # The same order as before the slot: the tile has its poster
+        # back before the engine stops.
+        self._engine_slot.stop()
 
     # Release
 
