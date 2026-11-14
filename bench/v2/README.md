@@ -21,8 +21,8 @@ use does not occupy:
 Each row is a blind spot, and they compound:
 
 * **96px avatars always take the fast decode path.** At 96px an avatar is
-  no bigger than its cover box, so `_decode_covering`
-  (`src/mediacache.py:183-189`) loads it whole with
+  no bigger than its cover box, so `decode_covering`
+  (`src/mediacache.py`) loads it whole with
   `Gdk.Texture.new_from_bytes`. At 400px it is *larger* than the box and
   goes through the GdkPixbuf loader instead. v1 therefore measured the
   optimised path for every avatar in the run.
@@ -82,9 +82,9 @@ harness did exactly that and its own gate passed the broken run.
 **Not covering the full-size path.** `frames_during_decode` counts
 decodes of scaled avatars and media tiles. It does not count the
 `cover=None` path (the media viewer, and every emoji), because the gauge
-is opened and closed inside `_decode_covering` and that path never enters
-it. An earlier version opened the gauge in `_decode_async` and closed it
-when `_decode_covering` returned; that drifts permanently, because a
+is opened and closed inside `decode_covering` and that path never enters
+it. An earlier version opened the gauge in `decode_async` and closed it
+when `decode_covering` returned; that drifts permanently, because a
 `Gio.Task` with `return-on-cancel` can skip its worker entirely when
 cancelled before starting, leaving an increment with no decrement. After
 that, every later frame counts as painted during decode.

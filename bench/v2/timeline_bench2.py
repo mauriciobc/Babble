@@ -337,7 +337,7 @@ def instrument(statusrun):
     def classify(data, cover, scale):
         """Which branch of decode_covering this input takes, and for what.
 
-        Mirrors src/mediacache.py:183-189. cover None means the caller
+        Mirrors mediacache.decode_covering. cover None means the caller
         asked for a full-size decode (the media viewer's path).
 
         Avatars and media are counted **separately**, and that separation
