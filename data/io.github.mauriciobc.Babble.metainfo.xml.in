@@ -60,6 +60,32 @@
   </supports>
   <translation type="gettext">babble</translation>
   <releases>
+    <release version="0.3.1" date="2026-11-14">
+      <description>
+        <p>
+          The media viewer now streams video instead of downloading it
+          first, remembers the volume, follows reduced motion and asks
+          before loading media your server has no copy of. Animated GIFs
+          can play inline in timelines (off by default), and custom emoji
+          are animated.
+        </p>
+        <p>
+          Posts bridged from Bluesky are shown natively, and the whole
+          interface is translated into German, Spanish, French and
+          Brazilian Portuguese, with a user manual and help in Portuguese.
+        </p>
+        <p>Other changes:</p>
+        <ul>
+          <li>New settings: Autoplay Animated Media and Load Media Automatically.</li>
+          <li>The media viewer opens from notifications and Catch Up, and media still processing on the server is shown as such.</li>
+          <li>The composer follows a thread's progress, adds a content warning to replies, and quotes a post from a pasted link.</li>
+          <li>Editing a post shows the media it already has.</li>
+          <li>Plugins can show panels in the web column.</li>
+          <li>Notifications honour the filters set on your server.</li>
+          <li>Large remote images are bounded before they are downloaded and decoded.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-11-01">
       <description>
         <p>
