@@ -5,6 +5,7 @@ fosstodon.org's anonymous public timeline, exercising the same code
 paths as the app (ThreadPage, ProfilePage, TimelinePage account tabs).
 Exits 77 (skip) when the display or the network is unavailable."""
 
+import atexit
 import os
 # Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
@@ -17,13 +18,36 @@ import time
 # Own Xvfb + X11 backend: root screenshots stay deterministic even when
 # the host session leaks WAYLAND_DISPLAY or a compositing :0 display.
 _xvfb = None
+
+def _xvfb_dies_with_us():
+    # Runs in the child before exec: the kernel sends Xvfb SIGTERM when
+    # this test process dies, however it dies (an exception, meson's
+    # timeout, SIGKILL), so an Xvfb can never outlive the test.
+    import ctypes
+    import signal
+    ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+
+
+def _stop_xvfb():
+    if _xvfb is not None and _xvfb.poll() is None:
+        _xvfb.terminate()
+        try:
+            _xvfb.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _xvfb.kill()
+            _xvfb.wait()
+
+
+atexit.register(_stop_xvfb)
+
 if not os.environ.get('BABBLE_KEEP_DISPLAY'):
     for _n in range(91, 100):
         if os.path.exists('/tmp/.X11-unix/X%d' % _n):
             continue
         _xvfb = subprocess.Popen(
             ['Xvfb', ':%d' % _n, '-screen', '0', '1280x1024x24'],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            preexec_fn=_xvfb_dies_with_us)
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline \
                 and not os.path.exists('/tmp/.X11-unix/X%d' % _n):
