@@ -353,6 +353,26 @@ test('notifications render', python,
   env: fatal_test_env,
   timeout: 120,
 )
+test('notifications lazy', python,
+  args: [files('test-notifications-lazy.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications refresh', python,
+  args: [files('test-notifications-refresh.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications reply', python,
+  args: [files('test-notifications-reply.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications dismiss', python,
+  args: [files('test-notifications-dismiss.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('oauth callback', python,
   args: [files('test-oauth-callback.py')],
   env: fatal_test_env,
