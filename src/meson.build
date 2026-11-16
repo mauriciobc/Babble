@@ -57,6 +57,7 @@ install_data(
   'i18n.py',
   'lists.py',
   'main.py',
+  'linkhandlers.py',
   'mastodon.py',
   'mediaengine.py',
   'mediaexport.py',
@@ -627,6 +628,12 @@ test('api registry', python,
 # Needs no display: real Gio.Cancellable and Gio.Task objects only.
 test('request scope', python,
   args: [files('test-request-scope.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: the standard library only.
+test('link handlers', python,
+  args: [files('test-link-handlers.py')],
   env: test_env,
   timeout: 60,
 )

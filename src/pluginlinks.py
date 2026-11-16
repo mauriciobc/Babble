@@ -16,6 +16,7 @@ Nothing here imports libpeas or starts the host: with no plugin enabled
 both functions are a lookup and a return.
 """
 
+from . import linkhandlers
 from .pluginpanel import origin_of
 
 
@@ -94,3 +95,8 @@ def claim_link(widget, url):
     # A plugin that raised is turned off; the click still opens as it
     # would have, instead of being lost with it.
     return result is not _FAILED
+
+
+# Link routing asks for claimers through linkhandlers instead of
+# importing this module; the host's startup imports it (webcolumn does).
+linkhandlers.add_claimer(claim_link)

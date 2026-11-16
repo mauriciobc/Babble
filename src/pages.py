@@ -26,6 +26,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, GLib, Gio, Gtk, Pango  # noqa: E402
 
+from . import linkhandlers  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .api import search as api_search  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
@@ -1275,13 +1276,10 @@ def open_web(widget, uri):
     Browser" actions and non-web schemes must keep using
     :func:`launch_external`, which never opens the column. A link a
     plugin claims goes to the plugin first (see ``pluginlinks``)."""
-    from . import pluginlinks
-    if pluginlinks.claim_link(widget, uri):
+    if linkhandlers.claim(widget, uri):
         return
     if settings().get_boolean('open-links-in-app'):
-        from . import webcolumn
-        if webcolumn.available():
-            webcolumn.present_web(widget, uri)
+        if linkhandlers.open_in_app(widget, uri):
             return
     launch_external(widget, uri)
 
@@ -1306,8 +1304,7 @@ def open_link(widget, uri, mentions=None, tag=None, resolve=False):
         return
     if settings().get_boolean('strip-tracking'):
         uri = strip_tracking(uri)
-    from . import pluginlinks
-    if pluginlinks.claim_link(widget, uri):
+    if linkhandlers.claim(widget, uri):
         return  # before any routing: a claimed /@user@host is the plugin's
     from . import blueskycard, bskytext
     bsky = bskytext.post_ref(uri) if blueskycard.enabled() else None

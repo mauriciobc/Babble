@@ -12,7 +12,7 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import pages, pluginlinks  # noqa: E402
+from . import linkhandlers, pages, pluginlinks  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .statustext import is_web_link  # noqa: E402
 
@@ -93,6 +93,16 @@ def present_web(widget, uri):
         pages.launch_external(widget, uri)
         return
     _show(window, uri)
+
+
+def _open_in_column(widget, uri):
+    """The web opener link routing asks for (see ``linkhandlers``): show
+    *uri* in the column and return True, or return False when WebKit is
+    missing and the link belongs in the browser."""
+    if not available():
+        return False
+    present_web(widget, uri)
+    return True
 
 
 def present_panel(widget, uri, owner, title=None):
@@ -686,3 +696,8 @@ class WebColumn(Adw.Bin):
         if content is not None:
             content.disconnect(handler)
             content.unregister_script_message_handler(name, world)
+
+
+# Link routing opens a web link in the app through linkhandlers instead of
+# importing this module; the window's startup imports it.
+linkhandlers.set_web_opener(_open_in_column)
