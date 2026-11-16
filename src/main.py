@@ -15,6 +15,12 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import desktopnotify
+# Importing these two is what fills linkhandlers: pluginlinks registers its
+# claimer and webcolumn its in-app opener at import. Link routing finds
+# them there and imports neither, so the composition root names them here
+# instead of leaving it to whatever window.py happens to import. Both were
+# already imported at startup; WebKit stays lazy inside webcolumn.
+from . import pluginlinks, webcolumn  # noqa: F401
 from .statustext import is_web_link
 from .window import BabbleWindow, ISSUES_URL, PROJECT_URL
 

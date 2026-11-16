@@ -163,7 +163,10 @@ def connect_changes(handler, widget=None):
       (:func:`weakconnect.connect_weak`): a widget or player that connects its
       own method forms no cycle through C and is freed as before;
     * a module-level function, connected directly. A weak reference to a
-      function would drop it at once.
+      function would drop it at once. The same predicate is written out in
+      ``linkhandlers._require_function`` (duplicated, because that module
+      stays standard-library-only under ``module boundary`` R10): change
+      one and change the other.
 
     What is checked for a function: it is a ``types.FunctionType``; its
     ``__qualname__`` equals its ``__name__`` (no ``Class.`` prefix, no

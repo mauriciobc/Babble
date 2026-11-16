@@ -130,6 +130,63 @@ linkhandlers.set_web_opener(refuses)
 check('an opener that declines is reported as False',
       linkhandlers.open_in_app(None, 'https://e/') is False)
 
+# A handler that raises must not take link routing down: the claimer is
+# skipped and logged, the next one still runs; an opener that raises is
+# logged and counts as declining.
+import logging  # noqa: E402
+
+
+class Records(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(record)
+
+
+records = Records()
+linkhandlers._log.addHandler(records)
+linkhandlers._log.propagate = False  # keep the expected tracebacks quiet
+
+
+def explode(widget, uri):
+    calls.append(('explode', uri))
+    raise RuntimeError('boom')
+
+
+def explode_opener(widget, uri):
+    raise RuntimeError('boom')
+
+
+del linkhandlers._claimers[:]
+linkhandlers.add_claimer(explode)
+linkhandlers.add_claimer(take)
+del calls[:]
+try:
+    claimed = linkhandlers.claim(None, 'https://f/')
+except Exception as error:
+    claimed = error
+check('a raising claimer is skipped and the next claimer still runs',
+      claimed is True and calls == [('explode', 'https://f/'),
+                                    ('take', 'https://f/')],
+      repr((claimed, calls)))
+check('and the failure is logged with its traceback',
+      len(records.records) == 1 and records.records[0].exc_info is not None,
+      repr(records.records))
+del records.records[:]
+linkhandlers.set_web_opener(explode_opener)
+try:
+    opened = linkhandlers.open_in_app(None, 'https://g/')
+except Exception as error:
+    opened = error
+check('a raising opener gives False, so the link goes to the browser',
+      opened is False, repr(opened))
+check('and that failure is logged too', len(records.records) == 1,
+      repr(records.records))
+linkhandlers._log.removeHandler(records)
+linkhandlers._log.propagate = True
+
 # The startup precondition: link routing finds a plugin's claimer and the
 # web column's opener only because importing webcolumn (the window does at
 # startup) registers them. Importing needs the libraries, not a display.

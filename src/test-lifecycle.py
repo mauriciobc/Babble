@@ -75,6 +75,16 @@ from src.window import APP_ID, DOCS_URL, HELP_URI, BabbleWindow  # noqa: E402
 
 app = babble_main.BabbleApplication(version='test')
 
+# --- link routing's handlers are registered by the application --------
+# Routing imports neither the plugin claimer nor the web column; they
+# exist in linkhandlers only because the shell imports them.
+from src import linkhandlers, pluginlinks, webcolumn  # noqa: E402
+
+check('the shell registers the plugin link claimer',
+      pluginlinks.claim_link in linkhandlers._claimers)
+check('the shell registers the web column as the in-app opener',
+      linkhandlers._web_opener is webcolumn._open_in_column)
+
 # --- app.shortcuts belongs to libadwaita ------------------------------
 # list_actions() only answers once the application is registered, which
 # is also the moment libadwaita has added its own, so "did we add ours"
