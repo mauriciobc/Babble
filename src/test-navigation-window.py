@@ -312,6 +312,37 @@ del wanted[:]
 window._refresh_sidebar()
 check('a rebuild that drops no place syncs nothing', not wanted)
 
+# A stream that comes back after an outage catches the other open places
+# up as well: the stream does not replay, and a list, a hashtag or the
+# conversations would keep showing what was there when the socket went
+# down until the reader refreshed them by hand.
+refreshed = []
+home = TimelinePage(window.client, mode='home', autoload=False)
+home.refresh = lambda: refreshed.append('home')
+window.timeline_page = home
+routing.place_page('local')
+routing.place_page('federated')
+window.settings.set_strv('favorite-tags-ids', ['1/rust'])
+routing.place_page('tag:rust')
+for tag, page in (('local', routing.children['local']),
+                  ('federated', routing.children['federated']),
+                  ('tag', routing.children['tag:rust'].timeline)):
+    page.refresh = lambda tag=tag: refreshed.append(tag)
+routing.children['conversations'] = types.SimpleNamespace(
+    refresh=lambda: refreshed.append('conversations'))
+window._stream_dropped = True
+window._on_stream_connection_changed(None, True)
+check('a reconnect refreshes every open place, not only home',
+      sorted(refreshed) == ['conversations', 'federated', 'home', 'local',
+                            'tag'])
+check('each place once', len(refreshed) == len(set(refreshed)))
+del refreshed[:]
+window._on_stream_connection_changed(None, True)
+check('and only after an outage', not refreshed)
+window._stream_dropped = False
+window.timeline_page = None
+del routing.children['conversations']
+
 if failures:
     raise SystemExit('%d navigation window checks failed' % len(failures))
 print('all navigation window checks passed')
