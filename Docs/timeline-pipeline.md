@@ -973,7 +973,8 @@ of them.
 the rest of the stream lifecycle) holds a `_stream_dropped` flag and, when the
 socket comes back, `window._catch_up_after_outage()` fills the gap: the home
 timeline `refresh()`es, the notifications page catches up, and every other open
-place does too — each built place's timeline `refresh()`es (the stream router's
+place does too — each built place's timeline that has loaded something
+`refresh()`es (`has_loaded()`; a never-loaded place sends nothing) (the stream router's
 `timeline_pages()`, which unwraps a list or hashtag page to its timeline) and
 the conversations reload. The socket does not replay, so a place that had no
 catch-up of its own (a list, a hashtag, the conversations) would keep showing
@@ -983,8 +984,8 @@ A place the reader can no longer reach is not caught up, and is not fed either:
 the sidebar rebuild passes every built place it does not show (hidden by a
 preference, unpinned, or closed by the server) to
 `Navigation.forget_many()`, which drops its page, stops its work in flight (a
-catch-up, the auto-refresh timer) and syncs the stream once. Its paging scope
-closes when the page is freed. The cost is that the place is built again, and
+catch-up, the auto-refresh timer), closes its request scope at once and syncs
+the stream once. The cost is that the place is built again, and
 loses its scroll position, when the reader opens it.
 
 ---

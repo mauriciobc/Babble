@@ -258,6 +258,14 @@ class SidebarHost:
                           window.settings, window.account['id'])}
         forgotten = [tag for tag in window.navigation.children
                      if tag not in shown]
+        # Decided from the navigation stack, not from the visible tag: a
+        # page pushed on top of a place (a thread, a profile) hides the
+        # place's tag, and popping it would land on a page that is gone.
+        gone = [window.navigation.pages[tag] for tag in forgotten
+                if tag in window.navigation.pages]
+        stack = window.navigation_view.get_navigation_stack()
+        under = any(stack.get_item(i) in gone
+                    for i in range(stack.get_n_items()))
         window.navigation.forget_many(forgotten)
         for tag, icon, group in navigation.PLACES:
             if tag in hidden:
@@ -277,7 +285,7 @@ class SidebarHost:
         if window.account is not None:
             self._append_pinned(sidebar, rail_sections)
         window.sidebar_rail.set_sections(rail_sections)
-        if current is not None and (current in hidden or current in forgotten):
+        if under or (current is not None and current in hidden):
             window.show_page('home')
         elif current is not None:
             self.select_item(current)

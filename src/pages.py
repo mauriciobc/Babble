@@ -128,6 +128,22 @@ class PagedPosts:
         if scope is not None:
             scope.close()
 
+    def close_requests(self):
+        """Cancel what is in flight and refuse new requests, now.
+
+        For an owner that is dropped while something may still hold the
+        page (a reference cycle keeps it until the next collection): an
+        answer must not land on it. Safe to call twice."""
+        self._close_paging_scope()
+
+    def has_loaded(self):
+        """Whether a first load has completed: there are items, or the
+        page settled on its empty state. A page never loaded, loading its
+        first page or showing an error is not, and a catch-up has nothing
+        to catch up on it."""
+        return (self.model.get_n_items() > 0
+                or self.stack.get_visible_child_name() == 'empty')
+
     # Requests
 
     @staticmethod

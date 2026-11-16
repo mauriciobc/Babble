@@ -936,7 +936,9 @@ class BabbleWindow(Adw.ApplicationWindow):
         if self.notifications_page is not None:
             self.notifications_page.catch_up()
         for page in self.stream_router.timeline_pages():
-            if page is not self.timeline_page:
+            # A place never loaded has nothing to catch up on; asking would
+            # send it a first-page request it never wanted.
+            if page is not self.timeline_page and page.has_loaded():
                 page.refresh()
         conversations = self.navigation.children.get('conversations')
         if conversations is not None:

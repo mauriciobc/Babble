@@ -22,7 +22,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio, GLib  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -293,6 +293,8 @@ check('and its stream', bool(wanted) and LOCAL not in wanted[-1])
 check('and leaves the other places alone',
       'federated' in routing.children and federated_page._auto_refresh_id
       and FEDERATED in wanted[-1])
+check('and its request scope closes at once, before any collection',
+      local_scope.closed)
 del local_page
 for _ in range(5):
     gc.collect()
@@ -302,6 +304,33 @@ check('and the page is freed, its request scope closed',
 window.settings.set_boolean('hide-local', False)
 check('and showing it again builds a new page when it is opened',
       'local' not in routing.children)
+
+# A page pushed on top of a place hides the place's tag, so the sidebar
+# cannot tell from the visible tag that the place under it is going. Hide
+# the place anyway: the stack goes back to home, and popping the pushed
+# page cannot land on a page that is gone.
+window.show_page('local')
+under_page = routing.pages['local']
+under_child = routing.children['local']
+under_freed = []
+under_child.weak_ref(lambda: under_freed.append(True))
+under_scope = under_child._scope
+window.navigation_view.push(Adw.NavigationPage.new(Gtk.Label(), 'thread'))
+stack = window.navigation_view.get_navigation_stack()
+check('a page is pushed on top of Local',
+      stack.get_n_items() == 2 and window.visible_tag() is None)
+window.settings.set_boolean('hide-local', True)
+stack = window.navigation_view.get_navigation_stack()
+check('hiding Local under a pushed page resets the stack to home',
+      stack.get_n_items() == 1
+      and window.navigation_view.get_visible_page() is window.page_home)
+del under_page, under_child, stack
+for _ in range(5):
+    gc.collect()
+    GLib.MainContext.default().iteration(False)
+check('and the forgotten page is freed, its scope closed',
+      under_freed and under_scope.closed)
+window.settings.set_boolean('hide-local', False)
 
 # A list or hashtag that is no longer pinned is gone from the sidebar,
 # and goes with it.
@@ -329,21 +358,32 @@ routing.place_page('local')
 routing.place_page('federated')
 window.settings.set_strv('favorite-tags-ids', ['1/rust'])
 routing.place_page('tag:rust')
-for tag, page in (('local', routing.children['local']),
-                  ('federated', routing.children['federated']),
-                  ('tag', routing.children['tag:rust'].timeline)):
-    page.refresh = lambda tag=tag: refreshed.append(tag)
 routing.children['conversations'] = types.SimpleNamespace(
     refresh=lambda: refreshed.append('conversations'))
+# Only Local has loaded something; Federated and the hashtag never did.
+routing.children['local'].model.insert_new([
+    {'id': '00100', 'content': '<p>post</p>',
+     'account': {'acct': 'user', 'id': '1'},
+     'created_at': '2026-01-01T00:00:00.000Z'}])
+routing.children['local'].model.loading = False   # its first load ended
+# The others are idle and empty: never loaded, nothing in flight.
+routing.children['federated'].model.loading = False
+routing.children['tag:rust'].timeline.model.loading = False
+requests = []
+window.client.request_async = (
+    lambda method, path, **kw: requests.append((method, path, kw['params'])))
 window._stream_dropped = True
 window._on_stream_connection_changed(None, True)
-check('a reconnect refreshes every open place, not only home',
-      sorted(refreshed) == ['conversations', 'federated', 'home', 'local',
-                            'tag'])
-check('each place once', len(refreshed) == len(set(refreshed)))
-del refreshed[:]
+check('a reconnect refreshes home and the conversations',
+      sorted(refreshed) == ['conversations', 'home'])
+check('a loaded place sends exactly one newer-posts request',
+      requests == [('GET', '/timelines/public',
+                    {'local': 'true', 'limit': 20, 'min_id': '00100'})])
+check('and the places that never loaded (Federated, the hashtag) send '
+      'nothing', not any(r[2].get('local') != 'true' for r in requests))
+del refreshed[:], requests[:]
 window._on_stream_connection_changed(None, True)
-check('and only after an outage', not refreshed)
+check('and only after an outage', not refreshed and not requests)
 window._stream_dropped = False
 window.timeline_page = None
 del routing.children['conversations']

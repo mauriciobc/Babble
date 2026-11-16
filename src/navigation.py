@@ -145,9 +145,10 @@ class Navigation:
         keep receiving events for a timeline nobody shows, and a public
         feed the server closed would keep its subscription until
         something else happened to sync the stream. Each child stops the
-        work it has in flight first (a catch-up, its auto-refresh timer);
-        its paging scope closes when the last reference to it drops, as
-        for any page, and nothing here keeps the child alive.
+        work it has in flight first (a catch-up, its auto-refresh timer)
+        and closes its request scope at once, so a page that stays alive
+        (held by a reference cycle until the next collection) cannot be
+        answered after it was dropped.
 
         Does nothing when none of *tags* is built.
         """
@@ -166,6 +167,8 @@ class Navigation:
         switch does."""
         if child is None:
             return
+        # Only the Catch-Up page has cancel(); the others are paged
+        # lists, closed through close_requests().
         cancel = getattr(child, 'cancel', None)
         if cancel is not None:
             cancel()                    # a catch-up in flight
@@ -173,6 +176,9 @@ class Navigation:
         stop = getattr(timeline, 'set_auto_refresh_interval', None)
         if stop is not None:
             stop(0)
+        close = getattr(timeline, 'close_requests', None)
+        if close is not None:
+            close()
 
     def clear(self):
         self.pages.clear()
