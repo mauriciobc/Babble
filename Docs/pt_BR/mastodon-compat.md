@@ -289,7 +289,8 @@ integração do guia do cliente:
   renderizado como um `CollectionCard` abaixo do corpo
   (`timeline._show_collections`), e uma URL `/collections/:id` é resolvida por
   `/api/v2/search?resolve=true` e abre a `CollectionPage` dentro do aplicativo
-  (`pages.fedi_link_kind`, `pages.open_collection`, `pages.resolve_uri`).
+  (`linkrouting.fedi_link_kind`, `linkrouting.open_collection`,
+  `linkrouting.resolve_uri`).
 - **Denúncia** — `POST /reports` carrega `collection_ids[]`
   (`report.build_report_payload`), oferecida pela ação "Denúncia" em uma
   Coleção (`fedicollections.CollectionActions.report`).

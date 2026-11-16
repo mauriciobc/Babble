@@ -285,8 +285,8 @@ integration points:
 - **Sharing** — a post's `Status#tagged_collections` renders as a
   `CollectionCard` under the body (`timeline._show_collections`), and a
   `/collections/:id` URL resolves through `/api/v2/search?resolve=true`
-  and opens `CollectionPage` in-app (`pages.fedi_link_kind`,
-  `pages.open_collection`, `pages.resolve_uri`).
+  and opens `CollectionPage` in-app (`linkrouting.fedi_link_kind`,
+  `linkrouting.open_collection`, `linkrouting.resolve_uri`).
 - **Reporting** — `POST /reports` carries `collection_ids[]`
   (`report.build_report_payload`), offered by the "Report" action on a
   Collection (`fedicollections.CollectionActions.report`).

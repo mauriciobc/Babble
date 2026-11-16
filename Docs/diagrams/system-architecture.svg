@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 812" role="img" aria-labelledby="title desc">
+<title id="title">Babble system architecture</title>
+<desc id="desc">Layered architecture: application shell, feature views, the shared page toolkit split into small modules (pages.py marked as paging and state only), domain models, API registry and transport, external boundary, with media, state, plugin and system sidecars. Lock icons mark the boundaries a named test enforces. A box recounts the import cycles.</desc>
+<rect x="0" y="0" width="1000" height="812" fill="#ffffff"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/></marker>
+<marker id="side" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/></marker>
+<symbol id="lock" viewBox="0 0 12 14"><path d="M3 6V4a3 3 0 0 1 6 0v2" fill="none" stroke="#1f2328" stroke-width="1.5"/><rect x="1" y="6" width="10" height="7.5" rx="1.5" fill="#1f2328"/><circle cx="6" cy="9.2" r="1.3" fill="#ffffff"/><rect x="5.5" y="9.4" width="1" height="2.5" fill="#ffffff"/></symbol>
+<g id="bone"><rect x="-30" y="-3.5" width="60" height="7" rx="3.5"/><circle cx="-30" cy="-3.5" r="4.2"/><circle cx="-30" cy="3.5" r="4.2"/><circle cx="30" cy="-3.5" r="4.2"/><circle cx="30" cy="3.5" r="4.2"/></g></defs>
+<text x="20" y="28" font-size="20" font-weight="700" fill="#1f2328">Babble — system architecture</text>
+<text x="980" y="50" font-size="11" text-anchor="end" fill="#5f6368">snapshot 9d8dc8c</text>
+<text x="20" y="74" font-size="10" fill="#5f6368">↓  dependencies point down; sidecars attach through narrow APIs</text>
+<rect x="20" y="86" width="690" height="84" rx="10" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="20" y="86" width="4" height="84" rx="2" fill="#2f6fdd"/>
+<circle cx="38" cy="104" r="9" fill="#2f6fdd" fill-opacity="0.18" stroke="#2f6fdd"/>
+<text x="38" y="108" font-size="10" font-weight="700" text-anchor="middle" fill="#1f2328">1</text>
+<text x="54" y="108" font-size="13" font-weight="600" fill="#1f2328">Application shell &amp; orchestration</text>
+<rect x="54" y="118" width="116" height="26" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="112.0" y="134.0" font-size="8.8" text-anchor="middle" fill="#1f2328">babble.in · main</text>
+<rect x="176" y="118" width="150" height="26" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="251.0" y="134.0" font-size="8.8" text-anchor="middle" fill="#1f2328">window.BabbleWindow</text>
+<rect x="332" y="118" width="100" height="26" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="382.0" y="134.0" font-size="8.8" text-anchor="middle" fill="#1f2328">navigation</text>
+<rect x="438" y="118" width="100" height="26" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="488.0" y="134.0" font-size="8.8" text-anchor="middle" fill="#1f2328">sidebarhost</text>
+<rect x="544" y="118" width="100" height="26" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="594.0" y="134.0" font-size="8.8" text-anchor="middle" fill="#1f2328">streamrouter</text>
+<text x="54" y="158" font-size="9.5" fill="#5f6368">Owns session, login, page stack, streaming lifecycle. Graph: window fan-out 58; BabbleWindow 172 edges.</text>
+<rect x="20" y="188" width="690" height="148" rx="10" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="20" y="188" width="4" height="148" rx="2" fill="#2f6fdd"/>
+<circle cx="38" cy="206" r="9" fill="#2f6fdd" fill-opacity="0.18" stroke="#2f6fdd"/>
+<text x="38" y="210" font-size="10" font-weight="700" text-anchor="middle" fill="#1f2328">2</text>
+<text x="54" y="210" font-size="13" font-weight="600" fill="#1f2328">Feature views — Gtk pages, rows, dialogs</text>
+<rect x="32" y="218" width="212" height="52" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="40" y="233" font-size="10.5" font-weight="600" fill="#1f2328">Timeline</text>
+<text x="40" y="247" font-size="8.6" fill="#5f6368">timelinepage · statusrow · statusfold</text>
+<text x="40" y="259" font-size="8.6" fill="#5f6368">statusrun · statusactions · statusmenu</text>
+<rect x="252" y="218" width="212" height="52" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="260" y="233" font-size="10.5" font-weight="600" fill="#1f2328">Compose</text>
+<text x="260" y="247" font-size="8.6" fill="#5f6368">compose · composeattach · composeupload</text>
+<text x="260" y="259" font-size="8.6" fill="#5f6368">composequote · composeschedule · pollbox</text>
+<rect x="472" y="218" width="212" height="52" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="480" y="233" font-size="10.5" font-weight="600" fill="#1f2328">Notifications</text>
+<text x="480" y="247" font-size="8.6" fill="#5f6368">notifications · notificationctrl</text>
+<text x="480" y="259" font-size="8.6" fill="#5f6368">notificationrow · notificationpolicy</text>
+<rect x="32" y="276" width="212" height="52" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="40" y="291" font-size="10.5" font-weight="600" fill="#1f2328">Social &amp; discovery</text>
+<text x="40" y="305" font-size="8.6" fill="#5f6368">profile · search · explore · hashtags</text>
+<text x="40" y="317" font-size="8.6" fill="#5f6368">lists · filters · conversations · relations</text>
+<rect x="252" y="276" width="212" height="52" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="260" y="291" font-size="10.5" font-weight="600" fill="#1f2328">Social ops</text>
+<text x="260" y="305" font-size="8.6" fill="#5f6368">fedicollections · admin · scheduled</text>
+<text x="260" y="317" font-size="8.6" fill="#5f6368">announcements · reports · profileedit</text>
+<rect x="472" y="276" width="212" height="52" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="480" y="291" font-size="10.5" font-weight="600" fill="#1f2328">Subsystems</text>
+<use href="#lock" x="546" y="281" width="10" height="12"/>
+<text x="560" y="291" font-size="8" font-weight="600" fill="#1f2328">module boundary R1–R11</text>
+<text x="480" y="305" font-size="8.6" fill="#5f6368">catchup/* (15 modules) · thread</text>
+<text x="480" y="317" font-size="8.6" fill="#5f6368">mediaviewer · blueskythread · wrapped</text>
+<rect x="20" y="354" width="690" height="170" rx="10" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="20" y="354" width="4" height="170" rx="2" fill="#2e8b57"/>
+<circle cx="38" cy="372" r="9" fill="#2e8b57" fill-opacity="0.18" stroke="#2e8b57"/>
+<text x="38" y="376" font-size="10" font-weight="700" text-anchor="middle" fill="#1f2328">3</text>
+<text x="54" y="376" font-size="13" font-weight="600" fill="#1f2328">Shared page toolkit &amp; domain models</text>
+<rect x="32" y="384" width="330" height="66" rx="6" fill="#fdf1f0" stroke="#c62828"/>
+<text x="42" y="399" font-size="10.5" font-weight="600" fill="#1f2328"><tspan x="42" dy="0">pages.py — 49 importers ·</tspan><tspan x="42" dy="12" font-size="9" fill="#c62828">paging &amp; state only — do not add to it</tspan></text>
+<text x="42" y="427" font-size="8.8" fill="#5f6368">StateStack · PagedList · PagedPosts · call_api</text>
+<text x="42" y="439" font-size="8.8" fill="#5f6368">AccountRow · empty / loading / error pages</text>
+<g transform="translate(318 417) scale(1.15)" fill="#c62828" role="img" aria-label="Skull and crossbones: do not add to pages.py">
+<use href="#bone" transform="rotate(35)"/>
+<use href="#bone" transform="rotate(-35)"/>
+<path d="M0 -24 C-14 -24 -21 -15 -21 -6 C-21 0 -18 4 -14 6 L-14 14 H14 L14 6 C18 4 21 0 21 -6 C21 -15 14 -24 0 -24 Z" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="-8" cy="-6" r="5" fill="#ffffff"/>
+<circle cx="8" cy="-6" r="5" fill="#ffffff"/>
+<path d="M0 0 L-3.2 6.5 H3.2 Z" fill="#ffffff"/>
+<path d="M-8 14.5 V9 M-2.7 14.5 V9 M2.7 14.5 V9 M8 14.5 V9" stroke="#ffffff" stroke-width="1.6" fill="none"/>
+</g>
+<rect x="370" y="384" width="328" height="66" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="380" y="399" font-size="10.5" font-weight="600" fill="#1f2328">Domain models</text>
+<text x="380" y="413" font-size="8.8" fill="#5f6368">entities.lift · StatusItem / TimelineModel</text>
+<text x="380" y="425" font-size="8.8" fill="#5f6368">RunModel / StatusRun · NotificationModel</text>
+<text x="380" y="437" font-size="8.8" fill="#5f6368">timelinebase · statustext · textemoji · capabilities</text>
+<text x="42" y="468" font-size="8.8" fill="#5f6368">Split out of pages.py — an importer takes only the one it needs:</text>
+<rect x="32" y="474" width="105" height="26" rx="5" fill="none" stroke="#2e8b57"/>
+<text x="84.5" y="491" font-size="8.8" text-anchor="middle" fill="#1f2328">appsettings</text>
+<rect x="143" y="474" width="105" height="26" rx="5" fill="none" stroke="#2e8b57"/>
+<text x="195.5" y="491" font-size="8.8" text-anchor="middle" fill="#1f2328">weakconnect</text>
+<rect x="254" y="474" width="105" height="26" rx="5" fill="none" stroke="#2e8b57"/>
+<text x="306.5" y="491" font-size="8.8" text-anchor="middle" fill="#1f2328">pagenav</text>
+<rect x="365" y="474" width="105" height="26" rx="5" fill="none" stroke="#2e8b57"/>
+<text x="417.5" y="491" font-size="8.8" text-anchor="middle" fill="#1f2328">feedback</text>
+<rect x="476" y="474" width="105" height="26" rx="5" fill="none" stroke="#2e8b57"/>
+<text x="528.5" y="491" font-size="8.8" text-anchor="middle" fill="#1f2328">linkrouting</text>
+<rect x="587" y="474" width="105" height="26" rx="5" fill="none" stroke="#2e8b57"/>
+<text x="639.5" y="491" font-size="8.8" text-anchor="middle" fill="#1f2328">linkhandlers</text>
+<use href="#lock" x="42" y="504" width="10" height="12"/>
+<text x="58" y="514" font-size="8.4" font-weight="600" fill="#1f2328">module boundary R10–R11: none imports a plugin or webcolumn (the link registry replaces it); pages has no compat names</text>
+<line x1="355" y1="524" x2="355" y2="544" stroke="#5f6368" stroke-width="1.5" marker-end="url(#arrow)"/>
+<use href="#lock" x="364" y="528" width="10" height="12"/>
+<text x="380" y="538" font-size="8.4" font-weight="600" fill="#1f2328">api boundary: the UI reaches Mastodon only through src/api</text>
+<rect x="20" y="546" width="690" height="126" rx="10" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="20" y="546" width="4" height="126" rx="2" fill="#0f7d8c"/>
+<circle cx="38" cy="564" r="9" fill="#0f7d8c" fill-opacity="0.18" stroke="#0f7d8c"/>
+<text x="38" y="568" font-size="10" font-weight="700" text-anchor="middle" fill="#1f2328">4</text>
+<text x="54" y="568" font-size="13" font-weight="600" fill="#1f2328">API registry &amp; transport</text>
+<rect x="32" y="576" width="212" height="84" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="42" y="591" font-size="10.5" font-weight="600" fill="#1f2328">api/* — 22 modules</text>
+<text x="42" y="605" font-size="8.8" fill="#5f6368">148 endpoints · 68 read / 80 write</text>
+<text x="42" y="617" font-size="8.8" fill="#5f6368">core.send · send_path · send_multipart</text>
+<text x="42" y="629" font-size="8.8" fill="#5f6368">send — 105 graph edges</text>
+<use href="#lock" x="42" y="637" width="10" height="12"/>
+<text x="58" y="647" font-size="8.4" font-weight="600" fill="#1f2328">api registry · api golden</text>
+<rect x="252" y="576" width="212" height="84" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="262" y="591" font-size="10.5" font-weight="600" fill="#1f2328">MastodonClient</text>
+<text x="262" y="605" font-size="8.8" fill="#5f6368">Soup.Session · OAuth PKCE · keyring</text>
+<text x="262" y="617" font-size="8.8" fill="#5f6368">retry · 429 handling · paging</text>
+<text x="262" y="629" font-size="8.8" fill="#5f6368">MastodonClient — 107 edges</text>
+<use href="#lock" x="262" y="637" width="10" height="12"/>
+<text x="278" y="647" font-size="8.4" font-weight="600" fill="#1f2328">api boundary (no path outside src/api)</text>
+<rect x="472" y="576" width="226" height="84" rx="6" fill="none" stroke="#c9cdd2"/>
+<text x="482" y="591" font-size="10.5" font-weight="600" fill="#1f2328">Streaming &amp; Bluesky</text>
+<text x="482" y="605" font-size="8.8" fill="#5f6368">StreamingManager → StreamRouter</text>
+<text x="482" y="617" font-size="8.8" fill="#5f6368">15 routed events · 6 stream kinds</text>
+<text x="482" y="629" font-size="8.8" fill="#5f6368">Bluesky AppView HTTP client</text>
+<use href="#lock" x="482" y="637" width="10" height="12"/>
+<text x="498" y="647" font-size="8.4" font-weight="600" fill="#1f2328">stream events · stream dispatch</text>
+<line x1="355" y1="672" x2="355" y2="688" stroke="#5f6368" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="20" y="690" width="690" height="80" rx="10" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="20" y="690" width="4" height="80" rx="2" fill="#7a4fc4"/>
+<circle cx="38" cy="708" r="9" fill="#7a4fc4" fill-opacity="0.18" stroke="#7a4fc4"/>
+<text x="38" y="712" font-size="10" font-weight="700" text-anchor="middle" fill="#1f2328">5</text>
+<text x="54" y="712" font-size="13" font-weight="600" fill="#1f2328">External boundary</text>
+<rect x="32" y="728" width="105" height="30" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="84.5" y="746.0" font-size="8.8" text-anchor="middle" fill="#1f2328">Mastodon HTTPS</text>
+<rect x="143" y="728" width="105" height="30" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="195.5" y="746.0" font-size="8.8" text-anchor="middle" fill="#1f2328">Streaming WS</text>
+<rect x="254" y="728" width="105" height="30" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="306.5" y="746.0" font-size="8.8" text-anchor="middle" fill="#1f2328">Secret Service</text>
+<rect x="365" y="728" width="105" height="30" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="417.5" y="746.0" font-size="8.8" text-anchor="middle" fill="#1f2328">GSettings</text>
+<rect x="476" y="728" width="105" height="30" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="528.5" y="746.0" font-size="8.8" text-anchor="middle" fill="#1f2328">XDG files</text>
+<rect x="587" y="728" width="105" height="30" rx="5" fill="none" stroke="#c9cdd2"/>
+<text x="639.5" y="746.0" font-size="8.8" text-anchor="middle" fill="#1f2328">WebKit / GStreamer</text>
+<line x1="355" y1="170" x2="355" y2="186" stroke="#5f6368" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="355" y1="336" x2="355" y2="352" stroke="#5f6368" stroke-width="1.5" marker-end="url(#arrow)"/>
+<use href="#lock" x="20" y="786" width="10" height="12"/>
+<text x="36" y="796" font-size="9" fill="#1f2328">= a named test fails if this boundary is crossed (test names in bold beside each lock)</text>
+<text x="728" y="100" font-size="12.5" font-weight="600" fill="#1f2328">Cross-cutting sidecars</text>
+<rect x="728" y="110" width="252" height="118" rx="8" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="728" y="110" width="4" height="118" rx="2" fill="#a56a00"/>
+<text x="742" y="129" font-size="11.5" font-weight="600" fill="#1f2328">Media pipeline</text>
+<text x="742" y="148" font-size="8.8" fill="#5f6368">imagecache.Fetcher · one Soup.Session</text>
+<text x="742" y="163" font-size="8.8" fill="#5f6368">mediacache texture LRU</text>
+<text x="742" y="178" font-size="8.8" fill="#5f6368">remotemedia gate · mediapolicy</text>
+<text x="742" y="193" font-size="8.8" fill="#5f6368">mediaengine · mediastream</text>
+<text x="742" y="208" font-size="8.8" fill="#5f6368">mediaplayback · mediaexport</text>
+<rect x="728" y="238" width="252" height="118" rx="8" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="728" y="238" width="4" height="118" rx="2" fill="#7a4fc4"/>
+<text x="742" y="257" font-size="11.5" font-weight="600" fill="#1f2328">State &amp; persistence</text>
+<text x="742" y="276" font-size="8.8" fill="#5f6368">accounts (id, instance)</text>
+<text x="742" y="291" font-size="8.8" fill="#5f6368">drafts · readingposition · hashtags</text>
+<text x="742" y="306" font-size="8.8" fill="#5f6368">homefilters · preferences</text>
+<text x="742" y="321" font-size="8.8" fill="#5f6368">catchup.store snapshots</text>
+<text x="742" y="336" font-size="8.8" fill="#5f6368">69 GSettings keys · keyring</text>
+<rect x="728" y="366" width="252" height="118" rx="8" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="728" y="366" width="4" height="118" rx="2" fill="#c4562f"/>
+<text x="742" y="385" font-size="11.5" font-weight="600" fill="#1f2328">Plugins</text>
+<text x="742" y="404" font-size="8.8" fill="#5f6368">plugin.py public API</text>
+<text x="742" y="419" font-size="8.8" fill="#5f6368">pluginhost · pluginsupport</text>
+<text x="742" y="434" font-size="8.8" fill="#5f6368">libpeas load-on-demand</text>
+<text x="742" y="449" font-size="8.8" fill="#5f6368">Context: request / secrets / settings</text>
+<text x="742" y="464" font-size="8.8" fill="#5f6368">WebKit panel column</text>
+<use href="#lock" x="742" y="468" width="10" height="12"/>
+<text x="758" y="478" font-size="8.4" font-weight="600" fill="#1f2328">plugin boundary · plugins</text>
+<rect x="728" y="494" width="252" height="118" rx="8" fill="#ffffff" stroke="#c9cdd2"/>
+<rect x="728" y="494" width="4" height="118" rx="2" fill="#2e8b57"/>
+<text x="742" y="513" font-size="11.5" font-weight="600" fill="#1f2328">System integration</text>
+<text x="742" y="532" font-size="8.8" fill="#5f6368">auth: OAuth loopback + PKCE</text>
+<text x="742" y="547" font-size="8.8" fill="#5f6368">sysstate: network / power</text>
+<text x="742" y="562" font-size="8.8" fill="#5f6368">portals: background / shortcuts</text>
+<text x="742" y="577" font-size="8.8" fill="#5f6368">desktopnotify · clipboard</text>
+<text x="742" y="592" font-size="8.8" fill="#5f6368">Gtk.UriLauncher · textemoji</text>
+<rect x="728" y="624" width="252" height="176" rx="8" fill="#ffffff" stroke="#a15c00"/>
+<text x="742" y="644" font-size="11.5" font-weight="600" fill="#a15c00">Import cycles, recounted</text>
+<text x="742" y="662" font-size="8.8" fill="#5f6368">AST over every import, function bodies too:</text>
+<text x="742" y="676" font-size="8.8" fill="#5f6368">one group of 83 of 151 modules</text>
+<text x="742" y="690" font-size="8.8" fill="#5f6368">(main: 87 of 145), 401 edges inside.</text>
+<text x="742" y="708" font-size="8.8" fill="#5f6368">At load time: none (module boundary R9).</text>
+<text x="742" y="722" font-size="8.8" fill="#5f6368">Toolkit → plugin / webcolumn edges: 0 (R10).</text>
+<text x="742" y="740" font-size="8.8" fill="#5f6368">What still ties the group: lazy dispatch from</text>
+<text x="742" y="752" font-size="8.8" fill="#5f6368">pagenav (profile, thread) and linkrouting</text>
+<text x="742" y="764" font-size="8.8" fill="#5f6368">(hashtags, bluesky, collections). Without</text>
+<text x="742" y="776" font-size="8.8" fill="#5f6368">those it splits into 32, 5, 4, 3 and 3.</text>
+<text x="742" y="792" font-size="8.8" fill="#5f6368">Declared window.py exception: 1,819 lines.</text>
+</svg>
