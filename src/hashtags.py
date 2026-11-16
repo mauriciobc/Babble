@@ -27,7 +27,6 @@ from .api import tags as api_tags  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from .hashtagcompleter import forget_pool  # noqa: E402
 from .lists import make_pin_button  # noqa: E402
-from .feedback import ToastDialog  # noqa: E402
 from .statustext import STATS_DAYS, history_totals  # noqa: E402, F401
 
 FAVORITE_TAGS_KEY = 'favorite-tags-ids'
@@ -447,7 +446,7 @@ class _TagsEditor:
         entry.set_text('')
 
 
-class MultiHashtagEditor(ToastDialog):
+class MultiHashtagEditor(feedback.ToastDialog):
     """Create or edit a saved multi-hashtag timeline."""
 
     def __init__(self, definition, on_saved=None, on_deleted=None):

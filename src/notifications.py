@@ -16,7 +16,8 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, GLib, Gio, GObject, Gtk  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import pages, uihelpers  # noqa: E402
+from . import (appsettings, linkrouting, pagenav, pages,  # noqa: E402
+               uihelpers)
 from .api import notifications as api_notifications  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 from .notificationcopy import type_offered  # noqa: E402
@@ -27,9 +28,6 @@ from .notificationmodel import (  # noqa: E402
 from .notificationpolicy import (  # noqa: E402
     EXCLUDED_TYPES_KEY, NOTIFICATION_TYPES, _store_type_visibility,
     present_notification_policy)
-from .appsettings import settings  # noqa: E402
-from .linkrouting import launch_external  # noqa: E402
-from .pagenav import push_page  # noqa: E402
 from .pages import PagedList, PagedPosts  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .statustext import parse_content  # noqa: E402
@@ -191,11 +189,11 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         self.header_widget = None
         if account_id is None:
             self._build_header()
-            connect_weak(settings(), 'changed::' + EXCLUDED_TYPES_KEY,
+            connect_weak(appsettings.settings(), 'changed::' + EXCLUDED_TYPES_KEY,
                          self._on_excluded_changed)
         else:
             self.filter_group.set_visible(False)
-        connect_weak(settings(), 'changed::dim-trivial-notifications',
+        connect_weak(appsettings.settings(), 'changed::dim-trivial-notifications',
                      self._update_dim)
         self._update_dim()
 
@@ -217,7 +215,7 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         options menu (Filter submenu with one check item per type) and
         the clear button."""
         self.actions = Gio.SimpleActionGroup()
-        excluded = set(settings().get_strv(EXCLUDED_TYPES_KEY))
+        excluded = set(appsettings.settings().get_strv(EXCLUDED_TYPES_KEY))
         filter_menu = Gio.Menu()
         for kind, label in NOTIFICATION_TYPES:
             name = 'show-' + _slug(kind)
@@ -263,7 +261,7 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
     def _excluded_key(self):
         if getattr(self, 'account_id', None) is not None:
             return ()
-        return tuple(sorted(settings().get_strv(EXCLUDED_TYPES_KEY)))
+        return tuple(sorted(appsettings.settings().get_strv(EXCLUDED_TYPES_KEY)))
 
     def _on_type_toggled(self, action, value, kind):
         """Check items show a type: unchecking adds it to the persisted
@@ -284,7 +282,7 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         self._reload()
 
     def _update_dim(self, *_args):
-        if settings().get_boolean('dim-trivial-notifications'):
+        if appsettings.settings().get_boolean('dim-trivial-notifications'):
             self.add_css_class('dim-enabled')
         else:
             self.remove_css_class('dim-enabled')
@@ -315,7 +313,7 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         if kind in ('severed_relationships', 'moderation_warning'):
             links = notification_links(item, self.client.instance)
             if links:
-                launch_external(self, links[0][1])
+                linkrouting.launch_external(self, links[0][1])
             return
         if item.status_item is None and len(item.actors) > 1:
             # A merged group with no post (new followers, sign-ups) has no
@@ -407,7 +405,7 @@ class NotificationRequestRow(Adw.ActionRow):
     def on_activate(self):
         title = _('Notifications from %s') % ('@' + self.request['account']
                                               .get('acct', ''))
-        push_page(self, title,
+        pagenav.push_page(self, title,
                   RequestNotificationsPage(self.page.client, self.request,
                                            self.answer))
 

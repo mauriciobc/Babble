@@ -23,7 +23,6 @@ from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
                pages, uihelpers)
 from .api import search as api_search  # noqa: E402
-from .feedback import ToastDialog  # noqa: E402
 from .lists import error_text_markup  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .statustext import compact_count  # noqa: E402
@@ -575,7 +574,7 @@ class SearchPage(Adw.Bin):
         dialog.present(self)
 
 
-class AdvancedSearchDialog(ToastDialog):
+class AdvancedSearchDialog(feedback.ToastDialog):
     """Builds a query with the operators Mastodon understands, the way
     Tuba's advanced search dialog does."""
 

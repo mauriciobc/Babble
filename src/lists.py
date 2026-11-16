@@ -21,7 +21,6 @@ from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
                pages, uihelpers)
 from .api import accounts as api_accounts  # noqa: E402
 from .api import lists as api_lists  # noqa: E402
-from .feedback import ToastDialog  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .mastodon import summarize_error, summarize_error_markup  # noqa: E402
 
@@ -150,7 +149,7 @@ class AvatarRow(Adw.ActionRow):
 
 # List editor
 
-class ListEditor(ToastDialog):
+class ListEditor(feedback.ToastDialog):
     """Create or edit a list. Members are managed once the list exists:
     search the accounts you follow to add, remove with the row button."""
 
@@ -606,7 +605,7 @@ class ListsPage(Adw.Bin):
 
 # Add an account to lists
 
-class _MembershipDialog(ToastDialog):
+class _MembershipDialog(feedback.ToastDialog):
     def __init__(self, client, account):
         super().__init__(_('Add to Lists'), height=520)
         self.client = client

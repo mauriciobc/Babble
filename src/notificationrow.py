@@ -12,10 +12,8 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import linkrouting, uihelpers  # noqa: E402
+from . import feedback, linkrouting, uihelpers  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
-from .feedback import report_error  # noqa: E402
-from .linkrouting import launch_external  # noqa: E402
 from .uihelpers import reveal  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
@@ -668,7 +666,7 @@ class NotificationRow(ColumnBox):
         present_admin(self, self.client)
 
     def _on_link_clicked(self, _button, uri):
-        launch_external(self, uri)
+        linkrouting.launch_external(self, uri)
 
     def _on_view_report_year(self, _button):
         from .wrapped import present_wrapped
@@ -709,7 +707,7 @@ class NotificationRow(ColumnBox):
             except GLib.Error as error:
                 for button in buttons:
                     button.set_sensitive(True)
-                report_error(self, _('Could not answer the request'), error)
+                feedback.report_error(self, _('Could not answer the request'), error)
                 return
             item.request_state = 'accepted' if action == 'authorize' \
                 else 'rejected'
@@ -758,7 +756,7 @@ class NotificationRow(ColumnBox):
             except GLib.Error as error:
                 if self.item is item:
                     self._bind_extras(item, client)
-                report_error(self, _('Could not follow'), error)
+                feedback.report_error(self, _('Could not follow'), error)
                 return
             _RELATIONSHIPS[key] = relationship
             if self.item is item:
