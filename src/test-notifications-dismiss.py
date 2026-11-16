@@ -121,7 +121,13 @@ FAV_D = make_notification('945', 'favourite', ACTOR3,
 from src import desktopnotify  # noqa: E402
 
 from testkit import notificationskit as kit  # noqa: E402
-from testkit.notificationskit import FollowClient, _live_error_result, body_text, collect, notification_rows, pump_until, visible_text  # noqa: E402
+from testkit.notificationskit import (FollowClient,
+    _live_error_result,
+    body_text,
+    collect,
+    notification_rows,
+    pump_until,
+    visible_text)  # noqa: E402
 from testkit.notificationskit import client, page  # noqa: E402
 
 # The live anonymous fetch: /api/v1/notifications without a token.

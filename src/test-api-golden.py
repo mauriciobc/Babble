@@ -69,6 +69,16 @@ builddir = os.environ.get('BABBLE_BUILDDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
+from src import hashtags  # noqa: E402
+from src import notificationrow  # noqa: E402
+from src import notifications  # noqa: E402
+from src import pagenav  # noqa: E402
+from src import profile  # noqa: E402
+from src import profiledialogs  # noqa: E402
+from src import profilelookup  # noqa: E402
+from src import relations  # noqa: E402
+from src import statusviews  # noqa: E402
+
 bundle = os.path.join(builddir, 'src', 'babble.gresource')
 if not os.path.exists(bundle):
     print('SKIP - no compiled babble.gresource; run meson compile first')
@@ -77,11 +87,10 @@ Gio.Resource.load(bundle)._register()
 
 Adw.init()
 
-from src import (explore, feedback, hashtaglists, linkrouting,  # noqa: E402
-                 pagenav, profiledialogs, profilelookup,
-                 statusviews, hashtags, notifications,
-                 notificationrow, profile, relations,
-                 statusactions, statusmenu)
+from src import (explore,
+    feedback,
+    hashtaglists,
+    linkrouting)  # noqa: E402
 from src.mastodon import MastodonClient  # noqa: E402
 from src.statusactions import StatusActions  # noqa: E402
 from src.statusmenu import StatusMenuButton  # noqa: E402
@@ -417,6 +426,9 @@ def fake_confirm(widget, heading, body, action_label, callback,
                  destructive=True):
     callback()
 
+
+from src import statusactions  # noqa: E402
+from src import statusmenu  # noqa: E402
 
 feedback.show_toast = fake_toast
 feedback.confirm = fake_confirm

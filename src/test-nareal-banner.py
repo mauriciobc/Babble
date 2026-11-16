@@ -20,7 +20,39 @@ from testkit import narealplugin as kit  # noqa: E402
 from testkit.narealplugin import real_timers, timer_calls  # noqa: E402
 from gi.repository import GLib, GObject, Gtk  # noqa: E402
 from src import pluginmenu as pluginmenu_mod  # noqa: E402,F401
-from testkit.narealplugin import SERVER, Server, anchor, check, column, composed, context, detour, failures, feedback, freed, host, httpd, link_ext, linkrouting, main_ext, menu, module, open_questions, opened, panel_now, pluginmenu, real_compose, real_pages, resolved, settled, share_link, shut, spin, textemoji, toasts, wait_dom, window  # noqa: E402
+from testkit.narealplugin import (SERVER,
+    Server,
+    anchor,
+    check,
+    column,
+    composed,
+    context,
+    detour,
+    failures,
+    feedback,
+    freed,
+    host,
+    httpd,
+    link_ext,
+    linkrouting,
+    main_ext,
+    menu,
+    module,
+    open_questions,
+    opened,
+    panel_now,
+    pluginmenu,
+    real_compose,
+    real_pages,
+    resolved,
+    settled,
+    share_link,
+    shut,
+    spin,
+    textemoji,
+    toasts,
+    wait_dom,
+    window)  # noqa: E402
 import gc
 
 # --- The hashtag banner (its own commit) -----------------------------------

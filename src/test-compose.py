@@ -44,16 +44,23 @@ srcroot = os.path.dirname(os.path.abspath(srcdir))
 sys.path.insert(0, srcroot)
 sys.path.insert(0, srcdir)
 
+from src.hashtagcompleter import (hashtag_query, is_name_char,  # noqa: E402
+                                   merge_casing, rank_tags, wants_search)
+from src import composedialog  # noqa: E402
+from src import emojichooser  # noqa: E402
+from src import feedback  # noqa: E402
+from src import pagenav  # noqa: E402
+from src import scheduled  # noqa: E402
+
 from src.compose import BabbleComposeView  # noqa: E402
 from src.composedialog import ComposeDialog  # noqa: E402
 from src.composeoptions import VISIBILITIES, countable_length  # noqa: E402
 from src.composeattach import MAX_ATTACHMENTS  # noqa: E402
-from src import (appsettings, compose, composeattach,  # noqa: E402
-                 composedialog, emojichooser, feedback, pagenav, scheduled)
+from src import (appsettings,
+    compose,
+    composeattach)  # noqa: E402
 from src.drafts import Attachment, Draft  # noqa: E402
-from src.hashtagcompleter import (MAX_SUGGESTIONS,  # noqa: E402
-                                  hashtag_query, is_name_char, merge_casing,
-                                  rank_tags, wants_search)
+from src.hashtagcompleter import (MAX_SUGGESTIONS)  # noqa: E402
 from src.mentioncompleter import mention_query  # noqa: E402
 from gettext import gettext as _, ngettext  # noqa: E402
 

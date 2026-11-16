@@ -17,7 +17,28 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
     sys.exit(77)
 
 from testkit import narealplugin as kit  # noqa: E402
-from testkit.narealplugin import DETOUR, ME, SERVER, Server, accounts, check, column, composed, context, dom, host, module, open_questions, opened, panel_now, run, settings, settled, shut, spin, toasts, wait_dom  # noqa: E402
+from testkit.narealplugin import (DETOUR,
+    ME,
+    SERVER,
+    Server,
+    accounts,
+    check,
+    column,
+    composed,
+    context,
+    dom,
+    host,
+    module,
+    open_questions,
+    opened,
+    panel_now,
+    run,
+    settings,
+    settled,
+    shut,
+    spin,
+    toasts,
+    wait_dom)  # noqa: E402
 
 # --- The login form -------------------------------------------------------
 
