@@ -246,31 +246,31 @@ class _Context(api.Context):
             message, GLib.PRIORITY_DEFAULT, scope.cancellable, done, None)
 
     def store_secret(self, name, value, callback=None):
-        from . import mastodon
+        from . import keyringstore
 
         def done(error):
             if callback is not None and self.active:
                 self.guard(callback, error.message if error else None)
-        mastodon.store_secret_async(SECRET_PREFIX + self.plugin_id, name,
+        keyringstore.store_secret_async(SECRET_PREFIX + self.plugin_id, name,
                                     value, done)
 
     def lookup_secret(self, name, callback):
-        from . import mastodon
+        from . import keyringstore
 
         def done(value, error=None):
             if self.active:
                 self.guard(callback, value,
                            error.message if error else None)
-        mastodon.load_secret_async(SECRET_PREFIX + self.plugin_id, name,
+        keyringstore.load_secret_async(SECRET_PREFIX + self.plugin_id, name,
                                    done)
 
     def clear_secret(self, name, callback=None):
-        from . import mastodon
+        from . import keyringstore
 
         def done(error):
             if callback is not None and self.active:
                 self.guard(callback, error.message if error else None)
-        mastodon.clear_secret_async(SECRET_PREFIX + self.plugin_id, name,
+        keyringstore.clear_secret_async(SECRET_PREFIX + self.plugin_id, name,
                                     done)
 
     def toast(self, widget, text):

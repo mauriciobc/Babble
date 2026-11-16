@@ -347,7 +347,7 @@ class HashtagsPage(Adw.Bin):
 
     def __init__(self, client):
         super().__init__()
-        from .hashtags import HashtagRow
+        from .hashtaglists import HashtagRow
         self.paged = pages.PagedList(
             client, api_tags.list_path('trending'),
             lambda tag: HashtagRow(client, tag, sparkline=True),

@@ -44,11 +44,12 @@ srcroot = os.path.dirname(os.path.abspath(srcdir))
 sys.path.insert(0, srcroot)
 sys.path.insert(0, srcdir)
 
-from src.compose import (VISIBILITIES,  # noqa: E402
-                         BabbleComposeView, ComposeDialog, countable_length)
+from src.compose import BabbleComposeView  # noqa: E402
+from src.composedialog import ComposeDialog  # noqa: E402
+from src.composeoptions import VISIBILITIES, countable_length  # noqa: E402
 from src.composeattach import MAX_ATTACHMENTS  # noqa: E402
-from src import (appsettings, compose, composeattach, emojichooser,  # noqa: E402
-                 feedback, pagenav, scheduled)
+from src import (appsettings, compose, composeattach,  # noqa: E402
+                 composedialog, emojichooser, feedback, pagenav, scheduled)
 from src.drafts import Attachment, Draft  # noqa: E402
 from src.hashtagcompleter import (MAX_SUGGESTIONS,  # noqa: E402
                                   hashtag_query, is_name_char, merge_casing,
@@ -948,8 +949,8 @@ natural = dialog.view.measure(Gtk.Orientation.VERTICAL,
 sizer = dialog.view.get_parent()
 check('dialog keeps its width',
       sizer.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
-      == compose.COMPOSE_WIDTH
-      and dialog.view.get_width() <= compose.COMPOSE_WIDTH,
+      == composedialog.COMPOSE_WIDTH
+      and dialog.view.get_width() <= composedialog.COMPOSE_WIDTH,
       '%d' % dialog.view.get_width())
 del sizer
 check('dialog height fits its content',

@@ -44,9 +44,10 @@ from gi.repository import Gio, GLib, GObject, Soup  # noqa: E402
 from .weakconnect import weak_method  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .accounts import account_key  # noqa: E402
-from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
-                       MastodonClient, OAUTH_REDIRECT, OAUTH_SCOPES,
-                       OOB_REDIRECT, keyring_problem, loopback_redirect)
+from .mastodon import MastodonClient, keyring_problem  # noqa: E402
+from .oauthpkce import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
+                        OAUTH_REDIRECT, OAUTH_SCOPES, OOB_REDIRECT,
+                        loopback_redirect)
 
 # How long the loopback listener waits for the browser to come back.
 LOOPBACK_TIMEOUT_SECONDS = 10 * 60

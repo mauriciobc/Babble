@@ -1,0 +1,677 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Judging a stored run: coverage, orderings, metrics, gates and the report."""
+
+import datetime
+import json
+import math
+import os
+import src.catchup.rank as _rank
+import src.catchup.rank_model as _rank_model
+import statistics
+import sys
+from rankeval.rankstore import database_path, open_database, sibling_accounts
+from rankeval.shared import iso_utc
+from src import affinity, oauthpkce
+
+
+
+# bench/, where the gates file lives next to the harness.
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+
+# D3: a day is evaluated at this hour, local time, for every account.
+EVALUATION_HOUR = 6
+
+DAY = datetime.timedelta(days=1)
+
+HOUR = datetime.timedelta(hours=1)
+
+# A day is covered when no two consecutive runs are further apart than
+# this, in seconds.
+COVERAGE_GAP = 2 * 60 * 60
+
+# The same gap, with the tolerance that ``julianday``'s resolution
+# needs. A gap of exactly two hours comes back as 7200.000013 or
+# 7199.999973 depending on the date, and the plan allows a two-hour
+# gap -- so the comparison needs a margin, or the same sampling pattern
+# is covered on one day and not on the next.
+GAP_TOLERANCE = 1e-3
+
+# The orderings every day compares, in report order (plan item 5), and
+# the metrics each day records (plan item 6).
+ORDERINGS = ('chrono', 'rank_null', 'rank_affinity', 'engagement',
+             'affinity_chrono')
+
+METRICS = ('recall20', 'recall50', 'authors20', 'small20', 'overlap20')
+
+def parse_moment(value):
+    """An ISO-8601 stamp as an aware datetime, or None.
+
+    Both timestamp families go through here before they are compared: a
+    ``created_at`` has second precision and a ``run_ts`` microseconds, so
+    their text order is not their time order. Only a ``run_ts`` is
+    compared as text, and only with another ``run_ts``.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        moment = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return (moment if moment.tzinfo
+            else moment.replace(tzinfo=datetime.timezone.utc))
+
+def day_moment(day):
+    """*day* at the D3 hour, as UTC.
+
+    The datetime is built naive, so ``astimezone`` reads it in the local
+    zone the day's date was taken in, that day's DST rule included.
+    """
+    return datetime.datetime(day.year, day.month, day.day,
+                             EVALUATION_HOUR).astimezone(
+                                 datetime.timezone.utc)
+
+def run_gaps(connection):
+    """Each run's timestamp and the seconds since the run before it.
+
+    The gap is `LAG`'s, computed in SQL as the plan requires; the first
+    row's gap is None.
+    """
+    return connection.execute(
+        'SELECT ts, (julianday(ts) - julianday(previous)) * 86400.0'
+        ' FROM (SELECT ts, LAG(ts) OVER (ORDER BY ts) AS previous'
+        ' FROM runs) ORDER BY ts').fetchall()
+
+def covered(gaps, moment):
+    """Whether the day at *moment* was sampled densely enough.
+
+    The plan: "A day has coverage when no gap between consecutive runs
+    in [T - 24 h, T + 24 h] exceeds 2 h."
+
+    That is not only about the gaps *inside* the window. A window whose
+    first twenty-four hours were never sampled has no internal gap to
+    measure, and would pass a check that looked only at those -- and the
+    day would be judged on half the context it is supposed to have. So
+    the window must also be **spanned**: a run within the coverage gap
+    of each end, and no interior gap over the limit.
+
+    The gap is compared with a tolerance. ``julianday`` resolves to
+    about ten microseconds, so an exactly two-hour gap comes back as
+    7200.000013 or 7199.999973 depending on the date; without the
+    tolerance the same sampling pattern would be covered on one day and
+    not on the next.
+    """
+    low, high = iso_utc(moment - DAY), iso_utc(moment + DAY)
+    inside = [row for row in gaps if low <= row[0] <= high]
+    if len(inside) < 2:
+        return False
+    # the window's ends must be sampled, or the day has no context
+    if inside[0][0] > iso_utc(moment - DAY + 2 * HOUR):
+        return False
+    if inside[-1][0] < iso_utc(moment + DAY - 2 * HOUR):
+        return False
+    return all(gap is not None and gap <= COVERAGE_GAP + GAP_TOLERANCE
+               for _ts, gap in inside[1:])
+
+def evaluated_days(gaps):
+    """Every local day between the first run's date and the last one's.
+
+    Returns ``(day, moment, covered)``: the date, its 06:00 local time as
+    UTC, and whether that day can be judged.
+    """
+    if not gaps:
+        return []
+    day = parse_moment(gaps[0][0]).astimezone().date()
+    last = parse_moment(gaps[-1][0]).astimezone().date()
+    days = []
+    while day <= last:
+        moment = day_moment(day)
+        days.append((day, moment, covered(gaps, moment)))
+        day += DAY
+    return days
+
+def stored_maps(connection):
+    """The viewer, the accounts they follow, and their mutuals.
+
+    A mutual is an author the relationships say follows the viewer, the
+    set Catch Up passes as ``mutual_author_ids`` (`rank_model.py`).
+    """
+    row = connection.execute(
+        "SELECT value FROM meta WHERE key = 'viewer_id'").fetchone()
+    following, mutuals = set(), set()
+    for account_id, follows, followed_by in connection.execute(
+            'SELECT account_id, following, followed_by FROM relationships'):
+        if follows:
+            following.add(str(account_id))
+        if followed_by:
+            mutuals.add(str(account_id))
+    return (row[0] if row else None), following, mutuals
+
+def content(status):
+    """The post a timeline entry shows: the boosted one, for a boost."""
+    reblog = status.get('reblog')
+    return reblog if isinstance(reblog, dict) else status
+
+def author_id(status):
+    return str((content(status).get('account') or {}).get('id') or '')
+
+def created_ms(status):
+    moment = parse_moment(status.get('created_at'))
+    return int(moment.timestamp() * 1000) if moment else 0
+
+def engagement_of(status):
+    post = content(status)
+    return (int(post.get('favourites_count') or 0)
+            + int(post.get('reblogs_count') or 0))
+
+def followers_of(status):
+    return int((content(status).get('account') or {}).get('followers_count')
+               or 0)
+
+def observed(status, row):
+    """*status* with its counters, in a copy, replaced by one observation.
+
+    The counters live on the boosted post for a boost, which is where
+    `collect` stored them, so they are written back there.
+    """
+    copy = dict(status)
+    target = copy
+    if isinstance(copy.get('reblog'), dict):
+        target = copy['reblog'] = dict(copy['reblog'])
+    target.update(favourites_count=row[0], reblogs_count=row[1],
+                  replies_count=row[2], favourited=bool(row[3]),
+                  reblogged=bool(row[4]), bookmarked=bool(row[5]))
+    return copy
+
+def candidates_at(connection, moment):
+    """The feed at *moment*, with nothing it could not know yet.
+
+    Candidates are posts created in [T - 24 h, T) that no observation at
+    or before T shows engaged. Each one's counters are replaced, in a
+    copy, by the last observation at or before T: one query, the row with
+    the greatest ``run_ts <= T`` per post. A post first observed after T
+    was not in the feed at T, so it is not a candidate.
+    """
+    before = iso_utc(moment)
+    engaged = {row[0] for row in connection.execute(
+        'SELECT DISTINCT post_id FROM observations WHERE run_ts <= ?'
+        ' AND (favourited OR reblogged OR bookmarked)', (before,))}
+    latest = {row[0]: row[1:] for row in connection.execute(
+        'SELECT post_id, favourites, reblogs, replies, favourited,'
+        ' reblogged, bookmarked FROM (SELECT *, ROW_NUMBER() OVER'
+        ' (PARTITION BY post_id ORDER BY run_ts DESC) AS newest'
+        ' FROM observations WHERE run_ts <= ?) WHERE newest = 1',
+        (before,))}
+    start, found = moment - DAY, []
+    for post_id, raw in connection.execute('SELECT id, json FROM posts'):
+        status = json.loads(raw)
+        created = parse_moment(status.get('created_at'))
+        if (created is not None and start <= created < moment
+                and post_id not in engaged and post_id in latest):
+            found.append(observed(status, latest[post_id]))
+    return found
+
+def labels_at(connection, moment, candidates):
+    """The candidates first observed engaged in (T, T + 24 h], and how
+    many of them fall within an hour of T.
+
+    A flag is the server's state at the run that saw it, so a favourite
+    made just before T cannot be told from one made just after; the near
+    count makes that blur visible. Boosts and replies are exact, from the
+    viewer's own statuses, and are matched by content id.
+    """
+    start, after = iso_utc(moment), iso_utc(moment + DAY)
+    near_limit = iso_utc(moment + HOUR)
+    first = {row[0]: row[1] for row in connection.execute(
+        'SELECT post_id, MIN(run_ts) FROM observations'
+        ' WHERE (favourited OR reblogged OR bookmarked) GROUP BY post_id')}
+    canonical = {}
+    for status in candidates:
+        post_id = str(status.get('id'))
+        canonical[post_id] = post_id
+        reblog = status.get('reblog')
+        if isinstance(reblog, dict) and reblog.get('id'):
+            canonical[str(reblog['id'])] = post_id
+    labelled, near = set(), 0
+    for status in candidates:
+        seen = first.get(str(status.get('id')))
+        if seen is None or not start < seen <= after:
+            continue
+        labelled.add(str(status.get('id')))
+        if seen <= near_limit:
+            near += 1
+    for (raw,) in connection.execute('SELECT json FROM own'):
+        status = json.loads(raw)
+        created = parse_moment(status.get('created_at'))
+        reblog = status.get('reblog')
+        target = str(reblog.get('id') if isinstance(reblog, dict)
+                     else status.get('in_reply_to_id'))
+        if (created is not None and moment < created <= moment + DAY
+                and target in canonical):
+            labelled.add(canonical[target])
+    return labelled, near
+
+def near_labels(connection, moment, candidates):
+    """The candidates first observed engaged within an hour of T.
+
+    The same rule `labels_at` counts, but returning which ones, so a
+    check can name the post on the edge rather than only the count.
+    """
+    start, near_limit = iso_utc(moment), iso_utc(moment + HOUR)
+    first = {row[0]: row[1] for row in connection.execute(
+        'SELECT post_id, MIN(run_ts) FROM observations'
+        ' WHERE (favourited OR reblogged OR bookmarked) GROUP BY post_id')}
+    near = set()
+    for status in candidates:
+        seen = first.get(str(status.get('id')))
+        if seen is not None and start < seen <= near_limit:
+            near.add(str(status.get('id')))
+    return near
+
+def affinity_at(connection, moment, viewer, mutuals):
+    """The affinity maps at T, from what was first seen *before* T only.
+
+    ``now_ms`` is T, so the decay and the bootstrapped strengths are
+    measured from the same clock the ranking uses.
+    """
+    before = iso_utc(moment)
+
+    def listed(table):
+        return [json.loads(row[0]) for row in connection.execute(
+            'SELECT json FROM %s WHERE first_seen < ?' % table, (before,))]
+
+    engaged = affinity.bootstrap_engaged(
+        listed('favourites'), listed('bookmarks'), listed('own'), viewer,
+        mutuals)
+    return affinity.derive_affinities(engaged, (), (),
+                                      int(moment.timestamp() * 1000))
+
+def orderings_at(candidates, moment, resolver, affinities, mutuals, following):
+    """The five orderings of one day's candidates (plan item 5).
+
+    ``chrono`` is Home's order. ``rank_null`` and ``rank_affinity`` are
+    Catch Up's pipeline, without and with the affinity resolver.
+    ``engagement`` is the popularity straw man: favourites plus reblogs.
+    ``affinity_chrono`` reads the same author signal the resolver reads
+    and falls back to time; its scale is not the ranker's, so the two are
+    compared as orderings, never as numbers. ``in_network`` is false only
+    for a non-boost whose author the viewer does not follow.
+    """
+    wrapped = [_rank_model.candidate_from_status(
+        status, in_network=(isinstance(status.get('reblog'), dict)
+                            or author_id(status) in following))
+        for status in candidates]
+
+    def ranked_with(affinity_resolver):
+        context = _rank_model.RankingContext(
+            now=moment, mutual_author_ids=mutuals,
+            affinity=affinity_resolver)
+        return [candidate.status
+                for candidate in _rank.rank(wrapped, context)]
+
+    def descending(key):
+        # Primary key, then newest, then id: a total order, so the same
+        # data always compares the same way.
+        return sorted(candidates, key=lambda status: (
+            key(status), created_ms(status), str(status.get('id'))),
+            reverse=True)
+
+    def by_signal(status):
+        return affinity.affinity_signal(affinities.author, author_id(status))
+
+    return {
+        'chrono': descending(lambda status: 0),
+        'rank_null': ranked_with(_rank_model.NULL_AFFINITY),
+        'rank_affinity': ranked_with(resolver),
+        'engagement': descending(engagement_of),
+        'affinity_chrono': descending(by_signal),
+    }
+
+def small_authors(candidates):
+    """Author ids below the day's candidate median follower count.
+
+    One value per candidate -- the median of what the feed offered, so an
+    author with four of the day's posts counts four times.
+    """
+    if not candidates:
+        return set()
+    cutoff = statistics.median([followers_of(s) for s in candidates])
+    return {author_id(status) for status in candidates
+            if followers_of(status) < cutoff}
+
+def metrics_at(ranked, labels, small, engagement_ids):
+    """One ordering's metrics on one day (plan item 6)."""
+    ids = [str(status.get('id')) for status in ranked]
+    row = {}
+    for k in (20, 50):
+        row['recall%d' % k] = (
+            len(labels & set(ids[:k])) / len(labels) if labels else None)
+    top = ranked[:20]
+    authors = [author_id(status) for status in top]
+    row['authors20'] = len(set(authors))
+    row['small20'] = (sum(1 for author in authors if author in small)
+                      / len(top) if top else None)
+    row['overlap20'] = len(set(ids[:20]) & engagement_ids)
+    return row
+
+def mean_of(rows, ordering, metric):
+    """The mean of one metric over the days that produced it."""
+    values = [row['orderings'][ordering][metric] for row in rows
+              if row['orderings'][ordering].get(metric) is not None]
+    return statistics.fmean(values) if values else None
+
+def sign_test(wins, n):
+    """The sign test §4 pins: p = the sum over i >= wins of C(n,i)/2**n.
+
+    One-sided, H0: P(win) = 0.5 against H1: P(win) > 0.5. Ties are
+    dropped by the caller, so *n* is the non-tied count.
+    """
+    if n <= 0:
+        return 1.0
+    return sum(math.comb(n, i) for i in range(wins, n + 1)) / 2 ** n
+
+def sign_result(rows, candidate, baseline, gates):
+    """The sign test of two orderings, scored by recall@``a1_k``.
+
+    A day where both score the same is a tie and is dropped; a day
+    either could not score is dropped too. Too few non-tied days is
+    INCONCLUSIVE: not a pass, and not a fail, because a sample that small
+    says nothing either way (§4).
+    """
+    k, wins, losses = gates['a1_k'], 0, 0
+    for row in rows:
+        candidate_recall = row['orderings'][candidate]['recall%d' % k]
+        baseline_recall = row['orderings'][baseline]['recall%d' % k]
+        if candidate_recall is None or baseline_recall is None:
+            continue
+        if candidate_recall > baseline_recall:
+            wins += 1
+        elif candidate_recall < baseline_recall:
+            losses += 1
+    n = wins + losses
+    p = sign_test(wins, n)
+    if n < gates['min_nontied_days']:
+        verdict = 'INCONCLUSIVE'
+    else:
+        verdict = 'PASS' if p <= gates['alpha'] else 'FAIL'
+    return {'verdict': verdict, 'nontied': n, 'wins': wins, 'p': p}
+
+def gate_a1(rows, ordering, gates):
+    """A1: the sign test against chrono, plus the mean recall ratio."""
+    result = sign_result(rows, ordering, 'chrono', gates)
+    metric = 'recall%d' % gates['a1_k']
+    candidate = mean_of(rows, ordering, metric)
+    baseline = mean_of(rows, 'chrono', metric)
+    result['mean_ratio'] = candidate / baseline if baseline else None
+    if result['verdict'] == 'PASS':
+        if baseline:
+            enough = result['mean_ratio'] >= gates['a1_min_mean_ratio']
+        else:
+            # chrono recalled nothing on any day: any recall beats none.
+            enough = bool(candidate)
+        result['verdict'] = 'PASS' if enough else 'FAIL'
+    return result
+
+def gate_a2(rows, ordering, gates):
+    """A2: breadth in the top ``a2_k``, against chrono's means.
+
+    The harness records the top-20 metrics (plan item 6), so ``a2_k`` must
+    be 20; the gates file pins it there.
+    """
+    k = gates['a2_k']
+    if k != 20:
+        raise ValueError('a2_k must be 20: only the top 20 is measured')
+    authors = mean_of(rows, ordering, 'authors%d' % k)
+    chrono_authors = mean_of(rows, 'chrono', 'authors%d' % k)
+    share = mean_of(rows, ordering, 'small%d' % k)
+    chrono_share = mean_of(rows, 'chrono', 'small%d' % k)
+    result = {'authors': authors, 'chrono_authors': chrono_authors,
+              'small_share': share, 'chrono_small_share': chrono_share}
+    if None in (authors, chrono_authors, share, chrono_share):
+        result['verdict'] = 'INCONCLUSIVE'
+        return result
+    enough = (authors >= chrono_authors - gates['a2_max_author_drop']
+              and share
+              >= gates['a2_min_small_share_ratio'] * chrono_share)
+    result['verdict'] = 'PASS' if enough else 'FAIL'
+    return result
+
+def judge(rows, gates):
+    """The four decisions and the H1 record (plan item 7).
+
+    A4 asks whether ``rank()`` with affinity beats ``affinity_chrono``: if
+    it does not, the simpler ordering ships. A3 asks whether affinity
+    beats no affinity at all, and decides ``USE_AFFINITY``. The ordering
+    they select is then run through A1 and A2 *itself*: Gate A is PASS
+    only when that ordering passes both, so no ordering ships on another
+    one's numbers (§4, H1).
+    """
+    a1 = gate_a1(rows, 'rank_affinity', gates)
+    a2 = gate_a2(rows, 'rank_affinity', gates)
+    a3 = sign_result(rows, 'rank_affinity', 'rank_null', gates)
+    a4 = sign_result(rows, 'rank_affinity', 'affinity_chrono', gates)
+    ordering = 'rank' if a4['verdict'] == 'PASS' else 'affinity_chrono'
+    use_affinity = a3['verdict'] == 'PASS'
+    if ordering == 'affinity_chrono':
+        shipped = 'affinity_chrono'
+    elif use_affinity:
+        shipped = 'rank_affinity'
+    else:
+        shipped = 'rank_null'
+    if shipped == 'rank_affinity':
+        shipped_a1, shipped_a2 = a1, a2
+    else:
+        shipped_a1 = gate_a1(rows, shipped, gates)
+        shipped_a2 = gate_a2(rows, shipped, gates)
+    verdicts = (shipped_a1['verdict'], shipped_a2['verdict'])
+    if 'FAIL' in verdicts:
+        gate_a = 'FAIL'
+    elif verdicts == ('PASS', 'PASS'):
+        gate_a = 'PASS'
+    else:
+        gate_a = 'INCONCLUSIVE'
+    return {'a1': a1, 'a2': a2, 'a3': a3, 'a4': a4, 'shipped': shipped,
+            'shipped_a1': shipped_a1, 'shipped_a2': shipped_a2,
+            'gate_a': gate_a, 'ordering': ordering,
+            'use_affinity': use_affinity}
+
+def load_gates(path=None):
+    """The frozen gates, or None when there is no file.
+
+    ``bench/rank_eval_gates.json`` is the maintainer's, written once under
+    H0: this reads it and never writes it.
+    """
+    path = path or os.path.join(HERE, 'rank_eval_gates.json')
+    try:
+        with open(path, encoding='utf-8') as handle:
+            return json.load(handle)
+    except FileNotFoundError:
+        return None
+
+def number(value):
+    """A number as printed: three places if it has a fraction, or a dash."""
+    if value is None:
+        return '-'
+    return '%.3f' % value if isinstance(value, float) else '%d' % value
+
+def print_gates(decision, out):
+    """The gate lines, ending in the H1 decision record (§4)."""
+    for name in ('a1', 'a2', 'a3', 'a4'):
+        result = decision[name]
+        details = ' '.join('%s=%s' % (key, number(value))
+                           for key, value in result.items()
+                           if key != 'verdict')
+        print('%s %s %s' % (name.upper(), result['verdict'], details),
+              file=out)
+    if decision['shipped'] != 'rank_affinity':
+        print('%s: A1 %s A2 %s' % (decision['shipped'],
+                                   decision['shipped_a1']['verdict'],
+                                   decision['shipped_a2']['verdict']),
+              file=out)
+    print('Gate A: %s' % decision['gate_a'], file=out)
+    print('ORDERING: %s' % decision['ordering'], file=out)
+    print('USE_AFFINITY: %s' % ('true' if decision['use_affinity']
+                                else 'false'), file=out)
+
+def evaluate(instance, gates_path=None, json_path=None, root=None, out=None,
+             account_id=None):
+    """Judge the recorded feed, day by day. Returns an exit code.
+
+    Every local day between the first and the last run is printed. A day
+    whose 48-hour window was not sampled at most two hours apart is
+    reported as ``no-coverage``, and left out of every count and mean.
+
+    With a gates file the four decisions and the H1 record are printed,
+    and the same numbers go to *json_path* as a summary carrying no post,
+    no id and no handle. Without one, only the metrics are printed: the
+    thresholds were frozen before the data came in (H0), so they cannot
+    be chosen after it.
+
+    *account_id* names the account whose data to read, and it must be the
+    same one ``collect`` wrote under: H1 evaluates three accounts and
+    aggregates three summaries, so each account's days must be its own.
+    """
+    out = out or sys.stdout
+    try:
+        instance_url = oauthpkce.normalize_instance(instance)
+    except ValueError as error:
+        print('rank_eval: %s' % error, file=sys.stderr)
+        return 2
+    connection = open_database(
+        database_path(instance_url, root, account_id))
+    try:
+        viewer, following, mutuals = stored_maps(connection)
+        gaps = run_gaps(connection)
+        if not gaps:
+            print('rank_eval: no runs recorded', file=sys.stderr)
+            others = sibling_accounts(instance_url, root)
+            if others:
+                print('rank_eval: this instance has data for %s; pass the'
+                      ' same --account-id that collect used'
+                      % ', '.join(others), file=sys.stderr)
+            return 1
+        rows = []
+        for day, moment, sampled in evaluated_days(gaps):
+            if not sampled:
+                print('%s 06:00 local no-coverage' % day, file=out)
+                continue
+            candidates = candidates_at(connection, moment)
+            labels, near = labels_at(connection, moment, candidates)
+            affinities = affinity_at(connection, moment, viewer, mutuals)
+            now_ms = int(moment.timestamp() * 1000)
+            ranked = orderings_at(
+                candidates, moment,
+                affinity.resolver(affinities, (), (), now_ms),
+                affinities, mutuals, following)
+            small = small_authors(candidates)
+            overlay = {str(status.get('id'))
+                       for status in ranked['engagement'][:20]}
+            row = {'date': day.isoformat(), 't': iso_utc(moment),
+                   'candidates': len(candidates), 'labels': len(labels),
+                   'labels_near_start': near, 'orderings': {}}
+            for name in ORDERINGS:
+                row['orderings'][name] = metrics_at(
+                    ranked[name], labels, small, overlay)
+            rows.append(row)
+            print('%s 06:00 local candidates=%d labels=%d near=%d'
+                  % (day, len(candidates), len(labels), near), file=out)
+            for name in ORDERINGS:
+                print('  %-16s %s' % (name, ' '.join(
+                    '%s=%s' % (metric, number(row['orderings'][name][metric]))
+                    for metric in METRICS)), file=out)
+    finally:
+        connection.close()
+
+    means = {name: {metric: mean_of(rows, name, metric)
+                    for metric in METRICS} for name in ORDERINGS}
+    summary = {'version': 1, 'days': rows, 'means': means}
+    gates = load_gates(gates_path)
+    if gates is None:
+        print('gates not frozen, no verdict', file=out)
+    else:
+        decision = judge(rows, gates)
+        summary['gates'] = {name: decision[name]
+                            for name in ('a1', 'a2', 'a3', 'a4')}
+        summary['gate_a'] = decision['gate_a']
+        summary['ordering'] = decision['ordering']
+        summary['use_affinity'] = decision['use_affinity']
+        # The ordering that shipped, and the verdicts it earned on its
+        # own numbers. ``aggregate`` needs these: it must not name an
+        # ordering that failed the plan's shipped-ordering rule on the
+        # accounts that tested it, and it can only know that from the
+        # records.
+        summary['shipped'] = decision['shipped']
+        summary['shipped_a1'] = decision['shipped_a1']['verdict']
+        summary['shipped_a2'] = decision['shipped_a2']['verdict']
+        print_gates(decision, out)
+    if json_path:
+        with open(json_path, 'w', encoding='utf-8') as handle:
+            json.dump(summary, handle, indent=2, sort_keys=True)
+            handle.write('\n')
+    return 0
+
+def aggregate(paths, gates_path=None, out=None):
+    """The H1 record across accounts: the per-account summaries, judged.
+
+    Gate A passes when at least ``min_accounts_passing`` accounts'
+    records pass **and** those records shipped an ordering that passed
+    A1 and A2 on its own numbers — the plan's shipped-ordering rule,
+    which the accounts' majority cannot override. A failure on any
+    account that is not offset by enough passes is a FAIL; only accounts
+    that ran out of days without failing make the whole INCONCLUSIVE.
+    The ordering and the affinity decision are the accounts' majority,
+    and a tie falls back to the more conservative answer: ``rank``,
+    without affinity. Without a gates file nothing is decided.
+    """
+    out = out or sys.stdout
+    gates = load_gates(gates_path)
+    if gates is None:
+        print('gates not frozen, no verdict', file=out)
+        return 0
+    records = []
+    seen = []
+    for path in paths:
+        # The same account twice is one account counted twice, and the
+        # gate would read it as two. H1 folds three *different* accounts,
+        # so a path named twice is a mistake, not a fold.
+        key = os.path.abspath(path)
+        if key in seen:
+            print('rank_eval: %s was given twice; each account is one'
+                  ' summary' % path, file=sys.stderr)
+            return 2
+        seen.append(key)
+        with open(path, encoding='utf-8') as handle:
+            records.append(json.load(handle))
+    verdicts = [record.get('gate_a') for record in records]
+    orderings = [record.get('ordering') for record in records]
+    ordering = ('affinity_chrono'
+                if orderings.count('affinity_chrono') > orderings.count('rank')
+                else 'rank')
+    uses = [record.get('use_affinity') for record in records]
+    use_affinity = 2 * sum(1 for value in uses if value) > len(uses)
+
+    # The ordering that ships is named by ``ordering`` and ``use_affinity``
+    # together: 'rank' with affinity is ``rank_affinity``, 'rank' without
+    # is ``rank_null``, and 'affinity_chrono' is itself. The plan says
+    # that ordering "must pass A1 and A2 itself", so the records that
+    # shipped *that* ordering and passed are the ones that carry the
+    # decision. Without this, a majority could name an ordering that
+    # failed on the only account that tested it.
+    shipped = ('affinity_chrono' if ordering == 'affinity_chrono'
+               else ('rank_affinity' if use_affinity else 'rank_null'))
+    carried = [record for record in records
+               if record.get('shipped') == shipped
+               and record.get('shipped_a1') == 'PASS'
+               and record.get('shipped_a2') == 'PASS']
+    if len(carried) >= gates['min_accounts_passing']:
+        gate_a = 'PASS'
+    elif 'FAIL' in verdicts:
+        gate_a = 'FAIL'
+    else:
+        gate_a = 'INCONCLUSIVE'
+    print('Gate A: %s' % gate_a, file=out)
+    print('ORDERING: %s' % ordering, file=out)
+    print('USE_AFFINITY: %s' % ('true' if use_affinity else 'false'),
+          file=out)
+    return 0

@@ -44,9 +44,9 @@ srcdir = os.path.abspath(srcdir)
 # part of the check: an entry cannot exist without one, and deleting the
 # reason fails rather than silently weakening the rule.
 ALLOWED = {
-    ('compose', 'ComposeDialog'):
+    ('composedialog', 'ComposeDialog'):
         'the overlay is built by its child view BabbleComposeView '
-        '(compose.py:454); CLEAN-03 records why it cannot use '
+        '(compose.py); CLEAN-03 records why it cannot use '
         'feedback.show_toast',
     ('scheduled', 'SchedulePickerDialog'):
         'raises no toasts; errors are reported by the page behind it '
@@ -61,7 +61,7 @@ ALLOWED = {
 HAND_BUILT = {
     ('admin', 'AdminDialog'):
         'a NavigationSplitView of admin pages, not a preferences page',
-    ('profile', 'ProfileDialog'):
+    ('profilefeed', 'ProfileDialog'):
         'a bottom sheet whose content is a NavigationView',
     ('report', 'ReportDialog'):
         'a NavigationView with a header per step',
@@ -83,14 +83,14 @@ EXTERNAL = {
 # and walking Adw.Dialog subclasses at runtime. A dialog that is added,
 # renamed or silently stops being detected fails until this is updated.
 EXPECTED = {
-    ('admin', 'AddFederationBlockDialog'),
-    ('admin', 'AddIPBlockDialog'),
-    ('admin', 'AdminAccountDialog'),
     ('admin', 'AdminDialog'),
-    ('admin', 'ReportDialog'),
-    ('admin', 'TakeActionDialog'),
-    ('compose', 'ComposeDialog'),
-    ('fedicollections', 'CollectionEditDialog'),
+    ('adminaccounts', 'AdminAccountDialog'),
+    ('adminfederation', 'AddFederationBlockDialog'),
+    ('adminfederation', 'AddIPBlockDialog'),
+    ('adminreports', 'ReportDialog'),
+    ('adminreports', 'TakeActionDialog'),
+    ('composedialog', 'ComposeDialog'),
+    ('collectionedit', 'CollectionEditDialog'),
     ('hashtags', 'MultiHashtagEditor'),
     ('lists', 'ListEditor'),
     ('lists', '_MembershipDialog'),
@@ -98,8 +98,8 @@ EXPECTED = {
     ('feedback', 'ToastDialog'),
     ('pluginspage', 'PluginsDialog'),
     ('preferences', 'PreferencesDialog'),
-    ('profile', 'PrivateNoteDialog'),
-    ('profile', 'ProfileDialog'),
+    ('profiledialogs', 'PrivateNoteDialog'),
+    ('profilefeed', 'ProfileDialog'),
     ('profileedit', 'ProfileEditDialog'),
     ('report', 'ReportDialog'),
     ('scheduled', 'SchedulePickerDialog'),
@@ -231,7 +231,7 @@ print('    dialogs: %d' % len(dialogs))
 for key in dialogs:
     print('    %s.%s' % key)
 check('both ReportDialog classes are found, not merged',
-      ('admin', 'ReportDialog') in classes
+      ('adminreports', 'ReportDialog') in classes
       and ('report', 'ReportDialog') in classes)
 
 unowned = [key for key in dialogs if not owns_overlay(key)]

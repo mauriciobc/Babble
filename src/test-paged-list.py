@@ -38,7 +38,7 @@ sys.path.insert(0, srcdir)
 
 Adw.init()
 
-from src import (feedback, hashtags, pages, scheduled,  # noqa: E402
+from src import (feedback, hashtaglists, pages, scheduled,  # noqa: E402
                  weakconnect)
 from src.api import core as api_core  # noqa: E402
 
@@ -610,7 +610,7 @@ check('the real drafts page, its list and a row are freed after a page '
       'and a removal', all(freed(ref) for ref in refs))
 
 client = PageClient()
-page = hashtags.FollowedHashtagsPage(client)
+page = hashtaglists.FollowedHashtagsPage(client)
 client.answer([{'name': 'one', 'url': 'u', 'history': []},
                {'name': 'two', 'url': 'u', 'history': []}], None)
 page.paged.remove_row(page.paged.rows[0])

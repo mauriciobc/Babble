@@ -227,7 +227,7 @@ def make_result_widget(client, kind, item):
         return accountrows.AccountRow(client, item,
                                 subtitle=account_subtitle(item))
     if kind == 'hashtags':
-        from .hashtags import HashtagRow
+        from .hashtaglists import HashtagRow
         return HashtagRow(client, item)
     return make_post_row(client, item)
 

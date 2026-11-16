@@ -171,7 +171,7 @@ def open_collection(widget, client, collection):
     if not collection_id:
         launch_external(widget, collection.get('url') or '')
         return
-    from .fedicollections import CollectionPage
+    from .collectionpage import CollectionPage
     pagenav.push_page(widget, collection.get('name') or _('Collection'),
                       CollectionPage(client, collection_id, collection),
                       tag='collection-%s' % collection_id)

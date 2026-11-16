@@ -77,7 +77,8 @@ Gio.Resource.load(bundle)._register()
 
 Adw.init()
 
-from src import (explore, feedback, linkrouting, pagenav,  # noqa: E402
+from src import (explore, feedback, hashtaglists, linkrouting,  # noqa: E402
+                 pagenav, profiledialogs, profilelookup,
                  statusviews, hashtags, notifications,
                  notificationrow, profile, relations,
                  statusactions, statusmenu)
@@ -423,7 +424,7 @@ statusactions._flag = lambda name: False
 statusactions._has_schema = lambda: False
 statusmenu._flag = lambda name: False
 statusmenu._open_composer = lambda *args: None
-profile.present_mute_dialog = \
+profiledialogs.present_mute_dialog = \
     lambda parent, handle, on_confirm: on_confirm(3600, True)
 
 SCENARIOS = []
@@ -1065,7 +1066,7 @@ def hashtag_tag_row_unfollow_then_undo(rec):
         holder.client = rec.client()
         holder.paged = types.SimpleNamespace(remove_row=lambda row: None)
         holder.refresh = lambda: None
-        row = hashtags.TagRow(holder, {'name': 'golden', 'history': []})
+        row = hashtaglists.TagRow(holder, {'name': 'golden', 'history': []})
         row._on_unfollow(row.unfollow)
         rec.settle()
         rec.press_undo()
@@ -1074,7 +1075,7 @@ def hashtag_tag_row_unfollow_then_undo(rec):
 @scenario
 def followed_hashtags_page_loads(rec):
     with WithWindow():
-        hashtags.FollowedHashtagsPage(rec.client())
+        hashtaglists.FollowedHashtagsPage(rec.client())
         rec.settle()
 
 
@@ -1163,9 +1164,9 @@ def mention_completer_searches_accounts(rec):
 
 @scenario
 def fedicollections_fetch_accounts(rec):
-    from src import fedicollections
-    fedicollections._ACCOUNTS.clear()
-    fedicollections.fetch_accounts(rec.client(), ['7', '8', '7'],
+    from src import collectionbase
+    collectionbase._ACCOUNTS.clear()
+    collectionbase.fetch_accounts(rec.client(), ['7', '8', '7'],
                                    lambda _accounts: None)
 
 
@@ -1174,15 +1175,15 @@ def fedicollections_fetch_accounts_chunks_large_batches(rec):
     """GET /accounts?id[]= answers at most 40 ids (the server's
     DEFAULT_ACCOUNTS_LIMIT): 85 uncached ids go out as 40 + 40 + 5, and
     the merged answer keeps the order of the ids."""
-    from src import fedicollections
-    fedicollections._ACCOUNTS.clear()
+    from src import collectionbase
+    collectionbase._ACCOUNTS.clear()
     ids = [str(1000 + n) for n in range(85)]
     rec.queue[('GET', '/api/v1/accounts')] = [
         [account(i, 'u' + i) for i in ids[:40]],
         [account(i, 'u' + i) for i in ids[40:80]],
         [account(i, 'u' + i) for i in ids[80:]]]
     got = []
-    fedicollections.fetch_accounts(rec.client(), ids, got.append)
+    collectionbase.fetch_accounts(rec.client(), ids, got.append)
     rec.settle()
     check('chunked lookup answers once with every account, in order',
           len(got) == 1 and list(got[0]) == ids, repr(got)[:200])
@@ -1195,8 +1196,8 @@ def fedicollections_fetch_accounts_chunks_large_batches(rec):
 def fedicollections_fetch_accounts_keeps_what_arrived_and_says_so(rec):
     """A failed chunk does not lose the other chunks, and the reader is
     told once, not silently shown anonymous avatars."""
-    from src import fedicollections
-    fedicollections._ACCOUNTS.clear()
+    from src import collectionbase
+    collectionbase._ACCOUNTS.clear()
     ids = [str(2000 + n) for n in range(85)]
     # The failing answer does not consume a queued one.
     rec.queue[('GET', '/api/v1/accounts')] = [
@@ -1204,7 +1205,7 @@ def fedicollections_fetch_accounts_keeps_what_arrived_and_says_so(rec):
         [account(i, 'u' + i) for i in ids[80:]]]
     rec.fail[('GET', '/api/v1/accounts')] = [200, 500, 200]
     got = []
-    fedicollections.fetch_accounts(rec.client(), ids, got.append,
+    collectionbase.fetch_accounts(rec.client(), ids, got.append,
                                    widget=Gtk.Box())
     rec.settle()
     check('a failed chunk keeps the accounts of the others',
@@ -1589,7 +1590,8 @@ def draft_posts_load(rec):
 
 @p2
 def compose_retries_the_scheduled_removal(rec):
-    from src.compose import BabbleComposeView, _ScheduledReplacement
+    from src.compose import BabbleComposeView
+    from src.composeschedule import _ScheduledReplacement
     stub = types.SimpleNamespace(
         client=rec.client(), _cleanup_busy=False, _cleanup_banner=None,
         _cleanup_cancellable=None,
@@ -1638,7 +1640,7 @@ def pages_resolve_uri(rec):
 @p2
 def lookup_profile_resolves_a_remote_account(rec):
     rec.fail[('GET', '/api/v1/accounts/lookup')] = [404]
-    rec.keep(profile.LookupProfilePage(rec.client(), '@zed@remote.example'))
+    rec.keep(profilelookup.LookupProfilePage(rec.client(), '@zed@remote.example'))
     rec.settle()
 
 
@@ -1977,12 +1979,12 @@ def admin_reports_list_and_resolved_filter(rec):
 
 @p2
 def admin_report_dialog_category_assignment_and_resolve(rec):
-    from src import admin
+    from src import adminreports
     dialog = admin_dialog(rec)
     rec.settle()
     rec.queue[('POST', '/api/v1/admin/reports/12/assign_to_self')] = [
         {'assigned_account': admin_account_json('30')}]
-    report = admin.ReportDialog(dialog, admin_report_json())
+    report = adminreports.ReportDialog(dialog, admin_report_json())
     rec.settle()
     report.category_checks['spam'].set_active(True)
     rec.settle()
@@ -1995,7 +1997,7 @@ def admin_report_dialog_category_assignment_and_resolve(rec):
     rec.settle()
     report._on_resolve(None)
     rec.settle()
-    reopened = admin.ReportDialog(
+    reopened = adminreports.ReportDialog(
         dialog, admin_report_json(action_taken=True,
                                   action_taken_by_account=admin_account_json(
                                       '30')))
@@ -2006,15 +2008,15 @@ def admin_report_dialog_category_assignment_and_resolve(rec):
 
 @p2
 def admin_take_action_from_a_report_and_an_account(rec):
-    from src import admin
+    from src import adminreports
     dialog = admin_dialog(rec)
     rec.settle()
-    from_report = admin.TakeActionDialog(dialog, '31', '@ada', '12')
+    from_report = adminreports.TakeActionDialog(dialog, '31', '@ada', '12')
     from_report.checks['suspend'].set_active(True)
     from_report.comment.set_text('spam')
     from_report._on_submit(None)
     rec.settle()
-    plain = admin.TakeActionDialog(dialog, '31', '@ada')
+    plain = adminreports.TakeActionDialog(dialog, '31', '@ada')
     plain.email.set_active(False)
     plain._on_submit(None)
     rec.settle()
@@ -2022,7 +2024,7 @@ def admin_take_action_from_a_report_and_an_account(rec):
 
 @p2
 def admin_accounts_list_filters_review_and_undo(rec):
-    from src import admin
+    from src import adminaccounts
     dialog = admin_dialog(rec)
     rec.settle()
     page = dialog.show_tool('accounts').content
@@ -2033,14 +2035,14 @@ def admin_accounts_list_filters_review_and_undo(rec):
     page.entries['ip'].set_text('192.0.2.1')
     page._on_search()
     rec.settle()
-    account_dialog = admin.AdminAccountDialog(dialog, admin_account_json())
+    account_dialog = adminaccounts.AdminAccountDialog(dialog, admin_account_json())
     rec.settle()
     account_dialog._on_review(None, 'approve', 'Approve %s?', '_Approve')
     rec.settle()
     account_dialog._on_review(None, 'reject', 'Reject %s?', '_Reject')
     rec.settle()
     for endpoint in ('unsuspend', 'unsilence', 'enable', 'unsensitive'):
-        admin.UndoRow(account_dialog, 'Undo', endpoint)._undo()
+        adminaccounts.UndoRow(account_dialog, 'Undo', endpoint)._undo()
         rec.settle()
     account_dialog._on_take_action(None)
     rec.settle()
@@ -2048,7 +2050,7 @@ def admin_accounts_list_filters_review_and_undo(rec):
 
 @p2
 def admin_rule_pages_load_add_and_delete(rec):
-    from src import admin
+    from src import adminfederation
     dialog = admin_dialog(rec)
     rec.settle()
     for tag, item_id in (('domain-blocks', '41'), ('domain-allows', '51'),
@@ -2061,23 +2063,23 @@ def admin_rule_pages_load_add_and_delete(rec):
     rec.settle()
     dialog.show_tool('email-blocks').content._on_add('mail.example')
     rec.settle()
-    block = admin.AddFederationBlockDialog(dialog)
+    block = adminfederation.AddFederationBlockDialog(dialog)
     block.domain.set_text('bad.example')
     block.severity.set_selected(0)
     block.reject_reports.set_active(True)
     block._on_save(None)
     rec.settle()
-    block = admin.AddFederationBlockDialog(dialog)
+    block = adminfederation.AddFederationBlockDialog(dialog)
     block.domain.set_text('worse.example')
     block.severity.set_selected(1)
     block._on_save(None)
     rec.settle()
-    rule = admin.AddIPBlockDialog(dialog)
+    rule = adminfederation.AddIPBlockDialog(dialog)
     rule.ip.set_text('198.51.100.0/24')
     rule.checks['sign_up_block'].set_active(True)
     rule._on_save(None)
     rec.settle()
-    rule = admin.AddIPBlockDialog(dialog)
+    rule = adminfederation.AddIPBlockDialog(dialog)
     rule.ip.set_text('203.0.113.7')
     rule.expiration.set_selected(0)
     rule._on_save(None)
@@ -2138,13 +2140,13 @@ _RICH.update({
 
 
 class AsAccount:
-    """The signed-in account `fedicollections` reads off the window."""
+    """The signed-in account the collection pages read off the window."""
 
     def __enter__(self):
-        from src import fedicollections
-        self.module = fedicollections
-        self.real = fedicollections._current_account
-        fedicollections._current_account = \
+        from src import collectionbase
+        self.module = collectionbase
+        self.real = collectionbase._current_account
+        collectionbase._current_account = \
             lambda widget=None: account(ME, 'me')
 
     def __exit__(self, *_exc):
@@ -2153,9 +2155,9 @@ class AsAccount:
 
 @p2
 def collections_page_loads_both_lists_and_refreshes(rec):
-    from src import fedicollections
-    fedicollections._ACCOUNTS.clear()
-    page = rec.keep(fedicollections.CollectionsPage(rec.client()))
+    from src import collectionactions, collectionbase
+    collectionbase._ACCOUNTS.clear()
+    page = rec.keep(collectionactions.CollectionsPage(rec.client()))
     rec.settle()
     page.refresh()
     rec.settle()
@@ -2163,16 +2165,16 @@ def collections_page_loads_both_lists_and_refreshes(rec):
 
 @p2
 def collection_page_loads(rec):
-    from src import fedicollections
-    rec.keep(fedicollections.CollectionPage(rec.client(), '5'))
+    from src import collectionpage
+    rec.keep(collectionpage.CollectionPage(rec.client(), '5'))
     rec.settle()
 
 
 @p2
 def collection_owner_deletes(rec):
-    from src import fedicollections
+    from src import collectionactions
     with AsAccount():
-        actions = fedicollections.CollectionActions(
+        actions = collectionactions.CollectionActions(
             Gtk.Box(), rec.client(), collection_json('5'),
             lambda: None, lambda: None)
         actions.delete()
@@ -2181,9 +2183,9 @@ def collection_owner_deletes(rec):
 
 @p2
 def collection_member_removes_themselves(rec):
-    from src import fedicollections
+    from src import collectionactions
     with AsAccount():
-        actions = fedicollections.CollectionActions(
+        actions = collectionactions.CollectionActions(
             Gtk.Box(), rec.client(), collection_json('6', owner='7'),
             lambda: None, lambda: None)
         actions.remove_me()
@@ -2192,8 +2194,8 @@ def collection_member_removes_themselves(rec):
 
 @p2
 def collection_edit_members_invite_remove_and_save(rec):
-    from src import fedicollections
-    dialog = rec.keep(fedicollections.CollectionEditDialog(
+    from src import collectionedit
+    dialog = rec.keep(collectionedit.CollectionEditDialog(
         rec.client(), collection_json('5'), on_saved=lambda: None))
     dialog.close = lambda: None
     rec.settle()
@@ -2216,8 +2218,8 @@ def collection_edit_clearing_the_topic_sends_a_null_tag_name(rec):
     """Collection.tag_name= with nothing leaves the tag unset (Tag
     .find_or_create_by_names(nil) is []), and the permit list takes a
     null scalar: clearing the topic is `tag_name: null`."""
-    from src import fedicollections
-    dialog = rec.keep(fedicollections.CollectionEditDialog(
+    from src import collectionedit
+    dialog = rec.keep(collectionedit.CollectionEditDialog(
         rec.client(), collection_json('5'), on_saved=lambda: None))
     dialog.close = lambda: None
     rec.settle()
@@ -2233,8 +2235,8 @@ def collection_edit_clearing_the_topic_sends_a_null_tag_name(rec):
 
 @p2
 def collection_edit_saving_without_changes_sends_nothing_more(rec):
-    from src import fedicollections
-    dialog = rec.keep(fedicollections.CollectionEditDialog(
+    from src import collectionedit
+    dialog = rec.keep(collectionedit.CollectionEditDialog(
         rec.client(), collection_json('5'), on_saved=lambda: None))
     dialog.close = lambda: None
     rec.settle()
@@ -2244,8 +2246,8 @@ def collection_edit_saving_without_changes_sends_nothing_more(rec):
 
 @p2
 def collection_create_with_members(rec):
-    from src import fedicollections
-    dialog = rec.keep(fedicollections.CollectionEditDialog(
+    from src import collectionedit
+    dialog = rec.keep(collectionedit.CollectionEditDialog(
         rec.client(), None, on_saved=lambda: None))
     dialog.close = lambda: None
     # The default language follows the environment: pin it.
@@ -2256,7 +2258,7 @@ def collection_create_with_members(rec):
     dialog._invite(account('8', 'bob'), Gtk.Button())
     dialog._on_save(None)
     rec.settle()
-    bare = rec.keep(fedicollections.CollectionEditDialog(
+    bare = rec.keep(collectionedit.CollectionEditDialog(
         rec.client(), None, on_saved=lambda: None))
     bare.close = lambda: None
     bare.language_row.set_selected(bare.language_codes.index('en'))
