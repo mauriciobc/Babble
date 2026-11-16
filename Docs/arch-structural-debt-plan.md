@@ -20,25 +20,27 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 
 ## Current pressure (production)
 
+Line counts on `main` at `de5d7f5` (2026-11-16).
+
 | Module | Lines | Notes |
 |--------|------:|-------|
-| `compose.py` | ~1744 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
-| `window.py` | ~1818 | ARCH-15 extracted sidebarhost, ARCH-20 the stream router; session and stream lifecycle remain |
-| `notifications.py` | ~490 | ARCH-13+18 extracted rows/model/policy; page only |
+| `compose.py` | 1756 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
+| `window.py` | 1820 | ARCH-15 extracted sidebarhost, ARCH-20 the stream router; session and stream lifecycle remain |
+| `notifications.py` | 493 | ARCH-13+18 extracted rows/model/policy; page only |
 | `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
-| `mediaviewer.py` | 514 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` (316) and export/drag to `mediaexport.py` (302). No longer a file-size exception |
-| `profile.py` | ~915 | ARCH-16 extracted profileheader; tabs/extras remain |
-| `mastodon.py` | 1328 | Coherent transport — leave |
-| `pages.py` | 1363 | Shared toolkit — Phase N. `PagedList`'s interface was settled on its own (IMPROVEMENTS CLEAN-08) and grew the file by about 90 lines, and the request scope's adoption by `PagedList` and `StateStack` about 25 more; the sprawl is untouched |
-| `fedicollections.py` | 1086 | Feature pack — Phase N |
-| `hashtags.py` | 802 | Marginal |
+| `mediaviewer.py` | 544 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` and export/drag to `mediaexport.py`. No longer a file-size exception |
+| `profile.py` | 919 | ARCH-16 extracted profileheader; tabs/extras remain |
+| `mastodon.py` | 1334 | Coherent transport — leave |
+| `pages.py` | 733 | Split in #119: settings, weak connects, navigation, feedback, link routing, generic widgets and account rows moved to `appsettings`, `weakconnect`, `pagenav`, `feedback`, `linkrouting`, `uihelpers` and `accountrows`. Paging (`PagedPosts`, `PagedList`), `StateStack` and `call_api` stay. No longer a file-size exception |
+| `fedicollections.py` | 1084 | Feature pack — Phase N |
+| `hashtags.py` | 803 | Marginal |
 
 Catch Up (hard fail over 800, no EXCEPTION):
 
 | Module | Lines | Headroom |
 |--------|------:|---------:|
 | `catchup/rank.py` | 788 | 12 |
-| `catchup/tiles_render.py` | 785 | 15 |
+| `catchup/tiles_render.py` | 792 | 8 |
 | `catchup/rank_text.py` | 779 | 21 |
 | `catchup/digest.py` | 760 | 40 |
 
@@ -309,32 +311,50 @@ the real window); `file size rule`.
   isolation; today’s EXCEPTION stands until then.
 - **`pages.py`:** do not carve paging/`call_api` early; unify silent
   `admin.send` / `fedicollections._send_api` only as a small helper
-  PR, not as a file-size drive.
+  PR, not as a file-size drive. **Split done in #119** (`de5d7f5`), which
+  kept paging and `call_api` in `pages.py` as this entry asks: the other
+  concerns moved to `appsettings`, `weakconnect`, `pagenav`, `feedback`,
+  `linkrouting`, `uihelpers` and `accountrows`, and `module boundary`
+  R10/R11 lock the result. Modules importing `pages` went from 77 to 29.
+- **Function-level import cycle (recorded 2026-11-16, not scheduled):**
+  #119 removed every edge from the toolkit to the plugin and web-column
+  modules, but 81 of the 153 non-test modules still reach each other
+  through imports inside function bodies (390 edges; none at load time,
+  which R9 enforces). Eight lazy dispatch edges tie the group together:
+  `pagenav` to `profile`, `thread` and `timelinedata`, and `linkrouting` to
+  `hashtags`, `blueskycard`, `fedicollections`, `textemoji` and `bskytext`.
+  Cutting those eight leaves groups of 32, 4, 3, 3 and 3. Removing them would
+  mean routing feature pages through a registry, as `linkhandlers` does for
+  links. Shown on `Docs/diagrams/system-architecture.svg`.
 - **`pages.py`, `PagedList` follow-ups (open, not scheduled):** a guard
   for a plain bound-method hook of the owning page (DEF-09), two
   reach-ins that want an operation, `empty_action=` and the empty icon
   and description through `AccountListPage` (DEF-10), and a list that
   stays on the loading page when a hook raises (DEF-11, still open after
-  the request scope below). All three are in `IMPROVEMENTS.md`.
-- **Request scope (`refactor/request-scope`, first step done):**
-  `src/requestscope.py` is adopted by `PagedList` and `StateStack` (thread,
-  filters, edit history, collection page); `call_api` is for writes and for
+  the request scope below). All three are in `IMPROVEMENTS.md`. DEF-21
+  (paging-flag ownership) is done, by #118.
+- **Request scope (two steps done: `refactor/request-scope`, then #118):**
+  `src/requestscope.py` is adopted by `PagedList` (which covers the admin
+  lists), `StateStack` (thread, filters, edit history, collection page, the
+  admin dashboard) and, since #118, `PagedPosts` (timelines, notifications
+  and the profile timeline); `call_api` is for writes and for
   reads whose answer is always wanted, and a read whose owner has a scope
   takes its callback from the scope's ticket and calls the api module
   directly. Behaviour changes, with before and after, and the open items
   QA found are in `IMPROVEMENTS.md` (section 2.2). One family per change
-  from here, in this order: timelines
-  and notifications (`PagedPosts`), search and typeahead, profile, admin and
-  Wrapped, the composer's state epochs, then the error helpers that are
-  not silent on CANCELLED (`summarize_error`, `summarize_error_markup`,
-  `ToastDialog.error`). A write is never cancelled. `blueskythread.py` keeps
+  from here, in this order: search and typeahead, the profile's other
+  reads (header, relationships), the admin dashboard's measures and
+  dimensions, Wrapped, the composer's state epochs, then the error
+  helpers that are not silent on CANCELLED (`ToastDialog.error` and the
+  direct `summarize_error`/`summarize_error_markup` callers;
+  `feedback.report_error`, and so `call_api`, already is). A write is never cancelled. `blueskythread.py` keeps
   its own `bluesky.cancel`. Existing scopes (`pluginsupport.Scope`,
   `catchup.fetch.CatchUpRun`, `auth.py`) could converge on the vocabulary
   (`close()` / `closed`), not now.
 - **`fedicollections.py` / `hashtags.py` / `mastodon.py`:** leave unless
-  they grow or a feature forces a seam. `hashtags.py` is at 802 lines
+  they grow or a feature forces a seam. `hashtags.py` is at 803 lines
   against the limit of 800 as a declared exception: the next deletion of
-  two or more lines must remove its entry in `src/test-file-size.py`.
+  three or more lines must remove its entry in `src/test-file-size.py`.
 - **Stream dispatch table:** done as ARCH-20, with the dependency
   inversion this entry once said it was not.
 
