@@ -19,6 +19,7 @@ it needs, so this module does not grow back into the hub it was.
 define.
 """
 
+import logging
 import types
 
 import gi
@@ -35,6 +36,8 @@ from .api import core as api_core  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .requestscope import RequestScope  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
+
+_log = logging.getLogger(__name__)
 
 COLUMN_WIDTH = 660
 PAGE_SIZE = 40
@@ -607,32 +610,56 @@ class PagedList(Adw.Bin):
         # the list did not cause included, is shown.
         self._loading = False
         self.more_spinner.set_visible(False)
+        cursor = self._next
         try:
             data, next_params, _prev = self.finish(client, result)
-        except GLib.Error as error:
-            if not self.rows:
-                self.error_page.set_description(
-                    summarize_error_markup(error))
-                self.stack.set_visible_child_name('error')
-            else:
-                feedback.report_error(self, _('Could not load more'), error)
-            return
-        items = self.extract(data) or []
-        self._next = next_params if self.paginated and items else None
-        if self.page_filter is not None:
-            items = self.page_filter(items)
-            if not items and self._next:
-                # The page filtered to nothing but more follow: ask for
-                # the next one rather than show an empty list.
-                self.load_more()
+            items = self.extract(data) or []
+            self._next = next_params if self.paginated and items else None
+            if self.page_filter is not None:
+                items = self.page_filter(items)
+            if items or not self._next:
+                self.append_items(items)
                 return
-        self.append_items(items)
+        except GLib.Error as error:
+            self._fail_load(error)
+            return
+        except Exception:
+            # A hook (finish, extract, page_filter, make_row) raised. The
+            # page is not applied and the cursor stays where it was, so
+            # Retry or the next scroll asks for the same page again.
+            _log.exception('PagedList %s: a hook raised while loading',
+                           self.fetch_path)
+            self._next = cursor
+            self._fail_load(None)
+            return
+        # The page filtered to nothing but more follow: ask for the next
+        # one rather than show an empty list.
+        self.load_more()
+
+    def _fail_load(self, error):
+        """End a load that produced no page. The first page shows the
+        error page (with Retry); a later one toasts and leaves the rows.
+        *error* is the ``GLib.Error`` to name, or None for an unexpected
+        exception, whose Python message is not for the reader (it is in
+        the log)."""
+        if not self.rows:
+            self.error_page.set_description(
+                summarize_error_markup(error) if error is not None else '')
+            self.stack.set_visible_child_name('error')
+        elif error is not None:
+            feedback.report_error(self, _('Could not load more'), error)
+        else:
+            feedback.show_toast(self, _('Could not load more'))
 
     def append_items(self, items):
+        # Build every row before touching the list, so a make_row that
+        # raises on the 7th of 20 leaves the list as it was.
+        built = []
         for item in items:
             row = self.make_row(item)
-            if row is None:
-                continue
+            if row is not None:
+                built.append(row)
+        for row in built:
             self.list_box.append(row)
             self.rows.append(row)
         self._settle()

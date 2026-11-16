@@ -14,6 +14,7 @@ and (the last checks) that the test itself can fail. Exits 77 (skip)
 without a display."""
 
 import gc
+import logging
 import os
 # Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
@@ -796,6 +797,141 @@ check('and its answer lands',
 window.destroy()
 del window, holder, lst, other
 settle()
+
+# A hook that raises (DEF-11)
+
+toasts = []
+real_toast = feedback.show_toast
+feedback.show_toast = lambda widget, text, *a, **k: toasts.append(text)
+# The traceback goes to the log; keep this run's output readable.
+logging.getLogger('src.pages').setLevel(logging.CRITICAL)
+
+
+class Hooks:
+    """Hooks that raise while ``armed`` and behave otherwise."""
+
+    def __init__(self, where):
+        self.where = where
+        self.armed = False
+        self.seen = 0
+
+    def finish(self, client_, result):
+        if self.where == 'finish' and self.armed:
+            raise KeyError('not a GLib.Error')
+        return client_.request_finish_paged(result)
+
+    def extract(self, data):
+        if self.where == 'extract' and self.armed:
+            raise TypeError('bad payload')
+        return data
+
+    def page_filter(self, items):
+        if self.where == 'page_filter' and self.armed:
+            raise ValueError('bad filter')
+        return items
+
+    def make_row(self, data):
+        self.seen += 1
+        if self.where == 'make_row' and self.armed and data['id'] == '7':
+            raise RuntimeError('row 7')
+        return make_row(data)
+
+
+def hooked(where):
+    hooks = Hooks(where)
+    client, lst = build(finish=hooks.finish, extract=hooks.extract,
+                        page_filter=hooks.page_filter)
+    lst.make_row = hooks.make_row
+    return hooks, client, lst
+
+
+for where in ('finish', 'extract', 'page_filter', 'make_row'):
+    # First page
+    hooks, client, lst = hooked(where)
+    hooks.armed = True
+    page = [item(n) for n in range(1, 21)]
+    try:
+        client.answer(page, {'max_id': '20'})
+        raised = False
+    except Exception:
+        raised = True
+    check('%s raising on the first page does not raise out of the '
+          'callback' % where, not raised)
+    check('%s raising on the first page shows the error page, no rows, '
+          'nothing half-applied' % where,
+          page_name(lst) == 'error' and lst.rows == [] and children(lst) == []
+          and not lst._loading)
+    check('%s raising on the first page leaves the cursor unset and a '
+          'plain description' % where,
+          lst._next is None and lst.error_page.get_description() == '')
+    hooks.armed = False
+    lst._on_retry(None)
+    client.answer([item(1)])
+    check('%s: Retry after a first-page failure works' % where,
+          page_name(lst) == 'list' and texts(lst) == ['row 1'])
+
+    # Load more
+    hooks, client, lst = hooked(where)
+    client.answer([item(1), item(2)], {'max_id': '2'})
+    lst.load_more()
+    hooks.armed = True
+    before = len(toasts)
+    try:
+        client.answer([item(n) for n in range(3, 23)], {'max_id': '22'})
+        raised = False
+    except Exception:
+        raised = True
+    check('%s raising on load-more does not raise out of the callback'
+          % where, not raised)
+    check('%s raising on load-more keeps the list, adds no row of that '
+          'page' % where,
+          page_name(lst) == 'list' and texts(lst) == ['row 1', 'row 2']
+          and in_step(lst))
+    check('%s raising on load-more releases the spinner and the flag and '
+          'says so once' % where,
+          not lst.more_spinner.get_visible() and not lst._loading
+          and toasts[before:] == ['Could not load more'])
+    check('%s raising on load-more keeps the cursor' % where,
+          lst._next == {'max_id': '2'})
+    hooks.armed = False
+    lst.load_more()
+    check('%s: the retry asks for the same page' % where,
+          len(client.sent) == 3
+          and client.sent[2].params == {'max_id': '2'})
+    client.answer([item(3)], None)
+    check('%s: and lands' % where,
+          texts(lst) == ['row 1', 'row 2', 'row 3'] and in_step(lst))
+
+# A page_filter that empties the page and then a later page that raises
+hooks, client, lst = hooked('make_row')
+client.answer([item(1)], {'max_id': '1'})
+lst.load_more()
+hooks.armed = True
+client.answer([item(n) for n in range(5, 9)], None)
+check('make_row failing mid-page appends none of that page (rows 5, 6 '
+      'built, 7 raised)',
+      texts(lst) == ['row 1'] and in_step(lst) and lst._next == {
+          'max_id': '1'})
+
+# A cancelled or superseded answer shows nothing, even with hooks armed
+hooks, client, lst = hooked('finish')
+hooks.armed = True
+first = client.sent[0]
+lst.refresh()
+before = len(toasts)
+client.answer([item(1)], request=first)
+check('a superseded answer is dropped before any hook runs',
+      page_name(lst) == 'loading' and hooks.seen == 0
+      and toasts[before:] == [])
+hooks, client, lst = hooked('finish')
+hooks.armed = True
+lst._scope.close()
+before = len(toasts)
+client.answer([item(1)])
+check('an answer to a closed list is dropped, no error page, no toast',
+      page_name(lst) == 'loading' and toasts[before:] == [])
+
+feedback.show_toast = real_toast
 
 # The test can fail
 
