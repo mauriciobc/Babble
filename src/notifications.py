@@ -100,9 +100,9 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         # asked for meanwhile. See NotificationController.mark_read.
         self._marking = None
         self._mark_again = False
-        # The generation of a catch-up request, whose failure is quiet.
+        # Whether a catch-up request's failure is quiet.
         # See NotificationController.catch_up.
-        self._quiet_generation = None
+        self._quiet = False
         self._pin_top = False
         self._unread = 0
         self._applied_excluded = self._excluded_key()
@@ -203,6 +203,10 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
                 self.load_announcements()
                 self.fetch_policy()
             self.load()
+
+    def do_dispose(self):
+        self._close_paging_scope()
+        Adw.Bin.do_dispose(self)
 
     # Header: type filter menu and clear button
 

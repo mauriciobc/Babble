@@ -153,7 +153,7 @@ class NotificationController:
                     and (instance, str(item.actors[0].get('id'))) in keys:
                 self.model.items_changed(position, 1, 1)
 
-    def _paging_fetch(self, params, callback, generation):
+    def _paging_fetch(self, params, callback, cancellable):
         """One page request, with the type filters merged in.
 
         The filter merge is what makes this endpoint different from a
@@ -162,25 +162,28 @@ class NotificationController:
         """
         api_notifications.index_async(
             self.client, params=self._fetch_params(params),
-            callback=lambda c, r, _d=None, g=generation: callback(c, r, g))
+            callback=callback, cancellable=cancellable)
 
-    def on_page_loaded(self, client, result, generation=None):
-        # A response from a superseded request must not write rows
-        # of the old filter into the new model.
-        if generation is not None and self._superseded(generation):
-            return
+    def _loading_released(self):
+        # A dropped request gave up the loading flag: its quiet catch-up
+        # is over too.
+        self._quiet = False
+
+    def on_page_loaded(self, client, result):
         self.model.loading = False
+        quiet = self._quiet
+        self._quiet = False
         try:
             notifications = self._finish(result)
         except GLib.Error as e:
-            if generation is not None \
-                    and generation == self._quiet_generation:
+            if quiet:
                 # A catch-up of an empty list: it keeps saying empty.
                 return
             self.error_page.set_description(
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
             return
+
         if not notifications:
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
@@ -196,13 +199,7 @@ class NotificationController:
         if self._is_visible():
             self.mark_read()
 
-    def on_older_loaded(self, client, result, generation=None):
-        # A response from a superseded request must not write rows
-        # of the old filter into the new model.
-        if generation is not None and self._superseded(generation):
-            self._loading_older = False
-            self._release_bottom()
-            return
+    def on_older_loaded(self, client, result):
         self._loading_older = False
         try:
             notifications = self._finish(result)
@@ -222,6 +219,7 @@ class NotificationController:
     def refresh(self, _button=None):
         """Reload the newest notifications; an empty list reloads from
         scratch, which also recovers from the error page."""
+        self._quiet = False
         if self.client.token and self.account_id is None:
             self.fetch_policy()
             self.load_announcements()
@@ -232,6 +230,7 @@ class NotificationController:
 
     def on_refresh(self, _button=None):
         # Paging's refresh(), which uses min_id for this endpoint.
+        self._quiet = False
         PagedPosts.refresh(self)
 
     def catch_up(self):
@@ -251,22 +250,23 @@ class NotificationController:
                 # Never loaded, or failed: a full load is the recovery.
                 self.load()
                 return
+            self._quiet = True
             self.model.loading = True
-            self._request(self._first_page_params(), self.on_page_loaded)
+            self._request(self._first_page_params(), self.on_page_loaded,
+                          on_drop=PagedPosts._drop_loading,
+                          owns_loading=True)
         else:
+            self._quiet = True
             PagedPosts.refresh(self)
-        self._quiet_generation = self._generation
 
-    def on_refresh_loaded(self, client, result, generation=None):
-        # A response from a superseded request must not write rows
-        # of the old filter into the new model.
-        if generation is not None and self._superseded(generation):
-            return
+    def on_refresh_loaded(self, client, result):
         self.model.loading = False
+        quiet = self._quiet
+        self._quiet = False
         try:
             notifications = self._finish(result)
         except GLib.Error as e:
-            if generation is None or generation != self._quiet_generation:
+            if not quiet:
                 pages.report_error(self, _('Refresh failed'), e)
             return
         if notifications:
@@ -344,7 +344,7 @@ class NotificationController:
     def _reload(self):
         # Supersede anything in flight for the previous filter or
         # exclusion set.
-        self._generation += 1
+        self._quiet = False
         self.model.clear()
         self.model.loading = False
         # A filter switch re-enters pagination from the top; released

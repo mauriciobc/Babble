@@ -163,7 +163,7 @@ class _Client:
 class _Source:
     paginated = True
 
-    def fetch(self, _params, _callback):
+    def fetch(self, _params, _callback, cancellable=None):
         pass
 
 

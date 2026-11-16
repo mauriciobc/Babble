@@ -219,6 +219,24 @@ check('a superseded catch-up is asked for again and ends',
       not page._catching and not page._resumed and ids(page)[0] == '00070',
       str(ids(page)[:2]))
 
+# A page whose scope is closed (disposed) with a catch-up out: the
+# cancelled answer ends the chain, and the sweep it would run starts
+# nothing.
+reset()
+readingposition.set_position(settings, ACCOUNT, '00050')
+server = _Server(range(1, 71))
+server.hold = True
+page = home(server)
+server.release()
+check('closed scope: the catch-up request is out',
+      len(server.pending) == 1 and page.model.loading)
+sent = len(server.params)
+page._close_paging_scope()
+server.release()                       # the cancelled answer arrives
+check('closed scope: the dropped catch-up starts no new request',
+      len(server.params) == sent and not server.pending)
+check('closed scope: loading is released', not page.model.loading)
+
 # Choosing the button mid-catch-up hands the rest to the ordinary refresh.
 reset()
 readingposition.set_position(settings, ACCOUNT, '00050')

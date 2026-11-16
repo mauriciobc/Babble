@@ -7,6 +7,12 @@
 > debounce rather than a request-state mutex. Sections 3.2, 12.1, 15.2, 15.3
 > and 15.5 describe behaviour that no longer exists; everything else stands.
 > See `Docs/timeline-paging-vs-tuba.md` for the reasoning.
+>
+> Stale reads in flight are now owned by `RequestScope` tickets rather than a
+> generation counter (§4, §4.1). The `file.py:NNN` references were re-checked
+> against the current tree; passages about code that no longer exists (the
+> cache, `_showing_cache`, the `load_older` override, `replace_all`) are marked
+> *removed* in place and carry no line number.
 
 A complete map of how a post travels from the network to a painted card in
 Babble: every stage, every hand-off, which thread each runs on, what it costs,
@@ -24,67 +30,62 @@ instrumenting before acting on.
 
 ```
                             ┌──────────────────────────────────────────┐
-                            │ 0. SESSION            window.py:402      │
+                            │ 0. SESSION            window.py:446      │
                             │    keyring ──► client ──► show_shell()   │
                             └───────────────────┬──────────────────────┘
                                                 │ client + account
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 1. PAGE CONSTRUCTION              timelinepage.py:190  TimelinePage.__init__   │
+  │ 1. PAGE CONSTRUCTION              timelinepage.py:168  TimelinePage.__init__   │
   │    RunModel ─► Gtk.ListView ─► ClampScrollable ─► ScrolledWindow ─► Overlay     │
-  │    ─► ensure_loaded():  _show_cached()  +  load()                              │
-  └─────────────────────────────────────────────┬───────────────────────────────────┘
-                                                │
-        ┌───────────────────────────────────────┴────────────────────────┐
-        │ (1a) cached first paint, disk, synchronous                    │
-        │      homecache.read ─► json.load ─► model.append_old          │
-        └───────────────────────────────────────┬────────────────────────┘
-                                                │
-  ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 2. REQUEST                pages.py:169  PagedPosts._request                     │
-  │    _generation++ ─► TimelinePage._paging_fetch ─► mastodon.request_async         │
+  │    ─► ensure_loaded():  load()          (the cached first paint was removed)    │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 3. TRANSPORT                mastodon.py:729 / :550 / :668   [worker + main]   │
+  │ 2. REQUEST                pages.py:281  PagedPosts._request                     │
+  │    scope.begin() ─► TimelinePage._paging_fetch ─► mastodon.request_async         │
+  └─────────────────────────────────────────────┬───────────────────────────────────┘
+                                                │
+  ┌─────────────────────────────────────────────▼───────────────────────────────────┐
+  │ 3. TRANSPORT                mastodon.py:810 / :618 / :736   [worker + main]   │
   │    Soup.Session.send_and_read_async ─► retry/429 ─► envelope {"data","link"}     │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 4. RESPONSE DISPATCH        timelinepage.py:563  on_page_loaded                │
-  │    on_older_loaded:672   /   on_refresh_loaded:701                              │
-  │    _finish() ─► generation guard (_superseded)                                  │
+  │ 4. RESPONSE DISPATCH        timelinepage.py:434  on_page_loaded                │
+  │    on_older_loaded:509   /   on_refresh_loaded:568                              │
+  │    Ticket.callback ─► wanted() guard, then _finish()                            │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 5. REPLY FILTER             timelinepage.py:522  _with_home_reply_filter       │
+  │ 5. REPLY FILTER             homefilters.py:56    _with_home_reply_filter       │
   │    optional GET /accounts/relationships ─► defer or pass through                │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 6. MODEL                    timelinedata.py:275  TimelineModel (Gio.ListModel) │
+  │ 6. MODEL                    timelinedata.py:288  TimelineModel (Gio.ListModel) │
   │    filter_unseen ─► group_boosts ─► StatusItem ─► ListStore.splice              │
   │    cursors: oldest_id / newest_id / exhausted / loading                         │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │ items-changed(0, n, 20)
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 7. RUN GROUPING             statusrun.py:340  RunModel (Gio.ListModel)          │
+  │ 7. RUN GROUPING             statusrun.py:525  RunModel (Gio.ListModel)          │
   │    regroup whole model ─► StatusRun ─► minimal items_changed(start,rm,add)     │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │ items-changed
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 8. LIST VIEW                timelinepage.py:33  TimelineFactory                │
+  │ 8. LIST VIEW                timelinepage.py:37  TimelineFactory                │
   │    Gtk.ListView on_setup ─► StatusRunRow()   (shell, empty)                    │
   │    Gtk.ListView on_bind  ─► StatusRunRow.bind(run, client)                      │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │ map
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 9. SHELL + BUILD THROTTLE    statusrun.py:92  StatusRunRow                      │
+  │ 9. SHELL + BUILD THROTTLE    statusrun.py:214  StatusRunRow                      │
   │    _on_map ─► _queue_populate ─► _pending_shells ─► _populate_pending (idle)    │
   │    ONE card build per main-loop dispatch, at PRIORITY_DEFAULT_IDLE              │
   └─────────────────────────────────────────────┬───────────────────────────────────┘
                                                 │
   ┌─────────────────────────────────────────────▼───────────────────────────────────┐
-  │ 10. CARD                    statusrow.py:31  StatusRow (Gtk.Overlay)           │
+  │ 10. CARD                    statusrow.py:36  StatusRow (Gtk.Overlay)           │
   │    bind ─► _bind_status ─► ~15 subsystems, several lazily built                 │
   │    ├─ avatars  mediacache.AvatarCache ─► imagecache.Fetcher                     │
   │    ├─ body     parse_content ─► InlineEmojiText.set_segments                     │
@@ -108,20 +109,20 @@ async fetch.
 ## 2. Stage 0 — Session
 
 ```
-  window.py:402  restore_account()
+  window.py:446  restore_account()
         │
         ├─► account_store.active_account(settings)          (GSettings, sync)
         │
         ▼
-  window.py:409  _activate_account(account)
+  window.py:459  _activate_account(account)
         │
-        ├─ MastodonClient(account['instance'])              mastodon.py:~500
-        │     └─ Soup.Session(), set_timeout(30)            mastodon.py:529
-        │        HTTP_TIMEOUT_SECONDS = 30                  mastodon.py:46
+        ├─ MastodonClient(account['instance'])              mastodon.py:569
+        │     └─ Soup.Session(), set_timeout(30)            mastodon.py:597
+        │        HTTP_TIMEOUT_SECONDS = 30                  mastodon.py:62
         │
-        ├─ self._session_lookup += 1     (stale-lookup guard, window.py:421)
+        ├─ self._session_lookup += 1     (stale-lookup guard, window.py:471)
         │
-        └─ client.load_secret_token(id, loaded)             mastodon.py:343
+        └─ client.load_secret_token(id, loaded)             mastodon.py:1096
                   │
                   ├─ Gio.Task.new(...)
                   └─ task.run_in_thread(work)      ◄── WORKER THREAD
@@ -129,11 +130,11 @@ async fetch.
                   │
                   ▼  (back on the main context)
              loaded(token, error)
-                  ├─ lookup != self._session_lookup ──► DROP   (window.py:424)
-                  ├─ error  ──► login screen + toast   (window.py:429)
-                  ├─ None   ──► remove_account / toast  (window.py:438)
+                  ├─ lookup != self._session_lookup ──► DROP   (window.py:474)
+                  ├─ error  ──► login screen + toast   (window.py:488)
+                  ├─ None   ──► remove_account / toast  (window.py:500)
                   └─ token  ──► client.token = token; self.client = client
-                                ─► show_shell()           (window.py:459)
+                                ─► show_shell()           (window.py:517)
 ```
 
 **Why it is on a thread [M]:** commit `e02459c` measured the keyring read as
@@ -151,40 +152,39 @@ window, not a slow one.
 
 ## 3. Stage 1 — Page construction
 
-`window.py:715 show_shell()` builds the sidebar and both main pages *before*
-flipping `main_stack` to `'shell'` (window.py:736), so everything in stage 1 is
+`window.py:813 show_shell()` builds the sidebar and both main pages *before*
+flipping `main_stack` to `'shell'` (window.py:834), so everything in stage 1 is
 on the critical path to the window appearing at all.
 
 ```
-  ensure_home_timeline()                             window.py:1085
+  ensure_home_timeline()                             window.py:1102
         │
         ├─ if timeline_page exists and .client is self.client ──► reuse (no work)
         │
         └─ TimelinePage(client, mode='home',
-                        model=self.timeline_model,        ◄── reused GListModel
-                        cache_key=account_key(account))   timelinepage.py:190
+                        model=self.timeline_model)        timelinepage.py:168
+                                                          ◄── reused GListModel
                  │
                  │  ── widget tree ──
                  ├─ self.model        = TimelineModel()  or the reused one
-                 ├─ RunModel(self.model)                     statusrun.py:340
+                 ├─ RunModel(self.model)                     statusrun.py:525
                  ├─ Gtk.ListView(model=NoSelection(run_model),
                  │               factory=TimelineFactory(client, filter_ctx))
-                 │        filter_ctx = filter_context_for(source)  :54
+                 │        filter_ctx = filter_context_for(source)  :59
                  ├─ Adw.ClampScrollable(maximum_size=660)      ◄── the column
                  ├─ Gtk.ScrolledWindow(vexpand, h-policy=NEVER)
                  ├─ new_posts_revealer + new_pill  ("N new posts")
                  ├─ Gtk.Overlay { scrolled, revealer }
                  ├─ Gtk.Stack { 'list', 'loading', 'error', 'empty' }
-                 ├─ _RefreshGesture(self, scrolled)             :777
-                 └─ if autoload: ensure_loaded()                :292
+                 ├─ _RefreshGesture(self, scrolled)             :716
+                 └─ if autoload: ensure_loaded()                :293
                           │
-                          ├─ _show_cached()                      :308
                           └─ load()          ──► stage 2
 ```
 
 ### 3.1 The filter context is decided by the path [R]
 
-`filter_context_for(source)` (timelinepage.py:54) inspects `source.path`:
+`filter_context_for(source)` (timelinepage.py:59) inspects `source.path`:
 
 | `source.path` prefix | context |
 |---|---|
@@ -197,50 +197,24 @@ The context is fixed once, at construction, and stamped onto every row the facto
 makes — `StatusRow.filter_context` — which is what `status_filter` is later judged
 against. It is a *view* property, so it never changes per item.
 
-### 3.2 The cached first paint (stage 1a) — the timeline-cache addition
+### 3.2 The cached first paint (stage 1a) — removed
 
-```
-  _show_cached()                                      timelinepage.py:308
-        │
-        ├─ cache_key is None?          ──► return          (public/local/federated
-        │                                                 pages have no cache_key)
-        ├─ model.get_n_items() > 0?    ──► return          (already filled)
-        │
-        ├─ try:  statuses = homecache.read(cache_key)    homecache.py:67
-        │          ├─ open() + json.load()               ◄── SYNCHRONOUS, main thread
-        │          ├─ version check (VERSION == 1)
-        │          ├─ saved_at within MAX_AGE_SECONDS (7 days)
-        │          └─ every status passes _showable()    (id/account/reblog.account)
-        │
-        ├─ no statuses ──► return                       (first run, or stale)
-        │
-        ├─ _fill_first(statuses)                        :326
-        │     ├─ model.append_old(statuses)   ──► stage 6 (stage 7/8 follow)
-        │     ├─ model.oldest_id = min(ids)
-        │     └─ model.newest_id = max(ids)
-        │
-        ├─ self._showing_cache = True        ◄── THE FLAG THAT GATES PAGING
-        └─ stack.set_visible_child_name('list')
-```
-
-`homecache.py` stores one file per account at
-`<user cache>/babble/home/<safe account key>.json`, `0700`/`0600` via
-`catchupstore.write_private` (it holds followers-only and direct posts). It is
-deleted with the login and holds only *the first page this launch loaded* — later
-refreshes and streamed posts are corrected on screen and will be in the live first
-page next launch.
-
-`_showable()` (homecache.py:90) is the fail-safe added by `286a7b7`: a cached
-status missing `id`, `account`, or a boost's `reblog.account` makes the whole file
-read as "no cache", because an exception during page construction would keep the
-live page from ever loading.
+Commit `e02459c` added a disk cache of the home timeline's first page
+(`homecache.py`, `TimelinePage._show_cached`, the `_showing_cache` flag that
+gated paging, `TimelineModel.replace_all`). `286a7b7` hardened its failure
+edges. `2fffbb7` reverted it ("Revert the home cache and let paging release
+itself"): none of those names exists in `src/` any more. `ensure_loaded()` now
+calls `load()` directly, `TimelinePage` does not override `load_older`, and
+`PagedPosts.load_older` is gated only by the bottom lock and `model.exhausted`.
+`TimelinePage._fill_first` (timelinepage.py:300) survives, now as the helper
+that puts a first page in an empty model and sets both cursors.
 
 ---
 
 ## 4. Stage 2 — The paging state machine
 
-`pages.py:132 PagedPosts` is the one state machine; `TimelinePage` overrides the
-transport (`_paging_fetch`/`_finish`) and adds the reply filter and the cache.
+`pages.py:156 PagedPosts` is the one state machine; `TimelinePage` overrides the
+transport (`_paging_fetch`/`_finish`) and adds the reply filter.
 
 ```
                           ┌────────────────────────────────────────┐
@@ -249,68 +223,94 @@ transport (`_paging_fetch`/`_finish`) and adds the reply filter and the cache.
                           │  model.exhausted    (no more pages)    │
                           │  model.oldest_id    (backward cursor)  │
                           │  model.newest_id    (forward cursor)   │
-                          │  _generation        (monotonic)        │
-                          │  _showing_cache     (cache on screen)  │
+                          │  _ticket            (newest request)   │
+                          │  _bottom_locked     (older-page debounce)│
                           └────────────────────────────────────────┘
 
-  load()                    pages.py:197
-    if model.loading: RETURN                    ◄── silent drop, no queue
+  load()                    pages.py:318
+    if _scope.closed or model.loading: RETURN   ◄── silent drop, no queue
     model.loading = True
     if n_items == 0: stack -> 'loading'
-    _request({'limit': 20})  ──► on_page_loaded
+    _request({'limit': 20}, on_page_loaded,
+             on_drop=_drop_loading, owns_loading=True)
 
-  load_older()               pages.py:205   ◄── OVERRIDDEN in TimelinePage
-    if _loading_older: RETURN
-    if model.exhausted: RETURN
-    if model.oldest_id is None: RETURN
+  load_older()               pages.py:330
+    if _scope.closed: RETURN                    ◄── a disposed page starts nothing
+    if model.exhausted or oldest_id is None: RETURN
+    if _bottom_locked: _older_pending = True; RETURN   ◄── remembered, not lost
+    _lock_bottom()                              ◄── debounce, self-releasing
     _loading_older = True
-    _request({'limit': 20, 'max_id': oldest_id}) ──► on_older_loaded
+    _request({'limit': 20, 'max_id': oldest_id}, on_older_loaded,
+             on_drop=_drop_older)
 
-  refresh()                 pages.py:214
-    if model.loading: RETURN
+  refresh()                 pages.py:395
+    if _scope.closed or model.loading: RETURN
     if n_items == 0: load(); return
     model.exhausted = False
-    _request({'limit': 20, 'since_id': newest_id}) ──► on_refresh_loaded
+    model.loading = True
+    _refresh_ticket = None                      ◄── disown the previous refresh
+    ticket = _begin_request(True)
+    _refresh_ticket = ticket                    ◄── BEFORE the send: an answer
+    _send_request(ticket, {'limit': 20,             delivered synchronously (a
+                  'since_id': newest_id},           test's fake) must already
+                  on_refresh_loaded, _drop_refresh) see it as the owner
 
-  _request(params, on_done) pages.py:169
-    _generation += 1
-    generation = self._generation
-    finished = lambda client, result, _d: on_done(client, result, generation)
-    _paging_fetch(params, finished, generation)
+  _request(params, on_done, *, on_drop, owns_loading=False)   pages.py:281
+    ticket = _begin_request(owns_loading)
+    _send_request(ticket, params, on_done, on_drop)
+    return ticket
+
+  _begin_request(owns_loading)                                pages.py:296
+    ticket = self._scope.begin()          # supersedes and cancels the last
+    self._ticket = ticket                 # the newest request, the only
+    self._ticket_owns_loading = owns_loading     # one that can be wanted
+
+  _send_request(ticket, params, on_done, on_drop)             pages.py:307
+    _paging_fetch(params, ticket.callback(on_done, on_drop=on_drop),
+                  ticket.cancellable)
 ```
 
-`TimelinePage.load_older` (timelinepage.py:300) is the override added by `e02459c`:
+`on_drop` is always a function of the owner (`PagedPosts._drop_*`), never a
+bound method: the ticket holds the owner weakly. A first page and a refresh
+own `model.loading` (`owns_loading=True`); an older page does not.
+
+`TimelinePage` no longer overrides `load_older`. The override that `e02459c`
+added (`if self._showing_cache: return`, a silent no-op while a cached page was
+on screen) went with the cache (§3.2). What replaced the old request-state gate
+is the bottom lock: `_lock_bottom()` holds a debounce that is released when the
+page lands, when the request is dropped (`_drop_older`), or by a deadline
+(`BOTTOM_LOCK_MS`), whichever comes first, and a scroll that arrives while it is
+held is remembered in `_older_pending` and replayed, not discarded.
+
+`_drop_older` leaves the flag and the lock alone when a newer older request is
+live: a stale older request cancelled by a reload must not end the live one.
+
+### 4.1 The ticket guard
+
+Every request holds a `RequestScope` ticket. `Ticket.callback` asks `wanted()`
+before the handler runs and, for an answer whose request was overtaken, calls
+the request's `on_drop` instead, which clears the busy flags (unless a newer
+request owns them) so a discarded page cannot leave the list reading as loading
+forever:
 
 ```
-  def load_older(self):
-      if self._showing_cache:
-          return                       ◄── SILENT NO-OP, not deferred
-      PagedPosts.load_older(self)
+  Ticket.callback(client, result)
+      if not ticket.wanted():
+          on_drop(owner)             ◄── page silently discarded
+          return
 ```
 
-### 4.1 The generation guard
-
-Every response is tagged with the generation that requested it. `_superseded`
-(pages.py:188) drops a response whose request was overtaken, and clears both busy
-flags so a discarded page cannot leave the list reading as loading forever:
-
-```
-  on_*_loaded(client, result, generation)
-      if generation is not None and self._superseded(generation):
-          return                     ◄── page silently discarded
-```
-
-Because `_request` increments `_generation` on **every** request, any two
-overlapping requests on one page make the older one dead on arrival. This is the
+Because `_request` calls `begin()` on **every** request, any two overlapping
+requests on one page make the older one dead on arrival. This is the
 mechanism behind several hazards in §11.
 
 ### 4.2 Cursor discipline [R]
 
 | Cursor | Set where | Meaning |
 |---|---|---|
-| `oldest_id` | `append_old`, `replace_all`, `trim`, `_fill_first`, the fully-filtered fallback at timelinepage.py:627 | `max_id` for the next older page |
-| `newest_id` | `append_old`, `replace_all`, `insert_new` | `since_id` for the next refresh |
-| `exhausted` | `append_old` (empty page), `replace_all`/`trim`/`refresh` (cleared) | the server has nothing older |
+| `oldest_id` | `append_old`, `trim`, `_fill_first`, the fully-filtered fallback at timelinepage.py:466 | `max_id` for the next older page |
+| `newest_id` | `append_old`, `insert_new` | `since_id` for the next refresh |
+| `exhausted` | `append_old` (empty page), `trim`/`refresh` (cleared) | the server has nothing older |
 
 `id_key()` (timelinebase.py:29) is the sort key, because Mastodon ids are strings
 "cast from an integer" and a plain string compare orders `'99999999'` after
@@ -321,28 +321,28 @@ mechanism behind several hazards in §11.
 ## 5. Stage 3 — Transport
 
 ```
-  TimelinePage._paging_fetch()                  timelinepage.py:422
+  TimelinePage._paging_fetch()                  timelinepage.py:410
         │
         ├─ source is not None  ─► source.fetch(params, cb)     ApiTimelineSource
         ├─ mode == 'public'    ─► api_timelines.public_async
         └─ else (home)         ─► api_timelines.home_async
                 │
                 ▼
-  mastodon._request_async(method, path, ...)    mastodon.py:729
+  mastodon._request_async(method, path, ...)    mastodon.py:810
         ├─ task = Gio.Task.new(self, cancellable, callback)
         ├─ task._rest_spec  = (method, path, params, form, auth, json_body)
         ├─ task._rest_attempt = 0
-        ├─ message = _build_message(...)                       mastodon.py:595
+        ├─ message = _build_message(...)                       mastodon.py:663
         │     ├─ uri = instance + /api/v1 + path
         │     ├─ params urlencode'd (doseq)
         │     ├─ Authorization: Bearer <token>  when auth and self.token
         │     └─ body from json_body / form
-        └─ _spawn(task, message)                              mastodon.py:550
+        └─ _spawn(task, message)                              mastodon.py:618
               session.send_and_read_async(message, PRIORITY_DEFAULT,
                                           cancellable, _on_response, task)
                 │
                 ▼  (libsoup I/O thread; main loop free)
-  _on_response(_session, result, task)          mastodon.py:668
+  _on_response(_session, result, task)          mastodon.py:736
         ├─ send_and_read_finish()
         │    ├─ CANCELLED          ─► return_error, no retry    :675
         │    └─ other transport err ─► _maybe_retry(transport_error=True)
@@ -350,29 +350,29 @@ mechanism behind several hazards in §11.
         ├─ status = message.get_status()
         ├─ 2xx ─► return_value(Variant('s', {"data":…, "link":…}))
         └─ else
-             ├─ 429 ─► _note_rate_limit(headers) ─► return_error   :697
+             ├─ 429 ─► _note_rate_limit(headers) ─► return_error   :776
              └─ other ─► _maybe_retry() ─► return_error(summarize_error())
 ```
 
 **The envelope [R]:** every successful body is re-serialised as
 `{"data": <parsed>, "link": <Link header>}`. `request_finish` /
-`request_finish_paged` (mastodon.py:760, :764) parse that string back and lift the
+`request_finish_paged` (mastodon.py:841, :845) parse that string back and lift the
 payload with `entities.lift`. Wrapping the `Link` header this way is what lets the
 generic `_finish` return `(data, next_params, prev_params)` for both cursor styles.
 
-**Retry [R]:** `_maybe_retry` (mastodon.py:650) retries only what
-`rest_should_retry` (mastodon.py:88) allows, at most `REST_RETRY_MAX = 3`
-(mastodon.py:61) times, with a `rest_backoff_seconds` (mastodon.py:102) delay via
+**Retry [R]:** `_maybe_retry` (mastodon.py:718) retries only what
+`rest_should_retry` (mastodon.py:119) allows, at most `REST_RETRY_MAX = 3`
+(mastodon.py:84) times, with a `rest_backoff_seconds` (mastodon.py:133) delay via
 `GLib.timeout_add`. Unit-test fakes carry no `_rest_spec` and therefore fail
 straight through.
 
 **Rate limiting [R]:** a 429 records `self._rate_limited_until` from
 `Retry-After` or `X-RateLimit-Reset` (corrected by the response's own `Date`
 header, `server_clock_offset`). `client.rate_limited()` is polled by
-`_on_auto_refresh` (timelinepage.py:364), `_note_followed_tags` (:458) and
+`_on_auto_refresh` (timelinepage.py:340), `_note_followed_tags` (timelinetags.py:32) and
 `_apply_auto_refresh` — the app refuses to deepen a limit the server just imposed.
 
-**Timeouts:** 30 s on both sessions (`mastodon.py:46`, `imagecache.py:60`).
+**Timeouts:** 30 s on both sessions (`mastodon.py:62`, `imagecache.py:60`).
 The comment at imagecache.py:57 records why: libsoup defaults to zero, meaning
 "wait forever".
 
@@ -381,28 +381,38 @@ The comment at imagecache.py:57 records why: libsoup defaults to zero, meaning
 ## 6. Stage 4 — Response dispatch
 
 ```
-  on_page_loaded(client, result, generation)          timelinepage.py:563
-        ├─ generation guard ─► _showing_cache = False; RETURN
+  (Ticket.callback has already asked ticket.wanted(): an unwanted answer
+   went to its on_drop and never reaches a handler below.)
+
+  on_page_loaded(client, result)                      timelinepage.py:434
+        ├─ ticket = self._ticket        (the newest, wanted one)
         ├─ statuses = self._finish(result)             (GLib.Error ⇒ error page)
-        │     ├─ error + _showing_cache ─► keep cache, toast "Refresh failed"
-        │     └─ error, no cache        ─► stack 'error'  + Try Again
+        │     └─ error                  ─► stack 'error'  + Try Again
         ├─ raw_oldest = min(ids)          ◄── cursor survives an all-filtered page
         └─ _with_home_reply_filter(statuses,
-                        lambda f: _finish_page_loaded(f, generation, raw_oldest))
+                        lambda f: _finish_page_loaded(f, ticket, raw_oldest))
+  _finish_page_loaded(statuses, ticket, raw_oldest)   timelinepage.py:459
+        └─ not ticket.wanted() ─► _drop_loading(self); RETURN
 
-  on_older_loaded(client, result, generation)         timelinepage.py:672
-        ├─ generation guard ─► RETURN
+  on_older_loaded(client, result)                     timelinepage.py:509
+        ├─ ticket = self._ticket
         ├─ _loading_older = False      ◄── CLEARED BEFORE THE FILTER (see §11.4)
         ├─ statuses = self._finish(result)
         └─ _with_home_reply_filter(statuses,
-                        lambda f: _finish_older_loaded(f, generation, before=n))
+                        lambda f: _finish_older_loaded(f, ticket, before=n))
+  _finish_older_loaded(statuses, ticket, before, ...) timelinepage.py:540
+        └─ not ticket.wanted() ─► _drop_older(self); RETURN
 
-  on_refresh_loaded(client, result, generation)       timelinepage.py:701
-        ├─ generation guard ─► RETURN
+  on_refresh_loaded(client, result)                   timelinepage.py:568
+        ├─ ticket = self._ticket
         ├─ model.loading = False
         ├─ statuses = self._finish(result)
         ├─ empty + n_items == 0 ─► stack 'empty'
         └─ _with_home_reply_filter(..., _finish_refresh_loaded)
+  _finish_refresh_loaded(..., ticket)                 timelinepage.py:597
+        └─ ticket is not self._refresh_ticket ─► RETURN   (a newer refresh
+           owns the chain; a load_older that cancelled this ticket leaves it
+           in place, so the page still lands)
 ```
 
 ---
@@ -413,7 +423,7 @@ Only when `hide-replies-non-follows` is set **and** the page is the plain home
 timeline (`source is None`).
 
 ```
-  _with_home_reply_filter(statuses, on_done)           timelinepage.py:522
+  _with_home_reply_filter(statuses, on_done)           homefilters.py:56
         │
         ├─ not enabled ─────────────────────────────────► on_done(statuses)   [sync]
         │
@@ -442,7 +452,7 @@ and it is the **only** follow-state cache in the timeline — which is why
 
 ## 8. Stage 6 — The model
 
-`timelinedata.py:275 TimelineModel` is a `Gio.ListModel` over a `Gio.ListStore`
+`timelinedata.py:288 TimelineModel` is a `Gio.ListModel` over a `Gio.ListStore`
 of `StatusItem`, re-emitting the store's `items-changed`.
 
 ```
@@ -459,7 +469,7 @@ of `StatusItem`, re-emitting the store's `items-changed`.
 ### 8.1 The three mutations
 
 ```
-  append_old(statuses)                     timelinedata.py:395
+  append_old(statuses)                     timelinedata.py:408
         ├─ empty ─► exhausted = True; return False
         ├─ oldest = min(ids)
         ├─ items  = _statuses_to_items(_filter_unseen(statuses))
@@ -469,35 +479,23 @@ of `StatusItem`, re-emitting the store's `items-changed`.
         ├─ oldest_id = oldest
         └─ return True
 
-  insert_new(statuses)                     timelinedata.py:381
+  insert_new(statuses)                     timelinedata.py:394
         ├─ fresh = _filter_unseen(statuses)
         ├─ for item in reversed(items): _store.insert(0, item)   ◄── N inserts!
         │        (each emits items-changed, so N regroup+relayout passes)
         ├─ newest_id = max(ids) if greater
         └─ return len(fresh)
 
-  replace_all(statuses)                    timelinedata.py:416
-        ├─ build `known` map of the current items by raw id
-        ├─ _seen.clear(); _boosted_reblog_ids.clear()
-        ├─ items = _statuses_to_items(_filter_unseen(statuses))
-        ├─ for each new item, if `known` has that raw id:
-        │      prior.raw != item.raw  ─► prior.update(item.raw)
-        │                                 └─ emits 'changed' ► row rebinds NOW
-        │      items[index] = prior        (view state survives the swap)
-        ├─ _store.splice(0, count, items)
-        ├─ register every item as seen
-        └─ oldest_id / newest_id from the new ids; exhausted = False
 ```
 
-`replace_all` is the timeline-cache addition (`e02459c`). Its `prior.update()` is
-the subtle part: a post present in both the cached page and the live page keeps
-its `StatusItem` **and its `ui` view state**, but `update()` emits `'changed'`,
-so every one of those rows performs a full synchronous `bind` during the swap.
+`TimelineModel.replace_all` (the authoritative swap of a cached page for the
+live one, with `prior.update()` re-binding every row present in both) was the
+timeline-cache addition (`e02459c`) and was removed with it (§3.2).
 
 ### 8.2 Filtering and grouping
 
 ```
-  _filter_unseen(statuses)                 timelinedata.py:306
+  _filter_unseen(statuses)                 timelinedata.py:319
         ├─ drop ids already in self._seen
         └─ dedupe boosts of the same reblog id (dedupe-boosts setting)
 
@@ -507,7 +505,7 @@ so every one of those rows performs a full synchronous `bind` during the swap.
         │                     inserted at the middle or end of the page
         └─ otherwise ─► boosts stay inline
 
-  _statuses_to_items(statuses)             timelinedata.py:365
+  _statuses_to_items(statuses)             timelinedata.py:378
         └─ group_boosts ─► BoostCarouselItem | StatusItem  (one GObject each)
 ```
 
@@ -526,10 +524,10 @@ A *run* is consecutive same-thread posts by one author, drawn as one card with a
 shared author line and `n/total` badges.
 
 ```
-  StatusRun (GObject)     statusrun.py:324
+  StatusRun (GObject)     statusrun.py:509
       .items = [StatusItem, …]
 
-  RunModel (Gio.ListModel)                 statusrun.py:340
+  RunModel (Gio.ListModel)                 statusrun.py:525
       ._items   mirror of the source model, kept in step from items-changed
       ._runs    the presented list of StatusRun
 
@@ -539,7 +537,7 @@ shared author line and `n/total` badges.
 
   _rebuild()                                              :363
         ├─ groups = group self._items by run_key(item)
-        │     run_key cached on the item (__dict__['_run_key'])   :412
+        │     run_key cached on the item (__dict__['_run_key'])   :599
         │     a boost, a carousel, or an authorless post keys None
         ├─ find the common prefix:  _same_items(old[start], groups[start])
         ├─ find the common suffix
@@ -559,13 +557,13 @@ inserts at the top does not invalidate the rest of the list.
 ### 10.1 The factory
 
 ```
-  TimelineFactory.on_setup(factory, list_item)     timelinepage.py:42
+  TimelineFactory.on_setup(factory, list_item)     timelinepage.py:46
         card = StatusRunRow()                      ◄── EMPTY SHELL, no cards
         card.filter_context = self.filter_context
         list_item.set_child(card)
         list_item.set_activatable(True)
 
-  TimelineFactory.on_bind(factory, list_item)      timelinepage.py:48
+  TimelineFactory.on_bind(factory, list_item)      timelinepage.py:53
         card.bind(list_item.get_item(), client)
 ```
 
@@ -576,23 +574,23 @@ run whether or not it is ever seen.
 ### 10.2 Shell state and the build throttle
 
 ```
-  StatusRunRow (Gtk.Box)                    statusrun.py:92
+  StatusRunRow (Gtk.Box)                    statusrun.py:214
       .rows    StatusRow cards currently shown in this shell
       ._cards  {StatusItem → StatusRow} built but possibly hidden   ◄── LRU kept
       ._run    the StatusRun
       _queued  whether _pending_shells holds a ref to this shell
 
-  bind(run, client)                                     statusrun.py:156
+  bind(run, client)                                     statusrun.py:286
         ├─ drop cards for items no longer in the run
         ├─ known = _known_shell_height(self, run) ─► set_size_request(-1, known)
         ├─ _detach()          hide rows, clear classes
         └─ if self.get_mapped(): self._populate()    ◄── SYNCHRONOUS rebuild
 
-  _on_map(widget)                                      statusrun.py:180
+  _on_map(widget)                                      statusrun.py:311
         ├─ all cards kept ─► _populate()      (cheap: just re-show)
         └─ else            ─► _queue_populate()
 
-  _queue_populate()                                    statusrun.py:193
+  _queue_populate()                                    statusrun.py:325
         ├─ add_css_class('status-run-pending')     (empty card frame)
         ├─ _pending_shells.append(self.weak_ref())   GObject weak ref
         └─ if not _pending_source: GLib.idle_add(_populate_pending)
@@ -623,7 +621,7 @@ Rejected alternatives, with numbers [M, `PERFORMANCE.md:64`]: a tick callback
 ### 10.3 Height pinning — why `frames_with_empty_shell` is not the only metric
 
 ```
-  _on_unmap(widget)                                     statusrun.py:219
+  _on_unmap(widget)                                     statusrun.py:351
         ├─ width = get_width(); if 0 use the class-wide _column_width
         ├─ if self.rows:                       ◄── only while cards are shown
         │     height = get_height()
@@ -632,7 +630,7 @@ Rejected alternatives, with numbers [M, `PERFORMANCE.md:64`]: a tick callback
         ├─ _detach()
         └─ if self._cards: _keep_cards()      ──► the app-wide LRU
 
-  _store_height(height, width)                           statusrun.py:203
+  _store_height(height, width)                           statusrun.py:335
         ├─ set_size_request(-1, height)
         ├─ class-wide _typical_height = running 3/4 average, floor 64
         ├─ run._shell_height  = height
@@ -652,14 +650,14 @@ depends on: status id, `edited_at`, content length, spoiler length, media count,
 `translation is not None`, and carousel size. It deliberately does **not** hold
 the post text, so the cache does not keep a second copy of every status.
 
-`_populate` clears the pin (`set_size_request(-1, -1)`, statusrun.py:285): a
+`_populate` clears the pin (`set_size_request(-1, -1)`, statusrun.py:470): a
 pinned height used as a *minimum* outlives any change that made the post shorter
 — a wider column, a closed content warning, a poll answered — and the height
 stored on the next unmap then keeps the blank gap for good [M, `PERFORMANCE.md:46`].
 
 ### 10.4 The card LRU
 
-`_keep_cards` (statusrun.py:245) is an app-wide `OrderedDict` of
+`_keep_cards` (statusrun.py:430) is an app-wide `OrderedDict` of
 `CARD_SHELLS_KEPT = 100` unmapped shells, keyed by a per-shell counter, holding
 **GObject weak refs** so the queue never keeps a shell or its page alive. Older
 shells drop their cards and rebuild on demand.
@@ -670,17 +668,17 @@ Unbounded card-dropping was also rejected: 92 MB but scroll CPU doubled
 (16.7 s → 32 s). Scrolling a 200-post page end-to-end four times cost 18.1 s with
 the LRU against 11.5 s without.
 
-Cards are **hidden, not unparented** (`_detach`, statusrun.py:263): a hidden
+Cards are **hidden, not unparented** (`_detach`, statusrun.py:448): a hidden
 child is skipped by measure and snapshot, but scrolling back does not reparent it
 [M, `PERFORMANCE.md:35` — unparenting pushed scroll-up CPU to ~690 ms].
 
 ### 10.5 Inside one card
 
-`StatusRow` (statusrow.py:31) is a `Gtk.Overlay` holding a vertical box. Parts
+`StatusRow` (statusrow.py:36) is a `Gtk.Overlay` holding a vertical box. Parts
 are built **lazily on first use** because each costs a widget tree per row.
 
 ```
-  StatusRow.__init__                          statusrow.py:48   [ALWAYS BUILT]
+  StatusRow.__init__                          statusrow.py:53   [ALWAYS BUILT]
     filter_bar  (label + Show Anyway button)
     main
       header
@@ -710,7 +708,7 @@ are built **lazily on first use** because each costs a widget tree per row.
              carousel     (_ensure_carousel, boosts-carousel mode)
 ```
 
-`_bind_status` (statusrow.py:416) touches, in order: the accessible label, the
+`_bind_status` (statusrow.py:398) touches, in order: the accessible label, the
 source line, `status_filter()`, the filter bar, `AvatarCache.load`, the name
 (custom emoji or plain), the bot badge, `_bind_indicators` (visibility,
 language, **edited → `absolute_time`**), `_set_time` (**`absolute_time`**),
@@ -721,16 +719,16 @@ the collections, the media, the preview card, and `actions.bind`.
 ### 10.6 Body rendering
 
 ```
-  _render_body(item, bank)                    statusrow.py:590
+  _render_body(item, bank)                    statusrow.py:576
         ├─ html = translation.content or status.content
         ├─ segments = parse_content(html)          statustext.py
         ├─ content.set_emoji_size(32 if 'enlarge-custom-emojis' else 20)
-        ├─ (shown, collapsible) = _collapse_view(segments)   timelinebase.py:222
+        ├─ (shown, collapsible) = _collapse_view(segments)   timelinebase.py:231
         │     ├─ hashtag/link-only posts ─► one summary line
         │     └─ > 700 chars or > 14 breaks ─► truncated behind Show More
         └─ content.set_segments(shown or segments, bank)
 
-  InlineEmojiText.set_segments(segments, emojis)   textemoji.py:381
+  InlineEmojiText.set_segments(segments, emojis)   textemoji.py:394
         ├─ remove the previous run's link tags from the buffer's tag table
         │     (create_tag only ever adds; a recycled row would grow it forever)
         ├─ buf.set_text('', -1)
@@ -754,18 +752,18 @@ IBus context leaked read-only text views [M, `CLAUDE.md:79`].
 ## 11. Stage 10.5 — Images
 
 ```
-  AvatarCache.load(avatar, account)           mediacache.py:60
+  AvatarCache.load(avatar, account)           mediacache.py:75
         ├─ avatar.set_custom_image(None)      ◄── always clears first
         └─ fetcher.fetch(url, arrived)        ◄── NO cancellable passed
 
-  _TextureCache.load(url, picture, cover)     mediacache.py:346
+  _TextureCache.load(url, picture, cover)     mediacache.py:396
         ├─ previous = picture._babble_cancel
         ├─ previous.cancel()                  ◄── rebuild kills the old request
         ├─ cancellable = Gio.Cancellable.new(); picture._babble_cancel = it
         └─ fetcher.fetch(url, arrived, cancellable=cancellable,
                          key=(url, cover) if cover else url)
 
-  imagecache.Fetcher                         imagecache.py:170 (rewritten on this branch)
+  imagecache.Fetcher                         imagecache.py:199 (rewritten on this branch)
         fetch(url, waiter, cancellable, key)
           ├─ store.get(key) ─► waiter(texture, None)          CACHE HIT
           ├─ live request?  ─► _attach(request, waiter, cancellable)
@@ -845,10 +843,10 @@ if the scaled decode fails, the full image is decoded as a fallback.
 
 ## 12. The three sequences, end to end
 
-### 12.1 First page, with a cache present
+### 12.1 First page (the cached first paint it once began with was removed, §3.2)
 
 ```
-main thread                          worker/IO                disk
+main thread                          worker/IO
 ────────────────────────────────────────────────────────────────────────
 restore_account()
 _activate_account()
@@ -859,26 +857,18 @@ ensure_home_timeline()
   TimelinePage.__init__
     RunModel / ListView / Stack / …
     ensure_loaded
-      _show_cached
-        homecache.read  ──────────────────────────────────►  ~/.cache/babble/
-        json.load         ◄────────────────────────────────  home/<key>.json
-        _fill_first ─► append_old ─► items-changed
-                                     ─► RunModel._rebuild
-                                     ─► ListView: on_setup ×20  (empty shells)
-      load()  model.loading = True; _generation=1
+      load()  model.loading = True; _ticket = ticket 1 (owns loading)
       _request ─► _paging_fetch ─► request_async ─► _spawn ─► Soup ─► server
 main_stack -> 'shell'  ◄── WINDOW APPEARS
                                                         ◄── response
-on_page_loaded(gen=1)
+on_page_loaded(ticket 1, wanted)
   _finish ─► request_finish_paged ─► entities.lift
   _with_home_reply_filter ─► [maybe relationships_async ─► round trip]
   _finish_page_loaded
     model.loading = False
-    _showing_cache ─► replace_all(statuses)
-        for each id in both: prior.update() ─► emit 'changed'
-                                            ─► StatusRow.bind  ×N  (SYNCHRONOUS)
-        _store.splice(0, 20, items) ─► items-changed
-    _save_cache ─► GLib.idle_add(_write_home_cache, LOW_PRIORITY) ─► disk
+    _fill_first(statuses) ─► append_old ─► _store.splice ─► items-changed
+                                         ─► RunModel._rebuild
+                                         ─► ListView: on_setup ×20  (empty shells)
     _note_followed_tags ─► GET /followed_tags ─► GET /relationships ─►
                           apply_source_tags ─► emit 'changed' ×hits ─► bind again
     stack -> 'list'
@@ -898,16 +888,16 @@ on_page_loaded(gen=1)
 ```
 main thread                                     IO
 ──────────────────────────────────────────────────────────────
-on_scroll_position(adjustment)                 timelinepage.py:739
+on_scroll_position(adjustment)                 timelinepage.py:670
   ├─ on_scroll_near_end?  value + page_size >= upper − 800
   │     └─ YES ─► load_older()
-  │              ├─ _showing_cache?  ──► RETURN   ◄── HAZARD §11.2
-  │              ├─ _loading_older / exhausted / no oldest_id ─► RETURN
-  │              └─ _request({limit:20, max_id:oldest_id})  _generation++
+  │              ├─ scope closed / exhausted / no oldest_id ─► RETURN
+  │              ├─ _bottom_locked ─► _older_pending = True, RETURN (replayed)
+  │              └─ _request({limit:20, max_id:oldest_id})  scope.begin()
   └─ value <= 0 ─► _trim_old()  (only at the top, ≤ 400 items)
 
-on_older_loaded(gen=N)
-  ├─ _superseded(N)? ─► RETURN           ◄── HAZARD §11.4
+on_older_loaded(ticket N)
+  ├─ ticket N no longer wanted? ─► _drop_older, RETURN   ◄── HAZARD §11.4
   ├─ _loading_older = False               ◄── BEFORE the reply filter
   ├─ _finish ─► statuses
   └─ _with_home_reply_filter ─► [relationships_async round trip]
@@ -925,7 +915,7 @@ on_older_loaded(gen=N)
 ### 12.3 Refresh (`since_id`)
 
 ```
-refresh()                                   pages.py:214
+refresh()                                   pages.py:395
   ├─ model.loading ─► RETURN
   ├─ n_items == 0 ─► load()
   ├─ model.exhausted = False
@@ -940,9 +930,9 @@ on_refresh_loaded ─► _finish_refresh_loaded
 ```
 
 Also reachable from: the auto-refresh timer (`_on_auto_refresh`,
-timelinepage.py:360 — at the top every tick, scrolled away every
+timelinepage.py:340 — at the top every tick, scrolled away every
 `AUTO_REFRESH_SCROLLED_TICKS = 2` ticks), the pull-down gesture
-(`_RefreshGesture`, timelinepage.py:777), and `filters_changed` streaming events
+(`_RefreshGesture`, timelinepage.py:716), and `filters_changed` streaming events
 (routed by `streamrouter.py`).
 
 ---
@@ -991,19 +981,17 @@ the rest of the stream lifecycle) holds a `_stream_dropped` flag and
   ON THE MAIN THREAD, SYNCHRONOUSLY, DURING LOAD       [R unless marked]
   ────────────────────────────────────────────────────────────────
   imports, window construction, present()                [M e02459c]
-  Gio.Settings reads (schema present check is cached)    timelinebase.py:94
-  Secret.password_lookup_sync          ▸ WORKER         mastodon.py:366
-  homecache.read → json.load           ◄── HERE         homecache.py:67
-  json.loads(response body)            ◄── HERE         mastodon.py:684
+  Gio.Settings reads (schema present check is cached)    timelinebase.py:108
+  Secret.password_lookup_sync          ▸ WORKER         mastodon.py:420
+  json.loads(response body)            ◄── HERE         mastodon.py:753
   entities.lift (whole payload)        ◄── HERE         entities.py:171
-  json.dumps(cache write)              ◄── HERE (idle)  homecache.py:63
-  RunModel._rebuild                    ◄── HERE         statusrun.py:363
-  StatusRunRow._populate               ◄── ONE/DISPATCH statusrun.py:76
-  StatusRow.bind                       ◄── HERE         statusrow.py:391
+  RunModel._rebuild                    ◄── HERE         statusrun.py:548
+  _populate_pending                    ◄── ONE/DISPATCH statusrun.py:76
+  StatusRow.bind                       ◄── HERE         statusrow.py:372
   parse_content + set_segments         ◄── HERE         statustext / textemoji
-  clock_format (first use only)        ◄── HERE, 200 ms statustext.py:195
-  GdkPixbuf decode                     ▸ WORKER         mediacache.py:229
-  Gdk.Texture.new_from_bytes           ▸ WORKER         mediacache.py:236
+  clock_format (first use only)        ◄── async, no wait statustext.py:354
+  GdkPixbuf decode                     ▸ WORKER         mediacache.py:247
+  Gdk.Texture.new_from_bytes           ▸ WORKER         mediacache.py:233
 
   NEVER ON THE MAIN THREAD
   ─────────────────────
@@ -1018,70 +1006,67 @@ the rest of the stream lifecycle) holds a `_stream_dropped` flag and
 Ranked by how well they match "scrolling to the bottom of the screen stalls for
 seconds". Evidence status in brackets.
 
-### 15.1 The clock-format portal read — the one synchronous block in the app [R, high confidence]
+### 15.1 The clock-format portal read — was a synchronous block, now asynchronous [R, fixed]
 
 ```
-  StatusRow._set_time(item)            statusrow.py:627
-        └─ absolute_time(created_at)          timelinebase.py:120
-              └─ format_time(moment)          statustext.py:273
-                    └─ clock_format()         statustext.py:260
+  StatusRow._set_time(item)            statusrow.py:612
+        └─ absolute_time(created_at)          timelinebase.py:129
+              └─ format_time(moment)          statustext.py:369
+                    └─ clock_format()         statustext.py:354
                           if _clock_format is None:            ◄── once/process
-                              _load_clock_format()              statustext.py:246
-                                  _session_bus()  ─► Gio.bus_get_sync(SESSION)
-                                  _read_portal(bus)
-                                      _portal_read(bus, 'ReadOne')
-                                          bus.call_sync(
-                                            'org.freedesktop.portal.Desktop',
-                                            '/org/freedesktop/portal/desktop',
-                                            'org.freedesktop.portal.Settings',
-                                            'ReadOne', …, timeout=200 ms)
-                                      on UnknownMethod ─► retry 'Read' (200 ms)
-                                  fallback _read_gsettings()
+                              _clock_format = _read_gsettings() or '24h'
+                              _session_bus_async(_watch_portal)   statustext.py:275
+                                  ─► the portal's answer updates the cache
+                                     later; nothing here waits on the bus
 ```
 
-The only runtime `call_sync`/`bus_get_sync` in the tree, on the row-bind path,
-with a 200 ms timeout. It lands *inside* the one-card-per-dispatch populate loop,
-so the timeline freezes mid-fill. Once per process, which makes it read as
-intermittent. `_set_time` and `_set_post_meta` each call `absolute_time`
-separately — two parses and two formats per row even after the read is warm.
+This used to be a synchronous `bus_get_sync` plus `call_sync` with a 200 ms
+timeout on the row-bind path, landing inside the one-card-per-dispatch populate
+loop. It is asynchronous now: the first call answers at once from GSettings (or
+`'24h'`), and the portal's answer and later changes update the cache. What
+remains of the hazard is cost, not a block: `_set_time` and `_set_post_meta` each
+call `absolute_time` separately, two parses and two formats per row.
 
-### 15.2 `load_older` dropped during the cache window [R — confirmed by diff]
+### 15.2 `load_older` dropped during the cache window [removed]
 
-Introduced by `e02459c` in `TimelinePage.load_older` (timelinepage.py:300). The
-only caller is `on_scroll_position`, which is a `value-changed` handler, so every
-scroll event during the cache window is **discarded rather than remembered**, and
-nothing re-arms `load_older` when `_showing_cache` clears. `286a7b7` widened the
-window by moving `model.loading = False` out of `on_page_loaded` into
-`_finish_page_loaded`, so it now also spans the reply-filter round trip.
+Introduced by `e02459c` in a `TimelinePage.load_older` override, which returned
+while `_showing_cache` was set: every scroll event in that window was
+**discarded rather than remembered**, and nothing re-armed `load_older` when the
+flag cleared. The override, the flag and the cache are gone (§3.2). The bottom
+lock that now gates `PagedPosts.load_older` remembers a scroll that arrives while
+it is held (`_older_pending`) and replays it when the lock is released
+(`pages.py:330`).
 
 ### 15.3 `_loading_older` cleared before the async reply filter [R]
 
-`on_older_loaded` sets `_loading_older = False` (timelinepage.py:675) *before*
+`on_older_loaded` sets `_loading_older = False` (timelinepage.py:545) *before*
 `_with_home_reply_filter`. With the flag down and `oldest_id` unchanged, a scroll
-at the bottom during that round trip starts a second request, `_generation` moves,
-and the first page's `_finish_older_loaded` is discarded by `_superseded`
-(timelinepage.py:685). The reader sees nothing. Each lost page costs a full
-request plus a `/relationships` request, and it can repeat.
+at the bottom during that round trip starts a second request, whose `begin()`
+supersedes the first ticket, and the first page's `_finish_older_loaded` is
+discarded because `ticket.wanted()` is False (timelinepage.py:540). The reader
+sees nothing. Each lost page costs a full request plus a `/relationships`
+request, and it can repeat.
 
 ### 15.4 `/relationships` on every page, and the rebuild wave it causes [R]
 
-`_note_followed_tags` (timelinepage.py:454) fires `/followed_tags` once, then a
+`_note_followed_tags` (timelinetags.py:32) fires `/followed_tags` once, then a
 **fresh `/relationships` per page** — `_following_ids` is the only follow-state
 cache and the reply filter never consults it. When the response lands,
 `apply_source_tags` (timelinedata.py:571) walks the whole model and emits
 `'changed'` on every match inside one loop; each one is a synchronous full
-`StatusRow.bind` (statusrow.py:660) that also restarts that row's image fetches
+`StatusRow.bind` (statusrow.py:372) that also restarts that row's image fetches
 through `_TextureCache.load`. `source_tag` is in `_shell_stamp`, so the pinned
 heights miss and the list reflows.
 
-### 15.5 `replace_all` emits `'changed'` during the swap [R]
+### 15.5 `replace_all` emits `'changed'` during the swap [removed]
 
-timelinepage.py:441 — `prior.update(item.raw)` for every post in both the cached
-and live pages, inside the splice. ~20 synchronous full rebinds at swap time.
+`TimelineModel.replace_all` called `prior.update(item.raw)` for every post in both
+the cached and the live page, inside the splice: ~20 synchronous full rebinds at
+swap time. It went with the cache (§3.2).
 
 ### 15.6 `insert_new` inserts one at a time [M, measured and kept]
 
-timelinepage.py:385 — 20 `insert(0, …)` calls, so 20 `items-changed`, 20
+timelinedata.py:399 — 20 `insert(0, …)` calls, so 20 `items-changed`, 20
 `RunModel._rebuild` passes and 20 relayouts. Measured as 259–279 ms either way
 with a single `splice`, so it was kept [M, `PERFORMANCE.md:66`].
 
@@ -1093,21 +1078,22 @@ counter (it arrived with the reply filter, ARCH-11, and has never had an
 increment), so the guard could not fire, and it has been deleted.
 
 The lookup still calls `on_done` on success and failure. A refresh carries its
-paging generation through that asynchronous callback (`_refresh_generation`),
-so a refresh overtaken by a newer one is ignored when its lookup answers rather
+ticket through that asynchronous callback and `_finish_refresh_loaded`
+compares it with `_refresh_ticket`, so a refresh overtaken by a newer one is
+ignored when its lookup answers rather
 than moving the catch-up chain. Older pages and first pages are dropped where
 the lookup's `on_done` lands, in the `_finish_*` methods, by the paging guard.
 `src/test-home-filters.py` holds relationship and timeline answers back to pin
 these boundaries.
 
-### 15.8 `_showing_cache` cleared on a superseded first page [R, currently unreachable]
+### 15.8 `_showing_cache` cleared on a superseded first page [removed]
 
-`_superseded` paths set `_showing_cache = False` (timelinepage.py:565, :599). If
-the first live page were ever superseded while the cache showed, the live page
-would then take the `insert_new` branch instead of `replace_all` — a merge, not an
-authoritative swap — and `_save_cache` would never run. I could not construct a
-reachable supersede: `refresh()` is blocked by `model.loading` and
-`load_older` is blocked by `_showing_cache`. Fragile, not firing.
+This was a latent hazard of the cache: a superseded first page cleared
+`_showing_cache`, so the live page would have been merged instead of swapped in
+and the cache never written. It was never reachable, and the cache, the flag and
+`replace_all` no longer exist (§3.2). What is left of "a superseded first page"
+is the ticket rule: `_finish_page_loaded` calls `PagedPosts._drop_loading`, which
+leaves `model.loading` to a newer request that owns it.
 
 ### 15.9 Known-and-accepted costs, for calibration [M]
 
@@ -1133,13 +1119,13 @@ For the reported symptom the following probe points separate the hazards cleanly
 
 | # | Location | Log | Distinguishes |
 |---|---|---|---|
-| 1 | `timelinepage.py:300` `load_older` | entry + `showing_cache` + return reason | §15.2 — a return with no outbound request |
-| 2 | `pages.py:169` `_request` | params + generation | every request that actually leaves |
-| 3 | `timelinepage.py:672` `on_older_loaded` | generation + `_superseded` verdict | §15.3 — dropped pages |
-| 4 | `timelinepage.py:454` `_note_followed_tags` | per page | §15.4 |
+| 1 | `pages.py:330` `load_older` | entry + `_bottom_locked` + return reason | §15.2 — a return with no outbound request |
+| 2 | `pages.py:281` `_request` | params + ticket | every request that actually leaves |
+| 3 | `timelinepage.py:509` `on_older_loaded` | ticket + its `wanted()` verdict | §15.3 — dropped pages |
+| 4 | `timelinetags.py:32` `_note_followed_tags` | per page | §15.4 |
 | 5 | `timelinedata.py:571` `apply_source_tags` | hits + model size | §15.4 rebuild wave |
-| 6 | `statusrow.py:391` `bind` | caller + duration | §15.1, §15.4, §15.5 |
-| 7 | `statustext.py:260` `clock_format` | first-call duration | §15.1 |
+| 6 | `statusrow.py:372` `bind` | caller + duration | §15.1, §15.4 |
+| 7 | `statustext.py:354` `clock_format` | first-call duration | §15.1 |
 | 8 | `statusrun.py:76` `_populate_pending` | queue length per dispatch | §15.1 amplification |
 
 Report **every run**, not a median: single runs spread 60–100 ms on the real
@@ -1158,7 +1144,7 @@ window and ±14 % on the benchmark.
 | **Card** | `StatusRow` — the real post widget tree, built lazily and cached on the shell |
 | **Stamp** | `_shell_stamp` — what a shell's height depends on, so a changed post is remeasured |
 | **Cover** | `(width, height)` the largest box a texture fills; rides on the cache key so one Fetcher serves every tile |
-| **Generation** | `PagedPosts._generation` — monotonic request tag; a response whose tag is stale is discarded |
+| **Ticket** | `PagedPosts._ticket` — the newest `RequestScope` ticket; an answer whose ticket is no longer wanted is discarded |
 | **Cursor** | `oldest_id` (`max_id`, backwards) / `newest_id` (`since_id`, forwards) |
 
 ---

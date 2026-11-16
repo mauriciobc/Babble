@@ -25,7 +25,7 @@ class HomeFilters:
 
     The relationship lookup has no stale-answer guard of its own: when it
     answers, ``on_done`` runs the page's ``_finish_*`` method. Refresh
-    completion re-checks its paging generation there, because a newer
+    completion re-checks its refresh ticket there, because a newer
     refresh may have started while the relationship lookup was pending.
     The follow table is keyed by author, so recording a late relationship
     answer remains safe even when its page is discarded."""

@@ -822,8 +822,8 @@ class VisitClient(FollowClient):
         self.marker_callbacks.pop(0)(self, None)
 
 
-def visit_setup():
-    client = VisitClient()
+def visit_setup(client_class=VisitClient):
+    client = client_class()
     page = NotificationsPage(client)
     client.token = 'token'
     page.model.append_page([MENTION])
@@ -889,6 +889,96 @@ check('a failed catch-up of an empty list keeps it empty',
       visit_page.stack.get_visible_child_name() == 'empty')
 visit_window.destroy()
 del visit_page, visit_client, visit_window
+
+# A filter switch while a read is out. The old read's answer arrives after
+# the new load went out (a cancelled Gio.Task still calls back): it must
+# not give up the loading flag the new load owns, nor the quiet flag.
+class HeldVisitClient(VisitClient):
+    """Keeps every /notifications callback, to answer them in any order."""
+
+    def __init__(self):
+        super().__init__()
+        self.held = []
+
+    def request_async(self, method, path, callback=None, **kw):
+        if path == '/notifications':
+            self.held.append(callback)
+        super().request_async(method, path, callback=callback, **kw)
+
+
+def switch_while_out(name, start, quiet):
+    client, page, window = visit_setup(HeldVisitClient)
+    start(page)
+    check('%s: the read is out' % name,
+          len(client.held) == 1 and page.model.loading
+          and page._quiet == quiet)
+    page.set_filter('mentions')
+    check('%s: the filter switch sent a new load' % name,
+          len(client.held) == 2 and page.model.loading
+          and client.listed[-1].get('types[]') == ['mention'])
+    page._quiet = True               # the new load is a quiet one
+    client.held[0](client, GLib.Error('stale'))   # the old read answers
+    check('%s: the stale answer leaves loading to the new load' % name,
+          page.model.loading)
+    check('%s: the stale answer leaves the new load\'s quiet flag' % name,
+          page._quiet)
+    check('%s: the stale answer shows no error page' % name,
+          page.stack.get_visible_child_name() != 'error')
+    client.held[1](client, [make_notification(
+        '201', 'mention', ACTOR2, '2026-10-05T13:00:00.000Z', STATUS)])
+    check('%s: the new load fills the list and clears loading' % name,
+          not page.model.loading and not page._quiet
+          and page.model.get_n_items() == 1
+          and page.model.get_item(0).notification_id == '201')
+    window.destroy()
+
+
+def stale_older_while_newer_live():
+    """O1 is cancelled by a reload; O2 is live when O1's drop arrives."""
+    name = 'stale older request'
+    client, page, window = visit_setup(HeldVisitClient)
+    page.load_older()                                    # O1
+    check('%s: the first older page is out' % name,
+          len(client.held) == 1 and page._loading_older)
+    page.set_filter('mentions')                          # cancels O1, loads
+    check('%s: the reload sent the first page' % name,
+          len(client.held) == 2 and not page._loading_older)
+    client.held[1](client, [make_notification(
+        '201', 'mention', ACTOR2, '2026-10-05T13:00:00.000Z', STATUS)])
+    page.load_older()                                    # O2
+    check('%s: the newer older page is out and the bottom locked' % name,
+          len(client.held) == 3 and page._loading_older
+          and page._bottom_locked)
+    client.held[0](client, GLib.Error('stale'))          # O1's late drop
+    check('%s: the stale drop leaves the live request flagged' % name,
+          page._loading_older)
+    check('%s: the stale drop leaves the bottom locked' % name,
+          page._bottom_locked)
+    client.held[2](client, [])                           # O2 ends
+    check('%s: the live request still ends normally' % name,
+          not page._loading_older and not page._bottom_locked)
+    window.destroy()
+
+
+def start_quiet_refresh(page):
+    page.on_shown()                  # catch_up of a list with rows
+
+
+def start_first_load(page):
+    page.model.clear()
+    page.load()
+
+
+def start_quiet_empty_catch_up(page):
+    page.model.clear()
+    page.stack.set_visible_child_name('empty')
+    page.on_shown()
+
+
+switch_while_out('quiet refresh', start_quiet_refresh, True)
+switch_while_out('first-page load', start_first_load, False)
+switch_while_out('quiet empty catch-up', start_quiet_empty_catch_up, True)
+stale_older_while_newer_live()
 
 # A batch from the poller is one merge: one marker, not one per item.
 visit_client, visit_page, visit_window = visit_setup()

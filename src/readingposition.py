@@ -97,6 +97,7 @@ class ReadingPosition:
         self._resume_pending = False
         self._resumed = False
         self._catching = False
+        self._sweep_pending = False
         self._pin_item = None
         self._pin_y = 0.0
         self._pin_ticks = 0
@@ -165,15 +166,27 @@ class ReadingPosition:
         and one more refresh sweeps up whatever the catch-up missed: posts
         streamed meanwhile were held back, and the cursor continues
         contiguously from where the chain stopped. Not after a failure,
-        which would only ask again at once."""
+        which would only ask again at once. When an older page is still
+        out, the sweep waits for it (see :meth:`_maybe_run_sweep`)."""
         self._refresh_chain = 0
-        pull_done = getattr(self, '_pull_done', None)
-        if pull_done is not None:
-            pull_done()
+        self._pull_done()
         if self._catching:
             self._end_catchup()
             if sweep:
-                self.refresh()
+                if self._loading_older:
+                    self._sweep_pending = True
+                else:
+                    self.refresh()
+
+    def _pull_done(self):
+        """Hook: a refresh chain ended; TimelinePage ends its pull gesture."""
+
+    def _maybe_run_sweep(self):
+        """Run a catch-up sweep deferred while an older page was out."""
+        if not self._sweep_pending or self._loading_older:
+            return
+        self._sweep_pending = False
+        self.refresh()
 
     def _end_catchup(self):
         """The last page's nudging still has frames to run, so the tick

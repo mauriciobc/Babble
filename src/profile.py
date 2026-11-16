@@ -117,17 +117,20 @@ class AccountStatuses:
             params['exclude_reblogs'] = 'true'
         return params
 
-    def fetch(self, params, callback):
+    def fetch(self, params, callback, cancellable=None):
         merged = self.base_params()
         merged.update(params or {})
         paged = any(key in merged for key in ('max_id', 'since_id', 'min_id'))
         if not self.include_pinned or paged:
             api_accounts.statuses_async(
                 self.client, self.account_id, params=merged,
-                callback=callback)
+                callback=callback, cancellable=cancellable)
             return
 
         def pinned_loaded(client, result, _data=None):
+            if cancellable is not None and cancellable.is_cancelled():
+                callback(client, result)
+                return
             try:
                 pinned = api_accounts.statuses_finish(client, result)
             except GLib.Error:
@@ -135,12 +138,13 @@ class AccountStatuses:
             for status in pinned:
                 status['pinned'] = True
             self.pinned_statuses = pinned
-            api_accounts.statuses_async(client, self.account_id,
-                                        params=merged, callback=callback)
+            api_accounts.statuses_async(
+                client, self.account_id, params=merged,
+                callback=callback, cancellable=cancellable)
 
         api_accounts.statuses_async(
             self.client, self.account_id, params={'pinned': 'true'},
-            callback=pinned_loaded)
+            callback=pinned_loaded, cancellable=cancellable)
 
     def finish(self, result):
         statuses = api_accounts.statuses_finish(self.client, result)
@@ -155,8 +159,8 @@ class ProfileTimeline(TimelinePage):
     """Timeline of one account tab. Pinned posts ahead of the first page
     must not drag the paging cursor back to the pin's age."""
 
-    def on_page_loaded(self, client, result, _user_data=None):
-        TimelinePage.on_page_loaded(self, client, result, _user_data)
+    def on_page_loaded(self, client, result):
+        TimelinePage.on_page_loaded(self, client, result)
         oldest = getattr(self.source, 'oldest_regular_id', None)
         if oldest is not None and self.model.get_n_items():
             self.model.oldest_id = oldest

@@ -167,7 +167,12 @@ class PagedPosts:
     distance, :data:`PRELOAD`, and :func:`near_bottom`.
 
     Subclasses supply the model and how to put items in it; this owns the
-    flags, the cursors and the three requests:
+    flags, the cursors and the three requests. Ownership of in-flight
+    reads is a :class:`~.requestscope.RequestScope` plus per-request
+    ``on_drop`` helpers: every paging read uses ``begin()`` (including
+    ``load_older``, so a refresh in flight is superseded), and
+    subclasses must close the scope from ``do_dispose`` via
+    :meth:`_close_paging_scope`.
 
     * :meth:`load` fills an empty list, falling back to :meth:`load_older`
       while pages come back empty of visible rows;
@@ -195,55 +200,136 @@ class PagedPosts:
     model = None
 
     def _paging_init(self, newer_cursor='since_id'):
-        self._generation = 0
-        self._refresh_generation = 0
+        self._scope = RequestScope()
+        # The newest request. begin() supersedes every earlier one, so it
+        # is the only ticket that can still be wanted.
+        self._ticket = None
+        # Whether that request owns ``model.loading`` (a first page and a
+        # refresh do, an older page does not).
+        self._ticket_owns_loading = False
+        # The refresh that owns the catch-up chain, if any.
+        self._refresh_ticket = None
         self._loading_older = False
         self._newer_cursor = newer_cursor
         self._bottom_locked = False
         self._older_pending = False
         self._bottom_lock_id = 0
 
+    def _close_paging_scope(self):
+        scope = getattr(self, '_scope', None)
+        if scope is not None:
+            scope.close()
+
     # Requests
 
-    def _request(self, params, on_done):
-        """Queue one page request, tagged with its generation.
+    @staticmethod
+    def _loading_owned(owner):
+        """Whether a wanted request owns ``model.loading``."""
+        ticket = owner._ticket
+        return (ticket is not None and owner._ticket_owns_loading
+                and ticket.wanted())
+
+    @staticmethod
+    def _drop_loading(owner):
+        # A newer first-page load or refresh owns ``model.loading``: leave
+        # it and the subclass's quiet flag alone.
+        if PagedPosts._loading_owned(owner):
+            return
+        owner.model.loading = False
+        owner._loading_released()
+
+    @staticmethod
+    def _drop_older(owner):
+        # A stale older request (cancelled by a reload) must not end a newer
+        # older request that is live: leave its flag and bottom lock alone.
+        ticket = owner._ticket
+        if (ticket is not None and not owner._ticket_owns_loading
+                and ticket.wanted() and owner._loading_older):
+            return
+        owner._loading_older = False
+        owner._release_bottom()
+        owner._maybe_run_sweep()
+
+    @staticmethod
+    def _drop_refresh(owner):
+        # Only the refresh that still owns ``_refresh_ticket`` ends the
+        # chain. A newer refresh sets the field to None before begin(), or
+        # replaces it with a wanted ticket: leave loading and the chain
+        # alone. Supersession by load_older keeps the cancelled ticket in
+        # the field, so this path runs; ``_chain_ended`` defers its sweep
+        # while that older page is out.
+        current = owner._refresh_ticket
+        if current is None or current.wanted():
+            return
+        owner._refresh_ticket = None
+        if not PagedPosts._loading_owned(owner):
+            owner.model.loading = False
+            owner._loading_released()
+        owner._chain_ended()
+
+    def _chain_ended(self, sweep=True):
+        """Hook for a refresh chain ending; TimelinePage overrides."""
+
+    def _maybe_run_sweep(self):
+        """Hook: an older page ended; ReadingPosition runs a deferred
+        catch-up sweep here."""
+
+    def _loading_released(self):
+        """Hook: a dropped request gave up ``model.loading``;
+        NotificationController clears its quiet flag here."""
+
+    def _request(self, params, on_done, *, on_drop, owns_loading=False):
+        """Queue one page request under the paging scope; return its ticket.
 
         A response that outlived its request is dropped rather than
         spliced into the model -- a superseded refresh would otherwise
         land stale posts in a list the reader is looking at. Dropping it
         also clears the busy flags, or a discarded first page would leave
-        the list reading as loading forever.
+        the list reading as loading forever. *on_drop* must be a function
+        of the owner (``PagedPosts._drop_*``), never a bound method: the
+        ticket holds the owner weakly and a bound method would not.
         """
-        self._generation += 1
-        generation = self._generation
+        ticket = self._begin_request(owns_loading)
+        self._send_request(ticket, params, on_done, on_drop)
+        return ticket
 
-        def finished(client, result, _data=None):
-            on_done(client, result, generation)
-        return self._paging_fetch(params, finished, generation)
+    def _begin_request(self, owns_loading):
+        """Supersede the last request and make the newest one's ticket.
 
-    def _paging_fetch(self, params, callback, generation):
+        Split from :meth:`_send_request` for a caller that must record the
+        ticket before the send: an answer can be delivered synchronously
+        (a test's fake client), and its handler reads that record."""
+        ticket = self._scope.begin()
+        self._ticket = ticket
+        self._ticket_owns_loading = owns_loading
+        return ticket
+
+    def _send_request(self, ticket, params, on_done, on_drop):
+        self._paging_fetch(
+            params,
+            ticket.callback(on_done, on_drop=on_drop),
+            ticket.cancellable)
+
+    def _paging_fetch(self, params, callback, cancellable):
         raise NotImplementedError
-
-    def _superseded(self, generation):
-        if generation == self._generation:
-            return False
-        self.model.loading = False
-        return True
 
     # The three requests
 
     def load(self):
-        if self.model.loading:
+        if self._scope.closed or self.model.loading:
             return
         self.model.loading = True
         if self.model.get_n_items() == 0:
             self.stack.set_visible_child_name('loading')
-        self._request(self._first_page_params(), self.on_page_loaded)
+        self._request(self._first_page_params(), self.on_page_loaded,
+                      on_drop=PagedPosts._drop_loading, owns_loading=True)
 
     def _first_page_params(self):
         return {'limit': self.PAGE_SIZE}
 
     def load_older(self):
+        if self._scope.closed:
+            return
         if self.model.exhausted or self.model.oldest_id is None:
             # Nothing left to ask for, so a remembered request has no
             # target either.
@@ -260,7 +346,7 @@ class PagedPosts:
         self._loading_older = True
         self._request({'limit': self.PAGE_SIZE,
                        'max_id': self.model.oldest_id},
-                      self.on_older_loaded)
+                      self.on_older_loaded, on_drop=PagedPosts._drop_older)
 
     def _lock_bottom(self):
         """Hold the bottom lock, with a deadline.
@@ -308,7 +394,7 @@ class PagedPosts:
 
     def refresh(self):
         """Load what is newer than the newest item shown."""
-        if self.model.loading:
+        if self._scope.closed or self.model.loading:
             return
         if self.model.get_n_items() == 0:
             self.load()
@@ -318,8 +404,12 @@ class PagedPosts:
         if self.model.newest_id is not None:
             params[self._newer_cursor] = self.model.newest_id
         self.model.loading = True
-        self._refresh_generation = self._generation + 1
-        self._request(params, self.on_refresh_loaded)
+        # Disown the previous refresh before begin().
+        self._refresh_ticket = None
+        ticket = self._begin_request(True)
+        self._refresh_ticket = ticket
+        self._send_request(ticket, params, self.on_refresh_loaded,
+                           PagedPosts._drop_refresh)
 
     # Scroll
 

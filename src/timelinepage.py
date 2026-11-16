@@ -100,7 +100,7 @@ class ApiTimelineSource:
         self._next = None
         self._older_request = False
 
-    def fetch(self, params, callback):
+    def fetch(self, params, callback, cancellable=None):
         merged = dict(self.base_params)
         if self.paging == 'id':
             merged.update(params)
@@ -111,7 +111,7 @@ class ApiTimelineSource:
                 # was reached, answered as an empty batch rather than a
                 # request the server would refuse.
                 if not self._next:
-                    task = Gio.Task.new(self.client, None, callback)
+                    task = Gio.Task.new(self.client, cancellable, callback)
                     task.return_value(_EMPTY_PAGED_ENVELOPE)
                     return
                 merged.update(self._next)
@@ -124,7 +124,7 @@ class ApiTimelineSource:
                 self._next = None
             self._older_request = 'max_id' in params
         api_core.send_path(self.client, 'GET', self.path, params=merged,
-                           callback=callback)
+                           callback=callback, cancellable=cancellable)
 
     def finish(self, result):
         data, next_params, _prev = api_core.finish_paged(
@@ -403,23 +403,23 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
 
     # Data
 
-    def _paging_fetch(self, params, callback, generation):
+    def do_dispose(self):
+        self._close_paging_scope()
+        Adw.Bin.do_dispose(self)
+
+    def _paging_fetch(self, params, callback, cancellable):
         """Send one page request through whichever source this page has."""
         if self.source is not None:
-            self.source.fetch(
-                params, lambda c, r, _d=None, g=generation:
-                callback(c, r, g))
+            self.source.fetch(params, callback, cancellable=cancellable)
             return
         if self.mode == 'public':
             api_timelines.public_async(
                 self.client, params=params,
-                callback=lambda c, r, _d=None, g=generation:
-                callback(c, r, g))
+                callback=callback, cancellable=cancellable)
         else:
             api_timelines.home_async(
                 self.client, params=params,
-                callback=lambda c, r, _d=None, g=generation:
-                callback(c, r, g))
+                callback=callback, cancellable=cancellable)
 
     def _finish(self, result):
         if self.source is not None:
@@ -431,9 +431,8 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
     def _on_retry(self, _button):
         self.load()
 
-    def on_page_loaded(self, client, result, generation=None):
-        if generation is not None and self._superseded(generation):
-            return
+    def on_page_loaded(self, client, result):
+        ticket = self._ticket
         try:
             statuses = self._finish(result)
         except GLib.Error as e:
@@ -455,10 +454,11 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             if statuses else None
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_page_loaded(
-                filtered, generation, raw_oldest))
+                filtered, ticket, raw_oldest))
 
-    def _finish_page_loaded(self, statuses, generation=None, raw_oldest=None):
-        if generation is not None and self._superseded(generation):
+    def _finish_page_loaded(self, statuses, ticket=None, raw_oldest=None):
+        if ticket is not None and not ticket.wanted():
+            PagedPosts._drop_loading(self)
             return
         # A refresh during the reply-filter lookup must not win.
         self.model.loading = False
@@ -506,11 +506,8 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             return
         self.model.trim(TIMELINE_MAX_ITEMS)
 
-    def on_older_loaded(self, client, result, generation=None):
-        if generation is not None and self._superseded(generation):
-            self._loading_older = False
-            self._release_bottom()
-            return
+    def on_older_loaded(self, client, result):
+        ticket = self._ticket
         try:
             statuses = self._finish(result)
         except GLib.Error:
@@ -518,13 +515,14 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             # instead of waiting out the debounce for nothing.
             self._loading_older = False
             self._release_bottom()
+            self._maybe_run_sweep()
             return
         # Nothing is released yet. Clearing the in-flight flag before the
         # reply filter is what let a scroll at the bottom, during that
-        # round trip, start a second request: the newer one won the
-        # generation, and this page -- already paid for -- was discarded as
-        # superseded. The reader saw nothing, on every page, forever. The
-        # flag is therefore cleared where the page is actually applied.
+        # round trip, start a second request: it superseded this one, and
+        # this page -- already paid for -- was discarded. The reader saw
+        # nothing, on every page, forever. The flag is therefore cleared
+        # where the page is actually applied.
         # Captured now, not inside the callback: by the time it runs, this
         # page may already be in the model and "what was there before" would
         # be unanswerable.
@@ -536,14 +534,13 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             if statuses else None
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_older_loaded(
-                filtered, generation, before=before,
+                filtered, ticket, before=before,
                 raw_oldest=raw_oldest))
 
-    def _finish_older_loaded(self, statuses, generation=None, before=0,
+    def _finish_older_loaded(self, statuses, ticket=None, before=0,
                              raw_oldest=None):
-        if generation is not None and self._superseded(generation):
-            self._loading_older = False
-            self._release_bottom()
+        if ticket is not None and not ticket.wanted():
+            PagedPosts._drop_older(self)
             return
         self._loading_older = False
         if not statuses and raw_oldest is not None:
@@ -551,6 +548,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             self.model.oldest_id = raw_oldest
             self._fill_loop(before)
             self._release_bottom()
+            self._maybe_run_sweep()
             return
         appended = self.model.append_old(statuses)
         self._note_followed_tags(statuses)
@@ -565,15 +563,14 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._release_bottom()
         self._resume_start_catchup()
         self._fill_filtered()
+        self._maybe_run_sweep()
 
-    def on_refresh_loaded(self, client, result, generation=None):
+    def on_refresh_loaded(self, client, result):
         # A later refresh owns the catch-up chain. An earlier response (or
         # its delayed relationship lookup) must not reset that chain.
-        if generation is not None and generation != self._refresh_generation:
-            return
-        if generation is not None and self._superseded(generation):
-            self._chain_ended()
-            return
+        # Ticket.callback already dropped unwanted HTTP answers; the finish
+        # path re-checks after the reply-filter lookup.
+        ticket = self._ticket
         self.model.loading = False
         try:
             statuses = self._finish(result)
@@ -595,13 +592,16 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         raw_count = len(statuses)
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_refresh_loaded(
-                filtered, raw_newest, raw_count, generation))
+                filtered, raw_newest, raw_count, ticket))
 
     def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0,
-                               generation=None):
-        # The reply-filter lookup is asynchronous too. Re-check ownership
-        # here, not only when the HTTP response arrives.
-        if generation is not None and generation != self._refresh_generation:
+                               ticket=None):
+        # The reply-filter lookup is asynchronous too. Re-check refresh
+        # ownership here: a newer refresh replaces ``_refresh_ticket``,
+        # so this page must not land or end that refresh's chain. A
+        # ``load_older`` that cancelled the ticket leaves
+        # ``_refresh_ticket`` pointing at it, so the page still lands.
+        if ticket is not None and ticket is not self._refresh_ticket:
             return
         if statuses:
             pinned = self._catching and self._pin_item is not None
