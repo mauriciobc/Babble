@@ -17,7 +17,8 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import appsettings, feedback, pagenav, pages  # noqa: E402
+from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
+               pages, uihelpers)
 from .api import accounts as api_accounts  # noqa: E402
 from .api import lists as api_lists  # noqa: E402
 from .feedback import ToastDialog  # noqa: E402
@@ -87,7 +88,7 @@ def make_pin_button(widget, key, item_id, what):
                              else 'babble-favorite-symbolic')
         tooltip = _('Unpin from Sidebar') if pinned \
             else _('Pin to Sidebar')
-        pages.set_accessible_label(button, tooltip)
+        uihelpers.set_accessible_label(button, tooltip)
 
     def toggled(_button):
         widget = widget_ref()
@@ -138,7 +139,7 @@ class AvatarRow(Adw.ActionRow):
         from .mediacache import AvatarCache
         self.account = account
         name = re.sub(r':[A-Za-z0-9_+\-]+:', '',
-                      pages.display_name(account)).strip() \
+                      accountrows.display_name(account)).strip() \
             or account.get('acct', '')
         self.set_title(name)
         self.set_subtitle('@' + account.get('acct', ''))
@@ -323,7 +324,7 @@ class ListEditor(ToastDialog):
         if account['id'] in self._members:
             return
         row = AvatarRow(account)
-        remove = pages.icon_button('list-remove-symbolic',
+        remove = uihelpers.icon_button('list-remove-symbolic',
                                    _('Remove from List'))
         connect_weak(remove, 'clicked', self._on_remove_member, row)
         row.add_suffix(remove)
@@ -391,7 +392,7 @@ class ListEditor(ToastDialog):
             if account['id'] in self._members:
                 continue
             row = AvatarRow(account)
-            add = pages.icon_button('list-add-symbolic', _('Add to List'))
+            add = uihelpers.icon_button('list-add-symbolic', _('Add to List'))
             connect_weak(add, 'clicked', self._on_add_member, row)
             row.add_suffix(add)
             self.result_rows.append(row)
@@ -459,7 +460,7 @@ class ListTimelinePage(Adw.Bin):
         self.pin_button = make_pin_button(
             self, FAVORITE_LISTS_KEY, list_json['id'],
             list_json.get('title', ''))
-        self.edit_button = pages.icon_button(
+        self.edit_button = uihelpers.icon_button(
             'document-edit-symbolic', _('Edit List'))
         connect_weak(self.edit_button, 'clicked', self._on_edit)
         self.header_widgets = [self.edit_button, self.pin_button]
@@ -505,10 +506,10 @@ class ListRow(Adw.ActionRow):
         self._bind()
         self.pin = make_pin_button(self, FAVORITE_LISTS_KEY,
                                    list_json['id'], list_json['title'])
-        self.edit = pages.icon_button('document-edit-symbolic',
+        self.edit = uihelpers.icon_button('document-edit-symbolic',
                                       _('Edit List'))
         connect_weak(self.edit, 'clicked', self._on_edit)
-        self.delete = pages.icon_button('user-trash-symbolic',
+        self.delete = uihelpers.icon_button('user-trash-symbolic',
                                         _('Delete List'))
         connect_weak(self.delete, 'clicked', self._on_delete)
         self.add_suffix(self.pin)
@@ -584,7 +585,7 @@ class ListsPage(Adw.Bin):
         connect_weak(create, 'clicked', self._on_new_clicked)
         self.paged.empty_page.set_child(create)
         self.set_child(self.paged)
-        self.add_button = pages.icon_button('list-add-symbolic',
+        self.add_button = uihelpers.icon_button('list-add-symbolic',
                                             _('New List'))
         connect_weak(self.add_button, 'clicked', self._on_new_clicked)
         self.header_widgets = [self.add_button]
@@ -626,7 +627,7 @@ class _MembershipDialog(ToastDialog):
             title=_('Lists'),
             description=_('Lists with @%s as a member are checked')
             % account.get('acct', ''))
-        new = pages.icon_button('list-add-symbolic', _('New List'))
+        new = uihelpers.icon_button('list-add-symbolic', _('New List'))
         connect_weak(new, 'clicked', self._on_new)
         self.group.set_header_suffix(new)
         self.spinner = Adw.Spinner(halign=Gtk.Align.CENTER, margin_top=12,

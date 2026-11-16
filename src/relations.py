@@ -12,7 +12,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gtk  # noqa: E402
 
-from . import feedback, pages  # noqa: E402
+from . import accountrows, feedback, pages, uihelpers  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 
@@ -21,7 +21,7 @@ def _account_label(account):
     return '@%s' % account.get('acct', '')
 
 
-class FollowRequestsPage(pages.AccountListPage):
+class FollowRequestsPage(accountrows.AccountListPage):
     """People asking to follow you (GET /follow_requests). Each row has
     Accept and Reject buttons (POST /follow_requests/:id/authorize|reject);
     the row leaves the list once the server agrees."""
@@ -39,13 +39,13 @@ class FollowRequestsPage(pages.AccountListPage):
     def _suffix_for(self, account, row):
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6,
                       valign=Gtk.Align.CENTER)
-        reject = pages.icon_button(
+        reject = uihelpers.icon_button(
             'window-close-symbolic',
             _('Reject Follow Request from %s') % _account_label(account))
         connect_weak(reject, 'clicked', self._on_answer, account,
                            'reject')
         reject.add_css_class('circular')
-        accept = pages.icon_button(
+        accept = uihelpers.icon_button(
             'object-select-symbolic',
             _('Accept Follow Request from %s') % _account_label(account),
             flat=False)
@@ -86,7 +86,7 @@ def _remove_button(label, on_clicked, *extra):
     return button
 
 
-class MutedAccountsPage(pages.AccountListPage):
+class MutedAccountsPage(accountrows.AccountListPage):
     """GET /mutes with an Unmute button per row."""
 
     __gtype_name__ = 'BabbleMutedAccountsPage'
@@ -113,7 +113,7 @@ class MutedAccountsPage(pages.AccountListPage):
             _('Could not unmute %s') % _account_label(account))
 
 
-class BlockedAccountsPage(pages.AccountListPage):
+class BlockedAccountsPage(accountrows.AccountListPage):
     """GET /blocks with an Unblock button per row."""
 
     __gtype_name__ = 'BabbleBlockedAccountsPage'

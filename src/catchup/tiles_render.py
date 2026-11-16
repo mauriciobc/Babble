@@ -20,7 +20,8 @@ gi.require_version('Pango', '1.0')
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
-from .. import explore, hashtags, linkrouting, pages, statustext  # noqa: E402
+from .. import (explore, hashtags, linkrouting, statustext,  # noqa: E402
+                uihelpers)
 from . import digest as catchupdigest, digest_layout  # noqa: E402
 from .. import mediacache, mediabox, statusactions
 from .. import timelinebase
@@ -640,7 +641,7 @@ class NewsTile(_Tile):
             self.card, sharers if sharers else None)
         label = _label(text, ('caption', 'dimmed'), hexpand=True)
         footer.append(label)
-        button = pages.icon_button('web-browser-symbolic',
+        button = uihelpers.icon_button('web-browser-symbolic',
                                    _('Open in Browser'))
         connect_weak(button, 'clicked', self._on_browser)
         footer.append(button)

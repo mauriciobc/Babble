@@ -17,7 +17,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import feedback, pagenav, pages  # noqa: E402
+from . import (accountrows, feedback, pagenav, pages,  # noqa: E402
+               uihelpers)
 from .weakconnect import connect_weak  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import reports  # noqa: E402
@@ -104,7 +105,7 @@ def status_excerpt(status):
 
 def _plain_name(account):
     return re.sub(r':[A-Za-z0-9_+\-]+:', '',
-                  pages.display_name(account)).strip() \
+                  accountrows.display_name(account)).strip() \
         or account.get('acct', '')
 
 
@@ -302,7 +303,7 @@ class ReportDialog(Adw.Dialog):
 
     def _build_posts_page(self):
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        header.append(pages.section_label(
+        header.append(uihelpers.section_label(
             _('Are there any other posts that back up this report?')
             if self.status else
             _('Are there any posts that back up this report?')))

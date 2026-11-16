@@ -16,7 +16,7 @@ from .i18n import gettext as _
 
 from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import accountrows  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .completer import (MAX_SUGGESTIONS, SEARCH_DELAY_MS,  # noqa: E402, F401
                         TokenCompleter)
@@ -92,7 +92,7 @@ class MentionCompleter(TokenCompleter):
         from .mediacache import AvatarCache
         acct = account.get('acct') or account.get('username')
         name = re.sub(r':[A-Za-z0-9_+\-]+:', '',
-                      pages.display_name(account)).strip() or acct
+                      accountrows.display_name(account)).strip() or acct
         avatar = Adw.Avatar(size=32, text=name, show_initials=True)
         AvatarCache.load(avatar, account)
         labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,

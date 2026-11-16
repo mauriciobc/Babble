@@ -20,7 +20,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import uihelpers  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .mediazoom import ZoomPicture  # noqa: E402
 
@@ -35,9 +35,9 @@ def _label(widget, text):
 
 def _icon_button(icon, tooltip, css=()):
     # Not flat by default: these sit over the picture in a header bar or
-    # an overlay, where pages.icon_button's flat would flatten a button
+    # an overlay, where uihelpers.icon_button's flat would flatten a button
     # that is meant to read as a control on top of media.
-    return pages.icon_button(icon, tooltip, flat=False, css=css)
+    return uihelpers.icon_button(icon, tooltip, flat=False, css=css)
 
 
 class MediaViewerChrome:

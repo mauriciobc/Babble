@@ -25,7 +25,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 from . import charts  # noqa: E402
-from . import feedback, pagenav, pages  # noqa: E402
+from . import (accountrows, feedback, pagenav, pages,  # noqa: E402
+               uihelpers)
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import annual_reports as api_annual_reports  # noqa: E402
 from .capabilities import ANNUAL_REPORT_STATE_API_VERSION  # noqa: E402
@@ -214,7 +215,7 @@ class WrappedDialog(feedback.ToastDialog):
         self.stack = Gtk.Stack()
         self.set_content(self.stack)
 
-        self.save_button = pages.icon_button(
+        self.save_button = uihelpers.icon_button(
             'document-save-symbolic', _('Save as Image…'))
         connect_weak(self.save_button, 'clicked',
                            self._on_save_clicked)
@@ -225,7 +226,7 @@ class WrappedDialog(feedback.ToastDialog):
         self.style_button.set_menu_model(self._style_menu())
         self.header.pack_start(self.style_button)
         self.year_dropdown = Gtk.DropDown(visible=False)
-        pages.set_accessible_label(self.year_dropdown, _('Year'))
+        uihelpers.set_accessible_label(self.year_dropdown, _('Year'))
         connect_weak(self.year_dropdown, 'notify::selected',
                            self._on_year)
         self.header.pack_start(self.year_dropdown)
@@ -443,7 +444,7 @@ class WrappedDialog(feedback.ToastDialog):
 
         me = self._me()
         avatar = Adw.Avatar(size=96, halign=Gtk.Align.CENTER,
-                            text=pages.display_name(me) if me else '?',
+                            text=accountrows.display_name(me) if me else '?',
                             show_initials=True)
         if me:
             AvatarCache.load(avatar, me)
@@ -568,7 +569,7 @@ class WrappedDialog(feedback.ToastDialog):
         box.append(caption)
         row = Gtk.Box(spacing=18, halign=Gtk.Align.CENTER)
         for account in accounts:
-            name = pages.display_name(account)
+            name = accountrows.display_name(account)
             cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                            halign=Gtk.Align.CENTER, width_request=90)
             avatar = Adw.Avatar(size=56, text=name, show_initials=True,
@@ -629,7 +630,7 @@ class WrappedDialog(feedback.ToastDialog):
         row.add_controller(click)
         # The click's keyboard twin: Tab to the card, Enter or space.
         row.set_focusable(True)
-        pages.activate_on_key(row, weak_method(self._open_status),
+        uihelpers.activate_on_key(row, weak_method(self._open_status),
                               status)
         holder.append(row)
 

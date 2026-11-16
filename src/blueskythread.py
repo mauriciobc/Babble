@@ -16,7 +16,7 @@ from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from . import bluesky  # noqa: E402
 from . import bskytext  # noqa: E402
-from . import linkrouting, pagenav, pages  # noqa: E402
+from . import linkrouting, pagenav, pages, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .blueskycard import BlueskyQuoteCard  # noqa: E402
 from .mediabox import CardPreview, MediaBox, status_picture  # noqa: E402
@@ -183,7 +183,7 @@ class BlueskyPostView(Gtk.Box):
         overlay.add_overlay(play)
         button = Gtk.Button(child=overlay)
         button.add_css_class('flat')
-        pages.set_accessible_label(
+        uihelpers.set_accessible_label(
             button, video.get('alt') or _('Open Video on Bluesky'))
         connect_weak(button, 'clicked', self._on_open_web)
         return button
@@ -242,7 +242,7 @@ class BlueskyThreadPage(Adw.Bin):
         self._replies_shown = 0
         self._replies_hidden = False
         button = Gtk.Button(icon_name='web-browser-symbolic')
-        pages.set_accessible_label(button, _('Open on Bluesky'))
+        uihelpers.set_accessible_label(button, _('Open on Bluesky'))
         connect_weak(button, 'clicked', self._on_open_web)
         self.header_widgets = [button]
         self.stack = pages.StateStack(
@@ -294,7 +294,7 @@ class BlueskyThreadPage(Adw.Bin):
                  'again.')
 
     def build(self, thread):
-        pages.clear_children(self.thread_box)
+        uihelpers.clear_children(self.thread_box)
         parents = []
         node = thread.get('parent')
         while isinstance(node, dict):

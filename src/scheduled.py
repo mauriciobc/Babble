@@ -22,7 +22,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
-from . import feedback, pagenav, pages  # noqa: E402
+from . import feedback, pagenav, pages, uihelpers  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .statustext import clock_format  # noqa: E402
@@ -310,7 +310,7 @@ class ScheduledRow(Gtk.ListBoxRow):
         self.bind(scheduled)
 
     def _add_button(self, icon, tooltip, method_name, destructive=False):
-        button = pages.icon_button(icon, tooltip)
+        button = uihelpers.icon_button(icon, tooltip)
         connect_weak(button, 'clicked', self._on_button_clicked,
                            method_name)
         if destructive:

@@ -13,7 +13,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import (appsettings, feedback, linkhandlers, linkrouting,  # noqa: E402
-               pagenav, pages, pluginlinks)
+               pagenav, pluginlinks, uihelpers)
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .statustext import is_web_link  # noqa: E402
@@ -301,13 +301,13 @@ class WebColumn(Adw.Bin):
 
     def _build_header(self):
         header = Adw.HeaderBar()
-        hide = pages.icon_button('sidebar-show-right-symbolic',
+        hide = uihelpers.icon_button('sidebar-show-right-symbolic',
                                  _('Hide Web Column'))
         connect_weak(hide, 'clicked', self._on_close_clicked)
         header.pack_start(hide)
-        self.back_button = pages.icon_button('go-previous-symbolic',
+        self.back_button = uihelpers.icon_button('go-previous-symbolic',
                                              _('Back'))
-        self.forward_button = pages.icon_button('go-next-symbolic',
+        self.forward_button = uihelpers.icon_button('go-next-symbolic',
                                                 _('Forward'))
         connect_weak(self.back_button, 'clicked', self._on_back)
         connect_weak(self.forward_button, 'clicked', self._on_forward)
@@ -324,7 +324,7 @@ class WebColumn(Adw.Bin):
         button = Gtk.MenuButton(icon_name='view-more-symbolic',
                                 menu_model=menu)
         button.add_css_class('flat')
-        pages.set_accessible_label(button, _('Page Actions'))
+        uihelpers.set_accessible_label(button, _('Page Actions'))
         header.pack_end(button)
         return header
 

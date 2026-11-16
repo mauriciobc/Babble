@@ -17,7 +17,8 @@ from . import auth  # noqa: E402
 from . import clipboard  # noqa: E402
 from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
-from . import appsettings, feedback, pagenav, pages  # noqa: E402
+from . import (appsettings, feedback, pagenav, pages,  # noqa: E402
+               uihelpers)
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api.notifications import unread_badge_text  # noqa: E402
@@ -1157,7 +1158,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         was_shown = self.notifications_badge.get_visible()
         self.notifications_badge.set_visible(bool(count))
         if count and not was_shown:
-            pages.flash_class(self.notifications_badge, 'just-toggled')
+            uihelpers.flash_class(self.notifications_badge, 'just-toggled')
         if not count:
             description = ''
         elif text.endswith('+'):

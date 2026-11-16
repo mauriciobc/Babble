@@ -30,7 +30,7 @@ from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from . import bskytext  # noqa: E402
 from . import bluesky  # noqa: E402
-from . import linkrouting, pages  # noqa: E402
+from . import linkrouting, uihelpers  # noqa: E402
 from . import statustext  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .mediabox import CardPreview, status_picture  # noqa: E402
@@ -294,7 +294,7 @@ def fill_quote_box(box, data, key):
     if getattr(box, '_bsky_key', None) == key \
             and box.get_first_child() is not None:
         return
-    pages.clear_children(box)
+    uihelpers.clear_children(box)
     box._bsky_key = key
     box.append(BlueskyQuoteCard(data))
 
@@ -363,7 +363,7 @@ def fill_card_box(box, card):
     rebinds the row."""
     if not card or not (card.get('title') or card.get('description')):
         box.set_visible(False)
-        pages.clear_children(box)
+        uihelpers.clear_children(box)
         box._bsky_key = None
         return
     box.set_visible(True)
@@ -374,7 +374,7 @@ def fill_card_box(box, card):
     if getattr(box, '_bsky_key', None) == key \
             and box.get_first_child() is not None:
         return
-    pages.clear_children(box)
+    uihelpers.clear_children(box)
     box._bsky_key = key
     box.append(BlueskyQuoteCard(data) if data else CardPreview(card))
 

@@ -28,7 +28,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from . import appsettings, feedback, pagenav, pages  # noqa: E402
+from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
+               pages, uihelpers)
 from .api import accounts as api_accounts  # noqa: E402
 from .api import collections_api  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
@@ -171,7 +172,7 @@ def remember_account(client, account):
 
 
 def owner_label(account):
-    return pages.display_name(account) if account else ''
+    return accountrows.display_name(account) if account else ''
 
 
 def format_date(iso, fmt='%x'):
@@ -242,7 +243,7 @@ class CollectionActions:
         button = Gtk.MenuButton(icon_name='view-more-symbolic',
                                 valign=Gtk.Align.CENTER, menu_model=menu)
         button.add_css_class('flat')
-        pages.set_accessible_label(button, _('More Options'))
+        uihelpers.set_accessible_label(button, _('More Options'))
         button.insert_action_group('collection', group)
         return button
 
@@ -353,7 +354,7 @@ class AvatarStack(Gtk.Box):
             account = accounts.get(account_id)
             if account is None:
                 continue
-            avatar.set_text(pages.display_name(account))
+            avatar.set_text(accountrows.display_name(account))
             avatar.set_show_initials(True)
             AvatarCache.load(avatar, account)
 
@@ -413,7 +414,7 @@ class CollectionsPage(Adw.Bin):
         self.stack = Adw.ViewStack()
         self.title_widget = Adw.InlineViewSwitcher(
             stack=self.stack, display_mode=Adw.InlineViewSwitcherDisplayMode.LABELS)
-        self.new_button = pages.icon_button(
+        self.new_button = uihelpers.icon_button(
             'list-add-symbolic', _('New Collection'), flat=False)
         connect_weak(self.new_button, 'clicked', self._on_new)
         self.new_button.add_css_class('suggested-action')
@@ -637,7 +638,7 @@ class CollectionPage(Adw.Bin):
         owner = by_id.get(collection.get('account_id'))
         if owner is not None:
             created_by = Adw.PreferencesGroup(title=_('Created By'))
-            created_by.add(pages.AccountRow(self.client, owner))
+            created_by.add(accountrows.AccountRow(self.client, owner))
             details.append(created_by)
 
         if collection.get('sensitive'):
@@ -664,7 +665,7 @@ class CollectionPage(Adw.Bin):
         self.stack.set_visible_child_name('content')
 
     def _member_row(self, account, item):
-        row = pages.AccountRow(self.client, account)
+        row = accountrows.AccountRow(self.client, account)
         if item.get('state') == 'pending':
             badge = Gtk.Label(label=_('Pending'), valign=Gtk.Align.CENTER)
             badge.add_css_class('caption-heading')
@@ -703,7 +704,7 @@ class MemberRow(Adw.ActionRow):
     def __init__(self, account, **kwargs):
         super().__init__(activatable=False, use_markup=False, **kwargs)
         from .mediacache import AvatarCache
-        name = pages.display_name(account)
+        name = accountrows.display_name(account)
         self.set_title(name)
         self.set_subtitle('@' + account.get('acct', ''))
         avatar = Adw.Avatar(size=40, text=name, show_initials=True)
@@ -878,7 +879,7 @@ class CollectionEditDialog(feedback.ToastDialog):
         row = MemberRow(account)
         if item and item.get('state') == 'pending':
             row.add_badge(_('Pending'))
-        remove = pages.icon_button('user-trash-symbolic', _('Remove'))
+        remove = uihelpers.icon_button('user-trash-symbolic', _('Remove'))
         connect_weak(remove, 'clicked', self._on_remove_clicked,
                            account)
         remove.add_css_class('error')

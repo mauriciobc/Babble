@@ -16,7 +16,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, GLib, Gio, GObject, Gtk  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import pages  # noqa: E402
+from . import pages, uihelpers  # noqa: E402
 from .api import notifications as api_notifications  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 from .notificationcopy import type_offered  # noqa: E402
@@ -246,13 +246,13 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         self.menu_button = Gtk.MenuButton(icon_name='open-menu-symbolic',
                                           menu_model=menu)
         self.menu_button.add_css_class('flat')
-        pages.set_accessible_label(self.menu_button,
+        uihelpers.set_accessible_label(self.menu_button,
                                    _('Notification Options'))
         self.menu_button.insert_action_group('notifs', self.actions)
 
         clear_button = Gtk.Button(icon_name='edit-clear-all-symbolic')
         clear_button.add_css_class('flat')
-        pages.set_accessible_label(clear_button, _('Clear Notifications'))
+        uihelpers.set_accessible_label(clear_button, _('Clear Notifications'))
         connect_weak(clear_button, 'clicked', self.on_clear_requested)
 
         box = Gtk.Box(spacing=0)
@@ -380,7 +380,7 @@ class NotificationRequestRow(Adw.ActionRow):
 
     def _answer_button(self, icon_name, label, action):
         """Flat circular suffix button answering the request."""
-        button = pages.icon_button(icon_name, label, css=('circular',))
+        button = uihelpers.icon_button(icon_name, label, css=('circular',))
         connect_weak(button, 'clicked', self._on_answer_clicked, action)
         self.add_suffix(button)
 
@@ -473,10 +473,10 @@ class RequestNotificationsPage(Adw.Bin):
         self.inner = NotificationsPage(
             client, account_id=request['account']['id'])
         self.set_child(self.inner)
-        dismiss = pages.icon_button('user-trash-symbolic', _('Dismiss'))
+        dismiss = uihelpers.icon_button('user-trash-symbolic', _('Dismiss'))
         connect_weak(dismiss, 'clicked', self._on_answer_clicked,
                            'dismiss')
-        accept = pages.icon_button('object-select-symbolic', _('Accept'))
+        accept = uihelpers.icon_button('object-select-symbolic', _('Accept'))
         connect_weak(accept, 'clicked', self._on_answer_clicked,
                            'accept')
         self.header_widgets = [dismiss, accept]

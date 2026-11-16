@@ -28,6 +28,7 @@ configure_file(
 
 install_data(
   '__init__.py',
+  'accountrows.py',
   'accounts.py',
   'appsettings.py',
   'admin.py',
@@ -135,6 +136,7 @@ install_data(
   'mediacache.py',
   'mediabox.py',
   'mediaopen.py',
+  'uihelpers.py',
   'weakconnect.py',
   'webcolumn.py',
   'window.py',

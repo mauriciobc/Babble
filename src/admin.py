@@ -31,7 +31,7 @@ from gi.repository import Adw, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from . import charts  # noqa: E402
 from .api import admin as admin_api  # noqa: E402
-from . import feedback, pagenav, pages  # noqa: E402
+from . import feedback, pagenav, pages, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 from .statustext import format_time  # noqa: E402
@@ -266,7 +266,7 @@ def count_badge_label(text, css=None):
 def delete_button(tooltip, method, *extra):
     """Trash button calling the bound *method* ``(button, *extra)``,
     held weakly."""
-    button = pages.icon_button('user-trash-symbolic', tooltip)
+    button = uihelpers.icon_button('user-trash-symbolic', tooltip)
     connect_weak(button, 'clicked', method, *extra)
     button.add_css_class('error')
     return button
@@ -554,7 +554,7 @@ class ReportsPage(CtxRef, Adw.Bin):
         self.resolved_button = Gtk.ToggleButton(
             icon_name='object-select-symbolic')
         self.resolved_button.add_css_class('flat')
-        pages.set_accessible_label(self.resolved_button,
+        uihelpers.set_accessible_label(self.resolved_button,
                                    _('Show Resolved Reports'))
         connect_weak(self.resolved_button, 'toggled', self._on_toggled)
         self.header_widgets = [self.resolved_button]
@@ -1000,7 +1000,7 @@ class AccountsPage(CtxRef, Adw.Bin):
         self.search_button = Gtk.ToggleButton(
             icon_name='system-search-symbolic')
         self.search_button.add_css_class('flat')
-        pages.set_accessible_label(self.search_button, _('Search'))
+        uihelpers.set_accessible_label(self.search_button, _('Search'))
         self.header_widgets = [self.search_button]
 
         self.origin = self._dropdown(self.ORIGINS, _('Location'))
@@ -1040,7 +1040,7 @@ class AccountsPage(CtxRef, Adw.Bin):
     def _dropdown(options, tooltip):
         dropdown = Gtk.DropDown(
             model=Gtk.StringList.new([label for _k, label in options]))
-        pages.set_accessible_label(dropdown, tooltip)
+        uihelpers.set_accessible_label(dropdown, tooltip)
         dropdown.options = [key for key, _l in options]
         return dropdown
 
@@ -1153,7 +1153,7 @@ class AdminAccountDialog(feedback.ToastDialog):
             else 'dialog-warning-symbolic', valign=Gtk.Align.CENTER)
         confirmed.add_css_class('success' if item.get('confirmed')
                                 else 'warning')
-        pages.set_accessible_label(confirmed, confirmed_text)
+        uihelpers.set_accessible_label(confirmed, confirmed_text)
         email.add_suffix(confirmed)
         info.add(email)
         ips = [entry.get('ip') for entry in item.get('ips') or []
@@ -1168,11 +1168,11 @@ class AdminAccountDialog(feedback.ToastDialog):
             self.approval_row = Adw.ActionRow(
                 title=_('Awaiting Approval'), subtitle=note,
                 subtitle_lines=0, use_markup=False, activatable=False)
-            reject = pages.icon_button('window-close-symbolic', _('Reject'))
+            reject = uihelpers.icon_button('window-close-symbolic', _('Reject'))
             connect_weak(reject, 'clicked', self._on_review, 'reject',
                                _('Reject %s?'), _('_Reject'))
             reject.add_css_class('error')
-            approve = pages.icon_button('object-select-symbolic',
+            approve = uihelpers.icon_button('object-select-symbolic',
                                         _('Approve'))
             connect_weak(approve, 'clicked', self._on_review,
                                'approve', _('Approve %s?'), _('_Approve'))
@@ -1286,7 +1286,7 @@ class FederationBlocksPage(RuleList):
             ctx, 'domain_blocks', self._make_row,
             _('No Federation Blocks'), 'action-unavailable-symbolic',
             _('Servers you block or limit will show up here.'), **kwargs)
-        self.add_button = pages.icon_button(
+        self.add_button = uihelpers.icon_button(
             'list-add-symbolic', _('Add Federation Block'))
         connect_weak(self.add_button, 'clicked', self._on_add)
         self.header_widgets = [self.add_button]
@@ -1516,7 +1516,7 @@ class IPBlocksPage(RuleList):
             ctx, 'ip_blocks', self._make_row, _('No IP Rules'),
             'network-server-symbolic',
             _('Address ranges you restrict show up here.'), **kwargs)
-        self.add_button = pages.icon_button(
+        self.add_button = uihelpers.icon_button(
             'list-add-symbolic', _('Add IP Rule'))
         connect_weak(self.add_button, 'clicked', self._on_add)
         self.header_widgets = [self.add_button]

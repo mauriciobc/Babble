@@ -9,7 +9,7 @@ gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import pagenav, pages  # noqa: E402
+from . import accountrows, pagenav, pages, uihelpers  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .statustext import format_time, parse_time  # noqa: E402
@@ -73,11 +73,11 @@ class StatusStatsView(Adw.Bin):
 
     def _make_tab(self, kind, status_id):
         if kind == 'favourites':
-            return pages.AccountListPage(
+            return accountrows.AccountListPage(
                 self.client, api_statuses.list_path('favourites', status_id),
                 empty_title=_('No Favorites Yet'))
         if kind == 'boosts':
-            return pages.AccountListPage(
+            return accountrows.AccountListPage(
                 self.client, api_statuses.list_path('boosts', status_id),
                 empty_title=_('No Boosts Yet'))
         from .timelinepage import ApiTimelineSource, TimelinePage
@@ -269,7 +269,7 @@ class EditHistoryView(Adw.Bin):
             for option in titles:
                 row = Gtk.Box(spacing=6)
                 mark = Gtk.Image(icon_name='object-select-symbolic')
-                pages.set_accessible_label(mark, _('Your vote'))
+                uihelpers.set_accessible_label(mark, _('Your vote'))
                 row.append(mark)
                 row.append(Gtk.Label(label=option, xalign=0, wrap=True,
                                      hexpand=True))

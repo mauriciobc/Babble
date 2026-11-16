@@ -14,7 +14,8 @@ from .i18n import gettext as _
 from gi.repository import (GLib, GObject, Gio,  # noqa: E402
                            Gtk)
 
-from . import feedback, pagenav, pages, pluginhost  # noqa: E402
+from . import (feedback, pagenav, pages, pluginhost,  # noqa: E402
+               uihelpers)
 from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .blueskycard import view_on_bluesky  # noqa: E402
@@ -67,7 +68,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                          valign=Gtk.Align.CENTER, **kwargs)
         for css in button_classes:
             self.add_css_class(css)
-        pages.set_accessible_label(self, _('More Options'))
+        uihelpers.set_accessible_label(self, _('More Options'))
         self.actions = actions
         self._menu_actions = None
         self.set_create_popup_func(_open_status_menu, self.weak_ref())

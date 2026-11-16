@@ -14,7 +14,8 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, GObject, Gtk, Pango)
 
 from .entities import (STATUS_MERGE_KEYS as MERGE_KEYS)
-from . import appsettings, feedback, linkrouting, pagenav, pages  # noqa: E402
+from . import (appsettings, feedback, linkrouting, pagenav,  # noqa: E402
+               pages, uihelpers)
 from .api import statuses as api_statuses  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import (InlineEmojiText, emoji_bank)
@@ -401,7 +402,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
         if tint and self._tinted:
             content.add_css_class(tint)
         button.set_child(content)
-        pages.set_accessible_label(button, tooltip)
+        uihelpers.set_accessible_label(button, tooltip)
         connect_weak(button, 'clicked', callback)
         button.icons = icons
         button.action_name_text = tooltip
@@ -574,14 +575,14 @@ class StatusActions(_PostBound, Adw.WrapBox):
         item = self.item
         self._set_active(button, item.favourited)
         if not item.favourited:
-            pages.flash_class(button, 'just-toggled')
+            uihelpers.flash_class(button, 'just-toggled')
         self._send_toggle('favourite', not item.favourited)
 
     def _on_bookmark(self, button):
         item = self.item
         self._set_active(button, item.bookmarked)
         if not item.bookmarked:
-            pages.flash_class(button, 'just-toggled')
+            uihelpers.flash_class(button, 'just-toggled')
         self._send_toggle('bookmark', not item.bookmarked)
 
     def _missing_alt(self):
@@ -602,7 +603,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
             if _flag('advanced-boost-dialog'):
                 self._present_boost_dialog()
             else:
-                pages.flash_class(button, 'just-toggled')
+                uihelpers.flash_class(button, 'just-toggled')
                 self._send_toggle('reblog', True)
 
         if _flag('boost-alt-text-reminder') and self._missing_alt():
@@ -683,7 +684,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
             if response == 'boost':
                 chosen = next((v for v, c in checks.items()
                                if c.get_active()), default)
-                pages.flash_class(self.boost_button, 'just-toggled')
+                uihelpers.flash_class(self.boost_button, 'just-toggled')
                 self._send_toggle('reblog', True,
                                   form={'visibility': chosen})
             elif response == 'quote':

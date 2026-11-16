@@ -21,7 +21,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
-from . import appsettings, pages, portals  # noqa: E402
+from . import appsettings, portals, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 # The fallback, for an instance that advertises no
@@ -245,7 +245,7 @@ class AttachmentRow(Gtk.ListBox):
         self.remove_button = Gtk.Button(icon_name='user-trash-symbolic',
                                         valign=Gtk.Align.CENTER)
         self.remove_button.add_css_class('flat')
-        pages.set_accessible_label(self.remove_button, _('Remove Attachment'))
+        uihelpers.set_accessible_label(self.remove_button, _('Remove Attachment'))
 
         header = Adw.ActionRow(title=GLib.markup_escape_text(
             GLib.path_get_basename(path) if not self.existing

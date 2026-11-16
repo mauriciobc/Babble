@@ -19,7 +19,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .textemoji import InlineEmojiText  # noqa: E402
 from .timelinebase import _flag  # noqa: E402
@@ -77,7 +77,7 @@ class StatusFold:
         spoiler = (item.translation or {}).get('spoiler_text') \
             or item.status.get('spoiler_text') or ''
         self._update_cw_toggle(spoiler, not current)
-        pages.reveal(self.guarded_revealer, not current, animate=True)
+        uihelpers.reveal(self.guarded_revealer, not current, animate=True)
 
     def _on_expand(self, _button):
         item = self.item

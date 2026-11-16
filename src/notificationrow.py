@@ -12,11 +12,11 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import linkrouting, pages  # noqa: E402
+from . import linkrouting, uihelpers  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .feedback import report_error  # noqa: E402
 from .linkrouting import launch_external  # noqa: E402
-from .pages import reveal  # noqa: E402
+from .uihelpers import reveal  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .notificationctrl import _RELATIONSHIPS  # noqa: E402
@@ -415,7 +415,7 @@ class NotificationRow(ColumnBox):
             tooltip_text=_('Dismiss Notification'))
         self.dismiss_button.add_css_class('flat')
         self.dismiss_button.add_css_class('circular')
-        pages.set_accessible_label(self.dismiss_button,
+        uihelpers.set_accessible_label(self.dismiss_button,
                                    _('Dismiss Notification'))
         connect_weak(self.dismiss_button, 'clicked', self._on_dismiss_clicked)
         header.append(self.dismiss_button)
@@ -542,7 +542,7 @@ class NotificationRow(ColumnBox):
                                 ellipsize=Pango.EllipsizeMode.END))
         button = Gtk.Button(child=person)
         button.add_css_class('flat')
-        pages.set_accessible_label(button, name)
+        uihelpers.set_accessible_label(button, name)
         connect_weak(button, 'clicked', self._on_person_clicked, actor)
         return button
 
@@ -610,7 +610,7 @@ class NotificationRow(ColumnBox):
             names.append(name)
             self.people_box.append(self._person_row(actor, name, kind))
         people = ', '.join(names)
-        pages.set_accessible_label(self.cluster_expander, people)
+        uihelpers.set_accessible_label(self.cluster_expander, people)
 
     # Inline actions
 

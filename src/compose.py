@@ -23,7 +23,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Pango, Spelling)
 
-from . import appsettings, emojichooser, pagenav, pages  # noqa: E402
+from . import appsettings, emojichooser, pagenav, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
@@ -197,7 +197,7 @@ def _make_dropdown(options, label):
     # which is not ours to keep in step with.
     dropdown.add_css_class('flat')
     dropdown.set_valign(Gtk.Align.CENTER)
-    pages.set_accessible_label(dropdown, label)
+    uihelpers.set_accessible_label(dropdown, label)
     return dropdown
 
 
@@ -393,7 +393,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
     def build_header_bar(self):
         header = Adw.HeaderBar()
         self.discard_button = Gtk.Button(icon_name='user-trash-symbolic')
-        pages.set_accessible_label(self.discard_button, _('Discard Draft'))
+        uihelpers.set_accessible_label(self.discard_button, _('Discard Draft'))
         connect_weak(self.discard_button, 'clicked',
                            self.on_discard_clicked)
         header.pack_start(self.discard_button)
@@ -406,7 +406,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.progress_spinner = Adw.Spinner(visible=False)
         header.pack_end(self.progress_spinner)
         self.schedule_button = Gtk.Button(icon_name='alarm-symbolic')
-        pages.set_accessible_label(self.schedule_button, _('Schedule Post'))
+        uihelpers.set_accessible_label(self.schedule_button, _('Schedule Post'))
         header.pack_end(self.schedule_button)
         return header
 
@@ -518,7 +518,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             button = (Gtk.ToggleButton if toggle else Gtk.Button)(
                 icon_name=name)
             button.add_css_class('flat')
-            pages.set_accessible_label(button, label)
+            uihelpers.set_accessible_label(button, label)
             tools.append(button)
             return button
 
@@ -1092,7 +1092,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.spell_adapter.update_corrections()
 
     def on_cw_toggled(self, toggle):
-        pages.reveal(self._spoiler_revealer, toggle.get_active(),
+        uihelpers.reveal(self._spoiler_revealer, toggle.get_active(),
                      animate=self.get_mapped())
         if toggle.get_active():
             self.spoiler_entry.grab_focus()
@@ -1101,7 +1101,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
 
     def on_poll_toggled(self, toggle):
         self._apply_poll_limits()
-        pages.reveal(self._poll_revealer, toggle.get_active(),
+        uihelpers.reveal(self._poll_revealer, toggle.get_active(),
                      animate=self.get_mapped())
         if toggle.get_active():
             self.poll_entries[0].grab_focus()

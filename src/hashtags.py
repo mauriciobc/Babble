@@ -20,7 +20,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import charts  # noqa: E402
-from . import appsettings, feedback, pagenav, pages  # noqa: E402
+from . import (appsettings, feedback, pagenav, pages,  # noqa: E402
+               uihelpers)
 from .weakconnect import connect_weak  # noqa: E402
 from .api import tags as api_tags  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
@@ -179,7 +180,7 @@ class HashtagPage(Adw.Bin):
             pluginhost.attach_hashtag_page(self, self.tags[0].lower(),
                                            self.plugin_banners)
         else:
-            self.edit_button = pages.icon_button(
+            self.edit_button = uihelpers.icon_button(
                 'document-edit-symbolic', _('Edit Timeline'))
             connect_weak(self.edit_button, 'clicked', self._on_edit)
             self.header_widgets = [self.edit_button]
@@ -203,7 +204,7 @@ class HashtagPage(Adw.Bin):
             icon_name='view-more-symbolic',
             valign=Gtk.Align.CENTER, sensitive=False)
         self.more_button.add_css_class('flat')
-        pages.set_accessible_label(self.more_button, _('More Options'))
+        uihelpers.set_accessible_label(self.more_button, _('More Options'))
         group = Gio.SimpleActionGroup()
         feature = Gio.SimpleAction.new('feature', None)
         connect_weak(feature, 'activate', self._on_feature)
@@ -411,7 +412,7 @@ class _TagsEditor:
         if not name or name.lower() in (t.lower() for t in self.tags):
             return False
         row = Adw.ActionRow(title='#' + name, use_markup=False)
-        remove = pages.icon_button('list-remove-symbolic',
+        remove = uihelpers.icon_button('list-remove-symbolic',
                                    _('Remove Hashtag'))
         remove.connect('clicked', self._on_remove_clicked, name)
         row.add_suffix(remove)
@@ -697,7 +698,7 @@ class SavedTimelinesGroup(Gtk.Box):
     def __init__(self, page):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._page = page.weak_ref()  # weak: this group is its child
-        self.heading = pages.section_label(_('Multi-Hashtag Timelines'))
+        self.heading = uihelpers.section_label(_('Multi-Hashtag Timelines'))
         self.append(self.heading)
         self.list_box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.list_box.add_css_class('boxed-list')
@@ -719,7 +720,7 @@ class SavedTimelinesGroup(Gtk.Box):
                                 subtitle=default_title(definition['tags']),
                                 use_markup=False, activatable=True)
             row.add_prefix(hash_badge())
-            edit = pages.icon_button('document-edit-symbolic',
+            edit = uihelpers.icon_button('document-edit-symbolic',
                                      _('Edit Timeline'))
             connect_weak(edit, 'clicked', self._on_edit, definition)
             row.add_suffix(edit)
@@ -774,7 +775,7 @@ class FollowedHashtagsPage(Adw.Bin):
         self.saved = SavedTimelinesGroup(self)
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         header.append(self.saved)
-        header.append(pages.section_label(_('Followed Hashtags')))
+        header.append(uihelpers.section_label(_('Followed Hashtags')))
         page = self.weak_ref()  # the list is a child: no strong cycle
         # A placeholder row stands in for the empty state, so the saved
         # timelines above the list stay reachable when nothing is followed.
@@ -786,7 +787,7 @@ class FollowedHashtagsPage(Adw.Bin):
                                 'posts in your home timeline'),
             header=header, make_placeholder=_no_followed_tags_row)
         self.set_child(self.paged)
-        self.add_button = pages.icon_button(
+        self.add_button = uihelpers.icon_button(
             'list-add-symbolic', _('New Multi-Hashtag Timeline'))
         connect_weak(self.add_button, 'clicked', self._on_add_clicked)
         self.header_widgets = [self.add_button]

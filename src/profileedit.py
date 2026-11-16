@@ -14,7 +14,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, Gdk, GLib, Gio, GObject, Gtk  # noqa: E402
 
-from . import feedback, pagenav, pages  # noqa: E402
+from . import feedback, pagenav, uihelpers  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
@@ -152,7 +152,7 @@ class FieldRow(Adw.ExpanderRow):
                                       activates_default=True)
         self.add_row(self.name_row)
         self.add_row(self.value_row)
-        remove = pages.icon_button('user-trash-symbolic', _('Remove Field'))
+        remove = uihelpers.icon_button('user-trash-symbolic', _('Remove Field'))
         connect_weak(remove, 'clicked', self._on_remove_clicked)
         self.add_suffix(remove)
         self.set_index(index)

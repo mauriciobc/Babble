@@ -20,7 +20,8 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
-from . import appsettings, feedback, pagenav, pages  # noqa: E402
+from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
+               pages, uihelpers)
 from .api import search as api_search  # noqa: E402
 from .feedback import ToastDialog  # noqa: E402
 from .lists import error_text_markup  # noqa: E402
@@ -224,7 +225,7 @@ class SearchTypePage(Adw.Bin):
 def make_result_widget(client, kind, item):
     """The row for one search result of *kind*."""
     if kind == 'accounts':
-        return pages.AccountRow(client, item,
+        return accountrows.AccountRow(client, item,
                                 subtitle=account_subtitle(item))
     if kind == 'hashtags':
         from .hashtags import HashtagRow
@@ -256,7 +257,7 @@ def make_post_row(client, status):
     # Tab reaches the card (the .status-row focus ring shows it), and
     # Enter or space opens the thread, as the click does.
     row.set_focusable(True)
-    pages.activate_on_key(row, open_thread)
+    uihelpers.activate_on_key(row, open_thread)
     return row
 
 
@@ -283,7 +284,7 @@ class SearchPage(Adw.Bin):
         connect_weak(self.entry, 'activate', self._on_activate)
         connect_weak(self.entry, 'stop-search', self._on_stop_search)
         self.title_widget = Adw.Clamp(maximum_size=460, child=self.entry)
-        self.advanced_button = pages.icon_button(
+        self.advanced_button = uihelpers.icon_button(
             'preferences-other-symbolic', _('Advanced Search'))
         connect_weak(self.advanced_button, 'clicked',
                            self._on_advanced_clicked)
@@ -383,7 +384,7 @@ class SearchPage(Adw.Bin):
             row = Adw.ActionRow(title=query, activatable=True,
                                 use_markup=False, title_lines=1)
             row.add_prefix(Gtk.Image(icon_name='document-open-recent-symbolic'))
-            remove = pages.icon_button('edit-clear-symbolic',
+            remove = uihelpers.icon_button('edit-clear-symbolic',
                                        _('Remove from Recent Searches'))
             connect_weak(remove, 'clicked', self._on_remove_recent,
                                query)
@@ -523,7 +524,7 @@ class SearchPage(Adw.Bin):
 
     def _section(self, kind, title, see_all, items):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        heading = pages.section_label(title)
+        heading = uihelpers.section_label(title)
         heading.set_margin_start(12)
         heading.set_margin_end(12)
         box.append(heading)

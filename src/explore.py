@@ -16,7 +16,8 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
-from . import feedback, linkrouting, pagenav, pages  # noqa: E402
+from . import (accountrows, feedback, linkrouting, pagenav,  # noqa: E402
+               pages, uihelpers)
 from .weakconnect import connect_weak  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .api import suggestions as api_suggestions  # noqa: E402
@@ -114,7 +115,7 @@ class LinkTimelinePage(Adw.Bin):
         box.append(Adw.Clamp(maximum_size=pages.COLUMN_WIDTH, child=frame))
         box.append(self.timeline)
         self.set_child(box)
-        self.browser_button = pages.icon_button(
+        self.browser_button = uihelpers.icon_button(
             'web-browser-symbolic', _('Open in Browser'))
         connect_weak(self.browser_button, 'clicked',
                            self._on_open_browser)
@@ -242,7 +243,7 @@ class LinkCard(Gtk.ListBoxRow):
         open_link_timeline(self, self.client, self.link)
 
 
-class SuggestionRow(pages.AccountRow):
+class SuggestionRow(accountrows.AccountRow):
     """A suggested account: reason, Follow and dismiss buttons."""
 
     __gtype_name__ = 'BabbleSuggestionRow'
@@ -269,7 +270,7 @@ class SuggestionRow(pages.AccountRow):
                                         valign=Gtk.Align.CENTER)
         self.follow_button.add_css_class('suggested-action')
         connect_weak(self.follow_button, 'clicked', self._on_follow)
-        self.dismiss_button = pages.icon_button(
+        self.dismiss_button = uihelpers.icon_button(
             'window-close-symbolic', _('Dismiss Suggestion'))
         connect_weak(self.dismiss_button, 'clicked', self._on_dismiss)
         self.add_suffix(self.follow_button)

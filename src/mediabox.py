@@ -15,7 +15,7 @@ from .i18n import gettext as _, ngettext
 
 from gi.repository import (Adw, Gdk, Gtk, Pango)
 
-from . import linkrouting, pages  # noqa: E402
+from . import linkrouting, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .statustext import (parse_content,  # noqa: E402
                          shorten_url_text, split_url, url_host)
@@ -312,7 +312,7 @@ class BoostCarousel(Gtk.Box):
         button = Gtk.Button(icon_name=icon_name)
         button.add_css_class('flat')
         button.add_css_class('circular')
-        pages.set_accessible_label(button, tooltip)
+        uihelpers.set_accessible_label(button, tooltip)
         connect_weak(button, 'clicked', self._page_by, direction)
         return button
 
@@ -481,7 +481,7 @@ class MediaBox(Gtk.Box):
 
     def set_media(self, attachments, sensitive, ui=None, blur=False,
                   status_url=None):
-        pages.clear_children(self)
+        uihelpers.clear_children(self)
         self._status_url = status_url
         ui = ui if ui is not None else {}
         self._attachments = list(attachments or [])
@@ -506,14 +506,14 @@ class MediaBox(Gtk.Box):
                 content.append(self._file_row(index, attachment))
         if sensitive and not _flag('show-sensitive-media') \
                 and not ui.get('media_revealed'):
-            pages.reveal(covered, False)
+            uihelpers.reveal(covered, False)
             reveal = Gtk.Button(label=_('Show Sensitive Content'),
                                 halign=Gtk.Align.START)
             connect_weak(reveal, 'clicked', self._toggle_sensitive,
                          covered, ui)
             self.append(reveal)
         elif sensitive:
-            pages.reveal(covered, True)
+            uihelpers.reveal(covered, True)
             hide = Gtk.Button(label=_('Hide Sensitive Content'),
                               halign=Gtk.Align.START)
             hide.add_css_class('flat')
@@ -684,7 +684,7 @@ class MediaBox(Gtk.Box):
     def _toggle_sensitive(self, button, covered, ui):
         revealed = not covered.get_reveal_child()
         ui['media_revealed'] = revealed
-        pages.reveal(covered, revealed, animate=True)
+        uihelpers.reveal(covered, revealed, animate=True)
         if revealed:
             button.set_label(_('Hide Sensitive Content'))
             button.add_css_class('flat')

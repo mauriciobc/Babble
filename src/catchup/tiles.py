@@ -13,7 +13,7 @@ from gi.repository import (  # noqa: E402
     Adw, Gdk, GObject, Graphene, Gsk, Gtk, Pango)
 
 from ..i18n import gettext as _
-from .. import mediacache, pages, timelinedata
+from .. import mediacache, timelinedata, uihelpers
 from . import digest_layout
 from .pipeline import Digest
 from ..accounts import plain_name
@@ -57,7 +57,7 @@ def _pill(text, icon_name, css, compact=False):
     if icon_name:
         box.append(_icon(icon_name))
     if compact and icon_name:
-        pages.set_accessible_label(box, text)
+        uihelpers.set_accessible_label(box, text)
         return box
     label = Gtk.Label(label=text)
     label.add_css_class('caption-heading')

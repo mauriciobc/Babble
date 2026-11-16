@@ -46,7 +46,7 @@ from gi.repository import Gdk, GLib, GObject, Gtk  # noqa: E402
 
 from . import mastodon  # noqa: E402
 from . import mediapolicy  # noqa: E402
-from . import appsettings, pages  # noqa: E402
+from . import appsettings, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .remotemedia import media_url  # noqa: E402
 
@@ -186,12 +186,12 @@ class GifvTile(Gtk.Overlay):
             button.set_icon_name('media-playback-start-symbolic')
             # Translators: the button over an animated image that you
             # paused; it starts the animation again.
-            pages.set_accessible_label(button, _('Play Animation'))
+            uihelpers.set_accessible_label(button, _('Play Animation'))
         else:
             button.set_icon_name('media-playback-pause-symbolic')
             # Translators: the button over an animated image that plays;
             # it stops the animation.
-            pages.set_accessible_label(button, _('Pause Animation'))
+            uihelpers.set_accessible_label(button, _('Pause Animation'))
 
     def _on_clicked(self, _button):
         paused = not self.user_paused

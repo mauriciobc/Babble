@@ -14,7 +14,7 @@ from ..i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
-from .. import feedback, pages  # noqa: E402
+from .. import feedback, uihelpers  # noqa: E402
 from ..weakconnect import connect_weak, weak_method  # noqa: E402
 from . import store as catchupstore  # noqa: E402
 from ..accounts import plain_name as _plain_name  # noqa: E402
@@ -144,7 +144,7 @@ class PageControls:
         remove = Gtk.Button(icon_name='user-trash-symbolic',
                             valign=Gtk.Align.CENTER)
         remove.add_css_class('flat')
-        pages.set_accessible_label(remove, _('Remove This Catch-Up'))
+        uihelpers.set_accessible_label(remove, _('Remove This Catch-Up'))
         remove.set_action_name('catchup.remove')
         remove.set_action_target_value(GLib.Variant('s', meta['id']))
         show.set_sensitive(meta['id'] != self._snapshot_id)
@@ -244,7 +244,7 @@ class PageControls:
         self.options_button = Gtk.MenuButton(
             icon_name='babble-filter-symbolic',
             valign=Gtk.Align.CENTER)
-        pages.set_accessible_label(self.options_button, _('List Options'))
+        uihelpers.set_accessible_label(self.options_button, _('List Options'))
         self.options_button.set_popover(self._build_options())
         controls.append(self.options_button)
         header.append(controls)

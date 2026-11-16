@@ -3,6 +3,7 @@
 data/io.github.mauriciobc.Babble.desktop.in
 data/io.github.mauriciobc.Babble.gschema.xml
 data/io.github.mauriciobc.Babble.metainfo.xml.in
+src/accountrows.py
 src/accounts.py
 src/admin.py
 src/announcements.py
