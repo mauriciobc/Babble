@@ -311,8 +311,9 @@ SIDECAR = frozenset({'pluginlinks', 'pluginhost', 'pluginmenu',
 
 def defined_names(tree):
     """The names a module defines at its top level: functions, classes
-    and assignments, also inside a top-level `if` or `try` (a function
-    body is not top level). An imported name is not a definition."""
+    and assignments, also inside a top-level `if`, `try`, `for`, `while`,
+    `with` or `match` (a function body is not top level). An imported
+    name is not a definition."""
     names = set()
 
     def visit(body):
@@ -328,15 +329,32 @@ def defined_names(tree):
             elif isinstance(node, (ast.AnnAssign, ast.AugAssign)) \
                     and isinstance(node.target, ast.Name):
                 names.add(node.target.id)
-            elif isinstance(node, ast.If):
+            elif isinstance(node, (ast.If, ast.While)):
                 visit(node.body)
                 visit(node.orelse)
-            elif isinstance(node, ast.Try):
+            elif isinstance(node, (ast.For, ast.AsyncFor)):
+                bind(node.target)
+                visit(node.body)
+                visit(node.orelse)
+            elif isinstance(node, (ast.With, ast.AsyncWith)):
+                for item in node.items:
+                    if item.optional_vars is not None:
+                        bind(item.optional_vars)
+                visit(node.body)
+            elif isinstance(node, ast.Match):
+                for case in node.cases:
+                    visit(case.body)
+            elif isinstance(node, (ast.Try, ast.TryStar)):
                 visit(node.body)
                 for handler in node.handlers:
                     visit(handler.body)
                 visit(node.orelse)
                 visit(node.finalbody)
+
+    def bind(target):
+        for sub in ast.walk(target):
+            if isinstance(sub, ast.Name):
+                names.add(sub.id)
     visit(tree.body)
     return names
 
@@ -748,6 +766,22 @@ check('R11 sees a name pages defines under a top-level if or try',
                           'try:\n    b = 1\nexcept ImportError:\n    b = 2\n',
           'src/x.py': 'from . import pages\npages.a()\npages.b\n'})
           if line.startswith('R11')])
+check('R11 sees names bound under a top-level for, with, while and match',
+      not [line for line in violations({
+          'src/pages.py':
+              'for a in (1,):\n    b = a\nelse:\n    c = 1\n'
+              'with open("x") as f:\n    d = 1\n'
+              'while False:\n    e = 1\n'
+              'match 1:\n    case 1:\n        g = 1\n'
+              'async def runner():\n    pass\n',
+          'src/x.py': 'from . import pages\n'
+                      'pages.a, pages.b, pages.c, pages.d, pages.e, '
+                      'pages.f, pages.g\n'})
+          if line.startswith('R11')])
+self_check('R11 still rejects a name bound nowhere next to those bodies',
+           {'src/pages.py': 'with open("x") as f:\n    d = 1\n',
+            'src/x.py': 'from . import pages\npages.nope\n'},
+           'R11: src/x.py:2 pages.nope')
 self_check('R11 does not count a def inside a function as defined',
            {'src/pages.py': 'def outer():\n    def inner(): pass\n',
             'src/x.py': 'from . import pages\npages.inner()\n'},
