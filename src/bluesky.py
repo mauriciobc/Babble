@@ -8,7 +8,7 @@ is contacted only when the reader opens a post, or when a post quotes
 another one and the server kept nothing about it.  Functions, not a
 client: this is not the Mastodon API and goes nowhere near
 ``MastodonClient``.  Replies come as ``(data, error)``; a caller that is
-a widget wraps its callback with ``pages.weak_method``."""
+a widget wraps its callback with ``weakconnect.weak_method``."""
 
 import json
 import os

@@ -187,7 +187,7 @@ class _Context(api.Context):
         scope = self.scope_of(owner)
         target = getattr(callback, '__self__', None)
         if isinstance(target, GObject.Object):
-            # A widget's own method, held weakly as pages.connect_weak
+            # A widget's own method, held weakly as weakconnect.connect_weak
             # does: a dialog connecting its buttons to itself is then
             # freed when it closes, not when the plugin is disabled.
             func, target_ref = callback.__func__, target.weak_ref()

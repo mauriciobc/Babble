@@ -24,7 +24,7 @@ the call that sends it:
   * `internal`: the inner `request_async` calls of the generic helpers
     (two in `PagedList`; the old `mutate_row`, `wrapped._send`,
     `admin.send`, `pages.call` and `fedicollections._send` are gone) and the site
-    `pages.AccountListPage.__init__`, which forwards a variable path to
+    `accountrows.AccountListPage.__init__`, which forwards a variable path to
     `PagedList` and calls no `request_async`. They carry a *variable*
     path, so they are keyed by that variable's name. They stay on the
     list until the helper itself moves into `src/api/` (phase 4).
@@ -76,7 +76,7 @@ cannot be used to name a path in a new place.
 Counts, and the three layers in two lines. `raw` is a call that names a
 Mastodon path itself (`request_async`); `internal` is a
 generic helper's own inner send or path forward (7 `request_async` calls
-plus `pages.AccountListPage.__init__`, 8 in all); `helper` hands a path or a
+plus `accountrows.AccountListPage.__init__`, 8 in all); `helper` hands a path or a
 verb to a helper that sends it later. At phase 0: 175 sites, raw 83, internal 8,
 helper 84.
 

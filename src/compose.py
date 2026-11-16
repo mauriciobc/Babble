@@ -1245,7 +1245,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
     def _add_toast(self, toast):
         """Toasts raised inside the composer go on its own overlay: the
         dialog covers the window's, where they would be invisible and
-        unusable. Both fallbacks exist -- pages.show_toast reaches for the
+        unusable. Both fallbacks exist -- feedback.show_toast reaches for the
         window when a widget is not under an overlay, and this same
         lookup is what it would do."""
         overlay = self.get_ancestor(Adw.ToastOverlay)
@@ -1268,13 +1268,13 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
     def _toast(self, text):
         # Toasts raised inside the composer go on its own overlay: the
         # dialog covers the window's, where they would be invisible. The
-        # composer is a dialog, so pages.show_toast's window_of() lands on
+        # composer is a dialog, so feedback.show_toast's window_of() lands on
         # the active window rather than on this dialog -- which is the one
         # case where the lookup has to be the composer's own.
         self._add_toast(Adw.Toast(title=text, use_markup=False))
 
     def _show_error(self, heading, body):
-        # The same '<heading>: <message>' pages.report_error builds, over
+        # The same '<heading>: <message>' feedback.report_error builds, over
         # the same overlay as _toast, so the summary bound and the toast
         # text are each the one implementation rather than a second copy.
         detail = summarize_error(body)

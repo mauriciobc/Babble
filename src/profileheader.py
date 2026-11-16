@@ -116,7 +116,7 @@ class ProfileHeader(GObject.Object):
     this object reads. Call sites on the page stay as one-line forwards
     so relationship UI and root-notify keep calling the same names.
 
-    A GObject so :func:`pages.connect_weak` / :func:`weak_method`
+    A GObject so :func:`weakconnect.connect_weak` / :func:`weak_method`
     can target its methods (banner / avatar / fields toggles) without a
     C-level cycle through the widgets it builds.
     """

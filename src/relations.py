@@ -175,7 +175,7 @@ class BlockedDomainsPage(pages.PagedList):
 
 class MutesBlocksPage(Adw.Bin):
     """Muted accounts, blocked accounts and blocked domains behind a view
-    switcher. ``top_bar`` carries the switcher for :func:`pages.make_nav_page`."""
+    switcher. ``top_bar`` carries the switcher for :func:`pagenav.make_nav_page`."""
 
     __gtype_name__ = 'BabbleMutesBlocksPage'
 

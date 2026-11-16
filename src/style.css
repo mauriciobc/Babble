@@ -769,7 +769,7 @@ window.translucent-sidebar .shell-split > .sidebar-pane:backdrop {
   font-size: 0.65em;
 }
 
-/* Motion: one-shot animations played by pages.flash_class(). */
+/* Motion: one-shot animations played by uihelpers.flash_class(). */
 @keyframes pop {
   from { transform: scale(1); }
   40% { transform: scale(1.25); }

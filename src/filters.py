@@ -445,7 +445,7 @@ class FiltersList(Adw.Bin):
     def edit(self, item=None):
         view = self.navigation_view
         # The editor is already an AdwNavigationPage, so it cannot go
-        # through pages.push_page (that wraps its child in another one).
+        # through pagenav.push_page (that wraps its child in another one).
         # One tag, one page: an editor already on the stack is popped off
         # before the requested one goes on.
         #
