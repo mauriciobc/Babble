@@ -630,6 +630,16 @@ test('catchup digest', python,
   env: test_env,
   timeout: 60,
 )
+test('catchup digest trends', python,
+  args: [files('test-catchup-digest-trends.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup digest grid', python,
+  args: [files('test-catchup-digest-grid.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('file size rule', python,
   args: [files('test-file-size.py')],
   env: test_env,
