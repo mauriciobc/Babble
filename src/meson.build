@@ -358,6 +358,16 @@ test('oauth callback', python,
   env: fatal_test_env,
   timeout: 120,
 )
+test('oauth callback app', python,
+  args: [files('test-oauth-callback-app.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('oauth callback session', python,
+  args: [files('test-oauth-callback-session.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('oauth loopback', python,
   args: [files('test-oauth-loopback.py')],
   env: fatal_test_env,
@@ -813,6 +823,16 @@ test('search provider', python,
 )
 test('catchup page', python,
   args: [files('test-catchup.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('catchup snapshots', python,
+  args: [files('test-catchup-snapshots.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('catchup runs', python,
+  args: [files('test-catchup-runs.py')],
   env: fatal_test_env,
   timeout: 120,
 )
