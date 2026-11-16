@@ -135,9 +135,25 @@ class Navigation:
                 for child in self.children.values()]
 
     def forget(self, tag):
-        self.pages.pop(tag, None)
-        self.children.pop(tag, None)
-        if tag.startswith(('list:', 'tag:')):
+        """Drop one place: its page, its child and its stream."""
+        self.forget_many([tag])
+
+    def forget_many(self, tags):
+        """Drop several places at once, and let the stream know once.
+
+        A place that is gone must not stay subscribed: the socket would
+        keep receiving events for a timeline nobody shows, and a public
+        feed the server closed would keep its subscription until
+        something else happened to sync the stream.
+
+        Does nothing when none of *tags* is built.
+        """
+        dropped = False
+        for tag in tags:
+            child = self.children.pop(tag, None)
+            if self.pages.pop(tag, None) is not None or child is not None:
+                dropped = True
+        if dropped:
             self.host.sync_streaming()
 
     def clear(self):

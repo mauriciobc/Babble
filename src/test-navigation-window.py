@@ -13,6 +13,7 @@ import os
 # Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
+import gc
 import sys
 import types
 
@@ -21,7 +22,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio  # noqa: E402
+from gi.repository import Adw, Gio, GLib  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -271,6 +272,45 @@ window._restricted_public_places = lambda: set()
 check('and a place can be built again afterwards',
       routing.place_page('local') is not None
       and 'local' in routing.public_pages)
+
+# A place the reader hides keeps neither its page nor its stream: the
+# sidebar is the only way to it, and a page that stayed built would keep
+# its subscription for the rest of the session.
+routing.place_page('federated')
+local_page = routing.children['local']
+federated_page = routing.children['federated']
+local_freed = []
+local_page.weak_ref(lambda: local_freed.append(True))
+local_scope = local_page._scope
+del wanted[:]
+window.settings.set_boolean('hide-local', True)
+check('hiding a place drops its page', 'local' not in routing.children)
+check('and its stream', bool(wanted) and LOCAL not in wanted[-1])
+check('and leaves the other places alone',
+      'federated' in routing.children and FEDERATED in wanted[-1])
+del local_page
+for _ in range(5):
+    gc.collect()
+    GLib.MainContext.default().iteration(False)
+check('and the page is freed, its request scope closed',
+      local_freed and local_scope.closed)
+window.settings.set_boolean('hide-local', False)
+check('and showing it again builds a new page when it is opened',
+      'local' not in routing.children)
+
+# A list or hashtag that is no longer pinned is gone from the sidebar,
+# and goes with it.
+window.settings.set_strv('favorite-tags-ids', ['1/rust'])
+routing.place_page('tag:rust')
+check('a pinned hashtag is built', 'tag:rust' in routing.children)
+del wanted[:]
+window.settings.set_strv('favorite-tags-ids', [])
+check('unpinning a place drops its page', 'tag:rust' not in routing.children)
+check('and lets the stream go',
+      bool(wanted) and hashtag_stream('rust') not in wanted[-1])
+del wanted[:]
+window._refresh_sidebar()
+check('a rebuild that drops no place syncs nothing', not wanted)
 
 if failures:
     raise SystemExit('%d navigation window checks failed' % len(failures))
