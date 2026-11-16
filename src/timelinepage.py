@@ -15,7 +15,7 @@ from gi.repository import (Adw, GLib, Gio,  # noqa: E402
                            Gtk)
 
 from . import filterrules  # noqa: E402
-from . import appsettings, feedback, pages  # noqa: E402
+from . import appsettings, feedback, uihelpers  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from .pages import PagedPosts  # noqa: E402
@@ -274,9 +274,9 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self.stack.add_named(self.overlay, 'list')
         self.set_child(self.stack)
 
-        self.loading_page = pages.make_loading_page(
+        self.loading_page = uihelpers.make_loading_page(
             _('Loading Timeline'), _('Fetching the latest posts'))
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Could Not Load Timeline'), self._on_retry)
         self.empty_page = Adw.StatusPage(
             icon_name='user-home-symbolic',

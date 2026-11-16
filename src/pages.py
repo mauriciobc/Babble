@@ -20,7 +20,6 @@ define.
 """
 
 import logging
-import types
 
 import gi
 
@@ -35,6 +34,7 @@ from . import feedback  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .requestscope import RequestScope  # noqa: E402
+from .uihelpers import make_error_page, make_loading_page  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 _log = logging.getLogger(__name__)
@@ -130,6 +130,22 @@ class PagedPosts:
         scope = getattr(self, '_scope', None)
         if scope is not None:
             scope.close()
+
+    def close_requests(self):
+        """Cancel what is in flight and refuse new requests, now.
+
+        For an owner that is dropped while something may still hold the
+        page (a reference cycle keeps it until the next collection): an
+        answer must not land on it. Safe to call twice."""
+        self._close_paging_scope()
+
+    def has_loaded(self):
+        """Whether a first load has completed: there are items, or the
+        page settled on its empty state. A page never loaded, loading its
+        first page or showing an error is not, and a catch-up has nothing
+        to catch up on it."""
+        return (self.model.get_n_items() > 0
+                or self.stack.get_visible_child_name() == 'empty')
 
     # Requests
 
@@ -353,39 +369,6 @@ def call_api(widget, client, start, on_done=None, error_heading=None,
             on_done(data)
 
     return start(finished)
-
-
-# Status pages
-
-def configure_empty_page(page, icon_name, title, description):
-    """Fill the three fields every timeline wrapper sets on ``empty_page``."""
-    page.set_icon_name(icon_name)
-    page.set_title(title)
-    page.set_description(description)
-
-
-def make_loading_page(title, description=None):
-    page = Adw.StatusPage(title=title, description=description)
-    page.set_paintable(Adw.SpinnerPaintable.new(page))
-    return page
-
-
-def make_error_page(title, on_retry):
-    """Error status page with a Try Again button calling
-    ``on_retry(button)``. A bound method is held weakly: it is normally
-    a method of the page that owns this error page, and a strong handler
-    would keep that page alive forever."""
-    page = Adw.StatusPage(icon_name='network-error-symbolic', title=title)
-    retry = Gtk.Button(label=_('_Try Again'), use_underline=True,
-                       halign=Gtk.Align.CENTER)
-    retry.add_css_class('pill')
-    retry.add_css_class('suggested-action')
-    if isinstance(on_retry, types.MethodType):
-        connect_weak(retry, 'clicked', on_retry)
-    else:
-        retry.connect('clicked', on_retry)
-    page.set_child(retry)
-    return page
 
 
 class StateStack(Gtk.Stack):

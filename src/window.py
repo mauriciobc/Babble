@@ -17,8 +17,7 @@ from . import auth  # noqa: E402
 from . import clipboard  # noqa: E402
 from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
-from . import (appsettings, feedback, pagenav, pages,  # noqa: E402
-               uihelpers)
+from . import appsettings, feedback, pagenav, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api.notifications import unread_badge_text  # noqa: E402
@@ -915,19 +914,34 @@ class BabbleWindow(Adw.ApplicationWindow):
         if connected:
             self.notifier.stop_polling()
             if self._stream_dropped:
-                # Fetch what was posted while the stream was down. The
-                # notifications page has a list to catch up as well: the
-                # stream does not replay, and a poll may not have run
-                # since the last notification arrived.
-                if self.timeline_page is not None:
-                    self.timeline_page.refresh()
-                if self.notifications_page is not None:
-                    self.notifications_page.catch_up()
+                self._catch_up_after_outage()
             self._stream_dropped = False
         elif self.client is not None:
             self._stream_dropped = True
             self.notifier.start_polling()
         self._schedule_background_status()
+
+    def _catch_up_after_outage(self):
+        """Fetch what was posted while the stream was down.
+
+        The stream does not replay. The notifications page has a list to
+        catch up (a poll may not have run since the last notification
+        arrived); so has every other open place: a list, a hashtag, the
+        local and federated timelines and the conversations would keep
+        showing what was there when the socket went down until the reader
+        refreshed them by hand."""
+        if self.timeline_page is not None:
+            self.timeline_page.refresh()
+        if self.notifications_page is not None:
+            self.notifications_page.catch_up()
+        for page in self.stream_router.timeline_pages():
+            # A place never loaded has nothing to catch up on; asking would
+            # send it a first-page request it never wanted.
+            if page is not self.timeline_page and page.has_loaded():
+                page.refresh()
+        conversations = self.navigation.children.get('conversations')
+        if conversations is not None:
+            conversations.refresh()
 
     def _on_stream_event(self, _manager, stream, name, payload):
         # Which page receives which event is the router's knowledge; the
@@ -1178,7 +1192,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         page = TimelinePage(self.client, source=ApiTimelineSource(
             self.client, api_timelines.list_path(kind), params,
             paging='link' if kind in api_timelines.LINK_PAGED else 'id'))
-        pages.configure_empty_page(page.empty_page, icon, title, description)
+        uihelpers.configure_empty_page(page.empty_page, icon, title, description)
         return page
 
     def _public_place_built(self, tag, page):
