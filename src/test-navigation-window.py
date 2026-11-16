@@ -275,19 +275,24 @@ check('and a place can be built again afterwards',
 
 # A place the reader hides keeps neither its page nor its stream: the
 # sidebar is the only way to it, and a page that stayed built would keep
-# its subscription for the rest of the session.
+# its subscription and its auto-refresh timer for the rest of the
+# session.
 routing.place_page('federated')
 local_page = routing.children['local']
 federated_page = routing.children['federated']
 local_freed = []
 local_page.weak_ref(lambda: local_freed.append(True))
 local_scope = local_page._scope
+check('the built places have their auto-refresh timer',
+      local_page._auto_refresh_id and federated_page._auto_refresh_id)
 del wanted[:]
 window.settings.set_boolean('hide-local', True)
 check('hiding a place drops its page', 'local' not in routing.children)
+check('and its auto-refresh timer', not local_page._auto_refresh_id)
 check('and its stream', bool(wanted) and LOCAL not in wanted[-1])
 check('and leaves the other places alone',
-      'federated' in routing.children and FEDERATED in wanted[-1])
+      'federated' in routing.children and federated_page._auto_refresh_id
+      and FEDERATED in wanted[-1])
 del local_page
 for _ in range(5):
     gc.collect()
@@ -342,6 +347,22 @@ check('and only after an outage', not refreshed)
 window._stream_dropped = False
 window.timeline_page = None
 del routing.children['conversations']
+
+# A place with work in flight stops it when the place is dropped, and
+# receives nothing afterwards: no stream event, no catch-up.
+stopped = []
+dropped_page = types.SimpleNamespace(
+    cancel=lambda: stopped.append('cancel'),
+    refresh=lambda: stopped.append('refresh'))
+routing.children['conversations'] = dropped_page
+routing.pages['conversations'] = object()
+routing.forget_many(['conversations'])
+window.timeline_page = home
+window._catch_up_after_outage()
+window.timeline_page = None
+check('a place with work in flight stops it when it is dropped',
+      stopped == ['cancel'] and 'conversations' not in routing.children)
+check('and is not asked to catch up afterwards', 'refresh' not in stopped)
 
 if failures:
     raise SystemExit('%d navigation window checks failed' % len(failures))

@@ -144,7 +144,10 @@ class Navigation:
         A place that is gone must not stay subscribed: the socket would
         keep receiving events for a timeline nobody shows, and a public
         feed the server closed would keep its subscription until
-        something else happened to sync the stream.
+        something else happened to sync the stream. Each child stops the
+        work it has in flight first (a catch-up, its auto-refresh timer);
+        its paging scope closes when the last reference to it drops, as
+        for any page, and nothing here keeps the child alive.
 
         Does nothing when none of *tags* is built.
         """
@@ -153,8 +156,23 @@ class Navigation:
             child = self.children.pop(tag, None)
             if self.pages.pop(tag, None) is not None or child is not None:
                 dropped = True
+            self._stop_work(child)
         if dropped:
             self.host.sync_streaming()
+
+    @staticmethod
+    def _stop_work(child):
+        """Stop what a dropped place has in flight, the way an account
+        switch does."""
+        if child is None:
+            return
+        cancel = getattr(child, 'cancel', None)
+        if cancel is not None:
+            cancel()                    # a catch-up in flight
+        timeline = getattr(child, 'timeline', child)
+        stop = getattr(timeline, 'set_auto_refresh_interval', None)
+        if stop is not None:
+            stop(0)
 
     def clear(self):
         self.pages.clear()
