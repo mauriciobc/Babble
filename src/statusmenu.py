@@ -14,12 +14,13 @@ from .i18n import gettext as _
 from gi.repository import (GLib, GObject, Gio,  # noqa: E402
                            Gtk)
 
-from . import pages, pluginhost  # noqa: E402
+from . import (feedback, pagenav, pages, pluginhost,  # noqa: E402
+               uihelpers)
 from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .blueskycard import view_on_bluesky  # noqa: E402
 from .bskytext import bridged_ref  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
                         )
 
@@ -67,7 +68,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                          valign=Gtk.Align.CENTER, **kwargs)
         for css in button_classes:
             self.add_css_class(css)
-        pages.set_accessible_label(self, _('More Options'))
+        uihelpers.set_accessible_label(self, _('More Options'))
         self.actions = actions
         self._menu_actions = None
         self.set_create_popup_func(_open_status_menu, self.weak_ref())
@@ -268,7 +269,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         return account if account.get('id') else None
 
     def _toast(self, text, undo=None):
-        pages.show_toast(self, text, undo=undo)
+        feedback.show_toast(self, text, undo=undo)
 
     # The menu's icon row runs the action bar's handlers, so reminders,
     # the boost dialog and the optimistic rollback stay in one place.
@@ -335,7 +336,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         else:
             detail = _('Only mentioned people and people that follow %s '
                        'will be able to view it.') % self.item.handle
-        pages.confirm_remind(
+        feedback.confirm_remind(
             self, _('Copy “%s” Post Link?') % label, detail,
             'copy', _('_Copy'), 'copy-private-link-reminder', self._copy_url)
 
@@ -452,7 +453,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                     self.client, quoted['id'], item.status_id, callback=cb),
                 done, _('Could not remove your post'))
 
-        pages.confirm(self, _('Remove Your Post From the Quote?'),
+        feedback.confirm(self, _('Remove Your Post From the Quote?'),
                       _('The quote will no longer show your post.'),
                       _('_Remove'), revoke)
 
@@ -478,7 +479,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         item = self.item
         if item is None:
             return
-        pages.confirm(
+        feedback.confirm(
             self, _('Delete Post?'),
             _('This post will be removed from your profile and from the '
               'timelines of other servers.'),
@@ -488,7 +489,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         item = self.item
         if item is None:
             return
-        pages.confirm(
+        feedback.confirm(
             self, _('Delete and Redraft?'),
             _('This post will be deleted and its text, attachments and '
               'poll copied into a new draft.'),
@@ -502,7 +503,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         # Taking the row out of the model unparents this button, and a
         # widget with no root finds no window to show the toast on: the
         # toast target is chosen first.
-        anchor = pages.window_of(self) or self
+        anchor = pagenav.window_of(self) or self
         page = self._timeline_page()
         taken = page.model.take_status(item.status_id) \
             if page is not None and page.model is not None else []
@@ -530,14 +531,14 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                 except GLib.Error as error:
                     # The post is still on the server: bring it back.
                     restore()
-                    pages.report_error(
+                    feedback.report_error(
                         anchor, _('Could not delete post'), error)
 
             api_statuses.delete_async(client, item.status_id,
                                       callback=finished)
 
         hide()
-        pages.deferred_action(anchor, _('Post deleted'), commit, restore)
+        feedback.deferred_action(anchor, _('Post deleted'), commit, restore)
 
     def _delete(self, item, composer_method):
         """DELETE the post; for a redraft hand the returned source to
@@ -583,7 +584,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         account = self._author()
         if account is None:
             return
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is None:
             return
         dialog = window.ensure_composer()
@@ -628,7 +629,7 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
                 lambda _data: self._toast(_('Blocked %s') % handle),
                 _('Block failed'))
 
-        pages.confirm(
+        feedback.confirm(
             self, _('Block %s?') % handle,
             _('They will no longer be able to follow your account or '
               'see your posts, and their posts will be hidden.'),

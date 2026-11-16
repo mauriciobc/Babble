@@ -77,8 +77,9 @@ Gio.Resource.load(bundle)._register()
 
 Adw.init()
 
-from src import (explore, statusviews, hashtags, notifications,  # noqa: E402
-                 notificationrow, pages, profile, relations,
+from src import (explore, feedback, linkrouting, pagenav,  # noqa: E402
+                 statusviews, hashtags, notifications,
+                 notificationrow, profile, relations,
                  statusactions, statusmenu)
 from src.mastodon import MastodonClient  # noqa: E402
 from src.statusactions import StatusActions  # noqa: E402
@@ -416,8 +417,8 @@ def fake_confirm(widget, heading, body, action_label, callback,
     callback()
 
 
-pages.show_toast = fake_toast
-pages.confirm = fake_confirm
+feedback.show_toast = fake_toast
+feedback.confirm = fake_confirm
 statusactions._flag = lambda name: False
 statusactions._has_schema = lambda: False
 statusmenu._flag = lambda name: False
@@ -535,11 +536,11 @@ def activate(menu, name, parameter=None):
 
 class WithWindow:
     def __enter__(self):
-        self.real = pages.window_of
-        pages.window_of = lambda widget: FakeWindow()
+        self.real = pagenav.window_of
+        pagenav.window_of = lambda widget: FakeWindow()
 
     def __exit__(self, *_exc):
-        pages.window_of = self.real
+        pagenav.window_of = self.real
 
 
 @scenario
@@ -1079,14 +1080,14 @@ def followed_hashtags_page_loads(rec):
 
 @scenario
 def quote_card_resolves_the_quoted_post(rec):
-    real = pages.open_status
-    pages.open_status = lambda *args: None
+    real = pagenav.open_status
+    pagenav.open_status = lambda *args: None
     try:
         card = statusactions.QuoteCard(
             {'state': 'accepted', 'quoted_status_id': '55'}, rec.client())
         card.emit('clicked')
     finally:
-        pages.open_status = real
+        pagenav.open_status = real
 
 
 # Phase-1 read paths: profile extras, account lists, post views
@@ -1378,9 +1379,9 @@ from src import lists as _lists  # noqa: E402
 
 # A dialog that was never presented cannot be closed.
 _lists.ListEditor.close = lambda self: None
-pages.launch_external = lambda *args: None
-pages.open_status = lambda *args: None
-pages.open_profile = lambda *args: None
+linkrouting.launch_external = lambda *args: None
+pagenav.open_status = lambda *args: None
+pagenav.open_profile = lambda *args: None
 
 
 # Announcements
@@ -1629,7 +1630,7 @@ def search_type_pages_load_with_offsets(rec):
 
 @p2
 def pages_resolve_uri(rec):
-    pages.resolve_uri(Gtk.Box(), rec.client(),
+    linkrouting.resolve_uri(Gtk.Box(), rec.client(),
                       'https://remote.example/@ada/1')
     rec.settle()
 

@@ -44,7 +44,7 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import mediaviewer, pages, preferences, sysstate  # noqa: E402
+from src import appsettings, mediaviewer, preferences, sysstate  # noqa: E402
 from src import remotemedia  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
@@ -96,7 +96,7 @@ sysstate._monitor = monitor
 clip = fixture.write_clip()
 other = fixture.MediaServer(clip)
 mine = fixture.MediaServer(clip)
-settings = pages.settings()
+settings = appsettings.settings()
 
 window = Adw.ApplicationWindow(content=Gtk.Overlay(), default_width=900,
                                default_height=700)

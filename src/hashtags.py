@@ -20,12 +20,13 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import charts  # noqa: E402
-from . import pages  # noqa: E402
+from . import (appsettings, feedback, pagenav, pages,  # noqa: E402
+               uihelpers)
+from .weakconnect import connect_weak  # noqa: E402
 from .api import tags as api_tags  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from .hashtagcompleter import forget_pool  # noqa: E402
 from .lists import make_pin_button  # noqa: E402
-from .pages import ToastDialog  # noqa: E402
 from .statustext import STATS_DAYS, history_totals  # noqa: E402, F401
 
 FAVORITE_TAGS_KEY = 'favorite-tags-ids'
@@ -36,12 +37,12 @@ TOTAL_TAGS_LIMIT = 5
 
 def _invalidate_home_tags(widget):
     """Forget Home's followed tags, so the next page re-reads them."""
-    window = pages.window_of(widget)
+    window = pagenav.window_of(widget)
     page = getattr(window, 'timeline_page', None)
     if page is not None:
         page.invalidate_followed_tags()
     # The composer's suggestions rank the followed tags too.
-    client = pages.client_of(widget)
+    client = pagenav.client_of(widget)
     if client is not None:
         forget_pool(client)
 
@@ -66,7 +67,7 @@ def stats_text(history, days=STATS_DAYS):
 def load_saved():
     """Saved timelines: dicts {'title', 'tags', 'all', 'none', 'local'}."""
     saved = []
-    for raw in pages.settings().get_strv(SAVED_KEY):
+    for raw in appsettings.settings().get_strv(SAVED_KEY):
         try:
             item = json.loads(raw)
         except ValueError:
@@ -77,7 +78,7 @@ def load_saved():
 
 
 def store_saved(items):
-    pages.settings().set_strv(SAVED_KEY, [
+    appsettings.settings().set_strv(SAVED_KEY, [
         json.dumps(item, ensure_ascii=False) for item in items])
 
 
@@ -178,9 +179,9 @@ class HashtagPage(Adw.Bin):
             pluginhost.attach_hashtag_page(self, self.tags[0].lower(),
                                            self.plugin_banners)
         else:
-            self.edit_button = pages.icon_button(
+            self.edit_button = uihelpers.icon_button(
                 'document-edit-symbolic', _('Edit Timeline'))
-            pages.connect_weak(self.edit_button, 'clicked', self._on_edit)
+            connect_weak(self.edit_button, 'clicked', self._on_edit)
             self.header_widgets = [self.edit_button]
 
     def refresh(self):
@@ -194,7 +195,7 @@ class HashtagPage(Adw.Bin):
                                         use_underline=True,
                                         valign=Gtk.Align.CENTER,
                                         sensitive=False)
-        pages.connect_weak(self.follow_button, 'clicked',
+        connect_weak(self.follow_button, 'clicked',
                            self._on_follow_clicked)
         self.pin_button = make_pin_button(
             self, FAVORITE_TAGS_KEY, name, '#' + name)
@@ -202,10 +203,10 @@ class HashtagPage(Adw.Bin):
             icon_name='view-more-symbolic',
             valign=Gtk.Align.CENTER, sensitive=False)
         self.more_button.add_css_class('flat')
-        pages.set_accessible_label(self.more_button, _('More Options'))
+        uihelpers.set_accessible_label(self.more_button, _('More Options'))
         group = Gio.SimpleActionGroup()
         feature = Gio.SimpleAction.new('feature', None)
-        pages.connect_weak(feature, 'activate', self._on_feature)
+        connect_weak(feature, 'activate', self._on_feature)
         group.add_action(feature)
         self.more_button.insert_action_group('tag', group)
         self._build_menu()
@@ -266,14 +267,14 @@ class HashtagPage(Adw.Bin):
             try:
                 info = api_tags.action_finish(client, result)
             except GLib.Error as error:
-                pages.report_error(
+                feedback.report_error(
                     self, _('Could not unfollow #%s') % name
                     if action == 'unfollow'
                     else _('Could not follow #%s') % name, error)
                 return
             self._set_following(bool(info.get('following', not self.following)))
             _invalidate_home_tags(self)
-            pages.show_toast(
+            feedback.show_toast(
                 self, _('Followed #%s') % name if self.following
                 else _('Unfollowed #%s') % name)
 
@@ -287,15 +288,15 @@ class HashtagPage(Adw.Bin):
             try:
                 data = api_tags.feature_finish(client, result)
             except GLib.Error as error:
-                pages.report_error(self, _('Could not change the featured '
+                feedback.report_error(self, _('Could not change the featured '
                                            'tags'), error)
                 return
             if self.featured_id:
                 self.featured_id = None
-                pages.show_toast(self, _('Removed from featured tags'))
+                feedback.show_toast(self, _('Removed from featured tags'))
             else:
                 self.featured_id = (data or {}).get('id')
-                pages.show_toast(self, _('Featured on your profile'))
+                feedback.show_toast(self, _('Featured on your profile'))
             # The composer's suggestions list the featured tags.
             forget_pool(self.client)
             self._build_menu()
@@ -317,7 +318,7 @@ class HashtagPage(Adw.Bin):
             on_deleted=self._on_deleted)
 
     def _on_edited(self, new_definition):
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is None:
             return
         view = window.navigation_view
@@ -329,7 +330,7 @@ class HashtagPage(Adw.Bin):
                            local=new_definition.get('local', False))
 
     def _on_deleted(self, _definition):
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is not None:
             window.navigation_view.pop()
 
@@ -339,7 +340,7 @@ def push_hashtag(widget, client, name):
     name = clean_name(name)
     if not name:
         return None
-    return pages.push_page(widget, '#' + name,
+    return pagenav.push_page(widget, '#' + name,
                            HashtagPage(client, [name]),
                            tag='tag-%s' % name.lower())
 
@@ -361,7 +362,7 @@ def push_multi_hashtag(widget, client, title, tags, all_tags=None,
     page = HashtagPage(client, tags, saved or definition)
     key = json.dumps([tags, definition['all'], definition['none'],
                       definition['local']])
-    return pages.push_page(widget, definition['title'], page,
+    return pagenav.push_page(widget, definition['title'], page,
                            tag='tags-%s' % key)
 
 
@@ -410,7 +411,7 @@ class _TagsEditor:
         if not name or name.lower() in (t.lower() for t in self.tags):
             return False
         row = Adw.ActionRow(title='#' + name, use_markup=False)
-        remove = pages.icon_button('list-remove-symbolic',
+        remove = uihelpers.icon_button('list-remove-symbolic',
                                    _('Remove Hashtag'))
         remove.connect('clicked', self._on_remove_clicked, name)
         row.add_suffix(remove)
@@ -445,7 +446,7 @@ class _TagsEditor:
         entry.set_text('')
 
 
-class MultiHashtagEditor(ToastDialog):
+class MultiHashtagEditor(feedback.ToastDialog):
     """Create or edit a saved multi-hashtag timeline."""
 
     def __init__(self, definition, on_saved=None, on_deleted=None):
@@ -458,11 +459,11 @@ class MultiHashtagEditor(ToastDialog):
         self.existing = existing
 
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        pages.connect_weak(cancel, 'clicked', self._on_cancel)
+        connect_weak(cancel, 'clicked', self._on_cancel)
         self.header.pack_start(cancel)
         self.save_button = Gtk.Button(label=_('_Save'), use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        pages.connect_weak(self.save_button, 'clicked', self._on_save)
+        connect_weak(self.save_button, 'clicked', self._on_save)
         self.header.pack_end(self.save_button)
 
         group = Adw.PreferencesGroup()
@@ -499,7 +500,7 @@ class MultiHashtagEditor(ToastDialog):
             # Save keeps the one emphasis, and Delete is already rare,
             # isolated below the editors, verb-named and confirmed.
             delete.add_css_class('pill')
-            pages.connect_weak(delete, 'clicked', self._on_delete)
+            connect_weak(delete, 'clicked', self._on_delete)
             danger.add(delete)
             self.page.add(danger)
         self.changed()
@@ -543,7 +544,7 @@ class MultiHashtagEditor(ToastDialog):
                 self.on_deleted(self.original)
             self.close()
 
-        pages.confirm(self, _('Delete This Timeline?'),
+        feedback.confirm(self, _('Delete This Timeline?'),
                       _('The saved timeline “%s” will be deleted.')
                       % self.original.get('title', ''),
                       _('_Delete'), really)
@@ -641,7 +642,7 @@ class TagRow(HashtagRow):
                                    '#' + name)
         self.unfollow = Gtk.Button(label=_('_Unfollow'), use_underline=True,
                                    valign=Gtk.Align.CENTER)
-        pages.connect_weak(self.unfollow, 'clicked', self._on_unfollow)
+        connect_weak(self.unfollow, 'clicked', self._on_unfollow)
         self.add_suffix(self.pin)
         self.add_suffix(self.unfollow)
         self.add_suffix(Gtk.Image(
@@ -673,7 +674,7 @@ class TagRow(HashtagRow):
         def done(_data):
             self.page.paged.remove_row(self)
             _invalidate_home_tags(self.page)
-            pages.show_toast(self.page, _('Unfollowed #%s') % name,
+            feedback.show_toast(self.page, _('Unfollowed #%s') % name,
                              undo=undo)
 
         def finished(c, result, _d=None):
@@ -681,7 +682,7 @@ class TagRow(HashtagRow):
                 data = api_tags.action_finish(c, result)
             except GLib.Error as error:
                 button.set_sensitive(True)
-                pages.report_error(
+                feedback.report_error(
                     self, _('Could not unfollow #%s') % name, error)
                 return
             done(data)
@@ -696,11 +697,11 @@ class SavedTimelinesGroup(Gtk.Box):
     def __init__(self, page):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._page = page.weak_ref()  # weak: this group is its child
-        self.heading = pages.section_label(_('Multi-Hashtag Timelines'))
+        self.heading = uihelpers.section_label(_('Multi-Hashtag Timelines'))
         self.append(self.heading)
         self.list_box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.list_box.add_css_class('boxed-list')
-        pages.connect_weak(self.list_box, 'row-activated', self._on_activated)
+        connect_weak(self.list_box, 'row-activated', self._on_activated)
         self.append(self.list_box)
         self.rows = []
         self.reload()
@@ -718,9 +719,9 @@ class SavedTimelinesGroup(Gtk.Box):
                                 subtitle=default_title(definition['tags']),
                                 use_markup=False, activatable=True)
             row.add_prefix(hash_badge())
-            edit = pages.icon_button('document-edit-symbolic',
+            edit = uihelpers.icon_button('document-edit-symbolic',
                                      _('Edit Timeline'))
-            pages.connect_weak(edit, 'clicked', self._on_edit, definition)
+            connect_weak(edit, 'clicked', self._on_edit, definition)
             row.add_suffix(edit)
             row.add_suffix(Gtk.Image(
                 icon_name='go-next-symbolic',
@@ -730,7 +731,7 @@ class SavedTimelinesGroup(Gtk.Box):
             self.rows.append(row)
         add = Adw.ButtonRow(title=_('New Multi-Hashtag Timeline…'))
         add.set_start_icon_name('list-add-symbolic')
-        pages.connect_weak(add, 'activated', self._on_new_activated)
+        connect_weak(add, 'activated', self._on_new_activated)
         self.list_box.append(add)
         self.rows.append(add)
 
@@ -773,7 +774,7 @@ class FollowedHashtagsPage(Adw.Bin):
         self.saved = SavedTimelinesGroup(self)
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         header.append(self.saved)
-        header.append(pages.section_label(_('Followed Hashtags')))
+        header.append(uihelpers.section_label(_('Followed Hashtags')))
         page = self.weak_ref()  # the list is a child: no strong cycle
         # A placeholder row stands in for the empty state, so the saved
         # timelines above the list stay reachable when nothing is followed.
@@ -785,9 +786,9 @@ class FollowedHashtagsPage(Adw.Bin):
                                 'posts in your home timeline'),
             header=header, make_placeholder=_no_followed_tags_row)
         self.set_child(self.paged)
-        self.add_button = pages.icon_button(
+        self.add_button = uihelpers.icon_button(
             'list-add-symbolic', _('New Multi-Hashtag Timeline'))
-        pages.connect_weak(self.add_button, 'clicked', self._on_add_clicked)
+        connect_weak(self.add_button, 'clicked', self._on_add_clicked)
         self.header_widgets = [self.add_button]
 
     def refresh(self):

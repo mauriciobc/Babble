@@ -57,7 +57,7 @@ if not os.path.exists(bundle):
 Gio.Resource.load(bundle)._register()
 
 from src import mediaengine, mediainline, mediaviewer  # noqa: E402
-from src import pages, sysstate  # noqa: E402
+from src import appsettings, sysstate  # noqa: E402
 from src.mediabox import MediaBox  # noqa: E402
 from src.mediastream import EngineStream  # noqa: E402
 
@@ -105,7 +105,7 @@ class FakeMonitor(GObject.Object):
 
 monitor = FakeMonitor()
 sysstate._monitor = monitor
-settings = pages.settings()
+settings = appsettings.settings()
 gtk_settings = Gtk.Settings.get_default()
 
 # A shorter wait than the shipped 2 s, so the suite stays quick; the

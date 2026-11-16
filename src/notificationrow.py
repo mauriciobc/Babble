@@ -12,9 +12,10 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import pages  # noqa: E402
+from . import feedback, linkrouting, uihelpers  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
-from .pages import connect_weak, launch_external, reveal, report_error  # noqa: E402
+from .uihelpers import reveal  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .notificationctrl import _RELATIONSHIPS  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
@@ -220,7 +221,7 @@ class NotificationPost(MediaOpener, Gtk.Box):
         self.more_button.set_visible(False)
 
     def _on_activate_link(self, _label, uri):
-        pages.open_link(self, uri, tag=self._tag_by_href.get(uri))
+        linkrouting.open_link(self, uri, tag=self._tag_by_href.get(uri))
         return True
 
     def _show(self, segments):
@@ -412,7 +413,7 @@ class NotificationRow(ColumnBox):
             tooltip_text=_('Dismiss Notification'))
         self.dismiss_button.add_css_class('flat')
         self.dismiss_button.add_css_class('circular')
-        pages.set_accessible_label(self.dismiss_button,
+        uihelpers.set_accessible_label(self.dismiss_button,
                                    _('Dismiss Notification'))
         connect_weak(self.dismiss_button, 'clicked', self._on_dismiss_clicked)
         header.append(self.dismiss_button)
@@ -539,7 +540,7 @@ class NotificationRow(ColumnBox):
                                 ellipsize=Pango.EllipsizeMode.END))
         button = Gtk.Button(child=person)
         button.add_css_class('flat')
-        pages.set_accessible_label(button, name)
+        uihelpers.set_accessible_label(button, name)
         connect_weak(button, 'clicked', self._on_person_clicked, actor)
         return button
 
@@ -607,7 +608,7 @@ class NotificationRow(ColumnBox):
             names.append(name)
             self.people_box.append(self._person_row(actor, name, kind))
         people = ', '.join(names)
-        pages.set_accessible_label(self.cluster_expander, people)
+        uihelpers.set_accessible_label(self.cluster_expander, people)
 
     # Inline actions
 
@@ -665,7 +666,7 @@ class NotificationRow(ColumnBox):
         present_admin(self, self.client)
 
     def _on_link_clicked(self, _button, uri):
-        launch_external(self, uri)
+        linkrouting.launch_external(self, uri)
 
     def _on_view_report_year(self, _button):
         from .wrapped import present_wrapped
@@ -706,7 +707,7 @@ class NotificationRow(ColumnBox):
             except GLib.Error as error:
                 for button in buttons:
                     button.set_sensitive(True)
-                report_error(self, _('Could not answer the request'), error)
+                feedback.report_error(self, _('Could not answer the request'), error)
                 return
             item.request_state = 'accepted' if action == 'authorize' \
                 else 'rejected'
@@ -755,7 +756,7 @@ class NotificationRow(ColumnBox):
             except GLib.Error as error:
                 if self.item is item:
                     self._bind_extras(item, client)
-                report_error(self, _('Could not follow'), error)
+                feedback.report_error(self, _('Could not follow'), error)
                 return
             _RELATIONSHIPS[key] = relationship
             if self.item is item:

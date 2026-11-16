@@ -27,11 +27,11 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import pages, readingposition, timelinepage  # noqa: E402
+from src import appsettings, readingposition, timelinepage  # noqa: E402
 
 Adw.init()
 failures = []
-settings = pages.settings()
+settings = appsettings.settings()
 ACCOUNT = 'https://example.org#1'
 
 

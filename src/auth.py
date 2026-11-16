@@ -41,7 +41,7 @@ except ImportError:  # loaded as a top-level module by the standalone tests
 
 from gi.repository import Gio, GLib, GObject, Soup  # noqa: E402
 
-from . import pages  # noqa: E402
+from .weakconnect import weak_method  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .accounts import account_key  # noqa: E402
 from .mastodon import (ADMIN_SCOPES, LOOPBACK_CALLBACK_PATH,  # noqa: E402
@@ -380,12 +380,12 @@ class LoginFlow(GObject.Object):
             return None
         # Held weakly: the flow owns the server, and a strong handler
         # would close a cycle through C that the collector cannot see.
-        server.add_handler(None, pages.weak_method(self._on_loopback_request))
+        server.add_handler(None, weak_method(self._on_loopback_request))
         self._loopback = server
         self._loopback_uri = loopback_redirect(uris[0].get_port())
         self._loopback_timeout = GLib.timeout_add_seconds(
             LOOPBACK_TIMEOUT_SECONDS,
-            pages.weak_method(self._on_loopback_expired))
+            weak_method(self._on_loopback_expired))
         return self._loopback_uri
 
     def detach_loopback(self):

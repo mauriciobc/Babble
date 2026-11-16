@@ -18,9 +18,10 @@ import re  # noqa: E402
 
 from gi.repository import Adw, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
 
-from .pages import (PagedList, confirm, connect_weak,  # noqa: E402
-                    open_status, report_error, set_accessible_label,
-                    show_toast, window_of)
+from . import feedback, pagenav  # noqa: E402
+from .pages import PagedList  # noqa: E402
+from .uihelpers import set_accessible_label  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .statustext import parse_content, relative_time  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 
@@ -183,9 +184,9 @@ class ConversationRow(Gtk.ListBoxRow):
             self.mark_read()
         status = self.conversation.get('last_status')
         if status is None:
-            show_toast(self, _('This conversation has no messages'))
+            feedback.show_toast(self, _('This conversation has no messages'))
             return
-        open_status(self, self.page.client, status)
+        pagenav.open_status(self, self.page.client, status)
 
     def mark_read(self):
         """POST /api/v1/conversations/:id/read."""
@@ -195,7 +196,7 @@ class ConversationRow(Gtk.ListBoxRow):
             try:
                 updated = api_conversations.read_finish(client, result)
             except GLib.Error as error:
-                report_error(self, _('Could not mark as read'), error)
+                feedback.report_error(self, _('Could not mark as read'), error)
                 return
             if isinstance(updated, dict):
                 self.conversation.update(updated)
@@ -206,7 +207,7 @@ class ConversationRow(Gtk.ListBoxRow):
             client, self.conversation['id'], callback=done)
 
     def delete(self):
-        confirm(self, _('Delete Conversation?'),
+        feedback.confirm(self, _('Delete Conversation?'),
                 _('The conversation is removed from your inbox. Other '
                   'participants keep their copy.'),
                 _('_Delete'), self._delete_confirmed)
@@ -219,12 +220,12 @@ class ConversationRow(Gtk.ListBoxRow):
             try:
                 api_conversations.delete_finish(client, result)
             except GLib.Error as error:
-                report_error(self, _('Could not delete the conversation'),
+                feedback.report_error(self, _('Could not delete the conversation'),
                              error)
                 return
             self.page.remove_row(self)
             self.page.emit_unread_changed()
-            show_toast(self, _('Conversation deleted'))
+            feedback.show_toast(self, _('Conversation deleted'))
 
         api_conversations.delete_async(
             client, self.conversation['id'], callback=done)
@@ -259,7 +260,7 @@ class ConversationsPage(PagedList):
 
     def new_message(self):
         """Open the composer with the visibility set to Direct."""
-        window = window_of(self)
+        window = pagenav.window_of(self)
         dialog = window.ensure_composer() if window is not None else None
         if dialog is None:
             return

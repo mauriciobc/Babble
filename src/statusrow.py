@@ -12,8 +12,8 @@ from .i18n import gettext as _
 from gi.repository import (Adw, Gdk, Gtk, Pango)
 
 from . import filterrules  # noqa: E402
-from . import pages  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from . import pagenav, uihelpers  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from . import blueskycard  # noqa: E402
 from .blueskycard import (bridged_badge, card_wanted, fill_card_box,
                            wants_inline_dropped)
@@ -344,8 +344,8 @@ class StatusRow(StatusFold, Gtk.Overlay):
         elif name == 'translated':
             # A post collapsed by a filter binds no translation box.
             if self.translation_box is not None:
-                pages.flash_class(self.translation_box, 'fade-in')
-            pages.flash_class(self.content, 'fade-in')
+                uihelpers.flash_class(self.translation_box, 'fade-in')
+            uihelpers.flash_class(self.content, 'fade-in')
         elif name == 'deleted':
             self.set_visible(False)
         elif name == 'restored':
@@ -363,7 +363,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
             text = _('Post %(position)d of %(total)d in Thread') % {
                 'position': position, 'total': total}
             self.badge.set_text('%d/%d' % (position, total))
-            pages.set_accessible_label(self.badge, text)
+            uihelpers.set_accessible_label(self.badge, text)
         if self.source_line is not None:
             self.source_line.set_visible(self._has_source and position == 1)
 
@@ -479,7 +479,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
         elif self.cw_box is not None:
             self.cw_box.set_visible(False)
         if self.guarded_revealer is not None:
-            pages.reveal(self.guarded_revealer, bool(revealed))
+            uihelpers.reveal(self.guarded_revealer, bool(revealed))
 
         self._render_body(item, bank)
         self._bind_translation(item)
@@ -537,7 +537,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
         self.visibility_icon.set_visible(show_visibility)
         if show_visibility:
             self.visibility_icon.set_from_icon_name(info[1])
-            pages.set_accessible_label(self.visibility_icon, info[0])
+            uihelpers.set_accessible_label(self.visibility_icon, info[0])
         language = status.get('language')
         show_language = bool(language) \
             and language.lower().split('-')[0] != ui_language()
@@ -593,7 +593,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
         self.content.set_visible(bool(segments))
 
     def _show_quote(self, quote):
-        pages.clear_children(self.quote_box)
+        uihelpers.clear_children(self.quote_box)
         self.quote_box.set_visible(bool(quote))
         if quote:
             self.quote_box.append(QuoteCard(quote, self.client))
@@ -602,7 +602,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
         """Cards for the Collections a post links to (Mastodon 4.6+,
         ``Status#tagged_collections``). Hidden when the post shares
         none."""
-        pages.clear_children(self.collections_box)
+        uihelpers.clear_children(self.collections_box)
         known = [c for c in collections or [] if c.get('id')]
         self.collections_box.set_visible(bool(known))
         for collection in known:
@@ -674,7 +674,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
         _open_thread(self, self.client, item)
 
     def activate_profile(self, item):
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is None:
             return
         from .profile import push_profile

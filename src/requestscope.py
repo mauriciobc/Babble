@@ -52,7 +52,7 @@ may already have acted, so a write is never started through a scope)::
 The scope holds an int, a flag and a ``Gio.Cancellable``: no page, widget,
 window or client, and no global state. A ticket holds its scope and a
 cancellable, and its callback holds the handler's owner WEAKLY (a GObject
-weak reference, as ``pages.weak_method`` does, written out here because
+weak reference, as ``weakconnect.weak_method`` does, written out here because
 ``pages`` imports this module and a scope must stay free of widget code), so
 a request in flight keeps neither the page nor the scope's owner alive."""
 

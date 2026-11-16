@@ -16,7 +16,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gdk, Gtk  # noqa: E402
 
 from .i18n import gettext as _  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 
 def processing_badge():

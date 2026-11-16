@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from gi.repository import Gio, GLib  # noqa: E402
 
-from src import pages  # noqa: E402
+from src import feedback  # noqa: E402
 from src.profile import ProfilePage, endorse_action_names  # noqa: E402
 
 failures = []
@@ -100,7 +100,7 @@ class _Page:
 
 
 toasts = []
-pages.show_toast = lambda *_args, **_kwargs: toasts.append(True)
+feedback.show_toast = lambda *_args, **_kwargs: toasts.append(True)
 
 page = _Page([404, 0])
 ProfilePage.set_endorsed(page, True)

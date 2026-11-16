@@ -26,7 +26,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import pages, timelinedata, timelinepage  # noqa: E402
+from src import appsettings, timelinedata, timelinepage  # noqa: E402
 
 
 failures = []
@@ -89,7 +89,7 @@ class _Client:
 
 
 def home_page(client, hide_boosts):
-    pages.settings().set_boolean('hide-boosts-home', hide_boosts)
+    appsettings.settings().set_boolean('hide-boosts-home', hide_boosts)
     page = timelinepage.TimelinePage(client, mode='home', autoload=False)
     page.ensure_loaded()
     return page
@@ -154,13 +154,13 @@ class _RelationshipClient(_Client):
         return result
 
 
-pages.settings().set_boolean('hide-replies-non-follows', True)
+appsettings.settings().set_boolean('hide-replies-non-follows', True)
 client = _RelationshipClient([[status(9), reply(8, 21), reply(7, 22)]])
 page = home_page(client, False)
 check('a followed author reply is kept', '00008' in ids(page))
 check('a reply from a stranger is hidden', '00007' not in ids(page))
 check('the page left the loading state', not page.model.loading)
-pages.settings().reset('hide-replies-non-follows')
+appsettings.settings().reset('hide-replies-non-follows')
 
 # A page the filter left too short to scroll keeps asking for older posts:
 # scrolling is what pages, and five posts fit on the screen.
@@ -234,7 +234,7 @@ class _Server(_Client):
         callback(self, out)
 
 
-pages.settings().reset('hide-replies-non-follows')
+appsettings.settings().reset('hide-replies-non-follows')
 server = _Server([status(n) for n in range(1, 101)])
 page = home_page(server, False)
 server.grow([status(n) for n in range(101, 146)])      # 45 arrived meanwhile
@@ -314,7 +314,7 @@ class _HeldClient(_Server):
 
 
 def held_home(posts):
-    pages.settings().set_boolean('hide-replies-non-follows', True)
+    appsettings.settings().set_boolean('hide-replies-non-follows', True)
     client = _HeldClient(posts)
     return client, home_page(client, False)
 
@@ -611,15 +611,15 @@ check('superseded refresh: the chain ended (spinner hook ran once)',
       pulled == [True] and page._refresh_chain == 0)
 check('superseded refresh: flags clear after the owned request ends',
       not page.model.loading and not page._loading_older)
-pages.settings().reset('hide-replies-non-follows')
+appsettings.settings().reset('hide-replies-non-follows')
 
 # Only the home timeline is filtered.
-pages.settings().set_boolean('hide-boosts-home', True)
+appsettings.settings().set_boolean('hide-boosts-home', True)
 public = timelinepage.TimelinePage(_Client([]), mode='public',
                                    autoload=False)
 check('the public timeline is not filtered', not public._hide_boosts)
 
-pages.settings().reset('hide-boosts-home')
+appsettings.settings().reset('hide-boosts-home')
 if failures:
     print('%d failed' % len(failures))
     sys.exit(1)

@@ -21,8 +21,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gdk, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from . import imagecache  # noqa: E402
-from . import pages  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from . import accountrows, uihelpers  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .mediacache import AvatarCache, _decode_async, log_media_failure  # noqa: E402
 from .textemoji import (EMOJI_RE, InlineEmojiText, content_segments,  # noqa: E402
                         emoji_bank)
@@ -116,7 +116,7 @@ class ProfileHeader(GObject.Object):
     this object reads. Call sites on the page stay as one-line forwards
     so relationship UI and root-notify keep calling the same names.
 
-    A GObject so :func:`pages.connect_weak` / :func:`pages.weak_method`
+    A GObject so :func:`weakconnect.connect_weak` / :func:`weak_method`
     can target its methods (banner / avatar / fields toggles) without a
     C-level cycle through the widgets it builds.
     """
@@ -369,7 +369,7 @@ class ProfileHeader(GObject.Object):
         widget.add_css_class('profile-image-button')
         if label:
             widget.update_property([Gtk.AccessibleProperty.LABEL], [label])
-        pages.activate_on_key(widget, pages.weak_method(self._present_image),
+        uihelpers.activate_on_key(widget, weak_method(self._present_image),
                               url, description)
 
     def _on_image_clicked(self, _gesture, _n_press, _x, _y, url,
@@ -390,7 +390,7 @@ class ProfileHeader(GObject.Object):
         box.append(label)
         listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         listbox.add_css_class('boxed-list')
-        listbox.append(pages.AccountRow(self.page.client, moved))
+        listbox.append(accountrows.AccountRow(self.page.client, moved))
         listbox.connect('row-activated', self.page._on_account_row_activated)
         box.append(listbox)
         box.add_css_class('profile-moved')
@@ -498,9 +498,9 @@ class ProfileHeader(GObject.Object):
             revealer = row.get_child()
             if expand:
                 row.set_visible(True)
-                pages.reveal(revealer, True, animate=True)
+                uihelpers.reveal(revealer, True, animate=True)
             else:
-                pages.reveal(revealer, False)
+                uihelpers.reveal(revealer, False)
                 row.set_visible(False)
         toggle.set_title(_('Show Less') if expand else _('Show More'))
 

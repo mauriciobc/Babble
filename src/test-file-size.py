@@ -44,14 +44,6 @@ SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py',
 # the line count itself is what this test prints above, so it is not
 # repeated here to go stale.
 EXCEPTIONS = {
-    'pages.py': 'the shared page toolkit: navigation, feedback, the toast '
-                'and error surfaces, PagedList (the boxed list that loads '
-                'page by page, a class of its own that shares only the '
-                'preload distance with the paging base) and the paging '
-                'state machine every status list shares, PagedPosts '
-                '(CLEAN-08). ARCH-06 split the timeline around it; the '
-                'state machine stays here because every status list uses '
-                'it.',
     'window.py': 'seams extracted (portals, auth, drafts, clipboard, '
                  'navigation, sidebarhost, streamrouter). BabbleWindow '
                  'still owns session state, presentation and the '

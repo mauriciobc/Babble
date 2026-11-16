@@ -19,9 +19,9 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from . import pages, pluginhost  # noqa: E402
+from . import appsettings, pluginhost, uihelpers  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 
 def user_plugins_dir():
@@ -48,12 +48,12 @@ class PluginRow(Adw.ActionRow):
         self.plugin_id = info.get_module_name()
         self.description = info.get_description() or ''
         self.dialog_ref = dialog.weak_ref()
-        self.settings_button = pages.icon_button(
+        self.settings_button = uihelpers.icon_button(
             'emblem-system-symbolic',
             # Translators: %s is a plugin's name.
             _('%s Settings') % self.get_title())
         self.switch = Gtk.Switch(valign=Gtk.Align.CENTER)
-        pages.set_accessible_label(self.switch, self.get_title())
+        uihelpers.set_accessible_label(self.switch, self.get_title())
         self.add_suffix(self.settings_button)
         self.add_suffix(self.switch)
         self.set_activatable_widget(self.switch)
@@ -98,7 +98,7 @@ class PluginsDialog(Adw.PreferencesDialog):
         self.rows = []
         # A plugin that fails is turned off from an idle: follow the key
         # so its row says so while the page is open.
-        connect_weak(pages.settings(), 'changed::' + pluginhost.ACTIVE_KEY,
+        connect_weak(appsettings.settings(), 'changed::' + pluginhost.ACTIVE_KEY,
                      self._on_active_changed)
         page = Adw.PreferencesPage(title=_('Plugins'),
                                    icon_name='application-x-addon-symbolic')

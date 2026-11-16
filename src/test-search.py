@@ -11,7 +11,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
-from src import pages, search  # noqa: E402
+from src import pagenav, search  # noqa: E402
 from src.statustext import compact_count  # noqa: E402
 
 failures = []
@@ -42,8 +42,8 @@ if os.environ.get('DISPLAY'):
     check('advanced search round-trips', again.build_query() == built)
 
     opened = []
-    pages.open_status = lambda *args: opened.append(('status', args[-1]))
-    pages.open_profile = lambda *args: opened.append(('profile', args[-1]))
+    pagenav.open_status = lambda *args: opened.append(('status', args[-1]))
+    pagenav.open_profile = lambda *args: opened.append(('profile', args[-1]))
 
     class _Client:
         def __init__(self):

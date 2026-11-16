@@ -62,7 +62,7 @@ called.
 - New GSettings key `hide-catch-up` (b, default `false`), added to `HIDE_KEYS`
   and to Preferences next to `hide-trending`.
 - New symbolic icon `babble-catch-up-symbolic` in the gresource bundle.
-- The place is a `pages.make_nav_page` like every other place. It does not
+- The place is a `pagenav.make_nav_page` like every other place. It does not
   replace Home.
 
 ### 2.2 Period menu and first run
@@ -81,7 +81,7 @@ styled like a `Gtk.DropDown`, with a popover menu:
   does nothing; there is no separate Refresh button.
 - **Previous catch-ups** (a second section): the account's last three
   snapshots, each as "*start – end* · *N posts*". Choosing one shows it.
-  Each can be removed from the list (`pages.confirm`).
+  Each can be removed from the list (`feedback.confirm`).
 - A footnote item, insensitive: "Your server might only show a maximum of 800
   posts in the Home timeline regardless of the time range." (Phanpy).
 
@@ -153,7 +153,7 @@ Top to bottom, in one `Gtk.ScrolledWindow`:
   one-line peek of the text (with CW text instead of content when there is a
   CW), up to three 48 px media thumbnails, reply/boost/like counts, relative
   time. Boosts show the booster(s); thread starters get a thread mark.
-  Activating a row opens the thread with `pages.push_page`.
+  Activating a row opens the thread with `pagenav.push_page`.
 - A toast on each filter/sort change, as Phanpy does ("Showing boosts, most
   likes first, grouped by authors"), built from translatable parts, not one
   concatenated string.
@@ -822,7 +822,7 @@ copying them:
 
 ### 9.2 Conventions
 
-- Use `pages.connect_weak` / `pages.weak_method` for every signal a page
+- Use `weakconnect.connect_weak` / `weakconnect.weak_method` for every signal a page
   connects to its own methods.
 - `from .i18n import gettext as _, ngettext`; `ngettext` for every count;
   `# Translators:` comments on terse strings. Add the strings to the POT and

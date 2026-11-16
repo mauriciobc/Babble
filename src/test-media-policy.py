@@ -24,7 +24,7 @@ sys.path.insert(0, srcdir)
 
 from gi.repository import GObject  # noqa: E402
 
-from src import mediapolicy, pages, sysstate  # noqa: E402
+from src import appsettings, mediapolicy, sysstate  # noqa: E402
 from src.mediapolicy import MediaState  # noqa: E402
 
 failures = []
@@ -176,7 +176,7 @@ def changed_fields(before, after):
             if getattr(before, name) != getattr(after, name)}
 
 
-settings = pages.settings()
+settings = appsettings.settings()
 for key in mediapolicy.SETTINGS_KEYS:
     settings.reset(key)
 monitor = FakeMonitor()

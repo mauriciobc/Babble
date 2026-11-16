@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """What the migrated dialogs do, independent of how they are built.
 
-The dialog base merge (pages.ToastDialog) moved five dialogs off their
+The dialog base merge (feedback.ToastDialog) moved five dialogs off their
 hand-built scaffolds. dialog bases checks the scaffold; this file checks
 behaviour a user or caller can see, using only what each dialog exposed
 before the migration, so the same file runs against the commit before it

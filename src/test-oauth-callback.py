@@ -93,7 +93,8 @@ if not os.environ.get('DISPLAY'):
 resource = Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))
 resource._register()
 
-from src import emojichooser, pages, textemoji  # noqa: E402
+from src import (appsettings, emojichooser, linkrouting, pagenav,  # noqa: E402
+                 textemoji)
 from src.main import BabbleApplication  # noqa: E402
 from src.mastodon import (ADMIN_SCOPES, MastodonClient,  # noqa: E402
                           OAUTH_REDIRECT, OOB_REDIRECT)
@@ -603,13 +604,13 @@ composed.clear()
 app.lookup_action('compose').activate(None)
 check('app.compose opens the composer', composed == [[]])
 routed = []
-real_open_link = pages.open_link
-pages.open_link = lambda widget, link: routed.append((widget, link))
+real_open_link = linkrouting.open_link
+linkrouting.open_link = lambda widget, link: routed.append((widget, link))
 try:
     app.lookup_action('open-uri').activate(
         GLib.Variant('s', 'https://example.social/@me/1'))
 finally:
-    pages.open_link = real_open_link
+    linkrouting.open_link = real_open_link
 check('app.open-uri routes the link through the window',
       routed == [(win, 'https://example.social/@me/1')])
 
@@ -672,13 +673,14 @@ check('malformed links name nothing',
       [u for u in malformed if parse(u) is not None] == [])
 
 launched_links = []
-real_launch_external = pages.launch_external
-pages.launch_external = lambda widget, link: launched_links.append(link)
-real_open_link, real_open_profile = pages.open_link, pages.open_profile
+real_launch_external = linkrouting.launch_external
+linkrouting.launch_external = lambda widget, link: launched_links.append(link)
+real_open_link = linkrouting.open_link
+real_open_profile = pagenav.open_profile
 linked, profiles = [], []
-pages.open_link = lambda w, link, resolve=False: linked.append(
+linkrouting.open_link = lambda w, link, resolve=False: linked.append(
     (w, link, resolve))
-pages.open_profile = lambda w, c, account=None, acct=None: profiles.append(
+pagenav.open_profile = lambda w, c, account=None, acct=None: profiles.append(
     (w, c, account, acct))
 app_toasts = []
 win.show_toast = app_toasts.append
@@ -713,7 +715,8 @@ try:
           and composed == [['/tmp/babble-open-with/picture.png']]
           and len(linked) == 1)
 finally:
-    pages.open_link, pages.open_profile = real_open_link, real_open_profile
+    linkrouting.open_link = real_open_link
+    pagenav.open_profile = real_open_profile
 
 prefill = PrefillView()
 win.present_composer = lambda: types.SimpleNamespace(view=prefill)
@@ -725,10 +728,10 @@ check('a share intent opens the composer with its text',
 # End to end: a web+ap post is looked up on the instance even with
 # aggressive resolving off, and opened in the app.
 opened = []
-real_open_status = pages.open_status
-pages.open_status = lambda w, c, status: opened.append(status)
-resolving = pages.settings().get_boolean('aggressive-resolving')
-pages.settings().set_boolean('aggressive-resolving', False)
+real_open_status = pagenav.open_status
+pagenav.open_status = lambda w, c, status: opened.append(status)
+resolving = appsettings.settings().get_boolean('aggressive-resolving')
+appsettings.settings().set_boolean('aggressive-resolving', False)
 try:
     win.client = SearchClient({'statuses': [{'id': '1'}]})
     app.on_open(None, [Gio.File.new_for_uri(
@@ -740,9 +743,9 @@ try:
     check('the found post is opened in the app',
           opened == [{'id': '1'}] and launched_links == [])
 finally:
-    pages.open_status = real_open_status
-    pages.settings().set_boolean('aggressive-resolving', resolving)
-    pages.launch_external = real_launch_external
+    pagenav.open_status = real_open_status
+    appsettings.settings().set_boolean('aggressive-resolving', resolving)
+    linkrouting.launch_external = real_launch_external
 
 # Before a session exists the link waits, and is opened once signed in.
 app_toasts.clear()
@@ -1223,7 +1226,7 @@ try:
     check('non-web links never reach the launcher, with a toast each',
           launched == [] and toasts == [_('Could not open link')] * 5)
     toasts.clear()
-    pages.open_link(win, 'https://[oops/x')
+    linkrouting.open_link(win, 'https://[oops/x')
     check('a malformed link clicked in a post is refused, not raised',
           launched == [] and toasts == [_('Could not open link')])
     toasts.clear()

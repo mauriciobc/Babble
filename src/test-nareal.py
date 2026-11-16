@@ -70,7 +70,8 @@ resource_path = os.path.join(builddir, 'src', 'babble.gresource')
 if os.path.exists(resource_path):
     Gio.Resource.load(resource_path)._register()
 
-from src import accounts, pages, pluginhost, pluginmenu  # noqa: E402
+from src import (accounts, appsettings, feedback, linkrouting,  # noqa: E402
+                 pluginhost, pluginmenu)
 from src import pluginspage  # noqa: E402
 from src import textemoji, webcolumn  # noqa: E402
 
@@ -508,8 +509,8 @@ probe.close()
 class Host(Gtk.Window):
     def __init__(self):
         super().__init__()
-        self.navigation_view = object()  # what pages.window_of looks for
-        self.client = object()  # what pages.client_of looks for
+        self.navigation_view = object()  # what pagenav.window_of looks for
+        self.client = object()  # what pagenav.client_of looks for
         self.web_slot = Adw.Bin()
         self.web_split = Adw.OverlaySplitView(
             sidebar=self.web_slot, content=Gtk.Button(label='timeline'),
@@ -529,24 +530,24 @@ spin(until=lambda: window.get_mapped() and window.get_width() > 0,
 anchor = window.web_split.get_content()
 
 toasts, opened, resolved, launched = [], [], [], []
-real_pages = (pages.show_toast, pages.open_link, pages.resolve_uri,
-              textemoji.launch_uri)
-pages.show_toast = lambda widget, text, *a, **k: toasts.append(
+real_pages = (feedback.show_toast, linkrouting.open_link,
+              linkrouting.resolve_uri, textemoji.launch_uri)
+feedback.show_toast = lambda widget, text, *a, **k: toasts.append(
     (widget, text))
-pages.resolve_uri = lambda _w, _c, uri: resolved.append(uri)
+linkrouting.resolve_uri = lambda _w, _c, uri: resolved.append(uri)
 textemoji.launch_uri = lambda _w, uri: launched.append(uri)
 
 
 def stub_open_link():
     """Record what a panel hands to open_link instead of routing it."""
-    pages.open_link = lambda widget, url, **k: opened.append(url)
+    linkrouting.open_link = lambda widget, url, **k: opened.append(url)
 
 
 def restore_open_link():
-    pages.open_link = real_pages[1]
+    linkrouting.open_link = real_pages[1]
 
 
-settings = pages.settings()
+settings = appsettings.settings()
 settings.set_boolean('open-links-in-app', True)
 settings.set_boolean('aggressive-resolving', False)
 settings.set_boolean('web-javascript', True)
@@ -903,7 +904,7 @@ check('the link extension names the server’s origin',
       list(link_ext.origins()) == [SERVER])
 shut()
 del resolved[:], launched[:]
-pages.open_link(anchor, SERVER + '/login', resolve=True)
+linkrouting.open_link(anchor, SERVER + '/login', resolve=True)
 check('a claimed link opens an attached panel, with no fediverse routing',
       settled(SERVER + '/login') and resolved == [] and launched == []
       and context.data.get('panel') is panel_now()
@@ -912,17 +913,17 @@ check('and that panel is scripted like any other',
       wait_dom("document.getElementById('instance').value",
                'mastodon.social'))
 shut()
-pages.open_link(anchor, SERVER + '/@alice@mastodon.social', resolve=True)
+linkrouting.open_link(anchor, SERVER + '/@alice@mastodon.social', resolve=True)
 check('a /@user@host link on the server is the plugin’s, not Babble’s',
       settled(SERVER + '/@alice@mastodon.social') and resolved == [])
 shut()
 other = 'https://other.example/@user@host.tld'
-pages.open_link(anchor, other, resolve=True)
+linkrouting.open_link(anchor, other, resolve=True)
 check('a link to another origin is routed as before',
       resolved == [other] and column() is None)
 del resolved[:]
 settings.set_boolean('open-links-in-app', False)
-pages.open_link(anchor, SERVER + '/login')
+linkrouting.open_link(anchor, SERVER + '/login')
 check('with open-links-in-app off it is not claimed',
       launched == [SERVER + '/login'] and no_panel_for(0.5))
 settings.set_boolean('open-links-in-app', True)
@@ -934,7 +935,7 @@ accounts.save_account(settings, {
     'token': 'T'})
 check('the plugin guard: no origins when the server is the account’s own',
       list(link_ext.origins()) == [])
-pages.open_link(anchor, SERVER + '/@alice@mastodon.social', resolve=True)
+linkrouting.open_link(anchor, SERVER + '/@alice@mastodon.social', resolve=True)
 check('and the link is routed as an ordinary one',
       resolved == [SERVER + '/@alice@mastodon.social']
       and no_panel_for(0.5))
@@ -1400,7 +1401,7 @@ check('on_close clears the plugin’s state',
 open_questions()
 settled(SERVER + '/login')
 first = panel_now()
-pages.open_link(anchor, SERVER + '/login?second', resolve=True)
+linkrouting.open_link(anchor, SERVER + '/login?second', resolve=True)
 settled(SERVER + '/login?second')
 spin(0.5)
 check('a replaced panel does not clear the newer one’s handle',
@@ -1416,7 +1417,7 @@ frees = []
 open_questions()
 settled(SERVER + '/login')
 column().weak_ref(lambda: frees.append(True))
-pages.open_link(anchor, SERVER + '/login?third', resolve=True)
+linkrouting.open_link(anchor, SERVER + '/login?third', resolve=True)
 settled(SERVER + '/login?third')
 spin(0.5)
 shut()
@@ -1449,7 +1450,7 @@ check('a probe in flight never opens a panel, a toast or the composer '
       and (len(toasts), len(opened), len(composed)) == count)
 check('the main menu has no entries once it is disabled', menu() == [])
 del resolved[:]
-pages.open_link(anchor, SERVER + '/@alice@mastodon.social', resolve=True)
+linkrouting.open_link(anchor, SERVER + '/@alice@mastodon.social', resolve=True)
 check('and drops its claim on links',
       resolved == [SERVER + '/@alice@mastodon.social']
       and column() is None)
@@ -1459,7 +1460,7 @@ check('the plugin never used a timer', timer_calls == [])
 
 GLib.timeout_add, GLib.timeout_add_seconds, GLib.idle_add = real_timers
 pluginmenu.compose = real_compose
-(pages.show_toast, pages.open_link, pages.resolve_uri,
+(feedback.show_toast, linkrouting.open_link, linkrouting.resolve_uri,
  textemoji.launch_uri) = real_pages
 host.shutdown()
 window.destroy()

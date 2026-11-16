@@ -67,7 +67,7 @@ check('collapsed and opened is visible',
 
 # --- the shell no longer has set_show_content -------------------------
 
-for name in ('window.py', 'pages.py'):
+for name in ('window.py', 'pagenav.py'):
     path = os.path.join(srcdir, name)
     with open(path, encoding='utf-8') as source:
         text = source.read()

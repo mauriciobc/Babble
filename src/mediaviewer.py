@@ -45,7 +45,8 @@ from gi.repository import (  # noqa: E402
 
 from . import imagecache  # noqa: E402
 from . import mediainline  # noqa: E402
-from . import pages  # noqa: E402
+from . import appsettings, pagenav  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .mediaexport import MediaExport  # noqa: E402
 from .mediaplayback import MediaPlayback  # noqa: E402
 from .remotemedia import RemoteGate, media_url  # noqa: E402
@@ -148,7 +149,7 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         # The post, for Open in Browser when an attachment has no address.
         self.status_url = status_url
         self.index = 0
-        self.window = pages.window_of(parent)
+        self.window = pagenav.window_of(parent)
         if self.window is None and parent is not None:
             root = parent.get_root()
             self.window = root if isinstance(root, Gtk.Window) else None
@@ -177,7 +178,7 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
 
         self._build()
         if self.window is not None:
-            self._fullscreen_handler = pages.connect_weak(
+            self._fullscreen_handler = connect_weak(
                 self.window, 'notify::fullscreened',
                 self._on_fullscreen_changed)
         self.show_index(index)
@@ -481,7 +482,7 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
 def _opens_fullscreen():
     """Whether a photo should open filling the window rather than as a
     box over it, per the preference."""
-    return pages.settings().get_string('media-viewer-mode') == 'fullscreen'
+    return appsettings.settings().get_string('media-viewer-mode') == 'fullscreen'
 
 
 def media_overlay(window):
@@ -518,7 +519,7 @@ def present_media(parent_widget, attachments, index=0, status_url=None):
         _open_viewer.close()
     dialog = _enclosing_dialog(parent_widget)
     if dialog is not None:
-        window = pages.window_of(parent_widget)
+        window = pagenav.window_of(parent_widget)
         if window is not None:
             parent_widget = window
         dialog.close()

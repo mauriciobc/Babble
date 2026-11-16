@@ -28,7 +28,7 @@ from gi.repository import (  # noqa: E402
     Adw, Gdk, Gio, GLib, GObject, Graphene, Gsk, Gtk,
 )
 
-from . import pages  # noqa: E402
+from . import feedback  # noqa: E402
 from .mediaplayback import download  # noqa: E402
 from .remotemedia import media_url  # noqa: E402
 
@@ -297,7 +297,7 @@ class MediaExport:
     def _notify(self, text, saved=None):
         if self._closed:
             if self.window is not None:
-                pages.show_toast(self.window, text)
+                feedback.show_toast(self.window, text)
             return
         toast = Adw.Toast(title=text)
         if saved is not None:

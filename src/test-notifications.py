@@ -38,7 +38,7 @@ sys.path.insert(0, srcdir)
 
 from src.api import notifications as api_notifications  # noqa: E402
 from src.mastodon import MastodonClient  # noqa: E402
-from src import filterrules, notificationcopy, pages  # noqa: E402
+from src import feedback, filterrules, notificationcopy  # noqa: E402
 from src.mediabox import BlurredPicture  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
 from src.notificationmodel import (  # noqa: E402
@@ -865,11 +865,11 @@ del visit_page, visit_client, visit_window
 # error toast, and the list was already marked read.
 visit_client, visit_page, visit_window = visit_setup()
 reported = []
-real_report_error = pages.report_error
-pages.report_error = lambda *args, **kwargs: reported.append(args)
+real_report_error = feedback.report_error
+feedback.report_error = lambda *args, **kwargs: reported.append(args)
 visit_page.on_shown()
 visit_client.pending(visit_client, GLib.Error('offline'))
-pages.report_error = real_report_error
+feedback.report_error = real_report_error
 check('a failed catch-up raises no error toast', reported == [])
 check('a failed catch-up still leaves the list marked read',
       visit_client.markers == ['100'])
@@ -1242,17 +1242,17 @@ check('reply after the switch opens the composer',
       stub_win.replies == [('60', STATUS['account']['acct'], 'public')])
 
 # An account no longer stored: toast, no switch, no composer.
-import src.pages  # noqa: E402
+import src.feedback  # noqa: E402
 toasts = []
-_orig_toast = src.pages.show_toast
-src.pages.show_toast = lambda w, text, *a, **k: toasts.append(text)
+_orig_toast = src.feedback.show_toast
+src.feedback.show_toast = lambda w, text, *a, **k: toasts.append(text)
 stub_win.replies.clear()
 stub_app.actions['reply'].activate(
     GLib.Variant('(ss)', ('https://gone.example#3', '61')))
 check('reply for a gone account toasts instead',
       len(toasts) == 1 and stub_win.replies == []
       and stub_win.switched == [OTHER_KEY])
-src.pages.show_toast = _orig_toast
+src.feedback.show_toast = _orig_toast
 desktopnotify.find_account_by_key = _orig_find
 Gio.Notification.add_button_with_target = _orig_add_button
 

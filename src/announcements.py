@@ -17,8 +17,10 @@ from .i18n import gettext as _
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from .api import announcements as api_announcements  # noqa: E402
-from .pages import (PagedList, connect_weak, report_error,  # noqa: E402
-                    set_accessible_label)
+from . import feedback  # noqa: E402
+from .pages import PagedList  # noqa: E402
+from .uihelpers import set_accessible_label  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
 from .statustext import format_time, parse_content  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
@@ -167,7 +169,7 @@ class ReactionsBar(Gtk.Box):
                 button.handler_block(button.toggled_id)
                 button.set_active(not mine)
                 button.handler_unblock(button.toggled_id)
-                report_error(self, _('Could not update the reaction'), error)
+                feedback.report_error(self, _('Could not update the reaction'), error)
                 return
             reaction['me'] = mine
             reaction['count'] = max(
@@ -283,7 +285,7 @@ class AnnouncementRow(Gtk.ListBoxRow):
             try:
                 api_announcements.dismiss_finish(client, result)
             except GLib.Error as error:
-                report_error(self, _('Could not mark as read'), error)
+                feedback.report_error(self, _('Could not mark as read'), error)
                 return
             self.announcement['read'] = True
             self._sync_read()

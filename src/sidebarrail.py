@@ -18,7 +18,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import GObject, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import uihelpers  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 _ROW_HEIGHT = 36
 _ICON_SIZE = 16
@@ -67,7 +68,7 @@ class SidebarRail(Gtk.Box):
                                     halign=Gtk.Align.CENTER)
         self.append(self.account_host)
 
-        self.compose_button = pages.icon_button('document-edit-symbolic',
+        self.compose_button = uihelpers.icon_button('document-edit-symbolic',
                                                 _('New Post'))
         self.compose_button.set_action_name('win.compose')
         self.append(self.compose_button)
@@ -77,7 +78,7 @@ class SidebarRail(Gtk.Box):
         self.listbox.add_css_class('navigation-sidebar')
         self.listbox.update_property([Gtk.AccessibleProperty.LABEL],
                                      [_('Sidebar')])
-        pages.connect_weak(self.listbox, 'row-activated',
+        connect_weak(self.listbox, 'row-activated',
                            self._on_row_activated)
         scrolled = Gtk.ScrolledWindow(
             vexpand=True,

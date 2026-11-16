@@ -558,7 +558,7 @@ check('a closed media viewer is freed', freed(viewer_ref, attempts=12))
 # The viewer is an overlay of the window and a profile sheet floats above
 # it, so the sheet has to close or the image opens behind it.
 # The shell's window is the one dialogs are presented on; the attribute
-# is what pages.window_of reads to recognise it.
+# is what pagenav.window_of reads to recognise it.
 host.navigation_view = Adw.NavigationView()
 sheet_page = profile.ProfilePage(api, account(1), viewer_id='99')
 sheet = profile.ProfileDialog(Adw.NavigationView(), sheet_page, 'User 1')

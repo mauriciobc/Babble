@@ -20,7 +20,7 @@ from .i18n import gettext as _, ngettext
 
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
-from . import pages  # noqa: E402
+from .weakconnect import weak_method  # noqa: E402
 from .api import search as api_search  # noqa: E402
 from .api import tags as api_tags  # noqa: E402
 from .completer import MAX_SUGGESTIONS, TokenCompleter  # noqa: E402
@@ -318,7 +318,7 @@ class HashtagCompleter(TokenCompleter):
         self._cache = OrderedDict()
         # One callback for the pool to keep, however many times the user
         # types while it loads.
-        self._pool_waiter = pages.weak_method(self._on_pool_ready)
+        self._pool_waiter = weak_method(self._on_pool_ready)
 
     @property
     def list_label(self):

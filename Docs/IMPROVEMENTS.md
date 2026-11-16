@@ -22,7 +22,7 @@ own fork, `mauriciobc/elk@9597db5`, source of the Catch-Up ranker) and the
   Do not mix them in one change.
 - All work keeps the project's own rules: no feature lands without a test
   (`CLAUDE.md` cross-cutting), the 800-line file-size rule, capability gating
-  through `client.is_supported`, `pages.connect_weak` for signal cycles.
+  through `client.is_supported`, `weakconnect.connect_weak` for signal cycles.
 
 ## Reference baseline
 

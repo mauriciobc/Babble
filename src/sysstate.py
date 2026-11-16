@@ -13,7 +13,7 @@ properties are read again. ``network-changed`` fires once per settled
 burst, even when no property moved, for callers that care about a new
 route under an unchanged ``online`` (a Wi-Fi switch, a resume).
 
-Consumers connect with ``pages.connect_weak``: the monitor lives for the
+Consumers connect with ``weakconnect.connect_weak``: the monitor lives for the
 whole process and must not keep a page or a window alive.
 """
 

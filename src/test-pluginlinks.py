@@ -56,7 +56,8 @@ resource_path = os.path.join(builddir, 'src', 'babble.gresource')
 if os.path.exists(resource_path):
     Gio.Resource.load(resource_path)._register()
 
-from src import accounts, pages, pluginhost, pluginlinks, textemoji  # noqa: E402,E501
+from src import (accounts, appsettings, linkrouting, pluginhost,  # noqa: E402
+                 pluginlinks, textemoji)
 from src import plugin as api  # noqa: E402
 from src import webcolumn  # noqa: E402
 
@@ -174,7 +175,7 @@ write_plugin('accountplug', '''
 write_plugin('nothingplug', 'x = 1\n')
 
 # Nothing enabled: libpeas is neither imported nor started.
-settings = pages.settings()
+settings = appsettings.settings()
 settings.set_boolean('open-links-in-app', True)
 settings.set_boolean('aggressive-resolving', False)
 CLAIMED = 'https://claimed.example'
@@ -231,7 +232,7 @@ class Host(Gtk.Window):
 
     def __init__(self):
         super().__init__()
-        self.navigation_view = object()  # what pages.window_of looks for
+        self.navigation_view = object()  # what pagenav.window_of looks for
         self.client = object()
         self.toast_overlay = Adw.ToastOverlay()
         self.toasts = []
@@ -254,9 +255,9 @@ spin(until=lambda: window.get_mapped() and window.get_width() > 0,
 anchor = window.web_split.get_content()
 
 resolved, launched, shown = [], [], []
-real = (pages.resolve_uri, textemoji.launch_uri, webcolumn.present_web,
+real = (linkrouting.resolve_uri, textemoji.launch_uri, webcolumn.present_web,
         webcolumn.available)
-pages.resolve_uri = lambda _w, _c, uri: resolved.append(uri)
+linkrouting.resolve_uri = lambda _w, _c, uri: resolved.append(uri)
 textemoji.launch_uri = lambda _w, uri: launched.append(uri)
 webcolumn.present_web = lambda _w, uri: shown.append(uri)
 webcolumn.available = lambda: True
@@ -321,52 +322,90 @@ host.set_enabled('nothingplug', False)
 
 one.settings.set('origins', [CLAIMED])
 reset()
-pages.open_link(anchor, URL, resolve=True)
+linkrouting.open_link(anchor, URL, resolve=True)
 check('a claimed /@user@host link goes to the plugin, with the widget',
       len(linkone.opened) == 1 and linkone.opened[0] == (URL, anchor))
 check('and fediverse routing never ran', resolved == [] and launched == []
       and shown == [])
 
+# A registered claim comes before every other routing in open_link: the
+# Bluesky card, a tag (the renderer's tag= and a /tags/ path) and a mention.
+# Each recorder below would fire if the claim did not win.
+from src import blueskycard, hashtags, pagenav  # noqa: E402
+routed = []
+real_routes = (blueskycard.open_post, hashtags.push_hashtag,
+               pagenav.open_profile, blueskycard._flag)
+blueskycard.open_post = lambda *a, **k: routed.append('bluesky')
+hashtags.push_hashtag = lambda *a, **k: routed.append('tag')
+pagenav.open_profile = lambda *a, **k: routed.append('mention')
+blueskycard._flag = lambda name: True
+one.settings.set('origins', [CLAIMED, 'https://bsky.app'])
+kept_opened = list(linkone.opened)
+try:
+    reset()
+    del linkone.opened[:]
+    BSKY = 'https://bsky.app/profile/alice.test/post/3kabc'
+    linkrouting.open_link(anchor, BSKY)
+    check('a claim wins over the Bluesky card',
+          linkone.opened == [(BSKY, anchor)] and routed == [])
+    TAGGED = CLAIMED + '/tags/rust'
+    linkrouting.open_link(anchor, TAGGED, tag='rust')
+    check('a claim wins over the renderer\'s tag',
+          linkone.opened[-1] == (TAGGED, anchor) and routed == [])
+    linkrouting.open_link(anchor, TAGGED)
+    check('a claim wins over a /tags/ path',
+          len(linkone.opened) == 3 and routed == [])
+    linkrouting.open_link(anchor, URL, mentions=[
+        {'url': URL, 'acct': 'user@host.tld'}])
+    check('a claim wins over a mention',
+          len(linkone.opened) == 4 and routed == [])
+finally:
+    (blueskycard.open_post, hashtags.push_hashtag, pagenav.open_profile,
+     blueskycard._flag) = real_routes
+    one.settings.set('origins', [CLAIMED])
+    linkone.opened[:] = kept_opened
+    reset()
+
 reset()
 other = 'https://other.example/@user@host.tld'
-pages.open_link(anchor, other, resolve=True)
+linkrouting.open_link(anchor, other, resolve=True)
 check('an unclaimed profile link is routed as before',
       resolved == [other] and len(linkone.opened) == 1)
 article = 'https://other.example/blog/post'
-pages.open_link(anchor, article)
+linkrouting.open_link(anchor, article)
 check('an unclaimed article still goes to the column',
       shown == [article] and len(linkone.opened) == 1)
 
 reset()
-pages.open_web(anchor, CLAIMED + '/article')
+linkrouting.open_web(anchor, CLAIMED + '/article')
 check('open_web, which explore.py calls directly, claims too',
       len(linkone.opened) == 2 and shown == [] and launched == [])
-pages.open_web(anchor, article)
+linkrouting.open_web(anchor, article)
 check('and open_web leaves an unclaimed link alone',
       shown == [article] and len(linkone.opened) == 2)
 
 reset()
-pages.launch_external(anchor, URL)
+linkrouting.launch_external(anchor, URL)
 check('the explicit Open in Browser is never claimed',
       launched == [URL] and len(linkone.opened) == 2)
 
 del linkone.asked[:]
-pages.open_link(anchor, CLAIMED + '/private/x')
+linkrouting.open_link(anchor, CLAIMED + '/private/x')
 check('claims() can refuse a link on a claimed origin',
       len(linkone.opened) == 2 and linkone.asked
       and set(linkone.asked) == {CLAIMED + '/private/x'}
       and shown == [CLAIMED + '/private/x'])
 reset()
 del linkone.asked[:]
-pages.open_link(anchor, 'https://nope.example/a')
-pages.open_link(anchor, 'http://claimed.example/a')
+linkrouting.open_link(anchor, 'https://nope.example/a')
+linkrouting.open_link(anchor, 'http://claimed.example/a')
 check('an origin outside origins() is never claimed, claims() unasked',
       len(linkone.opened) == 2 and linkone.asked == [])
 
 reset()
 settings.set_boolean('open-links-in-app', False)
-pages.open_link(anchor, URL)
-pages.open_web(anchor, CLAIMED + '/article')
+linkrouting.open_link(anchor, URL)
+linkrouting.open_web(anchor, CLAIMED + '/article')
 check('with open-links-in-app off nothing is claimed',
       len(linkone.opened) == 2 and launched
       == [URL, CLAIMED + '/article'])
@@ -376,11 +415,11 @@ settings.set_boolean('open-links-in-app', True)
 
 one.settings.set('origins', [])
 reset()
-pages.open_link(anchor, URL)
+linkrouting.open_link(anchor, URL)
 check('origins() is read on each click: emptied, nothing is claimed',
       len(linkone.opened) == 2 and pluginlinks.is_claimed(URL) is False)
 one.settings.set('origins', [CLAIMED.upper() + '/'])
-pages.open_link(anchor, URL)
+linkrouting.open_link(anchor, URL)
 check('and an origin the plugin spells loosely still matches',
       len(linkone.opened) == 3)
 one.settings.set('origins', [CLAIMED])
@@ -390,11 +429,11 @@ host.set_enabled('linktwo', True)
 import linktwo  # noqa: E402
 
 linktwo.contexts[-1].settings.set('origins', [CLAIMED])
-pages.open_link(anchor, URL)
+linkrouting.open_link(anchor, URL)
 check('the first enabled plugin to claim a link gets it',
       len(linkone.opened) == 4 and linktwo.opened == [])
 one.settings.set('origins', [])
-pages.open_link(anchor, URL)
+linkrouting.open_link(anchor, URL)
 check('and the next one gets what the first does not claim',
       len(linkone.opened) == 4 and len(linktwo.opened) == 1)
 one.settings.set('origins', [CLAIMED])
@@ -403,12 +442,12 @@ one.settings.set('origins', [CLAIMED])
 host.set_enabled('linkone', False)
 check('disabling a plugin deactivates and drops its link extension',
       'linkone' not in host.link_extensions)
-pages.open_link(anchor, URL)
+linkrouting.open_link(anchor, URL)
 check('and its links go to the next claimant',
       len(linkone.opened) == 4 and len(linktwo.opened) == 2)
 host.set_enabled('linktwo', False)
 reset()
-pages.open_link(anchor, URL, resolve=True)
+linkrouting.open_link(anchor, URL, resolve=True)
 check('with every claimant off the link is routed as before',
       len(linktwo.opened) == 2 and resolved == [URL])
 check('and nothing claims it', pluginlinks.is_claimed(URL) is False)
@@ -419,7 +458,7 @@ host.set_enabled('linkboom', True)
 
 reset()
 boom = 'https://boom.example/a'
-pages.open_link(anchor, boom)
+linkrouting.open_link(anchor, boom)
 check('a claim whose open() raises does not crash, and the click still '
       'opens as it would have', shown == [boom])
 spin(until=lambda: not host.is_enabled('linkboom'), seconds=3)
@@ -427,7 +466,7 @@ check('the plugin that raised is turned off, and says why',
       not host.is_enabled('linkboom') and 'linkboom' in host.errors
       and 'linkboom' not in host.contexts)
 reset()
-pages.open_link(anchor, boom)
+linkrouting.open_link(anchor, boom)
 check('and its links are routed normally afterwards', shown == [boom])
 
 host.set_enabled('linkloop', True)
@@ -435,7 +474,7 @@ import linkloop  # noqa: E402
 
 reset()
 loop = 'https://loop.example/a'
-pages.open_link(anchor, loop)
+linkrouting.open_link(anchor, loop)
 check('open_link from inside open() opens the ordinary way, no loop',
       linkloop.opened == [loop] and shown == [loop])
 host.set_enabled('linkloop', False)
@@ -451,18 +490,18 @@ one = linkone.contexts[-1]
 one.settings.set('origins', [MINE + '/', CLAIMED])
 reset()
 del linkone.opened[:], linkone.asked[:]
-pages.open_link(anchor, MINE_URL, resolve=True)
+linkrouting.open_link(anchor, MINE_URL, resolve=True)
 check('a plugin naming the signed-in account\'s own origin does not '
       'claim it: open() never runs and the link routes normally',
       linkone.opened == [] and linkone.asked == []
       and resolved == [MINE_URL]
       and pluginlinks.claim_link(anchor, MINE_URL) is False
       and pluginlinks.is_claimed(MINE_URL) is False)
-pages.open_web(anchor, MINE + '/article')
+linkrouting.open_web(anchor, MINE + '/article')
 check('open_web does not claim it either',
       linkone.opened == [] and shown == [MINE + '/article'])
 reset()
-pages.open_link(anchor, URL, resolve=True)
+linkrouting.open_link(anchor, URL, resolve=True)
 check('a different origin is still claimed',
       linkone.opened == [(URL, anchor)] and pluginlinks.is_claimed(URL))
 
@@ -472,11 +511,11 @@ accounts.save_account(settings, {
     'instance': CLAIMED})
 del linkone.opened[:]
 reset()
-pages.open_link(anchor, URL, resolve=True)
+linkrouting.open_link(anchor, URL, resolve=True)
 check('after a switch to an account on the claimed origin, that origin is '
       'protected', linkone.opened == [] and resolved == [URL]
       and pluginlinks.is_claimed(URL) is False)
-pages.open_link(anchor, MINE_URL, resolve=True)
+linkrouting.open_link(anchor, MINE_URL, resolve=True)
 check('and the former account\'s origin is claimable again',
       linkone.opened == [(MINE_URL, anchor)]
       and pluginlinks.is_claimed(MINE_URL) is True)
@@ -484,7 +523,7 @@ check('and the former account\'s origin is claimable again',
 # Nobody signed in: nothing is protected.
 settings.set_string('active-account', '')
 del linkone.opened[:]
-pages.open_link(anchor, URL, resolve=True)
+linkrouting.open_link(anchor, URL, resolve=True)
 check('with no account nothing is protected',
       linkone.opened == [(URL, anchor)] and pluginlinks.is_claimed(URL)
       and pluginlinks.is_claimed(MINE_URL))
@@ -566,7 +605,7 @@ if webcolumn.available():
 else:
     print('SKIP - real column checks: WebKitGTK 6.0 is not available')
 
-(pages.resolve_uri, textemoji.launch_uri, webcolumn.present_web,
+(linkrouting.resolve_uri, textemoji.launch_uri, webcolumn.present_web,
  webcolumn.available) = real
 window.destroy()
 gc.collect()

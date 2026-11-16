@@ -16,7 +16,9 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import (accountrows, feedback, linkrouting, pagenav,  # noqa: E402
+               pages, uihelpers)
+from .weakconnect import connect_weak  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .api import suggestions as api_suggestions  # noqa: E402
 from .api import tags as api_tags  # noqa: E402
@@ -69,9 +71,9 @@ def open_link_timeline(widget, client, link):
     server supports it, the browser otherwise."""
     url = link.get('url', '')
     if not supports_link_timeline(client):
-        pages.open_web(widget, url)
+        linkrouting.open_web(widget, url)
         return
-    pages.push_page(widget, link.get('title') or _('Link'),
+    pagenav.push_page(widget, link.get('title') or _('Link'),
                     LinkTimelinePage(client, link),
                     tag='link-%s' % url)
 
@@ -103,7 +105,7 @@ class LinkTimelinePage(Adw.Bin):
             subtitle=link.get('provider_name') or _domain(link['url']),
             use_markup=False, title_lines=2, subtitle_lines=1)
         summary.add_suffix(Gtk.Image(icon_name='web-browser-symbolic'))
-        pages.connect_weak(summary, 'activated', self._on_open_browser)
+        connect_weak(summary, 'activated', self._on_open_browser)
         frame = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,
                             margin_top=12, margin_bottom=4,
                             margin_start=12, margin_end=12)
@@ -113,9 +115,9 @@ class LinkTimelinePage(Adw.Bin):
         box.append(Adw.Clamp(maximum_size=pages.COLUMN_WIDTH, child=frame))
         box.append(self.timeline)
         self.set_child(box)
-        self.browser_button = pages.icon_button(
+        self.browser_button = uihelpers.icon_button(
             'web-browser-symbolic', _('Open in Browser'))
-        pages.connect_weak(self.browser_button, 'clicked',
+        connect_weak(self.browser_button, 'clicked',
                            self._on_open_browser)
         self.header_widgets = [self.browser_button]
 
@@ -126,7 +128,7 @@ class LinkTimelinePage(Adw.Bin):
         self._open_browser()
 
     def _open_browser(self):
-        pages.launch_external(self, self.link['url'])
+        linkrouting.launch_external(self, self.link['url'])
 
 
 def link_card_labels(link):
@@ -241,7 +243,7 @@ class LinkCard(Gtk.ListBoxRow):
         open_link_timeline(self, self.client, self.link)
 
 
-class SuggestionRow(pages.AccountRow):
+class SuggestionRow(accountrows.AccountRow):
     """A suggested account: reason, Follow and dismiss buttons."""
 
     __gtype_name__ = 'BabbleSuggestionRow'
@@ -267,10 +269,10 @@ class SuggestionRow(pages.AccountRow):
                                         use_underline=True,
                                         valign=Gtk.Align.CENTER)
         self.follow_button.add_css_class('suggested-action')
-        pages.connect_weak(self.follow_button, 'clicked', self._on_follow)
-        self.dismiss_button = pages.icon_button(
+        connect_weak(self.follow_button, 'clicked', self._on_follow)
+        self.dismiss_button = uihelpers.icon_button(
             'window-close-symbolic', _('Dismiss Suggestion'))
-        pages.connect_weak(self.dismiss_button, 'clicked', self._on_dismiss)
+        connect_weak(self.dismiss_button, 'clicked', self._on_dismiss)
         self.add_suffix(self.follow_button)
         self.add_suffix(self.dismiss_button)
 
@@ -287,7 +289,7 @@ class SuggestionRow(pages.AccountRow):
                 relationship = api_relationships.follow_finish(c, result)
             except GLib.Error as error:
                 button.set_sensitive(True)
-                pages.report_error(self, _('Could not follow'), error)
+                feedback.report_error(self, _('Could not follow'), error)
                 return
             button.remove_css_class('suggested-action')
             button.set_label(_('Requested') if relationship.get('requested')
@@ -305,7 +307,7 @@ class SuggestionRow(pages.AccountRow):
                 api_suggestions.dismiss_finish(c, result)
             except GLib.Error as error:
                 self.dismiss_button.set_sensitive(True)
-                pages.report_error(self, _('Could not dismiss the '
+                feedback.report_error(self, _('Could not dismiss the '
                                            'suggestion'), error)
                 return
             self.page.paged.remove_row(self)
@@ -400,7 +402,7 @@ class ExplorePage(Adw.Bin):
             self.bins[name] = bin_
             self.stack.add_titled_with_icon(bin_, name, title, icon)
         self.set_child(self.stack)
-        pages.connect_weak(self.stack, 'notify::visible-child-name',
+        connect_weak(self.stack, 'notify::visible-child-name',
                            self._on_tab)
         self.switcher = Adw.InlineViewSwitcher(
             stack=self.stack,

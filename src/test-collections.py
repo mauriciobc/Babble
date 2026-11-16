@@ -17,7 +17,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
-from src import pages  # noqa: E402
+from src import linkrouting  # noqa: E402
 from src.fedicollections import (  # noqa: E402
     DEFAULT_LIMIT, _is_member, _items, can_invite, collection_limit)
 from src.report import build_report_payload  # noqa: E402
@@ -98,20 +98,20 @@ check('collection ids are de-duplicated and stringified',
 # unchanged.
 
 check('a collection URL is recognized',
-      pages.fedi_link_kind('https://example.test/collections/123')
+      linkrouting.fedi_link_kind('https://example.test/collections/123')
       == 'collection')
 check('a trailing slash is still a collection',
-      pages.fedi_link_kind('https://example.test/collections/123/')
+      linkrouting.fedi_link_kind('https://example.test/collections/123/')
       == 'collection')
 check('a post URL is still a post',
-      pages.fedi_link_kind('https://example.test/@ana/112')
+      linkrouting.fedi_link_kind('https://example.test/@ana/112')
       == 'post')
 check('a profile URL is still a profile',
-      pages.fedi_link_kind('https://example.test/@ana') == 'profile')
+      linkrouting.fedi_link_kind('https://example.test/@ana') == 'profile')
 check('a hashtag URL is still a tag',
-      pages.fedi_link_kind('https://example.test/tags/rust') == 'tag')
+      linkrouting.fedi_link_kind('https://example.test/tags/rust') == 'tag')
 check('an unrelated URL is not a fediverse link',
-      pages.fedi_link_kind('https://example.test/about') is None)
+      linkrouting.fedi_link_kind('https://example.test/about') is None)
 
 if failures:
     print('%d failure(s)' % failures)

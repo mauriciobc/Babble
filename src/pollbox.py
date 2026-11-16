@@ -16,9 +16,9 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import pages, uihelpers  # noqa: E402
 from .api import polls  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import InlineEmojiText, poll_emoji_bank  # noqa: E402
 from .timelinebase import time_left  # noqa: E402
 
@@ -45,7 +45,7 @@ class PollBox(Gtk.Box):
 
     def set_poll(self, poll, bank=None, client=None, ui=None,
                  on_update=None):
-        pages.clear_children(self)
+        uihelpers.clear_children(self)
         self._bar_animations = []
         self._poll = poll
         if not poll:
@@ -120,7 +120,7 @@ class PollBox(Gtk.Box):
             if index in own:
                 mark = Gtk.Image(icon_name='object-select-symbolic',
                                  accessible_role=Gtk.AccessibleRole.IMG)
-                pages.set_accessible_label(mark, _('Your vote'))
+                uihelpers.set_accessible_label(mark, _('Your vote'))
                 line.append(mark)
             label = self._label(option)
             if index == winner:
@@ -185,7 +185,7 @@ class PollBox(Gtk.Box):
         detail.set_text(' · '.join(parts))
         footer.append(detail)
         if not closed:
-            refresh = pages.icon_button('view-refresh-symbolic',
+            refresh = uihelpers.icon_button('view-refresh-symbolic',
                                         _('Refresh Results'))
             connect_weak(refresh, 'clicked', self._on_refresh)
             footer.append(refresh)

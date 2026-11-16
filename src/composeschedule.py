@@ -18,7 +18,7 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import GLib, GObject  # noqa: E402
 
-from . import pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .entities import VISIBILITIES as VISIBILITY_CODES  # noqa: E402
 
 
@@ -122,7 +122,7 @@ def scheduled_content(scheduled, *, max_poll_options):
 class ComposeSchedule(GObject.Object):
     """Mode transitions and schedule chrome for one composer.
 
-    A GObject so :func:`pages.connect_weak` / :func:`pages.weak_method`
+    A GObject so :func:`connect_weak` / :func:`weak_method`
     can hold it without a C-level cycle through the chrome it wires.
     The host is the composer view, held weakly; this object never
     imports ``compose``.
@@ -144,8 +144,8 @@ class ComposeSchedule(GObject.Object):
         """Wire the schedule button and banner the view already built."""
         self.schedule_button = schedule_button
         self.schedule_banner = schedule_banner
-        pages.connect_weak(schedule_button, 'clicked', self.on_schedule_clicked)
-        pages.connect_weak(schedule_banner, 'button-clicked',
+        connect_weak(schedule_button, 'clicked', self.on_schedule_clicked)
+        connect_weak(schedule_banner, 'button-clicked',
                            self.on_schedule_clear)
 
     # Mode entry
@@ -351,7 +351,7 @@ class ComposeSchedule(GObject.Object):
         from .scheduled import SchedulePickerDialog
         dialog = SchedulePickerDialog(
             view.scheduled_at, _('_Set Time'),
-            on_picked=pages.weak_method(self._on_schedule_picked))
+            on_picked=weak_method(self._on_schedule_picked))
         dialog.present(view)
 
     def _on_schedule_picked(self, iso):

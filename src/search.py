@@ -20,10 +20,11 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
+               pages, uihelpers)
 from .api import search as api_search  # noqa: E402
 from .lists import error_text_markup  # noqa: E402
-from .pages import ToastDialog  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .statustext import compact_count  # noqa: E402
 
 RECENT_KEY = 'recent-searches'
@@ -37,7 +38,7 @@ URL_PATTERN = re.compile(r'^https?://\S+$', re.I)
 # Recent searches
 
 def recent_searches():
-    return list(pages.settings().get_strv(RECENT_KEY))
+    return list(appsettings.settings().get_strv(RECENT_KEY))
 
 
 def add_recent(query):
@@ -46,16 +47,16 @@ def add_recent(query):
         return
     items = [q for q in recent_searches() if q != query]
     items.insert(0, query)
-    pages.settings().set_strv(RECENT_KEY, items[:RECENT_MAX])
+    appsettings.settings().set_strv(RECENT_KEY, items[:RECENT_MAX])
 
 
 def remove_recent(query):
-    pages.settings().set_strv(
+    appsettings.settings().set_strv(
         RECENT_KEY, [q for q in recent_searches() if q != query])
 
 
 def clear_recent():
-    pages.settings().set_strv(RECENT_KEY, [])
+    appsettings.settings().set_strv(RECENT_KEY, [])
 
 
 def compact_number(value):
@@ -136,7 +137,7 @@ class SearchTypePage(Adw.Bin):
                 selection_mode=Gtk.SelectionMode.NONE,
                 margin_start=12, margin_end=12)
             self.container.add_css_class('boxed-list')
-            pages.connect_weak(self.container, 'row-activated',
+            connect_weak(self.container, 'row-activated',
                                self._on_activated)
         column.append(self.container)
         self.more_spinner = Adw.Spinner(visible=False,
@@ -147,7 +148,7 @@ class SearchTypePage(Adw.Bin):
                                           child=column))
         self.stack.add_named(self.scrolled, 'list')
         self.set_child(self.stack)
-        pages.connect_weak(self.scrolled.get_vadjustment(), 'value-changed',
+        connect_weak(self.scrolled.get_vadjustment(), 'value-changed',
                            self._on_scroll)
         self.refresh()
 
@@ -196,7 +197,7 @@ class SearchTypePage(Adw.Bin):
             data = api_search.search_finish(client, result)
         except GLib.Error as error:
             if self.count:
-                pages.report_error(self, _('Could not load more'), error)
+                feedback.report_error(self, _('Could not load more'), error)
             else:
                 self.error_page.set_description(error_text_markup(error))
                 self.stack.set_visible_child_name('error')
@@ -223,7 +224,7 @@ class SearchTypePage(Adw.Bin):
 def make_result_widget(client, kind, item):
     """The row for one search result of *kind*."""
     if kind == 'accounts':
-        return pages.AccountRow(client, item,
+        return accountrows.AccountRow(client, item,
                                 subtitle=account_subtitle(item))
     if kind == 'hashtags':
         from .hashtags import HashtagRow
@@ -240,7 +241,7 @@ def make_post_row(client, status):
     row.bind(item, client)
     gesture = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
     # The gesture belongs to the row, so a handler that holds the row
-    # strongly is the cycle through C that pages.connect_weak exists to
+    # strongly is the cycle through C that connect_weak exists to
     # prevent. connect_weak takes a bound method; this is a closure, so
     # hold the row by a GObject weak reference instead.
     row_ref = row.weak_ref()
@@ -255,7 +256,7 @@ def make_post_row(client, status):
     # Tab reaches the card (the .status-row focus ring shows it), and
     # Enter or space opens the thread, as the click does.
     row.set_focusable(True)
-    pages.activate_on_key(row, open_thread)
+    uihelpers.activate_on_key(row, open_thread)
     return row
 
 
@@ -277,14 +278,14 @@ class SearchPage(Adw.Bin):
             search_delay=SEARCH_DELAY_MS, hexpand=True)
         self.entry.update_property([Gtk.AccessibleProperty.LABEL],
                                    [_('Search')])
-        pages.connect_weak(self.entry, 'search-changed',
+        connect_weak(self.entry, 'search-changed',
                            self._on_search_changed)
-        pages.connect_weak(self.entry, 'activate', self._on_activate)
-        pages.connect_weak(self.entry, 'stop-search', self._on_stop_search)
+        connect_weak(self.entry, 'activate', self._on_activate)
+        connect_weak(self.entry, 'stop-search', self._on_stop_search)
         self.title_widget = Adw.Clamp(maximum_size=460, child=self.entry)
-        self.advanced_button = pages.icon_button(
+        self.advanced_button = uihelpers.icon_button(
             'preferences-other-symbolic', _('Advanced Search'))
-        pages.connect_weak(self.advanced_button, 'clicked',
+        connect_weak(self.advanced_button, 'clicked',
                            self._on_advanced_clicked)
         self.header_widgets = [self.advanced_button]
 
@@ -341,7 +342,7 @@ class SearchPage(Adw.Bin):
         self.clear_button = Gtk.Button(label=_('_Clear'), use_underline=True,
                                        valign=Gtk.Align.CENTER)
         self.clear_button.add_css_class('flat')
-        pages.connect_weak(self.clear_button, 'clicked',
+        connect_weak(self.clear_button, 'clicked',
                            self._on_clear_recent)
         self.recent_group.set_header_suffix(self.clear_button)
         self.recent_rows = []
@@ -359,12 +360,12 @@ class SearchPage(Adw.Bin):
             code.add_css_class('monospace')
             code.add_css_class('dimmed')
             row.add_suffix(code)
-            pages.connect_weak(row, 'activated', self._on_hint, operator)
+            connect_weak(row, 'activated', self._on_hint, operator)
             self.tips_group.add(row)
         advanced = Adw.ActionRow(title=_('Advanced Search…'),
                                  activatable=True)
         advanced.add_suffix(Gtk.Image(icon_name='go-next-symbolic'))
-        pages.connect_weak(advanced, 'activated', self._on_advanced_clicked)
+        connect_weak(advanced, 'activated', self._on_advanced_clicked)
         self.tips_group.add(advanced)
         column.append(self.tips_group)
         scrolled.set_child(Adw.Clamp(maximum_size=pages.COLUMN_WIDTH,
@@ -382,12 +383,12 @@ class SearchPage(Adw.Bin):
             row = Adw.ActionRow(title=query, activatable=True,
                                 use_markup=False, title_lines=1)
             row.add_prefix(Gtk.Image(icon_name='document-open-recent-symbolic'))
-            remove = pages.icon_button('edit-clear-symbolic',
+            remove = uihelpers.icon_button('edit-clear-symbolic',
                                        _('Remove from Recent Searches'))
-            pages.connect_weak(remove, 'clicked', self._on_remove_recent,
+            connect_weak(remove, 'clicked', self._on_remove_recent,
                                query)
             row.add_suffix(remove)
-            pages.connect_weak(row, 'activated', self._on_recent_activated,
+            connect_weak(row, 'activated', self._on_recent_activated,
                                query)
             self.recent_group.add(row)
             self.recent_rows.append(row)
@@ -477,9 +478,9 @@ class SearchPage(Adw.Bin):
 
         def resolved(data):
             if data.get('statuses'):
-                pages.open_status(self, self.client, data['statuses'][0])
+                pagenav.open_status(self, self.client, data['statuses'][0])
             elif data.get('accounts'):
-                pages.open_profile(self, self.client, data['accounts'][0])
+                pagenav.open_profile(self, self.client, data['accounts'][0])
             else:
                 self._show_results(data)
 
@@ -522,7 +523,7 @@ class SearchPage(Adw.Bin):
 
     def _section(self, kind, title, see_all, items):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        heading = pages.section_label(title)
+        heading = uihelpers.section_label(title)
         heading.set_margin_start(12)
         heading.set_margin_end(12)
         box.append(heading)
@@ -539,7 +540,7 @@ class SearchPage(Adw.Bin):
             list_box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,
                                    margin_start=12, margin_end=12)
             list_box.add_css_class('boxed-list')
-            pages.connect_weak(list_box, 'row-activated',
+            connect_weak(list_box, 'row-activated',
                                self._on_row_activated)
             for item in shown:
                 list_box.append(make_result_widget(self.client, kind, item))
@@ -547,7 +548,7 @@ class SearchPage(Adw.Bin):
             more_parent = list_box
         if len(items) > PREVIEW_COUNT:
             more = Adw.ButtonRow(title=see_all)
-            pages.connect_weak(more, 'activated', self._on_see_all, kind,
+            connect_weak(more, 'activated', self._on_see_all, kind,
                                title)
             more_parent.append(more)
             if kind == 'statuses':
@@ -562,7 +563,7 @@ class SearchPage(Adw.Bin):
 
     def _on_see_all(self, _row, kind, title):
         add_recent(self.query)
-        pages.push_page(self, '%s: %s' % (title, self.query),
+        pagenav.push_page(self, '%s: %s' % (title, self.query),
                         SearchTypePage(self.client, self.query, kind))
 
     # Advanced search
@@ -573,7 +574,7 @@ class SearchPage(Adw.Bin):
         dialog.present(self)
 
 
-class AdvancedSearchDialog(ToastDialog):
+class AdvancedSearchDialog(feedback.ToastDialog):
     """Builds a query with the operators Mastodon understands, the way
     Tuba's advanced search dialog does."""
 
@@ -582,11 +583,11 @@ class AdvancedSearchDialog(ToastDialog):
         self.on_result = None
 
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        pages.connect_weak(cancel, 'clicked', self._on_cancel)
+        connect_weak(cancel, 'clicked', self._on_cancel)
         self.header.pack_start(cancel)
         search = Gtk.Button(label=_('_Search'), use_underline=True)
         search.add_css_class('suggested-action')
-        pages.connect_weak(search, 'clicked', self._on_search)
+        connect_weak(search, 'clicked', self._on_search)
         self.header.pack_end(search)
 
         intro = Adw.PreferencesGroup(

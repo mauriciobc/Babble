@@ -18,7 +18,7 @@ from gi.repository import (  # noqa: E402
     Gdk, GObject, Graphene, Gsk, Gtk,
 )
 
-from . import pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 ZOOM_STEP = 1.25
 MAX_SCALE = 8.0
@@ -51,22 +51,22 @@ class ZoomPicture(Gtk.Widget):
         self._pinch_origin = 1.0
 
         drag = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
-        pages.connect_weak(drag, 'drag-begin', self._on_drag_begin)
-        pages.connect_weak(drag, 'drag-update', self._on_drag_update)
+        connect_weak(drag, 'drag-begin', self._on_drag_begin)
+        connect_weak(drag, 'drag-update', self._on_drag_update)
         self.add_controller(drag)
 
         click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-        pages.connect_weak(click, 'pressed', self._on_pressed)
+        connect_weak(click, 'pressed', self._on_pressed)
         self.add_controller(click)
 
         pinch = Gtk.GestureZoom()
-        pages.connect_weak(pinch, 'begin', self._on_pinch_begin)
-        pages.connect_weak(pinch, 'scale-changed', self._on_pinch)
+        connect_weak(pinch, 'begin', self._on_pinch_begin)
+        connect_weak(pinch, 'scale-changed', self._on_pinch)
         self.add_controller(pinch)
 
         scroll = Gtk.EventControllerScroll(
             flags=Gtk.EventControllerScrollFlags.BOTH_AXES)
-        pages.connect_weak(scroll, 'scroll', self._on_scroll)
+        connect_weak(scroll, 'scroll', self._on_scroll)
         self.add_controller(scroll)
 
     # Geometry

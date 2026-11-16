@@ -45,7 +45,7 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
     print('SKIP - no display available')
     sys.exit(77)
 
-from src import hashtags, pages, searchprovider  # noqa: E402
+from src import appsettings, hashtags, pagenav, searchprovider  # noqa: E402
 from src.mediacache import AvatarCache  # noqa: E402
 
 failures = []
@@ -170,9 +170,9 @@ class StubApp:
 
 
 routes = []
-pages.open_profile = lambda win, client, account=None, acct=None: \
+pagenav.open_profile = lambda win, client, account=None, acct=None: \
     routes.append(('profile', win, client, account))
-pages.open_status = lambda win, client, status: \
+pagenav.open_status = lambda win, client, status: \
     routes.append(('status', win, client, status))
 hashtags.push_hashtag = lambda win, client, name: \
     routes.append(('tag', win, client, name))
@@ -387,7 +387,7 @@ try:
           'LaunchSearch passes the joined terms to the search page')
 
     # Ensure this process-local settings backend has no active account.
-    settings = pages.settings()
+    settings = appsettings.settings()
     settings.set_strv('accounts', [])
     settings.set_string('active-account', '')
     lonely = searchprovider.SearchProvider(StubApp([]))

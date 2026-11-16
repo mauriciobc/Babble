@@ -3,6 +3,7 @@
 data/io.github.mauriciobc.Babble.desktop.in
 data/io.github.mauriciobc.Babble.gschema.xml
 data/io.github.mauriciobc.Babble.metainfo.xml.in
+src/accountrows.py
 src/accounts.py
 src/admin.py
 src/announcements.py
@@ -27,9 +28,11 @@ src/drafts.py
 src/emojichooser.py
 src/explore.py
 src/fedicollections.py
+src/feedback.py
 src/filters.py
 src/hashtagcompleter.py
 src/hashtags.py
+src/linkrouting.py
 src/lists.py
 src/main.py
 src/mastodon.py

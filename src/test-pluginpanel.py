@@ -54,7 +54,8 @@ resource_path = os.path.join(builddir, 'src', 'babble.gresource')
 if os.path.exists(resource_path):
     Gio.Resource.load(resource_path)._register()
 
-from src import pages, pluginhost, webcolumn  # noqa: E402
+from src import (appsettings, feedback, linkrouting, pluginhost,  # noqa: E402
+                 webcolumn)
 from src import plugin as api  # noqa: E402
 
 if not webcolumn.available():
@@ -167,7 +168,7 @@ class Host(Gtk.Window):
 
     def __init__(self):
         super().__init__()
-        self.navigation_view = object()  # what pages.window_of looks for
+        self.navigation_view = object()  # what pagenav.window_of looks for
         self.session = True  # False: nobody signed in
         self.composed = []
         self.web_slot = Adw.Bin()
@@ -187,7 +188,7 @@ window.present()
 spin(until=lambda: window.get_mapped() and window.get_width() > 0,
      seconds=5)
 
-settings = pages.settings()
+settings = appsettings.settings()
 settings.set_boolean('open-links-in-app', False)
 settings.set_boolean('web-javascript', True)
 host = pluginhost.host()
@@ -479,9 +480,9 @@ reopened[0][1].close()
 # toast() and open_link(): anchored on the panel's own column, which the
 # plugin never sees, and nothing once the handle is closed.
 calls = []
-real_pages = (pages.show_toast, pages.open_link)
-pages.show_toast = lambda *a, **k: calls.append(('toast', a, k))
-pages.open_link = lambda *a, **k: calls.append(('link', a, k))
+real_pages = (feedback.show_toast, linkrouting.open_link)
+feedback.show_toast = lambda *a, **k: calls.append(('toast', a, k))
+linkrouting.open_link = lambda *a, **k: calls.append(('link', a, k))
 LINK = 'https://example.org/@someone'
 tp = fresh(context)
 tcolumn = window.web_slot.get_child()
@@ -588,7 +589,7 @@ spin(until=lambda: not cp4.is_open, seconds=5)
 cp4.compose('after destroy')
 check('after the window was destroyed compose does nothing, no exception',
       not cp4.is_open)
-pages.show_toast, pages.open_link = real_pages
+feedback.show_toast, linkrouting.open_link = real_pages
 
 # A window destroyed without dispose_column still ends the handle.
 gone = []

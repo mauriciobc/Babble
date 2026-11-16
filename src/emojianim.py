@@ -521,7 +521,7 @@ class EmojiImage(Gtk.Image):
     def defer_fetch(self):
         if self._defer or self._cancellable is not None:
             return
-        from .pages import weak_method
+        from .weakconnect import weak_method
         self._defer = GLib.timeout_add(DEFER_MS,
                                        weak_method(self._on_deferred))
 

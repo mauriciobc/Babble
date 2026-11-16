@@ -28,7 +28,9 @@ configure_file(
 
 install_data(
   '__init__.py',
+  'accountrows.py',
   'accounts.py',
+  'appsettings.py',
   'admin.py',
   'affinity.py',
   'announcements.py',
@@ -49,6 +51,7 @@ install_data(
   'entities.py',
   'explore.py',
   'fedicollections.py',
+  'feedback.py',
   'filterrules.py',
   'filters.py',
   'imagecache.py',
@@ -57,6 +60,8 @@ install_data(
   'i18n.py',
   'lists.py',
   'main.py',
+  'linkhandlers.py',
+  'linkrouting.py',
   'mastodon.py',
   'mediaengine.py',
   'mediaexport.py',
@@ -75,6 +80,7 @@ install_data(
   'notificationpolicy.py',
   'notificationrow.py',
   'notifications.py',
+  'pagenav.py',
   'pages.py',
   'plugin.py',
   'pluginhost.py',
@@ -130,6 +136,8 @@ install_data(
   'mediacache.py',
   'mediabox.py',
   'mediaopen.py',
+  'uihelpers.py',
+  'weakconnect.py',
   'webcolumn.py',
   'window.py',
   'wrapped.py',
@@ -627,6 +635,12 @@ test('api registry', python,
 # Needs no display: real Gio.Cancellable and Gio.Task objects only.
 test('request scope', python,
   args: [files('test-request-scope.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: the registry, and that importing webcolumn fills it.
+test('link handlers', python,
+  args: [files('test-link-handlers.py')],
   env: test_env,
   timeout: 60,
 )

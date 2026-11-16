@@ -14,7 +14,7 @@ gi.require_version('Gtk', '4.0')
 
 from gi.repository import Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import core as api_core  # noqa: E402
 
 SEARCH_DELAY_MS = 250
@@ -83,9 +83,9 @@ class TokenCompleter(Gtk.Popover):
         self.list_box.add_css_class('navigation-sidebar')
         self.list_box.update_property([Gtk.AccessibleProperty.LABEL],
                                       [self.list_label])
-        pages.connect_weak(self.list_box, 'row-activated',
+        connect_weak(self.list_box, 'row-activated',
                            self._on_row_activated)
-        pages.connect_weak(self.list_box, 'row-selected',
+        connect_weak(self.list_box, 'row-selected',
                            self._on_row_selected)
         self.hint_label = Gtk.Label(
             label=self.hint_text, visible=False,
@@ -99,18 +99,18 @@ class TokenCompleter(Gtk.Popover):
 
         text_view.update_property([Gtk.AccessibleProperty.AUTOCOMPLETE],
                                   [int(Gtk.AccessibleAutocomplete.LIST)])
-        pages.connect_weak(self.buffer, 'changed', self._on_buffer_changed)
-        pages.connect_weak(self.buffer, 'mark-set', self._on_mark_set)
-        pages.connect_weak(text_view, 'preedit-changed',
+        connect_weak(self.buffer, 'changed', self._on_buffer_changed)
+        connect_weak(self.buffer, 'mark-set', self._on_mark_set)
+        connect_weak(text_view, 'preedit-changed',
                            self._on_preedit_changed)
         keys = Gtk.EventControllerKey(
             propagation_phase=Gtk.PropagationPhase.CAPTURE)
-        pages.connect_weak(keys, 'key-pressed', self._on_key_pressed)
+        connect_weak(keys, 'key-pressed', self._on_key_pressed)
         text_view.add_controller(keys)
         focus = Gtk.EventControllerFocus()
-        pages.connect_weak(focus, 'leave', self._on_focus_leave)
+        connect_weak(focus, 'leave', self._on_focus_leave)
         text_view.add_controller(focus)
-        pages.connect_weak(text_view, 'destroy', self._on_parent_destroy)
+        connect_weak(text_view, 'destroy', self._on_parent_destroy)
 
     # Hooks
 
@@ -213,7 +213,7 @@ class TokenCompleter(Gtk.Popover):
             self._show_if_filled()
             if self.completes_bare:
                 self._search_id = GLib.timeout_add(
-                    SEARCH_DELAY_MS, pages.weak_method(self._pause_on_bare))
+                    SEARCH_DELAY_MS, weak_method(self._pause_on_bare))
             return
         self._hint = False
         self.prepare(query)
@@ -228,7 +228,7 @@ class TokenCompleter(Gtk.Popover):
             self._show_if_filled()
         if self.wants_search(query):
             self._search_id = GLib.timeout_add(
-                SEARCH_DELAY_MS, pages.weak_method(self._search))
+                SEARCH_DELAY_MS, weak_method(self._search))
 
     # Token
 
@@ -281,7 +281,7 @@ class TokenCompleter(Gtk.Popover):
         self._serial += 1
         serial = self._serial
         self._cancellable = Gio.Cancellable()
-        done = pages.weak_method(self._on_search_done)
+        done = weak_method(self._on_search_done)
         api_core.send_path(
             self.client, 'GET', path, params=params,
             cancellable=self._cancellable,

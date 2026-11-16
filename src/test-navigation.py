@@ -160,7 +160,7 @@ with patch.dict(sys.modules, {
               ('list:three', 'Third', 'view-list-symbolic'),
               ('tag:hello world', '#hello world',
                'babble-hashtag-symbolic')])
-    with patch.object(navigation.pages, 'make_nav_page',
+    with patch.object(navigation.pagenav, 'make_nav_page',
                       side_effect=lambda title, child, tag=None,
                       sidebar_control=None: FakePage(title, child, tag)) \
             as make:
@@ -190,7 +190,7 @@ with patch.dict(sys.modules, {
     seen = []
     host.notify_place_built = lambda tag, page: seen.append(
         (tag, tag in routing.public_pages, routing.children.get(tag)))
-    with patch.object(navigation.pages, 'make_nav_page',
+    with patch.object(navigation.pagenav, 'make_nav_page',
                       side_effect=lambda title, child, tag=None,
                       sidebar_control=None: FakePage(title, child, tag)):
         local_nav = routing.place_page('local')

@@ -25,7 +25,9 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 from . import charts  # noqa: E402
-from . import pages  # noqa: E402
+from . import (accountrows, feedback, pagenav, pages,  # noqa: E402
+               uihelpers)
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import annual_reports as api_annual_reports  # noqa: E402
 from .capabilities import ANNUAL_REPORT_STATE_API_VERSION  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
@@ -197,7 +199,7 @@ def section_title(text):
     return label
 
 
-class WrappedDialog(pages.ToastDialog):
+class WrappedDialog(feedback.ToastDialog):
     """The dialog; renders ``GET /api/v1/annual_reports``."""
 
     def __init__(self, parent, client, year=None, **kwargs):
@@ -213,9 +215,9 @@ class WrappedDialog(pages.ToastDialog):
         self.stack = Gtk.Stack()
         self.set_content(self.stack)
 
-        self.save_button = pages.icon_button(
+        self.save_button = uihelpers.icon_button(
             'document-save-symbolic', _('Save as Image…'))
-        pages.connect_weak(self.save_button, 'clicked',
+        connect_weak(self.save_button, 'clicked',
                            self._on_save_clicked)
         self.save_button.set_visible(False)
         self.header.pack_end(self.save_button)
@@ -224,8 +226,8 @@ class WrappedDialog(pages.ToastDialog):
         self.style_button.set_menu_model(self._style_menu())
         self.header.pack_start(self.style_button)
         self.year_dropdown = Gtk.DropDown(visible=False)
-        pages.set_accessible_label(self.year_dropdown, _('Year'))
-        pages.connect_weak(self.year_dropdown, 'notify::selected',
+        uihelpers.set_accessible_label(self.year_dropdown, _('Year'))
+        connect_weak(self.year_dropdown, 'notify::selected',
                            self._on_year)
         self.header.pack_start(self.year_dropdown)
 
@@ -233,7 +235,7 @@ class WrappedDialog(pages.ToastDialog):
         action = Gio.SimpleAction.new_stateful(
             'style', GLib.VariantType.new('s'),
             GLib.Variant.new_string('window'))
-        pages.connect_weak(action, 'activate', self._on_style)
+        connect_weak(action, 'activate', self._on_style)
         actions.add_action(action)
         self.insert_action_group('wrapped', actions)
 
@@ -306,7 +308,7 @@ class WrappedDialog(pages.ToastDialog):
                                 halign=Gtk.Align.CENTER)
             action.add_css_class('pill')
             action.add_css_class('suggested-action')
-            pages.connect_weak(action, 'clicked', self._on_status_clicked,
+            connect_weak(action, 'clicked', self._on_status_clicked,
                                *callback)
             self.status_page.set_child(action)
         else:
@@ -429,7 +431,7 @@ class WrappedDialog(pages.ToastDialog):
         return None
 
     def _me(self):
-        window = pages.window_of(self.parent)
+        window = pagenav.window_of(self.parent)
         return getattr(window, 'account', None) or {}
 
     def _build(self, report):
@@ -442,7 +444,7 @@ class WrappedDialog(pages.ToastDialog):
 
         me = self._me()
         avatar = Adw.Avatar(size=96, halign=Gtk.Align.CENTER,
-                            text=pages.display_name(me) if me else '?',
+                            text=accountrows.display_name(me) if me else '?',
                             show_initials=True)
         if me:
             AvatarCache.load(avatar, me)
@@ -567,7 +569,7 @@ class WrappedDialog(pages.ToastDialog):
         box.append(caption)
         row = Gtk.Box(spacing=18, halign=Gtk.Align.CENTER)
         for account in accounts:
-            name = pages.display_name(account)
+            name = accountrows.display_name(account)
             cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                            halign=Gtk.Align.CENTER, width_request=90)
             avatar = Adw.Avatar(size=56, text=name, show_initials=True,
@@ -623,12 +625,12 @@ class WrappedDialog(pages.ToastDialog):
             if widget is not None:
                 widget.set_visible(False)
         click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-        pages.connect_weak(click, 'released', self._on_status_released,
+        connect_weak(click, 'released', self._on_status_released,
                            status)
         row.add_controller(click)
         # The click's keyboard twin: Tab to the card, Enter or space.
         row.set_focusable(True)
-        pages.activate_on_key(row, pages.weak_method(self._open_status),
+        uihelpers.activate_on_key(row, weak_method(self._open_status),
                               status)
         holder.append(row)
 
@@ -638,7 +640,7 @@ class WrappedDialog(pages.ToastDialog):
     def _open_status(self, status):
         parent = self.parent
         self.close()
-        pages.open_status(parent, self.client, status)
+        pagenav.open_status(parent, self.client, status)
 
     # Style and export
 
@@ -689,7 +691,7 @@ class WrappedDialog(pages.ToastDialog):
                 return
             self.toast(_('Saved %d Wrapped') % year)
 
-        dialog.save(pages.window_of(self.parent), None, chosen)
+        dialog.save(pagenav.window_of(self.parent), None, chosen)
 
     def _screenshot(self):
         card = self.card

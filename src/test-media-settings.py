@@ -50,7 +50,7 @@ Gio.Resource.load(bundle)._register()
 
 from src import mediaengine, mediaviewer  # noqa: E402
 from src import mediapolicy  # noqa: E402
-from src import pages, preferences, sysstate  # noqa: E402
+from src import appsettings, preferences, sysstate  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
     'media_fixture', os.path.join(srcdir, 'test-media-fixture.py'))
@@ -95,7 +95,7 @@ class FakeMonitor(GObject.Object):
 
 monitor = FakeMonitor()
 sysstate._monitor = monitor
-settings = pages.settings()
+settings = appsettings.settings()
 
 # Schema defaults.
 for key in ('autoplay-animated-media', 'media-autoload',

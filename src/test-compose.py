@@ -47,7 +47,8 @@ sys.path.insert(0, srcdir)
 from src.compose import (VISIBILITIES,  # noqa: E402
                          BabbleComposeView, ComposeDialog, countable_length)
 from src.composeattach import MAX_ATTACHMENTS  # noqa: E402
-from src import compose, composeattach, emojichooser, scheduled  # noqa: E402
+from src import (appsettings, compose, composeattach, emojichooser,  # noqa: E402
+                 feedback, pagenav, scheduled)
 from src.drafts import Attachment, Draft  # noqa: E402
 from src.hashtagcompleter import (MAX_SUGGESTIONS,  # noqa: E402
                                   hashtag_query, is_name_char, merge_casing,
@@ -375,10 +376,10 @@ Gio.Application.set_default(stub_app)
 INHIBIT_FLAGS = (Gtk.ApplicationInhibitFlags.LOGOUT
                  | Gtk.ApplicationInhibitFlags.SUSPEND)
 
-# Toasts already speak through libadwaita: what pages.announce is asked
+# Toasts already speak through libadwaita: what feedback.announce is asked
 # to say on top of them would be said twice.
 announced = []
-compose.pages.announce = lambda widget, text, *a: announced.append(text)
+feedback.announce = lambda widget, text, *a: announced.append(text)
 
 # Network-free widget exercise: no display timing needed beyond pumps.
 client = StubClient()
@@ -988,8 +989,7 @@ pump(100)
 
 # Local drafts: a close with content keeps it for the next launch,
 # keyed with the related account, so restoring happens there only.
-from src import pages  # noqa: E402
-local_settings = pages.settings()
+local_settings = appsettings.settings()
 
 def saved_list():
     return local_settings.get_strv('local-drafts')
@@ -1885,9 +1885,9 @@ check('#2024x searches', len(hashtag_searches()) == 1)
 
 # Failure is silent.
 toasts = []
-real_toast, real_report = pages.show_toast, pages.report_error
-pages.show_toast = lambda *a, **k: toasts.append(a)
-pages.report_error = lambda *a, **k: toasts.append(a)
+real_toast, real_report = feedback.show_toast, feedback.report_error
+feedback.show_toast = lambda *a, **k: toasts.append(a)
+feedback.report_error = lambda *a, **k: toasts.append(a)
 FAIL_PATHS.add('/api/v2/search')
 htype('#fail')
 check('failed search hides, no toast', not hcomp.get_visible() and not toasts)
@@ -1895,7 +1895,7 @@ FAIL_PATHS.clear()
 HASHTAG_ANSWER[:] = []
 htype('#nothingwithit')
 check('pool-less empty answer hides', not hcomp.get_visible() and not toasts)
-pages.show_toast, pages.report_error = real_toast, real_report
+feedback.show_toast, feedback.report_error = real_toast, real_report
 HASHTAG_ANSWER[:] = [{'id': '1'}, None, {'name': ''}, LINUX]
 htype('#lin')
 check('malformed entry skipped', hnames() == ['linux'])
@@ -2122,10 +2122,10 @@ check('forget_pool drops it', the_pool() is None)
 reset_pool()
 hcomp.prepare('a')
 pump(50)
-real_client_of = pages.client_of
-pages.client_of = lambda _widget: client
+real_client_of = pagenav.client_of
+pagenav.client_of = lambda _widget: client
 hashtags._invalidate_home_tags(view)
-pages.client_of = real_client_of
+pagenav.client_of = real_client_of
 check('_invalidate_home_tags drops the pool', the_pool() is None)
 
 reset_pool()
@@ -2377,13 +2377,13 @@ hc_module._now = real_now
 
 # F6: no settings read per keystroke.
 reads = []
-real_settings = pages.settings
+real_settings = appsettings.settings
 reset_pool()
-pages.settings = lambda: (reads.append(1), real_settings())[1]
+appsettings.settings = lambda: (reads.append(1), real_settings())[1]
 for char in 'linux':
     view.buffer.insert_at_cursor('#' if not view.text() else char)
 pump(400)
-pages.settings = real_settings
+appsettings.settings = real_settings
 check('no GSettings read per keystroke', not reads)
 
 # F7: one waiter per completer, however much is typed while the pool loads.
@@ -2421,8 +2421,8 @@ class FakeTagPage:
         pass
 
 
-real_toast = pages.show_toast
-pages.show_toast = lambda *a, **k: None
+real_toast = feedback.show_toast
+feedback.show_toast = lambda *a, **k: None
 for featured_id, label in ((None, 'featuring'), ('7', 'unfeaturing')):
     reset_pool()
     hcomp.prepare('a')
@@ -2431,7 +2431,7 @@ for featured_id, label in ((None, 'featuring'), ('7', 'unfeaturing')):
     hashtags.HashtagPage._on_feature(page)
     pump(50)
     check('%s a tag drops the pool' % label, the_pool() is None)
-pages.show_toast = real_toast
+feedback.show_toast = real_toast
 
 # F9: one constant, no invisible character in the source.
 from src import completer as completer_mod  # noqa: E402
@@ -2464,16 +2464,16 @@ check('wants_search edges',
 # F12: a failed search leaves a pool hit in the list.
 reset_pool(**{FEATURED: [{'name': 'linux'}]})
 toasts = []
-real_toast, real_report = pages.show_toast, pages.report_error
-pages.show_toast = lambda *a, **k: toasts.append(a)
-pages.report_error = lambda *a, **k: toasts.append(a)
+real_toast, real_report = feedback.show_toast, feedback.report_error
+feedback.show_toast = lambda *a, **k: toasts.append(a)
+feedback.report_error = lambda *a, **k: toasts.append(a)
 FAIL_PATHS.add('/api/v2/search')
 htype('#lin')
 check('a pool hit stays listed when the search fails',
       hnames() == ['linux'] and hcomp.list_box.get_sensitive()
       and hcomp.get_visible() and not toasts)
 FAIL_PATHS.clear()
-pages.show_toast, pages.report_error = real_toast, real_report
+feedback.show_toast, feedback.report_error = real_toast, real_report
 reset_pool()
 
 extra = BabbleComposeView(client)

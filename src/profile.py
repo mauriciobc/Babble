@@ -18,11 +18,12 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, GObject, Gtk,  # noqa: E402
                            Pango)
 
-from . import pages  # noqa: E402
+from . import (accountrows, feedback, pagenav, pages,  # noqa: E402
+               uihelpers)
 from .api import accounts as api_accounts  # noqa: E402
 from .api import search as api_search  # noqa: E402
 from .capabilities import ENDORSEMENTS_API_VERSION  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .profileactions import (ProfileActions,  # noqa: E402
                               endorse_action_names)  # noqa: F401
 from .profileheader import ProfileHeader, plain_name  # noqa: E402
@@ -221,7 +222,7 @@ def present_mute_dialog(parent, handle, on_confirm):
     return dialog
 
 
-class PrivateNoteDialog(pages.ToastDialog):
+class PrivateNoteDialog(feedback.ToastDialog):
     """Editor for the private note kept on another account (visible to
     the viewer only). *on_save(text)* is called with the new text; the
     caller closes the dialog by calling :meth:`close` on success."""
@@ -311,7 +312,7 @@ def _request_result(client, result, finish, widget=None, what=None):
         return finish(client, result)
     except GLib.Error as error:
         if widget is not None and what is not None:
-            pages.report_error(widget, what, error)
+            feedback.report_error(widget, what, error)
         else:
             # Nothing to report it on: still leave a trace, or the next
             # person to wonder why a card is missing a section cannot.
@@ -369,7 +370,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
             self.menu_button = Gtk.MenuButton(
                 icon_name='view-more-symbolic', valign=Gtk.Align.CENTER)
             self.menu_button.add_css_class('flat')
-            pages.set_accessible_label(self.menu_button, label)
+            uihelpers.set_accessible_label(self.menu_button, label)
             self.action_bar.append(self.menu_button)
 
         self._build_actions()
@@ -436,7 +437,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     def _viewer_id(self):
         if self.viewer_id is None:
-            window = pages.window_of(self)
+            window = pagenav.window_of(self)
             self.viewer_id = (getattr(window, 'account', None)
                               or {}).get('id')
         return self.viewer_id
@@ -491,9 +492,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
         there is one, else onto the window's."""
         view = self.get_ancestor(Adw.NavigationView)
         if view is None:
-            pages.push_page(self, title, child)
+            pagenav.push_page(self, title, child)
             return
-        view.push(pages.make_nav_page(title, child))
+        view.push(pagenav.make_nav_page(title, child))
 
     # Header (forwards to ProfileHeader)
 
@@ -532,7 +533,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
             if count else _("This User Doesn't Follow Anyone Yet"))
 
     def _push_accounts(self, title, kind, empty_title):
-        page = pages.AccountListPage(
+        page = accountrows.AccountListPage(
             self.client, api_accounts.list_path(kind, self.account['id']),
             empty_title=empty_title)
         self.push_subpage(title, page)
@@ -615,7 +616,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
         return button
 
     def on_familiar_clicked(self, _button):
-        page = pages.AccountListPage(
+        page = accountrows.AccountListPage(
             self.client, api_accounts.familiar_followers_path(),
             params={'id[]': [self.account['id']]}, paginated=False,
             extract=lambda data: (data[0].get('accounts') or [])
@@ -629,7 +630,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
                                _('Could not load featured hashtags'))
         if not tags:
             return
-        self.tags_box.append(pages.section_label(_('Featured Hashtags')))
+        self.tags_box.append(uihelpers.section_label(_('Featured Hashtags')))
         flow = Adw.WrapBox(child_spacing=6, line_spacing=6)
         for tag in tags:
             name = tag.get('name', '')
@@ -655,12 +656,12 @@ class ProfilePage(ProfileActions, Adw.Bin):
                                    _('Could not load featured profiles'))
         if not accounts:
             return
-        self.endorse_box.append(pages.section_label(_('Featured Profiles')))
+        self.endorse_box.append(uihelpers.section_label(_('Featured Profiles')))
         listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         listbox.add_css_class('boxed-list')
         listbox.connect('row-activated', self._on_account_row_activated)
         for account in accounts[:ENDORSEMENT_PREVIEW]:
-            listbox.append(pages.AccountRow(self.client, account))
+            listbox.append(accountrows.AccountRow(self.client, account))
         if len(accounts) > ENDORSEMENT_PREVIEW:
             more = Adw.ButtonRow(title=ngettext(
                 'Show All %d Profile', 'Show All %d Profiles',
@@ -671,7 +672,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self.endorse_box.set_visible(True)
 
     def on_endorsements_clicked(self, _row):
-        page = pages.AccountListPage(
+        page = accountrows.AccountListPage(
             self.client,
             api_accounts.list_path('endorsements', self.account['id']),
             empty_title=_('No Featured Profiles'))
@@ -711,7 +712,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
             timeline_pages.append(page)
         if self.account.get('show_media') is False:
             self.view_stack.get_page(timeline_pages[2]).set_visible(False)
-        pages.connect_weak(self.view_stack, 'notify::visible-child',
+        connect_weak(self.view_stack, 'notify::visible-child',
                            self._on_profile_tab_visible)
         self.set_stack_state('content')
 
@@ -772,7 +773,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
             # Showing 'Follow' for an account the viewer already follows
             # would re-send a follow request, so hide the action instead.
             self._relationship_known = False
-            pages.report_error(self, _('Could not load relationship'),
+            feedback.report_error(self, _('Could not load relationship'),
                                error)
         self.update_relationship_ui()
 

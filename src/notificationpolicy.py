@@ -10,13 +10,13 @@ from .i18n import gettext as _
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import appsettings, feedback, pages  # noqa: E402
 from .api import notifications as api_notifications  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .notificationcopy import (FILTER_NOTIFICATION_TYPES,  # noqa: E402
                                type_offered)
 from .notificationmodel import type_icon  # noqa: E402
-from .pages import connect_weak, settings, show_toast  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 
 EXCLUDED_TYPES_KEY = 'notification-excluded-types'
@@ -47,7 +47,7 @@ POLICY_CHOICES = [
 ]
 
 
-class NotificationPolicyDialog(pages.ToastDialog):
+class NotificationPolicyDialog(feedback.ToastDialog):
     """Edits ``GET/PATCH /api/v2/notifications/policy`` (what to do with
     notifications from each kind of sender: accept, filter into the
     requests inbox or drop) and the per-type visibility switches. The
@@ -77,7 +77,7 @@ class NotificationPolicyDialog(pages.ToastDialog):
 
         types_group = Adw.PreferencesGroup(
             title=_('Show Notifications For'))
-        excluded = set(settings().get_strv(EXCLUDED_TYPES_KEY))
+        excluded = set(appsettings.settings().get_strv(EXCLUDED_TYPES_KEY))
         for kind, label in NOTIFICATION_TYPES:
             row = Adw.SwitchRow(title=label, active=kind not in excluded,
                                 visible=type_offered(self.client, kind))
@@ -144,7 +144,7 @@ class NotificationPolicyDialog(pages.ToastDialog):
             # Reported on the window behind the dialog: a toast raised on
             # the dialog itself would be covered when it closes.
             if parent is not None:
-                show_toast(parent, _('Notification settings updated'))
+                feedback.show_toast(parent, _('Notification settings updated'))
 
         pages.call_api(
             self, self.client,
@@ -162,12 +162,12 @@ class NotificationPolicyDialog(pages.ToastDialog):
 
 def _store_type_visibility(kind, visible):
     """Persist one type's visibility in the exclusion list."""
-    current = settings().get_strv(EXCLUDED_TYPES_KEY)
+    current = appsettings.settings().get_strv(EXCLUDED_TYPES_KEY)
     excluded = [k for k in current if k != kind]
     if not visible:
         excluded.append(kind)
     if excluded != list(current):
-        settings().set_strv(EXCLUDED_TYPES_KEY, excluded)
+        appsettings.settings().set_strv(EXCLUDED_TYPES_KEY, excluded)
 
 
 def present_notification_policy(parent, client):

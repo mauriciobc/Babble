@@ -40,7 +40,8 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from .. import accounts as account_store  # noqa: E402
 from . import store as catchupstore  # noqa: E402
-from .. import pages  # noqa: E402
+from .. import appsettings, pagenav, pages  # noqa: E402
+from ..weakconnect import connect_weak, weak_method  # noqa: E402
 from ..entities import lift  # noqa: E402
 from ..mastodon import summarize_error_markup  # noqa: E402
 from ..accounts import plain_name as _plain_name  # noqa: E402
@@ -116,13 +117,13 @@ class CatchUpPage(PageControls, Adw.Bin):
         self._period_action = Gio.SimpleAction.new_stateful(
             'period', GLib.VariantType.new('s'),
             GLib.Variant('s', DEFAULT_PERIOD))
-        pages.connect_weak(self._period_action, 'change-state',
+        connect_weak(self._period_action, 'change-state',
                            self._on_period_changed)
         self._actions.add_action(self._period_action)
         for name, handler in (('show', self._on_show_snapshot),
                               ('remove', self._on_remove_snapshot)):
             action = Gio.SimpleAction.new(name, GLib.VariantType.new('s'))
-            pages.connect_weak(action, 'activate', handler)
+            connect_weak(action, 'activate', handler)
             self._actions.add_action(action)
         self.insert_action_group('catchup', self._actions)
 
@@ -170,7 +171,7 @@ class CatchUpPage(PageControls, Adw.Bin):
         source is removed when the page is cancelled, and holds the page
         weakly, so a page dropped meanwhile is not kept alive."""
         idles = self._idles
-        call = pages.weak_method(method)
+        call = weak_method(method)
         holder = []
 
         def run():
@@ -203,7 +204,7 @@ class CatchUpPage(PageControls, Adw.Bin):
     def _load_snapshots(self):
         key = self.account_key
         languages = self._languages()
-        hide = pages.settings().get_boolean('hide-trending')
+        hide = appsettings.settings().get_boolean('hide-trending')
         generation = self._generation
 
         def work():
@@ -218,7 +219,7 @@ class CatchUpPage(PageControls, Adw.Bin):
             return ([m for _p, m in found], None)
 
         run_in_thread(work, functools.partial(
-            pages.weak_method(self._on_snapshots_loaded), generation))
+            weak_method(self._on_snapshots_loaded), generation))
 
     def _on_snapshots_loaded(self, generation, value, error):
         if self._disposed or generation != self._generation:
@@ -240,7 +241,7 @@ class CatchUpPage(PageControls, Adw.Bin):
             return
         path = catchupstore.snapshot_path(self.account_key, snapshot_id)
         languages = self._languages()
-        hide = pages.settings().get_boolean('hide-trending')
+        hide = appsettings.settings().get_boolean('hide-trending')
         self._generation += 1
         generation = self._generation
 
@@ -252,7 +253,7 @@ class CatchUpPage(PageControls, Adw.Bin):
         self._set_state('scanning')
         self.cancel_button.set_visible(False)
         run_in_thread(work, functools.partial(
-            pages.weak_method(self._on_snapshot_opened), generation,
+            weak_method(self._on_snapshot_opened), generation,
             snapshot_id))
 
     def _on_snapshot_opened(self, generation, snapshot_id, computed, error):
@@ -355,9 +356,9 @@ class CatchUpPage(PageControls, Adw.Bin):
             self.client, start_at, end_at,
             self_ids=[self.account.get('id')] if self.account.get('id')
             else [],
-            hide_trending=pages.settings().get_boolean('hide-trending'),
-            progress=pages.weak_method(self._on_progress),
-            done=pages.weak_method(self._on_run_done))
+            hide_trending=appsettings.settings().get_boolean('hide-trending'),
+            progress=weak_method(self._on_progress),
+            done=weak_method(self._on_run_done))
         self._scan_label(_('Scanning timeline…'))
         self._displayed_count = 0
         self.cancel_button.set_visible(True)
@@ -381,7 +382,7 @@ class CatchUpPage(PageControls, Adw.Bin):
             self._show_error(result.error)
             return
         languages = self._languages()
-        hide = pages.settings().get_boolean('hide-trending')
+        hide = appsettings.settings().get_boolean('hide-trending')
         self._scan_label(_('Preparing your catch-up…'))
         self.cancel_button.set_visible(False)
         generation = self._generation
@@ -389,7 +390,7 @@ class CatchUpPage(PageControls, Adw.Bin):
             save_result, result, self.account_key, self._run_period,
             languages, hide)
         run_in_thread(work, functools.partial(
-            pages.weak_method(self._on_run_saved), generation))
+            weak_method(self._on_run_saved), generation))
 
     def _on_run_saved(self, generation, value, error):
         if self._disposed or generation != self._generation:
@@ -462,19 +463,19 @@ class CatchUpPage(PageControls, Adw.Bin):
         self.sorted = Gtk.SortListModel.new(self.filtered, self.sorter)
 
         factory = Gtk.SignalListItemFactory()
-        pages.connect_weak(factory, 'setup', self._on_item_setup)
-        pages.connect_weak(factory, 'bind', self._on_item_bind)
-        pages.connect_weak(factory, 'unbind', self._on_item_unbind)
+        connect_weak(factory, 'setup', self._on_item_setup)
+        connect_weak(factory, 'bind', self._on_item_bind)
+        connect_weak(factory, 'unbind', self._on_item_unbind)
         headers = Gtk.SignalListItemFactory()
-        pages.connect_weak(headers, 'setup', self._on_header_setup)
-        pages.connect_weak(headers, 'bind', self._on_header_bind)
+        connect_weak(headers, 'setup', self._on_header_setup)
+        connect_weak(headers, 'bind', self._on_header_bind)
         self.list_view = Gtk.ListView(
             model=Gtk.NoSelection.new(self.sorted), factory=factory,
             header_factory=headers, single_click_activate=True,
             show_separators=True)
         self.list_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Posts')])
-        pages.connect_weak(self.list_view, 'activate',
+        connect_weak(self.list_view, 'activate',
                            self._on_row_activated)
 
         self._build_top()
@@ -556,7 +557,7 @@ class CatchUpPage(PageControls, Adw.Bin):
         item = self.sorted.get_item(position)
         if item is None or item.is_top:
             return
-        pages.open_status(self, self.client, item.raw)
+        pagenav.open_status(self, self.client, item.raw)
 
     # ----------------------------------------------------------------------
     # Presenting a snapshot
@@ -595,7 +596,7 @@ class CatchUpPage(PageControls, Adw.Bin):
             from .tiles import HighlightsView
             self._highlights = HighlightsView(self.client)
             self.highlights_slot.append(self._highlights)
-            self._highlights.on_pages_changed = pages.weak_method(
+            self._highlights.on_pages_changed = weak_method(
                 self._on_pages_changed)
         if self._highlights is None:
             return

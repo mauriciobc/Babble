@@ -351,9 +351,9 @@ finally:
     monitor.set_property('power-saver', False)
 
 # (e3) The viewer remembers the volume of video and audio, not a GIFV's.
-from src import pages  # noqa: E402
+from src import appsettings  # noqa: E402
 
-store = pages.settings()
+store = appsettings.settings()
 store.reset('media-viewer-volume')
 viewer = mediaviewer.present_media(parent, [video(fast.base + '/media.ogg')])
 wait(lambda: frame_drawn(viewer), 8)

@@ -21,7 +21,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
-from . import pages, portals  # noqa: E402
+from . import appsettings, portals, uihelpers  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 # The fallback, for an instance that advertises no
 # statuses.max_media_attachments; Mastodon's own default is 4, and its
@@ -85,7 +86,7 @@ def _draft_attachment_paths():
     if not _has_local_drafts_key():
         return None
     paths = set()
-    for raw in pages.settings().get_strv('local-drafts'):
+    for raw in appsettings.settings().get_strv('local-drafts'):
         try:
             draft = json.loads(raw)
         except ValueError:
@@ -244,7 +245,7 @@ class AttachmentRow(Gtk.ListBox):
         self.remove_button = Gtk.Button(icon_name='user-trash-symbolic',
                                         valign=Gtk.Align.CENTER)
         self.remove_button.add_css_class('flat')
-        pages.set_accessible_label(self.remove_button, _('Remove Attachment'))
+        uihelpers.set_accessible_label(self.remove_button, _('Remove Attachment'))
 
         header = Adw.ActionRow(title=GLib.markup_escape_text(
             GLib.path_get_basename(path) if not self.existing
@@ -269,7 +270,7 @@ class ComposeAttachments(GObject.Object):
     """Attachment tray for one composer: rows, the file picker, drop,
     paste-media and screenshot paths.
 
-    A GObject so :func:`pages.connect_weak` / :func:`pages.weak_method`
+    A GObject so :func:`connect_weak` / :func:`weak_method`
     can hold it without a C-level cycle through the chrome it wires.
     The view builds the box and the buttons, then calls :meth:`bind`.
     ``is_posting`` / ``is_frozen`` are callables that read the view's
@@ -301,13 +302,13 @@ class ComposeAttachments(GObject.Object):
         self.screenshot_button = screenshot_button
         self.drop_target = drop_target
         self.text_view = text_view
-        pages.connect_weak(attach_button, 'clicked', self.on_attach_clicked)
-        pages.connect_weak(screenshot_button, 'clicked',
+        connect_weak(attach_button, 'clicked', self.on_attach_clicked)
+        connect_weak(screenshot_button, 'clicked',
                            self.on_screenshot_clicked)
-        pages.connect_weak(drop_target, 'drop', self.on_drop)
+        connect_weak(drop_target, 'drop', self.on_drop)
         portals.portal_version(
             SCREENSHOT_PORTAL,
-            pages.weak_method(self._on_screenshot_portal))
+            weak_method(self._on_screenshot_portal))
 
     def rows(self):
         found = []
@@ -383,9 +384,9 @@ class ComposeAttachments(GObject.Object):
             row.limit_description(reader())
         # The row is looked up from the emitter: passing it as user data
         # would pin it through its own button and entry.
-        pages.connect_weak(row.remove_button, 'clicked',
+        connect_weak(row.remove_button, 'clicked',
                            self._on_row_remove_clicked)
-        pages.connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
+        connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
         if alt:
             row.alt_entry.set_text(alt)
         rows = self.rows()
@@ -408,9 +409,9 @@ class ComposeAttachments(GObject.Object):
         reader = getattr(self.client, 'media_description_limit', None)
         if reader is not None:
             row.limit_description(reader())
-        pages.connect_weak(row.remove_button, 'clicked',
+        connect_weak(row.remove_button, 'clicked',
                            self._on_row_remove_clicked)
-        pages.connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
+        connect_weak(row.alt_entry, 'changed', self._on_row_alt_changed)
         rows = self.rows()
         sibling = rows[min(position, len(rows)) - 1] if position > 0 \
             and rows else None
@@ -488,7 +489,7 @@ class ComposeAttachments(GObject.Object):
     def on_screenshot_clicked(self, _button):
         """Take a screenshot through the portal, which lets the user
         pick what to capture, and attach it."""
-        portals.session_bus(pages.weak_method(self._on_screenshot_bus))
+        portals.session_bus(weak_method(self._on_screenshot_bus))
 
     def _on_screenshot_portal(self, version):
         if self.screenshot_button is not None:
@@ -504,7 +505,7 @@ class ComposeAttachments(GObject.Object):
             ('',), {
                 'interactive': GLib.Variant('b', True),
                 'modal': GLib.Variant('b', True),
-            }, pages.weak_method(self._on_screenshot_response))
+            }, weak_method(self._on_screenshot_response))
 
     def _on_screenshot_response(self, code, results):
         if code == 1:  # cancelled by the user
@@ -577,7 +578,7 @@ class ComposeAttachments(GObject.Object):
         if files and formats.contain_gtype(Gdk.FileList):
             clipboard.read_value_async(
                 Gdk.FileList, GLib.PRIORITY_DEFAULT, None,
-                pages.weak_method(self._on_paste_files))
+                weak_method(self._on_paste_files))
             return True
         # A clipboard set in this process holds the texture's own
         # subclass, so contain_gtype(Gdk.Texture) alone misses it.
@@ -585,7 +586,7 @@ class ComposeAttachments(GObject.Object):
                         for gtype in formats.get_gtypes())
         if has_image and not formats.contain_gtype(GObject.TYPE_STRING):
             clipboard.read_texture_async(
-                None, pages.weak_method(self._on_paste_texture))
+                None, weak_method(self._on_paste_texture))
             return True
         return False
 

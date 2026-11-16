@@ -44,8 +44,8 @@ def compose(widget, text):
     session, or *text* is not a str. Never posts, returns no widget."""
     if not isinstance(text, str) or not isinstance(widget, Gtk.Widget):
         return
-    from . import pages
-    window = pages.window_of(widget)
+    from . import pagenav
+    window = pagenav.window_of(widget)
     if window is None:
         return
     dialog = window.present_composer()
