@@ -214,11 +214,12 @@ def load_time_cycles(sources):
 
     A cycle there either fails at import (a name read from a module that
     is still half loaded) or depends on the order the first import comes
-    from. The plugin and link modules (`pages`, `pluginlinks`,
-    `pluginhost`, `pluginmenu`, `pluginpanel`, `webcolumn`) call each
-    other in a loop on purpose and keep it safe only by importing lazily,
-    inside functions; this rule is what keeps one of those imports from
-    moving to the top of its file."""
+    from. Link routing no longer closes a loop through the plugin and
+    web-column modules: they register with `linkhandlers` at import, and
+    R10 keeps the page toolkit from importing them at all. What remains
+    are the feature modules (`pagenav`, `linkrouting`, the plugin panel)
+    that reach each other through imports inside functions; this rule is
+    what keeps one of those imports from moving to the top of its file."""
     names = {}
     for path in sources:
         name = module_name(path)
@@ -298,6 +299,104 @@ def load_time_cycles(sources):
     return found
 
 
+# R10: the page toolkit and the link registry sit below the plugin and
+# web-column modules and may not import them anywhere, function bodies
+# included; those modules register through `linkhandlers` instead.
+TOOLKIT = frozenset({'pages', 'pagenav', 'feedback', 'linkrouting',
+                     'appsettings', 'weakconnect', 'linkhandlers'})
+SIDECAR = frozenset({'pluginlinks', 'pluginhost', 'pluginmenu',
+                     'pluginpanel', 'webcolumn'})
+
+
+def defined_names(tree):
+    """The names a module defines at its top level: functions, classes
+    and assignments. An imported name is not a definition."""
+    names = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                for sub in ast.walk(target):
+                    if isinstance(sub, ast.Name):
+                        names.add(sub.id)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)) \
+                and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+    return names
+
+
+def pages_name_violations(sources):
+    """R11: every `pages.<name>` (read, assignment or deletion), every
+    `getattr`/`setattr` of a constant name on it and every
+    `from .pages import <name>` must name something `src/pages.py`
+    defines. A name that moved to another module and is still used
+    through `pages` would fail at run time, or, worse, a test's
+    `pages.x = fake` would patch nothing and pass."""
+    if 'src/pages.py' not in sources:
+        return []
+    try:
+        defined = defined_names(ast.parse(sources['src/pages.py']))
+    except SyntaxError:
+        return []
+    found = []
+    for path in sorted(sources):
+        if path == 'src/pages.py':
+            continue
+        try:
+            tree = ast.parse(sources[path], filename=path)
+        except SyntaxError:
+            continue
+        aliases, dotted = set(), False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) \
+                    and (node.module in (None, 'src')):
+                for alias in node.names:
+                    if alias.name == 'pages':
+                        aliases.add(alias.asname or 'pages')
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == 'src.pages':
+                        if alias.asname:
+                            aliases.add(alias.asname)
+                        else:
+                            dotted = True
+
+        def is_pages(value, aliases=aliases, dotted=dotted):
+            return ((isinstance(value, ast.Name) and value.id in aliases)
+                    or (dotted and isinstance(value, ast.Attribute)
+                        and value.attr == 'pages'
+                        and isinstance(value.value, ast.Name)
+                        and value.value.id == 'src'))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and is_pages(node.value) \
+                    and node.attr not in defined:
+                found.append('R11: %s:%d pages.%s is not defined by '
+                             'src/pages.py' % (path, node.lineno, node.attr))
+            elif (isinstance(node, ast.Call)
+                  and isinstance(node.func, ast.Name)
+                  and node.func.id in ('getattr', 'setattr', 'delattr',
+                                       'hasattr')
+                  and len(node.args) >= 2 and is_pages(node.args[0])
+                  and isinstance(node.args[1], ast.Constant)
+                  and isinstance(node.args[1].value, str)
+                  and node.args[1].value not in defined):
+                found.append('R11: %s:%d pages.%s is not defined by '
+                             'src/pages.py'
+                             % (path, node.lineno, node.args[1].value))
+            elif isinstance(node, ast.ImportFrom) \
+                    and ((node.level and node.module == 'pages')
+                         or node.module == 'src.pages'):
+                for alias in node.names:
+                    if alias.name == '*' or alias.name not in defined:
+                        found.append('R11: %s:%d imports %s from pages, '
+                                     'which does not define it'
+                                     % (path, node.lineno, alias.name))
+    return found
+
+
 def violations(sources: dict[str, str]) -> list[str]:
     """Every boundary violation in *sources*, as `RULE file:line detail`.
 
@@ -335,6 +434,19 @@ def violations(sources: dict[str, str]) -> list[str]:
                              and module == 'tileactions')):
                 found.append('R7: %s:%d imports window-owned %s'
                              % (path, line, module))
+        if importer in TOOLKIT and path == 'src/%s.py' % importer:
+            for module, line in source_imports(tree):
+                if module in SIDECAR:
+                    found.append('R10: %s:%d imports %s: the registry in '
+                                 'linkhandlers replaces it'
+                                 % (path, line, module))
+        if path == 'src/linkhandlers.py':
+            for name, line, relative in all_imports(tree):
+                if relative or name.split('.')[0] not in \
+                        sys.stdlib_module_names:
+                    found.append('R10: %s:%d imports %s: linkhandlers may '
+                                 'use only the standard library'
+                                 % (path, line, name or '.'))
         if path.startswith('src/catchup/tiles'):
             for node in ast.walk(tree):
                 if (isinstance(node, ast.Call)
@@ -409,6 +521,7 @@ def violations(sources: dict[str, str]) -> list[str]:
                                      % (path, node.lineno,
                                         '.' * node.level, node.module or ''))
     found.extend(load_time_cycles(sources))
+    found.extend(pages_name_violations(sources))
     return found
 
 
@@ -517,6 +630,56 @@ check('R9 accepts a submodule importing its own package',
       not violations({'src/catchup/__init__.py': 'from . import tiles\n',
                       'src/catchup/tiles.py': 'from . import rank\n',
                       'src/catchup/rank.py': ''}))
+self_check('R10 catches the page toolkit importing a plugin module inside '
+           'a function',
+           {'src/linkrouting.py':
+            'def open_web():\n    from . import pluginlinks\n'},
+           'R10: src/linkrouting.py:2 imports pluginlinks')
+self_check('R10 catches pages importing the web column',
+           {'src/pages.py': 'from .webcolumn import present_web\n'},
+           'R10: src/pages.py:1 imports webcolumn')
+self_check('R10 catches linkhandlers importing a Babble module',
+           {'src/linkhandlers.py': 'from . import appsettings\n'},
+           'R10: src/linkhandlers.py:1 imports')
+self_check('R10 catches linkhandlers importing outside the standard library',
+           {'src/linkhandlers.py': 'import gi\n'},
+           'R10: src/linkhandlers.py:1 imports gi')
+check('R10 accepts the plugin modules importing the toolkit',
+      not [line for line in violations({
+          'src/pluginlinks.py': 'from . import linkhandlers\n',
+          'src/linkhandlers.py': 'import types\n'})
+          if line.startswith('R10')])
+PAGES_SRC = {'src/pages.py': 'def reveal(): pass\nclass PagedList: pass\n'}
+self_check('R11 catches an assignment to a moved name',
+           {**PAGES_SRC, 'src/test-x.py':
+            'from src import pages\npages.show_toast = lambda *a: None\n'},
+           'R11: src/test-x.py:2 pages.show_toast')
+self_check('R11 catches a read of a moved name',
+           {**PAGES_SRC, 'src/x.py':
+            'from . import pages\npages.open_link(1, 2)\n'},
+           'R11: src/x.py:2 pages.open_link')
+self_check('R11 catches a moved name imported from pages',
+           {**PAGES_SRC, 'src/x.py': 'from .pages import connect_weak\n'},
+           'R11: src/x.py:1 imports connect_weak from pages')
+self_check('R11 catches the module imported under another name',
+           {**PAGES_SRC, 'src/x.py':
+            'from src import pages as P\nP.settings()\n'},
+           'R11: src/x.py:2 pages.settings')
+self_check('R11 catches src.pages spelled out',
+           {**PAGES_SRC, 'src/x.py':
+            'import src.pages\nsrc.pages.show_toast = None\n'},
+           'R11: src/x.py:2 pages.show_toast')
+self_check('R11 catches a getattr of a moved name',
+           {**PAGES_SRC, 'bench/x.py':
+            'from src import pages\ngetattr(pages, "settings")\n'},
+           'R11: bench/x.py:2 pages.settings')
+check('R11 accepts a name pages defines, and a local called pages',
+      not [line for line in violations({
+          **PAGES_SRC,
+          'src/x.py': 'from . import pages\npages.reveal()\n'
+                      'from .pages import PagedList\n',
+          'src/y.py': 'pages = []\npages.append(1)\n'})
+          if line.startswith('R11')])
 self_check('R8 keeps the timelines exception to lists alone',
            {'src/api/timelines.py': 'from . import core, statuses\n'},
            'R8: src/api/timelines.py:1 imports .')
@@ -562,8 +725,25 @@ def tree_sources():
     return sources
 
 
+def extra_sources():
+    """plugins/ and bench/ in full, for R11 only: R4 judges the harness
+    files alone, and the fixture server legitimately speaks HTTP."""
+    sources = {}
+    for top in ('plugins', 'bench'):
+        for directory, _dirs, names in os.walk(os.path.join(root, top)):
+            for name in sorted(names):
+                if name.endswith('.py'):
+                    absolute = os.path.join(directory, name)
+                    with open(absolute, encoding='utf-8') as module:
+                        sources[os.path.relpath(absolute, root)] = \
+                            module.read()
+    return sources
+
+
 SOURCES = tree_sources()
 FOUND = violations(SOURCES)
+FOUND.extend(pages_name_violations(
+    {**extra_sources(), 'src/pages.py': SOURCES['src/pages.py']}))
 
 unparsable = [line for line in FOUND if line.startswith('unparsable:')]
 for line in unparsable:
@@ -580,6 +760,8 @@ RULES = (
     ('R7', 'Catch Up imports no window-owned module'),
     ('R8', 'src/api imports only the standard library and core'),
     ('R9', 'no import cycle among src modules at load time'),
+    ('R10', 'the page toolkit imports no plugin or web-column module'),
+    ('R11', 'nothing uses a name pages.py does not define'),
 )
 for rule, label in RULES:
     hits = [line for line in FOUND if line.startswith(rule + ':')]
