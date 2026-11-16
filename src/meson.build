@@ -776,6 +776,26 @@ test('nareal plugin', python,
   env: plugin_web_env,
   timeout: 120,
 )
+test('nareal login', python,
+  args: [files('test-nareal-login.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+test('nareal links', python,
+  args: [files('test-nareal-links.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+test('nareal share', python,
+  args: [files('test-nareal-share.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+test('nareal banner', python,
+  args: [files('test-nareal-banner.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
 # Needs no display: the port imports no gi at all.
 test('affinity', python,
   args: [files('test-affinity.py')],
