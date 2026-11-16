@@ -276,10 +276,10 @@ class _HeldClient(_Server):
         super().__init__(posts)
         self.held = []                     # [{'ids': [...], 'callback': f}]
         self.hold_timeline = False
-        self.timeline_held = []            # [(callback, result)]
+        self.timeline_held = []            # [(callback, result, cancellable)]
 
     def release_timeline(self, index):
-        callback, result = self.timeline_held[index]
+        callback, result, _cancellable = self.timeline_held[index]
         callback(self, result)
 
     def request_async(self, method, path, params=None, callback=None,
@@ -287,9 +287,10 @@ class _HeldClient(_Server):
         if path != '/accounts/relationships':
             if self.hold_timeline and path == '/timelines/home':
                 real = callback
+                cancellable = _kw.get('cancellable')
 
-                def callback(_client, result, _real=real):
-                    self.timeline_held.append((_real, result))
+                def callback(_client, result, _real=real, _c=cancellable):
+                    self.timeline_held.append((_real, result, _c))
             return super().request_async(method, path, params=params,
                                          callback=callback, **_kw)
         self.held.append({'ids': list(params['id[]']), 'callback': callback})
@@ -595,6 +596,9 @@ page.refresh()                                   # response held
 check('superseded refresh: its response is out, the model is loading',
       len(client.timeline_held) == 1 and page.model.loading and not pulled)
 page.load_older()                                # takes its place
+check('superseded refresh: its HTTP call was cancelled',
+      client.timeline_held[0][2] is not None
+      and client.timeline_held[0][2].is_cancelled())
 check('superseded refresh: the older request owns its loading flag',
       page._loading_older and len(client.timeline_held) == 2)
 client.release_timeline(0)                       # the stale refresh answers
