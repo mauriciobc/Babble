@@ -19,6 +19,7 @@ from . import appsettings, feedback, pages  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from .pages import PagedPosts  # noqa: E402
+from .requestscope import RequestScope  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
@@ -185,6 +186,13 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._hide_boosts = (
             home and settings.get_boolean('hide-boosts-home'))
         self._following_ids = {}
+        # Streamed posts waiting for the server to say whether the viewer
+        # follows their author, and the ones its lookup is out for. The
+        # lookup is a read this page owns: its scope cancels it on dispose.
+        self._stream_scope = RequestScope()
+        self._stream_pending = []
+        self._stream_inflight = []
+        self._stream_asked = set()
         self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.
@@ -406,6 +414,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
 
     def do_dispose(self):
         self._close_paging_scope()
+        self._stream_scope.close()
         Adw.Bin.do_dispose(self)
 
     def _paging_fetch(self, params, callback, cancellable):
@@ -455,7 +464,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             if statuses else None
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_page_loaded(
-                filtered, ticket, raw_oldest))
+                filtered, ticket, raw_oldest), ticket)
 
     def _finish_page_loaded(self, statuses, ticket=None, raw_oldest=None):
         if ticket is not None and not ticket.wanted():
@@ -536,7 +545,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_older_loaded(
                 filtered, ticket, before=before,
-                raw_oldest=raw_oldest))
+                raw_oldest=raw_oldest), ticket)
 
     def _finish_older_loaded(self, statuses, ticket=None, before=0,
                              raw_oldest=None):
@@ -594,6 +603,10 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_refresh_loaded(
                 filtered, raw_newest, raw_count, ticket))
+        # No ticket for the lookup: a load_older that supersedes this
+        # refresh leaves it the chain's owner (see _finish_refresh_loaded),
+        # so cancelling its lookup would land the page with every reply's
+        # author unknown.
 
     def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0,
                                ticket=None):
@@ -690,10 +703,21 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             # cursor past the posts between. The sweep that ends the
             # catch-up fetches it, in order.
             return
-        added = self.model.insert_new([status])
-        self._note_followed_tags([status])
+        if self._queue_streamed(status):
+            # A reply from an author the reader may not follow waits for
+            # the server's answer, and the posts behind it wait too.
+            return
+        self._insert_streamed([status])
+
+    def _insert_streamed(self, statuses):
+        """Put streamed posts at the top of the list, in one update.
+
+        *statuses* is the newest first, the way the model takes a page."""
+        added = self.model.insert_new(statuses)
+        self._note_followed_tags(statuses)
         if self.model.oldest_id is None:
-            self.model.oldest_id = status['id']
+            self.model.oldest_id = min((s['id'] for s in statuses),
+                                       key=id_key)
         if not added:
             return
         if self._scrolled.get_vadjustment().get_value() > 24:
@@ -704,13 +728,17 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self.stack.set_visible_child_name('list')
 
     def on_stream_delete(self, status_id):
-        """Drop a deleted post (and boosts of it) from the list."""
+        """Drop a deleted post (and boosts of it) from the list, and from
+        the streamed posts still waiting for the reply filter."""
+        self._forget_held(status_id)
         if self.model.remove_status(status_id):
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
 
     def on_stream_status_update(self, status):
-        """Replace an edited post in place."""
+        """Replace an edited post in place, or in the queue of streamed
+        posts waiting for the reply filter."""
+        self._forget_held(status.get('id'), status)
         self.model.replace_status(status)
 
 
