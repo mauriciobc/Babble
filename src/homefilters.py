@@ -72,8 +72,9 @@ def ask_relationships(client, ids, on_done, cancellable=None, wanted=None,
 class HomeFilters:
     """Needs ``client``, ``model``, ``_hide_boosts``,
     ``_hide_replies_non_follows``, ``_following_ids``, ``_stream_scope``
-    (a RequestScope), ``_stream_pending`` and ``_stream_inflight`` (lists)
-    from the page it is mixed into.
+    (a RequestScope), ``_stream_pending`` and ``_stream_inflight`` (lists),
+    ``_stream_asked`` (a set), ``_insert_streamed`` and ``refresh`` from
+    the page it is mixed into.
 
     The paged path's relationship lookup has no stale-answer guard of its
     own: its requests carry the page ticket's cancellable, and when it
@@ -83,6 +84,10 @@ class HomeFilters:
     follow table is keyed by author, so recording a late relationship
     answer remains safe even when its page is discarded. The stream path's
     lookup belongs to ``_stream_scope`` and drops its answer itself."""
+
+    # How many streamed posts may wait for a lookup before the page gives
+    # up holding them and refreshes instead (see _queue_streamed).
+    STREAM_HOLD_LIMIT = 200
 
     def _remember_follows(self, relationships):
         """Record what the server said about a batch of authors.
@@ -176,28 +181,69 @@ class HomeFilters:
         server about it, or about a post ahead of it; True when held.
 
         The posts behind a held one wait with it: the timeline keeps the
-        order the posts arrived in."""
+        order the posts arrived in.
+
+        The queue is bounded by ``STREAM_HOLD_LIMIT``. Past it the queue is
+        dropped and the page refreshes: a refresh asks the server for what
+        is newer than ``newest_id`` (nothing held has moved it), in order
+        and through the same filters, the way a reconnect catch-up does, so
+        the dropped posts are fetched and not lost."""
         if not (self._stream_pending or self._stream_inflight
                 or self._stream_unknown_author(status)):
             return False
         self._stream_pending.append(status)
+        if len(self._stream_pending) > self.STREAM_HOLD_LIMIT:
+            self._stream_pending[:] = []
+            self.refresh()
+            return True
         self._ask_about_stream_authors()
         return True
+
+    def _forget_held(self, status_id, replacement=None):
+        """A held post was deleted, or edited: keep the queue in step.
+
+        With no *replacement* every held post that is *status_id*, or a
+        boost of it, is dropped. With one, a held post with that id is
+        replaced by it, and a held boost of it gets it as its ``reblog``.
+        Landing then decides on the latest version of the post. Both queues
+        change in place: the lookup that is out reads ``_stream_inflight``
+        when it answers. Returns whether anything changed."""
+        target = str(status_id)
+        changed = False
+        for queue in (self._stream_pending, self._stream_inflight):
+            kept = []
+            for held in queue:
+                reblog = held.get('reblog') or {}
+                if str(held.get('id') or '') == target:
+                    changed = True
+                    if replacement is not None:
+                        kept.append(replacement)
+                elif str(reblog.get('id') or '') == target:
+                    changed = True
+                    if replacement is not None:
+                        kept.append(dict(
+                            held, reblog=dict(reblog, **replacement)))
+                else:
+                    kept.append(held)
+            queue[:] = kept
+        return changed
 
     def _ask_about_stream_authors(self):
         """Ask who the queued streamed posts' authors are, then land them.
 
         One lookup at a time; posts that arrive while it is out wait for
         the next round. The lookup is a read this page owns, so it goes
-        through the page's stream scope: closed when the page is freed,
-        and answers to a superseded one are dropped. Either way nothing
+        through the page's stream scope, which is closed when the page is
+        freed; an answer the scope no longer wants is dropped and nothing
         is inserted."""
         if self._stream_inflight or not self._stream_pending:
             return
         queue = self._stream_pending
         self._stream_pending = []
-        unknown = [a for a in (self._stream_unknown_author(s) for s in queue)
-                   if a is not None]
+        unknown = list(dict.fromkeys(
+            a for a in (self._stream_unknown_author(s) for s in queue)
+            if a is not None))
+        self._stream_asked = set(unknown)
         if not unknown:
             self._land_streamed(queue)
             self._ask_about_stream_authors()
@@ -213,30 +259,58 @@ class HomeFilters:
             on_drop=weak_method(self._stream_lookup_dropped))
 
     def _stream_lookup_dropped(self):
-        """The lookup was superseded or its scope closed: the posts it was
-        asking about are not inserted. Posts that arrived since get their
-        own round, unless the page is going away."""
-        self._stream_inflight = []
+        """The scope no longer wants the lookup: the posts it was asking
+        about are not inserted. In practice that is the scope closing with
+        the page; the rest is defensive, since nothing supersedes a lookup
+        today (one starts only when none is out), and it keeps the queue
+        from sticking if something ever does."""
+        self._stream_inflight[:] = []
         if not self._stream_scope.closed:
             self._ask_about_stream_authors()
 
     def _stream_authors_known(self, rels, _ok):
-        queue = self._stream_inflight
-        self._stream_inflight = []
+        # The posts that arrived while the lookup was out are in the same
+        # burst when their authors are known now.
+        queue = self._stream_inflight + self._stream_pending
+        self._stream_inflight[:] = []
+        self._stream_pending[:] = []
         self._remember_follows(rels)
+        # A post whose author nobody asked about (it arrived meanwhile, or
+        # was edited into a reply) is not this lookup's to decide: it and
+        # the posts behind it go back to the queue for a round of their
+        # own. An author that was asked about and not answered stays
+        # unknown, and the reply is dropped.
+        for position, status in enumerate(queue):
+            author_id = self._stream_unknown_author(status)
+            if author_id is not None and author_id not in self._stream_asked:
+                self._stream_pending[:] = queue[position:]
+                queue = queue[:position]
+                break
         self._land_streamed(queue)
         self._ask_about_stream_authors()
 
     def _land_streamed(self, queue):
-        """Insert the queued posts the filter keeps, in arrival order.
-        An author the lookup could not answer stays unknown and the reply
-        is dropped, as on the paged path."""
-        viewer_id = _own_account_id(self)
-        for status in queue:
+        """Insert the queued posts the filter keeps, in arrival order, in
+        one update.
+
+        The page's state is read again here: a catch-up that began while
+        the lookup was out will fetch these posts in order (they are newer
+        than ``newest_id``, which nothing held has moved), and landing them
+        first would move the cursor past the posts between. An author the
+        lookup could not answer stays unknown and the reply is dropped, as
+        on the paged path."""
+        if self._resume_pending or self._resumed or self._catching:
+            return
+        kept = queue
+        if self._hide_boosts:
+            kept = filter_boosts(kept)
+        if self._hide_replies_non_follows:
             kept = filter_replies_from_non_follows(
-                [status], viewer_id, self._following_ids)
-            if kept:
-                self._insert_streamed(kept[0])
+                kept, _own_account_id(self), self._following_ids)
+        if kept:
+            # Arrival order is oldest first; the model takes a page
+            # newest first.
+            self._insert_streamed(list(reversed(kept)))
 
     def _fill_filtered(self):
         """Top a filtered page up to one page of posts.
