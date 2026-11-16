@@ -91,7 +91,7 @@ def parse_web_uri(uri):
 
 def open_web_target(win, target):
     """Open a :func:`parse_web_uri` *target* in the signed-in *win*."""
-    from . import pages
+    from . import linkrouting, pagenav
     kind, value = target
     if kind == 'share':
         dialog = win.present_composer()
@@ -99,11 +99,11 @@ def open_web_target(win, target):
             dialog.view.prefill_text(value)
     elif kind == 'account':
         # The profile sheet looks the handle up, resolving it remotely.
-        pages.open_profile(win, win.client, acct=value)
+        pagenav.open_profile(win, win.client, acct=value)
     else:
         # Asked for by name: resolved in the app whatever the
         # aggressive-resolving preference says.
-        pages.open_link(win, value, resolve=True)
+        linkrouting.open_link(win, value, resolve=True)
 
 
 class BabbleApplication(Adw.Application):
@@ -211,8 +211,8 @@ class BabbleApplication(Adw.Application):
         return windows[0] if windows else BabbleWindow(application=self)
 
     def _on_quit(self, *_args):
-        from . import pages
-        pages.flush_deferred()
+        from . import feedback
+        feedback.flush_deferred()
         self.quit()
 
     def do_shutdown(self):
@@ -263,8 +263,8 @@ class BabbleApplication(Adw.Application):
 
     def step_text_size(self, direction):
         """Ctrl+plus/minus/0: move the text-size preference."""
-        from . import pages
-        settings = pages.settings()
+        from . import appsettings
+        settings = appsettings.settings()
         order = ('small', 'normal', 'large')
         current = order.index(settings.get_string('text-size'))
         index = 1 if direction == 0 else max(
@@ -363,10 +363,10 @@ class BabbleApplication(Adw.Application):
     def on_open_uri(self, _action, param):
         """Open a post, profile or hashtag link inside the window, the
         way a link clicked in a post is routed."""
-        from . import pages
+        from . import linkrouting
         win = self.ensure_window()
         win.present()
-        pages.open_link(win, param.get_string())
+        linkrouting.open_link(win, param.get_string())
 
     def on_about_action(self, *args):
         parent = self.props.active_window

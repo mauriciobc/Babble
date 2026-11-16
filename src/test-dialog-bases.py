@@ -3,13 +3,13 @@
 """The dialog bases keep their observable behaviour.
 
 Written before the two bases (lists.ToastDialog and admin.AdminDialogBase)
-were merged into pages.ToastDialog, and run against both sides of that
+were merged into feedback.ToastDialog, and run against both sides of that
 merge; the dialogs migrated afterwards are added here. Behaviour that
 does not depend on the base lives in dialog behaviour.
 
 It pins what a caller can rely on: a header, content directly under the
 dialog's own toast overlay, toasts that land there with the libadwaita
-default timeout, and pages.show_toast routing to that overlay rather
+default timeout, and feedback.show_toast routing to that overlay rather
 than to the window.
 
 Exits 77 (skip) without a display or a compiled bundle."""
@@ -43,8 +43,8 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import (admin, fedicollections, lists,  # noqa: E402
-                 main as babble_main, notificationpolicy, pages, profile,
+from src import (admin, fedicollections, feedback, lists,  # noqa: E402
+                 main as babble_main, notificationpolicy, profile,
                  profileedit, wrapped)
 from src.window import BabbleWindow  # noqa: E402
 
@@ -107,7 +107,7 @@ def exercise(dialog, label):
           seen[0].get_timeout() if seen else None)
 
     seen.clear()
-    pages.show_toast(dialog.page, 'routed')
+    feedback.show_toast(dialog.page, 'routed')
     check('%s show_toast from the page uses the dialog overlay' % label,
           len(seen) == 1 and seen[0].get_title() == 'routed', seen)
 

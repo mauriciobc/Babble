@@ -56,7 +56,8 @@ if not os.path.exists(bundle):
 Adw.init()
 Gio.Resource.load(bundle)._register()
 
-from src import main as babble_main, mastodon, pages, pluginhost  # noqa: E402
+from src import (appsettings, main as babble_main, mastodon,  # noqa: E402
+                 pluginhost)
 from src import pluginmenu  # noqa: E402
 from src.window import BabbleWindow  # noqa: E402
 
@@ -150,7 +151,7 @@ write_plugin('actboom', '''
             return [plugin.MenuItem('_Boom', explode)]
 ''')
 
-settings = pages.settings()
+settings = appsettings.settings()
 
 Gio.Application.register(babble_main.BabbleApplication(version='test'), None)
 app = Gio.Application.get_default()

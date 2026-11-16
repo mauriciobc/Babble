@@ -34,7 +34,7 @@ gresource = os.path.join(builddir, 'src', 'babble.gresource')
 if os.path.exists(gresource):
     Gio.Resource.load(gresource)._register()
 
-from src import hashtags, notificationrow, pages, statustext  # noqa: E402
+from src import hashtags, linkrouting, notificationrow, statustext  # noqa: E402
 from src import textemoji  # noqa: E402
 
 failures = []
@@ -51,12 +51,12 @@ def check(name, condition):
 routes = []
 hashtags.push_hashtag = lambda _widget, _client, name: \
     routes.append(('tag', name))
-pages.open_web = lambda _widget, uri: routes.append(('web', uri))
-pages.launch_external = lambda _widget, uri: routes.append(('external', uri))
+linkrouting.open_web = lambda _widget, uri: routes.append(('web', uri))
+linkrouting.launch_external = lambda _widget, uri: routes.append(('external', uri))
 
 
 class TestWindow(Gtk.Window):
-    """The smallest thing pages.window_of accepts: a root with a client
+    """The smallest thing pagenav.window_of accepts: a root with a client
     and a navigation view."""
 
     def __init__(self):
@@ -92,7 +92,7 @@ check('the body opens the tag page in-app',
 # An anchor without the class still routes when the path is /tags/.
 
 routes.clear()
-pages.open_link(win, 'https://remote.test/tags/Ad%C3%A1s')
+linkrouting.open_link(win, 'https://remote.test/tags/Ad%C3%A1s')
 check('a /tags/ link without the class opens in-app',
       routes == [('tag', 'Adás')])
 
@@ -100,19 +100,19 @@ check('a /tags/ link without the class opens in-app',
 # class signal; without it, the link is an ordinary web link.
 
 routes.clear()
-pages.open_link(win, WAFRN[0], tag='photo-friday')
+linkrouting.open_link(win, WAFRN[0], tag='photo-friday')
 check('a tag link off the /tags/ path opens in-app when flagged',
       routes == [('tag', 'photo-friday')])
 
 routes.clear()
-pages.open_link(win, WAFRN[0])
+linkrouting.open_link(win, WAFRN[0])
 check('the same link without the flag stays a web link',
       routes == [('web', WAFRN[0])])
 
 # Ordinary links are unchanged.
 
 routes.clear()
-pages.open_link(win, 'https://example.org/article')
+linkrouting.open_link(win, 'https://example.org/article')
 check('an ordinary link still goes to the web destination',
       routes == [('web', 'https://example.org/article')])
 

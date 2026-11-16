@@ -21,6 +21,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .mediazoom import ZoomPicture  # noqa: E402
 
 # Below this the box gives its inset back and the photo takes the whole
@@ -61,13 +62,13 @@ class MediaViewerChrome:
                                        tooltip_text=_('Close'))
         self.close_button.add_css_class('circular')
         _label(self.close_button, _('Close'))
-        pages.connect_weak(self.close_button, 'clicked',
+        connect_weak(self.close_button, 'clicked',
                            self._on_close_clicked)
         self.header.pack_end(self.close_button)
 
         self.fullscreen_button = _icon_button(
             'view-fullscreen-symbolic', _('Fullscreen'))
-        pages.connect_weak(self.fullscreen_button, 'clicked',
+        connect_weak(self.fullscreen_button, 'clicked',
                            self._on_fullscreen_clicked)
         self.header.pack_end(self.fullscreen_button)
 
@@ -89,14 +90,14 @@ class MediaViewerChrome:
 
         self.save_button = _icon_button(
             'document-save-symbolic', _('Save As…'))
-        pages.connect_weak(self.save_button, 'clicked', self._on_save_clicked)
+        connect_weak(self.save_button, 'clicked', self._on_save_clicked)
         self.header.pack_end(self.save_button)
 
         actions = Gio.SimpleActionGroup()
         self._actions = {}
         for name in ('copy-url', 'copy-image', 'open-browser', 'open-with'):
             action = Gio.SimpleAction.new(name, None)
-            pages.connect_weak(action, 'activate', self._on_action)
+            connect_weak(action, 'activate', self._on_action)
             actions.add_action(action)
             self._actions[name] = action
         self._actions['copy-image'].set_enabled(False)
@@ -115,20 +116,20 @@ class MediaViewerChrome:
         self.stack.add_named(spinner_page, 'loading')
 
         self.picture = ZoomPicture()
-        pages.connect_weak(self.picture, 'zoom-changed',
+        connect_weak(self.picture, 'zoom-changed',
                            self._on_zoom_changed)
         self.stack.add_named(self.picture, 'image')
         # Dragging the picture out only starts while it fits the window
         # (prepare refuses otherwise): zoomed in, the drag pans it.
         self.picture_drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
-        pages.connect_weak(self.picture_drag, 'prepare',
+        connect_weak(self.picture_drag, 'prepare',
                            self._on_picture_drag_prepare)
         self.picture.add_controller(self.picture_drag)
 
         self.media_bin = Adw.Bin(hexpand=True, vexpand=True)
         self.stack.add_named(self.media_bin, 'media')
         self.media_drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
-        pages.connect_weak(self.media_drag, 'prepare',
+        connect_weak(self.media_drag, 'prepare',
                            self._on_media_drag_prepare)
         self.media_bin.add_controller(self.media_drag)
 
@@ -145,11 +146,11 @@ class MediaViewerChrome:
             valign=Gtk.Align.CENTER)
         self.load_button.add_css_class('pill')
         self.load_button.add_css_class('suggested-action')
-        pages.connect_weak(self.load_button, 'clicked', self._on_load_clicked)
+        connect_weak(self.load_button, 'clicked', self._on_load_clicked)
         self.deferred.add_overlay(self.load_button)
         self.stack.add_named(self.deferred, 'deferred')
         self.deferred_drag = Gtk.DragSource(actions=Gdk.DragAction.COPY)
-        pages.connect_weak(self.deferred_drag, 'prepare',
+        connect_weak(self.deferred_drag, 'prepare',
                            self._on_media_drag_prepare)
         self.deferred.add_controller(self.deferred_drag)
 
@@ -160,12 +161,12 @@ class MediaViewerChrome:
                                        use_underline=True)
         self.retry_button.add_css_class('pill')
         self.retry_button.add_css_class('suggested-action')
-        pages.connect_weak(self.retry_button, 'clicked',
+        connect_weak(self.retry_button, 'clicked',
                            self._on_retry_clicked)
         self.error_browser_button = Gtk.Button(
             label=_('_Open in Browser'), use_underline=True)
         self.error_browser_button.add_css_class('pill')
-        pages.connect_weak(self.error_browser_button, 'clicked',
+        connect_weak(self.error_browser_button, 'clicked',
                            self._on_browser_clicked)
         self.error_buttons.append(self.retry_button)
         self.error_buttons.append(self.error_browser_button)
@@ -180,14 +181,14 @@ class MediaViewerChrome:
         self.previous_button.set_halign(Gtk.Align.START)
         self.previous_button.set_valign(Gtk.Align.CENTER)
         self.previous_button.set_margin_start(12)
-        pages.connect_weak(self.previous_button, 'clicked',
+        connect_weak(self.previous_button, 'clicked',
                            self._on_previous_clicked)
         self.next_button = _icon_button(
             'go-next-symbolic', _('Next Attachment'), ('osd', 'circular'))
         self.next_button.set_halign(Gtk.Align.END)
         self.next_button.set_valign(Gtk.Align.CENTER)
         self.next_button.set_margin_end(12)
-        pages.connect_weak(self.next_button, 'clicked', self._on_next_clicked)
+        connect_weak(self.next_button, 'clicked', self._on_next_clicked)
         self.overlay.add_overlay(self.previous_button)
         self.overlay.add_overlay(self.next_button)
 
@@ -199,22 +200,22 @@ class MediaViewerChrome:
         self.zoom_controls.add_css_class('media-viewer-zoom')
         self.zoom_out_button = _icon_button(
             'zoom-out-symbolic', _('Zoom Out'), ('flat', 'circular'))
-        pages.connect_weak(self.zoom_out_button, 'clicked',
+        connect_weak(self.zoom_out_button, 'clicked',
                            self._on_zoom_out_clicked)
         self.zoom_label_button = Gtk.Button(
             label='100%', tooltip_text=_('Toggle Fit and Actual Size'))
         self.zoom_label_button.add_css_class('flat')
         self.zoom_label_button.add_css_class('numeric')
-        pages.connect_weak(self.zoom_label_button, 'clicked',
+        connect_weak(self.zoom_label_button, 'clicked',
                            self._on_zoom_label_clicked)
         self.zoom_in_button = _icon_button(
             'zoom-in-symbolic', _('Zoom In'), ('flat', 'circular'))
-        pages.connect_weak(self.zoom_in_button, 'clicked',
+        connect_weak(self.zoom_in_button, 'clicked',
                            self._on_zoom_in_clicked)
         self.zoom_fit_button = _icon_button(
             'zoom-fit-best-symbolic', _('Fit to Window'),
             ('flat', 'circular'))
-        pages.connect_weak(self.zoom_fit_button, 'clicked',
+        connect_weak(self.zoom_fit_button, 'clicked',
                            self._on_zoom_fit_clicked)
         for widget in (self.zoom_out_button, self.zoom_label_button,
                        self.zoom_in_button, self.zoom_fit_button):
@@ -266,11 +267,11 @@ class MediaViewerChrome:
                                       width_request=340, height_request=294)
         stage_bin.add_breakpoint(compact)
         self.set_child(stage_bin)
-        pages.connect_weak(self, 'notify::compact',
+        connect_weak(self, 'notify::compact',
                            self._on_compact_changed)
 
         keys = Gtk.EventControllerKey()
-        pages.connect_weak(keys, 'key-pressed', self._on_key_pressed)
+        connect_weak(keys, 'key-pressed', self._on_key_pressed)
         self.add_controller(keys)
 
     def _build_bottom(self):
@@ -285,7 +286,7 @@ class MediaViewerChrome:
             tooltip_text=_('Show or Hide Description'))
         self.alt_toggle.add_css_class('media-viewer-alt-badge')
         _label(self.alt_toggle, _('Show or Hide Description'))
-        pages.connect_weak(self.alt_toggle, 'toggled', self._on_alt_toggled)
+        connect_weak(self.alt_toggle, 'toggled', self._on_alt_toggled)
         self.alt_box.append(self.alt_toggle)
 
         self.alt_label = Gtk.Label(

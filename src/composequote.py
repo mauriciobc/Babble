@@ -19,7 +19,8 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, GLib  # noqa: E402
 
 from .i18n import gettext as _  # noqa: E402
-from . import pages  # noqa: E402
+from . import linkrouting  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .api import search as api_search  # noqa: E402
 
 
@@ -61,7 +62,7 @@ class QuotePaste:
         # a collection or a pile of text.
         if not uri or len(uri) > 2048 or any(c.isspace() for c in uri):
             return
-        if pages.fedi_link_kind(uri) != 'post':
+        if linkrouting.fedi_link_kind(uri) != 'post':
             return
         GLib.idle_add(self._convert_pasted_link, uri,
                       self._quote_state_generation,
@@ -149,7 +150,7 @@ class QuotePaste:
                           use_markup=False)
         toast.set_button_label(_('_Undo'))
         toast.set_priority(Adw.ToastPriority.HIGH)
-        pages.connect_weak(toast, 'button-clicked',
+        connect_weak(toast, 'button-clicked',
                            self._undo_quote_attach, status_id, uri)
         self._add_toast(toast)
 

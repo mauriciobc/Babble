@@ -15,8 +15,8 @@ from .i18n import gettext as _, ngettext
 
 from gi.repository import (Adw, Gdk, Gtk, Pango)
 
-from . import pages  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from . import linkrouting, pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .statustext import (parse_content,  # noqa: E402
                          shorten_url_text, split_url, url_host)
 
@@ -159,12 +159,12 @@ class CardPreview(Gtk.Button):
         if self._peertube:
             # A PeerTube video plays on its own site, in the browser:
             # not in the web column, and not as a fediverse post.
-            pages.launch_external(self, self._href)
+            linkrouting.launch_external(self, self._href)
         else:
             # Through open_link, like a link in the post text: tracking
             # stripped, posts and profiles opened in the app, and the
             # web column when it is on.
-            pages.open_link(self, self._href)
+            linkrouting.open_link(self, self._href)
 
 
 class _SlotPicture(Gtk.Picture):
@@ -383,7 +383,7 @@ class BoostCarousel(Gtk.Box):
             widget=self.scroll, value_from=current, value_to=target,
             duration=BOOST_SCROLL_MS, easing=Adw.Easing.EASE_OUT_CUBIC,
             target=Adw.CallbackAnimationTarget.new(
-                pages.weak_method(self._apply_scroll_value)))
+                weak_method(self._apply_scroll_value)))
         connect_weak(animation, 'done', self._on_scroll_animation_done)
         self._scroll_animation = animation
         animation.play()

@@ -19,6 +19,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import GObject, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 _ROW_HEIGHT = 36
 _ICON_SIZE = 16
@@ -77,7 +78,7 @@ class SidebarRail(Gtk.Box):
         self.listbox.add_css_class('navigation-sidebar')
         self.listbox.update_property([Gtk.AccessibleProperty.LABEL],
                                      [_('Sidebar')])
-        pages.connect_weak(self.listbox, 'row-activated',
+        connect_weak(self.listbox, 'row-activated',
                            self._on_row_activated)
         scrolled = Gtk.ScrolledWindow(
             vexpand=True,

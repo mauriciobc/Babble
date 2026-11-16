@@ -13,7 +13,8 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import pages  # noqa: E402
+from . import pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .timelinebase import COLUMN_WIDTH  # noqa: E402
 from .timelinedata import StatusItem  # noqa: E402
@@ -28,7 +29,7 @@ AUTO_COLLAPSE_DEPTH = 3
 
 def push_thread(view, client, item):
     """Push a thread page for *item* (a StatusItem) onto *view*."""
-    window = pages.window_of(view)
+    window = pagenav.window_of(view)
     # A thread opened inside the profile sheet has its own navigation
     # view; the window's sidebar controls do not belong there.
     in_window = window is not None and getattr(
@@ -71,7 +72,7 @@ class ThreadPost(StatusRow):
         # The name button is the keyboard path to the profile; the
         # avatar is only a larger pointer target for it.
         click = Gtk.GestureClick()
-        pages.connect_weak(click, 'released', self._on_avatar_released)
+        connect_weak(click, 'released', self._on_avatar_released)
         self.avatar.add_controller(click)
 
         # Name and handle on one line, the handle wrapping below the
@@ -206,7 +207,7 @@ class ThreadReply(Gtk.Box):
             # The title row is a pill sized to its text, not the width.
             label.get_parent().set_halign(Gtk.Align.START)
             self.expander.set_child(self.children_box)
-            pages.connect_weak(self.expander, 'notify::expanded',
+            connect_weak(self.expander, 'notify::expanded',
                                self._sync_expander_child)
             self._sync_expander_child(self.expander, None)
             column.append(self.expander)

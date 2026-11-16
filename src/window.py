@@ -17,7 +17,8 @@ from . import auth  # noqa: E402
 from . import clipboard  # noqa: E402
 from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
-from . import pages  # noqa: E402
+from . import appsettings, feedback, pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api.notifications import unread_badge_text  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
@@ -225,13 +226,13 @@ class BabbleWindow(Adw.ApplicationWindow):
         # loopback listener and the keyring writes, and answers in
         # signals; the window keeps only the widgets.
         self.auth = auth.LoginFlow(
-            current_account=pages.weak_method(self._signed_in_account))
-        pages.connect_weak(self.auth, 'succeeded', self._on_auth_succeeded)
-        pages.connect_weak(self.auth, 'failed', self._on_auth_failed)
-        pages.connect_weak(self.auth, 'message', self._on_auth_message)
-        pages.connect_weak(self.auth, 'browser', self._on_auth_browser)
-        pages.connect_weak(self.auth, 'changed', self._on_auth_changed)
-        pages.connect_weak(self.auth, 'attended', self._on_auth_attended)
+            current_account=weak_method(self._signed_in_account))
+        connect_weak(self.auth, 'succeeded', self._on_auth_succeeded)
+        connect_weak(self.auth, 'failed', self._on_auth_failed)
+        connect_weak(self.auth, 'message', self._on_auth_message)
+        connect_weak(self.auth, 'browser', self._on_auth_browser)
+        connect_weak(self.auth, 'changed', self._on_auth_changed)
+        connect_weak(self.auth, 'attended', self._on_auth_attended)
 
     def _setup_settings_and_banners(self):
         # Local scope: a focused TextView/Editable keeps Page Up/Down.
@@ -244,7 +245,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 trigger=Gtk.KeyvalTrigger(keyval=keyval, modifiers=0),
                 action=Gtk.NamedAction(action_name=action)))
         self.add_controller(page_keys)
-        self.settings = pages.settings()
+        self.settings = appsettings.settings()
         self.settings.bind('window-width', self, 'default-width',
                             Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('window-height', self, 'default-height',
@@ -253,7 +254,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                             Gio.SettingsBindFlags.DEFAULT)
         # The composer saves a draft when it closes; the banner reacts
         # live instead of waiting for the next account sync.
-        pages.connect_weak(self.settings, 'changed::local-drafts',
+        connect_weak(self.settings, 'changed::local-drafts',
                            self._refresh_draft_banner)
         # The banners exist to offer their action, so their buttons are
         # the suggested ones (AdwBanner:button-style, since 1.7). Set
@@ -292,8 +293,8 @@ class BabbleWindow(Adw.ApplicationWindow):
             note_background_notification=(
                 lambda payload: self.note_background_notification(payload)),
         ))
-        pages.connect_weak(self.streaming, 'event', self._on_stream_event)
-        pages.connect_weak(self.streaming, 'connection-changed',
+        connect_weak(self.streaming, 'event', self._on_stream_event)
+        connect_weak(self.streaming, 'connection-changed',
                            self._on_stream_connection_changed)
         # The stream went down after it had been up: whatever was posted
         # meanwhile never came through it.
@@ -352,16 +353,16 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _setup_account_ui(self):
         self.switcher = account_store.AccountSwitcher(self.settings)
         self.account_button.set_popover(self.switcher)
-        pages.connect_weak(self.switcher, 'switch', self._on_switcher_switch)
-        pages.connect_weak(self.switcher, 'remove',
+        connect_weak(self.switcher, 'switch', self._on_switcher_switch)
+        connect_weak(self.switcher, 'remove',
                            self.on_remove_account_requested)
-        pages.connect_weak(self.switcher, 'add', self._on_switcher_add)
+        connect_weak(self.switcher, 'add', self._on_switcher_add)
 
         # The icon rail is the narrow face of the sidebar, and shares
         # its mode menu and the account button.
         self.sidebar_rail = SidebarRail()
         self.sidebar_rail_slot.append(self.sidebar_rail)
-        pages.connect_weak(self.sidebar_rail, 'activated',
+        connect_weak(self.sidebar_rail, 'activated',
                            self._on_rail_activated)
         # Each page header owns its control strip; the strip binds to
         # this window's properties rather than the window updating it.
@@ -372,31 +373,31 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _setup_sidebar_and_lifecycle(self):
         from . import preferences
         self._preferences = preferences
-        pages.connect_weak(self.settings, 'changed', self._on_setting_changed)
-        pages.connect_weak(Adw.StyleManager.get_default(), 'notify::dark',
+        connect_weak(self.settings, 'changed', self._on_setting_changed)
+        connect_weak(Adw.StyleManager.get_default(), 'notify::dark',
                            self._on_dark_changed)
         preferences.apply_style(self, self.settings)
-        pages.connect_weak(self.settings, 'changed::sidebar-style',
+        connect_weak(self.settings, 'changed::sidebar-style',
                            self._on_sidebar_state_changed)
-        pages.connect_weak(self.settings, 'changed::sidebar-hidden',
+        connect_weak(self.settings, 'changed::sidebar-hidden',
                            self._on_sidebar_state_changed)
-        pages.connect_weak(self.split_view, 'notify::collapsed',
+        connect_weak(self.split_view, 'notify::collapsed',
                            self._on_sidebar_collapsed)
-        pages.connect_weak(self.split_view, 'notify::show-sidebar',
+        connect_weak(self.split_view, 'notify::show-sidebar',
                            self._on_sidebar_shown)
-        pages.connect_weak(self.main_stack, 'notify::visible-child-name',
+        connect_weak(self.main_stack, 'notify::visible-child-name',
                            self._sync_translucent_sidebar)
         self._sync_sidebar_visibility()
         webcolumn.watch_split(self.web_split)
-        pages.connect_weak(self, 'close-request', self._on_close_request)
+        connect_weak(self, 'close-request', self._on_close_request)
         # 'destroy' alone is not enough: PyGObject can keep the wrapper
         # (and with it the window) alive past gtk_window_destroy(), and
         # the signal only fires on dispose. Unrealize always comes first.
-        pages.connect_weak(self, 'destroy', self._cancel_sidebar_visibility)
-        pages.connect_weak(self, 'unrealize',
+        connect_weak(self, 'destroy', self._cancel_sidebar_visibility)
+        connect_weak(self, 'unrealize',
                            self._cancel_sidebar_visibility)
-        pages.connect_weak(self, 'map', self._defer_sidebar_visibility)
-        pages.connect_weak(self, 'notify::visible', self._on_visible_changed)
+        connect_weak(self, 'map', self._defer_sidebar_visibility)
+        connect_weak(self, 'notify::visible', self._on_visible_changed)
         self._sync_global_shortcut()
 
     # Settings
@@ -535,7 +536,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         dialog.add_response('help', _('_Learn More'))
         dialog.set_default_response('close')
         dialog.set_close_response('close')
-        pages.connect_weak(dialog, 'response', self._on_no_keyring_response)
+        connect_weak(dialog, 'response', self._on_no_keyring_response)
         dialog.present(self)
         return dialog
 
@@ -583,7 +584,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         if self.account is None or self.client is None:
             return []
         return drafts.stored_drafts(
-            pages.settings().get_strv('local-drafts'),
+            appsettings.settings().get_strv('local-drafts'),
             account_store.account_key(self.account))
 
     def _refresh_draft_banner(self, *_args):
@@ -618,7 +619,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.draft_banner.get_parent().insert_child_after(
             self.offline_banner, self.copied_link_banner)
         system = sysstate.monitor()
-        pages.connect_weak(system, 'notify::online', self._on_online_changed)
+        connect_weak(system, 'notify::online', self._on_online_changed)
         self._on_online_changed(system)
 
     def _on_online_changed(self, system, *_args):
@@ -640,7 +641,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         if not dialog.view.restore_stashing(draft):
             return
         from .drafts import drop_local_draft
-        drop_local_draft(pages.settings(), raw)
+        drop_local_draft(appsettings.settings(), raw)
 
     def _teardown_session(self):
         """Drop every page, stream and dialog tied to the current
@@ -698,7 +699,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         account = account_store.find_account_by_key(self.settings, account_key)
         if account is None:
             return
-        pages.confirm(
+        feedback.confirm(
             self, _('Remove Account?'),
             _('The login for %s will be removed from this device.')
             % account_store.full_handle(account),
@@ -941,7 +942,7 @@ class BabbleWindow(Adw.ApplicationWindow):
                 'work-in-background'):
             # A hold left from an earlier hide would outlive the window.
             self._release_hold()
-            pages.flush_deferred()
+            feedback.flush_deferred()
             return False
         app = self.get_application()
         if app is not None and not self._held:
@@ -974,7 +975,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             self._schedule_background_status()
             return
         self.settings.set_boolean('work-in-background', False)
-        pages.show_toast(self, _('Running in the background was not allowed'))
+        feedback.show_toast(self, _('Running in the background was not allowed'))
         # Released even when the window was shown again meanwhile, so
         # its next close is not kept alive by a stale hold.
         self._release_hold()
@@ -1030,7 +1031,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             return
         self._status_source = GLib.timeout_add(
             portals.STATUS_DELAY_MS,
-            pages.weak_method(self._flush_background_status))
+            weak_method(self._flush_background_status))
 
     def _flush_background_status(self):
         self._status_source = 0
@@ -1078,7 +1079,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._shortcut_pending = False
         if refused:
             self.settings.set_boolean('global-shortcut', False)
-            pages.show_toast(self,
+            feedback.show_toast(self,
                              _('The quick post shortcut was not allowed'))
             return
         if session is None:
@@ -1402,7 +1403,7 @@ class BabbleWindow(Adw.ApplicationWindow):
             from .scheduled import ScheduledPostsPage as factory
         else:
             from .fedicollections import CollectionsPage as factory
-        pages.push_page(self, title, factory(client), tag='menu-%s' % name)
+        pagenav.push_page(self, title, factory(client), tag='menu-%s' % name)
 
     def on_wrapped(self, _action, _param):
         from .wrapped import present_wrapped
@@ -1421,7 +1422,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         self._admin_dialog = None
         if dialog is None:
             return
-        pages.connect_weak(dialog, 'close-request', self._on_admin_closed)
+        connect_weak(dialog, 'close-request', self._on_admin_closed)
         self._admin_dialog = dialog
 
     def _on_admin_closed(self, _dialog):

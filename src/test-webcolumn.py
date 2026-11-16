@@ -32,7 +32,7 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
 resource = Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))
 resource._register()
 
-from src import pages, webcolumn  # noqa: E402
+from src import appsettings, linkrouting, webcolumn  # noqa: E402
 
 if not webcolumn.available():
     print('SKIP - WebKitGTK 6.0 is not available')
@@ -59,8 +59,8 @@ WEB = 'https://example.org/page'
 
 # The real fediverse predicate may live in another change; the table's
 # ROUTE rows need one either way.
-real_predicate = getattr(pages, 'is_fediverse_link', None)
-pages.is_fediverse_link = lambda uri: '/@' in uri
+real_predicate = getattr(linkrouting, 'is_fediverse_link', None)
+linkrouting.is_fediverse_link = lambda uri: '/@' in uri
 FEDI = 'https://example.social/@user/123'
 
 table = [
@@ -109,7 +109,7 @@ for name, kwargs, action, uri in table:
         print('  got %r, wanted %r' % (got, (action, uri)))
 
 if real_predicate is not None:
-    pages.is_fediverse_link = real_predicate
+    linkrouting.is_fediverse_link = real_predicate
     check('real predicate: post routes',
           classify_navigation('https://mastodon.social/@Gargron/1',
                               link_clicked=True, resolve=True)[0] == ROUTE)
@@ -136,7 +136,7 @@ def pump(done, timeout=10):
 class Host(Gtk.Window):
     def __init__(self):
         super().__init__()
-        self.navigation_view = object()  # what pages.window_of looks for
+        self.navigation_view = object()  # what pagenav.window_of looks for
         self.web_slot = Adw.Bin()
         self.web_split = Adw.OverlaySplitView(
             sidebar=self.web_slot, content=Gtk.Button(label='timeline'),
@@ -182,10 +182,10 @@ check('media stream off', not view_settings.get_enable_media_stream())
 check('playback needs a gesture',
       view_settings.get_media_playback_requires_user_gesture())
 check('developer extras off', not view_settings.get_enable_developer_extras())
-pages.settings().set_boolean('web-javascript', False)
+appsettings.settings().set_boolean('web-javascript', False)
 check('javascript follows the setting',
       not view_settings.get_enable_javascript())
-pages.settings().set_boolean('web-javascript', True)
+appsettings.settings().set_boolean('web-javascript', True)
 check('javascript follows the setting back',
       view_settings.get_enable_javascript())
 check('back disabled on first page', not column.back_button.get_sensitive())
@@ -224,8 +224,8 @@ from gi.repository import WebKit  # noqa: E402
 
 launched = []
 routed = []
-pages.launch_external = lambda _widget, uri: launched.append(uri)
-pages.open_link = lambda _widget, uri, **_kw: routed.append(uri)
+linkrouting.launch_external = lambda _widget, uri: launched.append(uri)
+linkrouting.open_link = lambda _widget, uri, **_kw: routed.append(uri)
 
 
 class FakeRequest:
@@ -322,10 +322,10 @@ webcolumn.present_web(host, 'about:blank')
 column = host.web_slot.get_child()
 loads = []
 column.view.load_uri = loads.append  # the view is a Python attribute
-config = pages.settings()
+config = appsettings.settings()
 config.set_boolean('strip-tracking', True)
 config.set_boolean('aggressive-resolving', True)
-pages.is_fediverse_link = lambda uri: '/@' in uri
+linkrouting.is_fediverse_link = lambda uri: '/@' in uri
 
 
 def decide(action, kind=NAV):

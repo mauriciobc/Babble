@@ -19,7 +19,8 @@ except ImportError:  # loaded as a top-level module by the standalone tests
 
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import linkrouting  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 # A clipboard holds more than links, and a URL someone cut out of a
 # document can be short and still not what they meant. Only a single
@@ -33,7 +34,7 @@ def copied_link_kind(text):
     if not text or len(text) > COPIED_LINK_MAX or any(
             c.isspace() for c in text):
         return None
-    return pages.fedi_link_kind(text)
+    return linkrouting.fedi_link_kind(text)
 
 
 class CopiedLinkBanner(Gtk.Box):
@@ -50,14 +51,14 @@ class CopiedLinkBanner(Gtk.Box):
         self._window = window.weak_ref()
         self.banner = Adw.Banner(button_label=_('_Open'), use_markup=False)
         self.append(self.banner)
-        pages.connect_weak(self.banner, 'button-clicked', self._on_opened)
+        connect_weak(self.banner, 'button-clicked', self._on_opened)
         # Links already offered, opened or not: none is offered twice.
         self._offered = set()
         self._offering = None
         self._read_serial = 0
-        pages.connect_weak(window, 'notify::is-active',
+        connect_weak(window, 'notify::is-active',
                            self._on_active_changed)
-        pages.connect_weak(window.get_clipboard(), 'changed',
+        connect_weak(window.get_clipboard(), 'changed',
                            self._on_clipboard_changed)
 
     def _on_active_changed(self, *_args):
@@ -94,7 +95,7 @@ class CopiedLinkBanner(Gtk.Box):
             self._hide()
             return
         self._read_serial += 1
-        clipboard.read_text_async(None, pages.weak_method(
+        clipboard.read_text_async(None, weak_method(
             self._on_text), self._read_serial)
 
     def _on_text(self, clipboard, result, serial):
@@ -134,4 +135,4 @@ class CopiedLinkBanner(Gtk.Box):
         self._hide()
         window = self._window()
         if url and window is not None:
-            pages.open_link(window, url, resolve=True)
+            linkrouting.open_link(window, url, resolve=True)

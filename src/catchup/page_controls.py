@@ -14,7 +14,8 @@ from ..i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
-from .. import pages  # noqa: E402
+from .. import feedback, pages  # noqa: E402
+from ..weakconnect import connect_weak, weak_method  # noqa: E402
 from . import store as catchupstore  # noqa: E402
 from ..accounts import plain_name as _plain_name  # noqa: E402
 from .digest_layout import SORTS  # noqa: E402
@@ -38,7 +39,7 @@ class PageControls:
                             halign=Gtk.Align.CENTER)
         button.add_css_class('suggested-action')
         button.add_css_class('pill')
-        pages.connect_weak(button, 'clicked', self._on_first_run_clicked)
+        connect_weak(button, 'clicked', self._on_first_run_clicked)
         box.append(button)
         page.set_child(box)
         self.first_run_page = page
@@ -70,7 +71,7 @@ class PageControls:
                                         use_underline=True,
                                         halign=Gtk.Align.CENTER)
         self.cancel_button.add_css_class('pill')
-        pages.connect_weak(self.cancel_button, 'clicked',
+        connect_weak(self.cancel_button, 'clicked',
                            self._on_cancel_clicked)
         box.append(self.spinner)
         box.append(label_box)
@@ -195,10 +196,10 @@ class PageControls:
 
     def _on_remove_snapshot(self, _action, parameter):
         self._popdown_menus()
-        pages.confirm(
+        feedback.confirm(
             self, _('Remove This Catch-Up?'),
             _('It will be deleted from this device.'), _('_Remove'),
-            functools.partial(pages.weak_method(self._remove_snapshot),
+            functools.partial(weak_method(self._remove_snapshot),
                               parameter.get_string()))
 
     def _remove_snapshot(self, snapshot_id):
@@ -330,7 +331,7 @@ class PageControls:
             propagate_natural_height=True)
         scroll.set_child(self.category_group)
         box.append(scroll)
-        pages.connect_weak(self.category_group, 'notify::active-name',
+        connect_weak(self.category_group, 'notify::active-name',
                            self._on_category_changed)
 
         author_heading = heading(_('Author'))
@@ -341,7 +342,7 @@ class PageControls:
             author_heading)
         self.author_dropdown.set_expression(Gtk.PropertyExpression.new(
             Gtk.StringObject.__gtype__, None, 'string'))
-        pages.connect_weak(self.author_dropdown, 'notify::selected',
+        connect_weak(self.author_dropdown, 'notify::selected',
                            self._on_author_changed)
         box.append(self.author_dropdown)
 
@@ -353,7 +354,7 @@ class PageControls:
                 model=Gtk.StringList.new([sort_name(s) for s in SORTS]),
                 hexpand=True),
             sort_heading)
-        pages.connect_weak(self.sort_dropdown, 'notify::selected',
+        connect_weak(self.sort_dropdown, 'notify::selected',
                            self._on_sort_changed)
         sort_row.append(self.sort_dropdown)
         self.order_group = Adw.ToggleGroup()
@@ -365,7 +366,7 @@ class PageControls:
                                 tooltip=_('Descending'))
         self.order_group.add(ascending)
         self.order_group.add(descending)
-        pages.connect_weak(self.order_group, 'notify::active-name',
+        connect_weak(self.order_group, 'notify::active-name',
                            self._on_order_changed)
         sort_row.append(self.order_group)
         box.append(sort_row)
@@ -376,7 +377,7 @@ class PageControls:
         self.group_switch = Gtk.Switch(valign=Gtk.Align.CENTER)
         self.group_switch.update_property([Gtk.AccessibleProperty.LABEL],
                                           [_('Group by author')])
-        pages.connect_weak(self.group_switch, 'notify::active',
+        connect_weak(self.group_switch, 'notify::active',
                            self._on_group_changed)
         group_row.append(group_label)
         group_row.append(self.group_switch)
@@ -384,7 +385,7 @@ class PageControls:
 
         self.reset_button = Gtk.Button(label=_('_Reset Filters'),
                                        use_underline=True)
-        pages.connect_weak(self.reset_button, 'clicked', self._on_reset)
+        connect_weak(self.reset_button, 'clicked', self._on_reset)
         box.append(self.reset_button)
         popover.set_child(box)
         return popover
@@ -446,7 +447,7 @@ class PageControls:
         shown = ids[:MAX_CHIPS]
         while len(self.chips) < len(shown):
             chip = _AuthorChip()
-            pages.connect_weak(chip, 'toggled', self._on_chip_toggled)
+            connect_weak(chip, 'toggled', self._on_chip_toggled)
             self.chips.append(chip)
             self.chips_box.append(chip)
         for chip in self.chips:
@@ -522,7 +523,7 @@ class PageControls:
             account = self._computed.accounts.get(self._view_state.author)
             author = _plain_name(account) if account else None
         self._toast_text = view_summary(self._view_state, author)
-        pages.show_toast(self, self._toast_text)
+        feedback.show_toast(self, self._toast_text)
 
     # Handlers
 
@@ -599,7 +600,7 @@ class PageControls:
             controller.add_shortcut(Gtk.Shortcut.new(
                 Gtk.KeyvalTrigger.new(Gdk.keyval_from_name(key),
                                       Gdk.ModifierType(0)),
-                Gtk.CallbackAction.new(pages.weak_method(handler))))
+                Gtk.CallbackAction.new(weak_method(handler))))
         self.add_controller(controller)
 
     def _current_position(self):

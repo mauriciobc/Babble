@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .i18n import gettext as _
-from . import pages
+from . import pagenav
 
 
 PLACES = (
@@ -215,7 +215,7 @@ class Navigation:
         child = self.build_place(tag)
         if child is None:
             return None
-        page = pages.make_nav_page(
+        page = pagenav.make_nav_page(
             self.place_title(tag), child, tag='place-%s' % tag,
             sidebar_control=self.host.make_sidebar_control)
         self.pages[tag] = page

@@ -38,7 +38,8 @@ sys.path.insert(0, srcdir)
 
 Adw.init()
 
-from src import hashtags, pages, scheduled  # noqa: E402
+from src import (feedback, hashtags, pages, scheduled,  # noqa: E402
+                 weakconnect)
 from src.api import core as api_core  # noqa: E402
 
 failures = []
@@ -166,8 +167,8 @@ def in_step(lst):
 
 
 reported = []
-real_report = pages.report_error
-pages.report_error = lambda widget, heading, error: reported.append(
+real_report = feedback.report_error
+feedback.report_error = lambda widget, heading, error: reported.append(
     (heading, error.message))
 
 # First page
@@ -498,9 +499,9 @@ class Owner(Adw.Bin):
         super().__init__()
         self.client = FakeClient()
         self.list = pages.PagedList(
-            self.client, '/things', pages.weak_method(self._row),
-            page_filter=pages.weak_method(self._keep),
-            make_placeholder=pages.weak_method(self._placeholder))
+            self.client, '/things', weakconnect.weak_method(self._row),
+            page_filter=weakconnect.weak_method(self._keep),
+            make_placeholder=weakconnect.weak_method(self._placeholder))
         self.set_child(self.list)
 
     def _row(self, data):
@@ -554,7 +555,7 @@ class ClassHookOwner(Adw.Bin):
         super().__init__()
         self.client = FakeClient()
         self.list = pages.PagedList(
-            self.client, '/things', pages.weak_method(self._row),
+            self.client, '/things', weakconnect.weak_method(self._row),
             page_filter=self._wanted)
         self.set_child(self.list)
 
@@ -804,7 +805,7 @@ class NoGuard(pages.PagedList):
     lands (and, the request being uncancelled, decodes)."""
 
     def _request(self, ticket, params):
-        weak = pages.weak_method(self._on_loaded)
+        weak = weakconnect.weak_method(self._on_loaded)
         api_core.send_path(
             self.client, self.method, self.fetch_path, params=params,
             callback=lambda c, r, _d=None: weak(c, r), cancellable=None)
@@ -818,7 +819,7 @@ check('self-check: the order check fails on a wrong order',
       not (lambda c, lst: (c.answer([item(1), item(2)]),
                            texts(lst) == ['row 2', 'row 1'])[1])(*build()))
 
-pages.report_error = real_report
+feedback.report_error = real_report
 
 if failures:
     print('%d checks failed' % len(failures))

@@ -19,9 +19,9 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from . import pages, pluginhost  # noqa: E402
+from . import appsettings, pages, pluginhost  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 
 def user_plugins_dir():
@@ -98,7 +98,7 @@ class PluginsDialog(Adw.PreferencesDialog):
         self.rows = []
         # A plugin that fails is turned off from an idle: follow the key
         # so its row says so while the page is open.
-        connect_weak(pages.settings(), 'changed::' + pluginhost.ACTIVE_KEY,
+        connect_weak(appsettings.settings(), 'changed::' + pluginhost.ACTIVE_KEY,
                      self._on_active_changed)
         page = Adw.PreferencesPage(title=_('Plugins'),
                                    icon_name='application-x-addon-symbolic')

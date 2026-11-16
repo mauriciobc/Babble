@@ -19,7 +19,7 @@ from . import filterrules  # noqa: E402
 from .entities import (QUOTE_POLICIES as QUOTE_POLICY_CODES,  # noqa: E402
                        Status,
                        VISIBILITIES, attachment_still_url)
-from . import pages  # noqa: E402
+from . import appsettings, pagenav, pages  # noqa: E402
 from . import statustext  # noqa: E402
 from .statustext import (format_time, is_hashtag, parse_content,  # noqa: E402
                          shorten_url_text)
@@ -107,7 +107,7 @@ def _has_schema():
     if _schema_present is None:
         source = Gio.SettingsSchemaSource.get_default()
         _schema_present = bool(
-            source and source.lookup(pages.SCHEMA_ID, True))
+            source and source.lookup(appsettings.SCHEMA_ID, True))
     return _schema_present
 
 
@@ -115,7 +115,7 @@ def _flag(name):
     """A boolean application setting."""
     if not _has_schema():
         return DEFAULT_FLAGS.get(name, False)
-    return pages.settings().get_boolean(name)
+    return appsettings.settings().get_boolean(name)
 
 
 def ui_language():
@@ -280,7 +280,7 @@ def _translation_enabled(client):
 
 
 def _own_account_id(widget):
-    window = pages.window_of(widget)
+    window = pagenav.window_of(widget)
     account = getattr(window, 'account', None) or {}
     return account.get('id')
 

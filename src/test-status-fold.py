@@ -27,7 +27,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import pages, statusrow, timelinedata  # noqa: E402
+from src import appsettings, statusrow, timelinedata  # noqa: E402
 
 failures = []
 
@@ -67,7 +67,7 @@ def freed(ref):
     return ref() is None
 
 
-settings = pages.settings()
+settings = appsettings.settings()
 settings.set_boolean('show-spoilers', False)
 settings.set_boolean('collapse-long-posts', True)
 

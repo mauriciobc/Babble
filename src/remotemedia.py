@@ -26,7 +26,8 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import mediapolicy  # noqa: E402
-from . import pages  # noqa: E402
+from . import appsettings  # noqa: E402
+from .weakconnect import weak_method  # noqa: E402
 
 
 def media_url(attachment):
@@ -51,7 +52,7 @@ def request(widget, url, is_remote, on_allowed, on_denied):
     no question asked. A URL on the user's server (``is_remote`` false) is
     allowed at once. Returns the dialog when one was shown, else None.
 
-    The callbacks should be weak (:func:`pages.weak_method`) when they
+    The callbacks should be weak (:func:`weak_method`) when they
     belong to a widget: the dialog outlives a call, not the widget."""
     if not is_remote:
         on_allowed()
@@ -101,7 +102,7 @@ def _on_response(_dialog, response, remember, on_allowed, on_denied):
     allowed = response == 'load'
     remembered = remember.get_active()
     if remembered:
-        pages.settings().set_string('remote-media',
+        appsettings.settings().set_string('remote-media',
                                     'load' if allowed else 'never')
     if allowed:
         on_allowed()
@@ -131,10 +132,10 @@ class RemoteGate:
         request(
             self, url, is_remote,
             functools.partial(
-                pages.weak_method(self._on_remote_allowed),
+                weak_method(self._on_remote_allowed),
                 token, action, attachment, url, is_remote),
             functools.partial(
-                pages.weak_method(self._on_remote_denied),
+                weak_method(self._on_remote_denied),
                 token, action, attachment))
 
     def _on_remote_allowed(self, token, action, attachment, url, is_remote):

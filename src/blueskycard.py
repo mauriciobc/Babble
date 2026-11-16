@@ -30,8 +30,9 @@ from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from . import bskytext  # noqa: E402
 from . import bluesky  # noqa: E402
-from . import pages  # noqa: E402
+from . import linkrouting, pages  # noqa: E402
 from . import statustext  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .mediabox import CardPreview, status_picture  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
 from .timelinebase import COLUMN_WIDTH, _flag  # noqa: E402
@@ -105,7 +106,7 @@ def view_on_bluesky(widget, actor, rkey):
     if enabled():
         open_post(widget, actor, rkey)
     else:
-        pages.launch_external(widget, bskytext.web_url(actor, rkey))
+        linkrouting.launch_external(widget, bskytext.web_url(actor, rkey))
 
 
 class _FixedPicture(Gtk.Picture):
@@ -276,13 +277,13 @@ class BlueskyQuoteCard(Gtk.Button):
             [Gtk.AccessibleProperty.LABEL],
             [_('Bluesky post by %(author)s: %(text)s') % {
                 'author': name, 'text': text}])
-        pages.connect_weak(self, 'clicked', self._on_clicked)
+        connect_weak(self, 'clicked', self._on_clicked)
 
     def _on_clicked(self, _button):
         if enabled() and self.data.get('actor') and self.data.get('rkey'):
             open_post(self, self.data['actor'], self.data['rkey'])
         elif self.url:
-            pages.open_link(self, self.url)
+            linkrouting.open_link(self, self.url)
 
 
 def fill_quote_box(box, data, key):

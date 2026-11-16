@@ -46,7 +46,8 @@ from gi.repository import Gdk, GLib, GObject, Gtk  # noqa: E402
 
 from . import mastodon  # noqa: E402
 from . import mediapolicy  # noqa: E402
-from . import pages  # noqa: E402
+from . import appsettings, pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .remotemedia import media_url  # noqa: E402
 
 # A tile must have at least this share of itself inside the viewport.
@@ -61,7 +62,7 @@ _tokens = itertools.count(1)
 
 def inline_enabled():
     """Whether Play Animated GIFs in Timelines is on."""
-    return pages.settings().get_boolean('inline-animated-media')
+    return appsettings.settings().get_boolean('inline-animated-media')
 
 
 def visible_fraction(tile, viewport):
@@ -104,7 +105,7 @@ class GifvTile(Gtk.Overlay):
         self._shown = False
         self._button = None
         self._player = None
-        pages.connect_weak(picture, 'notify::paintable', self._on_paintable)
+        connect_weak(picture, 'notify::paintable', self._on_paintable)
         if self.user_paused:
             self._sync_button()
 
@@ -177,7 +178,7 @@ class GifvTile(Gtk.Overlay):
                 margin_top=6, margin_end=6)
             self._button.add_css_class('osd')
             self._button.add_css_class('circular')
-            pages.connect_weak(self._button, 'clicked', self._on_clicked)
+            connect_weak(self._button, 'clicked', self._on_clicked)
             self.add_overlay(self._button)
         button = self._button
         button.set_visible(enabled and (self._shown or paused))
@@ -207,7 +208,7 @@ class InlinePlayer(GObject.Object):
 
     def __init__(self, root):
         super().__init__()
-        self._root = root.weak_ref(pages.weak_method(self._on_root_gone))
+        self._root = root.weak_ref(weak_method(self._on_root_gone))
         self._tiles = {}
         self._watched = {}
         self._engine = None
@@ -230,9 +231,9 @@ class InlinePlayer(GObject.Object):
         self._gates_connected = False
         # The key's last known state: off, nothing below does any work.
         self._on = False
-        pages.connect_weak(root, 'unmap', self._on_root_unmap)
-        pages.connect_weak(root, 'map', self._on_root_map)
-        pages.connect_weak(root, 'close-request', self._on_root_close)
+        connect_weak(root, 'unmap', self._on_root_unmap)
+        connect_weak(root, 'map', self._on_root_map)
+        connect_weak(root, 'close-request', self._on_root_close)
 
     # Registration
 
@@ -254,7 +255,7 @@ class InlinePlayer(GObject.Object):
         if self._warm_stage >= 2 or self._warm_source or self._unavailable:
             return
         self._warm_source = GLib.idle_add(
-            pages.weak_method(self._on_warm_step),
+            weak_method(self._on_warm_step),
             priority=GLib.PRIORITY_DEFAULT_IDLE)
 
     def _on_warm_step(self):
@@ -293,8 +294,8 @@ class InlinePlayer(GObject.Object):
         self._watched = {k: v for k, v in self._watched.items()
                          if v[0]() is not None}
         self._watched[key] = (adjustment.weak_ref(), [
-            pages.connect_weak(adjustment, 'value-changed', self._on_moved),
-            pages.connect_weak(adjustment, 'changed', self._on_moved)])
+            connect_weak(adjustment, 'value-changed', self._on_moved),
+            connect_weak(adjustment, 'changed', self._on_moved)])
 
     def _unwatch_all(self):
         watched, self._watched = self._watched, {}
@@ -337,7 +338,7 @@ class InlinePlayer(GObject.Object):
             return
         self._gates_connected = True
         self._on = inline_enabled()
-        pages.connect_weak(pages.settings(), 'changed::inline-animated-media',
+        connect_weak(appsettings.settings(), 'changed::inline-animated-media',
                            self._on_key_changed)
         mediapolicy.connect_changes(self._on_moved, self._root())
 
@@ -356,11 +357,11 @@ class InlinePlayer(GObject.Object):
         clock = root.get_frame_clock() if root is not None else None
         if clock is None:
             self._idle = GLib.idle_add(
-                pages.weak_method(self._on_idle),
+                weak_method(self._on_idle),
                 priority=GLib.PRIORITY_DEFAULT_IDLE)
             return
         self._clock = clock.weak_ref()
-        self._painted = pages.connect_weak(
+        self._painted = connect_weak(
             clock, 'after-paint', self._on_painted)
         clock.request_phase(Gdk.FrameClockPhase.PAINT)
 
@@ -498,9 +499,9 @@ class InlinePlayer(GObject.Object):
         self._active = tile.token
         self._shown = False
         self._frame_seen = False
-        pages.connect_weak(stream, 'notify::error', self._on_error)
-        pages.connect_weak(stream, 'notify::prepared', self._on_prepared)
-        self._frame_handler = pages.connect_weak(
+        connect_weak(stream, 'notify::error', self._on_error)
+        connect_weak(stream, 'notify::prepared', self._on_prepared)
+        self._frame_handler = connect_weak(
             stream, 'invalidate-contents', self._on_frame)
         if stream.get_error() is not None:
             self._on_error(stream, None)
@@ -580,7 +581,7 @@ class InlinePlayer(GObject.Object):
         if self._engine is None or self._release_source:
             return
         self._release_source = GLib.timeout_add(
-            RELEASE_DELAY_MS, pages.weak_method(self._on_release_timeout))
+            RELEASE_DELAY_MS, weak_method(self._on_release_timeout))
 
     def _cancel_release(self):
         if self._release_source:

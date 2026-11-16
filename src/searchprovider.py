@@ -233,7 +233,7 @@ class SearchProvider:
         if window is not None:
             callback(window.client, window.account)
             return
-        from .pages import settings
+        from .appsettings import settings
         account = account_store.active_account(settings())
         if account is None:
             callback(None, None)
@@ -676,29 +676,29 @@ class SearchProvider:
         self._when_signed_in(window, route)
 
     def _open_profile(self, win, account_id, account):
-        from . import pages
+        from . import pagenav, pages
         if account is not None:
-            pages.open_profile(win, win.client, account)
+            pagenav.open_profile(win, win.client, account)
             return
         from .api import accounts as api_accounts
         pages.call_api(
             win, win.client,
             lambda cb: api_accounts.get_async(win.client, account_id,
                                               callback=cb),
-            lambda data: pages.open_profile(win, win.client, data),
+            lambda data: pagenav.open_profile(win, win.client, data),
             _('Could not open the profile'))
 
     def _open_status(self, win, status_id, status):
-        from . import pages
+        from . import pagenav, pages
         from .api import statuses as api_statuses
         if status is not None:
-            pages.open_status(win, win.client, status)
+            pagenav.open_status(win, win.client, status)
             return
         pages.call_api(
             win, win.client,
             lambda cb: api_statuses.get_async(win.client, status_id,
                                               callback=cb),
-            lambda data: pages.open_status(win, win.client, data),
+            lambda data: pagenav.open_status(win, win.client, data),
             _('Could not open the post'))
 
     @staticmethod

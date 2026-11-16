@@ -171,8 +171,8 @@ class _Context(api.Context):
 
     @property
     def account(self):
-        from . import pages
-        found = accounts.active_account(pages.settings())
+        from . import appsettings
+        found = accounts.active_account(appsettings.settings())
         if found is None:
             return None
         return api.Account(handle=accounts.full_handle(found),
@@ -274,12 +274,12 @@ class _Context(api.Context):
                                     done)
 
     def toast(self, widget, text):
-        from . import pages
-        pages.show_toast(widget, text)
+        from . import feedback
+        feedback.show_toast(widget, text)
 
     def open_link(self, widget, url):
-        from . import pages
-        pages.open_link(widget, url, resolve=True)
+        from . import linkrouting
+        linkrouting.open_link(widget, url, resolve=True)
 
     def compose(self, widget, text):
         if not self.active:
@@ -532,10 +532,10 @@ class PluginHost:
                 hasattr(app, 'get_active_window') else None
             widget = window
         if widget is not None:
-            from . import pages
+            from . import feedback
             # Translators: %s is a plugin's name.
-            pages.show_toast(widget, _('“%s” stopped working and was '
-                                       'turned off') % name)
+            feedback.show_toast(widget, _('“%s” stopped working and was '
+                                          'turned off') % name)
 
     def _turn_off(self, plugin_id):
         message = self.errors.get(plugin_id)
@@ -736,15 +736,15 @@ def host():
     """The one PluginHost, created on first use (but not started)."""
     global _host
     if _host is None:
-        from . import pages
-        _host = PluginHost(pages.settings())
+        from . import appsettings
+        _host = PluginHost(appsettings.settings())
     return _host
 
 
 def start_if_enabled():
     """At startup: start the host only when a plugin is enabled."""
-    from . import pages
-    if pages.settings().get_strv(ACTIVE_KEY):
+    from . import appsettings
+    if appsettings.settings().get_strv(ACTIVE_KEY):
         host().start()
 
 

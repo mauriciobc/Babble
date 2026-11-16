@@ -25,7 +25,7 @@ from gi.repository import GLib, Gio, GObject  # noqa: E402
 
 from . import sysstate  # noqa: E402
 from .accounts import plain_name, strip_shortcodes  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .notificationcopy import (DESKTOP_TITLE_DEFAULT,  # noqa: E402
                                DESKTOP_TITLES)
 from .statustext import parse_content  # noqa: E402
@@ -407,7 +407,8 @@ def _on_reply(_action, parameter, app):
     if _active_key(win) == key:
         _reply(win, key, status_id)
         return
-    from .pages import settings, show_toast
+    from .appsettings import settings
+    from .feedback import show_toast
     account = find_account_by_key(settings(), key)
     if account is None or not hasattr(win, 'switch_account'):
         show_toast(win, _('That account is no longer signed in'))
@@ -442,7 +443,7 @@ def _reply(win, key, status_id):
         try:
             fetched = api_statuses.get_finish(c, result)
         except GLib.Error as error:
-            from .pages import report_error
+            from .feedback import report_error
             report_error(win, _('Could not load post'), error)
             return
         _open_reply(win, status_id, fetched or {})
@@ -474,7 +475,7 @@ def _on_activate(action, parameter, app):
         return
     # The notification belongs to an account that is not the active one:
     # act as that account with its own token, without switching.
-    from .pages import settings
+    from .appsettings import settings
     account = find_account_by_key(settings(), key)
     if account is None:
         _report_failure(app, name, _('That account is no longer signed in'))
@@ -513,7 +514,7 @@ def _run(app, client, name, target_id):
         app.withdraw_notification('babble-action-failed')
         win = _main_window(app)
         if win is not None and win.get_visible():
-            from .pages import show_toast
+            from .feedback import show_toast
             show_toast(win, _confirmation(name))
 
     if name == 'favourite':

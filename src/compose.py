@@ -23,7 +23,8 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, Gdk, Gio, GLib, GObject, Gtk,  # noqa: E402
                            GtkSource, Pango, Spelling)
 
-from . import emojichooser, pages  # noqa: E402
+from . import appsettings, emojichooser, pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .capabilities import QUOTES_API_VERSION  # noqa: E402
@@ -123,7 +124,7 @@ def _setting_string(key):
     compiled schema, the key) is not installed."""
     if not _has_setting(key):
         return None
-    return pages.settings().get_string(key)
+    return appsettings.settings().get_string(key)
 
 
 def default_language():
@@ -309,7 +310,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         toolbar_view.add_top_bar(self.build_header_bar())
         self.reply_banner = Adw.Banner(title=_('Replying to a post'),
                                        button_label=_('_Cancel Reply'))
-        pages.connect_weak(self.reply_banner, 'button-clicked',
+        connect_weak(self.reply_banner, 'button-clicked',
                            self.on_reply_cancel)
         toolbar_view.add_top_bar(self.reply_banner)
         # Plain text: the title is a formatted date, not markup.
@@ -393,14 +394,14 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         header = Adw.HeaderBar()
         self.discard_button = Gtk.Button(icon_name='user-trash-symbolic')
         pages.set_accessible_label(self.discard_button, _('Discard Draft'))
-        pages.connect_weak(self.discard_button, 'clicked',
+        connect_weak(self.discard_button, 'clicked',
                            self.on_discard_clicked)
         header.pack_start(self.discard_button)
 
         self.post_button = Gtk.Button(label=_('_Post'), use_underline=True)
         self.post_button.add_css_class('suggested-action')
         self.post_button.set_tooltip_text(_('Post (Ctrl+Enter)'))
-        pages.connect_weak(self.post_button, 'clicked', self.on_post_clicked)
+        connect_weak(self.post_button, 'clicked', self.on_post_clicked)
         header.pack_end(self.post_button)
         self.progress_spinner = Adw.Spinner(visible=False)
         header.pack_end(self.progress_spinner)
@@ -417,19 +418,19 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.buffer = GtkSource.Buffer(highlight_syntax=False,
                                        highlight_matching_brackets=False)
         self.buffer.set_style_scheme(None)
-        pages.connect_weak(self.buffer, 'changed', self.on_draft_changed)
+        connect_weak(self.buffer, 'changed', self.on_draft_changed)
         self.text_view = Gtk.TextView(buffer=self.buffer,
                                       wrap_mode=Gtk.WrapMode.WORD_CHAR,
                                       top_margin=12, bottom_margin=12,
                                       left_margin=12, right_margin=12,
                                       accepts_tab=False)
-        pages.connect_weak(self.text_view, 'paste-clipboard',
+        connect_weak(self.text_view, 'paste-clipboard',
                            self.on_paste_clipboard)
         # A lone link to a post inserted in one go -- a paste, or text
         # arriving from elsewhere -- is turned into a quote by the
         # buffer's own insert notification, so plain-text pastes go
         # through the default handler untouched.
-        pages.connect_weak(self.buffer, 'insert-text',
+        connect_weak(self.buffer, 'insert-text',
                            self._on_text_inserted)
         self.text_view.update_property([Gtk.AccessibleProperty.LABEL],
                                        [_('Post Text')])
@@ -446,7 +447,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         spell_click = Gtk.GestureClick(
             button=Gdk.BUTTON_SECONDARY,
             propagation_phase=Gtk.PropagationPhase.CAPTURE)
-        pages.connect_weak(spell_click, 'pressed', self._on_spell_click)
+        connect_weak(spell_click, 'pressed', self._on_spell_click)
         self.text_view.add_controller(spell_click)
         self.mention_completer = MentionCompleter(self.client, self.text_view)
         self.hashtag_completer = HashtagCompleter(self.client, self.text_view)
@@ -471,7 +472,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 
         self.spoiler_entry = Adw.EntryRow(title=_('Content Warning'))
-        pages.connect_weak(self.spoiler_entry, 'changed',
+        connect_weak(self.spoiler_entry, 'changed',
                            self.on_draft_changed)
         self._spoiler_box = Gtk.ListBox(
             selection_mode=Gtk.SelectionMode.NONE)
@@ -494,7 +495,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.poll_add = Adw.ButtonRow(title=_('_Add Choice'),
                                       use_underline=True,
                                       start_icon_name='list-add-symbolic')
-        pages.connect_weak(self.poll_add, 'activated',
+        connect_weak(self.poll_add, 'activated',
                            self.on_poll_add_choice)
         self._poll_box.append(self.poll_add)
         self._apply_poll_limits()
@@ -529,23 +530,23 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.screenshot_button.set_visible(False)
         self.cw_toggle = icon_button('dialog-warning-symbolic',
                                      _('Content Warning'), toggle=True)
-        pages.connect_weak(self.cw_toggle, 'toggled', self.on_cw_toggled)
+        connect_weak(self.cw_toggle, 'toggled', self.on_cw_toggled)
         self.poll_toggle = icon_button('babble-compose-poll-symbolic',
                                        _('Poll'), toggle=True)
-        pages.connect_weak(self.poll_toggle, 'toggled', self.on_poll_toggled)
+        connect_weak(self.poll_toggle, 'toggled', self.on_poll_toggled)
         self.mention_button = icon_button('contact-new-symbolic',
                                           _('Mention'))
-        pages.connect_weak(self.mention_button, 'clicked',
+        connect_weak(self.mention_button, 'clicked',
                            self.on_mention_clicked)
         self.emoji_button = icon_button('face-smile-symbolic',
                                         _('Insert Emoji'))
-        pages.connect_weak(self.emoji_button, 'clicked',
+        connect_weak(self.emoji_button, 'clicked',
                            self.on_emoji_clicked)
         self.emoji_button.connect('destroy', _unparent_popovers)
         self.thread_toggle = icon_button('view-list-symbolic',
                                          _('Keep Open for a Thread'),
                                          toggle=True)
-        pages.connect_weak(self.thread_toggle, 'toggled',
+        connect_weak(self.thread_toggle, 'toggled',
                            self.on_draft_changed)
 
         # Own WrapBox: a non-wrapping Gtk.Box of visibility + language +
@@ -559,7 +560,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         self.language_row.set_enable_search(True)
         self.language_row.set_selected(
             [lang[0] for lang in self._languages].index(default_language()))
-        pages.connect_weak(self.language_row, 'notify::selected',
+        connect_weak(self.language_row, 'notify::selected',
                            self._update_spell_language)
         self._update_spell_language()
         options.append(self.visibility_row)
@@ -737,14 +738,14 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             self.local_draft_key,
             datetime.datetime.now(datetime.timezone.utc).isoformat())
         self._saved_local_content = content
-        store_local_draft(pages.settings(), self._saved_local_raw, previous)
+        store_local_draft(appsettings.settings(), self._saved_local_raw, previous)
 
     def drop_saved_local_draft(self):
         """The saved copy of a draft that was just sent has to stop
         being offered as something to restore."""
         if self._saved_local_raw is None:
             return
-        drop_local_draft(pages.settings(), self._saved_local_raw)
+        drop_local_draft(appsettings.settings(), self._saved_local_raw)
         self._saved_local_raw = None
         self._saved_local_content = None
 
@@ -1115,7 +1116,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
             return
         entry = Adw.EntryRow(title=_('Choice %d')
                              % (len(self.poll_entries) + 1))
-        pages.connect_weak(entry, 'changed', self.on_draft_changed)
+        connect_weak(entry, 'changed', self.on_draft_changed)
         self._poll_box.insert(entry, len(self.poll_entries))
         self.poll_entries.append(entry)
         self._apply_poll_limits()
@@ -1140,9 +1141,9 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         if self.emoji_chooser is None:
             self.emoji_chooser = emojichooser.CustomEmojiChooser(self.client)
             self.emoji_chooser.set_parent(self.emoji_button)
-            pages.connect_weak(self.emoji_chooser, 'emoji-picked',
+            connect_weak(self.emoji_chooser, 'emoji-picked',
                                self.on_custom_emoji_picked)
-            pages.connect_weak(self.emoji_chooser, 'text-picked',
+            connect_weak(self.emoji_chooser, 'text-picked',
                                self.on_emoji_picked)
         self.emoji_chooser.popup()
 
@@ -1219,7 +1220,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         # allowed for the clipboard read, which a loaded machine can
         # stretch; past that the paste stays plain text.
         self._paste_serial += 1
-        GLib.timeout_add(1000, pages.weak_method(
+        GLib.timeout_add(1000, weak_method(
             self._clear_pre_paste_offset), self._paste_serial)
 
     def _paste_text(self):
@@ -1260,7 +1261,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         if overlay is not None:
             overlay.add_toast(toast)
             return
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is not None:
             window.add_toast(toast)
 
@@ -1390,7 +1391,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                 params['sensitive'] = True
         elif _has_setting('default-sensitive') \
                 and 'sensitive' not in params \
-                and pages.settings().get_boolean('default-sensitive'):
+                and appsettings.settings().get_boolean('default-sensitive'):
             # The preference is mirrored to the account's server defaults,
             # but a client that leaves the field out inherits whatever the
             # server's web client happened to send last -- and Babble is
@@ -1484,7 +1485,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
         if isinstance(status, dict):
             remember(self.client, status.get('tags'))
         # Resolve the toast target before the dialog closes.
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         root = self.get_root()
         was_edit = self.editing_id is not None
         was_scheduled = self.scheduled_id is not None
@@ -1567,7 +1568,7 @@ class BabbleComposeView(QuotePaste, Adw.Bin):
                 title=_('The replacement was saved, but the original scheduled '
                         'post could not be removed. Both may be published.'),
                 button_label=_('_Retry Removal'))
-            pages.connect_weak(self._cleanup_banner, 'button-clicked',
+            connect_weak(self._cleanup_banner, 'button-clicked',
                                self._retry_scheduled_removal)
             self._toolbar_view.add_top_bar(self._cleanup_banner)
         self._cleanup_banner.set_sensitive(True)
@@ -1652,9 +1653,9 @@ class ComposeDialog(Adw.Dialog):
         super().__init__(follows_content_size=True, **kwargs)
         self.view = BabbleComposeView(client)
         self.view._select_visibility(default_visibility())
-        pages.connect_weak(self.view, 'changed', self._on_view_changed)
-        pages.connect_weak(self, 'closed', self.view.save_local_draft)
-        pages.connect_weak(self, 'close-attempt', self._on_close_attempt)
+        connect_weak(self.view, 'changed', self._on_view_changed)
+        connect_weak(self, 'closed', self.view.save_local_draft)
+        connect_weak(self, 'close-attempt', self._on_close_attempt)
         self.set_child(_ComposeWidth(self.view))
         self.set_focus(self.view.text_view)
         self._on_view_changed(self.view)
@@ -1723,7 +1724,7 @@ class ComposeDialog(Adw.Dialog):
         dialog.set_response_appearance('leave', Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response('keep')
         dialog.set_close_response('keep')
-        pages.connect_weak(dialog, 'response', self._on_cleanup_close_response)
+        connect_weak(dialog, 'response', self._on_cleanup_close_response)
         dialog.present(self)
 
     def _on_cleanup_close_response(self, _dialog, response):

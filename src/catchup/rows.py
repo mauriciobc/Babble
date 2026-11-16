@@ -12,7 +12,7 @@ from ..i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, GObject, Gtk, Pango  # noqa: E402
 
-from .. import accounts as account_store, pages  # noqa: E402
+from .. import accounts as account_store, appsettings  # noqa: E402
 from .digest import plain_text  # noqa: E402
 from ..mediacache import AvatarCache, _TextureCache  # noqa: E402
 from ..mediaopen import MediaOpener  # noqa: E402
@@ -197,7 +197,7 @@ class CatchUpRow(MediaOpener, Gtk.Box):
         self.peek.set_label(peek)
         self.peek.set_visible(bool(peek))
 
-        settings = pages.settings()
+        settings = appsettings.settings()
         info = item.raw.get('_filtered')
         filtered = bool(info) and info.get('action') != 'blur'
         media = [] if filtered else item.media[:MAX_THUMBS]

@@ -50,9 +50,9 @@ check('policy summary fetch swallows every error',
           r'# Servers before Mastodon 4\.3 have no policy endpoint\.\s+'
           r'self\.requests_banner\.set_revealed\(False\)\s+return',
           source, re.S))
-check('refresh and clear report through pages.report_error',
-      "pages.report_error(self, _('Refresh failed'), e)" in source
-      and "pages.report_error(self, _('Clear failed'), e)" in source
+check('refresh and clear report through feedback.report_error',
+      "feedback.report_error(self, _('Refresh failed'), e)" in source
+      and "feedback.report_error(self, _('Clear failed'), e)" in source
       and 'hasattr(root, \'show_error\')' not in source)
 
 if failures:

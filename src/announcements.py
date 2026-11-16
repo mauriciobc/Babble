@@ -17,8 +17,9 @@ from .i18n import gettext as _
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from .api import announcements as api_announcements  # noqa: E402
-from .pages import (PagedList, connect_weak, report_error,  # noqa: E402
-                    set_accessible_label)
+from .feedback import report_error  # noqa: E402
+from .pages import PagedList, set_accessible_label  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import InlineEmojiText, emoji_bank_from  # noqa: E402
 from .statustext import format_time, parse_content  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402

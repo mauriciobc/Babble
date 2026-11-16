@@ -80,8 +80,8 @@ def read_state(widget=None):
     """The current :class:`MediaState`. GTK's settings are those of
     *widget*'s display when one is given, else the default display's (and
     the defaults when there is no display at all)."""
-    from . import pages, sysstate
-    settings = pages.settings()
+    from . import appsettings, sysstate
+    settings = appsettings.settings()
     if widget is not None:
         gtk_settings = Gtk.Settings.get_for_display(widget.get_display())
     else:
@@ -160,7 +160,7 @@ def connect_changes(handler, widget=None):
     process, so whatever a handler references lives as long:
 
     * a bound method of a ``GObject.Object``, held weakly
-      (:func:`pages.connect_weak`): a widget or player that connects its
+      (:func:`weakconnect.connect_weak`): a widget or player that connects its
       own method forms no cycle through C and is freed as before;
     * a module-level function, connected directly. A weak reference to a
       function would drop it at once.
@@ -183,7 +183,8 @@ def connect_changes(handler, widget=None):
     module-level variable that is later set to a widget) or through an
     attribute that something else sets on it after the check. This is a
     guard against the usual ways of pinning a widget, not a proof."""
-    from . import pages, sysstate
+    from . import appsettings, sysstate
+    from .weakconnect import connect_weak
 
     if isinstance(handler, types.MethodType) \
             and isinstance(handler.__self__, GObject.Object):
@@ -203,7 +204,7 @@ def connect_changes(handler, widget=None):
 
     def connect(emitter, signal):
         if weak:
-            pages.connect_weak(emitter, signal, handler)
+            connect_weak(emitter, signal, handler)
         else:
             emitter.connect(signal, handler)
 
@@ -217,6 +218,6 @@ def connect_changes(handler, widget=None):
     if gtk_settings is not None:
         for name in GTK_PROPERTIES:
             connect(gtk_settings, 'notify::' + name)
-    settings = pages.settings()
+    settings = appsettings.settings()
     for key in SETTINGS_KEYS:
         connect(settings, 'changed::' + key)

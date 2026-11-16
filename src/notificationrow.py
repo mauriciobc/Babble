@@ -12,9 +12,12 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import pages  # noqa: E402
+from . import linkrouting, pages  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
-from .pages import connect_weak, launch_external, reveal, report_error  # noqa: E402
+from .feedback import report_error  # noqa: E402
+from .linkrouting import launch_external  # noqa: E402
+from .pages import reveal  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import EMOJI_RE, status_emoji_bank  # noqa: E402
 from .notificationctrl import _RELATIONSHIPS  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
@@ -220,7 +223,7 @@ class NotificationPost(MediaOpener, Gtk.Box):
         self.more_button.set_visible(False)
 
     def _on_activate_link(self, _label, uri):
-        pages.open_link(self, uri, tag=self._tag_by_href.get(uri))
+        linkrouting.open_link(self, uri, tag=self._tag_by_href.get(uri))
         return True
 
     def _show(self, segments):

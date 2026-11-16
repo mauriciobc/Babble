@@ -39,7 +39,8 @@ _spec.loader.exec_module(fx)
 Adw.init()
 
 from src import bluesky, blueskycard, blueskythread  # noqa: E402
-from src import mediacache, pages, statusrow, timelinedata  # noqa: E402
+from src import (appsettings, linkrouting, mediacache, pagenav,  # noqa: E402
+                 statusrow, timelinedata)
 from src.mediabox import CardPreview  # noqa: E402
 
 failures = []
@@ -112,7 +113,7 @@ def bind(status):
     return row, item
 
 
-settings = pages.settings()
+settings = appsettings.settings()
 settings.set_boolean('bluesky-native', True)
 
 # AC1: the live-shaped status.
@@ -300,7 +301,7 @@ pushed, opened = [], []
 real_push = blueskythread.push_bluesky_thread
 blueskythread.push_bluesky_thread = lambda widget, actor, rkey: pushed.append(
     (actor, rkey))
-pages.open_link = lambda widget, uri, *a, **k: opened.append(uri)
+linkrouting.open_link = lambda widget, uri, *a, **k: opened.append(uri)
 card.emit('clicked')
 check('click pushes the native thread',
       pushed == [('did:plc:6zulsu3flxsklsaoxdsx52h4', '3mzuxm3z6nk24')]
@@ -497,15 +498,15 @@ class _Window:
 fake = _Window()
 blueskythread.push_bluesky_thread = real_push
 launched = []
-pages.window_of = lambda widget: fake
-pages.launch_external = lambda widget, uri: launched.append(uri)
+pagenav.window_of = lambda widget: fake
+linkrouting.launch_external = lambda widget, uri: launched.append(uri)
 first = blueskythread.push_bluesky_thread(Gtk.Label(), fx.DID, 'k1')
 check('pushing a thread page sends one request',
       requests == [(fx.DID, 'k1')] and first is not None, requests)
 again = blueskythread.push_bluesky_thread(Gtk.Label(), fx.DID, 'k1')
 check('a page already on the stack sends no request',
       again is None and len(requests) == 1, requests)
-pages.window_of = lambda widget: None
+pagenav.window_of = lambda widget: None
 none = blueskythread.push_bluesky_thread(Gtk.Label(), fx.DID, 'k2')
 check('with no window nothing is requested, the web page opens',
       none is None and len(requests) == 1

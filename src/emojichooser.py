@@ -20,8 +20,8 @@ from gi.repository import Adw, Gio, GLib, GObject, Gtk  # noqa: E402
 from . import textemoji  # noqa: E402
 from .api import instance as api_instance  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
-from .pages import (connect_weak, set_accessible_label,  # noqa: E402
-                    weak_method)
+from .pages import set_accessible_label  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 SCHEMA_ID = 'io.github.mauriciobc.Babble'
 RECENT_LIMIT = 24
@@ -99,7 +99,7 @@ def _settings():
     source = Gio.SettingsSchemaSource.get_default()
     if source is None or source.lookup(SCHEMA_ID, True) is None:
         return None
-    from .pages import settings
+    from .appsettings import settings
     return settings()
 
 

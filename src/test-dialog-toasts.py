@@ -21,7 +21,7 @@ the dialogs; Adw.AlertDialog does not). Anything else must be on
 ALLOWED with a reason; an entry that no longer matches, and an entry
 with an empty reason, fail.
 
-Every dialog other than pages.ToastDialog must either use that shared
+Every dialog other than feedback.ToastDialog must either use that shared
 base or be listed in HAND_BUILT, ALLOWED or derive from ADW_OWNED, so
 an off-base dialog cannot be added silently.
 
@@ -47,7 +47,7 @@ ALLOWED = {
     ('compose', 'ComposeDialog'):
         'the overlay is built by its child view BabbleComposeView '
         '(compose.py:454); CLEAN-03 records why it cannot use '
-        'pages.show_toast',
+        'feedback.show_toast',
     ('scheduled', 'SchedulePickerDialog'):
         'raises no toasts; errors are reported by the page behind it '
         'after the dialog closes',
@@ -95,7 +95,7 @@ EXPECTED = {
     ('lists', 'ListEditor'),
     ('lists', '_MembershipDialog'),
     ('notificationpolicy', 'NotificationPolicyDialog'),
-    ('pages', 'ToastDialog'),
+    ('feedback', 'ToastDialog'),
     ('pluginspage', 'PluginsDialog'),
     ('preferences', 'PreferencesDialog'),
     ('profile', 'PrivateNoteDialog'),
@@ -245,14 +245,14 @@ def uses_base(key):
         return False
     for base in classes[key]['bases']:
         target = resolve(key[0], base)
-        if target and (target == ('pages', 'ToastDialog')
+        if target and (target == ('feedback', 'ToastDialog')
                        or uses_base(target)):
             return True
     return False
 
 
 off_base = [key for key in dialogs
-            if key != ('pages', 'ToastDialog') and not uses_base(key)
+            if key != ('feedback', 'ToastDialog') and not uses_base(key)
             and key not in HAND_BUILT and key not in ALLOWED
             and not adw_owned(key)]
 check('every off-base dialog is listed', not off_base,

@@ -12,7 +12,9 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import linkhandlers, pages, pluginlinks  # noqa: E402
+from . import (appsettings, feedback, linkhandlers, linkrouting,  # noqa: E402
+               pagenav, pages, pluginlinks)
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .statustext import is_web_link  # noqa: E402
 
@@ -75,22 +77,22 @@ def classify_navigation(uri, *, new_window=False, link_clicked=False,
                          or modifiers & Gdk.ModifierType.CONTROL_MASK):
         return EXTERNAL, uri
     if link_clicked and resolve and not claimed \
-            and pages.is_fediverse_link(uri):
+            and linkrouting.is_fediverse_link(uri):
         return ROUTE, uri
     if new_window and not user_gesture:
         return IGNORE, uri  # popups are blocked
     if link_clicked and strip:
-        uri = pages.strip_tracking(uri)
+        uri = linkrouting.strip_tracking(uri)
     return LOAD, uri
 
 
 def present_web(widget, uri):
     """Open *uri* in the web column of *widget*'s window, or in the
     system browser when there is no column to show it in."""
-    window = pages.window_of(widget)
+    window = pagenav.window_of(widget)
     if window is None or not hasattr(window, 'web_split') \
             or not available():
-        pages.launch_external(widget, uri)
+        linkrouting.launch_external(widget, uri)
         return
     _show(window, uri)
 
@@ -110,10 +112,10 @@ def present_panel(widget, uri, owner, title=None):
     panel: whatever panel the column had is closed, and the column is
     shown whatever the user chose for opening links. Returns the column,
     or None, after opening the system browser, when there is none."""
-    window = pages.window_of(widget)
+    window = pagenav.window_of(widget)
     if window is None or not hasattr(window, 'web_split') \
             or not available():
-        pages.launch_external(widget, uri)
+        linkrouting.launch_external(widget, uri)
         return None
     return _show(window, uri, owner, title)
 
@@ -254,11 +256,11 @@ class WebColumn(Adw.Bin):
                              ('open-browser', self._on_open_browser),
                              ('copy-link', self._on_copy_link)):
             action = Gio.SimpleAction.new(name, None)
-            pages.connect_weak(action, 'activate', method)
+            connect_weak(action, 'activate', method)
             group.add_action(action)
         self._open_link_action = Gio.SimpleAction.new(
             'open-link', GLib.VariantType.new('s'))
-        pages.connect_weak(self._open_link_action, 'activate',
+        connect_weak(self._open_link_action, 'activate',
                            self._on_open_link)
         group.add_action(self._open_link_action)
         self.insert_action_group('web', group)
@@ -266,7 +268,7 @@ class WebColumn(Adw.Bin):
     def _build_view(self):
         WebKit = self._webkit
         config = WebKit.Settings(
-            enable_javascript=pages.settings().get_boolean('web-javascript'),
+            enable_javascript=appsettings.settings().get_boolean('web-javascript'),
             enable_media_stream=False,
             media_playback_requires_user_gesture=True,
             enable_back_forward_navigation_gestures=True,
@@ -292,8 +294,8 @@ class WebColumn(Adw.Bin):
                 ('notify::uri', self._on_uri),
                 ('notify::estimated-load-progress', self._on_progress),
                 ('notify::is-loading', self._on_progress)):
-            pages.connect_weak(view, signal, method)
-        pages.connect_weak(pages.settings(), 'changed::web-javascript',
+            connect_weak(view, signal, method)
+        connect_weak(appsettings.settings(), 'changed::web-javascript',
                            self._on_javascript_changed)
         return view
 
@@ -301,14 +303,14 @@ class WebColumn(Adw.Bin):
         header = Adw.HeaderBar()
         hide = pages.icon_button('sidebar-show-right-symbolic',
                                  _('Hide Web Column'))
-        pages.connect_weak(hide, 'clicked', self._on_close_clicked)
+        connect_weak(hide, 'clicked', self._on_close_clicked)
         header.pack_start(hide)
         self.back_button = pages.icon_button('go-previous-symbolic',
                                              _('Back'))
         self.forward_button = pages.icon_button('go-next-symbolic',
                                                 _('Forward'))
-        pages.connect_weak(self.back_button, 'clicked', self._on_back)
-        pages.connect_weak(self.forward_button, 'clicked', self._on_forward)
+        connect_weak(self.back_button, 'clicked', self._on_back)
+        connect_weak(self.forward_button, 'clicked', self._on_forward)
         header.pack_start(self.back_button)
         header.pack_start(self.forward_button)
 
@@ -333,10 +335,10 @@ class WebColumn(Adw.Bin):
                       halign=Gtk.Align.CENTER)
         browser = Gtk.Button(label=_('Open in Browser'))
         browser.add_css_class('pill')
-        pages.connect_weak(browser, 'clicked', self._on_open_browser)
+        connect_weak(browser, 'clicked', self._on_open_browser)
         self.error_reload = Gtk.Button(label=_('Reload'))
         self.error_reload.add_css_class('pill')
-        pages.connect_weak(self.error_reload, 'clicked', self._on_reload)
+        connect_weak(self.error_reload, 'clicked', self._on_reload)
         box.append(browser)
         box.append(self.error_reload)
         self.error_page.set_child(box)
@@ -356,7 +358,7 @@ class WebColumn(Adw.Bin):
         self.add_controller(controller)
 
     def _shortcut_callback(self, method):
-        target = pages.weak_method(method)
+        target = weak_method(method)
 
         def activate(_widget, _args):
             target()
@@ -394,7 +396,7 @@ class WebColumn(Adw.Bin):
             return False
         action = decision.get_navigation_action()
         uri = action.get_request().get_uri()
-        config = pages.settings()
+        config = appsettings.settings()
         link_clicked = (action.get_navigation_type()
                         == WebKit.NavigationType.LINK_CLICKED)
         user_gesture = action.is_user_gesture()
@@ -426,10 +428,10 @@ class WebColumn(Adw.Bin):
                 decision.use()
         elif verdict == EXTERNAL:
             decision.ignore()
-            pages.launch_external(self, target)
+            linkrouting.launch_external(self, target)
         elif verdict == ROUTE:
             decision.ignore()
-            pages.open_link(self, target, resolve=True)
+            linkrouting.open_link(self, target, resolve=True)
         else:
             decision.ignore()
         return True
@@ -460,9 +462,9 @@ class WebColumn(Adw.Bin):
         decision.ignore()
         if self._user_nav and not self._handed_off:
             self._handed_off = True
-            pages.launch_external(self, response.get_uri())
+            linkrouting.launch_external(self, response.get_uri())
             if not self._committed and not self.view.can_go_back():
-                GLib.idle_add(pages.weak_method(self._close_idle))
+                GLib.idle_add(weak_method(self._close_idle))
         return True
 
     def _close_idle(self):
@@ -494,7 +496,7 @@ class WebColumn(Adw.Bin):
         return False
 
     def _on_open_link(self, _action, parameter):
-        pages.launch_external(self, parameter.get_string())
+        linkrouting.launch_external(self, parameter.get_string())
 
     # Failures
 
@@ -598,20 +600,20 @@ class WebColumn(Adw.Bin):
     def _on_open_browser(self, *_args):
         uri = self._current_uri()
         if uri:
-            pages.launch_external(self, uri)
+            linkrouting.launch_external(self, uri)
 
     def _on_copy_link(self, *_args):
         uri = self._current_uri()
         if uri:
             self.get_clipboard().set(uri)
-            pages.show_toast(self, _('Copied link to clipboard'))
+            feedback.show_toast(self, _('Copied link to clipboard'))
 
     def _on_close_clicked(self, *_args):
         self.close_column()
 
     def close_column(self):
         """The user's explicit close: drop the column and hide its slot."""
-        split = getattr(pages.window_of(self), 'web_split', None)
+        split = getattr(pagenav.window_of(self), 'web_split', None)
         self.dispose_column()
         if split is not None:
             split.set_show_sidebar(False)
@@ -631,7 +633,7 @@ class WebColumn(Adw.Bin):
             # period if it never does. A new load in the meantime
             # (:meth:`load_uri`) takes the column back.
             self._teardown_timer = GLib.timeout_add_seconds(
-                TEARDOWN_GRACE_SECONDS, pages.weak_method(self._on_grace))
+                TEARDOWN_GRACE_SECONDS, weak_method(self._on_grace))
             return
         self._teardown()
 

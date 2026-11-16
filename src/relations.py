@@ -12,7 +12,8 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import feedback, pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 
 
@@ -41,14 +42,14 @@ class FollowRequestsPage(pages.AccountListPage):
         reject = pages.icon_button(
             'window-close-symbolic',
             _('Reject Follow Request from %s') % _account_label(account))
-        pages.connect_weak(reject, 'clicked', self._on_answer, account,
+        connect_weak(reject, 'clicked', self._on_answer, account,
                            'reject')
         reject.add_css_class('circular')
         accept = pages.icon_button(
             'object-select-symbolic',
             _('Accept Follow Request from %s') % _account_label(account),
             flat=False)
-        pages.connect_weak(accept, 'clicked', self._on_answer, account,
+        connect_weak(accept, 'clicked', self._on_answer, account,
                            'authorize')
         accept.add_css_class('circular')
         accept.add_css_class('suggested-action')
@@ -65,7 +66,7 @@ class FollowRequestsPage(pages.AccountListPage):
         self.mutate_row_api(
             row, lambda cb: api_relationships.answer_request_async(
                 client, account['id'], verb, callback=cb),
-            lambda: pages.show_toast(
+            lambda: feedback.show_toast(
                 self, (_('Accepted %s') if accepted else _('Rejected %s'))
                 % _account_label(account)),
             _('Could not accept the request') if accepted
@@ -81,7 +82,7 @@ def _row_of(button):
 def _remove_button(label, on_clicked, *extra):
     """*on_clicked*: a bound method ``(button, *extra)``, held weakly."""
     button = Gtk.Button(label=label, valign=Gtk.Align.CENTER)
-    pages.connect_weak(button, 'clicked', on_clicked, *extra)
+    connect_weak(button, 'clicked', on_clicked, *extra)
     return button
 
 
@@ -107,7 +108,7 @@ class MutedAccountsPage(pages.AccountListPage):
         self.mutate_row_api(
             row, lambda cb: api_relationships.unmute_async(
                 client, account['id'], callback=cb),
-            lambda: pages.show_toast(
+            lambda: feedback.show_toast(
                 self, _('Unmuted %s') % _account_label(account)),
             _('Could not unmute %s') % _account_label(account))
 
@@ -134,7 +135,7 @@ class BlockedAccountsPage(pages.AccountListPage):
         self.mutate_row_api(
             row, lambda cb: api_relationships.unblock_async(
                 client, account['id'], callback=cb),
-            lambda: pages.show_toast(
+            lambda: feedback.show_toast(
                 self, _('Unblocked %s') % _account_label(account)),
             _('Could not unblock %s') % _account_label(account))
 
@@ -167,7 +168,7 @@ class BlockedDomainsPage(pages.PagedList):
         self.mutate_row_api(
             row, lambda cb: api_relationships.domain_unblock_async(
                 client, domain, callback=cb),
-            on_done=lambda: pages.show_toast(
+            on_done=lambda: feedback.show_toast(
                 self, _('Unblocked %s') % domain),
             error_heading=_('Could not unblock %s') % domain)
 

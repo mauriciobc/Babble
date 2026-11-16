@@ -34,7 +34,7 @@ if os.path.exists(bundle):
 
 Adw.init()
 
-from src import pages  # noqa: E402
+from src import feedback, pages  # noqa: E402
 from src.fedicollections import CollectionPage  # noqa: E402
 from src.filters import FiltersList  # noqa: E402
 from src.statusviews import EditHistoryView  # noqa: E402
@@ -233,7 +233,7 @@ def run_user(factory, rerun, label):
 
 
 shown = []
-pages.show_toast = lambda *args, **kwargs: shown.append(args)
+feedback.show_toast = lambda *args, **kwargs: shown.append(args)
 
 run_user(lambda c: FiltersList(c, Adw.NavigationView()),
          lambda p: p.refresh(), 'filters')

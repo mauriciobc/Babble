@@ -16,7 +16,8 @@ from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from . import bluesky  # noqa: E402
 from . import bskytext  # noqa: E402
-from . import pages  # noqa: E402
+from . import linkrouting, pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .blueskycard import BlueskyQuoteCard  # noqa: E402
 from .mediabox import CardPreview, MediaBox, status_picture  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
@@ -34,17 +35,17 @@ BLOCKED = 'app.bsky.feed.defs#blockedPost'
 def push_bluesky_thread(widget, actor, rkey):
     """Open the native thread page for the post *rkey* by *actor* (a DID or
     a handle); the web page when there is no window to push onto."""
-    window = pages.window_of(widget)
+    window = pagenav.window_of(widget)
     tag = 'bsky-%s' % rkey
     if window is None:
-        pages.launch_external(widget, bskytext.web_url(actor, rkey))
+        linkrouting.launch_external(widget, bskytext.web_url(actor, rkey))
         return None
     existing = window.navigation_view.find_page(tag)
     if existing is not None:
         window.navigation_view.pop_to_page(existing)
         return None
     page = BlueskyThreadPage(actor, rkey)
-    if pages.push_page(widget, _('Bluesky Post'), page, tag=tag) is None:
+    if pagenav.push_page(widget, _('Bluesky Post'), page, tag=tag) is None:
         return None
     # Only a page that is really on the stack asks Bluesky for anything.
     page.load()
@@ -126,7 +127,7 @@ class BlueskyPostView(Gtk.Box):
                 button = Gtk.Button(label=_('Open on Bluesky'),
                                     halign=Gtk.Align.START)
                 button.add_css_class('pill')
-                pages.connect_weak(button, 'clicked', self._on_open_web)
+                connect_weak(button, 'clicked', self._on_open_web)
                 self.append(button)
             return
         text = record.get('text') or ''
@@ -184,7 +185,7 @@ class BlueskyPostView(Gtk.Box):
         button.add_css_class('flat')
         pages.set_accessible_label(
             button, video.get('alt') or _('Open Video on Bluesky'))
-        pages.connect_weak(button, 'clicked', self._on_open_web)
+        connect_weak(button, 'clicked', self._on_open_web)
         return button
 
     @staticmethod
@@ -223,7 +224,7 @@ class BlueskyPostView(Gtk.Box):
 
     def _on_open_web(self, _button):
         if self.web_url:
-            pages.launch_external(self, self.web_url)
+            linkrouting.launch_external(self, self.web_url)
 
 
 class BlueskyThreadPage(Adw.Bin):
@@ -242,7 +243,7 @@ class BlueskyThreadPage(Adw.Bin):
         self._replies_hidden = False
         button = Gtk.Button(icon_name='web-browser-symbolic')
         pages.set_accessible_label(button, _('Open on Bluesky'))
-        pages.connect_weak(button, 'clicked', self._on_open_web)
+        connect_weak(button, 'clicked', self._on_open_web)
         self.header_widgets = [button]
         self.stack = pages.StateStack(
             _('Loading Post'), _('Could Not Load Post'), self.on_retry)
@@ -268,7 +269,7 @@ class BlueskyThreadPage(Adw.Bin):
         bluesky.cancel(self._request)
         self._token = self.stack.begin()
         self._request = bluesky.get_thread_async(
-            self.actor, self.rkey, pages.weak_method(self._on_thread))
+            self.actor, self.rkey, weak_method(self._on_thread))
 
     def on_retry(self, _button):
         self.load()
@@ -322,7 +323,7 @@ class BlueskyThreadPage(Adw.Bin):
                               halign=Gtk.Align.CENTER, margin_top=8,
                               margin_bottom=12)
             more.add_css_class('pill')
-            pages.connect_weak(more, 'clicked', self._on_open_web)
+            connect_weak(more, 'clicked', self._on_open_web)
             self.thread_box.append(more)
 
     def _append_replies(self, parent_box, replies, depth):
@@ -349,4 +350,4 @@ class BlueskyThreadPage(Adw.Bin):
                                  depth + 1)
 
     def _on_open_web(self, _button):
-        pages.launch_external(self, self.web_url)
+        linkrouting.launch_external(self, self.web_url)

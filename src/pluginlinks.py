@@ -37,8 +37,8 @@ def _own_origin():
     """The origin of the signed-in account's instance, which no plugin
     may claim, or '' with nobody signed in. Read on each call: an
     account switch moves it."""
-    from . import accounts, pages
-    account = accounts.active_account(pages.settings())
+    from . import accounts, appsettings
+    account = accounts.active_account(appsettings.settings())
     return origin_of(account.get('instance')) if account else ''
 
 
@@ -74,11 +74,11 @@ def claim_link(widget, url):
     """Hand *url* to the plugin that claims it and return True, or
     return False and leave it alone: nobody claims it, the user opens
     links in the browser, or the plugin's open() raised."""
-    from . import pages, pluginhost
+    from . import appsettings, pluginhost
     host = pluginhost._host
     if host is None or not host.link_extensions:
         return False
-    if not pages.settings().get_boolean('open-links-in-app'):
+    if not appsettings.settings().get_boolean('open-links-in-app'):
         return False
     if url in _opening:
         return False  # its open() handed the link back: do not loop

@@ -34,7 +34,8 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 from . import imagecache  # noqa: E402
 from . import mastodon  # noqa: E402
 from . import mediapolicy  # noqa: E402
-from . import pages  # noqa: E402
+from . import appsettings  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .remotemedia import media_url  # noqa: E402
 
 CHUNK_SIZE = 64 * 1024
@@ -261,7 +262,7 @@ class MediaPlayback:
 
     def _restore_volume(self, stream):
         """Start a video or audio stream at the remembered volume."""
-        volume = pages.settings().get_double('media-viewer-volume')
+        volume = appsettings.settings().get_double('media-viewer-volume')
         self._loaded_volume = volume
         stream.set_volume(volume)
 
@@ -276,7 +277,7 @@ class MediaPlayback:
         # make every later video open silent.
         if volume >= MIN_SAVED_VOLUME \
                 and abs(volume - self._loaded_volume) > 1e-6:
-            pages.settings().set_double('media-viewer-volume', volume)
+            appsettings.settings().set_double('media-viewer-volume', volume)
         self._loaded_volume = None
 
     def _unload_media(self):
@@ -387,7 +388,7 @@ class MediaPlayback:
                                  [self._description(attachment)])
             # On release, so dragging the GIFV out leaves it playing.
             click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-            pages.connect_weak(click, 'released', self._on_gifv_clicked,
+            connect_weak(click, 'released', self._on_gifv_clicked,
                                stream)
             view.add_controller(click)
             # A looping animation is decoration: it waits for a click
@@ -412,12 +413,12 @@ class MediaPlayback:
             self._restore_volume(stream)
             autoplay = True
         self.media_bin.set_child(view)
-        pages.connect_weak(stream, 'notify::error', self._on_stream_error)
-        pages.connect_weak(stream, 'notify::prepared', self._on_stream_prepared,
+        connect_weak(stream, 'notify::error', self._on_stream_error)
+        connect_weak(stream, 'notify::prepared', self._on_stream_prepared,
                            autoplay)
-        pages.connect_weak(stream, 'notify::playing', self._on_stream_playing)
-        pages.connect_weak(stream, 'notify::ended', self._on_stream_playing)
-        pages.connect_weak(stream, 'notify::buffering',
+        connect_weak(stream, 'notify::playing', self._on_stream_playing)
+        connect_weak(stream, 'notify::ended', self._on_stream_playing)
+        connect_weak(stream, 'notify::buffering',
                            self._on_stream_buffering)
         if stream.get_error() is not None:
             self._on_stream_error(stream, None)

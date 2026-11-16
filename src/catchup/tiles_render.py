@@ -20,12 +20,12 @@ gi.require_version('Pango', '1.0')
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
-from .. import explore, hashtags, pages, statustext  # noqa: E402
+from .. import explore, hashtags, linkrouting, pages, statustext  # noqa: E402
 from . import digest as catchupdigest, digest_layout  # noqa: E402
 from .. import mediacache, mediabox, statusactions
 from .. import timelinebase
 from ..accounts import plain_name
-from ..pages import connect_weak
+from ..weakconnect import connect_weak
 from ..textemoji import status_emoji_bank  # noqa: E402
 from .geometry import (
     FOOTER_HEIGHT, INSET_TEXT_CHARS, MAX_COLUMN, NEWS_IMAGE_SHARE,
@@ -615,7 +615,7 @@ class NewsTile(_Tile):
         explore.open_link_timeline(self, self.context.client, self.card)
 
     def _on_browser(self, _button):
-        pages.launch_external(self, self.card.get('url') or '')
+        linkrouting.launch_external(self, self.card.get('url') or '')
 
     def _kind_label(self, with_provider):
         _title, provider = explore.link_card_labels(self.card)

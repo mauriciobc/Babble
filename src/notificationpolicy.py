@@ -10,13 +10,15 @@ from .i18n import gettext as _
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import feedback, pages  # noqa: E402
 from .api import notifications as api_notifications  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .notificationcopy import (FILTER_NOTIFICATION_TYPES,  # noqa: E402
                                type_offered)
 from .notificationmodel import type_icon  # noqa: E402
-from .pages import connect_weak, settings, show_toast  # noqa: E402
+from .appsettings import settings  # noqa: E402
+from .feedback import show_toast  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 
 EXCLUDED_TYPES_KEY = 'notification-excluded-types'
@@ -47,7 +49,7 @@ POLICY_CHOICES = [
 ]
 
 
-class NotificationPolicyDialog(pages.ToastDialog):
+class NotificationPolicyDialog(feedback.ToastDialog):
     """Edits ``GET/PATCH /api/v2/notifications/policy`` (what to do with
     notifications from each kind of sender: accept, filter into the
     requests inbox or drop) and the per-type visibility switches. The

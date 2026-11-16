@@ -18,7 +18,8 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, GObject, Gio, Gtk  # noqa: E402
 
-from . import pages, portals, webcolumn  # noqa: E402
+from . import feedback, portals, webcolumn  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .capabilities import (NOTIFICATION_POLICY_API_VERSION,  # noqa: E402
                            QUOTES_API_VERSION)
@@ -189,7 +190,7 @@ def sync_posting_defaults(window, key, settings):
         try:
             api_accounts.update_credentials_finish(client, result)
         except GLib.Error as error:
-            pages.report_error(window, _('Could not update the server preferences'),
+            feedback.report_error(window, _('Could not update the server preferences'),
                                error)
 
     api_accounts.update_credentials_async(client, form, callback=done)
@@ -241,9 +242,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
             title=title, subtitle=subtitle or '', use_underline=True,
             model=Gtk.StringList.new([choice[1] for choice in choices]))
         row.set_selected(self.settings.get_enum(key))
-        pages.connect_weak(row, 'notify::selected', self._on_enum_selected,
+        connect_weak(row, 'notify::selected', self._on_enum_selected,
                            key, sync)
-        pages.connect_weak(self.settings, 'changed::' + key,
+        connect_weak(self.settings, 'changed::' + key,
                            self._on_enum_setting_changed, row)
         group.add(row)
         return row
@@ -271,9 +272,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
         row.set_activatable_widget(toggles)
         nicks = [choice[0] for choice in choices]
         toggles.set_active_name(nicks[self.settings.get_enum(key)])
-        pages.connect_weak(toggles, 'notify::active-name',
+        connect_weak(toggles, 'notify::active-name',
                            self._on_toggle_selected, key, nicks)
-        pages.connect_weak(self.settings, 'changed::' + key,
+        connect_weak(self.settings, 'changed::' + key,
                            self._on_toggle_setting_changed, toggles, nicks)
         group.add(row)
         return row
@@ -296,10 +297,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
         current = self.settings.get_string(key)
         row.set_selected(nicks.index(current) if current in nicks else 0)
 
-        pages.connect_weak(row, 'notify::selected', self._on_combo_selected,
+        connect_weak(row, 'notify::selected', self._on_combo_selected,
                            key, nicks)
         # Follow outside changes (e.g. dconf-editor).
-        pages.connect_weak(self.settings, 'changed::' + key,
+        connect_weak(self.settings, 'changed::' + key,
                            self._on_combo_setting_changed, row, nicks)
         group.add(row)
         return row
@@ -326,7 +327,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             appearance, 'interface-language', _('_Language'),
             [('', _('System language'))] + list(INTERFACE_LANGUAGES),
             subtitle=_('Takes effect the next time Babble starts'))
-        pages.connect_weak(row, 'notify::selected',
+        connect_weak(row, 'notify::selected',
                            self._on_interface_language_selected)
         self._combo_enum(appearance, 'color-scheme', _('_Color Scheme'),
                          [(n, label) for n, label, _v in COLOR_SCHEMES])
@@ -474,7 +475,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                            _('Background _Mode'),
                            _('Keep running after the window is '
                              'closed to deliver notifications'))
-        pages.connect_weak(row, 'notify::active', self._on_background_toggled)
+        connect_weak(row, 'notify::active', self._on_background_toggled)
         self._shortcut_row = self._switch(
             background, 'global-shortcut', _('_Quick Post Shortcut'),
             _('Open the composer from anywhere with a system-wide '
@@ -482,7 +483,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         # Shown only once the GlobalShortcuts portal is known to exist.
         self._shortcut_row.set_visible(False)
         portals.portal_version(portals.SHORTCUTS,
-                               pages.weak_method(self._on_shortcut_portal))
+                               weak_method(self._on_shortcut_portal))
         return background
 
     def _filters_group(self):
@@ -496,7 +497,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         row.add_suffix(Gtk.Image(
             icon_name='go-next-symbolic',
             accessible_role=Gtk.AccessibleRole.PRESENTATION))
-        pages.connect_weak(row, 'activated', self._on_filters_activated)
+        connect_weak(row, 'activated', self._on_filters_activated)
         group.add(row)
         return group
 
@@ -602,7 +603,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._language_row(group)
         row = self._switch(group, 'default-sensitive',
                            _('Media Marked _Sensitive'))
-        pages.connect_weak(row, 'notify::active', self._on_sensitive_toggled)
+        connect_weak(row, 'notify::active', self._on_sensitive_toggled)
 
         instance = (self.window.account or {}).get('instance', '')
         server = Adw.PreferencesGroup()
@@ -613,7 +614,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         server_row.add_suffix(Gtk.Image(
             icon_name='adw-external-link-symbolic',
             accessible_role=Gtk.AccessibleRole.PRESENTATION))
-        pages.connect_weak(server_row, 'activated',
+        connect_weak(server_row, 'activated',
                            self._on_server_activated, instance)
         server.add(server_row)
         page.add(group)
@@ -634,7 +635,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                 # Without a callback the refusal is silent, and the row
                 # looks like it did nothing. The wording is the one
                 # window.open_url already uses, so it is one string.
-                pages.report_error(self, _('Could not open the web browser'),
+                feedback.report_error(self, _('Could not open the web browser'),
                                    error)
 
         launcher = Gtk.UriLauncher.new(uri)
@@ -648,7 +649,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         current = self.settings.get_string('default-language')
         row.set_selected(codes.index(current) if current in codes else 0)
 
-        pages.connect_weak(row, 'notify::selected',
+        connect_weak(row, 'notify::selected',
                            self._on_language_selected, codes)
         group.add(row)
 
@@ -672,7 +673,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             row = Adw.SwitchRow(title=title, subtitle=subtitle or '')
             row.set_active(kind in self.settings.get_strv(
                 'desktop-notification-types'))
-            pages.connect_weak(row, 'notify::active', self._on_type_toggled,
+            connect_weak(row, 'notify::active', self._on_type_toggled,
                                kind)
             desktop.add(row)
         self._switch(
@@ -695,7 +696,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             policy.add_suffix(Gtk.Image(
                 icon_name='go-next-symbolic',
                 accessible_role=Gtk.AccessibleRole.PRESENTATION))
-            pages.connect_weak(policy, 'activated', self._on_policy_activated)
+            connect_weak(policy, 'activated', self._on_policy_activated)
             server.add(policy)
             page.add(server)
         page.add(self._background_group())

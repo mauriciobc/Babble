@@ -28,10 +28,10 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import appsettings, feedback, pagenav, pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import collections_api  # noqa: E402
-from .pages import weak_method  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
 MAX_MEMBERS = 25
@@ -79,7 +79,7 @@ def _send_api(client, start, finish, on_ok=None, on_error=None):
 def _current_account(widget=None):
     """The signed-in account dict of the window around *widget* (or the
     active window)."""
-    window = pages.window_of(widget) if widget is not None else None
+    window = pagenav.window_of(widget) if widget is not None else None
     if window is None:
         app = Gio.Application.get_default()
         window = app.get_active_window() if app is not None else None
@@ -116,7 +116,7 @@ def _report_lookup_error(widget, error):
     if now - _last_error_report[0] < _ERROR_REPORT_SECONDS * 1000000:
         return
     _last_error_report[0] = now
-    pages.report_error(widget, _('Could not load accounts'), error)
+    feedback.report_error(widget, _('Could not load accounts'), error)
 
 
 def fetch_accounts(client, ids, callback, widget=None):
@@ -187,7 +187,7 @@ def language_options():
 def default_language_code(collection=None):
     if collection and collection.get('language'):
         return collection['language']
-    code = pages.settings().get_string('default-language')
+    code = appsettings.settings().get_string('default-language')
     return code or 'en'
 
 
@@ -251,7 +251,7 @@ class CollectionActions:
         if not url:
             return
         self.widget.get_clipboard().set(url)
-        pages.show_toast(self.widget, _('Copied URL to clipboard'))
+        feedback.show_toast(self.widget, _('Copied URL to clipboard'))
 
     def edit(self):
         dialog = CollectionEditDialog(self.client, self.collection,
@@ -289,10 +289,10 @@ class CollectionActions:
                 collections_api.revoke_item_finish,
                 lambda _d: self._gone(_('You were removed from the '
                                           'collection')),
-                  lambda e: pages.report_error(
+                  lambda e: feedback.report_error(
                       self.widget, _('Could not remove you'), e))
 
-        pages.confirm(
+        feedback.confirm(
             self.widget,
             _('Remove Yourself from “%s”?') % self.collection.get('name', ''),
             _('You will no longer be featured in this collection.'),
@@ -306,16 +306,16 @@ class CollectionActions:
                     self.client, self.collection['id'], callback=cb),
                 collections_api.delete_finish,
                 lambda _d: self._gone(_('Collection deleted')),
-                  lambda e: pages.report_error(
+                  lambda e: feedback.report_error(
                       self.widget, _('Could not delete the collection'), e))
 
-        pages.confirm(
+        feedback.confirm(
             self.widget,
             _('Delete “%s”?') % self.collection.get('name', ''),
             _('The accounts in it are not affected.'), _('_Delete'), go)
 
     def _gone(self, message):
-        pages.show_toast(self.widget, message)
+        feedback.show_toast(self.widget, message)
         self.on_gone()
 
 
@@ -390,7 +390,7 @@ class CollectionRow(Adw.ActionRow):
                 self._count_text, _('By %s') % owner_label(owner)))
 
     def on_activate(self):
-        pages.push_page(
+        pagenav.push_page(
             self, self.collection.get('name', _('Collection')),
             CollectionPage(self.client, self.collection['id'],
                            self.collection),
@@ -415,7 +415,7 @@ class CollectionsPage(Adw.Bin):
             stack=self.stack, display_mode=Adw.InlineViewSwitcherDisplayMode.LABELS)
         self.new_button = pages.icon_button(
             'list-add-symbolic', _('New Collection'), flat=False)
-        pages.connect_weak(self.new_button, 'clicked', self._on_new)
+        connect_weak(self.new_button, 'clicked', self._on_new)
         self.new_button.add_css_class('suggested-action')
         self.header_widgets = [self.new_button]
 
@@ -567,7 +567,7 @@ class CollectionPage(Adw.Bin):
             name = tag['name'].lstrip('#')
             chip = Gtk.Button(label='#' + name, halign=Gtk.Align.CENTER)
             chip.add_css_class('pill')
-            pages.connect_weak(chip, 'clicked', self._on_tag_clicked, name)
+            connect_weak(chip, 'clicked', self._on_tag_clicked, name)
             column.append(chip)
 
         details = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
@@ -592,19 +592,19 @@ class CollectionPage(Adw.Bin):
         buttons = Gtk.Box(spacing=6, halign=Gtk.Align.CENTER)
         copy = Gtk.Button(label=_('Copy _URL'), use_underline=True)
         copy.add_css_class('pill')
-        pages.connect_weak(copy, 'clicked', self._on_action_clicked,
+        connect_weak(copy, 'clicked', self._on_action_clicked,
                            'copy_url')
         buttons.append(copy)
         if actions.is_owner:
             edit = Gtk.Button(label=_('_Edit'), use_underline=True)
             edit.add_css_class('pill')
-            pages.connect_weak(edit, 'clicked', self._on_action_clicked,
+            connect_weak(edit, 'clicked', self._on_action_clicked,
                                'edit')
             buttons.append(edit)
             delete = Gtk.Button(label=_('_Delete'), use_underline=True)
             delete.add_css_class('pill')
             delete.add_css_class('destructive-action')
-            pages.connect_weak(delete, 'clicked', self._on_action_clicked,
+            connect_weak(delete, 'clicked', self._on_action_clicked,
                                'delete')
             buttons.append(delete)
         elif actions.my_item is not None:
@@ -612,13 +612,13 @@ class CollectionPage(Adw.Bin):
                                use_underline=True)
             leave.add_css_class('pill')
             leave.add_css_class('destructive-action')
-            pages.connect_weak(leave, 'clicked', self._on_action_clicked,
+            connect_weak(leave, 'clicked', self._on_action_clicked,
                                'remove_me')
             buttons.append(leave)
         if not actions.is_owner:
             report = Gtk.Button(label=_('_Report'), use_underline=True)
             report.add_css_class('pill')
-            pages.connect_weak(report, 'clicked', self._on_action_clicked,
+            connect_weak(report, 'clicked', self._on_action_clicked,
                                'report')
             buttons.append(report)
         column.append(buttons)
@@ -652,7 +652,7 @@ class CollectionPage(Adw.Bin):
             warning.set_child(show)
             details.set_visible(False)
             self._hidden = (details, warning)
-            pages.connect_weak(show, 'clicked', self._on_show_content)
+            connect_weak(show, 'clicked', self._on_show_content)
             column.append(warning)
         column.append(details)
 
@@ -685,12 +685,12 @@ class CollectionPage(Adw.Bin):
 
     def _open_tag(self, name):
         from .hashtags import push_hashtag
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is not None:
             push_hashtag(self, self.client, name)
 
     def _pop(self):
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is not None:
             window.navigation_view.pop()
 
@@ -722,7 +722,7 @@ def can_invite(account):
     return approval.get('current_user') in ('automatic', 'manual')
 
 
-class CollectionEditDialog(pages.ToastDialog):
+class CollectionEditDialog(feedback.ToastDialog):
     """Create (``collection`` None) or edit a collection. In edit mode the
     member changes are applied as they are made; the details are saved
     with the Save button."""
@@ -739,19 +739,19 @@ class CollectionEditDialog(pages.ToastDialog):
         self._search_results = []
 
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        pages.connect_weak(cancel, 'clicked', self._on_cancel)
+        connect_weak(cancel, 'clicked', self._on_cancel)
         self.header.pack_start(cancel)
         self.save_button = Gtk.Button(
             label=_('_Save') if self.edit_mode else _('_Create'),
             use_underline=True)
         self.save_button.add_css_class('suggested-action')
-        pages.connect_weak(self.save_button, 'clicked', self._on_save)
+        connect_weak(self.save_button, 'clicked', self._on_save)
         self.header.pack_end(self.save_button)
 
         details = Adw.PreferencesGroup()
         self.name_row = Adw.EntryRow(title=_('Name'))
         self._limit_length(self.name_row, 40)
-        pages.connect_weak(self.name_row, 'changed', self._update_save)
+        connect_weak(self.name_row, 'changed', self._update_save)
         self.description_row = Adw.EntryRow(title=_('Description'))
         self._limit_length(self.description_row, 100)
         self.topic_row = Adw.EntryRow(title=_('Topic (Hashtag)'))
@@ -805,7 +805,7 @@ class CollectionEditDialog(pages.ToastDialog):
             description=_('Only people who allow being featured can be '
                           'added.'))
         self.search_row = Adw.EntryRow(title=_('Search Accounts'))
-        pages.connect_weak(self.search_row, 'changed',
+        connect_weak(self.search_row, 'changed',
                            self._on_search_changed)
         self.search_group.add(self.search_row)
         self.page.add(self.search_group)
@@ -879,7 +879,7 @@ class CollectionEditDialog(pages.ToastDialog):
         if item and item.get('state') == 'pending':
             row.add_badge(_('Pending'))
         remove = pages.icon_button('user-trash-symbolic', _('Remove'))
-        pages.connect_weak(remove, 'clicked', self._on_remove_clicked,
+        connect_weak(remove, 'clicked', self._on_remove_clicked,
                            account)
         remove.add_css_class('error')
         row.add_suffix(remove)
@@ -976,7 +976,7 @@ class CollectionEditDialog(pages.ToastDialog):
         row.account_data = account
         button = Gtk.Button(label=_('_Add'), use_underline=True,
                             valign=Gtk.Align.CENTER)
-        pages.connect_weak(button, 'clicked', self._on_add_clicked)
+        connect_weak(button, 'clicked', self._on_add_clicked)
         row.add_suffix(button)
         row.add_button = button
         self._search_results.append(row)

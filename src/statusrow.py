@@ -12,8 +12,8 @@ from .i18n import gettext as _
 from gi.repository import (Adw, Gdk, Gtk, Pango)
 
 from . import filterrules  # noqa: E402
-from . import pages  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from . import pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from . import blueskycard  # noqa: E402
 from .blueskycard import (bridged_badge, card_wanted, fill_card_box,
                            wants_inline_dropped)
@@ -674,7 +674,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
         _open_thread(self, self.client, item)
 
     def activate_profile(self, item):
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is None:
             return
         from .profile import push_profile

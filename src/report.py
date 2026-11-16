@@ -17,7 +17,8 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import feedback, pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import reports  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
@@ -192,7 +193,7 @@ class ReportDialog(Adw.Dialog):
         button = Gtk.Button(label=suggested_label or _('_Next'),
                             use_underline=True, sensitive=False)
         button.add_css_class('suggested-action')
-        pages.connect_weak(button, 'clicked', self._on_next, name)
+        connect_weak(button, 'clicked', self._on_next, name)
         header.pack_end(button)
         self.next_buttons[name] = button
         toolbar = Adw.ToolbarView(content=content)
@@ -245,7 +246,7 @@ class ReportDialog(Adw.Dialog):
                 first = check
             else:
                 check.set_group(first)
-            pages.connect_weak(check, 'toggled', self._on_category_toggled,
+            connect_weak(check, 'toggled', self._on_category_toggled,
                                category)
             row = Adw.ActionRow(title=title, subtitle=subtitle,
                                 use_markup=False, activatable_widget=check)
@@ -276,7 +277,7 @@ class ReportDialog(Adw.Dialog):
         for rule in self._rules():
             check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             check.add_css_class('selection-mode')
-            pages.connect_weak(check, 'toggled', self._on_rule_toggled)
+            connect_weak(check, 'toggled', self._on_rule_toggled)
             row = Adw.ActionRow(
                 title=GLib.markup_escape_text((rule.get('text') or '').strip()),
                 subtitle=GLib.markup_escape_text(
@@ -362,7 +363,7 @@ class ReportDialog(Adw.Dialog):
         self.comment_view.update_property(
             [Gtk.AccessibleProperty.LABEL], [_('Additional Comments')])
         self.comment_buffer = self.comment_view.get_buffer()
-        pages.connect_weak(self.comment_buffer, 'changed',
+        connect_weak(self.comment_buffer, 'changed',
                            self._on_comment_changed)
         scrolled = Gtk.ScrolledWindow(
             child=self.comment_view, min_content_height=140,
@@ -463,7 +464,7 @@ class ReportDialog(Adw.Dialog):
             return
         parent = self.parent_widget
         self.force_close()
-        pages.show_toast(parent, _('Report sent'))
+        feedback.show_toast(parent, _('Report sent'))
 
 
 def present_report(parent_widget, client, account, status=None,
@@ -473,6 +474,6 @@ def present_report(parent_widget, client, account, status=None,
     dialog = ReportDialog(client, account, status=status,
                           collection=collection,
                           parent_widget=parent_widget)
-    host = pages.window_of(parent_widget) or parent_widget
+    host = pagenav.window_of(parent_widget) or parent_widget
     dialog.present(host)
     return dialog

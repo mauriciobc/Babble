@@ -36,7 +36,7 @@ Gio.Resource.load(bundle)._register()
 
 Adw.init()
 
-from src import pages  # noqa: E402
+from src import feedback  # noqa: E402
 from src.entities import lift  # noqa: E402
 from src.statusactions import StatusActions  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
@@ -53,8 +53,8 @@ def check(name, condition, detail=''):
 
 
 reported = []
-pages.report_error = lambda widget, heading, error: reported.append(heading)
-pages.show_toast = lambda *args, **kwargs: None
+feedback.report_error = lambda widget, heading, error: reported.append(heading)
+feedback.show_toast = lambda *args, **kwargs: None
 
 
 class Client:

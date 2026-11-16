@@ -418,7 +418,7 @@ def run():
               and view.restore_stashing(before.draft) is False
               and view._capture_state() == before)
         view._posting = False
-        from src import pages
+        from src import appsettings
         from src.window import BabbleWindow
         from src.accounts import account_key
         recovered = before.draft
@@ -426,15 +426,15 @@ def run():
         host.account = {'id': '1', 'instance': 'https://synthetic.invalid'}
         host.client = client
         raw = recovered.as_stored(account_key(host.account), 'now')
-        pages.settings().set_strv('local-drafts', [raw])
+        appsettings.settings().set_strv('local-drafts', [raw])
         host.present_composer = lambda: dialog
         view._posting = True
         host.on_draft_restore(None)
         check('rejected recovery leaves the stored local draft available',
-              pages.settings().get_strv('local-drafts') == [raw])
+              appsettings.settings().get_strv('local-drafts') == [raw])
         view._posting = False
         host.destroy()
-        pages.settings().set_strv('local-drafts', [])
+        appsettings.settings().set_strv('local-drafts', [])
         from dataclasses import replace
         for invalid in (replace(recovered, language=999, language_code=None),
                         replace(recovered, visibility=999),
@@ -618,14 +618,14 @@ def run():
         dialog.present(window)
         until(lambda: view.get_mapped())
         view.prefill_text('unsent words')
-        pages.settings().set_strv('local-drafts', [])
+        appsettings.settings().set_strv('local-drafts', [])
         dialog.abandon_session()
         until(lambda: dialog.get_parent() is None)
         saved = [Draft.parse_raw(raw)
-                 for raw in pages.settings().get_strv('local-drafts')]
+                 for raw in appsettings.settings().get_strv('local-drafts')]
         check('a session switch saves the open unsent draft',
               [d.text for d in saved if d is not None] == ['unsent words'])
-        pages.settings().set_strv('local-drafts', [])
+        appsettings.settings().set_strv('local-drafts', [])
         thread_tracker(server, client, window)
     finally:
         client._session.abort()

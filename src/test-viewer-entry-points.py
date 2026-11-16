@@ -40,8 +40,8 @@ Adw.init()
 Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource')
                   )._register()
 
-from src import (mediabox, mediaviewer, pages, remotemedia,  # noqa: E402
-                 textemoji)
+from src import (appsettings, linkrouting, mediabox, mediaviewer,  # noqa: E402
+                 remotemedia, textemoji)
 from src import notificationrow  # noqa: E402
 from src.catchup import digest_layout as cd  # noqa: E402
 from src.catchup import tiles as _tiles  # noqa: E402
@@ -190,7 +190,7 @@ check('and it still opens the viewer', len(calls) == 1)
 context = _tiles._Context(Client(), Digest(
     posts=[], scores={}, items={}, news=[], tags=[],
     trending_keys=frozenset(), boosters={}, end_at=NOW))
-settings = pages.settings()
+settings = appsettings.settings()
 settings.set_boolean('show-sensitive-media', False)
 
 
@@ -335,9 +335,10 @@ for label, card in NOT_PEER:
 
 opened_in_browser = []
 routed = []
-real_external, real_open_link = pages.launch_external, pages.open_link
-pages.launch_external = lambda widget, uri: opened_in_browser.append(uri)
-pages.open_link = lambda widget, uri, *a, **k: routed.append(uri)
+real_external = linkrouting.launch_external
+real_open_link = linkrouting.open_link
+linkrouting.launch_external = lambda widget, uri: opened_in_browser.append(uri)
+linkrouting.open_link = lambda widget, uri, *a, **k: routed.append(uri)
 
 peer = dict(PEER[1][1], title='A video', description='', provider_name='T')
 preview = mediabox.CardPreview(peer)
@@ -351,7 +352,8 @@ other = dict(NOT_PEER[1][1], title='An article', description='')
 mediabox.CardPreview(other).emit('clicked')
 check('an ordinary card still goes through open_link',
       routed == [other['url']] and opened_in_browser == [])
-pages.launch_external, pages.open_link = real_external, real_open_link
+linkrouting.launch_external = real_external
+linkrouting.open_link = real_open_link
 
 # ---------------------------------------------------------------------
 # Media still processing

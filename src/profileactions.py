@@ -17,10 +17,10 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import feedback, linkrouting, pagenav  # noqa: E402
 from .api import relationships as api_relationships  # noqa: E402
 from .capabilities import ENDORSE_API_VERSION  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 
 def endorse_action_names(endorse, endorse_api_supported):
@@ -156,7 +156,7 @@ class ProfileActions:
             dialog.close()
 
     def on_mention(self, direct):
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is None:
             return
         dialog = window.ensure_composer()
@@ -168,17 +168,17 @@ class ProfileActions:
 
     def on_copy_handle(self):
         self.get_clipboard().set(self._full_handle())
-        pages.show_toast(self, _('Copied handle to clipboard'))
+        feedback.show_toast(self, _('Copied handle to clipboard'))
 
     def on_copy_link(self):
         url = self.account.get('url') or ''
         self.get_clipboard().set(url)
-        pages.show_toast(self, _('Copied link to clipboard'))
+        feedback.show_toast(self, _('Copied link to clipboard'))
 
     def on_open_browser(self):
         url = self.account.get('url')
         if url:
-            pages.launch_external(self, url)
+            linkrouting.launch_external(self, url)
 
     def on_lists(self):
         from .lists import present_list_membership
@@ -203,7 +203,7 @@ class ProfileActions:
         """Reversible: act at once and offer Undo, unless the account is
         locked (a fresh request would need approval again)."""
         if self.account.get('locked'):
-            pages.confirm(
+            feedback.confirm(
                 self, _('Unfollow %s?') % self._acct(),
                 _('Their posts will no longer appear in your home '
                   'timeline.'),
@@ -224,7 +224,7 @@ class ProfileActions:
             undo=('follow', None, _('_Undo')))
 
     def confirm_remove_follower(self):
-        pages.confirm(
+        feedback.confirm(
             self, _('Remove %s from Followers?') % self._acct(),
             _('They will stop following you and will not be told.'),
             _('_Remove'),
@@ -235,7 +235,7 @@ class ProfileActions:
 
     def confirm_block(self, block):
         if block:
-            pages.confirm(
+            feedback.confirm(
                 self, _('Block %s?') % self._acct(),
                 _('They will not be able to follow you or see your posts, '
                   'and their posts will be hidden from you.'),
@@ -254,7 +254,7 @@ class ProfileActions:
         if not domain:
             return
         if block:
-            pages.confirm(
+            feedback.confirm(
                 self, _('Block Entire %s?') % domain,
                 _('Blocking a domain will:\n\n'
                   '• Remove its public posts and notifications from '
@@ -305,7 +305,7 @@ class ProfileActions:
                 body = decode(client, result)
             except GLib.Error as error:
                 self._set_busy(False)
-                pages.report_error(self, failed or _('Action failed'),
+                feedback.report_error(self, failed or _('Action failed'),
                                    error)
                 if on_failed is not None:
                     on_failed(error)
@@ -323,7 +323,7 @@ class ProfileActions:
                 undo_action = lambda: self._send_profile_action(  # noqa: E731
                     undo, failed=failed, done=_('Restored'),
                     finish=undo_finish)
-            pages.show_toast(self, done, undo=undo_action,
+            feedback.show_toast(self, done, undo=undo_action,
                              undo_label=undo_label)
 
         start(finished)
@@ -453,12 +453,12 @@ class ProfileActions:
                     send(1)
                     return
                 self._set_busy(False)
-                pages.report_error(self, failed % handle, error)
+                feedback.report_error(self, failed % handle, error)
                 self.update_menu()
                 return
             self._busy = False
             self.set_relationship(relationship)
-            pages.show_toast(self, done % handle)
+            feedback.show_toast(self, done % handle)
 
         def send(attempt):
             api_relationships.action_async(
@@ -483,11 +483,11 @@ class ProfileActions:
                 relationship = api_relationships.note_finish(client, result)
             except GLib.Error as error:
                 dialog.save_button.set_sensitive(True)
-                pages.report_error(self, _('Could not save note'), error)
+                feedback.report_error(self, _('Could not save note'), error)
                 return
             dialog.close()
             self.set_relationship(relationship)
-            pages.show_toast(self, _('Private note saved'))
+            feedback.show_toast(self, _('Private note saved'))
 
         api_relationships.note_async(self.client, self.account['id'], text,
                                      callback=finished)

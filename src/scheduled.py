@@ -22,9 +22,9 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import feedback, pagenav, pages  # noqa: E402
 from .api import scheduled as api_scheduled  # noqa: E402
-from .pages import weak_method  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .statustext import clock_format  # noqa: E402
 
 # Tuba: scheduled statuses dated in a year after this one are drafts.
@@ -121,12 +121,12 @@ class SchedulePickerDialog(Adw.Dialog):
         header = Adw.HeaderBar(show_start_title_buttons=False,
                                show_end_title_buttons=False)
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        pages.connect_weak(cancel, 'clicked', self._on_cancel)
+        connect_weak(cancel, 'clicked', self._on_cancel)
         header.pack_start(cancel)
         self.schedule_button = Gtk.Button(
             label=button_label or _('_Schedule'), use_underline=True)
         self.schedule_button.add_css_class('suggested-action')
-        pages.connect_weak(self.schedule_button, 'clicked', self._on_accept)
+        connect_weak(self.schedule_button, 'clicked', self._on_accept)
         header.pack_end(self.schedule_button)
         toolbar.add_top_bar(header)
 
@@ -174,12 +174,12 @@ class SchedulePickerDialog(Adw.Dialog):
         self.set_child(toolbar)
         self.set_default_widget(self.schedule_button)
 
-        pages.connect_weak(self.calendar, 'day-selected', self._validate)
+        connect_weak(self.calendar, 'day-selected', self._validate)
         # notify::value, not value-changed: AdwSpinRow carries no such signal,
 # and a property notification is the one every GObject has.
-        pages.connect_weak(self.hour_spin, 'notify::value', self._validate)
-        pages.connect_weak(self.minute_spin, 'notify::value', self._validate)
-        pages.connect_weak(self.zone_row, 'notify::selected', self._validate)
+        connect_weak(self.hour_spin, 'notify::value', self._validate)
+        connect_weak(self.minute_spin, 'notify::value', self._validate)
+        connect_weak(self.zone_row, 'notify::selected', self._validate)
         self._validate()
 
     @staticmethod
@@ -311,7 +311,7 @@ class ScheduledRow(Gtk.ListBoxRow):
 
     def _add_button(self, icon, tooltip, method_name, destructive=False):
         button = pages.icon_button(icon, tooltip)
-        pages.connect_weak(button, 'clicked', self._on_button_clicked,
+        connect_weak(button, 'clicked', self._on_button_clicked,
                            method_name)
         if destructive:
             button.add_css_class('destructive-action')
@@ -432,7 +432,7 @@ class ScheduledRow(Gtk.ListBoxRow):
             button.set_sensitive(not busy)
 
     def _open_in_composer(self, draft):
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is None:
             return
         dialog = window.ensure_composer()
@@ -469,13 +469,13 @@ class ScheduledRow(Gtk.ListBoxRow):
             try:
                 data = api_scheduled.update_finish(client, result)
             except GLib.Error as error:
-                pages.report_error(self, _('Could not reschedule'), error)
+                feedback.report_error(self, _('Could not reschedule'), error)
                 return
             if not isinstance(data, dict) or 'scheduled_at' not in data:
                 data = dict(self.scheduled, scheduled_at=iso)
             # Resolve the toast target while the row is still in the
             # tree: _remove() unparents it and show_toast would no-op.
-            window = pages.window_of(self)
+            window = pagenav.window_of(self)
             if is_draft(data):
                 self._remove()
             else:
@@ -493,7 +493,7 @@ class ScheduledRow(Gtk.ListBoxRow):
         else:
             heading = _('Delete Scheduled Post?')
             body = _('The post will not be published.')
-        pages.confirm(self, heading, body, _('_Delete'), self._delete)
+        feedback.confirm(self, heading, body, _('_Delete'), self._delete)
 
     def _delete(self):
         self._set_busy(True)
@@ -503,10 +503,10 @@ class ScheduledRow(Gtk.ListBoxRow):
             try:
                 api_scheduled.delete_finish(client, result)
             except GLib.Error as error:
-                pages.report_error(self, _('Could not delete'), error)
+                feedback.report_error(self, _('Could not delete'), error)
                 return
             # Resolve the window before _remove() unparents the row.
-            window = pages.window_of(self)
+            window = pagenav.window_of(self)
             self._remove()
             if window is not None:
                 window.show_toast(

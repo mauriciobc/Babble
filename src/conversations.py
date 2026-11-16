@@ -18,9 +18,10 @@ import re  # noqa: E402
 
 from gi.repository import Adw, GLib, Gio, GObject, Gtk, Pango  # noqa: E402
 
-from .pages import (PagedList, confirm, connect_weak,  # noqa: E402
-                    open_status, report_error, set_accessible_label,
-                    show_toast, window_of)
+from .feedback import confirm, report_error, show_toast  # noqa: E402
+from .pagenav import open_status, window_of  # noqa: E402
+from .pages import PagedList, set_accessible_label  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .statustext import parse_content, relative_time  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 

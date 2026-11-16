@@ -14,9 +14,9 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, GObject, Gtk, Pango)
 
 from .entities import (STATUS_MERGE_KEYS as MERGE_KEYS)
-from . import pages  # noqa: E402
+from . import appsettings, feedback, linkrouting, pagenav, pages  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .textemoji import (InlineEmojiText, emoji_bank)
 
 """Quote and collection cards, and the reply/boost/favourite bar."""
@@ -121,14 +121,14 @@ class QuoteCard(Gtk.Button):
                 'author': name, 'text': text}])
 
     def _open_quoted(self, _button, quoted):
-        pages.open_status(self, self.client, quoted)
+        pagenav.open_status(self, self.client, quoted)
 
     def _resolve_quoted(self, _button):
         pages.call_api(
             self, self.client,
             lambda cb: api_statuses.get_async(
                 self.client, self.quote['quoted_status_id'], callback=cb),
-            lambda data: pages.open_status(self, self.client, data),
+            lambda data: pagenav.open_status(self, self.client, data),
             _('Could not open quoted post'))
 
 
@@ -170,10 +170,10 @@ class CollectionCard(Gtk.Button):
         self.update_property([Gtk.AccessibleProperty.LABEL],
                              [_('Collection %s')
                               % (collection.get('name') or '')])
-        pages.connect_weak(self, 'clicked', self._open)
+        connect_weak(self, 'clicked', self._open)
 
     def _open(self, _button):
-        pages.open_collection(self, self.client, self.collection)
+        linkrouting.open_collection(self, self.client, self.collection)
 
 
 def _display_name_uses_custom_emoji(account, display_name):
@@ -217,7 +217,7 @@ def _merge_status(item, data):
 
 
 def _open_composer(widget, method, status):
-    window = pages.window_of(widget)
+    window = pagenav.window_of(widget)
     if window is None:
         return
     dialog = window.ensure_composer()
@@ -228,7 +228,7 @@ def _open_composer(widget, method, status):
 
 
 def _open_thread(widget, client, item):
-    window = pages.window_of(widget)
+    window = pagenav.window_of(widget)
     if window is None:
         return
     from .thread import push_thread
@@ -260,7 +260,7 @@ class _PostBound:
     @property
     def client(self):
         if self._client is WINDOW_CLIENT:
-            return pages.client_of(self)
+            return pagenav.client_of(self)
         return self._client
 
     def _can_act(self):
@@ -475,7 +475,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
         item = self.item
         if item is None:
             return
-        window = pages.window_of(self)
+        window = pagenav.window_of(self)
         if window is None or not hasattr(window, 'open_compose_reply'):
             _open_thread(self, self.client, item)
             return
@@ -493,7 +493,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
             reply()
 
     def _confirm_old_reply(self, days, reply):
-        pages.confirm_remind(
+        feedback.confirm_remind(
             self, _('Reply to an Old Post?'),
             _('This post is %(age)s old. You can still reply, but it '
               'may no longer be relevant.') % {
@@ -538,11 +538,11 @@ class StatusActions(_PostBound, Adw.WrapBox):
                 data = api_statuses.toggle_finish(client, result)
             except GLib.Error as error:
                 item.status.update(previous)
-                pages.report_error(self, _('Action failed'), error)
+                feedback.report_error(self, _('Action failed'), error)
             else:
                 _merge_status(item, data)
                 if kind == 'reblog' and not active:
-                    pages.show_toast(
+                    feedback.show_toast(
                         self, _('Boost removed'),
                         undo=lambda: self._reboost(item),
                         undo_label=_('_Undo'))
@@ -561,7 +561,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
             try:
                 data = api_statuses.reblog_finish(client, result)
             except GLib.Error as error:
-                pages.report_error(self, _('Action failed'), error)
+                feedback.report_error(self, _('Action failed'), error)
                 return
             _merge_status(item, data)
             if self.item is item:
@@ -627,7 +627,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
 
         def on_response(_dialog, response):
             if never.get_active():
-                pages.settings().set_boolean('boost-alt-text-reminder',
+                appsettings.settings().set_boolean('boost-alt-text-reminder',
                                              False)
             if response == 'boost':
                 proceed()
@@ -647,7 +647,7 @@ class StatusActions(_PostBound, Adw.WrapBox):
             'public': _('Visible for all'),
             'unlisted': _('Visible for all, but not in public timelines'),
             'private': _('Visible for your followers only')}
-        preferred = pages.settings().get_string('default-visibility') \
+        preferred = appsettings.settings().get_string('default-visibility') \
             if _has_schema() else 'public'
         default = preferred if preferred in allowed else allowed[0]
         listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)

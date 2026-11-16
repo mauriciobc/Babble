@@ -26,7 +26,7 @@ gi.require_version('Soup', '3.0')
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import emojianim, imagecache  # noqa: E402
-from .pages import connect_weak, weak_method  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 EMOJI_RE = re.compile(r':([A-Za-z0-9_+\-]+):')
 
@@ -534,7 +534,7 @@ class InlineEmojiText(Gtk.TextView):
         ``link_mentions`` to the status payload's ``mentions`` so they
         resolve exactly. Hashtags are already known from the rendered
         segments, so a normalized ``tags`` payload cannot misroute them."""
-        from .pages import open_link
+        from .linkrouting import open_link
         open_link(self, href, mentions=getattr(self, 'link_mentions', None),
                   tag=self._link_hashtags.get(href))
 

@@ -15,14 +15,15 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 
 from gi.repository import Adw, GLib  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import feedback  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import announcements as api_announcements  # noqa: E402
 from .api import markers as api_markers  # noqa: E402
 from .api import notifications as api_notifications  # noqa: E402
 from .capabilities import NOTIFICATION_POLICY_API_VERSION  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
-from .pages import PagedPosts, push_page  # noqa: E402
+from .pagenav import push_page  # noqa: E402
+from .pages import PagedPosts  # noqa: E402
 from .statustext import parse_content  # noqa: E402
 from .timelinebase import id_key  # noqa: E402
 
@@ -267,7 +268,7 @@ class NotificationController:
             notifications = self._finish(result)
         except GLib.Error as e:
             if not quiet:
-                pages.report_error(self, _('Refresh failed'), e)
+                feedback.report_error(self, _('Refresh failed'), e)
             return
         if notifications:
             self.model.prepend_page(notifications)
@@ -574,7 +575,7 @@ class NotificationController:
             # dismissed ones disappear on the next load.
             self.model.restore(item, position)
             self.stack.set_visible_child_name('list')
-            pages.report_error(self, _('Could not dismiss the notification'),
+            feedback.report_error(self, _('Could not dismiss the notification'),
                                outcome['error'])
 
         for notification_id in ids:
@@ -605,7 +606,7 @@ class NotificationController:
         try:
             api_notifications.clear_finish(client, result)
         except GLib.Error as e:
-            pages.report_error(self, _('Clear failed'), e)
+            feedback.report_error(self, _('Clear failed'), e)
             return
         self._marked_read = True
         self._unread = 0

@@ -27,9 +27,11 @@ from .notificationmodel import (  # noqa: E402
 from .notificationpolicy import (  # noqa: E402
     EXCLUDED_TYPES_KEY, NOTIFICATION_TYPES, _store_type_visibility,
     present_notification_policy)
-from .pages import (PagedList, PagedPosts, connect_weak,  # noqa: E402
-                    launch_external,
-                    push_page, settings)
+from .appsettings import settings  # noqa: E402
+from .linkrouting import launch_external  # noqa: E402
+from .pagenav import push_page  # noqa: E402
+from .pages import PagedList, PagedPosts  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .statustext import parse_content  # noqa: E402
 from .timelinebase import COLUMN_WIDTH, status_filter  # noqa: E402
 from .timelinepage import _RefreshGesture  # noqa: E402
@@ -379,7 +381,7 @@ class NotificationRequestRow(Adw.ActionRow):
     def _answer_button(self, icon_name, label, action):
         """Flat circular suffix button answering the request."""
         button = pages.icon_button(icon_name, label, css=('circular',))
-        pages.connect_weak(button, 'clicked', self._on_answer_clicked, action)
+        connect_weak(button, 'clicked', self._on_answer_clicked, action)
         self.add_suffix(button)
 
     def _on_answer_clicked(self, _button, action):
@@ -450,7 +452,7 @@ class NotificationRequestsPage(PagedList):
         return NotificationRequestRow(self, request)
 
     def request_answered(self, row, action):
-        from .pages import show_toast
+        from .feedback import show_toast
         self.remove_row(row)
         show_toast(self, _('Notification request accepted')
                    if action == 'accept'
@@ -472,10 +474,10 @@ class RequestNotificationsPage(Adw.Bin):
             client, account_id=request['account']['id'])
         self.set_child(self.inner)
         dismiss = pages.icon_button('user-trash-symbolic', _('Dismiss'))
-        pages.connect_weak(dismiss, 'clicked', self._on_answer_clicked,
+        connect_weak(dismiss, 'clicked', self._on_answer_clicked,
                            'dismiss')
         accept = pages.icon_button('object-select-symbolic', _('Accept'))
-        pages.connect_weak(accept, 'clicked', self._on_answer_clicked,
+        connect_weak(accept, 'clicked', self._on_answer_clicked,
                            'accept')
         self.header_widgets = [dismiss, accept]
 
@@ -483,7 +485,7 @@ class RequestNotificationsPage(Adw.Bin):
         self._answer(action)
 
     def _answer(self, action):
-        from .pages import window_of
+        from .pagenav import window_of
         self._on_answer(action)
         window = window_of(self)
         if window is not None:

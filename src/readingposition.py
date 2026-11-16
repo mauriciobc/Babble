@@ -23,7 +23,8 @@ gi.require_version('Gtk', '4.0')
 
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import appsettings  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .timelinedata import BoostCarouselItem  # noqa: E402
 
 SAVE_DELAY_MS = 2000
@@ -91,7 +92,7 @@ class ReadingPosition:
     ``new_pill``, ``new_posts_revealer`` and ``_pill_count``."""
 
     def _resume_init(self, home):
-        settings = pages.settings()
+        settings = appsettings.settings()
         self._resume_key = None
         self._resume_anchor = None
         self._resume_pending = False
@@ -110,7 +111,7 @@ class ReadingPosition:
             anchor = get_position(settings, self._resume_key)
             if anchor and anchor_params(anchor):
                 self._resume_anchor = anchor
-        pages.connect_weak(self, 'unmap', self._on_resume_unmap)
+        connect_weak(self, 'unmap', self._on_resume_unmap)
 
     def _first_page_params(self):
         params = super()._first_page_params()
@@ -127,7 +128,7 @@ class ReadingPosition:
         self._resume_pending = False
         if not statuses:
             self._resume_anchor = None
-            set_position(pages.settings(), self._resume_key, None)
+            set_position(appsettings.settings(), self._resume_key, None)
             self.model.loading = False
             self.load()
             return True
@@ -309,11 +310,11 @@ class ReadingPosition:
         if at_top and not self._resumed:
             # Reading from the newest post: the next launch starts there
             # too, with nothing to resume.
-            set_position(pages.settings(), self._resume_key, None)
+            set_position(appsettings.settings(), self._resume_key, None)
             return
         status_id = self.top_visible_status_id() or self._last_top
         if status_id:
-            set_position(pages.settings(), self._resume_key, status_id)
+            set_position(appsettings.settings(), self._resume_key, status_id)
 
     def _on_resume_unmap(self, _widget):
         self.save_reading_position()

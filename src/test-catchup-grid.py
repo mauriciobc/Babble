@@ -36,7 +36,7 @@ sys.path.insert(0, srcdir)
 from src.catchup import digest_layout as cd  # noqa: E402
 from src.catchup import geometry, tiles as _tiles  # noqa: E402
 from src.catchup import tiles_render as _tiles_render  # noqa: E402
-from src import (explore, hashtags, mediacache, mediabox, pages,  # noqa: E402
+from src import (appsettings, explore, hashtags, mediacache, mediabox,  # noqa: E402
                  statusactions, statusmenu, statustext, tileactions,
                  timelinedata)
 from src.catchup.pipeline import Digest  # noqa: E402
@@ -577,7 +577,7 @@ check('fewer than 6 tiles hide the view',
 # --------------------------------------------------------------------------
 # Content warnings, sensitive media, markup
 
-settings = pages.settings()
+settings = appsettings.settings()
 settings.set_boolean('show-spoilers', False)
 settings.set_boolean('show-sensitive-media', False)
 cw = post(300, '<p>Secret body</p>', [media(300)],

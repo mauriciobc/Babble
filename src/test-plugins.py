@@ -51,7 +51,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import hashtags, pages, pluginhost, pluginspage, statusmenu  # noqa: E402,E501
+from src import (appsettings, hashtags, linkrouting, pluginhost,  # noqa: E402
+                 pluginspage, statusmenu)
 from src import plugin as api  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
 
@@ -278,7 +279,7 @@ STATUS = {
                            'description': 'a cat'}],
 }
 
-settings = pages.settings()
+settings = appsettings.settings()
 host = pluginhost.host()
 
 # Nothing was enabled: the app never starts the engine.
@@ -529,7 +530,7 @@ if webcolumn.available():
     class PanelHost(Gtk.Window):
         def __init__(self):
             super().__init__()
-            self.navigation_view = object()  # what pages.window_of wants
+            self.navigation_view = object()  # what pagenav.window_of wants
             self.web_slot = Adw.Bin()
             self.web_split = Adw.OverlaySplitView(
                 sidebar=self.web_slot, content=Gtk.Button(label='timeline'),
@@ -629,10 +630,10 @@ if webcolumn.available():
 
     # No column to show it in: the browser opens and the handle is shut.
     launched = []
-    real_launch = pages.launch_external
-    pages.launch_external = lambda _widget, uri: launched.append(uri)
+    real_launch = linkrouting.launch_external
+    linkrouting.launch_external = lambda _widget, uri: launched.append(uri)
     closed = second_context.open_panel(Gtk.Button(), PANEL)
-    pages.launch_external = real_launch
+    linkrouting.launch_external = real_launch
     check('without a column the browser opens and the panel is closed',
           launched == [PANEL] and not closed.is_open)
     check('a URL that is not http(s) is refused',

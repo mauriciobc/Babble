@@ -3,7 +3,7 @@
 """Undo before a destructive request: deleting a post, and the boost
 that an unboost takes away.
 
-Pins what pages.deferred_action promises (one of commit and restore, once;
+Pins what feedback.deferred_action promises (one of commit and restore, once;
 flush on close; no window means commit now), that a taken row goes back to
 its place, and that the menu's delete sends nothing until its toast goes.
 
@@ -40,7 +40,7 @@ Gio.Resource.load(bundle)._register()
 
 Adw.init()
 
-from src import pages  # noqa: E402
+from src import feedback, pagenav  # noqa: E402
 from src.entities import lift  # noqa: E402
 from src.statusactions import StatusActions  # noqa: E402
 from src.statusmenu import StatusMenuButton  # noqa: E402
@@ -58,7 +58,7 @@ def check(name, condition, detail=''):
 
 
 class FakeToasts:
-    """Stands in for pages.show_toast; holds the callbacks the real toast
+    """Stands in for feedback.show_toast; holds the callbacks the real toast
     would have, so the test can press Undo or let it time out."""
 
     def __init__(self, shown=True):
@@ -83,14 +83,14 @@ class FakeToasts:
         self.toasts[-1]['dismissed']()
 
 
-real_toast = pages.show_toast
+real_toast = feedback.show_toast
 toasts = FakeToasts()
-pages.show_toast = toasts
+feedback.show_toast = toasts
 
 # The helper
 
 log = []
-pages.deferred_action(None, 'Gone', lambda: log.append('commit'),
+feedback.deferred_action(None, 'Gone', lambda: log.append('commit'),
                       lambda: log.append('restore'))
 check('nothing happens while the toast is up', log == [])
 toasts.time_out()
@@ -99,22 +99,22 @@ toasts.time_out()
 check('a second dismissal does nothing', log == ['commit'])
 
 log.clear()
-pages.deferred_action(None, 'Gone', lambda: log.append('commit'),
+feedback.deferred_action(None, 'Gone', lambda: log.append('commit'),
                       lambda: log.append('restore'))
 toasts.press_undo()
 check('Undo restores and does not commit', log == ['restore'])
 
 log.clear()
-pages.deferred_action(None, 'Gone', lambda: log.append('commit'),
+feedback.deferred_action(None, 'Gone', lambda: log.append('commit'),
                       lambda: log.append('restore'))
-pages.flush_deferred()
+feedback.flush_deferred()
 toasts.time_out()
 check('flushing commits once', log == ['commit'])
-check('nothing is left waiting', pages._pending_actions == [])
+check('nothing is left waiting', feedback._pending_actions == [])
 
 toasts.shown = False
 log.clear()
-pages.deferred_action(None, 'Gone', lambda: log.append('commit'),
+feedback.deferred_action(None, 'Gone', lambda: log.append('commit'),
                       lambda: log.append('restore'))
 check('without a window it commits at once', log == ['commit'])
 toasts.shown = True
@@ -243,7 +243,7 @@ model.append_old([status('5'), status('4')])
 client = Client()
 menu = Menu(Page(model), client)
 delete(menu, model.get_item(0))
-pages.flush_deferred()
+feedback.flush_deferred()
 check('closing the window sends the DELETE',
       client.requests == [('DELETE', '/statuses/5')], str(client.requests))
 
@@ -264,14 +264,14 @@ def _take_and_unroot(status_id):
 
 model.take_status = _take_and_unroot
 _window = object()
-_window_of = pages.window_of
-pages.window_of = lambda widget: _window
+_window_of = pagenav.window_of
+pagenav.window_of = feedback.window_of = lambda widget: _window
 delete(menu, model.get_item(0))
 check('the toast is shown although the row is gone', len(toasts.toasts) > 0
       and client.requests == [], str(client.requests))
 toasts.press_undo()
 check('and Undo still works', ids(model) == ['5', '4'])
-pages.window_of = _window_of
+pagenav.window_of = feedback.window_of = _window_of
 
 # A post shown outside a timeline list (a thread, a search result) is hidden
 # by its host and shown again on Undo; the DELETE still waits.
@@ -293,7 +293,7 @@ check('timing out sends the DELETE',
       client.requests == [('DELETE', '/statuses/9')], str(client.requests))
 check('and the post stays hidden', events == ['deleted'])
 
-pages.show_toast = real_toast
+feedback.show_toast = real_toast
 
 if failures:
     print('%d failed' % len(failures))

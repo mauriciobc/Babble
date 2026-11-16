@@ -15,10 +15,11 @@ from gi.repository import (Adw, GLib, Gio,  # noqa: E402
                            Gtk)
 
 from . import filterrules  # noqa: E402
-from . import pages  # noqa: E402
+from . import appsettings, feedback, pages  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
-from .pages import PagedPosts, connect_weak  # noqa: E402
+from .pages import PagedPosts  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
 """The scrolling timeline page and its API source."""
@@ -172,7 +173,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self.mode = mode
         self._load_started = False
         self.model = model if model is not None else TimelineModel()
-        settings = pages.settings()
+        settings = appsettings.settings()
         if boosts_carousel is None:
             boosts_carousel = settings.get_boolean('boosts-carousel')
         self.model.group_boosts_enabled = boosts_carousel
@@ -392,7 +393,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._announce_last_us = GLib.get_monotonic_time()
         # Translators: spoken by screen readers when posts arrive at the
         # top of a timeline; %d is how many.
-        pages.announce(self, ngettext('%d new post', '%d new posts', count)
+        feedback.announce(self, ngettext('%d new post', '%d new posts', count)
                        % count)
 
     def _on_new_pill_clicked(self, _button):

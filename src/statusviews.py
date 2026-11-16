@@ -9,7 +9,8 @@ gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from . import pages  # noqa: E402
+from . import pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .statustext import format_time, parse_time  # noqa: E402
 
@@ -62,7 +63,7 @@ class StatusStatsView(Adw.Bin):
             kind = self._kinds[0]
         self.stack.set_visible_child_name(kind)
         self._ensure_built(kind)
-        pages.connect_weak(self.stack, 'notify::visible-child-name',
+        connect_weak(self.stack, 'notify::visible-child-name',
                            self._on_switched)
 
         self.switcher = Adw.ViewSwitcher(
@@ -111,7 +112,7 @@ def push_status_stats(widget, client, status, kind):
     view = StatusStatsView(client, status, kind)
     titles = {'favourites': _('Favorites'), 'boosts': _('Boosts'),
               'quotes': _('Quotes')}
-    return pages.push_page(widget, titles.get(kind, _('Favorites')), view,
+    return pagenav.push_page(widget, titles.get(kind, _('Favorites')), view,
                            tag='stats-%s' % target['id'])
 
 
@@ -280,6 +281,6 @@ class EditHistoryView(Adw.Bin):
 def push_edit_history(widget, client, status):
     """Open the revision list of an edited post."""
     target = status.get('reblog') or status
-    return pages.push_page(widget, _('Edit History'),
+    return pagenav.push_page(widget, _('Edit History'),
                            EditHistoryView(client, target),
                            tag='history-%s' % target['id'])

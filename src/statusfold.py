@@ -20,7 +20,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import pages  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .textemoji import InlineEmojiText  # noqa: E402
 from .timelinebase import _flag  # noqa: E402
 
@@ -98,7 +98,7 @@ class StatusFold:
         content.set_overflow(Gtk.Overflow.HIDDEN)
         content._height_override = h0
         self._body_tick = content.add_tick_callback(
-            pages.weak_method(self._on_body_laid_out), h0)
+            weak_method(self._on_body_laid_out), h0)
 
     def _on_body_laid_out(self, content, _clock, h0):
         self._body_tick = None
@@ -111,7 +111,7 @@ class StatusFold:
             widget=content, value_from=h0, value_to=h1, duration=250,
             easing=Adw.Easing.EASE_OUT_CUBIC,
             target=Adw.CallbackAnimationTarget.new(
-                pages.weak_method(self._on_body_height)))
+                weak_method(self._on_body_height)))
         connect_weak(animation, 'done', self._on_body_animation_done)
         self._body_animation = animation
         animation.play()

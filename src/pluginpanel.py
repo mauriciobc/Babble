@@ -109,15 +109,15 @@ class _Panel(api.Panel):
         column = self._column()
         if not self.is_open or column is None:
             return
-        from . import pages
-        pages.show_toast(column, str(text))
+        from . import feedback
+        feedback.show_toast(column, str(text))
 
     def open_link(self, url):
         column = self._column()
         if not self.is_open or column is None:
             return
-        from . import pages
-        pages.open_link(column, str(url), resolve=True)
+        from . import linkrouting
+        linkrouting.open_link(column, str(url), resolve=True)
 
     def compose(self, text):
         column = self._column()

@@ -18,11 +18,11 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, GObject, Gtk,  # noqa: E402
                            Pango)
 
-from . import pages  # noqa: E402
+from . import feedback, pagenav, pages  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import search as api_search  # noqa: E402
 from .capabilities import ENDORSEMENTS_API_VERSION  # noqa: E402
-from .pages import connect_weak  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 from .profileactions import (ProfileActions,  # noqa: E402
                               endorse_action_names)  # noqa: F401
 from .profileheader import ProfileHeader, plain_name  # noqa: E402
@@ -221,7 +221,7 @@ def present_mute_dialog(parent, handle, on_confirm):
     return dialog
 
 
-class PrivateNoteDialog(pages.ToastDialog):
+class PrivateNoteDialog(feedback.ToastDialog):
     """Editor for the private note kept on another account (visible to
     the viewer only). *on_save(text)* is called with the new text; the
     caller closes the dialog by calling :meth:`close` on success."""
@@ -311,7 +311,7 @@ def _request_result(client, result, finish, widget=None, what=None):
         return finish(client, result)
     except GLib.Error as error:
         if widget is not None and what is not None:
-            pages.report_error(widget, what, error)
+            feedback.report_error(widget, what, error)
         else:
             # Nothing to report it on: still leave a trace, or the next
             # person to wonder why a card is missing a section cannot.
@@ -436,7 +436,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     def _viewer_id(self):
         if self.viewer_id is None:
-            window = pages.window_of(self)
+            window = pagenav.window_of(self)
             self.viewer_id = (getattr(window, 'account', None)
                               or {}).get('id')
         return self.viewer_id
@@ -491,9 +491,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
         there is one, else onto the window's."""
         view = self.get_ancestor(Adw.NavigationView)
         if view is None:
-            pages.push_page(self, title, child)
+            pagenav.push_page(self, title, child)
             return
-        view.push(pages.make_nav_page(title, child))
+        view.push(pagenav.make_nav_page(title, child))
 
     # Header (forwards to ProfileHeader)
 
@@ -711,7 +711,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
             timeline_pages.append(page)
         if self.account.get('show_media') is False:
             self.view_stack.get_page(timeline_pages[2]).set_visible(False)
-        pages.connect_weak(self.view_stack, 'notify::visible-child',
+        connect_weak(self.view_stack, 'notify::visible-child',
                            self._on_profile_tab_visible)
         self.set_stack_state('content')
 
@@ -772,7 +772,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
             # Showing 'Follow' for an account the viewer already follows
             # would re-send a follow request, so hide the action instead.
             self._relationship_known = False
-            pages.report_error(self, _('Could not load relationship'),
+            feedback.report_error(self, _('Could not load relationship'),
                                error)
         self.update_relationship_ui()
 

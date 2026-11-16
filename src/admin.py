@@ -31,8 +31,8 @@ from gi.repository import Adw, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from . import charts  # noqa: E402
 from .api import admin as admin_api  # noqa: E402
-from . import pages  # noqa: E402
-from .pages import weak_method  # noqa: E402
+from . import feedback, pagenav, pages  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 from .statustext import format_time  # noqa: E402
 
@@ -267,7 +267,7 @@ def delete_button(tooltip, method, *extra):
     """Trash button calling the bound *method* ``(button, *extra)``,
     held weakly."""
     button = pages.icon_button('user-trash-symbolic', tooltip)
-    pages.connect_weak(button, 'clicked', method, *extra)
+    connect_weak(button, 'clicked', method, *extra)
     button.add_css_class('error')
     return button
 
@@ -327,9 +327,9 @@ class AddBar(Gtk.Box):
         self.button.add_css_class('suggested-action')
         self.append(self.entry)
         self.append(self.button)
-        pages.connect_weak(self.entry, 'notify::text', self._on_changed)
-        pages.connect_weak(self.entry, 'activate', self._on_submit)
-        pages.connect_weak(self.button, 'clicked', self._on_submit)
+        connect_weak(self.entry, 'notify::text', self._on_changed)
+        connect_weak(self.entry, 'activate', self._on_submit)
+        connect_weak(self.button, 'clicked', self._on_submit)
         self.set_halign(Gtk.Align.CENTER)
         self.set_size_request(420, -1)
 
@@ -374,7 +374,7 @@ class DashboardPage(StatePage):
         self.period.add(Adw.Toggle(name='7', label=_('7 Days')))
         self.period.add(Adw.Toggle(name='30', label=_('30 Days')))
         self.period.set_active_name('30')
-        pages.connect_weak(self.period, 'notify::active-name', self._on_period)
+        connect_weak(self.period, 'notify::active-name', self._on_period)
         self.header_widgets = [self.period]
         self.refresh()
 
@@ -556,7 +556,7 @@ class ReportsPage(CtxRef, Adw.Bin):
         self.resolved_button.add_css_class('flat')
         pages.set_accessible_label(self.resolved_button,
                                    _('Show Resolved Reports'))
-        pages.connect_weak(self.resolved_button, 'toggled', self._on_toggled)
+        connect_weak(self.resolved_button, 'toggled', self._on_toggled)
         self.header_widgets = [self.resolved_button]
         self.list = pages.PagedList(
             ctx.client, admin_api.list_path('reports'), weak_method(self._make_row),
@@ -585,7 +585,7 @@ class ReportsPage(CtxRef, Adw.Bin):
         self.list.refresh()
 
 
-class ReportDialog(pages.ToastDialog):
+class ReportDialog(feedback.ToastDialog):
     """Report detail: reported account, who reported, category, rules,
     posts, and the assign / resolve / take-action controls."""
 
@@ -605,7 +605,7 @@ class ReportDialog(pages.ToastDialog):
             label=_('_Reopen') if resolved else _('_Resolve'),
             use_underline=True)
         self.resolve_button.add_css_class('suggested-action')
-        pages.connect_weak(
+        connect_weak(
             self.resolve_button, 'clicked',
             self._on_reopen if resolved else self._on_resolve)
         self.header.pack_start(self.resolve_button)
@@ -619,7 +619,7 @@ class ReportDialog(pages.ToastDialog):
                                         use_underline=True,
                                         halign=Gtk.Align.CENTER,
                                         sensitive=not resolved)
-        pages.connect_weak(self.action_button, 'clicked',
+        connect_weak(self.action_button, 'clicked',
                            self._on_take_action)
         self.action_button.add_css_class('pill')
 
@@ -676,7 +676,7 @@ class ReportDialog(pages.ToastDialog):
         self.page.add(self.rules_group)
         self._build_rules(resolved)
         for check in self.category_checks.values():
-            pages.connect_weak(check, 'toggled', self._on_category_toggled)
+            connect_weak(check, 'toggled', self._on_category_toggled)
 
         statuses = report.get('statuses') or []
         if statuses:
@@ -715,7 +715,7 @@ class ReportDialog(pages.ToastDialog):
                 row.add_prefix(check)
                 self.rules_group.add(row)
                 self._rule_checks[rule.get('id')] = check
-                pages.connect_weak(check, 'toggled',
+                connect_weak(check, 'toggled',
                                    self._on_category_toggled)
 
         info = getattr(self.client, 'instance_info', None)
@@ -790,7 +790,7 @@ class ReportDialog(pages.ToastDialog):
                  admin_api.report_transition_finish,
                  ok, failed)
 
-        pages.confirm(self, heading, body, label, go, destructive=False)
+        feedback.confirm(self, heading, body, label, go, destructive=False)
 
     def _on_resolve(self, _button):
         self._transition('resolve', _('Mark This Report as Resolved?'),
@@ -823,7 +823,7 @@ class AssignedRow(Adw.ActionRow):
         self._dialog = dialog.weak_ref()
         self.report_id = report['id']
         self.button = Gtk.Button(valign=Gtk.Align.CENTER)
-        pages.connect_weak(self.button, 'clicked', self._on_clicked)
+        connect_weak(self.button, 'clicked', self._on_clicked)
         self.add_suffix(self.button)
         self._update(report.get('assigned_account'))
 
@@ -832,7 +832,7 @@ class AssignedRow(Adw.ActionRow):
         return self._dialog()
 
     def _me(self):
-        window = pages.window_of(self.dialog.ctx.parent)
+        window = pagenav.window_of(self.dialog.ctx.parent)
         return (getattr(window, 'account', None) or {}).get('id')
 
     def _update(self, assigned):
@@ -872,7 +872,7 @@ class AssignedRow(Adw.ActionRow):
              ok, failed)
 
 
-class TakeActionDialog(pages.ToastDialog):
+class TakeActionDialog(feedback.ToastDialog):
     """POST /admin/accounts/:id/action."""
 
     __gsignals__ = {'took-action': (GObject.SignalFlags.RUN_FIRST, None, ())}
@@ -939,7 +939,7 @@ class TakeActionDialog(pages.ToastDialog):
         return 'none'
 
     def _on_submit(self, _button):
-        pages.confirm(self, _('Take Action Against %s?') % self.handle,
+        feedback.confirm(self, _('Take Action Against %s?') % self.handle,
                       None, _('_Take Action'), self._submit)
 
     def _submit(self):
@@ -1020,7 +1020,7 @@ class AccountsPage(CtxRef, Adw.Bin):
             entry = Gtk.Entry(placeholder_text=placeholder)
             entry.update_property([Gtk.AccessibleProperty.LABEL],
                                   [placeholder])
-            pages.connect_weak(entry, 'activate', self._on_search)
+            connect_weak(entry, 'activate', self._on_search)
             self.entries[key] = entry
             flow.append(entry)
         revealer = Gtk.Revealer(child=flow)
@@ -1028,8 +1028,8 @@ class AccountsPage(CtxRef, Adw.Bin):
         self.search_button.bind_property(
             'active', revealer, 'reveal-child',
             GObject.BindingFlags.SYNC_CREATE)
-        pages.connect_weak(self.origin, 'notify::selected', self._on_search)
-        pages.connect_weak(self.status, 'notify::selected', self._on_search)
+        connect_weak(self.origin, 'notify::selected', self._on_search)
+        connect_weak(self.status, 'notify::selected', self._on_search)
 
         self.list = pages.PagedList(
             ctx.client, admin_api.list_path('accounts'), weak_method(self._make_row),
@@ -1089,7 +1089,7 @@ class UndoRow(Adw.ActionRow):
         self.button = Gtk.Button(label=_('_Undo'), use_underline=True,
                                  valign=Gtk.Align.CENTER)
         self.button.add_css_class('destructive-action')
-        pages.connect_weak(self.button, 'clicked', self._on_clicked)
+        connect_weak(self.button, 'clicked', self._on_clicked)
         self.add_suffix(self.button)
 
     @property
@@ -1097,7 +1097,7 @@ class UndoRow(Adw.ActionRow):
         return self._dialog()
 
     def _on_clicked(self, _button):
-        pages.confirm(self.dialog, _('Undo This Action?'), None,
+        feedback.confirm(self.dialog, _('Undo This Action?'), None,
                       _('_Undo'), self._undo)
 
     def _undo(self):
@@ -1119,7 +1119,7 @@ class UndoRow(Adw.ActionRow):
              ok, failed)
 
 
-class AdminAccountDialog(pages.ToastDialog):
+class AdminAccountDialog(feedback.ToastDialog):
     def __init__(self, ctx, item):
         super().__init__(account_handle(item, ctx.client), width=480,
                          height=600)
@@ -1169,12 +1169,12 @@ class AdminAccountDialog(pages.ToastDialog):
                 title=_('Awaiting Approval'), subtitle=note,
                 subtitle_lines=0, use_markup=False, activatable=False)
             reject = pages.icon_button('window-close-symbolic', _('Reject'))
-            pages.connect_weak(reject, 'clicked', self._on_review, 'reject',
+            connect_weak(reject, 'clicked', self._on_review, 'reject',
                                _('Reject %s?'), _('_Reject'))
             reject.add_css_class('error')
             approve = pages.icon_button('object-select-symbolic',
                                         _('Approve'))
-            pages.connect_weak(approve, 'clicked', self._on_review,
+            connect_weak(approve, 'clicked', self._on_review,
                                'approve', _('Approve %s?'), _('_Approve'))
             approve.add_css_class('success')
             self.approval_row.add_suffix(reject)
@@ -1210,7 +1210,7 @@ class AdminAccountDialog(pages.ToastDialog):
                  admin_api.account_review_finish,
                  ok, failed)
 
-        pages.confirm(self, heading % self.handle, None, label, go,
+        feedback.confirm(self, heading % self.handle, None, label, go,
                       destructive=endpoint == 'reject')
 
     def _on_take_action(self, _button):
@@ -1260,7 +1260,7 @@ class RuleList(CtxRef, Adw.Bin):
                  admin_api.rule_delete_finish,
                  ok, failed)
 
-        pages.confirm(self.ctx, heading, None, label, go)
+        feedback.confirm(self.ctx, heading, None, label, go)
 
     def _on_delete(self, _button, row_ref, item_id, heading, label):
         # The row owns the button, so the handler holds it weakly.
@@ -1288,7 +1288,7 @@ class FederationBlocksPage(RuleList):
             _('Servers you block or limit will show up here.'), **kwargs)
         self.add_button = pages.icon_button(
             'list-add-symbolic', _('Add Federation Block'))
-        pages.connect_weak(self.add_button, 'clicked', self._on_add)
+        connect_weak(self.add_button, 'clicked', self._on_add)
         self.header_widgets = [self.add_button]
 
     def _make_row(self, block):
@@ -1321,7 +1321,7 @@ class FederationBlocksPage(RuleList):
         dialog.present(self.ctx)
 
 
-class AddFederationBlockDialog(pages.ToastDialog):
+class AddFederationBlockDialog(feedback.ToastDialog):
     __gsignals__ = {'added': (GObject.SignalFlags.RUN_FIRST, None, ())}
 
     def __init__(self, ctx):
@@ -1333,12 +1333,12 @@ class AddFederationBlockDialog(pages.ToastDialog):
 
         group = Adw.PreferencesGroup()
         self.domain = Adw.EntryRow(title=_('Domain'))
-        pages.connect_weak(self.domain, 'changed', self._on_domain_changed)
+        connect_weak(self.domain, 'changed', self._on_domain_changed)
         group.add(self.domain)
         self.severity = Adw.ComboRow(
             title=_('Severity'),
             model=Gtk.StringList.new([label for _k, label in SEVERITIES]))
-        pages.connect_weak(self.severity, 'notify::selected', self._on_severity)
+        connect_weak(self.severity, 'notify::selected', self._on_severity)
         group.add(self.severity)
         self.reject_media = Adw.SwitchRow(
             title=_('Reject Media Files'), active=True,
@@ -1436,7 +1436,7 @@ class DomainAllowsPage(RuleList):
                  lambda e: self.ctx.error(_('Could not allow the server'),
                                           e))
 
-        pages.confirm(self.ctx, _('Allow Federation with %s?') % domain,
+        feedback.confirm(self.ctx, _('Allow Federation with %s?') % domain,
                       None, _('_Allow'), go, destructive=False)
 
 
@@ -1483,7 +1483,7 @@ class EmailBlocksPage(RuleList):
                  lambda e: self.ctx.error(_('Could not block the domain'),
                                           e))
 
-        pages.confirm(
+        feedback.confirm(
             self.ctx, _('Block %s?') % domain,
             _('This can be the domain name that shows up in the e-mail '
               'address or the MX record it uses. They will be checked '
@@ -1518,7 +1518,7 @@ class IPBlocksPage(RuleList):
             _('Address ranges you restrict show up here.'), **kwargs)
         self.add_button = pages.icon_button(
             'list-add-symbolic', _('Add IP Rule'))
-        pages.connect_weak(self.add_button, 'clicked', self._on_add)
+        connect_weak(self.add_button, 'clicked', self._on_add)
         self.header_widgets = [self.add_button]
 
     def _make_row(self, block):
@@ -1543,7 +1543,7 @@ class IPBlocksPage(RuleList):
         dialog.present(self.ctx)
 
 
-class AddIPBlockDialog(pages.ToastDialog):
+class AddIPBlockDialog(feedback.ToastDialog):
     __gsignals__ = {'added': (GObject.SignalFlags.RUN_FIRST, None, ())}
 
     def __init__(self, ctx):
@@ -1555,7 +1555,7 @@ class AddIPBlockDialog(pages.ToastDialog):
 
         group = Adw.PreferencesGroup()
         self.ip = Adw.EntryRow(title='192.0.2.0/24')
-        pages.connect_weak(self.ip, 'changed', self._on_ip_changed)
+        connect_weak(self.ip, 'changed', self._on_ip_changed)
         group.add(self.ip)
         self.comment = Adw.EntryRow(title=_('Comment'))
         group.add(self.comment)
@@ -1663,7 +1663,7 @@ class AdminDialog(Adw.Dialog):
         self.sidebar_list = Gtk.ListBox(
             selection_mode=Gtk.SelectionMode.SINGLE)
         self.sidebar_list.add_css_class('navigation-sidebar')
-        pages.connect_weak(self.sidebar_list, 'row-activated',
+        connect_weak(self.sidebar_list, 'row-activated',
                            self._on_row_activated)
         self._rows = {}
         for entry in self.ENTRIES:
@@ -1724,7 +1724,7 @@ class AdminDialog(Adw.Dialog):
         if page is None:
             _tag, title, _icon, cls, _mask = row.entry
             content = cls(self)
-            page = pages.make_nav_page(title, content, tag)
+            page = pagenav.make_nav_page(title, content, tag)
             page.content = content
             self._pages[tag] = page
         self.split.set_content(page)
@@ -1779,15 +1779,15 @@ class AdminDialog(Adw.Dialog):
                             use_underline=True, halign=Gtk.Align.CENTER)
         button.add_css_class('pill')
         button.add_css_class('suggested-action')
-        pages.connect_weak(button, 'clicked', self._on_authorize_clicked)
+        connect_weak(button, 'clicked', self._on_authorize_clicked)
         page.set_child(button)
-        content = pages.make_nav_page(_('Admin Dashboard'), page,
+        content = pagenav.make_nav_page(_('Admin Dashboard'), page,
                                       'authorize')
         self.split.set_content(content)
         self.split.set_show_content(True)
 
     def _on_authorize_clicked(self, _button):
-        window = pages.window_of(self) or self.parent
+        window = pagenav.window_of(self) or self.parent
         authorize = getattr(window, 'authorize_admin', None)
         if authorize is None:
             return
@@ -1806,7 +1806,7 @@ def present_admin(parent_widget, client):
     scopes; until then the dashboard shows what it needs and one button
     that asks the server for them.
     """
-    window = pages.window_of(parent_widget)
+    window = pagenav.window_of(parent_widget)
     account = getattr(window, 'account', None)
     dialog = AdminDialog(parent_widget, client, account)
     dialog.present(parent_widget)
