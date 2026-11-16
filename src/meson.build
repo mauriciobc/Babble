@@ -826,6 +826,36 @@ test('catchup rank', python,
   env: test_env,
   timeout: 60,
 )
+test('catchup rank engagement', python,
+  args: [files('test-catchup-rank-engagement.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank affinity', python,
+  args: [files('test-catchup-rank-affinity.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank pipeline', python,
+  args: [files('test-catchup-rank-pipeline.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank text', python,
+  args: [files('test-catchup-rank-text.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank embedding', python,
+  args: [files('test-catchup-rank-embedding.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank rerank', python,
+  args: [files('test-catchup-rank-rerank.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('search provider', python,
   args: [files('test-searchprovider.py')],
   env: fatal_test_env,
