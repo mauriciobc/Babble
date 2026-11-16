@@ -979,6 +979,20 @@ pumps to conditions, which is this item.
 
 ---
 
+## Architecture review 2026-11-12 (main at 44ff9cc): place lifecycle
+
+A review of `main` at `44ff9cc` found a seam that was finished but not closed
+in two places, both about the places the sidebar leads to. (A third finding
+from the same review, the reply filter that the stream path skipped, is
+DEF-13 and travels with its own branch; it is not repeated here.)
+
+| ID | Status | Finding | Fix |
+|---|---|---|---|
+| ARCH-R2 | **done** | **A place the reader could no longer reach stayed built.** Hiding a place (`hide-local` and its siblings), unpinning a list or a hashtag, and a feed the server closed all removed the sidebar entry and nothing else: the page stayed in `navigation.children`, so it kept its stream subscription, its auto-refresh timer and its place in the delete/status.update fan-out for the rest of the session. `navigation.forget()` also synced the stream only for `list:` and `tag:` keys, so a forgotten `local` or `federated` kept its public subscription. | The sidebar rebuild (`SidebarHost.refresh`) forgets every built place it does not show, through `Navigation.forget_many()`: the page and child go, a catch-up in flight is cancelled, the auto-refresh timer stops and the stream is synced once, for any kind of place (and not at all when nothing was built). The page's paging scope closes when it is freed. A hidden place is built again, with no scroll position, when the reader opens it. Test: `navigation window`. |
+| ARCH-R3 | **done** | **A stream that came back after an outage refreshed two of the pages it had to.** `window._on_stream_connection_changed` refreshed the home timeline and caught the notifications up; a list, a hashtag, the local and federated timelines and the conversations kept showing what was there when the socket went down, until the reader refreshed them by hand. | `window._catch_up_after_outage()` refreshes every built place's timeline (`stream_router.timeline_pages()`) and the conversations, each once. Test: `navigation window`. |
+
+---
+
 ## Documentation
 
 | ID | Status | Finding | Evidence |
