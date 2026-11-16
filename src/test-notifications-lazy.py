@@ -115,7 +115,9 @@ FIXTURES = [MENTION, FOLLOW, FAV_A, FAV_B, FAV_C, REBLOG, POLL, EDIT,
 FAV_D = make_notification('945', 'favourite', ACTOR3,
                           '2026-10-05T11:30:00.000Z', STATUS)
 from testkit import notificationskit as kit  # noqa: E402
-from testkit.notificationskit import FollowClient, notification_rows, pump_until  # noqa: E402
+from testkit.notificationskit import (FollowClient,
+    notification_rows,
+    pump_until)  # noqa: E402
 from testkit.notificationskit import NavRoot, client, nav_root, page  # noqa: E402
 
 # Lazy parts: a row builds the post and the people strip only when a

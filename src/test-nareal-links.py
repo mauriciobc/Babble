@@ -19,7 +19,37 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
 from src import pluginspage  # noqa: E402
 
 from testkit import narealplugin as kit  # noqa: E402
-from testkit.narealplugin import ANSWER, Adw, Gtk, ME, SERVER, Server, accounts, anchor, check, column, context, dom, host, launched, link_ext, linkrouting, module, no_panel_for, open_questions, opened, panel_now, resolved, restore_open_link, run, settings, settled, shut, spin, stub_open_link, toasts, wait_dom  # noqa: E402
+from testkit.narealplugin import (ANSWER,
+    Adw,
+    Gtk,
+    ME,
+    SERVER,
+    Server,
+    accounts,
+    anchor,
+    check,
+    column,
+    context,
+    dom,
+    host,
+    launched,
+    link_ext,
+    linkrouting,
+    module,
+    no_panel_for,
+    open_questions,
+    opened,
+    panel_now,
+    resolved,
+    restore_open_link,
+    run,
+    settings,
+    settled,
+    shut,
+    spin,
+    stub_open_link,
+    toasts,
+    wait_dom)  # noqa: E402
 import json
 
 # --- Links the plugin claims ----------------------------------------------

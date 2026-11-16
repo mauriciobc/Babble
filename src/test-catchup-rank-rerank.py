@@ -22,6 +22,23 @@ srcdir = os.environ.get('BABBLE_SRCDIR', os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
+from testkit.catchuprank import cr, ctx, elk_ctx, ids, make_candidate, make_status, raw  # noqa: E402
+from testkit.catchuprank import (HOUR,
+    Base)  # noqa: E402
+from testkit.catchuprank_fixtures import (adjacent_runs,
+    author_of,
+    by_score,
+    clustered_feed,
+    div_candidate,
+    div_fixture_candidates,
+    fixture_candidates,
+    fixture_ctx,
+    mean_score,
+    tail_rho,
+    topic_of,
+    varied_feed)  # noqa: E402
+from testkit.catchuprank_golden import GOLDEN  # noqa: E402
+
 
 
 
@@ -54,13 +71,6 @@ sys.path.insert(0, srcdir)
 
 # region weights
 
-from testkit.catchuprank import (HOUR, Base,  # noqa: E402
-                                 cr, ctx, elk_ctx, ids, make_candidate, make_status, raw)
-from testkit.catchuprank_fixtures import (adjacent_runs, author_of, by_score,
-                                          clustered_feed, div_candidate,
-                                          div_fixture_candidates, fixture_candidates,
-                                          fixture_ctx, mean_score, tail_rho, topic_of, varied_feed)
-from testkit.catchuprank_golden import GOLDEN  # noqa: E402
 
 class TestDiversityRerank(Base):
     def test_breaks_up_same_author_and_same_topic_runs(self):

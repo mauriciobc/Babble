@@ -18,7 +18,33 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
 
 from testkit import narealplugin as kit  # noqa: E402
 from testkit.narealplugin import LINK, real_timers, timer_calls  # noqa: E402
-from testkit.narealplugin import DEAD, GLib, INVITE, ME, SERVER, Server, accounts, anchor, check, column, composed, context, host, invitation, menu, module, no_panel_for, open_questions, panel_now, pluginhost, settings, settled, share_link, shut, spin, toasts, window  # noqa: E402
+from testkit.narealplugin import (DEAD,
+    GLib,
+    INVITE,
+    ME,
+    SERVER,
+    Server,
+    accounts,
+    anchor,
+    check,
+    column,
+    composed,
+    context,
+    host,
+    invitation,
+    menu,
+    module,
+    no_panel_for,
+    open_questions,
+    panel_now,
+    pluginhost,
+    settings,
+    settled,
+    share_link,
+    shut,
+    spin,
+    toasts,
+    window)  # noqa: E402
 import ast
 
 check('the host starts', kit.started)

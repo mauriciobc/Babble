@@ -18,7 +18,30 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
 
 from testkit import narealplugin as kit  # noqa: E402
 from testkit.narealplugin import LINK  # noqa: E402
-from testkit.narealplugin import ME, OWN_PATH, SERVER, Server, TITLE, accounts, check, column, composed, context, dom, host, invitation, module, open_questions, panel_now, restore_open_link, run, settings, settled, shut, spin, stub_open_link, toasts  # noqa: E402
+from testkit.narealplugin import (ME,
+    OWN_PATH,
+    SERVER,
+    Server,
+    TITLE,
+    accounts,
+    check,
+    column,
+    composed,
+    context,
+    dom,
+    host,
+    invitation,
+    module,
+    open_questions,
+    panel_now,
+    restore_open_link,
+    run,
+    settings,
+    settled,
+    shut,
+    spin,
+    stub_open_link,
+    toasts)  # noqa: E402
 import json
 
 # --- The share button ---------------------------------------------------------

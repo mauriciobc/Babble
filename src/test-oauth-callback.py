@@ -24,6 +24,8 @@ builddir = os.environ.get('BABBLE_BUILDDIR') or os.path.join(
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
+from src.oauthpkce import OOB_REDIRECT  # noqa: E402
+
 # Own Xvfb + X11 backend: the window under test is a real one, so the
 # session's WAYLAND_DISPLAY must not leak in. The display has to be set
 # before GDK reads it, which is before ``import gi``.
@@ -55,14 +57,19 @@ Adw.init()
 
 from src import emojichooser  # noqa: E402
 from src import textemoji  # noqa: E402
-from src.oauthpkce import (OAUTH_REDIRECT,  # noqa: E402
-                          OOB_REDIRECT)
+from src.oauthpkce import (OAUTH_REDIRECT)  # noqa: E402
 from gettext import gettext as _  # noqa: E402
 
 from testkit import oauthkit as kit  # noqa: E402
 from testkit.oauthkit import (REDIRECT_URI,
-                              SECOND_URI, STATE,
-                              StubClient, _real_client, check, fresh_window, pump, start_attempt)
+    SECOND_URI,
+    STATE,
+    StubClient,
+    _real_client,
+    check,
+    fresh_window,
+    pump,
+    start_attempt)  # noqa: E402
 
 # --- The same redirect twice: one exchange, one toast -------------------
 
