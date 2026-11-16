@@ -455,7 +455,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             if statuses else None
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_page_loaded(
-                filtered, ticket, raw_oldest))
+                filtered, ticket, raw_oldest), ticket)
 
     def _finish_page_loaded(self, statuses, ticket=None, raw_oldest=None):
         if ticket is not None and not ticket.wanted():
@@ -536,7 +536,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_older_loaded(
                 filtered, ticket, before=before,
-                raw_oldest=raw_oldest))
+                raw_oldest=raw_oldest), ticket)
 
     def _finish_older_loaded(self, statuses, ticket=None, before=0,
                              raw_oldest=None):
@@ -594,6 +594,10 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._with_home_reply_filter(
             statuses, lambda filtered: self._finish_refresh_loaded(
                 filtered, raw_newest, raw_count, ticket))
+        # No ticket for the lookup: a load_older that supersedes this
+        # refresh leaves it the chain's owner (see _finish_refresh_loaded),
+        # so cancelling its lookup would land the page with every reply's
+        # author unknown.
 
     def _finish_refresh_loaded(self, statuses, raw_newest=None, raw_count=0,
                                ticket=None):

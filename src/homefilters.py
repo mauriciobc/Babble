@@ -18,16 +18,67 @@ from .timelinedata import (  # noqa: E402
     filter_boosts, filter_replies_from_non_follows)
 
 
+# /accounts/relationships takes this many ids a call.
+RELATIONSHIP_BATCH = 40
+
+
+def ask_relationships(client, ids, on_done, cancellable=None, wanted=None,
+                      on_drop=None):
+    """Ask the server about every id, RELATIONSHIP_BATCH at a time, then
+    call ``on_done(relationships, ok)`` once.
+
+    *relationships* is every entry the server returned, across batches;
+    *ok* is False when a batch failed, and the batches after it are not
+    sent (what was answered before it is still handed over). *cancellable*
+    goes to every request. *wanted*, when given, is asked before an answer
+    is decoded, as a :class:`~.requestscope.Ticket` callback does; when it
+    says no, the answer is dropped, the batches after it are not sent,
+    ``on_done`` is never called and ``on_drop()`` is, if given.
+    """
+    ids = list(dict.fromkeys(ids))
+    collected = []
+
+    def send():
+        if not ids:
+            on_done(collected, True)
+            return
+        batch = ids[:RELATIONSHIP_BATCH]
+        del ids[:RELATIONSHIP_BATCH]
+        api_accounts.relationships_async(
+            client, batch, loaded, cancellable=cancellable)
+
+    def loaded(client, result, _data=None):
+        if wanted is not None and not wanted():
+            if on_drop is not None:
+                on_drop()
+            return
+        try:
+            # The whole list. accounts.relationships_finish returns the
+            # first entry only, for the profile page that asks about one
+            # account; iterating that dict here raised on every reply
+            # from an author not yet asked about, and the page stayed
+            # on "loading" forever.
+            collected.extend(
+                api_accounts.relationships_all_finish(client, result) or ())
+        except GLib.Error:
+            on_done(collected, False)
+            return
+        send()
+
+    send()
+
+
 class HomeFilters:
     """Needs ``client``, ``model``, ``_hide_boosts``,
     ``_hide_replies_non_follows`` and ``_following_ids`` from the page it
     is mixed into.
 
-    The relationship lookup has no stale-answer guard of its own: when it
-    answers, ``on_done`` runs the page's ``_finish_*`` method. Refresh
-    completion re-checks its refresh ticket there, because a newer
-    refresh may have started while the relationship lookup was pending.
-    The follow table is keyed by author, so recording a late relationship
+    The paged path's relationship lookup has no stale-answer guard of its
+    own: its requests carry the page ticket's cancellable, and when it
+    answers, ``on_done`` runs the page's ``_finish_*`` method, which asks
+    the ticket (a refresh re-checks its refresh ticket there, because a
+    newer refresh may have started while the lookup was pending). The
+    follow table is keyed by author, so recording a late relationship
     answer remains safe even when its page is discarded."""
 
     def _remember_follows(self, relationships):
@@ -53,7 +104,7 @@ class HomeFilters:
                 del follows[next(iter(follows))]
         follows[author_id] = following
 
-    def _with_home_reply_filter(self, statuses, on_done):
+    def _with_home_reply_filter(self, statuses, on_done, ticket=None):
         """Apply the Home filters: boosts, then replies from non-follows."""
         if self._hide_boosts:
             statuses = filter_boosts(statuses)
@@ -76,29 +127,23 @@ class HomeFilters:
             on_done(filter_replies_from_non_follows(
                 statuses, viewer_id, self._following_ids))
             return
-        ids = list(unknown)[:40]
 
-        def loaded(client, result, _data=None):
-            try:
-                # The whole list. accounts.relationships_finish returns
-                # the first entry only, for the profile page that asks
-                # about one account; iterating that dict here raised on every reply
-                # from an author not yet asked about, and the page stayed
-                # on "loading" forever.
-                rels = api_accounts.relationships_all_finish(client, result)
-            except GLib.Error:
-                on_done(filter_replies_from_non_follows(
-                    statuses, viewer_id, self._following_ids))
-                return
+        def loaded(rels, _ok):
             # Both answers are recorded, not just the following ones:
             # "asked and the answer is no" has to be distinguishable from
             # "never asked", or every page asks again about every author
-            # the viewer does not follow.
+            # the viewer does not follow. A failed batch leaves the
+            # authors it did not answer unknown, and their replies out.
             self._remember_follows(rels)
             on_done(filter_replies_from_non_follows(
                 statuses, viewer_id, self._following_ids))
 
-        api_accounts.relationships_async(self.client, ids, loaded)
+        # A cancelled request answers with an error, and the answer still
+        # reaches ``on_done``: the page's finish method asks its ticket and
+        # drops the page itself (it has loading flags to release).
+        ask_relationships(
+            self.client, unknown, loaded,
+            cancellable=None if ticket is None else ticket.cancellable)
 
     def _fill_filtered(self):
         """Top a filtered page up to one page of posts.

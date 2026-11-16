@@ -162,6 +162,45 @@ check('a reply from a stranger is hidden', '00007' not in ids(page))
 check('the page left the loading state', not page.model.loading)
 appsettings.settings().reset('hide-replies-non-follows')
 
+
+# More unknown authors than one call takes: /accounts/relationships answers
+# 40 ids a call, so a page of 45 strangers needs two, and an author past
+# the first 40 must still be asked about (a followed one stays visible).
+class _BatchedClient(_RelationshipClient):
+    # Everyone but the first author. The server asks about a set, so which
+    # 40 an unbatched lookup would pick is arbitrary: with all but one
+    # followed, any author left unasked is a reply wrongly hidden.
+    followed = {str(a) for a in range(102, 146)}
+
+    def __init__(self, posts):
+        super().__init__(posts)
+        self.batches = []
+
+    def request_async(self, method, path, params=None, callback=None, **_kw):
+        if path != '/accounts/relationships':
+            return super().request_async(method, path, params=params,
+                                         callback=callback, **_kw)
+        self.batches.append(list(params['id[]']))
+        callback(self, [{'id': i, 'following': i in self.followed}
+                        for i in params['id[]']])
+
+
+appsettings.settings().set_boolean('hide-replies-non-follows', True)
+authors = list(range(101, 146))                       # 45 distinct
+client = _BatchedClient([[reply(200 - n, a) for n, a in enumerate(authors)]])
+page = home_page(client, False)
+asked = [i for batch in client.batches for i in batch]
+check('45 unknown authors are asked about in batches of at most 40',
+      client.batches and all(len(b) <= 40 for b in client.batches)
+      and len(client.batches) == 2)
+check('every one of them was asked about, once',
+      sorted(asked) == sorted(str(a) for a in authors))
+check('every followed author keeps their reply, whichever batch they were in',
+      len(ids(page)) == 44)
+check('the one stranger is hidden', '%05d' % 200 not in ids(page))
+check('the page left the loading state (batched)', not page.model.loading)
+appsettings.settings().reset('hide-replies-non-follows')
+
 # A page the filter left too short to scroll keeps asking for older posts:
 # scrolling is what pages, and five posts fit on the screen.
 def spin(milliseconds):
