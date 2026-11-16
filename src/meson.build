@@ -638,7 +638,7 @@ test('request scope', python,
   env: test_env,
   timeout: 60,
 )
-# Needs no display: the standard library only.
+# Needs no display: the registry, and that importing webcolumn fills it.
 test('link handlers', python,
   args: [files('test-link-handlers.py')],
   env: test_env,

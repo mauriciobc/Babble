@@ -328,6 +328,44 @@ check('a claimed /@user@host link goes to the plugin, with the widget',
 check('and fediverse routing never ran', resolved == [] and launched == []
       and shown == [])
 
+# A registered claim comes before every other routing in open_link: the
+# Bluesky card, a tag (the renderer's tag= and a /tags/ path) and a mention.
+# Each recorder below would fire if the claim did not win.
+from src import blueskycard, hashtags, pagenav  # noqa: E402
+routed = []
+real_routes = (blueskycard.open_post, hashtags.push_hashtag,
+               pagenav.open_profile, blueskycard._flag)
+blueskycard.open_post = lambda *a, **k: routed.append('bluesky')
+hashtags.push_hashtag = lambda *a, **k: routed.append('tag')
+pagenav.open_profile = lambda *a, **k: routed.append('mention')
+blueskycard._flag = lambda name: True
+one.settings.set('origins', [CLAIMED, 'https://bsky.app'])
+kept_opened = list(linkone.opened)
+try:
+    reset()
+    del linkone.opened[:]
+    BSKY = 'https://bsky.app/profile/alice.test/post/3kabc'
+    linkrouting.open_link(anchor, BSKY)
+    check('a claim wins over the Bluesky card',
+          linkone.opened == [(BSKY, anchor)] and routed == [])
+    TAGGED = CLAIMED + '/tags/rust'
+    linkrouting.open_link(anchor, TAGGED, tag='rust')
+    check('a claim wins over the renderer\'s tag',
+          linkone.opened[-1] == (TAGGED, anchor) and routed == [])
+    linkrouting.open_link(anchor, TAGGED)
+    check('a claim wins over a /tags/ path',
+          len(linkone.opened) == 3 and routed == [])
+    linkrouting.open_link(anchor, URL, mentions=[
+        {'url': URL, 'acct': 'user@host.tld'}])
+    check('a claim wins over a mention',
+          len(linkone.opened) == 4 and routed == [])
+finally:
+    (blueskycard.open_post, hashtags.push_hashtag, pagenav.open_profile,
+     blueskycard._flag) = real_routes
+    one.settings.set('origins', [CLAIMED])
+    linkone.opened[:] = kept_opened
+    reset()
+
 reset()
 other = 'https://other.example/@user@host.tld'
 linkrouting.open_link(anchor, other, resolve=True)

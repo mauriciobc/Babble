@@ -303,28 +303,46 @@ def load_time_cycles(sources):
 # web-column modules and may not import them anywhere, function bodies
 # included; those modules register through `linkhandlers` instead.
 TOOLKIT = frozenset({'pages', 'pagenav', 'feedback', 'linkrouting',
-                     'appsettings', 'weakconnect', 'linkhandlers'})
+                     'appsettings', 'weakconnect', 'linkhandlers',
+                     'uihelpers', 'accountrows'})
 SIDECAR = frozenset({'pluginlinks', 'pluginhost', 'pluginmenu',
                      'pluginpanel', 'webcolumn'})
 
 
 def defined_names(tree):
     """The names a module defines at its top level: functions, classes
-    and assignments. An imported name is not a definition."""
+    and assignments, also inside a top-level `if` or `try` (a function
+    body is not top level). An imported name is not a definition."""
     names = set()
-    for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                             ast.ClassDef)):
-            names.add(node.name)
-        elif isinstance(node, ast.Assign):
-            for target in node.targets:
-                for sub in ast.walk(target):
-                    if isinstance(sub, ast.Name):
-                        names.add(sub.id)
-        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)) \
-                and isinstance(node.target, ast.Name):
-            names.add(node.target.id)
+
+    def visit(body):
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                 ast.ClassDef)):
+                names.add(node.name)
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    for sub in ast.walk(target):
+                        if isinstance(sub, ast.Name):
+                            names.add(sub.id)
+            elif isinstance(node, (ast.AnnAssign, ast.AugAssign)) \
+                    and isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+            elif isinstance(node, ast.If):
+                visit(node.body)
+                visit(node.orelse)
+            elif isinstance(node, ast.Try):
+                visit(node.body)
+                for handler in node.handlers:
+                    visit(handler.body)
+                visit(node.orelse)
+                visit(node.finalbody)
+    visit(tree.body)
     return names
+
+
+def is_dunder(name):
+    return name.startswith('__') and name.endswith('__')
 
 
 def pages_name_violations(sources):
@@ -348,7 +366,7 @@ def pages_name_violations(sources):
             tree = ast.parse(sources[path], filename=path)
         except SyntaxError:
             continue
-        aliases, dotted = set(), False
+        aliases, src_names = set(), set()
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) \
                     and (node.module in (None, 'src')):
@@ -357,22 +375,24 @@ def pages_name_violations(sources):
                         aliases.add(alias.asname or 'pages')
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name == 'src.pages':
-                        if alias.asname:
-                            aliases.add(alias.asname)
-                        else:
-                            dotted = True
+                    if alias.name == 'src.pages' and alias.asname:
+                        aliases.add(alias.asname)
+                    elif alias.name in ('src', 'src.pages') \
+                            or alias.name.startswith('src.'):
+                        # `import src`, `import src.pages`, `import src as s`
+                        src_names.add(alias.asname or 'src')
 
-        def is_pages(value, aliases=aliases, dotted=dotted):
+        def is_pages(value, aliases=aliases, src_names=src_names):
             return ((isinstance(value, ast.Name) and value.id in aliases)
-                    or (dotted and isinstance(value, ast.Attribute)
+                    or (isinstance(value, ast.Attribute)
                         and value.attr == 'pages'
                         and isinstance(value.value, ast.Name)
-                        and value.value.id == 'src'))
+                        and value.value.id in src_names))
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Attribute) and is_pages(node.value) \
-                    and node.attr not in defined:
+                    and node.attr not in defined \
+                    and not is_dunder(node.attr):
                 found.append('R11: %s:%d pages.%s is not defined by '
                              'src/pages.py' % (path, node.lineno, node.attr))
             elif (isinstance(node, ast.Call)
@@ -382,7 +402,8 @@ def pages_name_violations(sources):
                   and len(node.args) >= 2 and is_pages(node.args[0])
                   and isinstance(node.args[1], ast.Constant)
                   and isinstance(node.args[1].value, str)
-                  and node.args[1].value not in defined):
+                  and node.args[1].value not in defined
+                  and not is_dunder(node.args[1].value)):
                 found.append('R11: %s:%d pages.%s is not defined by '
                              'src/pages.py'
                              % (path, node.lineno, node.args[1].value))
@@ -440,6 +461,20 @@ def violations(sources: dict[str, str]) -> list[str]:
                     found.append('R10: %s:%d imports %s: the registry in '
                                  'linkhandlers replaces it'
                                  % (path, line, module))
+        if importer in TOOLKIT and path == 'src/%s.py' % importer:
+            # An import by name (`importlib.import_module(...)`,
+            # `__import__(...)`) is an import too, whatever it names.
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and (
+                        (isinstance(node.func, ast.Name)
+                         and node.func.id == '__import__')
+                        or (isinstance(node.func, ast.Attribute)
+                            and node.func.attr == 'import_module')
+                        or (isinstance(node.func, ast.Name)
+                            and node.func.id == 'import_module')):
+                    found.append('R10: %s:%d imports a module by name: '
+                                 'the toolkit may not hide an import'
+                                 % (path, node.lineno))
         if path == 'src/linkhandlers.py':
             for name, line, relative in all_imports(tree):
                 if relative or name.split('.')[0] not in \
@@ -673,6 +708,50 @@ self_check('R11 catches a getattr of a moved name',
            {**PAGES_SRC, 'bench/x.py':
             'from src import pages\ngetattr(pages, "settings")\n'},
            'R11: bench/x.py:2 pages.settings')
+self_check('R10 catches importlib.import_module in the toolkit',
+           {'src/feedback.py':
+            'import importlib\n'
+            'def f():\n    importlib.import_module("src.webcolumn")\n'},
+           'R10: src/feedback.py:3 imports a module by name')
+self_check('R10 catches __import__ in the toolkit',
+           {'src/uihelpers.py': 'def f():\n    __import__("x")\n'},
+           'R10: src/uihelpers.py:2 imports a module by name')
+self_check('R10 covers the new toolkit modules',
+           {'src/accountrows.py': 'from . import webcolumn\n'},
+           'R10: src/accountrows.py:1 imports webcolumn')
+check('R10 accepts importlib outside the toolkit',
+      not [line for line in violations({
+          'src/pluginhost.py': 'import importlib\nimportlib.import_module(1)\n'
+          })
+          if line.startswith('R10')])
+self_check('R11 catches import src followed by src.pages.X',
+           {**PAGES_SRC, 'src/x.py':
+            'import src\nsrc.pages.show_toast = None\n'},
+           'R11: src/x.py:2 pages.show_toast')
+check('R11 accepts src.pages.<defined name>',
+      not [line for line in violations({
+          **PAGES_SRC, 'src/x.py': 'import src\nsrc.pages.reveal()\n'})
+          if line.startswith('R11')])
+check('R11 allows dunder attributes of pages',
+      not [line for line in violations({
+          **PAGES_SRC,
+          'src/x.py': 'from . import pages\nprint(pages.__name__, '
+                      'pages.__file__, getattr(pages, "__doc__"))\n'})
+          if line.startswith('R11')])
+self_check('R11 still catches a plain name next to a dunder',
+           {**PAGES_SRC, 'src/x.py':
+            'from . import pages\nprint(pages.__name__)\npages.nope\n'},
+           'R11: src/x.py:3 pages.nope')
+check('R11 sees a name pages defines under a top-level if or try',
+      not [line for line in violations({
+          'src/pages.py': 'if True:\n    def a(): pass\n'
+                          'try:\n    b = 1\nexcept ImportError:\n    b = 2\n',
+          'src/x.py': 'from . import pages\npages.a()\npages.b\n'})
+          if line.startswith('R11')])
+self_check('R11 does not count a def inside a function as defined',
+           {'src/pages.py': 'def outer():\n    def inner(): pass\n',
+            'src/x.py': 'from . import pages\npages.inner()\n'},
+           'R11: src/x.py:2 pages.inner')
 check('R11 accepts a name pages defines, and a local called pages',
       not [line for line in violations({
           **PAGES_SRC,

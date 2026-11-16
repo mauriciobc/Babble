@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""linkhandlers: the claimers and the web opener link routing asks for.
-Standard library only; no display, no network, and it never skips."""
+"""linkhandlers: the claimers and the web opener link routing asks for,
+and that importing webcolumn registers the real ones. No display, no
+network, and it never skips."""
 
 import os
 # Never the user's real dconf.
@@ -128,6 +129,20 @@ check('the web opener shows the link', linkhandlers.open_in_app(
 linkhandlers.set_web_opener(refuses)
 check('an opener that declines is reported as False',
       linkhandlers.open_in_app(None, 'https://e/') is False)
+
+# The startup precondition: link routing finds a plugin's claimer and the
+# web column's opener only because importing webcolumn (the window does at
+# startup) registers them. Importing needs the libraries, not a display.
+del linkhandlers._claimers[:]
+linkhandlers._web_opener = None
+from src import pluginlinks, webcolumn  # noqa: E402
+
+check('importing webcolumn registers the plugin claimer',
+      pluginlinks.claim_link in linkhandlers._claimers,
+      repr(linkhandlers._claimers))
+check('importing webcolumn registers the in-app opener',
+      linkhandlers._web_opener is webcolumn._open_in_column,
+      repr(linkhandlers._web_opener))
 
 if failures:
     print('\n%d check(s) failed' % len(failures))
