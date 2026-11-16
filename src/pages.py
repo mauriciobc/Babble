@@ -30,10 +30,9 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
-from . import feedback  # noqa: E402
+from . import feedback, pagenav  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
-from .pagenav import open_profile  # noqa: E402
 from .requestscope import RequestScope  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 
@@ -819,7 +818,7 @@ class AccountRow(Adw.ActionRow):
             self.add_suffix(warning)
 
     def on_activate(self):
-        open_profile(self, self.client, self.account)
+        pagenav.open_profile(self, self.client, self.account)
 
 
 class AccountListPage(PagedList):

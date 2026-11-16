@@ -728,8 +728,8 @@ check('a share intent opens the composer with its text',
 # End to end: a web+ap post is looked up on the instance even with
 # aggressive resolving off, and opened in the app.
 opened = []
-real_open_status = linkrouting.open_status
-linkrouting.open_status = lambda w, c, status: opened.append(status)
+real_open_status = pagenav.open_status
+pagenav.open_status = lambda w, c, status: opened.append(status)
 resolving = appsettings.settings().get_boolean('aggressive-resolving')
 appsettings.settings().set_boolean('aggressive-resolving', False)
 try:
@@ -743,7 +743,7 @@ try:
     check('the found post is opened in the app',
           opened == [{'id': '1'}] and launched_links == [])
 finally:
-    linkrouting.open_status = real_open_status
+    pagenav.open_status = real_open_status
     appsettings.settings().set_boolean('aggressive-resolving', resolving)
     linkrouting.launch_external = real_launch_external
 

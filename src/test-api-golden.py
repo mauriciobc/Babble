@@ -537,10 +537,10 @@ def activate(menu, name, parameter=None):
 class WithWindow:
     def __enter__(self):
         self.real = pagenav.window_of
-        pagenav.window_of = feedback.window_of = lambda widget: FakeWindow()
+        pagenav.window_of = lambda widget: FakeWindow()
 
     def __exit__(self, *_exc):
-        pagenav.window_of = feedback.window_of = self.real
+        pagenav.window_of = self.real
 
 
 @scenario
@@ -1380,8 +1380,8 @@ from src import lists as _lists  # noqa: E402
 # A dialog that was never presented cannot be closed.
 _lists.ListEditor.close = lambda self: None
 linkrouting.launch_external = lambda *args: None
-pagenav.open_status = linkrouting.open_status = lambda *args: None
-pagenav.open_profile = linkrouting.open_profile = lambda *args: None
+pagenav.open_status = lambda *args: None
+pagenav.open_profile = lambda *args: None
 
 
 # Announcements

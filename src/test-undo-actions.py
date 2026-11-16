@@ -265,13 +265,13 @@ def _take_and_unroot(status_id):
 model.take_status = _take_and_unroot
 _window = object()
 _window_of = pagenav.window_of
-pagenav.window_of = feedback.window_of = lambda widget: _window
+pagenav.window_of = lambda widget: _window
 delete(menu, model.get_item(0))
 check('the toast is shown although the row is gone', len(toasts.toasts) > 0
       and client.requests == [], str(client.requests))
 toasts.press_undo()
 check('and Undo still works', ids(model) == ['5', '4'])
-pagenav.window_of = feedback.window_of = _window_of
+pagenav.window_of = _window_of
 
 # A post shown outside a timeline list (a thread, a search result) is hidden
 # by its host and shown again on Undo; the DELETE still waits.

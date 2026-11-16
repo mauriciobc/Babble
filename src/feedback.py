@@ -13,9 +13,8 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
 
-from .appsettings import settings  # noqa: E402
+from . import appsettings, pagenav  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
-from .pagenav import window_of  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 
 
@@ -34,7 +33,7 @@ def show_toast(widget, text, undo=None, undo_label=None, dismissed=None):
     *undo* adds a button calling it, *dismissed* runs when the toast goes
     away however it does. Returns the toast, or None when there was no
     window to show it on. *text* is plain text."""
-    window = window_of(widget)
+    window = pagenav.window_of(widget)
     if window is None:
         return None
     toast = Adw.Toast(title=text, use_markup=False)
@@ -155,7 +154,7 @@ def confirm_remind(widget, heading, body, action, action_label, setting,
 
     def on_response(_dialog, response):
         if response == 'never':
-            settings().set_boolean(setting, False)
+            appsettings.settings().set_boolean(setting, False)
         if response in ('never', action):
             callback()
 

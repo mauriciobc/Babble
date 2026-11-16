@@ -20,10 +20,8 @@ from .i18n import gettext as _  # noqa: E402
 
 from gi.repository import GLib  # noqa: E402
 
-from . import linkhandlers  # noqa: E402
+from . import appsettings, linkhandlers, pagenav  # noqa: E402
 from .api import search as api_search  # noqa: E402
-from .appsettings import settings  # noqa: E402
-from .pagenav import client_of, open_profile, open_status, push_page  # noqa: E402
 from .statustext import is_web_link, split_url  # noqa: E402
 
 TRACKING_PARAMS = re.compile(
@@ -95,7 +93,7 @@ def open_web(widget, uri):
     plugin claims goes to the plugin first (see ``pluginlinks``)."""
     if linkhandlers.claim(widget, uri):
         return
-    if settings().get_boolean('open-links-in-app'):
+    if appsettings.settings().get_boolean('open-links-in-app'):
         if linkhandlers.open_in_app(widget, uri):
             return
     launch_external(widget, uri)
@@ -119,7 +117,7 @@ def open_link(widget, uri, mentions=None, tag=None, resolve=False):
     if not is_web_link(uri):
         launch_external(widget, uri)  # refuses it, with a toast
         return
-    if settings().get_boolean('strip-tracking'):
+    if appsettings.settings().get_boolean('strip-tracking'):
         uri = strip_tracking(uri)
     if linkhandlers.claim(widget, uri):
         return  # before any routing: a claimed /@user@host is the plugin's
@@ -128,7 +126,7 @@ def open_link(widget, uri, mentions=None, tag=None, resolve=False):
     if bsky is not None:
         blueskycard.open_post(widget, *bsky)  # a post, not a profile or tag
         return
-    client = client_of(widget)
+    client = pagenav.client_of(widget)
     if client is None:
         launch_external(widget, uri)
         return
@@ -138,7 +136,7 @@ def open_link(widget, uri, mentions=None, tag=None, resolve=False):
         return
     for mention in mentions or ():
         if mention.get('url') == uri:
-            open_profile(widget, client, acct=mention.get('acct'))
+            pagenav.open_profile(widget, client, acct=mention.get('acct'))
             return
     parts = split_url(uri)
     path_tag = _TAG_PATH.match(parts.path)
@@ -153,12 +151,12 @@ def open_link(widget, uri, mentions=None, tag=None, resolve=False):
         # instance's search, which returns the local Collection entity
         # only on a server that supports Collections; otherwise the link
         # falls back to the browser.
-        if resolve or settings().get_boolean('aggressive-resolving'):
+        if resolve or appsettings.settings().get_boolean('aggressive-resolving'):
             resolve_uri(widget, client, uri)
         else:
             launch_external(widget, uri)
         return
-    if (resolve or settings().get_boolean('aggressive-resolving')) \
+    if (resolve or appsettings.settings().get_boolean('aggressive-resolving')) \
             and _FEDI_PATH.match(parts.path):
         resolve_uri(widget, client, uri)
         return
@@ -174,9 +172,9 @@ def open_collection(widget, client, collection):
         launch_external(widget, collection.get('url') or '')
         return
     from .fedicollections import CollectionPage
-    push_page(widget, collection.get('name') or _('Collection'),
-              CollectionPage(client, collection_id, collection),
-              tag='collection-%s' % collection_id)
+    pagenav.push_page(widget, collection.get('name') or _('Collection'),
+                      CollectionPage(client, collection_id, collection),
+                      tag='collection-%s' % collection_id)
 
 
 def resolve_uri(widget, client, uri):
@@ -190,9 +188,9 @@ def resolve_uri(widget, client, uri):
             launch_external(widget, uri)
             return
         if data.get('statuses'):
-            open_status(widget, client, data['statuses'][0])
+            pagenav.open_status(widget, client, data['statuses'][0])
         elif data.get('accounts'):
-            open_profile(widget, client, data['accounts'][0])
+            pagenav.open_profile(widget, client, data['accounts'][0])
         elif data.get('collections'):
             open_collection(widget, client, data['collections'][0])
         else:
