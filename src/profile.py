@@ -18,8 +18,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, GObject, Gtk,  # noqa: E402
                            Pango)
 
-from . import (accountrows, feedback, pagenav, pages,  # noqa: E402
-               uihelpers)
+from . import accountrows, feedback, pagenav, uihelpers  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api import search as api_search  # noqa: E402
 from .capabilities import ENDORSEMENTS_API_VERSION  # noqa: E402
@@ -377,10 +376,10 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
 
-        self.loading_page = pages.make_loading_page(_('Loading Profile'))
+        self.loading_page = uihelpers.make_loading_page(_('Loading Profile'))
         self.stack.add_named(self.loading_page, 'loading')
 
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Could Not Load Profile'), self.on_retry)
         self.stack.add_named(self.error_page, 'error')
 

@@ -17,8 +17,7 @@ from . import auth  # noqa: E402
 from . import clipboard  # noqa: E402
 from . import drafts  # noqa: E402
 from . import emojichooser  # noqa: E402
-from . import (appsettings, feedback, pagenav, pages,  # noqa: E402
-               uihelpers)
+from . import appsettings, feedback, pagenav, uihelpers  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .api.notifications import unread_badge_text  # noqa: E402
@@ -1193,7 +1192,7 @@ class BabbleWindow(Adw.ApplicationWindow):
         page = TimelinePage(self.client, source=ApiTimelineSource(
             self.client, api_timelines.list_path(kind), params,
             paging='link' if kind in api_timelines.LINK_PAGED else 'id'))
-        pages.configure_empty_page(page.empty_page, icon, title, description)
+        uihelpers.configure_empty_page(page.empty_page, icon, title, description)
         return page
 
     def _public_place_built(self, tag, page):

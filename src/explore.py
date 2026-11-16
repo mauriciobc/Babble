@@ -95,7 +95,7 @@ class LinkTimelinePage(Adw.Bin):
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
             client, api_timelines.list_path('link'), params={'url': link['url']}))
         self.timeline.set_vexpand(True)
-        pages.configure_empty_page(
+        uihelpers.configure_empty_page(
             self.timeline.empty_page, 'edit-find-symbolic',
             _('No Posts Share This Link'),
             _('Posts mentioning the link will appear here'))
@@ -414,7 +414,7 @@ class ExplorePage(Adw.Bin):
         from .timelinepage import ApiTimelineSource, TimelinePage
         page = TimelinePage(self.client, source=ApiTimelineSource(
             self.client, api_trends.list_path('statuses'), paging='link'))
-        pages.configure_empty_page(
+        uihelpers.configure_empty_page(
             page.empty_page, 'edit-find-symbolic',
             _('No Trending Posts'),
             _('This server has no trending posts right now'))

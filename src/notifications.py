@@ -16,8 +16,7 @@ from .i18n import gettext as _, ngettext
 from gi.repository import Adw, GLib, Gio, GObject, Gtk  # noqa: E402
 
 from . import filterrules  # noqa: E402
-from . import (appsettings, linkrouting, pagenav, pages,  # noqa: E402
-               uihelpers)
+from . import appsettings, linkrouting, pagenav, uihelpers  # noqa: E402
 from .api import notifications as api_notifications  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 from .notificationcopy import type_offered  # noqa: E402
@@ -111,11 +110,11 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         self._relationship_queue = {}
         self._relationship_busy = False
 
-        self.loading_page = pages.make_loading_page(_('Loading Notifications'))
+        self.loading_page = uihelpers.make_loading_page(_('Loading Notifications'))
         # pages' own button says "_Try Again" with a mnemonic; this one
         # did not, so the same action read as two different strings in
         # the catalogue and only one of them had an underline.
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Could Not Load Notifications'), self.refresh)
         self.empty_page = Adw.StatusPage(
             icon_name='babble-notifications-symbolic',
