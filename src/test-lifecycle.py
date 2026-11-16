@@ -69,21 +69,31 @@ if not load_bundle():
     sys.exit(77)
 
 from src import main as babble_main  # noqa: E402
+
+# --- link routing's handlers are registered by the application --------
+# Routing imports neither the plugin claimer nor the web column; they
+# exist in linkhandlers only because the shell imports them. So this
+# imports linkhandlers alone (it registers nothing) and reads the other two
+# back from sys.modules, straight after importing the shell and before
+# anything else here could import them: importing them in this test would
+# fill the registry itself and make the check vacuous.
+from src import linkhandlers  # noqa: E402
+
+pluginlinks = sys.modules.get('src.pluginlinks')
+webcolumn = sys.modules.get('src.webcolumn')
+check('the shell imports the link claimer', pluginlinks is not None)
+check('the shell registers the plugin link claimer',
+      pluginlinks is not None
+      and pluginlinks.claim_link in linkhandlers._claimers)
+check('the shell registers the web column as the in-app opener',
+      webcolumn is not None
+      and linkhandlers._web_opener is webcolumn._open_in_column)
+
 from src import preferences  # noqa: E402
 from src import window as babble_window  # noqa: E402
 from src.window import APP_ID, DOCS_URL, HELP_URI, BabbleWindow  # noqa: E402
 
 app = babble_main.BabbleApplication(version='test')
-
-# --- link routing's handlers are registered by the application --------
-# Routing imports neither the plugin claimer nor the web column; they
-# exist in linkhandlers only because the shell imports them.
-from src import linkhandlers, pluginlinks, webcolumn  # noqa: E402
-
-check('the shell registers the plugin link claimer',
-      pluginlinks.claim_link in linkhandlers._claimers)
-check('the shell registers the web column as the in-app opener',
-      linkhandlers._web_opener is webcolumn._open_in_column)
 
 # --- app.shortcuts belongs to libadwaita ------------------------------
 # list_actions() only answers once the application is registered, which

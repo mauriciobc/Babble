@@ -316,8 +316,24 @@ def defined_names(tree):
     name is not a definition."""
     names = set()
 
+    def walrus(node):
+        """Targets of `:=` in *node*, not inside a function, lambda or
+        class (a comprehension binds in the enclosing scope, so it
+        counts)."""
+        stack = [node]
+        while stack:
+            sub = stack.pop()
+            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                ast.Lambda, ast.ClassDef)):
+                continue
+            if isinstance(sub, ast.NamedExpr) \
+                    and isinstance(sub.target, ast.Name):
+                names.add(sub.target.id)
+            stack.extend(ast.iter_child_nodes(sub))
+
     def visit(body):
         for node in body:
+            walrus(node)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
                                  ast.ClassDef)):
                 names.add(node.name)
@@ -343,6 +359,12 @@ def defined_names(tree):
                 visit(node.body)
             elif isinstance(node, ast.Match):
                 for case in node.cases:
+                    for sub in ast.walk(case.pattern):
+                        if isinstance(sub, (ast.MatchAs, ast.MatchStar)) \
+                                and sub.name:
+                            names.add(sub.name)
+                        elif isinstance(sub, ast.MatchMapping) and sub.rest:
+                            names.add(sub.rest)
                     visit(case.body)
             elif isinstance(node, (ast.Try, ast.TryStar)):
                 visit(node.body)
@@ -778,6 +800,34 @@ check('R11 sees names bound under a top-level for, with, while and match',
                       'pages.a, pages.b, pages.c, pages.d, pages.e, '
                       'pages.f, pages.g\n'})
           if line.startswith('R11')])
+check('R11 sees match captures: a sequence, a star, a mapping rest, an as',
+      not [line for line in violations({
+          'src/pages.py':
+              'match [1, 2]:\n    case [a, b]:\n        pass\n'
+              '    case [first, *rest]:\n        pass\n'
+              '    case {"k": v, **others}:\n        pass\n'
+              '    case 1 as whole:\n        pass\n',
+          'src/x.py': 'from . import pages\n'
+                      'pages.a, pages.b, pages.first, pages.rest, pages.v, '
+                      'pages.others, pages.whole\n'})
+          if line.startswith('R11')])
+check('R11 sees a walrus at the top level of pages.py',
+      not [line for line in violations({
+          'src/pages.py': 'if (n := 1):\n    pass\n'
+                          'while (m := 0):\n    pass\n'
+                          'total = [(k := i) for i in range(2)]\n',
+          'src/x.py': 'from . import pages\npages.n, pages.m, pages.k\n'})
+          if line.startswith('R11')])
+self_check('R11 does not count a walrus inside a function or lambda',
+           {'src/pages.py': 'def f():\n    if (hidden := 1):\n        pass\n'
+                            'g = lambda: (also := 1)\n',
+            'src/x.py': 'from . import pages\npages.hidden\n'},
+           'R11: src/x.py:2 pages.hidden')
+self_check('R11 still rejects an undefined name next to captures and walrus',
+           {'src/pages.py': 'match 1:\n    case [a]:\n        pass\n'
+                            'if (n := 1):\n    pass\n',
+            'src/x.py': 'from . import pages\npages.nope\n'},
+           'R11: src/x.py:2 pages.nope')
 self_check('R11 still rejects a name bound nowhere next to those bodies',
            {'src/pages.py': 'with open("x") as f:\n    d = 1\n',
             'src/x.py': 'from . import pages\npages.nope\n'},
