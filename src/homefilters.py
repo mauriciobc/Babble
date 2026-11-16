@@ -16,6 +16,7 @@ from .api import accounts as api_accounts  # noqa: E402
 from .timelinebase import FOLLOW_CACHE_LIMIT, _own_account_id  # noqa: E402
 from .timelinedata import (  # noqa: E402
     filter_boosts, filter_replies_from_non_follows)
+from .weakconnect import weak_method  # noqa: E402
 
 
 # /accounts/relationships takes this many ids a call.
@@ -70,8 +71,9 @@ def ask_relationships(client, ids, on_done, cancellable=None, wanted=None,
 
 class HomeFilters:
     """Needs ``client``, ``model``, ``_hide_boosts``,
-    ``_hide_replies_non_follows`` and ``_following_ids`` from the page it
-    is mixed into.
+    ``_hide_replies_non_follows``, ``_following_ids``, ``_stream_scope``
+    (a RequestScope), ``_stream_pending`` and ``_stream_inflight`` (lists)
+    from the page it is mixed into.
 
     The paged path's relationship lookup has no stale-answer guard of its
     own: its requests carry the page ticket's cancellable, and when it
@@ -79,7 +81,8 @@ class HomeFilters:
     the ticket (a refresh re-checks its refresh ticket there, because a
     newer refresh may have started while the lookup was pending). The
     follow table is keyed by author, so recording a late relationship
-    answer remains safe even when its page is discarded."""
+    answer remains safe even when its page is discarded. The stream path's
+    lookup belongs to ``_stream_scope`` and drops its answer itself."""
 
     def _remember_follows(self, relationships):
         """Record what the server said about a batch of authors.
@@ -144,6 +147,96 @@ class HomeFilters:
         ask_relationships(
             self.client, unknown, loaded,
             cancellable=None if ticket is None else ticket.cancellable)
+
+    # The same filter, on the stream
+
+    def _stream_unknown_author(self, status):
+        """The author of a streamed post the server has to be asked about.
+
+        None when the post needs no answer: it is not a reply, it is the
+        viewer's own, or the page already knows whether the viewer
+        follows its author.
+        """
+        if not self._hide_replies_non_follows:
+            return None
+        if not status.get('in_reply_to_id'):
+            return None
+        author_id = str((status.get('account') or {}).get('id') or '')
+        if not author_id:
+            return None
+        viewer_id = _own_account_id(self)
+        if viewer_id and author_id == str(viewer_id):
+            return None
+        if author_id in self._following_ids:
+            return None
+        return author_id
+
+    def _queue_streamed(self, status):
+        """Hold a streamed post back when the reply filter has to ask the
+        server about it, or about a post ahead of it; True when held.
+
+        The posts behind a held one wait with it: the timeline keeps the
+        order the posts arrived in."""
+        if not (self._stream_pending or self._stream_inflight
+                or self._stream_unknown_author(status)):
+            return False
+        self._stream_pending.append(status)
+        self._ask_about_stream_authors()
+        return True
+
+    def _ask_about_stream_authors(self):
+        """Ask who the queued streamed posts' authors are, then land them.
+
+        One lookup at a time; posts that arrive while it is out wait for
+        the next round. The lookup is a read this page owns, so it goes
+        through the page's stream scope: closed when the page is freed,
+        and answers to a superseded one are dropped. Either way nothing
+        is inserted."""
+        if self._stream_inflight or not self._stream_pending:
+            return
+        queue = self._stream_pending
+        self._stream_pending = []
+        unknown = [a for a in (self._stream_unknown_author(s) for s in queue)
+                   if a is not None]
+        if not unknown:
+            self._land_streamed(queue)
+            self._ask_about_stream_authors()
+            return
+        scope = self._stream_scope
+        if scope.closed:
+            return
+        self._stream_inflight = queue
+        ticket = scope.begin()
+        ask_relationships(
+            self.client, unknown, weak_method(self._stream_authors_known),
+            cancellable=ticket.cancellable, wanted=ticket.wanted,
+            on_drop=weak_method(self._stream_lookup_dropped))
+
+    def _stream_lookup_dropped(self):
+        """The lookup was superseded or its scope closed: the posts it was
+        asking about are not inserted. Posts that arrived since get their
+        own round, unless the page is going away."""
+        self._stream_inflight = []
+        if not self._stream_scope.closed:
+            self._ask_about_stream_authors()
+
+    def _stream_authors_known(self, rels, _ok):
+        queue = self._stream_inflight
+        self._stream_inflight = []
+        self._remember_follows(rels)
+        self._land_streamed(queue)
+        self._ask_about_stream_authors()
+
+    def _land_streamed(self, queue):
+        """Insert the queued posts the filter keeps, in arrival order.
+        An author the lookup could not answer stays unknown and the reply
+        is dropped, as on the paged path."""
+        viewer_id = _own_account_id(self)
+        for status in queue:
+            kept = filter_replies_from_non_follows(
+                [status], viewer_id, self._following_ids)
+            if kept:
+                self._insert_streamed(kept[0])
 
     def _fill_filtered(self):
         """Top a filtered page up to one page of posts.

@@ -19,6 +19,7 @@ from . import appsettings, feedback, pages  # noqa: E402
 from .api import core as api_core  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
 from .pages import PagedPosts  # noqa: E402
+from .requestscope import RequestScope  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 
@@ -185,6 +186,12 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._hide_boosts = (
             home and settings.get_boolean('hide-boosts-home'))
         self._following_ids = {}
+        # Streamed posts waiting for the server to say whether the viewer
+        # follows their author, and the ones its lookup is out for. The
+        # lookup is a read this page owns: its scope cancels it on dispose.
+        self._stream_scope = RequestScope()
+        self._stream_pending = []
+        self._stream_inflight = []
         self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.
@@ -406,6 +413,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
 
     def do_dispose(self):
         self._close_paging_scope()
+        self._stream_scope.close()
         Adw.Bin.do_dispose(self)
 
     def _paging_fetch(self, params, callback, cancellable):
@@ -694,6 +702,14 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             # cursor past the posts between. The sweep that ends the
             # catch-up fetches it, in order.
             return
+        if self._queue_streamed(status):
+            # A reply from an author the reader may not follow waits for
+            # the server's answer, and the posts behind it wait too.
+            return
+        self._insert_streamed(status)
+
+    def _insert_streamed(self, status):
+        """Put one streamed post at the top of the list."""
         added = self.model.insert_new([status])
         self._note_followed_tags([status])
         if self.model.oldest_id is None:
