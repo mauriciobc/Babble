@@ -802,7 +802,15 @@ settle()
 
 toasts = []
 real_toast = feedback.show_toast
-feedback.show_toast = lambda widget, text, *a, **k: toasts.append(text)
+toast_actions = []
+
+
+def fake_toast(widget, text, undo=None, undo_label=None, **_k):
+    toasts.append(text)
+    toast_actions.append((undo, undo_label))
+
+
+feedback.show_toast = fake_toast
 # The traceback goes to the log; keep this run's output readable.
 logging.getLogger('src.pages').setLevel(logging.CRITICAL)
 
@@ -930,6 +938,102 @@ before = len(toasts)
 client.answer([item(1)])
 check('an answer to a closed list is dropped, no error page, no toast',
       page_name(lst) == 'loading' and toasts[before:] == [])
+
+# Something raising after the rows are in must not roll the cursor back
+
+
+class AfterSuper(pages.PagedList):
+    """An override that raises after super(), as the announcements and
+    conversations pages' emit_unread_changed could."""
+
+    boom = False
+
+    def append_items(self, items):
+        super().append_items(items)
+        if self.boom:
+            raise RuntimeError('after super')
+
+
+client = FakeClient()
+lst = AfterSuper(client, '/things', make_row, empty_title='Nothing')
+lst._maybe_fill = lambda: GLib.SOURCE_REMOVE
+lst.boom = True
+try:
+    client.answer([item(1), item(2)], {'max_id': '2'})
+    raised = False
+except Exception:
+    raised = True
+check('an override raising after its rows were added does not raise out '
+      'of the callback', not raised)
+check('the rows stay, once, and the list is shown',
+      texts(lst) == ['row 1', 'row 2'] and in_step(lst)
+      and page_name(lst) == 'list')
+check('the cursor advanced and no failure is shown',
+      lst._next == {'max_id': '2'} and not lst._load_failed)
+lst.boom = False
+lst.load_more()
+check('the next load asks for the NEXT page',
+      len(client.sent) == 2 and client.sent[1].params == {'max_id': '2'})
+client.answer([item(3)], None)
+check('and no row is added twice',
+      texts(lst) == ['row 1', 'row 2', 'row 3'] and in_step(lst))
+
+calls = []
+
+
+def bad_placeholder():
+    calls.append(1)
+    raise RuntimeError('placeholder')
+
+
+client, lst = build(make_placeholder=bad_placeholder)
+try:
+    client.answer([], None)
+    raised = False
+except Exception:
+    raised = True
+check('a raising make_placeholder on an empty page does not raise out of '
+      'the callback, and shows the error page',
+      not raised and calls and page_name(lst) == 'error' and lst.rows == []
+      and lst.error_page.get_description() == '')
+
+# A hook that fails on every page must not flood
+
+real_near_bottom = pages.near_bottom
+pages.near_bottom = lambda adjustment, preload=pages.PRELOAD: True
+hooks, client, lst = hooked('extract')
+client.answer([item(1), item(2)], {'max_id': '2'})
+lst.load_more()
+hooks.armed = True
+before = len(toasts)
+client.answer([item(3)], {'max_id': '3'})
+adjustment = lst.scrolled.get_vadjustment()
+for _scroll in range(3):
+    lst._on_scroll(adjustment)
+check('scrolling after a raising load-more sends no further request',
+      len(client.sent) == 2 and lst._load_failed)
+check('and the reader sees one toast, with a Try Again action',
+      toasts[before:] == ['Could not load more']
+      and toast_actions[-1][0] is not None
+      and toast_actions[-1][1] == '_Try Again')
+hooks.armed = False
+toast_actions[-1][0]()
+check('the toast action asks for the same page again',
+      len(client.sent) == 3 and client.sent[2].params == {'max_id': '2'}
+      and not lst._load_failed)
+client.answer([item(3)], None)
+check('and a good page lands', texts(lst) == ['row 1', 'row 2', 'row 3'])
+
+hooks, client, lst = hooked('extract')
+client.answer([item(1)], {'max_id': '1'})
+lst.load_more()
+hooks.armed = True
+client.answer([item(2)], {'max_id': '2'})
+check('self-check: the stop is set', lst._load_failed)
+hooks.armed = False
+lst.refresh()
+check('refresh clears the stop', not lst._load_failed)
+pages.near_bottom = real_near_bottom
 
 feedback.show_toast = real_toast
 
