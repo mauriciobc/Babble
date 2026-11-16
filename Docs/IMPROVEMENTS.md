@@ -316,7 +316,7 @@ next reviewer does not re-derive it.
 
 | ID | Status | Finding | Why deferred |
 |---|---|---|---|
-| DEF-01 | deferred | `pages.py`'s `PagedList` is a `GtkListBox` over an unbounded paginated endpoint, and `search.py` appends whole `StatusRow`s to a `Gtk.Box`, so search results are never recycled. | Real, and the one structural item. 14 modules consume `PagedList` and four of them manipulate row widgets directly, so it is its own branch (`pagedlist-listview`): extract to `src/pagedlist.py`, keep the name, migrate those four call sites to item-level operations. A boxed list is also what makes `COLUMN_WIDTH` clamping work there today. |
+| DEF-01 | deferred | `pages.py`'s `PagedList` is a `GtkListBox` over an unbounded paginated endpoint, and `search.py` appends whole `StatusRow`s to a `Gtk.Box`, so search results are never recycled. | Real, and the one structural item. 14 modules consume `PagedList` and four of them manipulate row widgets directly, so it needs a branch of its own (none exists yet: the `refactor/paged-list` branch holds no work toward it, checked 2026-11-16): extract to `src/pagedlist.py`, keep the name, migrate those four call sites to item-level operations. A boxed list is also what makes `COLUMN_WIDTH` clamping work there today. |
 | DEF-02 | deferred | ~20 decorative `Gtk.Image`s sit next to a text label without `accessible-role="presentation"`. | Mechanical, but two of the listed sites (`statusrow.py:160`, `pages.py:682`) are informative rather than decorative and need a label, not a role — so this is a judgement per site, not a sweep. |
 | DEF-03 | deferred | The banners sit in a plain `Gtk.Box` rather than an `AdwToolbarView` top bar. | Works; the cost is the seam with the header bar below. Fixing it means restructuring `window.ui`'s shell page and `notifications.py`'s column, which is real regression risk for a cosmetic seam. |
 | DEF-04 | deferred | An `AdwSpinner` sits in two header bars where an `AdwSpinnerPaintable` sizes itself to its button. | Not wrong, and the conversion rewrites both button children for no user-visible gain. |
@@ -327,10 +327,10 @@ next reviewer does not re-derive it.
 | DEF-09 | deferred | A `PagedList` hook (`make_row`, `extract`, `finish`, `page_filter`, `make_placeholder`) that is a plain bound method of the page that owns the list leaks the page and the list: a cycle through C that Python's collector cannot see. | No caller does it today (the pages use `weak_method`, a classmethod, or are subclasses passing their own methods), and the `PagedList` docstring says what to pass. If a guard is wanted: one private wrapper in `PagedList.__init__` that holds such a hook weakly, for all five hooks together, with defined behaviour when the owner is gone. Decided: no guard in the `refactor/paged-list` branch. |
 | DEF-10 | deferred | Two reach-ins into a `PagedList` remain that want an operation: `lists.py` adds a button to the empty state with `paged.empty_page.set_child(...)`, and `relations.py` sets the empty icon and description by hand because `AccountListPage` hardcodes them. | Configuration, not state: nothing breaks. An `empty_action=` argument for the first, and passing `empty_icon` / `empty_description` through `AccountListPage` for the second. |
 | DEF-11 | deferred | If `page_filter`, `extract`, `make_row`, or a non-`GLib.Error` raised by `finish` raises inside `PagedList._on_loaded`, the list stays on the loading page. Unchanged from before the branch. | To be handled with the later request-lifetime work (cancelling requests and the generation guard), where a failed page is defined once. |
-| DEF-12 | deferred | The Home reply filter looks up only the first 40 reply authors of a page: `ids = list(unknown)[:40]` in `_with_home_reply_filter` (`homefilters.py`). An author who was not looked up is not in `_following_ids`, so `filter_replies_from_non_follows` counts them as not followed. | On a page with more than 40 distinct reply authors the reader does not yet have in the table, replies from people they do follow can be hidden. Observed with 45 distinct unknown reply authors: exactly 40 are looked up, and a followed author among the other five has their reply hidden. That reply is not recovered later: a refresh asks only for newer posts and the older cursor is already past it. Later replies from the same author do show once a later lookup includes them. Which five are skipped varies from run to run, because the ids come from a `set`. `/accounts/relationships` accepts 40 ids a call, so the fix is to send the rest in further batches (`catchuprank.py` already batches in 40s). The open branch `fix/stream-filter-and-place-lifecycle` batches its stream-path lookups in forties, which does not change the paged path's limit, so DEF-12 stays open. Recorded for a later decision; not changed here. |
+| DEF-12 | deferred | The Home reply filter looks up only the first 40 reply authors of a page: `ids = list(unknown)[:40]` in `_with_home_reply_filter` (`homefilters.py`). An author who was not looked up is not in `_following_ids`, so `filter_replies_from_non_follows` counts them as not followed. | On a page with more than 40 distinct reply authors the reader does not yet have in the table, replies from people they do follow can be hidden. Observed with 45 distinct unknown reply authors: exactly 40 are looked up, and a followed author among the other five has their reply hidden. That reply is not recovered later: a refresh asks only for newer posts and the older cursor is already past it. Later replies from the same author do show once a later lookup includes them. Which five are skipped varies from run to run, because the ids come from a `set`. `/accounts/relationships` accepts 40 ids a call, so the fix is to send the rest in further batches, as `catchup/fetch.py` (`RELATIONSHIP_BATCH` from `catchup/pipeline.py`) and `notificationctrl.py` already do. The open branch `fix/stream-filter-and-place-lifecycle` caps its stream-path lookup (`_ask_about_stream_authors`) at one request of 40 as well, so both paths want the same batching helper; DEF-12 stays open. Recorded for a later decision; not changed here. |
 | DEF-13 | deferred | Replies that arrive over the stream skip the reply filter: `on_stream_update` (`timelinepage.py`) drops boosts when `_hide_boosts` is set and never consults `_hide_replies_non_follows`. | With "Hide Replies From Non-Follows" on, a non-follow's reply streamed into Home is inserted with no relationship lookup and stays after a following `refresh()`; only rebuilding or reloading the page (a new model) removes it. Filtering it needs the same relationship lookup the paged path makes, asynchronously, before the insert. The open branch `fix/stream-filter-and-place-lifecycle` applies the reply filter to streamed posts and closes this row when it merges. Recorded for a later decision; not changed here. |
 | DEF-20 | deferred | A post that arrives over the stream while the Home timeline's first page is still in flight ends up at the bottom of the list, below the first page's posts, and `oldest_id` is set to the streamed post's id. `on_stream_update` (`timelinepage.py`) sets `oldest_id` when it is None and inserts into the empty model; the first page then lands through `insert_new` (`_finish_page_loaded`, model no longer empty) rather than the first-fill path. | Reproduced in a scratch script with the reply filter off and on, with the same result: a streamed 00200 during the first-page request, then a first page of 00100 to 00081, gives a list that reads 00100 ... 00081, 00200, with `oldest_id` 00200 and `newest_id` 00200. The reader sees the newest post at the bottom, below older ones. It is expected to recover when the next older page moves the cursor back (QA's observation; the scratch script did not page on). Independent of the reply filter. Recorded for a later decision; not changed here. |
-| DEF-21 | deferred | The paging guard (`_superseded`) clears `model.loading` when it drops a stale answer, although a newer request may still own the flag. | Not changed here: the older-page request keeps `_loading_older` and the bottom lock released by its own callback, and a stale refresh clears only `model.loading`. Giving each request explicit ownership of its flag touches `pages.py` and the notifications page and was left for its own change. |
+| DEF-21 | **done** | The paging guard (`_superseded`) cleared `model.loading` when it dropped a stale answer, although a newer request might still own the flag. | Fixed by #118 (`d7f2a7a`): `_superseded` is gone, and each request now owns its flag explicitly (`_ticket_owns_loading`, `_loading_owned`, `_drop_loading`, `_drop_refresh` in `pages.py`), covered by the stale-refresh and cancelled-answer checks in `test-paged-list.py`. Before that change: the older-page request keeps `_loading_older` and the bottom lock released by its own callback, and a stale refresh clears only `model.loading`. Giving each request explicit ownership of its flag touches `pages.py` and the notifications page and was left for its own change. |
 
 ### Second pass: what a review of the first pass caught
 
@@ -745,6 +745,21 @@ base cannot fake one. Final resolutions:
     existing scopes that could converge on this vocabulary (`close()` /
     `closed`); not now.
 
+  **Status on 2026-11-16 (after #118).** Adopted: `PagedPosts`
+  (timelines, notifications, and the profile timeline through
+  `ProfileTimeline`), `PagedList` (which covers the admin lists) and
+  `StateStack` (thread, filters, edit history, collection page, the admin
+  dashboard). Still unscoped reads, in this order: search (its own
+  `_generation`) and typeahead (`completer.py` keeps its own
+  `Gio.Cancellable`), the profile's other reads (header, relationships,
+  familiar followers), the admin dashboard's measures and dimensions
+  (`admin.send` passes no cancellable), Wrapped, and the composer's state
+  epochs. The error-helper item is narrower than written above:
+  `feedback.report_error` (and so `call_api`) is already silent on
+  CANCELLED; what remains is `ToastDialog.error` and the direct
+  `summarize_error`/`summarize_error_markup` callers. DEF-21 is done;
+  DEF-09 and DEF-11 are still open.
+
 ### 2.3 Translated-string tables (duplication translators can see)
 
 Worse than code duplication: translators meet near-duplicate msgids.
@@ -1144,9 +1159,14 @@ All tiers are done; what follows is the order the work was done in.
     the read paths already build (`StatusItem._set_data`,
     `NotificationItem.__init__` and `NotificationItem.merge`, and
     `statusactions._merge_status`). `test-entities.py` pins the codes.
-    Raw `.get('…')` reads are still about 1,330, most of them on
-    Catch-Up's own fixtures and in `admin.py`; adopting the four types
-    there is the work that remains. A fifth entity is not part of this
+    Raw `.get('…')` reads are not shrinking: the ARCH-04 row's own
+    command (`rg -oN "\.get\('[a-z_]+'" src/*.py`, tests included) gave
+    1,457 on 2026-11-16, plus 243 under `src/catchup/`. They are spread
+    across the app, not concentrated: Catch Up and `admin.py` (82)
+    together hold about a fifth, and the next largest are
+    `fedicollections.py`, `bskytext.py`, `timelinedata.py`, `statusrow.py`,
+    `hashtags.py` and `profileheader.py`. Adopting the four types at
+    those reads is the work that remains. A fifth entity is not part of this
     item.
 13. ~~**ARCH-01…03, 06**~~ — done. `composeupload.UploadRound`,
     `profileactions.ProfileActions`, `notificationctrl.NotificationController`,
