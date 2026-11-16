@@ -29,8 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from src.composeupload import (attachment_refusal, human_size,  # noqa: E402
                                size_limit_for, uses_video_size_limit)
-from src.mastodon import (DEFAULT_MAX_MEDIA_ATTACHMENTS,  # noqa: E402
-                          MastodonClient)
+from src.clientinstance import DEFAULT_MAX_MEDIA_ATTACHMENTS  # noqa: E402
+from src.mastodon import MastodonClient  # noqa: E402
 
 failures = []
 

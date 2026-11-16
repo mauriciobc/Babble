@@ -541,7 +541,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Show posts from your server'), invert=True)
         self._switch(sidebar, 'hide-federated', _('_Federated Timeline'),
                      _('Show posts from all known servers'), invert=True)
-        from .window import SHOW_RESTRICTED_KEY
+        from .windowplaces import SHOW_RESTRICTED_KEY
         self._restricted_row = self._switch(
             sidebar, SHOW_RESTRICTED_KEY, _('Disabled _Timelines'),
             _('Your server has turned these timelines off, but this '

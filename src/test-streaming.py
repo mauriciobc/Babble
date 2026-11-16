@@ -12,7 +12,9 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
-from src.mastodon import MastodonClient, parse_link_header  # noqa: E402
+from src.httpheaders import parse_link_header  # noqa: E402
+from src.mastodon import MastodonClient  # noqa: E402
+import src.keyringstore as keyringstore_module  # noqa: E402
 from src.streaming import (  # noqa: E402
     FEED_AVAILABLE, FEED_RESTRICTED, FEED_UNAVAILABLE,
     FEDERATED, LOCAL, USER, hashtag_stream, list_stream,
@@ -173,7 +175,6 @@ gi.require_version('Secret', '1')
 
 from gi.repository import GLib, GObject, Secret  # noqa: E402
 
-import src.mastodon as mastodon_module  # noqa: E402
 from src import desktopnotify, sysstate  # noqa: E402
 from src import streaming as streaming_module  # noqa: E402
 
@@ -357,9 +358,9 @@ check('the real monitor exposes the contract properties',
 # all: see the worker-thread checks below.)
 gets = []
 real_get = Secret.Service.get
-mastodon_module._service = None
-mastodon_module._service_waiters[:] = []
-mastodon_module._service_getting = False
+keyringstore_module._service = None
+keyringstore_module._service_waiters[:] = []
+keyringstore_module._service_getting = False
 
 
 def stall_get(flags, cancellable=None, callback=None, user_data=None):
@@ -368,19 +369,19 @@ def stall_get(flags, cancellable=None, callback=None, user_data=None):
 
 Secret.Service.get = stall_get
 try:
-    mastodon_module.store_secret_async(
+    keyringstore_module.store_secret_async(
         'babble-selftest.example', 'a', 'x', lambda error: None)
-    mastodon_module.clear_secret_async(
+    keyringstore_module.clear_secret_async(
         'babble-selftest.example', 'a', lambda error: None)
     check('the first keyring call starts Secret.Service.get',
           len(gets) == 1)
     check('a second keyring call coalesces on the in-flight get',
-          len(gets) == 1 and len(mastodon_module._service_waiters) == 2)
+          len(gets) == 1 and len(keyringstore_module._service_waiters) == 2)
 finally:
     Secret.Service.get = real_get
-    mastodon_module._service = None
-    mastodon_module._service_waiters[:] = []
-    mastodon_module._service_getting = False
+    keyringstore_module._service = None
+    keyringstore_module._service_waiters[:] = []
+    keyringstore_module._service_getting = False
 
 # --- A keyring read runs off the main thread -----------------------------
 
@@ -408,7 +409,7 @@ gets.clear()
 answers = {}
 try:
     for kind in ('present', 'absent', 'broken'):
-        mastodon_module.load_secret_async(
+        keyringstore_module.load_secret_async(
             'babble-selftest.example', kind,
             lambda v, error=None, kind=kind: answers.update(
                 {kind: (v, error, threading.get_ident())}))
@@ -441,7 +442,7 @@ check('a read does not wait on Secret.Service.get', not gets)
 # to the proxy that started it.
 
 done = []
-mastodon_module.store_secret_async(
+keyringstore_module.store_secret_async(
     'babble-selftest.example', 'probe', 'round-trip-value',
     lambda error: done.append(error))
 # Async get replaces get_sync: a missing service used to raise before
@@ -475,7 +476,7 @@ if done and done[0] is not None:
 check('a successful store reports no error', done and done[0] is None)
 
 read = {}
-mastodon_module.load_secret_async(
+keyringstore_module.load_secret_async(
     'babble-selftest.example', 'probe',
     lambda v, error=None: read.update(v=v, e=error))
 pump_until(lambda: 'v' in read)
@@ -483,7 +484,7 @@ check('the stored secret reads back',
       read.get('v') == 'round-trip-value' and read.get('e') is None)
 
 gone = []
-mastodon_module.clear_secret_async(
+keyringstore_module.clear_secret_async(
     'babble-selftest.example', 'probe',
     lambda error: gone.append(error))
 check('clearing a secret completes its callback',
@@ -491,7 +492,7 @@ check('clearing a secret completes its callback',
 check('a successful clear reports no error', gone and gone[0] is None)
 
 after = {}
-mastodon_module.load_secret_async(
+keyringstore_module.load_secret_async(
     'babble-selftest.example', 'probe',
     lambda v, error=None: after.update(v=v, e=error))
 pump_until(lambda: 'v' in after)

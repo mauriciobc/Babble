@@ -20,21 +20,21 @@ from gi.repository import (Adw, GLib, GObject, Gtk,  # noqa: E402
 
 from . import accountrows, feedback, pagenav, uihelpers  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
-from .api import search as api_search  # noqa: E402
 from .capabilities import ENDORSEMENTS_API_VERSION  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .profileactions import (ProfileActions,  # noqa: E402
                               endorse_action_names)  # noqa: F401
 from .profileheader import ProfileHeader, plain_name  # noqa: E402
-from .mastodon import summarize_error_markup  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
-from .timelinepage import TimelinePage  # noqa: E402
-from .timelinebase import COLUMN_WIDTH, id_key  # noqa: E402
-
-
+from .timelinebase import COLUMN_WIDTH  # noqa: E402
+from src.profiledialogs import _request_result  # noqa: E402
+from src.profilefeed import (AccountStatuses,
+    ProfileDialog,
+    ProfileTimeline)  # noqa: E402
 def push_profile(view, client, account, acct=None):
     """Show *account* (dict) or the *acct* handle in a profile sheet over
     the window that owns *view*."""
+    from .profilelookup import LookupProfilePage
     root = view.get_root()
     viewer = getattr(root, 'account', None) or {}
     viewer_id = viewer.get('id')
@@ -51,277 +51,8 @@ def push_profile(view, client, account, acct=None):
     ProfileDialog(view, page, title).present(root)
 
 
-class ProfileDialog(Adw.Dialog):
-    """Profile in a bottom sheet, like Phanpy's account sheet. Lists the
-    profile opens (followers, following, familiar followers) stack inside
-    the sheet; anything the profile opens in the window's navigation (a
-    thread, a post, a hashtag) closes the sheet so it lands in view. The
-    media viewer is an overlay of the window too, so presenting it from
-    inside the sheet closes the sheet."""
-
-    __gtype_name__ = 'BabbleProfileDialog'
-
-    def __init__(self, view, page, title, **kwargs):
-        navigation = Adw.NavigationView()
-        navigation.push(Adw.NavigationPage(title=title, tag='profile',
-                                           child=page))
-        # The sheet covers the window's own toast overlay, so it needs
-        # one of its own for the feedback raised from inside it.
-        super().__init__(title=title,
-                         child=Adw.ToastOverlay(child=navigation),
-                         content_width=COLUMN_WIDTH, content_height=900,
-                         presentation_mode=Adw.DialogPresentationMode.BOTTOM_SHEET,
-                         **kwargs)
-        self._view = view
-        # The window's navigation view outlives the sheet.
-        self._pushed = connect_weak(view, 'pushed', self._on_view_pushed)
-        self.connect('closed', self._on_closed)
-
-    def _on_view_pushed(self, _view):
-        self.close()
-
-    def _on_closed(self, _dialog):
-        self._view.disconnect(self._pushed)
-
-
-class AccountStatuses:
-    """TimelinePage source over /accounts/:id/statuses.
-
-    ``include_pinned`` puts the account's pinned posts ahead of the first
-    page (Tuba's Posts tab); they are flagged with ``pinned = True`` and
-    their regular copies further down are dropped by the model."""
-
-    def __init__(self, client, account_id, pinned=False, media=False,
-                 exclude_replies=False, paginated=True,
-                 exclude_reblogs=False, include_pinned=False):
-        self.client = client
-        self.account_id = account_id
-        self.pinned = pinned
-        self.media = media
-        self.exclude_replies = exclude_replies
-        self.exclude_reblogs = exclude_reblogs
-        self.include_pinned = include_pinned
-        self.paginated = paginated
-        self.pinned_statuses = []
-        self.oldest_regular_id = None
-
-    def base_params(self):
-        params = {}
-        if self.pinned:
-            params['pinned'] = 'true'
-        if self.media:
-            params['only_media'] = 'true'
-        if self.exclude_replies:
-            params['exclude_replies'] = 'true'
-        if self.exclude_reblogs:
-            params['exclude_reblogs'] = 'true'
-        return params
-
-    def fetch(self, params, callback, cancellable=None):
-        merged = self.base_params()
-        merged.update(params or {})
-        paged = any(key in merged for key in ('max_id', 'since_id', 'min_id'))
-        if not self.include_pinned or paged:
-            api_accounts.statuses_async(
-                self.client, self.account_id, params=merged,
-                callback=callback, cancellable=cancellable)
-            return
-
-        def pinned_loaded(client, result, _data=None):
-            if cancellable is not None and cancellable.is_cancelled():
-                callback(client, result)
-                return
-            try:
-                pinned = api_accounts.statuses_finish(client, result)
-            except GLib.Error:
-                pinned = []
-            for status in pinned:
-                status['pinned'] = True
-            self.pinned_statuses = pinned
-            api_accounts.statuses_async(
-                client, self.account_id, params=merged,
-                callback=callback, cancellable=cancellable)
-
-        api_accounts.statuses_async(
-            self.client, self.account_id, params={'pinned': 'true'},
-            callback=pinned_loaded, cancellable=cancellable)
-
-    def finish(self, result):
-        statuses = api_accounts.statuses_finish(self.client, result)
-        pinned, self.pinned_statuses = self.pinned_statuses, []
-        if statuses:
-            self.oldest_regular_id = min((s['id'] for s in statuses),
-                                         key=id_key)
-        return pinned + statuses
-
-
-class ProfileTimeline(TimelinePage):
-    """Timeline of one account tab. Pinned posts ahead of the first page
-    must not drag the paging cursor back to the pin's age."""
-
-    def on_page_loaded(self, client, result):
-        TimelinePage.on_page_loaded(self, client, result)
-        oldest = getattr(self.source, 'oldest_regular_id', None)
-        if oldest is not None and self.model.get_n_items():
-            self.model.oldest_id = oldest
-
-
 ENDORSEMENT_PREVIEW = 3
 FAMILIAR_NAMES = 3
-NOTE_LIMIT = 2000
-# Seconds, as Mastodon's ``duration`` parameter wants them.
-# The api_versions.mastodon value that introduced the ``endorse`` and
-# ``unendorse`` aliases. Before it the route only answered ``pin`` and
-# ``unpin``. See set_endorsed, which falls back on a 404 as well.
-MUTE_DURATIONS = (0, 3600, 6 * 3600, 24 * 3600, 7 * 24 * 3600,
-                  30 * 24 * 3600)
-
-
-def duration_label(seconds):
-    if not seconds:
-        return _('Never')
-    if seconds < 24 * 3600:
-        hours = seconds // 3600
-        return ngettext('%d Hour', '%d Hours', hours) % hours
-    days = seconds // (24 * 3600)
-    return ngettext('%d Day', '%d Days', days) % days
-
-
-def present_mute_dialog(parent, handle, on_confirm):
-    """Mute confirmation with an expiry and the notifications switch;
-    *on_confirm(duration_seconds, hide_notifications)* runs on Mute."""
-    dialog = Adw.AlertDialog(
-        heading=_('Mute %s?') % handle,
-        body=_('Their posts will be hidden. They will not be told that '
-               'you muted them.'))
-    durations = Gtk.StringList.new([duration_label(s)
-                                    for s in MUTE_DURATIONS])
-    expire_row = Adw.ComboRow(title=_('Expire In'), model=durations)
-    notifications_row = Adw.SwitchRow(title=_('Hide Notifications'),
-                                      active=True)
-    group = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-    group.add_css_class('boxed-list')
-    group.append(expire_row)
-    group.append(notifications_row)
-    dialog.set_extra_child(group)
-    dialog.add_response('cancel', _('_Cancel'))
-    dialog.add_response('mute', _('_Mute'))
-    dialog.set_response_appearance('mute',
-                                   Adw.ResponseAppearance.DESTRUCTIVE)
-    dialog.set_default_response('cancel')
-    dialog.set_close_response('cancel')
-
-    def on_response(_dialog, response):
-        if response == 'mute':
-            on_confirm(MUTE_DURATIONS[expire_row.get_selected()],
-                       notifications_row.get_active())
-
-    dialog.connect('response', on_response)
-    dialog.present(parent)
-    return dialog
-
-
-class PrivateNoteDialog(feedback.ToastDialog):
-    """Editor for the private note kept on another account (visible to
-    the viewer only). *on_save(text)* is called with the new text; the
-    caller closes the dialog by calling :meth:`close` on success."""
-
-    __gtype_name__ = 'BabblePrivateNoteDialog'
-
-    def __init__(self, handle, text, on_save, **kwargs):
-        super().__init__(_('Private Note'), 400, 360,
-                         title_buttons=False, **kwargs)
-        self._on_save = on_save
-        header = self.header
-        cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
-        connect_weak(cancel, 'clicked', self._on_cancel_clicked)
-        header.pack_start(cancel)
-        self.save_button = Gtk.Button(label=_('_Save'), use_underline=True)
-        self.save_button.add_css_class('suggested-action')
-        connect_weak(self.save_button, 'clicked', self._on_save_clicked)
-        header.pack_end(self.save_button)
-        self.counter = Gtk.Label(label=str(NOTE_LIMIT),
-                                 tooltip_text=_('Remaining Characters'))
-        self.counter.add_css_class('numeric')
-        self.counter.add_css_class('dimmed')
-        header.pack_end(self.counter)
-
-        self.text_view = Gtk.TextView(
-            wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False,
-            top_margin=8, bottom_margin=8, left_margin=8, right_margin=8,
-            vexpand=True, hexpand=True)
-        self.text_view.update_property(
-            [Gtk.AccessibleProperty.LABEL],
-            [_('Private note about %s') % handle])
-        self.buffer = self.text_view.get_buffer()
-        self.buffer.set_text(text or '', -1)
-        connect_weak(self.buffer, 'changed', self._on_changed)
-        scrolled = Gtk.ScrolledWindow(child=self.text_view, vexpand=True,
-                                      margin_start=12, margin_end=12,
-                                      margin_top=12, margin_bottom=12)
-        scrolled.add_css_class('card')
-        hint = Gtk.Label(
-            label=_('Only you can see this note about %s.') % handle,
-            xalign=0.0, wrap=True, margin_start=12, margin_end=12,
-            margin_bottom=12)
-        hint.add_css_class('dimmed')
-        hint.add_css_class('caption')
-        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        body.append(scrolled)
-        body.append(hint)
-        self.set_content(body)
-        self.set_focus(self.text_view)
-        self._on_changed()
-
-    def text(self):
-        start, end = self.buffer.get_bounds()
-        return self.buffer.get_text(start, end, False)
-
-    def _on_changed(self, *_args):
-        remaining = NOTE_LIMIT - self.buffer.get_char_count()
-        self.counter.set_label(str(remaining))
-        if remaining < 0:
-            self.counter.add_css_class('error')
-        else:
-            self.counter.remove_css_class('error')
-        self.save_button.set_sensitive(remaining >= 0)
-
-    def _on_cancel_clicked(self, _button):
-        self.close()
-
-    def _on_save_clicked(self, _button):
-        self.save_button.set_sensitive(False)
-        self._on_save(self.text())
-
-
-
-def _request_result(client, result, finish, widget=None, what=None):
-    """Decoded body of *result*, or None when the request failed.
-
-    *finish* is the api module's own ``<name>_finish`` of the request.
-
-    Used for the extras that decorate a profile -- familiar followers,
-    featured hashtags, endorsements -- and for reloading the account
-    itself. A failure there used to vanish completely: no toast, no log,
-    no sign the card was short of something it should have shown. When
-    the caller names *widget* and *what*, the failure is reported, the
-    same way a relationship failure is.
-    """
-    try:
-        return finish(client, result)
-    except GLib.Error as error:
-        if widget is not None and what is not None:
-            feedback.report_error(widget, what, error)
-        else:
-            # Nothing to report it on: still leave a trace, or the next
-            # person to wonder why a card is missing a section cannot.
-            GLib.log_variant('Babble', GLib.LogLevelFlags.LEVEL_DEBUG,
-                             GLib.Variant('a{sv}', {'MESSAGE': GLib.Variant(
-                                 's', 'profile: request failed: %s'
-                                 % error.message)}))
-        return None
-
-
 class ProfilePage(ProfileActions, Adw.Bin):
     """Profile / Posts / Pinned / Media tabs: the account header, then
     the account's timelines.
@@ -722,6 +453,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     def refresh(self):
         """Reload account, relationship and the tabs (Ctrl+R)."""
+        from .profilelookup import LookupProfilePage
         if self.account.get('id') is None:
             if isinstance(self, LookupProfilePage):
                 self.lookup()
@@ -851,68 +583,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self.update_follow_button()
 
     def on_retry(self, _button):
+        from .profilelookup import LookupProfilePage
         if self.account.get('id') is not None:
             self.on_account_ready()
         elif isinstance(self, LookupProfilePage):
             self.lookup()
 
-
-class LookupProfilePage(ProfilePage):
-    """Profile page that resolves an @user@instance handle first: the
-    instance's account lookup, then a resolving search for remote
-    accounts it has not met yet."""
-
-    def __init__(self, client, acct, **kwargs):
-        acct = (acct or '').lstrip('@')
-        super().__init__(client, {'acct': acct, 'note': ''}, **kwargs)
-        self.lookup()
-
-    def lookup(self):
-        self.set_stack_state('loading')
-        api_accounts.lookup_async(self.client, self.account['acct'],
-                                  self.on_lookup)
-
-    def on_lookup(self, client, result, _user_data=None):
-        try:
-            account = api_accounts.lookup_finish(client, result)
-        except GLib.Error as e:
-            if e.code == 404 and self._signed_in():
-                self.resolve()
-                return
-            self.show_lookup_error(e)
-            return
-        self.show_account(account)
-
-    def resolve(self):
-        """Search with resolve=true: makes the server fetch a remote
-        account it does not know yet."""
-        api_search.search_async(
-            self.client, self.account['acct'], type='accounts',
-            resolve='true', limit=5, callback=self.on_resolved)
-
-    def on_resolved(self, client, result, _user_data=None):
-        try:
-            data = api_search.search_finish(client, result)
-        except GLib.Error as e:
-            self.show_lookup_error(e)
-            return
-        wanted = self.account['acct'].lower()
-        found = data.get('accounts') or []
-        account = next((a for a in found
-                        if a.get('acct', '').lower() == wanted),
-                       found[0] if found else None)
-        if account is None:
-            self.error_page.set_description(_('No account found for %s')
-                                            % self._acct())
-            self.set_stack_state('error')
-            return
-        self.show_account(account)
-
-    def show_lookup_error(self, error):
-        self.error_page.set_description(
-            summarize_error_markup(error))
-        self.set_stack_state('error')
-
-    def show_account(self, account):
-        self.account = account
-        self.on_account_ready()

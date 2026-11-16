@@ -34,6 +34,9 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
 
 LIMIT = 800
 
+# The one directory of test-only support modules (never installed).
+TESTKIT = 'testkit'
+
 # One seam each, extracted from window.py. A growth in one of these is
 # how a God class reappears without anybody calling it that.
 SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py',
@@ -43,40 +46,7 @@ SEAMS = ('portals.py', 'auth.py', 'drafts.py', 'clipboard.py',
 # here, where a future reader will meet it, and mirrored in CLAUDE.md;
 # the line count itself is what this test prints above, so it is not
 # repeated here to go stale.
-EXCEPTIONS = {
-    'window.py': 'seams extracted (portals, auth, drafts, clipboard, '
-                 'navigation, sidebarhost, streamrouter). BabbleWindow '
-                 'still owns session state, presentation and the '
-                 'streaming lifecycle (socket, polling fallback, '
-                 'reconnect catch-up) over window-owned page '
-                 'containers; those stay with the window.',
-    'compose.py': 'the composer widget. ARCH-01 moved the upload round '
-                  'to composeupload.py; ARCH-12 moved AttachmentRow and '
-                  'the attach tray to composeattach.py; ARCH-17 moved '
-                  'mode entry and schedule chrome to composeschedule.py; '
-                  'what remains is the draft, the options and the post '
-                  'itself.',
-    'profile.py': 'the profile page: tabs, extras and note/mute dialogs. '
-                  'ARCH-02 moved relationship commands to '
-                  'profileactions.py; ARCH-16 moved banner/cache/chips '
-                  'and header refresh/stats/fields/badges to '
-                  'profileheader.py.',
-    'admin.py': 'the moderation dashboard: seven tools, each a page of '
-                'its own, behind one authorization. Splitting it buys '
-                'readability, not a seam, so it is declared.',
-    'fedicollections.py': 'Collections (Mastodon 4.6+): page, CRUD and '
-                          'membership.',
-    'mastodon.py': 'the transport: OAuth with PKCE (app, token and '
-                   'revoke calls), the keyring, rate limiting, the paging '
-                   'envelope, the instance-info cache and capability '
-                   'gates. Every endpoint lives in src/api/ (phase 4).',
-    'hashtags.py': 'the followed-hashtags page (rows over pages.PagedList, '
-                   'with a placeholder row), the saved multi-hashtag '
-                   'timelines above it and their editor, plus a hashtag '
-                   'timeline. The paged list is pages.PagedList and the '
-                   'timeline is TimelinePage (ARCH-06); the rows, the '
-                   'page and the saved-definition editor are this module.',
-}
+EXCEPTIONS = {}
 
 failures = 0
 
@@ -115,11 +85,42 @@ for name, reason in EXCEPTIONS.items():
 # every module has to be in one of them or under the limit. Before this,
 # nine modules were over the limit and unlisted: the test passed, and a
 # God class could reappear in any of them unnoticed.
-modules = sorted(
-    os.path.relpath(os.path.join(root, filename), srcdir)
-    for root, _dirs, files in os.walk(srcdir)
+root = os.path.dirname(os.path.abspath(srcdir))
+every_python = sorted(
+    os.path.relpath(os.path.join(directory, filename), srcdir)
+    for directory, _dirs, files in os.walk(srcdir)
     for filename in files
     if filename.endswith('.py') and not filename.startswith('test-'))
+# Test-only support lives in testkit/ next to the scripts that import it.
+# It is size-checked like any module, but it is never installed and never
+# reaches the catalogue, so install_data and POTFILES.in do not name it.
+modules = [name for name in every_python if not name.startswith(TESTKIT + '/')]
+testkit_files = [name for name in every_python
+                 if name.startswith(TESTKIT + '/')]
+
+# The limit itself, over everything the rule checks, is the reason the rule
+# exists; the two lists above only narrate it. This is the line that fails
+# when a split lands half-done. The scenario scripts and the bench harness
+# are held to the same limit: a 3000-line test hides its own scenario
+# boundaries as well as a 3000-line window did.
+sized = [os.path.join(srcdir, name) for name in modules + testkit_files]
+sized += [os.path.join(srcdir, name)
+          for name in sorted(os.listdir(srcdir))
+          if name.startswith('test-') and name.endswith('.py')]
+sized.append(os.path.join(root, 'bench', 'rank_eval.py'))
+for directory, _dirs, files in os.walk(os.path.join(root, 'bench',
+                                                    'rankeval')):
+    sized += [os.path.join(directory, name) for name in sorted(files)
+              if name.endswith('.py')]
+over = []
+for path in sized:
+    lines = open(path, encoding='utf-8').read().count('\n')
+    if lines > LIMIT:
+        over.append((path, lines))
+for path, lines in over:
+    print('    %s is %d lines' % (os.path.relpath(path, root), lines))
+check('every file checked stays at or under %d (%d over)'
+      % (LIMIT, len(over)), not over)
 undeclared = []
 for name in modules:
     lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count('\n')
@@ -179,7 +180,6 @@ potfiles_path = os.path.join(os.path.dirname(os.path.abspath(srcdir)),
 with open(potfiles_path, encoding='utf-8') as potfiles:
     listed = {line.strip() for line in potfiles
               if line.strip() and not line.startswith('#')}
-root = os.path.dirname(os.path.abspath(srcdir))
 gone = sorted(path for path in listed
               if not os.path.exists(os.path.join(root, path)))
 for path in gone:

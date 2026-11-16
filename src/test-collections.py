@@ -18,8 +18,9 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from src import linkrouting  # noqa: E402
-from src.fedicollections import (  # noqa: E402
-    DEFAULT_LIMIT, _is_member, _items, can_invite, collection_limit)
+from src.collectionactions import can_invite  # noqa: E402
+from src.collectionbase import (  # noqa: E402
+    DEFAULT_LIMIT, _is_member, _items, collection_limit)
 from src.report import build_report_payload  # noqa: E402
 
 failures = 0

@@ -222,7 +222,7 @@ class Navigation:
                 'bookmarks', None, 'babble-bookmarks-symbolic',
                 _('No Bookmarks Yet'), _('Posts you bookmark will appear here'))
         if tag == 'hashtags':
-            from .hashtags import FollowedHashtagsPage
+            from .hashtaglists import FollowedHashtagsPage
             return FollowedHashtagsPage(client)
         if tag == 'explore':
             from .explore import ExplorePage

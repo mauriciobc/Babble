@@ -31,8 +31,10 @@ sys.path.insert(0, srcdir)
 
 from src.i18n import gettext as _  # noqa: E402
 from src import (mediaviewer, notificationmodel,  # noqa: E402
-                 notifications, notificationrow, profile, sysstate)
-from src import (mediacache, statusactions, statusmenu, statusrow,  # noqa: E402
+                 notifications, notificationrow, profile, profilefeed,
+                 sysstate)
+from src import (mediacache, profiledialogs, statusactions, statusmenu,
+                 statusrow,
                   statusrun, statustext, timelinebase, timelinedata,
                   timelinepage)
 
@@ -224,13 +226,13 @@ del page
 check('a dropped profile page is freed', freed(page_ref))
 
 view = Adw.NavigationView()
-dialog = profile.ProfileDialog(
+dialog = profilefeed.ProfileDialog(
     view, profile.ProfilePage(api, account(1), viewer_id='99'), 'User 1')
 dialog_ref = dialog.weak_ref()
 del dialog
 check('a dropped profile sheet is freed', freed(dialog_ref))
 
-dialog = profile.PrivateNoteDialog('@user1', 'note', lambda _text: None)
+dialog = profiledialogs.PrivateNoteDialog('@user1', 'note', lambda _text: None)
 dialog_ref = dialog.weak_ref()
 del dialog
 check('a dropped private note dialog is freed', freed(dialog_ref))

@@ -389,7 +389,7 @@ class ProfileActions:
             finish=send_finish, undo_finish=reverse_finish)
 
     def on_mute(self):
-        from .profile import present_mute_dialog
+        from .profiledialogs import present_mute_dialog
         present_mute_dialog(
             self, self._acct(),
             lambda duration, notifications: self.send_relationship(
@@ -470,7 +470,7 @@ class ProfileActions:
     # Private note
 
     def edit_private_note(self, text=None):
-        from .profile import PrivateNoteDialog
+        from .profiledialogs import PrivateNoteDialog
         note = self.relationship.get('note') if text is None else text
         dialog = PrivateNoteDialog(
             self._acct(), note,

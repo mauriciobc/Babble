@@ -31,10 +31,11 @@ gi.require_version('Soup', '3.0')
 from gi.repository import Gio, GLib  # noqa: E402
 
 from src.api import accounts, media as api_media, statuses, timelines  # noqa: E402
-from src.mastodon import (DEFAULT_RATE_LIMIT_SECONDS,  # noqa: E402
-                          MastodonClient, parse_link_header,
-                          parse_reset_instant,
-                          server_clock_offset)
+from src.httpheaders import (parse_link_header,  # noqa: E402
+                             parse_reset_instant, server_clock_offset)
+from src.mastodon import DEFAULT_RATE_LIMIT_SECONDS, MastodonClient
+from src.oauthpkce import (OAUTH_REDIRECT, OOB_REDIRECT,  # noqa: E402
+                          loopback_redirect)
 
 failures = []
 
@@ -640,8 +641,6 @@ check('the repeated key goes back out on the wire',
 # dropped there and the registration fails with a blank redirect_uri.
 # Doorkeeper splits the string on whitespace (RedirectUriValidator and
 # URIChecker, 5.7.1 to 5.9.9), so the separator is cosmetic.
-from src.mastodon import (OAUTH_REDIRECT, OOB_REDIRECT,  # noqa: E402
-                          loopback_redirect)
 
 _reg_reply = b'{"client_id":"c","client_secret":"s"}'
 for _label, _loop in (('without a loopback', None),

@@ -96,8 +96,9 @@ resource._register()
 from src import (appsettings, emojichooser, linkrouting, pagenav,  # noqa: E402
                  textemoji)
 from src.main import BabbleApplication  # noqa: E402
-from src.mastodon import (ADMIN_SCOPES, MastodonClient,  # noqa: E402
-                          OAUTH_REDIRECT, OOB_REDIRECT)
+from src.mastodon import MastodonClient  # noqa: E402
+from src.oauthpkce import (ADMIN_SCOPES, OAUTH_REDIRECT,  # noqa: E402
+                          OOB_REDIRECT)
 from src.window import BabbleWindow  # noqa: E402
 
 from gettext import gettext as _  # noqa: E402
@@ -972,9 +973,10 @@ class DeferredTokenClient(StubClient):
 
 
 win, toasts = fresh_window()
-import src.window as window_module  # noqa: E402
-_real_client_class = window_module.MastodonClient
-window_module.MastodonClient = DeferredTokenClient
+import src.windowlogin as windowlogin_module  # noqa: E402
+import src.windowsession as windowsession_module  # noqa: E402
+_real_client_class = windowsession_module.MastodonClient
+windowsession_module.MastodonClient = DeferredTokenClient
 try:
     # Which accounts the window decided to forget, if any. The whole
     # account, so another instance's account with the same id survives.
@@ -1041,16 +1043,16 @@ try:
     check('a keyring error leaves the login page up',
           win.main_stack.get_visible_child_name() == 'login')
 finally:
-    window_module.MastodonClient = _real_client_class
+    windowsession_module.MastodonClient = _real_client_class
 
 # --- Logging out revokes the token, not just forgets it ----------------
 
 # Removal also clears the keyring. This section stubs that call: the
 # checks are about revoke-then-forget, and a session with no secret
 # service raises out of the real clear before the window can finish.
-import src.mastodon as mastodon_module
-_real_clear_secret = window_module.clear_secret_async
-_real_mastodon_clear = mastodon_module.clear_secret_async
+import src.clientoauth as clientoauth_module
+_real_clear_secret = windowsession_module.clear_secret_async
+_real_mastodon_clear = clientoauth_module.clear_secret_async
 
 
 def successful_clear(instance, kind, callback=None, cancellable=None):
@@ -1058,8 +1060,8 @@ def successful_clear(instance, kind, callback=None, cancellable=None):
         callback(None)
 
 
-window_module.clear_secret_async = successful_clear
-mastodon_module.clear_secret_async = successful_clear
+windowsession_module.clear_secret_async = successful_clear
+clientoauth_module.clear_secret_async = successful_clear
 
 # Deleting the keyring entry leaves the token valid on the instance: a
 # copy of it, from a backup or a shared machine, would keep working. So
@@ -1127,11 +1129,11 @@ try:
           win.account is None
           and win.main_stack.get_visible_child_name() == 'login')
 finally:
-    window_module.clear_secret_async = _real_clear_secret
-    mastodon_module.clear_secret_async = _real_mastodon_clear
+    windowsession_module.clear_secret_async = _real_clear_secret
+    clientoauth_module.clear_secret_async = _real_mastodon_clear
 
 # Both exact account-bound keys are removed; deferred results cannot sign out B.
-from src.mastodon import CLIENT_CREDENTIALS_KIND
+from src.oauthpkce import CLIENT_CREDENTIALS_KIND
 for failed_kind in (None, '42', CLIENT_CREDENTIALS_KIND + '42'):
     win, toasts = fresh_window()
     removed = {'id': '42', 'instance': 'https://a.example', 'acct': 'removed'}
@@ -1157,8 +1159,8 @@ for failed_kind in (None, '42', CLIENT_CREDENTIALS_KIND + '42'):
             secrets.pop((instance, kind), None)
         callback(error)
 
-    window_module.clear_secret_async = deferred_clear
-    mastodon_module.clear_secret_async = deferred_clear
+    windowsession_module.clear_secret_async = deferred_clear
+    clientoauth_module.clear_secret_async = deferred_clear
     try:
         win.account = removed
         win.client = RevokeClient(removed['instance'])
@@ -1189,8 +1191,8 @@ for failed_kind in (None, '42', CLIENT_CREDENTIALS_KIND + '42'):
             answer_clear()
             check('deleting absent credential entries remains successful', toasts == [])
     finally:
-        window_module.clear_secret_async = _real_clear_secret
-        mastodon_module.clear_secret_async = _real_mastodon_clear
+        windowsession_module.clear_secret_async = _real_clear_secret
+        clientoauth_module.clear_secret_async = _real_mastodon_clear
 
 # --- Only web links reach the system launcher -------------------------
 #
@@ -1277,8 +1279,8 @@ class BrowserLauncher:
 win, toasts = fresh_window()
 fallbacks = []
 win._open_url_fallback = fallbacks.append
-real_window_gtk = window_module.Gtk
-window_module.Gtk = types.SimpleNamespace(UriLauncher=BrowserLauncher)
+real_window_gtk = windowlogin_module.Gtk
+windowlogin_module.Gtk = types.SimpleNamespace(UriLauncher=BrowserLauncher)
 try:
     check('the window has an open_url for the login to call',
           callable(getattr(BabbleWindow, 'open_url', None)))
@@ -1291,7 +1293,7 @@ try:
     check('a refusing portal falls back to the default handler',
           fallbacks == ['https://example.social/oauth/authorize?x=2'])
 finally:
-    window_module.Gtk = real_window_gtk
+    windowlogin_module.Gtk = real_window_gtk
 
 if failures:
     print('%d checks failed' % len(failures))

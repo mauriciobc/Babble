@@ -23,8 +23,9 @@ sys.path.insert(0, srcdir)
 from src.accounts import (account_key, active_account, find_account,  # noqa: E402
                           find_account_by_key, forget_account,
                           read_accounts, role_is_admin, save_account)
-from src.mastodon import (ADMIN_SCOPES, OAUTH_SCOPES,  # noqa: E402
-                          MastodonClient, normalize_instance)
+from src.mastodon import MastodonClient  # noqa: E402
+from src.oauthpkce import (ADMIN_SCOPES, OAUTH_SCOPES,  # noqa: E402
+                          normalize_instance)
 
 ALICE = {'id': '42', 'acct': 'alice', 'username': 'alice',
          'instance': 'https://a.example'}
@@ -162,7 +163,7 @@ class TestClientCredentialsPerAccount(unittest.TestCase):
                 callback(None)
 
         client = MastodonClient('https://a.example')
-        import src.mastodon as mastodon_module
+        import src.clientoauth as mastodon_module
         original = mastodon_module.store_secret_async
         mastodon_module.store_secret_async = record
         try:
@@ -183,7 +184,7 @@ class TestClientCredentialsPerAccount(unittest.TestCase):
                 callback(None)
 
         client = MastodonClient('https://a.example')
-        import src.mastodon as mastodon_module
+        import src.clientoauth as mastodon_module
         original = mastodon_module.store_secret_async
         mastodon_module.store_secret_async = record
         try:
