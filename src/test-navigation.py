@@ -91,7 +91,8 @@ modules = {
     'src.conversations': ('ConversationsPage',),
     'src.catchup': ('CatchUpPage',),
     'src.search': ('SearchPage',),
-    'src.hashtags': ('FollowedHashtagsPage', 'HashtagPage'),
+    'src.hashtaglists': ('FollowedHashtagsPage',),
+    'src.hashtags': ('HashtagPage',),
     'src.explore': ('ExplorePage',),
     'src.lists': ('ListsPage', 'ListTimelinePage'),
 }
@@ -111,7 +112,7 @@ with patch.dict(sys.modules, {
         'catch-up': ('src.catchup', (host.client(),),
                      {'account': host.account()}),
         'search': ('src.search', (host.client(),), {}),
-        'hashtags': ('src.hashtags', (host.client(),), {}),
+        'hashtags': ('src.hashtaglists', (host.client(),), {}),
         'explore': ('src.explore', (host.client(),), {}),
         'lists': ('src.lists', (host.client(),), {}),
         'list:42': ('src.lists',

@@ -13,8 +13,6 @@ empty state. It also proves a list and its rows are freed once dropped,
 and (the last checks) that the test itself can fail. Exits 77 (skip)
 without a display."""
 
-import gc
-import logging
 import os
 # Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
@@ -26,7 +24,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -39,133 +37,14 @@ sys.path.insert(0, srcdir)
 
 Adw.init()
 
-from src import (feedback, hashtags, pages, scheduled,  # noqa: E402
+from src import (feedback, hashtaglists, pages, scheduled,  # noqa: E402
                  weakconnect)
 from src.api import core as api_core  # noqa: E402
 
-failures = []
-CONTEXT = GLib.MainContext.default()
-
-
-def check(name, condition):
-    if condition:
-        print('ok - %s' % name)
-    else:
-        failures.append(name)
-        print('FAIL - %s' % name)
-
-
-def settle():
-    """Run what is queued on the main loop (the idle fill), not more."""
-    for _attempt in range(20):
-        if not CONTEXT.iteration(False):
-            return
-
-
-def freed(ref, attempts=5):
-    for _attempt in range(attempts):
-        if gc.collect() is not None:
-            gc.collect()
-        if ref() is None:
-            return True
-    return ref() is None
-
-
-class Request:
-    def __init__(self, method, path, params, callback, cancellable):
-        self.method = method
-        self.path = path
-        self.params = params
-        self.callback = callback
-        self.cancellable = cancellable
-
-
-class FakeClient:
-    """The two calls ``PagedList`` makes of a client. It models the real
-    transport's cancellation: a cancelled request still calls back, and
-    finishing it raises CANCELLED even when its answer had arrived."""
-
-    def __init__(self):
-        self.sent = []
-        self.finished = 0
-
-    def request_async(self, method, path, params=None, form=None,
-                      json_body=None, callback=None, cancellable=None):
-        self.sent.append(Request(method, path, dict(params or {}),
-                                 callback, cancellable))
-
-    def request_finish_paged(self, result):
-        self.finished += 1
-        if result[0] == 'cancelled':
-            raise GLib.Error.new_literal(
-                Gio.io_error_quark(), 'Operation was cancelled',
-                Gio.IOErrorEnum.CANCELLED)
-        if result[0] == 'error':
-            raise GLib.Error.new_literal(
-                Gio.io_error_quark(), result[1], Gio.IOErrorEnum.FAILED)
-        return result[1], result[2], None
-
-    def _deliver(self, request, result):
-        if request.cancellable is not None \
-                and request.cancellable.is_cancelled():
-            result = ('cancelled',)
-        request.callback(self, result, None)
-
-    def answer(self, items, next_params=None, request=None):
-        request = request or self.sent[-1]
-        self._deliver(request, ('ok', items, next_params))
-
-    def fail(self, request=None, message='boom'):
-        request = request or self.sent[-1]
-        self._deliver(request, ('error', message))
-
-
-def item(number, **extra):
-    data = {'id': str(number), 't': 'row %d' % number}
-    data.update(extra)
-    return data
-
-
-def make_row(data):
-    if data.get('skip'):
-        return None
-    return Adw.ActionRow(title=data['t'])
-
-
-def build(client=None, fill=False, **kwargs):
-    client = client or FakeClient()
-    kwargs.setdefault('empty_title', 'Nothing')
-    lst = pages.PagedList(client, '/things', make_row, **kwargs)
-    if not fill:
-        # The idle fill asks for the next page of a list that never
-        # scrolled; tests that drive load_more by hand turn it off.
-        lst._maybe_fill = lambda: GLib.SOURCE_REMOVE
-    return client, lst
-
-
-def page_name(lst):
-    return lst.stack.get_visible_child_name()
-
-
-def children(lst):
-    out = []
-    child = lst.list_box.get_first_child()
-    while child is not None:
-        out.append(child)
-        child = child.get_next_sibling()
-    return out
-
-
-def texts(lst):
-    return [row.get_title() for row in lst.rows]
-
-
-def in_step(lst):
-    """rows and list_box agree (a placeholder may be the one extra)."""
-    boxed = children(lst)
-    extra = [lst.placeholder] if lst.placeholder is not None else []
-    return boxed == lst.rows + extra or boxed == extra + lst.rows
-
+from testkit import pagedlist as kit  # noqa: E402
+from testkit.pagedlist import (FakeClient, build,  # noqa: E402
+                               check, children, freed, in_step, item,
+                               make_row, page_name, settle, texts)
 
 reported = []
 real_report = feedback.report_error
@@ -611,7 +490,7 @@ check('the real drafts page, its list and a row are freed after a page '
       'and a removal', all(freed(ref) for ref in refs))
 
 client = PageClient()
-page = hashtags.FollowedHashtagsPage(client)
+page = hashtaglists.FollowedHashtagsPage(client)
 client.answer([{'name': 'one', 'url': 'u', 'history': []},
                {'name': 'two', 'url': 'u', 'history': []}], None)
 page.paged.remove_row(page.paged.rows[0])
@@ -798,245 +677,6 @@ window.destroy()
 del window, holder, lst, other
 settle()
 
-# A hook that raises (DEF-11)
-
-toasts = []
-real_toast = feedback.show_toast
-toast_actions = []
-
-
-def fake_toast(widget, text, undo=None, undo_label=None, **_k):
-    toasts.append(text)
-    toast_actions.append((undo, undo_label))
-
-
-feedback.show_toast = fake_toast
-# The traceback goes to the log; keep this run's output readable.
-logging.getLogger('src.pages').setLevel(logging.CRITICAL)
-
-
-class Hooks:
-    """Hooks that raise while ``armed`` and behave otherwise."""
-
-    def __init__(self, where):
-        self.where = where
-        self.armed = False
-        self.seen = 0
-
-    def finish(self, client_, result):
-        if self.where == 'finish' and self.armed:
-            raise KeyError('not a GLib.Error')
-        return client_.request_finish_paged(result)
-
-    def extract(self, data):
-        if self.where == 'extract' and self.armed:
-            raise TypeError('bad payload')
-        return data
-
-    def page_filter(self, items):
-        if self.where == 'page_filter' and self.armed:
-            raise ValueError('bad filter')
-        return items
-
-    def make_row(self, data):
-        self.seen += 1
-        if self.where == 'make_row' and self.armed and data['id'] == '7':
-            raise RuntimeError('row 7')
-        return make_row(data)
-
-
-def hooked(where):
-    hooks = Hooks(where)
-    client, lst = build(finish=hooks.finish, extract=hooks.extract,
-                        page_filter=hooks.page_filter)
-    lst.make_row = hooks.make_row
-    return hooks, client, lst
-
-
-for where in ('finish', 'extract', 'page_filter', 'make_row'):
-    # First page
-    hooks, client, lst = hooked(where)
-    hooks.armed = True
-    page = [item(n) for n in range(1, 21)]
-    try:
-        client.answer(page, {'max_id': '20'})
-        raised = False
-    except Exception:
-        raised = True
-    check('%s raising on the first page does not raise out of the '
-          'callback' % where, not raised)
-    check('%s raising on the first page shows the error page, no rows, '
-          'nothing half-applied' % where,
-          page_name(lst) == 'error' and lst.rows == [] and children(lst) == []
-          and not lst._loading)
-    check('%s raising on the first page leaves the cursor unset and a '
-          'plain description' % where,
-          lst._next is None and lst.error_page.get_description() == '')
-    hooks.armed = False
-    lst._on_retry(None)
-    client.answer([item(1)])
-    check('%s: Retry after a first-page failure works' % where,
-          page_name(lst) == 'list' and texts(lst) == ['row 1'])
-
-    # Load more
-    hooks, client, lst = hooked(where)
-    client.answer([item(1), item(2)], {'max_id': '2'})
-    lst.load_more()
-    hooks.armed = True
-    before = len(toasts)
-    try:
-        client.answer([item(n) for n in range(3, 23)], {'max_id': '22'})
-        raised = False
-    except Exception:
-        raised = True
-    check('%s raising on load-more does not raise out of the callback'
-          % where, not raised)
-    check('%s raising on load-more keeps the list, adds no row of that '
-          'page' % where,
-          page_name(lst) == 'list' and texts(lst) == ['row 1', 'row 2']
-          and in_step(lst))
-    check('%s raising on load-more releases the spinner and the flag and '
-          'says so once' % where,
-          not lst.more_spinner.get_visible() and not lst._loading
-          and toasts[before:] == ['Could not load more'])
-    check('%s raising on load-more keeps the cursor' % where,
-          lst._next == {'max_id': '2'})
-    hooks.armed = False
-    lst.load_more()
-    check('%s: the retry asks for the same page' % where,
-          len(client.sent) == 3
-          and client.sent[2].params == {'max_id': '2'})
-    client.answer([item(3)], None)
-    check('%s: and lands' % where,
-          texts(lst) == ['row 1', 'row 2', 'row 3'] and in_step(lst))
-
-# A page_filter that empties the page and then a later page that raises
-hooks, client, lst = hooked('make_row')
-client.answer([item(1)], {'max_id': '1'})
-lst.load_more()
-hooks.armed = True
-client.answer([item(n) for n in range(5, 9)], None)
-check('make_row failing mid-page appends none of that page (rows 5, 6 '
-      'built, 7 raised)',
-      texts(lst) == ['row 1'] and in_step(lst) and lst._next == {
-          'max_id': '1'})
-
-# A cancelled or superseded answer shows nothing, even with hooks armed
-hooks, client, lst = hooked('finish')
-hooks.armed = True
-first = client.sent[0]
-lst.refresh()
-before = len(toasts)
-client.answer([item(1)], request=first)
-check('a superseded answer is dropped before any hook runs',
-      page_name(lst) == 'loading' and hooks.seen == 0
-      and toasts[before:] == [])
-hooks, client, lst = hooked('finish')
-hooks.armed = True
-lst._scope.close()
-before = len(toasts)
-client.answer([item(1)])
-check('an answer to a closed list is dropped, no error page, no toast',
-      page_name(lst) == 'loading' and toasts[before:] == [])
-
-# Something raising after the rows are in must not roll the cursor back
-
-
-class AfterSuper(pages.PagedList):
-    """An override that raises after super(), as the announcements and
-    conversations pages' emit_unread_changed could."""
-
-    boom = False
-
-    def append_items(self, items):
-        super().append_items(items)
-        if self.boom:
-            raise RuntimeError('after super')
-
-
-client = FakeClient()
-lst = AfterSuper(client, '/things', make_row, empty_title='Nothing')
-lst._maybe_fill = lambda: GLib.SOURCE_REMOVE
-lst.boom = True
-try:
-    client.answer([item(1), item(2)], {'max_id': '2'})
-    raised = False
-except Exception:
-    raised = True
-check('an override raising after its rows were added does not raise out '
-      'of the callback', not raised)
-check('the rows stay, once, and the list is shown',
-      texts(lst) == ['row 1', 'row 2'] and in_step(lst)
-      and page_name(lst) == 'list')
-check('the cursor advanced and no failure is shown',
-      lst._next == {'max_id': '2'} and not lst._load_failed)
-lst.boom = False
-lst.load_more()
-check('the next load asks for the NEXT page',
-      len(client.sent) == 2 and client.sent[1].params == {'max_id': '2'})
-client.answer([item(3)], None)
-check('and no row is added twice',
-      texts(lst) == ['row 1', 'row 2', 'row 3'] and in_step(lst))
-
-calls = []
-
-
-def bad_placeholder():
-    calls.append(1)
-    raise RuntimeError('placeholder')
-
-
-client, lst = build(make_placeholder=bad_placeholder)
-try:
-    client.answer([], None)
-    raised = False
-except Exception:
-    raised = True
-check('a raising make_placeholder on an empty page does not raise out of '
-      'the callback, and shows the error page',
-      not raised and calls and page_name(lst) == 'error' and lst.rows == []
-      and lst.error_page.get_description() == '')
-
-# A hook that fails on every page must not flood
-
-real_near_bottom = pages.near_bottom
-pages.near_bottom = lambda adjustment, preload=pages.PRELOAD: True
-hooks, client, lst = hooked('extract')
-client.answer([item(1), item(2)], {'max_id': '2'})
-lst.load_more()
-hooks.armed = True
-before = len(toasts)
-client.answer([item(3)], {'max_id': '3'})
-adjustment = lst.scrolled.get_vadjustment()
-for _scroll in range(3):
-    lst._on_scroll(adjustment)
-check('scrolling after a raising load-more sends no further request',
-      len(client.sent) == 2 and lst._load_failed)
-check('and the reader sees one toast, with a Try Again action',
-      toasts[before:] == ['Could not load more']
-      and toast_actions[-1][0] is not None
-      and toast_actions[-1][1] == '_Try Again')
-hooks.armed = False
-toast_actions[-1][0]()
-check('the toast action asks for the same page again',
-      len(client.sent) == 3 and client.sent[2].params == {'max_id': '2'}
-      and not lst._load_failed)
-client.answer([item(3)], None)
-check('and a good page lands', texts(lst) == ['row 1', 'row 2', 'row 3'])
-
-hooks, client, lst = hooked('extract')
-client.answer([item(1)], {'max_id': '1'})
-lst.load_more()
-hooks.armed = True
-client.answer([item(2)], {'max_id': '2'})
-check('self-check: the stop is set', lst._load_failed)
-hooks.armed = False
-lst.refresh()
-check('refresh clears the stop', not lst._load_failed)
-pages.near_bottom = real_near_bottom
-
-feedback.show_toast = real_toast
-
 # The test can fail
 
 
@@ -1061,7 +701,7 @@ check('self-check: the order check fails on a wrong order',
 
 feedback.report_error = real_report
 
-if failures:
-    print('%d checks failed' % len(failures))
+if kit.failures:
+    print('%d checks failed' % len(kit.failures))
     sys.exit(1)
 print('all paged list checks passed')

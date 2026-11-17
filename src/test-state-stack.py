@@ -35,7 +35,7 @@ if os.path.exists(bundle):
 Adw.init()
 
 from src import feedback, pages  # noqa: E402
-from src.fedicollections import CollectionPage  # noqa: E402
+from src.collectionpage import CollectionPage  # noqa: E402
 from src.filters import FiltersList  # noqa: E402
 from src.statusviews import EditHistoryView  # noqa: E402
 from src.thread import ThreadPage  # noqa: E402

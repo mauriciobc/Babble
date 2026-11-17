@@ -26,7 +26,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gio, GLib, Gtk
-from src.compose import ComposeDialog
+from src.composedialog import ComposeDialog
 from src.mastodon import MastodonClient
 
 failures = []

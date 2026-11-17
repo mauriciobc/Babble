@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import os
-import urllib.parse
 
 import gi
 
-from .i18n import gettext as _, ngettext
+from .i18n import gettext as _
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
@@ -13,45 +12,24 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, GLib, Gio, GObject, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
-from . import auth  # noqa: E402
 from . import clipboard  # noqa: E402
-from . import drafts  # noqa: E402
-from . import emojichooser  # noqa: E402
-from . import appsettings, feedback, pagenav, uihelpers  # noqa: E402
-from .weakconnect import connect_weak, weak_method  # noqa: E402
-from .api import accounts as api_accounts  # noqa: E402
-from .api.notifications import unread_badge_text  # noqa: E402
-from .api import timelines as api_timelines  # noqa: E402
+from . import appsettings
+from .weakconnect import connect_weak  # noqa: E402
 from . import pluginmenu  # noqa: E402
 from . import navigation  # noqa: E402
-from . import portals  # noqa: E402
 from . import sidebarmode  # noqa: E402
 from . import webcolumn  # noqa: E402
-from .capabilities import COLLECTIONS_API_VERSION  # noqa: E402
-from .mastodon import (OAUTH_REDIRECT, MastodonClient, clear_secret_async,  # noqa: E402
-                       keyring_problem,
-                       normalize_instance, summarize_error)
+from .windowbackground import WindowBackground  # noqa: E402
+from .windowlogin import WindowLogin  # noqa: E402
+from .windowplaces import SHOW_RESTRICTED_KEY, WindowPlaces  # noqa: E402
+from .windowsession import WindowSession  # noqa: E402
+from .mastodon import summarize_error
+from .oauthpkce import OAUTH_REDIRECT  # noqa: E402
 from .sidebarhost import SidebarHost  # noqa: E402
 from .sidebarrail import SidebarRail  # noqa: E402
-from .statustext import relative_time  # noqa: E402
-from .timelinepage import ApiTimelineSource, TimelinePage  # noqa: E402
-from .mediacache import AvatarCache  # noqa: E402
-
-# One-click alternatives for the login suggestions row, ranked from the
-# public JoinMastodon server directory (api.joinmastodon.org/servers)
-# by weekly active users, largest communities first.
-SUGGESTED_SERVERS = (
-    'mastodon.social', 'mstdn.social', 'infosec.exchange', 'mstdn.jp',
-    'hachyderm.io', 'piaille.fr', 'mastodon.world', 'social.vivaldi.net',
-    'epsilon.social', 'troet.cafe', 'mastodon.uno', 'mathstodon.xyz')
-
 
 # Settings the home page reads once when it is built, so a change rebuilds it.
 HOME_FILTER_KEYS = ('hide-boosts-home', 'hide-replies-non-follows')
-
-# Opt-in for public timelines the server has closed to most accounts but
-# still serves to this one (the "View live and topic feeds" permission).
-SHOW_RESTRICTED_KEY = 'show-restricted-feeds'
 
 # The help pages, and where they live when no help viewer answers.
 #
@@ -115,7 +93,8 @@ def help_available():
 
 
 @Gtk.Template(resource_path='/io/github/mauriciobc/Babble/window.ui')
-class BabbleWindow(Adw.ApplicationWindow):
+class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
+                   WindowBackground, Adw.ApplicationWindow):
     __gtype_name__ = 'BabbleWindow'
 
     # Read by the header controls and the icon rail through property
@@ -221,19 +200,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         # lookup is allowed to touch the session.
         self._session_lookup = 0
 
-    def _setup_auth(self):
-        # The OAuth state machine. It owns the attempt bookkeeping, the
-        # loopback listener and the keyring writes, and answers in
-        # signals; the window keeps only the widgets.
-        self.auth = auth.LoginFlow(
-            current_account=weak_method(self._signed_in_account))
-        connect_weak(self.auth, 'succeeded', self._on_auth_succeeded)
-        connect_weak(self.auth, 'failed', self._on_auth_failed)
-        connect_weak(self.auth, 'message', self._on_auth_message)
-        connect_weak(self.auth, 'browser', self._on_auth_browser)
-        connect_weak(self.auth, 'changed', self._on_auth_changed)
-        connect_weak(self.auth, 'attended', self._on_auth_attended)
-
     def _setup_settings_and_banners(self):
         # Local scope: a focused TextView/Editable keeps Page Up/Down.
         # An application accelerator would steal them first.
@@ -263,44 +229,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         self.draft_banner.set_button_style(Adw.BannerButtonStyle.SUGGESTED)
         self._setup_copied_link_banner()
         self._setup_offline_banner()
-
-    def _setup_streaming(self):
-        self.notifications_badge = Gtk.Label(visible=False)
-        self.notifications_badge.add_css_class('notifications-badge')
-        self.notifications_badge.add_css_class('caption-heading')
-        self.notifications_badge.add_css_class('numeric')
-
-        from .desktopnotify import DesktopNotifier
-        from .streaming import StreamingManager
-        from .streamrouter import StreamHost, StreamRouter
-        self.notifier = DesktopNotifier(self)
-        self.streaming = StreamingManager()
-        # Which streams the open places want, and who receives each
-        # event. The router reaches pages through these callables, at
-        # each event, and holds none of them.
-        nav = self.navigation
-        self.stream_router = StreamRouter(StreamHost(
-            home_page=lambda: self.timeline_page,
-            notifications_page=lambda: self.notifications_page,
-            place=lambda tag: nav.children.get(tag),
-            stream_places=nav.stream_places,
-            place_timelines=nav.place_timelines,
-            is_timeline=lambda page: isinstance(page, TimelinePage),
-            live_public=lambda: self.settings.get_boolean(
-                'public-live-updates'),
-            refresh_admin_tool=lambda tool: self._refresh_admin_tool(tool),
-            notifier_handle=lambda payload: self.notifier.handle(payload),
-            note_background_notification=(
-                lambda payload: self.note_background_notification(payload)),
-        ))
-        connect_weak(self.streaming, 'event', self._on_stream_event)
-        connect_weak(self.streaming, 'connection-changed',
-                           self._on_stream_connection_changed)
-        # The stream went down after it had been up: whatever was posted
-        # meanwhile never came through it.
-        self._stream_dropped = False
-        # The open admin dashboard, so a streaming report can refresh it.
-        self._admin_dialog = None
 
     def _setup_actions(self):
         actions = (
@@ -444,160 +372,6 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     # Session
 
-    def restore_account(self):
-        account = self.get_stored_account()
-        account_store.log_account_event(
-            'startup: %d stored, active-account=%r, restoring %s' % (
-                len(account_store.read_accounts(self.settings)),
-                self.settings.get_string('active-account'),
-                account_store.account_key(account) if account
-                else 'nothing'))
-        if account is None:
-            self.main_stack.set_visible_child_name('login')
-            return
-        self._activate_account(account, login_only=True)
-
-    def _activate_account(self, account, login_only=False):
-        """Read *account*'s token from the keyring and make it the
-        session.
-
-        The read is an out-of-process round trip, so a second restore or
-        switch can start before the first answers. Only the newest
-        lookup may touch the session: a stale reply that returned a
-        token would show the wrong account, and one that returned None
-        would forget an account that is in fact signed in.
-        """
-        account_id = account['id']
-        client = MastodonClient(account['instance'])
-        lookup = self._session_lookup = self._session_lookup + 1
-
-        def loaded(token, error=None):
-            if lookup != self._session_lookup:
-                return
-            account_store.log_account_event(
-                'keyring read for %s (login_only=%s): %s' % (
-                    account_store.account_key(account), login_only,
-                    'error %s' % error.message if error is not None
-                    else 'token found' if token else 'no entry'))
-            if error is not None:
-                # A locked or unreachable keyring is not a signed-out
-                # account. Keep the stored entry (and its Catch-Up
-                # snapshots) and ask the user to try again.
-                if error.matches(Gio.io_error_quark(),
-                                 Gio.IOErrorEnum.CANCELLED):
-                    return
-                self.main_stack.set_visible_child_name('login')
-                if keyring_problem(error) == 'missing':
-                    self.present_no_keyring()
-                    return
-                self.show_toast(
-                    _('Could not read the login for @%s from the keyring')
-                    % account.get('acct', ''))
-                return
-            if token is None:
-                if login_only:
-                    # The whole account, not just an id: another
-                    # instance may hold the same id.
-                    self.remove_account(account)
-                    self.main_stack.set_visible_child_name('login')
-                else:
-                    self.show_toast(
-                        _('The login for @%s is gone from the keyring')
-                        % account.get('acct', ''))
-                return
-            if not login_only:
-                self._teardown_session()
-            client.token = token
-            self.client = client
-            self.account = account
-            if not login_only:
-                # The paired key, so a second account with the same id on
-                # another instance cannot take the selection with it.
-                self.settings.set_string(
-                    'active-account', account_store.account_key(account))
-            self.show_shell()
-
-        # The keyring is an out-of-process round trip; the token arrives
-        # later and the shell is built then.
-        client.load_secret_token(account_id, loaded)
-
-    def present_no_keyring(self):
-        """Say once per session that no keyring is running, and what to
-        do. Returns the dialog, or None when it was already shown."""
-        if self._no_keyring_shown:
-            return None
-        self._no_keyring_shown = True
-        dialog = Adw.AlertDialog.new(
-            _('No Keyring Found'),
-            _('Babble keeps your login in the system keyring, and no '
-              'keyring service is running. Start one, such as GNOME '
-              'Keyring or KeePassXC, then restart Babble.'))
-        dialog.add_response('close', _('_Close'))
-        dialog.add_response('help', _('_Learn More'))
-        dialog.set_default_response('close')
-        dialog.set_close_response('close')
-        connect_weak(dialog, 'response', self._on_no_keyring_response)
-        dialog.present(self)
-        return dialog
-
-    def _on_no_keyring_response(self, _dialog, response):
-        if response == 'help':
-            self.open_help()
-
-    def get_stored_account(self):
-        return account_store.active_account(self.settings)
-
-    def store_account(self, account):
-        account_store.save_account(self.settings, account, activate=True)
-
-    def remove_account(self, account):
-        """Forget *account* -- the id together with its instance.
-
-        Forgetting by id alone would delete every stored account carrying
-        that id, including another instance's.
-        """
-        account_store.forget_account(self.settings, account['id'],
-                                      account['instance'])
-
-    def _update_session_actions(self):
-        signed_in = self.client is not None and self.account is not None
-        for name in ('logout', 'show-notifications', 'compose',
-                     'view-profile', 'reload', 'back-home', 'search',
-                     'announcements', 'follow-requests', 'mutes-blocks',
-                     'drafts', 'scheduled', 'wrapped', 'goto-place'):
-            self.lookup_action(name).set_enabled(signed_in)
-        # A server that is not Mastodon, or an older one, is told no
-        # rather than being assumed yes: Collections is Mastodon API
-        # version 10, and an unproven server is not evidence that it has
-        # it. The admin switch is about the signed-in role, not the
-        # server's version.
-        self.lookup_action('collections').set_enabled(
-            signed_in and self.client.is_supported(
-                COLLECTIONS_API_VERSION))
-        self.lookup_action('admin').set_enabled(
-            signed_in and account_store.role_is_admin(self.account))
-        self._refresh_draft_banner()
-
-    def _local_drafts(self):
-        """The signed-in account's restorable drafts, newest first, as
-        ``(raw, draft)`` pairs."""
-        if self.account is None or self.client is None:
-            return []
-        return drafts.stored_drafts(
-            appsettings.settings().get_strv('local-drafts'),
-            account_store.account_key(self.account))
-
-    def _refresh_draft_banner(self, *_args):
-        drafts_ = self._local_drafts()
-        self.draft_banner.set_revealed(bool(drafts_))
-        when = relative_time(drafts_[0][1].saved_at) if drafts_ else ''
-        if when:
-            # Translators: a draft saved earlier is offered for
-            # restoring; %s is a compact age like "5m"
-            self.draft_banner.set_title(_('Draft from %s') % when)
-        else:
-            self.draft_banner.set_title(_('You have an unsent draft'))
-
     # Copied link banner
 
     def _setup_copied_link_banner(self):
@@ -625,55 +399,6 @@ class BabbleWindow(Adw.ApplicationWindow):
     def _on_online_changed(self, system, *_args):
         self.offline_banner.set_revealed(not system.props.online)
 
-    @Gtk.Template.Callback()
-    def on_draft_restore(self, _banner):
-        """Reopen the newest unsent draft saved when the composer was
-        closed; the entry leaves the list once it is back in the
-        composer."""
-        drafts = self._local_drafts()
-        if not drafts:
-            self.draft_banner.set_revealed(False)
-            return
-        raw, draft = drafts[0]
-        dialog = self.present_composer()
-        if dialog is None:
-            return
-        if not dialog.view.restore_stashing(draft):
-            return
-        from .drafts import drop_local_draft
-        drop_local_draft(appsettings.settings(), raw)
-
-    def _teardown_session(self):
-        """Drop every page, stream and dialog tied to the current
-        client, before another account takes over."""
-        # An authorization in flight belongs to the session being
-        # dropped, so its requests are cancelled rather than left to
-        # land on the account replacing this one.
-        self.auth.cancel()
-        self.streaming.stop()
-        self._stream_dropped = False
-        emojichooser.deactivate_instance_emojis()
-        self.notifier.reset()
-        # A cached composer also owns requests when not presented.
-        if self.compose_dialog is not None:
-            self.compose_dialog.abandon_session()
-        self.compose_dialog = None
-        catch_up = self.navigation.children.get('catch-up')
-        if catch_up is not None:
-            catch_up.cancel()           # a catch-up in flight stops here
-        self.timeline_page = None
-        self.timeline_model = None
-        self.home_bin.set_child(None)
-        self._clear_notifications_page()
-        self.navigation.clear()
-        self.navigation_view.replace([self.page_home])
-
-    def switch_account(self, account_key):
-        account = account_store.find_account_by_key(self.settings, account_key)
-        if account is None:
-            return
-        self._activate_account(account)
-
     @staticmethod
     def _grab_focus(widget):
         """Focus *widget* only when it is mapped (unit tests skip
@@ -681,583 +406,17 @@ class BabbleWindow(Adw.ApplicationWindow):
         if widget is not None and widget.get_mapped():
             widget.grab_focus()
 
-    def begin_add_account(self):
-        """Show the login page on top of the running session; Back
-        returns to it."""
-        self.auth.restart()
-        self.login_back_button.set_visible(self.client is not None)
-        self.main_stack.set_visible_child_name('login')
-        self._grab_focus(self.instance_entry)
-
-    @Gtk.Template.Callback()
-    def on_login_back_clicked(self, _button):
-        self.auth.restart()
-        if self.client is not None and self.account is not None:
-            self.main_stack.set_visible_child_name('shell')
-
-    def on_remove_account_requested(self, _switcher, account_key):
-        account = account_store.find_account_by_key(self.settings, account_key)
-        if account is None:
-            return
-        feedback.confirm(
-            self, _('Remove Account?'),
-            _('The login for %s will be removed from this device.')
-            % account_store.full_handle(account),
-            _('_Remove'), lambda: self._remove_account_now(account))
-
-    def _remove_account_now(self, account):
-        """Sign *account* out and stop using it on this device.
-
-        The token is read back, the local removal happens at once, and
-        the server is told afterwards. The read has to come first -- the
-        revoke needs the token, and the keyring entry is deleted on the
-        way out -- but it is local IPC, so the window never waits on the
-        network to finish logging you out.
-        """
-        self._revoke_then_remove(account)
-
-    def _revoke_then_remove(self, account):
-        instance, account_id = account['instance'], account['id']
-        # Whether this is the account being removed *now* is decided when
-        # the removal completes, not when it starts: the keyring read is
-        # asynchronous, and the user can switch accounts in between.
-        was_active = self._is_active(account)
-        # The session that signed in already holds this account's token
-        # and client credentials; removing another account needs a client
-        # that reads them back.
-        client = self.client if was_active and self.client is not None \
-            else MastodonClient(instance)
-        live = client is self.client
-        have_token = live and bool(client.token)
-        have_credentials = live and bool(client.client_id
-                                         and client.client_secret)
-
-        def revoke_then_forget():
-            """Start the revoke, then drop everything locally.
-
-            The revoke runs on its own from here: a server that has
-            already forgotten the token answers 200, and one that cannot
-            be reached must not keep the window signed in.
-            """
-            if client.token and client.client_id and client.client_secret:
-                client.revoke_token_async(
-                    client.token,
-                    lambda _c, result, _d=None: auth.discard_reply(
-                        client.revoke_token_finish, result))
-            self._finish_account_removal(account)
-
-        def on_credentials(_known):
-            revoke_then_forget()
-
-        def on_token(token, error=None):
-            if error is None:
-                client.token = token
-            client.load_client_credentials(account_id, on_credentials)
-
-        if have_token and have_credentials:
-            revoke_then_forget()
-        elif have_token:
-            client.load_client_credentials(account_id, on_credentials)
-        else:
-            client.load_secret_token(account_id, on_token)
-
-    def _is_active(self, account):
-        """Whether *account* is the one currently signed in."""
-        return self.account is not None \
-            and account_store.same_account(self.account, account)
-
-    def _finish_account_removal(self, account):
-        window_ref = self.weak_ref()
-        errors = []
-        pending = 2
-
-        def cleared(error):
-            nonlocal pending
-            if error is not None:
-                errors.append(error)
-            pending -= 1
-            window = window_ref()
-            if pending or not errors or window is None:
-                return
-            detail = summarize_error(errors[0].message)
-            body = _('The account was removed from Babble, but the system '
-                     'keyring could not remove all of its credentials.')
-            if detail:
-                body += ' ' + detail
-            window.show_error(_('Could not remove all saved credentials'), body)
-
-        client = MastodonClient(account['instance'])
-        clear_secret_async(account['instance'], account['id'], cleared)
-        client.clear_client_credentials(account['id'], cleared)
-        remaining = account_store.forget_account(self.settings,
-                                                 account['id'],
-                                                 account['instance'])
-        # Local removal never waits for keyring deletion or server revocation.
-        if not self._is_active(account):
-            return
-        self._teardown_session()
-        self.account = None
-        self.client = None
-        if remaining is not None:
-            self.switch_account(account_store.account_key(remaining))
-        else:
-            self._sign_out_to_login()
-
-    def _sign_out_to_login(self):
-        self.account_avatar.set_custom_image(None)
-        self.account_button.set_tooltip_text(_('Switch Account'))
-        self._update_session_actions()
-        self.login_back_button.set_visible(False)
-        self.auth.cancel()
-        self.main_stack.set_visible_child_name('login')
-
-    def show_shell(self):
-        name = account_store.plain_name(self.account)
-        handle = account_store.full_handle(self.account)
-        self.account_name_label.set_label(name)
-        self.account_handle_label.set_label(handle)
-        # The label ellipsizes when narrow or large-text; keep the full
-        # handle (with instance) on the button for hover and Orca.
-        self.account_button.set_tooltip_text(handle)
-        self.account_avatar.set_text(name)
-        AvatarCache.load(self.account_avatar, self.account)
-        self._update_session_actions()
-        self._refresh_sidebar()
-        self.ensure_home_timeline()
-        self.ensure_notifications_page()
-        self.show_page('home')
-        # Settle the sidebar before the shell's first allocation: setting
-        # show-sidebar from inside the collapsed notification makes the
-        # split view allocate its content pane with a negative width.
-        self._sync_sidebar_mode()
-        self._sync_sidebar_visibility()
-        self.login_back_button.set_visible(False)
-        self.main_stack.set_visible_child_name('shell')
-        self._load_session_info()
-        self._load_instance_emojis()
-        self._flush_pending_compose()
-
-    def _load_instance_emojis(self):
-        """The instance's whole custom-emoji set, fetched once per
-        session: it is the fallback layer every rendered ``:shortcode:``
-        resolves against, so it cannot wait for the composer to ask
-        for it (Tuba gathers these as the account comes up)."""
-        client = self.client
-        emojichooser.activate_instance_emojis(client)
-
-        def loaded(_emojis):
-            if client is self.client:
-                emojichooser.activate_instance_emojis(client)
-
-        emojichooser.load_custom_emojis(client, loaded)
-
-    def _load_session_info(self):
-        """Instance details (limits, streaming URL, API level) and the
-        fresh account entity (role, display name)."""
-        client = self.client
-        if not hasattr(client, 'instance_info_async'):
-            return
-
-        def info_done(_client, result, _data=None):
-            try:
-                client.instance_info_finish(result)
-            except GLib.Error:
-                pass
-            if client is self.client:
-                self._update_session_actions()
-                self._refresh_sidebar()
-                self._sync_streaming()
-
-        client.instance_info_async(callback=info_done)
-
-        def account_done(_client, result, _data=None):
-            try:
-                fresh = api_accounts.verify_credentials_finish(client, result)
-            except GLib.Error:
-                return
-            if client is not self.client or self.account is None \
-                    or fresh.get('id') != self.account.get('id'):
-                return
-            fresh['instance'] = self.account['instance']
-            self.account = fresh
-            account_store.save_account(self.settings, fresh, activate=False)
-            self._update_session_actions()
-            self._refresh_sidebar()
-
-        api_accounts.verify_credentials_async(client, callback=account_done)
-
-    def on_account_updated(self, account):
-        """The profile editor saved: show the new name and avatar."""
-        account = dict(account, instance=self.account['instance'])
-        self.account = account
-        account_store.save_account(self.settings, account, activate=False)
-        self.account_name_label.set_label(account_store.plain_name(account))
-        AvatarCache.load(self.account_avatar, account)
-
     # Streaming and desktop notifications
-
-    def _sync_streaming(self):
-        if self.client is None or not self.client.token:
-            return
-        if not self.settings.get_boolean('live-updates'):
-            self.streaming.stop()
-            self.notifier.start_polling()
-            return
-        self.streaming.set_streams(self.stream_router.wanted_streams())
-        if not self.streaming.connected:
-            self.streaming.start(self.client)
-            # Many instances sit behind CDNs that reject the upgrade;
-            # poll until the socket actually opens.
-            self.notifier.start_polling()
-
-    def _on_stream_connection_changed(self, _manager, connected):
-        if connected:
-            self.notifier.stop_polling()
-            if self._stream_dropped:
-                self._catch_up_after_outage()
-            self._stream_dropped = False
-        elif self.client is not None:
-            self._stream_dropped = True
-            self.notifier.start_polling()
-        self._schedule_background_status()
-
-    def _catch_up_after_outage(self):
-        """Fetch what was posted while the stream was down.
-
-        The stream does not replay. The notifications page has a list to
-        catch up (a poll may not have run since the last notification
-        arrived); so has every other open place: a list, a hashtag, the
-        local and federated timelines and the conversations would keep
-        showing what was there when the socket went down until the reader
-        refreshed them by hand."""
-        if self.timeline_page is not None:
-            self.timeline_page.refresh()
-        if self.notifications_page is not None:
-            self.notifications_page.catch_up()
-        for page in self.stream_router.timeline_pages():
-            # A place never loaded has nothing to catch up on; asking would
-            # send it a first-page request it never wanted.
-            if page is not self.timeline_page and page.has_loaded():
-                page.refresh()
-        conversations = self.navigation.children.get('conversations')
-        if conversations is not None:
-            conversations.refresh()
-
-    def _on_stream_event(self, _manager, stream, name, payload):
-        # Which page receives which event is the router's knowledge; the
-        # window only hands the event over (and is what the manager's
-        # signal is connected to, weakly).
-        self.stream_router.route(stream, name, payload)
-
-    def _on_close_request(self, _window):
-        """With background mode on, closing hides the window and keeps
-        the application (and its notifications) running."""
-        self._cancel_sidebar_visibility()
-        if self.client is None or not self.settings.get_boolean(
-                'work-in-background'):
-            # A hold left from an earlier hide would outlive the window.
-            self._release_hold()
-            feedback.flush_deferred()
-            return False
-        app = self.get_application()
-        if app is not None and not self._held:
-            app.hold()
-            self._held = True
-        self.set_visible(False)
-        if not self._background_asked:
-            self.request_background()
-        return True
 
     # Background portal
 
-    def request_background(self):
-        """Ask the XDG Background portal to let the app run with its
-        window closed. A refusal turns ``work-in-background`` off and
-        says so; no portal (unsandboxed host, D-Bus error) is silently
-        ignored. Asked at most once at a time; fully async."""
-        if self._background_pending:
-            return
-        self._background_pending = True
-        self._background_asked = True
-        ref = self.weak_ref()
-        portals.session_bus(
-            lambda bus: portals.request_background(ref, bus))
-
-    def _background_done(self, allowed):
-        self._background_pending = False
-        self._background_allowed = allowed
-        if allowed:
-            self._schedule_background_status()
-            return
-        self.settings.set_boolean('work-in-background', False)
-        feedback.show_toast(self, _('Running in the background was not allowed'))
-        # Released even when the window was shown again meanwhile, so
-        # its next close is not kept alive by a stale hold.
-        self._release_hold()
-        if not self.get_visible():
-            # Hidden by a close the portal now refuses: finish closing.
-            self.close()
-
-    def _background_failed(self):
-        # No portal or a D-Bus error: nothing refused, so stay in the
-        # background, but ask again on the next close in case the
-        # failure was transient.
-        self._background_pending = False
-        self._background_asked = False
-
-    def _release_hold(self):
-        app = self.get_application()
-        if app is not None and self._held:
-            app.release()
-            self._held = False
-
     # Background status
-
-    def note_background_notification(self, notification):
-        """Count a mention that arrived while the window is hidden, for
-        the background status line. Any notification may be passed, the
-        same one twice included."""
-        if self.get_visible() or not isinstance(notification, dict) \
-                or notification.get('type') != 'mention':
-            return
-        nid = str(notification.get('id') or '')
-        if not nid or nid in self._background_mentions:
-            return
-        self._background_mentions.add(nid)
-        self._schedule_background_status()
-
-    def _on_visible_changed(self, _window, _pspec):
-        if not self.get_visible():
-            self._schedule_background_status()
-            return
-        self._background_mentions.clear()
-        if self._status_source:
-            GLib.source_remove(self._status_source)
-            self._status_source = 0
-        if self._background_status:
-            self._background_status = ''
-            portals.set_background_status('')
-
-    def _schedule_background_status(self):
-        """Refresh the line GNOME Shell shows for the app running in the
-        background, once the changes of the next second have landed."""
-        if not self._background_allowed or self.get_visible() \
-                or self._status_source:
-            return
-        self._status_source = GLib.timeout_add(
-            portals.STATUS_DELAY_MS,
-            weak_method(self._flush_background_status))
-
-    def _flush_background_status(self):
-        self._status_source = 0
-        if self._background_allowed and not self.get_visible():
-            message = self._background_status_text()[
-                :portals.STATUS_MAX_CHARS]
-            if message != self._background_status:
-                self._background_status = message
-                portals.set_background_status(message)
-        return GLib.SOURCE_REMOVE
-
-    def _background_status_text(self):
-        count = len(self._background_mentions)
-        if count:
-            # Translators: status GNOME Shell shows for Babble running in
-            # the background with its window closed.
-            return ngettext('%d new mention', '%d new mentions',
-                            count) % count
-        if self.streaming.connected:
-            # Translators: background status: live updates are streaming.
-            return _('Connected')
-        # Translators: background status: no live stream, so Babble polls
-        # the server for new notifications.
-        return _('Checking for notifications')
 
     # Global shortcut portal
 
-    def _sync_global_shortcut(self):
-        """Bind the quick post shortcut through the GlobalShortcuts portal
-        while ``global-shortcut`` is on; close the session once it is
-        off. A missing portal is silently ignored."""
-        if not self.settings.get_boolean('global-shortcut'):
-            if self._shortcut_session is not None:
-                self._shortcut_session.close()
-                self._shortcut_session = None
-            return
-        if self._shortcut_session is not None or self._shortcut_pending:
-            return
-        self._shortcut_pending = True
-        ref = self.weak_ref()
-        portals.session_bus(
-            lambda bus: portals.create_shortcut_session(ref, bus))
-
-    def _shortcut_ready(self, session, refused):
-        self._shortcut_pending = False
-        if refused:
-            self.settings.set_boolean('global-shortcut', False)
-            feedback.show_toast(self,
-                             _('The quick post shortcut was not allowed'))
-            return
-        if session is None:
-            return
-        if not self.settings.get_boolean('global-shortcut'):
-            session.close()  # switched off while it was being bound
-            return
-        self._shortcut_session = session
-
     # Pages
 
-    def _rebuild_home_timeline(self):
-        """Throw the home page and its items away and build it again, for
-        a setting that decides which posts it may show."""
-        if self.timeline_page is None:
-            return
-        self.timeline_page = None
-        self.timeline_model = None
-        self.ensure_home_timeline()
-
-    def ensure_home_timeline(self):
-        """Create (or reuse, cached per window) the home timeline page."""
-        if self.client is None:
-            return
-        if self.timeline_page is not None \
-                and self.timeline_page.client is self.client:
-            return
-        if self.timeline_page is not None:
-            self.timeline_model = None
-        # Cache the GListModel per window so navigation back preserves
-        # scroll position and items.
-        self.home_bin.set_child(None)
-        self.timeline_page = TimelinePage(
-            self.client, mode='home', model=self.timeline_model)
-        self.timeline_model = self.timeline_page.model
-        self.home_bin.set_child(self.timeline_page)
-        self._apply_auto_refresh()
-
-    def ensure_notifications_page(self):
-        """Create (or reuse, cached per window) the notifications page.
-        Built eagerly after login so unread counts reach the sidebar
-        badge before the user opens the view."""
-        from .notifications import NotificationsPage
-        if self.client is None:
-            return
-        if self.notifications_page is not None:
-            if self.notifications_page.client is self.client:
-                return
-            self._clear_notifications_page()
-        self.notifications_page = NotificationsPage(self.client)
-        self._unread_handler = self.notifications_page.connect(
-            'unread-changed', self.on_unread_changed)
-        self.notifications_bin.set_child(self.notifications_page)
-        self.notifications_header_slot.append(
-            self.notifications_page.header_widget)
-
-    def _clear_notifications_page(self):
-        page = self.notifications_page
-        self.notifications_page = None
-        if page is not None and self._unread_handler is not None:
-            # Otherwise an in-flight count from the old account lands on
-            # the new one's badge.
-            page.disconnect(self._unread_handler)
-        self._unread_handler = None
-        self.notifications_bin.set_child(None)
-        for child in list(self.notifications_header_slot):
-            self.notifications_header_slot.remove(child)
-        self.on_unread_changed(None, 0)
-
-    def on_unread_changed(self, page, count):
-        if page is not None and page is not self.notifications_page:
-            return
-        text = unread_badge_text(count)
-        self.notifications_badge.set_label(text)
-        was_shown = self.notifications_badge.get_visible()
-        self.notifications_badge.set_visible(bool(count))
-        if count and not was_shown:
-            uihelpers.flash_class(self.notifications_badge, 'just-toggled')
-        if not count:
-            description = ''
-        elif text.endswith('+'):
-            # Translators: accessible label of the notifications badge when
-            # the server counted only up to its limit; %s is such as "100+".
-            description = _('%s unread notifications') % text
-        else:
-            description = ngettext('%d unread notification',
-                                   '%d unread notifications', count) % count
-        self.notifications_badge.update_property(
-            [Gtk.AccessibleProperty.LABEL], [description])
-        self.props.unread_text = text
-        self.props.unread_visible = bool(count)
-        self.sidebar_rail.set_badge(count, text)
-
-    def _timeline_place(self, kind, params, icon, title, description):
-        page = TimelinePage(self.client, source=ApiTimelineSource(
-            self.client, api_timelines.list_path(kind), params,
-            paging='link' if kind in api_timelines.LINK_PAGED else 'id'))
-        uihelpers.configure_empty_page(page.empty_page, icon, title, description)
-        return page
-
-    def _public_place_built(self, tag, page):
-        self._apply_auto_refresh()
-        self._sync_streaming()
-
     # Composer
-
-    def ensure_composer(self):
-        """The composer dialog, one per client, so a closed dialog keeps
-        its draft until the next time it is presented."""
-        from .compose import ComposeDialog
-        if self.client is None:
-            return None
-        if self.compose_dialog is None \
-                or self.compose_dialog.view.client is not self.client:
-            self.compose_dialog = ComposeDialog(self.client)
-        self.compose_dialog.view.local_draft_key = (
-            account_store.account_key(self.account)
-            if self.account is not None else None)
-        return self.compose_dialog
-
-    def present_composer(self):
-        dialog = self.ensure_composer()
-        if dialog is not None and dialog.get_parent() is None:
-            dialog.present(self)
-        return dialog
-
-    def open_compose_reply(self, status_id, handle, visibility='public',
-                           parent=None):
-        """Called by timeline rows to reply to a status while keeping
-        any draft in progress."""
-        dialog = self.ensure_composer()
-        if dialog is None:
-            return
-        dialog.start_reply(status_id, handle, visibility, parent=parent)
-        self.present_composer()
-
-    def compose_with_files(self, paths=()):
-        """Open the composer with *paths* attached: what "Open With
-        Babble" on an image or video does. Before a session exists the
-        request waits, and is handed over once an account is signed in."""
-        if self.client is None or self.account is None:
-            pending = self._pending_compose or []
-            pending.extend(p for p in paths if p not in pending)
-            self._pending_compose = pending
-            if paths and self.main_stack.get_visible_child_name() == 'login':
-                self.show_toast(ngettext(
-                    'Sign in to post the file',
-                    'Sign in to post the files', len(paths)))
-            return
-        dialog = self.present_composer()
-        if dialog is None:
-            return
-        if paths:
-            # The composer's own intake: media only, up to the limit,
-            # with a toast for whatever was left out.
-            dialog.view.add_attachment_files(list(paths))
-
-    def _flush_pending_compose(self):
-        pending = self._pending_compose
-        if pending is None:
-            return
-        self._pending_compose = None
-        self.compose_with_files(pending)
 
     # Sidebar — logic lives on SidebarHost; forwards keep PlaceHost
     # identity, connect_weak targets and the template callback stable.
@@ -1300,36 +459,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         """Close the collapsed layout's sidebar overlay, if it is open."""
         self.sidebar_host.dismiss_overlay()
 
-    def _restricted_public_places(self):
-        """The public timelines this account must not see in the sidebar.
-
-        A feed the server closes to everyone but privileged accounts is
-        hidden unless the reader turned the opt-in on; a feed it closes
-        to this account outright is always hidden.
-
-        The topic settings (``hashtag_feeds``/``trending_link_feeds``)
-        are deliberately not consulted here: the server never closes them
-        to a signed-in account, it just drops the remote posts, so the
-        page still has local content and hiding it would lose read.
-
-        Stays on the window (PlaceHost callback + feed policy), not on
-        the sidebar host: refresh looks it up here at call time.
-        """
-        client = self.client
-        if client is None:
-            return set()
-        from .streaming import (FEED_RESTRICTED, FEED_UNAVAILABLE,
-                                public_feed_access)
-        access = public_feed_access(client, self.account)
-        opted_in = self.settings.get_boolean(SHOW_RESTRICTED_KEY)
-        closed = set()
-        for place in ('local', 'federated'):
-            state = access.get(place)
-            if state == FEED_UNAVAILABLE \
-                    or (state == FEED_RESTRICTED and not opted_in):
-                closed.add(place)
-        return closed
-
     def _refresh_sidebar(self, *_args):
         self.sidebar_host.refresh()
 
@@ -1342,296 +471,13 @@ class BabbleWindow(Adw.ApplicationWindow):
 
     # Navigation
 
-    def _nav_page_for(self, tag):
-        if tag == 'home':
-            self.ensure_home_timeline()
-            return self.page_home
-        if tag == 'notifications':
-            self.ensure_notifications_page()
-            if self.notifications_page is not None:
-                self.notifications_page.on_shown()
-            return self.page_notifications
-        return self.navigation.place_page(tag)
-
-    def show_page(self, tag):
-        """Make the page registered for ``tag`` the root of the content
-        view and select its sidebar item. Pages are built once per
-        session, which keeps their scroll position and loaded items."""
-        if self.client is None:
-            return
-        previous = self.visible_tag()
-        page = self._nav_page_for(tag)
-        if page is None:
-            return
-        if previous == 'notifications' and tag != 'notifications' \
-                and self.notifications_page is not None:
-            self.notifications_page.on_hidden()
-        self.navigation_view.replace([page])
-        self._select_item(tag)
-        self.dismiss_sidebar_overlay()
-        self._sync_sidebar_mode()
-
-    def visible_tag(self):
-        visible = self.navigation_view.get_visible_page()
-        if visible is self.page_home:
-            return 'home'
-        if visible is self.page_notifications:
-            return 'notifications'
-        for tag, page in self.navigation.pages.items():
-            if page is visible:
-                return tag
-        return None
-
-    def go_back(self):
-        if self.navigation_view.get_navigation_stack().get_n_items() > 1:
-            self.navigation_view.pop()
-        self.dismiss_sidebar_overlay()
-
-    def go_home(self):
-        if self.client is not None:
-            self.show_page('home')
-
-    def open_search(self):
-        if self.client is None:
-            return
-        self.show_page('search')
-        child = self.navigation.children.get('search')
-        entry = getattr(child, 'entry', None)
-        if entry is not None:
-            entry.grab_focus()
-
-    def _push_secondary(self, name, title):
-        """Open one of the pages of the main menu on top of the current
-        one (or back to it when it is already open)."""
-        client = self.client
-        if client is None:
-            return
-        if name == 'announcements':
-            from .announcements import AnnouncementsPage as factory
-        elif name == 'follow-requests':
-            from .relations import FollowRequestsPage as factory
-        elif name == 'mutes-blocks':
-            from .relations import MutesBlocksPage as factory
-        elif name == 'drafts':
-            from .scheduled import DraftPostsPage as factory
-        elif name == 'scheduled':
-            from .scheduled import ScheduledPostsPage as factory
-        else:
-            from .fedicollections import CollectionsPage as factory
-        pagenav.push_page(self, title, factory(client), tag='menu-%s' % name)
-
-    def on_wrapped(self, _action, _param):
-        from .wrapped import present_wrapped
-        if self.client is not None:
-            present_wrapped(self, self.client)
-
-    def on_admin(self, _action, _param):
-        from .admin import present_admin
-        if self.client is not None:
-            self._track_admin(present_admin(self, self.client))
-
-    def _track_admin(self, dialog):
-        """Remember the open admin dashboard so a streaming ``report``
-        can refresh its reports list. Forgotten when it closes, so the
-        window never keeps a closed dialog alive."""
-        self._admin_dialog = None
-        if dialog is None:
-            return
-        connect_weak(dialog, 'close-request', self._on_admin_closed)
-        self._admin_dialog = dialog
-
-    def _on_admin_closed(self, _dialog):
-        self._admin_dialog = None
-
-    def _refresh_admin_tool(self, tag):
-        dialog = self._admin_dialog
-        if dialog is not None:
-            dialog.refresh_tool(tag)
-
-    def on_view_profile(self, _action, _param):
-        from .profile import push_profile
-        if self.client is None or self.account is None:
-            return
-        push_profile(self.navigation_view, self.client, account=self.account)
-        self.dismiss_sidebar_overlay()
-
-    def _refreshable(self, nav_page):
-        """The content widget of *nav_page* that knows how to refresh."""
-        widget = nav_page.get_child()
-        for _depth in range(4):
-            if widget is None:
-                return None
-            if hasattr(widget, 'refresh'):
-                return widget
-            if isinstance(widget, Adw.ToolbarView):
-                widget = widget.get_content()
-            elif isinstance(widget, Adw.Bin):
-                widget = widget.get_child()
-            else:
-                return None
-        return None
-
-    def on_close_pane(self, _action, _param):
-        if not webcolumn.forward_action(self, 'close'):
-            self.close()
-
-    def on_back(self, _action, _param):
-        if not webcolumn.forward_action(self, 'back'):
-            self.go_back()
-
-    def on_reload(self, _action, _param):
-        if webcolumn.forward_action(self, 'reload'):
-            return
-        visible = self.navigation_view.get_visible_page()
-        if visible is None:
-            return
-        if visible is self.page_home:
-            target = self.timeline_page
-        elif visible is self.page_notifications:
-            target = self.notifications_page
-        else:
-            target = self._refreshable(visible)
-        if target is not None:
-            target.refresh()
     # Login
-
-    @Gtk.Template.Callback()
-    def on_instance_changed(self, entry):
-        self.refresh_login_widgets()
-
-    def refresh_login_widgets(self):
-        """Sync the login column with the typed server and the flow.
-
-        With no server typed it shows the example hint and a plain
-        Continue button; once a server name is in, the hint gives way to
-        the suggestions and the button names the chosen server. While an
-        authorization is in flight the button shows a spinner and a
-        Cancel button offers a way out.
-        """
-        waiting = self.auth.waiting
-        domain = self._instance_domain(self.instance_entry.get_text())
-        self.instance_entry.set_sensitive(not waiting)
-        self.login_button.set_sensitive(not waiting and bool(domain))
-        self.login_spinner.set_visible(waiting)
-        self.cancel_login_button.set_visible(waiting)
-        if waiting:
-            label = _('Waiting for Authorization')
-        elif domain:
-            label = _('_Continue with %s') % domain.replace('_', '__')
-        else:
-            label = _('_Continue')
-        self.login_button_label.set_label(label)
-        self.instance_hint.set_visible(not domain and not waiting)
-        self.suggestions_section.set_visible(bool(domain) and not waiting)
-        # The manual-code escape hatch belongs to an authorization in
-        # flight, because that is the only state a pasted code can be
-        # redeemed against -- and the only state where a browser that
-        # never came back leaves the user stuck. It disappears once the
-        # flow has already been switched to a pasted code.
-        self.paste_code_button.set_visible(waiting
-                                           and not self.auth.fallback)
-        self._update_suggestions(domain)
-        if domain:
-            self.sign_up_link.set_uri('https://%s/auth/sign_up' % domain)
-        else:
-            self.sign_up_link.set_uri('https://joinmastodon.org/servers')
-
-    @staticmethod
-    def _instance_domain(text):
-        """The bare server name typed, without scheme, path or case.
-
-        An explicit ``http://`` is refused rather than quietly upgraded,
-        so a user who typed it is told the connection would be
-        plaintext instead of being sent somewhere they did not name.
-        """
-        text = (text or '').strip()
-        if '://' in text:
-            scheme, _, rest = text.partition('://')
-            if scheme.lower() != 'https':
-                return ''
-            text = rest
-        try:
-            url = urllib.parse.urlsplit(normalize_instance(text))
-        except ValueError:
-            return ''
-        return (url.netloc or url.path).lower().strip('.')
-
-    def _update_suggestions(self, typed):
-        """Refill the one-click alternatives.
-
-        Servers matching the typed text rank first (prefix before
-        substring), the typed server itself never repeats under the
-        entry, and the directory order keeps everything else.
-        """
-        box = self.suggestions_box
-        while (child := box.get_first_child()) is not None:
-            box.remove(child)
-        if not typed:
-            return
-        ranked = sorted(
-            (domain for domain in SUGGESTED_SERVERS if domain != typed),
-            key=lambda domain: (not domain.startswith(typed),
-                                typed not in domain,
-                                SUGGESTED_SERVERS.index(domain)))
-        for domain in ranked[:5]:
-            button = Gtk.Button(label=domain)
-            button.connect('clicked', self.on_suggestion_clicked, domain)
-            box.append(button)
-
-    def on_suggestion_clicked(self, _button, domain):
-        """A suggestion is one click: adopt it as the chosen server."""
-        self.instance_entry.set_text(domain)
-        self.instance_entry.set_position(-1)
-        self.refresh_login_widgets()
-        self._grab_focus(self.login_button)
 
     # The OAuth flow
 
     # LoginFlow owns the attempt bookkeeping, the loopback listener and
     # the keyring writes. What arrives here is a handful of things to
     # show, plus the one event that matters: an account is signed in.
-
-    def _signed_in_account(self):
-        """The account this window has signed in, or None.
-
-        Handed to the login flow as a weak method, so a moderation
-        authorization can tell whether the session it was started for is
-        still the current one without the flow holding the window.
-        """
-        return self.account
-
-    def _on_auth_succeeded(self, _flow, account):
-        """Adopt the account a completed authorization belongs to."""
-        client = self.auth.client
-        if self.auth.admin:
-            # A moderation authorization replaces the token of the
-            # account already signed in, asking for the admin scopes on
-            # top, instead of installing a second session.
-            if self.client is not None and client is not None:
-                self.client.token = client.token
-                self.client.adopt_client_credentials(client)
-        else:
-            self.client = client
-            self.instance_entry.set_text('')
-        self.account = account
-        self.store_account(account)
-        if not self.auth.admin:
-            self.show_shell()
-        else:
-            self._update_session_actions()
-
-    def _on_auth_failed(self, _flow, heading, body):
-        # The pending "finish in the browser" toast gives way to the
-        # outcome instead of queueing behind it.
-        self.toast_overlay.dismiss_all()
-        self.show_error(heading, body)
-
-    def _on_auth_message(self, _flow, text):
-        self.toast_overlay.dismiss_all()
-        self.show_toast(text)
-
-    def _on_auth_browser(self, _flow, uri):
-        self.open_url(uri)
 
     def open_help(self):
         """Open the installed help pages (F1, or the primary menu).
@@ -1667,145 +513,6 @@ class BabbleWindow(Adw.ApplicationWindow):
         launcher = Gtk.UriLauncher.new(HELP_URI)
         launcher.launch(self, None, launched)
 
-    def open_url(self, uri):
-        """Open *uri* in the web browser through the portal, falling back
-        to the default handler. The login depends on this: without it the
-        authorization page never opens. It was dropped when the flow moved
-        into auth.py, which still emits the URI for the window to open."""
-
-        def launched(launcher, result):
-            try:
-                launcher.launch_finish(result)
-            except GLib.Error:
-                self._open_url_fallback(uri)
-
-        Gtk.UriLauncher.new(uri).launch(self, None, launched)
-
-    def _open_url_fallback(self, uri):
-        def opened(source, result):
-            try:
-                source.launch_default_for_uri_finish(result)
-            except GLib.Error as error:
-                self.show_error(_('Could not open the web browser'),
-                                error.message)
-
-        app_info = Gio.AppInfo.get_default_for_uri(uri)
-        if app_info is None:
-            self.show_error(_('Could not open the web browser'),
-                            _('No app is set to open web links'))
-            return
-        app_info.launch_default_for_uri_async(uri, None, None, opened)
-
-    def _on_auth_attended(self, _flow):
-        self.present()
-
-    def _on_auth_changed(self, _flow):
-        """The login widgets follow the flow.
-
-        The code entry belongs to an authorization nobody is running any
-        more once the flow is idle and has not fallen back to a pasted
-        code, so it goes away with it. The manual-code button has its
-        own rule, in :meth:`refresh_login_widgets`, which runs next.
-        """
-        if not self.auth.waiting and not self.auth.fallback:
-            self._hide_code_entry()
-        self.refresh_login_widgets()
-
-    @Gtk.Template.Callback()
-    def on_login_clicked(self, _widget):
-        typed = self.instance_entry.get_text()
-        domain = self._instance_domain(typed)
-        if self.auth.waiting:
-            return
-        if not domain:
-            if '://' in (typed or '') \
-                    and not typed.strip().lower().startswith('https://'):
-                self.show_error(
-                    _('Could not connect to the server'),
-                    # Translators: keep "https://" untranslated
-                    _('Babble only connects over HTTPS. Enter the server '
-                      'address without a scheme, or with https://.'))
-            return
-        self.auth.start_login(normalize_instance(domain))
-
-    @Gtk.Template.Callback()
-    def on_cancel_login_clicked(self, _button):
-        # A reply still in flight for the abandoned attempt is ignored.
-        self.auth.restart()
-        self.toast_overlay.dismiss_all()
-        self._grab_focus(self.instance_entry)
-
-    @Gtk.Template.Callback()
-    def on_paste_code_clicked(self, _button):
-        # The authorization is named again for the out-of-band redirect,
-        # so nothing can answer on the loopback listener any more.
-        self.paste_code_button.set_visible(False)
-        self.auth.use_pasted_code()
-        # The field is shown either way: when the authorization could be
-        # renamed the browser is on its way to showing a code, and when
-        # it could not the user is still here holding one. Hiding it on
-        # the first branch left them with a code and nowhere to put it.
-        self._show_code_entry()
-
-    def _show_code_entry(self):
-        self.code_entry.set_visible(True)
-        self._grab_focus(self.code_entry)
-
-    def _hide_code_entry(self):
-        self.code_entry.set_text('')
-        self.code_entry.set_visible(False)
-
-    @Gtk.Template.Callback()
-    def on_code_entered(self, entry):
-        self.auth.enter_code(entry.get_text())
-
-    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
-        """Exchange the code a redirect to *redirect_uri* carries."""
-        return self.auth.on_oauth_callback(uri, redirect_uri)
-
-    def authorize_admin(self, callback=None):
-        """Ask the instance for the admin scopes on the signed-in account.
-
-        *callback(granted)* runs with the outcome. A refusal is the
-        dashboard's cue to go back to plain moderation, so it always
-        gets one, even when there was nothing to authorize.
-        """
-        if self.account is None or self.client is None:
-            if callback is not None:
-                callback(False)
-            return
-        # Bound to the account that asked for it: a switch or a logout
-        # while the browser step is open must not let the reply install a
-        # token for the account that replaced it.
-        self.auth.start_admin(self.account['instance'],
-                              account_store.account_key(self.account),
-                              callback)
-
-
-    def on_logout_requested(self, _action, _param):
-        if self.account is None:
-            return
-        dialog = Adw.AlertDialog(
-            heading=_('Log Out?'),
-            body=_('The login for @%s will be signed out on the server '
-                   'and removed from this device.')
-            % self.account.get('acct', ''))
-        dialog.add_response('cancel', _('_Cancel'))
-        dialog.add_response('logout', _('_Log Out'))
-        dialog.set_response_appearance('logout',
-                                       Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.set_default_response('cancel')
-        dialog.set_close_response('cancel')
-        dialog.choose(self, None, self._on_logout_chosen)
-
-    def _on_logout_chosen(self, dialog, result):
-        if dialog.choose_finish(result) == 'logout':
-            self.on_logout(None, None)
-
-    def on_logout(self, _action, _param):
-        if self.account is not None:
-            self._remove_account_now(self.account)
-
     # Preferences
 
     def show_preferences(self):
@@ -1832,3 +539,40 @@ class BabbleWindow(Adw.ApplicationWindow):
         # them to one short plain line.
         self.show_toast('%s: %s' % (heading, summarize_error(body)))
 
+
+    # The templates bind a handler only when it lives on this class, so
+    # each of these is the decorated entry point and the body is on the
+    # mixin named beside it.
+
+    @Gtk.Template.Callback()
+    def on_draft_restore(self, *args):
+        self._draft_restore(*args)
+
+    @Gtk.Template.Callback()
+    def on_login_back_clicked(self, *args):
+        self._login_back_clicked(*args)
+
+    @Gtk.Template.Callback()
+    def on_instance_changed(self, *args):
+        self._instance_changed(*args)
+
+    @Gtk.Template.Callback()
+    def on_login_clicked(self, *args):
+        self._login_clicked(*args)
+
+    @Gtk.Template.Callback()
+    def on_cancel_login_clicked(self, *args):
+        self._cancel_login_clicked(*args)
+
+    @Gtk.Template.Callback()
+    def on_paste_code_clicked(self, *args):
+        self._paste_code_clicked(*args)
+
+    @Gtk.Template.Callback()
+    def on_code_entered(self, *args):
+        self._on_code_entered(*args)
+
+    def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
+        """Exchange the code a redirect to *redirect_uri* carries; True
+        when this delivery was accepted, False when it was ignored."""
+        return self._oauth_callback(uri, redirect_uri)

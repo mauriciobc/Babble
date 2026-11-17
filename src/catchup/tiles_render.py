@@ -20,6 +20,7 @@ gi.require_version('Pango', '1.0')
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
+from ..charts import Sparkline  # noqa: E402
 from .. import (explore, hashtags, linkrouting, statustext,  # noqa: E402
                 uihelpers)
 from . import digest as catchupdigest, digest_layout  # noqa: E402
@@ -777,10 +778,10 @@ class HashtagTile(_Tile):
         if self.show_sparkline:
             tag = self.tag
             if tag.get('history'):
-                spark = hashtags.Sparkline(tag['history'], 24, 12)
+                spark = Sparkline(tag['history'], 24, 12)
             else:
-                spark = hashtags.Sparkline(None, 24, 12,
-                                           values=entry.get('buckets'))
+                spark = Sparkline(None, 24, 12,
+                                  values=entry.get('buckets'))
             spark.set_hexpand(True)
             spark.set_vexpand(True)
             spark.set_valign(Gtk.Align.FILL)

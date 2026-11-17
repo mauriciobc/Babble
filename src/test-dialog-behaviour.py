@@ -58,7 +58,7 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import (fedicollections, lists, main as babble_main,  # noqa: E402
+from src import (collectionedit, lists, main as babble_main,  # noqa: E402
                  notificationpolicy, profileedit, search, wrapped)
 from src.window import BabbleWindow  # noqa: E402
 
@@ -113,7 +113,7 @@ pump()
 
 
 # -- collection editor -------------------------------------------------
-new = fedicollections.CollectionEditDialog(_Client())
+new = collectionedit.CollectionEditDialog(_Client())
 check('a new collection is titled New Collection',
       new.get_title() == 'New Collection', new.get_title())
 check('a new collection offers Create',
@@ -129,7 +129,7 @@ check('a blank name does not count', not new.save_button.get_sensitive())
 existing = {'id': '7', 'name': 'Reading list', 'description': '',
             'language': None, 'tag': None, 'discoverable': True,
             'sensitive': False, 'items': []}
-edit = fedicollections.CollectionEditDialog(_Client(), existing)
+edit = collectionedit.CollectionEditDialog(_Client(), existing)
 check('an existing collection is titled Edit Collection',
       edit.get_title() == 'Edit Collection', edit.get_title())
 check('an existing collection offers Save',
@@ -385,7 +385,7 @@ def press_enter(row, button):
 
 
 client = _Client()
-collection = fedicollections.CollectionEditDialog(client)
+collection = collectionedit.CollectionEditDialog(client)
 check('the collection editor is shown', shown(collection,
                                                  collection.save_button))
 check('Enter with no name does not create a collection',

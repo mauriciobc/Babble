@@ -29,6 +29,10 @@ configure_file(
 install_data(
   '__init__.py',
   'accountrows.py',
+  'adminaccounts.py',
+  'adminbase.py',
+  'adminfederation.py',
+  'adminreports.py',
   'accounts.py',
   'appsettings.py',
   'admin.py',
@@ -36,10 +40,17 @@ install_data(
   'announcements.py',
   'auth.py',
   'charts.py',
+  'clientinstance.py',
+  'clientoauth.py',
   'capabilities.py',
   'compose.py',
+  'composedialog.py',
+  'composedraft.py',
   'composeattach.py',
+  'composeoptions.py',
+  'composepost.py',
   'composequote.py',
+  'composethread.py',
   'composeschedule.py',
   'completer.py',
   'composeupload.py',
@@ -50,14 +61,20 @@ install_data(
   'emojichooser.py',
   'entities.py',
   'explore.py',
-  'fedicollections.py',
+  'collectionactions.py',
+  'collectionbase.py',
+  'collectionedit.py',
+  'collectionpage.py',
   'feedback.py',
   'filterrules.py',
   'filters.py',
   'imagecache.py',
   'hashtagcompleter.py',
+  'hashtaglists.py',
   'hashtags.py',
+  'httpheaders.py',
   'i18n.py',
+  'keyringstore.py',
   'lists.py',
   'main.py',
   'linkhandlers.py',
@@ -76,6 +93,8 @@ install_data(
   'mentioncompleter.py',
   'notificationcopy.py',
   'notificationctrl.py',
+  'oauthpkce.py',
+  'oauthpkce.py',
   'notificationmodel.py',
   'notificationpolicy.py',
   'notificationrow.py',
@@ -93,9 +112,12 @@ install_data(
   'portals.py',
   'preferences.py',
   'profile.py',
+  'profiledialogs.py',
+  'profilefeed.py',
   'profileactions.py',
   'profileedit.py',
   'profileheader.py',
+  'profilelookup.py',
   'relations.py',
   'remotemedia.py',
   'report.py',
@@ -139,6 +161,10 @@ install_data(
   'uihelpers.py',
   'weakconnect.py',
   'webcolumn.py',
+  'windowbackground.py',
+  'windowlogin.py',
+  'windowplaces.py',
+  'windowsession.py',
   'window.py',
   'wrapped.py',
   install_dir: moduledir,
@@ -229,7 +255,8 @@ install_data(
 #     mutter --headless --wayland --no-x11 --virtual-monitor 1280x1024 -- \
 #     meson test -C build -j1
 # The monitor size has to match the Xvfb screen: at 1024x768 the
-# geometry-sensitive tests (compose widgets, timeline memory) fail,
+# geometry-sensitive tests (compose widgets, compose replies, which
+# holds the dialog geometry, and timeline memory) fail,
 # because the dialogs they measure get a smaller window. The mutter run
 # gives 65 passed / 1 skipped (streaming helpers, which needs a secret
 # service), measured on 2026-10-21; the Xvfb count has not been re-taken
@@ -284,6 +311,11 @@ test('home filters', python,
   env: fatal_test_env,
   timeout: 60,
 )
+test('home filters replies', python,
+  args: [files('test-home-filters-replies.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 
 test('reading position', python,
   args: [files('test-reading-position.py')],
@@ -317,6 +349,44 @@ test('compose widgets', python,
   env: test_env,
   timeout: 120,
 )
+# The composer flow, split by the scenario it drives. Each part rebuilds
+# its fixtures from testkit/composekit; together they run the checks the
+# one script used to run.
+test('compose replies', python,
+  args: [files('test-compose-replies.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose drafts', python,
+  args: [files('test-compose-drafts.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose mentions', python,
+  args: [files('test-compose-mentions.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose hashtags', python,
+  args: [files('test-compose-hashtags.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose pool', python,
+  args: [files('test-compose-pool.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose paste', python,
+  args: [files('test-compose-paste.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose spell', python,
+  args: [files('test-compose-spell.py')],
+  env: test_env,
+  timeout: 120,
+)
 test('compose transactions', python,
   args: [files('test-compose-transactions.py')],
   env: fatal_test_env,
@@ -327,8 +397,38 @@ test('notifications render', python,
   env: fatal_test_env,
   timeout: 120,
 )
+test('notifications lazy', python,
+  args: [files('test-notifications-lazy.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications refresh', python,
+  args: [files('test-notifications-refresh.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications reply', python,
+  args: [files('test-notifications-reply.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications dismiss', python,
+  args: [files('test-notifications-dismiss.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('oauth callback', python,
   args: [files('test-oauth-callback.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('oauth callback app', python,
+  args: [files('test-oauth-callback-app.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('oauth callback session', python,
+  args: [files('test-oauth-callback-session.py')],
   env: fatal_test_env,
   timeout: 120,
 )
@@ -595,6 +695,16 @@ test('catchup digest', python,
   env: test_env,
   timeout: 60,
 )
+test('catchup digest trends', python,
+  args: [files('test-catchup-digest-trends.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup digest grid', python,
+  args: [files('test-catchup-digest-grid.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('file size rule', python,
   args: [files('test-file-size.py')],
   env: test_env,
@@ -647,6 +757,11 @@ test('link handlers', python,
 # Needs a display; a fake client, no network.
 test('paged list', python,
   args: [files('test-paged-list.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+test('paged list hooks', python,
+  args: [files('test-paged-list-hooks.py')],
   env: fatal_test_env,
   timeout: 60,
 )
@@ -723,14 +838,9 @@ test('hashpanel plugin', python,
   env: fatal_test_env,
   timeout: 60,
 )
-# The shipped Na Real plugin against a fake Na Real on loopback, in a real
-# web column: the exact handle it asks for, the login form filled but never
-# submitted, claimed links, the answer link, the share link and Compartilhar.
-test('nareal plugin', python,
-  args: [files('test-nareal.py')],
-  env: plugin_web_env,
-  timeout: 120,
-)
+# The Na Real plugin is an example whose upkeep is external: its
+# test-nareal*.py scripts are deliberately not registered here, so they are
+# not part of the suite or its gates. Run one by hand when changing it.
 # Needs no display: the port imports no gi at all.
 test('affinity', python,
   args: [files('test-affinity.py')],
@@ -780,6 +890,36 @@ test('catchup rank', python,
   env: test_env,
   timeout: 60,
 )
+test('catchup rank engagement', python,
+  args: [files('test-catchup-rank-engagement.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank affinity', python,
+  args: [files('test-catchup-rank-affinity.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank pipeline', python,
+  args: [files('test-catchup-rank-pipeline.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank text', python,
+  args: [files('test-catchup-rank-text.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank embedding', python,
+  args: [files('test-catchup-rank-embedding.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank rerank', python,
+  args: [files('test-catchup-rank-rerank.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('search provider', python,
   args: [files('test-searchprovider.py')],
   env: fatal_test_env,
@@ -787,6 +927,16 @@ test('search provider', python,
 )
 test('catchup page', python,
   args: [files('test-catchup.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('catchup snapshots', python,
+  args: [files('test-catchup-snapshots.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('catchup runs', python,
+  args: [files('test-catchup-runs.py')],
   env: fatal_test_env,
   timeout: 120,
 )
