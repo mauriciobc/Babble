@@ -104,6 +104,7 @@ src/textemoji.py
 src/thread.py
 src/timelinebase.py
 src/timelinepage.py
+src/uihelpers.py
 src/webcolumn.py
 src/windowbackground.py
 src/windowlogin.py

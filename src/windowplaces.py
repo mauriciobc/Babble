@@ -17,7 +17,6 @@ from gi.repository import Adw, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import pagenav  # noqa: E402
-from . import pages  # noqa: E402
 from . import uihelpers  # noqa: E402
 from . import webcolumn  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
@@ -119,7 +118,7 @@ class WindowPlaces:
         page = TimelinePage(self.client, source=ApiTimelineSource(
             self.client, api_timelines.list_path(kind), params,
             paging='link' if kind in api_timelines.LINK_PAGED else 'id'))
-        pages.configure_empty_page(page.empty_page, icon, title, description)
+        uihelpers.configure_empty_page(page.empty_page, icon, title, description)
         return page
 
     def _public_place_built(self, tag, page):

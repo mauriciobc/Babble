@@ -35,6 +35,22 @@ Line counts on `main` at `de5d7f5` (2026-11-16).
 | `fedicollections.py` | 1084 | Feature pack — Phase N |
 | `hashtags.py` | 803 | Marginal |
 
+The file-size rule (`src/test-file-size.py`, `LIMIT = 800`) has **seven
+declared exceptions**, each with its reason in `EXCEPTIONS`. Line counts
+on this branch (`wc -l`):
+
+| Exception | Lines |
+|-----------|------:|
+| `window.py` | 1820 |
+| `compose.py` | 1756 |
+| `profile.py` | 919 |
+| `admin.py` | 1814 |
+| `fedicollections.py` | 1084 |
+| `mastodon.py` | 1334 |
+| `hashtags.py` | 803 |
+
+No growth budget is set for them; whether to set one is undecided.
+
 Catch Up (hard fail over 800, no EXCEPTION):
 
 | Module | Lines | Headroom |

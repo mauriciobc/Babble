@@ -116,9 +116,9 @@ class SearchTypePage(Adw.Bin):
         self.count = 0
 
         self.stack = Gtk.Stack()
-        self.stack.add_named(pages.make_loading_page(_('Searching')),
+        self.stack.add_named(uihelpers.make_loading_page(_('Searching')),
                              'loading')
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Search Failed'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self.stack.add_named(Adw.StatusPage(
@@ -292,9 +292,9 @@ class SearchPage(Adw.Bin):
         self.stack = Gtk.Stack()
         self.set_child(self.stack)
         self._build_start()
-        self.stack.add_named(pages.make_loading_page(_('Searching')),
+        self.stack.add_named(uihelpers.make_loading_page(_('Searching')),
                              'loading')
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Search Failed'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self.empty_page = Adw.StatusPage(

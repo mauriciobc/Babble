@@ -311,6 +311,11 @@ test('home filters', python,
   env: fatal_test_env,
   timeout: 60,
 )
+test('home filters replies', python,
+  args: [files('test-home-filters-replies.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 
 test('reading position', python,
   args: [files('test-reading-position.py')],
@@ -752,6 +757,11 @@ test('link handlers', python,
 # Needs a display; a fake client, no network.
 test('paged list', python,
   args: [files('test-paged-list.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+test('paged list hooks', python,
+  args: [files('test-paged-list-hooks.py')],
   env: fatal_test_env,
   timeout: 60,
 )
