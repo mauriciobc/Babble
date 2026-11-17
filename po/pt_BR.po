@@ -6,8 +6,13 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
+<<<<<<< HEAD
 "POT-Creation-Date: 2026-11-16 17:19-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
+=======
+"POT-Creation-Date: 2026-11-16 09:50-0300\n"
+"PO-Revision-Date: 2026-11-17 00:00+0000\n"
+>>>>>>> 71f3097 (Translate the remaining media and release strings)
 "Last-Translator: Babble contributors\n"
 "Language-Team: Brazilian Portuguese\n"
 "Language: pt_BR\n"
@@ -519,14 +524,21 @@ msgid ""
 "remembers the volume, follows reduced motion and asks before loading media "
 "your server has no copy of. Animated GIFs can play inline in timelines (off "
 "by default), and custom emoji are animated."
-msgstr ""
+msgstr "O visualizador de mídia agora transmite vídeos em vez de baixá-los"
+" primeiro, lembra o volume, respeita a redução de movimento e pergunta antes"
+" de carregar mídia da qual seu servidor não tem cópia. GIFs animados podem"
+" ser reproduzidos diretamente nas timelines (desativado por padrão), e"
+" emojis personalizados são animados."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:72
 msgid ""
 "Posts bridged from Bluesky are shown natively. The Brazilian Portuguese "
 "translation is complete, with a user manual and help in Portuguese, and "
 "German, Spanish and French cover all but a few of the newest settings."
-msgstr ""
+msgstr "Publicações do Bluesky que chegam pela ponte são exibidas nativamente. A"
+" tradução para português do Brasil está completa, com um manual do usuário e"
+" ajuda em português, e o alemão, o espanhol e o francês cobrem tudo, exceto"
+" alguns dos ajustes mais recentes."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:78
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:102
@@ -536,36 +548,39 @@ msgstr "Outras alterações:"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:80
 msgid "New settings: Autoplay Animated Media and Load Media Automatically."
-msgstr ""
+msgstr "Novos ajustes: Reproduzir mídia animada automaticamente e Carregar mídia"
+" automaticamente."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:81
 msgid ""
 "The media viewer opens from notifications and Catch Up, and media still "
 "processing on the server is shown as such."
-msgstr ""
+msgstr "O visualizador de mídia abre a partir das notificações e do Catch Up, e a"
+" mídia ainda em processamento no servidor é mostrada como tal."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:82
 msgid ""
 "The composer follows a thread's progress, adds a content warning to replies, "
 "and quotes a post from a pasted link."
-msgstr ""
+msgstr "O editor acompanha o progresso de uma conversa, adiciona um aviso de"
+" conteúdo às respostas e cita uma publicação a partir de um link colado."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:83
 msgid "Editing a post shows the media it already has."
-msgstr ""
+msgstr "Editar uma publicação mostra a mídia que ela já tem."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:84
 msgid "Plugins can show panels in the web column."
-msgstr ""
+msgstr "Plugins podem mostrar painéis na coluna web."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:85
-#, fuzzy
 msgid "Notifications honour the filters set on your server."
-msgstr "Notificações retidas pelos seus filtros aparecerão aqui"
+msgstr "As notificações respeitam os filtros definidos no seu servidor."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:86
 msgid "Large remote images are bounded before they are downloaded and decoded."
-msgstr ""
+msgstr "Imagens remotas grandes são limitadas antes de serem baixadas e"
+" decodificadas."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:92
 msgid ""
