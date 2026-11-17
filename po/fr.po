@@ -7,7 +7,7 @@ msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
 "POT-Creation-Date: 2026-11-16 09:50-0300\n"
-"PO-Revision-Date: 2026-10-10 00:00+0000\n"
+"PO-Revision-Date: 2026-11-17 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: French\n"
 "Language: fr\n"
@@ -191,7 +191,8 @@ msgstr ""
 #: data/io.github.mauriciobc.Babble.gschema.xml:163
 msgid ""
 "Whether to load media your server has no copy of from the original server"
-msgstr ""
+msgstr "Charger ou non les médias dont votre serveur n’a pas de copie depuis le"
+" serveur d’origine"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:164
 msgid ""
@@ -199,7 +200,11 @@ msgid ""
 "server has none, the original lives on the author's server, and loading it "
 "lets that server see your IP address and that you viewed it. \"ask\" asks "
 "each time, \"load\" loads it, \"never\" does not."
-msgstr ""
+msgstr "Les serveurs Mastodon conservent une copie des médias des messages qu’ils"
+" vous montrent. Quand votre serveur n’en a aucune, l’original se trouve sur"
+" le serveur de l’auteur ou de l’autrice, et le charger permet à ce serveur"
+" de voir votre adresse IP et que vous l’avez consulté. « ask » demande à"
+" chaque fois, « load » le charge, « never » ne le charge pas."
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:168
 msgid "Play animated GIFs by themselves"
@@ -456,14 +461,17 @@ msgstr ""
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:335
 msgid "Volume of videos and audio in the media viewer"
-msgstr ""
+msgstr "Volume des vidéos et de l’audio dans la visionneuse de médias"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:336
 msgid ""
 "The volume the media viewer last played video and audio at, from 0 (silent) "
 "to 1 (full). It is restored when the next video or audio opens. Whether the "
 "sound was muted is not remembered, and GIFVs stay muted."
-msgstr ""
+msgstr "Le volume auquel la visionneuse de médias a joué des vidéos et de l’audio"
+" la dernière fois, de 0 (silencieux) à 1 (maximum). Il est restauré à"
+" l’ouverture de la vidéo ou de l’audio suivant. Le fait que le son ait été"
+" coupé n’est pas mémorisé, et les GIFV restent silencieux."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:9
 msgid "Mauricio Castro"
@@ -520,14 +528,21 @@ msgid ""
 "remembers the volume, follows reduced motion and asks before loading media "
 "your server has no copy of. Animated GIFs can play inline in timelines (off "
 "by default), and custom emoji are animated."
-msgstr ""
+msgstr "La visionneuse de médias diffuse désormais les vidéos au lieu de les"
+" télécharger d’abord, mémorise le volume, respecte la réduction des"
+" animations et demande avant de charger des médias dont votre serveur n’a"
+" pas de copie. Les GIF animés peuvent être lus dans les chronologies"
+" (désactivé par défaut), et les emojis personnalisés sont animés."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:72
 msgid ""
 "Posts bridged from Bluesky are shown natively. The Brazilian Portuguese "
 "translation is complete, with a user manual and help in Portuguese, and "
 "German, Spanish and French cover all but a few of the newest settings."
-msgstr ""
+msgstr "Les messages relayés depuis Bluesky s’affichent nativement. La traduction"
+" en portugais du Brésil est complète, avec un manuel d’utilisation et une"
+" aide en portugais, et l’allemand, l’espagnol et le français couvrent tout"
+" sauf quelques-uns des réglages les plus récents."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:78
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:102
@@ -537,36 +552,41 @@ msgstr "Autres changements :"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:80
 msgid "New settings: Autoplay Animated Media and Load Media Automatically."
-msgstr ""
+msgstr "Nouveaux réglages : Lecture automatique des médias animés et Chargement"
+" automatique des médias."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:81
 msgid ""
 "The media viewer opens from notifications and Catch Up, and media still "
 "processing on the server is shown as such."
-msgstr ""
+msgstr "La visionneuse de médias s’ouvre depuis les notifications et Catch Up, et"
+" les médias encore en cours de traitement sur le serveur sont indiqués comme"
+" tels."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:82
 msgid ""
 "The composer follows a thread's progress, adds a content warning to replies, "
 "and quotes a post from a pasted link."
-msgstr ""
+msgstr "La rédaction suit la progression d’un fil de discussion, ajoute un"
+" avertissement de contenu aux réponses et cite un message à partir d’un lien"
+" collé."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:83
 msgid "Editing a post shows the media it already has."
-msgstr ""
+msgstr "La modification d’un message affiche les médias qu’il contient déjà."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:84
 msgid "Plugins can show panels in the web column."
-msgstr ""
+msgstr "Les extensions peuvent afficher des panneaux dans la colonne web."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:85
-#, fuzzy
 msgid "Notifications honour the filters set on your server."
-msgstr "Les notifications retenues par vos filtres apparaîtront ici"
+msgstr "Les notifications respectent les filtres configurés sur votre serveur."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:86
 msgid "Large remote images are bounded before they are downloaded and decoded."
-msgstr ""
+msgstr "Les grandes images distantes sont limitées avant d’être téléchargées et"
+" décodées."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:92
 msgid ""
@@ -4180,7 +4200,7 @@ msgstr "Impossible de charger le média"
 
 #: src/mediaplayback.py:373
 msgid "Playback is not available on this system."
-msgstr ""
+msgstr "La lecture n’est pas disponible sur ce système."
 
 #. Translators: why the session is kept from going idle, shown by
 #. the desktop where it lists apps blocking suspend or screen lock.
@@ -4195,14 +4215,15 @@ msgstr "Lecture de médias"
 msgid ""
 "This video uses a format that needs the codecs-extra extension. Install it "
 "and try again."
-msgstr ""
+msgstr "Cette vidéo utilise un format qui nécessite l’extension codecs-extra."
+" Installez-la et réessayez."
 
 #. Translators: {codec} is the name of the missing decoder, as GStreamer
 #. words it, for example "Vorbis audio decoder".
 #: src/mediastream.py:65
 #, python-brace-format
 msgid "This media needs a codec that is not installed: {codec}"
-msgstr ""
+msgstr "Ces médias nécessitent un codec qui n’est pas installé : {codec}"
 
 #: src/mediaviewer.py:247
 msgid "No Media"
@@ -5303,15 +5324,15 @@ msgstr "Fenêtre"
 
 #: src/preferences.py:59
 msgid "Ask Each Time"
-msgstr ""
+msgstr "Demander à chaque fois"
 
 #: src/preferences.py:60
 msgid "Always Load"
-msgstr ""
+msgstr "Toujours charger"
 
 #: src/preferences.py:61
 msgid "Never Load"
-msgstr ""
+msgstr "Ne jamais charger"
 
 #. Translators: load media automatically, in every case
 #: src/preferences.py:68
@@ -5490,13 +5511,14 @@ msgstr ""
 
 #: src/preferences.py:393
 msgid "Media From _Other Servers"
-msgstr ""
+msgstr "Médias d’_autres serveurs"
 
 #: src/preferences.py:395
 msgid ""
 "Loading media your server has no copy of lets the author’s server see your "
 "IP address"
-msgstr ""
+msgstr "Charger les médias dont votre serveur n’a pas de copie permet au serveur de"
+" l’auteur ou de l’autrice de voir votre adresse IP"
 
 #: src/preferences.py:397
 msgid "_Sensitive Media"
@@ -6718,7 +6740,7 @@ msgstr "Domaines"
 
 #: src/remotemedia.py:68
 msgid "Load Media From Another Server?"
-msgstr ""
+msgstr "Charger les médias depuis un autre serveur ?"
 
 #. Translators: {host} is the address of the server that holds the
 #. original, such as example.social.
@@ -6727,37 +6749,40 @@ msgstr ""
 msgid ""
 "Your server has no copy of this media. Loading it from {host} lets that "
 "server see your IP address and that you viewed it."
-msgstr ""
+msgstr "Votre serveur n’a pas de copie de ce média. Le charger depuis {host} permet"
+" à ce serveur de voir votre adresse IP et que vous l’avez consulté."
 
 #: src/remotemedia.py:74
 msgid "another server"
-msgstr ""
+msgstr "un autre serveur"
 
 #: src/remotemedia.py:75
 msgid "_Remember This Choice"
-msgstr ""
+msgstr "_Mémoriser ce choix"
 
 #: src/remotemedia.py:79
 msgid "_Load"
-msgstr ""
+msgstr "_Charger"
 
 #: src/remotemedia.py:154
 msgid "Loading media from other servers is turned off"
-msgstr ""
+msgstr "Le chargement des médias depuis d’autres serveurs est désactivé"
 
 #: src/remotemedia.py:159
 msgid ""
 "Your server has no copy of this media. Open it in the browser to view it on "
 "the original server."
-msgstr ""
+msgstr "Votre serveur n’a pas de copie de ce média. Ouvrez-le dans le navigateur"
+" pour le voir sur le serveur d’origine."
 
 #: src/remotemedia.py:163
 msgid "To change this, set Media From Other Servers in Preferences."
-msgstr ""
+msgstr "Pour modifier cela, définissez Médias d’autres serveurs dans les"
+" Préférences."
 
 #: src/remotemedia.py:165
 msgid "Media Not Stored by Your Server"
-msgstr ""
+msgstr "Médias non stockés par votre serveur"
 
 #: src/report.py:36
 msgid "It’s Spam"
