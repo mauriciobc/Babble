@@ -127,10 +127,6 @@ check('app.open-uri routes the link through the window',
 import src.main as main_module  # noqa: E402
 
 
-
-
-
-
 parse = main_module.parse_web_uri
 check('web+ap names the object at its https address',
       parse('web+ap://mastodon.social/@Gargron/1')

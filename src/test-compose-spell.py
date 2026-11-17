@@ -94,9 +94,6 @@ def spell_click_at(offset):
     gesture.emit('pressed', 1, float(x), float(y))
 
 
-
-
-
 set_text('first tset last')
 view.buffer.place_cursor(view.buffer.get_end_iter())
 pump(100)

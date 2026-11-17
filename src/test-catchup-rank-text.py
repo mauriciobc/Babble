@@ -24,35 +24,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Computed by the TypeScript (see the module docstring).
-
-
-
-
 # region weights
 
 from testkit.catchuprank import (Base,  # noqa: E402
@@ -297,12 +268,6 @@ class TestMultilingual(Base):
         self.assertEqual(len(from_ts), len(texts))
         for text, expected in zip(texts, from_ts, strict=True):
             self.assertEqual(cr.tokenize_text(text), expected, text)
-
-
-
-
-
-
 
 
 # endregion

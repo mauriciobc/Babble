@@ -181,11 +181,6 @@ check('history_totals still importable from hashtags',
 check('STATS_DAYS == 2', statustext.STATS_DAYS == 2)
 
 
-
-
-
-
-
 view.reset()
 view.text_view.grab_focus()
 searches.clear()

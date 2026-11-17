@@ -354,8 +354,6 @@ class AllocateTest(unittest.TestCase):
                           if t.tier == 'compact'}, {(1, 1)})
 
 
-
-
 class PackTest(unittest.TestCase):
     def layout(self, columns, **kw):
         posts, scores = ranked_posts(kw.pop('n', 120))

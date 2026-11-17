@@ -12,8 +12,6 @@ Exits 77 (skip) without a display."""
 import json
 import os
 # Never the user's real dconf: a test that builds a window restores the
-
-# Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import shutil
@@ -47,17 +45,6 @@ from testkit.catchuppage import (CACHE, FakeClient, KEY,  # noqa: E402
                                  posts_listed, settle)
 
 # The page
-
-
-
-
-
-
-
-
-
-
-
 
 
 shutil.rmtree(CACHE, ignore_errors=True)

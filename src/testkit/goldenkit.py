@@ -339,7 +339,6 @@ def fake_confirm(widget, heading, body, action_label, callback,
     callback()
 
 
-
 feedback.show_toast = fake_toast
 
 feedback.confirm = fake_confirm

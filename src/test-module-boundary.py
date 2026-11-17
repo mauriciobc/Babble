@@ -31,54 +31,6 @@ from testkit import moduleboundary as kit  # noqa: E402
 from testkit.moduleboundary import (BENCH, check,  # noqa: E402
                                    pages_name_violations, violations)
 
-# Catch Up's own modules are package submodules; the source parser records
-# their first module under `src` for each supported import form.
-
-# The harness lives outside src/ and does not exist yet; it is read only
-# once it appears.
-
-# The ways to reach the network that the harness must not take for
-# itself. The server is reached through `src/mastodon.py`, which owns the
-# token and the request shape; a second HTTP path inside the harness
-# would be a second way for a bearer token to leave the machine.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# R10: the page toolkit and the link registry sit below the plugin and
-# web-column modules and may not import them anywhere, function bodies
-# included; those modules register through `linkhandlers` instead.
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def self_check(label, sources, expected):
     """Assert that the checker reports the *expected* violation line."""

@@ -314,11 +314,6 @@ fake.dismiss()
 from src.hashtagcompleter import caption_for  # noqa: E402
 
 
-
-
-
-
-
 view.reset()
 view.text_view.grab_focus()
 HASHTAG_ANSWER[:] = [LINUX, MINT]

@@ -40,35 +40,6 @@ from testkit.catchuprank_fixtures import (adjacent_runs,
 from testkit.catchuprank_golden import GOLDEN  # noqa: E402
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Computed by the TypeScript (see the module docstring).
-
-
-
-
 # region weights
 
 
