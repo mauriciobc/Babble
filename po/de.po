@@ -198,10 +198,9 @@ msgid ""
 "lets that server see your IP address and that you viewed it. \"ask\" asks "
 "each time, \"load\" loads it, \"never\" does not."
 msgstr "Mastodon-Server speichern eine Kopie der Medien in Beiträgen, die sie Ihnen"
-" zeigen. Hat Ihr Server keine, liegt das Original auf dem Server der"
-" verfassenden Person, und beim Laden sieht dieser Server Ihre IP-Adresse und"
-" dass Sie es angesehen haben. „ask“ fragt jedes Mal, „load“ lädt es, „never“"
-" nicht."
+" zeigen. Hat Ihr Server keine, liegt das Original auf dem Server des Autors,"
+" und beim Laden sieht dieser Server Ihre IP-Adresse und dass Sie es angesehen"
+" haben. „ask“ fragt jedes Mal, „load“ lädt es, „never“ nicht."
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:168
 msgid "Play animated GIFs by themselves"
@@ -2926,7 +2925,7 @@ msgstr "%(first)s und %(second)s"
 msgid "%(first)s, %(second)s and %(count)d other"
 msgid_plural "%(first)s, %(second)s and %(count)d others"
 msgstr[0] "%(first)s, %(second)s und %(count)d weitere Person"
-msgstr[1] "%(first)s, %(second)s und %(count)d weitere"
+msgstr[1] "%(first)s, %(second)s und %(count)d weitere Personen"
 
 #: src/desktopnotify.py:213 src/profile.py:814
 msgid "Follow Back"
@@ -3078,7 +3077,7 @@ msgstr "Beiträge, die den Link erwähnen, werden hier angezeigt"
 #: src/explore.py:149
 #, python-format
 msgid "Shared by %s"
-msgstr "Gemeinsam von %s"
+msgstr "Geteilt von %s"
 
 #. Translators: a link shared by several people in the user's timeline;
 #. the first %s is the first sharer's name, %d the number of others,
@@ -3087,8 +3086,8 @@ msgstr "Gemeinsam von %s"
 #, python-format
 msgid "Shared by %s and %d other"
 msgid_plural "Shared by %s and %d others"
-msgstr[0] "Gemeinsam von %s und %d anderen"
-msgstr[1] "Gemeinsam von %s und %d anderen Person"
+msgstr[0] "Geteilt von %s und %d weiterer Person"
+msgstr[1] "Geteilt von %s und %d weiteren Personen"
 
 #: src/explore.py:166 src/fedicollections.py:391
 #, python-format
@@ -4214,7 +4213,7 @@ msgstr "Dieses Video verwendet ein Format, das die Erweiterung codecs-extra"
 #: src/mediastream.py:65
 #, python-brace-format
 msgid "This media needs a codec that is not installed: {codec}"
-msgstr "Diese Medien benötigen einen Codec, der nicht installiert ist: {codec}"
+msgstr "Dieses Medium benötigt einen Codec, der nicht installiert ist: {codec}"
 
 #: src/mediaviewer.py:247
 msgid "No Media"
@@ -5506,7 +5505,7 @@ msgid ""
 "Loading media your server has no copy of lets the author’s server see your "
 "IP address"
 msgstr "Das Laden von Medien, von denen Ihr Server keine Kopie hat, lässt den"
-" Server der verfassenden Person Ihre IP-Adresse sehen"
+" Server des Autors Ihre IP-Adresse sehen"
 
 #: src/preferences.py:397
 msgid "_Sensitive Media"
@@ -5981,8 +5980,8 @@ msgstr "Vertraute Follower konnten nicht geladen werden"
 #, python-format
 msgid "Followed by %(names)s and %(count)d other"
 msgid_plural "Followed by %(names)s and %(count)d others"
-msgstr[0] "Gefolgt von %(names)s und %(count)d weiteren Person"
-msgstr[1] "Gefolgt von %(names)s und %(count)d weiteren"
+msgstr[0] "Gefolgt von %(names)s und %(count)d weiterer Person"
+msgstr[1] "Gefolgt von %(names)s und %(count)d weiteren Personen"
 
 #: src/profile.py:594
 #, python-format
@@ -6729,8 +6728,8 @@ msgstr "Medien von einem anderen Server laden?"
 msgid ""
 "Your server has no copy of this media. Loading it from {host} lets that "
 "server see your IP address and that you viewed it."
-msgstr "Ihr Server hat keine Kopie dieser Medien. Beim Laden von {host} sieht"
-" dieser Server Ihre IP-Adresse und dass Sie sie angesehen haben."
+msgstr "Ihr Server hat keine Kopie dieses Mediums. Beim Laden von {host} sieht"
+" dieser Server Ihre IP-Adresse und dass Sie es angesehen haben."
 
 #: src/remotemedia.py:74
 msgid "another server"
@@ -6752,7 +6751,7 @@ msgstr "Das Laden von Medien von anderen Servern ist ausgeschaltet"
 msgid ""
 "Your server has no copy of this media. Open it in the browser to view it on "
 "the original server."
-msgstr "Ihr Server hat keine Kopie dieser Medien. Öffnen Sie sie im Browser, um sie"
+msgstr "Ihr Server hat keine Kopie dieses Mediums. Öffnen Sie es im Browser, um es"
 " auf dem ursprünglichen Server anzusehen."
 
 #: src/remotemedia.py:163
