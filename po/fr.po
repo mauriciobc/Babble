@@ -207,7 +207,7 @@ msgid ""
 "each time, \"load\" loads it, \"never\" does not."
 msgstr "Les serveurs Mastodon conservent une copie des médias des messages qu’ils"
 " vous montrent. Quand votre serveur n’en a aucune, l’original se trouve sur"
-" le serveur de l’auteur ou de l’autrice, et le charger permet à ce serveur"
+" le serveur de l’auteur, et le charger permet à ce serveur"
 " de voir votre adresse IP et que vous l’avez consulté. « ask » demande à"
 " chaque fois, « load » le charge, « never » ne le charge pas."
 
@@ -475,8 +475,8 @@ msgid ""
 "sound was muted is not remembered, and GIFVs stay muted."
 msgstr "Le volume auquel la visionneuse de médias a joué des vidéos et de l’audio"
 " la dernière fois, de 0 (silencieux) à 1 (maximum). Il est restauré à"
-" l’ouverture de la vidéo ou de l’audio suivant. Le fait que le son ait été"
-" coupé n’est pas mémorisé, et les GIFV restent silencieux."
+" l’ouverture de la prochaine vidéo ou du prochain audio. Le fait que le son"
+" ait été coupé n’est pas mémorisé, et les GIFV restent silencieux."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:9
 msgid "Mauricio Castro"
@@ -4228,7 +4228,7 @@ msgstr "Cette vidéo utilise un format qui nécessite l’extension codecs-extra
 #: src/mediastream.py:65
 #, python-brace-format
 msgid "This media needs a codec that is not installed: {codec}"
-msgstr "Ces médias nécessitent un codec qui n’est pas installé : {codec}"
+msgstr "Ce média nécessite un codec qui n’est pas installé : {codec}"
 
 #: src/mediaviewer.py:247
 msgid "No Media"
@@ -5523,7 +5523,7 @@ msgid ""
 "Loading media your server has no copy of lets the author’s server see your "
 "IP address"
 msgstr "Charger les médias dont votre serveur n’a pas de copie permet au serveur de"
-" l’auteur ou de l’autrice de voir votre adresse IP"
+" l’auteur de voir votre adresse IP"
 
 #: src/preferences.py:397
 msgid "_Sensitive Media"

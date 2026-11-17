@@ -204,7 +204,7 @@ msgid ""
 "each time, \"load\" loads it, \"never\" does not."
 msgstr "Los servidores de Mastodon guardan una copia de los medios de las"
 " publicaciones que te muestran. Cuando tu servidor no tiene ninguna, el"
-" original está en el servidor de quien publica, y cargarlo permite a ese"
+" original está en el servidor del autor, y cargarlo permite a ese"
 " servidor ver tu dirección IP y que lo has visto. “ask” pregunta cada vez,"
 " “load” lo carga y “never” no."
 
@@ -2323,7 +2323,7 @@ msgstr "%s impulsó"
 #, python-format
 msgid "%(name)s and %(count)d other boosted"
 msgid_plural "%(name)s and %(count)d others boosted"
-msgstr[0] "%(name)s y %(count)d más lo impulsó"
+msgstr[0] "%(name)s y %(count)d más lo impulsaron"
 msgstr[1] "%(name)s y %(count)d más lo impulsaron"
 
 #: src/catchup/rows.py:124 src/thread.py:42
@@ -4213,7 +4213,7 @@ msgstr "Este vídeo usa un formato que necesita la extensión codecs-extra. Inst
 #: src/mediastream.py:65
 #, python-brace-format
 msgid "This media needs a codec that is not installed: {codec}"
-msgstr "Estos medios necesitan un códec que no está instalado: {codec}"
+msgstr "Este contenido necesita un códec que no está instalado: {codec}"
 
 #: src/mediaviewer.py:247
 msgid "No Media"
@@ -5502,8 +5502,8 @@ msgstr "Medios de _otros servidores"
 msgid ""
 "Loading media your server has no copy of lets the author’s server see your "
 "IP address"
-msgstr "Cargar medios de los que tu servidor no tiene copia permite al servidor de"
-" quien publica ver tu dirección IP"
+msgstr "Cargar medios de los que tu servidor no tiene copia permite al servidor del"
+" autor ver tu dirección IP"
 
 #: src/preferences.py:397
 msgid "_Sensitive Media"
@@ -6726,8 +6726,8 @@ msgstr "¿Cargar medios de otro servidor?"
 msgid ""
 "Your server has no copy of this media. Loading it from {host} lets that "
 "server see your IP address and that you viewed it."
-msgstr "Tu servidor no tiene copia de estos medios. Cargarlos desde {host} permite"
-" a ese servidor ver tu dirección IP y que los has visto."
+msgstr "Tu servidor no tiene copia de este contenido. Cargarlo desde {host} permite"
+" a ese servidor ver tu dirección IP y que lo has visto."
 
 #: src/remotemedia.py:74
 msgid "another server"
@@ -6749,8 +6749,8 @@ msgstr "La carga de medios de otros servidores está desactivada"
 msgid ""
 "Your server has no copy of this media. Open it in the browser to view it on "
 "the original server."
-msgstr "Tu servidor no tiene copia de estos medios. Ábrelos en el navegador para"
-" verlos en el servidor original."
+msgstr "Tu servidor no tiene copia de este contenido. Ábrelo en el navegador para"
+" verlo en el servidor original."
 
 #: src/remotemedia.py:163
 msgid "To change this, set Media From Other Servers in Preferences."
