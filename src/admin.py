@@ -24,8 +24,8 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402
 from .api import admin as admin_api  # noqa: E402
 from . import pagenav  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
-from src.adminaccounts import AccountsPage  # noqa: E402
-from src.adminbase import (PERM_BLOCKS,
+from .adminaccounts import AccountsPage  # noqa: E402
+from .adminbase import (PERM_BLOCKS,
     PERM_FEDERATION,
     PERM_REPORTS,
     PERM_USERS,
@@ -36,11 +36,11 @@ from src.adminbase import (PERM_BLOCKS,
     permission_allows,
     role_permissions,
     send)  # noqa: E402
-from src.adminfederation import (DomainAllowsPage,
+from .adminfederation import (DomainAllowsPage,
     EmailBlocksPage,
     FederationBlocksPage,
     IPBlocksPage)  # noqa: E402
-from src.adminreports import ReportsPage  # noqa: E402
+from .adminreports import ReportsPage  # noqa: E402
 
 
 # Helpers

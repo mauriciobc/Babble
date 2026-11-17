@@ -574,6 +574,17 @@ def violations(sources: dict[str, str]) -> list[str]:
                                      ' core'
                                      % (path, node.lineno,
                                         '.' * node.level, node.module or ''))
+        if (path.startswith('src/') and not stem(path).startswith('test-')
+                and not path.startswith('src/testkit/')):
+            # R12: an installed module reaches its siblings relatively.
+            # The package is installed as `babble`, so `from src.x import`
+            # works only where the tests put the source tree on the path:
+            # the suite passes and the installed app does not start.
+            for name, line, relative in all_imports(tree):
+                if not relative and name.split('.')[0] == 'src':
+                    found.append('R12: %s:%d imports %s: an installed'
+                                 ' module imports its siblings relatively'
+                                 % (path, line, name))
     found.extend(load_time_cycles(sources))
     found.extend(pages_name_violations(sources))
     return found

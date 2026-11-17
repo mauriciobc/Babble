@@ -30,14 +30,14 @@ from .mentioncompleter import MentionCompleter  # noqa: E402
 from .mastodon import summarize_error  # noqa: E402
 # The same list Preferences offers as the default post language.
 from .preferences import LANGUAGES  # noqa: E402
-from src.composedraft import ComposeDraft  # noqa: E402
-from src.composeoptions import (ComposeOptions,
+from .composedraft import ComposeDraft  # noqa: E402
+from .composeoptions import (ComposeOptions,
     POLL_DURATIONS,
     _language_subtag,
     default_language)  # noqa: E402
-from src.composepost import ComposePost, _end_inhibition  # noqa: E402
-from src.composethread import ComposeThread  # noqa: E402
-from src.profileedit import VISIBILITIES  # noqa: E402
+from .composepost import ComposePost, _end_inhibition  # noqa: E402
+from .composethread import ComposeThread  # noqa: E402
+from .profileedit import VISIBILITIES  # noqa: E402
 # Spell checking (libspelling) works on a GtkSource.Buffer; that buffer
 # is all the composer takes from GtkSourceView.
 GtkSource.init()

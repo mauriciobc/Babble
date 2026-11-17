@@ -29,7 +29,7 @@ from .mastodon import MastodonClient, keyring_problem  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 from .statustext import relative_time  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
-from src.mastodon import summarize_error  # noqa: E402
+from .mastodon import summarize_error  # noqa: E402
 
 
 

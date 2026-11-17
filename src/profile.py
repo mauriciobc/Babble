@@ -27,8 +27,8 @@ from .profileactions import (ProfileActions,  # noqa: E402
 from .profileheader import ProfileHeader, plain_name  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 from .timelinebase import COLUMN_WIDTH  # noqa: E402
-from src.profiledialogs import _request_result  # noqa: E402
-from src.profilefeed import (AccountStatuses,
+from .profiledialogs import _request_result  # noqa: E402
+from .profilefeed import (AccountStatuses,
     ProfileDialog,
     ProfileTimeline)  # noqa: E402
 def push_profile(view, client, account, acct=None):

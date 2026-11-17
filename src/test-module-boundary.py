@@ -284,6 +284,11 @@ check('the checker accepts the harness reaching the server through the'
       ' client',
       not violations({'bench/rank_eval.py': 'from src import mastodon\n'
                         'import urllib.parse\n'}))
+self_check('R12 fails an installed module importing a sibling through src',
+           {'src/alpha.py': 'def f():\n    from src.beta import g\n'},
+           'R12: src/alpha.py:2 imports src.beta')
+check('the checker accepts a test script importing through src',
+      not violations({'src/test-alpha.py': 'from src import beta\n'}))
 
 
 def tree_sources():
@@ -342,6 +347,7 @@ RULES = (
     ('R9', 'no import cycle among src modules at load time'),
     ('R10', 'the page toolkit imports no plugin or web-column module'),
     ('R11', 'nothing uses a name pages.py does not define'),
+    ('R12', 'installed modules import siblings relatively, never src'),
 )
 for rule, label in RULES:
     hits = [line for line in FOUND if line.startswith(rule + ':')]
