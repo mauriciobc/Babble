@@ -255,7 +255,8 @@ install_data(
 #     mutter --headless --wayland --no-x11 --virtual-monitor 1280x1024 -- \
 #     meson test -C build -j1
 # The monitor size has to match the Xvfb screen: at 1024x768 the
-# geometry-sensitive tests (compose widgets, timeline memory) fail,
+# geometry-sensitive tests (compose widgets, compose replies, which
+# holds the dialog geometry, and timeline memory) fail,
 # because the dialogs they measure get a smaller window. The mutter run
 # gives 65 passed / 1 skipped (streaming helpers, which needs a secret
 # service), measured on 2026-10-21; the Xvfb count has not been re-taken
@@ -827,34 +828,9 @@ test('hashpanel plugin', python,
   env: fatal_test_env,
   timeout: 60,
 )
-# The shipped Na Real plugin against a fake Na Real on loopback, in a real
-# web column: the exact handle it asks for, the login form filled but never
-# submitted, claimed links, the answer link, the share link and Compartilhar.
-test('nareal plugin', python,
-  args: [files('test-nareal.py')],
-  env: plugin_web_env,
-  timeout: 120,
-)
-test('nareal login', python,
-  args: [files('test-nareal-login.py')],
-  env: plugin_web_env,
-  timeout: 120,
-)
-test('nareal links', python,
-  args: [files('test-nareal-links.py')],
-  env: plugin_web_env,
-  timeout: 120,
-)
-test('nareal share', python,
-  args: [files('test-nareal-share.py')],
-  env: plugin_web_env,
-  timeout: 120,
-)
-test('nareal banner', python,
-  args: [files('test-nareal-banner.py')],
-  env: plugin_web_env,
-  timeout: 120,
-)
+# The Na Real plugin is an example whose upkeep is external: its
+# test-nareal*.py scripts are deliberately not registered here, so they are
+# not part of the suite or its gates. Run one by hand when changing it.
 # Needs no display: the port imports no gi at all.
 test('affinity', python,
   args: [files('test-affinity.py')],
