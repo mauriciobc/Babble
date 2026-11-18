@@ -30,79 +30,72 @@ class _ScheduledReplacement:
     message: str
 
 
+def _unsupported():
+    raise GLib.Error(_('The server returned unsupported post settings.'),
+                     'mastodon-http-error-quark', 0)
+
+
+def _field(source, key, default, valid):
+    """Read ``key``, a missing or ``None`` value meaning ``default``.
+
+    Raises :class:`GLib.Error` when the result is not ``valid``.
+    """
+    value = source.get(key)
+    if value is None:
+        value = default
+    if not valid(value):
+        _unsupported()
+    return value
+
+
 def scheduled_content(scheduled, *, max_poll_options):
     """Shape a scheduled-status payload into composer fields.
 
     Raises :class:`GLib.Error` when the server returned settings the
     composer cannot restore.
     """
-    def unsupported():
-        raise GLib.Error(_('The server returned unsupported post settings.'),
-                         'mastodon-http-error-quark', 0)
-
-    if not isinstance(scheduled, dict) or not isinstance(scheduled.get('id'), str) \
+    if not isinstance(scheduled, dict) \
+            or not isinstance(scheduled.get('id'), str) \
             or not scheduled['id']:
-        unsupported()
-    params = scheduled.get('params')
-    if params is None:
-        params = {}
-    if not isinstance(params, dict):
-        unsupported()
+        _unsupported()
+    params = _field(scheduled, 'params', {}, lambda v: isinstance(v, dict))
     content = {}
     for key in ('text', 'spoiler_text'):
-        value = params.get(key)
-        if value is None:
-            value = ''
-        if not isinstance(value, str):
-            unsupported()
-        content[key] = value
-    visibility = params.get('visibility')
-    if visibility is None:
-        visibility = 'public'
-    if visibility not in VISIBILITY_CODES:
-        unsupported()
-    content['visibility'] = visibility
-    language = params.get('language')
-    if language is not None and not isinstance(language, str):
-        unsupported()
-    content['language'] = language
+        content[key] = _field(params, key, '', lambda v: isinstance(v, str))
+    content['visibility'] = _field(params, 'visibility', 'public',
+                                   lambda v: v in VISIBILITY_CODES)
+    content['language'] = _field(
+        params, 'language', None, lambda v: v is None or isinstance(v, str))
     for key in ('in_reply_to_id', 'quoted_status_id'):
         value = params.get(key)
         if key == 'in_reply_to_id' and type(value) is int and value > 0:
             value = str(value)
         if value is not None and (not isinstance(value, str) or not value):
-            unsupported()
+            _unsupported()
         content[key] = value
-    sensitive = params.get('sensitive')
-    if sensitive is not None and not isinstance(sensitive, bool):
-        unsupported()
-    policy = params.get('quote_approval_policy')
-    if policy is not None and policy not in ('public', 'followers', 'nobody'):
-        unsupported()
-    content.update(sensitive=sensitive, quote_approval_policy=policy)
-    attachments = scheduled.get('media_attachments')
-    media_ids = params.get('media_ids')
-    if attachments is None:
-        attachments = []
-    if media_ids is None:
-        media_ids = []
-    if not isinstance(attachments, list) or not isinstance(media_ids, list):
-        unsupported()
+    content['sensitive'] = _field(
+        params, 'sensitive', None, lambda v: v is None or type(v) is bool)
+    content['quote_approval_policy'] = _field(
+        params, 'quote_approval_policy', None,
+        lambda v: v in (None, 'public', 'followers', 'nobody'))
+    attachments = _field(scheduled, 'media_attachments', [],
+                         lambda v: isinstance(v, list))
+    media_ids = _field(params, 'media_ids', [], lambda v: isinstance(v, list))
     ids = []
     for attachment in attachments:
         if not isinstance(attachment, dict):
-            unsupported()
+            _unsupported()
         value = attachment.get('id')
         if not isinstance(value, str) or not value:
-            unsupported()
+            _unsupported()
         ids.append(value)
     if any(not isinstance(value, str) or not value for value in media_ids):
-        unsupported()
+        _unsupported()
     content['media_ids'] = ids or list(media_ids)
     poll = params.get('poll')
     if poll is not None:
         if not isinstance(poll, dict):
-            unsupported()
+            _unsupported()
         options = poll.get('options')
         expiry = poll.get('expires_in')
         if not isinstance(options, list) \
@@ -110,10 +103,10 @@ def scheduled_content(scheduled, *, max_poll_options):
                 or any(not isinstance(o, str) or not o.strip() for o in options) \
                 or len({o.strip() for o in options}) != len(options) \
                 or type(expiry) is not int or expiry <= 0:
-            unsupported()
+            _unsupported()
         flags = {key: poll.get(key, False) for key in ('multiple', 'hide_totals')}
         if any(not isinstance(value, bool) for value in flags.values()):
-            unsupported()
+            _unsupported()
         poll = dict(options=list(options), expires_in=expiry, **flags)
     content['poll'] = poll
     return content
