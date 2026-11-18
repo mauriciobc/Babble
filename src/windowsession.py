@@ -203,12 +203,8 @@ class WindowSession:
         if self.compose_dialog is not None:
             self.compose_dialog.abandon_session()
         self.compose_dialog = None
-        # navigation.clear() stops Catch-Up via close_requests() and
-        # must not sync_streaming (socket already stopped above).
-        self.timeline_page = None
-        self.timeline_model = None
-        self.home_bin.set_child(None)
-        self._clear_notifications_page()
+        # navigation.clear() stops places (including home/notifications
+        # via unregister_external) and must not sync_streaming.
         self.navigation.clear()
         self.navigation_view.replace([self.page_home])
 

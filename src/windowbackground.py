@@ -38,8 +38,6 @@ class WindowBackground:
         # each event, and holds none of them.
         nav = self.navigation
         self.stream_router = StreamRouter(StreamHost(
-            home_page=lambda: self.timeline_page,
-            notifications_page=lambda: self.notifications_page,
             place=lambda tag: nav.children.get(tag),
             stream_places=nav.stream_places,
             place_timelines=nav.place_timelines,

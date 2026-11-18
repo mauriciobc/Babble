@@ -79,6 +79,20 @@ class Host:
     def sync_streaming(self):
         self.calls.append(('streaming',))
 
+    def mount_home(self):
+        self.calls.append(('mount_home',))
+        return FakePage('home-nav')
+
+    def mount_notifications(self):
+        self.calls.append(('mount_notifications',))
+        return FakePage('notifications-nav')
+
+    def clear_home(self):
+        self.calls.append(('clear_home',))
+
+    def clear_notifications(self, page):
+        self.calls.append(('clear_notifications', page))
+
 
 def fake_class(module):
     class Page(FakePage):
