@@ -557,8 +557,12 @@ class TimelineModel(GObject.Object, Gio.ListModel):
 
     def put_back(self, taken):
         """Return rows from :meth:`take_status` to where they were."""
+        # "Already back" is read once, before the first row returns: rows of
+        # one post (the original and its boost rows) share a status_id, and
+        # each one restored must not hide the next.
+        seen = set(self._seen)
         for position, item in taken:
-            if item.status_id in self._seen:
+            if item.status_id in seen:
                 continue
             self._store.insert(min(position, self._store.get_n_items()), item)
             self._register_seen(item)
