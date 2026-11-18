@@ -88,32 +88,34 @@ class WindowBackground:
     def _catch_up_after_outage(self):
         """Fetch what was posted while the stream was down.
 
-        The stream does not replay. Membership comes from
+        The stream does not replay. Which built places refresh comes from
         :func:`navigation.place_policy`; this method only decides when.
-        Dedupes by ``id(page)`` so unhashable test doubles (and any
-        page that is not hashable) still skip a second refresh.
+        Dedupes by ``id(page)`` so unhashable test doubles still skip a
+        second refresh. Timeline pages use the stream host's
+        ``is_timeline`` check; conversations (and any other non-timeline
+        with ``catch_up='refresh'``) call ``refresh`` directly.
         """
         from .navigation import place_policy
         seen = set()
         home = self.timeline_page
-        if place_policy('home').catch_up == 'refresh' and home is not None:
+        if home is not None:
             home.refresh()
             seen.add(id(home))
-        if place_policy('notifications').catch_up == 'catch_up' \
-                and self.notifications_page is not None:
+        if self.notifications_page is not None:
             self.notifications_page.catch_up()
+        is_timeline = self.stream_router.host.is_timeline
         for tag, child in self.navigation.children.items():
-            policy = place_policy(tag)
-            if policy.catch_up != 'refresh':
+            if place_policy(tag).catch_up != 'refresh':
                 continue
             page = getattr(child, 'timeline', child)
             if page is None or id(page) in seen:
                 continue
             seen.add(id(page))
-            # A place never loaded has nothing to catch up on; asking would
-            # send it a first-page request it never wanted.
-            has_loaded = getattr(page, 'has_loaded', None)
-            if has_loaded is not None and not has_loaded():
+            if is_timeline(page):
+                # A place never loaded has nothing to catch up on.
+                if not page.has_loaded():
+                    continue
+                page.refresh()
                 continue
             refresh = getattr(page, 'refresh', None)
             if refresh is not None:

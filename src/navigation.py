@@ -177,9 +177,8 @@ class Navigation:
         """Drop one place: its page, its child and its stream."""
         self.forget_many([tag])
 
-    def forget_many(self, tags, sync=True):
-        """Drop several places at once, and optionally let the stream
-        know once.
+    def forget_many(self, tags):
+        """Drop several places at once, and let the stream know once.
 
         A place that is gone must not stay subscribed: the socket would
         keep receiving events for a timeline nobody shows, and a public
@@ -190,9 +189,8 @@ class Navigation:
         (held by a reference cycle until the next collection) cannot be
         answered after it was dropped.
 
-        *sync* is True for the sidebar path. Session teardown passes
-        False: it has already ``streaming.stop()`` and must not restart
-        the old client through ``sync_streaming``.
+        Session teardown uses :meth:`clear` instead (stop work, no
+        ``sync_streaming``), so the outgoing client is not restarted.
 
         Does nothing when none of *tags* is built.
         """
@@ -202,7 +200,7 @@ class Navigation:
             if self.pages.pop(tag, None) is not None or child is not None:
                 dropped = True
             self._stop_work(child)
-        if sync and dropped:
+        if dropped:
             self.host.sync_streaming()
 
     @staticmethod
