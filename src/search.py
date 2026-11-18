@@ -24,6 +24,7 @@ from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
                pages, uihelpers)
 from .api import search as api_search  # noqa: E402
 from .lists import error_text_markup  # noqa: E402
+from .requestscope import RequestScope  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .statustext import compact_count  # noqa: E402
 
@@ -112,7 +113,7 @@ class SearchTypePage(Adw.Bin):
         self._offset = 0
         self._loading = False
         self._done = False
-        self._generation = 0
+        self._scope = RequestScope()
         self.count = 0
 
         self.stack = Gtk.Stack()
@@ -161,12 +162,18 @@ class SearchTypePage(Adw.Bin):
             callback()
 
     def _on_scroll(self, adjustment):
-        if adjustment.get_value() + adjustment.get_page_size() \
-                >= adjustment.get_upper() - 600:
+        if pages.near_bottom(adjustment):
             self._load()
 
+    def close_requests(self):
+        self._scope.close()
+
+    def do_dispose(self):
+        self.close_requests()
+        Adw.Bin.do_dispose(self)
+
     def refresh(self):
-        self._generation += 1
+        self._scope.begin()
         self._offset = 0
         self._done = False
         self._loading = False
@@ -177,20 +184,30 @@ class SearchTypePage(Adw.Bin):
         self._load()
 
     def _load(self):
-        if self._loading or self._done:
+        if self._loading or self._done or self._scope.closed:
             return
         self._loading = True
-        generation = self._generation
+        token = self._scope.start()
+        self._load_token = token
         if self._offset:
             self.more_spinner.set_visible(True)
         api_search.search_async(
             self.client, self.query, type=self.kind, limit=PAGE_LIMIT,
             offset=self._offset,
-            callback=lambda c, r, _d=None: self._on_loaded(c, r, generation))
+            callback=token.callback(self._on_loaded,
+                                    on_drop=self._on_load_dropped),
+            cancellable=token.cancellable)
 
-    def _on_loaded(self, client, result, generation):
-        if generation != self._generation:
+    def _on_load_dropped(self, _owner):
+        # An older cancelled load must not clear loading while a newer
+        # request (after refresh/begin) still owns _load_token.
+        token = getattr(self, '_load_token', None)
+        if token is not None and token.wanted():
             return
+        self._loading = False
+        self.more_spinner.set_visible(False)
+
+    def _on_loaded(self, client, result):
         self._loading = False
         self.more_spinner.set_visible(False)
         try:
@@ -216,7 +233,7 @@ class SearchTypePage(Adw.Bin):
 
     def _maybe_fill(self):
         adjustment = self.scrolled.get_vadjustment()
-        if adjustment.get_upper() <= adjustment.get_page_size() + 600:
+        if adjustment.get_upper() <= adjustment.get_page_size() + pages.PRELOAD:
             self._load()
         return GLib.SOURCE_REMOVE
 
@@ -270,7 +287,8 @@ class SearchPage(Adw.Bin):
         super().__init__()
         self.client = client
         self.query = ''
-        self._serial = 0
+        self._scope = RequestScope()
+        self._on_data = None
         self._resolved_url = None
 
         self.entry = Gtk.SearchEntry(
@@ -424,13 +442,28 @@ class SearchPage(Adw.Bin):
     def _on_stop_search(self, _entry):
         self.entry.set_text('')
 
+    def close_requests(self):
+        """Close the request scope (Navigation ``_stop_work`` on teardown).
+
+        This is the sole ``SearchPage.close_requests``: place-teardown
+        must not ship a serial-bump stub alongside it.
+        """
+        self._scope.close()
+
+    def do_dispose(self):
+        self.close_requests()
+        Adw.Bin.do_dispose(self)
+
     def _on_search_changed(self, entry):
         query = entry.get_text().strip()
         if query == self.query:
             return
         self.query = query
         if not query:
-            self._serial += 1
+            # Cancel in flight without starting another read, so a late
+            # answer cannot paint over the start view.
+            self._scope.begin()
+            self._on_data = None
             self._rebuild_recent()
             self.stack.set_visible_child_name('start')
             return
@@ -453,39 +486,42 @@ class SearchPage(Adw.Bin):
         else:
             self.search(resolve=True)
 
-    def _request(self, params, callback):
-        self._serial += 1
-        serial = self._serial
+    def _request(self, params, on_data):
+        token = self._scope.begin()
+        self._on_data = on_data
         self.stack.set_visible_child_name('loading')
+        api_search.search_async(
+            self.client,
+            callback=token.callback(self._on_request_done),
+            cancellable=token.cancellable,
+            **params)
 
-        def finished(client, result, _d=None):
-            if serial != self._serial:
-                return
-            try:
-                data = api_search.search_finish(client, result)
-            except GLib.Error as error:
-                self.error_page.set_description(error_text_markup(error))
-                self.stack.set_visible_child_name('error')
-                return
-            callback(data)
-
-        api_search.search_async(self.client, callback=finished, **params)
+    def _on_request_done(self, client, result):
+        try:
+            data = api_search.search_finish(client, result)
+        except GLib.Error as error:
+            self.error_page.set_description(error_text_markup(error))
+            self.stack.set_visible_child_name('error')
+            return
+        on_data = self._on_data
+        self._on_data = None
+        if on_data is not None:
+            on_data(data)
 
     def _resolve_url(self, url, force=False):
         if url == self._resolved_url and not force:
             return
         self._resolved_url = url
-
-        def resolved(data):
-            if data.get('statuses'):
-                pagenav.open_status(self, self.client, data['statuses'][0])
-            elif data.get('accounts'):
-                pagenav.open_profile(self, self.client, data['accounts'][0])
-            else:
-                self._show_results(data)
-
         self._request({'q': url, 'resolve': 'true',
-                       'limit': PREVIEW_COUNT + 1}, resolved)
+                       'limit': PREVIEW_COUNT + 1}, self._apply_resolved)
+
+    def _apply_resolved(self, data):
+        if data.get('statuses'):
+            pagenav.open_status(self, self.client, data['statuses'][0])
+        elif data.get('accounts'):
+            pagenav.open_profile(self, self.client, data['accounts'][0])
+        else:
+            self._show_results(data)
 
     def search(self, resolve=False):
         if not self.query:

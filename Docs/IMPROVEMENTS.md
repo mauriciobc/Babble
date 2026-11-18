@@ -749,10 +749,11 @@ base cannot fake one. Final resolutions:
   (timelines, notifications, and the profile timeline through
   `ProfileTimeline`), `PagedList` (which covers the admin lists) and
   `StateStack` (thread, filters, edit history, collection page, the admin
-  dashboard). Still unscoped reads, in this order: search (its own
-  `_generation`) and typeahead (`completer.py` keeps its own
-  `Gio.Cancellable`), the profile's other reads (header, relationships,
-  familiar followers), Wrapped, and the composer's state epochs. The
+  dashboard). Still unscoped reads, in this order: typeahead
+  (`completer.py` keeps its own `Gio.Cancellable`), the profile's other
+  reads (header, relationships, familiar followers), Wrapped, and
+  the composer's state epochs. Search pages now use `RequestScope`
+  (empty query cancels; `close_requests` for account switch). The
   admin dashboard's measures and dimensions now share a `StateStack`
   ticket (`begin` + `start` fan-in; `adminbase.send` stays write-only).
   The error-helper item is narrower than written above:
