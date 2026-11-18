@@ -270,7 +270,7 @@ class WrappedDialog(feedback.ToastDialog):
 
     def do_dispose(self):
         self.close_requests()
-        feedback.ToastDialog.do_dispose(self)
+        Adw.Dialog.do_dispose(self)
 
     def load(self):
         token = self._scope.begin()
