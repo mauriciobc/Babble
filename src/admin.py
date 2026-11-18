@@ -25,8 +25,13 @@ from .api import admin as admin_api  # noqa: E402
 from . import pagenav  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .adminaccounts import AccountsPage  # noqa: E402
-from .adminbase import (PERM_BLOCKS, PERM_FEDERATION, PERM_REPORTS, PERM_USERS, Sparkline, StatePage, error_text, needs_admin_scopes, permission_allows, role_permissions, send)  # noqa: E402
-from .adminfederation import (DomainAllowsPage, EmailBlocksPage, FederationBlocksPage, IPBlocksPage)  # noqa: E402
+from .adminbase import (
+    PERM_BLOCKS, PERM_FEDERATION, PERM_REPORTS, PERM_USERS, Sparkline,
+    StatePage, error_text, needs_admin_scopes, permission_allows,
+    role_permissions, send)  # noqa: E402
+from .adminfederation import (
+    DomainAllowsPage, EmailBlocksPage, FederationBlocksPage,
+    IPBlocksPage)  # noqa: E402
 from .adminreports import ReportsPage  # noqa: E402
 
 

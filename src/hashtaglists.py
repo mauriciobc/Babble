@@ -23,7 +23,9 @@ from .api import tags as api_tags  # noqa: E402
 from .hashtags import FAVORITE_TAGS_KEY, _invalidate_home_tags  # noqa: E402
 from .lists import make_pin_button  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
-from .hashtags import (default_title, hash_badge, hashtag_summary, load_saved, present_multi_hashtag_editor, push_hashtag, push_multi_hashtag)  # noqa: E402
+from .hashtags import (
+    default_title, hash_badge, hashtag_summary, load_saved,
+    present_multi_hashtag_editor, push_hashtag, push_multi_hashtag)  # noqa: E402
 
 
 
