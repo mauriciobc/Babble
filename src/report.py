@@ -238,15 +238,10 @@ class ReportDialog(Adw.Dialog):
             subject = _('Tell us what’s going on with this account')
         choices = Adw.PreferencesGroup(
             title=subject, description=_('Choose the best match'))
-        first = None
         for category in CATEGORIES:
             title, subtitle = category_info(category)
             check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             check.add_css_class('selection-mode')
-            if first is None:
-                first = check
-            else:
-                check.set_group(first)
             connect_weak(check, 'toggled', self._on_category_toggled,
                                category)
             row = Adw.ActionRow(title=title, subtitle=subtitle,
@@ -257,6 +252,7 @@ class ReportDialog(Adw.Dialog):
             self.category_checks[category] = check
             self.category_rows[category] = row
             choices.add(row)
+        uihelpers.join_radio(self.category_checks.values())
         page.add(choices)
 
         nav_page, _header = self._make_page(

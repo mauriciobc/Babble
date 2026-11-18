@@ -359,17 +359,16 @@ class AddIPBlockDialog(feedback.ToastDialog):
             title=_('Rule'),
             description=_('Choose what will happen with requests from this '
                           'IP'))
-        first = None
         self.checks = {}
         for key, _label, title, description in IP_SEVERITIES:
-            check = Gtk.CheckButton(group=first, valign=Gtk.Align.CENTER)
-            first = first or check
+            check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             check.set_active(key == 'no_access')
             row = Adw.ActionRow(title=title, subtitle=description,
                                 activatable_widget=check)
             row.add_prefix(check)
             rules.add(row)
             self.checks[key] = check
+        uihelpers.join_radio(self.checks.values())
         self.page.add(rules)
 
     def _on_ip_changed(self, row):

@@ -125,6 +125,16 @@ exercise(admin_dialog, 'admin')
 check('the admin base still offers header buttons',
       isinstance(admin_dialog.save, Gtk.Button))
 
+ip_active = [k for k, c in admin_dialog.checks.items() if c.get_active()]
+check('the IP block rules form one radio group with the default active',
+      ip_active == ['no_access'], repr(ip_active))
+other_key = next(k for k in admin_dialog.checks if k != 'no_access')
+admin_dialog.checks[other_key].set_active(True)
+pump()
+ip_active = [k for k, c in admin_dialog.checks.items() if c.get_active()]
+check('activating another IP block rule deactivates the first',
+      ip_active == [other_key], repr(ip_active))
+
 collection_dialog = collectionedit.CollectionEditDialog(_Client())
 exercise(collection_dialog, 'collection')
 check('the collection dialog keeps its Save button',

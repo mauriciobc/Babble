@@ -62,6 +62,14 @@ def clear_children(widget):
         widget.remove(child)
 
 
+def join_radio(buttons):
+    """Make *buttons* (Gtk.CheckButton) one radio group, in order."""
+    leader = None
+    for button in buttons:
+        button.set_group(leader)
+        leader = leader or button
+
+
 # Small widgets
 
 def section_label(text):
