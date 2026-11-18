@@ -295,6 +295,205 @@ check('and the post stays hidden', events == ['deleted'])
 
 feedback.show_toast = real_toast
 
+# The model's treatment of plain rows, boost rows and boost carousels. These
+# pin what take_status, remove_status, trim and replace_status do with each
+# kind of row, so the model can answer them through the items themselves.
+from src.timelinedata import BoostCarouselItem  # noqa: E402
+
+
+def boost(wrapper_id, boosted_id):
+    """A boost wrapper whose 'reblog' is the boosted status."""
+    wrapper = dict(status(wrapper_id), account={'acct': 'b', 'id': '9'})
+    wrapper['reblog'] = status(boosted_id)
+    return wrapper
+
+
+def carousel(*pairs):
+    wrappers = [boost(w, b) for w, b in pairs]
+    return BoostCarouselItem([w['reblog'] for w in wrappers], wrappers)
+
+
+def shape(model):
+    """The store: (status_id, raw id) for a row, a tuple of boosted ids and
+    one of wrapper ids for a carousel."""
+    out = []
+    for i in range(model.get_n_items()):
+        item = model.get_item(i)
+        if isinstance(item, BoostCarouselItem):
+            out.append((tuple(s['id'] for s in item.boosts),
+                        tuple(w['id'] for w in item.wrappers)))
+        else:
+            out.append((item.status_id, item.raw['id']))
+    return out
+
+
+def build(*items):
+    model = TimelineModel()
+    for item in items:
+        model._store.append(item)
+        model._register_seen(item)
+    return model
+
+
+def plain(identifier):
+    return StatusItem(status(identifier))
+
+
+def boost_row(wrapper_id, boosted_id):
+    return StatusItem(boost(wrapper_id, boosted_id))
+
+
+# 1. One id as a plain row, a boost row and inside a carousel
+original, boost_of = plain('10'), boost_row('30', '10')
+inside = carousel(('20', '10'), ('21', '11'))
+model = build(original, inside, boost_of)
+taken = model.take_status('10')
+check('take: returns the plain rows by position, not the carousel',
+      [(p, i) for p, i in taken] == [(0, original), (2, boost_of)],
+      repr([(p, i.raw['id']) for p, i in taken]))
+check('take: the carousel keeps what is not the id',
+      shape(model) == [(('11',), ('21',))], repr(shape(model)))
+check('take: the carousel is the same row',
+      model.get_item(0) is inside)
+check('take: nothing taken from a carousel alone leaves it',
+      build(carousel(('20', '10'), ('21', '11'))).take_status('11') == [])
+emptied = build(carousel(('20', '10')))
+check('take: a carousel emptied by the take is not a taken row',
+      emptied.take_status('10') == [] and emptied.get_n_items() == 0,
+      repr(shape(emptied)))
+
+# 2. Several plain rows, then put_back restores the order
+model = build(plain('12'), plain('10'), plain('13'), boost_row('30', '10'),
+              plain('14'))
+before = shape(model)
+taken = model.take_status('10')
+check('take: several rows come back in position order',
+      [p for p, _i in taken] == [1, 3], repr([p for p, _i in taken]))
+check('take: the store is left with the others',
+      shape(model) == [('12', '12'), ('13', '13'), ('14', '14')],
+      repr(shape(model)))
+model.put_back(taken)
+# Both rows answer to status_id '10': put_back decides "already back" from
+# the ids seen when it starts, so the second one is restored as well.
+check('put_back restores every taken row at its original position',
+      shape(model) == before, repr(shape(model)))
+check('put_back sees the ids of both rows again',
+      '10' in model._seen and {i.status_id for _p, i in taken} <= model._seen)
+model.put_back(taken)
+check('a second put_back of the same rows changes nothing',
+      shape(model) == before, repr(shape(model)))
+
+# The post came back some other way (a refresh, a stream insert) before Undo:
+# its id is seen when put_back starts, so no taken row is put back, the boost
+# row of it included (it stays gone until the next refresh; no duplicates).
+model = build(plain('12'), plain('10'), plain('13'), boost_row('30', '10'),
+              plain('14'))
+taken = model.take_status('10')
+returned = plain('10')
+model._store.insert(0, returned)
+model._register_seen(returned)
+after_return = shape(model)
+model.put_back(taken)
+check('put_back adds nothing for a post that came back before Undo',
+      shape(model) == after_return and model.get_item(0) is returned,
+      repr(shape(model)))
+model = build(plain('12'), plain('10'), plain('13'), boost_row('30', '10'),
+              plain('14'))
+taken = model.take_status('30')
+check('take by wrapper id takes only the boost row',
+      [(p, i.raw['id']) for p, i in taken] == [(3, '30')]
+      and shape(model) == [('12', '12'), ('10', '10'), ('13', '13'),
+                           ('14', '14')], repr(shape(model)))
+model.put_back(taken)
+check('put_back restores the boost row to its place', shape(model) == before,
+      repr(shape(model)))
+
+# 3. The only wrapper of a carousel
+for target in ('60', '61'):
+    model = build(plain('50'), carousel(('60', '61')))
+    result = model.remove_status(target)
+    check('remove %s: the emptied carousel leaves the store' % target,
+          result is True and shape(model) == [('50', '50')],
+          repr((result, shape(model))))
+
+# 4. One of several wrappers
+for target in ('62', '63'):
+    two = carousel(('60', '61'), ('62', '63'), ('64', '65'))
+    model = build(two)
+    count = []
+    two.connect('changed', lambda _i, seen=count: seen.append(1))
+    result = model.remove_status(target)
+    check('remove %s: the carousel keeps the rest in step' % target,
+          result is True and shape(model) == [(('61', '65'), ('60', '64'))]
+          and model.get_item(0) is two, repr((result, shape(model))))
+    check('remove %s: changed is emitted once' % target, count == [1],
+          repr(count))
+
+# 5. An unknown id
+model = build(plain('50'), carousel(('60', '61')), boost_row('70', '71'))
+before = shape(model)
+check('remove: an unknown id returns False and changes nothing',
+      model.remove_status('999') is False and shape(model) == before,
+      repr(shape(model)))
+check('remove: and take returns nothing', model.take_status('999') == [])
+
+# 6. trim with a carousel among the rows left
+model = build(plain('90'), plain('80'), carousel(('70', '71'), ('75', '76')),
+              plain('60'), boost_row('55', '71'), plain('50'))
+check('trim: drops what follows', model.trim(3) is True
+      and shape(model) == [('90', '90'), ('80', '80'),
+                           (('71', '76'), ('70', '75'))],
+      repr(shape(model)))
+check('trim: oldest is the least wrapper id of the carousel',
+      model.oldest_id == '70', repr(model.oldest_id))
+check('trim: seen drops only ids with no copy left',
+      model._seen == {'90', '80', '70', '71', '75', '76'},
+      repr(sorted(model._seen)))
+model = build(plain('100'), carousel(('99', '98')), plain('5'))
+model.trim(2)
+check('trim: oldest compares ids as numbers across rows',
+      model.oldest_id == '99', repr(model.oldest_id))
+
+# 7. replace_status
+inside = carousel(('20', '12'))
+row, wrapped = plain('10'), boost_row('30', '11')
+model = build(row, wrapped, inside)
+changes = []
+inside.connect('changed', lambda _i: changes.append('carousel'))
+row.connect('changed', lambda _i: changes.append('row'))
+wrapped.connect('changed', lambda _i: changes.append('boost'))
+check('replace: a post inside a carousel',
+      model.replace_status({'id': '12', 'content': 'edited'}) is True
+      and inside.boosts[0]['content'] == 'edited'
+      and inside.wrappers[0]['reblog']['content'] == 'p12'
+      and model.get_item(2) is inside and changes == ['carousel'],
+      repr((changes, inside.boosts)))
+changes.clear()
+check('replace: a plain row',
+      model.replace_status({'id': '10', 'content': 'edited'}) is True
+      and row.raw['content'] == 'edited' and model.get_item(0) is row
+      and changes == ['row'], repr((changes, row.raw)))
+changes.clear()
+check('replace: a boost row edits the boosted post',
+      model.replace_status({'id': '11', 'content': 'edited'}) is True
+      and wrapped.raw['id'] == '30' and wrapped.raw['content'] == 'p30'
+      and wrapped.raw['reblog']['content'] == 'edited'
+      and wrapped.status['content'] == 'edited'
+      and wrapped.is_boost and changes == ['boost'],
+      repr((changes, wrapped.raw)))
+check('replace: a wrapper id is not the post',
+      model.replace_status({'id': '30', 'content': 'x'}) is False)
+check('replace: an unknown id is False',
+      model.replace_status({'id': '999', 'content': 'x'}) is False)
+check('replace: an empty id is False',
+      model.replace_status({'content': 'x'}) is False)
+first, second = carousel(('20', '11')), boost_row('30', '11')
+model = build(first, second)
+check('replace: the first match wins',
+      model.replace_status({'id': '11', 'content': 'edited'}) is True
+      and first.boosts[0]['content'] == 'edited'
+      and second.status['content'] == 'p11')
+
 if failures:
     print('%d failed' % len(failures))
     sys.exit(1)

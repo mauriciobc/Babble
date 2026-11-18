@@ -18,20 +18,18 @@ from .i18n import gettext as _, ngettext
 from gi.repository import (Adw, GLib, GObject, Gtk,  # noqa: E402
                            Pango)
 
-from . import (accountrows, feedback, pagenav, pages,  # noqa: E402
-               uihelpers)
+from . import accountrows, feedback, pagenav, uihelpers  # noqa: E402
 from .api import accounts as api_accounts  # noqa: E402
 from .capabilities import ENDORSEMENTS_API_VERSION  # noqa: E402
+from .requestscope import RequestScope  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .profileactions import (ProfileActions,  # noqa: E402
                               endorse_action_names)  # noqa: F401
 from .profileheader import ProfileHeader, plain_name  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 from .timelinebase import COLUMN_WIDTH  # noqa: E402
-from src.profiledialogs import _request_result  # noqa: E402
-from src.profilefeed import (AccountStatuses,
-    ProfileDialog,
-    ProfileTimeline)  # noqa: E402
+from .profiledialogs import _request_result  # noqa: E402
+from .profilefeed import (AccountStatuses, ProfileDialog, ProfileTimeline)  # noqa: E402
 def push_profile(view, client, account, acct=None):
     """Show *account* (dict) or the *acct* handle in a profile sheet over
     the window that owns *view*."""
@@ -75,7 +73,9 @@ class ProfilePage(ProfileActions, Adw.Bin):
         self.menu_button = None
         self._busy = False
         self._content = False
-        self._generation = 0
+        # Extras + account reload only. Relationship stays off this
+        # scope so a header rebuild cannot cancel it without a refetch.
+        self._extras_scope = RequestScope()
         self._follow_mode = None
         self.badge_box = None
         self.note_list = None
@@ -108,10 +108,10 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
 
-        self.loading_page = pages.make_loading_page(_('Loading Profile'))
+        self.loading_page = uihelpers.make_loading_page(_('Loading Profile'))
         self.stack.add_named(self.loading_page, 'loading')
 
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Could Not Load Profile'), self.on_retry)
         self.stack.add_named(self.error_page, 'error')
 
@@ -271,34 +271,46 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     # Extras: familiar followers, featured hashtags, endorsed accounts
 
+    def begin_extras(self):
+        """Start a new extras generation (header rebuild). Sibling reads
+        join with :meth:`RequestScope.start`."""
+        self._extras_scope.begin()
+
+    def close_requests(self):
+        self._extras_scope.close()
+
+    def do_dispose(self):
+        self.close_requests()
+        Adw.Bin.do_dispose(self)
+
     def load_extras(self):
         account_id = self.account.get('id')
-        if account_id is None:
+        if account_id is None or self._extras_scope.closed:
             return
-        generation = self._generation
 
-        def handler(callback):
-            def _on_loaded(client, result, _data=None):
-                if generation != self._generation:
-                    return
-                callback(client, result)
-            return _on_loaded
+        def start(handler):
+            token = self._extras_scope.start()
+            return token.callback(handler), token.cancellable
 
         if self._signed_in() and not self._is_self():
+            callback, cancellable = start(self._on_familiar)
             api_accounts.familiar_followers_async(
                 self.client, [account_id],
-                callback=handler(self._on_familiar))
+                callback=callback, cancellable=cancellable)
+        callback, cancellable = start(self._on_featured_tags)
         api_accounts.featured_tags_async(
-            self.client, account_id, callback=handler(self._on_featured_tags))
+            self.client, account_id, callback=callback,
+            cancellable=cancellable)
         # GET /accounts/:id/endorsements is Mastodon 4.4.0. Without the
         # gate every profile on an older server raised a "Could not load
         # featured profiles" toast from _request_result. A server that
         # says nothing is told no (when_unknown=False): the section is
         # decoration, and its absence is invisible.
         if self.client.is_supported(ENDORSEMENTS_API_VERSION):
+            callback, cancellable = start(self._on_endorsements)
             api_accounts.endorsements_async(
                 self.client, account_id, params={'limit': 80},
-                callback=handler(self._on_endorsements))
+                callback=callback, cancellable=cancellable)
 
     def _on_familiar(self, client, result, _data=None):
         data = _request_result(client, result,
@@ -463,28 +475,38 @@ class ProfilePage(ProfileActions, Adw.Bin):
 
     def reload_account(self):
         """Fetch a fresh copy of the account (counts, fields, bio) and
-        rebuild the header when it differs from what is shown."""
+        rebuild the header when it differs from what is shown.
+
+        Joins the current extras generation (``start``), so a header
+        ``begin_extras`` does not leave this read orphaned on a private
+        int — and a second ``begin`` here would cancel extras mid-flight.
+        """
         account_id = self.account.get('id')
-        generation = self._generation
-
-        def loaded(client, result, _data=None):
-            if generation != self._generation:
-                return
-            fresh = _request_result(
-                client, result, finish, self,
-                _('Could not reload the profile'))
-            if isinstance(fresh, dict) and fresh.get('id') == account_id \
-                    and fresh != self.account:
-                self.account = dict(self.account, **fresh)
-                self.refresh_header(self.account)
-
+        if account_id is None or self._extras_scope.closed:
+            return
+        token = self._extras_scope.start()
         if self._is_self():
-            finish = api_accounts.verify_credentials_finish
-            api_accounts.verify_credentials_async(self.client,
-                                                  callback=loaded)
+            api_accounts.verify_credentials_async(
+                self.client,
+                callback=token.callback(self._on_account_reloaded),
+                cancellable=token.cancellable)
         else:
-            finish = api_accounts.get_finish
-            api_accounts.get_async(self.client, account_id, callback=loaded)
+            api_accounts.get_async(
+                self.client, account_id,
+                callback=token.callback(self._on_account_reloaded),
+                cancellable=token.cancellable)
+
+    def _on_account_reloaded(self, client, result):
+        account_id = self.account.get('id')
+        finish = (api_accounts.verify_credentials_finish if self._is_self()
+                  else api_accounts.get_finish)
+        fresh = _request_result(
+            client, result, finish, self,
+            _('Could not reload the profile'))
+        if isinstance(fresh, dict) and fresh.get('id') == account_id \
+                and fresh != self.account:
+            self.account = dict(self.account, **fresh)
+            self.refresh_header(self.account)
 
     # Relationship
 

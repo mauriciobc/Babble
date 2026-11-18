@@ -27,6 +27,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gtk, Pango  # noqa: E40
 from . import charts  # noqa: E402
 from . import (accountrows, feedback, pagenav, pages,  # noqa: E402
                uihelpers)
+from .requestscope import RequestScope  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .api import annual_reports as api_annual_reports  # noqa: E402
 from .capabilities import ANNUAL_REPORT_STATE_API_VERSION  # noqa: E402
@@ -210,7 +211,8 @@ class WrappedDialog(feedback.ToastDialog):
         self.data = None
         self.report = None
         self.style = 'window'
-        self._generation = 0
+        self._scope = RequestScope()
+        self._state_year = None
 
         self.stack = Gtk.Stack()
         self.set_content(self.stack)
@@ -239,9 +241,9 @@ class WrappedDialog(feedback.ToastDialog):
         actions.add_action(action)
         self.insert_action_group('wrapped', actions)
 
-        self.stack.add_named(pages.make_loading_page(_('Loading')),
+        self.stack.add_named(uihelpers.make_loading_page(_('Loading')),
                              'loading')
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Could Not Load'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self.status_page = Adw.StatusPage()
@@ -263,34 +265,38 @@ class WrappedDialog(feedback.ToastDialog):
             menu.append(label, "wrapped.style('%s')" % key)
         return menu
 
+    def close_requests(self):
+        self._scope.close()
+
+    def do_dispose(self):
+        self.close_requests()
+        Adw.Dialog.do_dispose(self)
+
     def load(self):
-        self._generation += 1
-        generation = self._generation
+        token = self._scope.begin()
         self.stack.set_visible_child_name('loading')
         self._set_chrome(False)
-        def ok(data):
-            if generation != self._generation:
-                return
-            if not (data or {}).get('annual_reports'):
-                self._check_state(self.year or default_year())
-                return
-            self.data = data
-            self._select(self.year)
+        api_annual_reports.get_async(
+            self.client, self.year,
+            callback=token.callback(self._on_get),
+            cancellable=token.cancellable)
 
-        def failed(error):
-            if generation != self._generation:
-                return
+    def _on_get(self, client, result):
+        try:
+            data = api_annual_reports.get_finish(client, result)
+        except GLib.Error as error:
             if error.code in (404, 410):
                 self._check_state(self.year or default_year())
                 return
             self.error_page.set_description(
                 summarize_error_markup(error))
             self.stack.set_visible_child_name('error')
-
-        _finish_with(
-            self.client, lambda cb: api_annual_reports.get_async(
-                self.client, self.year, callback=cb),
-            api_annual_reports.get_finish, ok, failed)
+            return
+        if not (data or {}).get('annual_reports'):
+            self._check_state(self.year or default_year())
+            return
+        self.data = data
+        self._select(self.year)
 
     def _set_chrome(self, visible):
         self.save_button.set_visible(visible)
@@ -336,40 +342,44 @@ class WrappedDialog(feedback.ToastDialog):
         empty page without a request that can only 404. Unknown is
         treated as "no" here (``when_unknown=False``): a server that
         does not report a version is not one that has a 4.6 feature."""
-        generation = self._generation
         if not self.client.is_supported(ANNUAL_REPORT_STATE_API_VERSION):
             self._empty(year)
             return
+        self._state_year = year
+        token = self._scope.begin()
+        api_annual_reports.state_async(
+            self.client, year,
+            callback=token.callback(self._on_state),
+            cancellable=token.cancellable)
 
-        def ok(data):
-            if generation != self._generation:
-                return
-            state = (data or {}).get('state')
-            if state == 'eligible':
-                self._show_status(
-                    _('Your %d Wrapped Is Ready to Make') % year,
-                    _('Your server can put it together now. It takes a '
-                      'little while.'), button=_('_Generate'),
-                    callback=('_generate', year))
-            elif state == 'generating':
-                self._show_status(
-                    _('Putting Your %d Wrapped Together') % year,
-                    _('Check again in a few minutes.'),
-                    icon='content-loading-symbolic',
-                    button=_('_Check Again'), callback=('load',))
-            elif state == 'available':
-                self.year = year
-                self.load()
-            else:
-                self._empty(year)
-
-        _finish_with(
-            self.client, lambda cb: api_annual_reports.state_async(
-                self.client, year, callback=cb),
-            api_annual_reports.state_finish, ok,
-            lambda _e: generation == self._generation and self._empty(year))
+    def _on_state(self, client, result):
+        year = self._state_year
+        try:
+            data = api_annual_reports.state_finish(client, result)
+        except GLib.Error:
+            self._empty(year)
+            return
+        state = (data or {}).get('state')
+        if state == 'eligible':
+            self._show_status(
+                _('Your %d Wrapped Is Ready to Make') % year,
+                _('Your server can put it together now. It takes a '
+                  'little while.'), button=_('_Generate'),
+                callback=('_generate', year))
+        elif state == 'generating':
+            self._show_status(
+                _('Putting Your %d Wrapped Together') % year,
+                _('Check again in a few minutes.'),
+                icon='content-loading-symbolic',
+                button=_('_Check Again'), callback=('load',))
+        elif state == 'available':
+            self.year = year
+            self.load()
+        else:
+            self._empty(year)
 
     def _generate(self, year):
+        # Write: never take a scope ticket (the server may already act).
         self.stack.set_visible_child_name('loading')
 
         def ok(_data):

@@ -44,11 +44,9 @@ class StreamHost:
     """What the router needs from the window, as callables.
 
     Every callable is asked at the moment it is needed, never cached.
-    ``home_page`` and ``notifications_page`` may return None (not built
-    yet); ``place(tag)`` returns the built child of a place, or None.
+    ``place(tag)`` returns the built child of a place (including home
+    and notifications once mounted), or None.
     """
-    home_page: Callable[[], Any]
-    notifications_page: Callable[[], Any]
     place: Callable[[str], Any]
     stream_places: Callable[[], list]
     place_timelines: Callable[[], list]
@@ -126,7 +124,8 @@ class StreamRouter:
         builds a timeline of its own (two hashtag places never share
         one), so nothing else repeats."""
         host = self.host
-        found = [host.home_page(), *host.place_timelines()]
+        # Home first (not in place_timelines); then other places once.
+        found = [host.place('home'), *host.place_timelines()]
         return [page for page in found if host.is_timeline(page)]
 
     # Who receives each event
@@ -153,7 +152,7 @@ class StreamRouter:
         elif stream == FEDERATED:
             target = self.host.place('federated')
         else:
-            target = self.host.home_page()
+            target = self.host.place('home')
         if target is not None:
             target.on_stream_update(payload)
 
@@ -169,20 +168,20 @@ class StreamRouter:
             page.on_stream_status_update(payload)
 
     def _filters_changed(self, _stream, _payload):
-        home = self.host.home_page()
+        home = self.host.place('home')
         if home is not None:
             home.refresh()
-        notifications = self.host.notifications_page()
+        notifications = self.host.place('notifications')
         if notifications is not None:
             notifications.refresh()
 
     def _notifications_refresh(self, _stream, _payload):
-        notifications = self.host.notifications_page()
+        notifications = self.host.place('notifications')
         if notifications is not None:
             notifications.refresh()
 
     def _announcements(self, _stream, _payload):
-        notifications = self.host.notifications_page()
+        notifications = self.host.place('notifications')
         if notifications is not None:
             notifications.load_announcements()
 
@@ -190,7 +189,7 @@ class StreamRouter:
         self.host.refresh_admin_tool('reports')
 
     def _notification(self, _stream, payload):
-        notifications = self.host.notifications_page()
+        notifications = self.host.place('notifications')
         if notifications is not None:
             notifications.on_stream_notification(payload)
         self.host.notifier_handle(payload)

@@ -18,7 +18,7 @@ from .statustext import (relative_time)
 
 """Status rows' data: StatusItem, boost grouping and TimelineModel."""
 from .timelinebase import (status_filter, GROUP_BOOSTS_MIN_PAGE,
-                           BOOST_DEDUPE_LIMIT, id_key)
+                           BOOST_DEDUPE_LIMIT, id_key, id_str)
 from .entities import lift
 
 
@@ -59,6 +59,55 @@ class StatusItem(GObject.Object):
         self._set_data(data)
         self.translation = None
         self.emit('changed')
+
+    # What the model asks of any row, a plain post, a boost or the boosts
+    # carousel (BoostCarouselItem overrides each), so it takes one path.
+
+    def ids(self):
+        """Every id the row answers to: the post it shows and, for a
+        boost, the wrapper it arrived as."""
+        ids = {self.status_id}
+        if self.raw.get('id') is not None:
+            ids.add(str(self.raw['id']))
+        return ids
+
+    def wrapper_ids(self):
+        """Ids of the boost wrappers this row is."""
+        return {str(self.raw['id'])} if self.is_boost else set()
+
+    def carousel_wrappers(self):
+        """The boost wrappers a carousel holds; none for a plain row."""
+        return ()
+
+    def page_ids(self):
+        """The ids that bound paging when the row is the oldest left."""
+        return [self.raw['id']]
+
+    def matches(self, target):
+        """True when *target* is the post shown or the id it arrived as."""
+        return self.status_id == target \
+            or id_str(self.raw.get('id')) == target
+
+    def without(self, target):
+        """Drop *target* from this row: 'remove' when nothing of it is
+        left (the model removes the row), 'changed' when it was edited in
+        place, 'keep' when *target* is not in it."""
+        return 'remove' if self.matches(target) else 'keep'
+
+    def replace_status(self, status):
+        """Take *status*, an edited post, when it is the one shown.
+        Returns True when the row updated itself."""
+        if self.status_id != id_str(status.get('id')):
+            return False
+        if self.is_boost:
+            # The row is a boost: the edit applies to the boosted
+            # post, so keep the wrapper and the booster.
+            raw = dict(self.raw)
+            raw['reblog'] = dict(self.status, **status)
+        else:
+            raw = dict(self.raw, **status)
+        self.update(raw)
+        return True
 
     @GObject.Property(type=str)
     def status_id(self):
@@ -249,6 +298,61 @@ class BoostCarouselItem(StatusItem):
         self.boosts = boosts
         self.emit('changed')
 
+    def _wrapper_id_list(self):
+        return [str(wrapper['id']) for wrapper in self.wrappers
+                if wrapper.get('id')]
+
+    def ids(self):
+        ids = {str(status['id']) for status in self.boosts}
+        ids.update(self._wrapper_id_list())
+        return ids
+
+    def wrapper_ids(self):
+        return set(self._wrapper_id_list())
+
+    def carousel_wrappers(self):
+        return self.wrappers
+
+    def page_ids(self):
+        return [wrapper['id'] for wrapper in self.wrappers
+                if wrapper.get('id')]
+
+    def matches(self, target):
+        # A carousel is never taken whole, so Undo has nothing to put back.
+        return False
+
+    def without(self, target):
+        """Drop *target*, a boosted post or the id of one of its boost
+        wrappers (what an unboost deletes)."""
+        wrappers = [
+            wrapper for wrapper in self.wrappers
+            if id_str(wrapper.get('id')) != target
+            and id_str((wrapper.get('reblog') or {}).get('id')) != target]
+        shown = {str(wrapper['reblog']['id']) for wrapper in wrappers}
+        kept = [s for s in self.boosts if id_str(s.get('id')) in shown]
+        if len(kept) == len(self.boosts) \
+                and len(wrappers) == len(self.wrappers):
+            return 'keep'
+        self.wrappers = wrappers
+        if not kept:
+            return 'remove'
+        self.set_boosts(kept)
+        return 'changed'
+
+    def replace_status(self, status):
+        status_id = id_str(status.get('id'))
+        updated = False
+        boosts = []
+        for inner in self.boosts:
+            if id_str(inner.get('id')) == status_id:
+                boosts.append(dict(inner, **status))
+                updated = True
+            else:
+                boosts.append(inner)
+        if updated:
+            self.set_boosts(boosts)
+        return updated
+
 
 def filter_boosts(statuses):
     """Drop boosts: statuses that only wrap another post in ``reblog``.
@@ -277,7 +381,7 @@ def filter_replies_from_non_follows(statuses, viewer_id, following_ids):
         if not status.get('in_reply_to_id'):
             kept.append(status)
             continue
-        author_id = str((status.get('account') or {}).get('id') or '')
+        author_id = id_str((status.get('account') or {}).get('id'))
         if viewer and author_id == viewer:
             kept.append(status)
         elif following.get(author_id):
@@ -322,7 +426,7 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         # the same page dedupe too, the first (newest) one winning.
         taken = {}
         for status in statuses:
-            status_id = str(status.get('id') or '')
+            status_id = id_str(status.get('id'))
             if not status_id or status_id in self._seen:
                 continue
             if self.dedupe_boosts_enabled and is_boost_status(status):
@@ -344,36 +448,14 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             self._boosted_reblog_ids.pop(next(iter(self._boosted_reblog_ids)))
 
     @staticmethod
-    def _item_ids(item):
-        """Every id a row answers to: the posts it shows and, for boosts,
-        the wrappers they arrived as."""
-        if isinstance(item, BoostCarouselItem):
-            ids = {str(status['id']) for status in item.boosts}
-            ids.update(str(wrapper['id']) for wrapper in item.wrappers
-                       if wrapper.get('id'))
-            return ids
-        ids = {item.status_id}
-        if item.raw.get('id') is not None:
-            ids.add(str(item.raw['id']))
-        return ids
-
-    @staticmethod
     def _wrapper_ids(items):
         """Ids of the boost wrappers among *items*."""
-        ids = set()
-        for item in items:
-            if isinstance(item, BoostCarouselItem):
-                ids.update(str(wrapper['id']) for wrapper in item.wrappers
-                           if wrapper.get('id'))
-            elif item.is_boost:
-                ids.add(str(item.raw['id']))
-        return ids
+        return set().union(*(item.wrapper_ids() for item in items))
 
     def _register_seen(self, item):
-        self._seen |= self._item_ids(item)
-        if isinstance(item, BoostCarouselItem):
-            for wrapper in item.wrappers:
-                self._remember_boost_dedupe(wrapper)
+        self._seen |= item.ids()
+        for wrapper in item.carousel_wrappers():
+            self._remember_boost_dedupe(wrapper)
 
     def _statuses_to_items(self, statuses):
         if not statuses:
@@ -435,69 +517,52 @@ class TimelineModel(GObject.Object, Gio.ListModel):
             if booster == status_id:
                 del self._boosted_reblog_ids[reblog_id]
 
-    def _remove_from_carousel(self, item, position, target):
-        """Drop *target*, a boosted post or the id of one of its boost
-        wrappers (what an unboost deletes), from a carousel. Returns True
-        when the carousel changed."""
-        if item.wrappers:
-            wrappers = [
-                wrapper for wrapper in item.wrappers
-                if str(wrapper.get('id')) != target
-                and str((wrapper.get('reblog') or {}).get('id')) != target]
-            shown = {str(wrapper['reblog']['id']) for wrapper in wrappers}
-            kept = [s for s in item.boosts if str(s.get('id')) in shown]
-        else:
-            wrappers = []
-            kept = [s for s in item.boosts if str(s.get('id') or '') != target]
-        if len(kept) == len(item.boosts) \
-                and len(wrappers) == len(item.wrappers):
-            return False
-        item.wrappers = wrappers
-        if kept:
-            item.set_boosts(kept)
-        else:
-            self._store.remove(position)
-        return True
+    def _remove(self, target):
+        """Drop *target* from every row. Returns ``(changed, taken)``:
+        whether any row changed or went, and the rows that went because
+        they are the post, as ``(position, item)`` in list order."""
+        changed = False
+        taken = []
+        for position in reversed(range(self._store.get_n_items())):
+            item = self._store.get_item(position)
+            verdict = item.without(target)
+            if verdict == 'keep':
+                continue
+            changed = True
+            if verdict == 'remove':
+                if item.matches(target):
+                    taken.append((position, item))
+                self._seen.discard(item.status_id)
+                self._store.remove(position)
+        taken.reverse()
+        return changed, taken
 
     def remove_status(self, status_id):
         """Drop a deleted post, and any boost of it, from the list.
         Returns True when a row was removed."""
-        target = str(status_id)
-        removed = False
-        for position in reversed(range(self._store.get_n_items())):
-            item = self._store.get_item(position)
-            if isinstance(item, BoostCarouselItem):
-                if self._remove_from_carousel(item, position, target):
-                    removed = True
-                continue
-            if item.status_id != target \
-                    and str(item.raw.get('id') or '') != target:
-                continue
-            self._seen.discard(item.status_id)
-            self._store.remove(position)
-            removed = True
-        if removed:
+        target = id_str(status_id)
+        changed, _taken = self._remove(target)
+        if changed:
             self._forget_boost(target)
-        return removed
+        return changed
 
     def take_status(self, status_id):
         """Like :meth:`remove_status`, but returns what plain rows were
         removed as ``(position, item)`` pairs, for :meth:`put_back`."""
-        target = str(status_id)
-        taken = []
-        for position in range(self._store.get_n_items()):
-            item = self._store.get_item(position)
-            if not isinstance(item, BoostCarouselItem) \
-                    and (item.status_id == target
-                         or str(item.raw.get('id') or '') == target):
-                taken.append((position, item))
-        self.remove_status(target)
+        target = id_str(status_id)
+        changed, taken = self._remove(target)
+        if changed:
+            self._forget_boost(target)
         return taken
 
     def put_back(self, taken):
         """Return rows from :meth:`take_status` to where they were."""
+        # "Already back" is read once, before the first row returns: rows of
+        # one post (the original and its boost rows) share a status_id, and
+        # each one restored must not hide the next.
+        seen = set(self._seen)
         for position, item in taken:
-            if item.status_id in self._seen:
+            if item.status_id in seen:
                 continue
             self._store.insert(min(position, self._store.get_n_items()), item)
             self._register_seen(item)
@@ -514,8 +579,8 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         left = [self._store.get_item(i) for i in range(keep)]
         # A post can also be shown higher up as a boost or the original:
         # its id stays seen while any copy is left.
-        gone = set().union(*(self._item_ids(item) for item in dropped))
-        still = set().union(*(self._item_ids(item) for item in left))
+        gone = set().union(*(item.ids() for item in dropped))
+        still = set().union(*(item.ids() for item in left))
         self._seen -= gone - still
         # The dropped boosts must be fetchable again, so they stop
         # counting as the boost of their post.
@@ -523,13 +588,7 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         for reblog_id, booster in list(self._boosted_reblog_ids.items()):
             if booster in orphaned:
                 del self._boosted_reblog_ids[reblog_id]
-        ids = []
-        for item in left:
-            if isinstance(item, BoostCarouselItem):
-                ids.extend(wrapper['id'] for wrapper in item.wrappers
-                           if wrapper.get('id'))
-            else:
-                ids.append(item.raw['id'])
+        ids = [page_id for item in left for page_id in item.page_ids()]
         self.oldest_id = min(ids, key=id_key) if ids else None
         self.exhausted = False
         return True
@@ -537,35 +596,11 @@ class TimelineModel(GObject.Object, Gio.ListModel):
     def replace_status(self, status):
         """Swap in an edited post, keeping the row's view state.
         Returns True when a row was found and updated."""
-        status_id = str(status.get('id') or '')
-        if not status_id:
+        if not id_str(status.get('id')):
             return False
         for position in range(self._store.get_n_items()):
-            item = self._store.get_item(position)
-            if isinstance(item, BoostCarouselItem):
-                updated = False
-                boosts = []
-                for inner in item.boosts:
-                    if str(inner.get('id') or '') == status_id:
-                        boosts.append(dict(inner, **status))
-                        updated = True
-                    else:
-                        boosts.append(inner)
-                if updated:
-                    item.set_boosts(boosts)
-                    return True
-                continue
-            if item.status_id != status_id:
-                continue
-            if item.is_boost:
-                # The row is a boost: the edit applies to the boosted
-                # post, so keep the wrapper and the booster.
-                raw = dict(item.raw)
-                raw['reblog'] = dict(item.status, **status)
-            else:
-                raw = dict(item.raw, **status)
-            item.update(raw)
-            return True
+            if self._store.get_item(position).replace_status(status):
+                return True
         return False
 
     def apply_source_tags(self, hits, following):
@@ -583,10 +618,10 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         for position in range(self._store.get_n_items()):
             item = self._store.get_item(position)
             status = item.status
-            status_id = str(status.get('id') or '')
+            status_id = id_str(status.get('id'))
             if status_id not in hits:
                 continue
-            author_id = str((status.get('account') or {}).get('id') or '')
+            author_id = id_str((status.get('account') or {}).get('id'))
             value = None if following.get(author_id) else hits[status_id]
             if item.ui.get('source_tag') == value:
                 continue

@@ -451,7 +451,7 @@ class ListTimelinePage(Adw.Bin):
         self.timeline = TimelinePage(
             client, source=ApiTimelineSource(
                 client, api_lists.list_path('timeline', list_json['id'])))
-        pages.configure_empty_page(
+        uihelpers.configure_empty_page(
             self.timeline.empty_page, 'view-list-symbolic',
             _('No Posts in This List'),
             _('Add members to the list to see their posts'))

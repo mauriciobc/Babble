@@ -23,7 +23,7 @@ from . import appsettings  # noqa: E402
 from .composeoptions import POLL_DURATIONS, VISIBILITIES  # noqa: E402
 from .drafts import Attachment, Draft, drop_local_draft  # noqa: E402
 from .preferences import LANGUAGES  # noqa: E402
-from src.drafts import store_local_draft  # noqa: E402
+from .drafts import store_local_draft  # noqa: E402
 
 
 

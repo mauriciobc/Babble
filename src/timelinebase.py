@@ -39,6 +39,12 @@ def id_key(value):
         return (1, str(value))
 
 
+def id_str(value):
+    """An id as text for comparing: '' for a missing one (None or ''),
+    never the string 'None'."""
+    return '' if value is None or value == '' else str(value)
+
+
 PAGE_SIZE = 20
 AUTO_REFRESH_SCROLLED_TICKS = 2  # 30s when the user is scrolled away
 # Screen readers hear about posts arriving at the top of a timeline at

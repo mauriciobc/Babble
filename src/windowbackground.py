@@ -38,8 +38,6 @@ class WindowBackground:
         # each event, and holds none of them.
         nav = self.navigation
         self.stream_router = StreamRouter(StreamHost(
-            home_page=lambda: self.timeline_page,
-            notifications_page=lambda: self.notifications_page,
             place=lambda tag: nav.children.get(tag),
             stream_places=nav.stream_places,
             place_timelines=nav.place_timelines,
@@ -78,19 +76,48 @@ class WindowBackground:
         if connected:
             self.notifier.stop_polling()
             if self._stream_dropped:
-                # Fetch what was posted while the stream was down. The
-                # notifications page has a list to catch up as well: the
-                # stream does not replay, and a poll may not have run
-                # since the last notification arrived.
-                if self.timeline_page is not None:
-                    self.timeline_page.refresh()
-                if self.notifications_page is not None:
-                    self.notifications_page.catch_up()
+                self._catch_up_after_outage()
             self._stream_dropped = False
         elif self.client is not None:
             self._stream_dropped = True
             self.notifier.start_polling()
         self._schedule_background_status()
+
+    def _catch_up_after_outage(self):
+        """Fetch what was posted while the stream was down.
+
+        The stream does not replay. Which built places refresh comes from
+        :func:`navigation.place_policy`; this method only decides when.
+        Dedupes by ``id(page)`` so unhashable test doubles still skip a
+        second refresh. Timeline pages use the stream host's
+        ``is_timeline`` check; conversations (and any other non-timeline
+        with ``catch_up='refresh'``) call ``refresh`` directly.
+        """
+        from .navigation import place_policy
+        seen = set()
+        home = self.timeline_page
+        if home is not None:
+            home.refresh()
+            seen.add(id(home))
+        if self.notifications_page is not None:
+            self.notifications_page.catch_up()
+        is_timeline = self.stream_router.host.is_timeline
+        for tag, child in self.navigation.children.items():
+            if place_policy(tag).catch_up != 'refresh':
+                continue
+            page = getattr(child, 'timeline', child)
+            if page is None or id(page) in seen:
+                continue
+            seen.add(id(page))
+            if is_timeline(page):
+                # A place never loaded has nothing to catch up on.
+                if not page.has_loaded():
+                    continue
+                page.refresh()
+                continue
+            refresh = getattr(page, 'refresh', None)
+            if refresh is not None:
+                refresh()
 
     def _on_stream_event(self, _manager, stream, name, payload):
         # Which page receives which event is the router's knowledge; the

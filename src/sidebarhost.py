@@ -244,10 +244,50 @@ class SidebarHost:
         # window._restricted_public_places and still hit this path.
         closed = window._restricted_public_places()
         hidden |= closed
-        for tag in closed:
-            # A feed the server will not serve, or the reader has not
-            # opted into, keeps neither a page nor a stream.
-            window.navigation.forget(tag)
+        # A place the reader can no longer reach keeps neither a page nor
+        # a stream: a feed the server will not serve, a place the
+        # preferences hide, and a list or hashtag that is no longer pinned
+        # are all gone from the sidebar. A page that stayed built would
+        # keep its subscription and its auto-refresh timer, and would
+        # still be fed by the events nobody asked for any more.
+        shown = {tag for tag, _icon, _group in navigation.PLACES
+                 if tag not in hidden}
+        if window.account is not None:
+            shown |= {tag for tag, _title, _icon
+                      in window.navigation.pinned_routes(
+                          window.settings, window.account['id'])}
+        forgotten = [tag for tag in window.navigation.children
+                     if tag not in shown]
+        # Decided from the navigation stack, not from the visible tag: a
+        # page pushed on top of a place (a thread, a profile) hides the
+        # place's tag, and popping it would land on a page that is gone.
+        # Match by NavigationPage tag as well as object identity: a fresh
+        # PyGObject wrapper for the same page must not miss the under
+        # check.
+        gone = []
+        gone_tags = set()
+        for tag in forgotten:
+            page = window.navigation.pages.get(tag)
+            if page is None:
+                continue
+            gone.append(page)
+            page_tag = page.get_tag()
+            if page_tag:
+                gone_tags.add(page_tag)
+        stack = window.navigation_view.get_navigation_stack()
+        under = False
+        for i in range(stack.get_n_items()):
+            item = stack.get_item(i)
+            if item is None:
+                continue
+            if item in gone:
+                under = True
+                break
+            item_tag = item.get_tag()
+            if item_tag and item_tag in gone_tags:
+                under = True
+                break
+        window.navigation.forget_many(forgotten)
         for tag, icon, group in navigation.PLACES:
             if tag in hidden:
                 continue
@@ -266,7 +306,7 @@ class SidebarHost:
         if window.account is not None:
             self._append_pinned(sidebar, rail_sections)
         window.sidebar_rail.set_sections(rail_sections)
-        if current is not None and current in hidden:
+        if under or (current is not None and current in hidden):
             window.show_page('home')
         elif current is not None:
             self.select_item(current)

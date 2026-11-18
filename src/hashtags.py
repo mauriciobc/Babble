@@ -135,7 +135,7 @@ class HashtagPage(Adw.Bin):
         self.timeline = TimelinePage(client, source=ApiTimelineSource(
             client, api_timelines.list_path('tag', clean_name(self.tags[0])),
             params=params))
-        pages.configure_empty_page(
+        uihelpers.configure_empty_page(
             self.timeline.empty_page, 'edit-find-symbolic',
             _('No Posts With This Hashtag'),
             _('No one has posted anything with this tag yet'))

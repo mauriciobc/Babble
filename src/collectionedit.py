@@ -16,10 +16,8 @@ from .collectionbase import MAX_MEMBERS, SEARCH_DELAY_MS  # noqa: E402
 from .collectionpage import MemberRow  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
-from src.collectionbase import (_is_member,
-    _send_api,
-    default_language_code,
-    language_options,
+from .collectionbase import (
+    _is_member, _send_api, default_language_code, language_options,
     remember_account)  # noqa: E402
 
 

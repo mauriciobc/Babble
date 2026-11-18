@@ -13,7 +13,9 @@ import os
 # Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
+import gc
 import sys
+import time
 import types
 
 import gi
@@ -21,7 +23,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -38,6 +40,10 @@ if not os.path.exists(bundle):
     print('SKIP - no compiled babble.gresource; run meson compile first')
     sys.exit(77)
 Adw.init()
+# Adw.NavigationView.replace animates under mutter's frame clock; with
+# animations on, a busy-spin of MainContext.iteration(False) can finish
+# before the stack settles. Off for deterministic place-teardown checks.
+Gtk.Settings.get_default().set_property('gtk-enable-animations', False)
 Gio.Resource.load(bundle)._register()
 
 from src import main as babble_main, mastodon  # noqa: E402
@@ -271,6 +277,174 @@ window._restricted_public_places = lambda: set()
 check('and a place can be built again afterwards',
       routing.place_page('local') is not None
       and 'local' in routing.public_pages)
+
+# A place the reader hides keeps neither its page nor its stream: the
+# sidebar is the only way to it, and a page that stayed built would keep
+# its subscription and its auto-refresh timer for the rest of the
+# session.
+routing.place_page('federated')
+local_page = routing.children['local']
+federated_page = routing.children['federated']
+local_freed = []
+local_page.weak_ref(lambda: local_freed.append(True))
+local_scope = local_page._scope
+check('the built places have their auto-refresh timer',
+      local_page._auto_refresh_id and federated_page._auto_refresh_id)
+del wanted[:]
+window.settings.set_boolean('hide-local', True)
+check('hiding a place drops its page', 'local' not in routing.children)
+check('and its auto-refresh timer', not local_page._auto_refresh_id)
+check('and its stream', bool(wanted) and LOCAL not in wanted[-1])
+check('and leaves the other places alone',
+      'federated' in routing.children and federated_page._auto_refresh_id
+      and FEDERATED in wanted[-1])
+check('and its request scope closes at once, before any collection',
+      local_scope.closed)
+del local_page
+for _ in range(5):
+    gc.collect()
+    GLib.MainContext.default().iteration(False)
+check('and the page is freed, its request scope closed',
+      local_freed and local_scope.closed)
+window.settings.set_boolean('hide-local', False)
+check('and showing it again builds a new page when it is opened',
+      'local' not in routing.children)
+
+# A page pushed on top of a place hides the place's tag, so the sidebar
+# cannot tell from the visible tag that the place under it is going. Hide
+# the place anyway: the stack goes back to home, and popping the pushed
+# page cannot land on a page that is gone.
+window.show_page('local')
+under_page = routing.pages['local']
+under_child = routing.children['local']
+under_freed = []
+under_child.weak_ref(lambda: under_freed.append(True))
+under_scope = under_child._scope
+window.navigation_view.push(Adw.NavigationPage.new(Gtk.Label(), 'thread'))
+stack = window.navigation_view.get_navigation_stack()
+check('a page is pushed on top of Local',
+      stack.get_n_items() == 2 and window.visible_tag() is None)
+window.settings.set_boolean('hide-local', True)
+# replace() can still lag a beat under the frame clock even with
+# animations off. Wait up to 2s with idle sleep; match home by identity
+# or by the template page's tag (fresh PyGObject wrappers).
+stack_reset = False
+context = GLib.MainContext.default()
+deadline = time.monotonic() + 2.0
+while time.monotonic() < deadline:
+    stack = window.navigation_view.get_navigation_stack()
+    visible = window.navigation_view.get_visible_page()
+    if stack.get_n_items() == 1 and (
+            visible == window.page_home
+            or (visible is not None and visible.get_tag() == 'home')):
+        stack_reset = True
+        break
+    if not context.iteration(False):
+        time.sleep(0.002)
+check('hiding Local under a pushed page resets the stack to home',
+      stack_reset)
+del under_page, under_child, stack
+for _ in range(5):
+    gc.collect()
+    GLib.MainContext.default().iteration(False)
+check('and the forgotten page is freed, its scope closed',
+      under_freed and under_scope.closed)
+window.settings.set_boolean('hide-local', False)
+
+# A list or hashtag that is no longer pinned is gone from the sidebar,
+# and goes with it.
+window.settings.set_strv('favorite-tags-ids', ['1/rust'])
+routing.place_page('tag:rust')
+check('a pinned hashtag is built', 'tag:rust' in routing.children)
+del wanted[:]
+window.settings.set_strv('favorite-tags-ids', [])
+# changed::favorite-tags-ids rebuilds the sidebar synchronously; drain a
+# few iterations so a nested navigation transition cannot leave the
+# forgotten hashtag still in children when we assert.
+for _ in range(5):
+    GLib.MainContext.default().iteration(False)
+if 'tag:rust' in routing.children:
+    window._refresh_sidebar()
+check('unpinning a place drops its page', 'tag:rust' not in routing.children)
+check('and lets the stream go',
+      bool(wanted) and hashtag_stream('rust') not in wanted[-1])
+del wanted[:]
+window._refresh_sidebar()
+check('a rebuild that drops no place syncs nothing', not wanted)
+
+# A stream that comes back after an outage catches the other open places
+# up as well: the stream does not replay, and a list, a hashtag or the
+# conversations would keep showing what was there when the socket went
+# down until the reader refreshed them by hand.
+refreshed = []
+home = TimelinePage(window.client, mode='home', autoload=False)
+home.refresh = lambda: refreshed.append('home')
+window.timeline_page = home
+routing.place_page('local')
+routing.place_page('federated')
+window.settings.set_strv('favorite-tags-ids', ['1/rust'])
+routing.place_page('tag:rust')
+routing.children['conversations'] = types.SimpleNamespace(
+    refresh=lambda: refreshed.append('conversations'))
+# Only Local has loaded something; Federated and the hashtag never did.
+routing.children['local'].model.insert_new([
+    {'id': '00100', 'content': '<p>post</p>',
+     'account': {'acct': 'user', 'id': '1'},
+     'created_at': '2026-01-01T00:00:00.000Z'}])
+routing.children['local'].model.loading = False   # its first load ended
+# The others are idle and empty: never loaded, nothing in flight.
+routing.children['federated'].model.loading = False
+routing.children['tag:rust'].timeline.model.loading = False
+requests = []
+window.client.request_async = (
+    lambda method, path, **kw: requests.append((method, path, kw['params'])))
+window._stream_dropped = True
+window._on_stream_connection_changed(None, True)
+check('a reconnect refreshes home and the conversations',
+      sorted(refreshed) == ['conversations', 'home'])
+check('a loaded place sends exactly one newer-posts request',
+      requests == [('GET', '/timelines/public',
+                    {'local': 'true', 'limit': 20, 'min_id': '00100'})])
+check('and the places that never loaded (Federated, the hashtag) send '
+      'nothing', not any(r[2].get('local') != 'true' for r in requests))
+del refreshed[:], requests[:]
+window._on_stream_connection_changed(None, True)
+check('and only after an outage', not refreshed and not requests)
+window._stream_dropped = False
+window.timeline_page = None
+del routing.children['conversations']
+
+# A place with work in flight stops it when the place is dropped, and
+# receives nothing afterwards: no stream event, no catch-up.
+stopped = []
+dropped_page = types.SimpleNamespace(
+    cancel=lambda: stopped.append('cancel'),
+    refresh=lambda: stopped.append('refresh'))
+routing.children['conversations'] = dropped_page
+routing.pages['conversations'] = object()
+routing.forget_many(['conversations'])
+window.timeline_page = home
+window._catch_up_after_outage()
+window.timeline_page = None
+check('a place with work in flight stops it when it is dropped',
+      stopped == ['cancel'] and 'conversations' not in routing.children)
+check('and is not asked to catch up afterwards', 'refresh' not in stopped)
+
+# Visit-time mark-read / catch-up must run on every open of notifications,
+# including when Navigation returns the cached template page (mount is
+# skipped after the first ensure/register).
+shown = []
+window.notifications_page = types.SimpleNamespace(
+    client=window.client,
+    on_shown=lambda: shown.append('shown'),
+    on_hidden=lambda: shown.append('hidden'),
+    header_widget=Gtk.Label())
+window.show_page('notifications')
+window.show_page('home')
+window.show_page('notifications')
+check('opening notifications again still runs on_shown',
+      shown == ['shown', 'hidden', 'shown'])
+window.notifications_page = None
 
 if failures:
     raise SystemExit('%d navigation window checks failed' % len(failures))

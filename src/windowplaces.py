@@ -17,7 +17,6 @@ from gi.repository import Adw, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import pagenav  # noqa: E402
-from . import pages  # noqa: E402
 from . import uihelpers  # noqa: E402
 from . import webcolumn  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402
@@ -38,26 +37,47 @@ class WindowPlaces:
         a setting that decides which posts it may show."""
         if self.timeline_page is None:
             return
-        self.timeline_page = None
+        self.navigation.unregister_external('home')
         self.timeline_model = None
         self.ensure_home_timeline()
+
+    def _mount_home(self):
+        """PlaceHost: ensure home and return the template NavPage."""
+        self.ensure_home_timeline()
+        return self.page_home
+
+    def _mount_notifications(self):
+        """PlaceHost: ensure notifications and return the template NavPage.
+
+        ``on_shown()`` is not called here: the page may already be cached
+        in Navigation, so visit-time work runs from :meth:`show_page`.
+        """
+        self.ensure_notifications_page()
+        return self.page_notifications
+
+    def _clear_home_bin(self):
+        """PlaceHost clear for home: bins only (maps already dropped)."""
+        self.timeline_model = None
+        self.home_bin.set_child(None)
 
     def ensure_home_timeline(self):
         """Create (or reuse, cached per window) the home timeline page."""
         if self.client is None:
             return
-        if self.timeline_page is not None \
-                and self.timeline_page.client is self.client:
+        current = self.timeline_page
+        if current is not None and current.client is self.client:
             return
-        if self.timeline_page is not None:
+        if current is not None:
+            self.navigation._stop_work(current)
             self.timeline_model = None
         # Cache the GListModel per window so navigation back preserves
         # scroll position and items.
         self.home_bin.set_child(None)
-        self.timeline_page = TimelinePage(
+        page = TimelinePage(
             self.client, mode='home', model=self.timeline_model)
-        self.timeline_model = self.timeline_page.model
-        self.home_bin.set_child(self.timeline_page)
+        self.timeline_model = page.model
+        self.home_bin.set_child(page)
+        self.navigation.register_external('home', self.page_home, page)
         self._apply_auto_refresh()
 
     def ensure_notifications_page(self):
@@ -67,20 +87,24 @@ class WindowPlaces:
         from .notifications import NotificationsPage
         if self.client is None:
             return
-        if self.notifications_page is not None:
-            if self.notifications_page.client is self.client:
+        current = self.notifications_page
+        if current is not None:
+            if current.client is self.client:
                 return
-            self._clear_notifications_page()
-        self.notifications_page = NotificationsPage(self.client)
-        self._unread_handler = self.notifications_page.connect(
+            self.navigation.unregister_external('notifications')
+        page = NotificationsPage(self.client)
+        self._unread_handler = page.connect(
             'unread-changed', self.on_unread_changed)
-        self.notifications_bin.set_child(self.notifications_page)
-        self.notifications_header_slot.append(
-            self.notifications_page.header_widget)
+        self.notifications_bin.set_child(page)
+        self.notifications_header_slot.append(page.header_widget)
+        self.navigation.register_external(
+            'notifications', self.page_notifications, page)
 
-    def _clear_notifications_page(self):
-        page = self.notifications_page
-        self.notifications_page = None
+    def _clear_notifications_page(self, page=None):
+        """PlaceHost clear for notifications: badge/bin only.
+
+        *page* is the content widget when maps were already popped.
+        """
         if page is not None and self._unread_handler is not None:
             # Otherwise an in-flight count from the old account lands on
             # the new one's badge.
@@ -119,7 +143,7 @@ class WindowPlaces:
         page = TimelinePage(self.client, source=ApiTimelineSource(
             self.client, api_timelines.list_path(kind), params,
             paging='link' if kind in api_timelines.LINK_PAGED else 'id'))
-        pages.configure_empty_page(page.empty_page, icon, title, description)
+        uihelpers.configure_empty_page(page.empty_page, icon, title, description)
         return page
 
     def _public_place_built(self, tag, page):
@@ -214,14 +238,6 @@ class WindowPlaces:
         return closed
 
     def _nav_page_for(self, tag):
-        if tag == 'home':
-            self.ensure_home_timeline()
-            return self.page_home
-        if tag == 'notifications':
-            self.ensure_notifications_page()
-            if self.notifications_page is not None:
-                self.notifications_page.on_shown()
-            return self.page_notifications
         return self.navigation.place_page(tag)
 
     def show_page(self, tag):
@@ -237,6 +253,10 @@ class WindowPlaces:
         if previous == 'notifications' and tag != 'notifications' \
                 and self.notifications_page is not None:
             self.notifications_page.on_hidden()
+        # Visit-time catch-up / mark-read, including when Navigation
+        # returned a cached notifications page (mount is skipped).
+        if tag == 'notifications' and self.notifications_page is not None:
+            self.notifications_page.on_shown()
         self.navigation_view.replace([page])
         self._select_item(tag)
         self.dismiss_sidebar_overlay()

@@ -31,6 +31,45 @@ HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
 
 
+@dataclass(frozen=True)
+class PlacePolicy:
+    """What happens after a place is built, and how outage catch-up
+    treats it. Product choices are rows here, not ``startswith`` forks.
+
+    ``streams``: subscribe via the stream router after build.
+    ``auto_refresh``: also run the window refresh timer (implies stream
+    sync through ``notify_place_built`` today).
+    ``catch_up``: ``'refresh'`` if loaded, ``'catch_up'`` for the
+    notifications page API, or ``None``.
+    """
+    streams: bool = False
+    auto_refresh: bool = False
+    catch_up: str | None = None
+
+
+def place_policy(tag):
+    """Policy for *tag*. Home is listed for documentation and outage
+    membership; Navigation does not build it (template-mounted)."""
+    if tag == 'home':
+        # User stream is session-level; home still auto-refreshes.
+        return PlacePolicy(streams=False, auto_refresh=True,
+                           catch_up='refresh')
+    if tag in PUBLIC_TAGS:
+        return PlacePolicy(streams=True, auto_refresh=True,
+                           catch_up='refresh')
+    if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
+        return PlacePolicy(streams=True, auto_refresh=False,
+                           catch_up='refresh')
+    if tag in ('favourites', 'bookmarks'):
+        # No place stream; still refresh after an outage if loaded.
+        return PlacePolicy(streams=False, auto_refresh=False,
+                           catch_up='refresh')
+    if tag == 'notifications':
+        return PlacePolicy(streams=False, auto_refresh=False,
+                           catch_up='catch_up')
+    return PlacePolicy()
+
+
 def place_title(tag):
     return {
         'home': _('Home'), 'catch-up': _('Catch Up'),
@@ -72,6 +111,8 @@ class PlaceHost:
 
     ``client`` and ``account`` are callables returning the current values
     (they change on account switch); the rest are callable actions.
+    ``mount_home`` / ``mount_notifications`` return the template NavPages
+    (never ``make_nav_page``); ``clear_*`` tear bin/badge content down.
     """
     client: Callable[[], Any]
     account: Callable[[], dict]
@@ -80,6 +121,10 @@ class PlaceHost:
     restricted_public_places: Callable[[], set]
     notify_place_built: Callable[[str, Any], None]
     sync_streaming: Callable[[], None]
+    mount_home: Callable[[], Any]
+    mount_notifications: Callable[[], Any]
+    clear_home: Callable[[], None]
+    clear_notifications: Callable[[Any], None]
 
 
 @dataclass
@@ -130,17 +175,117 @@ class Navigation:
     def place_timelines(self):
         """Each built place's timeline: its ``timeline`` attribute when it
         has one (list and hashtag pages wrap a timeline), else the child
-        itself. The caller decides which of them are timeline pages."""
+        itself. Home and notifications are omitted here so
+        ``StreamRouter.timeline_pages`` can put home first without
+        delivering twice. The caller decides which of them are timeline
+        pages."""
         return [getattr(child, 'timeline', child)
-                for child in self.children.values()]
+                for tag, child in self.children.items()
+                if tag not in ('home', 'notifications')]
+
+    def register_external(self, tag, nav_page, child):
+        """Record a template-rooted place (home / notifications).
+
+        *nav_page* is the Gtk.Template ``Adw.NavigationPage``; *child* is
+        the content widget in its bin. Rewrites maps on rebuild.
+        """
+        self.pages[tag] = nav_page
+        self.children[tag] = child
+
+    def unregister_external(self, tag):
+        """Drop a template-rooted place from the maps and stop its work.
+
+        Does not remove the template NavPage from the NavigationView.
+        """
+        child = self.children.pop(tag, None)
+        self.pages.pop(tag, None)
+        self._stop_work(child)
+        if tag == 'home':
+            self.host.clear_home()
+        elif tag == 'notifications':
+            self.host.clear_notifications(child)
 
     def forget(self, tag):
-        self.pages.pop(tag, None)
-        self.children.pop(tag, None)
-        if tag.startswith(('list:', 'tag:')):
+        """Drop one place: its page, its child and its stream."""
+        self.forget_many([tag])
+
+    def forget_many(self, tags):
+        """Drop several places at once, and let the stream know once.
+
+        A place that is gone must not stay subscribed: the socket would
+        keep receiving events for a timeline nobody shows, and a public
+        feed the server closed would keep its subscription until
+        something else happened to sync the stream. Each child stops the
+        work it has in flight first (a catch-up, its auto-refresh timer)
+        and closes its request scope at once, so a page that stays alive
+        (held by a reference cycle until the next collection) cannot be
+        answered after it was dropped.
+
+        Session teardown uses :meth:`clear` instead (stop work, no
+        ``sync_streaming``), so the outgoing client is not restarted.
+
+        Does nothing when none of *tags* is built.
+        """
+        dropped = False
+        for tag in tags:
+            # Template-rooted places need their clear hooks (bins / badge
+            # handler), not only _stop_work.
+            if tag in ('home', 'notifications') and (
+                    tag in self.children or tag in self.pages):
+                self.unregister_external(tag)
+                dropped = True
+                continue
+            child = self.children.pop(tag, None)
+            if self.pages.pop(tag, None) is not None or child is not None:
+                dropped = True
+            self._stop_work(child)
+        if dropped:
             self.host.sync_streaming()
 
+    @staticmethod
+    def _stop_work(child):
+        """Stop what a dropped place has in flight, the way an account
+        switch does."""
+        if child is None:
+            return
+        # Prefer close_requests() (Catch-Up maps it to cancel(); paged
+        # lists and SearchPage close their scopes — SearchPage's method
+        # lands with the request-scope search PR). Fall back to cancel()
+        # for older pages that only have that name.
+        close = getattr(child, 'close_requests', None)
+        if close is not None:
+            close()
+        else:
+            cancel = getattr(child, 'cancel', None)
+            if cancel is not None:
+                cancel()
+        timeline = getattr(child, 'timeline', child)
+        if timeline is not child:
+            stop = getattr(timeline, 'set_auto_refresh_interval', None)
+            if stop is not None:
+                stop(0)
+            close = getattr(timeline, 'close_requests', None)
+            if close is not None:
+                close()
+        else:
+            stop = getattr(child, 'set_auto_refresh_interval', None)
+            if stop is not None:
+                stop(0)
+
     def clear(self):
+        """Stop every built place's work and drop the maps.
+
+        Does not sync streaming: account switch has already stopped the
+        socket and must not restart it for the outgoing client. Template
+        places also run their host clear hooks (bins / badge).
+        """
+        for tag in list(self.children):
+            if tag in ('home', 'notifications'):
+                self.unregister_external(tag)
+            else:
+                child = self.children.pop(tag, None)
+                self.pages.pop(tag, None)
+                self._stop_work(child)
         self.pages.clear()
         self.children.clear()
         self.pinned_lists.clear()
@@ -212,6 +357,10 @@ class Navigation:
         page = self.pages.get(tag)
         if page is not None:
             return page
+        if tag == 'home':
+            return self.host.mount_home()
+        if tag == 'notifications':
+            return self.host.mount_notifications()
         child = self.build_place(tag)
         if child is None:
             return None
@@ -220,10 +369,11 @@ class Navigation:
             sidebar_control=self.host.make_sidebar_control)
         self.pages[tag] = page
         self.children[tag] = child
-        if tag in PUBLIC_TAGS:
+        policy = place_policy(tag)
+        if policy.auto_refresh:
             # After ``children`` holds it: the host reads ``public_pages``
             # to start the stream and the refresh timer.
             self.host.notify_place_built(tag, child)
-        if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
+        elif policy.streams:
             self.host.sync_streaming()
         return page

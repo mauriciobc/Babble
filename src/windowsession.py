@@ -29,7 +29,7 @@ from .mastodon import MastodonClient, keyring_problem  # noqa: E402
 from .mediacache import AvatarCache  # noqa: E402
 from .statustext import relative_time  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
-from src.mastodon import summarize_error  # noqa: E402
+from .mastodon import summarize_error  # noqa: E402
 
 
 
@@ -203,13 +203,8 @@ class WindowSession:
         if self.compose_dialog is not None:
             self.compose_dialog.abandon_session()
         self.compose_dialog = None
-        catch_up = self.navigation.children.get('catch-up')
-        if catch_up is not None:
-            catch_up.cancel()           # a catch-up in flight stops here
-        self.timeline_page = None
-        self.timeline_model = None
-        self.home_bin.set_child(None)
-        self._clear_notifications_page()
+        # navigation.clear() stops places (including home/notifications
+        # via unregister_external) and must not sync_streaming.
         self.navigation.clear()
         self.navigation_view.replace([self.page_home])
 

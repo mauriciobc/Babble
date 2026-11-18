@@ -44,21 +44,15 @@ def show_toast(widget, text, undo=None, undo_label=None, dismissed=None):
         toast.set_priority(Adw.ToastPriority.HIGH)
         toast.connect('button-clicked', lambda _toast: undo())
     # A dialog presented over the window covers the window's overlay, so
-    # prefer the overlay inside the dialog the widget lives in.
-    overlay = widget.get_ancestor(Adw.ToastOverlay) if widget is not None \
-        else None
-    if overlay is not None and overlay is not window.toast_overlay:
-        overlay.add_toast(toast)
-        return toast
-    # Adw.PreferencesDialog keeps its overlay inside itself, so it is not an
-    # ancestor of the dialog (or of a dialog presented over it); it offers
-    # add_toast instead. get_ancestor counts the widget itself.
-    preferences = widget.get_ancestor(Adw.PreferencesDialog) \
-        if widget is not None else None
-    if preferences is not None:
-        preferences.add_toast(toast)
-    else:
-        window.add_toast(toast)
+    # prefer the overlay inside the dialog the widget lives in. An
+    # Adw.PreferencesDialog keeps its overlay inside itself, so it is no
+    # ancestor of the widget's overlay; it offers add_toast instead.
+    # get_ancestor counts the widget itself.
+    overlay = widget.get_ancestor(Adw.ToastOverlay)
+    if overlay is window.toast_overlay:
+        overlay = None
+    target = overlay or widget.get_ancestor(Adw.PreferencesDialog) or window
+    target.add_toast(toast)
     return toast
 
 
@@ -101,12 +95,18 @@ def flush_deferred():
         commit_pending()
 
 
+def is_cancelled_error(error):
+    """Whether *error* is Gio CANCELLED (a scope or the reader stopped
+    the request). Callers that would toast or show it should stay silent."""
+    return (isinstance(error, GLib.Error)
+            and error.matches(Gio.io_error_quark(),
+                              Gio.IOErrorEnum.CANCELLED))
+
+
 def report_error(widget, heading, error):
     """Toast '<heading>: <server message>' for a GLib.Error. A cancelled
     operation is the reader's own doing, so it stays silent."""
-    if (isinstance(error, GLib.Error)
-            and error.matches(Gio.io_error_quark(),
-                              Gio.IOErrorEnum.CANCELLED)):
+    if is_cancelled_error(error):
         return
     message = getattr(error, 'message', None) or str(error)
     show_toast(widget, '%s: %s' % (heading, summarize_error(message)))
@@ -199,6 +199,10 @@ class ToastDialog(Adw.Dialog):
             Adw.Toast(title=text, timeout=5, use_markup=False))
 
     def error(self, heading, error):
+        """Toast a failed action. CANCELLED stays silent (same rule as
+        :func:`report_error`)."""
+        if is_cancelled_error(error):
+            return
         self.toast('%s: %s' % (heading, summarize_error(error)))
 
     def submit_on_enter(self, button, *rows):

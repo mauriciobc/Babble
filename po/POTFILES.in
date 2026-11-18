@@ -20,6 +20,7 @@ src/catchup/pipeline.py
 src/catchup/rows.py
 src/catchup/tiles.py
 src/catchup/tiles_render.py
+src/catchup/tiles_cards.py
 src/charts.py
 src/clientoauth.py
 src/clipboard.py
@@ -104,6 +105,7 @@ src/textemoji.py
 src/thread.py
 src/timelinebase.py
 src/timelinepage.py
+src/uihelpers.py
 src/webcolumn.py
 src/windowbackground.py
 src/windowlogin.py

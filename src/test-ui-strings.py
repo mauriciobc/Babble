@@ -458,7 +458,8 @@ check('an exception is scoped to the rule it names',
       and not excepted('adminreports.py',
                        "info_row(_('Forwarded'), _('Yes'))", 'three dots'))
 check('an exception whose snippet is gone is reported, not applied',
-      stale_exceptions({'admin.py': (('no such snippet', 'label', 'why'),)})
+      stale_exceptions({'adminreports.py': (('no such snippet', 'label',
+                                            'why'),)})
       and not stale_exceptions())
 check('the label rule catches the label it is about',
       generic_label('py', 'x.py', 1, '_Done', "x = _('Done')"))

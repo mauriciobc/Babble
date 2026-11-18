@@ -94,7 +94,6 @@ install_data(
   'notificationcopy.py',
   'notificationctrl.py',
   'oauthpkce.py',
-  'oauthpkce.py',
   'notificationmodel.py',
   'notificationpolicy.py',
   'notificationrow.py',
@@ -184,6 +183,7 @@ install_data(
   'catchup/rank_text.py',
   'catchup/tiles.py',
   'catchup/tiles_render.py',
+  'catchup/tiles_cards.py',
   'catchup/geometry.py',
   install_dir: moduledir / 'catchup',
 )
@@ -385,6 +385,11 @@ test('compose transactions', python,
   args: [files('test-compose-transactions.py')],
   env: fatal_test_env,
   timeout: 120,
+)
+test('scheduled content', python,
+  args: [files('test-scheduled-content.py')],
+  env: fatal_test_env,
+  timeout: 60,
 )
 test('notifications render', python,
   args: [files('test-notifications.py')],

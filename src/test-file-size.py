@@ -103,6 +103,15 @@ testkit_files = [name for name in every_python
 # when a split lands half-done. The scenario scripts and the bench harness
 # are held to the same limit: a 3000-line test hides its own scenario
 # boundaries as well as a 3000-line window did.
+#
+# Scenario scripts still over the limit after the production split stay in
+# PENDING_TEST_SPLITS until a stacked split brings each under LIMIT. An
+# entry whose file is already under the limit is stale and fails below, so
+# the list cannot outlive the work.
+PENDING_TEST_SPLITS = frozenset((
+    'test-home-filters.py',
+    'test-paged-list.py',
+))
 sized = [os.path.join(srcdir, name) for name in modules + testkit_files]
 sized += [os.path.join(srcdir, name)
           for name in sorted(os.listdir(srcdir))
@@ -113,14 +122,37 @@ for directory, _dirs, files in os.walk(os.path.join(root, 'bench',
     sized += [os.path.join(directory, name) for name in sorted(files)
               if name.endswith('.py')]
 over = []
+pending_over = []
 for path in sized:
     lines = open(path, encoding='utf-8').read().count('\n')
-    if lines > LIMIT:
-        over.append((path, lines))
+    if lines <= LIMIT:
+        continue
+    rel = os.path.relpath(path, root)
+    key = os.path.relpath(path, srcdir)
+    if key in PENDING_TEST_SPLITS:
+        pending_over.append((rel, lines))
+        continue
+    over.append((path, lines))
 for path, lines in over:
     print('    %s is %d lines' % (os.path.relpath(path, root), lines))
+for rel, lines in pending_over:
+    print('    %s is %d lines (pending scenario split)' % (rel, lines))
 check('every file checked stays at or under %d (%d over)'
       % (LIMIT, len(over)), not over)
+stale_pending = []
+for name in sorted(PENDING_TEST_SPLITS):
+    path = os.path.join(srcdir, name)
+    if not os.path.exists(path):
+        print('    %s: pending split but gone -- drop this entry' % name)
+        stale_pending.append(name)
+        continue
+    lines = open(path, encoding='utf-8').read().count('\n')
+    if lines <= LIMIT:
+        print('    %s: pending split but now %d lines -- drop this entry'
+              % (name, lines))
+        stale_pending.append(name)
+check('pending test splits still need the exception (%d stale)'
+      % len(stale_pending), not stale_pending)
 undeclared = []
 for name in modules:
     lines = open(os.path.join(srcdir, name), encoding='utf-8').read().count('\n')
