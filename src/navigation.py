@@ -60,6 +60,10 @@ def place_policy(tag):
     if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
         return PlacePolicy(streams=True, auto_refresh=False,
                            catch_up='refresh')
+    if tag in ('favourites', 'bookmarks'):
+        # No place stream; still refresh after an outage if loaded.
+        return PlacePolicy(streams=False, auto_refresh=False,
+                           catch_up='refresh')
     if tag == 'notifications':
         return PlacePolicy(streams=False, auto_refresh=False,
                            catch_up='catch_up')

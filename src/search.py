@@ -439,6 +439,15 @@ class SearchPage(Adw.Bin):
         if submit:
             self.submit()
 
+    def close_requests(self):
+        """Drop in-flight answers on account switch / place teardown.
+
+        Bumps the serial so late callbacks ignore their results. Full
+        RequestScope cancellation lands with the search-scope PR; this
+        is the minimal hook Navigation._stop_work needs.
+        """
+        self._serial += 1
+
     def _on_stop_search(self, _entry):
         self.entry.set_text('')
 

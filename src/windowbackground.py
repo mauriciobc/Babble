@@ -89,23 +89,27 @@ class WindowBackground:
         """Fetch what was posted while the stream was down.
 
         The stream does not replay. Membership comes from
-        :func:`navigation.place_policy`; this method only decides when."""
+        :func:`navigation.place_policy`; this method only decides when.
+        Dedupes by ``id(page)`` so unhashable test doubles (and any
+        page that is not hashable) still skip a second refresh.
+        """
         from .navigation import place_policy
-        if place_policy('home').catch_up == 'refresh' \
-                and self.timeline_page is not None:
-            self.timeline_page.refresh()
+        seen = set()
+        home = self.timeline_page
+        if place_policy('home').catch_up == 'refresh' and home is not None:
+            home.refresh()
+            seen.add(id(home))
         if place_policy('notifications').catch_up == 'catch_up' \
                 and self.notifications_page is not None:
             self.notifications_page.catch_up()
-        seen = {self.timeline_page}
         for tag, child in self.navigation.children.items():
             policy = place_policy(tag)
             if policy.catch_up != 'refresh':
                 continue
             page = getattr(child, 'timeline', child)
-            if page in seen:
+            if page is None or id(page) in seen:
                 continue
-            seen.add(page)
+            seen.add(id(page))
             # A place never loaded has nothing to catch up on; asking would
             # send it a first-page request it never wanted.
             has_loaded = getattr(page, 'has_loaded', None)
