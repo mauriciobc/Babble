@@ -115,15 +115,17 @@ class DashboardPage(StatePage):
                             admin_api.dimensions_finish)
 
     def _dashboard_leg(self, key, client, result, finish):
+        # Ticket.callback already drops unwanted answers; settle only
+        # when this fan-in is still the one refresh() installed.
         state = self._fan_in
-        if state is None or not state['token'].wanted():
+        if state is None:
             return
         try:
             state[key] = finish(client, result)
         except GLib.Error as error:
             state['errors'].append(error)
         state['pending'] -= 1
-        if state['pending'] or not state['token'].wanted():
+        if state['pending'] or state is not self._fan_in:
             return
         self._fan_in = None
         if len(state['errors']) == 2:
