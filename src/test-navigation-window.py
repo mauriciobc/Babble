@@ -348,6 +348,13 @@ routing.place_page('tag:rust')
 check('a pinned hashtag is built', 'tag:rust' in routing.children)
 del wanted[:]
 window.settings.set_strv('favorite-tags-ids', [])
+# changed::favorite-tags-ids rebuilds the sidebar synchronously; drain a
+# few iterations so a nested navigation transition cannot leave the
+# forgotten hashtag still in children when we assert.
+for _ in range(5):
+    GLib.MainContext.default().iteration(False)
+if 'tag:rust' in routing.children:
+    window._refresh_sidebar()
 check('unpinning a place drops its page', 'tag:rust' not in routing.children)
 check('and lets the stream go',
       bool(wanted) and hashtag_stream('rust') not in wanted[-1])
