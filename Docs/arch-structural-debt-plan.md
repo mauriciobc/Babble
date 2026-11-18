@@ -359,11 +359,13 @@ the real window); `file size rule`.
   directly. Behaviour changes, with before and after, and the open items
   QA found are in `IMPROVEMENTS.md` (section 2.2). One family per change
   from here, in this order: search and typeahead, the profile's other
-  reads (header, relationships), the admin dashboard's measures and
-  dimensions, Wrapped, the composer's state epochs, then the error
-  helpers that are not silent on CANCELLED (`ToastDialog.error` and the
-  direct `summarize_error`/`summarize_error_markup` callers;
-  `feedback.report_error`, and so `call_api`, already is). A write is never cancelled. `blueskythread.py` keeps
+  reads (header, relationships), Wrapped, the composer's state epochs,
+  then the error helpers that are not silent on CANCELLED
+  (`ToastDialog.error` and the direct `summarize_error`/
+  `summarize_error_markup` callers; `feedback.report_error`, and so
+  `call_api`, already is). Admin dashboard measures/dimensions now use
+  `StateStack.begin`/`start` (send stays write-only). A write is never
+  cancelled. `blueskythread.py` keeps
   its own `bluesky.cancel`. Existing scopes (`pluginsupport.Scope`,
   `catchup.fetch.CatchUpRun`, `auth.py`) could converge on the vocabulary
   (`close()` / `closed`), not now.

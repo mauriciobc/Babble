@@ -377,11 +377,13 @@ class StateStack(Gtk.Stack):
     a load and returns its ticket (a :class:`requestscope.Ticket`): the
     load's read passes ``token.cancellable`` and ``token.callback(handler)``
     to its api call, so a newer ``begin()`` cancels it and its answer never
-    reaches the handler, which holds the page weakly. ``is_current(token)``
-    asks the same question as the ticket (False once a newer load began or
-    the stack was freed), for a caller with a request of its own.
-    *on_retry* follows :func:`make_error_page` (a bound method is held weakly); *markup*
-    turns an error into the escaped description."""
+    reaches the handler, which holds the page weakly. ``start()`` joins the
+    current generation without showing loading (a second fan-in read).
+    ``is_current(token)`` asks the same question as the ticket (False once
+    a newer load began or the stack was freed), for a caller with a
+    request of its own. *on_retry* follows :func:`make_error_page` (a
+    bound method is held weakly); *markup* turns an error into the
+    escaped description."""
 
     __gtype_name__ = 'BabbleStateStack'
 
@@ -401,6 +403,12 @@ class StateStack(Gtk.Stack):
         token = self._scope.begin()
         self.show_loading()
         return token
+
+    def start(self):
+        """A ticket in the current load's generation, without showing
+        loading or cancelling. For a second read that fans into the same
+        ``begin()`` (measures and dimensions on the admin dashboard)."""
+        return self._scope.start()
 
     def is_current(self, token):
         """Whether the answer for *token* is still wanted: the same
