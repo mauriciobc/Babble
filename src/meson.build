@@ -347,6 +347,11 @@ test('compose transactions', python,
   env: fatal_test_env,
   timeout: 120,
 )
+test('scheduled content', python,
+  args: [files('test-scheduled-content.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
 test('notifications render', python,
   args: [files('test-notifications.py')],
   env: fatal_test_env,
