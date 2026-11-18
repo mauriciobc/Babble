@@ -128,7 +128,7 @@ class ProfileHeader(GObject.Object):
     def refresh(self, account):
         """(Re)build the header above the tab stack for *account*."""
         page = self.page
-        page._generation += 1
+        page.begin_extras()
         while True:
             old = page.holder.get_first_child()
             if old is None:
