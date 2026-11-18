@@ -112,6 +112,60 @@ def exercise(dialog, label):
           len(seen) == 1 and seen[0].get_title() == 'routed', seen)
 
 
+def routing_targets():
+    """show_toast's three targets, each driven through the real function.
+    Every candidate records its toasts under its own name, so a toast sent
+    to the wrong target fails the assertion for the right one."""
+    landed = []
+
+    def record(name):
+        return lambda toast: landed.append((name, toast.get_title()))
+
+    # (a) inside a dialog's own overlay: that overlay, not the window.
+    dialog = lists.ListEditor(_Client())
+    dialog.present(window)
+    pump()
+    dialog.toasts.add_toast = record('overlay')
+    window.add_toast = record('window')
+    window.toast_overlay.add_toast = record('window overlay')
+    feedback.show_toast(dialog.page, 'a')
+    check('show_toast inside a dialog overlay lands on that overlay only',
+          landed == [('overlay', 'a')], repr(landed))
+    dialog.force_close()
+    pump()
+
+    # (b) inside an Adw.PreferencesDialog: the dialog's own add_toast.
+    landed.clear()
+    prefs = Adw.PreferencesDialog()
+    prefs_page = Adw.PreferencesPage()
+    group = Adw.PreferencesGroup()
+    label = Gtk.Label(label='x')
+    group.add(label)
+    prefs_page.add(group)
+    prefs.add(prefs_page)
+    prefs.present(window)
+    pump()
+    prefs.add_toast = record('preferences')
+    # The dialog's overlay is internal, so a widget inside it finds that
+    # overlay (also fine); the dialog itself has no overlay ancestor.
+    feedback.show_toast(prefs, 'b')
+    check('show_toast for a preferences dialog lands on the dialog only',
+          landed == [('preferences', 'b')], repr(landed))
+    prefs.force_close()
+    pump()
+
+    # (c) a widget of the window itself (here its own overlay, whose
+    # ancestor-or-self overlay is the window's): window.add_toast.
+    landed.clear()
+    feedback.show_toast(window.toast_overlay, 'c')
+    check('show_toast from the window lands on the window only',
+          landed == [('window', 'c')], repr(landed))
+    del window.add_toast
+    del window.toast_overlay.add_toast
+
+
+routing_targets()
+
 list_dialog = lists.ListEditor(_Client())
 exercise(list_dialog, 'lists')
 

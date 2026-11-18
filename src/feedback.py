@@ -44,21 +44,15 @@ def show_toast(widget, text, undo=None, undo_label=None, dismissed=None):
         toast.set_priority(Adw.ToastPriority.HIGH)
         toast.connect('button-clicked', lambda _toast: undo())
     # A dialog presented over the window covers the window's overlay, so
-    # prefer the overlay inside the dialog the widget lives in.
-    overlay = widget.get_ancestor(Adw.ToastOverlay) if widget is not None \
-        else None
-    if overlay is not None and overlay is not window.toast_overlay:
-        overlay.add_toast(toast)
-        return toast
-    # Adw.PreferencesDialog keeps its overlay inside itself, so it is not an
-    # ancestor of the dialog (or of a dialog presented over it); it offers
-    # add_toast instead. get_ancestor counts the widget itself.
-    preferences = widget.get_ancestor(Adw.PreferencesDialog) \
-        if widget is not None else None
-    if preferences is not None:
-        preferences.add_toast(toast)
-    else:
-        window.add_toast(toast)
+    # prefer the overlay inside the dialog the widget lives in. An
+    # Adw.PreferencesDialog keeps its overlay inside itself, so it is no
+    # ancestor of the widget's overlay; it offers add_toast instead.
+    # get_ancestor counts the widget itself.
+    overlay = widget.get_ancestor(Adw.ToastOverlay)
+    if overlay is window.toast_overlay:
+        overlay = None
+    target = overlay or widget.get_ancestor(Adw.PreferencesDialog) or window
+    target.add_toast(toast)
     return toast
 
 
