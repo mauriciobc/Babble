@@ -373,12 +373,30 @@ check('take: the store is left with the others',
       shape(model) == [('12', '12'), ('13', '13'), ('14', '14')],
       repr(shape(model)))
 model.put_back(taken)
-# Both rows answer to status_id '10', so once the first is back the id is
-# seen again and put_back skips the second: only the original returns.
-check('put_back skips a row whose status_id is seen again',
-      shape(model) == [('12', '12'), ('10', '10'), ('13', '13'),
-                       ('14', '14')], repr(shape(model)))
-check('put_back sees the ids again', '10' in model._seen)
+# Both rows answer to status_id '10': put_back decides "already back" from
+# the ids seen when it starts, so the second one is restored as well.
+check('put_back restores every taken row at its original position',
+      shape(model) == before, repr(shape(model)))
+check('put_back sees the ids of both rows again',
+      '10' in model._seen and {i.status_id for _p, i in taken} <= model._seen)
+model.put_back(taken)
+check('a second put_back of the same rows changes nothing',
+      shape(model) == before, repr(shape(model)))
+
+# The post came back some other way (a refresh, a stream insert) before Undo:
+# its id is seen when put_back starts, so no taken row is put back, the boost
+# row of it included (it stays gone until the next refresh; no duplicates).
+model = build(plain('12'), plain('10'), plain('13'), boost_row('30', '10'),
+              plain('14'))
+taken = model.take_status('10')
+returned = plain('10')
+model._store.insert(0, returned)
+model._register_seen(returned)
+after_return = shape(model)
+model.put_back(taken)
+check('put_back adds nothing for a post that came back before Undo',
+      shape(model) == after_return and model.get_item(0) is returned,
+      repr(shape(model)))
 model = build(plain('12'), plain('10'), plain('13'), boost_row('30', '10'),
               plain('14'))
 taken = model.take_status('30')
