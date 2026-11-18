@@ -23,6 +23,7 @@ from .i18n import gettext as _, ngettext  # noqa: E402
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 from .api import admin as admin_api  # noqa: E402
 from . import pagenav  # noqa: E402
+from .feedback import is_cancelled_error  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .adminaccounts import AccountsPage  # noqa: E402
 from .adminbase import (
@@ -287,7 +288,8 @@ class AdminDialog(Adw.Dialog):
                                         timeout=5))
 
     def error(self, heading, error):
-        from .feedback import is_cancelled_error
+        """Toast a failed action. CANCELLED stays silent (same rule as
+        :meth:`feedback.ToastDialog.error`)."""
         if is_cancelled_error(error):
             return
         self.toast('%s: %s' % (heading, error_text(error)))
