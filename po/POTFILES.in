@@ -20,6 +20,7 @@ src/catchup/pipeline.py
 src/catchup/rows.py
 src/catchup/tiles.py
 src/catchup/tiles_render.py
+src/catchup/tiles_cards.py
 src/charts.py
 src/clientoauth.py
 src/clipboard.py

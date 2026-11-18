@@ -431,7 +431,8 @@ class HighlightsView(Gtk.Box):
         return self.grid.pages_shown
 
     def _make_tile(self, placed):
-        from .tiles_render import HashtagTile, NewsTile, PostTile
+        from .tiles_cards import HashtagTile, NewsTile
+        from .tiles_render import PostTile
         kind = {'post': PostTile, 'news': NewsTile,
                 'hashtag': HashtagTile}[placed.kind]
         return kind(self.context, placed)

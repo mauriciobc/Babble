@@ -50,7 +50,7 @@ def loaded_after(statement):
 # the ranker, and the widgets.
 HEAVY = {'pipeline', 'digest', 'digest_layout', 'rank', 'rank_model',
          'rank_text', 'fetch', 'rows', 'page', 'page_controls', 'tiles',
-         'tiles_render', 'geometry'}
+         'tiles_render', 'tiles_cards', 'geometry'}
 
 for label, statement in (
         ('importing the snapshot store', 'from src.catchup import store'),

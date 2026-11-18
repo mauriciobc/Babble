@@ -183,6 +183,7 @@ install_data(
   'catchup/rank_text.py',
   'catchup/tiles.py',
   'catchup/tiles_render.py',
+  'catchup/tiles_cards.py',
   'catchup/geometry.py',
   install_dir: moduledir / 'catchup',
 )
