@@ -320,10 +320,19 @@ stack = window.navigation_view.get_navigation_stack()
 check('a page is pushed on top of Local',
       stack.get_n_items() == 2 and window.visible_tag() is None)
 window.settings.set_boolean('hide-local', True)
-stack = window.navigation_view.get_navigation_stack()
+# Adw.NavigationView.replace can leave the stack mid-transition for a
+# frame under mutter's clock; the forgotten child is freed only once
+# that settles. Wait for home alone rather than racing the transition.
+stack_reset = False
+for _ in range(50):
+    stack = window.navigation_view.get_navigation_stack()
+    visible = window.navigation_view.get_visible_page()
+    if stack.get_n_items() == 1 and visible == window.page_home:
+        stack_reset = True
+        break
+    GLib.MainContext.default().iteration(False)
 check('hiding Local under a pushed page resets the stack to home',
-      stack.get_n_items() == 1
-      and window.navigation_view.get_visible_page() is window.page_home)
+      stack_reset)
 del under_page, under_child, stack
 for _ in range(5):
     gc.collect()

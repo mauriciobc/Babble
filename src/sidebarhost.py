@@ -261,11 +261,32 @@ class SidebarHost:
         # Decided from the navigation stack, not from the visible tag: a
         # page pushed on top of a place (a thread, a profile) hides the
         # place's tag, and popping it would land on a page that is gone.
-        gone = [window.navigation.pages[tag] for tag in forgotten
-                if tag in window.navigation.pages]
+        # Match by NavigationPage tag as well as object identity: a fresh
+        # PyGObject wrapper for the same page must not miss the under
+        # check.
+        gone = []
+        gone_tags = set()
+        for tag in forgotten:
+            page = window.navigation.pages.get(tag)
+            if page is None:
+                continue
+            gone.append(page)
+            page_tag = page.get_tag()
+            if page_tag:
+                gone_tags.add(page_tag)
         stack = window.navigation_view.get_navigation_stack()
-        under = any(stack.get_item(i) in gone
-                    for i in range(stack.get_n_items()))
+        under = False
+        for i in range(stack.get_n_items()):
+            item = stack.get_item(i)
+            if item is None:
+                continue
+            if item in gone:
+                under = True
+                break
+            item_tag = item.get_tag()
+            if item_tag and item_tag in gone_tags:
+                under = True
+                break
         window.navigation.forget_many(forgotten)
         for tag, icon, group in navigation.PLACES:
             if tag in hidden:
