@@ -84,6 +84,7 @@ install_data(
   'mediaexport.py',
   'mediainline.py',
   'mediaplayback.py',
+  'mediapip.py',
   'mediapolicy.py',
   'mediastream.py',
   'mediaviewer.py',
@@ -566,6 +567,13 @@ test('media quit', python,
 # teardown is as much a failure as the segfault is.
 test('mediaviewer teardown', python,
   args: [files('test-mediaviewer-teardown.py')],
+  env: fatal_test_env,
+  timeout: 300,
+)
+# The PiP handover: a playing video moves viewer -> card -> viewer, in a
+# loop, over the same loopback server; fatal criticals, as above.
+test('pip playback', python,
+  args: [files('test-media-pip.py')],
   env: fatal_test_env,
   timeout: 300,
 )

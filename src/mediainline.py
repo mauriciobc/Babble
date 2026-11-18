@@ -224,6 +224,8 @@ class InlinePlayer(GObject.Object):
         self._warm_source = 0
         self._unavailable = False
         self._viewer_open = False
+        # A PiP card of the same window is playing instead.
+        self._pip_open = False
         self._idle = 0
         self._painted = 0
         self._clock = None
@@ -390,7 +392,7 @@ class InlinePlayer(GObject.Object):
             return
         target = None
         if root.get_mapped() and not self._viewer_open \
-                and not self._unavailable:
+                and not self._pip_open and not self._unavailable:
             target = self._pick(root)
         self._apply(target)
 
@@ -630,6 +632,16 @@ class InlinePlayer(GObject.Object):
         self._viewer_open = False
         self.schedule()
 
+    def pip_opened(self):
+        """A Picture-in-Picture card took this window's playback: same
+        stand-down as the viewer."""
+        self._pip_open = True
+        self.shutdown()
+
+    def pip_closed(self):
+        self._pip_open = False
+        self.schedule()
+
 
 def existing_player(widget):
     """The player of the window *widget* is in, or None."""
@@ -663,3 +675,17 @@ def viewer_closed(window):
     player = existing_player(window)
     if player is not None:
         player.viewer_closed()
+
+
+def pip_opened(window):
+    """A Picture-in-Picture card opened on *window*: the inline player
+    stands down. With no player there is nothing playing inline."""
+    player = existing_player(window)
+    if player is not None:
+        player.pip_opened()
+
+
+def pip_closed(window):
+    player = existing_player(window)
+    if player is not None:
+        player.pip_closed()

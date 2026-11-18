@@ -45,6 +45,7 @@ from gi.repository import (  # noqa: E402
 
 from . import imagecache  # noqa: E402
 from . import mediainline  # noqa: E402
+from . import mediapip  # noqa: E402
 from . import appsettings, pagenav  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .mediaexport import MediaExport  # noqa: E402
@@ -143,7 +144,8 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
     # Set by a breakpoint while the window is too small for the box.
     compact = GObject.Property(type=bool, default=False)
 
-    def __init__(self, parent, attachments, index=0, status_url=None):
+    def __init__(self, parent, attachments, index=0, status_url=None,
+                 adopt=None):
         super().__init__()
         self.attachments = [a for a in attachments if isinstance(a, dict)]
         # The post, for Open in Browser when an attachment has no address.
@@ -162,6 +164,12 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         self._downloads = Gio.Cancellable()
         # Kind of the attachment the current stream plays.
         self._stream_kind = None
+        # The PiP card this viewer was opened to adopt, or None: show_index
+        # reuses its engine and stream instead of starting a new one.
+        self._adopt = adopt
+        # True from the moment minimize_to_pip hands the engine and stream
+        # to a card, so close() knows to release nothing.
+        self._pip_handover = False
         # Idle inhibition held while a video or audio plays: the
         # application it was asked of and the cookie it returned.
         self._inhibit_app = None
@@ -250,6 +258,14 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         self.index = min(max(int(index), 0), len(self.attachments) - 1)
         attachment = self.current()
         self._update_chrome(attachment)
+        # An adopted card's stream plays in this viewer instead: the
+        # position and the volume are the card's, nothing restarts.
+        if self._adopt is not None and self.index == self._adopt.index \
+                and self._adopt.stream is not None \
+                and self._adopt.stream.engine is not None \
+                and not self._adopt.stream.engine.released:
+            self._show_adopted(attachment)
+            return
         url, is_remote = media_url(attachment)
         kind = attachment.get('type')
         if not url:
@@ -315,6 +331,9 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
             position += 1
         _label(self.dots, _('Attachment {current} of {total}').format(
             current=self.index + 1, total=total))
+        kind = attachment.get('type')
+        # Only a video or an animated GIFV can move into the card.
+        self.pip_button.set_visible(kind in ('video', 'gifv'))
 
         description = (attachment.get('description') or '').strip()
         self.alt_box.set_visible(bool(description))
@@ -439,6 +458,10 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         if keyval in (Gdk.KEY_f, Gdk.KEY_F):
             self.toggle_fullscreen()
             return True
+        if keyval in (Gdk.KEY_p, Gdk.KEY_P):
+            # Exactly what the header-bar button does; True only when a
+            # card actually took the stream.
+            return self.minimize_to_pip()
         if keyval == Gdk.KEY_Escape:
             self.close()
             return True
@@ -454,6 +477,72 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
                 return True
         return False
 
+    def _show_adopted(self, attachment):
+        """Adopt the stream a PiP card hands over: the same engine, still
+        playing, at the same position. Nothing restarts; the card's
+        volume is kept instead of the saved preference."""
+        adopt, self._adopt = self._adopt, None
+        stream = adopt.stream
+        self._engine = stream.engine
+        self._stream = stream
+        self._stream_kind = attachment.get('type')
+        self._autoplayed = True
+        self._loaded_volume = stream.get_volume()
+        view = self._stream_view(attachment, stream, autoplay=False,
+                                 adopt=True)
+        self.media_bin.set_child(view)
+        self._watch_stream(stream, autoplay=False)
+        # The loop gate was re-armed by _stream_view; if it is closed
+        # while the GIFV plays, act on it now — the gate handler only
+        # acts on a change, so a fresh arm is invisible to it.
+        if self._stream_kind == 'gifv' and not self._gate_open \
+                and stream.get_playing():
+            self._gate_paused = True
+            stream.pause()
+        # GObject properties do not re-emit on connect, so seed every
+        # state a notify would have carried: the stream is already
+        # playing (or already failed) in the card, and may still be
+        # preparing.
+        if stream.get_error() is not None:
+            self._on_stream_error(stream, None)
+        else:
+            self._on_stream_buffering(stream, None)
+            if stream.is_prepared():
+                self._on_stream_prepared(stream, None, False)
+                self._on_stream_playing(stream, None)
+            else:
+                # Still preparing in the card: the fresh path would show
+                # its loading page here too, and the late prepare seeds
+                # the rest (see MediaPlayback._on_stream_prepared).
+                self.stack.set_visible_child_name('loading')
+        adopt.adopted = True
+
+    def minimize_to_pip(self):
+        """Hand the playing stream to a Picture-in-Picture card. True
+        when a card took it over."""
+        if self._stream is None or self._stream.get_error() is not None \
+                or self._stream_kind not in ('video', 'gifv') \
+                or self._engine is None or self._pip_handover:
+            return False
+        return mediapip.open_pip(self) is not None
+
+    def _on_pip_clicked(self, _button):
+        self.minimize_to_pip()
+
+    def _handover_unload(self):
+        """The minimize handover: the card owns the engine and stream
+        now, so nothing is paused, detached, released or saved -- only
+        the viewer's widgets and state go."""
+        self._set_inhibited(False)
+        self._stream = None
+        self._engine = None
+        self._stream_kind = None
+        self.media_bin.set_child(None)
+        self._hide_buffering()
+        self.deferred_picture.set_paintable(None)
+        self.picture.set_texture(None)
+        self._actions['copy-image'].set_enabled(False)
+
     def close(self):
         """Take the viewer off the window and release everything it holds."""
         global _open_viewer
@@ -463,8 +552,12 @@ class MediaViewer(RemoteGate, MediaPlayback, MediaExport, MediaViewerChrome,
         if _open_viewer is self:
             _open_viewer = None
         self._cancel_loads()
-        self._unload_media()
-        self._release_engine()
+        if self._pip_handover:
+            self._pip_handover = False
+            self._handover_unload()
+        else:
+            self._unload_media()
+            self._release_engine()
         mediainline.viewer_closed(self.window)
         if self.window is not None:
             self.window.disconnect(self._fullscreen_handler)
@@ -507,13 +600,15 @@ def _enclosing_dialog(widget):
     return None
 
 
-def present_media(parent_widget, attachments, index=0, status_url=None):
+def present_media(parent_widget, attachments, index=0, status_url=None,
+                  adopt=None):
     """Open the media viewer on *attachments* (Mastodon media_attachments
     dicts) at *index* as an overlay of the window of *parent_widget*;
     returns the viewer. *status_url* is the post's address, which Open in
-    Browser uses for media that has none of its own yet. A dialog holds
-    the widget it was opened from above that overlay, so it closes
-    instead of hiding the image."""
+    Browser uses for media that has none of its own yet. *adopt* is a PiP
+    card whose engine and stream the viewer takes over at the current
+    position. A dialog holds the widget it was opened from above that
+    overlay, so it closes instead of hiding the image."""
     global _open_viewer
     if _open_viewer is not None:
         _open_viewer.close()
@@ -523,7 +618,18 @@ def present_media(parent_widget, attachments, index=0, status_url=None):
         if window is not None:
             parent_widget = window
         dialog.close()
-    viewer = MediaViewer(parent_widget, attachments, index, status_url)
+    window = pagenav.window_of(parent_widget)
+    if window is None and parent_widget is not None:
+        root = parent_widget.get_root()
+        window = root if isinstance(root, Gtk.Window) else None
+    # One playing surface per window: a card in the way is closed and
+    # released -- not when the viewer is adopting that same card.
+    if adopt is None and window is not None:
+        card = mediapip.card_for(window)
+        if card is not None:
+            mediapip.close_card(card)
+    viewer = MediaViewer(parent_widget, attachments, index, status_url,
+                         adopt)
     window = viewer.window
     # Only once it exists: a viewer that failed to build never closes, so
     # it must not leave inline playback off. It has its own engine.

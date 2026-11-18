@@ -77,6 +77,7 @@ The complete list, kept up to date by the application itself, opens with **Ctrl+
 |---|---|
 | Previous / next attachment | **←**, **→** |
 | Fullscreen | **F** |
+| Picture-in-Picture | **P** |
 | Close | **Escape** |
 | Zoom in / out | **+**, **-** |
 | Fit to window | **0** |

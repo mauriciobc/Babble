@@ -966,3 +966,22 @@ label.just-toggled {
                                     rgba(246, 168, 183, 0.5) 75%,
                                     rgba(92, 206, 250, 0.5) 100%);
 }
+
+/* Picture-in-Picture card (mediapip.py): a small video floating over the
+   window content. */
+.pip-card {
+  border-radius: 12px;
+  background: black;
+  box-shadow: 0 2px 8px var(--shade-color);
+}
+
+.pip-card > picture {
+  border-radius: 12px;
+}
+
+.pip-controls {
+  border-radius: 9999px;
+  padding: 4px;
+  background-color: var(--popover-bg-color);
+  border: 1px solid var(--border-color);
+}

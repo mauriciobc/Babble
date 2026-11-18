@@ -374,8 +374,21 @@ class MediaPlayback:
             return
         self._stream = stream
         self._autoplayed = False
+        self._stream_kind = attachment.get('type')
+        view = self._stream_view(attachment, stream, autoplay=True)
+        self.media_bin.set_child(view)
+        self._watch_stream(stream, autoplay=True)
+
+    def _stream_view(self, attachment, stream, autoplay, adopt=False):
+        """The media widget for *attachment* playing *stream*: the per-kind
+        construction ``_start_stream`` used to inline. *adopt* skips the
+        volume restore, whose value the PiP card already carries.
+
+        The GIFV branch owns the loop gate too: it belongs to widget
+        construction, not to stream start, or a restored GIFV would have
+        no gate.
+        """
         kind = attachment.get('type')
-        self._stream_kind = kind
         if kind == 'gifv':
             stream.set_loop(True)
             stream.set_muted(True)
@@ -394,25 +407,33 @@ class MediaPlayback:
             # A looping animation is decoration: it waits for a click
             # when animations are off or the system saves power.
             # Decided when the stream is prepared, not now.
-            autoplay = True
             self._gate_open = self._loop_gate_open()
             self._connect_loop_gate()
         elif kind == 'video':
             # Offload lets the compositor scan the video out directly.
             # It applies on Wayland with dmabuf-capable frames; GTK
-            # renders normally otherwise.
+            # renders normally otherwise. Removal mid-playback is safe:
+            # the viewer's Gtk.Video never sets autoplay, and GTK pauses
+            # a media stream at the video widget's unrealize/dispose only
+            # if (self->autoplay) (GTK 4 gtkvideo.c); EngineStream
+            # overrides no unrealize.
             view = Gtk.Video(
                 hexpand=True, vexpand=True,
                 graphics_offload=Gtk.GraphicsOffloadEnabled.ENABLED)
             view.set_media_stream(stream)
             view.add_css_class('media-viewer-video')
-            self._restore_volume(stream)
-            autoplay = True
+            if not adopt:
+                self._restore_volume(stream)
         else:
             view = self._audio_view(attachment, stream)
-            self._restore_volume(stream)
-            autoplay = True
-        self.media_bin.set_child(view)
+            if not adopt:
+                self._restore_volume(stream)
+        return view
+
+    def _watch_stream(self, stream, autoplay):
+        """Follow *stream*'s state for the media page: error, prepared,
+        playing, ended and buffering, with *autoplay* deciding whether a
+        prepare may start playback."""
         connect_weak(stream, 'notify::error', self._on_stream_error)
         connect_weak(stream, 'notify::prepared', self._on_stream_prepared,
                            autoplay)
@@ -420,6 +441,8 @@ class MediaPlayback:
         connect_weak(stream, 'notify::ended', self._on_stream_playing)
         connect_weak(stream, 'notify::buffering',
                            self._on_stream_buffering)
+        # GObject properties do not re-emit on connect: seed what a
+        # notify would already have carried.
         if stream.get_error() is not None:
             self._on_stream_error(stream, None)
         elif stream.is_prepared():
@@ -562,3 +585,11 @@ class MediaPlayback:
             child = self.media_bin.get_child()
             if child is not None:
                 child.grab_focus()
+            return
+        if not autoplay:
+            # An adopted stream that prepared only after the viewer took
+            # it back: no notify will carry what already happened in the
+            # card, so seed the states the fresh path got at its prepare.
+            self._on_stream_buffering(stream, None)
+            if stream.get_playing():
+                self._on_stream_playing(stream, None)

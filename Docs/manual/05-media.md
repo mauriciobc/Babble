@@ -63,7 +63,7 @@ The viewer **is not a separate window**: it covers the main window, which is why
 
 The title gives the type of the attachment: `Image`, `Video`, `Animated GIF`, `Audio` or `Attachment`. With more than one attachment, a subtitle shows `{current} of {total}`.
 
-The buttons are `Close`, `Fullscreen` (which becomes `Exit Fullscreen`), `Save As…` and a `More Actions` menu:
+The buttons are `Close`, `Minimize to Picture-in-Picture` (videos and animated GIFs), `Fullscreen` (which becomes `Exit Fullscreen`), `Save As…` and a `More Actions` menu:
 
 | Item | What it does |
 |---|---|
@@ -83,6 +83,7 @@ The buttons are `Close`, `Fullscreen` (which becomes `Exit Fullscreen`), `Save A
 |---|---|
 | **←** / **→** | Goes to the previous or the next attachment. |
 | **F** | Toggles full screen. |
+| **P** | Sends the playing video to the picture-in-picture card. |
 | **Esc** | Closes the viewer. |
 | **+** / **-** | Zooms in and out. |
 | **0** | Fits to the window. |
@@ -90,6 +91,22 @@ The buttons are `Close`, `Fullscreen` (which becomes `Exit Fullscreen`), `Save A
 ### The description
 
 Below the media there is an `ALT` button, whose tooltip is `Show or Hide Description`. The text is selectable, which lets you copy it.
+
+### Picture-in-Picture
+
+A video or an animated GIF that is playing can move into a small card and keep playing while you keep scrolling: click `Minimize to Picture-in-Picture` in the viewer header (or press **P**). The card appears over the window, bottom-right by default, and the viewer closes. The playback does not restart: the card continues where the viewer was.
+
+The card has three buttons along its bottom:
+
+| Button | What it does |
+|---|---|
+| `Pause` / `Play` / `Replay` | Stops, resumes, or — after the video ended — starts it from the beginning. |
+| `Expand` | Puts the media back into the viewer, at the same position, still playing. |
+| `Close` | Stops the playback and releases the player. |
+
+Drag the card anywhere over the window; on release it snaps to the nearest corner. The position is remembered while the window is open, not between sessions.
+
+There is one playing surface at a time: opening another post's media while the card plays closes the card, and closing the window closes it too. The card keeps the same rules the viewer does — an animated GIF stays silent and keeps looping, and a video keeps the screen awake.
 
 ### When the media does not open
 
