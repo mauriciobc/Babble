@@ -66,6 +66,40 @@ class RuleList(CtxRef, Adw.Bin):
         if row is not None:
             self.delete(row, item_id, heading, label)
 
+class _BarRuleList(RuleList):
+    """A rule page whose add control is a bar above the list that takes
+    a domain.  A subclass passes the translated *bar* (placeholder,
+    label) and *add_error*, and implements _confirm(domain), which
+    returns (heading, body, label, destructive)."""
+
+    def __init__(self, ctx, kind, make_row, empty_title, empty_icon,
+                 empty_description=None, *, bar, add_error, **kwargs):
+        super().__init__(ctx, kind, make_row, empty_title, empty_icon,
+                         empty_description, **kwargs)
+        self._add_error = add_error
+        self.bar = AddBar(*bar, weak_method(self._on_add))
+        self.bar.button.set_use_underline(True)
+        self.top_bar = self.bar
+
+    def _on_add(self, domain):
+        def go():
+            def ok(_data):
+                self.bar.clear()
+                self.refresh()
+
+            send(self.ctx.client,
+                 lambda cb: admin_api.rule_create_async(
+                     self.ctx.client, self.kind, {'domain': domain},
+                     callback=cb),
+                 admin_api.rule_create_finish,
+                 ok,
+                 lambda e: self.ctx.error(self._add_error, e))
+
+        heading, body, label, destructive = self._confirm(domain)
+        feedback.confirm(self.ctx, heading, body, label, go,
+                         destructive=destructive)
+
+
 SEVERITIES = (
     ('silence', _('Limit')),
     ('suspend', _('Suspend')),
@@ -194,17 +228,19 @@ class AddFederationBlockDialog(feedback.ToastDialog):
              admin_api.rule_create_finish,
              ok, failed)
 
-class DomainAllowsPage(RuleList):
+class DomainAllowsPage(_BarRuleList):
     def __init__(self, ctx, **kwargs):
         super().__init__(
             ctx, 'domain_allows', self._make_row,
             _('No Allowed Servers'), 'object-select-symbolic',
             _('Servers allowed to federate show up here when the '
-              'allowlist is in use.'), **kwargs)
-        self.bar = AddBar(_('Allow federation with a server'), _('_Allow'),
-                          weak_method(self._on_add))
-        self.bar.button.set_use_underline(True)
-        self.top_bar = self.bar
+              'allowlist is in use.'),
+            bar=(_('Allow federation with a server'), _('_Allow')),
+            add_error=_('Could not allow the server'), **kwargs)
+
+    def _confirm(self, domain):
+        return (_('Allow Federation with %s?') % domain, None, _('_Allow'),
+                False)
 
     def _make_row(self, allow):
         row = Adw.ActionRow(title=allow['domain'], use_markup=False)
@@ -214,34 +250,20 @@ class DomainAllowsPage(RuleList):
             _('_Remove')))
         return row
 
-    def _on_add(self, domain):
-        def go():
-            def ok(data):
-                self.bar.clear()
-                self.refresh()
-
-            send(self.ctx.client,
-                 lambda cb: admin_api.rule_create_async(
-                     self.ctx.client, 'domain_allows', {'domain': domain},
-                     callback=cb),
-                 admin_api.rule_create_finish,
-                 ok,
-                 lambda e: self.ctx.error(_('Could not allow the server'),
-                                          e))
-
-        feedback.confirm(self.ctx, _('Allow Federation with %s?') % domain,
-                      None, _('_Allow'), go, destructive=False)
-
-class EmailBlocksPage(RuleList):
+class EmailBlocksPage(_BarRuleList):
     def __init__(self, ctx, **kwargs):
         super().__init__(
             ctx, 'email_domain_blocks', self._make_row,
             _('No Blocked E-mail Domains'), 'mail-unread-symbolic',
-            _('Sign-ups from these e-mail domains are refused.'), **kwargs)
-        self.bar = AddBar(_('Block an e-mail domain'), _('_Block'),
-                          weak_method(self._on_add))
-        self.bar.button.set_use_underline(True)
-        self.top_bar = self.bar
+            _('Sign-ups from these e-mail domains are refused.'),
+            bar=(_('Block an e-mail domain'), _('_Block')),
+            add_error=_('Could not block the domain'), **kwargs)
+
+    def _confirm(self, domain):
+        return (_('Block %s?') % domain,
+                _('This can be the domain name that shows up in the e-mail '
+                  'address or the MX record it uses. They will be checked '
+                  'upon sign-up.'), _('_Block'), True)
 
     def _make_row(self, block):
         attempts = 0
@@ -259,27 +281,6 @@ class EmailBlocksPage(RuleList):
             _('Remove'), self._on_delete, row.weak_ref(), block['id'],
             _('Unblock %s?') % block['domain'], _('_Unblock')))
         return row
-
-    def _on_add(self, domain):
-        def go():
-            def ok(_data):
-                self.bar.clear()
-                self.refresh()
-
-            send(self.ctx.client,
-                 lambda cb: admin_api.rule_create_async(
-                     self.ctx.client, 'email_domain_blocks',
-                     {'domain': domain}, callback=cb),
-                 admin_api.rule_create_finish,
-                 ok,
-                 lambda e: self.ctx.error(_('Could not block the domain'),
-                                          e))
-
-        feedback.confirm(
-            self.ctx, _('Block %s?') % domain,
-            _('This can be the domain name that shows up in the e-mail '
-              'address or the MX record it uses. They will be checked '
-              'upon sign-up.'), _('_Block'), go)
 
 IP_SEVERITIES = (
     ('no_access', _('Blocked'), _('Block Access'),
