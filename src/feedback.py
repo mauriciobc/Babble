@@ -101,12 +101,18 @@ def flush_deferred():
         commit_pending()
 
 
+def is_cancelled_error(error):
+    """Whether *error* is Gio CANCELLED (a scope or the reader stopped
+    the request). Callers that would toast or show it should stay silent."""
+    return (isinstance(error, GLib.Error)
+            and error.matches(Gio.io_error_quark(),
+                              Gio.IOErrorEnum.CANCELLED))
+
+
 def report_error(widget, heading, error):
     """Toast '<heading>: <server message>' for a GLib.Error. A cancelled
     operation is the reader's own doing, so it stays silent."""
-    if (isinstance(error, GLib.Error)
-            and error.matches(Gio.io_error_quark(),
-                              Gio.IOErrorEnum.CANCELLED)):
+    if is_cancelled_error(error):
         return
     message = getattr(error, 'message', None) or str(error)
     show_toast(widget, '%s: %s' % (heading, summarize_error(message)))
@@ -199,6 +205,10 @@ class ToastDialog(Adw.Dialog):
             Adw.Toast(title=text, timeout=5, use_markup=False))
 
     def error(self, heading, error):
+        """Toast a failed action. CANCELLED stays silent (same rule as
+        :func:`report_error`)."""
+        if is_cancelled_error(error):
+            return
         self.toast('%s: %s' % (heading, summarize_error(error)))
 
     def submit_on_enter(self, button, *rows):

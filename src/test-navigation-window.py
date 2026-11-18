@@ -15,6 +15,7 @@ import os
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import gc
 import sys
+import time
 import types
 
 import gi
@@ -39,6 +40,10 @@ if not os.path.exists(bundle):
     print('SKIP - no compiled babble.gresource; run meson compile first')
     sys.exit(77)
 Adw.init()
+# Adw.NavigationView.replace animates under mutter's frame clock; with
+# animations on, a busy-spin of MainContext.iteration(False) can finish
+# before the stack settles. Off for deterministic place-teardown checks.
+Gtk.Settings.get_default().set_property('gtk-enable-animations', False)
 Gio.Resource.load(bundle)._register()
 
 from src import main as babble_main, mastodon  # noqa: E402
@@ -320,17 +325,22 @@ stack = window.navigation_view.get_navigation_stack()
 check('a page is pushed on top of Local',
       stack.get_n_items() == 2 and window.visible_tag() is None)
 window.settings.set_boolean('hide-local', True)
-# Adw.NavigationView.replace can leave the stack mid-transition for a
-# frame under mutter's clock; the forgotten child is freed only once
-# that settles. Wait for home alone rather than racing the transition.
+# replace() can still lag a beat under the frame clock even with
+# animations off. Wait up to 2s with idle sleep; match home by identity
+# or by the template page's tag (fresh PyGObject wrappers).
 stack_reset = False
-for _ in range(50):
+context = GLib.MainContext.default()
+deadline = time.monotonic() + 2.0
+while time.monotonic() < deadline:
     stack = window.navigation_view.get_navigation_stack()
     visible = window.navigation_view.get_visible_page()
-    if stack.get_n_items() == 1 and visible == window.page_home:
+    if stack.get_n_items() == 1 and (
+            visible == window.page_home
+            or (visible is not None and visible.get_tag() == 'home')):
         stack_reset = True
         break
-    GLib.MainContext.default().iteration(False)
+    if not context.iteration(False):
+        time.sleep(0.002)
 check('hiding Local under a pushed page resets the stack to home',
       stack_reset)
 del under_page, under_child, stack

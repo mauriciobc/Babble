@@ -758,9 +758,12 @@ base cannot fake one. Final resolutions:
   ticket (`begin` + `start` fan-in; `adminbase.send` stays write-only).
   The error-helper item is narrower than written above:
   `feedback.report_error` (and so `call_api`) is already silent on
-  CANCELLED; what remains is `ToastDialog.error` and the direct
-  `summarize_error`/`summarize_error_markup` callers. DEF-21 and DEF-11 are done;
-  DEF-09 is still open.
+  CANCELLED; `ToastDialog.error` and `AdminDialog.error` now stay silent
+  on CANCELLED too (`feedback.is_cancelled_error`). Direct
+  `summarize_error`/`summarize_error_markup` callers that paint into a
+  status/error *page* (not a toast) still show the text when the page is
+  the right place for a failed load — those are not toast spam. DEF-21
+  and DEF-11 are done; DEF-09 is still open.
 
 ### 2.3 Translated-string tables (duplication translators can see)
 
