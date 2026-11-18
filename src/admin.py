@@ -287,6 +287,9 @@ class AdminDialog(Adw.Dialog):
                                         timeout=5))
 
     def error(self, heading, error):
+        from .feedback import is_cancelled_error
+        if is_cancelled_error(error):
+            return
         self.toast('%s: %s' % (heading, error_text(error)))
 
     def refresh_tool(self, tag):
