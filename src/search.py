@@ -188,6 +188,7 @@ class SearchTypePage(Adw.Bin):
             return
         self._loading = True
         token = self._scope.start()
+        self._load_token = token
         if self._offset:
             self.more_spinner.set_visible(True)
         api_search.search_async(
@@ -198,6 +199,11 @@ class SearchTypePage(Adw.Bin):
             cancellable=token.cancellable)
 
     def _on_load_dropped(self, _owner):
+        # An older cancelled load must not clear loading while a newer
+        # request (after refresh/begin) still owns _load_token.
+        token = getattr(self, '_load_token', None)
+        if token is not None and token.wanted():
+            return
         self._loading = False
         self.more_spinner.set_visible(False)
 
