@@ -43,9 +43,9 @@ if not os.path.exists(bundle):
     sys.exit(77)
 Gio.Resource.load(bundle)._register()
 
-from src import (admin, fedicollections, feedback, lists,  # noqa: E402
-                 main as babble_main, notificationpolicy, profile,
-                 profileedit, wrapped)
+from src import (adminfederation, collectionedit, feedback, lists,  # noqa: E402
+                 profiledialogs,
+                 main as babble_main, notificationpolicy, profileedit, wrapped)
 from src.window import BabbleWindow  # noqa: E402
 
 failures = []
@@ -120,12 +120,12 @@ class _Ctx:
     client = _Client()
 
 
-admin_dialog = admin.AddIPBlockDialog(_Ctx())
+admin_dialog = adminfederation.AddIPBlockDialog(_Ctx())
 exercise(admin_dialog, 'admin')
 check('the admin base still offers header buttons',
       isinstance(admin_dialog.save, Gtk.Button))
 
-collection_dialog = fedicollections.CollectionEditDialog(_Client())
+collection_dialog = collectionedit.CollectionEditDialog(_Client())
 exercise(collection_dialog, 'collection')
 check('the collection dialog keeps its Save button',
       isinstance(collection_dialog.save_button, Gtk.Button))
@@ -145,7 +145,7 @@ check('the profile editor hides its title buttons',
 check('the profile editor keeps its Save button',
       isinstance(profile_dialog.save_button, Gtk.Button))
 
-note_dialog = profile.PrivateNoteDialog('@ada@example.org', 'note',
+note_dialog = profiledialogs.PrivateNoteDialog('@ada@example.org', 'note',
                                        lambda _text: None)
 exercise(note_dialog, 'private note')
 check('the private note hides its title buttons',

@@ -815,20 +815,41 @@ CLIENT_NAMES = ('client', '_client')
 NOT_A_CLIENT = {}
 
 
-def client_members(source):
-    """Names defined in the body of class MastodonClient of *source*."""
+def _class_body_names(node):
+    names = set()
+    for item in node.body:
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(item.name)
+        elif isinstance(item, ast.Assign):
+            names.update(t.id for t in item.targets
+                         if isinstance(t, ast.Name))
+    return names
+
+
+def client_members(source, sources=()):
+    """Names a caller may reach on MastodonClient.
+
+    The transport is one object across several modules, so a member is
+    either in ``MastodonClient``'s own body or in the body of one of the
+    mixins its class statement names. ``sources`` is the scanned tree, in
+    which those mixins live."""
     tree = ast.parse(source)
+    names = set()
+    bases = set()
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name == 'MastodonClient':
-            names = set()
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    names.add(item.name)
-                elif isinstance(item, ast.Assign):
-                    names.update(t.id for t in item.targets
-                                 if isinstance(t, ast.Name))
-            return names
-    return set()
+            bases = {base.id for base in node.bases
+                     if isinstance(base, ast.Name)}
+            names |= _class_body_names(node)
+    for _rel, text in sources:
+        try:
+            other = ast.parse(text)
+        except (SyntaxError, ValueError):
+            continue
+        for node in other.body:
+            if isinstance(node, ast.ClassDef) and node.name in bases:
+                names |= _class_body_names(node)
+    return names
 
 
 def client_method_calls(rel, source, members):
@@ -852,8 +873,19 @@ def client_method_calls(rel, source, members):
 
 
 def check_client_calls():
+    folders = [srcdir, os.path.join(srcdir, 'catchup'),
+               os.path.join(os.path.dirname(srcdir), 'bench')]
+    sources = []
+    for folder in folders:
+        if not os.path.isdir(folder):
+            continue
+        for name in sorted(os.listdir(folder)):
+            if not name.endswith('.py'):
+                continue
+            with open(os.path.join(folder, name), encoding='utf-8') as h:
+                sources.append((name, h.read()))
     with open(os.path.join(srcdir, 'mastodon.py'), encoding='utf-8') as h:
-        members = client_members(h.read())
+        members = client_members(h.read(), sources)
     check(len(members) > 20 and 'request_async' in members
           and 'favourite_async' not in members,
           'client calls: MastodonClient has %d members and no '
@@ -866,8 +898,6 @@ def check_client_calls():
         'src/x.py', "def f(client):\n    client.request_async('GET', '/')\n"
         "    api.favourite_async(client, '1')\n", members) == [],
           'self-check: a real client method and an api function are fine')
-    folders = [srcdir, os.path.join(srcdir, 'catchup'),
-               os.path.join(os.path.dirname(srcdir), 'bench')]
     scanned = 0
     for folder in folders:
         if not os.path.isdir(folder):

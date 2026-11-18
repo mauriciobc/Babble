@@ -46,8 +46,8 @@ resource._register()
 
 from src import auth as auth_module  # noqa: E402
 from src.main import BabbleApplication  # noqa: E402, F401
-from src.mastodon import (MastodonClient, OAUTH_REDIRECT,  # noqa: E402
-                          OOB_REDIRECT)
+from src.mastodon import MastodonClient  # noqa: E402
+from src.oauthpkce import OAUTH_REDIRECT, OOB_REDIRECT  # noqa: E402
 from src.window import BabbleWindow  # noqa: E402
 
 SCHEMA = 'io.github.mauriciobc.Babble'

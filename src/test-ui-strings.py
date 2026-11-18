@@ -289,7 +289,7 @@ for _name, _path, _reader in DATA_FILES:
 # prints a note and stops applying rather than sitting here as a permission
 # slip for whatever replaces it.
 EXCEPTIONS = {
-    'admin.py': (
+    'adminreports.py': (
         ("info_row(_('Forwarded'), _('Yes'))", 'label',
          'a report property shown as a value in an info row, not a '
          'button or a dialog response'),
@@ -448,14 +448,18 @@ check('every data file po/POTFILES.in lists is read, and none is missing',
       and any('gschema' in name for name, _p, _r in DATA_FILES)
       and any('metainfo' in name for name, _p, _r in DATA_FILES))
 check('a value use of a generic word is excepted, a label is not',
-      excepted('admin.py', "info_row(_('Forwarded'), _('Yes'))", 'label')
-      and not excepted('admin.py', "Gtk.Button(label=_('_Yes'))", 'label'))
+      excepted('adminreports.py', "info_row(_('Forwarded'), _('Yes'))",
+               'label')
+      and not excepted('adminreports.py', "Gtk.Button(label=_('_Yes'))",
+                       'label'))
 check('an exception is scoped to the rule it names',
-      excepted('admin.py', "info_row(_('Forwarded'), _('Yes'))", 'label')
-      and not excepted('admin.py', "info_row(_('Forwarded'), _('Yes'))",
-                       'three dots'))
+      excepted('adminreports.py', "info_row(_('Forwarded'), _('Yes'))",
+               'label')
+      and not excepted('adminreports.py',
+                       "info_row(_('Forwarded'), _('Yes'))", 'three dots'))
 check('an exception whose snippet is gone is reported, not applied',
-      stale_exceptions({'admin.py': (('no such snippet', 'label', 'why'),)})
+      stale_exceptions({'adminreports.py': (('no such snippet', 'label',
+                                            'why'),)})
       and not stale_exceptions())
 check('the label rule catches the label it is about',
       generic_label('py', 'x.py', 1, '_Done', "x = _('Done')"))

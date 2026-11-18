@@ -13,9 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
 from gi.repository import GLib  # noqa: E402
 
-from src.admin import (PERM_ADMINISTRATOR, PERM_REPORTS, PERM_USERS,  # noqa: E402
-                       needs_admin_scopes, permission_allows,
-                       role_permissions)
+from src.adminbase import (PERM_ADMINISTRATOR, PERM_REPORTS,  # noqa: E402
+                          PERM_USERS, needs_admin_scopes,
+                          permission_allows, role_permissions)
 
 failures = []
 
