@@ -26,6 +26,7 @@ builddir = os.environ.get('BABBLE_BUILDDIR') or os.path.join(
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
+
 # Own Xvfb + X11 backend: the window under test is a real one, so the
 # session's WAYLAND_DISPLAY must not leak in. The display has to be set
 # before GDK reads it, which is before ``import gi``.
@@ -55,19 +56,24 @@ resource = Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))
 resource._register()
 Adw.init()
 
+from testkit.notificationskit import check  # noqa: E402
+from testkit.oauthkit import (DeferredTokenClient, FakeComposeView,  # noqa: E402
+                              REDIRECT_URI, RecordingLauncher,
+                              RevokeClient, StubClient, fresh_window,
+                              launched, pump, start_attempt,
+                              successful_clear, uris)
+from testkit.xvfb import start_xvfb  # noqa: E402
+from testkit import oauthkit as kit  # noqa: E402
+from testkit.oauthkit import (AdminScopeClient,
+    BrowserLauncher)  # noqa: E402
+
 from src import linkrouting  # noqa: E402
 from src import textemoji  # noqa: E402
-from src.oauthpkce import (ADMIN_SCOPES, OAUTH_REDIRECT,  # noqa: E402
-                          )
+from src.oauthpkce import (ADMIN_SCOPES,
+    OAUTH_REDIRECT)  # noqa: E402
 from src.window import BabbleWindow  # noqa: E402
 from gettext import gettext as _  # noqa: E402
 
-from testkit import oauthkit as kit  # noqa: E402
-from testkit.oauthkit import (AdminScopeClient, BrowserLauncher,  # noqa: E402
-                              DeferredTokenClient, FakeComposeView,
-                              RecordingLauncher, REDIRECT_URI,
-                              RevokeClient, StubClient, check, fresh_window, launched, pump, start_attempt,
-                              successful_clear, uris)
 
 # --- Files opened before signing in wait for the session ----------------
 

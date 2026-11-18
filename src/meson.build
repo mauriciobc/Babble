@@ -342,6 +342,44 @@ test('compose widgets', python,
   env: test_env,
   timeout: 120,
 )
+# The composer flow, split by the scenario it drives. Each part rebuilds
+# its fixtures from testkit/composekit; together they run the checks the
+# one script used to run.
+test('compose replies', python,
+  args: [files('test-compose-replies.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose drafts', python,
+  args: [files('test-compose-drafts.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose mentions', python,
+  args: [files('test-compose-mentions.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose hashtags', python,
+  args: [files('test-compose-hashtags.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose pool', python,
+  args: [files('test-compose-pool.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose paste', python,
+  args: [files('test-compose-paste.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('compose spell', python,
+  args: [files('test-compose-spell.py')],
+  env: test_env,
+  timeout: 120,
+)
 test('compose transactions', python,
   args: [files('test-compose-transactions.py')],
   env: fatal_test_env,
@@ -349,6 +387,26 @@ test('compose transactions', python,
 )
 test('notifications render', python,
   args: [files('test-notifications.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications lazy', python,
+  args: [files('test-notifications-lazy.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications refresh', python,
+  args: [files('test-notifications-refresh.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications reply', python,
+  args: [files('test-notifications-reply.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('notifications dismiss', python,
+  args: [files('test-notifications-dismiss.py')],
   env: fatal_test_env,
   timeout: 120,
 )
@@ -773,6 +831,26 @@ test('hashpanel plugin', python,
 # submitted, claimed links, the answer link, the share link and Compartilhar.
 test('nareal plugin', python,
   args: [files('test-nareal.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+test('nareal login', python,
+  args: [files('test-nareal-login.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+test('nareal links', python,
+  args: [files('test-nareal-links.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+test('nareal share', python,
+  args: [files('test-nareal-share.py')],
+  env: plugin_web_env,
+  timeout: 120,
+)
+test('nareal banner', python,
+  args: [files('test-nareal-banner.py')],
   env: plugin_web_env,
   timeout: 120,
 )

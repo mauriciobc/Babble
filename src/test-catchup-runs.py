@@ -40,8 +40,14 @@ from src import accounts  # noqa: E402
 from src.catchup import store as catchupstore  # noqa: E402
 
 from testkit import catchuppage as kit  # noqa: E402
-from testkit.catchuppage import (ACCOUNT, CACHE, FakeClient, MemorySettings, _catchup_tiles_saved, check, make_page,
-                                 settle)
+from testkit.catchuppage import (ACCOUNT,
+    CACHE,
+    FakeClient,
+    MemorySettings,
+    _catchup_tiles_saved,
+    check,
+    make_page,
+    settle)  # noqa: E402
 
 # A catch-up that cannot be written still shows, and says so.
 write_failed = catchupstore.write_snapshot
