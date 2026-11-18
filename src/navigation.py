@@ -209,9 +209,10 @@ class Navigation:
         switch does."""
         if child is None:
             return
-        # Prefer close_requests() (Catch-Up maps it to cancel(); search
-        # and paged lists close their scopes). Fall back to cancel() for
-        # older pages that only have that name.
+        # Prefer close_requests() (Catch-Up maps it to cancel(); paged
+        # lists and SearchPage close their scopes — SearchPage's method
+        # lands with the request-scope search PR). Fall back to cancel()
+        # for older pages that only have that name.
         close = getattr(child, 'close_requests', None)
         if close is not None:
             close()
