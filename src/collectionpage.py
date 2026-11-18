@@ -14,7 +14,7 @@ from .collectionactions import CollectionActions  # noqa: E402
 from .collectionbase import _is_member, format_date  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
-from src.collectionbase import remember_account  # noqa: E402
+from .collectionbase import remember_account  # noqa: E402
 
 
 

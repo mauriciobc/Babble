@@ -45,89 +45,15 @@ from src.notificationrow import NotificationPost, NotificationRow  # noqa: E402
 from src.notifications import (NotificationRequestRow,  # noqa: E402
                                NotificationsPage)
 
-failures = []
-
-
-def check(name, condition):
-    if condition:
-        print('ok - %s' % name)
-    else:
-        failures.append(name)
-        print('FAIL - %s' % name)
-
-
-ACTOR = {'id': '9', 'acct': 'alice', 'display_name': 'Alice Doe',
-         'url': 'https://fosstodon.org/@alice'}
-ACTOR2 = {'id': '10', 'acct': 'bob', 'display_name': 'Bob',
-          'url': 'https://fosstodon.org/@bob'}
-ACTOR3 = {'id': '11', 'acct': 'carol', 'display_name': 'Carol',
-          'url': 'https://fosstodon.org/@carol'}
-STATUS = {'id': '42', 'content': '<p>My original post</p>',
-          'account': {'id': '1', 'acct': 'me', 'display_name': 'Me'},
-          'created_at': '2026-10-01T10:00:00.000Z'}
-
-
-def make_notification(id, type, account, created, status=None):
-    """Shape documented at docs.joinmastodon.org/entities/Notification:
-    {id, type, created_at, account, status?}."""
-    data = {'id': id, 'type': type, 'created_at': created,
-            'account': account}
-    if status is not None:
-        data['status'] = status
-    return data
-
-
-MENTION = make_notification('100', 'mention', ACTOR3,
-                            '2026-10-05T12:05:00.000Z',
-                            {**STATUS, 'id': '50',
-                             'content': '<p>Hello @me</p>'})
-FOLLOW = make_notification('99', 'follow', ACTOR3,
-                           '2026-10-05T12:04:00.000Z')
-FAV_A = make_notification('98', 'favourite', ACTOR2,
-                          '2026-10-05T12:03:00.000Z', STATUS)
-FAV_B = make_notification('97', 'favourite', ACTOR3,
-                          '2026-10-05T12:02:00.000Z', STATUS)
-FAV_C = make_notification('96', 'favourite', ACTOR,
-                          '2026-10-05T12:01:00.000Z', STATUS)
-REBLOG = make_notification('95', 'reblog', ACTOR2,
-                           '2026-10-05T11:00:00.000Z', STATUS)
-POLL = make_notification('94', 'poll', ACTOR, '2026-10-05T10:30:00.000Z',
-                         {**STATUS, 'id': '52'})
-EDIT = make_notification('93', 'update', ACTOR2, '2026-10-05T10:20:00.000Z',
-                         {**STATUS, 'id': '53'})
-REQUEST = make_notification('92', 'follow_request', ACTOR,
-                            '2026-10-05T10:10:00.000Z')
-SIGNUP = make_notification('91', 'admin.sign_up', ACTOR,
-                           '2026-10-05T10:00:00.000Z')
-MYSTERY = make_notification('90', 'future.mystery', ACTOR,
-                            '2026-10-05T09:00:00.000Z')
-
-# Mastodon 4.6 notification types that carry a `collection` object.
-COLLECTION = {'id': '300', 'name': 'Nice accounts',
-              'description': 'These accounts are very nice'}
-COLLECTION_ADD = make_notification('89', 'added_to_collection', ACTOR,
-                                   '2026-10-05T08:00:00.000Z')
-COLLECTION_ADD['collection'] = COLLECTION
-COLLECTION_UPDATE = make_notification('88', 'collection_update', ACTOR2,
-                                      '2026-10-05T07:00:00.000Z')
-COLLECTION_UPDATE['collection'] = COLLECTION
-
-FIXTURES = [MENTION, FOLLOW, FAV_A, FAV_B, FAV_C, REBLOG, POLL, EDIT,
-            REQUEST, SIGNUP, MYSTERY]
-
-# Single-actor group then a two-actor cross-page merge.
-FAV_D = make_notification('945', 'favourite', ACTOR3,
-                          '2026-10-05T11:30:00.000Z', STATUS)
 from src import desktopnotify  # noqa: E402
 
+# The fixtures and check() are the kit's, so a failed check here lands in
+# kit.failures, the list the exit gate reads.
 from testkit import notificationskit as kit  # noqa: E402
-from testkit.notificationskit import (FollowClient,
-    _live_error_result,
-    body_text,
-    collect,
-    notification_rows,
-    pump_until,
-    visible_text)  # noqa: E402
+from testkit.notificationskit import (  # noqa: E402
+    ACTOR2, FAV_A, FAV_B, FAV_C, FOLLOW, MENTION, POLL, STATUS,
+    FollowClient, _live_error_result, body_text, check, collect,
+    make_notification, notification_rows, pump_until, visible_text)
 from testkit.notificationskit import client, page  # noqa: E402
 
 # The live anonymous fetch: /api/v1/notifications without a token.
@@ -540,12 +466,6 @@ check('request preview: a home-only rule leaves the text',
                        'filtered': [filter_result(
                            'Home', filterrules.HIDE, [filterrules.HOME])]})
       == 'plain preview')
-
-if failures:
-    print('%d checks failed' % len(failures))
-    sys.exit(1)
-print('all notifications rendering checks passed')
-
 
 if kit.failures:
     print('%d checks failed' % len(kit.failures))

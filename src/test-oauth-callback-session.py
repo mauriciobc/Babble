@@ -56,13 +56,13 @@ resource = Gio.Resource.load(os.path.join(builddir, 'src', 'babble.gresource'))
 resource._register()
 Adw.init()
 
-from testkit.notificationskit import check  # noqa: E402
+# check() is oauthkit's, so a failed check lands in kit.failures, the list
+# the exit gate reads.
 from testkit.oauthkit import (DeferredTokenClient, FakeComposeView,  # noqa: E402
                               REDIRECT_URI, RecordingLauncher,
-                              RevokeClient, StubClient, fresh_window,
+                              RevokeClient, StubClient, check, fresh_window,
                               launched, pump, start_attempt,
                               successful_clear, uris)
-from testkit.xvfb import start_xvfb  # noqa: E402
 from testkit import oauthkit as kit  # noqa: E402
 from testkit.oauthkit import (AdminScopeClient,
     BrowserLauncher)  # noqa: E402
@@ -76,8 +76,6 @@ from gettext import gettext as _  # noqa: E402
 
 
 # --- Files opened before signing in wait for the session ----------------
-
-
 
 
 win, toasts = fresh_window()
@@ -107,8 +105,6 @@ check('the waiting files are handed over once', presented == [])
 # Reading the token is an out-of-process round trip, so a switch can be
 # started before an earlier restore answers. The late reply used to win,
 # showing the account the user had already switched away from.
-
-
 
 
 win, toasts = fresh_window()
@@ -215,8 +211,6 @@ finally:
     auth_module.MastodonClient = _real_client_class
 
 
-
-
 win, toasts = fresh_window()
 import src.windowlogin as windowlogin_module  # noqa: E402
 import src.windowsession as windowsession_module  # noqa: E402
@@ -300,8 +294,6 @@ _real_clear_secret = windowsession_module.clear_secret_async
 _real_mastodon_clear = clientoauth_module.clear_secret_async
 
 
-
-
 windowsession_module.clear_secret_async = successful_clear
 clientoauth_module.clear_secret_async = successful_clear
 
@@ -311,8 +303,6 @@ clientoauth_module.clear_secret_async = successful_clear
 # the local state has to be settled either way.
 
 win, toasts = fresh_window()
-
-
 
 
 try:
@@ -413,9 +403,6 @@ for failed_kind in (None, '42', CLIENT_CREDENTIALS_KIND + '42'):
 # launcher is swapped for one that records what it was handed.
 
 
-
-
-
 win, toasts = fresh_window()
 real_gtk = textemoji.Gtk
 textemoji.Gtk = types.SimpleNamespace(UriLauncher=RecordingLauncher)
@@ -457,9 +444,6 @@ finally:
 # missing without a single failure and a login never left the app.
 
 
-
-
-
 win, toasts = fresh_window()
 fallbacks = []
 win._open_url_fallback = fallbacks.append
@@ -478,8 +462,6 @@ try:
           fallbacks == ['https://example.social/oauth/authorize?x=2'])
 finally:
     windowlogin_module.Gtk = real_window_gtk
-
-
 
 
 if kit.failures:

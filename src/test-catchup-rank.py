@@ -28,34 +28,6 @@ sys.path.insert(0, srcdir)
 from src.catchup import rank as _rank  # noqa: E402
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Computed by the TypeScript (see the module docstring).
-
-
-
-
 # region weights
 
 from testkit.catchuprank import (ACTION_KEYS, HOUR, Base,  # noqa: E402

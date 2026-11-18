@@ -105,11 +105,6 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-# The resource modules are pure Python (no GI): their tables say which
-# verbs and list kinds a literal may name.
-
-# The path accessors of `src.api`: a helper handed one of these names no
-# path of its own, so the site needs no allow-list entry.
 from testkit import apiboundary as kit  # noqa: E402
 from testkit.apiboundary import (check, check_client_calls,  # noqa: E402
                                  check_decode_calls, compare,
@@ -117,61 +112,6 @@ from testkit.apiboundary import (check, check_client_calls,  # noqa: E402
                                  source_files)
 
 ALLOWLIST = os.path.join(srcdir, 'api-boundary-allowlist.json')
-
-# Files that are the boundary itself.
-
-# mechanism -> (layer, positional index of the path, keyword name of it,
-#               files it applies to or None for all)
-# `send` and `_send` are common local names, so they only count in the
-# modules that define the generic helper of that name.
-# `core.send_path(client, method, path, ...)` is the one sender of a path a
-# caller supplies. It is allowed only with a bare variable path (a name or
-# an attribute chain such as `self.fetch_path`, never a literal, a template
-# or a call) and only in the files that hold the generic helpers: those
-# helpers get the path from a caller this test already checks where it names
-# it. A literal anywhere, or a variable in any other file, is a site and
-# fails: the allow-list is empty and stays so.
-# Methods whose use as a value (not a call) or through getattr is a failure:
-# the scan could not see where the path goes.
-# Classes whose constructor takes a path: a subclass hands it on through
-# `super().__init__(client, '/path', ...)`, which names the path too.
-# Mechanisms whose first argument names a verb of the relationships table.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def self_check():
@@ -431,12 +371,6 @@ def _class_body_names(node):
     return names
 
 
-
-
-
-
-
-
 # The decode rule. Sending goes through `src/api`, and so must decoding: a
 # UI module takes the answer with the api module's own `<name>_finish`, or
 # `api.core.finish` / `finish_paged` for a request a generic helper started
@@ -446,10 +380,6 @@ def _class_body_names(node):
 # `src/mastodon.py` (the transport) and `src/api/` (core.finish itself) are
 # the only places that name them. File -> reason for an explicit exception;
 # empty, and each entry would need a reason.
-
-
-
-
 
 
 def main():

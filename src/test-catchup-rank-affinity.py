@@ -25,35 +25,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Computed by the TypeScript (see the module docstring).
-
-
-
-
 # region weights
 
 from testkit.catchuprank import (ACTION_KEYS, HOUR, Base,  # noqa: E402

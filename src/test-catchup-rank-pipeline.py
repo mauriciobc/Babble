@@ -28,35 +28,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Computed by the TypeScript (see the module docstring).
-
-
-
-
 # region weights
 
 from testkit.catchuprank import (HOUR, NOW, Base,  # noqa: E402
@@ -134,7 +105,6 @@ class TestRankPipeline(Base):
         self.assertIsNone(source.score)
         with self.assertRaises(dataclasses.FrozenInstanceError):
             result.score = 0
-
 
     def test_accepts_plain_status_dicts(self):
         statuses = make_fixture_statuses()
@@ -398,36 +368,6 @@ class TestMatchesTheTypeScript(Base):
 
 
 # endregion
-
-
-# region diversity fixtures
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# endregion
-
-# region html to text
 
 
 if __name__ == '__main__':

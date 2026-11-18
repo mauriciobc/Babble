@@ -75,9 +75,11 @@ from testkit.oauthkit import (REDIRECT_URI,
 
 win, toasts = fresh_window()
 client = start_attempt(win, StubClient())
-win.on_oauth_callback(REDIRECT_URI)
-win.on_oauth_callback(REDIRECT_URI)
+first_delivery = win.on_oauth_callback(REDIRECT_URI)
+second_delivery = win.on_oauth_callback(REDIRECT_URI)
 pump()
+check('the window reports the first delivery accepted, the repeat ignored',
+      first_delivery is True and second_delivery is False)
 check('delivered redirect exchanges the code once', len(client.exchanges) == 1)
 check('delivered redirect redirects to the app scheme',
       client.exchanges and client.exchanges[0][1] == OAUTH_REDIRECT)

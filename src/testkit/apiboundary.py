@@ -19,6 +19,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
+# The resource modules are pure Python (no GI): their tables say which
+# verbs and list kinds a literal may name.
 from src.api import accounts as _accounts  # noqa: E402
 from src.api import announcements as _announcements  # noqa: E402
 from src.api import filters as _filters  # noqa: E402
@@ -54,12 +56,19 @@ API_MODULES = {'accounts': _accounts, 'announcements': _announcements,
                'collections_api': _collections_api, 'polls': _polls,
                'reports': _reports, 'media': _media}
 
+# The path accessors of `src.api`: a helper handed one of these names no
+# path of its own, so the site needs no allow-list entry.
 ACCESSORS = ('list_path', 'search_path', 'familiar_followers_path')
 
+# Files that are the boundary itself.
 EXEMPT_FILES = frozenset({'src/mastodon.py'})
 
 EXEMPT_PREFIXES = ('src/api/',)
 
+# mechanism -> (layer, positional index of the path, keyword name of it,
+#               files it applies to or None for all)
+# `send` and `_send` are common local names, so they only count in the
+# modules that define the generic helper of that name.
 MECHANISMS = {
     'request_async': ('raw', 1, 'path', None),
     'send_path': ('raw', 2, 'path', None),
@@ -74,16 +83,29 @@ MECHANISMS = {
                           {'src/profile.py', 'src/profileactions.py'}),
 }
 
+# `core.send_path(client, method, path, ...)` is the one sender of a path a
+# caller supplies. It is allowed only with a bare variable path (a name or
+# an attribute chain such as `self.fetch_path`, never a literal, a template
+# or a call) and only in the files that hold the generic helpers: those
+# helpers get the path from a caller this test already checks where it names
+# it. A literal anywhere, or a variable in any other file, is a site and
+# fails: the allow-list is empty and stays so.
 SEND_PATH_FILES = frozenset({'src/completer.py', 'src/pages.py',
                              'src/timelinepage.py'})
 
 HOOK_NAME = 'search_request'
 
+# Methods whose use as a value (not a call) or through getattr is a failure:
+# the scan could not see where the path goes.
 ALIASED = frozenset({'request_async'})
 
+# Classes whose constructor takes a path: a subclass hands it on through
+# `super().__init__(client, '/path', ...)`, which names the path too.
 PATH_BASES = frozenset({'PagedList', 'AccountListPage'})
 
+# Mechanisms whose first argument names a verb of the relationships table.
 VERB_MECHANISMS = frozenset({'send_relationship'})
+
 
 def mechanism_of(call, rel, call_names, pages_names, derived, in_derived):
     """The MECHANISMS key a Call node is, or None.

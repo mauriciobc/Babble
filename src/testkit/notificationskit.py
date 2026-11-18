@@ -150,8 +150,6 @@ def fake_request_async(method, path, params=None, callback=None, **kwargs):
 client.request_async = fake_request_async
 
 
-
-
 def notification_rows(widget):
     found = [widget] if isinstance(widget, NotificationRow) else []
     child = widget.get_first_child()

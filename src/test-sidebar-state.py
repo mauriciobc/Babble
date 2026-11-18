@@ -76,6 +76,20 @@ for name in ('window.py', 'pagenav.py'):
     check('%s dismisses the overlay' % name,
           'dismiss_sidebar_overlay' in text)
 
+# The window's code is split across window*.py (login, session, places,
+# background); a set_show_content in any of them is the same regression.
+window_modules = sorted(name for name in os.listdir(srcdir)
+                        if name.startswith('window') and name.endswith('.py'))
+offenders = []
+for name in window_modules:
+    with open(os.path.join(srcdir, name), encoding='utf-8') as source:
+        if 'set_show_content' in source.read():
+            offenders.append(name)
+check('no window*.py module calls set_show_content',
+      len(window_modules) > 1 and not offenders)
+if offenders:
+    print('# set_show_content in: %s' % ', '.join(offenders))
+
 # --- the template names the widgets the code expects ------------------
 
 ui_path = os.path.join(srcdir, 'window.ui')

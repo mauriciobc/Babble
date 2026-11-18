@@ -7,8 +7,15 @@ child clearing. They know nothing of pages, accounts or the app."""
 import gi
 
 gi.require_version('Gtk', '4.0')
+gi.require_version('Adw', '1')
 
-from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
+import types  # noqa: E402
+
+from .i18n import gettext as _  # noqa: E402
+
+from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
+
+from .weakconnect import connect_weak  # noqa: E402
 
 # Motion
 
@@ -119,3 +126,36 @@ def icon_button(icon_name, tooltip, flat=True, valign=Gtk.Align.CENTER,
         button.add_css_class(name)
     set_accessible_label(button, tooltip)
     return button
+
+
+# Status pages
+
+def configure_empty_page(page, icon_name, title, description):
+    """Fill the three fields every timeline wrapper sets on ``empty_page``."""
+    page.set_icon_name(icon_name)
+    page.set_title(title)
+    page.set_description(description)
+
+
+def make_loading_page(title, description=None):
+    page = Adw.StatusPage(title=title, description=description)
+    page.set_paintable(Adw.SpinnerPaintable.new(page))
+    return page
+
+
+def make_error_page(title, on_retry):
+    """Error status page with a Try Again button calling
+    ``on_retry(button)``. A bound method is held weakly: it is normally
+    a method of the page that owns this error page, and a strong handler
+    would keep that page alive forever."""
+    page = Adw.StatusPage(icon_name='network-error-symbolic', title=title)
+    retry = Gtk.Button(label=_('_Try Again'), use_underline=True,
+                       halign=Gtk.Align.CENTER)
+    retry.add_css_class('pill')
+    retry.add_css_class('suggested-action')
+    if isinstance(on_retry, types.MethodType):
+        connect_weak(retry, 'clicked', on_retry)
+    else:
+        retry.connect('clicked', on_retry)
+    page.set_child(retry)
+    return page

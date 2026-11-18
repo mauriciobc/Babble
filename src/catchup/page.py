@@ -40,7 +40,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from .. import accounts as account_store  # noqa: E402
 from . import store as catchupstore  # noqa: E402
-from .. import appsettings, pagenav, pages  # noqa: E402
+from .. import appsettings, pagenav, uihelpers  # noqa: E402
 from ..weakconnect import connect_weak, weak_method  # noqa: E402
 from ..entities import lift  # noqa: E402
 from ..mastodon import summarize_error_markup  # noqa: E402
@@ -129,11 +129,11 @@ class CatchUpPage(PageControls, Adw.Bin):
 
         self.stack = Gtk.Stack()
         self.set_child(self.stack)
-        self.stack.add_named(pages.make_loading_page(_('Loading')),
+        self.stack.add_named(uihelpers.make_loading_page(_('Loading')),
                              'loading')
         self.stack.add_named(self._build_first_run(), 'first-run')
         self.stack.add_named(self._build_scanning(), 'scanning')
-        self.error_page = pages.make_error_page(_('Could Not Catch Up'),
+        self.error_page = uihelpers.make_error_page(_('Could Not Catch Up'),
                                                 self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self._add_keys()

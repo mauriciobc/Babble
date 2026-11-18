@@ -13,8 +13,6 @@ import gc
 import json
 import os
 # Never the user's real dconf: a test that builds a window restores the
-
-# Never the user's real dconf: a test that builds a window restores the
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import shutil
@@ -131,7 +129,6 @@ check('a cancelled page asks for nothing more and saves nothing',
 # Account removal
 
 
-
 gone = {'id': '56', 'instance': 'https://test.example'}
 kept_account = {'id': '55', 'instance': 'https://test.example'}
 settings = MemorySettings([json.dumps(gone), json.dumps(kept_account)])
@@ -195,8 +192,6 @@ if _catchup_tiles_saved is not None:
     sys.modules['src.catchup.tiles'] = _catchup_tiles_saved
 else:
     sys.modules.pop('src.catchup.tiles', None)
-
-
 
 
 if kit.failures:

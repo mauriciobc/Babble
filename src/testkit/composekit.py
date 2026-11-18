@@ -283,8 +283,6 @@ def _route(module, name):
                 *args, **kwargs))
 
 
-
-
 for _name in ('post_async', 'post_finish', 'edit_async', 'edit_finish'):
     _route(api_statuses, _name)
 for _name in ('upload_async', 'upload_finish', 'status_async',

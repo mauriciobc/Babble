@@ -28,8 +28,6 @@ TOKEN_TEXTS = [
 ]
 
 
-
-
 def clustered_feed():
     """Five authors, five topics, scored so a score sort clusters them."""
     authors = ['alice', 'bob', 'carol', 'dave', 'erin']
@@ -149,7 +147,6 @@ def div_fixture_candidates():
     return [cr.Candidate(s, True, score=score) for s, score in DIV_FIXTURES]
 
 
-
 def fixture_candidates():
     """Seven statuses (see GOLDEN) with their in-network flags."""
     return [cr.Candidate(s, FIXTURE_IN_NETWORK[s['id']])
@@ -197,9 +194,6 @@ def make_fixture_statuses():
                     age_ms=2 * HOUR, favourites=40, replies=8,
                     video_duration_secs=5, video_type='gifv'),
     ]
-
-
-
 
 
 def varied_feed():

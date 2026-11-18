@@ -573,4 +573,6 @@ class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
         self._on_code_entered(*args)
 
     def on_oauth_callback(self, uri, redirect_uri=OAUTH_REDIRECT):
-        self._oauth_callback(uri, redirect_uri)
+        """Exchange the code a redirect to *redirect_uri* carries; True
+        when this delivery was accepted, False when it was ignored."""
+        return self._oauth_callback(uri, redirect_uri)

@@ -17,6 +17,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(srcdir)
 
+# Catch Up's own modules are package submodules; the source parser records
+# their first module under `src` for each supported import form.
 CATCHUP = frozenset({
     'catchup', 'page', 'page_controls', 'pipeline', 'fetch', 'rows', 'store',
     'digest', 'digest_layout', 'rank', 'rank_text', 'rank_model', 'tiles',
@@ -27,8 +29,14 @@ RANK = frozenset({'rank', 'rank_text', 'rank_model'})
 NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage',
                  'navigation', 'tileactions'})
 
+# The harness lives outside src/ and does not exist yet; it is read only
+# once it appears.
 BENCH = ('rank_eval.py', 'ranked_stall.py')
 
+# The ways to reach the network that the harness must not take for
+# itself. The server is reached through `src/mastodon.py`, which owns the
+# token and the request shape; a second HTTP path inside the harness
+# would be a second way for a bearer token to leave the machine.
 HTTP_PATHS = frozenset({'http', 'http.client', 'urllib.request', 'requests',
                         'httpx', 'aiohttp', 'socket', 'ssl'})
 
@@ -273,6 +281,9 @@ def load_time_cycles(sources):
                      % (' -> '.join(steps), start))
     return found
 
+# R10: the page toolkit and the link registry sit below the plugin and
+# web-column modules and may not import them anywhere, function bodies
+# included; those modules register through `linkhandlers` instead.
 TOOLKIT = frozenset({'pages', 'pagenav', 'feedback', 'linkrouting',
                      'appsettings', 'weakconnect', 'linkhandlers',
                      'uihelpers', 'accountrows'})
@@ -563,6 +574,17 @@ def violations(sources: dict[str, str]) -> list[str]:
                                      ' core'
                                      % (path, node.lineno,
                                         '.' * node.level, node.module or ''))
+        if (path.startswith('src/') and not stem(path).startswith('test-')
+                and not path.startswith('src/testkit/')):
+            # R12: an installed module reaches its siblings relatively.
+            # The package is installed as `babble`, so `from src.x import`
+            # works only where the tests put the source tree on the path:
+            # the suite passes and the installed app does not start.
+            for name, line, relative in all_imports(tree):
+                if not relative and name.split('.')[0] == 'src':
+                    found.append('R12: %s:%d imports %s: an installed'
+                                 ' module imports its siblings relatively'
+                                 % (path, line, name))
     found.extend(load_time_cycles(sources))
     found.extend(pages_name_violations(sources))
     return found

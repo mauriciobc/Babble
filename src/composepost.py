@@ -26,7 +26,7 @@ from .composeschedule import _ScheduledReplacement  # noqa: E402
 from .hashtagcompleter import remember  # noqa: E402
 from .threadchain import preview_tail  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
-from src.composeoptions import default_language, default_visibility  # noqa: E402
+from .composeoptions import default_language, default_visibility  # noqa: E402
 
 
 

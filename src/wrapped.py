@@ -239,9 +239,9 @@ class WrappedDialog(feedback.ToastDialog):
         actions.add_action(action)
         self.insert_action_group('wrapped', actions)
 
-        self.stack.add_named(pages.make_loading_page(_('Loading')),
+        self.stack.add_named(uihelpers.make_loading_page(_('Loading')),
                              'loading')
-        self.error_page = pages.make_error_page(
+        self.error_page = uihelpers.make_error_page(
             _('Could Not Load'), self._on_retry)
         self.stack.add_named(self.error_page, 'error')
         self.status_page = Adw.StatusPage()
