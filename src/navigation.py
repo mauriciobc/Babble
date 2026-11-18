@@ -111,6 +111,8 @@ class PlaceHost:
 
     ``client`` and ``account`` are callables returning the current values
     (they change on account switch); the rest are callable actions.
+    ``mount_home`` / ``mount_notifications`` return the template NavPages
+    (never ``make_nav_page``); ``clear_*`` tear bin/badge content down.
     """
     client: Callable[[], Any]
     account: Callable[[], dict]
@@ -119,6 +121,10 @@ class PlaceHost:
     restricted_public_places: Callable[[], set]
     notify_place_built: Callable[[str, Any], None]
     sync_streaming: Callable[[], None]
+    mount_home: Callable[[], Any]
+    mount_notifications: Callable[[], Any]
+    clear_home: Callable[[], None]
+    clear_notifications: Callable[[Any], None]
 
 
 @dataclass
@@ -169,9 +175,35 @@ class Navigation:
     def place_timelines(self):
         """Each built place's timeline: its ``timeline`` attribute when it
         has one (list and hashtag pages wrap a timeline), else the child
-        itself. The caller decides which of them are timeline pages."""
+        itself. Home and notifications are omitted here so
+        ``StreamRouter.timeline_pages`` can put home first without
+        delivering twice. The caller decides which of them are timeline
+        pages."""
         return [getattr(child, 'timeline', child)
-                for child in self.children.values()]
+                for tag, child in self.children.items()
+                if tag not in ('home', 'notifications')]
+
+    def register_external(self, tag, nav_page, child):
+        """Record a template-rooted place (home / notifications).
+
+        *nav_page* is the Gtk.Template ``Adw.NavigationPage``; *child* is
+        the content widget in its bin. Rewrites maps on rebuild.
+        """
+        self.pages[tag] = nav_page
+        self.children[tag] = child
+
+    def unregister_external(self, tag):
+        """Drop a template-rooted place from the maps and stop its work.
+
+        Does not remove the template NavPage from the NavigationView.
+        """
+        child = self.children.pop(tag, None)
+        self.pages.pop(tag, None)
+        self._stop_work(child)
+        if tag == 'home':
+            self.host.clear_home()
+        elif tag == 'notifications':
+            self.host.clear_notifications(child)
 
     def forget(self, tag):
         """Drop one place: its page, its child and its stream."""
@@ -196,6 +228,13 @@ class Navigation:
         """
         dropped = False
         for tag in tags:
+            # Template-rooted places need their clear hooks (bins / badge
+            # handler), not only _stop_work.
+            if tag in ('home', 'notifications') and (
+                    tag in self.children or tag in self.pages):
+                self.unregister_external(tag)
+                dropped = True
+                continue
             child = self.children.pop(tag, None)
             if self.pages.pop(tag, None) is not None or child is not None:
                 dropped = True
@@ -237,10 +276,16 @@ class Navigation:
         """Stop every built place's work and drop the maps.
 
         Does not sync streaming: account switch has already stopped the
-        socket and must not restart it for the outgoing client.
+        socket and must not restart it for the outgoing client. Template
+        places also run their host clear hooks (bins / badge).
         """
-        for child in list(self.children.values()):
-            self._stop_work(child)
+        for tag in list(self.children):
+            if tag in ('home', 'notifications'):
+                self.unregister_external(tag)
+            else:
+                child = self.children.pop(tag, None)
+                self.pages.pop(tag, None)
+                self._stop_work(child)
         self.pages.clear()
         self.children.clear()
         self.pinned_lists.clear()
@@ -312,6 +357,10 @@ class Navigation:
         page = self.pages.get(tag)
         if page is not None:
             return page
+        if tag == 'home':
+            return self.host.mount_home()
+        if tag == 'notifications':
+            return self.host.mount_notifications()
         child = self.build_place(tag)
         if child is None:
             return None

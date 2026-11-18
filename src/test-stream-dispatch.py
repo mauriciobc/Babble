@@ -75,10 +75,12 @@ class World:
         self.public = public
         self.home = rec['home'] if with_pages else None
         self.notifications = rec['notifications'] if with_pages else None
-        # Shaped like the real navigation: local and federated are built
-        # places (its ``children``), and each place's timeline is listed
-        # once, in build order.
-        self.places = {'local': rec['local'],
+        # Shaped like the real navigation: home/notifications/local/
+        # federated are built places; place_timelines omits home and
+        # notifications so timeline_pages can put home first once.
+        self.places = {'home': rec['home'],
+                       'notifications': rec['notifications'],
+                       'local': rec['local'],
                        'federated': rec['federated'],
                        'conversations': rec['conversations']} \
             if with_pages else {}
@@ -89,12 +91,19 @@ class World:
         self.timelines = [rec['local'], rec['federated'], rec['list'],
                           rec['tagpage']] if with_pages else []
 
+    def place(self, tag):
+        """Read mutable home/notifications attrs so a test reassignment
+        is visible on the next event (places dict alone would go stale)."""
+        if tag == 'home':
+            return self.home
+        if tag == 'notifications':
+            return self.notifications
+        return self.places.get(tag)
+
     def host(self):
         log = self.log
         return StreamHost(
-            home_page=lambda: self.home,
-            notifications_page=lambda: self.notifications,
-            place=self.places.get,
+            place=self.place,
             stream_places=lambda: list(self.stream_places),
             place_timelines=lambda: list(self.timelines),
             is_timeline=lambda page: isinstance(page, TimelineRecorder),

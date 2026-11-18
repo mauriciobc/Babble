@@ -163,13 +163,11 @@ class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
         self.client = None
         self.account = None
         self._no_keyring_shown = False
-        self.timeline_page = None
         self.timeline_model = None
         self.compose_dialog = None
         # Files handed over by Open With (or a bare compose request)
         # before an account was signed in; delivered once one is.
         self._pending_compose = None
-        self.notifications_page = None
         self._unread_handler = None
         self.navigation = navigation.Navigation(navigation.PlaceHost(
             client=lambda: self.client,
@@ -179,6 +177,10 @@ class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
             restricted_public_places=self._restricted_public_places,
             notify_place_built=self._public_place_built,
             sync_streaming=self._sync_streaming,
+            mount_home=self._mount_home,
+            mount_notifications=self._mount_notifications,
+            clear_home=self._clear_home_bin,
+            clear_notifications=self._clear_notifications_page,
         ))
         # Sidebar rebuild, mode/visibility sync and pinned entries.
         # Runtime overlay/rail state lives on the host (ARCH-15).
@@ -518,6 +520,35 @@ class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
     def show_preferences(self):
         from .preferences import present_preferences
         return present_preferences(self)
+
+    @property
+    def timeline_page(self):
+        """Home timeline content: single source in navigation.children."""
+        return self.navigation.children.get('home')
+
+    @timeline_page.setter
+    def timeline_page(self, page):
+        """Register or drop the home content child (tests and rebuilds)."""
+        if page is None:
+            self.navigation.children.pop('home', None)
+            self.navigation.pages.pop('home', None)
+            return
+        self.navigation.register_external('home', self.page_home, page)
+
+    @property
+    def notifications_page(self):
+        """Notifications content: single source in navigation.children."""
+        return self.navigation.children.get('notifications')
+
+    @notifications_page.setter
+    def notifications_page(self, page):
+        """Register or drop the notifications content child."""
+        if page is None:
+            self.navigation.children.pop('notifications', None)
+            self.navigation.pages.pop('notifications', None)
+            return
+        self.navigation.register_external(
+            'notifications', self.page_notifications, page)
 
     def _apply_auto_refresh(self):
         seconds = int(self.settings.get_string('auto-refresh'))

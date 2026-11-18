@@ -430,6 +430,22 @@ check('a place with work in flight stops it when it is dropped',
       stopped == ['cancel'] and 'conversations' not in routing.children)
 check('and is not asked to catch up afterwards', 'refresh' not in stopped)
 
+# Visit-time mark-read / catch-up must run on every open of notifications,
+# including when Navigation returns the cached template page (mount is
+# skipped after the first ensure/register).
+shown = []
+window.notifications_page = types.SimpleNamespace(
+    client=window.client,
+    on_shown=lambda: shown.append('shown'),
+    on_hidden=lambda: shown.append('hidden'),
+    header_widget=Gtk.Label())
+window.show_page('notifications')
+window.show_page('home')
+window.show_page('notifications')
+check('opening notifications again still runs on_shown',
+      shown == ['shown', 'hidden', 'shown'])
+window.notifications_page = None
+
 if failures:
     raise SystemExit('%d navigation window checks failed' % len(failures))
 print('all navigation window checks passed')
