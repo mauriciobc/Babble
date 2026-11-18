@@ -635,21 +635,21 @@ def _sparsify_dense(dense):
 # order), ``pool_size`` how many of the top-scored posts may move.
 # ``embeddings`` are precomputed dense vectors, used only if every pooled
 # one is EMBEDDING_DIM wide. ``get_score`` overrides candidate_score.
-def diversity_rerank(candidates, *, penalty='dpp', theta=None, lambda_=None,
-                     limit=None, pool_size=None, embeddings=None,
-                     get_score=None):
+def diversity_rerank(candidates, *, penalty='dpp',
+                     theta=DEFAULT_DIVERSITY_THETA,
+                     lambda_=DEFAULT_DIVERSITY_LAMBDA,
+                     limit=DEFAULT_DIVERSITY_LIMIT,
+                     pool_size=DEFAULT_DIVERSITY_POOL_SIZE,
+                     embeddings=None, get_score=candidate_score):
     n = len(candidates)
     if n < 2:
         return list(candidates)
 
     mode = penalty
-    lam = DEFAULT_DIVERSITY_LAMBDA if lambda_ is None else lambda_
-    theta = min(max(DEFAULT_DIVERSITY_THETA if theta is None else theta, 0),
-                1 - 1e-6)
+    lam = lambda_
+    theta = min(max(theta, 0), 1 - 1e-6)
     q_coefficient = theta / (1 - theta)
-    get_score = candidate_score if get_score is None else get_score
-    pool_size = max(0, min(n, DEFAULT_DIVERSITY_POOL_SIZE
-                           if pool_size is None else pool_size))
+    pool_size = max(0, min(n, pool_size))
 
     scores = [get_score(c) for c in candidates]
 
@@ -666,14 +666,8 @@ def diversity_rerank(candidates, *, penalty='dpp', theta=None, lambda_=None,
 
     # q_i = score_i / max_score, as vm-ranker normalises. If the scorer
     # emitted nothing positive, that ratio is meaningless: use min-max.
-    low = math.inf
-    high = -math.inf
-    for i in pool:
-        s = scores[i]
-        if s < low:
-            low = s
-        if s > high:
-            high = s
+    low = min(scores[i] for i in pool)
+    high = max(scores[i] for i in pool)
     if high > EPSILON:
         q = [scores[pool[p]] / high for p in range(m)]
     else:
@@ -692,8 +686,7 @@ def diversity_rerank(candidates, *, penalty='dpp', theta=None, lambda_=None,
         idf = compute_token_idf(features)
         vectors = [sparse_embed(f, idf) for f in features]
 
-    limit = max(0, min(m, DEFAULT_DIVERSITY_LIMIT if limit is None
-                       else limit))
+    limit = max(0, min(m, limit))
     # (index, value) pairs in each vector's own order: the dot product below
     # adds in that order, and so must any faster form of it.
     pairs = [list(zip(v.indices, v.values, strict=True)) for v in vectors]
