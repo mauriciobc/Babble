@@ -118,11 +118,7 @@ def _display_scale():
     whichever one the window ends up on."""
     display = Gdk.Display.get_default()
     monitors = display.get_monitors() if display is not None else None
-    scale = 1.0
-    for index in range(monitors.get_n_items() if monitors else 0):
-        monitor = monitors.get_item(index)
-        scale = max(scale, monitor.get_scale())
-    return scale
+    return max([1.0, *(monitor.get_scale() for monitor in monitors or ())])
 
 
 def _peek_bytes(data, count):

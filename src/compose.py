@@ -444,8 +444,7 @@ class BabbleComposeView(QuotePaste, ComposeDraft, ComposeOptions,
         selected = self.language_row.get_selected()
         if selected < len(self._languages):
             languages = provider.list_languages()
-            available = [languages.get_item(index).get_code()
-                         for index in range(languages.get_n_items())]
+            available = [language.get_code() for language in languages]
             code = spelling_language(self._languages[selected][0], available,
                                      GLib.get_language_names())
         else:

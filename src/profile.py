@@ -437,9 +437,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
              AccountStatuses(self.client, account_id, media=True,
                              exclude_replies=not show_media_replies)),
         )
-        model = self.view_stack.get_pages()
-        for page in [model.get_item(i).get_child()
-                     for i in range(model.get_n_items())]:
+        for page in [p.get_child() for p in self.view_stack.get_pages()]:
             if isinstance(page, ProfileTimeline):
                 self.view_stack.remove(page)
         timeline_pages = []

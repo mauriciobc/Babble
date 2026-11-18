@@ -483,8 +483,7 @@ class ComposeAttachments(GObject.Object):
                 self._on_error(_('Could not open the file picker'),
                                e.message)
             return
-        self.add_files(
-            [files.get_item(index) for index in range(files.get_n_items())])
+        self.add_files(list(files))
 
     def on_screenshot_clicked(self, _button):
         """Take a screenshot through the portal, which lets the user

@@ -276,8 +276,7 @@ class SidebarHost:
                 gone_tags.add(page_tag)
         stack = window.navigation_view.get_navigation_stack()
         under = False
-        for i in range(stack.get_n_items()):
-            item = stack.get_item(i)
+        for item in stack:
             if item is None:
                 continue
             if item in gone:

@@ -96,8 +96,7 @@ class NotificationController:
         if not getattr(client, 'token', None):
             return
         instance = getattr(client, 'instance', '')
-        for position in range(self.model.get_n_items()):
-            item = self.model.get_item(position)
+        for item in self.model:
             if item.kind != 'follow' or len(item.actors) != 1:
                 continue
             actor = item.actors[0]
