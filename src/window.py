@@ -526,10 +526,29 @@ class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
         """Home timeline content: single source in navigation.children."""
         return self.navigation.children.get('home')
 
+    @timeline_page.setter
+    def timeline_page(self, page):
+        """Register or drop the home content child (tests and rebuilds)."""
+        if page is None:
+            self.navigation.children.pop('home', None)
+            self.navigation.pages.pop('home', None)
+            return
+        self.navigation.register_external('home', self.page_home, page)
+
     @property
     def notifications_page(self):
         """Notifications content: single source in navigation.children."""
         return self.navigation.children.get('notifications')
+
+    @notifications_page.setter
+    def notifications_page(self, page):
+        """Register or drop the notifications content child."""
+        if page is None:
+            self.navigation.children.pop('notifications', None)
+            self.navigation.pages.pop('notifications', None)
+            return
+        self.navigation.register_external(
+            'notifications', self.page_notifications, page)
 
     def _apply_auto_refresh(self):
         seconds = int(self.settings.get_string('auto-refresh'))

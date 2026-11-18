@@ -47,10 +47,12 @@ class WindowPlaces:
         return self.page_home
 
     def _mount_notifications(self):
-        """PlaceHost: ensure notifications and return the template NavPage."""
+        """PlaceHost: ensure notifications and return the template NavPage.
+
+        ``on_shown()`` is not called here: the page may already be cached
+        in Navigation, so visit-time work runs from :meth:`show_page`.
+        """
         self.ensure_notifications_page()
-        if self.notifications_page is not None:
-            self.notifications_page.on_shown()
         return self.page_notifications
 
     def _clear_home_bin(self):
@@ -251,6 +253,10 @@ class WindowPlaces:
         if previous == 'notifications' and tag != 'notifications' \
                 and self.notifications_page is not None:
             self.notifications_page.on_hidden()
+        # Visit-time catch-up / mark-read, including when Navigation
+        # returned a cached notifications page (mount is skipped).
+        if tag == 'notifications' and self.notifications_page is not None:
+            self.notifications_page.on_shown()
         self.navigation_view.replace([page])
         self._select_item(tag)
         self.dismiss_sidebar_overlay()

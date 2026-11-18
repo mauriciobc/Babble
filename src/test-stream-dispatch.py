@@ -91,10 +91,19 @@ class World:
         self.timelines = [rec['local'], rec['federated'], rec['list'],
                           rec['tagpage']] if with_pages else []
 
+    def place(self, tag):
+        """Read mutable home/notifications attrs so a test reassignment
+        is visible on the next event (places dict alone would go stale)."""
+        if tag == 'home':
+            return self.home
+        if tag == 'notifications':
+            return self.notifications
+        return self.places.get(tag)
+
     def host(self):
         log = self.log
         return StreamHost(
-            place=self.places.get,
+            place=self.place,
             stream_places=lambda: list(self.stream_places),
             place_timelines=lambda: list(self.timelines),
             is_timeline=lambda page: isinstance(page, TimelineRecorder),

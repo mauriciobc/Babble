@@ -228,6 +228,13 @@ class Navigation:
         """
         dropped = False
         for tag in tags:
+            # Template-rooted places need their clear hooks (bins / badge
+            # handler), not only _stop_work.
+            if tag in ('home', 'notifications') and (
+                    tag in self.children or tag in self.pages):
+                self.unregister_external(tag)
+                dropped = True
+                continue
             child = self.children.pop(tag, None)
             if self.pages.pop(tag, None) is not None or child is not None:
                 dropped = True
