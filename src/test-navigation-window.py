@@ -15,7 +15,6 @@ import os
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import gc
 import sys
-import time
 import types
 
 import gi
@@ -40,9 +39,9 @@ if not os.path.exists(bundle):
     print('SKIP - no compiled babble.gresource; run meson compile first')
     sys.exit(77)
 Adw.init()
-# Adw.NavigationView.replace animates under mutter's frame clock; with
-# animations on, a busy-spin of MainContext.iteration(False) can finish
-# before the stack settles. Off for deterministic place-teardown checks.
+# Push/pop still animate with gtk-enable-animations; off so place-teardown
+# checks do not race mutter's frame clock for transitions that are not
+# replace() (which Adw documents as unanimated).
 Gtk.Settings.get_default().set_property('gtk-enable-animations', False)
 Gio.Resource.load(bundle)._register()
 
@@ -324,25 +323,30 @@ window.navigation_view.push(Adw.NavigationPage.new(Gtk.Label(), 'thread'))
 stack = window.navigation_view.get_navigation_stack()
 check('a page is pushed on top of Local',
       stack.get_n_items() == 2 and window.visible_tag() is None)
-window.settings.set_boolean('hide-local', True)
-# replace() can still lag a beat under the frame clock even with
-# animations off. Wait up to 2s with idle sleep; match home by identity
-# or by the template page's tag (fresh PyGObject wrappers).
-stack_reset = False
-context = GLib.MainContext.default()
-deadline = time.monotonic() + 2.0
-while time.monotonic() < deadline:
-    stack = window.navigation_view.get_navigation_stack()
-    visible = window.navigation_view.get_visible_page()
-    if stack.get_n_items() == 1 and (
-            visible == window.page_home
-            or (visible is not None and visible.get_tag() == 'home')):
-        stack_reset = True
-        break
-    if not context.iteration(False):
-        time.sleep(0.002)
+# Observe replace() itself: Adw emits ::replaced when the stack is
+# swapped (no animation). Reading get_navigation_stack() afterwards
+# raced mutter's clock on CI even after show_page('home') had run —
+# the forgotten child was already freed. Capture the stack in the
+# signal so the assert does not depend on a later frame.
+replaced = []
+
+
+def _on_replaced(view):
+    model = view.get_navigation_stack()
+    visible = view.get_visible_page()
+    replaced.append((
+        model.get_n_items(),
+        visible == window.page_home
+        or (visible is not None and visible.get_tag() == 'home')))
+
+
+replaced_id = window.navigation_view.connect('replaced', _on_replaced)
+try:
+    window.settings.set_boolean('hide-local', True)
+finally:
+    window.navigation_view.disconnect(replaced_id)
 check('hiding Local under a pushed page resets the stack to home',
-      stack_reset)
+      replaced == [(1, True)])
 del under_page, under_child, stack
 for _ in range(5):
     gc.collect()
