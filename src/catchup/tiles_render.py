@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Lazy post, news and hashtag tile widgets for Catch Up Highlights.
+"""Lazy post tile widgets for Catch Up Highlights.
 
-Each tile builds its content on the idle queue after it is mapped. Shared
-GTK primitives live in ``tiles.py``; dimensions and text preparation live
-in ``geometry.py``.
+``PostTile`` (and its ``_Tile`` base) build on the idle queue after they
+are mapped. News and hashtag tiles live in ``tiles_cards``. Shared GTK
+primitives live in ``tiles.py``; dimensions and text preparation live in
+``geometry.py``.
 """
 
 import collections
@@ -20,23 +21,17 @@ gi.require_version('Pango', '1.0')
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
-from ..charts import Sparkline  # noqa: E402
-from .. import (explore, hashtags, linkrouting, statustext,  # noqa: E402
-                uihelpers)
-from . import digest as catchupdigest, digest_layout  # noqa: E402
-from .. import mediacache, mediabox, statusactions
+from .. import mediacache, mediabox, statusactions, statustext  # noqa: E402
+from . import digest as catchupdigest  # noqa: E402
 from .. import timelinebase
 from ..accounts import plain_name
 from ..weakconnect import connect_weak
 from ..textemoji import status_emoji_bank  # noqa: E402
 from .geometry import (
-    FOOTER_HEIGHT, INSET_TEXT_CHARS, MAX_COLUMN, NEWS_IMAGE_SHARE,
-    QUOTE_SHORT_CHARS, ROW_HEIGHT, SHARER_AVATARS, TAG_AVATARS,
-    segments_text, span_cover, split_headline,
+    INSET_TEXT_CHARS, MAX_COLUMN, QUOTE_SHORT_CHARS, segments_text,
+    span_cover, split_headline,
 )
-from .tiles import (
-    _AvatarStack, _FitText, _first_icon, _icon, _label, _pill,
-    _trending_pill)
+from .tiles import _FitText, _icon, _label, _trending_pill
 from .. import tileactions
 from ..mediaopen import MediaOpener
 

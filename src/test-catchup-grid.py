@@ -35,6 +35,7 @@ sys.path.insert(0, srcdir)
 
 from src.catchup import digest_layout as cd  # noqa: E402
 from src.catchup import geometry, tiles as _tiles  # noqa: E402
+from src.catchup import tiles_cards as _tiles_cards  # noqa: E402
 from src.catchup import tiles_render as _tiles_render  # noqa: E402
 from src import (appsettings, explore, hashtags, mediacache, mediabox,  # noqa: E402
                  statusactions, statusmenu, statustext, tileactions,
@@ -43,6 +44,7 @@ from src.catchup.pipeline import Digest  # noqa: E402
 
 catchupgrid = types.SimpleNamespace(**{
     **vars(geometry), **vars(_tiles), **vars(_tiles_render),
+    **vars(_tiles_cards),
     'statustext': statustext})
 
 failures = []

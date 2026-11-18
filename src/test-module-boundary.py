@@ -31,7 +31,7 @@ root = os.path.dirname(srcdir)
 CATCHUP = frozenset({
     'catchup', 'page', 'page_controls', 'pipeline', 'fetch', 'rows', 'store',
     'digest', 'digest_layout', 'rank', 'rank_text', 'rank_model', 'tiles',
-    'tiles_render', 'geometry'})
+    'tiles_render', 'tiles_cards', 'geometry'})
 RANK = frozenset({'rank', 'rank_text', 'rank_model'})
 NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage',
                  'navigation', 'tileactions'})
