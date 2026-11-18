@@ -519,55 +519,34 @@ msgid ""
 "remembers the volume, follows reduced motion and asks before loading media "
 "your server has no copy of. Animated GIFs can play inline in timelines (off "
 "by default), and custom emoji are animated."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:72
+msgstr "O visualizador de mídia agora transmite vídeos em vez de baixá-los primeiro, lembra o volume, respeita a redução de movimento e pergunta antes de carregar mídia da qual seu servidor não tem cópia. GIFs animados podem ser reproduzidos diretamente nas timelines (desativado por padrão), e emojis personalizados são animados."
 msgid ""
 "Posts bridged from Bluesky are shown natively. The Brazilian Portuguese "
 "translation is complete, with a user manual and help in Portuguese, and "
 "German, Spanish and French cover all but a few of the newest settings."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:78
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:102
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:124
+msgstr "Publicações do Bluesky que chegam pela ponte são exibidas nativamente. A tradução para português do Brasil está completa, com um manual do usuário e ajuda em português, e o alemão, o espanhol e o francês cobrem tudo, exceto alguns dos ajustes mais recentes."
 msgid "Other changes:"
 msgstr "Outras alterações:"
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:80
 msgid "New settings: Autoplay Animated Media and Load Media Automatically."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:81
+msgstr "Novos ajustes: Reproduzir mídia animada automaticamente e Carregar mídia automaticamente."
 msgid ""
 "The media viewer opens from notifications and Catch Up, and media still "
 "processing on the server is shown as such."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:82
+msgstr "O visualizador de mídia abre a partir das notificações e do Catch Up, e a mídia ainda em processamento no servidor é mostrada como tal."
 msgid ""
 "The composer follows a thread's progress, adds a content warning to replies, "
 "and quotes a post from a pasted link."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:83
+msgstr "O editor acompanha o progresso de uma conversa, adiciona um aviso de conteúdo às respostas e cita uma publicação a partir de um link colado."
 msgid "Editing a post shows the media it already has."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:84
+msgstr "Editar uma publicação mostra a mídia que ela já tem."
 msgid "Plugins can show panels in the web column."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:85
-#, fuzzy
+msgstr "Plugins podem mostrar painéis na coluna web."
 msgid "Notifications honour the filters set on your server."
-msgstr "Notificações retidas pelos seus filtros aparecerão aqui"
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:86
+msgstr "As notificações respeitam os filtros definidos no seu servidor."
 msgid "Large remote images are bounded before they are downloaded and decoded."
-msgstr ""
-
-#: data/io.github.mauriciobc.Babble.metainfo.xml.in:92
+msgstr "Imagens remotas grandes são limitadas antes de serem baixadas e decodificadas."
 msgid ""
 "Babble can now be extended with plugins, turned on from a new Plugins page. "
 "Two ship with it: Wallabag, to save a post's link for later, and Hashpanel, "

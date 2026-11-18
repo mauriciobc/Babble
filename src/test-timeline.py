@@ -51,31 +51,9 @@ from src.timelinebase import (decodable_attachment_url,  # noqa: E402
                               COLUMN_WIDTH)
 from src.statustext import parse_content, relative_time  # noqa: E402
 
-failures = []
-
-
-def check(name, condition):
-    if condition:
-        print('ok - %s' % name)
-    else:
-        failures.append(name)
-        print('FAIL - %s' % name)
-
-
-# A failed home request must stay an error. It used to fall back to the
-# public timeline, which replaced the reader's home with posts from
-# accounts they do not follow.
-class _HomeFailureClient:
-    def __init__(self):
-        self.public_requests = 0
-
-    def request_async(self, _method, path, *_args, **_kwargs):
-        if path == '/timelines/public':
-            self.public_requests += 1
-
-    def request_finish(self, _result):
-        raise GLib.Error('home failed', 'mastodon-http-error-quark', 500)
-
+from testkit import timelinekit as kit  # noqa: E402
+from testkit.timelinekit import (_HomeFailureClient, _boost,  # noqa: E402
+                                 _post, check, settle)
 
 failure_client = _HomeFailureClient()
 failure_page = TimelinePage(failure_client, mode='home', autoload=False)
@@ -268,16 +246,6 @@ check('model inserts a carousel row',
 check('model does not duplicate boosts inline',
       sum(1 for i in range(_group_model.get_n_items())
           if _group_model.get_item(i).is_boost) == 0)
-
-
-def _post(i):
-    return {'id': '%05d' % i, 'content': '', 'created_at': '',
-            'account': {'acct': 'a%d' % i, 'id': str(i)}}
-
-
-def _boost(i, of):
-    return dict(_post(i), account={'acct': 'booster', 'id': 'b'},
-                reblog=_post(of))
 
 
 _page = [_post(100 - i) for i in range(6)] \
@@ -764,14 +732,6 @@ print('note - %d GtkPicture media widgets instantiated' % len(pictures))
 # A large one-step shrink
 # (1270 -> 500) used to leave margin-inflated minimums behind and push
 # the cards off the right edge.
-def settle(seconds):
-    end = time_module.monotonic() + seconds
-    while time_module.monotonic() < end:
-        ctx = GLib.MainContext.default()
-        while ctx.iteration(False):
-            pass
-
-
 for width in (1270, 500, 1270, 800):
     window.set_default_size(width, 900)
     settle(1.5)
@@ -795,7 +755,7 @@ for width in (1270, 500, 1270, 800):
           abs(inner.size.width - min(viewport, cap)) <= 1)
     check('column centered at %d' % width, abs(left - right) <= 1)
 
-if failures:
-    print('%d checks failed' % len(failures))
+if kit.failures:
+    print('%d checks failed' % len(kit.failures))
     sys.exit(1)
 print('all timeline rendering checks passed')

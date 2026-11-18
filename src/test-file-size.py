@@ -109,19 +109,8 @@ testkit_files = [name for name in every_python
 # entry whose file is already under the limit is stale and fails below, so
 # the list cannot outlive the work.
 PENDING_TEST_SPLITS = frozenset((
-    'test-api-boundary.py',
-    'test-api-golden.py',
-    'test-catchup-digest.py',
-    'test-catchup-rank.py',
-    'test-catchup.py',
-    'test-compose.py',
     'test-home-filters.py',
-    'test-module-boundary.py',
-    'test-nareal.py',
-    'test-notifications.py',
-    'test-oauth-callback.py',
     'test-paged-list.py',
-    'test-timeline.py',
 ))
 sized = [os.path.join(srcdir, name) for name in modules + testkit_files]
 sized += [os.path.join(srcdir, name)
