@@ -325,16 +325,42 @@ def _response(session, message, result):
 
 class _PageSlot:
     """A place on screen extensions fill: a hashtag page's banner box
-    (*hashtag* set), or one plugin's settings page (*plugin_id* set). It
+    (*hashtag* set) or one plugin's settings page (*plugin_id* set). It
     holds the page and its box weakly: the page owns both, and its going
-    is what deactivates the extensions."""
+    is what deactivates the extensions. A subclass says which classes
+    fill it (None: not this plugin's) and how they are built."""
 
     def __init__(self, host, page, box, hashtag=None, plugin_id=None):
         self.hashtag = hashtag
         self.plugin_id = plugin_id
         self.box_ref = box.weak_ref()
-        self.extensions = {}  # plugin id -> [(extension, banner or None)]
+        # plugin id -> [(extension, banner or None, handler or None)]
+        self.extensions = {}
         self._page_ref = page.weak_ref(host._page_gone, self)
+
+
+class _HashtagSlot(_PageSlot):
+    def classes(self, host, plugin_id):
+        return host.page_classes.get(plugin_id, ())
+
+    def construct(self, context, cls, box):
+        return context.guard(cls, context, self.hashtag, widget=box)
+
+    def create(self, context, extension, box):
+        return context.guard(extension.create_banner, widget=box)
+
+
+class _PreferencesSlot(_PageSlot):
+    def classes(self, host, plugin_id):
+        if self.plugin_id != plugin_id:
+            return None
+        return host.preference_classes.get(plugin_id, ())
+
+    def construct(self, context, cls, box):
+        return context.guard(cls, context, widget=box)
+
+    def create(self, context, extension, box):
+        return context.guard(extension.create_preferences, widget=box)
 
 
 class PluginHost:
@@ -592,12 +618,10 @@ class PluginHost:
                             context, item, post, widget)))
         return entries
 
-    # Main menu
-
     # Hashtag pages
 
     def attach_hashtag_page(self, page, hashtag, box):
-        slot = _PageSlot(self, page, box, hashtag=hashtag)
+        slot = _HashtagSlot(self, page, box, hashtag=hashtag)
         self.slots.append(slot)
         for plugin_id in list(self.page_classes):
             self._attach(plugin_id, slot)
@@ -610,7 +634,7 @@ class PluginHost:
     def attach_preferences(self, plugin_id, page, box):
         """Fill *box*, on *page*, with *plugin_id*'s settings; they go
         when the page does or the plugin is disabled."""
-        slot = _PageSlot(self, page, box, plugin_id=plugin_id)
+        slot = _PreferencesSlot(self, page, box, plugin_id=plugin_id)
         self.slots.append(slot)
         self._attach(plugin_id, slot)
 
@@ -619,25 +643,16 @@ class PluginHost:
         box = slot.box_ref()
         if context is None or box is None:
             return
-        if slot.hashtag is not None:
-            classes = self.page_classes.get(plugin_id, ())
-        elif slot.plugin_id == plugin_id:
-            classes = self.preference_classes.get(plugin_id, ())
-        else:
+        classes = slot.classes(self, plugin_id)
+        if classes is None:
             return
         attached = slot.extensions.setdefault(plugin_id, [])
         for cls in classes:
-            if slot.hashtag is not None:
-                extension = context.guard(cls, context, slot.hashtag,
-                                          widget=box)
-            else:
-                extension = context.guard(cls, context, widget=box)
+            extension = slot.construct(context, cls, box)
             if extension is None:
                 return
             context.guard(extension.activate, widget=box)
-            create = extension.create_banner if slot.hashtag is not None \
-                else extension.create_preferences
-            banner = context.guard(create, widget=box)
+            banner = slot.create(context, extension, box)
             if not context.active:
                 return
             from gi.repository import Gtk
