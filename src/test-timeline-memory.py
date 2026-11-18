@@ -115,7 +115,8 @@ changes.clear()
 check('an edit changes the post in place',
       model.replace_status({'id': '00020', 'content': '<p>edited</p>'})
       and changes == [])
-carousel = timelinedata.BoostCarouselItem([status(5)], [])
+carousel = timelinedata.BoostCarouselItem(
+    [status(5)], [dict(status(105), reblog=status(5))])
 model._store.insert(0, carousel)
 changes.clear()
 carousel.set_boosts([status(6)])
