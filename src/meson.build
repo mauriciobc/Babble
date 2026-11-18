@@ -357,6 +357,16 @@ test('oauth callback', python,
   env: fatal_test_env,
   timeout: 120,
 )
+test('oauth callback app', python,
+  args: [files('test-oauth-callback-app.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('oauth callback session', python,
+  args: [files('test-oauth-callback-session.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 test('oauth loopback', python,
   args: [files('test-oauth-loopback.py')],
   env: fatal_test_env,
@@ -620,6 +630,16 @@ test('catchup digest', python,
   env: test_env,
   timeout: 60,
 )
+test('catchup digest trends', python,
+  args: [files('test-catchup-digest-trends.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup digest grid', python,
+  args: [files('test-catchup-digest-grid.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('file size rule', python,
   args: [files('test-file-size.py')],
   env: test_env,
@@ -805,6 +825,36 @@ test('catchup rank', python,
   env: test_env,
   timeout: 60,
 )
+test('catchup rank engagement', python,
+  args: [files('test-catchup-rank-engagement.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank affinity', python,
+  args: [files('test-catchup-rank-affinity.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank pipeline', python,
+  args: [files('test-catchup-rank-pipeline.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank text', python,
+  args: [files('test-catchup-rank-text.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank embedding', python,
+  args: [files('test-catchup-rank-embedding.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('catchup rank rerank', python,
+  args: [files('test-catchup-rank-rerank.py')],
+  env: test_env,
+  timeout: 60,
+)
 test('search provider', python,
   args: [files('test-searchprovider.py')],
   env: fatal_test_env,
@@ -812,6 +862,16 @@ test('search provider', python,
 )
 test('catchup page', python,
   args: [files('test-catchup.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('catchup snapshots', python,
+  args: [files('test-catchup-snapshots.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+test('catchup runs', python,
+  args: [files('test-catchup-runs.py')],
   env: fatal_test_env,
   timeout: 120,
 )
