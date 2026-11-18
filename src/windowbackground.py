@@ -88,24 +88,38 @@ class WindowBackground:
     def _catch_up_after_outage(self):
         """Fetch what was posted while the stream was down.
 
-        The stream does not replay. The notifications page has a list to
-        catch up (a poll may not have run since the last notification
-        arrived); so has every other open place: a list, a hashtag, the
-        local and federated timelines and the conversations would keep
-        showing what was there when the socket went down until the reader
-        refreshed them by hand."""
-        if self.timeline_page is not None:
-            self.timeline_page.refresh()
+        The stream does not replay. Which built places refresh comes from
+        :func:`navigation.place_policy`; this method only decides when.
+        Dedupes by ``id(page)`` so unhashable test doubles still skip a
+        second refresh. Timeline pages use the stream host's
+        ``is_timeline`` check; conversations (and any other non-timeline
+        with ``catch_up='refresh'``) call ``refresh`` directly.
+        """
+        from .navigation import place_policy
+        seen = set()
+        home = self.timeline_page
+        if home is not None:
+            home.refresh()
+            seen.add(id(home))
         if self.notifications_page is not None:
             self.notifications_page.catch_up()
-        for page in self.stream_router.timeline_pages():
-            # A place never loaded has nothing to catch up on; asking would
-            # send it a first-page request it never wanted.
-            if page is not self.timeline_page and page.has_loaded():
+        is_timeline = self.stream_router.host.is_timeline
+        for tag, child in self.navigation.children.items():
+            if place_policy(tag).catch_up != 'refresh':
+                continue
+            page = getattr(child, 'timeline', child)
+            if page is None or id(page) in seen:
+                continue
+            seen.add(id(page))
+            if is_timeline(page):
+                # A place never loaded has nothing to catch up on.
+                if not page.has_loaded():
+                    continue
                 page.refresh()
-        conversations = self.navigation.children.get('conversations')
-        if conversations is not None:
-            conversations.refresh()
+                continue
+            refresh = getattr(page, 'refresh', None)
+            if refresh is not None:
+                refresh()
 
     def _on_stream_event(self, _manager, stream, name, payload):
         # Which page receives which event is the router's knowledge; the

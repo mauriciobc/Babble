@@ -149,6 +149,11 @@ class CatchUpPage(PageControls, Adw.Bin):
         self.cancel()
         Adw.Bin.do_dispose(self)
 
+    def close_requests(self):
+        """Stop in-flight work when the place is dropped (Navigation
+        ``_stop_work``). Same as :meth:`cancel`."""
+        self.cancel()
+
     def cancel(self):
         """Stop everything in flight (the page is closed or the account
         changed); nothing more is saved or shown."""

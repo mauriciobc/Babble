@@ -31,6 +31,45 @@ HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
 
 
+@dataclass(frozen=True)
+class PlacePolicy:
+    """What happens after a place is built, and how outage catch-up
+    treats it. Product choices are rows here, not ``startswith`` forks.
+
+    ``streams``: subscribe via the stream router after build.
+    ``auto_refresh``: also run the window refresh timer (implies stream
+    sync through ``notify_place_built`` today).
+    ``catch_up``: ``'refresh'`` if loaded, ``'catch_up'`` for the
+    notifications page API, or ``None``.
+    """
+    streams: bool = False
+    auto_refresh: bool = False
+    catch_up: str | None = None
+
+
+def place_policy(tag):
+    """Policy for *tag*. Home is listed for documentation and outage
+    membership; Navigation does not build it (template-mounted)."""
+    if tag == 'home':
+        # User stream is session-level; home still auto-refreshes.
+        return PlacePolicy(streams=False, auto_refresh=True,
+                           catch_up='refresh')
+    if tag in PUBLIC_TAGS:
+        return PlacePolicy(streams=True, auto_refresh=True,
+                           catch_up='refresh')
+    if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
+        return PlacePolicy(streams=True, auto_refresh=False,
+                           catch_up='refresh')
+    if tag in ('favourites', 'bookmarks'):
+        # No place stream; still refresh after an outage if loaded.
+        return PlacePolicy(streams=False, auto_refresh=False,
+                           catch_up='refresh')
+    if tag == 'notifications':
+        return PlacePolicy(streams=False, auto_refresh=False,
+                           catch_up='catch_up')
+    return PlacePolicy()
+
+
 def place_title(tag):
     return {
         'home': _('Home'), 'catch-up': _('Catch Up'),
@@ -150,6 +189,9 @@ class Navigation:
         (held by a reference cycle until the next collection) cannot be
         answered after it was dropped.
 
+        Session teardown uses :meth:`clear` instead (stop work, no
+        ``sync_streaming``), so the outgoing client is not restarted.
+
         Does nothing when none of *tags* is built.
         """
         dropped = False
@@ -167,20 +209,38 @@ class Navigation:
         switch does."""
         if child is None:
             return
-        # Only the Catch-Up page has cancel(); the others are paged
-        # lists, closed through close_requests().
-        cancel = getattr(child, 'cancel', None)
-        if cancel is not None:
-            cancel()                    # a catch-up in flight
-        timeline = getattr(child, 'timeline', child)
-        stop = getattr(timeline, 'set_auto_refresh_interval', None)
-        if stop is not None:
-            stop(0)
-        close = getattr(timeline, 'close_requests', None)
+        # Prefer close_requests() (Catch-Up maps it to cancel(); paged
+        # lists and SearchPage close their scopes — SearchPage's method
+        # lands with the request-scope search PR). Fall back to cancel()
+        # for older pages that only have that name.
+        close = getattr(child, 'close_requests', None)
         if close is not None:
             close()
+        else:
+            cancel = getattr(child, 'cancel', None)
+            if cancel is not None:
+                cancel()
+        timeline = getattr(child, 'timeline', child)
+        if timeline is not child:
+            stop = getattr(timeline, 'set_auto_refresh_interval', None)
+            if stop is not None:
+                stop(0)
+            close = getattr(timeline, 'close_requests', None)
+            if close is not None:
+                close()
+        else:
+            stop = getattr(child, 'set_auto_refresh_interval', None)
+            if stop is not None:
+                stop(0)
 
     def clear(self):
+        """Stop every built place's work and drop the maps.
+
+        Does not sync streaming: account switch has already stopped the
+        socket and must not restart it for the outgoing client.
+        """
+        for child in list(self.children.values()):
+            self._stop_work(child)
         self.pages.clear()
         self.children.clear()
         self.pinned_lists.clear()
@@ -260,10 +320,11 @@ class Navigation:
             sidebar_control=self.host.make_sidebar_control)
         self.pages[tag] = page
         self.children[tag] = child
-        if tag in PUBLIC_TAGS:
+        policy = place_policy(tag)
+        if policy.auto_refresh:
             # After ``children`` holds it: the host reads ``public_pages``
             # to start the stream and the refresh timer.
             self.host.notify_place_built(tag, child)
-        if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
+        elif policy.streams:
             self.host.sync_streaming()
         return page
