@@ -13,7 +13,6 @@ empty state. It also proves a list and its rows are freed once dropped,
 and (the last checks) that the test itself can fail. Exits 77 (skip)
 without a display."""
 
-import gc
 import logging
 import os
 # Never the user's real dconf: a test that builds a window restores the
@@ -26,7 +25,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -43,129 +42,10 @@ from src import (feedback, hashtaglists, pages, scheduled,  # noqa: E402
                  weakconnect)
 from src.api import core as api_core  # noqa: E402
 
-failures = []
-CONTEXT = GLib.MainContext.default()
-
-
-def check(name, condition):
-    if condition:
-        print('ok - %s' % name)
-    else:
-        failures.append(name)
-        print('FAIL - %s' % name)
-
-
-def settle():
-    """Run what is queued on the main loop (the idle fill), not more."""
-    for _attempt in range(20):
-        if not CONTEXT.iteration(False):
-            return
-
-
-def freed(ref, attempts=5):
-    for _attempt in range(attempts):
-        if gc.collect() is not None:
-            gc.collect()
-        if ref() is None:
-            return True
-    return ref() is None
-
-
-class Request:
-    def __init__(self, method, path, params, callback, cancellable):
-        self.method = method
-        self.path = path
-        self.params = params
-        self.callback = callback
-        self.cancellable = cancellable
-
-
-class FakeClient:
-    """The two calls ``PagedList`` makes of a client. It models the real
-    transport's cancellation: a cancelled request still calls back, and
-    finishing it raises CANCELLED even when its answer had arrived."""
-
-    def __init__(self):
-        self.sent = []
-        self.finished = 0
-
-    def request_async(self, method, path, params=None, form=None,
-                      json_body=None, callback=None, cancellable=None):
-        self.sent.append(Request(method, path, dict(params or {}),
-                                 callback, cancellable))
-
-    def request_finish_paged(self, result):
-        self.finished += 1
-        if result[0] == 'cancelled':
-            raise GLib.Error.new_literal(
-                Gio.io_error_quark(), 'Operation was cancelled',
-                Gio.IOErrorEnum.CANCELLED)
-        if result[0] == 'error':
-            raise GLib.Error.new_literal(
-                Gio.io_error_quark(), result[1], Gio.IOErrorEnum.FAILED)
-        return result[1], result[2], None
-
-    def _deliver(self, request, result):
-        if request.cancellable is not None \
-                and request.cancellable.is_cancelled():
-            result = ('cancelled',)
-        request.callback(self, result, None)
-
-    def answer(self, items, next_params=None, request=None):
-        request = request or self.sent[-1]
-        self._deliver(request, ('ok', items, next_params))
-
-    def fail(self, request=None, message='boom'):
-        request = request or self.sent[-1]
-        self._deliver(request, ('error', message))
-
-
-def item(number, **extra):
-    data = {'id': str(number), 't': 'row %d' % number}
-    data.update(extra)
-    return data
-
-
-def make_row(data):
-    if data.get('skip'):
-        return None
-    return Adw.ActionRow(title=data['t'])
-
-
-def build(client=None, fill=False, **kwargs):
-    client = client or FakeClient()
-    kwargs.setdefault('empty_title', 'Nothing')
-    lst = pages.PagedList(client, '/things', make_row, **kwargs)
-    if not fill:
-        # The idle fill asks for the next page of a list that never
-        # scrolled; tests that drive load_more by hand turn it off.
-        lst._maybe_fill = lambda: GLib.SOURCE_REMOVE
-    return client, lst
-
-
-def page_name(lst):
-    return lst.stack.get_visible_child_name()
-
-
-def children(lst):
-    out = []
-    child = lst.list_box.get_first_child()
-    while child is not None:
-        out.append(child)
-        child = child.get_next_sibling()
-    return out
-
-
-def texts(lst):
-    return [row.get_title() for row in lst.rows]
-
-
-def in_step(lst):
-    """rows and list_box agree (a placeholder may be the one extra)."""
-    boxed = children(lst)
-    extra = [lst.placeholder] if lst.placeholder is not None else []
-    return boxed == lst.rows + extra or boxed == extra + lst.rows
-
+from testkit import pagedlist as kit  # noqa: E402
+from testkit.pagedlist import (FakeClient, build,  # noqa: E402
+                               check, children, freed, in_step, item,
+                               make_row, page_name, settle, texts)
 
 reported = []
 real_report = feedback.report_error
@@ -1061,7 +941,7 @@ check('self-check: the order check fails on a wrong order',
 
 feedback.report_error = real_report
 
-if failures:
-    print('%d checks failed' % len(failures))
+if kit.failures:
+    print('%d checks failed' % len(kit.failures))
     sys.exit(1)
 print('all paged list checks passed')
