@@ -83,14 +83,8 @@ class PollBox(Gtk.Box):
 
     def _build_form(self, poll):
         multiple = bool(poll.get('multiple'))
-        first = None
         for index, option in enumerate(poll.get('options') or []):
             button = Gtk.CheckButton()
-            if not multiple:
-                if first is None:
-                    first = button
-                else:
-                    button.set_group(first)
             button.set_child(self._label(option))
             connect_weak(button, 'toggled', self._on_choice_toggled)
             button.update_property([Gtk.AccessibleProperty.LABEL],
@@ -98,6 +92,8 @@ class PollBox(Gtk.Box):
             button.babble_index = index
             self._choices.append(button)
             self.append(button)
+        if not multiple:
+            uihelpers.join_radio(self._choices)
 
     def _selected(self):
         return [b.babble_index for b in self._choices if b.get_active()]

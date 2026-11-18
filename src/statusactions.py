@@ -654,21 +654,17 @@ class StatusActions(_PostBound, Adw.WrapBox):
         listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         listbox.add_css_class('boxed-list')
         checks = {}
-        group = None
         for value in allowed:
             title, icon = VISIBILITY_INFO[value]
             check = Gtk.CheckButton(active=value == default,
                                     valign=Gtk.Align.CENTER)
-            if group is None:
-                group = check
-            else:
-                check.set_group(group)
             checks[value] = check
             row = Adw.ActionRow(title=title, subtitle=descriptions[value],
                                 activatable_widget=check)
             row.add_prefix(Gtk.Image(icon_name=icon))
             row.add_prefix(check)
             listbox.append(row)
+        uihelpers.join_radio(checks.values())
         dialog = Adw.AlertDialog(heading=_('Boost With Visibility'))
         dialog.set_extra_child(listbox)
         dialog.add_response('cancel', _('_Cancel'))

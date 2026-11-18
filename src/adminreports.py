@@ -177,17 +177,16 @@ class ReportDialog(feedback.ToastDialog):
             description=_('The reason this account and/or content was '
                           'reported will be cited in communication with '
                           'the reported account'))
-        first = None
         self.category_checks = {}
         for key, title in CATEGORIES:
-            check = Gtk.CheckButton(group=first, valign=Gtk.Align.CENTER)
-            first = first or check
+            check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             check.set_active(key == category)
             row = Adw.ActionRow(title=title, activatable_widget=check,
                                 sensitive=not resolved)
             row.add_prefix(check)
             self.category_group.add(row)
             self.category_checks[key] = check
+        uihelpers.join_radio(self.category_checks.values())
         self.page.add(self.category_group)
         self.rules_group = Adw.PreferencesGroup(
             title=_('Violated Rules'), visible=category == 'violation')
@@ -424,17 +423,16 @@ class TakeActionDialog(feedback.ToastDialog):
             css='destructive-action')
 
         group = Adw.PreferencesGroup()
-        first = None
         self.checks = {}
         for key, title, description in self.ACTIONS:
-            check = Gtk.CheckButton(group=first, valign=Gtk.Align.CENTER)
-            first = first or check
+            check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             check.set_active(key == 'none')
             row = Adw.ActionRow(title=title, subtitle=description,
                                 subtitle_lines=0, activatable_widget=check)
             row.add_prefix(check)
             group.add(row)
             self.checks[key] = check
+        uihelpers.join_radio(self.checks.values())
         self.page.add(group)
 
         details = Adw.PreferencesGroup()
