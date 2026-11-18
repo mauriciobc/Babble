@@ -203,9 +203,8 @@ class WindowSession:
         if self.compose_dialog is not None:
             self.compose_dialog.abandon_session()
         self.compose_dialog = None
-        catch_up = self.navigation.children.get('catch-up')
-        if catch_up is not None:
-            catch_up.cancel()           # a catch-up in flight stops here
+        # navigation.clear() stops Catch-Up via close_requests() and
+        # must not sync_streaming (socket already stopped above).
         self.timeline_page = None
         self.timeline_model = None
         self.home_bin.set_child(None)

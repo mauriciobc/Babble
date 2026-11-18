@@ -31,6 +31,41 @@ HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
 
 
+@dataclass(frozen=True)
+class PlacePolicy:
+    """What happens after a place is built, and how outage catch-up
+    treats it. Product choices are rows here, not ``startswith`` forks.
+
+    ``streams``: subscribe via the stream router after build.
+    ``auto_refresh``: also run the window refresh timer (implies stream
+    sync through ``notify_place_built`` today).
+    ``catch_up``: ``'refresh'`` if loaded, ``'catch_up'`` for the
+    notifications page API, or ``None``.
+    """
+    streams: bool = False
+    auto_refresh: bool = False
+    catch_up: str | None = None
+
+
+def place_policy(tag):
+    """Policy for *tag*. Home is listed for documentation and outage
+    membership; Navigation does not build it (template-mounted)."""
+    if tag == 'home':
+        # User stream is session-level; home still auto-refreshes.
+        return PlacePolicy(streams=False, auto_refresh=True,
+                           catch_up='refresh')
+    if tag in PUBLIC_TAGS:
+        return PlacePolicy(streams=True, auto_refresh=True,
+                           catch_up='refresh')
+    if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
+        return PlacePolicy(streams=True, auto_refresh=False,
+                           catch_up='refresh')
+    if tag == 'notifications':
+        return PlacePolicy(streams=False, auto_refresh=False,
+                           catch_up='catch_up')
+    return PlacePolicy()
+
+
 def place_title(tag):
     return {
         'home': _('Home'), 'catch-up': _('Catch Up'),
@@ -138,8 +173,9 @@ class Navigation:
         """Drop one place: its page, its child and its stream."""
         self.forget_many([tag])
 
-    def forget_many(self, tags):
-        """Drop several places at once, and let the stream know once.
+    def forget_many(self, tags, sync=True):
+        """Drop several places at once, and optionally let the stream
+        know once.
 
         A place that is gone must not stay subscribed: the socket would
         keep receiving events for a timeline nobody shows, and a public
@@ -150,6 +186,10 @@ class Navigation:
         (held by a reference cycle until the next collection) cannot be
         answered after it was dropped.
 
+        *sync* is True for the sidebar path. Session teardown passes
+        False: it has already ``streaming.stop()`` and must not restart
+        the old client through ``sync_streaming``.
+
         Does nothing when none of *tags* is built.
         """
         dropped = False
@@ -158,7 +198,7 @@ class Navigation:
             if self.pages.pop(tag, None) is not None or child is not None:
                 dropped = True
             self._stop_work(child)
-        if dropped:
+        if sync and dropped:
             self.host.sync_streaming()
 
     @staticmethod
@@ -167,20 +207,37 @@ class Navigation:
         switch does."""
         if child is None:
             return
-        # Only the Catch-Up page has cancel(); the others are paged
-        # lists, closed through close_requests().
-        cancel = getattr(child, 'cancel', None)
-        if cancel is not None:
-            cancel()                    # a catch-up in flight
-        timeline = getattr(child, 'timeline', child)
-        stop = getattr(timeline, 'set_auto_refresh_interval', None)
-        if stop is not None:
-            stop(0)
-        close = getattr(timeline, 'close_requests', None)
+        # Prefer close_requests() (Catch-Up maps it to cancel(); search
+        # and paged lists close their scopes). Fall back to cancel() for
+        # older pages that only have that name.
+        close = getattr(child, 'close_requests', None)
         if close is not None:
             close()
+        else:
+            cancel = getattr(child, 'cancel', None)
+            if cancel is not None:
+                cancel()
+        timeline = getattr(child, 'timeline', child)
+        if timeline is not child:
+            stop = getattr(timeline, 'set_auto_refresh_interval', None)
+            if stop is not None:
+                stop(0)
+            close = getattr(timeline, 'close_requests', None)
+            if close is not None:
+                close()
+        else:
+            stop = getattr(child, 'set_auto_refresh_interval', None)
+            if stop is not None:
+                stop(0)
 
     def clear(self):
+        """Stop every built place's work and drop the maps.
+
+        Does not sync streaming: account switch has already stopped the
+        socket and must not restart it for the outgoing client.
+        """
+        for child in list(self.children.values()):
+            self._stop_work(child)
         self.pages.clear()
         self.children.clear()
         self.pinned_lists.clear()
@@ -260,10 +317,11 @@ class Navigation:
             sidebar_control=self.host.make_sidebar_control)
         self.pages[tag] = page
         self.children[tag] = child
-        if tag in PUBLIC_TAGS:
+        policy = place_policy(tag)
+        if policy.auto_refresh:
             # After ``children`` holds it: the host reads ``public_pages``
             # to start the stream and the refresh timer.
             self.host.notify_place_built(tag, child)
-        if tag == 'conversations' or tag.startswith(('list:', 'tag:')):
+        elif policy.streams:
             self.host.sync_streaming()
         return page

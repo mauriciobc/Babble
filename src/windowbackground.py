@@ -88,24 +88,32 @@ class WindowBackground:
     def _catch_up_after_outage(self):
         """Fetch what was posted while the stream was down.
 
-        The stream does not replay. The notifications page has a list to
-        catch up (a poll may not have run since the last notification
-        arrived); so has every other open place: a list, a hashtag, the
-        local and federated timelines and the conversations would keep
-        showing what was there when the socket went down until the reader
-        refreshed them by hand."""
-        if self.timeline_page is not None:
+        The stream does not replay. Membership comes from
+        :func:`navigation.place_policy`; this method only decides when."""
+        from .navigation import place_policy
+        if place_policy('home').catch_up == 'refresh' \
+                and self.timeline_page is not None:
             self.timeline_page.refresh()
-        if self.notifications_page is not None:
+        if place_policy('notifications').catch_up == 'catch_up' \
+                and self.notifications_page is not None:
             self.notifications_page.catch_up()
-        for page in self.stream_router.timeline_pages():
+        seen = {self.timeline_page}
+        for tag, child in self.navigation.children.items():
+            policy = place_policy(tag)
+            if policy.catch_up != 'refresh':
+                continue
+            page = getattr(child, 'timeline', child)
+            if page in seen:
+                continue
+            seen.add(page)
             # A place never loaded has nothing to catch up on; asking would
             # send it a first-page request it never wanted.
-            if page is not self.timeline_page and page.has_loaded():
-                page.refresh()
-        conversations = self.navigation.children.get('conversations')
-        if conversations is not None:
-            conversations.refresh()
+            has_loaded = getattr(page, 'has_loaded', None)
+            if has_loaded is not None and not has_loaded():
+                continue
+            refresh = getattr(page, 'refresh', None)
+            if refresh is not None:
+                refresh()
 
     def _on_stream_event(self, _manager, stream, name, payload):
         # Which page receives which event is the router's knowledge; the
