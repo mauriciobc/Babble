@@ -17,7 +17,6 @@ from gi.repository import Adw, Gtk  # noqa: E402
 
 from . import accounts as account_store  # noqa: E402
 from . import pagenav  # noqa: E402
-from . import pages  # noqa: E402
 from . import uihelpers  # noqa: E402
 from . import webcolumn  # noqa: E402
 from .api import timelines as api_timelines  # noqa: E402

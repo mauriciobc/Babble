@@ -20,10 +20,7 @@ from .collectionbase import _is_member, _items  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .mastodon import summarize_error_markup  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
-from src.collectionbase import (_send_api,
-    collection_limit,
-    format_date,
-    owner_label)  # noqa: E402
+from .collectionbase import (_send_api, collection_limit, format_date, owner_label)  # noqa: E402
 
 
 

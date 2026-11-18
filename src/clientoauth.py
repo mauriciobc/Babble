@@ -25,12 +25,7 @@ from .keyringstore import (clear_secret_async,
     load_secret_async,
     store_secret_async)  # noqa: E402
 from .oauthpkce import APP_WEBSITE, CLIENT_CREDENTIALS_KIND  # noqa: E402
-from src.oauthpkce import (OAUTH_REDIRECT,
-    OAUTH_SCOPES,
-    REDIRECT_URIS,
-    code_challenge,
-    generate_code_verifier,
-    new_state)  # noqa: E402
+from .oauthpkce import (OAUTH_REDIRECT, OAUTH_SCOPES, REDIRECT_URIS, code_challenge, generate_code_verifier, new_state)  # noqa: E402
 
 
 class OAuthMixin:

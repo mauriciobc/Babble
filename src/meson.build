@@ -94,7 +94,6 @@ install_data(
   'notificationcopy.py',
   'notificationctrl.py',
   'oauthpkce.py',
-  'oauthpkce.py',
   'notificationmodel.py',
   'notificationpolicy.py',
   'notificationrow.py',
