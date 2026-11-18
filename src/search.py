@@ -443,6 +443,11 @@ class SearchPage(Adw.Bin):
         self.entry.set_text('')
 
     def close_requests(self):
+        """Close the request scope (Navigation ``_stop_work`` on teardown).
+
+        This is the sole ``SearchPage.close_requests``: place-teardown
+        must not ship a serial-bump stub alongside it.
+        """
         self._scope.close()
 
     def do_dispose(self):
