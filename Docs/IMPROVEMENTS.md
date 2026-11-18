@@ -752,9 +752,10 @@ base cannot fake one. Final resolutions:
   dashboard). Still unscoped reads, in this order: search (its own
   `_generation`) and typeahead (`completer.py` keeps its own
   `Gio.Cancellable`), the profile's other reads (header, relationships,
-  familiar followers), the admin dashboard's measures and dimensions
-  (`admin.send` passes no cancellable), Wrapped, and the composer's state
-  epochs. The error-helper item is narrower than written above:
+  familiar followers), Wrapped, and the composer's state epochs. The
+  admin dashboard's measures and dimensions now share a `StateStack`
+  ticket (`begin` + `start` fan-in; `adminbase.send` stays write-only).
+  The error-helper item is narrower than written above:
   `feedback.report_error` (and so `call_api`) is already silent on
   CANCELLED; what remains is `ToastDialog.error` and the direct
   `summarize_error`/`summarize_error_markup` callers. DEF-21 and DEF-11 are done;

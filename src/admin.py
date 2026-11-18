@@ -63,7 +63,7 @@ class DashboardPage(StatePage):
     def __init__(self, ctx, **kwargs):
         super().__init__(ctx, **kwargs)
         self.days = 30
-        self._generation = 0
+        self._fan_in = None
         self.period = Adw.ToggleGroup()
         self.period.add(Adw.Toggle(name='7', label=_('7 Days')))
         self.period.add(Adw.Toggle(name='30', label=_('30 Days')))
@@ -84,50 +84,55 @@ class DashboardPage(StatePage):
         return start.format('%F'), end.format('%F')
 
     def refresh(self):
-        self._generation += 1
-        generation = self._generation
-        self.show_loading()
+        # One begin() for the pair: measures and dimensions share a
+        # generation so a period toggle cancels both; the second leg
+        # joins through start(). send() stays write-only elsewhere.
+        token = self.stack.begin()
         start, end = self._window()
-        state = {'pending': 2, 'measures': None, 'dimensions': None,
-                 'errors': []}
-
-        def settle():
-            state['pending'] -= 1
-            if state['pending'] or generation != self._generation:
-                return
-            if len(state['errors']) == 2:
-                self.show_error(state['errors'][0])
-                return
-            for error in state['errors']:
-                self.ctx.error(_('Could not load some statistics'), error)
-            self.show_content(self._build(state['measures'] or [],
-                                          state['dimensions'] or []))
-
-        def got(key):
-            def ok(data):
-                state[key] = data
-                settle()
-            return ok
-
-        def failed(error):
-            state['errors'].append(error)
-            settle()
-
+        self._fan_in = {'token': token, 'pending': 2,
+                        'measures': None, 'dimensions': None, 'errors': []}
         client = self.ctx.client
         measures = {'start_at': start, 'end_at': end,
                     'keys': [key for key, _t in self.MEASURES]}
         dimensions = {'start_at': start, 'end_at': end, 'limit': 8,
                       'keys': [key for key, _t, _l in self.DIMENSIONS]}
-        send(client,
-             lambda cb: admin_api.measures_async(client, measures,
-                                                 callback=cb),
-             admin_api.measures_finish,
-             got('measures'), failed)
-        send(client,
-             lambda cb: admin_api.dimensions_async(client, dimensions,
-                                                   callback=cb),
-             admin_api.dimensions_finish,
-             got('dimensions'), failed)
+        admin_api.measures_async(
+            client, measures,
+            callback=token.callback(self._on_measures),
+            cancellable=token.cancellable)
+        dim_token = self.stack.start()
+        admin_api.dimensions_async(
+            client, dimensions,
+            callback=dim_token.callback(self._on_dimensions),
+            cancellable=dim_token.cancellable)
+
+    def _on_measures(self, client, result):
+        self._dashboard_leg('measures', client, result,
+                            admin_api.measures_finish)
+
+    def _on_dimensions(self, client, result):
+        self._dashboard_leg('dimensions', client, result,
+                            admin_api.dimensions_finish)
+
+    def _dashboard_leg(self, key, client, result, finish):
+        state = self._fan_in
+        if state is None or not state['token'].wanted():
+            return
+        try:
+            state[key] = finish(client, result)
+        except GLib.Error as error:
+            state['errors'].append(error)
+        state['pending'] -= 1
+        if state['pending'] or not state['token'].wanted():
+            return
+        self._fan_in = None
+        if len(state['errors']) == 2:
+            self.show_error(state['errors'][0])
+            return
+        for error in state['errors']:
+            self.ctx.error(_('Could not load some statistics'), error)
+        self.show_content(self._build(state['measures'] or [],
+                                      state['dimensions'] or []))
 
     def _build(self, measures, dimensions):
         page = Adw.PreferencesPage()
