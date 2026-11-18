@@ -81,7 +81,8 @@ jobs:
         # concurrently, they race against each other and flake on a
         # perfectly clean tree (roughly 1 run in 3). A condition-wait in
         # a test cannot cancel that, because the contention is between
-        # tests, not inside one. Priced at about a minute of wall clock.
+        # tests, not inside one. Its wall-clock cost is recorded in
+        # CLAUDE.md (Commands), the one place the suite's figures live.
         # -j1 is meson's serial switch, not a retry knob: the run stays
         # honest, one test at a time.
         env:

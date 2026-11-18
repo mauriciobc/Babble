@@ -94,7 +94,6 @@ install_data(
   'notificationcopy.py',
   'notificationctrl.py',
   'oauthpkce.py',
-  'oauthpkce.py',
   'notificationmodel.py',
   'notificationpolicy.py',
   'notificationrow.py',
@@ -257,10 +256,9 @@ install_data(
 # The monitor size has to match the Xvfb screen: at 1024x768 the
 # geometry-sensitive tests (compose widgets, compose replies, which
 # holds the dialog geometry, and timeline memory) fail,
-# because the dialogs they measure get a smaller window. The mutter run
-# gives 65 passed / 1 skipped (streaming helpers, which needs a secret
-# service), measured on 2026-10-21; the Xvfb count has not been re-taken
-# since it was 49.
+# because the dialogs they measure get a smaller window. The suite's
+# current size, result and run time are recorded in one place only,
+# CLAUDE.md (Commands); update them there, not here.
 test_env = environment()
 test_env.set('BABBLE_SRCDIR', meson.current_source_dir())
 test_env.set('BABBLE_BUILDDIR', meson.project_build_root())

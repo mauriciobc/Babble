@@ -21,8 +21,8 @@ XDG_RUNTIME_DIR=$(mktemp -d) dbus-run-session -- \
   `timeline memory` assert window geometry; xvfb-run's 640x480 default is
   why they used to flake. The geometry tests fail at any other size.
 - Xvfb remains a fallback: `xvfb-run -a dbus-run-session -- meson test -C
-  build -j1`. Both give 49 passed / 1 skipped (`streaming helpers`, which
-  needs a secret service).
+  build -j1`. The suite's current size, result and run time are recorded
+  in one place only, `CLAUDE.md` (Commands); update them there.
 - `thread profile render` (`src/test-thread-profile.py`) and `oauth
   callback` (`src/test-oauth-callback.py`) are the exception: each spawns
   its own Xvfb at 1280x1024 and forces `GDK_BACKEND=x11` for a
