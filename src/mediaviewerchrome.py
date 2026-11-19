@@ -72,6 +72,11 @@ class MediaViewerChrome:
                            self._on_fullscreen_clicked)
         self.header.pack_end(self.fullscreen_button)
 
+        self.pip_button = _icon_button(
+            'babble-pip-in-symbolic', _('Minimize to Picture-in-Picture'))
+        connect_weak(self.pip_button, 'clicked', self._on_pip_clicked)
+        self.header.pack_end(self.pip_button)
+
         menu = Gio.Menu()
         menu.append(_('_Copy URL'), 'viewer.copy-url')
         copy_image = Gio.MenuItem.new(_('Copy _Image'), 'viewer.copy-image')

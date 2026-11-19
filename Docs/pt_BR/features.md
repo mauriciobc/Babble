@@ -19,8 +19,10 @@ O inventário completo de recursos. O [README](../README.md) traz a versão curt
   nativa: uma publicação que cita outra mostra a publicação citada como um
   cartão, e o cartão abre uma página do Bluesky somente leitura com a
   publicação, as publicações que ela cita e as respostas a ela.
-- Emoji personalizado em linha onde aparecer um `:shortcode:`, e um visualizador
-  de mídia com zoom, vídeo, áudio e texto alternativo.
+  - Emoji personalizado em linha onde aparecer um `:shortcode:`, e um visualizador
+  de mídia com zoom, vídeo, áudio e texto alternativo. Um vídeo pode sair do
+  visualizador para um pequeno cartão de picture-in-picture e continuar tocando
+  enquanto você rola.
 - Anúncios da instância, com reações.
 - O seu #Wrapstodon do ano, se o seu servidor tiver um para você.
 

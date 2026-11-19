@@ -77,6 +77,7 @@ A lista completa, atualizada pelo próprio aplicativo, abre com **Ctrl+?** (item
 |---|---|
 | Anexo anterior / seguinte | **←**, **→** |
 | Tela cheia | **F** |
+| Picture-in-Picture | **P** |
 | Fechar | **Escape** |
 | Aproximar / afastar | **+**, **-** |
 | Ajustar à janela | **0** |
@@ -264,6 +265,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Everywhere` | Todo lugar |
 | `Excluding` | Excluindo |
 | `Exit Fullscreen` | Sair da tela cheia |
+| `Expand` | Expandir |
 | `Explore` | Explorar |
 | `Favorite` | Favoritar |
 | `Favorites` | Favoritos |
@@ -357,6 +359,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Members of the List` | Membros da lista |
 | `Mention` | Mencionar |
 | `Mentions` | Menções |
+| `Minimize to Picture-in-Picture` | Minimizar para Picture-in-Picture |
 | `Moderated Accounts` | Contas moderadas |
 | `Moderation` | Moderação |
 | `Moderation Warnings` | Advertências da moderação |
@@ -411,12 +414,14 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Other Popular Servers` | Outros servidores populares |
 | `Page Actions` | Ações da página |
 | `Pasted image` | Imagem colada |
+| `Pause` | Pausar |
 | `Pause Animation` | Pausar animação |
 | `People Not Following You` | Pessoas que não seguem você |
 | `People You Don’t Follow` | Pessoas que você não segue |
 | `People You Follow` | Pessoas que você segue |
 | `Pin to Sidebar` | Fixar na barra lateral |
 | `Pinned` | Fixadas |
+| `Play` | Reproduzir |
 | `Play Animation` | Reproduzir animação |
 | `Plugins` | Plugins |
 | `Plugins Are Unavailable` | Plugins indisponíveis |
@@ -466,6 +471,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Remove Account` | Remover conta |
 | `Remove Attachment` | Remover anexo |
 | `Remove This Catch-Up` | Remover este Catch Up |
+| `Replay` | Repetir |
 | `Replies` | Respostas |
 | `Reply` | Responder |
 | `Report sent` | Denúncia enviada |

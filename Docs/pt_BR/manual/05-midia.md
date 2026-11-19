@@ -63,7 +63,7 @@ O visualizador **não é uma janela separada**: ele cobre a janela principal, e 
 
 O título diz o tipo do anexo: `Image`, `Video`, `Animated GIF`, `Audio` ou `Attachment`. Com mais de um anexo, aparece o subtítulo `{atual} de {total}`.
 
-Os botões são `Close`, `Fullscreen` (que vira `Exit Fullscreen`), `Save As…` e um menu `More Actions`:
+Os botões são `Close`, `Minimize to Picture-in-Picture` (vídeos e GIFs animados), `Fullscreen` (que vira `Exit Fullscreen`), `Save As…` e um menu `More Actions`:
 
 | Item | O que faz |
 |---|---|
@@ -83,6 +83,7 @@ Os botões são `Close`, `Fullscreen` (que vira `Exit Fullscreen`), `Save As…`
 |---|---|
 | **←** / **→** | Vai para o anexo anterior ou o seguinte. |
 | **F** | Alterna a tela cheia. |
+| **P** | Manda o vídeo em reprodução para o cartão de picture-in-picture. |
 | **Esc** | Fecha o visualizador. |
 | **+** / **-** | Aproxima e afasta. |
 | **0** | Ajusta à janela. |
@@ -90,6 +91,22 @@ Os botões são `Close`, `Fullscreen` (que vira `Exit Fullscreen`), `Save As…`
 ### A descrição
 
 Sob a mídia há um botão `ALT`, cuja dica é `Show or Hide Description`. O texto é selecionável, o que permite copiá-lo.
+
+### Picture-in-Picture
+
+Um vídeo ou um GIF animado em reprodução pode sair para um cartão pequeno e continuar tocando enquanto você continua rolando: clique em `Minimize to Picture-in-Picture` no cabeçalho do visualizador (ou pressione **P**). O cartão aparece sobre a janela, no canto inferior direito por padrão, e o visualizador fecha. A reprodução não recomeça: o cartão continua de onde o visualizador estava.
+
+O cartão tem três botões na parte de baixo:
+
+| Botão | O que faz |
+|---|---|
+| `Pause` / `Play` / `Replay` | Para, retoma ou — depois que o vídeo terminou — recomeça do início. |
+| `Expand` | Devolve a mídia ao visualizador, na mesma posição, ainda tocando. |
+| `Close` | Para a reprodução e libera o reprodutor. |
+
+Arraste o cartão na direção do canto que você quer; ao soltar, ele vai para lá, a 24 px das bordas. Cada direção age por si: um arrasto reto para cima ou para baixo mantém o lado atual, e o mesmo vale para a esquerda ou a direita. Um arrasto curto não o move. Com o cartão em foco (clique uma vez na área do vídeo), as setas movem-no entre os cantos. A posição é lembrada enquanto a janela estiver aberta, não entre sessões.
+
+Existe uma única superfície de reprodução por vez: abrir a mídia de outra publicação com o cartão tocando fecha o cartão, e fechar a janela também o fecha. O cartão mantém as mesmas regras do visualizador — um GIF animado fica mudo e continua repetindo, e um vídeo mantém a tela acordada.
 
 ### Quando a mídia não abre
 

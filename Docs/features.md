@@ -19,7 +19,8 @@ The full feature inventory. The [README](../README.md) has the short version.
   card opens a read-only Bluesky page with the post, the posts it quotes
   and the replies to it.
 - Custom emoji inline wherever a `:shortcode:` turns up, and a media viewer
-  with zoom, video, audio and alt text.
+  with zoom, video, audio and alt text. A video can move out of the viewer
+  into a small picture-in-picture card that keeps playing while you scroll.
 - Instance announcements, with reactions.
 - Your yearly #Wrapstodon, if your server has one for you.
 
