@@ -284,6 +284,7 @@ class WebColumn(Adw.Bin):
             group.add_action(action)
         self._pip_action = group.lookup_action('minimize-pip')
         self._pip_action.set_enabled(self.panel is None)
+        self._actions = group
         self._open_link_action = Gio.SimpleAction.new(
             'open-link', GLib.VariantType.new('s'))
         connect_weak(self._open_link_action, 'activate',

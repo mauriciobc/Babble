@@ -158,6 +158,10 @@ webcolumn.present_web(host, 'about:blank')
 column = host.web_slot.get_child()
 check('present_web builds the column', column is not None)
 check('sidebar shown', host.web_split.get_show_sidebar())
+check('the pip button exists',
+      column.pip_button is not None and column.pip_button.get_visible())
+check('the pip action exists',
+      'minimize-pip' in column._actions.list_actions())
 
 view = column.view
 loaded = []
