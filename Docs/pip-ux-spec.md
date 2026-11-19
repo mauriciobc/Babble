@@ -74,11 +74,15 @@ settings for size, position persistence, or always-on-top.
   close (`window-close-symbolic`). Each has a tooltip that doubles as
   its accessible label (`uihelpers.set_accessible_label`).
 - **Drag and snap.** Drag from anywhere on the card, OSD buttons
-  excepted. While dragging the card follows the pointer freely over the
-  window; on release it snaps to the nearest corner with a 24px margin
-  (margins only, RTL-safe — mirror the horizontal margin in RTL). The
-  default position is bottom-right. Position is remembered per window
-  in memory only; nothing is tunable.
+  excepted. The card does not follow the pointer (GTK 4.24 offers no
+  way to move a mapped widget per frame without reallocating all of
+  the content behind it); a drag flicks it once to the nearest corner
+  of the drag's direction, with a 24px margin, on release. A short
+  drag (under 12px in both axes) is a tap and does not move it. The
+  keyboard path is the same thing: with the card focused, the arrow
+  keys move it between the corners. The default position is
+  bottom-right. Position is remembered per window in memory only;
+  nothing is tunable.
 - **Width.** Base width ~240px; height follows the stream's aspect
   ratio, capped: a portrait video takes up to 360px of height and keeps
   the ratio, so the card never grows past the caps in either dimension.
@@ -119,11 +123,12 @@ empty-state text, no toasts, and error paths stay silent (see section 5).
   transition (`Pause` ↔ `Play` ↔ `Replay`). A screen-reader user hears
   both the state and the next action.
 - **Focus.** The card never steals focus: when it appears, focus stays
-  where it was (the timeline). The card root is not focusable until the
-  user clicks into it or tabs to its controls; the video area is never
-  focusable. Tab order inside the card is play/pause → expand → close.
-  Expanding moves focus back to the viewer's media widget; closing moves
-  focus to the window's focused widget (no crash, no grab).
+  where it was (the timeline). The card root is focusable only from a
+  click on the video area or a Tab (the arrows then move the card);
+  the video area itself is never focusable. Tab order inside the card
+  is play/pause → expand → close. Expanding moves focus back to the
+  viewer's media widget; closing moves focus to the window's focused
+  widget (no crash, no grab).
 - **Reduced motion.** The card appears without animation (or with the
   shortest possible fade under a "reveal" the CSS allows); the snap on
   release is a direct move, not an eased glide; there is no animation on

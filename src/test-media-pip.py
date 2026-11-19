@@ -44,7 +44,7 @@ import gi  # noqa: E402
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, GObject, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -332,12 +332,11 @@ if HANDOVER:
               card.get_width(), card.get_height(),
               card.get_size_request()))
 
-    # The drag moves the card by a snapshot transform -- no margin, no
-    # allocation of the window's content per frame -- and the release
-    # re-corners it by its resting margins. The card rests at the
-    # bottom-right: 636x496 in this 900x700 window, so a drag of
-    # (-600, -300) is inside the bounds and clamps only at the second,
-    # larger step.
+    # The drag does not follow the pointer: GTK 4.24 offers no way to
+    # move a mapped widget per frame without reallocating all of the
+    # content behind it (a layer reparent crashes a mapped widget and
+    # resets the gesture). A flick instead sends the card once to the
+    # corner of its direction, one allocation; a tap does not move it.
     gesture = None
     for controller in picture.observe_controllers():
         if isinstance(controller, Gtk.GestureDrag):
@@ -345,35 +344,54 @@ if HANDOVER:
     check('the video area has a drag gesture', gesture is not None)
     if gesture is not None:
         gesture.emit('drag-begin', 10, 10)
-        layer = card._layer
-        check('the drag moves the card into the layer',
-              isinstance(layer, Gtk.Fixed)
-              and layer.get_can_target()
-              and card.get_parent() is layer,
-              'parent %r' % (type(card.get_parent()).__name__,))
-        gesture.emit('drag-update', -600, -300)
-        check('the drag moves the card without touching its margins',
-              card._offset == (-600.0, -300.0)
-              and card.get_margin_end() == mediapip.CORNER_MARGIN
+        gesture.emit('drag-update', 5, 5)
+        gesture.emit('drag-end', 5, 5)
+        check('a tap does not move the card',
+              card.get_margin_end() == mediapip.CORNER_MARGIN
               and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
-              'offset %r margins %r' % (
-                  card._offset, card.get_margin_end()))
-        gesture.emit('drag-update', -1000, -1000)
-        check('the drag clamps at the window bounds',
-              card._offset == (-636.0, -496.0),
-              'offset %r' % (card._offset,))
-        gesture.emit('drag-end', 0, 0)
-        check('the release returns the card to the overlay',
-              not layer.get_can_target()
-              and card.get_parent() is overlay
-              and card.get_margin_end() == 636
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
+        gesture.emit('drag-begin', 10, 10)
+        gesture.emit('drag-update', -600, -300)
+        gesture.emit('drag-end', -600, -300)
+        check('a flick up and left sends the card to the top-left',
+              card.get_margin_end() == 636
               and card.get_margin_bottom() == 496,
               'margins %r/%r' % (card.get_margin_end(),
                                  card.get_margin_bottom()))
         gesture.emit('drag-begin', 10, 10)
         gesture.emit('drag-update', 1000, 1000)
-        gesture.emit('drag-end', 0, 0)
-        check('the release snaps back to the default corner',
+        gesture.emit('drag-end', 1000, 1000)
+        check('a flick down and right sends the card back',
+              card.get_margin_end() == mediapip.CORNER_MARGIN
+              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
+
+    # The keyboard path: with the card focused, the arrows move it the
+    # way the flick does with the pointer (HIG: every pointer action
+    # has a keyboard path).
+    keys = None
+    for controller in card.observe_controllers():
+        if isinstance(controller, Gtk.EventControllerKey):
+            keys = controller
+    check('the card has a key controller', keys is not None)
+    if keys is not None:
+        check('the card root is focusable', card.get_focusable())
+        keys.emit('key-pressed', Gdk.KEY_Left, 0, 0)
+        check('Left sends the card to the left edge',
+              card.get_margin_end() == 636
+              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
+        keys.emit('key-pressed', Gdk.KEY_Up, 0, 0)
+        check('Up sends the card to the top edge',
+              card.get_margin_bottom() == 496,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
+        keys.emit('key-pressed', Gdk.KEY_Right, 0, 0)
+        keys.emit('key-pressed', Gdk.KEY_Down, 0, 0)
+        check('Right and Down send the card back',
               card.get_margin_end() == mediapip.CORNER_MARGIN
               and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
               'margins %r/%r' % (card.get_margin_end(),

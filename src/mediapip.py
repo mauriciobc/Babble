@@ -35,6 +35,9 @@ CARD_WIDTH = 240
 MIN_CARD_HEIGHT = 135
 MAX_CARD_HEIGHT = 360
 CORNER_MARGIN = 24
+# A drag shorter than this in both axes is a tap, not a flick: the
+# card does not move.
+FLICK_THRESHOLD = 12
 
 
 def _card_size(ratio):
@@ -164,20 +167,15 @@ class PiPCard(Gtk.Overlay):
         # Without END the overlay child would fill the whole window.
         self.set_halign(Gtk.Align.END)
         self.set_valign(Gtk.Align.END)
+        # Focusable so a click on the video area (which cannot take
+        # focus itself) puts the card root in focus and the arrow keys
+        # move it: every pointer action has a keyboard path.
+        self.set_focusable(True)
         self._m_bottom = float(CORNER_MARGIN)
         self._m_end = float(CORNER_MARGIN)
-        # While a drag runs, the card lives inside a window-sized
-        # Gtk.Fixed layer: moving it there reallocates only the card,
-        # where a margin change would queue a resize that bubbles up
-        # through the window's overlay and relays out all of the
-        # content behind it on every frame. The layer is targetable
-        # only while it holds the card, and empty the rest of the time.
-        self._layer = None
-        # The card's allocated bounds in window coordinates, captured
-        # when a drag starts; the drag target position is computed
-        # against them.
-        self._drag_base = None
-        self._offset = (0.0, 0.0)
+        # The gesture offsets of a drag in progress, from its start
+        # point; only the release acts on them.
+        self._drag_offset = (0.0, 0.0)
         self._window_handlers = []
 
         self.add_css_class('pip-card')
@@ -247,6 +245,11 @@ class PiPCard(Gtk.Overlay):
         connect_weak(self._paintable, 'invalidate-size', self._on_size)
         connect_weak(self.stream, 'notify::playing', self._on_playing)
         connect_weak(self.stream, 'notify::ended', self._on_playing)
+        # The keyboard path for the flick: the arrows move the card to
+        # the nearest corner in their direction while it has focus.
+        keys = Gtk.EventControllerKey()
+        connect_weak(keys, 'key-pressed', self._on_key_pressed)
+        self.add_controller(keys)
         # GObject properties do not re-emit on connect and the stream
         # arrives playing: seed the icon and the idle inhibition from
         # the state it is in right now.
@@ -315,93 +318,65 @@ class PiPCard(Gtk.Overlay):
         self.set_margin_start(0)
         self.set_margin_end(round(self._m_end))
 
-    def _drag_layer(self, overlay):
-        """The window-sized Gtk.Fixed the card is dragged inside of,
-        created once per window and empty (non-targetable) between
-        drags."""
-        layer = getattr(self.window, '_babble_pip_layer', None)
-        if layer is None:
-            layer = Gtk.Fixed()
-            overlay.add_overlay(layer)
-            self.window._babble_pip_layer = layer
-        return layer
-
-    def _leave_layer(self):
-        """Return the card to the window overlay, or leave it there if
-        it never left; the layer is empty and inert again."""
-        layer, self._layer = self._layer, None
-        if layer is not None:
-            layer.set_can_target(False)
-            for child in layer.observe_children():
-                if child is self:
-                    layer.remove(self)
-        if self.get_parent() is None:
-            from .mediaviewer import media_overlay
-            overlay = media_overlay(self.window)
-            if overlay is not None:
-                overlay.add_overlay(self)
-
     def _on_drag_begin(self, _gesture, _x, _y):
-        found, rect = (False, None)
-        if self.window is not None:
-            found, rect = self.compute_bounds(self.window)
-        self._drag_base = rect if found else None
-        self._offset = (0.0, 0.0)
-        if self._drag_base is None:
-            return
-        from .mediaviewer import media_overlay
-        overlay = media_overlay(self.window)
-        if overlay is None:
-            self._drag_base = None
-            return
-        layer = self._drag_layer(overlay)
-        layer.set_can_target(True)
-        self.unparent()
-        self._layer = layer
-        layer.put(self, round(rect.get_x()), round(rect.get_y()))
+        # The card does not follow the pointer: moving it live would
+        # queue a resize per frame that relays out all of the content
+        # behind it (a Gtk.Fixed layer cannot take over, because
+        # reparenting a mapped widget mid-gesture is fatal in GTK and
+        # unmapping one resets the gesture), and GTK 4.24 has neither a
+        # widget transform nor an overridable pick to move it without
+        # allocation. The drag accumulates direction only; the release
+        # moves the card once, to the corner of that direction.
+        self._drag_offset = (0.0, 0.0)
 
     def _on_drag_update(self, _gesture, dx, dy):
-        base = self._drag_base
-        if base is None or self._layer is None:
-            return
-        width = self.window.get_width()
-        height = self.window.get_height()
-        max_x = max(0, width - base.get_width())
-        max_y = max(0, height - base.get_height())
-        x = min(max_x, max(0.0, base.get_x() + dx))
-        y = min(max_y, max(0.0, base.get_y() + dy))
-        self._offset = (x - base.get_x(), y - base.get_y())
-        # Only the card is reallocated: the layer's own allocation never
-        # changes, so the window's content behind it is never relaid
-        # out during the drag.
-        self._layer.move(self, round(x), round(y))
+        self._drag_offset = (dx, dy)
 
     def _on_drag_end(self, _gesture, _dx, _dy):
-        base, offset = self._drag_base, self._offset
-        self._drag_base = None
-        self._offset = (0.0, 0.0)
-        self._leave_layer()
-        if base is None:
+        dx, dy = self._drag_offset
+        self._drag_offset = (0.0, 0.0)
+        if self.window is None:
             return
-        width = self.window.get_width()
-        height = self.window.get_height()
-        x = min(max(0.0, base.get_x() + offset[0]),
-                max(0, width - base.get_width()))
-        y = min(max(0.0, base.get_y() + offset[1]),
-                max(0, height - base.get_height()))
-        # Snap to the nearest corner at the margin inset: the resting
-        # margins are the position again, one allocation.
-        if x <= (width - base.get_width()) / 2.0:
-            self._m_end = float(max(0, width - CORNER_MARGIN
-                                    - base.get_width()))
-        else:
-            self._m_end = float(CORNER_MARGIN)
-        if y <= (height - base.get_height()) / 2.0:
-            self._m_bottom = float(max(0, height - CORNER_MARGIN
-                                       - base.get_height()))
-        else:
-            self._m_bottom = float(CORNER_MARGIN)
+        width, height = self.get_size_request()
+        if not width or not height:
+            return
+        # A tap is not a flick: the card stays where it is.
+        if abs(dx) < FLICK_THRESHOLD and abs(dy) < FLICK_THRESHOLD:
+            return
+        # Flick direction chooses the corner; one allocation moves the
+        # card there.
+        right = dx >= 0
+        bottom = dy >= 0
+        self._m_end = float(CORNER_MARGIN if right
+                            else max(0, self.window.get_width()
+                                     - width - CORNER_MARGIN))
+        self._m_bottom = float(CORNER_MARGIN if bottom
+                               else max(0, self.window.get_height()
+                                        - height - CORNER_MARGIN))
         self._apply_margins()
+
+    def _on_key_pressed(self, _controller, keyval, _keycode, _state):
+        """The arrows move the card between the corners, the keyboard
+        path of what the flick does with the pointer."""
+        if self.window is None:
+            return False
+        width, height = self.get_size_request()
+        if not width or not height:
+            return False
+        if keyval == Gdk.KEY_Left:
+            self._m_end = float(max(0, self.window.get_width()
+                                    - width - CORNER_MARGIN))
+        elif keyval == Gdk.KEY_Right:
+            self._m_end = float(CORNER_MARGIN)
+        elif keyval == Gdk.KEY_Up:
+            self._m_bottom = float(max(0, self.window.get_height()
+                                       - height - CORNER_MARGIN))
+        elif keyval == Gdk.KEY_Down:
+            self._m_bottom = float(CORNER_MARGIN)
+        else:
+            return False
+        self._apply_margins()
+        return True
 
     def _on_window_resized(self, *_args):
         """Clamp into the window and keep the nearest corner: the card
