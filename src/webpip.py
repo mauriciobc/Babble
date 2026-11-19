@@ -29,53 +29,67 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from . import appsettings  # noqa: E402
 from . import uihelpers  # noqa: E402
+from .requestscope import RequestScope  # noqa: E402
 from .pipgeometry import CardGeometry  # noqa: E402
-from .weakconnect import connect_weak  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 CARD_WIDTH = 320
 CARD_HEIGHT = 180
 # The video-focus script runs in an isolated script world, the way the
 # plugin panels get one: page script can see its DOM effects but not its
-# JavaScript, and vice versa.
+# JavaScript, and vice versa. On WebKitGTK 2.54 every evaluate in the
+# world is a fresh context -- state set in one call is gone in the
+# next -- so anything persistent has to be a user script.
 WORLD = 'babble-webpip'
-# Autoplay in the column is muted, and players are built by the page's
-# own script, which may start well after the load commits. The pick runs
-# again on each committed and finished load and once more two seconds
-# later to catch a player that boots late.
-PICK_RETRY_SECONDS = 2
+PICK_POLL_SECONDS = 3
 
-# The pick: the largest playing video (visible ones preferred; a playing
-# one below the fold is taken when that is all there is, because the
-# fill below brings it into view and out of WebKit's visibility
-# suspend), filtered by the Firefox toggle heuristics -- at least 45 s
-# (an unknown duration counts; live streams report NaN) and at least
-# 160px in one dimension. The fill is an inline style on the element,
-# with the original kept in a data attribute the undo script restores.
-PICK_SCRIPT = """(() => {
-  const videos = Array.from(document.querySelectorAll('video'));
-  const playing = videos.filter(v => !v.paused && !v.ended);
-  if (!playing.length) return false;
+# The body both flavors share: pick the largest playing video (the
+# top frame only -- the fill has to be undone in the frame it was
+# applied in, and evaluate reaches no further than the main document,
+# so a cross-origin embed inside an article stays untouched in v1);
+# at least 160px in one dimension. No duration filter: the ads the
+# bridge frames play live in excluded iframes, and a short news clip is
+# exactly what the reader wants in the card. The fill is an inline
+# style on the element, with the original kept in a data attribute the
+# undo script restores.
+_PICK_BODY = """  const big = v => { const r = v.getBoundingClientRect();
+                     return r.width >= 160 || r.height >= 160; };
   const area = v => { const r = v.getBoundingClientRect();
                       return r.width * r.height; };
-  const big = v => { const r = v.getBoundingClientRect();
-                     return r.width >= 160 || r.height >= 160; };
-  const long = v => isNaN(v.duration) || v.duration >= 45;
-  let cands = playing.filter(long).filter(big);
-  if (!cands.length) cands = playing.filter(long);
-  if (!cands.length) return false;
-  let best = cands[0];
-  for (const v of cands) if (area(v) > area(best)) best = v;
-  if (best.hasAttribute('data-babble-pip-style')) return true;
-  const prev = best.getAttribute('style') || '';
-  best.setAttribute('data-babble-pip-style', prev);
-  best.setAttribute('style', prev
-    + ';position:fixed !important;inset:0 !important'
-    + ';width:100% !important;height:100% !important'
-    + ';object-fit:contain !important;z-index:2147483647 !important'
-    + ';background:#000 !important');
-  best.scrollIntoView({block: 'center'});
-  return true;
-})()"""
+  const fill = v => {
+    if (v.hasAttribute('data-babble-pip-style')) return true;
+    const prev = v.getAttribute('style') || '';
+    v.setAttribute('data-babble-pip-style', prev);
+    v.setAttribute('style', prev
+      + ';position:fixed !important;inset:0 !important'
+      + ';width:100% !important;height:100% !important'
+      + ';object-fit:contain !important;z-index:2147483647 !important'
+      + ';background:#000 !important');
+    v.scrollIntoView({block: 'center'});
+    return true;
+  };
+  const playing = [...document.querySelectorAll('video')]
+    .filter(v => !v.paused && !v.ended && big(v));
+  if (!playing.length) return false;
+  let best = playing[0];
+  for (const v of playing) if (area(v) > area(best)) best = v;
+  return fill(best);
+"""
+
+# The one-shot pick: filled when this runs (evaluate calls are fresh
+# contexts per call on WebKitGTK 2.54 -- nothing registered here
+# survives), so the card polls it until a video plays.
+PICK_ONCE = '(() => {\n' + _PICK_BODY + '\n})()'
+
+# The per-load watcher: injected once as a user script for loads that
+# happen while the card is out; its context lives as long as the
+# frame, so its play listener survives, and a player the page's own
+# script starts late (globo's countdown, a YouTube player) fills the
+# card without the UI knowing.
+WATCH_SCRIPT = ('(() => {\n' + _PICK_BODY
+                + '\n  document.addEventListener("play",'
+                + ' () => setTimeout(pick, 200), true);\n'
+                + '  pick();\n})()')
 
 UNDO_SCRIPT = """(() => {
   for (const v of document.querySelectorAll(
@@ -124,8 +138,6 @@ def open_card(window):
     card.set_visible(True)
     window._babble_web_pip_card = card
     window.web_split.set_show_sidebar(False)
-    if appsettings.settings().get_boolean('web-javascript'):
-        card._focus_video()
     # The pressed header button is hidden with the top bars: focus moves
     # to the card's expand button, the control that will still exist.
     card.expand_button.grab_focus()
@@ -200,7 +212,13 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         self.window = window
         self.column = column
         self._closed = False
-        self._retry_source = 0
+        self._watch_script = None
+        self._poll_source = 0
+        # The card's page reads (watch, undo) run through one scope:
+        # restore and close supersede what is in flight, so a view torn
+        # down mid-evaluate cannot keep the callback (and through it the
+        # card) alive for an answer that is no longer wanted.
+        self._scope = RequestScope()
         self.set_halign(Gtk.Align.END)
         self.set_valign(Gtk.Align.END)
         self.set_size_request(CARD_WIDTH, CARD_HEIGHT)
@@ -241,9 +259,26 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         connect_weak(drag, 'drag-end', self._on_drag_end)
         controls.add_controller(drag)
 
-        # The pick re-runs as the page's own script builds its player.
-        connect_weak(self.column.view, 'load-changed',
-                     self._on_page_load)
+        # The watcher watches loads that happen while the card is out;
+        # the page already showing gets it evaluated directly (a user
+        # script only applies to loads after it is added).
+        if appsettings.settings().get_boolean('web-javascript'):
+            WebKit = self.column._webkit
+            content = self.column.view.get_user_content_manager()
+            script = WebKit.UserScript.new(
+                WATCH_SCRIPT, WebKit.UserContentInjectedFrames.TOP_FRAME,
+                WebKit.UserScriptInjectionTime.END, None, None)
+            content.add_script(script)
+            self._watch_script = script
+            self._focus_video()
+
+    def do_measure(self, orientation, for_size):
+        """A fixed-size overlay child: END/END alignment allocates the
+        natural size, and a WebView's natural size would take the whole
+        window. The column inside fills whatever this reports."""
+        if orientation == Gtk.Orientation.HORIZONTAL:
+            return CARD_WIDTH, CARD_WIDTH, -1, -1
+        return CARD_HEIGHT, CARD_HEIGHT, -1, -1
 
     def _on_expand_clicked(self, _button):
         restore(self)
@@ -258,39 +293,67 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
     # Video focus
 
     def _focus_video(self):
-        self.column.evaluate(WORLD, PICK_SCRIPT, self._on_picked)
+        """Poll the page already showing at minimize for a video that
+        plays: each evaluate is a fresh context on WebKitGTK 2.54, so a
+        one-shot pick runs now and again until it fills (globo's
+        countdown and user-pressed play both arrive after the load).
+        Loads that happen later get the persistent watcher from the
+        injected user script instead. The poll stops at the first
+        fill, or when the card goes away (the scope is superseded by
+        restore and close, and the ticket drops those answers)."""
+        ticket = self._scope.start()
+        # weak_method for the (value, error) callback the column's
+        # evaluate uses; the scope is for cancellation only (its
+        # ticket.callback is shaped for api *_finish handlers).
+        self.column.evaluate(WORLD, PICK_ONCE,
+                             weak_method(self._on_picked),
+                             ticket.cancellable)
+        if self._poll_source == 0:
+            self._poll_source = GLib.timeout_add_seconds(
+                PICK_POLL_SECONDS, self._on_poll)
 
-    def _on_picked(self, _value, _error):
-        # A page without a qualifying video (or an error) simply stays
-        # as it is; nothing is announced.
+    def _on_picked(self, value, _error):
+        # True once a fill exists: the poll stops. Cancelled reads are
+        # dropped by the ticket's callback.
+        if value is not None and value.to_boolean():
+            self._stop_polling()
+
+    def _stop_polling(self):
+        if self._poll_source != 0:
+            GLib.source_remove(self._poll_source)
+            self._poll_source = 0
+
+    def _on_poll(self):
+        if not appsettings.settings().get_boolean('web-javascript') \
+                or self.column.get_parent() is not self:
+            self._poll_source = 0
+            return GLib.SOURCE_REMOVE
+        ticket = self._scope.start()
+        # weak_method for the (value, error) callback the column's
+        # evaluate uses; the scope is for cancellation only (its
+        # ticket.callback is shaped for api *_finish handlers).
+        self.column.evaluate(WORLD, PICK_ONCE,
+                             weak_method(self._on_picked),
+                             ticket.cancellable)
+        return GLib.SOURCE_CONTINUE
+
+    def _on_undo(self, _value, _error):
+        # The undo answer carries nothing; cancelled reads are dropped
+        # by the ticket's callback.
         pass
 
-    def _on_page_load(self, view, event):
-        if not appsettings.settings().get_boolean('web-javascript'):
-            return
-        if self._retry_source:
-            GLib.source_remove(self._retry_source)
-            self._retry_source = 0
-        WebKit = self.column._webkit
-        if event not in (WebKit.LoadEvent.COMMITTED,
-                         WebKit.LoadEvent.FINISHED):
-            return
-        self._focus_video()
-        if event == WebKit.LoadEvent.FINISHED:
-            self._retry_source = GLib.timeout_add_seconds(
-                PICK_RETRY_SECONDS, self._on_retry)
-
-    def _on_retry(self):
-        self._retry_source = 0
-        if not self._closed and self.column.get_parent() is self \
-                and appsettings.settings().get_boolean('web-javascript'):
-            self._focus_video()
-        return GLib.SOURCE_REMOVE
-
     def _undo_video_focus(self):
-        if self._retry_source:
-            GLib.source_remove(self._retry_source)
-            self._retry_source = 0
+        self._stop_polling()
+        # A restore or close supersedes the watch in flight; the undo
+        # below is the new generation's read.
+        self._scope.begin()
+        if self._watch_script is not None:
+            content = self.column.view.get_user_content_manager()
+            content.remove_script(self._watch_script)
+            self._watch_script = None
         if not appsettings.settings().get_boolean('web-javascript'):
             return
-        self.column.evaluate(WORLD, UNDO_SCRIPT, lambda _v, _e: None)
+        ticket = self._scope.start()
+        self.column.evaluate(WORLD, UNDO_SCRIPT,
+                             weak_method(self._on_undo),
+                             ticket.cancellable)

@@ -742,6 +742,8 @@ class WebColumn(Adw.Bin):
         """Run *script* in the page, in the script world *world*:
         ``callback(value, error)``, *value* a JavaScriptCore value."""
         def done(view, result, _data):
+            if callback is None:
+                return  # fire-and-forget
             try:
                 value = view.evaluate_javascript_finish(result)
             except GLib.Error as error:

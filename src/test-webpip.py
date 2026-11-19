@@ -10,6 +10,7 @@ plugins decode."""
 
 import gc
 import http.server
+import time
 import importlib.util
 import os
 # Never the user's real dconf: a test that builds a window restores the
@@ -230,16 +231,33 @@ def card_buttons(card):
 
 def ask_true(column, script, timeout=10):
     """Run *script* in the card's isolated world, True when it answers
-    truthy."""
+    truthy. A page that never answers is cancelled, so the pending
+    evaluate cannot keep the column alive through its callback."""
     done = []
-    column.evaluate(webpip.WORLD, script,
-                    lambda value, error: done.append(
-                        bool(value and value.to_boolean() and not error)),
-                    None)
-    return pump(lambda: bool(done), timeout)
+    cancellable = Gio.Cancellable()
+
+    def answered(value, error):
+        done.append(bool(value and value.to_boolean() and not error))
+    column.evaluate(webpip.WORLD, script, answered, cancellable)
+    if not pump(lambda: bool(done), timeout):
+        cancellable.cancel()
+        settle(0.3)
+    return bool(done and done[0])
 
 
 LOADS = {'n': 0}
+
+
+def ask_true_until(column, script, seconds=10):
+    """Ask until *script* answers truthy or *seconds* pass: the
+    card's poll fills at its own cadence (3s), so a single ask races
+    it."""
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if ask_true(column, script, 2):
+            return True
+        settle(0.4)
+    return ask_true(column, script, 2)
 
 
 def counting_load(column):
@@ -299,10 +317,22 @@ check('the page video autoplays',
 card._focus_video()
 settle(1.5)
 check('the video focus fill is applied',
-      ask_true(column,
-               '!!document.querySelector("video[data-babble-pip-style]")'))
+      ask_true_until(column,
+                     '!!document.querySelector("video[data-babble-pip-style]")'))
 check('the video keeps playing in the card',
       ask_true(column, '!document.querySelector("video").paused'))
+
+# A load that happens while the card is out gets the watcher from the
+# injected user script, not from us: navigate the page to itself (a
+# fresh load), wait for its autoplay, and the fill must appear on its
+# own.
+column.evaluate(None, 'location.href = '
+                + '"' + BASE + '/page.html?" + Date.now()', None)
+check('the in-card load self-filled via the user script',
+      ask_true_until(column,
+                     '!!document.querySelector("video[data-babble-pip-style]")',
+                     30))
+column.evaluate(None, webpip.UNDO_SCRIPT, None)
 
 # ---------------------------------------------------------------- 3
 # A plugin panel page refuses the card.
