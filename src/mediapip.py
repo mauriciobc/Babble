@@ -157,19 +157,27 @@ class PiPCard(Gtk.Overlay):
         self._closed = False
         self._inhibit_app = None
         self._inhibit_cookie = 0
-        # Position as the four margins, in pixels. halign/valign are END
-        # (the bottom-right corner), so extra space and dragging are
-        # read through margin_top/bottom/start/end. Without END the
-        # overlay child would fill the whole window.
+        # Resting position. halign/valign are END (the bottom-right
+        # corner), and an END-aligned child is placed by margin_end and
+        # margin_bottom alone -- the start/top pair is inert for it --
+        # so those two margins are the card's whole position model.
+        # Without END the overlay child would fill the whole window.
         self.set_halign(Gtk.Align.END)
         self.set_valign(Gtk.Align.END)
-        self._m_top = 0.0
         self._m_bottom = float(CORNER_MARGIN)
-        self._m_start = 0.0
         self._m_end = float(CORNER_MARGIN)
-        # Margins captured when a drag starts, so the updates are a
-        # whole-drag delta rather than per-frame steps.
+        # While a drag runs, the card lives inside a window-sized
+        # Gtk.Fixed layer: moving it there reallocates only the card,
+        # where a margin change would queue a resize that bubbles up
+        # through the window's overlay and relays out all of the
+        # content behind it on every frame. The layer is targetable
+        # only while it holds the card, and empty the rest of the time.
+        self._layer = None
+        # The card's allocated bounds in window coordinates, captured
+        # when a drag starts; the drag target position is computed
+        # against them.
         self._drag_base = None
+        self._offset = (0.0, 0.0)
         self._window_handlers = []
 
         self.add_css_class('pip-card')
@@ -299,73 +307,119 @@ class PiPCard(Gtk.Overlay):
     # Dragging
 
     def _apply_margins(self):
-        self.set_margin_top(round(self._m_top))
+        """Rest the card at its position: END/END alignment places it by
+        margin_end and margin_bottom alone; the other pair is zeroed so
+        it can never disagree."""
+        self.set_margin_top(0)
         self.set_margin_bottom(round(self._m_bottom))
-        self.set_margin_start(round(self._m_start))
+        self.set_margin_start(0)
         self.set_margin_end(round(self._m_end))
 
-    def _on_drag_begin(self, _gesture, _x, _y):
-        self._drag_base = (self._m_top, self._m_bottom,
-                           self._m_start, self._m_end)
+    def _drag_layer(self, overlay):
+        """The window-sized Gtk.Fixed the card is dragged inside of,
+        created once per window and empty (non-targetable) between
+        drags."""
+        layer = getattr(self.window, '_babble_pip_layer', None)
+        if layer is None:
+            layer = Gtk.Fixed()
+            overlay.add_overlay(layer)
+            self.window._babble_pip_layer = layer
+        return layer
 
-    def _on_drag_update(self, _gesture, dx, dy):
+    def _leave_layer(self):
+        """Return the card to the window overlay, or leave it there if
+        it never left; the layer is empty and inert again."""
+        layer, self._layer = self._layer, None
+        if layer is not None:
+            layer.set_can_target(False)
+            for child in layer.observe_children():
+                if child is self:
+                    layer.remove(self)
+        if self.get_parent() is None:
+            from .mediaviewer import media_overlay
+            overlay = media_overlay(self.window)
+            if overlay is not None:
+                overlay.add_overlay(self)
+
+    def _on_drag_begin(self, _gesture, _x, _y):
+        found, rect = (False, None)
+        if self.window is not None:
+            found, rect = self.compute_bounds(self.window)
+        self._drag_base = rect if found else None
+        self._offset = (0.0, 0.0)
         if self._drag_base is None:
             return
-        t, b, s, e = self._drag_base
-        # Offsets are relative to the press point, so the whole delta
-        # lands on the captured margins. Each margin moves on its own
-        # and is clamped only by the window: the card travels anywhere
-        # over it, and the snap on release puts it back in a corner.
-        # (A constant margin sum here would pin the card to the sliver
-        # it started with.)
-        width, height = self.get_size_request()
-        free_v = max(0, self.window.get_height() - height)
-        free_h = max(0, self.window.get_width() - width)
-        rtl = self.get_direction() == Gtk.TextDirection.RTL
-        self._m_top = min(free_v, max(0.0, t + dy))
-        self._m_bottom = min(free_v, max(0.0, b - dy))
-        if rtl:
-            self._m_start = min(free_h, max(0.0, s - dx))
-            self._m_end = min(free_h, max(0.0, e + dx))
-        else:
-            self._m_start = min(free_h, max(0.0, s + dx))
-            self._m_end = min(free_h, max(0.0, e - dx))
-        self._apply_margins()
+        from .mediaviewer import media_overlay
+        overlay = media_overlay(self.window)
+        if overlay is None:
+            self._drag_base = None
+            return
+        layer = self._drag_layer(overlay)
+        layer.set_can_target(True)
+        self.unparent()
+        self._layer = layer
+        layer.put(self, round(rect.get_x()), round(rect.get_y()))
+
+    def _on_drag_update(self, _gesture, dx, dy):
+        base = self._drag_base
+        if base is None or self._layer is None:
+            return
+        width = self.window.get_width()
+        height = self.window.get_height()
+        max_x = max(0, width - base.get_width())
+        max_y = max(0, height - base.get_height())
+        x = min(max_x, max(0.0, base.get_x() + dx))
+        y = min(max_y, max(0.0, base.get_y() + dy))
+        self._offset = (x - base.get_x(), y - base.get_y())
+        # Only the card is reallocated: the layer's own allocation never
+        # changes, so the window's content behind it is never relaid
+        # out during the drag.
+        self._layer.move(self, round(x), round(y))
 
     def _on_drag_end(self, _gesture, _dx, _dy):
-        base = self._drag_base
+        base, offset = self._drag_base, self._offset
         self._drag_base = None
+        self._offset = (0.0, 0.0)
+        self._leave_layer()
         if base is None:
             return
-        # Snap to the nearest corner: for each of the four corners the
-        # two margins that put the card there, the other two at 0, and
-        # the pair with the smaller sum wins. RTL only changes which
-        # visual corner start/end name; the maths is the same.
-        t, b, s, e = (self._m_top, self._m_bottom,
-                      self._m_start, self._m_end)
-        free_v, free_h = t + b, s + e
-        self._m_top, self._m_bottom = \
-            (0.0, free_v) if t <= b else (free_v, 0.0)
-        self._m_start, self._m_end = \
-            (0.0, free_h) if s <= e else (free_h, 0.0)
+        width = self.window.get_width()
+        height = self.window.get_height()
+        x = min(max(0.0, base.get_x() + offset[0]),
+                max(0, width - base.get_width()))
+        y = min(max(0.0, base.get_y() + offset[1]),
+                max(0, height - base.get_height()))
+        # Snap to the nearest corner at the margin inset: the resting
+        # margins are the position again, one allocation.
+        if x <= (width - base.get_width()) / 2.0:
+            self._m_end = float(max(0, width - CORNER_MARGIN
+                                    - base.get_width()))
+        else:
+            self._m_end = float(CORNER_MARGIN)
+        if y <= (height - base.get_height()) / 2.0:
+            self._m_bottom = float(max(0, height - CORNER_MARGIN
+                                       - base.get_height()))
+        else:
+            self._m_bottom = float(CORNER_MARGIN)
         self._apply_margins()
 
     def _on_window_resized(self, *_args):
-        """Clamp into the window and keep the corner: margins that no
-        longer fit are recomputed at the same corner."""
+        """Clamp into the window and keep the nearest corner: the card
+        stays where it was, as far as the new size allows."""
         if self._drag_base is not None or self.window is None:
             return
         width, height = self.get_size_request()
         if not width or not height:
             return
-        free_v = max(0.0, float(self.window.get_height() - height))
-        free_h = max(0.0, float(self.window.get_width() - width))
-        self._m_top, self._m_bottom = \
-            (0.0, free_v) if self._m_top <= self._m_bottom \
-            else (free_v, 0.0)
-        self._m_start, self._m_end = \
-            (0.0, free_h) if self._m_start <= self._m_end \
-            else (free_h, 0.0)
+        free_h = max(0, self.window.get_width() - width)
+        free_v = max(0, self.window.get_height() - height)
+        # The corner is the side the current inset is closer to.
+        right = self._m_end <= free_h / 2.0
+        bottom = self._m_bottom <= free_v / 2.0
+        self._m_end = float(CORNER_MARGIN if right
+                            else max(0, free_h - CORNER_MARGIN))
+        self._m_bottom = float(CORNER_MARGIN if bottom
+                               else max(0, free_v - CORNER_MARGIN))
         self._apply_margins()
 
     # Buttons and the window

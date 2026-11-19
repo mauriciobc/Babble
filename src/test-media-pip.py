@@ -332,9 +332,12 @@ if HANDOVER:
               card.get_width(), card.get_height(),
               card.get_size_request()))
 
-    # The drag is not pinned to the margins the card started with: the
-    # card travels anywhere over the window and snaps to a corner on
-    # release.
+    # The drag moves the card by a snapshot transform -- no margin, no
+    # allocation of the window's content per frame -- and the release
+    # re-corners it by its resting margins. The card rests at the
+    # bottom-right: 636x496 in this 900x700 window, so a drag of
+    # (-600, -300) is inside the bounds and clamps only at the second,
+    # larger step.
     gesture = None
     for controller in picture.observe_controllers():
         if isinstance(controller, Gtk.GestureDrag):
@@ -342,26 +345,39 @@ if HANDOVER:
     check('the video area has a drag gesture', gesture is not None)
     if gesture is not None:
         gesture.emit('drag-begin', 10, 10)
-        gesture.emit('drag-update', 200, 100)
-        check('the card travels beyond its starting margins',
-              card.get_margin_top() == 100
-              and card.get_margin_start() == 200,
-              'margins %r/%r' % (card.get_margin_top(),
-                                 card.get_margin_start()))
-        gesture.emit('drag-end', 200, 100)
-        check('the release snaps to a corner',
-              (card.get_margin_top() == 0
-               or card.get_margin_bottom() == 0)
-              and (card.get_margin_start() == 0
-                   or card.get_margin_end() == 0),
-              'margins %r/%r/%r/%r' % (
-                  card.get_margin_top(), card.get_margin_bottom(),
-                  card.get_margin_start(), card.get_margin_end()))
-        card._m_top = 0.0
-        card._m_bottom = float(mediapip.CORNER_MARGIN)
-        card._m_start = 0.0
-        card._m_end = float(mediapip.CORNER_MARGIN)
-        card._apply_margins()
+        layer = card._layer
+        check('the drag moves the card into the layer',
+              isinstance(layer, Gtk.Fixed)
+              and layer.get_can_target()
+              and card.get_parent() is layer,
+              'parent %r' % (type(card.get_parent()).__name__,))
+        gesture.emit('drag-update', -600, -300)
+        check('the drag moves the card without touching its margins',
+              card._offset == (-600.0, -300.0)
+              and card.get_margin_end() == mediapip.CORNER_MARGIN
+              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              'offset %r margins %r' % (
+                  card._offset, card.get_margin_end()))
+        gesture.emit('drag-update', -1000, -1000)
+        check('the drag clamps at the window bounds',
+              card._offset == (-636.0, -496.0),
+              'offset %r' % (card._offset,))
+        gesture.emit('drag-end', 0, 0)
+        check('the release returns the card to the overlay',
+              not layer.get_can_target()
+              and card.get_parent() is overlay
+              and card.get_margin_end() == 636
+              and card.get_margin_bottom() == 496,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
+        gesture.emit('drag-begin', 10, 10)
+        gesture.emit('drag-update', 1000, 1000)
+        gesture.emit('drag-end', 0, 0)
+        check('the release snaps back to the default corner',
+              card.get_margin_end() == mediapip.CORNER_MARGIN
+              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
 else:
     blocked('the card widgets')
     play = close_button = None
