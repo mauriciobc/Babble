@@ -10,7 +10,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import (appsettings, feedback, linkhandlers, linkrouting,  # noqa: E402
                pagenav, pluginlinks, uihelpers)
@@ -123,8 +123,16 @@ def present_panel(widget, uri, owner, title=None):
 def _show(window, uri, owner=None, title=None):
     column = window.web_slot.get_child()
     if column is None:
-        column = WebColumn()
-        window.web_slot.set_child(column)
+        # The column may live in a webpip card: it comes back first, so
+        # there is never a second WebColumn.
+        from . import webpip
+        card = webpip.card_for(window)
+        if card is not None:
+            webpip.restore(card)
+            column = window.web_slot.get_child()
+        else:
+            column = WebColumn()
+            window.web_slot.set_child(column)
     column.load_uri(uri, owner=owner, title=title)
     window.web_split.set_show_sidebar(True)
     column.view.grab_focus()
@@ -197,12 +205,20 @@ def forward_action(window, name):
     so the window's own Ctrl+W, Ctrl+R, F5 and Alt+Left handlers hand
     over here first."""
     column = _column_of(window)
-    if column is None or not window.web_split.get_show_sidebar():
+    if column is None:
+        # The column may live in a webpip card: found through the card,
+        # and the sidebar check does not apply to it.
+        from . import webpip
+        card = webpip.card_for(window)
+        column = card.column if card is not None else None
+    elif not window.web_split.get_show_sidebar():
+        return False
+    if column is None:
         return False
     focus = window.get_focus()
     if focus is None or not (focus is column or focus.is_ancestor(column)):
         return False
-    {'close': column.close_column,
+    {'close': column._on_close_clicked,
      'reload': column._on_reload,
      'back': column._on_back,
      'forward': column._on_forward}[name]()
@@ -213,7 +229,12 @@ TEARDOWN_GRACE_SECONDS = 3
 
 
 class WebColumn(Adw.Bin):
-    """Header bar, load progress, and the page or an error."""
+    """Header bar, load progress, and the page or an error.
+
+    While the column lives in a webpip card, ``card_mode`` is True and
+    the column's own top bars are hidden: the card's OSD replaces them."""
+
+    card_mode = GObject.Property(type=bool, default=False)
 
     def __init__(self):
         super().__init__()
@@ -234,7 +255,8 @@ class WebColumn(Adw.Bin):
         self.view = self._build_view()
 
         toolbar = Adw.ToolbarView()
-        toolbar.add_top_bar(self._build_header())
+        self.header = self._build_header()
+        toolbar.add_top_bar(self.header)
 
         self.progress = Gtk.ProgressBar(visible=False)
         self.progress.add_css_class('osd')
@@ -247,6 +269,7 @@ class WebColumn(Adw.Bin):
         self.set_child(toolbar)
         self._add_shortcuts()
         self._refresh_nav()
+        connect_weak(self, 'notify::card-mode', self._on_card_mode)
 
     # Construction
 
@@ -283,6 +306,7 @@ class WebColumn(Adw.Bin):
         for signal, method in (
                 ('decide-policy', self._on_decide_policy),
                 ('create', self._on_create),
+                ('enter-fullscreen', self._on_fullscreen),
                 ('permission-request', self._on_permission_request),
                 ('load-failed', self._on_load_failed),
                 ('load-failed-with-tls-errors', self._on_tls_failed),
@@ -326,6 +350,13 @@ class WebColumn(Adw.Bin):
         button.add_css_class('flat')
         uihelpers.set_accessible_label(button, _('Page Actions'))
         header.pack_end(button)
+        # The web column's PiP: plain pages only, never a plugin panel's.
+        # Packed after the menu so the menu stays rightmost.
+        self.pip_button = uihelpers.icon_button(
+            'babble-pip-in-symbolic', _('Minimize to Picture-in-Picture'))
+        connect_weak(self.pip_button, 'clicked', self._on_pip_clicked)
+        self.pip_button.set_visible(self.panel is None)
+        header.pack_end(self.pip_button)
         return header
 
     def _build_error_page(self):
@@ -370,11 +401,19 @@ class WebColumn(Adw.Bin):
     def load_uri(self, uri, owner=None, title=None):
         """Load *uri*. *owner* is the plugin panel loading it; a load by
         anyone else ends the panel the column had."""
+        if self.card_mode:
+            # A load into a carded column brings it back to the sidebar
+            # first: the page is shown where the reader can see it.
+            from . import webpip
+            card = webpip.card_for(pagenav.window_of(self))
+            if card is not None:
+                webpip.restore(card)
         if self._disposed and self._teardown_timer:
             self._revive()
         if self.panel is not None and self.panel is not owner:
             self.panel._end('replaced')
         self.panel = owner
+        self.pip_button.set_visible(self.panel is None)
         if owner is None:
             self._fallback_title = None
         elif title is not None:
@@ -568,7 +607,7 @@ class WebColumn(Adw.Bin):
         if self._disposed and self._teardown_timer and not loading:
             self._teardown()  # the deferred teardown: the page settled
             return
-        self.progress.set_visible(loading)
+        self.progress.set_visible(loading and not self.card_mode)
         if loading:
             self.progress.set_fraction(self.view.get_estimated_load_progress())
 
@@ -581,6 +620,26 @@ class WebColumn(Adw.Bin):
             config.get_boolean('web-javascript'))
 
     # Commands
+
+    def _on_card_mode(self, *_args):
+        """In a webpip card the column's own top bars are hidden: the
+        card's OSD bar replaces them."""
+        card = self.card_mode
+        self.header.set_visible(not card)
+        self.progress.set_visible(not card and self.view.is_loading())
+
+    def _on_pip_clicked(self, _button):
+        from . import webpip
+        window = pagenav.window_of(self)
+        if window is not None:
+            webpip.open_card(window)
+
+    def _on_fullscreen(self, _view):
+        """A site's fullscreen request is denied while the column lives
+        in a card: the video-focus fill already gives the
+        near-fullscreen look, and WebKit's default would take over the
+        whole Babble window. Sidebar mode is untouched."""
+        return self.card_mode
 
     def _on_back(self, *_args):
         self.view.go_back()
@@ -609,6 +668,14 @@ class WebColumn(Adw.Bin):
             feedback.show_toast(self, _('Copied link to clipboard'))
 
     def _on_close_clicked(self, *_args):
+        if self.card_mode:
+            # In a card, closing means the card's close: the column's
+            # disposal goes through webpip's teardown path.
+            from . import webpip
+            card = webpip.card_for(pagenav.window_of(self))
+            if card is not None:
+                webpip.close_card(card)
+            return
         self.close_column()
 
     def close_column(self):

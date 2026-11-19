@@ -16,6 +16,8 @@ O Babble foi feito para o GNOME, e usa o que o GNOME oferece em vez de recriar. 
 
 **Resultado:** a coluna tem um cabeçalho com `Hide Web Column`, `Back`, `Forward`, o título da página e um menu `Page Actions` (`Reload`, `Open in Browser`, `Copy Link`).
 
+**Picture-in-picture:** o botão ao lado do menu `Page Actions`, `Minimize to Picture-in-Picture`, leva a coluna para um pequeno cartão flutuante: a página continua rodando — e um vídeo que ela está tocando continua tocando, trazido para a frente do cartão — enquanto você lê as timelines. A página no cartão continua interativa, e o player do próprio site mantém seus controles; fullscreen é recusado enquanto a página estiver no cartão. `Expand` devolve a coluna à barra lateral com a página exatamente onde estava — sem recarregar. `Close` fecha a coluna, e Escape e Ctrl+W fazem o mesmo; uma página ainda carregando pode manter o cartão visível por alguns segundos após `Close`, até a carga se estabilizar. A página de um painel de plugin não tem botão de PiP.
+
 **O que a coluna não faz:**
 
 **Se der errado:** se o link abrir no navegador mesmo com a preferência ligada, o WebKitGTK não está instalado — nesse caso a opção nem aparece nas Preferências. Se a página abrir em branco, desligue `JavaScript on Web Pages` e recarregue; muitos sites dependem dele. Veja [11.12](11-solucao-de-problemas.md#1112-um-recurso-não-aparece).

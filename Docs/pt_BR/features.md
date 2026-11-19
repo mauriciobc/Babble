@@ -22,7 +22,9 @@ O inventário completo de recursos. O [README](../README.md) traz a versão curt
   - Emoji personalizado em linha onde aparecer um `:shortcode:`, e um visualizador
   de mídia com zoom, vídeo, áudio e texto alternativo. Um vídeo pode sair do
   visualizador para um pequeno cartão de picture-in-picture e continuar tocando
-  enquanto você rola.
+  enquanto você rola. A coluna web faz o mesmo com páginas da web:
+  `Minimize to Picture-in-Picture` leva a página — com o vídeo que ela está
+  tocando — para um cartão flutuante que fica visível enquanto você lê.
 - Anúncios da instância, com reações.
 - O seu #Wrapstodon do ano, se o seu servidor tiver um para você.
 

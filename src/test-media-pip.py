@@ -54,7 +54,7 @@ if not os.environ.get('DISPLAY') \
 Adw.init()
 
 from src import mediaengine, mediainline, mediapip  # noqa: E402
-from src import mediaplayback, mediaviewer, sysstate  # noqa: E402
+from src import mediaplayback, mediaviewer, pipgeometry, sysstate  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
     'media_fixture', os.path.join(srcdir, 'test-media-fixture.py'))
@@ -290,8 +290,8 @@ if HANDOVER:
     check('the card sits bottom-right',
           card.get_halign() == Gtk.Align.END
           and card.get_valign() == Gtk.Align.END
-          and card.get_margin_bottom() == mediapip.CORNER_MARGIN
-          and card.get_margin_end() == mediapip.CORNER_MARGIN,
+          and card.get_margin_bottom() == pipgeometry.CORNER_MARGIN
+          and card.get_margin_end() == pipgeometry.CORNER_MARGIN,
           'margins %r/%r' % (card.get_margin_bottom(),
                              card.get_margin_end()))
     ratio = stream.get_intrinsic_aspect_ratio() or (16.0 / 9.0)
@@ -347,8 +347,8 @@ if HANDOVER:
         gesture.emit('drag-update', 5, 5)
         gesture.emit('drag-end', 5, 5)
         check('a tap does not move the card',
-              card.get_margin_end() == mediapip.CORNER_MARGIN
-              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              card.get_margin_end() == pipgeometry.CORNER_MARGIN
+              and card.get_margin_bottom() == pipgeometry.CORNER_MARGIN,
               'margins %r/%r' % (card.get_margin_end(),
                                  card.get_margin_bottom()))
         gesture.emit('drag-begin', 10, 10)
@@ -363,8 +363,8 @@ if HANDOVER:
         gesture.emit('drag-update', 1000, 1000)
         gesture.emit('drag-end', 1000, 1000)
         check('a flick down and right sends the card back',
-              card.get_margin_end() == mediapip.CORNER_MARGIN
-              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              card.get_margin_end() == pipgeometry.CORNER_MARGIN
+              and card.get_margin_bottom() == pipgeometry.CORNER_MARGIN,
               'margins %r/%r' % (card.get_margin_end(),
                                  card.get_margin_bottom()))
         # From the bottom-right edge, a straight flick up cannot read a
@@ -374,7 +374,7 @@ if HANDOVER:
         gesture.emit('drag-update', 0, -300)
         gesture.emit('drag-end', 0, -300)
         check('a straight flick up keeps the current side',
-              card.get_margin_end() == mediapip.CORNER_MARGIN
+              card.get_margin_end() == pipgeometry.CORNER_MARGIN
               and card.get_margin_bottom() == 496,
               'margins %r/%r' % (card.get_margin_end(),
                                  card.get_margin_bottom()))
@@ -403,7 +403,7 @@ if HANDOVER:
         keys.emit('key-pressed', Gdk.KEY_Left, 0, 0)
         check('Left sends the card to the left edge',
               card.get_margin_end() == 636
-              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              and card.get_margin_bottom() == pipgeometry.CORNER_MARGIN,
               'margins %r/%r' % (card.get_margin_end(),
                                  card.get_margin_bottom()))
         keys.emit('key-pressed', Gdk.KEY_Up, 0, 0)
@@ -414,10 +414,60 @@ if HANDOVER:
         keys.emit('key-pressed', Gdk.KEY_Right, 0, 0)
         keys.emit('key-pressed', Gdk.KEY_Down, 0, 0)
         check('Right and Down send the card back',
-              card.get_margin_end() == mediapip.CORNER_MARGIN
-              and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
+              card.get_margin_end() == pipgeometry.CORNER_MARGIN
+              and card.get_margin_bottom() == pipgeometry.CORNER_MARGIN,
               'margins %r/%r' % (card.get_margin_end(),
                                  card.get_margin_bottom()))
+
+    # The clamp: the card at the far corner of a shrunk window is
+    # pulled back inside; growing back restores the 24px margin. The
+    # clamp reads the requested default size, so the shrunk state is
+    # asserted as an invariant: each inset is the corner margin, or
+    # the edge-flush remainder when the window is too small for one.
+    restored_w, restored_h = window.get_width(), window.get_height()
+    keys.emit('key-pressed', Gdk.KEY_Left, 0, 0)
+    keys.emit('key-pressed', Gdk.KEY_Up, 0, 0)
+    check('the card starts at the far corner',
+          card.get_margin_end() == restored_w - card.get_width()
+          - pipgeometry.CORNER_MARGIN)
+    pre = (card.get_margin_end(), card.get_margin_bottom())
+
+    def shrink_done():
+        return window.get_width() < restored_w \
+            and window.get_height() < restored_h
+    window.set_default_size(300, 150)
+    window.present()
+    if wait(shrink_done, 5):
+        settle(0.3)
+        free_h = max(0, window.get_width() - card.get_width())
+        free_v = max(0, window.get_height() - card.get_height())
+        m_end, m_bottom = card.get_margin_end(), card.get_margin_bottom()
+        check('the clamp pulled the far corner card inside',
+              (m_end, m_bottom) != pre
+              and m_end in (pipgeometry.CORNER_MARGIN,
+                            max(0, free_h - pipgeometry.CORNER_MARGIN))
+              and m_bottom in (pipgeometry.CORNER_MARGIN,
+                               max(0, free_v - pipgeometry.CORNER_MARGIN)),
+              'margins %r/%r, was %r/%r, free %r/%r' % (
+                  m_end, m_bottom, pre[0], pre[1], free_h, free_v))
+    else:
+        check('the window shrank below %dx%d' % (restored_w, restored_h),
+              False, repr((window.get_width(), window.get_height())))
+    window.set_default_size(restored_w, restored_h)
+    window.present()
+    if wait(lambda: (window.get_width(), window.get_height())
+            == (restored_w, restored_h), 5):
+        settle(0.3)
+        check('growing back restores the corner margin',
+              card.get_margin_end() == pipgeometry.CORNER_MARGIN
+              and card.get_margin_bottom() == pipgeometry.CORNER_MARGIN,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
+    else:
+        check('the window grew back', False,
+              repr((window.get_width(), window.get_height())))
+    keys.emit('key-pressed', Gdk.KEY_Right, 0, 0)
+    keys.emit('key-pressed', Gdk.KEY_Down, 0, 0)
 else:
     blocked('the card widgets')
     play = close_button = None

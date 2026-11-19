@@ -876,6 +876,14 @@ label.just-toggled {
   }
 }
 
+/* The web column's PiP card (webpip.py) hosts the live web view, which
+   paints its own background; the card surface is the same black, and
+   the view is rounded to the card's corners. */
+.pip-web-view,
+.pip-web-view webkitwebview {
+  border-radius: 12px;
+}
+
 /* Catch Up highlights */
 .catchup-tile:focus-visible {
   outline: 2px solid var(--accent-color);

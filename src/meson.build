@@ -91,11 +91,13 @@ install_data(
   'mediaviewerchrome.py',
   'mediazoom.py',
   'navigation.py',
+  'webpip.py',
   'mentioncompleter.py',
   'notificationcopy.py',
   'notificationctrl.py',
   'oauthpkce.py',
   'notificationmodel.py',
+  'pipgeometry.py',
   'notificationpolicy.py',
   'notificationrow.py',
   'notifications.py',
@@ -602,6 +604,14 @@ test('web column', python,
   args: [files('test-webcolumn.py')],
   env: web_test_env,
   timeout: 120,
+)
+# The web column's PiP: the column moves card <-> sidebar over the same
+# loopback page server, with a playing video in the page; the web env
+# for the same reasons as above.
+test('web pip', python,
+  args: [files('test-webpip.py')],
+  env: web_test_env,
+  timeout: 300,
 )
 test('mediabox keyboard', python,
   args: [files('test-mediabox.py')],

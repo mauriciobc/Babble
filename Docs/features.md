@@ -21,6 +21,9 @@ The full feature inventory. The [README](../README.md) has the short version.
 - Custom emoji inline wherever a `:shortcode:` turns up, and a media viewer
   with zoom, video, audio and alt text. A video can move out of the viewer
   into a small picture-in-picture card that keeps playing while you scroll.
+  The web column does the same for web pages: `Minimize to Picture-in-Picture`
+  moves the page — with the video it is playing — into a floating card you
+  keep on screen while you read.
 - Instance announcements, with reactions.
 - Your yearly #Wrapstodon, if your server has one for you.
 

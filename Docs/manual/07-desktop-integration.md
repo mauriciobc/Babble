@@ -16,6 +16,8 @@ Babble was made for GNOME, and uses what GNOME offers instead of recreating it. 
 
 **Result:** the column has a header with `Hide Web Column`, `Back`, `Forward`, the page title, and a `Page Actions` menu (`Reload`, `Open in Browser`, `Copy Link`).
 
+**Picture-in-picture:** the button beside the `Page Actions` menu, `Minimize to Picture-in-Picture`, moves the column into a small floating card: the page keeps running — and a video it is playing keeps playing, brought to the front of the card — while you read the timelines. The page in the card stays interactive, and a site's own player keeps its controls; fullscreen is refused while the page is in the card. `Expand` puts the column back into the sidebar with the page exactly where it was — no reload. `Close` closes the column, and so do Escape and Ctrl+W; a page still loading may keep the card up for a few seconds after `Close`, until its load settles. A plugin panel's page has no PiP button.
+
 **What the column does not do:**
 
 **If it goes wrong:** if the link opens in the browser even with the preference on, WebKitGTK is not installed — in that case the option does not even appear in Preferences. If the page opens blank, turn `JavaScript on Web Pages` off and reload; many sites depend on it. See [11.12](11-troubleshooting.md#1112-a-feature-does-not-appear).

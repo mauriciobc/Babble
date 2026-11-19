@@ -622,6 +622,15 @@ def present_media(parent_widget, attachments, index=0, status_url=None,
     if window is None and parent_widget is not None:
         root = parent_widget.get_root()
         window = root if isinstance(root, Gtk.Window) else None
+    # The web column's card comes back into its slot without showing
+    # the sidebar: the viewer covers the window anyway, and the card's
+    # place is not the viewer's business (via a function-local import:
+    # mediaviewer imports mediapip at load time).
+    if window is not None:
+        from . import webpip
+        web_card = webpip.card_for(window)
+        if web_card is not None:
+            webpip.restore(web_card, show_sidebar=False)
     # One playing surface per window: a card in the way is closed and
     # released -- not when the viewer is adopting that same card.
     if adopt is None and window is not None:

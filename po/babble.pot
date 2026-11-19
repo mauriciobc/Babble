@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-18 20:21-0300\n"
+"POT-Creation-Date: 2026-11-19 17:02-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2227,7 +2227,7 @@ msgstr[1] ""
 msgid "News"
 msgstr ""
 
-#: src/catchup/tiles_cards.py:86 src/explore.py:119 src/webcolumn.py:336
+#: src/catchup/tiles_cards.py:86 src/explore.py:119 src/webcolumn.py:367
 msgid "Open in Browser"
 msgstr ""
 
@@ -3963,31 +3963,32 @@ msgstr ""
 
 #. Translators: why the session is kept from going idle, shown by
 #. the desktop where it lists apps blocking suspend or screen lock.
-#: src/mediapip.py:71 src/mediaplayback.py:558
+#: src/mediapip.py:128 src/mediaplayback.py:558
 msgid "Playing media"
 msgstr ""
 
-#: src/mediapip.py:138 src/mediapip.py:197
+#: src/mediapip.py:197 src/mediapip.py:263
 msgid "Pause"
 msgstr ""
 
 #. Translators: the Picture-in-Picture card button that puts the
 #. media back into the full-size viewer.
-#: src/mediapip.py:146
+#: src/mediapip.py:210 src/webpip.py:226
 msgid "Expand"
 msgstr ""
 
-#: src/mediapip.py:151 src/mediaviewerchrome.py:62 src/mediaviewerchrome.py:64
+#: src/mediapip.py:217 src/mediaviewerchrome.py:62 src/mediaviewerchrome.py:64
+#: src/webpip.py:232
 msgid "Close"
 msgstr ""
 
 #. Translators: the stream ended; this button starts it from
 #. the beginning again.
-#: src/mediapip.py:194
+#: src/mediapip.py:260
 msgid "Replay"
 msgstr ""
 
-#: src/mediapip.py:200
+#: src/mediapip.py:266
 msgid "Play"
 msgstr ""
 
@@ -4098,7 +4099,7 @@ msgstr ""
 msgid "Media"
 msgstr ""
 
-#: src/mediaviewerchrome.py:76
+#: src/mediaviewerchrome.py:76 src/webcolumn.py:356
 msgid "Minimize to Picture-in-Picture"
 msgstr ""
 
@@ -5856,11 +5857,11 @@ msgstr ""
 msgid "Copy _Handle"
 msgstr ""
 
-#: src/profileactions.py:101 src/statusmenu.py:163 src/webcolumn.py:323
+#: src/profileactions.py:101 src/statusmenu.py:163 src/webcolumn.py:347
 msgid "_Copy Link"
 msgstr ""
 
-#: src/profileactions.py:102 src/statusmenu.py:162 src/webcolumn.py:322
+#: src/profileactions.py:102 src/statusmenu.py:162 src/webcolumn.py:346
 msgid "Open in _Browser"
 msgstr ""
 
@@ -5926,7 +5927,7 @@ msgstr ""
 msgid "Copied handle to clipboard"
 msgstr ""
 
-#: src/profileactions.py:176 src/webcolumn.py:609
+#: src/profileactions.py:176 src/webcolumn.py:668
 msgid "Copied link to clipboard"
 msgstr ""
 
@@ -7010,7 +7011,7 @@ msgstr ""
 msgid "Quit"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:59 src/webcolumn.py:339
+#: src/shortcuts-dialog.ui:59 src/webcolumn.py:370
 msgid "Reload"
 msgstr ""
 
@@ -7106,15 +7107,15 @@ msgstr ""
 msgid "Web Column"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:213 src/webcolumn.py:305
+#: src/shortcuts-dialog.ui:213 src/webcolumn.py:329
 msgid "Hide Web Column"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:219 src/webcolumn.py:309
+#: src/shortcuts-dialog.ui:219 src/webcolumn.py:333
 msgid "Back"
 msgstr ""
 
-#: src/shortcuts-dialog.ui:225 src/webcolumn.py:311
+#: src/shortcuts-dialog.ui:225 src/webcolumn.py:335
 msgid "Forward"
 msgstr ""
 
@@ -7744,41 +7745,41 @@ msgid_plural "%d new posts"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/webcolumn.py:321
+#: src/webcolumn.py:345
 msgid "_Reload"
 msgstr ""
 
-#: src/webcolumn.py:327
+#: src/webcolumn.py:351
 msgid "Page Actions"
 msgstr ""
 
-#: src/webcolumn.py:494
+#: src/webcolumn.py:533
 msgid "Open Link in _Browser"
 msgstr ""
 
-#: src/webcolumn.py:519
+#: src/webcolumn.py:558
 msgid "Page Did Not Load"
 msgstr ""
 
-#: src/webcolumn.py:526
+#: src/webcolumn.py:565
 msgid "Security Certificate Not Trusted"
 msgstr ""
 
-#: src/webcolumn.py:527
+#: src/webcolumn.py:566
 msgid ""
 "The connection is not private, so the page was not loaded. You can open it "
 "in your browser instead."
 msgstr ""
 
-#: src/webcolumn.py:536
+#: src/webcolumn.py:575
 msgid "The page used too much memory and was stopped."
 msgstr ""
 
-#: src/webcolumn.py:539
+#: src/webcolumn.py:578
 msgid "The page stopped responding."
 msgstr ""
 
-#: src/webcolumn.py:540
+#: src/webcolumn.py:579
 msgid "Page Crashed"
 msgstr ""
 
