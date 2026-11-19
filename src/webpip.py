@@ -43,37 +43,38 @@ CARD_HEIGHT = 180
 WORLD = 'babble-webpip'
 PICK_POLL_SECONDS = 3
 
-# The body both flavors share: pick the largest playing video (the
-# top frame only -- the fill has to be undone in the frame it was
-# applied in, and evaluate reaches no further than the main document,
-# so a cross-origin embed inside an article stays untouched in v1);
-# at least 160px in one dimension. No duration filter: the ads the
-# bridge frames play live in excluded iframes, and a short news clip is
-# exactly what the reader wants in the card. The fill is an inline
+# The body both flavors share. The detection is the one Google's
+# Picture-in-Picture extension uses (Apache-2.0; source:
+# github.com/GoogleChromeLabs/picture-in-picture-chrome-extension,
+# src/script.js): the largest video that HAS DATA (readyState != 0)
+# and that the site has not opted out of PiP
+# (disablePictureInPicture), sorted by area. The fill is an inline
 # style on the element, with the original kept in a data attribute the
-# undo script restores.
-_PICK_BODY = """  const big = v => { const r = v.getBoundingClientRect();
-                     return r.width >= 160 || r.height >= 160; };
-  const area = v => { const r = v.getBoundingClientRect();
+# undo script restores. The top frame only: the fill has to be undone
+# in the frame it was applied in, and evaluate reaches no further than
+# the main document, so a cross-origin embed inside an article stays
+# untouched in v1.
+_PICK_BODY = """  const area = v => { const r = v.getClientRects()[0]
+                                    || {width: 0, height: 0};
                       return r.width * r.height; };
-  const fill = v => {
-    if (v.hasAttribute('data-babble-pip-style')) return true;
-    const prev = v.getAttribute('style') || '';
-    v.setAttribute('data-babble-pip-style', prev);
-    v.setAttribute('style', prev
-      + ';position:fixed !important;inset:0 !important'
-      + ';width:100% !important;height:100% !important'
-      + ';object-fit:contain !important;z-index:2147483647 !important'
-      + ';background:#000 !important');
-    v.scrollIntoView({block: 'center'});
-    return true;
-  };
-  const playing = [...document.querySelectorAll('video')]
-    .filter(v => !v.paused && !v.ended && big(v));
-  if (!playing.length) return false;
-  let best = playing[0];
-  for (const v of playing) if (area(v) > area(best)) best = v;
-  return fill(best);
+  const videos = [...document.querySelectorAll('video')]
+    .filter(v => v.readyState != 0)
+    .filter(v => v.disablePictureInPicture !== true)
+    .filter(v => { const r = v.getClientRects()[0] || {width: 0};
+                   return r.width >= 160 || r.height >= 160; })
+    .sort((a, b) => area(b) - area(a));
+  if (!videos.length) return false;
+  const v = videos[0];
+  if (v.hasAttribute('data-babble-pip-style')) return true;
+  const prev = v.getAttribute('style') || '';
+  v.setAttribute('data-babble-pip-style', prev);
+  v.setAttribute('style', prev
+    + ';position:fixed !important;inset:0 !important'
+    + ';width:100% !important;height:100% !important'
+    + ';object-fit:contain !important;z-index:2147483647 !important'
+    + ';background:#000 !important');
+  v.scrollIntoView({block: 'center'});
+  return true;
 """
 
 # The one-shot pick: filled when this runs (evaluate calls are fresh
@@ -86,10 +87,18 @@ PICK_ONCE = '(() => {\n' + _PICK_BODY + '\n})()'
 # frame, so its play listener survives, and a player the page's own
 # script starts late (globo's countdown, a YouTube player) fills the
 # card without the UI knowing.
-WATCH_SCRIPT = ('(() => {\n' + _PICK_BODY
-                + '\n  document.addEventListener("play",'
-                + ' () => setTimeout(pick, 200), true);\n'
-                + '  pick();\n})()')
+WATCH_SCRIPT = ('(() => {\\n' + _PICK_BODY
+                + '\\n  const repick = () => setTimeout(() => {\\n'
+                + '    const filled = document.querySelector('
+                + '"video[data-babble-pip-style]");\\n'
+                + '    if (!filled || !filled.getClientRects()[0]'
+                + ' || filled.getClientRects()[0].width < 10) pick();\\n'
+                + '  }, 200);\\n'
+                + '  document.addEventListener("play", repick, true);\\n'
+                + '  document.addEventListener("emptied", repick, true);\\n'
+                + '  document.addEventListener("loadedmetadata", repick,'
+                + ' true);\\n'
+                + '  pick();\\n})()')
 
 UNDO_SCRIPT = """(() => {
   for (const v of document.querySelectorAll(
