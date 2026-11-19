@@ -291,17 +291,18 @@ if card is not None:
     del expand, close
 
 # ---------------------------------------------------------------- 2
-# The video focus: the card's pick marks the page's video and the video
-# plays in the card. The card's own pick runs again here, because the
-# page's autoplay may not have started when the minimize ran.
+# The video focus: the page's muted autoplay is waited for (its start
+# time varies with the codec probe), then the card's pick runs and the
+# fill appears; the video keeps playing in the card.
+check('the page video autoplays',
+      ask_true(column, '!document.querySelector("video").paused', 20))
 card._focus_video()
 settle(1.5)
 check('the video focus fill is applied',
       ask_true(column,
                '!!document.querySelector("video[data-babble-pip-style]")'))
 check('the video keeps playing in the card',
-      ask_true(column,
-               '(v = document.querySelector("video"), v.play(), !v.paused)'))
+      ask_true(column, '!document.querySelector("video").paused'))
 
 # ---------------------------------------------------------------- 3
 # A plugin panel page refuses the card.

@@ -277,10 +277,13 @@ class WebColumn(Adw.Bin):
         group = Gio.SimpleActionGroup()
         for name, method in (('reload', self._on_reload),
                              ('open-browser', self._on_open_browser),
-                             ('copy-link', self._on_copy_link)):
+                             ('copy-link', self._on_copy_link),
+                             ('minimize-pip', self._on_pip_clicked)):
             action = Gio.SimpleAction.new(name, None)
             connect_weak(action, 'activate', method)
             group.add_action(action)
+        self._pip_action = group.lookup_action('minimize-pip')
+        self._pip_action.set_enabled(self.panel is None)
         self._open_link_action = Gio.SimpleAction.new(
             'open-link', GLib.VariantType.new('s'))
         connect_weak(self._open_link_action, 'activate',
@@ -342,6 +345,7 @@ class WebColumn(Adw.Bin):
         header.set_title_widget(self.title)
 
         menu = Gio.Menu()
+        menu.append(_('Minimize to Picture-in-Picture'), 'web.minimize-pip')
         menu.append(_('_Reload'), 'web.reload')
         menu.append(_('Open in _Browser'), 'web.open-browser')
         menu.append(_('_Copy Link'), 'web.copy-link')
@@ -414,6 +418,7 @@ class WebColumn(Adw.Bin):
             self.panel._end('replaced')
         self.panel = owner
         self.pip_button.set_visible(self.panel is None)
+        self._pip_action.set_enabled(self.panel is None)
         if owner is None:
             self._fallback_title = None
         elif title is not None:
