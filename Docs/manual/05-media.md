@@ -104,7 +104,7 @@ The card has three buttons along its bottom:
 | `Expand` | Puts the media back into the viewer, at the same position, still playing. |
 | `Close` | Stops the playback and releases the player. |
 
-Drag the card in the direction of the corner you want; on release it moves there, 24px from the edges. A short drag does not move it. With the card focused (click the video area once), the arrow keys move it between the corners. The position is remembered while the window is open, not between sessions.
+Drag the card toward the corner you want; on release it moves there, 24px from the edges. Each direction works on its own: a straight flick up or down keeps the current side, and so does a straight flick left or right. A short drag does not move it. With the card focused (click the video area once), the arrow keys move it between the corners. The position is remembered while the window is open, not between sessions.
 
 There is one playing surface at a time: opening another post's media while the card plays closes the card, and closing the window closes it too. The card keeps the same rules the viewer does — an animated GIF stays silent and keeps looping, and a video keeps the screen awake.
 

@@ -77,8 +77,12 @@ settings for size, position persistence, or always-on-top.
   excepted. The card does not follow the pointer (GTK 4.24 offers no
   way to move a mapped widget per frame without reallocating all of
   the content behind it); a drag flicks it once to the nearest corner
-  of the drag's direction, with a 24px margin, on release. A short
-  drag (under 12px in both axes) is a tap and does not move it. The
+  of the drag's direction, with a 24px margin, on release. Each axis
+  acts on its own: a straight flick up or down keeps the current side
+  (the pointer cannot move past the window edge it rests on, so a raw
+  sign would misread the intent), and so does a straight flick left
+  or right. A short drag (under 12px in both axes) is a tap and does
+  not move it. The
   keyboard path is the same thing: with the card focused, the arrow
   keys move it between the corners. The default position is
   bottom-right. Position is remembered per window in memory only;

@@ -340,19 +340,23 @@ class PiPCard(Gtk.Overlay):
         width, height = self.get_size_request()
         if not width or not height:
             return
-        # A tap is not a flick: the card stays where it is.
-        if abs(dx) < FLICK_THRESHOLD and abs(dy) < FLICK_THRESHOLD:
+        # Each side changes only when its axis moved past the flick
+        # threshold: with the card resting at a window edge, the pointer
+        # cannot move further toward that edge, so a raw sign read would
+        # send every flick to the opposite corner. A straight vertical
+        # flick keeps the current side, and so on.
+        moved_x = abs(dx) >= FLICK_THRESHOLD
+        moved_y = abs(dy) >= FLICK_THRESHOLD
+        if not moved_x and not moved_y:
             return
-        # Flick direction chooses the corner; one allocation moves the
-        # card there.
-        right = dx >= 0
-        bottom = dy >= 0
-        self._m_end = float(CORNER_MARGIN if right
-                            else max(0, self.window.get_width()
-                                     - width - CORNER_MARGIN))
-        self._m_bottom = float(CORNER_MARGIN if bottom
-                               else max(0, self.window.get_height()
-                                        - height - CORNER_MARGIN))
+        if moved_x:
+            self._m_end = float(CORNER_MARGIN if dx >= 0
+                                else max(0, self.window.get_width()
+                                         - width - CORNER_MARGIN))
+        if moved_y:
+            self._m_bottom = float(CORNER_MARGIN if dy >= 0
+                                   else max(0, self.window.get_height()
+                                            - height - CORNER_MARGIN))
         self._apply_margins()
 
     def _on_key_pressed(self, _controller, keyval, _keycode, _state):

@@ -104,7 +104,7 @@ O cartão tem três botões na parte de baixo:
 | `Expand` | Devolve a mídia ao visualizador, na mesma posição, ainda tocando. |
 | `Close` | Para a reprodução e libera o reprodutor. |
 
-Arraste o cartão na direção do canto que você quer; ao soltar, ele vai para lá, a 24 px das bordas. Um arrasto curto não o move. Com o cartão em foco (clique uma vez na área do vídeo), as setas movem-no entre os cantos. A posição é lembrada enquanto a janela estiver aberta, não entre sessões.
+Arraste o cartão na direção do canto que você quer; ao soltar, ele vai para lá, a 24 px das bordas. Cada direção age por si: um arrasto reto para cima ou para baixo mantém o lado atual, e o mesmo vale para a esquerda ou a direita. Um arrasto curto não o move. Com o cartão em foco (clique uma vez na área do vídeo), as setas movem-no entre os cantos. A posição é lembrada enquanto a janela estiver aberta, não entre sessões.
 
 Existe uma única superfície de reprodução por vez: abrir a mídia de outra publicação com o cartão tocando fecha o cartão, e fechar a janela também o fecha. O cartão mantém as mesmas regras do visualizador — um GIF animado fica mudo e continua repetindo, e um vídeo mantém a tela acordada.
 

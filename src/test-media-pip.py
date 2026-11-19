@@ -367,6 +367,25 @@ if HANDOVER:
               and card.get_margin_bottom() == mediapip.CORNER_MARGIN,
               'margins %r/%r' % (card.get_margin_end(),
                                  card.get_margin_bottom()))
+        # From the bottom-right edge, a straight flick up cannot read a
+        # rightward intent (the pointer is already at the edge): the
+        # current side is kept and the card moves to the top-right.
+        gesture.emit('drag-begin', 10, 10)
+        gesture.emit('drag-update', 0, -300)
+        gesture.emit('drag-end', 0, -300)
+        check('a straight flick up keeps the current side',
+              card.get_margin_end() == mediapip.CORNER_MARGIN
+              and card.get_margin_bottom() == 496,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
+        gesture.emit('drag-begin', 10, 10)
+        gesture.emit('drag-update', -600, 0)
+        gesture.emit('drag-end', -600, 0)
+        check('a straight flick left keeps the current side',
+              card.get_margin_end() == 636
+              and card.get_margin_bottom() == 496,
+              'margins %r/%r' % (card.get_margin_end(),
+                                 card.get_margin_bottom()))
 
     # The keyboard path: with the card focused, the arrows move it the
     # way the flick does with the pointer (HIG: every pointer action
@@ -378,6 +397,9 @@ if HANDOVER:
     check('the card has a key controller', keys is not None)
     if keys is not None:
         check('the card root is focusable', card.get_focusable())
+        # From wherever the flicks left it, to the default corner.
+        keys.emit('key-pressed', Gdk.KEY_Right, 0, 0)
+        keys.emit('key-pressed', Gdk.KEY_Down, 0, 0)
         keys.emit('key-pressed', Gdk.KEY_Left, 0, 0)
         check('Left sends the card to the left edge',
               card.get_margin_end() == 636
