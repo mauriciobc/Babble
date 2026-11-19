@@ -25,7 +25,7 @@ gi.require_version('Gdk', '4.0')
 
 from .i18n import gettext as _  # noqa: E402
 
-from gi.repository import Gio, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GObject, Gtk  # noqa: E402
 
 from . import mediainline  # noqa: E402
 from . import uihelpers  # noqa: E402
@@ -35,6 +35,64 @@ CARD_WIDTH = 240
 MIN_CARD_HEIGHT = 135
 MAX_CARD_HEIGHT = 360
 CORNER_MARGIN = 24
+
+
+def _card_size(ratio):
+    """The size the card asks for at *ratio*: CARD_WIDTH wide with the
+    height following it between the floor and the ceiling; a portrait
+    video takes the ceiling in height and keeps the ratio instead."""
+    height = min(MAX_CARD_HEIGHT, max(MIN_CARD_HEIGHT,
+                                      round(CARD_WIDTH / ratio)))
+    if height == MAX_CARD_HEIGHT:
+        return round(height * ratio), height
+    return CARD_WIDTH, height
+
+
+class PipPaintable(GObject.GObject, Gdk.Paintable):
+    """The stream as the card's paintable, with its intrinsic size
+    capped to the card's.
+
+    A ``Gtk.Picture`` sizes itself from the paintable's intrinsic size,
+    and a portrait phone video is hundreds of px wide: as an aligned
+    overlay child the card would take that size over the timeline. The
+    wrapper reports the capped pair instead and forwards the drawing
+    unchanged (``can_shrink`` lets the picture draw into whatever it is
+    given), re-emitting the stream's invalidations so the picture
+    follows the frame and the ratio like it does the stream's own.
+    """
+
+    __gtype_name__ = 'BabblePiPPaintable'
+
+    def __init__(self, stream):
+        super().__init__()
+        self.stream = stream
+        connect_weak(stream, 'invalidate-contents',
+                     self._on_invalidate_contents)
+        connect_weak(stream, 'invalidate-size', self._on_invalidate_size)
+
+    def _ratio(self):
+        ratio = self.stream.get_intrinsic_aspect_ratio()
+        return ratio if ratio and ratio > 0 else 16.0 / 9.0
+
+    def _on_invalidate_contents(self, *_args):
+        self.invalidate_contents()
+
+    def _on_invalidate_size(self, *_args):
+        self.invalidate_size()
+
+    # Gdk.Paintable
+
+    def do_snapshot(self, snapshot, width, height):
+        self.stream.snapshot(snapshot, width, height)
+
+    def do_get_intrinsic_width(self):
+        return _card_size(self._ratio())[0]
+
+    def do_get_intrinsic_height(self):
+        return _card_size(self._ratio())[1]
+
+    def do_get_intrinsic_aspect_ratio(self):
+        return self._ratio()
 
 
 def _playing_reason(stream):
@@ -122,7 +180,8 @@ class PiPCard(Gtk.Overlay):
     # Construction
 
     def _build(self):
-        picture = Gtk.Picture(paintable=self.stream,
+        self._paintable = PipPaintable(self.stream)
+        picture = Gtk.Picture(paintable=self._paintable,
                               content_fit=Gtk.ContentFit.CONTAIN,
                               can_shrink=True, hexpand=True, vexpand=True)
         picture.add_css_class('pip-video')
@@ -174,7 +233,10 @@ class PiPCard(Gtk.Overlay):
         connect_weak(drag, 'drag-end', self._on_drag_end)
         picture.add_controller(drag)
 
-        connect_weak(self.stream, 'invalidate-size', self._on_size)
+        # The wrapper re-emits the stream's invalidate-size (and the
+        # tests may force one), so the floor follows the same source the
+        # cap does.
+        connect_weak(self._paintable, 'invalidate-size', self._on_size)
         connect_weak(self.stream, 'notify::playing', self._on_playing)
         connect_weak(self.stream, 'notify::ended', self._on_playing)
         # GObject properties do not re-emit on connect and the stream
@@ -224,15 +286,15 @@ class PiPCard(Gtk.Overlay):
             self.stream.play()
         self._sync_playing()
 
+    # Size
+
     def _on_size(self, stream):
-        """The card is CARD_WIDTH wide; the height follows the stream's
-        aspect ratio, between the 16:9 floor and a ceiling."""
+        """The card follows the stream's aspect ratio under the caps:
+        the request is the floor, the paintable wrapper is the cap."""
         ratio = stream.get_intrinsic_aspect_ratio()
         if not ratio or ratio <= 0:
             ratio = 16.0 / 9.0
-        height = min(MAX_CARD_HEIGHT, max(MIN_CARD_HEIGHT,
-                                          round(CARD_WIDTH / ratio)))
-        self.set_size_request(CARD_WIDTH, height)
+        self.set_size_request(*_card_size(ratio))
 
     # Dragging
 

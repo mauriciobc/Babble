@@ -80,7 +80,9 @@ settings for size, position persistence, or always-on-top.
   default position is bottom-right. Position is remembered per window
   in memory only; nothing is tunable.
 - **Width.** Base width ~240px; height follows the stream's aspect
-  ratio. The card scales with no user sizing control in v1.
+  ratio, capped: a portrait video takes up to 360px of height and keeps
+  the ratio, so the card never grows past the caps in either dimension.
+  The card scales with no user sizing control in v1.
 
 ## 3. Wording table
 

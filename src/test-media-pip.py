@@ -268,7 +268,8 @@ if HANDOVER:
     picture = card.get_child()
     check('the video area is a picture of the stream',
           isinstance(picture, Gtk.Picture)
-          and picture.get_paintable() is stream)
+          and picture.get_paintable() is card._paintable
+          and card._paintable.stream is stream)
     check('the video area is not focusable', not picture.get_focusable())
     controls = pip_controls(card)
     buttons = pip_buttons(card)
@@ -300,6 +301,36 @@ if HANDOVER:
     check('the card is CARD_WIDTH wide and follows the ratio',
           card.get_size_request() == (mediapip.CARD_WIDTH, expected),
           repr(card.get_size_request()))
+
+    # The paintable caps the intrinsic size: the picture's natural size
+    # is the paintable's, and a portrait phone video is hundreds of px
+    # wide -- the card would take it over the timeline. The fixture clip
+    # is too small to be that video, so a portrait ratio stands in.
+    wrapper = picture.get_paintable()
+    original_ratio = stream.get_intrinsic_aspect_ratio
+    stream.get_intrinsic_aspect_ratio = lambda: 0.8
+    wrapper.invalidate_size()
+    portrait = mediapip._card_size(0.8)
+    settle(0.5)
+    check('the paintable caps a portrait video',
+          wrapper.get_intrinsic_width() == portrait[0]
+          and wrapper.get_intrinsic_height() == portrait[1]
+          and abs(wrapper.get_intrinsic_aspect_ratio() - 0.8) < 1e-9,
+          'intrinsic %dx%d' % (wrapper.get_intrinsic_width(),
+                               wrapper.get_intrinsic_height()))
+    check('the card allocation follows the capped size',
+          card.get_width() == portrait[0]
+          and card.get_height() == portrait[1],
+          'allocated %dx%d' % (card.get_width(), card.get_height()))
+    stream.get_intrinsic_aspect_ratio = original_ratio
+    wrapper.invalidate_size()
+    settle(0.5)
+    check('the card is back at the fixture size',
+          card.get_width() == mediapip.CARD_WIDTH
+          and card.get_height() == expected,
+          'allocated %dx%d, request %r' % (
+              card.get_width(), card.get_height(),
+              card.get_size_request()))
 else:
     blocked('the card widgets')
     play = close_button = None
