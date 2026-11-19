@@ -832,6 +832,50 @@ label.just-toggled {
   }
 }
 
+/* Picture-in-Picture card (mediapip.py): a small video floating over the
+   window content. Same lightbox exemption as the viewer: a fixed black
+   surface with the foreground hoisted into --viewer-fg, so the card's
+   controls and the high-contrast companion resolve through one pair. */
+.pip-card {
+  border-radius: 12px;
+  background: black;
+  box-shadow: 0 2px 8px var(--shade-color);
+  --viewer-bg: #000;
+  --viewer-fg: #fff;
+}
+
+.pip-card > picture {
+  border-radius: 12px;
+}
+
+/* The island follows the viewer's zoom bar: a translucent tint of the
+   surface, with the icons on it light. */
+.pip-controls {
+  border-radius: 9999px;
+  padding: 4px;
+  background-color: color-mix(in srgb, var(--viewer-bg) 85%, transparent);
+  color: var(--viewer-fg);
+}
+
+.pip-controls button {
+  color: var(--viewer-fg);
+}
+
+@media (prefers-contrast: more) {
+  .pip-card {
+    background-color: var(--window-bg-color);
+    --viewer-bg: var(--window-bg-color);
+    --viewer-fg: var(--window-fg-color);
+  }
+
+  /* A translucent tint of the surface is not a shape at high contrast:
+     the island gets the card surface and a border instead. */
+  .pip-controls {
+    background-color: var(--card-bg-color);
+    border: 1px solid var(--border-color);
+  }
+}
+
 /* Catch Up highlights */
 .catchup-tile:focus-visible {
   outline: 2px solid var(--accent-color);
@@ -967,21 +1011,3 @@ label.just-toggled {
                                     rgba(92, 206, 250, 0.5) 100%);
 }
 
-/* Picture-in-Picture card (mediapip.py): a small video floating over the
-   window content. */
-.pip-card {
-  border-radius: 12px;
-  background: black;
-  box-shadow: 0 2px 8px var(--shade-color);
-}
-
-.pip-card > picture {
-  border-radius: 12px;
-}
-
-.pip-controls {
-  border-radius: 9999px;
-  padding: 4px;
-  background-color: var(--popover-bg-color);
-  border: 1px solid var(--border-color);
-}

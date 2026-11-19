@@ -136,7 +136,11 @@ class PiPCard(Gtk.Overlay):
         controls.add_css_class('pip-controls')
         controls.add_css_class('osd')
 
+        # Flat: the island paints the surface; a plain button paints its
+        # own light background and the light icon on it disappears.
         self.play_button = Gtk.ToggleButton()
+        self.play_button.add_css_class('flat')
+        self.play_button.add_css_class('circular')
         uihelpers.set_accessible_label(self.play_button, _('Pause'))
         # connect_weak wraps the handler in a closure, so the sync can
         # only block it by id, never by function.
@@ -146,6 +150,8 @@ class PiPCard(Gtk.Overlay):
 
         self.expand_button = Gtk.Button(
             icon_name='babble-pip-out-symbolic')
+        self.expand_button.add_css_class('flat')
+        self.expand_button.add_css_class('circular')
         # Translators: the Picture-in-Picture card button that puts the
         # media back into the full-size viewer.
         uihelpers.set_accessible_label(self.expand_button, _('Expand'))
@@ -153,6 +159,8 @@ class PiPCard(Gtk.Overlay):
         controls.append(self.expand_button)
 
         self.close_button = Gtk.Button(icon_name='window-close-symbolic')
+        self.close_button.add_css_class('flat')
+        self.close_button.add_css_class('circular')
         uihelpers.set_accessible_label(self.close_button, _('Close'))
         connect_weak(self.close_button, 'clicked', self._on_close_clicked)
         controls.append(self.close_button)
