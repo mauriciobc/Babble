@@ -313,15 +313,23 @@ class PiPCard(Gtk.Overlay):
             return
         t, b, s, e = self._drag_base
         # Offsets are relative to the press point, so the whole delta
-        # lands on the captured margins. Margins are start/end, so they
-        # flip with the direction on their own: dragging toward a window
-        # edge always shrinks that edge's margin.
-        free_v = t + b
-        free_h = s + e
+        # lands on the captured margins. Each margin moves on its own
+        # and is clamped only by the window: the card travels anywhere
+        # over it, and the snap on release puts it back in a corner.
+        # (A constant margin sum here would pin the card to the sliver
+        # it started with.)
+        width, height = self.get_size_request()
+        free_v = max(0, self.window.get_height() - height)
+        free_h = max(0, self.window.get_width() - width)
+        rtl = self.get_direction() == Gtk.TextDirection.RTL
         self._m_top = min(free_v, max(0.0, t + dy))
-        self._m_bottom = free_v - self._m_top
-        self._m_end = min(free_h, max(0.0, e - dx))
-        self._m_start = free_h - self._m_end
+        self._m_bottom = min(free_v, max(0.0, b - dy))
+        if rtl:
+            self._m_start = min(free_h, max(0.0, s - dx))
+            self._m_end = min(free_h, max(0.0, e + dx))
+        else:
+            self._m_start = min(free_h, max(0.0, s + dx))
+            self._m_end = min(free_h, max(0.0, e - dx))
         self._apply_margins()
 
     def _on_drag_end(self, _gesture, _dx, _dy):

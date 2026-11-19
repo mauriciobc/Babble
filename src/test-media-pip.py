@@ -331,6 +331,37 @@ if HANDOVER:
           'allocated %dx%d, request %r' % (
               card.get_width(), card.get_height(),
               card.get_size_request()))
+
+    # The drag is not pinned to the margins the card started with: the
+    # card travels anywhere over the window and snaps to a corner on
+    # release.
+    gesture = None
+    for controller in picture.observe_controllers():
+        if isinstance(controller, Gtk.GestureDrag):
+            gesture = controller
+    check('the video area has a drag gesture', gesture is not None)
+    if gesture is not None:
+        gesture.emit('drag-begin', 10, 10)
+        gesture.emit('drag-update', 200, 100)
+        check('the card travels beyond its starting margins',
+              card.get_margin_top() == 100
+              and card.get_margin_start() == 200,
+              'margins %r/%r' % (card.get_margin_top(),
+                                 card.get_margin_start()))
+        gesture.emit('drag-end', 200, 100)
+        check('the release snaps to a corner',
+              (card.get_margin_top() == 0
+               or card.get_margin_bottom() == 0)
+              and (card.get_margin_start() == 0
+                   or card.get_margin_end() == 0),
+              'margins %r/%r/%r/%r' % (
+                  card.get_margin_top(), card.get_margin_bottom(),
+                  card.get_margin_start(), card.get_margin_end()))
+        card._m_top = 0.0
+        card._m_bottom = float(mediapip.CORNER_MARGIN)
+        card._m_start = 0.0
+        card._m_end = float(mediapip.CORNER_MARGIN)
+        card._apply_margins()
 else:
     blocked('the card widgets')
     play = close_button = None
