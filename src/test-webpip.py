@@ -281,8 +281,12 @@ counting_load(column)
 card = webpip.open_card(host)
 check('open_card returns the card', card is not None)
 if card is not None:
-    check('the column is the card\'s child',
-          card.get_child() is column and column.get_parent() is card)
+    check('the column is inside the fixed-size viewport',
+          card.get_child() is card._viewport
+          and card._viewport.get_child().get_child() is column
+          and column.get_parent() is card._viewport.get_child())
+    check('focus polling remains active inside viewport',
+          card._on_poll() == GLib.SOURCE_CONTINUE)
     check('the slot is empty', host.web_slot.get_child() is None)
     check('the sidebar hid', not host.web_split.get_show_sidebar())
     check('the column is not disposed', not column._disposed)
@@ -295,6 +299,12 @@ if card is not None:
     check('the card asks 320x180',
           card.get_size_request()
           == (webpip.CARD_WIDTH, webpip.CARD_HEIGHT))
+
+    pump(lambda: card.get_width() > 0 and card.get_height() > 0, 3)
+    check('card allocation is 320x180',
+          (card.get_width(), card.get_height())
+          == (webpip.CARD_WIDTH, webpip.CARD_HEIGHT),
+          '%dx%d' % (card.get_width(), card.get_height()))
     expand, close = card_buttons(card)
     check('the OSD has expand and close',
           isinstance(expand, Gtk.Button)
@@ -319,6 +329,23 @@ settle(1.5)
 check('the video focus fill is applied',
       ask_true_until(column,
                      '!!document.querySelector("video[data-babble-pip-style]")'))
+check('the fill hides the rest of the page',
+      ask_true(column, '(() => {'
+                       'const v = document.querySelector('
+                       '"video[data-babble-pip-style]");'
+                       'return getComputedStyle(document.body).visibility'
+                       ' === "hidden"'
+                       ' && getComputedStyle(v).visibility === "visible";'
+                       '})()'))
+check('the video focus resists player inline styles',
+      ask_true(column, '(() => {'
+                       'const v = document.querySelector('
+                       '"video[data-babble-pip-style]");'
+                       'v.style.setProperty("position", "absolute", "important");'
+                       'const focused = getComputedStyle(v).position === "fixed";'
+                       'v.style.removeProperty("position");'
+                       'return focused;'
+                       '})()'))
 check('the video keeps playing in the card',
       ask_true(column, '!document.querySelector("video").paused'))
 
@@ -374,9 +401,16 @@ check('the card left the overlay and the registry',
 check('the column still lives', not column._disposed)
 check('the top bars are back', column.header.get_visible())
 check('card mode is off', not column.card_mode)
-check('the fill is undone',
-      ask_true(column,
-               '!document.querySelector("video[data-babble-pip-style]")'))
+check('the fill is undone and the page is visible again',
+      ask_true(column, '(() => {'
+                       'const v = document.querySelector("video");'
+                       'return !v.hasAttribute("data-babble-pip-style")'
+                       ' && getComputedStyle(document.body).visibility'
+                       ' === "visible";'
+                       '})()'))
+check('the restored view is visible after undo',
+      pump(lambda: column.view.get_opacity() == 1
+            and column.view.get_sensitive()))
 
 # ---------------------------------------------------------------- 5
 # Minimize/expand cycles: the column never leaks, never rebuilds.
@@ -456,7 +490,8 @@ counting_load(column)
 card = webpip.open_card(host)
 webpip.close_card(card)
 check('the deferred close keeps the card mapped',
-      card.get_parent() is host.overlay and column.get_parent() is card)
+      card.get_parent() is host.overlay
+      and column.get_parent() is card._viewport.get_child())
 check('the deferred close runs the column\'s grace timer',
       bool(column._teardown_timer))
 check('the deferred close drops the card when the page settles',

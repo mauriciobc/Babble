@@ -43,17 +43,13 @@ CARD_HEIGHT = 180
 WORLD = 'babble-webpip'
 PICK_POLL_SECONDS = 3
 
-# The body both flavors share. The detection is the one Google's
-# Picture-in-Picture extension uses (Apache-2.0; source:
-# github.com/GoogleChromeLabs/picture-in-picture-chrome-extension,
-# src/script.js): the largest video that HAS DATA (readyState != 0)
-# and that the site has not opted out of PiP
-# (disablePictureInPicture), sorted by area. The fill is an inline
-# style on the element, with the original kept in a data attribute the
-# undo script restores. The top frame only: the fill has to be undone
-# in the frame it was applied in, and evaluate reaches no further than
-# the main document, so a cross-origin embed inside an article stays
-# untouched in v1.
+# The pick follows Google's Picture-in-Picture extension detection
+# (Apache-2.0; github.com/GoogleChromeLabs/
+# picture-in-picture-chrome-extension, src/script.js): largest video
+# with data, unless the site explicitly opts out. A user-origin
+# stylesheet provides the fill, so player scripts cannot clear it by
+# rewriting the video's inline style. The marker is removed on restore.
+# Detection is top-frame-only; cross-origin embeds remain untouched.
 _PICK_BODY = """  const area = v => { const r = v.getClientRects()[0]
                                     || {width: 0, height: 0};
                       return r.width * r.height; };
@@ -66,46 +62,27 @@ _PICK_BODY = """  const area = v => { const r = v.getClientRects()[0]
   if (!videos.length) return false;
   const v = videos[0];
   if (v.hasAttribute('data-babble-pip-style')) return true;
-  const prev = v.getAttribute('style') || '';
-  v.setAttribute('data-babble-pip-style', prev);
-  v.setAttribute('style', prev
-    + ';position:fixed !important;inset:0 !important'
-    + ';width:100% !important;height:100% !important'
-    + ';object-fit:contain !important;z-index:2147483647 !important'
-    + ';background:#000 !important');
+  v.setAttribute('data-babble-pip-style', '');
   v.scrollIntoView({block: 'center'});
   return true;
 """
-
-# The one-shot pick: filled when this runs (evaluate calls are fresh
-# contexts per call on WebKitGTK 2.54 -- nothing registered here
-# survives), so the card polls it until a video plays.
 PICK_ONCE = '(() => {\n' + _PICK_BODY + '\n})()'
-
-# The per-load watcher: injected once as a user script for loads that
-# happen while the card is out; its context lives as long as the
-# frame, so its play listener survives, and a player the page's own
-# script starts late (globo's countdown, a YouTube player) fills the
-# card without the UI knowing.
-WATCH_SCRIPT = ('(() => {\\n' + _PICK_BODY
-                + '\\n  const repick = () => setTimeout(() => {\\n'
-                + '    const filled = document.querySelector('
-                + '"video[data-babble-pip-style]");\\n'
-                + '    if (!filled || !filled.getClientRects()[0]'
-                + ' || filled.getClientRects()[0].width < 10) pick();\\n'
-                + '  }, 200);\\n'
-                + '  document.addEventListener("play", repick, true);\\n'
-                + '  document.addEventListener("emptied", repick, true);\\n'
-                + '  document.addEventListener("loadedmetadata", repick,'
-                + ' true);\\n'
-                + '  pick();\\n})()')
+WATCH_SCRIPT = ('(() => {\n' + _PICK_BODY
+                + '\n  const repick = () => setTimeout(() => {'
+                + '\n    const filled = document.querySelector('
+                + '"video[data-babble-pip-style]");'
+                + '\n    if (!filled || !filled.getClientRects()[0]'
+                + ' || filled.getClientRects()[0].width < 10) pick();'
+                + '\n  }, 200);'
+                + '\n  document.addEventListener("play", repick, true);'
+                + '\n  document.addEventListener("emptied", repick, true);'
+                + '\n  document.addEventListener("loadedmetadata", repick,'
+                + ' true);'
+                + '\n  pick();\n})()')
 
 UNDO_SCRIPT = """(() => {
   for (const v of document.querySelectorAll(
            'video[data-babble-pip-style]')) {
-    const prev = v.getAttribute('data-babble-pip-style');
-    if (prev === '') v.removeAttribute('style');
-    else v.setAttribute('style', prev);
     v.removeAttribute('data-babble-pip-style');
   }
   return true;
@@ -163,9 +140,18 @@ def restore(card, show_sidebar=True):
     card._disconnect_window()
     window._babble_web_pip_card = None
     column = card.column
-    card._undo_video_focus()
+    view = column.view
+    view.set_opacity(0)
+    view.set_sensitive(False)
+
+    def reveal():
+        view.set_opacity(1)
+        view.set_sensitive(True)
+
+    card._undo_video_focus(reveal)
     column.remove_css_class('pip-web-view')
     column.card_mode = False
+    card._viewport.set_child(None)
     card.set_child(None)
     window.web_slot.set_child(column)
     card.unparent()
@@ -218,9 +204,9 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
 
     def __init__(self, window, column):
         super().__init__()
+        self._closed = False
         self.window = window
         self.column = column
-        self._closed = False
         self._watch_script = None
         self._poll_source = 0
         # The card's page reads (watch, undo) run through one scope:
@@ -231,9 +217,19 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         self.set_halign(Gtk.Align.END)
         self.set_valign(Gtk.Align.END)
         self.set_size_request(CARD_WIDTH, CARD_HEIGHT)
+        self._viewport = Gtk.ScrolledWindow()
+        self._viewport.set_policy(Gtk.PolicyType.NEVER,
+                                  Gtk.PolicyType.NEVER)
+        self._viewport.set_min_content_width(CARD_WIDTH)
+        self._viewport.set_max_content_width(CARD_WIDTH)
+        self._viewport.set_min_content_height(CARD_HEIGHT)
+        self._viewport.set_max_content_height(CARD_HEIGHT)
+        self._viewport.set_propagate_natural_width(False)
+        self._viewport.set_propagate_natural_height(False)
+        self._viewport.set_child(column)
         self.add_css_class('pip-card')
         self.add_css_class('web-pip-card')
-        self.set_child(column)
+        self.set_child(self._viewport)
         self.init_geometry(window)
         self._build()
 
@@ -268,9 +264,8 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         connect_weak(drag, 'drag-end', self._on_drag_end)
         controls.add_controller(drag)
 
-        # The watcher watches loads that happen while the card is out;
-        # the page already showing gets it evaluated directly (a user
-        # script only applies to loads after it is added).
+        # The watcher handles later loads; the current page is evaluated
+        # directly because a user script only applies to future loads.
         if appsettings.settings().get_boolean('web-javascript'):
             WebKit = self.column._webkit
             content = self.column.view.get_user_content_manager()
@@ -280,15 +275,6 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
             content.add_script(script)
             self._watch_script = script
             self._focus_video()
-
-    def do_measure(self, orientation, for_size):
-        """A fixed-size overlay child: END/END alignment allocates the
-        natural size, and a WebView's natural size would take the whole
-        window. The column inside fills whatever this reports."""
-        if orientation == Gtk.Orientation.HORIZONTAL:
-            return CARD_WIDTH, CARD_WIDTH, -1, -1
-        return CARD_HEIGHT, CARD_HEIGHT, -1, -1
-
     def _on_expand_clicked(self, _button):
         restore(self)
 
@@ -326,7 +312,6 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         # dropped by the ticket's callback.
         if value is not None and value.to_boolean():
             self._stop_polling()
-
     def _stop_polling(self):
         if self._poll_source != 0:
             GLib.source_remove(self._poll_source)
@@ -334,7 +319,7 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
 
     def _on_poll(self):
         if not appsettings.settings().get_boolean('web-javascript') \
-                or self.column.get_parent() is not self:
+                or self.column.get_parent() is not self._viewport.get_child():
             self._poll_source = 0
             return GLib.SOURCE_REMOVE
         ticket = self._scope.start()
@@ -351,18 +336,24 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         # by the ticket's callback.
         pass
 
-    def _undo_video_focus(self):
+    def _undo_video_focus(self, on_done=None):
         self._stop_polling()
         # A restore or close supersedes the watch in flight; the undo
         # below is the new generation's read.
         self._scope.begin()
+        content = self.column.view.get_user_content_manager()
         if self._watch_script is not None:
-            content = self.column.view.get_user_content_manager()
             content.remove_script(self._watch_script)
             self._watch_script = None
         if not appsettings.settings().get_boolean('web-javascript'):
+            if on_done is not None:
+                on_done()
             return
         ticket = self._scope.start()
-        self.column.evaluate(WORLD, UNDO_SCRIPT,
-                             weak_method(self._on_undo),
+        callback = weak_method(self._on_undo)
+        if on_done is not None:
+            def on_undo(_value, _error):
+                on_done()
+            callback = on_undo
+        self.column.evaluate(WORLD, UNDO_SCRIPT, callback,
                              ticket.cancellable)

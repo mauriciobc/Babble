@@ -307,6 +307,23 @@ class WebColumn(Adw.Bin):
                 autoplay=WebKit.AutoplayPolicy.ALLOW_WITHOUT_SOUND))
         view.set_vexpand(True)
         view.set_hexpand(True)
+
+        content = view.get_user_content_manager()
+        self._pip_style_sheet = WebKit.UserStyleSheet.new(
+            'html:has(video[data-babble-pip-style]) {'
+            ' background: #000 !important; }'
+            'body:has(video[data-babble-pip-style]) {'
+            ' visibility: hidden !important; }'
+            'video[data-babble-pip-style] {'
+            ' visibility: visible !important;'
+            ' position: fixed !important; inset: 0 !important;'
+            ' width: 100vw !important; height: 100vh !important;'
+            ' object-fit: contain !important;'
+            ' z-index: 2147483647 !important;'
+            ' background: #000 !important; }',
+            WebKit.UserContentInjectedFrames.TOP_FRAME,
+            WebKit.UserStyleLevel.USER)
+        content.add_style_sheet(self._pip_style_sheet)
         for signal, method in (
                 ('decide-policy', self._on_decide_policy),
                 ('create', self._on_create),
