@@ -600,6 +600,14 @@ web_test_env.set('LC_ALL', 'C')
 web_test_env.set('GSK_RENDERER', 'cairo')
 web_test_env.set('WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS', '1')
 web_test_env.set('G_DEBUG', 'fatal-criticals')
+# The web process opens an audio sink on its main thread while a video
+# prerolls, even a muted one with no audio track. Test sessions have no
+# audio server, and autoaudiosink's fallback through OpenAL and the
+# PipeWire ALSA plugin then sometimes blocks forever: every evaluate in
+# that page goes unanswered for the rest of the run (`web pip`, about 1
+# run in 5). fakeaudiosink first means no device is ever opened. The
+# rank must fit a gint: larger values and `max` are silently ignored.
+web_test_env.set('GST_PLUGIN_FEATURE_RANK', 'fakeaudiosink:2147483647')
 test('web column', python,
   args: [files('test-webcolumn.py')],
   env: web_test_env,

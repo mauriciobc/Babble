@@ -175,6 +175,11 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 # hosting the same web_split the real shell builds.
 Adw.init()
 Gtk.init()
+# WebKitGTK zooms a page by font DPI / 96, and with gtk-xft-dpi unset
+# (as here: no settings portal) it takes the DPI from the monitor's
+# physical size. The headless virtual monitor is 0x0 mm, so every view
+# after the first in the process got an infinite zoom and a 0x0 layout.
+Gtk.Settings.get_default().props.gtk_xft_dpi = 96 * 1024
 
 
 class Host(Adw.ApplicationWindow):
@@ -276,9 +281,9 @@ def counting_load(column):
 
 # ---------------------------------------------------------------- 0
 # A video added after the load is filled by the watcher's listeners
-# alone (the poll is stopped). First, and handed on by expanding: under
-# the test compositor a view made after another closed lays out at 0x0.
+# alone (the poll is stopped).
 column = open_column(BASE + '/plain.html')
+ref = column.weak_ref()
 card = webpip.open_card(host)
 card._stop_polling()
 column.evaluate(None, 'location.href = "' + BASE + '/late.html"', None)
@@ -286,8 +291,10 @@ check('a video added after the load self-filled via the listeners',
       ask_true_until(column,
                      '!!document.querySelector("video[data-babble-pip-style]")',
                      30))
-webpip.restore(card)
-card = None
+webpip.close_card(card)
+card = column = None
+check('the late-video column is freed',
+      pump(lambda: (gc.collect(), ref() is None)[1], 15))
 
 # ---------------------------------------------------------------- 1
 # Minimize: the column moves into the card, the slot empties, the
@@ -601,6 +608,19 @@ check('a close after restore is a no-op',
       not column._disposed and host.web_slot.get_child() is column)
 check('fullscreen works in sidebar mode',
       column._on_fullscreen(None) is False)
+
+# A web process that stops answering (a wedged media pipeline) never
+# answers the undo: expand must still show the view, after a timeout.
+settle(webpip.REVEAL_TIMEOUT_MS / 1000 + 0.5)  # the last restore's undo
+column.evaluate = lambda *_args: None
+card = webpip.open_card(host)
+webpip.restore(card)
+check('expand hides the view until the undo answers',
+      column.view.get_opacity() == 0)
+check('an unanswered undo still reveals the view',
+      pump(lambda: column.view.get_opacity() == 1
+           and column.view.get_sensitive(), 5))
+del column.evaluate
 
 # The window's own close-request with the card out closes the card and
 # disposes the column: the last case, because the window goes with it.

@@ -42,6 +42,7 @@ CARD_HEIGHT = 180
 # next -- so anything persistent has to be a user script.
 WORLD = 'babble-webpip'
 PICK_POLL_SECONDS = 3
+REVEAL_TIMEOUT_MS = 1000
 
 # The pick follows Google's Picture-in-Picture extension detection
 # (Apache-2.0; github.com/GoogleChromeLabs/
@@ -171,10 +172,20 @@ def restore(card, show_sidebar=True):
     view.set_opacity(0)
     view.set_sensitive(False)
 
-    def reveal():
-        view.set_opacity(1)
-        view.set_sensitive(True)
+    # The view comes back once the undo has answered, so the fill never
+    # flashes in the sidebar; a web process that has stopped answering
+    # (a wedged media pipeline) would leave it hidden, so a timeout
+    # reveals it anyway. Whichever runs first wins.
+    revealed = []
 
+    def reveal():
+        if not revealed:
+            revealed.append(True)
+            view.set_opacity(1)
+            view.set_sensitive(True)
+        return GLib.SOURCE_REMOVE
+
+    GLib.timeout_add(REVEAL_TIMEOUT_MS, reveal)
     card._undo_video_focus(reveal)
     column.remove_css_class('pip-web-view')
     column.card_mode = False
