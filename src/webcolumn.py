@@ -23,6 +23,33 @@ EXTERNAL = 'external'
 ROUTE = 'route'
 IGNORE = 'ignore'
 
+# While a video is marked for the PiP card, the page is reduced to that
+# video. A plain hidden body kept the page's scrollbars, because hidden
+# boxes still take space, so the document and every ancestor of the
+# video lose their scrollable overflow too. Ancestors also lose
+# transforms, filters and containment: any of them turns into the
+# containing block of a `position: fixed` box and leaves the fill short
+# of the viewport. These are user-origin declarations, which beat author
+# `!important` rules.
+PIP_STYLE = (
+    'html:has(video[data-babble-pip-style])'
+    ' { overflow: hidden !important; background: #000 !important; }'
+    'html:has(video[data-babble-pip-style])'
+    ' *:has(video[data-babble-pip-style])'
+    ' { overflow: hidden !important; transform: none !important;'
+    ' filter: none !important; contain: none !important;'
+    ' will-change: auto !important; }'
+    'html:has(video[data-babble-pip-style]) body'
+    ' { visibility: hidden !important; margin: 0 !important; }'
+    'html:has(video[data-babble-pip-style])'
+    ' video[data-babble-pip-style]'
+    ' { visibility: visible !important; position: fixed !important;'
+    ' inset: 0 !important; width: 100vw !important;'
+    ' height: 100vh !important; object-fit: contain !important;'
+    ' z-index: 2147483647 !important; background: #000 !important; }'
+    'html:has(video[data-babble-pip-style]) ::-webkit-scrollbar'
+    ' { display: none !important; }')
+
 _available = None
 _session = None
 
@@ -310,17 +337,7 @@ class WebColumn(Adw.Bin):
 
         content = view.get_user_content_manager()
         self._pip_style_sheet = WebKit.UserStyleSheet.new(
-            'html:has(video[data-babble-pip-style]) {'
-            ' background: #000 !important; }'
-            'body:has(video[data-babble-pip-style]) {'
-            ' visibility: hidden !important; }'
-            'video[data-babble-pip-style] {'
-            ' visibility: visible !important;'
-            ' position: fixed !important; inset: 0 !important;'
-            ' width: 100vw !important; height: 100vh !important;'
-            ' object-fit: contain !important;'
-            ' z-index: 2147483647 !important;'
-            ' background: #000 !important; }',
+            PIP_STYLE,
             WebKit.UserContentInjectedFrames.TOP_FRAME,
             WebKit.UserStyleLevel.USER)
         content.add_style_sheet(self._pip_style_sheet)

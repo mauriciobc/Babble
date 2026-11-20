@@ -329,12 +329,17 @@ settle(1.5)
 check('the video focus fill is applied',
       ask_true_until(column,
                      '!!document.querySelector("video[data-babble-pip-style]")'))
-check('the fill hides the rest of the page',
+check('the fill leaves only the video on screen',
       ask_true(column, '(() => {'
                        'const v = document.querySelector('
                        '"video[data-babble-pip-style]");'
-                       'return getComputedStyle(document.body).visibility'
-                       ' === "hidden"'
+                       'const html = getComputedStyle(document.documentElement);'
+                       'const body = getComputedStyle(document.body);'
+                       'const p = document.querySelector("p");'
+                       'return html.overflow === "hidden"'
+                       ' && body.overflow === "hidden"'
+                       ' && body.visibility === "hidden"'
+                       ' && getComputedStyle(p).visibility === "hidden"'
                        ' && getComputedStyle(v).visibility === "visible";'
                        '})()'))
 check('the video focus resists player inline styles',
@@ -406,6 +411,8 @@ check('the fill is undone and the page is visible again',
                        'const v = document.querySelector("video");'
                        'return !v.hasAttribute("data-babble-pip-style")'
                        ' && getComputedStyle(document.body).visibility'
+                       ' === "visible"'
+                       ' && getComputedStyle(document.documentElement).overflow'
                        ' === "visible";'
                        '})()'))
 check('the restored view is visible after undo',
