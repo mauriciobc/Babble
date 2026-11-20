@@ -96,21 +96,20 @@ section 2).
   opposite of the engine card, whose video area does nothing: the web
   card's page area *is* the content.
 - **Video-focus fill.** When `web-javascript` is on, a script in an
-  isolated world picks the largest *playing* `<video>` on the page —
-  visible ones preferred; if several play, the largest visible one
-  wins; if none is visible, the largest playing one is picked anyway,
-  because the fill below brings it into view (and out of WebKit's
-  visibility suspend) — filtered by the Firefox toggle heuristics:
-  at least 45 seconds long, at least 160px in one dimension. A
-  stylesheet is injected so the chosen video fills the card's
-  viewport (`position:fixed; inset:0; object-fit:contain`, black
-  behind it), and a `scrollIntoView` is issued. The fill and its
-  state are removed on expand. The pick re-runs on every committed
-  load while in card mode, so a navigation inside the card re-fills
-  the new page's video. If nothing qualifies, the card simply shows
-  the page. Site-specific layout quirks (transforms that break
-  `position:fixed`) are accepted in v1 — a per-site wrapper table is
-  future work, Firefox-style.
+  isolated world picks the largest top-frame `<video>` with
+  `readyState != 0`, not `disablePictureInPicture`, and at least
+  160px in one dimension — the Google Picture-in-Picture extension
+  heuristic. A stylesheet is injected so the chosen video fills the
+  card's viewport (`position:fixed; inset:0; object-fit:contain`,
+  black behind it), and a `scrollIntoView` is issued. The fill and
+  its state are removed on expand. The pick re-runs on every
+  committed load while in card mode, and on that page whenever a
+  video starts playing, empties or loads its metadata while no filled
+  video is on screen, so a navigation inside the card, or a player
+  that adds its video after the load, re-fills. If nothing
+  qualifies, the card simply shows the page. Site-specific layout
+  quirks (transforms that break `position:fixed`) are accepted in v1
+  — a per-site wrapper table is future work, Firefox-style.
 - **OSD bar.** Overlaid at the **top**-center of the card — a
   player's own controls sit at the bottom and must stay clickable —
   two icon buttons in order: expand (`babble-pip-out-symbolic`),
@@ -183,10 +182,11 @@ PiP work, so `babble-pot` regenerates with no diff.
 - **No qualifying video.** The card shows the page as it is; the
   button, expand and close work identically. No message, no empty
   state.
-- **Videos below the fold.** The pick prefers visible videos but takes
-  a playing one that is not visible when that is all there is — the
-  fill brings it into the card's viewport, which is also what stops
-  WebKit from suspending it (the muted, invisible-video rule).
+- **Videos below the fold.** The pick asks neither visibility nor
+  playback, only the eligibility above, so a video off screen is
+  taken; the fill brings it into the card's viewport, which is also
+  what stops WebKit from suspending it (the muted, invisible-video
+  rule).
 - **Muted autoplay.** The page keeps its own mute state; the card
   never unmutes (autoplay in the column is `ALLOW_WITHOUT_SOUND`, so
   most videos arrive muted, and unmuting is the page's own control's
@@ -200,16 +200,19 @@ PiP work, so `babble-pot` regenerates with no diff.
   navigation to another video page re-fills. A navigation away from
   video content simply shows the new page.
 - **Window resized with the card out.** The card clamps into view and
-  re-snaps to the nearest corner at the 24px margin (shared
+  re-snaps to the nearest corner at the 24px margin, or at the free
+  space left beside it when that is less than 24px (shared
   `pipgeometry` behaviour, engine card identical).
 - **Close during a handover race.** A close press while the card is
   mid-minimize or mid-expand is a no-op on the already-closing side;
   exactly one close path runs. QA verifies with the minimize/expand
   cycle loop.
-- **Escape and Ctrl+W in card mode.** Both close the card (Escape
-  through the column's own shortcut, Ctrl+W through `forward_action`
-  routing). Neither ever closes the Babble window or disposes anything
-  but the card's column.
+- **Escape and Ctrl+W in card mode.** Both close the card, whether the
+  page or one of the OSD buttons holds focus (Escape through the
+  column's own shortcut or the card's, Ctrl+W through
+  `forward_action` routing, which counts the whole card as the
+  column's). Neither ever closes the Babble window or disposes
+  anything but the card's column.
 - **`web-javascript` off.** No pick, no fill, no `evaluate_javascript`
   use in card mode; the card shows the page and everything else in
   this spec is unchanged. The button stays available — a video can

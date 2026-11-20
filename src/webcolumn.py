@@ -23,33 +23,6 @@ EXTERNAL = 'external'
 ROUTE = 'route'
 IGNORE = 'ignore'
 
-# While a video is marked for the PiP card, the page is reduced to that
-# video. A plain hidden body kept the page's scrollbars, because hidden
-# boxes still take space, so the document and every ancestor of the
-# video lose their scrollable overflow too. Ancestors also lose
-# transforms, filters and containment: any of them turns into the
-# containing block of a `position: fixed` box and leaves the fill short
-# of the viewport. These are user-origin declarations, which beat author
-# `!important` rules.
-PIP_STYLE = (
-    'html:has(video[data-babble-pip-style])'
-    ' { overflow: hidden !important; background: #000 !important; }'
-    'html:has(video[data-babble-pip-style])'
-    ' *:has(video[data-babble-pip-style])'
-    ' { overflow: hidden !important; transform: none !important;'
-    ' filter: none !important; contain: none !important;'
-    ' will-change: auto !important; }'
-    'html:has(video[data-babble-pip-style]) body'
-    ' { visibility: hidden !important; margin: 0 !important; }'
-    'html:has(video[data-babble-pip-style])'
-    ' video[data-babble-pip-style]'
-    ' { visibility: visible !important; position: fixed !important;'
-    ' inset: 0 !important; width: 100vw !important;'
-    ' height: 100vh !important; object-fit: contain !important;'
-    ' z-index: 2147483647 !important; background: #000 !important; }'
-    'html:has(video[data-babble-pip-style]) ::-webkit-scrollbar'
-    ' { display: none !important; }')
-
 _available = None
 _session = None
 
@@ -231,19 +204,22 @@ def forward_action(window, name):
     Application accelerators are matched before any widget's controller,
     so the window's own Ctrl+W, Ctrl+R, F5 and Alt+Left handlers hand
     over here first."""
+    from . import webpip
+    card = webpip.card_for(window)
     column = _column_of(window)
     if column is None:
         # The column may live in a webpip card: found through the card,
         # and the sidebar check does not apply to it.
-        from . import webpip
-        card = webpip.card_for(window)
         column = card.column if card is not None else None
     elif not window.web_split.get_show_sidebar():
         return False
     if column is None:
         return False
+    # A carded column's focus scope is the card, so its OSD controls
+    # count: Ctrl+W on the focused Expand button closes the card.
+    scope = card if card is not None else column
     focus = window.get_focus()
-    if focus is None or not (focus is column or focus.is_ancestor(column)):
+    if focus is None or not (focus is scope or focus.is_ancestor(scope)):
         return False
     {'close': column._on_close_clicked,
      'reload': column._on_reload,
@@ -335,12 +311,13 @@ class WebColumn(Adw.Bin):
         view.set_vexpand(True)
         view.set_hexpand(True)
 
-        content = view.get_user_content_manager()
-        self._pip_style_sheet = WebKit.UserStyleSheet.new(
-            PIP_STYLE,
-            WebKit.UserContentInjectedFrames.TOP_FRAME,
-            WebKit.UserStyleLevel.USER)
-        content.add_style_sheet(self._pip_style_sheet)
+        # The PiP card's fill stylesheet: inert until webpip marks a
+        # video, and installed with the view so it applies to every load.
+        from . import webpip
+        view.get_user_content_manager().add_style_sheet(
+            WebKit.UserStyleSheet.new(
+                webpip.PIP_STYLE, WebKit.UserContentInjectedFrames.TOP_FRAME,
+                WebKit.UserStyleLevel.USER))
         for signal, method in (
                 ('decide-policy', self._on_decide_policy),
                 ('create', self._on_create),

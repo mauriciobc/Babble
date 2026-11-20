@@ -444,10 +444,10 @@ if HANDOVER:
         m_end, m_bottom = card.get_margin_end(), card.get_margin_bottom()
         check('the clamp pulled the far corner card inside',
               (m_end, m_bottom) != pre
-              and m_end in (pipgeometry.CORNER_MARGIN,
-                            max(0, free_h - pipgeometry.CORNER_MARGIN))
-              and m_bottom in (pipgeometry.CORNER_MARGIN,
-                               max(0, free_v - pipgeometry.CORNER_MARGIN)),
+              and m_end in (pipgeometry.corner_inset(free_h, True),
+                            pipgeometry.corner_inset(free_h, False))
+              and m_bottom in (pipgeometry.corner_inset(free_v, True),
+                               pipgeometry.corner_inset(free_v, False)),
               'margins %r/%r, was %r/%r, free %r/%r' % (
                   m_end, m_bottom, pre[0], pre[1], free_h, free_v))
     else:

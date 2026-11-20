@@ -50,7 +50,8 @@ PICK_POLL_SECONDS = 3
 # stylesheet provides the fill, so player scripts cannot clear it by
 # rewriting the video's inline style. The marker is removed on restore.
 # Detection is top-frame-only; cross-origin embeds remain untouched.
-_PICK_BODY = """  const area = v => { const r = v.getClientRects()[0]
+_PICK = """const pick = () => {
+  const area = v => { const r = v.getClientRects()[0]
                                     || {width: 0, height: 0};
                       return r.width * r.height; };
   const videos = [...document.querySelectorAll('video')]
@@ -65,20 +66,18 @@ _PICK_BODY = """  const area = v => { const r = v.getClientRects()[0]
   v.setAttribute('data-babble-pip-style', '');
   v.scrollIntoView({block: 'center'});
   return true;
+};
 """
-PICK_ONCE = '(() => {\n' + _PICK_BODY + '\n})()'
-WATCH_SCRIPT = ('(() => {\n' + _PICK_BODY
-                + '\n  const repick = () => setTimeout(() => {'
-                + '\n    const filled = document.querySelector('
-                + '"video[data-babble-pip-style]");'
-                + '\n    if (!filled || !filled.getClientRects()[0]'
-                + ' || filled.getClientRects()[0].width < 10) pick();'
-                + '\n  }, 200);'
-                + '\n  document.addEventListener("play", repick, true);'
-                + '\n  document.addEventListener("emptied", repick, true);'
-                + '\n  document.addEventListener("loadedmetadata", repick,'
-                + ' true);'
-                + '\n  pick();\n})()')
+PICK_ONCE = '(() => {\n' + _PICK + 'return pick();\n})()'
+WATCH_SCRIPT = '(() => {\n' + _PICK + """const repick = () => setTimeout(() => {
+  const filled = document.querySelector('video[data-babble-pip-style]');
+  if (!filled || !filled.getClientRects()[0]
+      || filled.getClientRects()[0].width < 10) pick();
+}, 200);
+for (const type of ['play', 'emptied', 'loadedmetadata'])
+  document.addEventListener(type, repick, true);
+pick();
+})()"""
 
 UNDO_SCRIPT = """(() => {
   for (const v of document.querySelectorAll(
@@ -87,6 +86,33 @@ UNDO_SCRIPT = """(() => {
   }
   return true;
 })()"""
+
+# While a video is marked for the PiP card, the page is reduced to that
+# video. A plain hidden body kept the page's scrollbars, because hidden
+# boxes still take space, so the document and every ancestor of the
+# video lose their scrollable overflow too. Ancestors also lose
+# transforms, filters and containment: any of them turns into the
+# containing block of a `position: fixed` box and leaves the fill short
+# of the viewport. These are user-origin declarations, which beat author
+# `!important` rules.
+PIP_STYLE = (
+    'html:has(video[data-babble-pip-style])'
+    ' { overflow: hidden !important; background: #000 !important; }'
+    'html:has(video[data-babble-pip-style])'
+    ' *:has(video[data-babble-pip-style])'
+    ' { overflow: hidden !important; transform: none !important;'
+    ' filter: none !important; contain: none !important;'
+    ' will-change: auto !important; }'
+    'html:has(video[data-babble-pip-style]) body'
+    ' { visibility: hidden !important; margin: 0 !important; }'
+    'html:has(video[data-babble-pip-style])'
+    ' video[data-babble-pip-style]'
+    ' { visibility: visible !important; position: fixed !important;'
+    ' inset: 0 !important; width: 100vw !important;'
+    ' height: 100vh !important; object-fit: contain !important;'
+    ' z-index: 2147483647 !important; background: #000 !important; }'
+    'html:has(video[data-babble-pip-style]) ::-webkit-scrollbar'
+    ' { display: none !important; }')
 
 
 def card_for(window):
@@ -136,6 +162,7 @@ def restore(card, show_sidebar=True):
     viewer-opens case)."""
     if card._closed:
         return
+    card._closed = True
     window = card.window
     card._disconnect_window()
     window._babble_web_pip_card = None
@@ -246,13 +273,13 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         # Translators: the web column's Picture-in-Picture card button
         # that puts the column back into the sidebar.
         self.expand_button = uihelpers.icon_button(
-            'babble-pip-out-symbolic', _('Expand'))
+            'babble-pip-out-symbolic', _('Expand'), css=('circular',))
         connect_weak(self.expand_button, 'clicked',
                      self._on_expand_clicked)
         controls.append(self.expand_button)
 
         self.close_button = uihelpers.icon_button(
-            'window-close-symbolic', _('Close'))
+            'window-close-symbolic', _('Close'), css=('circular',))
         connect_weak(self.close_button, 'clicked', self._on_close_clicked)
         controls.append(self.close_button)
         self.add_overlay(controls)
@@ -264,21 +291,31 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         connect_weak(drag, 'drag-end', self._on_drag_end)
         controls.add_controller(drag)
 
+        # Escape with an OSD control focused (the column's own shortcut
+        # covers the page); Ctrl+W goes through forward_action.
+        escape = Gtk.ShortcutController()
+        escape.add_shortcut(Gtk.Shortcut.new(
+            Gtk.ShortcutTrigger.parse_string('Escape'),
+            Gtk.CallbackAction.new(
+                self.column._shortcut_callback(self._on_close_clicked))))
+        self.add_controller(escape)
+
         # The watcher handles later loads; the current page is evaluated
         # directly because a user script only applies to future loads.
         if appsettings.settings().get_boolean('web-javascript'):
             WebKit = self.column._webkit
             content = self.column.view.get_user_content_manager()
-            script = WebKit.UserScript.new(
+            script = WebKit.UserScript.new_for_world(
                 WATCH_SCRIPT, WebKit.UserContentInjectedFrames.TOP_FRAME,
-                WebKit.UserScriptInjectionTime.END, None, None)
+                WebKit.UserScriptInjectionTime.END, WORLD, None, None)
             content.add_script(script)
             self._watch_script = script
             self._focus_video()
+
     def _on_expand_clicked(self, _button):
         restore(self)
 
-    def _on_close_clicked(self, _button):
+    def _on_close_clicked(self, *_args):
         close_card(self)
 
     def _on_window_close(self, _window):
@@ -296,22 +333,11 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
         injected user script instead. The poll stops at the first
         fill, or when the card goes away (the scope is superseded by
         restore and close, and the ticket drops those answers)."""
-        ticket = self._scope.start()
-        # weak_method for the (value, error) callback the column's
-        # evaluate uses; the scope is for cancellation only (its
-        # ticket.callback is shaped for api *_finish handlers).
-        self.column.evaluate(WORLD, PICK_ONCE,
-                             weak_method(self._on_picked),
-                             ticket.cancellable)
+        self._pick()
         if self._poll_source == 0:
             self._poll_source = GLib.timeout_add_seconds(
                 PICK_POLL_SECONDS, self._on_poll)
 
-    def _on_picked(self, value, _error):
-        # True once a fill exists: the poll stops. Cancelled reads are
-        # dropped by the ticket's callback.
-        if value is not None and value.to_boolean():
-            self._stop_polling()
     def _stop_polling(self):
         if self._poll_source != 0:
             GLib.source_remove(self._poll_source)
@@ -322,19 +348,21 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
                 or self.column.get_parent() is not self._viewport.get_child():
             self._poll_source = 0
             return GLib.SOURCE_REMOVE
-        ticket = self._scope.start()
-        # weak_method for the (value, error) callback the column's
-        # evaluate uses; the scope is for cancellation only (its
-        # ticket.callback is shaped for api *_finish handlers).
-        self.column.evaluate(WORLD, PICK_ONCE,
-                             weak_method(self._on_picked),
-                             ticket.cancellable)
+        self._pick()
         return GLib.SOURCE_CONTINUE
 
-    def _on_undo(self, _value, _error):
-        # The undo answer carries nothing; cancelled reads are dropped
-        # by the ticket's callback.
-        pass
+    def _pick(self):
+        # evaluate's (value, error) answer cannot take ticket.callback,
+        # so the callback asks wanted() itself: an answer restore or
+        # close superseded never stops a poll.
+        ticket = self._scope.start()
+        stop = weak_method(self._stop_polling)
+
+        def picked(value, _error):
+            # True once a fill exists: the poll stops.
+            if ticket.wanted() and value is not None and value.to_boolean():
+                stop()
+        self.column.evaluate(WORLD, PICK_ONCE, picked, ticket.cancellable)
 
     def _undo_video_focus(self, on_done=None):
         self._stop_polling()
@@ -350,10 +378,6 @@ class WebPiPCard(Gtk.Overlay, CardGeometry):
                 on_done()
             return
         ticket = self._scope.start()
-        callback = weak_method(self._on_undo)
-        if on_done is not None:
-            def on_undo(_value, _error):
-                on_done()
-            callback = on_undo
+        callback = None if on_done is None else (lambda _v, _e: on_done())
         self.column.evaluate(WORLD, UNDO_SCRIPT, callback,
                              ticket.cancellable)

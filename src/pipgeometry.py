@@ -24,6 +24,13 @@ CORNER_MARGIN = 24
 FLICK_THRESHOLD = 12
 
 
+def corner_inset(free, near):
+    """The END or BOTTOM inset on one axis with *free* (>= 0) spare
+    pixels: CORNER_MARGIN from the near or far edge, shrunk to fit."""
+    margin = min(CORNER_MARGIN, free)
+    return float(margin if near else free - margin)
+
+
 class CardGeometry:
     """Mix-in for a floating card: margins, flick, clamp, corner keys
     and the window plumbing.
@@ -106,14 +113,12 @@ class CardGeometry:
         moved_y = abs(dy) >= FLICK_THRESHOLD
         if not moved_x and not moved_y:
             return
+        free_h = max(0, self.window.get_width() - width)
+        free_v = max(0, self.window.get_height() - height)
         if moved_x:
-            self._m_end = float(CORNER_MARGIN if dx >= 0
-                                else max(0, self.window.get_width()
-                                         - width - CORNER_MARGIN))
+            self._m_end = corner_inset(free_h, near=(dx >= 0))
         if moved_y:
-            self._m_bottom = float(CORNER_MARGIN if dy >= 0
-                                   else max(0, self.window.get_height()
-                                            - height - CORNER_MARGIN))
+            self._m_bottom = corner_inset(free_v, near=(dy >= 0))
         self._apply_margins()
 
     def _corner_key(self, keyval):
@@ -125,16 +130,16 @@ class CardGeometry:
         width, height = self.get_size_request()
         if not width or not height:
             return False
+        free_h = max(0, self.window.get_width() - width)
+        free_v = max(0, self.window.get_height() - height)
         if keyval == Gdk.KEY_Left:
-            self._m_end = float(max(0, self.window.get_width()
-                                    - width - CORNER_MARGIN))
+            self._m_end = corner_inset(free_h, False)
         elif keyval == Gdk.KEY_Right:
-            self._m_end = float(CORNER_MARGIN)
+            self._m_end = corner_inset(free_h, True)
         elif keyval == Gdk.KEY_Up:
-            self._m_bottom = float(max(0, self.window.get_height()
-                                       - height - CORNER_MARGIN))
+            self._m_bottom = corner_inset(free_v, False)
         elif keyval == Gdk.KEY_Down:
-            self._m_bottom = float(CORNER_MARGIN)
+            self._m_bottom = corner_inset(free_v, True)
         else:
             return False
         self._apply_margins()
@@ -166,10 +171,8 @@ class CardGeometry:
         # The corner is the side the current inset is closer to.
         right = self._m_end <= free_h / 2.0
         bottom = self._m_bottom <= free_v / 2.0
-        self._m_end = float(CORNER_MARGIN if right
-                            else max(0, free_h - CORNER_MARGIN))
-        self._m_bottom = float(CORNER_MARGIN if bottom
-                               else max(0, free_v - CORNER_MARGIN))
+        self._m_end = corner_inset(free_h, right)
+        self._m_bottom = corner_inset(free_v, bottom)
         self._apply_margins()
 
     # The window

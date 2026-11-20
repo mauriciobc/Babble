@@ -1,6 +1,6 @@
 # Picture-in-Picture for the web column — product plan
 
-Status: planned, not implemented. Working note (English only, per the
+Status: implemented. Working note (English only, per the
 documentation policy). The interaction and wording contract the DEV and
 QA agents implement against is `Docs/web-pip-ux-spec.md` (T1, done);
 this file holds the problem, the code facts, the spike measurements and
@@ -144,15 +144,14 @@ unparent → `add_overlay` in the same main-loop turn):
   removal from the overlay happens only after `_teardown`.
 - **Card mode shows the video, not the page layout** (this is the use
   case: any video in the tab, watched in PiP). On entering card mode,
-  a script in an isolated world picks the largest *playing* `<video>`
-  — visible ones preferred, but a playing one below the fold is taken
-  when that is all there is, because the fill below brings it into
-  view (and out of WebKit's visibility suspend) — and an injected
-  stylesheet fills the card's viewport with it; both are removed on
-  expand. Firefox's toggle heuristics filter the pick (at least 45 s,
-  at least 160 px). With no eligible video, or with `web-javascript`
-  off, the card shows the page as it is. The pick re-runs on each
-  committed load in card mode. A site's own fullscreen button is
+  a script in an isolated world picks the largest top-frame `<video>`
+  with `readyState != 0`, not `disablePictureInPicture`, and at least
+  160 px in one dimension — the Google Picture-in-Picture extension
+  heuristic — and an injected stylesheet fills the card's viewport
+  with it; both are removed on expand. With no eligible video, or
+  with `web-javascript` off, the card shows the page as it is. The
+  pick re-runs on each committed load in card mode. A site's own
+  fullscreen button is
   **denied in card mode** (the video-focus fill already gives the
   near-fullscreen look, and WebKit's default would take over the
   whole Babble window); fullscreen keeps working normally in sidebar
@@ -348,10 +347,10 @@ New module `src/webpip.py` (target < 300 lines):
   (`web_split.set_show_sidebar(False)`), so `watch_split`'s
   `on_shown` sees an empty slot and never disposes the page. Register
   the card on the window. When `web-javascript` is on, run the
-  video-focus script (isolated world: pick the largest playing
-  `<video>`, visible preferred, injected fill stylesheet), and re-run
-  it on each committed load while in card mode. Returns the card, or
-  None when there is no live column.
+  video-focus script (isolated world: largest eligible top-frame
+  `<video>` by the Chrome-extension heuristic, injected fill
+  stylesheet), and re-run it on each committed load while in card
+  mode. Returns the card, or None when there is no live column.
 - `WebPiPCard`: OSD bar at the card's top edge (close, expand, drag)
   so a player's own bottom controls stay clickable, drag = flick to a
   corner from the bar only, resize clamp, window `close-request` →

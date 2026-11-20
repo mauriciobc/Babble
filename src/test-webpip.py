@@ -10,6 +10,7 @@ plugins decode."""
 
 import gc
 import http.server
+import json
 import time
 import importlib.util
 import os
@@ -33,7 +34,7 @@ import gi  # noqa: E402
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Gio, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -77,11 +78,14 @@ def settle(seconds):
 
 # A loopback page with the test's video in it. The clip is the media
 # fixture's: Theora in Ogg, base plugins only. /slow.html trickles to
-# keep a load running for the deferred-teardown case.
-PAGE = ('<title>Pip page</title>'
-        '<p style="margin:0">scroll</p>'
-        '<video id="v" muted autoplay loop playsinline src="clip.ogg" '
-        'style="width:480px;height:270px"></video>')
+# keep a load running for the deferred-teardown case. /late.html adds
+# its video after the load, so only the watcher's listeners can fill it.
+VIDEO = ('<video id="v" muted autoplay loop playsinline src="clip.ogg" '
+         'style="width:480px;height:270px"></video>')
+PAGE = '<title>Pip page</title><p style="margin:0">scroll</p>' + VIDEO
+LATE = ('<title>Late page</title><script>setTimeout(() => document.body'
+        '.insertAdjacentHTML("beforeend", %s), 500)</script>'
+        % json.dumps(VIDEO))
 
 MEDIA = {}
 
@@ -115,8 +119,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        if path == '/page.html':
-            body = PAGE.encode()
+        if path in ('/page.html', '/late.html'):
+            body = (PAGE if path == '/page.html' else LATE).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.send_header('Content-Length', str(len(body)))
@@ -270,6 +274,21 @@ def counting_load(column):
     column.load_uri = wrapper
 
 
+# ---------------------------------------------------------------- 0
+# A video added after the load is filled by the watcher's listeners
+# alone (the poll is stopped). First, and handed on by expanding: under
+# the test compositor a view made after another closed lays out at 0x0.
+column = open_column(BASE + '/plain.html')
+card = webpip.open_card(host)
+card._stop_polling()
+column.evaluate(None, 'location.href = "' + BASE + '/late.html"', None)
+check('a video added after the load self-filled via the listeners',
+      ask_true_until(column,
+                     '!!document.querySelector("video[data-babble-pip-style]")',
+                     30))
+webpip.restore(card)
+card = None
+
 # ---------------------------------------------------------------- 1
 # Minimize: the column moves into the card, the slot empties, the
 # sidebar hides, nothing is disposed.
@@ -305,6 +324,14 @@ if card is not None:
           (card.get_width(), card.get_height())
           == (webpip.CARD_WIDTH, webpip.CARD_HEIGHT),
           '%dx%d' % (card.get_width(), card.get_height()))
+    # Less free space than the corner margin: the near inset is what is
+    # left, never a forced 24px that pushes the card past the edge.
+    card.set_size_request(host.get_width() - 10, webpip.CARD_HEIGHT)
+    card._corner_key(Gdk.KEY_Right)
+    check('the near-corner inset clamps to the free space',
+          card.get_margin_end() == 10, repr(card.get_margin_end()))
+    card.set_size_request(webpip.CARD_WIDTH, webpip.CARD_HEIGHT)
+    card._corner_key(Gdk.KEY_Right)
     expand, close = card_buttons(card)
     check('the OSD has expand and close',
           isinstance(expand, Gtk.Button)
@@ -409,7 +436,7 @@ check('card mode is off', not column.card_mode)
 check('the fill is undone and the page is visible again',
       ask_true(column, '(() => {'
                        'const v = document.querySelector("video");'
-                       'return !v.hasAttribute("data-babble-pip-style")'
+                       'return !v?.hasAttribute("data-babble-pip-style")'
                        ' && getComputedStyle(document.body).visibility'
                        ' === "visible"'
                        ' && getComputedStyle(document.documentElement).overflow'
@@ -516,7 +543,22 @@ check('the deferred column is freed',
 
 # ---------------------------------------------------------------- 9
 # Routing: Ctrl+W (forward_action 'close') in card mode closes the
-# card, never the window; focus decides.
+# card, never the window; focus decides. OSD focus counts as in-card.
+column = open_column(BASE + '/plain.html')
+ref = column.weak_ref()
+card = webpip.open_card(host)
+expand = card.expand_button
+check('the OSD expand button holds focus',
+      pump(lambda: host.get_focus() is expand or expand.has_focus(), 5))
+check('forward_action close with OSD focus',
+      webcolumn.forward_action(host, 'close'))
+check('OSD-focused close disposed the card',
+      webpip.card_for(host) is None and column._disposed)
+expand = card = None
+column = None
+check('the OSD-routed column is freed',
+      pump(lambda: (gc.collect(), ref() is None)[1], 15))
+
 column = open_column(BASE + '/plain.html')
 ref = column.weak_ref()
 card = webpip.open_card(host)
@@ -532,6 +574,21 @@ column = None
 check('the routed column is freed',
       pump(lambda: (gc.collect(), ref() is None)[1], 15))
 
+# Escape with the OSD focused: the card's own shortcut closes it.
+column = open_column(BASE + '/plain.html')
+ref = column.weak_ref()
+card = webpip.open_card(host)
+escape = next(c for c in card.observe_controllers()
+              if isinstance(c, Gtk.ShortcutController)).get_item(0)
+escape.get_action().activate(Gtk.ShortcutActionFlags.EXCLUSIVE, card, None)
+check('Escape on the card closes it',
+      escape.get_trigger().to_string() == 'Escape'
+      and webpip.card_for(host) is None and column._disposed)
+escape = card = None
+column = None
+check('the Escape-closed column is freed',
+      pump(lambda: (gc.collect(), ref() is None)[1], 15))
+
 # The fullscreen denial, on a fresh column.
 column = open_column(BASE + '/plain.html')
 ref = column.weak_ref()
@@ -539,6 +596,9 @@ card = webpip.open_card(host)
 check('fullscreen is denied in card mode',
       column._on_fullscreen(None) is True)
 webpip.restore(card)
+webpip.close_card(card)
+check('a close after restore is a no-op',
+      not column._disposed and host.web_slot.get_child() is column)
 check('fullscreen works in sidebar mode',
       column._on_fullscreen(None) is False)
 
