@@ -177,6 +177,7 @@ from gi.repository import GLib, GObject, Secret  # noqa: E402
 
 from src import desktopnotify, sysstate  # noqa: E402
 from src import streaming as streaming_module  # noqa: E402
+from src.appsettings import settings  # noqa: E402
 
 
 def pump_until(predicate, limit=8.0):
@@ -334,6 +335,65 @@ fake.props.power_saver = False
 check('leaving power saver restores the interval',
       armed[-1] == desktopnotify.POLL_SECONDS)
 notifier.stop_polling()
+
+# The notifications page marks what it shows as read, so it must not also
+# raise a desktop notification for the same event.
+class NoteWindow:
+    def __init__(self, visible, active, place):
+        self.settings = settings()
+        self.account = None
+        self._visible = visible
+        self._active = active
+        self._place = place
+
+    def get_visible(self):
+        return self._visible
+
+    def is_active(self):
+        return self._active
+
+    def visible_tag(self):
+        return self._place
+
+
+class NoteApp:
+    def __init__(self):
+        self.sent = []
+
+    def send_notification(self, platform_id, note):
+        self.sent.append(platform_id)
+
+
+def _mention(nid):
+    return {'id': nid, 'type': 'mention',
+            'account': {'id': '1', 'acct': 'bob', 'display_name': 'Bob'},
+            'status': {'id': '42', 'content': '<p>hello</p>',
+                       'visibility': 'public'}}
+
+
+settings().set_strv('desktop-notification-types', ['mention'])
+settings().set_boolean('group-desktop-notifications', False)
+
+page_app = NoteApp()
+page_notifier = desktopnotify.DesktopNotifier(
+    NoteWindow(True, False, 'notifications'), application=page_app)
+page_notifier.handle(_mention('7001'))
+check('the notifications page on screen raises no desktop notification',
+      page_app.sent == [])
+
+home_app = NoteApp()
+home_notifier = desktopnotify.DesktopNotifier(
+    NoteWindow(True, False, 'home'), application=home_app)
+home_notifier.handle(_mention('7002'))
+check('an unfocused window on another place announces',
+      home_app.sent == ['babble-7002'])
+
+hidden_app = NoteApp()
+hidden_notifier = desktopnotify.DesktopNotifier(
+    NoteWindow(False, False, 'notifications'), application=hidden_app)
+hidden_notifier.handle(_mention('7003'))
+check('a hidden window announces even if that place was last',
+      hidden_app.sent == ['babble-7003'])
 
 desktopnotify.GLib.timeout_add_seconds = _real_timeout_add_seconds
 sysstate.monitor = _real_monitor

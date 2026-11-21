@@ -439,11 +439,34 @@ window.notifications_page = types.SimpleNamespace(
     on_shown=lambda: shown.append('shown'),
     on_hidden=lambda: shown.append('hidden'),
     header_widget=Gtk.Label())
+
+
+class _Withdrawals:
+    def __init__(self):
+        self.ids = []
+
+    def withdraw_notification(self, platform_id):
+        self.ids.append(platform_id)
+
+
+withdrawals = _Withdrawals()
+window.notifier._application = withdrawals
+window.notifier._sent_ids = {'babble-42'}
 window.show_page('notifications')
 window.show_page('home')
 window.show_page('notifications')
 check('opening notifications again still runs on_shown',
       shown == ['shown', 'hidden', 'shown'])
+check('opening notifications withdraws the desktop notifications it sent',
+      withdrawals.ids == ['babble-42']
+      and window.notifier._sent_ids == set())
+window.notifier._sent_ids = {'babble-43'}
+window.show_page('home')
+check('leaving notifications leaves them',
+      withdrawals.ids == ['babble-42'])
+window.show_page('notifications')
+check('opening it again withdraws the rest',
+      withdrawals.ids == ['babble-42', 'babble-43'])
 window.notifications_page = None
 
 if failures:
