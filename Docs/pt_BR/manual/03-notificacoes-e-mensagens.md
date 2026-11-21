@@ -49,7 +49,9 @@ O filtro é do **Babble**: esconde a notificação da sua caixa. Ele não impede
 
 ### Notificações no desktop
 
-Quando a janela do Babble não está em foco, o aplicativo pode mostrar uma notificação do sistema. Isso é controlado em Preferências → Notifications, com um botão por tipo:
+Quando a janela do Babble não está em foco, o aplicativo pode mostrar uma notificação do sistema. Com a página `Notifications` aberta, ele não mostra: essa página marca o que exibe como lido, então o contador lateral já responde à mesma pergunta. Abrir a página também retira as notificações que o Babble enviou enquanto estava em execução, tanto do aviso do desktop quanto da lista de notificações do shell.
+
+A escolha de quais notificações ganham uma notificação do sistema fica em Preferências → Notifications, com um botão por tipo:
 
 `Mentions` · `New Followers` · `Follow Requests` · `Favorites` · `Boosts` · `Poll Results` · `New Posts` · `Edits` · `Quotes` · `Quote Edits` · `New Sign-Ups` · `New Reports`
 

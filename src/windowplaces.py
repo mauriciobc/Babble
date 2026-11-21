@@ -257,6 +257,9 @@ class WindowPlaces:
         # returned a cached notifications page (mount is skipped).
         if tag == 'notifications' and self.notifications_page is not None:
             self.notifications_page.on_shown()
+            # GNOME keeps what it was shown; the page marks what it
+            # displays as read, so anything left there is stale.
+            self.notifier.withdraw_all()
         self.navigation_view.replace([page])
         self._select_item(tag)
         self.dismiss_sidebar_overlay()

@@ -135,9 +135,23 @@ class DesktopNotifier(GObject.Object):
 
     # Policy
 
-    def window_inactive(self):
+    def may_announce(self):
+        """True when the user is not looking at the app.
+
+        A focused window is the user's attention. A visible window on
+        another workspace still gets announced, except the
+        notifications page: that page marks what it shows as read the
+        moment it is shown, so its badge stays at zero and a desktop
+        notification about the same event would contradict it.
+        """
         win = self.window
-        return not win.get_visible() or not win.is_active()
+        if not win.get_visible():
+            return True
+        if win.is_active():
+            return False
+        visible_place = getattr(win, 'visible_tag', None)
+        return not (visible_place is not None
+                    and visible_place() == 'notifications')
 
     def wants(self, notification):
         settings = self.window.settings
@@ -159,7 +173,7 @@ class DesktopNotifier(GObject.Object):
                 self._seen = set(sorted(self._seen)[-250:])
             if self._last_id is None or _id_key(nid) > _id_key(self._last_id):
                 self._last_id = nid
-        if not force and not self.window_inactive():
+        if not force and not self.may_announce():
             return None
         if not self.wants(notification):
             return None

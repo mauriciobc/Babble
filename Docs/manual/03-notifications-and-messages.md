@@ -49,7 +49,9 @@ The filter belongs to **Babble**: it hides the notification from your box. It do
 
 ### Desktop notifications
 
-When the Babble window does not have focus, the application can show a system notification. This is controlled in Preferences → Notifications, with one button per type:
+When the Babble window does not have focus, the application can show a system notification. While the Notifications page is open it does not: that page marks what it shows as read, so the badge already answers the same question. Opening the page also withdraws the notifications Babble sent while it was running, from the desktop banner and from the shell's notification list.
+
+The choice of which notifications get a desktop entry is controlled in Preferences → Notifications, with one button per type:
 
 `Mentions` · `New Followers` · `Follow Requests` · `Favorites` · `Boosts` · `Poll Results` · `New Posts` · `Edits` · `Quotes` · `Quote Edits` · `New Sign-Ups` · `New Reports`
 
