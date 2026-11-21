@@ -228,6 +228,13 @@ class NotificationController:
         else:
             self.on_refresh()
 
+    def pull_refresh(self):
+        """A pull at the top of the list refreshes, the way the timeline
+        page's does: ``_RefreshGesture`` is installed on both, and it
+        calls this name. This list has no overshoot spinner, so the pull
+        is the same reload as the button."""
+        self.refresh()
+
     def on_refresh(self, _button=None):
         # Paging's refresh(), which uses min_id for this endpoint.
         self._quiet = False

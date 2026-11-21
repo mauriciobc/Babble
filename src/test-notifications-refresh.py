@@ -128,6 +128,59 @@ check('refresh on an empty list loads the newest page',
       relay['params'].get('limit') == 20
       and page.stack.get_visible_child_name() == 'loading')
 
+# A pull at the top refreshes. timelinepage's gesture is installed on
+# this page too and calls the page's ``pull_refresh``, a name this page
+# did not have: the handler raised AttributeError and the pull did
+# nothing.
+
+
+def find_scrolled_window(widget):
+    stack = [widget]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, Gtk.ScrolledWindow):
+            return node
+        child = node.get_first_child()
+        while child is not None:
+            stack.append(child)
+            child = child.get_next_sibling()
+    return None
+
+
+def pull_at_top(widget):
+    """Deliver one upward scroll to every scroll controller, as GTK
+    would after a pull at the top; returns the exceptions the handlers
+    raised."""
+    errors = []
+
+    def hook(exc_type, exc, tb):
+        errors.append(exc_type.__name__)
+
+    scrolled = find_scrolled_window(widget)
+    scrolled.get_vadjustment().set_value(0)
+    controllers = scrolled.observe_controllers()
+    saved = sys.excepthook
+    sys.excepthook = hook
+    try:
+        for index in range(controllers.get_n_items()):
+            controller = controllers.get_item(index)
+            if isinstance(controller, Gtk.EventControllerScroll):
+                controller.emit('scroll', 0.0, -1.0)
+    finally:
+        sys.excepthook = saved
+    return errors
+
+
+page.model.clear()
+page.model.append_page(FIXTURES)
+page.model.loading = False
+relay.clear()
+pull_errors = pull_at_top(page)
+check('a pull at the top refreshes the list',
+      relay.get('params') == {'limit': 20,
+                             'min_id': page.model.newest_id}
+      and pull_errors == [])
+
 # Infinite scroll: load_older pages with max_id.
 page.model.clear()
 page.model.oldest_id = '90'
