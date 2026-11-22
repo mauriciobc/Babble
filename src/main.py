@@ -316,7 +316,7 @@ class BabbleApplication(Adw.Application):
                 continue
             delivered.add(uri)
             if file.has_uri_scheme('babble'):
-                from .feedchef.sharecodec import is_feedchef_uri, parse_feedchef_uri
+                from .feedchef.sharecodec import is_feedchef_uri
                 if is_feedchef_uri(uri):
                     self._open_feedchef_uri(win, uri)
                 else:

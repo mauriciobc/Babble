@@ -122,7 +122,8 @@ class FeedEngine:
                     return
                 log.exception('feedchef: process_feed failed')
                 if on_error:
-                    self.ui_idle(lambda: on_error(error))
+                    err = error
+                    self.ui_idle(lambda err=err: on_error(err))
 
         self._current = self._executor.submit(run)
         return generation

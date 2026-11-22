@@ -27,7 +27,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.path.dirname(
     os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(srcdir))
 
-from src.feedchef.diet import apply_diet, pass_diet  # noqa: E402
+from src.feedchef.diet import pass_diet  # noqa: E402
 from src.feedchef.engine import FeedEngine  # noqa: E402
 from src.feedchef.feed_model import FeedChefModel  # noqa: E402
 from src.feedchef.kitchen import (  # noqa: E402
@@ -38,8 +38,7 @@ from src.feedchef.network_reach import (  # noqa: E402
 )
 from src.feedchef.pantry import build_pantry, merge_pantry, oldest_id  # noqa: E402
 from src.feedchef.recipe import (  # noqa: E402
-    DietConfig, FeedRecipe, HardFilters, KitchenConfig, Modifier,
-    NetworkReachConfig, PantryConfig, RecipeMeta, default_recipe,
+    DietConfig, HardFilters, Modifier, NetworkReachConfig, default_recipe,
 )
 from src.feedchef import decisionlog as logmod  # noqa: E402
 from src.feedchef import network_reach as reachmod  # noqa: E402
@@ -102,10 +101,7 @@ old = status('old', fav=10,
 check('freshness zeros after decay',
       apply_freshness(10.0, old, fresh_mod) == 0.0)
 
-scores = {'a': 1.0, 'b': 5.0, 'c': 9.0}
 items = [status('a'), status('b'), status('c')]
-for item in items:
-    pass
 heat_mod = Modifier(type='heat', percentile_threshold=50)
 # Build score map by id
 score_map = {item['id']: {'a': 1.0, 'b': 5.0, 'c': 9.0}[item['id']]

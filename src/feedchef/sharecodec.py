@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .recipe import FeedRecipe, recipe_to_dict, validate_for_import
