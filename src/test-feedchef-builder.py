@@ -15,6 +15,7 @@ for _name in ('DATA', 'STATE', 'CACHE'):
     os.environ['XDG_%s_HOME' % _name] = os.path.join(_TMP, _name.lower())
 
 import gc  # noqa: E402
+import glob  # noqa: E402
 import sys  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
 
@@ -22,8 +23,9 @@ import gi  # noqa: E402
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
+gi.require_version('Graphene', '1.0')
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Graphene, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -41,6 +43,7 @@ from src.feedchef import storage as storagemod  # noqa: E402
 from src.feedchef.engine import FeedResult  # noqa: E402
 from src.feedchef.recipe import Modifier, default_recipe  # noqa: E402
 from src.statusmenu import StatusMenuButton  # noqa: E402
+from src.statusrun import StatusRunRow  # noqa: E402
 from src.timelinedata import StatusItem  # noqa: E402
 from src.timelinepage import TimelinePage  # noqa: E402
 
@@ -157,6 +160,18 @@ class Client:
 
 
 Adw.init()
+# The real app's setup: the resource bundle registered and an application
+# with the app id, which is what puts the bundled icons in the theme.
+BUILDDIR = os.environ.get('BABBLE_BUILDDIR') or os.path.join(
+    os.path.dirname(os.path.abspath(srcdir)), 'build')
+BUNDLES = sorted(glob.glob(os.path.join(BUILDDIR, '**', 'babble.gresource'),
+                           recursive=True))
+check('setup: the resource bundle is built', bool(BUNDLES))
+if BUNDLES:
+    Gio.resources_register(Gio.Resource.load(BUNDLES[0]))
+app = Adw.Application(application_id='io.github.mauriciobc.Babble',
+                      flags=Gio.ApplicationFlags.NON_UNIQUE)
+app.register(None)
 storagemod.set_root(os.path.join(_TMP, 'recipes'))
 
 # Toasts are recorded, not shown: an Undo toast is answered by the test.
@@ -214,11 +229,14 @@ positive_rows = find(dialog.page, Adw.SwitchRow,
 check('builder: Only Positive Posts is a switch with a plain subtitle',
       len(positive_rows) == 1 and positive_rows[0] is dialog.positive
       and positive_rows[0].get_subtitle()
-      == 'Hide posts that read as negative. Works best in English and '
-         'Portuguese.' and not dialog.positive.get_active())
+      == 'Hides posts that read as negative. English and Portuguese only.'
+      and not dialog.positive.get_active())
 sentiment_editor = [e for e in dialog.editors
                     if e.kind == 'sentiment_boost'][0]
 trending_editor = [e for e in dialog.editors if e.kind == 'trending'][0]
+check('builder: Favor Positive Posts has the same language note',
+      sentiment_editor.row.get_subtitle() == 'Posts that read as '
+      'positive rank higher. English and Portuguese only.')
 adjustment = sentiment_editor.spin.get_adjustment()
 check('builder: Favor Positive Posts is a modifier editor, off, 10 to 100 '
       'percent in steps of 10, 50 by default',
@@ -284,26 +302,110 @@ check('builder: a new sentiment modifier defaults to 0.5',
       [m for m in store.get_recipe_by_id(plain.id).kitchen.modifiers
        if m.type == 'sentiment_boost'][0].sentiment_boost == 0.5)
 
+# The modifiers' subtitles show their value while they are on.
+dialog = open_builder(default_recipe('Subtitles'), True)
+sentiment_editor = [e for e in dialog.editors
+                    if e.kind == 'sentiment_boost'][0]
+trending_editor = [e for e in dialog.editors if e.kind == 'trending'][0]
+fresh = [e for e in dialog.editors if e.kind == 'freshness'][0]
+heat = [e for e in dialog.editors if e.kind == 'heat'][0]
+diversity = [e for e in dialog.editors if e.kind == 'diversity'][0]
+fresh.row.set_enable_expansion(False)
+diversity.row.set_enable_expansion(False)
+check('modifiers: a modifier that is off shows only what it does',
+      fresh.row.get_subtitle() == 'Newer posts rank higher'
+      and diversity.row.get_subtitle()
+      == 'Keeps one voice from filling the feed')
+fresh.row.set_enable_expansion(True)
+check('modifiers: turning one on adds its value to the subtitle',
+      fresh.row.get_subtitle() == 'Newer posts rank higher · 6 hours')
+fresh.spin.set_value(1)
+check('modifiers: the value follows the spin row, singular for one',
+      fresh.row.get_subtitle() == 'Newer posts rank higher · 1 hour')
+heat.row.set_enable_expansion(True)
+diversity.row.set_enable_expansion(True)
+trending_editor.row.set_enable_expansion(True)
+sentiment_editor.row.set_enable_expansion(True)
+trending_editor.spin.set_value(30)
+check('modifiers: percent and per-person values are shown',
+      heat.row.get_subtitle().endswith(' · 50%')
+      and diversity.row.get_subtitle().endswith(' · 3 per person')
+      and trending_editor.row.get_subtitle().endswith(' · 30%')
+      and sentiment_editor.row.get_subtitle().endswith(' · 50%'))
+trending_editor.row.set_enable_expansion(False)
+check('modifiers: turning one off takes the value away again',
+      trending_editor.row.get_subtitle()
+      == 'Posts about what is rising on the server rank higher')
+dialog.force_close()
+pump()
+dialog = open_builder(default_recipe('Actions'), True)
+action_rows = {r.get_title(): r for r in find(dialog.page, Adw.ButtonRow)}
+check('builder: Preview Recipe and Copy Share Link have start icons',
+      action_rows['_Preview Recipe'].get_start_icon_name()
+      == 'view-reveal-symbolic'
+      and action_rows['Copy Share _Link'].get_start_icon_name()
+      == 'edit-copy-symbolic')
+dialog.force_close()
+pump()
+
+# A growth threshold imported outside the editor's range is not rewritten
+# unless the reader changes it.
+wild = default_recipe('Wild')
+wild.kitchen.modifiers = [Modifier(type='trending', growth_threshold=2.5)]
+dialog = open_builder(wild, True)
+dialog.name_row.set_text('Wild Renamed')
+header_button(dialog, '_Save').emit('clicked')
+pump()
+check('builder: an imported out-of-range growth_threshold is kept on save',
+      store.get_recipe_by_id(wild.id).kitchen.modifiers[0]
+      .growth_threshold == 2.5)
+dialog = open_builder(store.get_recipe_by_id(wild.id), False)
+[e for e in dialog.editors if e.kind == 'trending'][0].spin.set_value(50)
+header_button(dialog, '_Save').emit('clicked')
+pump()
+check('builder: a changed growth_threshold is written',
+      store.get_recipe_by_id(wild.id).kitchen.modifiers[0]
+      .growth_threshold == 0.5)
+
 # The icon picker.
+JAVA_ICONS = (
+    'HEART STAR PEOPLE CITY IMAGE NEWS FEED COLOR_PALETTE CAT DOG RABBIT '
+    'TURTLE ACADEMIC_CAP BOT IMPORTANT PIN SHIELD CHAT TAG TRAIN BICYCLE '
+    'MAP BACKPACK BRIEFCASE BOOK LANGUAGE WEATHER APERTURE MUSIC LOCATION '
+    'GLOBE MEGAPHONE MICROPHONE MICROSCOPE STETHOSCOPE KEYBOARD COFFEE '
+    'CLAPPER_BOARD LAUGH BALLOON PI MATH_FORMULA GAMES CODE BUG LIGHT_BULB '
+    'FIRE LEAVES SPORT HEALTH PIZZA GAVEL GAUGE HEADPHONES HUMAN BEAKER BED '
+    'RECYCLE_BIN VERIFIED DOCTOR DIAMOND UMBRELLA WATER SUN SUNSET CLOUD '
+    'THUNDERSTORM RAIN SNOWFLAKE GNOME').split()
 table = icons.ICONS
 theme = Gtk.IconTheme.get_for_display(window.get_display())
-check('icons: a curated table, one icon per entry, each one that exists',
-      16 <= len(table) <= 24
-      and len({icon for _e, icon in table}) == len(table)
-      and len({e for e, _icon in table}) == len(table)
-      and all(theme.has_icon(icon) for _e, icon in table
-              if not icon.startswith('babble-')))
+check('icons: every key is a name of mashdon\'s Icon enum',
+      all(e in JAVA_ICONS for e, _icon in table)
+      and len({e for e, _icon in table}) == len(table))
+check('icons: 16 to 20 entries, PIZZA the default among them',
+      16 <= len(table) <= 20 and 'PIZZA' in dict(table)
+      and default_recipe('x').meta.icon == 'PIZZA')
+check('icons: no two entries share an icon name',
+      len({icon for _e, icon in table}) == len(table))
+missing = [icon for _e, icon in table if not theme.has_icon(icon)]
+check('icons: the theme has every icon, under the app\'s own setup',
+      not missing and theme.has_icon(icons.DEFAULT_ICON))
+if missing:
+    print('  missing: %s' % missing)
 check('icons: unknown, empty and legacy names show the chef hat',
       icons.icon_name('NOPE') == icons.DEFAULT_ICON
       and icons.icon_name(None) == icons.DEFAULT_ICON
       and icons.icon_name('restaurant') == icons.DEFAULT_ICON
-      and icons.icon_name('MUSIC') == 'folder-music-symbolic'
+      and icons.icon_name('CHEF') == icons.DEFAULT_ICON
+      and icons.icon_name('MUSIC') == 'audio-x-generic-symbolic'
       and icons.icon_name('pizza') == icons.icon_name('PIZZA'))
 check('icons: every entry has a label', all(
     feedchefbuilder.icon_label(e) for e, _icon in table))
 icon_recipe = default_recipe('Iconic')
 dialog = open_builder(icon_recipe, True)
-buttons = find(dialog.icon_grid, Gtk.Button)
+buttons = find(dialog.icon_grid, Gtk.ToggleButton)
+
+
 check('builder: the icon popover has a flat button per entry with a '
       'tooltip naming it',
       len(buttons) == len(table)
@@ -311,10 +413,20 @@ check('builder: the icon popover has a flat button per entry with a '
               for b in buttons)
       and dialog.icon_menu.get_tooltip_text() == 'Choose Icon'
       and dialog.icon_image.get_icon_name() == 'emoji-food-symbolic')
+checked = [b.get_tooltip_text() for b in buttons if b.get_active()]
+check('builder: the popover marks the current icon, and only it',
+      checked == ['Food'])
+check('builder: the Icon row says the choice, and its image is decorative',
+      dialog.icon_row.get_subtitle() == 'Food'
+      and dialog.icon_image.get_accessible_role()
+      == Gtk.AccessibleRole.PRESENTATION)
 dialog.activate_action('icon.choose', GLib.Variant.new_string('MUSIC'))
 check('builder: choosing an icon updates the prefix and is an edit',
-      dialog.icon_image.get_icon_name() == 'folder-music-symbolic'
+      dialog.icon_image.get_icon_name() == 'audio-x-generic-symbolic'
       and not dialog.get_can_close())
+check('builder: choosing an icon moves the mark and the subtitle',
+      [b.get_tooltip_text() for b in buttons if b.get_active()]
+      == ['Music'] and dialog.icon_row.get_subtitle() == 'Music')
 dialog.activate_action('icon.choose', GLib.Variant.new_string('PIZZA'))
 check('builder: choosing the first icon again makes it clean again',
       dialog.get_can_close())
@@ -326,7 +438,7 @@ check('builder: the icon is stored as its enum name',
 list_page.reload()
 row = list_page._row_by_id[icon_recipe.id]
 check('list: a recipe row has its icon as prefix',
-      'folder-music-symbolic'
+      'audio-x-generic-symbolic'
       in [i.get_icon_name() for i in find(row, Gtk.Image)])
 unknown = default_recipe('Mystery')
 unknown.meta.icon = 'NOT_AN_ICON'
@@ -343,7 +455,8 @@ pins = SimpleNamespace(get_strv=lambda key: (
 check('sidebar: a pinned recipe uses its icon, an unknown one the chef '
       'hat, a missing recipe the Feed Chef place',
       routing.pinned_routes(pins, '1') == [
-          ('recipe:%s' % icon_recipe.id, 'Iconic', 'folder-music-symbolic'),
+          ('recipe:%s' % icon_recipe.id, 'Iconic',
+           'audio-x-generic-symbolic'),
           ('recipe:%s' % unknown.id, 'Mystery',
            'babble-feed-chef-symbolic'),
           ('recipe:gone', 'Feed Chef', 'babble-feed-chef-symbolic')])
@@ -412,12 +525,124 @@ check('preview: the post menu has no More Like This',
       'More _Like This' not in labels)
 check('preview: the header has no actions of its own',
       not find(preview.header, Gtk.Button, lambda b: b.get_label()))
+check('preview: the title is Preview, the recipe name its subtitle',
+      isinstance(preview.header.get_title_widget(), Adw.WindowTitle)
+      and preview.header.get_title_widget().get_title() == 'Preview'
+      and preview.header.get_title_widget().get_subtitle()
+      == 'Unsaved Name')
+
+# Read-only: nothing in a post can be used from the preview.
+class Recorder:
+    def __init__(self):
+        self.pushed = []
+
+    def push(self, page):
+        self.pushed.append(page)
+
+    def add(self, page):
+        self.pushed.append(page)
+
+
+recorder = Recorder()
+host.navigation_view = recorder
+pump(60)
+view = preview.timeline.list_view
+cards = find(view, StatusRunRow)
+check('preview: the posts are on screen as cards', len(cards) >= 1)
+controls = [w for card in cards for w in descendants(card)
+            if isinstance(w, (Gtk.Button, Gtk.MenuButton, Adw.Avatar))]
+check('preview: the cards have an action bar, a menu and an avatar',
+      any(isinstance(w, StatusMenuButton) for w in controls)
+      or any(isinstance(w, Gtk.MenuButton) for w in controls))
+
+
+def reached_by_pointer(widget):
+    """True when a click on *widget* would land inside its card."""
+    point = widget.compute_point(
+        view, Graphene.Point().init(widget.get_width() / 2,
+                                    widget.get_height() / 2))
+    if not point[0]:
+        return False
+    target = view.pick(point[1].x, point[1].y, Gtk.PickFlags.DEFAULT)
+    while target is not None and target is not view:
+        if isinstance(target, StatusRunRow):
+            return True
+        target = target.get_parent()
+    return False
+
+
+mapped = [w for w in controls if w.get_mapped() and w.get_width() > 0]
+check('preview: a click on an action, the menu or an avatar reaches '
+      'nothing', bool(mapped) and not any(reached_by_pointer(w)
+                                          for w in mapped))
+check('preview: none of them can take the keyboard focus',
+      not any(w.grab_focus() for w in controls))
+view.emit('activate', 0)
+preview.timeline.on_row_activated(view, 0)
+pump()
+check('preview: activating a post pushes no page on the window',
+      recorder.pushed == [])
+scrolled = preview.timeline._scrolled
+adjustment = scrolled.get_vadjustment()
+check('preview: it still scrolls, by the wheel and by keyboard',
+      scrolled.get_focusable() and scrolled.get_sensitive()
+      and adjustment.get_upper() > 0)
+host.navigation_view = None
+
 preview_engine = preview_engines[0]
 check('preview: its engine runs until the dialog closes',
       not preview_engine.shutdown_called)
 preview.force_close()
 check('preview: closing shuts its engine down',
       pump_until(lambda: preview_engine.shutdown_called))
+
+
+def open_preview(recipe_, fail_first=False, batches=()):
+    """A preview built directly, over an engine that fails once when
+    asked to."""
+    PREVIEW_BATCHES[:] = list(batches)
+    preview_engines.clear()
+    feedchefpreview.make_engine = (
+        lambda _c, _k, _i, _r: preview_engines.append(
+            FakeEngine(PREVIEW_BATCHES)) or preview_engines[-1])
+    original = FakeEngine.process_feed
+
+    def process_feed(self, *args, **kwargs):
+        self.fail = self.fail or (fail_first and not self.calls)
+        return original(self, *args, **kwargs)
+    FakeEngine.process_feed = process_feed
+    try:
+        dialog_ = Preview(client, account, recipe_)
+    finally:
+        FakeEngine.process_feed = original
+    dialog_.present(host)
+    return dialog_
+
+
+retry_recipe = default_recipe('Retry')
+retry_recipe.meta.icon = 'MUSIC'
+# The failing cook still takes its batch off the queue.
+broken = open_preview(retry_recipe, fail_first=True,
+                      batches=[([], False, None),
+                               ([status(21)], False, None)])
+check('preview: a failed cook shows the error page',
+      pump_until(lambda: broken.timeline.stack.get_visible_child_name()
+                 == 'error'))
+retry = find(broken.timeline.error_page, Gtk.Button)[0]
+retry.emit('clicked')
+check('preview: Try Again cooks again and shows the posts',
+      pump_until(lambda: ids(broken.timeline) == ['00021'])
+      and broken.timeline.stack.get_visible_child_name() == 'list')
+broken.force_close()
+pump()
+empty = open_preview(retry_recipe)
+check('preview: with nothing to show the empty page has the recipe icon',
+      pump_until(lambda: empty.timeline.stack.get_visible_child_name()
+                 == 'empty')
+      and empty.timeline.empty_page.get_icon_name()
+      == 'audio-x-generic-symbolic')
+empty.force_close()
+pump()
 feedchefbuilder.FeedChefPreviewDialog = Preview
 dialog.force_close()
 pump()

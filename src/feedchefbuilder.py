@@ -18,7 +18,7 @@ from .feedchef.recipe import Modifier  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
 from .feedchefpreview import FeedChefPreviewDialog  # noqa: E402
-from .i18n import gettext as _  # noqa: E402
+from .i18n import gettext as _, ngettext  # noqa: E402
 from .uihelpers import set_accessible_label  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 
@@ -35,16 +35,20 @@ def scope_label(scope):
 def icon_label(enum):
     """The reader's name for a recipe icon; empty for an unknown one."""
     return {
-        'PIZZA': _('Food'), 'NATURE': _('Nature'),
-        'ACTIVITIES': _('Activities'), 'OBJECTS': _('Objects'),
-        'PEOPLE': _('People'), 'TRAVEL': _('Travel'), 'FLAGS': _('Flags'),
-        'SYMBOLS': _('Symbols'), 'STAR': _('Star'), 'NEWS': _('News'),
-        'HASHTAG': _('Hashtag'), 'BOOKMARK': _('Bookmark'),
-        'HOME': _('Home'), 'GAMES': _('Games'), 'SCIENCE': _('Science'),
-        'MUSIC': _('Music'), 'VIDEO': _('Video'), 'PHOTO': _('Photo'),
-        'WEATHER': _('Weather'), 'TERMINAL': _('Terminal'),
-        'HAPPY': _('Happy'), 'COOL': _('Cool'), 'CHEF': _('Chef Hat'),
+        'PIZZA': _('Food'), 'HEART': _('Heart'), 'STAR': _('Star'),
+        'PEOPLE': _('People'), 'NEWS': _('News'), 'IMAGE': _('Images'),
+        'MUSIC': _('Music'), 'GAMES': _('Games'), 'TAG': _('Hashtag'),
+        'PIN': _('Pin'), 'WEATHER': _('Weather'), 'LEAVES': _('Nature'),
+        'SPORT': _('Sports'), 'TRAIN': _('Travel'), 'LAUGH': _('Humor'),
+        'SHIELD': _('Safety'), 'IMPORTANT': _('Important'),
+        'CODE': _('Code'), 'MICROPHONE': _('Audio'), 'BOOK': _('Books'),
     }.get(enum, '')
+
+
+def current_icon_label(enum):
+    """The label for what a recipe's icon shows: the chef hat stands in
+    for a name that is not in the table."""
+    return icon_label(str(enum or '').strip().upper()) or _('Chef Hat')
 
 
 def storage_for(account):
@@ -71,10 +75,13 @@ class _ModifierEditor:
     its other fields, a value the spin row still shows as it was read is
     not rewritten, and a modifier of another type is never looked at."""
 
-    def __init__(self, kind, title, subtitle, spin, read, write_value):
+    def __init__(self, kind, title, subtitle, spin, read, write_value,
+                 show_value):
         self.kind = kind
         self._read = read
         self._write = write_value
+        self._subtitle = subtitle
+        self._show_value = show_value
         self.row = Adw.ExpanderRow(title=title, subtitle=subtitle,
                                    show_enable_switch=True)
         self.spin = spin
@@ -90,6 +97,18 @@ class _ModifierEditor:
         self.initial = self.spin.get_value()
         self.row.set_enable_expansion(self.present)
         self.row.set_expanded(False)
+
+    def sync_subtitle(self):
+        """The subtitle names what the modifier does, and, while it is
+        on, the value it is set to."""
+        if not self.row.get_enable_expansion():
+            self.row.set_subtitle(self._subtitle)
+            return
+        # Translators: %(what)s is what a setting does and %(value)s its
+        # value, such as "Newer posts rank higher · 6 hours".
+        self.row.set_subtitle(_('%(what)s · %(value)s') % {
+            'what': self._subtitle,
+            'value': self._show_value(int(round(self.spin.get_value())))})
 
     def apply(self, recipe):
         modifiers = recipe.kitchen.modifiers
@@ -126,13 +145,23 @@ def _modifier_editors():
     def clamp(value, low, high):
         return max(low, min(high, value))
 
+    def hours(value):
+        return ngettext('%d hour', '%d hours', value) % value
+
+    def percent(value):
+        # Translators: a percentage, such as "50%".
+        return _('%d%%') % value
+
+    def per_person(value):
+        return ngettext('%d per person', '%d per person', value) % value
+
     return [
         _ModifierEditor(
             'freshness', _('Favor Fresh Posts'),
             _('Newer posts rank higher'),
             _spin(_('Fade-Out Time'), _('In hours'), 6, 1, 48, 1),
             lambda m: clamp(round((m.decay_minutes or 360) / 60), 1, 48),
-            fresh_write),
+            fresh_write, hours),
         _ModifierEditor(
             'heat', _('Hide the Least Engaging'),
             _('Drops the posts people reacted to least'),
@@ -141,13 +170,13 @@ def _modifier_editors():
             lambda m: clamp(m.percentile_threshold
                             if m.percentile_threshold is not None else 50,
                             0, 90),
-            heat_write),
+            heat_write, percent),
         _ModifierEditor(
             'diversity', _('Limit Posts per Person'),
             _('Keeps one voice from filling the feed'),
             _spin(_('Posts per Person'), _('In each batch'), 3, 1, 10, 1),
             lambda m: clamp(m.max_per_cluster or 3, 1, 10),
-            diversity_write),
+            diversity_write, per_person),
         _ModifierEditor(
             'trending', _('Boost Trending Topics'),
             _('Posts about what is rising on the server rank higher'),
@@ -156,14 +185,15 @@ def _modifier_editors():
                   30, 10, 100, 10),
             lambda m: clamp(round((m.growth_threshold or 0.3) * 100),
                             10, 100),
-            trending_write),
+            trending_write, percent),
         _ModifierEditor(
             'sentiment_boost', _('Favor Positive Posts'),
-            _('Posts that read as positive rank higher'),
+            _('Posts that read as positive rank higher. English and '
+              'Portuguese only.'),
             _spin(_('Strength'), _('In percent'), 50, 10, 100, 10),
             lambda m: clamp(round(float(m.sentiment_boost or 0.5) * 100),
                             10, 100),
-            sentiment_write),
+            sentiment_write, percent),
     ]
 
 
@@ -211,16 +241,19 @@ class FeedChefBuilderDialog(ToastDialog):
         self._build_diet_group(page, recipe)
         self._build_kitchen_group(page, recipe)
         actions = Adw.PreferencesGroup()
-        self.preview_row = Adw.ButtonRow(title=_('_Preview Recipe'),
-                                         use_underline=True)
+        self.preview_row = Adw.ButtonRow(
+            title=_('_Preview Recipe'), use_underline=True,
+            start_icon_name='view-reveal-symbolic')
         connect_weak(self.preview_row, 'activated', self._on_preview)
         actions.add(self.preview_row)
         row = Adw.ButtonRow(title=_('Copy Share _Link'),
-                            use_underline=True)
+                            use_underline=True,
+                            start_icon_name='edit-copy-symbolic')
         connect_weak(row, 'activated', self._on_share)
         actions.add(row)
         page.add(actions)
         self._sync_scope()
+        self._sync_subtitles()
         self.submit_on_enter(self.save_button, self.name_row, self.include,
                              self.exclude, self.blocklist)
         # Taken after the widgets hold the recipe's values: the baseline
@@ -241,12 +274,18 @@ class FeedChefBuilderDialog(ToastDialog):
     def _build_icon_row(self):
         """The recipe's icon: shown as the row's prefix, chosen from the
         table of icons in a popover."""
-        row = Adw.ActionRow(title=_('Icon'))
-        self.icon_image = Gtk.Image.new_from_icon_name(
-            icon_name(self._icon))
+        row = Adw.ActionRow(title=_('Icon'),
+                            subtitle=current_icon_label(self._icon))
+        self.icon_row = row
+        # Decorative: the row's subtitle says what is chosen.
+        self.icon_image = Gtk.Image(
+            icon_name=icon_name(self._icon),
+            accessible_role=Gtk.AccessibleRole.PRESENTATION)
         row.add_prefix(self.icon_image)
         actions = Gio.SimpleActionGroup()
-        choose = Gio.SimpleAction.new('choose', GLib.VariantType.new('s'))
+        choose = Gio.SimpleAction.new_stateful(
+            'choose', GLib.VariantType.new('s'),
+            GLib.Variant.new_string(self._icon.strip().upper()))
         connect_weak(choose, 'activate', self._on_icon_chosen)
         actions.add_action(choose)
         self.insert_action_group('icon', actions)
@@ -255,7 +294,7 @@ class FeedChefBuilderDialog(ToastDialog):
             min_children_per_line=4, max_children_per_line=6,
             margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
         for enum, icon in ICONS:
-            button = Gtk.Button(
+            button = Gtk.ToggleButton(
                 icon_name=icon, tooltip_text=icon_label(enum),
                 action_name='icon.choose',
                 action_target=GLib.Variant.new_string(enum))
@@ -272,9 +311,11 @@ class FeedChefBuilderDialog(ToastDialog):
         row.set_activatable_widget(self.icon_menu)
         return row
 
-    def _on_icon_chosen(self, _action, parameter):
+    def _on_icon_chosen(self, action, parameter):
         self._icon = parameter.get_string()
+        action.set_state(parameter)
         self.icon_image.set_from_icon_name(icon_name(self._icon))
+        self.icon_row.set_subtitle(current_icon_label(self._icon))
         self.icon_menu.popdown()
         self._on_edited()
 
@@ -325,8 +366,8 @@ class FeedChefBuilderDialog(ToastDialog):
         group.add(self.sensitive)
         self.positive = Adw.SwitchRow(
             title=_('Only Positive Posts'),
-            subtitle=_('Hide posts that read as negative. Works best in '
-                       'English and Portuguese.'))
+            subtitle=_('Hides posts that read as negative. English and '
+                       'Portuguese only.'))
         self.positive.set_active(hard.positive_only)
         group.add(self.positive)
         self.min_length = _spin(
@@ -355,7 +396,7 @@ class FeedChefBuilderDialog(ToastDialog):
             row = Adw.ActionRow(
                 title=_('Some Ingredients Are Not Supported Yet'),
                 # Translators: %s is a list of features, such as
-                # "sentiment, connections".
+                # "similarity grouping, connections".
                 subtitle=_('Not applied: %s') % ', '.join(unsupported))
             row.add_prefix(Gtk.Image.new_from_icon_name(
                 'dialog-information-symbolic'))
@@ -478,6 +519,15 @@ class FeedChefBuilderDialog(ToastDialog):
         for editor in self.editors:
             connect_weak(editor.row, 'notify::enable-expansion',
                          self._on_edited)
+        for row in spins[1:]:
+            connect_weak(row, 'notify::value', self._sync_subtitles)
+        for editor in self.editors:
+            connect_weak(editor.row, 'notify::enable-expansion',
+                         self._sync_subtitles)
+
+    def _sync_subtitles(self, *_args):
+        for editor in self.editors:
+            editor.sync_subtitle()
 
     def _on_edited(self, *_args):
         if self._syncing:
