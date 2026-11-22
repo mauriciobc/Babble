@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
+import logging
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -13,6 +15,8 @@ from .i18n import gettext as _, ngettext
 
 from gi.repository import (Adw, GLib, Gio,  # noqa: E402
                            Gtk)
+
+_log = logging.getLogger(__name__)
 
 from . import filterrules  # noqa: E402
 from . import appsettings, feedback, uihelpers  # noqa: E402
@@ -193,6 +197,10 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._stream_pending = []
         self._stream_inflight = []
         self._stream_asked = set()
+        # Streamed posts that arrived while the first page is still out
+        # and the list is empty. Inserting them early would seed
+        # ``oldest_id`` and leave the real first page under them.
+        self._first_stream = []
         self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.
@@ -447,6 +455,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             statuses = self._finish(result)
         except GLib.Error as e:
             self.model.loading = False
+            self._discard_first_stream()
             # A failed home request is shown as a failure. Falling back
             # to the public timeline here silently replaced the reader's
             # home with posts from accounts they do not follow: a 5xx,
@@ -455,6 +464,13 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             # the error and its retry button.
             self.error_page.set_description(
                 summarize_error_markup(e))
+            self.stack.set_visible_child_name('error')
+            return
+        except Exception:
+            _log.exception('TimelinePage: first page finish raised')
+            self.model.loading = False
+            self._discard_first_stream()
+            self.error_page.set_description('')
             self.stack.set_visible_child_name('error')
             return
         if self._resume_page_arrived(statuses):
@@ -477,12 +493,14 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
                 # Every post was filtered: page past the id the server
                 # returned rather than stop with no way forward.
                 self.model.oldest_id = raw_oldest
+                self._flush_first_stream()
                 self._fill_loop(0)
                 return
             if self.model.get_n_items() == 0:
                 self.stack.set_visible_child_name('empty')
             else:
                 self.model.exhausted = True
+            self._flush_first_stream()
             return
         if self.model.get_n_items() == 0:
             self._fill_first(statuses)
@@ -495,9 +513,11 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             self.model.exhausted = True
         if self.model.get_n_items() == 0:
             # Every post of this page was hidden by a filter: keep paging.
+            self._flush_first_stream()
             self._fill_loop(0)
             return
         self.stack.set_visible_child_name('list')
+        self._flush_first_stream()
         self._resume_start_catchup()
         self._fill_filtered()
 
@@ -523,6 +543,12 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         except GLib.Error:
             # A failed page releases the lock, so the reader can try again
             # instead of waiting out the debounce for nothing.
+            self._loading_older = False
+            self._release_bottom()
+            self._maybe_run_sweep()
+            return
+        except Exception:
+            _log.exception('TimelinePage: older page finish raised')
             self._loading_older = False
             self._release_bottom()
             self._maybe_run_sweep()
@@ -588,6 +614,10 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             root = self.get_root()
             if root is not None and hasattr(root, 'show_error'):
                 root.show_error(_('Refresh failed'), e.message)
+            self._chain_ended(sweep=False)
+            return
+        except Exception:
+            _log.exception('TimelinePage: refresh finish raised')
             self._chain_ended(sweep=False)
             return
         if not statuses:
@@ -702,6 +732,8 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
             # Inserted before the catch-up reaches it, it would move the
             # cursor past the posts between. The sweep that ends the
             # catch-up fetches it, in order.
+            return
+        if self._hold_first_stream(status):
             return
         if self._queue_streamed(status):
             # A reply from an author the reader may not follow waits for

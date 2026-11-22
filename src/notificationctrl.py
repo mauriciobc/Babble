@@ -6,6 +6,8 @@ live on it: paging, the type filter, the policy summary, announcements,
 the read marker and clear-all. They use the page as ``self``.
 """
 
+import logging
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -25,6 +27,8 @@ from .mastodon import summarize_error_markup  # noqa: E402
 from .pages import PagedPosts  # noqa: E402
 from .statustext import parse_content  # noqa: E402
 from .timelinebase import id_key  # noqa: E402
+
+_log = logging.getLogger(__name__)
 
 
 # Relationships fetched for "Follow Back", shared by every notifications
@@ -170,12 +174,16 @@ class NotificationController:
         self._quiet = False
 
     def on_page_loaded(self, client, result):
-        self.model.loading = False
+        ticket = self._ticket
         quiet = self._quiet
-        self._quiet = False
         try:
             notifications = self._finish(result)
         except GLib.Error as e:
+            if ticket is not None and not ticket.wanted():
+                PagedPosts._drop_loading(self)
+                return
+            self.model.loading = False
+            self._quiet = False
             if quiet:
                 # A catch-up of an empty list: it keeps saying empty.
                 return
@@ -183,6 +191,23 @@ class NotificationController:
                 summarize_error_markup(e))
             self.stack.set_visible_child_name('error')
             return
+        except Exception:
+            _log.exception('notifications: first page finish raised')
+            if ticket is not None and not ticket.wanted():
+                PagedPosts._drop_loading(self)
+                return
+            self.model.loading = False
+            self._quiet = False
+            if quiet:
+                return
+            self.error_page.set_description('')
+            self.stack.set_visible_child_name('error')
+            return
+        if ticket is not None and not ticket.wanted():
+            PagedPosts._drop_loading(self)
+            return
+        self.model.loading = False
+        self._quiet = False
 
         if not notifications:
             if self.model.get_n_items() == 0:
@@ -200,12 +225,28 @@ class NotificationController:
             self.mark_read()
 
     def on_older_loaded(self, client, result):
-        self._loading_older = False
+        ticket = self._ticket
         try:
             notifications = self._finish(result)
         except GLib.Error:
+            if ticket is not None and not ticket.wanted():
+                PagedPosts._drop_older(self)
+                return
+            self._loading_older = False
             self._release_bottom()
             return
+        except Exception:
+            _log.exception('notifications: older page finish raised')
+            if ticket is not None and not ticket.wanted():
+                PagedPosts._drop_older(self)
+                return
+            self._loading_older = False
+            self._release_bottom()
+            return
+        if ticket is not None and not ticket.wanted():
+            PagedPosts._drop_older(self)
+            return
+        self._loading_older = False
         added = self.model.append_page(notifications)
         self._request_relationships()
         if not added:
@@ -267,15 +308,32 @@ class NotificationController:
             PagedPosts.refresh(self)
 
     def on_refresh_loaded(self, client, result):
-        self.model.loading = False
+        ticket = self._ticket
         quiet = self._quiet
-        self._quiet = False
         try:
             notifications = self._finish(result)
         except GLib.Error as e:
+            if ticket is not None and not ticket.wanted():
+                PagedPosts._drop_refresh(self)
+                return
+            self.model.loading = False
+            self._quiet = False
             if not quiet:
                 feedback.report_error(self, _('Refresh failed'), e)
             return
+        except Exception:
+            _log.exception('notifications: refresh finish raised')
+            if ticket is not None and not ticket.wanted():
+                PagedPosts._drop_refresh(self)
+                return
+            self.model.loading = False
+            self._quiet = False
+            return
+        if ticket is not None and not ticket.wanted():
+            PagedPosts._drop_refresh(self)
+            return
+        self.model.loading = False
+        self._quiet = False
         if notifications:
             self.model.prepend_page(notifications)
             self._request_relationships()

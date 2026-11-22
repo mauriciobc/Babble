@@ -313,6 +313,12 @@ test('home filters', python,
   env: fatal_test_env,
   timeout: 60,
 )
+# Needs no Adw widgets: TimelineModel + HomeFilters hold/flush only.
+test('stream first hold', python,
+  args: [files('test-stream-first-hold.py')],
+  env: test_env,
+  timeout: 60,
+)
 
 test('reading position', python,
   args: [files('test-reading-position.py')],
@@ -498,6 +504,11 @@ test('avatar cache', python,
 )
 test('instance limits', python,
   args: [files('test-instance-limits.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('instance info coalesce', python,
+  args: [files('test-instance-info-coalesce.py')],
   env: test_env,
   timeout: 60,
 )

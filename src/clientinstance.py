@@ -35,7 +35,11 @@ class InstanceMixin:
         """GET /api/v2/instance; the result is kept on
         ``self.instance_info`` by :meth:`instance_info_finish`.
 
-        Concurrent callers share one in-flight request (ARCH-09)."""
+        Concurrent callers share one in-flight request (ARCH-09). The
+        shared HTTP call takes no caller cancellable: cancelling one
+        waiter must not fail the answer for the others. Each waiter is
+        completed on its own cancellable, or skipped when already
+        cancelled."""
         if callback is not None:
             self._instance_info_waiters.append((callback, cancellable))
         if self.instance_info is not None:
@@ -55,7 +59,7 @@ class InstanceMixin:
             client._complete_instance_info_waiters(error)
 
         return api_instance.info_async(self, callback=loaded,
-                                       cancellable=cancellable)
+                                       cancellable=None)
 
     def _complete_instance_info_waiters(self, error):
         waiters = self._instance_info_waiters
@@ -65,6 +69,8 @@ class InstanceMixin:
             payload = GLib.Variant(
                 's', json.dumps({'data': self.instance_info, 'link': ''}))
         for callback, cancellable in waiters:
+            if cancellable is not None and cancellable.is_cancelled():
+                continue
             task = Gio.Task.new(self, cancellable, callback)
             if error is not None:
                 task.return_error(error)

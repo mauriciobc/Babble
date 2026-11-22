@@ -15,7 +15,7 @@ gi.require_version('Adw', '1')
 
 from .i18n import gettext as _  # noqa: E402
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import (accountrows, appsettings, feedback, pagenav,  # noqa: E402
                pages, uihelpers)
@@ -163,6 +163,10 @@ class ListEditor(feedback.ToastDialog):
         self._search_id = 0
         self._search_serial = 0
         self._members = {}
+        self._alive = True
+        self._members_cancellable = Gio.Cancellable()
+        self._search_cancellable = Gio.Cancellable()
+        connect_weak(self, 'closed', self._on_closed)
 
         cancel = Gtk.Button(label=_('_Cancel'), use_underline=True)
         connect_weak(cancel, 'clicked', self._on_cancel)
@@ -218,6 +222,20 @@ class ListEditor(feedback.ToastDialog):
     def _on_cancel(self, _button):
         self.close()
 
+    def _on_closed(self, *_a):
+        self._alive = False
+        if self._search_id:
+            GLib.source_remove(self._search_id)
+            self._search_id = 0
+        self._search_serial += 1
+        self._members_cancellable.cancel()
+        self._search_cancellable.cancel()
+
+    def toast(self, text):
+        if not self._alive:
+            return
+        super().toast(text)
+
     def _update_sensitive(self, *_a):
         self.save_button.set_sensitive(bool(self.title_row.get_text().strip()))
 
@@ -241,6 +259,8 @@ class ListEditor(feedback.ToastDialog):
                 callback=self._on_saved_done)
 
     def _on_saved_done(self, client, result, _data=None):
+        if not self._alive:
+            return
         try:
             data = (api_lists.create_finish if self.list is None
                     else api_lists.update_finish)(client, result)
@@ -266,6 +286,8 @@ class ListEditor(feedback.ToastDialog):
             _('_Delete'), really)
 
     def _on_deleted_done(self, client, result, _data=None):
+        if not self._alive:
+            return
         try:
             api_lists.delete_finish(client, result)
         except GLib.Error as error:
@@ -301,10 +323,14 @@ class ListEditor(feedback.ToastDialog):
         self.result_rows = []
         self.page.add(self.members_group)
         self.page.add(self.search_group)
-        api_lists.members_async(self.client, self.list['id'],
-                                callback=self._on_members_loaded)
+        api_lists.members_async(
+            self.client, self.list['id'],
+            callback=self._on_members_loaded,
+            cancellable=self._members_cancellable)
 
     def _on_members_loaded(self, client, result, _data=None):
+        if not self._alive:
+            return
         self.members_spinner.set_visible(False)
         try:
             accounts = api_lists.members_finish(client, result)
@@ -339,6 +365,8 @@ class ListEditor(feedback.ToastDialog):
                 c, r, row, button))
 
     def _on_member_removed(self, client, result, row, button):
+        if not self._alive:
+            return
         try:
             api_lists.remove_members_finish(client, result)
         except GLib.Error as error:
@@ -360,20 +388,25 @@ class ListEditor(feedback.ToastDialog):
 
     def _run_search(self):
         self._search_id = 0
+        if not self._alive:
+            return GLib.SOURCE_REMOVE
         query = self.search_row.get_text().strip()
         self._search_serial += 1
         serial = self._search_serial
+        self._search_cancellable.cancel()
+        self._search_cancellable = Gio.Cancellable()
         if not query:
             self._set_results([])
             return GLib.SOURCE_REMOVE
         api_accounts.search_async(
             self.client,
             {'q': query, 'following': 'true', 'limit': 10},
-            callback=lambda c, r, _d=None: self._on_search_done(c, r, serial))
+            callback=lambda c, r, _d=None: self._on_search_done(c, r, serial),
+            cancellable=self._search_cancellable)
         return GLib.SOURCE_REMOVE
 
     def _on_search_done(self, client, result, serial):
-        if serial != self._search_serial:
+        if not self._alive or serial != self._search_serial:
             return
         try:
             accounts = api_accounts.search_finish(client, result)
@@ -415,6 +448,8 @@ class ListEditor(feedback.ToastDialog):
                 c, r, account, button))
 
     def _on_member_added(self, client, result, account, button):
+        if not self._alive:
+            return
         try:
             api_lists.add_members_finish(client, result)
         except GLib.Error as error:
@@ -613,6 +648,9 @@ class _MembershipDialog(feedback.ToastDialog):
         self._pending = 2
         self._lists = []
         self._member_of = set()
+        self._alive = True
+        self._load_cancellable = Gio.Cancellable()
+        connect_weak(self, 'closed', self._on_closed)
 
         # The check rows commit as they are toggled, so this commits
         # nothing: it only dismisses the dialog. "Close" names that,
@@ -637,11 +675,24 @@ class _MembershipDialog(feedback.ToastDialog):
                                        selectable=False, visible=False)
         self.empty_row.add_css_class('dimmed')
         self.group.add(self.empty_row)
-        api_lists.index_async(client, callback=self._on_lists)
+        api_lists.index_async(client, callback=self._on_lists,
+                              cancellable=self._load_cancellable)
         api_lists.of_account_async(client, account['id'],
-                                   callback=self._on_member_of)
+                                   callback=self._on_member_of,
+                                   cancellable=self._load_cancellable)
+
+    def _on_closed(self, *_a):
+        self._alive = False
+        self._load_cancellable.cancel()
+
+    def toast(self, text):
+        if not self._alive:
+            return
+        super().toast(text)
 
     def _on_lists(self, client, result, _data=None):
+        if not self._alive:
+            return
         try:
             self._lists = api_lists.index_finish(client, result)
         except GLib.Error as error:
@@ -652,6 +703,8 @@ class _MembershipDialog(feedback.ToastDialog):
         self._step()
 
     def _on_member_of(self, client, result, _data=None):
+        if not self._alive:
+            return
         try:
             self._member_of = {item['id']
                                for item in api_lists.of_account_finish(
@@ -697,6 +750,8 @@ class _MembershipDialog(feedback.ToastDialog):
                  c, r, check, row, adding))
 
     def _on_done(self, client, result, check, row, adding):
+        if not self._alive:
+            return
         check.set_sensitive(True)
         try:
             (api_lists.add_members_finish if adding
@@ -713,7 +768,8 @@ class _MembershipDialog(feedback.ToastDialog):
 
     def _on_new(self, _button):
         def created(list_json, _created):
-            self._add_row(list_json)
+            if self._alive:
+                self._add_row(list_json)
 
         present_list_editor(self, self.client, None, on_saved=created)
 
