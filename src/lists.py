@@ -259,20 +259,22 @@ class ListEditor(feedback.ToastDialog):
                 callback=self._on_saved_done)
 
     def _on_saved_done(self, client, result, _data=None):
-        if not self._alive:
-            return
         try:
             data = (api_lists.create_finish if self.list is None
                     else api_lists.update_finish)(client, result)
         except GLib.Error as error:
-            self._update_sensitive()
-            self.toast(_('Could not save the list: %s') % error_text(error))
+            if self._alive:
+                self._update_sensitive()
+                self.toast(_('Could not save the list: %s')
+                           % error_text(error))
             return
         creating = self.list is None
         self.list = data
+        # Parent state updates even if the dialog closed mid-request.
         if self.on_saved is not None:
             self.on_saved(data, creating)
-        self.close()
+        if self._alive:
+            self.close()
 
     def _on_delete(self, button):
         def really():
@@ -286,18 +288,19 @@ class ListEditor(feedback.ToastDialog):
             _('_Delete'), really)
 
     def _on_deleted_done(self, client, result, _data=None):
-        if not self._alive:
-            return
         try:
             api_lists.delete_finish(client, result)
         except GLib.Error as error:
-            self.toast(_('Could not delete the list: %s')
-                       % error_text(error))
+            if self._alive:
+                self.toast(_('Could not delete the list: %s')
+                           % error_text(error))
             return
+        # Unpin and notify even if the dialog closed mid-request.
         set_pinned(self, FAVORITE_LISTS_KEY, self.list['id'], False)
         if self.on_deleted is not None:
             self.on_deleted(self.list)
-        self.close()
+        if self._alive:
+            self.close()
 
     # Members
 

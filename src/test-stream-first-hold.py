@@ -117,6 +117,30 @@ page._hold_first_stream(status(70))
 page._discard_first_stream()
 check('discard: clears the hold', not page._first_stream)
 
+# Dedup and bound.
+page = StandIn()
+page._hold_first_stream(status(10))
+page._hold_first_stream(status(10))
+check('hold: duplicate id is kept once', len(page._first_stream) == 1)
+refreshed = []
+page.refresh = lambda: refreshed.append(True)
+page.STREAM_HOLD_LIMIT = 2
+page._hold_first_stream(status(11))
+page._hold_first_stream(status(12))
+check('hold: past the limit refreshes and clears',
+      refreshed == [True] and not page._first_stream)
+
+# Resume / catch-up: flush must not insert (catch-up fetches in order).
+page = StandIn()
+page._hold_first_stream(status(99))
+page.model.loading = False
+page._fill_first(first)
+page._resumed = True
+page._flush_first_stream()
+check('flush: while resumed, held posts are dropped',
+      not page.inserted and not page._first_stream
+      and page.model.oldest_id == '00001')
+
 if failures:
     print('%d failure(s)' % len(failures))
     sys.exit(1)

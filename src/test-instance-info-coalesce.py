@@ -82,13 +82,16 @@ try:
     client._complete_instance_info_waiters(None)
     drain()
 
-    labels = [label for label, _ in answers]
-    check('cancelled first waiter is skipped', 'a' not in labels)
-    check('second waiter receives the instance document',
-          labels == ['b'] and answers[0][1] == INFO,
+    by_label = dict(answers)
+    check('cancelled first waiter gets CANCELLED',
+          isinstance(by_label.get('a'), GLib.Error)
+          and by_label['a'].matches(
+              Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED),
           repr(answers))
+    check('second waiter receives the instance document',
+          by_label.get('b') == INFO, repr(answers))
 
-    # A later caller with a cancelled cancellable is skipped on a cache hit.
+    # A later caller with a cancelled cancellable still finishes CANCELLED.
     later = []
     dead = Gio.Cancellable()
     dead.cancel()
@@ -104,7 +107,11 @@ try:
     drain()
     check('cache hit starts no new shared request',
           len(pending) == before)
-    check('cancelled waiter on a cache hit is skipped', later == [])
+    check('cancelled waiter on a cache hit gets CANCELLED',
+          len(later) == 1 and isinstance(later[0], GLib.Error)
+          and later[0].matches(
+              Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED),
+          repr(later))
 finally:
     api_instance.info_async = real_info_async
 

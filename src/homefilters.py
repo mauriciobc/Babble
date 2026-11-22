@@ -182,21 +182,42 @@ class HomeFilters:
         under the page. Returns True when held."""
         if not (self.model.loading and self.model.get_n_items() == 0):
             return False
+        status_id = str(status.get('id') or '')
+        if status_id and any(
+                str(held.get('id') or '') == status_id
+                for held in self._first_stream):
+            return True
         self._first_stream.append(status)
+        if len(self._first_stream) > self.STREAM_HOLD_LIMIT:
+            # Same escape hatch as the reply-filter queue: drop and
+            # refresh so the posts are fetched in order, not lost.
+            self._first_stream = []
+            self.refresh()
         return True
 
     def _discard_first_stream(self):
         self._first_stream = []
 
     def _flush_first_stream(self):
-        """Land posts held for the first page, now that it has settled."""
+        """Land posts held for the first page, now that it has settled.
+
+        While resume or catch-up is active the posts are dropped: those
+        paths fetch what is newer in order, and inserting here would pin
+        the wrong post at the top."""
         held, self._first_stream = self._first_stream, []
+        if (getattr(self, '_resume_pending', False)
+                or getattr(self, '_resumed', False)
+                or getattr(self, '_catching', False)):
+            return
         for status in held:
             if self._hide_boosts and status.get('reblog'):
                 continue
             if self._queue_streamed(status):
                 continue
             self._insert_streamed([status])
+        stack = getattr(self, 'stack', None)
+        if stack is not None and self.model.get_n_items() > 0:
+            stack.set_visible_child_name('list')
 
     def _queue_streamed(self, status):
         """Hold a streamed post back when the reply filter has to ask the

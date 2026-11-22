@@ -37,9 +37,8 @@ class InstanceMixin:
 
         Concurrent callers share one in-flight request (ARCH-09). The
         shared HTTP call takes no caller cancellable: cancelling one
-        waiter must not fail the answer for the others. Each waiter is
-        completed on its own cancellable, or skipped when already
-        cancelled."""
+        waiter must not fail the answer for the others. A waiter whose
+        cancellable is already cancelled still gets a CANCELLED task."""
         if callback is not None:
             self._instance_info_waiters.append((callback, cancellable))
         if self.instance_info is not None:
@@ -55,6 +54,10 @@ class InstanceMixin:
                 client.instance_info_finish(result)
             except GLib.Error as failure:
                 error = failure
+            except Exception:
+                error = GLib.Error(
+                    'Could not read the instance document',
+                    'g-io-error-quark', int(Gio.IOErrorEnum.FAILED))
             client._instance_info_in_flight = False
             client._complete_instance_info_waiters(error)
 
@@ -68,8 +71,15 @@ class InstanceMixin:
         if error is None and self.instance_info is not None:
             payload = GLib.Variant(
                 's', json.dumps({'data': self.instance_info, 'link': ''}))
+        cancelled = GLib.Error(
+            'Operation was cancelled',
+            'g-io-error-quark', int(Gio.IOErrorEnum.CANCELLED))
         for callback, cancellable in waiters:
             if cancellable is not None and cancellable.is_cancelled():
+                # Detached from the cancelled cancellable: attaching one
+                # can refuse to deliver the result.
+                task = Gio.Task.new(self, None, callback)
+                task.return_error(cancelled)
                 continue
             task = Gio.Task.new(self, cancellable, callback)
             if error is not None:

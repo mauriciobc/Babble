@@ -328,6 +328,8 @@ class NotificationController:
                 return
             self.model.loading = False
             self._quiet = False
+            if not quiet:
+                feedback.show_toast(self, _('Refresh failed'))
             return
         if ticket is not None and not ticket.wanted():
             PagedPosts._drop_refresh(self)
