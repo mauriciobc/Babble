@@ -15,6 +15,10 @@ for STOPPED removed the crash in every variant tested. So an
 * ``release()`` stops the pipeline, waits for the adapter to report
   ``STOPPED``, disconnects every handler and drops the references from an
   idle callback;
+* the idle clears ``_releasing`` before unreffing GstPlay, and the unref
+  itself runs on a daemon thread: a hung ``g_object_unref`` on the main
+  loop has frozen CI ``wait()`` pumps for the full media-progressive
+  faulthandler window (150s);
 * until then the engine sits in ``_releasing``, so it outlives the viewer
   that closed it;
 * at quit :func:`shutdown_all` does the same synchronously, turning the
@@ -521,7 +525,7 @@ class Engine:
     def _finish(self, how, immediate=False):
         if self._finished:
             if immediate:
-                self._drop()
+                self._drop(sync=True)
             return
         self._finished = True
         self.how = how
@@ -531,27 +535,46 @@ class Engine:
         self._clear_stop_timeout()
         self._disconnect_all()
         if immediate:
-            self._drop()
+            self._drop(sync=True)
         else:
             GLib.idle_add(self._drop_idle)
 
     def _drop_idle(self):
-        self._drop()
+        self._drop(sync=False)
         return False
 
-    def _drop(self):
+    def _drop(self, sync=False):
         handlers, self._ua_handlers = self._ua_handlers, []
         for obj, handler_id in handlers:
             try:
                 obj.disconnect(handler_id)
             except (TypeError, RuntimeError):
                 pass
+        # Hold the GStreamer refs in a list so clearing the attributes
+        # does not unref yet. Leave _releasing before any unref so a
+        # wait() pumping this idle can observe an empty set and return.
+        hold = [self.play, self.adapter, self.sink, self.paintable]
         self.play = self.adapter = self.sink = self.paintable = None
         with self._frame_lock:
             self._latest = None
         _releasing.discard(self)
         _all.discard(self)
-        schedule_trim()
+        if sync:
+            hold.clear()
+            schedule_trim()
+            return
+
+        def _free():
+            hold.clear()
+            GLib.idle_add(_schedule_trim_idle)
+
+        threading.Thread(
+            target=_free, name='babble-gst-unref', daemon=True).start()
+
+
+def _schedule_trim_idle():
+    schedule_trim()
+    return False
 
 
 def shutdown_all(timeout_s=1.0):
