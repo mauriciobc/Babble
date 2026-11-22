@@ -13,7 +13,9 @@ from .api import lists as api_lists  # noqa: E402
 from .feedchef.recipe import Modifier, default_recipe  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
+from .feedchefpreview import FeedChefPreviewDialog  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
+from .uihelpers import set_accessible_label  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 # Java TimelineDefinition.Icon values with hidden=false, plus a GTK name.
@@ -147,11 +149,13 @@ class FeedChefBuilderDialog(Adw.PreferencesDialog):
 
     def __init__(self, client, account, recipe=None):
         super().__init__(title=_('Feed Chef Recipe'))
+        self.set_search_enabled(True)
         self.client = client
         self.account = account
         self.recipe = recipe or default_recipe()
         self.storage = FeedRecipeStorage(_account_key(account))
         self._lists = []  # [{'id', 'title'}, …]
+        self._icon_flow = None
         self._build_ui()
         self._load_lists()
 
@@ -168,6 +172,7 @@ class FeedChefBuilderDialog(Adw.PreferencesDialog):
             title=_('Icon'),
             subtitle=self._icon_subtitle())
         pick = Gtk.Button(label=_('Choose'), valign=Gtk.Align.CENTER)
+        set_accessible_label(pick, _('Choose a recipe icon'))
         connect_weak(pick, 'clicked', self._pick_icon)
         self.icon_row.add_suffix(pick)
         self.icon_image = Gtk.Image(icon_name=_icon_gtk(recipe.meta.icon))
@@ -405,8 +410,13 @@ class FeedChefBuilderDialog(Adw.PreferencesDialog):
         actions_page = Adw.PreferencesPage(
             title=_('Save'), icon_name='document-save-symbolic')
         self.add(actions_page)
-        actions = Adw.PreferencesGroup()
+        actions = Adw.PreferencesGroup(
+            description=_('Preview cooks with its own engine and does not save'))
+        preview = Adw.ButtonRow(title=_('Preview'))
+        connect_weak(preview, 'activated', self._preview)
+        actions.add(preview)
         save = Adw.ButtonRow(title=_('Save'))
+        save.add_css_class('suggested-action')
         connect_weak(save, 'activated', self._save)
         actions.add(save)
         share = Adw.ButtonRow(title=_('Copy share link'))
@@ -444,28 +454,31 @@ class FeedChefBuilderDialog(Adw.PreferencesDialog):
             child = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             child.set_margin_top(4)
             child.set_margin_bottom(4)
-            child.append(Gtk.Image(icon_name=gtk_name, pixel_size=24))
+            image = Gtk.Image(icon_name=gtk_name, pixel_size=24)
+            set_accessible_label(image, label)
+            child.append(image)
             child.append(Gtk.Label(label=label, wrap=True))
             flow.append(child)
             if name == current:
                 flow.select_child(flow.get_last_child())
         scrolled.set_child(flow)
+        self._icon_flow = flow
         dialog.set_extra_child(scrolled)
-
-        def on_response(_dialog, response):
-            if response != 'pick':
-                return
-            selected = flow.get_selected_children()
-            if not selected:
-                return
-            index = selected[0].get_index()
-            name = _RECIPE_ICONS[index][0]
-            self.recipe.meta.icon = name
-            self.icon_image.set_from_icon_name(_icon_gtk(name))
-            self.icon_row.set_subtitle(self._icon_subtitle())
-
-        connect_weak(dialog, 'response', on_response)
+        connect_weak(dialog, 'response', self._on_icon_response)
         dialog.present(self)
+
+    def _on_icon_response(self, _dialog, response):
+        if response != 'pick' or self._icon_flow is None:
+            return
+        selected = self._icon_flow.get_selected_children()
+        if not selected:
+            return
+        index = selected[0].get_index()
+        name = _RECIPE_ICONS[index][0]
+        self.recipe.meta.icon = name
+        self.icon_image.set_from_icon_name(_icon_gtk(name))
+        self.icon_row.set_subtitle(self._icon_subtitle())
+        self._icon_flow = None
 
     def _load_lists(self):
         api_lists.index_async(
@@ -621,6 +634,11 @@ class FeedChefBuilderDialog(Adw.PreferencesDialog):
         else:
             _remove(recipe, 'trending')
         return recipe
+
+    def _preview(self, *_args):
+        recipe = self._collect()
+        dialog = FeedChefPreviewDialog(self.client, self.account, recipe)
+        dialog.present(self)
 
     def _save(self, *_args):
         self.storage.save_recipe(self._collect())

@@ -31,7 +31,7 @@ v1.
 | Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache**; never nest `submit`+`get` on that pool |
 | Network reach | degree 1 only; `null` disables; author = **boosted** content account | BFS / null=∞ | **degree 1; null=off; boosted author** (= Java) |
 | More Like This | same timeline pantry when focus is set; UI can set focus | dedicated fragment | **pantry MLT = Java**; focus via import **or** timeline “More like this” (no dedicated fragment) |
-| Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) | full | **= Java form fields** (`src/feedchefbuilder.py`); no preview sheet; `must_have_media` stays model-only (Java builder also omits it) |
+| Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) + preview sheet | full | **= Java form fields** (`src/feedchefbuilder.py`) + **preview** (`FeedChefPreviewDialog`, own engine); `must_have_media` model-only (Java builder also omits it) |
 | Import confirm | always confirm (name/author); then upsert replaces silently | varies | **= Java** (always confirm; replace without a second prompt) |
 | Engine lifetime | `new` per view | factory singleton | **= Java** (no singleton) |
 
@@ -54,26 +54,31 @@ v1.
    on an NLP gap.
 7. Builder UI ships the Java form fields (icon picker with mashdon icon
    names, GetLists combo, reach + include-unknown, positive_only,
-   min-length, heat/freshness/similarity/diversity/sentiment/trending).
-   Preview sheet is not ported; `must_have_media` remains a model field
+   min-length, heat/freshness/similarity/diversity/sentiment/trending)
+   plus a GNOME preview dialog. `must_have_media` remains a model field
    without a builder row (same as Java’s builder).
 
-## Builder (= Java form)
+## Builder (= Java form + HIG)
 
 `FeedChefBuilderDialog` in `src/feedchefbuilder.py` mirrors
-`FeedChefBuilderFragment`: Recipe / Pantry / Diet / Kitchen pages, save and
-share. Similarity controls are editable and saved, and stay **inert** in
-the engine without NLP (warning retained). Network-reach “Unlimited”
-writes `max_degrees=null`, which disables the filter (= Java).
+`FeedChefBuilderFragment`: Recipe / Pantry / Diet / Kitchen pages, save,
+share, and preview. Preferences search is enabled (HIG). Similarity
+controls are editable and saved, and stay **inert** in the engine without
+NLP (warning retained). Network-reach “Unlimited” writes
+`max_degrees=null`, which disables the filter (= Java).
+
+`FeedChefPreviewDialog` (`src/feedchefpreview.py`) is the Adwaita stand-in
+for mashdon `FeedChefPreviewSheet`: `feedback.ToastDialog`, own
+`FeedEngine` (never a singleton), stage labels, cancel/shutdown on close.
 
 ## Out of v1
 
 `RequestMode`, federated time window, `LocalPostRepository` in the engine,
 `FeedEngineFactory`, `expected_outcome`, BFS degree ≥ 2, dedicated MLT
-fragment, Java preview sheet, mashdon `sentiment_words.json` (replaced by
-VADER/LeIA), `focus_decay`, 450 ms search stagger, freshness blend 0.4 /
-floor 0.2, federated 8 h manual QA, mashdon `tools/` Python helpers,
-PRD-only pantry window / `RequestMode` / `expected_outcome`.
+fragment, mashdon `sentiment_words.json` (replaced by VADER/LeIA),
+`focus_decay`, 450 ms search stagger, freshness blend 0.4 / floor 0.2,
+federated 8 h manual QA, mashdon `tools/` Python helpers, PRD-only pantry
+window / `RequestMode` / `expected_outcome`.
 
 ## Module boundary
 

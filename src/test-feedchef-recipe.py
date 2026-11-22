@@ -74,8 +74,14 @@ for marker in (
         'positive_only', 'include_unknown', 'min_length', 'sentiment',
         'trending', 'freshness', 'diversity', 'similarity', 'heat',
         '_pick_icon', '_load_lists', 'PIZZA', 'growth_threshold',
-        'decay_minutes'):
+        'decay_minutes', '_preview', 'set_search_enabled'):
     check('builder exposes %s' % marker, marker in builder_src)
+preview_path = os.path.join(srcdir, 'feedchefpreview.py')
+with open(preview_path, encoding='utf-8') as handle:
+    preview_src = handle.read()
+check('preview uses ToastDialog', 'ToastDialog' in preview_src)
+check('preview owns an engine', 'make_engine' in preview_src)
+check('preview cancels on close', 'shutdown' in preview_src)
 
 uri = recipe_share_uri(recipe)
 check('share uri is babble feedchef', is_feedchef_uri(uri))
