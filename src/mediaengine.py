@@ -16,9 +16,13 @@ for STOPPED removed the crash in every variant tested. So an
   ``STOPPED``, disconnects every handler and drops the references from an
   idle callback;
 * that idle clears ``_releasing`` and queues the GstPlay refs; a second,
-  single main-context idle drains the queue one hold at a time so a
-  ``wait()`` on ``_releasing`` can return before any unref, and so
-  cleanup stays serialized on the GTK thread (no per-engine threads);
+  single main-context idle drains the queue one hold at a time. The
+  unref stays on the main thread because the hold includes the sink's
+  GTK paintable, which must not lose its last reference anywhere else.
+  A ``wait()`` on ``_releasing`` returns before the unref, but this does
+  not cure the ``g_object_unref`` hang once seen in CI: if it recurs, it
+  blocks whichever later iteration runs the drain. That hang is still
+  unexplained;
 * until then the engine sits in ``_releasing``, so it outlives the viewer
   that closed it;
 * at quit :func:`shutdown_all` stops every live engine, then drains any
