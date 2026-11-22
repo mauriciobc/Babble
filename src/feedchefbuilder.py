@@ -159,12 +159,14 @@ def _modifier_editors():
         _ModifierEditor(
             'freshness', _('Favor Fresh Posts'),
             _('Newer posts rank higher'),
-            _spin(_('Fade-Out Time'), _('In hours'), 6, 1, 48, 1),
+            _spin(_('Fade-Out Time'),
+                  _('In hours; older posts score zero'), 6, 1, 48, 1),
             lambda m: clamp(round((m.decay_minutes or 360) / 60), 1, 48),
             fresh_write, hours),
         _ModifierEditor(
             'heat', _('Hide the Least Engaging'),
-            _('Drops the posts people reacted to least'),
+            _('Hides the posts with the least engagement: replies, boosts and '
+              'favorites, weighted, after freshness and trending'),
             _spin(_('Percent to Hide'), _('Of the posts in each batch'),
                   50, 0, 90, 5),
             lambda m: clamp(m.percentile_threshold
@@ -174,22 +176,25 @@ def _modifier_editors():
         _ModifierEditor(
             'diversity', _('Limit Posts per Person'),
             _('Keeps one voice from filling the feed'),
-            _spin(_('Posts per Person'), _('In each batch'), 3, 1, 10, 1),
+            _spin(_('Posts per Person'),
+                  _('Until you refresh; a boost counts for the person who '
+                    'boosted'), 3, 1, 10, 1),
             lambda m: clamp(m.max_per_cluster or 3, 1, 10),
             diversity_write, per_person),
         _ModifierEditor(
             'trending', _('Boost Trending Topics'),
-            _('Posts about what is rising on the server rank higher'),
-            _spin(_('Minimum Growth'), _('How fast a topic must rise, '
-                                         'in percent'),
+            _('Posts on hashtags many people are using now, and posts '
+              'trending on the server, rank higher'),
+            _spin(_('Minimum Heat'), _('How hot a hashtag must be, '
+                                       'in percent'),
                   30, 10, 100, 10),
             lambda m: clamp(round((m.growth_threshold or 0.3) * 100),
                             10, 100),
             trending_write, percent),
         _ModifierEditor(
             'sentiment_boost', _('Favor Positive Posts'),
-            _('Posts that read as positive rank higher. English and '
-              'Portuguese only.'),
+            _('English and Portuguese posts that read as positive rank '
+              'higher'),
             _spin(_('Strength'), _('In percent'), 50, 10, 100, 10),
             lambda m: clamp(round(float(m.sentiment_boost or 0.5) * 100),
                             10, 100),
@@ -324,7 +329,9 @@ class FeedChefBuilderDialog(ToastDialog):
         group = Adw.PreferencesGroup(
             title=_('Pantry'),
             description=_('Where posts come from. Separate hashtags with '
-                          'spaces.'))
+                          'spaces. With included hashtags, only posts with '
+                          'at least one of them show; a post with an '
+                          'excluded hashtag never does.'))
         self.scope = Adw.ComboRow(
             title=_('Posts From'),
             model=Gtk.StringList.new([scope_label(s) for s in SCOPES]))
@@ -340,8 +347,10 @@ class FeedChefBuilderDialog(ToastDialog):
         self.exclude = Adw.EntryRow(title=_('Exclude Hashtags'))
         self.exclude.set_text(' '.join(pantry.hashtags_exclude))
         group.add(self.exclude)
-        self.reach = Adw.SwitchRow(title=_('Only People I Follow'),
-                                   subtitle=_('Plus your own posts'))
+        self.reach = Adw.SwitchRow(
+            title=_('Only People I Follow'),
+            subtitle=_('Plus your own posts. Boosts are judged by the '
+                       'original author.'))
         self.reach.set_active(pantry.network_reach.enabled)
         self._reach_initial = self.reach.get_active()
         group.add(self.reach)
@@ -351,27 +360,36 @@ class FeedChefBuilderDialog(ToastDialog):
         hard = recipe.diet.hard_filters
         group = Adw.PreferencesGroup(
             title=_('Diet'),
-            description=_('Separate words with spaces.'))
+            description=_('Separate words with spaces. Whole words only, '
+                          'in the post and its content warning, ignoring '
+                          'case.'))
         self.blocklist = Adw.EntryRow(title=_('Blocked Words'))
         self.blocklist.set_text(' '.join(recipe.diet.keyword_blocklist))
         group.add(self.blocklist)
         self.media = Adw.SwitchRow(title=_('Only Posts With Media'))
         self.media.set_active(hard.must_have_media)
         group.add(self.media)
-        self.alt = Adw.SwitchRow(title=_('Only Posts With Alt Text'))
+        self.alt = Adw.SwitchRow(
+            title=_('Require Alt Text on Media'),
+            subtitle=_('Posts without media still show'))
         self.alt.set_active(hard.must_have_alt_text)
         group.add(self.alt)
-        self.sensitive = Adw.SwitchRow(title=_('Hide Sensitive Media'))
+        self.sensitive = Adw.SwitchRow(
+            title=_('Hide Posts Marked Sensitive'),
+            subtitle=_('Hides posts flagged as sensitive, often those with '
+                       'a content warning'))
         self.sensitive.set_active(hard.no_sensitive_media)
         group.add(self.sensitive)
         self.positive = Adw.SwitchRow(
             title=_('Only Positive Posts'),
-            subtitle=_('Hides posts that read as negative. English and '
-                       'Portuguese only.'))
+            subtitle=_('Hides English and Portuguese posts that read as '
+                       'negative'))
         self.positive.set_active(hard.positive_only)
         group.add(self.positive)
         self.min_length = _spin(
-            _('Minimum Length'), _('In characters; 0 turns it off'),
+            _('Minimum Length'),
+            _('In characters of text, links counted in full; 0 turns '
+              'it off'),
             float(hard.min_content_length or 0), 0, 5000, 10)
         group.add(self.min_length)
         page.add(group)

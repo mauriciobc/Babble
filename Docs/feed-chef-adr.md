@@ -29,7 +29,7 @@ v1.
 | `similarity_cluster` / TF-IDF / synonyms | present | present | **inert + UI warning** (no `synonyms.json` 16 MB LGPL in the binary) |
 | Sentiment | `SimpleSentimentAnalyzer` + `sentiment_words.json` (~94 KB); often `0` if missing | present | **Vendored VADER (EN) + LeIA (pt*)** — MIT, no PyPI; activates `positive_only` / `sentiment_boost` (Babble upgrade, not Java JSON parity) |
 | Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache**; never nest `submit`+`get` on that pool |
-| Network reach | degree 1 only; `null` disables; author = **boosted** content account | BFS / null=∞ | **degree 1; null=off; boosted author** (= Java) |
+| Network reach | degree 1 only; `null` disables; author = **boosted** content account; everyone passes while the list loads or is empty | BFS / null=∞ | **degree 1; null=off; boosted author** (= Java), but **fails closed** (deviation 12) |
 | More Like This | same timeline pantry when focus is set; UI can set focus | dedicated fragment | **pantry MLT = Java**; focus via import **or** timeline “More like this” (no dedicated fragment) |
 | Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) + preview sheet | full | Java form fields in a HIG `Adw.Dialog` (`src/feedchefbuilder.py`), without `include_unknown`, similarity and the diversity dimension (deviation 7), plus an icon table, `positive_only`, `sentiment_boost` and a **preview** (`FeedChefPreviewDialog`, own engine) |
 | Import confirm | always confirm (name/author); then upsert replaces silently | varies | **= Java** (always confirm; replace without a second prompt) |
@@ -47,7 +47,8 @@ v1.
 4. Fuzzy synonyms stay **off** in v1 (no 16 MB LGPL `synonyms.json`).
 5. Sentiment is **vendored VADER + LeIA** (`src/feedchef/vendor/`, MIT
    NOTICE), not mashdon’s JSON lexicon and not a PyPI dependency. `pt` /
-   `pt-*` status language → LeIA; otherwise VADER. Scores are VADER
+   `pt-*` status language → LeIA, `en` / `en-*` → VADER, any other or no language
+   → not judged (deviation 15). Scores are VADER
    `compound` in [-1, 1].
 6. Without TF-IDF, an active focus does **not** freeze merge order: kitchen
    falls back to `base_sort` (score or chronological). Relevance sort waits
@@ -78,6 +79,99 @@ v1.
     Older pages use the scope cursor of the last result, not TimelinePage's
     id cursor. A refresh cooks again and replaces the list in kitchen order.
 
+12. **"Only People I Follow" fails closed.** Java let everyone in while the
+    follow list was loading or empty. Here the content author (the boosted
+    account for a boost) must be followed or be the viewer. While the list
+    is not known the cook **waits** for the preload (`FeedEngine.reach_wait_timeout`,
+    20 s, cancellable); if it cannot be loaded (a failed page, no way to
+    load it, or the timeout) the cook fails with `FollowListError` and the
+    page shows its error page, titled "Could Not Check Who You Follow", with
+    Try Again (a retry restarts the load). A list that loaded and is empty
+    is a valid answer: only the viewer's own posts show. The list is cached
+    on disk per account: a cache read from disk is used at once and is
+    **stale** until this session's preload replaces it (it may miss a follow
+    made since it was written, or keep an unfollowed account, until then;
+    the preload runs whenever a timeline opens, and the decision log records
+    the `network_reach_stale_cache` fallback). A failed refresh keeps a
+    stale list; only "no list at all" is an error. A failed page fails the
+    whole load (a partial list would hide followed people and be saved as
+    complete). The page cap is 250 x 80 accounts, above Mastodon's default
+    follow limit of 7,500; a hit is logged and flagged `truncated`.
+    `include_unknown` is a recipe field and is **honoured as written** (true
+    lets strangers in and needs no list), but the builder never sets it. An
+    own post always passes, `include_self` or not (the viewer is degree
+    zero, as in Java's `degree()`).
+13. **Included hashtags bind every source** except a hashtag timeline, which
+    carries the tag by construction (the final guard asserts it): the scope
+    and the More Like This search results are restricted to posts with at
+    least one included hashtag, so a focus narrows within the recipe and
+    does not escape it. Excluded hashtags apply to every source. One limit
+    remains: More Like This posts come from the server-wide search, so they
+    obey every filter but are not bound to "Posts From".
+14. **"Limit Posts per Person" is a cap on the cook session, applied after the
+    order.** Java capped each batch in arrival order. Here the cap runs after
+    the kitchen's ordering, so each person keeps their best-ranked posts, and
+    the per-person counts travel with the session: `FeedChefSource` passes
+    `author_counts` to every page and keeps `FeedResult.author_counts` only
+    for a page it showed (a cancelled cook is not counted), and a refresh
+    resets them. The person is the account that put the post in the feed
+    (the booster for a boost, as in Java); the builder says so.
+15. **Posts in other languages are not judged.** `sentiment.score_status`
+    returns `None` unless the post's language is English or Portuguese (the
+    boosted post's, else the wrapper's). A missing language is not guessed:
+    the English lexicon over text of an unknown language reads nearly
+    everything as neutral, a judgment nobody made. "Only Positive Posts"
+    neither hides nor "Favor Positive Posts" boosts an unjudged post.
+16. **Order is total and tied by id.** "Newest first" is non-increasing by the
+    created_at of the post the reader sees, ties by id, newest id first;
+    "Most engaging" is non-increasing by final score (after the freshness,
+    trending and sentiment boosts), ties newest first, then by id. A focus
+    does not change either (the relevance sort is inert).
+17. **Blocked words and the minimum length read the visible text.** Java
+    matched the HTML source (a blocked word such as `href` hit every link).
+    The text is the post's HTML stripped, with the content warning; a word
+    matches as a whole word ignoring case, where the boundary is "not next
+    to a letter or digit" in Unicode (so `café` and `c++` match). The
+    minimum length counts the characters of that text, stripped of
+    surrounding space, with a link counted in full (the hidden parts of its
+    markup included); the builder says "links counted in full".
+
+## Promises and enforcement
+
+Each promise the builder makes is a predicate in `src/feedchef/contract.py`
+(one id each, the name of the recipe field). The stage listed decides; the
+guard runs every predicate again on every returned post
+(`FeedEngine._guard`), drops a violator, logs `contract:<id>:<post id>` in
+the decision log's reliability errors and at warning level, and reports
+`FeedResult.guard = {'checked', 'dropped'}`. The oracles in
+`src/test-feedchef-contract.py` are written without the contract module; the
+fuzz runs 240 seeded cases over three pages.
+
+| UI wording | Stage | Guard predicate | Test (`feedchef contract`) |
+|---|---|---|---|
+| Blocked Words: whole words, in the post and its content warning, ignoring case | diet | `keyword_blocklist` | fuzz: blocked words |
+| Only Posts With Media | diet | `must_have_media` | fuzz: only with media |
+| Require Alt Text on Media: posts without media still show | diet | `must_have_alt_text` (every attachment described; no media passes) | fuzz: alt text |
+| Hide Posts Marked Sensitive: posts flagged as sensitive, often those with a content warning | diet | `no_sensitive_media` (the `sensitive` flag) | fuzz: sensitive |
+| Minimum Length: characters of text, links counted in full | diet | `min_content_length` | fuzz: minimum length; link, padding and boost cases |
+| Only Positive Posts: hides English and Portuguese posts that read as negative | diet | `positive_only` (None = not judged passes) | fuzz: only positive; per-language cases |
+| Include Hashtags: at least one of them | pantry merge (scope, More Like This); hashtag timelines by construction | `hashtags_include` | fuzz: include hashtags (focus cases included); a lying hashtag timeline; More Like This case |
+| Exclude Hashtags: never | pantry merge (every source) | `hashtags_exclude` | fuzz: exclude hashtags |
+| Only People I Follow: plus your own posts, boosts judged by the original author | reach (after the wait for the follow list) | `network_reach` (unknown list fails closed) | loading, error, timeout, retry, empty, no-source, stale-disk and include_unknown cases; fuzz: only people I follow |
+| Order: Newest first | kitchen order | (list level) | fuzz: order newest first; tie-by-id case |
+| Order: Most engaging | kitchen order | (list level) | fuzz: order most engaging; order with focus |
+| Hide the Least Engaging: percent of each batch; engagement is replies, boosts and favorites, weighted, after freshness and trending | kitchen heat | (list level) | fuzz: heat (percentile, count, equal-score relax) |
+| Favor Fresh Posts: newer posts rank higher; older than the fade-out score zero | kitchen score | (list level) | 300 equal pairs |
+| Boost Trending Topics: hashtags many people use now, and posts trending on the server | kitchen score | (list level) | 300 equal pairs; a server-trending post |
+| Favor Positive Posts: English and Portuguese posts that read as positive rank higher | kitchen score | (list level) | per-language cases |
+| Limit Posts per Person: until you refresh; a boost counts for the person who boosted | kitchen cap, after the order, session counts | (list level) | fuzz: per person; 3-page best-ranked case |
+
+"Hide the Least Engaging" keeps every post at or above the P-th percentile
+(linear interpolation) of the batch's scores, and hides at least
+floor(P x n / 100) of the n posts, unless the top scores tie so that
+dropping the ties would hide everything: then the ties stay (Java's relax
+rule), which is also why nothing is hidden when all scores are equal.
+
 ## Builder (= Java form + HIG)
 
 The builder is an `Adw.Dialog` (`feedchefbuilder.py`) that edits a copy of
@@ -100,8 +194,8 @@ named in one plain row; sentiment is no longer among them.
 
 **Sentiment is active.** `positive_only` hides posts whose score is
 negative, and `sentiment_boost` lifts positive ones, scored by the vendored
-VADER (English and other languages) and LeIA (Portuguese). The dialog says
-"works best in English and Portuguese" and names no engine.
+VADER (English) and LeIA (Portuguese). Only those two languages are judged
+(deviation 15); the dialog says "English and Portuguese" and names no engine.
 
 **The icon** is `recipe.meta.icon`, which keeps a mashdon icon enum name
 (default `PIZZA`) so a shared recipe round-trips. `src/feedchef/icons.py`

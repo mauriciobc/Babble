@@ -134,7 +134,7 @@ class FakeEngine:
         self.shutdown_called = True
 
     def process_feed(self, recipe, *, max_id=None, count=80, on_stage=None,
-                     on_done=None, on_error=None):
+                     on_done=None, on_error=None, author_counts=None):
         self.calls.append(max_id)
         items, has_more, cursor = (self.queue.pop(0) if self.queue
                                    else ([], False, None))
@@ -229,14 +229,14 @@ positive_rows = find(dialog.page, Adw.SwitchRow,
 check('builder: Only Positive Posts is a switch with a plain subtitle',
       len(positive_rows) == 1 and positive_rows[0] is dialog.positive
       and positive_rows[0].get_subtitle()
-      == 'Hides posts that read as negative. English and Portuguese only.'
+      == 'Hides English and Portuguese posts that read as negative'
       and not dialog.positive.get_active())
 sentiment_editor = [e for e in dialog.editors
                     if e.kind == 'sentiment_boost'][0]
 trending_editor = [e for e in dialog.editors if e.kind == 'trending'][0]
 check('builder: Favor Positive Posts has the same language note',
-      sentiment_editor.row.get_subtitle() == 'Posts that read as '
-      'positive rank higher. English and Portuguese only.')
+      sentiment_editor.row.get_subtitle() == 'English and Portuguese '
+      'posts that read as positive rank higher')
 adjustment = sentiment_editor.spin.get_adjustment()
 check('builder: Favor Positive Posts is a modifier editor, off, 10 to 100 '
       'percent in steps of 10, 50 by default',
@@ -335,7 +335,8 @@ check('modifiers: percent and per-person values are shown',
 trending_editor.row.set_enable_expansion(False)
 check('modifiers: turning one off takes the value away again',
       trending_editor.row.get_subtitle()
-      == 'Posts about what is rising on the server rank higher')
+      == 'Posts on hashtags many people are using now, and posts '
+      'trending on the server, rank higher')
 dialog.force_close()
 pump()
 dialog = open_builder(default_recipe('Actions'), True)
