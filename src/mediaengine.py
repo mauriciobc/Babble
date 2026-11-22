@@ -15,10 +15,18 @@ for STOPPED removed the crash in every variant tested. So an
 * ``release()`` stops the pipeline, waits for the adapter to report
   ``STOPPED``, disconnects every handler and drops the references from an
   idle callback;
+* that idle clears ``_releasing`` and queues the GstPlay refs; a second,
+  single main-context idle drains the queue one hold at a time. The
+  unref stays on the main thread because the hold includes the sink's
+  GTK paintable, which must not lose its last reference anywhere else.
+  A ``wait()`` on ``_releasing`` returns before the unref, but this does
+  not cure the ``g_object_unref`` hang once seen in CI: if it recurs, it
+  blocks whichever later iteration runs the drain. That hang is still
+  unexplained;
 * until then the engine sits in ``_releasing``, so it outlives the viewer
   that closed it;
-* at quit :func:`shutdown_all` does the same synchronously, turning the
-  main context until ``STOPPED``, because the interpreter would otherwise
+* at quit :func:`shutdown_all` stops every live engine, then drains any
+  queued holds synchronously, because the interpreter would otherwise
   free a playing GstPlay during teardown.
 
 Handlers are connected once, in ``__init__``, and their ids are kept so
@@ -90,6 +98,48 @@ def schedule_trim():
 _releasing = set()
 # Every engine not yet dropped, for shutdown_all().
 _all = set()
+# GstPlay/sink/paintable lists still held after Engine attributes were
+# cleared. Drained one-at-a-time on the main context.
+_pending_holds = []
+# Idle source that drains _pending_holds, or 0.
+_unref_source = 0
+
+
+def _queue_hold(hold, sync=False):
+    """Unref *hold* on the main context, or immediately when *sync*."""
+    global _unref_source
+    if sync:
+        hold.clear()
+        schedule_trim()
+        return
+    _pending_holds.append(hold)
+    if not _unref_source:
+        _unref_source = GLib.idle_add(_unref_one_hold)
+
+
+def _unref_one_hold():
+    """Drop one queued hold; keep the idle armed while more remain."""
+    global _unref_source
+    if not _pending_holds:
+        _unref_source = 0
+        return False
+    _pending_holds.pop(0).clear()
+    schedule_trim()
+    if _pending_holds:
+        return True
+    _unref_source = 0
+    return False
+
+
+def _drain_pending_holds():
+    """Drop every queued hold now (quit path)."""
+    global _unref_source
+    if _unref_source:
+        GLib.source_remove(_unref_source)
+        _unref_source = 0
+    while _pending_holds:
+        _pending_holds.pop(0).clear()
+    schedule_trim()
 
 
 class FrameHolder:
@@ -521,7 +571,7 @@ class Engine:
     def _finish(self, how, immediate=False):
         if self._finished:
             if immediate:
-                self._drop()
+                self._drop(sync=True)
             return
         self._finished = True
         self.how = how
@@ -531,27 +581,33 @@ class Engine:
         self._clear_stop_timeout()
         self._disconnect_all()
         if immediate:
-            self._drop()
+            self._drop(sync=True)
         else:
             GLib.idle_add(self._drop_idle)
 
     def _drop_idle(self):
-        self._drop()
+        self._drop(sync=False)
         return False
 
-    def _drop(self):
+    def _drop(self, sync=False):
         handlers, self._ua_handlers = self._ua_handlers, []
         for obj, handler_id in handlers:
             try:
                 obj.disconnect(handler_id)
             except (TypeError, RuntimeError):
                 pass
+        # Hold the GStreamer refs in a list so clearing the attributes
+        # does not unref yet. Leave _releasing before any unref so a
+        # wait() pumping this idle can observe an empty set and return;
+        # the actual unref runs on a later main-context idle (or sync
+        # at quit), never on a helper thread.
+        hold = [self.play, self.adapter, self.sink, self.paintable]
         self.play = self.adapter = self.sink = self.paintable = None
         with self._frame_lock:
             self._latest = None
         _releasing.discard(self)
         _all.discard(self)
-        schedule_trim()
+        _queue_hold(hold, sync=sync)
 
 
 def shutdown_all(timeout_s=1.0):
@@ -577,4 +633,6 @@ def shutdown_all(timeout_s=1.0):
     for engine in engines:
         engine._finish(
             'stopped' if engine._settled() else 'timeout', immediate=True)
+    # Deferred drops may have left holds queued after leaving _all.
+    _drain_pending_holds()
     gc.collect()

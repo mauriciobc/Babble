@@ -267,13 +267,22 @@ class WindowPlaces:
 
     def visible_tag(self):
         visible = self.navigation_view.get_visible_page()
-        if visible is self.page_home:
+        if visible is None:
+            return None
+        # ==, not is: PyGObject 3.58 re-creates wrappers of GTK-held
+        # widgets, so identity against the template child can miss.
+        if visible == self.page_home:
             return 'home'
-        if visible is self.page_notifications:
+        if visible == self.page_notifications:
             return 'notifications'
         for tag, page in self.navigation.pages.items():
-            if page is visible:
+            if page == visible:
                 return tag
+        page_tag = visible.get_tag() or ''
+        if page_tag in ('home', 'notifications'):
+            return page_tag
+        if page_tag.startswith('place-'):
+            return page_tag[len('place-'):]
         return None
 
     def go_back(self):
@@ -379,9 +388,9 @@ class WindowPlaces:
         visible = self.navigation_view.get_visible_page()
         if visible is None:
             return
-        if visible is self.page_home:
+        if visible == self.page_home:
             target = self.timeline_page
-        elif visible is self.page_notifications:
+        elif visible == self.page_notifications:
             target = self.notifications_page
         else:
             target = self._refreshable(visible)
