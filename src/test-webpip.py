@@ -420,7 +420,10 @@ check('the panel load brought the card back',
       webpip.card_for(host) is None
       and host.web_slot.get_child() is column)
 check('a panel page refuses the card', webpip.open_card(host) is None)
-webcolumn.present_web(host, BASE + '/plain.html')
+# Settled, as every other step's page is: step 4 asks this page a
+# question once, and asked mid-navigation it gets no answer (a CI run
+# failed "the fill is undone" that way).
+column = open_column(BASE + '/plain.html')
 check('a plain page shows the pip button again',
       column.pip_button.get_visible())
 
