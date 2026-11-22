@@ -31,7 +31,7 @@ from gi.repository import Adw, Gtk, Pango  # noqa: E402
 from . import bskytext  # noqa: E402
 from . import bluesky  # noqa: E402
 from . import linkrouting, uihelpers  # noqa: E402
-from . import statustext  # noqa: E402
+from . import quoteline, statustext  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 from .mediabox import CardPreview, status_picture  # noqa: E402
 from .mediacache import AvatarCache, _TextureCache  # noqa: E402
@@ -82,16 +82,9 @@ def wants_inline_dropped(status):
     """True when the "RE: …" line of *status* is shown as a card instead:
     a Mastodon quote, or a card for a Bluesky post that the row will show
     (a poll or attachments suppress the card, and then the line stays)."""
-    if status.get('quote'):
-        return True
-    if status.get('poll') or status.get('media_attachments'):
-        return False
-    card = status.get('card')
-    if quote_data(card) and (card.get('title') or card.get('description')):
-        return True
     # No preview card: the quote is fetched from Bluesky instead, and the
     # card that comes says the same thing as the line.
-    return bool(quoted_ref(status))
+    return quoteline.hidden(status, enabled())
 
 
 def open_post(widget, actor, rkey):

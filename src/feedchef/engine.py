@@ -45,6 +45,12 @@ class FeedResult:
     author_counts: dict[str, int] = field(default_factory=dict)
 
 
+class ScopeFetchError(Exception):
+    """The posts of the recipe's scope (Home, a list, ...) could not be
+    fetched in time. The page shows its error page with Try Again: an
+    empty page that says "no more" would end the paging for good."""
+
+
 class _Judge:
     """Memoizes the sentiment of each post for one cook: the diet, the
     kitchen and the guard all ask, and the engines are not cheap."""
@@ -81,8 +87,12 @@ class FeedEngine:
         fetch_following_page: Callable[[str | None],
                                       tuple[list[dict], str | None]] | None = None,
         ui_idle: Callable[[Callable[[], None]], None] | None = None,
+        native_bluesky: Callable[[], bool] | None = None,
     ):
         self.account_key = account_key
+        # Whether the native Bluesky setting is on, asked once per cook
+        # (it decides what the minimum length counts, see ``quoteline``).
+        self.native_bluesky = native_bluesky or (lambda: False)
         self.self_account_id = self_account_id
         self.fetch_scope = fetch_scope
         self.fetch_hashtag = fetch_hashtag
@@ -160,6 +170,7 @@ class FeedEngine:
         on_done: DoneCallback | None = None,
         on_error: ErrorCallback | None = None,
         author_counts: dict[str, int] | None = None,
+        hide: Callable[[dict[str, Any]], bool] | None = None,
     ):
         self.cancel()
         self._cancel = threading.Event()
@@ -171,7 +182,7 @@ class FeedEngine:
                 result = self._process_sync(
                     recipe, max_id=max_id, count=count,
                     on_stage=on_stage, cancel=cancel, generation=generation,
-                    author_counts=author_counts)
+                    author_counts=author_counts, hide=hide)
                 if cancel.is_set():
                     return
                 if on_done:
@@ -194,11 +205,12 @@ class FeedEngine:
         max_id: str | None = None,
         count: int = 80,
         author_counts: dict[str, int] | None = None,
+        hide: Callable[[dict[str, Any]], bool] | None = None,
     ) -> FeedResult:
         return self._process_sync(
             recipe, max_id=max_id, count=count,
             on_stage=None, cancel=threading.Event(), generation='sync',
-            author_counts=author_counts)
+            author_counts=author_counts, hide=hide)
 
     def _server_trends(self, recipe: FeedRecipe
                        ) -> kitchenmod.ServerTrendContext:
@@ -232,12 +244,25 @@ class FeedEngine:
         cancel: threading.Event,
         generation: str,
         author_counts: dict[str, int] | None = None,
+        hide: Callable[[dict[str, Any]], bool] | None = None,
     ) -> FeedResult:
         """One page. *author_counts*: posts per person already shown by
         the earlier pages of the cook session ("Limit Posts per Person"
         is a cap on the whole session). The engine never changes it; the
         counts for the next page come back in ``FeedResult.author_counts``
-        and the caller keeps them only for a page it showed."""
+        and the caller keeps them only for a page it showed. *hide* tells
+        the posts the viewer's own filters hide: they are dropped before
+        the kitchen, so they use no one's slot of the cap and no place in
+        the heat percentile.
+
+        A page is never truncated: the scope's cursor has already moved
+        past every post it returned, so a post cut here would be skipped
+        for good. Page one may hold more than *count* posts (hashtag and
+        More Like This posts come on top of the scope's page).
+
+        A scope that failed or timed out raises (the page offers Try
+        Again): an empty page with no more to come would end the paging
+        while older posts exist."""
         logger = FeedDecisionLogger(recipe.id)
         started = time.time()
         # Trends on a separate executor (Babble deviation from Java deadlock).
@@ -294,11 +319,16 @@ class FeedEngine:
             for future in pending:
                 future.cancel()
             logger.add_error('pantry: %d fetch(es) timed out' % len(pending))
-        if scope_future not in pending:
-            try:
-                scope_posts = scope_future.result()
-            except Exception as error:
-                logger.add_error('scope:%s' % error)
+        if scope_future in pending:
+            logger.add_error('scope: timed out')
+            logger.persist()
+            raise ScopeFetchError('the posts did not load in time')
+        try:
+            scope_posts = scope_future.result()
+        except Exception as error:
+            logger.add_error('scope:%s' % error)
+            logger.persist()
+            raise
         for tag, future in tag_futures:
             if future in pending:
                 continue
@@ -329,6 +359,7 @@ class FeedEngine:
             self.ui_idle(lambda: on_stage('PANTRY', items))
 
         judge = _Judge()
+        native = bool(self.native_bluesky())
         if reachmod.needs_follow_list(recipe.pantry.network_reach):
             # Fail closed: wait for the list, or fail the cook.
             try:
@@ -339,7 +370,7 @@ class FeedEngine:
                 raise
         diet_started = time.time()
         after_diet, decisions = dietmod.apply_diet(
-            pantry.items, recipe, sentiment=judge)
+            pantry.items, recipe, sentiment=judge, native_bluesky=native)
         try:
             after_reach, reach_stats = reachmod.apply_network_reach(
                 after_diet, recipe, self.reach)
@@ -347,6 +378,9 @@ class FeedEngine:
             logger.add_error('reach:%s' % error)
             logger.persist()
             raise
+        if hide is not None:
+            after_reach = [status for status in after_reach
+                           if not hide(status)]
         logger.set_diet(
             input_count=len(pantry.items),
             output_count=len(after_reach),
@@ -379,9 +413,8 @@ class FeedEngine:
         ordered, score_map, kitchen_meta = kitchenmod.score_statuses(
             after_reach, recipe, server=server,
             sentiment_by_id=sentiment_by_id, author_counts=author_counts)
-        if count > 0:
-            ordered = ordered[:count]
-        ordered, guard_stats = self._guard(recipe, ordered, judge, logger)
+        ordered, guard_stats = self._guard(
+            recipe, ordered, judge, logger, native)
         logger.set_kitchen(
             input_count=len(after_reach),
             output_count=len(ordered),
@@ -415,7 +448,8 @@ class FeedEngine:
         )
 
     def _guard(self, recipe: FeedRecipe, ordered: list[dict[str, Any]],
-               judge: _Judge, logger: FeedDecisionLogger
+               judge: _Judge, logger: FeedDecisionLogger,
+               native_bluesky: bool = False
                ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """The final contract guard: every promise of the recipe, checked
         again on every post about to be returned, independently of the
@@ -430,7 +464,8 @@ class FeedEngine:
         for status in ordered:
             broken = contract.violations(
                 recipe, status, follow_ids=follow_ids,
-                self_id=self.self_account_id, sentiment=judge)
+                self_id=self.self_account_id, sentiment=judge,
+                native_bluesky=native_bluesky)
             if not broken:
                 kept.append(status)
                 continue

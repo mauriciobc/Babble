@@ -71,6 +71,7 @@ install_data(
   'feedchefpages.py',
   'feedchefpreview.py',
   'feedchefsource.py',
+  'quoteline.py',
   'filterrules.py',
   'filters.py',
   'imagecache.py',
@@ -839,6 +840,12 @@ test('feedchef contract', python,
 )
 test('feedchef promises', python,
   args: [files('test-feedchef-promises.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: promises an adversarial QA broke, pinned by a case each.
+test('feedchef regressions', python,
+  args: [files('test-feedchef-regressions.py')],
   env: test_env,
   timeout: 120,
 )

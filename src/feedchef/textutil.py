@@ -19,28 +19,85 @@ STOP_WORDS = frozenset((
     'com', 'net', 'org', 'mastodon', 'social', 'just', 'like', 'what'))
 
 
+# A line break, and the elements that start and end a paragraph: the text of
+# two of them must never run together into one word.
+_BREAK_TAGS = frozenset(('br',))
+_BLOCK_TAGS = frozenset(('p', 'div', 'li', 'blockquote', 'pre', 'ul', 'ol',
+                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6'))
+
+
 class _StripHTML(HTMLParser):
-    def __init__(self):
+    def __init__(self, drop_quote_inline: bool = False):
         super().__init__(convert_charrefs=True)
         self._parts: list[str] = []
+        self._drop_quote = drop_quote_inline
+        self._quote_tag: str | None = None
+        self._quote_depth = 0
+
+    def _opens_quote_line(self, tag, attrs) -> bool:
+        return (self._drop_quote and tag in ('span', 'p')
+                and 'quote-inline' in (dict(attrs).get('class')
+                                       or '').split())
+
+    def handle_starttag(self, tag, attrs):
+        if self._quote_depth:
+            if tag == self._quote_tag:
+                self._quote_depth += 1
+            return
+        if self._opens_quote_line(tag, attrs):
+            self._quote_tag = tag
+            self._quote_depth = 1
+            return
+        if tag in _BREAK_TAGS:
+            self._parts.append('\n')
+        elif tag in _BLOCK_TAGS:
+            self._parts.append('\n\n')
+
+    def handle_startendtag(self, tag, attrs):
+        if self._quote_depth or self._opens_quote_line(tag, attrs):
+            return
+        self.handle_starttag(tag, attrs)
+
+    def handle_endtag(self, tag):
+        if self._quote_depth:
+            if tag == self._quote_tag:
+                self._quote_depth -= 1
+                if not self._quote_depth:
+                    self._parts.append('\n\n')
+            return
+        if tag in _BLOCK_TAGS:
+            self._parts.append('\n\n')
 
     def handle_data(self, data):
-        self._parts.append(data)
+        if not self._quote_depth:
+            self._parts.append(data)
 
     def text(self) -> str:
         return ''.join(self._parts)
 
 
-def strip_html(html: str | None) -> str:
+def strip_html(html: str | None, *, drop_quote_inline: bool = False) -> str:
+    """The text of status HTML. A line break is a newline and a paragraph
+    boundary a blank line, so words on either side never join; entities are
+    decoded. *drop_quote_inline* leaves out the "RE: <link>" line a server
+    appends to a quote post (the one the row hides when it shows the quote
+    as a card)."""
     if not html:
         return ''
-    parser = _StripHTML()
+    parser = _StripHTML(drop_quote_inline)
     try:
         parser.feed(html)
         parser.close()
     except Exception:
-        return re.sub(r'<[^>]*>', '', html)
+        return re.sub(r'<[^>]*>', ' ', html)
     return parser.text()
+
+
+def squash_space(text: str | None) -> str:
+    """*text* with every run of whitespace (newlines and no-break spaces
+    included) as one space, trimmed: what word matching and the length
+    count read."""
+    return ' '.join((text or '').split())
 
 
 def content_of(status: dict[str, Any]) -> dict[str, Any]:

@@ -134,7 +134,8 @@ class FakeEngine:
         self.shutdown_called = True
 
     def process_feed(self, recipe, *, max_id=None, count=80, on_stage=None,
-                     on_done=None, on_error=None, author_counts=None):
+                     on_done=None, on_error=None, author_counts=None,
+                     hide=None):
         self.calls.append(max_id)
         items, has_more, cursor = (self.queue.pop(0) if self.queue
                                    else ([], False, None))
@@ -649,6 +650,29 @@ dialog.force_close()
 pump()
 host.destroy()
 store.delete_recipe(unsaved.id)
+
+# An imported blocked entry of several words is kept by a save that did not
+# edit the field, and read as separate words once the reader edits it.
+phrase = default_recipe('Phrase')
+phrase.diet.keyword_blocklist = ['bad word', 'spam']
+dialog = open_builder(phrase, True)
+dialog.media.set_active(True)
+header_button(dialog, '_Save').emit('clicked')
+pump()
+check('builder: a save that did not touch Blocked Words keeps a multi-word '
+      'entry whole (%r)'
+      % store.get_recipe_by_id(phrase.id).diet.keyword_blocklist,
+      store.get_recipe_by_id(phrase.id).diet.keyword_blocklist
+      == ['bad word', 'spam'])
+dialog = open_builder(store.get_recipe_by_id(phrase.id), False)
+dialog.blocklist.set_text('bad word spam extra')
+header_button(dialog, '_Save').emit('clicked')
+pump()
+check('builder: an edited Blocked Words field is read as separate words (%r)'
+      % store.get_recipe_by_id(phrase.id).diet.keyword_blocklist,
+      store.get_recipe_by_id(phrase.id).diet.keyword_blocklist
+      == ['bad', 'word', 'spam', 'extra'])
+store.delete_recipe(phrase.id)
 
 # The deprecated style class is not used by Feed Chef's UI.
 for name in ('feedchefbuilder.py', 'feedchefpages.py',

@@ -22,9 +22,10 @@ class DietDecision:
     details: str = ''
 
 
-def _details(reason: str, status: dict[str, Any]) -> str:
+def _details(reason: str, status: dict[str, Any],
+             native_bluesky: bool = False) -> str:
     if reason == 'min_content_length':
-        return str(contract.text_length(status))
+        return str(contract.text_length(status, native_bluesky))
     return ''
 
 
@@ -34,16 +35,17 @@ def pass_diet(
     *,
     sentiment: contract.SentimentJudge | None = None,
     recipe: FeedRecipe | None = None,
+    native_bluesky: bool = False,
 ) -> DietDecision:
     """*sentiment* judges a post (None: the post's language is not read)."""
     post_id = str(status.get('id') or '')
     recipe = recipe or FeedRecipe(diet=diet)
     found = contract.violations(
         recipe, status, sentiment=sentiment, only=contract.DIET_IDS,
-        first=True)
+        first=True, native_bluesky=native_bluesky)
     if found:
         return DietDecision(post_id, 'FILTERED', found[0],
-                            _details(found[0], status))
+                            _details(found[0], status, native_bluesky))
     return DietDecision(post_id, 'PASSED', 'ok')
 
 
@@ -52,12 +54,13 @@ def apply_diet(
     recipe: FeedRecipe,
     *,
     sentiment: contract.SentimentJudge | None = None,
+    native_bluesky: bool = False,
 ) -> tuple[list[dict[str, Any]], list[DietDecision]]:
     kept = []
     decisions = []
     for status in statuses:
         decision = pass_diet(status, recipe.diet, sentiment=sentiment,
-                             recipe=recipe)
+                             recipe=recipe, native_bluesky=native_bluesky)
         decisions.append(decision)
         if decision.verdict == 'PASSED':
             kept.append(status)

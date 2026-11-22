@@ -365,6 +365,10 @@ class FeedChefBuilderDialog(ToastDialog):
                           'case.'))
         self.blocklist = Adw.EntryRow(title=_('Blocked Words'))
         self.blocklist.set_text(' '.join(recipe.diet.keyword_blocklist))
+        # What the field showed when the dialog opened: while it still
+        # shows that, the recipe's own entries stand (an imported entry of
+        # several words would be split into words by re-reading it).
+        self._blocklist_text = self.blocklist.get_text()
         group.add(self.blocklist)
         self.media = Adw.SwitchRow(title=_('Only Posts With Media'))
         self.media.set_active(hard.must_have_media)
@@ -606,7 +610,8 @@ class FeedChefBuilderDialog(ToastDialog):
             pantry.network_reach.enabled = reach
             if reach:
                 pantry.network_reach.max_degrees = 1
-        recipe.diet.keyword_blocklist = _words(self.blocklist.get_text())
+        if self.blocklist.get_text() != self._blocklist_text:
+            recipe.diet.keyword_blocklist = _words(self.blocklist.get_text())
         hard = recipe.diet.hard_filters
         hard.must_have_media = self.media.get_active()
         hard.must_have_alt_text = self.alt.get_active()

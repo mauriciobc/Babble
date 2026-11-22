@@ -25,7 +25,7 @@ v1.
 | UI cursor | last id after kitchen sort | oldest of merged pantry | **smallest wrapper id of the scope response** (deliberate fix) |
 | Base score | fav·1 + reblog·2.5 + reply·1.5 on content | same | **= Java** (not Elk `rank()`) |
 | `freshness` | `score *= factor` | blend 0.4 | **= Java** |
-| `heat` / `diversity` | heat after scores, before structural; diversity pre-sort, author only | PRD order / instance | **= Java** |
+| `heat` / `diversity` | heat after scores, before structural; diversity pre-sort, author only | PRD order / instance | **Java order; heat hides exactly floor(P x n / 100), the lowest first** (see Promises) |
 | `similarity_cluster` / TF-IDF / synonyms | present | present | **inert + UI warning** (no `synonyms.json` 16 MB LGPL in the binary) |
 | Sentiment | `SimpleSentimentAnalyzer` + `sentiment_words.json` (~94 KB); often `0` if missing | present | **Vendored VADER (EN) + LeIA (pt*)** — MIT, no PyPI; activates `positive_only` / `sentiment_boost` (Babble upgrade, not Java JSON parity) |
 | Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache**; never nest `submit`+`get` on that pool |
@@ -132,9 +132,50 @@ v1.
     The text is the post's HTML stripped, with the content warning; a word
     matches as a whole word ignoring case, where the boundary is "not next
     to a letter or digit" in Unicode (so `café` and `c++` match). The
-    minimum length counts the characters of that text, stripped of
-    surrounding space, with a link counted in full (the hidden parts of its
-    markup included); the builder says "links counted in full".
+    minimum length counts the characters of that text, with a link counted
+    in full (the hidden parts of its markup included); the builder says
+    "links counted in full". Block boundaries separate words: a `<br>` is a
+    newline, a paragraph, `<div>`, list item or blockquote a blank line, and
+    every run of whitespace (newlines and no-break spaces included) is read
+    as one space before a word is matched or the length counted, so a blocked
+    entry of several words matches across a line break and `<p>a</p><p>b</p>`
+    is five characters, not four. The minimum length counts what the reader
+    sees: the "RE: <link>" line of a quote post is left out exactly when the
+    row hides it because it shows the quote as a card
+    (`quoteline.hidden`, the one decision the row's `wants_inline_dropped`
+    reads too, with the native Bluesky setting asked once per cook).
+18. **A scope that fails is an error, a page is never cut, a refresh keeps
+    the session.** A scope fetch that raises or misses its deadline fails the
+    cook (`ScopeFetchError` for the deadline), on every page: the page shows
+    its error page with Try Again, because an empty page with `has_more`
+    false ended the paging for good while older posts existed. This holds on
+    page one even when hashtag or More Like This posts arrived: without the
+    scope there is no cursor to continue from, so returning only those would
+    show a partial feed that looks complete; Try Again is the honest answer.
+    A hashtag or More Like This fetch that fails stays soft (logged). The
+    engine never truncates a page to `count`: the scope's cursor has already
+    moved past every post it returned, so a post cut after the merge (page one
+    holds the scope's page plus hashtag and More Like This posts) would be
+    skipped forever; `count` is only the size asked of the scope. `FeedChefSource`
+    changes its cursor, `has_more` and person counts only when a page lands;
+    a refresh that fails or is cancelled leaves the session as it was and the
+    older pages go on from the old cursor. The viewer's own filters are
+    applied before the kitchen (`feedchefsource.viewer_hides`, the HOME
+    context `TimelinePage` gives a source without a path, action 'hide'
+    only; 'warn' and 'blur' posts stay, shown collapsed or covered), so a
+    hidden post uses no slot of "Limit Posts per Person" and no place in the
+    heat percentile.
+19. **The follow list on disk is used at once, and may be stale.** The first
+    cook after the app starts reads the list written by the last session and
+    does not wait for the preload that replaces it (waiting would make
+    opening a recipe depend on a few hundred requests every time). Until the
+    preload lands, "Only People I Follow" can still show an account
+    unfollowed since the list was written, and miss one followed since. The
+    reader's next refresh after the preload is exact; the decision log marks
+    the first cook `network_reach_stale_cache`. Accepted: the list is as old
+    as the last time a timeline was opened, and a fail-closed wait on every
+    open would cost more than the briefly stale answer; a recipe that must
+    be exact is refreshed once.
 
 ## Promises and enforcement
 
@@ -153,24 +194,24 @@ fuzz runs 240 seeded cases over three pages.
 | Only Posts With Media | diet | `must_have_media` | fuzz: only with media |
 | Require Alt Text on Media: posts without media still show | diet | `must_have_alt_text` (every attachment described; no media passes) | fuzz: alt text |
 | Hide Posts Marked Sensitive: posts flagged as sensitive, often those with a content warning | diet | `no_sensitive_media` (the `sensitive` flag) | fuzz: sensitive |
-| Minimum Length: characters of text, links counted in full | diet | `min_content_length` | fuzz: minimum length; link, padding and boost cases |
+| Minimum Length: characters of text, links counted in full | diet | `min_content_length` (the hidden "RE:" line is not counted) | fuzz: minimum length; link, padding, boost and quote-line cases |
 | Only Positive Posts: hides English and Portuguese posts that read as negative | diet | `positive_only` (None = not judged passes) | fuzz: only positive; per-language cases |
 | Include Hashtags: at least one of them | pantry merge (scope, More Like This); hashtag timelines by construction | `hashtags_include` | fuzz: include hashtags (focus cases included); a lying hashtag timeline; More Like This case |
 | Exclude Hashtags: never | pantry merge (every source) | `hashtags_exclude` | fuzz: exclude hashtags |
 | Only People I Follow: plus your own posts, boosts judged by the original author | reach (after the wait for the follow list) | `network_reach` (unknown list fails closed) | loading, error, timeout, retry, empty, no-source, stale-disk and include_unknown cases; fuzz: only people I follow |
 | Order: Newest first | kitchen order | (list level) | fuzz: order newest first; tie-by-id case |
 | Order: Most engaging | kitchen order | (list level) | fuzz: order most engaging; order with focus |
-| Hide the Least Engaging: percent of each batch; engagement is replies, boosts and favorites, weighted, after freshness and trending | kitchen heat | (list level) | fuzz: heat (percentile, count, equal-score relax) |
+| Hide the Least Engaging: percent of each batch; engagement is replies, boosts and favorites, weighted, after freshness and trending | kitchen heat | (list level) | fuzz: heat (exact count); `feedchef regressions`: ties, P=1, P=10, P=90, one and two posts |
 | Favor Fresh Posts: newer posts rank higher; older than the fade-out score zero | kitchen score | (list level) | 300 equal pairs |
 | Boost Trending Topics: hashtags many people use now, and posts trending on the server | kitchen score | (list level) | 300 equal pairs; a server-trending post |
 | Favor Positive Posts: English and Portuguese posts that read as positive rank higher | kitchen score | (list level) | per-language cases |
 | Limit Posts per Person: until you refresh; a boost counts for the person who boosted | kitchen cap, after the order, session counts | (list level) | fuzz: per person; 3-page best-ranked case |
 
-"Hide the Least Engaging" keeps every post at or above the P-th percentile
-(linear interpolation) of the batch's scores, and hides at least
-floor(P x n / 100) of the n posts, unless the top scores tie so that
-dropping the ties would hide everything: then the ties stay (Java's relax
-rule), which is also why nothing is hidden when all scores are equal.
+"Hide the Least Engaging" hides exactly floor(P x n / 100) of the n posts of
+a batch: the lowest by score, the older first among equal scores, and never
+all of them (a batch of one is never emptied). The rest keep their order.
+This replaces Java's percentile cut with a relax rule: it hid a count that
+depended on ties, and nothing at all when every score was equal.
 
 ## Builder (= Java form + HIG)
 
@@ -223,8 +264,8 @@ window / `RequestMode` / `expected_outcome`.
 
 ## Module boundary
 
-Package `src/feedchef/` may use the standard library, `api`, and
-`statustext`. It must not import Catch Up UI/fetch/store/tiles,
+Package `src/feedchef/` may use the standard library, `api`, `statustext`
+and `quoteline` (display-free). It must not import Catch Up UI/fetch/store/tiles,
 `navigation`, or `catchup.rank*`. Catch Up must not import `feedchef`.
 Enforced by prefix rules in `testkit/moduleboundary.py`.
 

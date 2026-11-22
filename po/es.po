@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-22 16:06-0300\n"
+"POT-Creation-Date: 2026-11-22 17:19-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -1798,29 +1798,29 @@ msgstr "Se guardó el acceso de moderación para la cuenta con la que cambiaste.
 msgid "Moderation access granted"
 msgstr "Acceso a la moderación concedido"
 
-#: src/blueskycard.py:163 src/blueskycard.py:390
+#: src/blueskycard.py:156 src/blueskycard.py:383
 msgid "Bluesky"
 msgstr "Bluesky"
 
 #. The author keeps the post from readers who are not signed
 #. in: say why, instead of saying it is unavailable.
-#: src/blueskycard.py:175 src/blueskycard.py:272 src/blueskythread.py:124
+#: src/blueskycard.py:168 src/blueskycard.py:265 src/blueskythread.py:124
 #: src/blueskythread.py:162
 msgid "Bluesky hides this post from people who are not signed in."
 msgstr ""
 "Bluesky oculta esta publicación a las personas que no han iniciado sesión."
 
-#: src/blueskycard.py:181 src/blueskycard.py:275 src/feedchefbuilder.py:443
+#: src/blueskycard.py:174 src/blueskycard.py:268 src/feedchefbuilder.py:447
 #: src/notificationpolicy.py:68
 msgid "Loading…"
 msgstr "Cargando…"
 
-#: src/blueskycard.py:278 src/blueskythread.py:121
+#: src/blueskycard.py:271 src/blueskythread.py:121
 #, python-format
 msgid "Bluesky post by %(author)s: %(text)s"
 msgstr "Publicación de Bluesky de %(author)s: %(text)s"
 
-#: src/blueskycard.py:393
+#: src/blueskycard.py:386
 msgid "Bridged from Bluesky"
 msgstr "Transferida de Bluesky"
 
@@ -2881,7 +2881,7 @@ msgstr "¿Descartar el borrador?"
 msgid "The text, attachments and poll of this post will be lost"
 msgstr "Se perderán el texto, los adjuntos y la encuesta de esta publicación"
 
-#: src/composepost.py:373 src/feedchefbuilder.py:575 src/profileedit.py:653
+#: src/composepost.py:373 src/feedchefbuilder.py:579 src/profileedit.py:653
 msgid "_Discard"
 msgstr "_Descartar"
 
@@ -3812,117 +3812,117 @@ msgstr ""
 msgid "Blocked Words"
 msgstr "%s bloqueado"
 
-#: src/feedchefbuilder.py:369
+#: src/feedchefbuilder.py:373
 #, fuzzy
 msgid "Only Posts With Media"
 msgstr "Solo publicaciones con advertencia de contenido"
 
-#: src/feedchefbuilder.py:373
+#: src/feedchefbuilder.py:377
 msgid "Require Alt Text on Media"
 msgstr ""
 
-#: src/feedchefbuilder.py:374
+#: src/feedchefbuilder.py:378
 msgid "Posts without media still show"
 msgstr ""
 
-#: src/feedchefbuilder.py:378
+#: src/feedchefbuilder.py:382
 #, fuzzy
 msgid "Hide Posts Marked Sensitive"
 msgstr "_Multimedia marcada como sensible"
 
-#: src/feedchefbuilder.py:379
+#: src/feedchefbuilder.py:383
 msgid "Hides posts flagged as sensitive, often those with a content warning"
 msgstr ""
 
-#: src/feedchefbuilder.py:384
+#: src/feedchefbuilder.py:388
 #, fuzzy
 msgid "Only Positive Posts"
 msgstr "Publicaciones denunciadas"
 
-#: src/feedchefbuilder.py:385
+#: src/feedchefbuilder.py:389
 msgid "Hides English and Portuguese posts that read as negative"
 msgstr ""
 
-#: src/feedchefbuilder.py:390
+#: src/feedchefbuilder.py:394
 msgid "Minimum Length"
 msgstr ""
 
-#: src/feedchefbuilder.py:391
+#: src/feedchefbuilder.py:395
 msgid "In characters of text, links counted in full; 0 turns it off"
 msgstr ""
 
-#: src/feedchefbuilder.py:399
+#: src/feedchefbuilder.py:403
 msgid "Kitchen"
 msgstr ""
 
-#: src/feedchefbuilder.py:400
+#: src/feedchefbuilder.py:404
 msgid "How posts are ordered and balanced"
 msgstr ""
 
-#: src/feedchefbuilder.py:402
+#: src/feedchefbuilder.py:406
 msgid "Order"
 msgstr ""
 
-#: src/feedchefbuilder.py:404
+#: src/feedchefbuilder.py:408
 #, fuzzy
 msgid "Most engaging"
 msgstr "Idioma de la publicación"
 
-#: src/feedchefbuilder.py:404
+#: src/feedchefbuilder.py:408
 #, fuzzy
 msgid "Newest first"
 msgstr "más recientes primero"
 
-#: src/feedchefbuilder.py:415
+#: src/feedchefbuilder.py:419
 msgid "Some Ingredients Are Not Supported Yet"
 msgstr ""
 
 #. Translators: %s is a list of features, such as
 #. "similarity grouping, connections".
-#: src/feedchefbuilder.py:418
+#: src/feedchefbuilder.py:422
 #, fuzzy, python-format
 msgid "Not applied: %s"
 msgstr "La acción falló: %s"
 
-#: src/feedchefbuilder.py:450
+#: src/feedchefbuilder.py:454
 #, fuzzy
 msgid "Could not load lists"
 msgstr "No se ha podido cargar la publicación"
 
 #. An empty combo row reads as broken: say why there is nothing
 #. to pick, and that Save waits for a list.
-#: src/feedchefbuilder.py:484
+#: src/feedchefbuilder.py:488
 #, fuzzy
 msgid "No lists"
 msgstr "Sin listas"
 
-#: src/feedchefbuilder.py:485
+#: src/feedchefbuilder.py:489
 #, fuzzy
 msgid "Create a list first"
 msgstr "menos favoritos primero"
 
-#: src/feedchefbuilder.py:572 src/profileedit.py:650
+#: src/feedchefbuilder.py:576 src/profileedit.py:650
 msgid "Discard Changes?"
 msgstr "¿Descartar los cambios?"
 
-#: src/feedchefbuilder.py:573
+#: src/feedchefbuilder.py:577
 msgid "Your changes to this recipe will be lost."
 msgstr ""
 
-#: src/feedchefbuilder.py:574 src/profileedit.py:652
+#: src/feedchefbuilder.py:578 src/profileedit.py:652
 msgid "_Keep Editing"
 msgstr "_Seguir editando"
 
-#: src/feedchefbuilder.py:594
+#: src/feedchefbuilder.py:598
 msgid "Untitled Recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:626 src/feedchefpages.py:464 src/feedchefpages.py:564
+#: src/feedchefbuilder.py:631 src/feedchefpages.py:464 src/feedchefpages.py:564
 #, fuzzy
 msgid "Could not save the recipe"
 msgstr "No se pudo guardar el filtro"
 
-#: src/feedchefbuilder.py:644 src/feedchefpages.py:227
+#: src/feedchefbuilder.py:649 src/feedchefpages.py:227
 #, fuzzy
 msgid "Share link copied"
 msgstr "Enlace copiado"
@@ -4110,6 +4110,16 @@ msgstr "_Reportar"
 #, fuzzy
 msgid "Recipe imported"
 msgstr "Denunciada por"
+
+#: src/feedchefsource.py:205
+msgid "The posts of this recipe did not load in time. Try again."
+msgstr ""
+
+#: src/feedchefsource.py:211
+msgid ""
+"Your list of follows could not be loaded, so nothing is shown rather than "
+"posts from people you do not follow."
+msgstr ""
 
 #: src/feedchefpreview.py:99 src/feedchefpreview.py:101
 msgid "Preview"

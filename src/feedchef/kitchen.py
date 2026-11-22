@@ -143,19 +143,24 @@ def _percentile(values: list[float], percentile: float) -> float:
 
 def apply_heat(statuses: list[dict[str, Any]], scores: dict[str, float],
                mod: Modifier) -> list[dict[str, Any]]:
+    """Hide exactly floor(P x n / 100) of the n posts: the ones with the
+    lowest score, the older first among equals, and never all of them
+    (a batch of one is never emptied). The rest keep their order."""
     percentile = float(mod.percentile_threshold
                        if mod.percentile_threshold is not None else 0)
-    if percentile <= 0:
+    if percentile <= 0 or not statuses:
         return statuses
-    values = [scores.get(str(item.get('id')), 0.0) for item in statuses]
-    threshold = _percentile(values, percentile)
-    kept = [item for item in statuses
-            if scores.get(str(item.get('id')), 0.0) > threshold]
-    if kept:
-        return kept
-    # Would remove 100% with <= ; relax to keep scores == threshold.
-    return [item for item in statuses
-            if scores.get(str(item.get('id')), 0.0) >= threshold]
+    total = len(statuses)
+    hide = min(int(math.floor(percentile * total / 100.0)), total - 1)
+    if hide <= 0:
+        return statuses
+
+    def weakest(item):
+        created = status_created_at(item, content=True) or _NO_DATE
+        return (scores.get(str(item.get('id')), 0.0), created, _id_key(item))
+
+    hidden = {id(item) for item in sorted(statuses, key=weakest)[:hide]}
+    return [item for item in statuses if id(item) not in hidden]
 
 
 def author_key(status: dict[str, Any]) -> str:

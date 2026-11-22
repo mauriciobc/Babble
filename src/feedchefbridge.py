@@ -7,6 +7,7 @@ import threading
 
 from gi.repository import GLib
 
+from . import appsettings
 from .api import accounts as api_accounts
 from .api import core as api_core
 from .api import search as api_search
@@ -199,4 +200,6 @@ def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
         fetch_trends=fetch_trends,
         fetch_following_page=fetch_following_page,
         ui_idle=lambda cb: GLib.idle_add(cb),
+        native_bluesky=lambda: appsettings.settings().get_boolean(
+            'bluesky-native'),
     )

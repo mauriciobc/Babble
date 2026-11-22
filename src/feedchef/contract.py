@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The promises of a Feed Chef recipe, declared once (standard library only).
+"""The promises of a Feed Chef recipe, declared once (no widgets).
 
 Every control of the recipe builder promises something about the posts it
 lets through. Each per-post promise is a predicate here, with a stable id
@@ -19,8 +19,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from .. import quoteline
 from .recipe import FeedRecipe, NetworkReachConfig
-from .textutil import account_of, content_of, strip_html
+from .textutil import account_of, content_of, squash_space, strip_html
 
 # status -> compound score in [-1, 1], or None when the post is not judged
 # (a language the sentiment engines do not read).
@@ -34,6 +35,9 @@ class Facts:
     follow_ids: frozenset[str] | None = None
     self_id: str = ''
     sentiment: SentimentJudge | None = None
+    # Whether the native Bluesky setting is on: it decides whether the row
+    # shows a quote as a card and hides its "RE: <link>" line.
+    native_bluesky: bool = False
 
 
 @dataclass(frozen=True)
@@ -46,15 +50,22 @@ class Promise:
 
 # Reading a post
 
-def post_text(status: dict[str, Any]) -> str:
-    """The text of the post without HTML, stripped: what the minimum
-    length counts. A link counts in full (its hidden parts included), a
-    mention and a hashtag by their written form."""
-    return strip_html(content_of(status).get('content')).strip()
+def post_text(status: dict[str, Any], native_bluesky: bool = False) -> str:
+    """The text of the post without HTML, whitespace squashed to single
+    spaces: what the minimum length counts, and what blocked words are
+    matched in. A link counts in full (its hidden parts included), a
+    mention and a hashtag by their written form; a line or paragraph break
+    counts as one space. The "RE: <link>" line is left out exactly when
+    the row hides it (``quoteline.hidden``), so the count is the text the
+    reader sees."""
+    content = content_of(status)
+    return squash_space(strip_html(
+        content.get('content'),
+        drop_quote_inline=quoteline.hidden(content, native_bluesky)))
 
 
-def text_length(status: dict[str, Any]) -> int:
-    return len(post_text(status))
+def text_length(status: dict[str, Any], native_bluesky: bool = False) -> int:
+    return len(post_text(status, native_bluesky))
 
 
 def spoiler_of(status: dict[str, Any]) -> str:
@@ -86,9 +97,14 @@ def blocked_hit(status: dict[str, Any], words: list[str]) -> str | None:
     if not words:
         return None
     text = post_text(status)
-    spoiler = spoiler_of(status)
+    spoiler = squash_space(spoiler_of(status))
     for word in words:
-        pattern = re.compile(r'(?<!\w)%s(?!\w)' % re.escape(word), re.I)
+        # An entry of several words matches across a line break or a
+        # no-break space: both sides are read with single spaces.
+        needle = squash_space(word)
+        if not needle:
+            continue
+        pattern = re.compile(r'(?<!\w)%s(?!\w)' % re.escape(needle), re.I)
         if pattern.search(text) or pattern.search(spoiler):
             return word
     return None
@@ -151,7 +167,8 @@ def _sensitive(recipe, status, facts):
 
 
 def _min_length(recipe, status, facts):
-    return text_length(status) >= recipe.diet.hard_filters.min_content_length
+    return text_length(status, facts.native_bluesky) \
+        >= recipe.diet.hard_filters.min_content_length
 
 
 def _positive(recipe, status, facts):
@@ -222,6 +239,7 @@ def violations(
     sentiment: SentimentJudge | None = None,
     only: frozenset[str] | set[str] | None = None,
     first: bool = False,
+    native_bluesky: bool = False,
 ) -> list[str]:
     """Ids of the promises of *recipe* that *status* breaks, in order.
 
@@ -231,7 +249,8 @@ def violations(
     stops at the first broken promise."""
     facts = Facts(
         follow_ids=None if follow_ids is None else frozenset(follow_ids),
-        self_id=str(self_id or ''), sentiment=sentiment)
+        self_id=str(self_id or ''), sentiment=sentiment,
+        native_bluesky=native_bluesky)
     broken = []
     for promise in PROMISES:
         if only is not None and promise.id not in only:

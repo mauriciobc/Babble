@@ -420,25 +420,20 @@ for case in range(CASES):
             page_scores = [result.score_map[i] for i in page_ids]
             if not page_scores:
                 continue
-            threshold = percentile(page_scores, mod.percentile_threshold)
-            for item in items:
-                if result.score_map[item['id']] < threshold - 1e-9:
-                    fail('heat', seed, 'kept %s below the percentile'
-                         % item['id'])
-            strict = [s for s in page_scores if s > threshold]
-            expected = len(strict) if strict else len(
-                [s for s in page_scores if s >= threshold])
+            # Exactly floor(P x n / 100) of the n posts go, the lowest
+            # first, and never all of them.
+            n = len(page_scores)
+            hide = min(math.floor(mod.percentile_threshold * n / 100), n - 1)
             info = result.kitchen_meta['heat']
-            if info['after'] != expected:
-                fail('heat', seed, 'kept %d, expected %d'
-                     % (info['after'], expected))
-            removed = info['before'] - info['after']
-            if len(set(page_scores)) == 1 and removed:
-                fail('heat', seed, 'hid posts when all scores are equal')
-            if strict and removed < math.floor(
-                    mod.percentile_threshold * info['before'] / 100):
-                fail('heat', seed, 'hid only %d of %d at %d%%'
-                     % (removed, info['before'], mod.percentile_threshold))
+            if (info['before'], info['after']) != (n, n - hide):
+                fail('heat', seed, 'kept %d of %d, expected %d'
+                     % (info['after'], info['before'], n - hide))
+            if hide:
+                cutoff = sorted(page_scores)[hide - 1]
+                for item in items:
+                    if result.score_map[item['id']] < cutoff - 1e-9:
+                        fail('heat', seed, 'kept %s below a hidden post'
+                             % item['id'])
             count_seen('heat', len(page_ids))
     # Included hashtags reach every source, a focus included.
     if recipe.pantry.hashtags_include and focus:

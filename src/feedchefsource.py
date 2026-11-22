@@ -9,10 +9,13 @@ which a merged hashtag or More Like This post would pull too far back. The
 source therefore ignores TimelinePage's cursor and keeps its own.
 """
 
+import datetime
 from functools import partial
 
 from gi.repository import Gio, GLib, GObject
 
+from . import filterrules
+from .feedchef.engine import ScopeFetchError
 from .feedchef.network_reach import FollowListError
 from .i18n import gettext as _
 
@@ -21,6 +24,20 @@ COOK_COUNT = 40
 # A page the diet and the kitchen emptied is followed by the next older one
 # rather than shown as the end, up to this many times in a row.
 MAX_EMPTY_HOPS = 3
+
+
+def viewer_hides(status):
+    """Whether the viewer's own filters hide *status* in this timeline.
+
+    The filter context is the one TimelinePage gives a source that has no
+    path (``timelinepage.filter_context_for``): the home one. Only the
+    action 'hide' counts; a 'warn' or 'blur' post stays in the page, which
+    shows it collapsed or covered with a Show Anyway button. Called by the
+    engine before the kitchen, so a hidden post uses no one's slot of
+    "Limit Posts per Person"."""
+    rule = filterrules.strongest(
+        status, filterrules.HOME, datetime.datetime.now(datetime.timezone.utc))
+    return rule is not None and rule[0] == filterrules.HIDE
 
 
 def _batch(items):
@@ -32,13 +49,18 @@ def _batch(items):
 class _Cook:
     """One ``fetch()``: its task, and whether it is still open."""
 
-    __slots__ = ('task', 'cancellable', 'handler', 'done')
+    __slots__ = ('task', 'cancellable', 'handler', 'done', 'older',
+                 'counts')
 
-    def __init__(self, task, cancellable):
+    def __init__(self, task, cancellable, older, counts):
         self.task = task
         self.cancellable = cancellable
         self.handler = 0
         self.done = False
+        self.older = older
+        # The person counts the next hop of this cook starts from: the
+        # session's, or none for a refresh.
+        self.counts = counts
 
 
 class FeedChefSource:
@@ -87,15 +109,14 @@ class FeedChefSource:
         if older and not (self._has_more and self._cursor):
             task.return_value(_batch([]))
             return
-        cook = _Cook(task, cancellable)
+        # A refresh starts from nothing but changes nothing here until its
+        # page lands (_on_done): one that fails or is cancelled leaves the
+        # session as it was, and the older pages go on from its cursor.
+        cook = _Cook(task, cancellable, older,
+                     dict(self._author_counts) if older else {})
         self._active = cook
         if cancellable is not None:
             cook.handler = cancellable.connect(partial(self._cancelled, cook))
-        if not older:
-            self._cursor = None
-            self._has_more = False
-            self.stalled = False
-            self._author_counts = {}
         self.error_kind = None
         self._start(cook, self._cursor if older else None, 0)
 
@@ -130,7 +151,7 @@ class FeedChefSource:
             on_stage=partial(self._on_stage, cook),
             on_done=partial(self._on_done, cook, hops),
             on_error=partial(self._on_error, cook),
-            author_counts=dict(self._author_counts))
+            author_counts=dict(cook.counts), hide=viewer_hides)
 
     def _settle(self, cook):
         cook.done = True
@@ -156,15 +177,20 @@ class FeedChefSource:
     def _on_done(self, cook, hops, result):
         if cook.done or cook is not self._active:
             return
-        self._cursor = result.scope_oldest_id
+        cursor = result.scope_oldest_id
+        has_more = bool(result.has_more and cursor)
         # Only a page that is shown counts: a cook that was cancelled
         # never gets here, so a retry does not count its posts twice.
-        self._author_counts = dict(result.author_counts or {})
-        self._has_more = bool(result.has_more and result.scope_oldest_id)
-        if not result.items and self._has_more and hops < MAX_EMPTY_HOPS:
-            self._start(cook, self._cursor, hops + 1)
+        cook.counts = dict(result.author_counts or {})
+        if not result.items and has_more and hops < MAX_EMPTY_HOPS:
+            self._start(cook, cursor, hops + 1)
             return
-        self.stalled = bool(not result.items and self._has_more)
+        # The session is replaced as one: a refresh that failed on a later
+        # hop never reaches here, and keeps the old cursor and counts.
+        self._cursor = cursor
+        self._has_more = has_more
+        self._author_counts = cook.counts
+        self.stalled = bool(not result.items and has_more)
         self._settle(cook)
         self._active = None
         cook.task.return_value(_batch(list(result.items)))
@@ -174,7 +200,12 @@ class FeedChefSource:
             return
         self._settle(cook)
         self._active = None
-        if isinstance(error, FollowListError):
+        if isinstance(error, ScopeFetchError):
+            error = GLib.Error(
+                _('The posts of this recipe did not load in time. Try '
+                  'again.'),
+                'g-io-error-quark', int(Gio.IOErrorEnum.TIMED_OUT))
+        elif isinstance(error, FollowListError):
             self.error_kind = 'follow-list'
             error = GLib.Error(
                 _('Your list of follows could not be loaded, so nothing is '
