@@ -41,6 +41,13 @@ _dids = {}
 # change while the session lasts.
 _posts = {}
 
+# (DID, rkey) the AppView answered "unavailable" for (deleted, blocked or
+# hidden from signed-out readers).  That does not change while the session
+# lasts either, and a quote card asks on every bind, so a scroll or a
+# favourite would send the same failing request again.  Only that answer is
+# kept: a busy or failed one is worth asking again.
+_unavailable = set()
+
 
 def appview():
     return (os.environ.get('BABBLE_BSKY_APPVIEW')
@@ -172,7 +179,7 @@ def get_post_async(actor, rkey, callback):
     chain goes on and *callback* is never called."""
     state = {'cancellable': None, 'cancelled': False}
 
-    def answer(data, error):
+    def answer(data, error, key=None):
         if state['cancelled']:
             return
         post = None
@@ -184,6 +191,8 @@ def get_post_async(actor, rkey, callback):
                     _posts[ref] = found
                 break
         if post is None:
+            if key is not None and (error or UNAVAILABLE) == UNAVAILABLE:
+                _unavailable.add(key)
             callback(None, error or UNAVAILABLE)
         else:
             callback(post, None)
@@ -201,9 +210,17 @@ def get_post_async(actor, rkey, callback):
                 return False
             GLib.idle_add(cached)
             return
+        if key in _unavailable:
+            def unavailable():
+                if not state['cancelled']:
+                    callback(None, UNAVAILABLE)
+                return False
+            GLib.idle_add(unavailable)
+            return
         state['cancellable'] = _get_json(
             '/xrpc/app.bsky.feed.getPosts',
-            {'uris': bskytext.at_uri(did, rkey)}, answer)
+            {'uris': bskytext.at_uri(did, rkey)},
+            lambda data, error: answer(data, error, key))
 
     if bskytext.is_did(actor):
         fetch(actor)
