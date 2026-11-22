@@ -331,7 +331,8 @@ check('a page is pushed on top of Local',
 replaced = []
 
 
-def _on_replaced(view):
+def _on_replaced(view, *_args):
+    # ::replaced may pass the previous-pages model; ignore extras.
     model = view.get_navigation_stack()
     visible = view.get_visible_page()
     replaced.append((
