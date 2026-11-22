@@ -429,4 +429,45 @@ check('cancel: next run starts without waiting for the stuck fetch '
 hang.set()
 stuck.shutdown()
 
+# Bridge: the API layer calls a Gio callback with (source, result) only —
+# the real failure behind "missing 1 required positional argument '_data'",
+# which every fake-fetch test above missed.
+from gi.repository import GLib  # noqa: E402
+
+from src import feedchefbridge  # noqa: E402
+
+
+def two_arg_start(client, callback=None, cancellable=None):
+    GLib.idle_add(lambda: callback(client, 'answer') and False)
+
+
+def echo_finish(client, result):
+    return result
+
+
+check('bridge: main-thread wait takes a two-argument callback',
+      feedchefbridge._wait(two_arg_start, echo_finish, 'client', timeout=5)
+      == 'answer')
+
+worker_box = {}
+
+
+def worker_wait():
+    try:
+        worker_box['value'] = feedchefbridge._wait(
+            two_arg_start, echo_finish, 'client', timeout=5)
+    except Exception as error:  # reported by the check below
+        worker_box['error'] = error
+
+
+worker_loop = GLib.MainLoop()
+worker = threading.Thread(target=worker_wait)
+worker.start()
+GLib.timeout_add(50, lambda: (worker.is_alive() or worker_loop.quit()) and True)
+GLib.timeout_add(6000, lambda: worker_loop.quit() or False)
+worker_loop.run()
+worker.join(1)
+check('bridge: worker wait takes a two-argument callback (%r)'
+      % worker_box.get('error'), worker_box.get('value') == 'answer')
+
 sys.exit(1 if failures else 0)

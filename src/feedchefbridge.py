@@ -27,7 +27,7 @@ def _wait(start, finish, client, timeout=60):
     box = {'done': False, 'value': None, 'error': None}
     done = threading.Event()
 
-    def callback(_source, result, _data):
+    def callback(_source, result, *_user_data):
         try:
             box['value'] = finish(client, result)
         except Exception as error:
@@ -43,10 +43,15 @@ def _wait(start, finish, client, timeout=60):
     if main:
         kickoff()
         context = GLib.MainContext.default()
-        loops = 0
-        while not box['done'] and loops < timeout * 100:
+        expired = []
+        # A real deadline: iteration(True) blocks while nothing is pending,
+        # so counting iterations is no time limit.
+        guard = GLib.timeout_add(int(timeout * 1000),
+                                 lambda: expired.append(True) or False)
+        while not box['done'] and not expired:
             context.iteration(True)
-            loops += 1
+        if not expired:
+            GLib.source_remove(guard)
     else:
         GLib.idle_add(kickoff)
         if not done.wait(timeout):
