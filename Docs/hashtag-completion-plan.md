@@ -1,7 +1,9 @@
 # Hashtag completion: benchmark and plan
 
-Status: plan, revised after an adversarial review (2026-10-26). Nothing here is
-implemented yet.
+Status: implemented on main (`src/hashtagcompleter.py`, wired from
+`compose.py`; covered by `compose widgets` / pool / mentions / a11y tests).
+This document remains the design record; acceptance criteria below describe
+what shipped.
 
 Typing `#lin` in the composer should offer `#linux` and similar tags, the same
 way `@al` already offers accounts (`src/mentioncompleter.py`, commits c3856c3

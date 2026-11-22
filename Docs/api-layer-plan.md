@@ -2,8 +2,10 @@
 
 *One typed, documented, tested way to talk to Mastodon, used everywhere.*
 
-Status: approved, not started. Starts after the notification-filter fix
-merges (it touches `notifications.py`).
+Status: phases 0–5 done (allow-list empty; registry ≥160; golden/boundary
+tests; compliance DEVIATES 0). Remaining notes only: optional
+`core.InvalidResponse`, live verification on non–API-v12 carve-outs, and
+four ACCEPTED-UNDOCUMENTED JSON bodies kept on purpose.
 
 ## Problem
 

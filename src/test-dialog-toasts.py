@@ -103,7 +103,7 @@ EXPECTED = {
     ('profileedit', 'ProfileEditDialog'),
     ('report', 'ReportDialog'),
     ('scheduled', 'SchedulePickerDialog'),
-    ('search', 'AdvancedSearchDialog'),
+    ('searchadvanced', 'AdvancedSearchDialog'),
     ('wrapped', 'WrappedDialog'),
 }
 

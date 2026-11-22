@@ -19,10 +19,10 @@ root = os.path.dirname(srcdir)
 
 CATCHUP = frozenset({
     'catchup', 'page', 'page_controls', 'pipeline', 'fetch', 'rows', 'store',
-    'digest', 'digest_layout', 'rank', 'rank_text', 'rank_model', 'tiles',
-    'tiles_render', 'tiles_cards', 'geometry'})
+    'digest', 'digest_layout', 'rank', 'rank_diversity', 'rank_text',
+    'rank_model', 'tiles', 'tiles_render', 'tiles_cards', 'geometry'})
 
-RANK = frozenset({'rank', 'rank_text', 'rank_model'})
+RANK = frozenset({'rank', 'rank_diversity', 'rank_text', 'rank_model'})
 
 NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage',
                  'navigation', 'tileactions'})
@@ -500,12 +500,14 @@ def violations(sources: dict[str, str]) -> list[str]:
                                  'using tileactions'
                                  % (path, node.lineno, node.func.attr))
         if path.startswith(('src/catchup/rank.py',
+                            'src/catchup/rank_diversity.py',
                             'src/catchup/rank_text.py',
                             'src/catchup/rank_model.py')):
             for name, line, relative in all_imports(tree):
                 if relative:
                     if (path.startswith('src/catchup/rank')
-                            and name in ('rank_text', 'rank_model')):
+                            and name in ('rank_text', 'rank_model',
+                                         'rank_diversity')):
                         continue
                     found.append('R3: %s:%d has a relative import'
                                  % (path, line))
