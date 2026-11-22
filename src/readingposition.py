@@ -105,6 +105,7 @@ class ReadingPosition:
         self._pin_calm = 0
         self._pin_tick_id = 0
         self._save_source = 0
+        self._top_idle = 0
         self._last_top = None
         if home and settings.get_boolean(ENABLED):
             self._resume_key = settings.get_string('active-account')
@@ -294,11 +295,26 @@ class ReadingPosition:
             return
         # What was last seen while scrolling: when the delay runs out the
         # window may be in the background, with no row mapped to look at.
-        self._last_top = self.top_visible_status_id() or self._last_top
+        # value-changed can beat the list's remap, so a short settle timer
+        # re-reads once the rows are drawn.
+        self._remember_visible_top()
+        if self._top_idle:
+            GLib.source_remove(self._top_idle)
+        self._top_idle = GLib.timeout_add(50, self._remember_top_idle)
         if self._save_source:
             GLib.source_remove(self._save_source)
         self._save_source = GLib.timeout_add(
             SAVE_DELAY_MS, _save_tick, self.weak_ref())
+
+    def _remember_visible_top(self):
+        seen = self.top_visible_status_id()
+        if seen is not None:
+            self._last_top = seen
+
+    def _remember_top_idle(self):
+        self._top_idle = 0
+        self._remember_visible_top()
+        return GLib.SOURCE_REMOVE
 
     def save_reading_position(self):
         if self._resume_key is None or self._resume_pending:
@@ -306,6 +322,12 @@ class ReadingPosition:
         if self._save_source:
             GLib.source_remove(self._save_source)
             self._save_source = 0
+        if self._top_idle:
+            GLib.source_remove(self._top_idle)
+            self._top_idle = 0
+        # Prefer a live reading while rows are still mapped; on unmap the
+        # children are already gone, so this keeps whatever scroll settled.
+        self._remember_visible_top()
         at_top = self._scrolled.get_vadjustment().get_value() <= 0.0
         if at_top and not self._resumed:
             # Reading from the newest post: the next launch starts there
