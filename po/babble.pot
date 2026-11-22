@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-22 15:28-0300\n"
+"POT-Creation-Date: 2026-11-22 15:41-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -774,7 +774,7 @@ msgstr ""
 msgid "All Locations"
 msgstr ""
 
-#: src/adminaccounts.py:49 src/feedchefbuilder.py:28 src/navigation.py:84
+#: src/adminaccounts.py:49 src/feedchefbuilder.py:31 src/navigation.py:84
 msgid "Local"
 msgstr ""
 
@@ -1026,7 +1026,7 @@ msgstr ""
 #: src/adminfederation.py:125 src/adminfederation.py:342
 #: src/adminreports.py:422 src/catchup/page_controls.py:70
 #: src/composepost.py:372 src/collectionedit.py:41 src/feedback.py:120
-#: src/feedback.py:148 src/feedchefbuilder.py:176 src/feedchefpages.py:534
+#: src/feedback.py:148 src/feedchefbuilder.py:205 src/feedchefpages.py:537
 #: src/hashtags.py:452 src/lists.py:171 src/notificationctrl.py:658
 #: src/profiledialogs.py:57 src/profiledialogs.py:85 src/profileedit.py:231
 #: src/remotemedia.py:78 src/scheduled.py:123 src/searchadvanced.py:28
@@ -1649,7 +1649,7 @@ msgstr ""
 msgid "Bluesky hides this post from people who are not signed in."
 msgstr ""
 
-#: src/blueskycard.py:181 src/blueskycard.py:275 src/feedchefbuilder.py:304
+#: src/blueskycard.py:181 src/blueskycard.py:275 src/feedchefbuilder.py:384
 #: src/notificationpolicy.py:68
 msgid "Loading…"
 msgstr ""
@@ -2268,7 +2268,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: src/catchup/tiles_cards.py:48 src/catchup/tiles_cards.py:67
-#: src/explore.py:399
+#: src/explore.py:399 src/feedchefbuilder.py:41
 msgid "News"
 msgstr ""
 
@@ -2277,7 +2277,8 @@ msgid "Open in Browser"
 msgstr ""
 
 #: src/catchup/tiles_cards.py:180 src/catchup/tiles_cards.py:193
-#: src/searchprovider.py:574 plugins/nareal/babble_nareal.py:452
+#: src/feedchefbuilder.py:42 src/searchprovider.py:574
+#: plugins/nareal/babble_nareal.py:452
 msgid "Hashtag"
 msgstr ""
 
@@ -2703,7 +2704,7 @@ msgstr ""
 msgid "The text, attachments and poll of this post will be lost"
 msgstr ""
 
-#: src/composepost.py:373 src/feedchefbuilder.py:424 src/profileedit.py:653
+#: src/composepost.py:373 src/feedchefbuilder.py:507 src/profileedit.py:653
 msgid "_Discard"
 msgstr ""
 
@@ -2802,7 +2803,7 @@ msgid ""
 msgstr ""
 
 #: src/conversations.py:213 src/collectionactions.py:147
-#: src/collectionpage.py:117 src/feedchefpages.py:159 src/filters.py:365
+#: src/collectionpage.py:117 src/feedchefpages.py:162 src/filters.py:365
 #: src/hashtags.py:541 src/lists.py:288 src/lists.py:600 src/scheduled.py:496
 #: src/statusmenu.py:220 src/statusmenu.py:527
 msgid "_Delete"
@@ -3186,7 +3187,7 @@ msgstr ""
 msgid "Edit Collection"
 msgstr ""
 
-#: src/collectionedit.py:45 src/feedchefbuilder.py:176 src/filters.py:179
+#: src/collectionedit.py:45 src/feedchefbuilder.py:205 src/filters.py:179
 #: src/hashtags.py:455 src/lists.py:175 src/mediaexport.py:200
 #: src/profiledialogs.py:88 src/profileedit.py:236
 msgid "_Save"
@@ -3196,7 +3197,7 @@ msgstr ""
 msgid "_Create"
 msgstr ""
 
-#: src/collectionedit.py:52 src/feedchefbuilder.py:202
+#: src/collectionedit.py:52 src/feedchefbuilder.py:235
 msgid "Name"
 msgstr ""
 
@@ -3286,7 +3287,7 @@ msgstr ""
 msgid "Copy _URL"
 msgstr ""
 
-#: src/collectionpage.py:112 src/feedchefpages.py:155 src/statusmenu.py:218
+#: src/collectionpage.py:112 src/feedchefpages.py:158 src/statusmenu.py:218
 msgid "_Edit"
 msgstr ""
 
@@ -3325,358 +3326,467 @@ msgstr ""
 msgid "_Don’t Remind Me Again"
 msgstr ""
 
-#: src/feedchefbuilder.py:28 src/navigation.py:77 src/window.ui:489
+#: src/feedchefbuilder.py:31 src/feedchefbuilder.py:43 src/navigation.py:77
+#: src/window.ui:489
 msgid "Home"
 msgstr ""
 
-#: src/feedchefbuilder.py:29 src/navigation.py:84
+#: src/feedchefbuilder.py:32 src/navigation.py:84
 msgid "Federated"
 msgstr ""
 
-#: src/feedchefbuilder.py:29 src/feedchefbuilder.py:220 src/lists.py:529
-#: src/navigation.py:307 src/navigation.py:380
+#: src/feedchefbuilder.py:32 src/feedchefbuilder.py:294 src/lists.py:529
+#: src/navigation.py:327 src/navigation.py:395
 msgid "List"
 msgstr ""
 
-#: src/feedchefbuilder.py:110
-msgid "Favor Fresh Posts"
+#: src/feedchefbuilder.py:38
+msgid "Food"
 msgstr ""
 
-#: src/feedchefbuilder.py:111
-msgid "Newer posts rank higher"
+#: src/feedchefbuilder.py:38
+msgid "Nature"
 msgstr ""
 
-#: src/feedchefbuilder.py:112
-msgid "Fade-Out Time"
+#: src/feedchefbuilder.py:39
+msgid "Activities"
 msgstr ""
 
-#: src/feedchefbuilder.py:112
-msgid "In hours"
+#: src/feedchefbuilder.py:39
+msgid "Objects"
 msgstr ""
 
-#: src/feedchefbuilder.py:116
-msgid "Hide the Least Engaging"
+#: src/feedchefbuilder.py:40
+msgid "People"
 msgstr ""
 
-#: src/feedchefbuilder.py:117
-msgid "Drops the posts people reacted to least"
+#: src/feedchefbuilder.py:40
+msgid "Travel"
 msgstr ""
 
-#: src/feedchefbuilder.py:118
-msgid "Percent to Hide"
+#: src/feedchefbuilder.py:40
+msgid "Flags"
 msgstr ""
 
-#: src/feedchefbuilder.py:118
-msgid "Of the posts in each batch"
+#: src/feedchefbuilder.py:41
+msgid "Symbols"
 msgstr ""
 
-#: src/feedchefbuilder.py:125
-msgid "Limit Posts per Person"
+#: src/feedchefbuilder.py:41
+msgid "Star"
 msgstr ""
 
-#: src/feedchefbuilder.py:126
-msgid "Keeps one voice from filling the feed"
+#: src/feedchefbuilder.py:42 src/statusactions.py:344 src/statusmenu.py:295
+msgid "Bookmark"
 msgstr ""
 
-#: src/feedchefbuilder.py:127
-msgid "Posts per Person"
+#: src/feedchefbuilder.py:43
+msgid "Games"
 msgstr ""
 
-#: src/feedchefbuilder.py:127
-msgid "In each batch"
+#: src/feedchefbuilder.py:43
+msgid "Science"
+msgstr ""
+
+#: src/feedchefbuilder.py:44
+msgid "Music"
+msgstr ""
+
+#: src/feedchefbuilder.py:44 src/mediabox.py:440 src/mediaviewer.py:298
+msgid "Video"
+msgstr ""
+
+#: src/feedchefbuilder.py:44
+msgid "Photo"
+msgstr ""
+
+#: src/feedchefbuilder.py:45
+msgid "Weather"
+msgstr ""
+
+#: src/feedchefbuilder.py:45
+msgid "Terminal"
+msgstr ""
+
+#: src/feedchefbuilder.py:46
+msgid "Happy"
+msgstr ""
+
+#: src/feedchefbuilder.py:46
+msgid "Cool"
+msgstr ""
+
+#: src/feedchefbuilder.py:46
+msgid "Chef Hat"
 msgstr ""
 
 #: src/feedchefbuilder.py:131
-msgid "Boost Trending Topics"
+msgid "Favor Fresh Posts"
 msgstr ""
 
 #: src/feedchefbuilder.py:132
-msgid "Posts about what is rising on the server rank higher"
+msgid "Newer posts rank higher"
 msgstr ""
 
 #: src/feedchefbuilder.py:133
-msgid "Minimum Growth"
+msgid "Fade-Out Time"
 msgstr ""
 
 #: src/feedchefbuilder.py:133
-msgid "How fast a topic must rise"
+msgid "In hours"
 msgstr ""
 
-#: src/feedchefbuilder.py:142
-msgid "similarity grouping"
+#: src/feedchefbuilder.py:137
+msgid "Hide the Least Engaging"
 msgstr ""
 
-#: src/feedchefbuilder.py:143
-msgid "sentiment"
+#: src/feedchefbuilder.py:138
+msgid "Drops the posts people reacted to least"
 msgstr ""
 
-#: src/feedchefbuilder.py:144
-msgid "connections"
+#: src/feedchefbuilder.py:139
+msgid "Percent to Hide"
 msgstr ""
 
-#: src/feedchefbuilder.py:145
-msgid "positive posts only"
+#: src/feedchefbuilder.py:139
+msgid "Of the posts in each batch"
 msgstr ""
 
 #: src/feedchefbuilder.py:146
+msgid "Limit Posts per Person"
+msgstr ""
+
+#: src/feedchefbuilder.py:147
+msgid "Keeps one voice from filling the feed"
+msgstr ""
+
+#: src/feedchefbuilder.py:148
+msgid "Posts per Person"
+msgstr ""
+
+#: src/feedchefbuilder.py:148
+msgid "In each batch"
+msgstr ""
+
+#: src/feedchefbuilder.py:152
+msgid "Boost Trending Topics"
+msgstr ""
+
+#: src/feedchefbuilder.py:153
+msgid "Posts about what is rising on the server rank higher"
+msgstr ""
+
+#: src/feedchefbuilder.py:154
+msgid "Minimum Growth"
+msgstr ""
+
+#: src/feedchefbuilder.py:154
+msgid "How fast a topic must rise, in percent"
+msgstr ""
+
+#: src/feedchefbuilder.py:161
+msgid "Favor Positive Posts"
+msgstr ""
+
+#: src/feedchefbuilder.py:162
+msgid "Posts that read as positive rank higher"
+msgstr ""
+
+#: src/feedchefbuilder.py:163
+msgid "Strength"
+msgstr ""
+
+#: src/feedchefbuilder.py:163
+msgid "In percent"
+msgstr ""
+
+#: src/feedchefbuilder.py:172
+msgid "similarity grouping"
+msgstr ""
+
+#: src/feedchefbuilder.py:173
+msgid "connections"
+msgstr ""
+
+#: src/feedchefbuilder.py:174
 msgid "sorting by focus keywords"
 msgstr ""
 
-#: src/feedchefbuilder.py:160 src/feedchefpages.py:87 src/feedchefpages.py:88
-#: src/feedchefpages.py:106 src/feedchefpages.py:186
+#: src/feedchefbuilder.py:188 src/feedchefpages.py:88 src/feedchefpages.py:89
+#: src/feedchefpages.py:107 src/feedchefpages.py:189
 msgid "New Recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:160 src/feedchefpages.py:290 src/feedchefpages.py:338
+#: src/feedchefbuilder.py:188 src/feedchefpages.py:293 src/feedchefpages.py:341
 msgid "Edit Recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:185
+#: src/feedchefbuilder.py:214
+msgid "_Preview Recipe"
+msgstr ""
+
+#: src/feedchefbuilder.py:218
 msgid "Copy Share _Link"
 msgstr ""
 
-#: src/feedchefbuilder.py:210
+#: src/feedchefbuilder.py:244
+msgid "Icon"
+msgstr ""
+
+#: src/feedchefbuilder.py:270
+msgid "Choose Icon"
+msgstr ""
+
+#: src/feedchefbuilder.py:284
 msgid "Pantry"
 msgstr ""
 
-#: src/feedchefbuilder.py:211
+#: src/feedchefbuilder.py:285
 msgid "Where posts come from. Separate hashtags with spaces."
 msgstr ""
 
-#: src/feedchefbuilder.py:214
+#: src/feedchefbuilder.py:288
 msgid "Posts From"
 msgstr ""
 
-#: src/feedchefbuilder.py:222
+#: src/feedchefbuilder.py:296
 msgid "Include Hashtags"
 msgstr ""
 
-#: src/feedchefbuilder.py:225
+#: src/feedchefbuilder.py:299
 msgid "Exclude Hashtags"
 msgstr ""
 
-#: src/feedchefbuilder.py:228
+#: src/feedchefbuilder.py:302
 msgid "Only People I Follow"
 msgstr ""
 
-#: src/feedchefbuilder.py:229
+#: src/feedchefbuilder.py:303
 msgid "Plus your own posts"
 msgstr ""
 
-#: src/feedchefbuilder.py:238
+#: src/feedchefbuilder.py:312
 msgid "Diet"
 msgstr ""
 
-#: src/feedchefbuilder.py:239
+#: src/feedchefbuilder.py:313
 msgid "Separate words with spaces."
 msgstr ""
 
-#: src/feedchefbuilder.py:240
+#: src/feedchefbuilder.py:314
 msgid "Blocked Words"
 msgstr ""
 
-#: src/feedchefbuilder.py:243
+#: src/feedchefbuilder.py:317
 msgid "Only Posts With Media"
 msgstr ""
 
-#: src/feedchefbuilder.py:246
+#: src/feedchefbuilder.py:320
 msgid "Only Posts With Alt Text"
 msgstr ""
 
-#: src/feedchefbuilder.py:249
+#: src/feedchefbuilder.py:323
 msgid "Hide Sensitive Media"
 msgstr ""
 
-#: src/feedchefbuilder.py:253
+#: src/feedchefbuilder.py:327
+msgid "Only Positive Posts"
+msgstr ""
+
+#: src/feedchefbuilder.py:328
+msgid "Hide posts that read as negative. Works best in English and Portuguese."
+msgstr ""
+
+#: src/feedchefbuilder.py:333
 msgid "Minimum Length"
 msgstr ""
 
-#: src/feedchefbuilder.py:253
+#: src/feedchefbuilder.py:333
 msgid "In characters; 0 turns it off"
 msgstr ""
 
-#: src/feedchefbuilder.py:260
+#: src/feedchefbuilder.py:340
 msgid "Kitchen"
 msgstr ""
 
-#: src/feedchefbuilder.py:261
+#: src/feedchefbuilder.py:341
 msgid "How posts are ordered and balanced"
 msgstr ""
 
-#: src/feedchefbuilder.py:263
+#: src/feedchefbuilder.py:343
 msgid "Order"
 msgstr ""
 
-#: src/feedchefbuilder.py:265
+#: src/feedchefbuilder.py:345
 msgid "Most engaging"
 msgstr ""
 
-#: src/feedchefbuilder.py:265
+#: src/feedchefbuilder.py:345
 msgid "Newest first"
 msgstr ""
 
-#: src/feedchefbuilder.py:276
+#: src/feedchefbuilder.py:356
 msgid "Some Ingredients Are Not Supported Yet"
 msgstr ""
 
 #. Translators: %s is a list of features, such as
 #. "sentiment, connections".
-#: src/feedchefbuilder.py:279
+#: src/feedchefbuilder.py:359
 #, python-format
 msgid "Not applied: %s"
 msgstr ""
 
-#: src/feedchefbuilder.py:311
+#: src/feedchefbuilder.py:391
 msgid "Could not load lists"
 msgstr ""
 
 #. An empty combo row reads as broken: say why there is nothing
 #. to pick, and that Save waits for a list.
-#: src/feedchefbuilder.py:345
+#: src/feedchefbuilder.py:425
 msgid "No lists"
 msgstr ""
 
-#: src/feedchefbuilder.py:346
+#: src/feedchefbuilder.py:426
 msgid "Create a list first"
 msgstr ""
 
-#: src/feedchefbuilder.py:421 src/profileedit.py:650
+#: src/feedchefbuilder.py:504 src/profileedit.py:650
 msgid "Discard Changes?"
 msgstr ""
 
-#: src/feedchefbuilder.py:422
+#: src/feedchefbuilder.py:505
 msgid "Your changes to this recipe will be lost."
 msgstr ""
 
-#: src/feedchefbuilder.py:423 src/profileedit.py:652
+#: src/feedchefbuilder.py:506 src/profileedit.py:652
 msgid "_Keep Editing"
 msgstr ""
 
-#: src/feedchefbuilder.py:443
+#: src/feedchefbuilder.py:526
 msgid "Untitled Recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:473 src/feedchefpages.py:446 src/feedchefpages.py:546
+#: src/feedchefbuilder.py:558 src/feedchefpages.py:449 src/feedchefpages.py:549
 msgid "Could not save the recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:484 src/feedchefpages.py:224
+#: src/feedchefbuilder.py:576 src/feedchefpages.py:227
 msgid "Share link copied"
 msgstr ""
 
 #. Translators: a recipe's source and hashtags, for example
 #. "Home · #linux #python".
-#: src/feedchefpages.py:47
+#: src/feedchefpages.py:48
 #, python-format
 msgid "%(scope)s · %(tags)s"
 msgstr ""
 
-#: src/feedchefpages.py:103
+#: src/feedchefpages.py:104
 msgid "No Recipes Yet"
 msgstr ""
 
-#: src/feedchefpages.py:104
+#: src/feedchefpages.py:105
 msgid "A recipe turns your timelines into a feed of your own"
 msgstr ""
 
-#: src/feedchefpages.py:156
+#: src/feedchefpages.py:159
 msgid "_Unpin From Sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:157
+#: src/feedchefpages.py:160
 msgid "_Pin to Sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:158
+#: src/feedchefpages.py:161
 msgid "_Copy Share Link"
 msgstr ""
 
 #. Translators: tooltip and accessible name of a recipe's menu
 #. button; %s is the recipe's name.
-#: src/feedchefpages.py:172
+#: src/feedchefpages.py:175
 #, python-format
 msgid "Options for “%s”"
 msgstr ""
 
-#: src/feedchefpages.py:202 src/feedchefpages.py:483
+#: src/feedchefpages.py:205 src/feedchefpages.py:486
 msgid "Recipe saved"
 msgstr ""
 
-#: src/feedchefpages.py:210
+#: src/feedchefpages.py:213
 msgid "Removed from the sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:213
+#: src/feedchefpages.py:216
 msgid "Pinned to the sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:254
+#: src/feedchefpages.py:257
 msgid "Recipe deleted"
 msgstr ""
 
-#: src/feedchefpages.py:294
+#: src/feedchefpages.py:297 src/feedchefpreview.py:39
 msgid "Cooking Your Timeline"
 msgstr ""
 
-#: src/feedchefpages.py:295
+#: src/feedchefpages.py:298 src/feedchefpreview.py:41
 msgid "Could Not Load This Recipe"
 msgstr ""
 
 #. The focus banner sits above the timeline's own stack.
-#: src/feedchefpages.py:302
+#: src/feedchefpages.py:305
 msgid "Clear Focus"
 msgstr ""
 
-#: src/feedchefpages.py:332
+#: src/feedchefpages.py:335
 msgid "Load Older Posts"
 msgstr ""
 
-#: src/feedchefpages.py:353
+#: src/feedchefpages.py:356
 msgid "No Matching Posts Yet"
 msgstr ""
 
-#: src/feedchefpages.py:355
+#: src/feedchefpages.py:358
 msgid "Older posts may still match this recipe"
 msgstr ""
 
-#: src/feedchefpages.py:357
+#: src/feedchefpages.py:360 src/feedchefpreview.py:43
 msgid "No Matching Posts"
 msgstr ""
 
-#: src/feedchefpages.py:359
+#: src/feedchefpages.py:362 src/feedchefpreview.py:45
 msgid "Try fewer filters or a wider scope"
 msgstr ""
 
-#: src/feedchefpages.py:401
+#: src/feedchefpages.py:404 src/feedchefpreview.py:40
 msgid "Gathering posts…"
 msgstr ""
 
-#: src/feedchefpages.py:404
+#: src/feedchefpages.py:407
 msgid "Applying your diet…"
 msgstr ""
 
-#: src/feedchefpages.py:405
+#: src/feedchefpages.py:408
 msgid "Seasoning…"
 msgstr ""
 
 #. Translators: post menu entry; the underscore marks the access
 #. key, L, which no other entry of that menu uses.
-#: src/feedchefpages.py:415
+#: src/feedchefpages.py:418
 msgid "More _Like This"
 msgstr ""
 
-#: src/feedchefpages.py:428
+#: src/feedchefpages.py:431
 msgid "Nothing to focus on in this post"
 msgstr ""
 
-#: src/feedchefpages.py:434
+#: src/feedchefpages.py:437
 msgid "Focus set from this post"
 msgstr ""
 
 #. Translators: %(terms)s lists the first hashtags and words
 #. the timeline is focused on, such as "#a, #b, #c"; %(count)d
 #. is how many more there are.
-#: src/feedchefpages.py:463
+#: src/feedchefpages.py:466
 #, python-format
 msgid "%(terms)s and %(count)d more"
 msgid_plural "%(terms)s and %(count)d more"
@@ -3685,44 +3795,48 @@ msgstr[1] ""
 
 #. Translators: %s lists the hashtags and words the timeline is
 #. focused on, for example "#python, decorators".
-#: src/feedchefpages.py:468
+#: src/feedchefpages.py:471
 #, python-format
 msgid "Showing more like %s"
 msgstr ""
 
-#: src/feedchefpages.py:516
+#: src/feedchefpages.py:519
 msgid "Replace Recipe?"
 msgstr ""
 
-#: src/feedchefpages.py:517
+#: src/feedchefpages.py:520
 #, python-format
 msgid "This replaces your recipe “%s”."
 msgstr ""
 
-#: src/feedchefpages.py:518
+#: src/feedchefpages.py:521
 msgid "_Replace"
 msgstr ""
 
-#: src/feedchefpages.py:522
+#: src/feedchefpages.py:525
 msgid "Import Recipe?"
 msgstr ""
 
-#: src/feedchefpages.py:524
+#: src/feedchefpages.py:527
 #, python-format
 msgid "Import “%(name)s” by %(author)s into this account?"
 msgstr ""
 
-#: src/feedchefpages.py:528
+#: src/feedchefpages.py:531
 #, python-format
 msgid "Import “%(name)s” into this account?"
 msgstr ""
 
-#: src/feedchefpages.py:530
+#: src/feedchefpages.py:533
 msgid "_Import"
 msgstr ""
 
-#: src/feedchefpages.py:550
+#: src/feedchefpages.py:553
 msgid "Recipe imported"
+msgstr ""
+
+#: src/feedchefpreview.py:71
+msgid "Preview"
 msgstr ""
 
 #: src/filters.py:29
@@ -4341,10 +4455,6 @@ msgstr[1] ""
 msgid "Image"
 msgstr ""
 
-#: src/mediabox.py:440 src/mediaviewer.py:298
-msgid "Video"
-msgstr ""
-
 #: src/mediabox.py:441
 msgid "Animated Image"
 msgstr ""
@@ -4622,7 +4732,7 @@ msgstr ""
 
 #. Translators: recipe-driven continuous timeline (not Catch Up)
 #. No mnemonic: `_F` would clash with Federated Timeline on this page.
-#: src/navigation.py:79 src/navigation.py:319 src/preferences.py:539
+#: src/navigation.py:79 src/navigation.py:334 src/preferences.py:539
 msgid "Feed Chef"
 msgstr ""
 
@@ -4639,27 +4749,27 @@ msgstr ""
 msgid "Explore"
 msgstr ""
 
-#: src/navigation.py:354 src/statusviews.py:78
+#: src/navigation.py:369 src/statusviews.py:78
 msgid "No Favorites Yet"
 msgstr ""
 
-#: src/navigation.py:354
+#: src/navigation.py:369
 msgid "Posts you favorite will appear here"
 msgstr ""
 
-#: src/navigation.py:358
+#: src/navigation.py:373
 msgid "No Bookmarks Yet"
 msgstr ""
 
-#: src/navigation.py:358
+#: src/navigation.py:373
 msgid "Posts you bookmark will appear here"
 msgstr ""
 
-#: src/navigation.py:371 src/timelinepage.py:233
+#: src/navigation.py:386 src/timelinepage.py:233
 msgid "No Posts Yet"
 msgstr ""
 
-#: src/navigation.py:371 src/timelinepage.py:234
+#: src/navigation.py:386 src/timelinepage.py:234
 msgid "New posts will appear here"
 msgstr ""
 
@@ -7656,10 +7766,6 @@ msgstr ""
 
 #: src/statusactions.py:337 src/statusactions.py:442 src/statusmenu.py:293
 msgid "Quote"
-msgstr ""
-
-#: src/statusactions.py:344 src/statusmenu.py:295
-msgid "Bookmark"
 msgstr ""
 
 #: src/statusactions.py:443

@@ -69,6 +69,7 @@ install_data(
   'feedchefbridge.py',
   'feedchefbuilder.py',
   'feedchefpages.py',
+  'feedchefpreview.py',
   'feedchefsource.py',
   'filterrules.py',
   'filters.py',
@@ -205,6 +206,7 @@ install_data(
   'feedchef/decisionlog.py',
   'feedchef/diet.py',
   'feedchef/engine.py',
+  'feedchef/icons.py',
   'feedchef/kitchen.py',
   'feedchef/network_reach.py',
   'feedchef/pantry.py',
@@ -835,6 +837,12 @@ test('feedchef deeplink', python,
 # Needs a display (headless mutter at 1280x1024); the engine is a fake.
 test('feedchef ui', python,
   args: [files('test-feedchef-ui.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake.
+test('feedchef builder', python,
+  args: [files('test-feedchef-builder.py')],
   env: fatal_test_env,
   timeout: 90,
 )

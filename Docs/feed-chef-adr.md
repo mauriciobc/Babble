@@ -31,7 +31,7 @@ v1.
 | Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache**; never nest `submit`+`get` on that pool |
 | Network reach | degree 1 only; `null` disables; author = **boosted** content account | BFS / null=∞ | **degree 1; null=off; boosted author** (= Java) |
 | More Like This | same timeline pantry when focus is set; UI can set focus | dedicated fragment | **pantry MLT = Java**; focus via import **or** timeline “More like this” (no dedicated fragment) |
-| Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) + preview sheet | full | **= Java form fields** (`src/feedchefbuilder.py`) + **preview** (`FeedChefPreviewDialog`, own engine); `must_have_media` model-only (Java builder also omits it) |
+| Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) + preview sheet | full | Java form fields in a HIG `Adw.Dialog` (`src/feedchefbuilder.py`), without `include_unknown`, similarity and the diversity dimension (deviation 7), plus an icon table, `positive_only`, `sentiment_boost` and a **preview** (`FeedChefPreviewDialog`, own engine) |
 | Import confirm | always confirm (name/author); then upsert replaces silently | varies | **= Java** (always confirm; replace without a second prompt) |
 | Engine lifetime | `new` per view | factory singleton | **= Java** (no singleton) |
 
@@ -52,21 +52,27 @@ v1.
 6. Without TF-IDF, an active focus does **not** freeze merge order: kitchen
    falls back to `base_sort` (score or chronological). Relevance sort waits
    on an NLP gap.
-6. Full Java builder (icon picker, GetLists picker, every modifier row) is
-   a **v1 cut** — see below. Port later or not; do not claim parity.
-7. The scope cursor is `pantry.scope_cursor`: the smallest **wrapper** id
+7. The Java builder is ported in part, on purpose (see Builder below). Not
+   exposed, each for a reason in the code, not for want of time:
+   `include_unknown` (with degree 1 the only thing it would do is switch the
+   follow filter off, which "Only People I Follow" already does);
+   similarity clustering (inert without embeddings or TF-IDF, so a control
+   would promise what the kitchen does not do); the diversity dimension
+   toggle (only the author dimension has an effect, and it is what the
+   "Limit Posts per Person" modifier writes).
+8. The scope cursor is `pantry.scope_cursor`: the smallest **wrapper** id
    (integers when all are digits, else the last item), because Mastodon
    pages by the timeline entry id and a boost carries the old date of the
    boosted post. `oldest_id()` stays the mirror of Java's `next_page_max_id`.
-8. A recipes file that cannot be read (or is not a JSON list) is renamed to
+9. A recipes file that cannot be read (or is not a JSON list) is renamed to
    `<name>.corrupt-<unix-ts>` (mode 0600) before a save or delete writes;
    Java wipes it. `load_recipes` stays read-only.
-9. More Like This is per post (an entry in the post's overflow menu, added
+10. More Like This is per post (an entry in the post's overflow menu, added
    through the generic `page.` hook of `statusmenu`), not on the top post.
    Keywords are the top 5 TF-IDF terms of the post against the current
    timeline (the post alone when empty); accents are stripped and the 39
-   Java stopwords apply. The relevance **sort** is still inert (item 5).
-10. The timeline is a `TimelinePage` over `feedchefsource.FeedChefSource`.
+   Java stopwords apply. The relevance **sort** is still inert (item 6).
+11. The timeline is a `TimelinePage` over `feedchefsource.FeedChefSource`.
     Its `RequestScope` supersedes a request in flight (the source answers
     CANCELLED and stops the engine), so no request gate of its own is kept.
     Older pages use the scope cursor of the last result, not TimelinePage's
@@ -76,20 +82,41 @@ v1.
 
 The builder is an `Adw.Dialog` (`feedchefbuilder.py`) that edits a copy of
 the recipe: Cancel discards it, Save stores it, and a new recipe is not
-stored before Save. It edits: name; pantry source (Home, Local, Federated or
-one of the account's lists, loaded through the lists API), include and
-exclude hashtags, and "Only People I Follow" (network reach on, one degree,
-or off; an imported recipe's other degree count is kept until the switch is
-changed); diet blocklist, media, alt text and sensitive-media filters and
-the minimum length; the kitchen order (most engaging or newest first) and
-the four modifiers that run without NLP (freshness in hours, heat percent,
-posts per person, trending growth), each an expander with an enable switch.
-Writing back keeps the modifier order, adds a newly enabled one at the end,
-removes a switched-off one, and leaves unsupported modifiers and values the
-reader did not touch as they were. Unsupported ingredients (similarity,
-sentiment, connections, positive only, focus keyword sorting) are named in
-one plain row. "Copy Share Link" sits in its own group. **Not** in the UI:
-icon picker, reach include-unknown control, fetch strategy, focus weights.
+stored before Save. It edits: name and icon; pantry source (Home, Local,
+Federated or one of the account's lists, loaded through the lists API),
+include and exclude hashtags, and "Only People I Follow" (network reach on,
+one degree, or off; an imported recipe's other degree count is kept until
+the switch is changed); diet blocklist, media, alt text and sensitive-media
+filters, "Only Positive Posts" (`positive_only`) and the minimum length;
+the kitchen order (most engaging or newest first) and the five modifiers
+that run today (freshness in hours, heat percent, posts per person,
+trending growth in percent, and "Favor Positive Posts" as a strength of 10
+to 100 percent, written as `sentiment_boost` 0.1 to 1.0), each an expander
+with an enable switch. Writing back keeps the modifier order, adds a newly
+enabled one at the end, removes a switched-off one, and leaves unsupported
+modifiers and values the reader did not touch as they were. Unsupported
+ingredients (similarity grouping, connections, focus keyword sorting) are
+named in one plain row; sentiment is no longer among them.
+
+**Sentiment is active.** `positive_only` hides posts whose score is
+negative, and `sentiment_boost` lifts positive ones, scored by the vendored
+VADER (English and other languages) and LeIA (Portuguese). The dialog says
+"works best in English and Portuguese" and names no engine.
+
+**The icon** is `recipe.meta.icon`, which keeps a mashdon icon enum name
+(default `PIZZA`) so a shared recipe round-trips. `src/feedchef/icons.py`
+holds the table (23 entries, one icon each, every one present in the
+Adwaita icon theme or Babble's own icons); the builder gives each a
+translated label and shows them in a popover of flat buttons. A name not in
+the table shows the chef hat (`babble-feed-chef-symbolic`). The icon is the
+prefix of the recipe's row and of its pinned sidebar entry; the Feed Chef
+place itself keeps the chef hat.
+
+**The preview** ("Preview Recipe", beside "Copy Share Link") opens
+`FeedChefPreviewDialog` (`feedchefpreview.py`): a `ToastDialog` holding a
+`TimelinePage` over a `FeedChefSource` of a copy of the unsaved recipe,
+with an engine of its own that is shut down when the dialog closes. It has
+no focus banner, no edit button and no More Like This entry.
 
 ## Out of v1
 

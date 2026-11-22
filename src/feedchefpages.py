@@ -10,6 +10,7 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import accounts, feedback, pagenav  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
+from .feedchef.icons import icon_name  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.textutil import extract_focus  # noqa: E402
@@ -149,6 +150,8 @@ class FeedChefListPage(Adw.Bin):
                             activatable=True)
         row.set_action_name('recipe.open')
         row.set_action_target_value(target)
+        row.add_prefix(Gtk.Image.new_from_icon_name(
+            icon_name(recipe.meta.icon)))
         menu = Gio.Menu()
         # Delete is alone in its section, away from the everyday entries.
         for entries in (

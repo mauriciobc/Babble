@@ -8,15 +8,18 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import accounts, pages  # noqa: E402
 from .api import lists as api_lists  # noqa: E402
 from .feedback import ToastDialog  # noqa: E402
+from .feedchef.icons import ICONS, icon_name  # noqa: E402
 from .feedchef.recipe import Modifier  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
+from .feedchefpreview import FeedChefPreviewDialog  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
+from .uihelpers import set_accessible_label  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
 
 SCOPES = ('home', 'local', 'federated', 'list')
@@ -27,6 +30,21 @@ def scope_label(scope):
     """The reader's name for a pantry scope."""
     return {'home': _('Home'), 'local': _('Local'),
             'federated': _('Federated'), 'list': _('List')}.get(scope, scope)
+
+
+def icon_label(enum):
+    """The reader's name for a recipe icon; empty for an unknown one."""
+    return {
+        'PIZZA': _('Food'), 'NATURE': _('Nature'),
+        'ACTIVITIES': _('Activities'), 'OBJECTS': _('Objects'),
+        'PEOPLE': _('People'), 'TRAVEL': _('Travel'), 'FLAGS': _('Flags'),
+        'SYMBOLS': _('Symbols'), 'STAR': _('Star'), 'NEWS': _('News'),
+        'HASHTAG': _('Hashtag'), 'BOOKMARK': _('Bookmark'),
+        'HOME': _('Home'), 'GAMES': _('Games'), 'SCIENCE': _('Science'),
+        'MUSIC': _('Music'), 'VIDEO': _('Video'), 'PHOTO': _('Photo'),
+        'WEATHER': _('Weather'), 'TERMINAL': _('Terminal'),
+        'HAPPY': _('Happy'), 'COOL': _('Cool'), 'CHEF': _('Chef Hat'),
+    }.get(enum, '')
 
 
 def storage_for(account):
@@ -100,7 +118,10 @@ def _modifier_editors():
         mod.diversity_dimensions = ['author']
 
     def trending_write(mod, value):
-        mod.growth_threshold = round(value, 1)
+        mod.growth_threshold = round(value / 100.0, 2)
+
+    def sentiment_write(mod, value):
+        mod.sentiment_boost = round(value / 100.0, 2)
 
     def clamp(value, low, high):
         return max(low, min(high, value))
@@ -130,19 +151,26 @@ def _modifier_editors():
         _ModifierEditor(
             'trending', _('Boost Trending Topics'),
             _('Posts about what is rising on the server rank higher'),
-            _spin(_('Minimum Growth'), _('How fast a topic must rise'),
-                  0.3, 0.1, 1.0, 0.1, digits=1),
-            lambda m: clamp(m.growth_threshold or 0.3, 0.1, 1.0),
+            _spin(_('Minimum Growth'), _('How fast a topic must rise, '
+                                         'in percent'),
+                  30, 10, 100, 10),
+            lambda m: clamp(round((m.growth_threshold or 0.3) * 100),
+                            10, 100),
             trending_write),
+        _ModifierEditor(
+            'sentiment_boost', _('Favor Positive Posts'),
+            _('Posts that read as positive rank higher'),
+            _spin(_('Strength'), _('In percent'), 50, 10, 100, 10),
+            lambda m: clamp(round(float(m.sentiment_boost or 0.5) * 100),
+                            10, 100),
+            sentiment_write),
     ]
 
 
 def _unsupported_names(recipe):
     names = {
         'similarity_cluster': _('similarity grouping'),
-        'sentiment_boost': _('sentiment'),
         'connection': _('connections'),
-        'positive_only': _('positive posts only'),
         'active_focus_keywords': _('sorting by focus keywords'),
     }
     return [names.get(kind, kind) for kind in recipe.inert_modifiers()]
@@ -172,6 +200,7 @@ class FeedChefBuilderDialog(ToastDialog):
         # The "Discard Changes?" alert while it is on screen.
         self.discard_alert = None
         self._syncing = False
+        self._icon = recipe.meta.icon
         self.save_button = self.add_header_buttons(
             _('_Cancel'), _('_Save'), self._on_save,
             css='suggested-action')
@@ -181,12 +210,16 @@ class FeedChefBuilderDialog(ToastDialog):
         self._build_pantry_group(page, recipe)
         self._build_diet_group(page, recipe)
         self._build_kitchen_group(page, recipe)
-        share = Adw.PreferencesGroup()
+        actions = Adw.PreferencesGroup()
+        self.preview_row = Adw.ButtonRow(title=_('_Preview Recipe'),
+                                         use_underline=True)
+        connect_weak(self.preview_row, 'activated', self._on_preview)
+        actions.add(self.preview_row)
         row = Adw.ButtonRow(title=_('Copy Share _Link'),
                             use_underline=True)
         connect_weak(row, 'activated', self._on_share)
-        share.add(row)
-        page.add(share)
+        actions.add(row)
+        page.add(actions)
         self._sync_scope()
         self.submit_on_enter(self.save_button, self.name_row, self.include,
                              self.exclude, self.blocklist)
@@ -202,7 +235,48 @@ class FeedChefBuilderDialog(ToastDialog):
         self.name_row = Adw.EntryRow(title=_('Name'))
         self.name_row.set_text(recipe.meta.name)
         group.add(self.name_row)
+        group.add(self._build_icon_row())
         page.add(group)
+
+    def _build_icon_row(self):
+        """The recipe's icon: shown as the row's prefix, chosen from the
+        table of icons in a popover."""
+        row = Adw.ActionRow(title=_('Icon'))
+        self.icon_image = Gtk.Image.new_from_icon_name(
+            icon_name(self._icon))
+        row.add_prefix(self.icon_image)
+        actions = Gio.SimpleActionGroup()
+        choose = Gio.SimpleAction.new('choose', GLib.VariantType.new('s'))
+        connect_weak(choose, 'activate', self._on_icon_chosen)
+        actions.add_action(choose)
+        self.insert_action_group('icon', actions)
+        grid = Gtk.FlowBox(
+            selection_mode=Gtk.SelectionMode.NONE, homogeneous=True,
+            min_children_per_line=4, max_children_per_line=6,
+            margin_top=6, margin_bottom=6, margin_start=6, margin_end=6)
+        for enum, icon in ICONS:
+            button = Gtk.Button(
+                icon_name=icon, tooltip_text=icon_label(enum),
+                action_name='icon.choose',
+                action_target=GLib.Variant.new_string(enum))
+            button.add_css_class('flat')
+            set_accessible_label(button, icon_label(enum))
+            grid.append(button)
+        self.icon_grid = grid
+        self.icon_menu = Gtk.MenuButton(
+            icon_name='pan-down-symbolic', valign=Gtk.Align.CENTER,
+            popover=Gtk.Popover(child=grid))
+        self.icon_menu.add_css_class('flat')
+        set_accessible_label(self.icon_menu, _('Choose Icon'))
+        row.add_suffix(self.icon_menu)
+        row.set_activatable_widget(self.icon_menu)
+        return row
+
+    def _on_icon_chosen(self, _action, parameter):
+        self._icon = parameter.get_string()
+        self.icon_image.set_from_icon_name(icon_name(self._icon))
+        self.icon_menu.popdown()
+        self._on_edited()
 
     def _build_pantry_group(self, page, recipe):
         pantry = recipe.pantry
@@ -249,6 +323,12 @@ class FeedChefBuilderDialog(ToastDialog):
         self.sensitive = Adw.SwitchRow(title=_('Hide Sensitive Media'))
         self.sensitive.set_active(hard.no_sensitive_media)
         group.add(self.sensitive)
+        self.positive = Adw.SwitchRow(
+            title=_('Only Positive Posts'),
+            subtitle=_('Hide posts that read as negative. Works best in '
+                       'English and Portuguese.'))
+        self.positive.set_active(hard.positive_only)
+        group.add(self.positive)
         self.min_length = _spin(
             _('Minimum Length'), _('In characters; 0 turns it off'),
             float(hard.min_content_length or 0), 0, 5000, 10)
@@ -377,7 +457,8 @@ class FeedChefBuilderDialog(ToastDialog):
             _words(self.exclude.get_text(), True),
             self.reach.get_active(), _words(self.blocklist.get_text()),
             self.media.get_active(), self.alt.get_active(),
-            self.sensitive.get_active(), self.min_length.get_value(),
+            self.sensitive.get_active(), self.positive.get_active(),
+            self.min_length.get_value(), self._icon,
             self.order.get_selected(),
             tuple((editor.row.get_enable_expansion(),
                    editor.spin.get_value()) for editor in self.editors))
@@ -386,7 +467,8 @@ class FeedChefBuilderDialog(ToastDialog):
         for row in (self.name_row, self.include, self.exclude,
                     self.blocklist):
             connect_weak(row, 'changed', self._on_edited)
-        for row in (self.reach, self.media, self.alt, self.sensitive):
+        for row in (self.reach, self.media, self.alt, self.sensitive,
+                    self.positive):
             connect_weak(row, 'notify::active', self._on_edited)
         spins = [self.min_length] + [e.spin for e in self.editors]
         for row in spins:
@@ -406,9 +488,10 @@ class FeedChefBuilderDialog(ToastDialog):
 
     def _sync_save(self):
         """Save waits for a list while the scope is List."""
-        self.save_button.set_sensitive(
-            self._selected_scope() != 'list'
-            or bool(self._selected_list_id()))
+        ready = (self._selected_scope() != 'list'
+                 or bool(self._selected_list_id()))
+        self.save_button.set_sensitive(ready)
+        self.preview_row.set_sensitive(ready)
 
     def _on_cancel(self, _button):
         # Through close(), so that unsaved edits are asked about.
@@ -441,6 +524,7 @@ class FeedChefBuilderDialog(ToastDialog):
         recipe = self.recipe
         recipe.meta.name = self.name_row.get_text().strip() or _(
             'Untitled Recipe')
+        recipe.meta.icon = self._icon
         pantry = recipe.pantry
         pantry.scope = self._selected_scope()
         selected = self.list_row.get_selected()
@@ -459,6 +543,7 @@ class FeedChefBuilderDialog(ToastDialog):
         hard.must_have_media = self.media.get_active()
         hard.must_have_alt_text = self.alt.get_active()
         hard.no_sensitive_media = self.sensitive.get_active()
+        hard.positive_only = self.positive.get_active()
         hard.min_content_length = int(self.min_length.get_value())
         recipe.kitchen.base_sort = ORDERS[self.order.get_selected()]
         for editor in self.editors:
@@ -475,6 +560,13 @@ class FeedChefBuilderDialog(ToastDialog):
         self.saved = True
         self.emit('saved')
         self.force_close()
+
+    def _on_preview(self, _row):
+        """Cook what is on screen, saved or not: a copy goes to the
+        preview, so it cannot change the recipe being edited."""
+        recipe = copy.deepcopy(self._collect())
+        FeedChefPreviewDialog(self.client, self.account,
+                              recipe).present(self)
 
     def _on_share(self, _row):
         uri = recipe_share_uri(self._collect())

@@ -254,11 +254,11 @@ list_page.reload()
 saved = []
 
 
-def open_builder(recipe, is_new):
+def open_builder(recipe, is_new, parent=None):
     dialog = feedchefbuilder.FeedChefBuilderDialog(
         client, account, recipe, is_new=is_new)
     dialog.connect('saved', lambda _d: saved.append(True))
-    dialog.present(window)
+    dialog.present(parent or window)
     pump()
     return dialog
 
@@ -324,7 +324,7 @@ check('builder: Cancel leaves the caller\'s recipe alone',
 
 kept = default_recipe('Keeps Inert')
 kept.kitchen.modifiers = [
-    Modifier(type='sentiment_boost', sentiment_boost=0.5),
+    Modifier(type='similarity_cluster'),
     Modifier(type='diversity', max_per_cluster=3,
              diversity_dimensions=['author']),
     Modifier(type='freshness', decay_minutes=100),
@@ -335,8 +335,11 @@ check('builder: edit is titled Edit Recipe',
       dialog.get_title() == 'Edit Recipe')
 inert_rows = find(dialog.page, Adw.ActionRow, lambda r: r.get_title()
                   == 'Some Ingredients Are Not Supported Yet')
-check('builder: an unsupported ingredient is named in plain words',
-      len(inert_rows) == 1 and 'sentiment' in inert_rows[0].get_subtitle())
+check('builder: an unsupported ingredient is named in plain words, and '
+      'sentiment, which is active now, is not',
+      len(inert_rows) == 1 and 'similarity' in inert_rows[0].get_subtitle()
+      and 'sentiment' not in inert_rows[0].get_subtitle()
+      and 'positive' not in inert_rows[0].get_subtitle())
 dialog.name_row.set_text('Renamed')
 dialog.min_length.set_value(120)
 dialog.reach.set_active(True)
@@ -355,11 +358,11 @@ check('builder: minimum length and reach are written',
       and after.pantry.network_reach.max_degrees == 1)
 types = [m.type for m in after.kitchen.modifiers]
 check('builder: order kept, switched-off removed, new one appended',
-      types == ['sentiment_boost', 'freshness', 'heat'])
+      types == ['similarity_cluster', 'freshness', 'heat'])
 fresh_mod = after.kitchen.modifiers[1]
 check('builder: an untouched value is not rewritten',
       fresh_mod.decay_minutes == 100
-      and after.kitchen.modifiers[0].sentiment_boost == 0.5)
+      and after.kitchen.modifiers[0].type == 'similarity_cluster')
 check('builder: a new heat modifier defaults to 50 percent',
       after.kitchen.modifiers[2].percentile_threshold == 50)
 
@@ -370,6 +373,7 @@ check('builder: a new recipe is stored by Save',
       store.get_recipe_by_id(fresh.id) is not None)
 for stored in store.load_recipes():
     store.delete_recipe(stored.id)
+
 
 # Save waits for a list while the scope is List.
 listed = default_recipe('Listed')
@@ -432,8 +436,9 @@ check('builder: Enter in the name saves (default widget, activates)',
       dialog.get_default_widget() is header_button(dialog, '_Save')
       and dialog.name_row.get_activates_default())
 share_rows = find(dialog.page, Adw.ButtonRow)
-check('builder: Copy Share _Link does not reuse the Cancel key',
-      share_rows and share_rows[0].get_title() == 'Copy Share _Link')
+check('builder: the bottom rows use access keys no header button uses',
+      [r.get_title() for r in share_rows]
+      == ['_Preview Recipe', 'Copy Share _Link'])
 orders = dialog.order.get_model()
 check('builder: Order items are sentence case',
       [orders.get_string(i) for i in range(orders.get_n_items())]

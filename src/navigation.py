@@ -298,9 +298,29 @@ class Navigation:
         self.pinned_lists.clear()
 
     def pinned_routes(self, settings, account_id):
-        routes = pinned_routes(settings, account_id)
-        return [(tag, self.place_title(tag), icon)
-                for tag, icon in routes]
+        """``(tag, title, icon)`` for each pinned place; a recipe brings
+        its own icon (the chef hat when it has none the app can draw)."""
+        found = []
+        for tag, icon in pinned_routes(settings, account_id):
+            if tag.startswith('recipe:'):
+                recipe = self._recipe(tag)
+                if recipe is not None:
+                    from .feedchef.icons import icon_name
+                    found.append((tag, recipe.meta.name,
+                                  icon_name(recipe.meta.icon)))
+                    continue
+            found.append((tag, self.place_title(tag), icon))
+        return found
+
+    def _recipe(self, tag):
+        """The stored recipe of a ``recipe:<id>`` place, or None."""
+        account = self.host.account()
+        if account is None:
+            return None
+        from . import accounts as accountsmod
+        from .feedchef.storage import FeedRecipeStorage
+        storage = FeedRecipeStorage(accountsmod.account_key(account))
+        return storage.get_recipe_by_id(tag[7:])
 
     def place_title(self, tag):
         if tag.startswith('list:'):
@@ -308,14 +328,9 @@ class Navigation:
         if tag.startswith('tag:'):
             return '#' + tag[4:]
         if tag.startswith('recipe:'):
-            from .feedchef.storage import FeedRecipeStorage
-            account = self.host.account()
-            if account is not None:
-                from . import accounts as accountsmod
-                storage = FeedRecipeStorage(accountsmod.account_key(account))
-                recipe = storage.get_recipe_by_id(tag[7:])
-                if recipe is not None:
-                    return recipe.meta.name
+            recipe = self._recipe(tag)
+            if recipe is not None:
+                return recipe.meta.name
             return _('Feed Chef')
         return place_title(tag)
 

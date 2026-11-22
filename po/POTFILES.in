@@ -46,6 +46,7 @@ src/collectionpage.py
 src/feedback.py
 src/feedchefbuilder.py
 src/feedchefpages.py
+src/feedchefpreview.py
 src/filters.py
 src/hashtagcompleter.py
 src/hashtaglists.py
