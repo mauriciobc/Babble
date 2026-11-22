@@ -33,6 +33,7 @@ class Settings:
         return {
             'favorite-lists-ids': ['a/one', 'b/two', 'a/three'],
             'favorite-tags-ids': ['b/other', 'a/hello world'],
+            'favorite-feedchef-ids': ['a/recipe-1'],
         }[key]
 
 

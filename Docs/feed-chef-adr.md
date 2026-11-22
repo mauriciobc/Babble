@@ -2,7 +2,8 @@
 
 Status: accepted for implementation. Behaviour source of truth is mashdon
 `master` @ `23277cd1ca40f6fe618c4f246896fd80777bf4ea`, not the PRD where they
-diverge. Adversarial review:
+diverge. The PRD describes newer behaviour that is **not** on that master
+SHA; Babble v1 does not implement PRD-only rows. Adversarial review:
 Project store `internal/feed-chef-plan-adversarial-review-deep.md`.
 
 ## Product one-liner
@@ -20,35 +21,55 @@ v1.
 | `pantry.time_window_hours` | absent | pantry 1–12 h | **absent** |
 | `RequestMode` / `onTimelineCacheUpdated` | absent | yes | **absent** |
 | `expected_outcome` | absent | yes | **absent** |
-| Pantry | 1 scope + ≤3 tags if `maxId is None` + MLT if focus; timeout `30+10*n`; partial | + window | **= Java** |
+| Pantry fetch shape | 1 scope + ≤3 tags if `maxId is None` + MLT search if focus; timeout `30+10*n`; partial | + window | **≈ Java fetch**; Babble `has_more` follows **scope page fullness** (not “single_task only”) so scope-oldest pagination works with tags/MLT |
 | UI cursor | last id after kitchen sort | oldest of merged pantry | **oldest id of scope response** (deliberate fix) |
 | Base score | fav·1 + reblog·2.5 + reply·1.5 on content | same | **= Java** (not Elk `rank()`) |
 | `freshness` | `score *= factor` | blend 0.4 | **= Java** |
 | `heat` / `diversity` | heat after scores, before structural; diversity pre-sort, author only | PRD order / instance | **= Java** |
-| `similarity_cluster` / TF-IDF / sentiment / synonyms | present | present | **gap GO or inert + UI warning** |
-| Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache** (fix) |
-| Network reach | degree 1 only; `null` disables | BFS / null=∞ | **degree 1; null=off** |
-| More Like This | same timeline, inside pantry | dedicated fragment | **= Java** |
+| `similarity_cluster` / TF-IDF / synonyms | present | present | **inert + UI warning** (no `synonyms.json` 16 MB LGPL in the binary) |
+| Sentiment lexicon | `res/raw/sentiment_words.json` (separate from synonyms) | present | **still inert in v1** until a licence/size ADR for that file; synonyms reason does not block a future sentiment-only gap |
+| Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache**; never nest `submit`+`get` on that pool |
+| Network reach | degree 1 only; `null` disables; author = **boosted** content account | BFS / null=∞ | **degree 1; null=off; boosted author** (= Java) |
+| More Like This | same timeline pantry when focus is set; UI can set focus | dedicated fragment | **pantry MLT = Java**; focus via import **or** timeline “More like this” (no dedicated fragment) |
+| Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) | full | **thinned v1 cut** (documented below); not “= Java” |
+| Import confirm | always confirm (name/author); then upsert replaces silently | varies | **= Java** (always confirm; replace without a second prompt) |
 | Engine lifetime | `new` per view | factory singleton | **= Java** (no singleton) |
 
 ## Explicit Babble deviations
 
 1. Pagination cursor = oldest status id from the **scope** fetch, not the
    last kitchen-sorted row and not the merged-pantry oldest id.
-2. Server trend fetch runs on a dedicated worker; pipeline never
-   `submit`+`get` on the same single-thread executor.
+2. Server trend fetch runs on a dedicated worker; the trends worker calls
+   `fetch_trends` directly (no nested `submit`+`get` on the same pool).
 3. `babble://feedchef?recipe=` is handled in `BabbleApplication.on_open`
-   before OAuth; Base64 URL-safe with padding restored; import confirms
-   replace when the recipe id already exists.
-4. Fuzzy synonyms stay **off** in v1 (no 16 MB LGPL `synonyms.json` in the
-   binary) until a separate licence/size ADR.
+   before OAuth; Base64 URL-safe with padding restored; host must be
+   `feedchef` (not an arbitrary path segment).
+4. Fuzzy synonyms stay **off** in v1 (no 16 MB LGPL `synonyms.json`).
+   Sentiment words are a **separate** mashdon asset; leaving them out is a
+   deliberate v1 cut, not implied by the synonyms licence argument.
+5. Without TF-IDF, an active focus does **not** freeze merge order: kitchen
+   falls back to `base_sort` (score or chronological). Relevance sort waits
+   on an NLP gap.
+6. Full Java builder (icon picker, GetLists picker, every modifier row) is
+   a **v1 cut** — see below. Port later or not; do not claim parity.
+
+## Builder v1 cut (item 4)
+
+Shipped builder: name, pantry scope/list id/include/exclude, reach on/off +
+max degrees, diet blocklist + hard media filters, `base_sort`, inert
+warnings, save/share. **Not** in v1 UI: icon picker, live list picker,
+`positive_only` toggle, min-length slider, reach include-unknown control,
+per-modifier heat/similarity/diversity/sentiment/trending/freshness editors.
+Defaults and imported JSON still carry Java modifiers; inert ones warn.
 
 ## Out of v1
 
 `RequestMode`, federated time window, `LocalPostRepository` in the engine,
 `FeedEngineFactory`, `expected_outcome`, BFS degree ≥ 2, dedicated MLT
-fragment, `focus_decay`, 450 ms search stagger, freshness blend 0.4 / floor
-0.2, federated 8 h manual QA, mashdon `tools/` Python helpers.
+fragment, full builder parity, sentiment lexicon port, `focus_decay`,
+450 ms search stagger, freshness blend 0.4 / floor 0.2, federated 8 h
+manual QA, mashdon `tools/` Python helpers, PRD-only pantry window /
+`RequestMode` / `expected_outcome`.
 
 ## Module boundary
 

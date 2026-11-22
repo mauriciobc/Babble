@@ -31,17 +31,9 @@ def recipe_share_uri(recipe: FeedRecipe, *, scheme: str = 'babble') -> str:
 
 
 def parse_feedchef_uri(uri: str) -> FeedRecipe | None:
+    if not is_feedchef_uri(uri):
+        return None
     parsed = urlparse(uri)
-    if parsed.scheme != 'babble':
-        return None
-    host = (parsed.hostname or parsed.netloc or '').lower()
-    path = (parsed.path or '').strip('/')
-    if host not in ('feedchef', '') and path != 'feedchef':
-        # babble://feedchef?... → hostname feedchef, path empty
-        if host != 'feedchef':
-            return None
-    if host != 'feedchef' and path != 'feedchef':
-        return None
     query = parse_qs(parsed.query)
     values = query.get('recipe') or []
     if not values:
@@ -50,9 +42,9 @@ def parse_feedchef_uri(uri: str) -> FeedRecipe | None:
 
 
 def is_feedchef_uri(uri: str) -> bool:
+    """True only for ``babble://feedchef?...`` (host ``feedchef``)."""
     parsed = urlparse(uri)
     if parsed.scheme != 'babble':
         return False
-    host = (parsed.hostname or parsed.netloc or '').lower()
-    path = (parsed.path or '').strip('/')
-    return host == 'feedchef' or path == 'feedchef'
+    host = (parsed.hostname or '').lower()
+    return host == 'feedchef'

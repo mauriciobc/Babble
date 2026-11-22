@@ -9,7 +9,6 @@ from gi.repository import GLib
 
 from .api import accounts as api_accounts
 from .api import core as api_core
-from .api import lists as api_lists
 from .api import search as api_search
 from .api import tags as api_tags
 from .api import timelines as api_timelines
@@ -19,7 +18,14 @@ from .feedchef.kitchen import ServerTrendContext
 
 
 def _wait(start, finish, client, timeout=60):
+    """Run a Gio.Task start/finish pair and wait.
+
+    On the main thread, pump the default context (tests / sync callers).
+    On a worker, schedule the start with ``idle_add`` and wait on an Event
+    so the UI thread alone iterates the default MainContext.
+    """
     box = {'done': False, 'value': None, 'error': None}
+    done = threading.Event()
 
     def callback(_source, result, _data):
         try:
@@ -27,6 +33,7 @@ def _wait(start, finish, client, timeout=60):
         except Exception as error:
             box['error'] = error
         box['done'] = True
+        done.set()
 
     def kickoff():
         start(client, callback=callback)
@@ -35,13 +42,15 @@ def _wait(start, finish, client, timeout=60):
     main = threading.current_thread() is threading.main_thread()
     if main:
         kickoff()
+        context = GLib.MainContext.default()
+        loops = 0
+        while not box['done'] and loops < timeout * 100:
+            context.iteration(True)
+            loops += 1
     else:
         GLib.idle_add(kickoff)
-    context = GLib.MainContext.default()
-    loops = 0
-    while not box['done'] and loops < timeout * 100:
-        context.iteration(True)
-        loops += 1
+        if not done.wait(timeout):
+            raise TimeoutError('feedchef API wait timed out')
     if not box['done']:
         raise TimeoutError('feedchef API wait timed out')
     if box['error'] is not None:
@@ -73,15 +82,12 @@ def fetch_scope_for(client, scope, list_id, max_id, count):
 
         finish = api_timelines.public_finish
     elif scope == 'list' and list_id:
-        path = api_lists.list_path('timeline', list_id)
-
         def start(c, callback=None, cancellable=None):
-            return c.request_async(
-                'GET', path, params=params, callback=callback,
+            return api_timelines.list_async(
+                c, list_id, params=params, callback=callback,
                 cancellable=cancellable)
 
-        def finish(c, result):
-            return api_core.finish(c, result)
+        finish = api_timelines.list_finish
     else:
         def start(c, callback=None, cancellable=None):
             return api_timelines.home_async(
@@ -101,17 +107,13 @@ def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
 
     def fetch_hashtag(tag, count):
         params = _params(None, count)
-        path = api_timelines.list_path('tag', tag)
 
         def start(c, callback=None, cancellable=None):
-            return c.request_async(
-                'GET', path, params=params, callback=callback,
+            return api_timelines.tag_async(
+                c, tag, params=params, callback=callback,
                 cancellable=cancellable)
 
-        def finish(c, result):
-            return api_core.finish(c, result)
-
-        data = _wait(start, finish, client)
+        data = _wait(start, api_timelines.tag_finish, client)
         return data if isinstance(data, list) else []
 
     def search_statuses(query):

@@ -107,8 +107,11 @@ def apply_trending(score: float, status: dict[str, Any],
                    server: ServerTrendContext,
                    mod: Modifier) -> float:
     content = content_of(status)
-    threshold = float(mod.growth_threshold
-                      if mod.growth_threshold is not None else 0.3)
+    raw_threshold = mod.growth_threshold
+    if raw_threshold is None or float(raw_threshold) <= 0:
+        threshold = 0.3
+    else:
+        threshold = float(raw_threshold)
     trend_score = 0.0
     for tag in content.get('tags') or []:
         name = str((tag or {}).get('name') or '').lower()
@@ -225,9 +228,10 @@ def score_statuses(
 
     keywords = recipe.kitchen.active_focus_keywords or []
     if keywords:
+        # TF-IDF relevance is inert without NLP; fall back to base_sort
+        # (Java uses relevance when TF-IDF is available — never freeze merge).
         meta['inert'].append('active_focus_keywords')
-        ordered = working
-    elif recipe.kitchen.base_sort == 'chronological':
+    if recipe.kitchen.base_sort == 'chronological':
         with_date = []
         without = []
         for item in working:

@@ -156,12 +156,13 @@ def build_pantry(
         includes=includes,
         excludes=excludes,
     )
-    single_task = not tags and not mlt
+    # Pagination follows the scope page (Babble cursor = scope oldest).
+    # Hashtag/MLT enrichment on page 1 must not hide further scope pages.
     return PantryResult(
         items=merged,
         scope_items=list(scope_posts),
         scope_oldest_id=oldest_id(scope_posts),
-        has_more=single_task and len(scope_posts) >= count,
+        has_more=len(scope_posts) >= count,
         fetched_count=len(scope_posts) + len(tags) + len(mlt),
         deduplicated_count=len(merged),
     )

@@ -535,7 +535,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._switch(sidebar, 'hide-catch-up', _('_Catch Up'),
                      _('Summarize what you missed in your home timeline'),
                      invert=True)
-        self._switch(sidebar, 'hide-feed-chef', _('_Feed Chef'),
+        # No mnemonic: `_F` would clash with Federated Timeline on this page.
+        self._switch(sidebar, 'hide-feed-chef', _('Feed Chef'),
                      _('Cook continuous timelines from recipes (not Catch Up)'),
                      invert=True)
         self._switch(sidebar, 'hide-trending', _('_Explore'),

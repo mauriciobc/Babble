@@ -70,6 +70,30 @@ def status_created_at(status: dict[str, Any], *, content: bool = True
     return parse_created_at(source.get('created_at'))
 
 
+def extract_focus(status: dict[str, Any], *, max_tags: int = 3,
+                  max_keywords: int = 5
+                  ) -> tuple[list[str], list[str]]:
+    """Hashtags + plain keywords from a status for More Like This focus."""
+    content = content_of(status)
+    tags = []
+    for tag in content.get('tags') or []:
+        name = str((tag or {}).get('name') or '').lstrip('#').lower()
+        if name and name not in tags:
+            tags.append(name)
+        if len(tags) >= max_tags:
+            break
+    words = []
+    text = strip_html(content.get('content'))
+    for token in re.findall(r'[A-Za-z][A-Za-z0-9_-]{2,}', text or ''):
+        lower = token.lower()
+        if lower in tags or lower in words:
+            continue
+        words.append(lower)
+        if len(words) >= max_keywords:
+            break
+    return tags[:max_tags], words[:max_keywords]
+
+
 def host_of_account(account: dict) -> str:
     url = account.get('url') or ''
     # https://host/@user → host

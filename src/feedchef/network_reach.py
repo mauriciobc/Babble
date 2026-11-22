@@ -166,7 +166,8 @@ class NetworkReachCalculator:
         stats['fallback_active'] = fallback
         kept = []
         for status in statuses:
-            account = account_of(status, wrapper=True)
+            # Java uses the boosted post's author, not the booster.
+            account = account_of(status, wrapper=False)
             author_id = str(account.get('id') or '')
             if not author_id:
                 continue

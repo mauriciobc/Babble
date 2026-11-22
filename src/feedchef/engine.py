@@ -141,6 +141,11 @@ class FeedEngine:
 
     def _server_trends(self, recipe: FeedRecipe
                        ) -> kitchenmod.ServerTrendContext:
+        """Run on the trends worker only — call ``fetch_trends`` directly.
+
+        Never nest ``submit``+``result`` on ``_trends_executor`` (that
+        deadlocks the single worker and was Java's failure mode).
+        """
         wants = any(mod.type == 'trending'
                     for mod in recipe.kitchen.modifiers)
         if not wants or self.fetch_trends is None:
@@ -148,9 +153,8 @@ class FeedEngine:
         now = time.time()
         if self._trend_cache and now - self._trend_cache[0] < 300:
             return self._trend_cache[1]
-        future = self._trends_executor.submit(self.fetch_trends)
         try:
-            context = future.result(timeout=5)
+            context = self.fetch_trends()
         except Exception as error:
             log.warning('feedchef: trends fetch failed: %s', error)
             return kitchenmod.EMPTY_TRENDS

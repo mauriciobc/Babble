@@ -14,6 +14,7 @@ from .feedchef.feed_model import FeedChefModel  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
+from .feedchef.textutil import extract_focus  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .statusrow import StatusRow  # noqa: E402
@@ -27,6 +28,16 @@ def _account_key(account):
 
 def _storage_for(account):
     return FeedRecipeStorage(_account_key(account))
+
+
+def _home_filter(statuses):
+    filtered = []
+    for status in statuses:
+        hit = timelinebase.status_filter(status, filterrules.HOME)
+        if hit is not None and hit[0] == 'hide':
+            continue
+        filtered.append(status)
+    return filtered
 
 
 class FeedChefListPage(Gtk.Box):
@@ -84,39 +95,58 @@ class FeedChefListPage(Gtk.Box):
                              ) % subtitle
             row = Adw.ActionRow(title=recipe.meta.name, subtitle=subtitle)
             open_btn = Gtk.Button(label=_('Open'), valign=Gtk.Align.CENTER)
-            open_btn.connect('clicked', self._open_recipe, recipe.id)
+            open_btn.recipe_id = recipe.id
+            connect_weak(open_btn, 'clicked', self._open_clicked)
             row.add_suffix(open_btn)
             edit_btn = Gtk.Button(label=_('Edit'), valign=Gtk.Align.CENTER)
-            edit_btn.connect('clicked', self._edit_recipe, recipe.id)
+            edit_btn.recipe_id = recipe.id
+            connect_weak(edit_btn, 'clicked', self._edit_clicked)
             row.add_suffix(edit_btn)
             pin_btn = Gtk.Button(label=_('Pin'), valign=Gtk.Align.CENTER)
-            pin_btn.connect('clicked', self._pin_recipe, recipe.id)
+            pin_btn.recipe_id = recipe.id
+            connect_weak(pin_btn, 'clicked', self._pin_clicked)
             row.add_suffix(pin_btn)
             del_btn = Gtk.Button(label=_('Delete'), valign=Gtk.Align.CENTER)
             del_btn.add_css_class('destructive-action')
-            del_btn.connect('clicked', self._delete_recipe, recipe.id)
+            del_btn.recipe_id = recipe.id
+            connect_weak(del_btn, 'clicked', self._delete_clicked)
             row.add_suffix(del_btn)
             self.list.append(row)
 
     def _on_new(self, _button):
         recipe = default_recipe()
         self.storage.save_recipe(recipe)
-        self._edit_recipe(None, recipe.id)
+        self._edit_recipe(recipe.id)
 
-    def _open_recipe(self, _button, recipe_id):
+    def _open_clicked(self, button):
+        self._open_recipe(getattr(button, 'recipe_id', ''))
+
+    def _edit_clicked(self, button):
+        self._edit_recipe(getattr(button, 'recipe_id', ''))
+
+    def _pin_clicked(self, button):
+        self._pin_recipe(getattr(button, 'recipe_id', ''))
+
+    def _delete_clicked(self, button):
+        self._delete_recipe(getattr(button, 'recipe_id', ''))
+
+    def _open_recipe(self, recipe_id):
         window = self.get_root()
         if window is not None and hasattr(window, 'show_page'):
             window.show_page('recipe:%s' % recipe_id)
 
-    def _edit_recipe(self, _button, recipe_id):
+    def _edit_recipe(self, recipe_id):
         recipe = self.storage.get_recipe_by_id(recipe_id)
         if recipe is None:
             return
         dialog = FeedChefBuilderDialog(self.client, self.account, recipe)
-        dialog.connect('closed', lambda *_: self.reload())
+        connect_weak(dialog, 'closed', self._on_builder_closed)
         dialog.present(self.get_root())
 
-    def _pin_recipe(self, _button, recipe_id):
+    def _on_builder_closed(self, _dialog):
+        self.reload()
+
+    def _pin_recipe(self, recipe_id):
         settings = app_settings()
         key = 'favorite-feedchef-ids'
         account_id = str(self.account.get('id') or '')
@@ -130,21 +160,8 @@ class FeedChefListPage(Gtk.Box):
         if window is not None and hasattr(window, 'rebuild_sidebar'):
             window.rebuild_sidebar()
 
-    def _delete_recipe(self, _button, recipe_id):
-        def confirmed(_dialog, response):
-            if response != 'delete':
-                return
-            self.storage.delete_recipe(recipe_id)
-            settings = app_settings()
-            account_id = str(self.account.get('id') or '')
-            prefix = '%s/' % account_id
-            key = 'favorite-feedchef-ids'
-            values = [item for item in settings.get_strv(key)
-                      if not (item.startswith(prefix)
-                              and item[len(prefix):] == recipe_id)]
-            settings.set_strv(key, values)
-            self.reload()
-
+    def _delete_recipe(self, recipe_id):
+        self._pending_delete = recipe_id
         dialog = Adw.AlertDialog(
             heading=_('Delete recipe?'),
             body=_('This removes the recipe from this account.'))
@@ -152,8 +169,25 @@ class FeedChefListPage(Gtk.Box):
         dialog.add_response('delete', _('Delete'))
         dialog.set_response_appearance(
             'delete', Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.connect('response', confirmed)
+        connect_weak(dialog, 'response', self._on_delete_response)
         dialog.present(self.get_root())
+
+    def _on_delete_response(self, _dialog, response):
+        if response != 'delete':
+            return
+        recipe_id = getattr(self, '_pending_delete', None)
+        if not recipe_id:
+            return
+        self.storage.delete_recipe(recipe_id)
+        settings = app_settings()
+        account_id = str(self.account.get('id') or '')
+        prefix = '%s/' % account_id
+        key = 'favorite-feedchef-ids'
+        values = [item for item in settings.get_strv(key)
+                  if not (item.startswith(prefix)
+                          and item[len(prefix):] == recipe_id)]
+        settings.set_strv(key, values)
+        self.reload()
 
 
 class FeedChefBuilderDialog(Adw.PreferencesDialog):
@@ -244,10 +278,10 @@ class FeedChefBuilderDialog(Adw.PreferencesDialog):
 
         actions = Adw.PreferencesGroup()
         save = Adw.ButtonRow(title=_('Save'))
-        save.connect('activated', self._save)
+        connect_weak(save, 'activated', self._save)
         actions.add(save)
         share = Adw.ButtonRow(title=_('Copy share link'))
-        share.connect('activated', self._share)
+        connect_weak(share, 'activated', self._share)
         actions.add(share)
         page.add(actions)
 
@@ -302,6 +336,7 @@ class FeedChefTimelinePage(Gtk.Box):
         self.recipe = recipe
         self.model = FeedChefModel()
         self._generation = None
+        self._paging = False
         self.storage = _storage_for(account)
         self.engine = make_engine(
             client, _account_key(account),
@@ -318,6 +353,9 @@ class FeedChefTimelinePage(Gtk.Box):
                 label=_('Some modifiers are inactive'), xalign=0)
             warn.add_css_class('warning')
             toolbar.append(warn)
+        mlt = Gtk.Button(label=_('More like this'))
+        connect_weak(mlt, 'clicked', self._more_like_this)
+        toolbar.append(mlt)
         clear = Gtk.Button(label=_('Clear focus'))
         connect_weak(clear, 'clicked', self._clear_focus)
         toolbar.append(clear)
@@ -335,9 +373,26 @@ class FeedChefTimelinePage(Gtk.Box):
                      self._maybe_page)
         self._refresh()
 
-    def do_unroot(self):
+    def close_requests(self):
+        self.cancel()
+
+    def cancel(self):
         self.engine.cancel()
-        Gtk.Box.do_unroot(self)
+
+    def do_dispose(self):
+        self.engine.shutdown()
+        Gtk.Box.do_dispose(self)
+
+    def _more_like_this(self, *_args):
+        if not self.model.items:
+            feedback.show_toast(self, _('Cook the timeline first'))
+            return
+        tags, keywords = extract_focus(self.model.items[0])
+        self.recipe.kitchen.active_focus_hashtags = tags or None
+        self.recipe.kitchen.active_focus_keywords = keywords or None
+        self.storage.save_recipe(self.recipe)
+        feedback.show_toast(self, _('Focus set from the top post'))
+        self._refresh()
 
     def _clear_focus(self, *_args):
         self.recipe.kitchen.active_focus_hashtags = None
@@ -346,6 +401,7 @@ class FeedChefTimelinePage(Gtk.Box):
         self._refresh()
 
     def _refresh(self, *_args):
+        self._paging = False
         self.engine.cancel()
         self.status.set_label(_('Cooking…'))
         self._generation = self.engine.process_feed(
@@ -358,10 +414,12 @@ class FeedChefTimelinePage(Gtk.Box):
         )
 
     def _load_older(self):
-        if not self.model.has_more or not self.model.scope_oldest_id:
+        if self._paging or not self.model.has_more \
+                or not self.model.scope_oldest_id:
             return
+        self._paging = True
         self.status.set_label(_('Loading older…'))
-        self.engine.process_feed(
+        self._generation = self.engine.process_feed(
             self.recipe,
             max_id=self.model.scope_oldest_id,
             count=40,
@@ -374,14 +432,8 @@ class FeedChefTimelinePage(Gtk.Box):
         self.status.set_label(_('Cooking… Stage: %s') % stage)
 
     def _on_done(self, result):
-        items = list(result.items)
-        # Server filters with HOME context after kitchen (mashdon behaviour).
-        filtered = []
-        for status in items:
-            hit = timelinebase.status_filter(status, filterrules.HOME)
-            if hit is not None and hit[0] == 'hide':
-                continue
-            filtered.append(status)
+        self._paging = False
+        filtered = _home_filter(result.items)
         self.model.replace(
             filtered,
             scope_oldest_id=result.scope_oldest_id,
@@ -392,9 +444,10 @@ class FeedChefTimelinePage(Gtk.Box):
         self.status.set_label(_('%d posts') % len(self.model))
 
     def _on_page(self, result):
-        items = list(result.items)
+        self._paging = False
+        filtered = _home_filter(result.items)
         self.model.append_page(
-            items,
+            filtered,
             scope_oldest_id=result.scope_oldest_id,
             has_more=result.has_more,
             score_map=result.score_map,
@@ -403,6 +456,7 @@ class FeedChefTimelinePage(Gtk.Box):
         self.status.set_label(_('%d posts') % len(self.model))
 
     def _on_error(self, error):
+        self._paging = False
         self.status.set_label(_('Could not cook this recipe'))
         feedback.report_error(self, _('Feed Chef'), error)
 
@@ -425,27 +479,32 @@ class FeedChefTimelinePage(Gtk.Box):
 
 
 def present_import(parent, account, recipe, *, replace_existing=False):
-    storage = _storage_for(account)
-    existing = storage.get_recipe_by_id(recipe.id)
+    """Always confirm import (Java). Upsert then replaces silently."""
+    del replace_existing  # callers may pass it; confirm is always shown
+    author = (recipe.meta.author or '').strip()
+    if author:
+        body = _('Import “%s” by %s into this account?') % (
+            recipe.meta.name, author)
+    else:
+        body = _('Import “%s” into this account?') % recipe.meta.name
 
-    def save():
-        storage.save_recipe(recipe)
+    dialog = Adw.AlertDialog(
+        heading=_('Import Feed Chef recipe?'),
+        body=body)
+    dialog.add_response('cancel', _('Cancel'))
+    dialog.add_response('import', _('Import'))
+    dialog.set_response_appearance(
+        'import', Adw.ResponseAppearance.SUGGESTED)
+
+    def response(_dialog, answer):
+        if answer != 'import':
+            return
+        try:
+            _storage_for(account).save_recipe(recipe)
+        except Exception as error:
+            feedback.report_error(parent, _('Feed Chef'), error)
+            return
         feedback.show_toast(parent, _('Recipe imported'))
 
-    if existing is not None and not replace_existing:
-        dialog = Adw.AlertDialog(
-            heading=_('Replace recipe?'),
-            body=_('A recipe with this id already exists on this account.'))
-        dialog.add_response('cancel', _('Cancel'))
-        dialog.add_response('replace', _('Replace'))
-        dialog.set_response_appearance(
-            'replace', Adw.ResponseAppearance.DESTRUCTIVE)
-
-        def response(_dialog, answer):
-            if answer == 'replace':
-                save()
-
-        dialog.connect('response', response)
-        dialog.present(parent)
-        return
-    save()
+    dialog.connect('response', response)
+    dialog.present(parent)

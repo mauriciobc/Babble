@@ -105,7 +105,7 @@ class FeedRecipe:
         """Modifier types that need NLP/gap work and are inert in v1 core."""
         inert = []
         for mod in self.kitchen.modifiers:
-            if mod.type in ('similarity_cluster', 'sentiment_boost'):
+            if mod.type in INERT_WITHOUT_GAP:
                 inert.append(mod.type)
         if self.diet.hard_filters.positive_only:
             inert.append('positive_only')

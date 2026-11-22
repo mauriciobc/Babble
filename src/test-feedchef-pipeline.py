@@ -127,6 +127,13 @@ recipe.kitchen.modifiers = [
 ordered, smap, meta = score_statuses(
     [status('1', fav=1), status('2', fav=10)], recipe)
 check('score sort puts higher first', ordered[0]['id'] == '2')
+recipe.kitchen.active_focus_keywords = ['coffee']
+focused, _s, fmeta = score_statuses(
+    [status('1', fav=1), status('2', fav=10)], recipe)
+check('focus without NLP still score-sorts', focused[0]['id'] == '2')
+check('focus keywords marked inert',
+      'active_focus_keywords' in fmeta.get('inert', []))
+recipe.kitchen.active_focus_keywords = None
 
 # chronological nulls last
 recipe.kitchen.base_sort = 'chronological'
@@ -153,7 +160,12 @@ check('oldest id prefers older created',
 pantry = build_pantry(
     recipe, scope_posts=scope, hashtag_posts=[], more_like_this=[],
     max_id=None, count=2)
-check('has_more when single task full page', pantry.has_more)
+check('has_more when scope page full', pantry.has_more)
+with_tags = build_pantry(
+    recipe, scope_posts=scope,
+    hashtag_posts=[status('t2', tags=['coffee'])],
+    more_like_this=[], max_id=None, count=2)
+check('has_more still true with hashtag enrichment', with_tags.has_more)
 
 # --- reach ---
 with tempfile.TemporaryDirectory() as tmp:
@@ -167,6 +179,11 @@ with tempfile.TemporaryDirectory() as tmp:
     kept, stats = apply_network_reach(posts, recipe, calc)
     check('reach keeps self and following',
           {item['id'] for item in kept} == {'1', '2'})
+    # Boost wrapper: author is booster; content author is the followee.
+    boost = status('inner', author='f1', wrapper_author='stranger')
+    kept_boost, _ = apply_network_reach([boost], recipe, calc)
+    check('reach uses boosted author not booster',
+          [item['id'] for item in kept_boost] == ['w-inner'])
     recipe.pantry.network_reach.max_degrees = None
     kept2, _ = apply_network_reach(posts, recipe, calc)
     check('null max_degrees disables filter', len(kept2) == 3)

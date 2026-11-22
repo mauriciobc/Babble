@@ -35,6 +35,10 @@ check('oauth callback not feedchef',
       not is_feedchef_uri('babble://oauth/callback?code=abc&state=1'))
 check('elsewhere not feedchef',
       not is_feedchef_uri('babble://elsewhere/callback'))
+check('path feedchef on other host rejected',
+      not is_feedchef_uri('babble://evil.example/feedchef?recipe=x'))
+check('oauth path feedchef rejected',
+      not is_feedchef_uri('babble://oauth/feedchef?recipe=x'))
 parsed = parse_feedchef_uri(uri)
 check('round-trip id', parsed is not None and parsed.id == recipe.id)
 check('round-trip name', parsed.meta.name == 'Share Me')
