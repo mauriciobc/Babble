@@ -12,7 +12,7 @@ jobs:
   stress:
     name: Stress (${{ matrix.variant }})
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
@@ -61,14 +61,16 @@ jobs:
         run: |
           export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg-runtime"
           mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
-          for i in $(seq "$(nproc)"); do (while :; do :; done) & done
-          dbus-run-session -- \
+          # One CPU, shared with two busy loops: the container was
+          # reproduced at about 1 in 10 under --cpus=1 with burners.
+          for i in 1 2; do taskset -c 0 sh -c 'while :; do :; done' & done
+          taskset -c 0 dbus-run-session -- \
             mutter --headless --wayland --no-x11 --virtual-monitor 1280x1024 -- \
-            meson test -C build -j1 --no-rebuild --repeat 40 'media progressive' \
+            meson test -C build -j1 --no-rebuild --repeat 80 'media progressive' \
             2>&1 | tee stress.log || true
           kill $(jobs -p) 2>/dev/null || true
           ok=$(grep -cE 'babble:media progressive +OK' stress.log || true)
           bad=$(grep -cE 'babble:media progressive +(FAIL|TIMEOUT|ERROR)' stress.log || true)
-          echo "::notice::${{ matrix.variant }}: ok=$ok bad=$bad of 40"
+          echo "::notice::${{ matrix.variant }}: ok=$ok bad=$bad of 80"
           grep -E 'babble:media progressive +(FAIL|TIMEOUT|ERROR)' stress.log || true
           if [ "${{ matrix.variant }}" = fixed ] && [ "$bad" -ne 0 ]; then exit 1; fi
