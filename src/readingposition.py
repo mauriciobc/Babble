@@ -30,6 +30,8 @@ from .timelinedata import BoostCarouselItem  # noqa: E402
 SAVE_DELAY_MS = 2000
 # Most frames a pinned post is nudged back into place while rows settle.
 PIN_FRAMES = 30
+# Painted frames after a scroll that the top post is read again in.
+TOP_WATCH_FRAMES = 2
 SETTING = 'home-reading-position'
 ENABLED = 'resume-reading-position'
 
@@ -106,6 +108,9 @@ class ReadingPosition:
         self._pin_tick_id = 0
         self._save_source = 0
         self._last_top = None
+        self._top_watch = 0
+        self._top_frames = 0
+        self._top_clock = None
         if home and settings.get_boolean(ENABLED):
             self._resume_key = settings.get_string('active-account')
             anchor = get_position(settings, self._resume_key)
@@ -294,11 +299,45 @@ class ReadingPosition:
             return
         # What was last seen while scrolling: when the delay runs out the
         # window may be in the background, with no row mapped to look at.
-        self._last_top = self.top_visible_status_id() or self._last_top
+        # The rows move at the next layout, not when the offset changes,
+        # so read it again after the frames that follow.
+        if not self._top_watch:
+            self._last_top = self.top_visible_status_id() or self._last_top
+        self._watch_top()
         if self._save_source:
             GLib.source_remove(self._save_source)
         self._save_source = GLib.timeout_add(
             SAVE_DELAY_MS, _save_tick, self.weak_ref())
+
+    def _watch_top(self):
+        """Read the top post after each of the next ``TOP_WATCH_FRAMES``
+        painted frames, by which time the layout reflects the scroll."""
+        self._top_frames = TOP_WATCH_FRAMES
+        clock = self.get_frame_clock()
+        watched = self._top_clock() if self._top_clock is not None else None
+        if self._top_watch and watched is clock:
+            return
+        # Moved to another window, or that window is gone: the old clock
+        # would never paint again to end the watch.
+        if self._top_watch and watched is not None:
+            watched.disconnect(self._top_watch)
+        self._top_watch = 0
+        self._top_clock = None
+        if clock is None:
+            return
+        self._top_clock = clock.weak_ref()
+        self._top_watch = connect_weak(clock, 'after-paint',
+                                       self._on_top_painted)
+
+    def _on_top_painted(self, clock):
+        top = self.top_visible_status_id()
+        if top:
+            self._last_top = top
+        self._top_frames -= 1
+        if self._top_frames <= 0:
+            clock.disconnect(self._top_watch)
+            self._top_watch = 0
+            self._top_clock = None
 
     def save_reading_position(self):
         if self._resume_key is None or self._resume_pending:

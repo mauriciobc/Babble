@@ -35,7 +35,10 @@ class InstanceMixin:
         """GET /api/v2/instance; the result is kept on
         ``self.instance_info`` by :meth:`instance_info_finish`.
 
-        Concurrent callers share one in-flight request (ARCH-09)."""
+        Concurrent callers share one in-flight request (ARCH-09). The
+        shared HTTP call takes no caller cancellable: cancelling one
+        waiter must not fail the answer for the others. A waiter whose
+        cancellable is already cancelled still gets a CANCELLED task."""
         if callback is not None:
             self._instance_info_waiters.append((callback, cancellable))
         if self.instance_info is not None:
@@ -51,11 +54,15 @@ class InstanceMixin:
                 client.instance_info_finish(result)
             except GLib.Error as failure:
                 error = failure
+            except Exception:
+                error = GLib.Error(
+                    'Could not read the instance document',
+                    'g-io-error-quark', int(Gio.IOErrorEnum.FAILED))
             client._instance_info_in_flight = False
             client._complete_instance_info_waiters(error)
 
         return api_instance.info_async(self, callback=loaded,
-                                       cancellable=cancellable)
+                                       cancellable=None)
 
     def _complete_instance_info_waiters(self, error):
         waiters = self._instance_info_waiters
@@ -64,7 +71,16 @@ class InstanceMixin:
         if error is None and self.instance_info is not None:
             payload = GLib.Variant(
                 's', json.dumps({'data': self.instance_info, 'link': ''}))
+        cancelled = GLib.Error(
+            'Operation was cancelled',
+            'g-io-error-quark', int(Gio.IOErrorEnum.CANCELLED))
         for callback, cancellable in waiters:
+            if cancellable is not None and cancellable.is_cancelled():
+                # Detached from the cancelled cancellable: attaching one
+                # can refuse to deliver the result.
+                task = Gio.Task.new(self, None, callback)
+                task.return_error(cancelled)
+                continue
             task = Gio.Task.new(self, cancellable, callback)
             if error is not None:
                 task.return_error(error)

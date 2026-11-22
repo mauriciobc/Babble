@@ -72,9 +72,9 @@ def ask_relationships(client, ids, on_done, cancellable=None, wanted=None,
 class HomeFilters:
     """Needs ``client``, ``model``, ``_hide_boosts``,
     ``_hide_replies_non_follows``, ``_following_ids``, ``_stream_scope``
-    (a RequestScope), ``_stream_pending`` and ``_stream_inflight`` (lists),
-    ``_stream_asked`` (a set), ``_insert_streamed`` and ``refresh`` from
-    the page it is mixed into.
+    (a RequestScope), ``_stream_pending``, ``_stream_inflight`` and
+    ``_first_stream`` (lists), ``_stream_asked`` (a set),
+    ``_insert_streamed`` and ``refresh`` from the page it is mixed into.
 
     The paged path's relationship lookup has no stale-answer guard of its
     own: its requests carry the page ticket's cancellable, and when it
@@ -176,6 +176,56 @@ class HomeFilters:
             return None
         return author_id
 
+    def _hold_first_stream(self, status):
+        """Hold *status* while the first page is loading into an empty
+        list. Inserting now would seed ``oldest_id`` and put the post
+        under the page. Returns True when held."""
+        if not (self.model.loading and self.model.get_n_items() == 0):
+            return False
+        status_id = str(status.get('id') or '')
+        if status_id and any(
+                str(held.get('id') or '') == status_id
+                for held in self._first_stream):
+            return True
+        self._first_stream.append(status)
+        if len(self._first_stream) > self.STREAM_HOLD_LIMIT:
+            # refresh() declines while loading, so do not call it here:
+            # clear the backlog and ask once the first page has settled.
+            self._first_stream = []
+            self._first_stream_needs_refresh = True
+        return True
+
+    def _discard_first_stream(self):
+        self._first_stream = []
+        self._first_stream_needs_refresh = False
+
+    def _flush_first_stream(self):
+        """Land posts held for the first page, now that it has settled.
+
+        While resume or catch-up is active the posts are dropped: those
+        paths fetch what is newer in order, and inserting here would pin
+        the wrong post at the top. An overflow during the wait becomes
+        one refresh after the page has landed."""
+        needs_refresh = self._first_stream_needs_refresh
+        self._first_stream_needs_refresh = False
+        held, self._first_stream = self._first_stream, []
+        if (getattr(self, '_resume_pending', False)
+                or getattr(self, '_resumed', False)
+                or getattr(self, '_catching', False)):
+            return
+        if needs_refresh:
+            self.refresh()
+            return
+        for status in held:
+            if self._hide_boosts and status.get('reblog'):
+                continue
+            if self._queue_streamed(status):
+                continue
+            self._insert_streamed([status])
+        stack = getattr(self, 'stack', None)
+        if stack is not None and self.model.get_n_items() > 0:
+            stack.set_visible_child_name('list')
+
     def _queue_streamed(self, status):
         """Hold a streamed post back when the reply filter has to ask the
         server about it, or about a post ahead of it; True when held.
@@ -210,7 +260,8 @@ class HomeFilters:
         when it answers. Returns whether anything changed."""
         target = str(status_id)
         changed = False
-        for queue in (self._stream_pending, self._stream_inflight):
+        for queue in (self._stream_pending, self._stream_inflight,
+                      self._first_stream):
             kept = []
             for held in queue:
                 reblog = held.get('reblog') or {}

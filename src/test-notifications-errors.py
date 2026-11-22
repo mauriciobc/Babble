@@ -34,9 +34,20 @@ check('page-1 errors show the error page',
       'on_page_loaded' in source
       and re.search(r'def on_page_loaded.*?stack\.set_visible_child_name\(\'error\'\)',
                     source, re.S))
-check('page-2 errors are swallowed in on_older_loaded',
-      re.search(r'def on_older_loaded.*?except GLib\.Error:\s+return',
-                source, re.S))
+check('page-2 errors release the bottom lock in on_older_loaded',
+      re.search(
+          r'def on_older_loaded.*?except GLib\.Error:.*?_release_bottom\(\)',
+          source, re.S)
+      and re.search(
+          r'def on_older_loaded.*?except Exception:.*?_release_bottom\(\)',
+          source, re.S))
+check('page-1 and older check ticket.wanted before mutating',
+      re.search(
+          r'def on_page_loaded.*?ticket\.wanted\(\).*?_drop_loading',
+          source, re.S)
+      and re.search(
+          r'def on_older_loaded.*?ticket\.wanted\(\).*?_drop_older',
+          source, re.S))
 check('markers gate unread_count',
       '_on_markers_before_unread' in source
       and 'api_markers.get_async' in source)
