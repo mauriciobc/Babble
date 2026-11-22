@@ -13,6 +13,9 @@ from functools import partial
 
 from gi.repository import Gio, GLib, GObject
 
+from .feedchef.network_reach import FollowListError
+from .i18n import gettext as _
+
 # Posts asked of the engine for one page.
 COOK_COUNT = 40
 # A page the diet and the kitchen emptied is followed by the next older one
@@ -63,6 +66,12 @@ class FeedChefSource:
         # The last batch was empty after MAX_EMPTY_HOPS hops and the
         # scope still has older posts: not the end, only a pause.
         self.stalled = False
+        # Posts per person shown so far in this cook session (first page
+        # and every older one): "Limit Posts per Person" caps the whole
+        # session, and a refresh starts it again.
+        self._author_counts = {}
+        # Why the last cook failed: 'follow-list' or None.
+        self.error_kind = None
 
     @property
     def cursor(self):
@@ -86,6 +95,8 @@ class FeedChefSource:
             self._cursor = None
             self._has_more = False
             self.stalled = False
+            self._author_counts = {}
+        self.error_kind = None
         self._start(cook, self._cursor if older else None, 0)
 
     def finish(self, result):
@@ -118,7 +129,8 @@ class FeedChefSource:
             self.recipe, max_id=max_id, count=COOK_COUNT,
             on_stage=partial(self._on_stage, cook),
             on_done=partial(self._on_done, cook, hops),
-            on_error=partial(self._on_error, cook))
+            on_error=partial(self._on_error, cook),
+            author_counts=dict(self._author_counts))
 
     def _settle(self, cook):
         cook.done = True
@@ -145,6 +157,9 @@ class FeedChefSource:
         if cook.done or cook is not self._active:
             return
         self._cursor = result.scope_oldest_id
+        # Only a page that is shown counts: a cook that was cancelled
+        # never gets here, so a retry does not count its posts twice.
+        self._author_counts = dict(result.author_counts or {})
         self._has_more = bool(result.has_more and result.scope_oldest_id)
         if not result.items and self._has_more and hops < MAX_EMPTY_HOPS:
             self._start(cook, self._cursor, hops + 1)
@@ -159,7 +174,13 @@ class FeedChefSource:
             return
         self._settle(cook)
         self._active = None
-        if not isinstance(error, GLib.Error):
+        if isinstance(error, FollowListError):
+            self.error_kind = 'follow-list'
+            error = GLib.Error(
+                _('Your list of follows could not be loaded, so nothing is '
+                  'shown rather than posts from people you do not follow.'),
+                'g-io-error-quark', int(Gio.IOErrorEnum.FAILED))
+        elif not isinstance(error, GLib.Error):
             error = GLib.Error(str(error) or 'Could not cook this recipe',
                                'g-io-error-quark',
                                int(Gio.IOErrorEnum.FAILED))

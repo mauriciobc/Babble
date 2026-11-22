@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from . import contract
 from . import diet as dietmod
 from . import kitchen as kitchenmod
 from . import network_reach as reachmod
@@ -35,7 +36,27 @@ class FeedResult:
     scope_oldest_id: str | None = None
     kitchen_meta: dict[str, Any] = field(default_factory=dict)
     logger: FeedDecisionLogger | None = None
+    # The final contract guard: posts checked, and dropped by promise id
+    # (always empty unless a stage has a bug).
+    guard: dict[str, Any] = field(
+        default_factory=lambda: {'checked': 0, 'dropped': {}})
+    # Posts per person in the cook session after this page, for the next
+    # one (see ``author_counts`` of ``process_feed``).
+    author_counts: dict[str, int] = field(default_factory=dict)
 
+
+class _Judge:
+    """Memoizes the sentiment of each post for one cook: the diet, the
+    kitchen and the guard all ask, and the engines are not cheap."""
+
+    def __init__(self):
+        self._memo: dict[int, float | None] = {}
+
+    def __call__(self, status):
+        key = id(status)
+        if key not in self._memo:
+            self._memo[key] = sentimentmod.score_status(status)
+        return self._memo[key]
 
 class FeedEngine:
     """Per-view engine. ``fetch_scope(max_id, count)`` etc. injected by UI."""
@@ -44,6 +65,9 @@ class FeedEngine:
     # test can lower them.
     pantry_timeout_base = 30.0
     pantry_timeout_per_tag = 10.0
+    # "Only People I Follow" waits this long for the follow list to load
+    # before the cook fails with ``FollowListError``.
+    reach_wait_timeout = 20.0
 
     def __init__(
         self,
@@ -73,19 +97,46 @@ class FeedEngine:
         self._reach_executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix='NetworkReach')
         self._current = None
+        self._preload_future = None
         self._cancel = threading.Event()
         self._trend_cache: tuple[float, kitchenmod.ServerTrendContext] | None = None
         self.reach = reachmod.NetworkReachCalculator(
             account_key, self_account_id)
 
     def init_preload(self) -> None:
+        self._ensure_preload()
+
+    def _ensure_preload(self) -> bool:
+        """Start loading the follow list unless a load is running; False
+        when there is nothing to load it with."""
         if self.fetch_following_page is None:
-            return
+            return False
+        future = self._preload_future
+        if future is not None and not future.done():
+            return True
+
+        # Before the worker starts, so a cook that asks right away sees a
+        # load in progress and not the failure of the last one.
+        self.reach.mark_loading()
 
         def work():
             reachmod.preload_following(self.reach, self.fetch_following_page)
 
-        self._reach_executor.submit(work)
+        self._preload_future = self._reach_executor.submit(work)
+        return True
+
+    def _await_follow_list(self, cancel: threading.Event
+                           ) -> reachmod.ReachCache:
+        """The follow list, waiting for the preload (bounded, cancellable).
+        Raises ``FollowListError`` when it cannot be had: "Only People I
+        Follow" never lets strangers through instead."""
+        snap = self.reach.cache_snapshot()
+        if snap.following_ids is None:
+            if snap.status in ('unknown', 'failed') \
+                    and not self._ensure_preload():
+                raise reachmod.FollowListError(
+                    'no way to load the follow list')
+        return self.reach.wait_usable(cancel, self.reach_wait_timeout)
 
     def cancel(self) -> None:
         self._cancel.set()
@@ -108,6 +159,7 @@ class FeedEngine:
         on_stage: StageCallback | None = None,
         on_done: DoneCallback | None = None,
         on_error: ErrorCallback | None = None,
+        author_counts: dict[str, int] | None = None,
     ):
         self.cancel()
         self._cancel = threading.Event()
@@ -118,7 +170,8 @@ class FeedEngine:
             try:
                 result = self._process_sync(
                     recipe, max_id=max_id, count=count,
-                    on_stage=on_stage, cancel=cancel, generation=generation)
+                    on_stage=on_stage, cancel=cancel, generation=generation,
+                    author_counts=author_counts)
                 if cancel.is_set():
                     return
                 if on_done:
@@ -140,10 +193,12 @@ class FeedEngine:
         *,
         max_id: str | None = None,
         count: int = 80,
+        author_counts: dict[str, int] | None = None,
     ) -> FeedResult:
         return self._process_sync(
             recipe, max_id=max_id, count=count,
-            on_stage=None, cancel=threading.Event(), generation='sync')
+            on_stage=None, cancel=threading.Event(), generation='sync',
+            author_counts=author_counts)
 
     def _server_trends(self, recipe: FeedRecipe
                        ) -> kitchenmod.ServerTrendContext:
@@ -176,7 +231,13 @@ class FeedEngine:
         on_stage: StageCallback | None,
         cancel: threading.Event,
         generation: str,
+        author_counts: dict[str, int] | None = None,
     ) -> FeedResult:
+        """One page. *author_counts*: posts per person already shown by
+        the earlier pages of the cook session ("Limit Posts per Person"
+        is a cap on the whole session). The engine never changes it; the
+        counts for the next page come back in ``FeedResult.author_counts``
+        and the caller keeps them only for a page it showed."""
         logger = FeedDecisionLogger(recipe.id)
         started = time.time()
         # Trends on a separate executor (Babble deviation from Java deadlock).
@@ -267,10 +328,25 @@ class FeedEngine:
             items = list(pantry.items)
             self.ui_idle(lambda: on_stage('PANTRY', items))
 
+        judge = _Judge()
+        if reachmod.needs_follow_list(recipe.pantry.network_reach):
+            # Fail closed: wait for the list, or fail the cook.
+            try:
+                self._await_follow_list(cancel)
+            except reachmod.FollowListError as error:
+                logger.add_error('reach:%s' % error)
+                logger.persist()
+                raise
         diet_started = time.time()
-        after_diet, decisions = dietmod.apply_diet(pantry.items, recipe)
-        after_reach, reach_stats = reachmod.apply_network_reach(
-            after_diet, recipe, self.reach)
+        after_diet, decisions = dietmod.apply_diet(
+            pantry.items, recipe, sentiment=judge)
+        try:
+            after_reach, reach_stats = reachmod.apply_network_reach(
+                after_diet, recipe, self.reach)
+        except reachmod.FollowListError as error:
+            logger.add_error('reach:%s' % error)
+            logger.persist()
+            raise
         logger.set_diet(
             input_count=len(pantry.items),
             output_count=len(after_reach),
@@ -278,8 +354,8 @@ class FeedEngine:
             network_reach_stats=reach_stats,
             decisions=[decision.__dict__ for decision in decisions],
         )
-        if reach_stats.get('fallback') == 'network_reach_empty_cache':
-            logger.add_fallback('network_reach_empty_cache')
+        if reach_stats.get('stale'):
+            logger.add_fallback('network_reach_stale_cache')
         if on_stage:
             items = list(after_reach)
             self.ui_idle(lambda: on_stage('DIET', items))
@@ -295,15 +371,17 @@ class FeedEngine:
         if sentimentmod.recipe_needs_sentiment(recipe):
             for status in after_reach:
                 sid = str(status.get('id') or '')
-                if sid:
-                    sentiment_by_id[sid] = sentimentmod.score_status(status)
+                score = judge(status)
+                if sid and score is not None:
+                    sentiment_by_id[sid] = score
 
         kitchen_started = time.time()
         ordered, score_map, kitchen_meta = kitchenmod.score_statuses(
             after_reach, recipe, server=server,
-            sentiment_by_id=sentiment_by_id)
+            sentiment_by_id=sentiment_by_id, author_counts=author_counts)
         if count > 0:
             ordered = ordered[:count]
+        ordered, guard_stats = self._guard(recipe, ordered, judge, logger)
         logger.set_kitchen(
             input_count=len(after_reach),
             output_count=len(ordered),
@@ -317,6 +395,10 @@ class FeedEngine:
             items = list(ordered)
             self.ui_idle(lambda: on_stage('KITCHEN', items))
 
+        capped = any(mod.type == 'diversity'
+                     for mod in recipe.kitchen.modifiers)
+        counts = (kitchenmod.tally_authors(ordered, author_counts)
+                  if capped else dict(author_counts or {}))
         logger.persist()
         # next_page_max_id mirrors Java FeedResult (oldest merged); UI should
         # prefer scope_oldest_id (Babble deviation).
@@ -328,4 +410,37 @@ class FeedEngine:
             scope_oldest_id=pantry.scope_oldest_id,
             kitchen_meta=kitchen_meta,
             logger=logger,
+            guard=guard_stats,
+            author_counts=counts,
         )
+
+    def _guard(self, recipe: FeedRecipe, ordered: list[dict[str, Any]],
+               judge: _Judge, logger: FeedDecisionLogger
+               ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """The final contract guard: every promise of the recipe, checked
+        again on every post about to be returned, independently of the
+        stages. A violator is dropped and recorded; it means a stage is
+        wrong."""
+        reach = recipe.pantry.network_reach
+        follow_ids = None
+        if contract.reach_kind(reach) == 'follows':
+            follow_ids = self.reach.cache_snapshot().following_ids
+        kept = []
+        dropped: dict[str, int] = {}
+        for status in ordered:
+            broken = contract.violations(
+                recipe, status, follow_ids=follow_ids,
+                self_id=self.self_account_id, sentiment=judge)
+            if not broken:
+                kept.append(status)
+                continue
+            post_id = str(status.get('id') or '')
+            for promise_id in broken:
+                dropped[promise_id] = dropped.get(promise_id, 0) + 1
+                logger.add_error('contract:%s:%s' % (promise_id, post_id))
+                log.warning(
+                    'feedchef: contract %s broken by post %s: a stage let '
+                    'it through; dropped', promise_id, post_id)
+        stats = {'checked': len(ordered), 'dropped': dropped}
+        logger.set_guard(**stats)
+        return kept, stats

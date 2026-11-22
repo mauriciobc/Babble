@@ -8,8 +8,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from . import contract
 from .recipe import FeedRecipe, normalize_hashtags
-from .textutil import content_of, status_created_at
+from .textutil import status_created_at
 
 log = logging.getLogger('babble.feedchef')
 
@@ -33,27 +34,18 @@ _mlt_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _MLT_TTL = 30.0
 
 
-def _status_has_tag(status: dict[str, Any], tag: str) -> bool:
-    content = content_of(status)
-    needle = tag.lower()
-    for item in content.get('tags') or []:
-        if str((item or {}).get('name') or '').lower() == needle:
-            return True
-    return False
-
-
 def _filter_excludes(statuses: list[dict], excludes: list[str]) -> list[dict]:
     if not excludes:
         return statuses
     return [item for item in statuses
-            if not any(_status_has_tag(item, tag) for tag in excludes)]
+            if not any(contract.has_tag(item, tag) for tag in excludes)]
 
 
 def _filter_includes(statuses: list[dict], includes: list[str]) -> list[dict]:
     if not includes:
         return statuses
     return [item for item in statuses
-            if any(_status_has_tag(item, tag) for tag in includes)]
+            if any(contract.has_tag(item, tag) for tag in includes)]
 
 
 def oldest_id(statuses: list[dict[str, Any]]) -> str | None:
@@ -99,9 +91,15 @@ def merge_pantry(
     includes: list[str],
     excludes: list[str],
 ) -> list[dict[str, Any]]:
+    # Included hashtags bind every source whose posts are not tagged by
+    # construction: the scope and the More Like This search (a focus
+    # narrows within the recipe, it does not escape it). A hashtag
+    # timeline is the posts of one included tag, so it matches already;
+    # the final contract guard asserts it.
     scope = _filter_includes(_filter_excludes(scope_posts, excludes), includes)
     tags = _filter_excludes(hashtag_posts, excludes)
-    mlt = _filter_excludes(more_like_this, excludes)
+    mlt = _filter_includes(_filter_excludes(more_like_this, excludes),
+                           includes)
     seen = set()
     merged = []
     for bucket in (mlt, tags, scope):

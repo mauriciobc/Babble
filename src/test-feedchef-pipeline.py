@@ -92,9 +92,9 @@ check('alt-text without media passes', ok.verdict == 'PASSED')
 diet.hard_filters.must_have_alt_text = False
 diet.hard_filters.positive_only = True
 pos = pass_diet(status('3', content='neutral'), diet,
-                sentiment=lambda _t: 0.0)
+                sentiment=lambda _s: 0.0)
 check('positive_only with injected 0 passes', pos.verdict == 'PASSED')
-neg = pass_diet(status('3n', content='x'), diet, sentiment=lambda _t: -0.4)
+neg = pass_diet(status('3n', content='x'), diet, sentiment=lambda _s: -0.4)
 check('positive_only filters negative compound', neg.verdict == 'FILTERED')
 
 # --- sentiment (vendored VADER / LeIA) ---
@@ -208,8 +208,9 @@ with tempfile.TemporaryDirectory() as tmp:
     empty.set_following(set())
     recipe.pantry.network_reach.max_degrees = 1
     kept3, stats3 = apply_network_reach(posts, recipe, empty)
-    check('empty cache fallback includes unknown',
-          len(kept3) == 3 and stats3.get('fallback') == 'network_reach_empty_cache')
+    check('an empty follow list is a valid answer: only own posts',
+          [item['id'] for item in kept3] == ['1']
+          and stats3.get('fallback') is None)
 
 # --- engine sync ---
 posts_scope = [status('10', fav=1), status('11', fav=5)]
@@ -236,9 +237,10 @@ _ordered, _scores, meta = score_statuses(
     [status('1', author='x', fav=1), status('2', author='x', fav=99),
      status('3', author='y', fav=50)],
     recipe)
+# The cap runs after the order: each person keeps their best-ranked post.
 check('kitchen rank kept for survivors',
-      meta['ranks'].get('1', -1) >= 0 and meta['ranks'].get('3', -1) >= 0)
-check('kitchen rank -1 for filtered', meta['ranks'].get('2') == -1)
+      meta['ranks'].get('2', -1) >= 0 and meta['ranks'].get('3', -1) >= 0)
+check('kitchen rank -1 for filtered', meta['ranks'].get('1') == -1)
 
 # --- decision log ---
 with tempfile.TemporaryDirectory() as tmp:

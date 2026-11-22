@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Diet stage — mashdon ``passDiet`` order on reblog content."""
+"""Diet stage — mashdon ``passDiet`` order on reblog content.
+
+The rules themselves are the predicates of ``contract``; this stage only
+applies them in order and records why a post was filtered.
+"""
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
+from . import contract
 from .recipe import DietConfig, FeedRecipe
-from .textutil import content_of, strip_html
-
-SentimentFn = Callable[[str], float]
 
 
 @dataclass
@@ -21,56 +22,28 @@ class DietDecision:
     details: str = ''
 
 
-def _keyword_patterns(blocklist: list[str]) -> list[re.Pattern[str]]:
-    patterns = []
-    for word in blocklist:
-        # Java Pattern.quote + \\b — ASCII word boundaries.
-        patterns.append(re.compile(r'\b%s\b' % re.escape(word), re.I))
-    return patterns
+def _details(reason: str, status: dict[str, Any]) -> str:
+    if reason == 'min_content_length':
+        return str(contract.text_length(status))
+    return ''
 
 
 def pass_diet(
     status: dict[str, Any],
     diet: DietConfig,
     *,
-    sentiment: SentimentFn | None = None,
+    sentiment: contract.SentimentJudge | None = None,
+    recipe: FeedRecipe | None = None,
 ) -> DietDecision:
-    content = content_of(status)
+    """*sentiment* judges a post (None: the post's language is not read)."""
     post_id = str(status.get('id') or '')
-    hard = diet.hard_filters
-    html = str(content.get('content') or '').lower()
-    spoiler = str(content.get('spoiler_text') or content.get('spoilerText')
-                  or '').lower()
-    for pattern in _keyword_patterns(diet.keyword_blocklist):
-        if pattern.search(html) or pattern.search(spoiler):
-            return DietDecision(post_id, 'FILTERED', 'keyword_blocklist',
-                                pattern.pattern)
-    attachments = content.get('media_attachments') or content.get(
-        'mediaAttachments') or []
-    if hard.must_have_media and not attachments:
-        return DietDecision(post_id, 'FILTERED', 'must_have_media')
-    if hard.must_have_alt_text and attachments:
-        for item in attachments:
-            desc = (item or {}).get('description')
-            if not (desc and str(desc).strip()):
-                return DietDecision(post_id, 'FILTERED', 'must_have_alt_text')
-    if hard.no_sensitive_media and bool(content.get('sensitive')):
-        return DietDecision(post_id, 'FILTERED', 'no_sensitive_media')
-    if hard.min_content_length > 0:
-        length = len(strip_html(content.get('content')))
-        if length < hard.min_content_length:
-            return DietDecision(post_id, 'FILTERED', 'min_content_length',
-                                str(length))
-    if hard.positive_only:
-        if sentiment is not None:
-            text = strip_html(content.get('content')) + ' ' + spoiler
-            score = sentiment(text)
-        else:
-            from . import sentiment as sentmod
-            score = sentmod.score_status(status)
-        if score < 0.0:
-            return DietDecision(post_id, 'FILTERED', 'positive_only',
-                                str(score))
+    recipe = recipe or FeedRecipe(diet=diet)
+    found = contract.violations(
+        recipe, status, sentiment=sentiment, only=contract.DIET_IDS,
+        first=True)
+    if found:
+        return DietDecision(post_id, 'FILTERED', found[0],
+                            _details(found[0], status))
     return DietDecision(post_id, 'PASSED', 'ok')
 
 
@@ -78,12 +51,13 @@ def apply_diet(
     statuses: list[dict[str, Any]],
     recipe: FeedRecipe,
     *,
-    sentiment: SentimentFn | None = None,
+    sentiment: contract.SentimentJudge | None = None,
 ) -> tuple[list[dict[str, Any]], list[DietDecision]]:
     kept = []
     decisions = []
     for status in statuses:
-        decision = pass_diet(status, recipe.diet, sentiment=sentiment)
+        decision = pass_diet(status, recipe.diet, sentiment=sentiment,
+                             recipe=recipe)
         decisions.append(decision)
         if decision.verdict == 'PASSED':
             kept.append(status)

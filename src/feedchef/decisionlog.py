@@ -45,6 +45,7 @@ class DecisionLog:
     pantry: dict[str, Any] = field(default_factory=dict)
     diet: dict[str, Any] = field(default_factory=dict)
     kitchen: dict[str, Any] = field(default_factory=dict)
+    guard: dict[str, Any] = field(default_factory=dict)
     reliability: dict[str, Any] = field(
         default_factory=lambda: {'errors': [], 'fallbacks': []})
 
@@ -57,6 +58,7 @@ class DecisionLog:
                 'pantry': self.pantry,
                 'diet': self.diet,
                 'kitchen': self.kitchen,
+                'guard': self.guard,
             },
             'reliability': self.reliability,
         }
@@ -83,6 +85,10 @@ class FeedDecisionLogger:
     def set_kitchen(self, **fields: Any) -> None:
         with self._lock:
             self.log.kitchen.update(fields)
+
+    def set_guard(self, **fields: Any) -> None:
+        with self._lock:
+            self.log.guard.update(fields)
 
     def add_fallback(self, name: str) -> None:
         with self._lock:

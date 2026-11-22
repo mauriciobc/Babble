@@ -132,7 +132,7 @@ class FakeEngine:
         self.shutdown_called = True
 
     def process_feed(self, recipe, *, max_id=None, count=80, on_stage=None,
-                     on_done=None, on_error=None):
+                     on_done=None, on_error=None, author_counts=None):
         self.calls.append(max_id)
         items, has_more, cursor = (self.queue.pop(0) if self.queue
                                    else ([], False, None))
@@ -446,7 +446,9 @@ check('builder: Order items are sentence case',
 diet = [g for g in find(dialog.page, Adw.PreferencesGroup)
         if g.get_title() == 'Diet']
 check('builder: Diet says how to separate words',
-      diet and diet[0].get_description() == 'Separate words with spaces.')
+      diet and diet[0].get_description() == 'Separate words with spaces. '
+      'Whole words only, in the post and its content warning, ignoring '
+      'case.')
 dialog.force_close()
 pump()
 

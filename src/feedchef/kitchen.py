@@ -158,22 +158,79 @@ def apply_heat(statuses: list[dict[str, Any]], scores: dict[str, float],
             if scores.get(str(item.get('id')), 0.0) >= threshold]
 
 
-def apply_diversity(statuses: list[dict[str, Any]],
-                    mod: Modifier) -> list[dict[str, Any]]:
+def author_key(status: dict[str, Any]) -> str:
+    """The person a post counts for in "Limit Posts per Person": the
+    account that put it in the feed, so a boost counts for the booster
+    (Java does the same), not for the author of the boosted post."""
+    return str(account_of(status, wrapper=True).get('id') or '')
+
+
+def apply_diversity(statuses: list[dict[str, Any]], mod: Modifier,
+                    counts: dict[str, int] | None = None
+                    ) -> list[dict[str, Any]]:
+    """Keep the first ``max_per_cluster`` posts of each person *in the
+    order given*, so called on a ranked list it keeps each person's best.
+    *counts* is what each person already has in the cook session (older
+    pages); it is read, never changed."""
     max_per = int(mod.max_per_cluster if mod.max_per_cluster is not None else 1)
     dimensions = mod.diversity_dimensions or ['author']
     if 'author' not in dimensions:
         return list(statuses)
-    counts: dict[str, int] = {}
+    seen_counts = dict(counts or {})
     kept = []
     for status in statuses:
-        author = str(account_of(status, wrapper=True).get('id') or '')
-        seen = counts.get(author, 0)
+        author = author_key(status)
+        seen = seen_counts.get(author, 0)
         if seen >= max_per:
             continue
-        counts[author] = seen + 1
+        seen_counts[author] = seen + 1
         kept.append(status)
     return kept
+
+
+def tally_authors(statuses: list[dict[str, Any]],
+                  counts: dict[str, int] | None = None) -> dict[str, int]:
+    """*counts* plus one for each post of each person in *statuses*."""
+    total = dict(counts or {})
+    for status in statuses:
+        author = author_key(status)
+        total[author] = total.get(author, 0) + 1
+    return total
+
+
+def _id_key(status: dict[str, Any]) -> tuple[int, Any]:
+    """Ids compare as integers when they are digits (Mastodon), else as
+    text; a tie in time or score then breaks the same way every run."""
+    sid = str(status.get('id') or '')
+    return (1, int(sid)) if sid.isdigit() else (0, sid)
+
+
+_NO_DATE = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def order_statuses(statuses: list[dict[str, Any]], scores: dict[str, float],
+                   base_sort: str) -> list[dict[str, Any]]:
+    """'chronological': newest first by the created_at of the post the
+    reader sees (posts without a date last, in arrival order), ties by id,
+    newest id first. Otherwise: highest final score first, ties newest
+    first, then by id."""
+    if base_sort == 'chronological':
+        with_date = []
+        without = []
+        for item in statuses:
+            created = status_created_at(item, content=True)
+            if created is None:
+                without.append(item)
+            else:
+                with_date.append((created, _id_key(item), item))
+        with_date.sort(key=lambda row: (row[0], row[1]), reverse=True)
+        return [row[2] for row in with_date] + without
+
+    def key(item):
+        created = status_created_at(item, content=True) or _NO_DATE
+        return (scores.get(str(item.get('id')), 0.0), created, _id_key(item))
+
+    return sorted(statuses, key=key, reverse=True)
 
 
 def score_statuses(
@@ -182,7 +239,13 @@ def score_statuses(
     *,
     server: ServerTrendContext | None = None,
     sentiment_by_id: dict[str, float] | None = None,
+    author_counts: dict[str, int] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, Any]]:
+    """Score, filter by heat, order, then cap each person.
+
+    The cap runs after the order so that it keeps each person's best-ranked
+    posts, and *author_counts* (posts per person already shown by earlier
+    pages of the cook session) makes it a cap on the whole session."""
     server = server or EMPTY_TRENDS
     sentiment_by_id = sentiment_by_id or {}
     scores: dict[str, float] = {}
@@ -197,8 +260,10 @@ def score_statuses(
             if mod.type == 'freshness':
                 score = apply_freshness(score, status, mod)
             elif mod.type == 'sentiment_boost':
-                sent = sentiment_by_id.get(sid, 0.0)
-                score = apply_sentiment_boost(score, sent, mod)
+                # Posts that are not judged (other languages) keep theirs.
+                if sid in sentiment_by_id:
+                    score = apply_sentiment_boost(
+                        score, sentiment_by_id[sid], mod)
             elif mod.type == 'trending':
                 score = apply_trending(score, status, tag_heat, server, mod)
             elif mod.type in ('similarity_cluster', 'connection'):
@@ -217,47 +282,27 @@ def score_statuses(
                 'percentile': mod.percentile_threshold,
             }
 
-    for mod in recipe.kitchen.modifiers:
-        if mod.type == 'diversity':
-            before = len(working)
-            working = apply_diversity(working, mod)
-            meta['diversity'] = {'before': before, 'after': len(working)}
-        elif mod.type == 'similarity_cluster':
-            meta['inert'].append('similarity_cluster')
-
     keywords = recipe.kitchen.active_focus_keywords or []
     if keywords:
         # TF-IDF relevance is inert without NLP; fall back to base_sort
         # (Java uses relevance when TF-IDF is available — never freeze merge).
         meta['inert'].append('active_focus_keywords')
-    if recipe.kitchen.base_sort == 'chronological':
-        with_date = []
-        without = []
-        for item in working:
-            created = status_created_at(item, content=True)
-            if created is None:
-                without.append(item)
-            else:
-                with_date.append((created, item))
-        with_date.sort(key=lambda pair: pair[0], reverse=True)
-        ordered = [item for _created, item in with_date] + without
-    else:
-        ordered = sorted(
-            working,
-            key=lambda item: scores.get(str(item.get('id')), 0.0),
-            reverse=True,
-        )
+    ordered = order_statuses(working, scores, recipe.kitchen.base_sort)
+
+    for mod in recipe.kitchen.modifiers:
+        if mod.type == 'diversity':
+            before = len(ordered)
+            ordered = apply_diversity(ordered, mod, author_counts)
+            meta['diversity'] = {'before': before, 'after': len(ordered)}
+        elif mod.type == 'similarity_cluster':
+            meta['inert'].append('similarity_cluster')
+
     # Java DecisionLog: kitchen-filtered posts keep rank -1.
-    kept_ids = {str(item.get('id') or '') for item in ordered}
     ranks: dict[str, int] = {}
     for status in statuses:
-        sid = str(status.get('id') or '')
-        ranks[sid] = -1
+        ranks[str(status.get('id') or '')] = -1
     for index, item in enumerate(ordered):
         ranks[str(item.get('id') or '')] = index
-    for sid in list(ranks):
-        if sid not in kept_ids:
-            ranks[sid] = -1
     meta['ranks'] = ranks
     meta['inert'] = sorted(set(meta['inert']))
     return ordered, scores, meta

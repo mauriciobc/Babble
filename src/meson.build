@@ -203,6 +203,7 @@ install_data(
 )
 install_data(
   'feedchef/__init__.py',
+  'feedchef/contract.py',
   'feedchef/decisionlog.py',
   'feedchef/diet.py',
   'feedchef/engine.py',
@@ -828,6 +829,18 @@ test('feedchef pipeline', python,
   args: [files('test-feedchef-pipeline.py')],
   env: test_env,
   timeout: 60,
+)
+# Needs no display: a seeded fuzz of recipes and statuses through the real
+# engine, every promise of the builder checked on the combined pages.
+test('feedchef contract', python,
+  args: [files('test-feedchef-contract.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('feedchef promises', python,
+  args: [files('test-feedchef-promises.py')],
+  env: test_env,
+  timeout: 120,
 )
 test('feedchef deeplink', python,
   args: [files('test-feedchef-deeplink.py')],

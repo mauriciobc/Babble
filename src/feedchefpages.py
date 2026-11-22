@@ -315,6 +315,21 @@ class FeedChefTimelinePage(TimelinePage):
         self._update_focus_ui()
         self.ensure_loaded()
 
+    def _finish(self, result):
+        """The error page names a follow list that could not be loaded:
+        a recipe limited to the people you follow cannot show anything
+        without it."""
+        try:
+            statuses = TimelinePage._finish(self, result)
+        except GLib.Error:
+            self.error_page.set_title(
+                _('Could Not Check Who You Follow')
+                if self.source.error_kind == 'follow-list'
+                else _('Could Not Load This Recipe'))
+            raise
+        self.error_page.set_title(_('Could Not Load This Recipe'))
+        return statuses
+
     def do_dispose(self):
         engine = getattr(self, 'engine', None)
         if engine is not None:
