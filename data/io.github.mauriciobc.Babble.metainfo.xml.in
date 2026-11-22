@@ -60,6 +60,23 @@
   </supports>
   <translation type="gettext">babble</translation>
   <releases>
+    <release version="0.3.2" date="2026-11-22">
+      <description>
+        <p>
+          A video or animated GIF playing in the media viewer can move into
+          a small picture-in-picture card and keep playing while you read.
+          Press P or use the viewer's button, and drag the card to any
+          corner.
+        </p>
+        <p>Other changes:</p>
+        <ul>
+          <li>Opening Notifications withdraws the desktop notifications Babble sent, and pulling down there refreshes the list.</li>
+          <li>Posts that arrive while Home is still loading its first page now land in the right place.</li>
+          <li>A quoted Bluesky post that cannot be read is no longer requested again every time it scrolls into view.</li>
+          <li>Closing a video no longer risks freezing the application.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-11-14">
       <description>
         <p>
