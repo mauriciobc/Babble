@@ -175,7 +175,9 @@ with patch.dict(sys.modules, {
               ('list:one', 'First list', 'view-list-symbolic'),
               ('list:three', 'Third', 'view-list-symbolic'),
               ('tag:hello world', '#hello world',
-               'babble-hashtag-symbolic')])
+               'babble-hashtag-symbolic'),
+              ('recipe:recipe-1', 'Feed Chef',
+               'emblem-favorite-symbolic')])
     with patch.object(navigation.pagenav, 'make_nav_page',
                       side_effect=lambda title, child, tag=None,
                       sidebar_control=None: FakePage(title, child, tag)) \

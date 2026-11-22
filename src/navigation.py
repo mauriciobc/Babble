@@ -308,12 +308,13 @@ class Navigation:
         if tag.startswith('tag:'):
             return '#' + tag[4:]
         if tag.startswith('recipe:'):
-            from .feedchef.storage import FeedRecipeStorage
-            account = self.host.account()
-            if account is not None:
-                from . import accounts as accountsmod
-                storage = FeedRecipeStorage(accountsmod.account_key(account))
-                recipe = storage.get_recipe_by_id(tag[7:])
+            # Avoid importing accounts (Gtk + catchup.store) just for a key.
+            account = self.host.account() or {}
+            key = '%s#%s' % (account.get('instance') or '',
+                             account.get('id') or '')
+            if key != '#':
+                from .feedchef.storage import FeedRecipeStorage
+                recipe = FeedRecipeStorage(key).get_recipe_by_id(tag[7:])
                 if recipe is not None:
                     return recipe.meta.name
             return _('Feed Chef')
@@ -338,10 +339,10 @@ class Navigation:
         if tag.startswith('recipe:'):
             from .feedchef.storage import FeedRecipeStorage
             from .feedchefpages import FeedChefTimelinePage
-            from . import accounts as accountsmod
-            account = self.host.account()
-            storage = FeedRecipeStorage(accountsmod.account_key(account))
-            recipe = storage.get_recipe_by_id(tag[7:])
+            account = self.host.account() or {}
+            key = '%s#%s' % (account.get('instance') or '',
+                             account.get('id') or '')
+            recipe = FeedRecipeStorage(key).get_recipe_by_id(tag[7:])
             if recipe is None:
                 return None
             return FeedChefTimelinePage(client, account, recipe)
