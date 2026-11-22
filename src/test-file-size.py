@@ -194,6 +194,16 @@ for name in missing_catchup:
     print('    %s is not in src/meson.build catchup install_data' % name)
 check('every Catch Up submodule is installed (%d missing)'
       % len(missing_catchup), not missing_catchup)
+feedchef_modules = sorted(
+    os.path.relpath(os.path.join(directory, filename), srcdir)
+    for directory, _dirs, files in os.walk(os.path.join(srcdir, 'feedchef'))
+    for filename in files if filename.endswith('.py'))
+missing_feedchef = sorted(name for name in feedchef_modules
+                           if name not in installed)
+for name in missing_feedchef:
+    print('    %s is not in src/meson.build feedchef install_data' % name)
+check('every Feed Chef submodule is installed (%d missing)'
+      % len(missing_feedchef), not missing_feedchef)
 stale = sorted(name for name in installed
                if name not in modules and name != 'meson.build')
 for name in stale:

@@ -129,6 +129,12 @@ self_check('R1 rejects affinity importing a Catch Up module',
 self_check('R1 rejects navigation importing a Catch Up submodule',
            {'src/navigation.py': 'from .catchup.store import X\n'},
            'R1: src/navigation.py:1 imports store')
+self_check('R1 rejects feedchef package importing Catch Up fetch',
+           {'src/feedchef/engine.py': 'from src.catchup import fetch\n'},
+           'R1: src/feedchef/engine.py:1 imports fetch')
+self_check('R2 rejects Catch Up importing feedchef',
+           {'src/catchup/page.py': 'from src.feedchef import storage\n'},
+           'R2: src/catchup/page.py:1 imports feedchef')
 self_check('R8 rejects src/api importing GObject',
            {'src/api/statuses.py': 'import gi\n'},
            'R8: src/api/statuses.py:1 imports gi')

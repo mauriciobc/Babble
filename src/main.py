@@ -316,7 +316,11 @@ class BabbleApplication(Adw.Application):
                 continue
             delivered.add(uri)
             if file.has_uri_scheme('babble'):
-                win.on_oauth_callback(uri)
+                from .feedchef.sharecodec import is_feedchef_uri, parse_feedchef_uri
+                if is_feedchef_uri(uri):
+                    self._open_feedchef_uri(win, uri)
+                else:
+                    win.on_oauth_callback(uri)
             elif (GLib.Uri.peek_scheme(uri) or '') in WEB_SCHEMES:
                 self.open_web_uri(win, uri)
             elif file.is_native() and file.get_path() is not None:
@@ -324,6 +328,19 @@ class BabbleApplication(Adw.Application):
                 paths.append(file.get_path())
         if paths:
             win.compose_with_files(paths)
+
+    def _open_feedchef_uri(self, win, uri):
+        """Import a Feed Chef recipe from ``babble://feedchef?recipe=``."""
+        from .feedchef.sharecodec import parse_feedchef_uri
+        from .feedchefpages import present_import
+        recipe = parse_feedchef_uri(uri)
+        if recipe is None:
+            win.show_toast(_('Could not read that Feed Chef link'))
+            return
+        if win.client is None or win.account is None:
+            win.show_toast(_('Sign in to import this recipe'))
+            return
+        present_import(win, win.account, recipe)
 
     def open_web_uri(self, win, uri):
         """Route a ``web+ap://``/``web+mastodon://`` *uri* inside *win*;

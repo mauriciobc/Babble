@@ -66,6 +66,8 @@ install_data(
   'collectionedit.py',
   'collectionpage.py',
   'feedback.py',
+  'feedchefbridge.py',
+  'feedchefpages.py',
   'filterrules.py',
   'filters.py',
   'imagecache.py',
@@ -195,6 +197,21 @@ install_data(
   'catchup/tiles_cards.py',
   'catchup/geometry.py',
   install_dir: moduledir / 'catchup',
+)
+install_data(
+  'feedchef/__init__.py',
+  'feedchef/decisionlog.py',
+  'feedchef/diet.py',
+  'feedchef/engine.py',
+  'feedchef/feed_model.py',
+  'feedchef/kitchen.py',
+  'feedchef/network_reach.py',
+  'feedchef/pantry.py',
+  'feedchef/recipe.py',
+  'feedchef/sharecodec.py',
+  'feedchef/storage.py',
+  'feedchef/textutil.py',
+  install_dir: moduledir / 'feedchef',
 )
 install_data(
   'api/__init__.py',
@@ -769,6 +786,21 @@ test('settings isolation', python,
 # Needs no display: it reads the import graph only.
 test('module boundary', python,
   args: [files('test-module-boundary.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('feedchef recipe', python,
+  args: [files('test-feedchef-recipe.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('feedchef pipeline', python,
+  args: [files('test-feedchef-pipeline.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('feedchef deeplink', python,
+  args: [files('test-feedchef-deeplink.py')],
   env: test_env,
   timeout: 60,
 )

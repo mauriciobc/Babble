@@ -12,6 +12,7 @@ from . import pagenav
 PLACES = (
     ('home', 'user-home-symbolic', 0),
     ('catch-up', 'babble-catch-up-symbolic', 0),
+    ('feed-chef', 'emblem-favorite-symbolic', 0),
     ('notifications', 'babble-notifications-symbolic', 0),
     ('conversations', 'mail-unread-symbolic', 0),
     ('search', 'system-search-symbolic', 0),
@@ -27,7 +28,8 @@ PLACES = (
 # Places whose pages get live updates and a refresh timer from the window.
 PUBLIC_TAGS = ('local', 'federated')
 
-HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
+HIDE_KEYS = {'catch-up': 'hide-catch-up', 'feed-chef': 'hide-feed-chef',
+             'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
 
 
@@ -73,6 +75,8 @@ def place_policy(tag):
 def place_title(tag):
     return {
         'home': _('Home'), 'catch-up': _('Catch Up'),
+        # Translators: recipe-driven continuous timeline (not Catch Up)
+        'feed-chef': _('Feed Chef'),
         'notifications': _('Notifications'),
         'conversations': _('Conversations'), 'search': _('Search'),
         'favourites': _('Favorites'), 'bookmarks': _('Bookmarks'),
@@ -90,13 +94,16 @@ def pinned_entries(settings, key, account_id):
 
 
 def pinned_routes(settings, account_id):
-    """Return ordered ``(tag, icon)`` routes for pinned lists/tags."""
+    """Return ordered ``(tag, icon)`` routes for pinned lists/tags/recipes."""
     lists = pinned_entries(settings, 'favorite-lists-ids', account_id)
     tags = pinned_entries(settings, 'favorite-tags-ids', account_id)
+    recipes = pinned_entries(settings, 'favorite-feedchef-ids', account_id)
     return ([(pinned_tag('list', value), 'view-list-symbolic')
              for value in lists]
             + [(pinned_tag('tag', value), 'babble-hashtag-symbolic')
-               for value in tags])
+               for value in tags]
+            + [('recipe:%s' % value, 'emblem-favorite-symbolic')
+               for value in recipes])
 
 
 def pinned_tag(kind, value):
@@ -300,6 +307,16 @@ class Navigation:
             return self.pinned_lists.get(tag[5:]) or _('List')
         if tag.startswith('tag:'):
             return '#' + tag[4:]
+        if tag.startswith('recipe:'):
+            from .feedchef.storage import FeedRecipeStorage
+            account = self.host.account()
+            if account is not None:
+                from . import accounts as accountsmod
+                storage = FeedRecipeStorage(accountsmod.account_key(account))
+                recipe = storage.get_recipe_by_id(tag[7:])
+                if recipe is not None:
+                    return recipe.meta.name
+            return _('Feed Chef')
         return place_title(tag)
 
     def set_pinned_lists(self, lists):
@@ -315,6 +332,19 @@ class Navigation:
         if tag == 'catch-up':
             from .catchup import CatchUpPage
             return CatchUpPage(client, account=self.host.account())
+        if tag == 'feed-chef':
+            from .feedchefpages import FeedChefListPage
+            return FeedChefListPage(client, self.host.account())
+        if tag.startswith('recipe:'):
+            from .feedchef.storage import FeedRecipeStorage
+            from .feedchefpages import FeedChefTimelinePage
+            from . import accounts as accountsmod
+            account = self.host.account()
+            storage = FeedRecipeStorage(accountsmod.account_key(account))
+            recipe = storage.get_recipe_by_id(tag[7:])
+            if recipe is None:
+                return None
+            return FeedChefTimelinePage(client, account, recipe)
         if tag == 'search':
             from .search import SearchPage
             return SearchPage(client)

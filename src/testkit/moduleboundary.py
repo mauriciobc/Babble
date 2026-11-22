@@ -27,6 +27,19 @@ RANK = frozenset({'rank', 'rank_diversity', 'rank_text', 'rank_model'})
 NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage',
                  'navigation', 'tileactions'})
 
+# Feed Chef package prefix (not the stem — ``engine.py`` alone is not enough).
+FEEDCHEF_ALLOWED = frozenset({
+    'api', 'statustext', 'filterrules', 'timelinebase',
+    # Sibling UI/bridge modules may import the package; the package itself
+    # must not import Catch Up fetch/page/store/tiles/rank or navigation.
+})
+FEEDCHEF_FORBIDDEN = frozenset({
+    'catchup', 'page', 'page_controls', 'pipeline', 'fetch', 'rows', 'store',
+    'digest', 'digest_layout', 'rank', 'rank_diversity', 'rank_text',
+    'rank_model', 'tiles', 'tiles_render', 'tiles_cards', 'geometry',
+    'navigation',
+})
+
 BENCH = ('rank_eval.py', 'ranked_stall.py')
 
 HTTP_PATHS = frozenset({'http', 'http.client', 'urllib.request', 'requests',
@@ -45,6 +58,12 @@ def is_new_importer(name):
             or name == 'test-affinity'
             or name.startswith('test-ranked-')
             or name in ('rank_eval', 'ranked_stall'))
+
+def is_feedchef_path(path):
+    return path.startswith('src/feedchef/')
+
+def is_feedchef_test(name):
+    return name.startswith('test-feedchef')
 
 def source_imports(tree):
     """(module in src, line) for every src module a syntax tree imports.
@@ -453,6 +472,12 @@ def violations(sources: dict[str, str]) -> list[str]:
                     and not (path == 'src/catchup/tiles_render.py'
                              and module == 'tileactions')):
                 found.append('R2: %s:%d imports %s'
+                             % (path, line, module))
+            if is_catchup_importer(path) and module == 'feedchef':
+                found.append('R2: %s:%d imports feedchef'
+                             % (path, line))
+            if is_feedchef_path(path) and module in FEEDCHEF_FORBIDDEN:
+                found.append('R1: %s:%d imports %s'
                              % (path, line, module))
             if path == 'src/affinity.py' and module in RANK:
                 found.append('R5: %s:%d imports rank module %s'

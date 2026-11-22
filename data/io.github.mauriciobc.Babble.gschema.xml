@@ -90,6 +90,15 @@
       <default>false</default>
       <summary>Hide the Catch Up page from the sidebar</summary>
     </key>
+    <key name="hide-feed-chef" type="b">
+      <default>false</default>
+      <summary>Hide the Feed Chef page from the sidebar</summary>
+      <description>Catch Up is a period digest of Home; Feed Chef is a recipe-driven continuous timeline. They coexist.</description>
+    </key>
+    <key name="favorite-feedchef-ids" type="as">
+      <default>[]</default>
+      <summary>Feed Chef recipes pinned to the sidebar, as "account-id/recipe-id"</summary>
+    </key>
     <key name="hide-trending" type="b">
       <default>false</default>
       <summary>Hide the Explore page from the sidebar</summary>

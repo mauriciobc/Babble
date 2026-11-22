@@ -1,0 +1,195 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Main-thread API adapters that build a FeedEngine for a Babble session."""
+
+from __future__ import annotations
+
+import threading
+
+from gi.repository import GLib
+
+from .api import accounts as api_accounts
+from .api import core as api_core
+from .api import lists as api_lists
+from .api import search as api_search
+from .api import tags as api_tags
+from .api import timelines as api_timelines
+from .api import trends as api_trends
+from .feedchef.engine import FeedEngine
+from .feedchef.kitchen import ServerTrendContext
+
+
+def _wait(start, finish, client, timeout=60):
+    box = {'done': False, 'value': None, 'error': None}
+
+    def callback(_source, result, _data):
+        try:
+            box['value'] = finish(client, result)
+        except Exception as error:
+            box['error'] = error
+        box['done'] = True
+
+    def kickoff():
+        start(client, callback=callback)
+        return GLib.SOURCE_REMOVE
+
+    main = threading.current_thread() is threading.main_thread()
+    if main:
+        kickoff()
+    else:
+        GLib.idle_add(kickoff)
+    context = GLib.MainContext.default()
+    loops = 0
+    while not box['done'] and loops < timeout * 100:
+        context.iteration(True)
+        loops += 1
+    if not box['done']:
+        raise TimeoutError('feedchef API wait timed out')
+    if box['error'] is not None:
+        raise box['error']
+    return box['value']
+
+
+def _params(max_id, count):
+    params = {'limit': str(count)}
+    if max_id:
+        params['max_id'] = max_id
+    return params
+
+
+def fetch_scope_for(client, scope, list_id, max_id, count):
+    params = _params(max_id, count)
+    if scope == 'local':
+        params = dict(params, local='true')
+
+        def start(c, callback=None, cancellable=None):
+            return api_timelines.public_async(
+                c, params=params, callback=callback, cancellable=cancellable)
+
+        finish = api_timelines.public_finish
+    elif scope == 'federated':
+        def start(c, callback=None, cancellable=None):
+            return api_timelines.public_async(
+                c, params=params, callback=callback, cancellable=cancellable)
+
+        finish = api_timelines.public_finish
+    elif scope == 'list' and list_id:
+        path = api_lists.list_path('timeline', list_id)
+
+        def start(c, callback=None, cancellable=None):
+            return c.request_async(
+                'GET', path, params=params, callback=callback,
+                cancellable=cancellable)
+
+        def finish(c, result):
+            return api_core.finish(c, result)
+    else:
+        def start(c, callback=None, cancellable=None):
+            return api_timelines.home_async(
+                c, params=params, callback=callback, cancellable=cancellable)
+
+        finish = api_timelines.home_finish
+    data = _wait(start, finish, client)
+    return data if isinstance(data, list) else []
+
+
+def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
+    scope = recipe.pantry.scope
+    list_id = recipe.pantry.list_id
+
+    def fetch_scope(max_id, count):
+        return fetch_scope_for(client, scope, list_id, max_id, count)
+
+    def fetch_hashtag(tag, count):
+        params = _params(None, count)
+        path = api_timelines.list_path('tag', tag)
+
+        def start(c, callback=None, cancellable=None):
+            return c.request_async(
+                'GET', path, params=params, callback=callback,
+                cancellable=cancellable)
+
+        def finish(c, result):
+            return api_core.finish(c, result)
+
+        data = _wait(start, finish, client)
+        return data if isinstance(data, list) else []
+
+    def search_statuses(query):
+        def start(c, callback=None, cancellable=None):
+            return api_search.search_async(
+                c, query, type='statuses', limit=20,
+                callback=callback, cancellable=cancellable)
+
+        def finish(c, result):
+            payload = api_search.search_finish(c, result)
+            if isinstance(payload, dict):
+                return payload.get('statuses') or []
+            return []
+
+        return _wait(start, finish, client)
+
+    def fetch_trends():
+        tags = {}
+        status_ids = set()
+        try:
+            def start_tags(c, callback=None, cancellable=None):
+                return api_tags.trending_async(
+                    c, params={'limit': '20'}, callback=callback,
+                    cancellable=cancellable)
+
+            raw_tags = _wait(start_tags, api_core.finish, client)
+            for item in raw_tags or []:
+                name = str((item or {}).get('name') or '').lower()
+                if name:
+                    tags[name] = 1.0
+        except Exception:
+            pass
+        try:
+            def start_st(c, callback=None, cancellable=None):
+                return api_trends.statuses_async(
+                    c, params={'limit': '20'}, callback=callback,
+                    cancellable=cancellable)
+
+            raw = _wait(start_st, api_trends.statuses_finish, client)
+            for item in raw or []:
+                sid = str((item or {}).get('id') or '')
+                if sid:
+                    status_ids.add(sid)
+        except Exception:
+            pass
+        return ServerTrendContext(trending_hashtags=tags,
+                                  trending_status_ids=status_ids)
+
+    def fetch_following_page(max_id):
+        params = {'limit': '80'}
+        if max_id:
+            params['max_id'] = max_id
+
+        def start(c, callback=None, cancellable=None):
+            return api_accounts.following_async(
+                c, account_id, params=params, callback=callback,
+                cancellable=cancellable)
+
+        def finish(c, result):
+            try:
+                data, next_params, _prev = api_core.finish_paged(c, result)
+            except Exception:
+                data = api_core.finish(c, result)
+                next_params = None
+            next_max = None
+            if isinstance(next_params, dict):
+                next_max = next_params.get('max_id')
+            return data or [], next_max
+
+        return _wait(start, finish, client)
+
+    return FeedEngine(
+        account_key=account_key,
+        self_account_id=account_id,
+        fetch_scope=fetch_scope,
+        fetch_hashtag=fetch_hashtag,
+        search_statuses=search_statuses,
+        fetch_trends=fetch_trends,
+        fetch_following_page=fetch_following_page,
+        ui_idle=lambda cb: GLib.idle_add(cb),
+    )

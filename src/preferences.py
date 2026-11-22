@@ -535,6 +535,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._switch(sidebar, 'hide-catch-up', _('_Catch Up'),
                      _('Summarize what you missed in your home timeline'),
                      invert=True)
+        self._switch(sidebar, 'hide-feed-chef', _('_Feed Chef'),
+                     _('Cook continuous timelines from recipes (not Catch Up)'),
+                     invert=True)
         self._switch(sidebar, 'hide-trending', _('_Explore'),
                      _('Show posts trending on your server'), invert=True)
         self._switch(sidebar, 'hide-local', _('_Local Timeline'),
