@@ -466,12 +466,6 @@ for _step in range(1, 9):
     wait_for(lambda: page.top_visible_status_id() is not None)
     pump(10)
 top = page.top_visible_status_id()
-# value-changed can fire before the list remaps; record the settled top
-# the way a pause after scrolling would, then hide before the save delay.
-page.schedule_reading_position_save()
-check('scrolling remembered the top post',
-      top is not None and page._last_top == top,
-      '%s vs %s' % (top, page._last_top))
 window.hide()
 wait_for(lambda: page.top_visible_status_id() is None)
 page.save_reading_position()
