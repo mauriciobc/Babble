@@ -70,16 +70,6 @@ def present_web(widget, uri):
     _show(window, uri)
 
 
-def _open_in_column(widget, uri):
-    """The web opener link routing asks for (see ``linkhandlers``): show
-    *uri* in the column and return True, or return False when WebKit is
-    missing and the link belongs in the browser."""
-    if not available():
-        return False
-    present_web(widget, uri)
-    return True
-
-
 def present_panel(widget, uri, owner, title=None):
     """Open *uri* in the web column as the page of *owner*, a plugin's
     panel: whatever panel the column had is closed, and the column is
