@@ -15,6 +15,7 @@ import os
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import gc
 import sys
+import time
 import types
 
 import gi
@@ -323,31 +324,44 @@ window.navigation_view.push(Adw.NavigationPage.new(Gtk.Label(), 'thread'))
 stack = window.navigation_view.get_navigation_stack()
 check('a page is pushed on top of Local',
       stack.get_n_items() == 2 and window.visible_tag() is None)
-# Observe replace() itself: Adw emits ::replaced when the stack is
-# swapped (no animation). Reading get_navigation_stack() afterwards
-# raced mutter's clock on CI even after show_page('home') had run —
-# the forgotten child was already freed. Capture the stack in the
-# signal so the assert does not depend on a later frame.
+# show_page('home') calls replace(); Adw emits ::replaced then. Keep
+# the handler connected while we wait: disconnecting as soon as
+# set_boolean returns missed the emission on CI (the forgotten page
+# was already freed, so replace had run). Also poll the stack — the
+# signal and a later frame read can each lag under mutter.
 replaced = []
+
+
+def _stack_is_home_alone():
+    model = window.navigation_view.get_navigation_stack()
+    visible = window.navigation_view.get_visible_page()
+    return (
+        model.get_n_items() == 1
+        and (visible == window.page_home
+             or (visible is not None and visible.get_tag() == 'home')))
 
 
 def _on_replaced(view, *_args):
     # ::replaced may pass the previous-pages model; ignore extras.
-    model = view.get_navigation_stack()
-    visible = view.get_visible_page()
-    replaced.append((
-        model.get_n_items(),
-        visible == window.page_home
-        or (visible is not None and visible.get_tag() == 'home')))
+    replaced.append(_stack_is_home_alone())
 
 
 replaced_id = window.navigation_view.connect('replaced', _on_replaced)
+stack_reset = False
 try:
     window.settings.set_boolean('hide-local', True)
+    context = GLib.MainContext.default()
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if True in replaced or _stack_is_home_alone():
+            stack_reset = True
+            break
+        if not context.iteration(False):
+            time.sleep(0.002)
 finally:
     window.navigation_view.disconnect(replaced_id)
 check('hiding Local under a pushed page resets the stack to home',
-      replaced == [(1, True)])
+      stack_reset)
 del under_page, under_child, stack
 for _ in range(5):
     gc.collect()
