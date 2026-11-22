@@ -11,7 +11,7 @@ gi.require_version('Adw', '1')
 
 from .i18n import gettext as _  # noqa: E402
 
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from . import feedback  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402

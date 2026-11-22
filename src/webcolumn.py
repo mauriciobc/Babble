@@ -10,7 +10,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from . import (appsettings, feedback, linkhandlers, linkrouting,  # noqa: E402
                pagenav, pluginlinks, uihelpers)
@@ -48,10 +48,20 @@ def _network_session():
     return _session
 
 
-from .webcolumnnav import (  # noqa: E402
+# Re-export navigation helpers so callers and tests keep importing webcolumn.
+from .webcolumnnav import (  # noqa: E402, F401
     classify_navigation, present_web, present_panel, watch_split,
-    live_column, forward_action, _open_in_column,
+    live_column, forward_action,
     LOAD, EXTERNAL, ROUTE, IGNORE)
+
+
+def _open_in_column(widget, uri):
+    """Web opener for link routing: bind through this module so patches of
+    ``webcolumn.present_web`` still apply."""
+    if not available():
+        return False
+    present_web(widget, uri)
+    return True
 
 TEARDOWN_GRACE_SECONDS = 3
 

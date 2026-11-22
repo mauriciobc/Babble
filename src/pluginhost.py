@@ -31,7 +31,7 @@ from gi.repository import GLib, GObject, Gio  # noqa: E402
 from . import plugin as api  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .plugincontext import Context as _Context  # noqa: E402
-from .plugincontext import post_of  # noqa: E402
+from .plugincontext import _Settings, post_of  # noqa: E402, F401
 
 ACTIVE_KEY = 'active-plugins'
 API_KEY = 'Babble-Api'  # X-Babble-Api= in the .plugin file

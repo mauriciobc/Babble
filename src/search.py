@@ -609,4 +609,4 @@ class SearchPage(Adw.Bin):
         dialog.present(self)
 
 
-from .searchadvanced import AdvancedSearchDialog  # noqa: E402
+from .searchadvanced import AdvancedSearchDialog  # noqa: E402, F401

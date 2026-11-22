@@ -10,7 +10,7 @@ import json
 import traceback
 from urllib.parse import urlencode
 
-from gi.repository import GLib, GObject, Gio  # noqa: E402
+from gi.repository import GLib, GObject  # noqa: E402
 
 from . import accounts  # noqa: E402
 from . import plugin as api  # noqa: E402

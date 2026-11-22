@@ -33,7 +33,7 @@ from .readingposition import ReadingPosition
 from .statusrun import StatusRunRow, RunModel
 from .timelinebase import (
     AUTO_REFRESH_SCROLLED_TICKS, CATCHUP_MAX_PAGES, COLUMN_WIDTH,
-    NEW_POSTS_ANNOUNCE_INTERVAL_US, PAGE_SIZE, TIMELINE_MAX_ITEMS,
+    NEW_POSTS_ANNOUNCE_INTERVAL_US, TIMELINE_MAX_ITEMS,
     id_key)
 from .timelinedata import (
     BoostCarouselItem, TimelineModel)
@@ -84,7 +84,7 @@ def filter_context_for(source):
     return filterrules.HOME
 
 
-from .timelinesource import ApiTimelineSource  # noqa: E402
+from .timelinesource import ApiTimelineSource  # noqa: E402, F401
 
 def _auto_refresh_tick(page_ref):
     page = page_ref()

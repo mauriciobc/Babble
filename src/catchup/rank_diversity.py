@@ -6,7 +6,7 @@ import math
 from .rank_text import (
     DEFAULT_DIVERSITY_LAMBDA, DEFAULT_DIVERSITY_LIMIT,
     DEFAULT_DIVERSITY_POOL_SIZE, DEFAULT_DIVERSITY_THETA,
-    DEFAULT_MAX_PER_CONVERSATION, EPSILON, SparseVector,
+    DEFAULT_MAX_PER_CONVERSATION, EMBEDDING_DIM, EPSILON, SparseVector,
     _MIN_RESIDUAL, compute_token_idf, extract_candidate_features,
     sparse_embed,
 )

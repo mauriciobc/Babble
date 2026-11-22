@@ -494,7 +494,7 @@ def _predict_actions_from(candidate, f, ctx):
 # region conversation dedup
 
 
-from .rank_diversity import (  # noqa: E402
+from .rank_diversity import (  # noqa: E402, F401
     candidate_score, dedupe_conversations, diversity_rerank)
 
 # region entry point
