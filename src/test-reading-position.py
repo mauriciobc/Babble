@@ -466,6 +466,10 @@ for _step in range(1, 9):
     wait_for(lambda: page.top_visible_status_id() is not None)
     pump(10)
 top = page.top_visible_status_id()
+# value-changed schedules a save while the row may still be unmapped, so
+# _last_top can stick on the newest id (00100). Record the settled top the
+# way a pause would, before hide leaves nothing mapped to read.
+page.schedule_reading_position_save()
 window.hide()
 wait_for(lambda: page.top_visible_status_id() is None)
 page.save_reading_position()
