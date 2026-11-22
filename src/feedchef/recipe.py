@@ -107,8 +107,6 @@ class FeedRecipe:
         for mod in self.kitchen.modifiers:
             if mod.type in INERT_WITHOUT_GAP:
                 inert.append(mod.type)
-        if self.diet.hard_filters.positive_only:
-            inert.append('positive_only')
         if self.kitchen.active_focus_keywords:
             inert.append('active_focus_keywords')
         return sorted(set(inert))
@@ -267,10 +265,11 @@ def validate_for_import(data: dict[str, Any]) -> FeedRecipe:
     return recipe
 
 
-# Modifiers that run without NLP gap in v1.
+# Modifiers active without further NLP gap work in v1.
 ACTIVE_MODIFIER_TYPES = frozenset({
-    'freshness', 'heat', 'diversity', 'trending',
+    'freshness', 'heat', 'diversity', 'trending', 'sentiment_boost',
 })
+# Still inert: cluster/TF-IDF and connection (no synonyms / embeddings).
 INERT_WITHOUT_GAP = frozenset({
-    'similarity_cluster', 'sentiment_boost', 'connection',
+    'similarity_cluster', 'connection',
 })

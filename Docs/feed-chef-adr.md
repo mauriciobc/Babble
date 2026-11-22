@@ -27,7 +27,7 @@ v1.
 | `freshness` | `score *= factor` | blend 0.4 | **= Java** |
 | `heat` / `diversity` | heat after scores, before structural; diversity pre-sort, author only | PRD order / instance | **= Java** |
 | `similarity_cluster` / TF-IDF / synonyms | present | present | **inert + UI warning** (no `synonyms.json` 16 MB LGPL in the binary) |
-| Sentiment lexicon | `res/raw/sentiment_words.json` (separate from synonyms) | present | **still inert in v1** until a licence/size ADR for that file; synonyms reason does not block a future sentiment-only gap |
+| Sentiment | `SimpleSentimentAnalyzer` + `sentiment_words.json` (~94 KB); often `0` if missing | present | **Vendored VADER (EN) + LeIA (pt*)** — MIT, no PyPI; activates `positive_only` / `sentiment_boost` (Babble upgrade, not Java JSON parity) |
 | Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache**; never nest `submit`+`get` on that pool |
 | Network reach | degree 1 only; `null` disables; author = **boosted** content account | BFS / null=∞ | **degree 1; null=off; boosted author** (= Java) |
 | More Like This | same timeline pantry when focus is set; UI can set focus | dedicated fragment | **pantry MLT = Java**; focus via import **or** timeline “More like this” (no dedicated fragment) |
@@ -45,12 +45,14 @@ v1.
    before OAuth; Base64 URL-safe with padding restored; host must be
    `feedchef` (not an arbitrary path segment).
 4. Fuzzy synonyms stay **off** in v1 (no 16 MB LGPL `synonyms.json`).
-   Sentiment words are a **separate** mashdon asset; leaving them out is a
-   deliberate v1 cut, not implied by the synonyms licence argument.
-5. Without TF-IDF, an active focus does **not** freeze merge order: kitchen
+5. Sentiment is **vendored VADER + LeIA** (`src/feedchef/vendor/`, MIT
+   NOTICE), not mashdon’s JSON lexicon and not a PyPI dependency. `pt` /
+   `pt-*` status language → LeIA; otherwise VADER. Scores are VADER
+   `compound` in [-1, 1].
+6. Without TF-IDF, an active focus does **not** freeze merge order: kitchen
    falls back to `base_sort` (score or chronological). Relevance sort waits
    on an NLP gap.
-6. Full Java builder (icon picker, GetLists picker, every modifier row) is
+7. Full Java builder (icon picker, GetLists picker, every modifier row) is
    a **v1 cut** — see below. Port later or not; do not claim parity.
 
 ## Builder v1 cut (item 4)
@@ -66,10 +68,10 @@ Defaults and imported JSON still carry Java modifiers; inert ones warn.
 
 `RequestMode`, federated time window, `LocalPostRepository` in the engine,
 `FeedEngineFactory`, `expected_outcome`, BFS degree ≥ 2, dedicated MLT
-fragment, full builder parity, sentiment lexicon port, `focus_decay`,
-450 ms search stagger, freshness blend 0.4 / floor 0.2, federated 8 h
-manual QA, mashdon `tools/` Python helpers, PRD-only pantry window /
-`RequestMode` / `expected_outcome`.
+fragment, full builder parity, mashdon `sentiment_words.json` (replaced by
+VADER/LeIA), `focus_decay`, 450 ms search stagger, freshness blend 0.4 /
+floor 0.2, federated 8 h manual QA, mashdon `tools/` Python helpers,
+PRD-only pantry window / `RequestMode` / `expected_outcome`.
 
 ## Module boundary
 

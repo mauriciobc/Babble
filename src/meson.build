@@ -208,10 +208,37 @@ install_data(
   'feedchef/network_reach.py',
   'feedchef/pantry.py',
   'feedchef/recipe.py',
+  'feedchef/sentiment.py',
   'feedchef/sharecodec.py',
   'feedchef/storage.py',
   'feedchef/textutil.py',
   install_dir: moduledir / 'feedchef',
+)
+install_data(
+  'feedchef/vendor/__init__.py',
+  'feedchef/vendor/NOTICE',
+  install_dir: moduledir / 'feedchef' / 'vendor',
+)
+install_data(
+  'feedchef/vendor/vader/__init__.py',
+  'feedchef/vendor/vader/vadersentiment.py',
+  'feedchef/vendor/vader/vader_lexicon.txt',
+  'feedchef/vendor/vader/emoji_utf8_lexicon.txt',
+  'feedchef/vendor/vader/LICENSE.txt',
+  install_dir: moduledir / 'feedchef' / 'vendor' / 'vader',
+)
+install_data(
+  'feedchef/vendor/leia/__init__.py',
+  'feedchef/vendor/leia/leia.py',
+  'feedchef/vendor/leia/LICENSE.txt',
+  install_dir: moduledir / 'feedchef' / 'vendor' / 'leia',
+)
+install_data(
+  'feedchef/vendor/leia/lexicons/booster.txt',
+  'feedchef/vendor/leia/lexicons/negate.txt',
+  'feedchef/vendor/leia/lexicons/vader_lexicon_ptbr.txt',
+  'feedchef/vendor/leia/lexicons/emoji_utf8_lexicon_ptbr.txt',
+  install_dir: moduledir / 'feedchef' / 'vendor' / 'leia' / 'lexicons',
 )
 install_data(
   'api/__init__.py',

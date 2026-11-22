@@ -261,8 +261,8 @@ class FeedChefBuilderDialog(Adw.PreferencesDialog):
 
         kitchen = Adw.PreferencesGroup(
             title=_('Kitchen'),
-            description=_('Similarity / sentiment stay inactive until NLP '
-                          'is approved'))
+            description=_('Similarity clustering stays inactive without NLP; '
+                          'sentiment uses VADER / LeIA'))
         self.base_sort = Adw.ComboRow(title=_('Base sort'))
         self.base_sort.set_model(Gtk.StringList.new(['score', 'chronological']))
         self.base_sort.set_selected(

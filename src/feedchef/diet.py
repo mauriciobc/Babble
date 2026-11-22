@@ -29,11 +29,6 @@ def _keyword_patterns(blocklist: list[str]) -> list[re.Pattern[str]]:
     return patterns
 
 
-def analyze_sentiment_stub(text: str) -> float:
-    """Default analyzer: always 0.0 (Java path when lexicon missing)."""
-    return 0.0
-
-
 def pass_diet(
     status: dict[str, Any],
     diet: DietConfig,
@@ -67,9 +62,12 @@ def pass_diet(
             return DietDecision(post_id, 'FILTERED', 'min_content_length',
                                 str(length))
     if hard.positive_only:
-        fn = sentiment or analyze_sentiment_stub
-        text = strip_html(content.get('content')) + ' ' + spoiler
-        score = fn(text)
+        if sentiment is not None:
+            text = strip_html(content.get('content')) + ' ' + spoiler
+            score = sentiment(text)
+        else:
+            from . import sentiment as sentmod
+            score = sentmod.score_status(status)
         if score < 0.0:
             return DietDecision(post_id, 'FILTERED', 'positive_only',
                                 str(score))
