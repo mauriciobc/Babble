@@ -16,11 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 import gi  # noqa: E402
 
 gi.require_version('Gtk', '4.0')
-gi.require_version('GObject', '2.0')
 
-from gi.repository import GObject  # noqa: E402
-
-# GObject type registration needs a main type system; Gtk pulls it in.
+# Gtk pulls in the GObject type system TimelineModel needs.
 from src.timelinedata import TimelineModel  # noqa: E402
 from src.homefilters import HomeFilters  # noqa: E402
 from src.timelinebase import id_key  # noqa: E402
@@ -117,8 +114,10 @@ page._hold_first_stream(status(70))
 page._discard_first_stream()
 check('discard: clears the hold', not page._first_stream)
 
-# Dedup and bound.
+# Dedup and bound. Overflow cannot refresh while loading, so it sets a
+# flag flushed after the first page lands.
 page = StandIn()
+page._first_stream_needs_refresh = False
 page._hold_first_stream(status(10))
 page._hold_first_stream(status(10))
 check('hold: duplicate id is kept once', len(page._first_stream) == 1)
@@ -127,8 +126,14 @@ page.refresh = lambda: refreshed.append(True)
 page.STREAM_HOLD_LIMIT = 2
 page._hold_first_stream(status(11))
 page._hold_first_stream(status(12))
-check('hold: past the limit refreshes and clears',
-      refreshed == [True] and not page._first_stream)
+check('hold: past the limit clears and defers refresh',
+      not page._first_stream and page._first_stream_needs_refresh
+      and refreshed == [])
+page.model.loading = False
+page._fill_first(first)
+page._flush_first_stream()
+check('flush: deferred overflow refresh runs after the first page',
+      refreshed == [True] and not page._first_stream_needs_refresh)
 
 # Resume / catch-up: flush must not insert (catch-up fetches in order).
 page = StandIn()

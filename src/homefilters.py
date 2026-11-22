@@ -189,25 +189,32 @@ class HomeFilters:
             return True
         self._first_stream.append(status)
         if len(self._first_stream) > self.STREAM_HOLD_LIMIT:
-            # Same escape hatch as the reply-filter queue: drop and
-            # refresh so the posts are fetched in order, not lost.
+            # refresh() declines while loading, so do not call it here:
+            # clear the backlog and ask once the first page has settled.
             self._first_stream = []
-            self.refresh()
+            self._first_stream_needs_refresh = True
         return True
 
     def _discard_first_stream(self):
         self._first_stream = []
+        self._first_stream_needs_refresh = False
 
     def _flush_first_stream(self):
         """Land posts held for the first page, now that it has settled.
 
         While resume or catch-up is active the posts are dropped: those
         paths fetch what is newer in order, and inserting here would pin
-        the wrong post at the top."""
+        the wrong post at the top. An overflow during the wait becomes
+        one refresh after the page has landed."""
+        needs_refresh = getattr(self, '_first_stream_needs_refresh', False)
+        self._first_stream_needs_refresh = False
         held, self._first_stream = self._first_stream, []
         if (getattr(self, '_resume_pending', False)
                 or getattr(self, '_resumed', False)
                 or getattr(self, '_catching', False)):
+            return
+        if needs_refresh:
+            self.refresh()
             return
         for status in held:
             if self._hide_boosts and status.get('reblog'):
