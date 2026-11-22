@@ -1,0 +1,72 @@
+name: Stress media teardown (temporary)
+
+# TEMPORARY, not for merge: repeats `media progressive` under CPU load in
+# the CI image, with the teardown fix and without it (the mediaengine.py
+# of main at f3808e8), to show the GstPlay/gtk4paintablesink deadlock is
+# gone. Delete this file before the pull request merges.
+
+on:
+  pull_request:
+
+jobs:
+  stress:
+    name: Stress (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [fixed, baseline]
+    container:
+      image: docker.io/library/fedora:rawhide
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo -E dnf install -y \
+            gtk4-devel libadwaita-devel libsoup3-devel libsecret-devel \
+            python3-gobject gobject-introspection \
+            meson ninja-build gettext desktop-file-utils appstream \
+            glib2-devel \
+            gtksourceview5-devel libspelling-devel hunspell-en-US \
+            libpeas libpeas-loader-python \
+            mutter mesa-libGLES libglvnd-devel \
+            xorg-x11-server-Xvfb \
+            gstreamer1 gstreamer1-plugins-base gstreamer1-plugins-good \
+            gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-libs \
+            gstreamer1-plugin-gtk4 \
+            glycin-libs glycin-gtk4-libs glycin-loaders \
+            dbus-daemon dbus-x11 git
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+
+      - name: Use main's engine (baseline only)
+        if: matrix.variant == 'baseline'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git show f3808e84a14fdfda28c3a61a95cb05f2a3ac7f5c:src/mediaengine.py > src/mediaengine.py
+
+      - name: Build
+        run: meson setup build && meson compile -C build
+
+      - name: Repeat media progressive under load
+        env:
+          GDK_DEBUG: no-portals
+          NO_AT_BRIDGE: 1
+          GTK_A11Y: none
+        run: |
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg-runtime"
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          for i in $(seq "$(nproc)"); do (while :; do :; done) & done
+          dbus-run-session -- \
+            mutter --headless --wayland --no-x11 --virtual-monitor 1280x1024 -- \
+            meson test -C build -j1 --no-rebuild --repeat 40 'media progressive' \
+            2>&1 | tee stress.log || true
+          kill $(jobs -p) 2>/dev/null || true
+          ok=$(grep -cE 'babble:media progressive +OK' stress.log || true)
+          bad=$(grep -cE 'babble:media progressive +(FAIL|TIMEOUT|ERROR)' stress.log || true)
+          echo "::notice::${{ matrix.variant }}: ok=$ok bad=$bad of 40"
+          grep -E 'babble:media progressive +(FAIL|TIMEOUT|ERROR)' stress.log || true
+          if [ "${{ matrix.variant }}" = fixed ] && [ "$bad" -ne 0 ]; then exit 1; fi

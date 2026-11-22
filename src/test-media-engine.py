@@ -27,8 +27,9 @@ import gi  # noqa: E402
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
+gi.require_version('Gst', '1.0')
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gst, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -120,6 +121,25 @@ check('the engine let go of its parts',
 check('a playing engine is released once STOPPED arrives',
       engine.how == 'stopped', repr(engine.how))
 check('release is safe twice', engine.release() is None)
+
+# The pipeline goes to NULL on the main thread before the engine lets go
+# of the GstPlay. Left to the last unref, gst_play_dispose joins the
+# GstPlay thread while that thread takes the pipeline to NULL and waits,
+# through gtk4paintablesink, for the main thread: the CI hang. The test
+# keeps the GstPlay alive, so only the engine can have stopped it.
+engine = mediaengine.Engine(Owner())
+engine.load(URI)
+wait(lambda: engine.state.value_nick == 'paused')
+kept_play = engine.play
+kept_pipeline = kept_play.get_pipeline()
+engine.release()
+wait(lambda: engine.play is None and not mediaengine._pending_holds)
+_ok, state, _pending = kept_pipeline.get_state(0)
+check('the engine takes the pipeline to NULL before its last unref',
+      engine.play is None and state == Gst.State.NULL,
+      'state=%s' % state.value_nick)
+kept_pipeline = kept_play = None
+gc.collect()
 
 # An engine that never loaded releases at once.
 fresh = mediaengine.Engine()
