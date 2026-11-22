@@ -20,45 +20,36 @@ and Catch Up *features*. Catch Up near-ceiling modules are a
 
 ## Current pressure (production)
 
-Line counts on `main` at `de5d7f5` (2026-11-16).
+Line counts on `main` as of 2026-11-22 (`wc -l`). ARCH-12…20 and the
+toolkit / collections splits landed; `EXCEPTIONS` in
+`src/test-file-size.py` is **empty**. Historical oversized donors below
+are under the limit — kept only as context for Phase N notes.
 
 | Module | Lines | Notes |
 |--------|------:|-------|
-| `compose.py` | 1756 | ARCH-12+17 extracted attach/schedule; still over LIMIT |
-| `window.py` | 1820 | ARCH-15 extracted sidebarhost, ARCH-20 the stream router; session and stream lifecycle remain |
-| `notifications.py` | 493 | ARCH-13+18 extracted rows/model/policy; page only |
-| `admin.py` | 1814 | Explicit “readability, not a seam” — Phase N |
-| `mediaviewer.py` | 544 | ARCH-14+19 extracted playback and ZoomPicture; Phase 1c extracted chrome construction to `mediaviewerchrome.py` and export/drag to `mediaexport.py`. No longer a file-size exception |
-| `profile.py` | 919 | ARCH-16 extracted profileheader; tabs/extras remain |
-| `mastodon.py` | 1334 | Coherent transport — leave |
-| `pages.py` | 733 | Split in #119: settings, weak connects, navigation, feedback, link routing, generic widgets and account rows moved to `appsettings`, `weakconnect`, `pagenav`, `feedback`, `linkrouting`, `uihelpers` and `accountrows`. Paging (`PagedPosts`, `PagedList`), `StateStack` and `call_api` stay. No longer a file-size exception |
-| `fedicollections.py` | 1084 | Feature pack — Phase N |
-| `hashtags.py` | 803 | Marginal |
-
-The file-size rule (`src/test-file-size.py`, `LIMIT = 800`) has **seven
-declared exceptions**, each with its reason in `EXCEPTIONS`. Line counts
-on this branch (`wc -l`):
-
-| Exception | Lines |
-|-----------|------:|
-| `window.py` | 1820 |
-| `compose.py` | 1756 |
-| `profile.py` | 919 |
-| `admin.py` | 1814 |
-| `fedicollections.py` | 1084 |
-| `mastodon.py` | 1334 |
-| `hashtags.py` | 803 |
-
-No growth budget is set for them; whether to set one is undecided.
+| `compose.py` | 618 | ARCH-12+17 done |
+| `window.py` | 607 | ARCH-15+20 done; session/stream lifecycle stay |
+| `notifications.py` | 492 | ARCH-13+18 done |
+| `admin.py` | 413 | Split; Phase N only if it grows again |
+| `mediaviewer.py` | 659 | ARCH-14+19 + chrome/export |
+| `profile.py` | 614 | ARCH-16 done |
+| `mastodon.py` | 519 | Transport + OAuth/keyring |
+| `pages.py` | 779 | Toolkit split; near ceiling |
+| `hashtags.py` | 551 | Under limit |
+| `pluginhost.py` | 539 | `_Context` → `plugincontext.py` |
+| `webcolumn.py` | 616 | Nav helpers → `webcolumnnav.py` |
+| `notificationrow.py` | 557 | `NotificationPost` → `notificationpost.py` |
+| `search.py` | 612 | Advanced dialog → `searchadvanced.py` |
+| `timelinepage.py` | 759 | `ApiTimelineSource` → `timelinesource.py` |
 
 Catch Up (hard fail over 800, no EXCEPTION):
 
 | Module | Lines | Headroom |
 |--------|------:|---------:|
-| `catchup/rank.py` | 788 | 12 |
-| `catchup/tiles_render.py` | 792 | 8 |
 | `catchup/rank_text.py` | 779 | 21 |
 | `catchup/digest.py` | 760 | 40 |
+| `catchup/rank.py` | 529 | 271 (`rank_diversity.py` extracted) |
+| `catchup/tiles_render.py` | 583 | 217 |
 
 ---
 

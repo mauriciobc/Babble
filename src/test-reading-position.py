@@ -476,6 +476,35 @@ check('an unseen window still saves the last post seen',
 window.destroy()
 pump()
 
+# The post last seen is read after the layout a scroll causes. Read when
+# the offset changed, it was the post from before the scroll (the rows
+# move at the next frame): one jump, then the window hidden before the
+# save delay ran out, saved a post the reader had scrolled past. This is
+# what made the check above fail now and then, when no frame came
+# between its scroll steps.
+reset()
+server = _Server(range(1, 101))
+page = home(server)
+window = Gtk.Window(default_width=700, default_height=500)
+window.set_child(page)
+window.present()
+wait_for(lambda: page.top_visible_status_id() is not None)
+before = page.top_visible_status_id()
+_adj = page._scrolled.get_vadjustment()
+_adj.set_value(_adj.get_upper() / 3)
+wait_for(lambda: page.top_visible_status_id() not in (None, before))
+top = page.top_visible_status_id()
+window.hide()
+wait_for(lambda: page.top_visible_status_id() is None)
+page.save_reading_position()
+check('one jump, then hidden, saves the post after the jump',
+      top not in (None, before)
+      and readingposition.get_position(settings, ACCOUNT) == top,
+      '%s vs %s (before %s)' % (top, readingposition.get_position(
+          settings, ACCOUNT), before))
+window.destroy()
+pump()
+
 # A row cut off at the top edge is not the top post: the first row with its
 # middle on screen is. Scroll so the first row is cut by most of its height.
 reset()

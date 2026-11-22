@@ -75,7 +75,7 @@ MECHANISMS = {
 }
 
 SEND_PATH_FILES = frozenset({'src/completer.py', 'src/pages.py',
-                             'src/timelinepage.py'})
+                             'src/timelinepage.py', 'src/timelinesource.py'})
 
 HOOK_NAME = 'search_request'
 

@@ -68,10 +68,12 @@ src/notificationctrl.py
 src/notificationmodel.py
 src/notificationpolicy.py
 src/oauthpkce.py
+src/notificationpost.py
 src/notificationrow.py
 src/notifications.py
 src/pages.py
 src/plugin.py
+src/plugincontext.py
 src/pluginhost.py
 src/pluginspage.py
 src/pollbox.py
@@ -89,6 +91,7 @@ src/remotemedia.py
 src/report.py
 src/scheduled.py
 src/search.py
+src/searchadvanced.py
 src/searchprovider.py
 src/shortcuts-dialog.ui
 src/sidebarcontrol.py

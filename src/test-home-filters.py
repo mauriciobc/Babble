@@ -16,7 +16,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -951,6 +951,57 @@ check('superseded refresh: the chain ended (spinner hook ran once)',
       pulled == [True] and page._refresh_chain == 0)
 check('superseded refresh: flags clear after the owned request ends',
       not page.model.loading and not page._loading_older)
+appsettings.settings().reset('hide-replies-non-follows')
+
+# Streamed posts that arrive while the first page is still out must not
+# seed oldest_id or land under the page (they would invert order and make
+# load_older ask max_id of the streamed id).
+appsettings.settings().set_boolean('hide-boosts-home', False)
+appsettings.settings().set_boolean('hide-replies-non-follows', False)
+client = _HeldClient(plain(1, 5))
+client.hold_timeline = True
+page = timelinepage.TimelinePage(client, mode='home', autoload=False)
+page.ensure_loaded()
+check('stream-before-first: the first page is out on an empty list',
+      len(client.timeline_held) == 1 and page.model.loading
+      and page.model.get_n_items() == 0 and page.model.oldest_id is None)
+page.on_stream_update(status(99))
+check('stream-before-first: the streamed post is held, not inserted',
+      page.model.get_n_items() == 0 and page.model.oldest_id is None
+      and len(page._first_stream) == 1)
+client.release_timeline(0)
+check('stream-before-first: the first page owns oldest_id',
+      page.model.oldest_id == '00001')
+check('stream-before-first: the streamed post lands on top',
+      ids(page)[0] == '00099' and ids(page)[-1] == '00001')
+check('stream-before-first: oldest_id stays the first page\'s',
+      page.model.oldest_id == '00001' and not page._first_stream)
+# A delete while held drops the post before flush.
+client = _HeldClient(plain(1, 3))
+client.hold_timeline = True
+page = timelinepage.TimelinePage(client, mode='home', autoload=False)
+page.ensure_loaded()
+page.on_stream_update(status(50))
+page.on_stream_delete('00050')
+client.release_timeline(0)
+check('stream-before-first: a deleted held post never lands',
+      '00050' not in ids(page) and not page._first_stream)
+# A failed first page discards held streams.
+client = _HeldClient([])
+client.hold_timeline = True
+page = timelinepage.TimelinePage(client, mode='home', autoload=False)
+page.ensure_loaded()
+page.on_stream_update(status(70))
+# Force the held callback to raise a GLib.Error through finish.
+held_cb, held_result, _c = client.timeline_held[0]
+page._finish = lambda _result: (_ for _ in ()).throw(
+    GLib.Error('offline', 'g-io-error-quark',
+               int(Gio.IOErrorEnum.FAILED)))
+held_cb(client, held_result)
+check('stream-before-first: a failed first page discards the hold',
+      not page._first_stream
+      and page.stack.get_visible_child_name() == 'error')
+appsettings.settings().reset('hide-boosts-home')
 appsettings.settings().reset('hide-replies-non-follows')
 
 # Only the home timeline is filtered.
