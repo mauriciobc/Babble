@@ -1,6 +1,7 @@
 # Hashtag links: benchmark and plan
 
-Status: implemented on `feat/hashtag-links` (2026-10-30).
+Status: implemented on main (`src/linkrouting.py` `_TAG_PATH` →
+`hashtags.push_hashtag`; `src/hashtags.py` `push_hashtag`).
 
 Clicking `#tag` in a post opens the browser instead of Babble's hashtag
 timeline. This document establishes why, compares Phanpy and Tuba, and

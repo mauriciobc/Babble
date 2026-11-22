@@ -1017,7 +1017,7 @@ most are deliberate omissions.
 | Endpoint | Status | Assessment |
 |---|---|---|
 | `POST /api/v1/push/subscription` | deferred | See SKIP-01. Tuba shipped UnifiedPush in 0.11; Phanpy has an 11.7 KB implementation. **Blocked on a product decision, not on effort.** |
-| `GET /api/v1/notifications/:id/dismiss` | todo (small) | Only clear-all exists. Per-notification dismiss is cheap and useful. Not yet written up as a BUG. |
+| `POST /api/v1/notifications/:id/dismiss` | **done** | `api.notifications.DISMISS` (`POST`, `/notifications/%s/dismiss`); `dismiss_async`; `notificationctrl` → `dismiss_async`; `notificationrow.dismiss_button` / `_on_dismiss_clicked`. |
 | `GET /api/v1/canned_responses` | skip | Mastodon 4.4+ quick replies. Feature-chasing, not noise reduction. |
 | Grouped notifications API (`/api/v2/notifications`) | won't | Tuba uses the server-side grouping. Babble clusters client-side **on purpose**. Keep the opinionated choice. |
 | `GET /api/v1/preferences`, `GET /api/v1/apps/verify_credentials`, `GET /api/v1/instance/peers`, `with_suspended`, `id[]` batching on notification requests | todo (small) | Genuine but minor. Batch the requests, add `with_suspended`. |
