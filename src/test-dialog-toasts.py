@@ -96,7 +96,7 @@ EXPECTED = {
     ('lists', '_MembershipDialog'),
     ('notificationpolicy', 'NotificationPolicyDialog'),
     ('feedback', 'ToastDialog'),
-    ('feedchefpages', 'FeedChefBuilderDialog'),
+    ('feedchefbuilder', 'FeedChefBuilderDialog'),
     ('pluginspage', 'PluginsDialog'),
     ('preferences', 'PreferencesDialog'),
     ('profiledialogs', 'PrivateNoteDialog'),

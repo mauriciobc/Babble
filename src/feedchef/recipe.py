@@ -27,7 +27,7 @@ def normalize_hashtags(tags: list[str] | None) -> list[str]:
 @dataclass
 class RecipeMeta:
     name: str = 'Untitled Recipe'
-    icon: str = 'restaurant'
+    icon: str = 'PIZZA'
     author: str = ''
     version: int = 1
 
@@ -184,7 +184,7 @@ def recipe_from_dict(data: dict[str, Any] | None) -> FeedRecipe:
         id=str(data.get('id') or ''),
         meta=RecipeMeta(
             name=str(meta_raw.get('name') or 'Untitled Recipe'),
-            icon=str(meta_raw.get('icon') or 'restaurant'),
+            icon=str(meta_raw.get('icon') or 'PIZZA'),
             author=str(meta_raw.get('author') or ''),
             version=int(meta_raw.get('version') or 1),
         ),

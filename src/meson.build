@@ -67,6 +67,7 @@ install_data(
   'collectionpage.py',
   'feedback.py',
   'feedchefbridge.py',
+  'feedchefbuilder.py',
   'feedchefpages.py',
   'filterrules.py',
   'filters.py',

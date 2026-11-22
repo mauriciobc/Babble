@@ -64,6 +64,18 @@ fresh = default_recipe()
 check('default has diversity modifier',
       fresh.kitchen.modifiers
       and fresh.kitchen.modifiers[0].type == 'diversity')
+check('default icon is PIZZA', fresh.meta.icon == 'PIZZA')
+
+# Builder form must expose the Java FeedChefBuilderFragment fields.
+builder_path = os.path.join(srcdir, 'feedchefbuilder.py')
+with open(builder_path, encoding='utf-8') as handle:
+    builder_src = handle.read()
+for marker in (
+        'positive_only', 'include_unknown', 'min_length', 'sentiment',
+        'trending', 'freshness', 'diversity', 'similarity', 'heat',
+        '_pick_icon', '_load_lists', 'PIZZA', 'growth_threshold',
+        'decay_minutes'):
+    check('builder exposes %s' % marker, marker in builder_src)
 
 uri = recipe_share_uri(recipe)
 check('share uri is babble feedchef', is_feedchef_uri(uri))

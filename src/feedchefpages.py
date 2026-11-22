@@ -12,10 +12,10 @@ from . import accounts, feedback, filterrules, timelinebase  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
 from .feedchef.feed_model import FeedChefModel  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
-from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
 from .feedchef.textutil import extract_focus  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
+from .feedchefbuilder import FeedChefBuilderDialog  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .statusrow import StatusRow  # noqa: E402
 from .timelinedata import StatusItem  # noqa: E402
@@ -188,142 +188,6 @@ class FeedChefListPage(Gtk.Box):
                           and item[len(prefix):] == recipe_id)]
         settings.set_strv(key, values)
         self.reload()
-
-
-class FeedChefBuilderDialog(Adw.PreferencesDialog):
-    __gtype_name__ = 'BabbleFeedChefBuilderDialog'
-
-    def __init__(self, client, account, recipe):
-        super().__init__(title=_('Feed Chef Recipe'))
-        self.client = client
-        self.account = account
-        self.recipe = recipe
-        self.storage = _storage_for(account)
-
-        page = Adw.PreferencesPage()
-        self.add(page)
-        general = Adw.PreferencesGroup(title=_('Recipe'))
-        self.name_row = Adw.EntryRow(title=_('Name'))
-        self.name_row.set_text(recipe.meta.name)
-        general.add(self.name_row)
-        page.add(general)
-
-        pantry = Adw.PreferencesGroup(
-            title=_('Pantry'),
-            description=_('Where posts come from'))
-        self.scope = Adw.ComboRow(title=_('Scope'))
-        model = Gtk.StringList.new(['home', 'local', 'federated', 'list'])
-        self.scope.set_model(model)
-        scopes = ['home', 'local', 'federated', 'list']
-        try:
-            self.scope.set_selected(scopes.index(recipe.pantry.scope))
-        except ValueError:
-            self.scope.set_selected(0)
-        pantry.add(self.scope)
-        self.list_id = Adw.EntryRow(title=_('List id'))
-        self.list_id.set_text(recipe.pantry.list_id or '')
-        pantry.add(self.list_id)
-        self.include = Adw.EntryRow(title=_('Include hashtags'))
-        self.include.set_text(' '.join(recipe.pantry.hashtags_include))
-        pantry.add(self.include)
-        self.exclude = Adw.EntryRow(title=_('Exclude hashtags'))
-        self.exclude.set_text(' '.join(recipe.pantry.hashtags_exclude))
-        pantry.add(self.exclude)
-        reach = Adw.SwitchRow(
-            title=_('Network reach (degree 1)'),
-            subtitle=_('Off when degrees is unset — not “unlimited”'))
-        reach.set_active(recipe.pantry.network_reach.enabled)
-        self.reach_switch = reach
-        pantry.add(reach)
-        self.reach_degrees = Adw.SpinRow(
-            title=_('Max degrees'),
-            adjustment=Gtk.Adjustment(value=float(
-                recipe.pantry.network_reach.max_degrees or 0),
-                lower=0, upper=5, step_increment=1),
-            digits=0)
-        pantry.add(self.reach_degrees)
-        page.add(pantry)
-
-        diet = Adw.PreferencesGroup(title=_('Diet'))
-        self.blocklist = Adw.EntryRow(title=_('Keyword blocklist'))
-        self.blocklist.set_text(' '.join(recipe.diet.keyword_blocklist))
-        diet.add(self.blocklist)
-        self.media = Adw.SwitchRow(title=_('Must have media'))
-        self.media.set_active(recipe.diet.hard_filters.must_have_media)
-        diet.add(self.media)
-        self.alt = Adw.SwitchRow(title=_('Must have alt text'))
-        self.alt.set_active(recipe.diet.hard_filters.must_have_alt_text)
-        diet.add(self.alt)
-        self.sensitive = Adw.SwitchRow(title=_('No sensitive media'))
-        self.sensitive.set_active(recipe.diet.hard_filters.no_sensitive_media)
-        diet.add(self.sensitive)
-        page.add(diet)
-
-        kitchen = Adw.PreferencesGroup(
-            title=_('Kitchen'),
-            description=_('Similarity clustering stays inactive without NLP; '
-                          'sentiment uses VADER / LeIA'))
-        self.base_sort = Adw.ComboRow(title=_('Base sort'))
-        self.base_sort.set_model(Gtk.StringList.new(['score', 'chronological']))
-        self.base_sort.set_selected(
-            0 if recipe.kitchen.base_sort != 'chronological' else 1)
-        kitchen.add(self.base_sort)
-        inert = recipe.inert_modifiers()
-        if inert:
-            warn = Adw.ActionRow(
-                title=_('Inactive modifiers'),
-                subtitle=', '.join(inert))
-            kitchen.add(warn)
-        page.add(kitchen)
-
-        actions = Adw.PreferencesGroup()
-        save = Adw.ButtonRow(title=_('Save'))
-        connect_weak(save, 'activated', self._save)
-        actions.add(save)
-        share = Adw.ButtonRow(title=_('Copy share link'))
-        connect_weak(share, 'activated', self._share)
-        actions.add(share)
-        page.add(actions)
-
-    def _collect(self):
-        scopes = ['home', 'local', 'federated', 'list']
-        self.recipe.meta.name = self.name_row.get_text().strip() or _(
-            'Untitled Recipe')
-        self.recipe.pantry.scope = scopes[self.scope.get_selected()]
-        self.recipe.pantry.list_id = self.list_id.get_text().strip() or None
-        self.recipe.pantry.hashtags_include = [
-            part.lstrip('#').lower()
-            for part in self.include.get_text().split() if part.strip()]
-        self.recipe.pantry.hashtags_exclude = [
-            part.lstrip('#').lower()
-            for part in self.exclude.get_text().split() if part.strip()]
-        self.recipe.pantry.network_reach.enabled = self.reach_switch.get_active()
-        degrees = int(self.reach_degrees.get_value())
-        self.recipe.pantry.network_reach.max_degrees = (
-            None if degrees <= 0 else degrees)
-        self.recipe.diet.keyword_blocklist = [
-            part.lower() for part in self.blocklist.get_text().split()
-            if part.strip()]
-        self.recipe.diet.hard_filters.must_have_media = self.media.get_active()
-        self.recipe.diet.hard_filters.must_have_alt_text = self.alt.get_active()
-        self.recipe.diet.hard_filters.no_sensitive_media = (
-            self.sensitive.get_active())
-        self.recipe.kitchen.base_sort = (
-            'chronological' if self.base_sort.get_selected() == 1 else 'score')
-        return self.recipe
-
-    def _save(self, *_args):
-        self.storage.save_recipe(self._collect())
-        feedback.show_toast(self, _('Recipe saved'))
-        self.close()
-
-    def _share(self, *_args):
-        recipe = self._collect()
-        uri = recipe_share_uri(recipe)
-        display = self.get_display()
-        if display is not None:
-            display.get_clipboard().set(uri)
-        feedback.show_toast(self, _('Share link copied'))
 
 
 class FeedChefTimelinePage(Gtk.Box):
