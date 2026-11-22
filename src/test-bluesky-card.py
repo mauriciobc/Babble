@@ -542,6 +542,42 @@ state = real2.get_thread_async('did:plc:bob', '3k', lambda *a: got.append(a))
 statechain[-1][2](['not', 'a', 'dict'], None)
 check('a non-dict reply is an error, not an exception',
       got and got[-1][0] is None and got[-1][1] is not None, got)
+# An unavailable quoted post is asked for once; a busy answer is not kept.
+real3 = importlib.reload(bluesky)
+post_requests = []
+reply = [(None, real3.UNAVAILABLE)]
+
+
+def fake_post_json(path, params, callback):
+    post_requests.append((path, dict(params)))
+    GLib.idle_add(callback, *reply[0])
+    return Gio.Cancellable.new()
+
+
+real3._get_json = fake_post_json
+post_got = []
+for _ in range(2):
+    real3.get_post_async('did:plc:gone', '3gone',
+                         lambda *a: post_got.append(a))
+    for _ in range(20):
+        context.iteration(False)
+check('an unavailable quoted post answers (None, UNAVAILABLE) each time',
+      post_got == [(None, real3.UNAVAILABLE)] * 2, post_got)
+check('an unavailable quoted post is requested once',
+      len(post_requests) == 1, post_requests)
+post_requests.clear()
+post_got.clear()
+reply[0] = (None, real3.RATE_LIMITED)
+for _ in range(2):
+    real3.get_post_async('did:plc:busy', '3busy',
+                         lambda *a: post_got.append(a))
+    for _ in range(20):
+        context.iteration(False)
+check('a rate-limited answer is not remembered',
+      len(post_requests) == 2
+      and post_got == [(None, real3.RATE_LIMITED)] * 2,
+      (post_requests, post_got))
+importlib.reload(bluesky)
 bluesky.get_thread_async = lambda actor, rkey, callback: {'cancellable': None}
 
 # Item 3: the post meta line stays with the Bluesky card, in a window.
