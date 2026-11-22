@@ -19,10 +19,8 @@ for STOPPED removed the crash in every variant tested. So an
   single main-context idle drains the queue one hold at a time. The
   unref stays on the main thread because the hold includes the sink's
   GTK paintable, which must not lose its last reference anywhere else.
-  A ``wait()`` on ``_releasing`` returns before the unref, but this does
-  not cure the ``g_object_unref`` hang once seen in CI: if it recurs, it
-  blocks whichever later iteration runs the drain. That hang is still
-  unexplained;
+  Before that unref the pipeline is taken to NULL, on the main thread:
+  see :func:`_free_hold` for the deadlock that prevents;
 * until then the engine sits in ``_releasing``, so it outlives the viewer
   that closed it;
 * at quit :func:`shutdown_all` stops every live engine, then drains any
@@ -105,11 +103,37 @@ _pending_holds = []
 _unref_source = 0
 
 
+def _free_hold(hold):
+    """Take the pipeline of *hold* to NULL here, on the main thread, then
+    drop the references.
+
+    Left to the last unref, ``gst_play_dispose`` joins the GstPlay thread,
+    and that thread takes the pipeline to NULL itself: it waits for the
+    playsink lock, held by a streaming thread inside gtk4paintablesink's
+    state change, which waits for the main thread, which is in the join.
+    That deadlock hung ``media progressive`` in CI (gdb, GStreamer 1.28.9,
+    gst-plugin-gtk4 0.15.2). On the main thread the sink's state change
+    runs inline and waits for no one, and the GstPlay thread later finds
+    the pipeline already at NULL. A NULL transition is synchronous. Doing
+    any of this on another thread is not an option: the sink aborts when
+    touched off the main thread."""
+    play = hold[0] if hold else None
+    if play is not None:
+        try:
+            pipeline = play.get_pipeline()
+        except (TypeError, RuntimeError):
+            pipeline = None
+        if pipeline is not None:
+            pipeline.set_state(Gst.State.NULL)
+            pipeline = None
+    hold.clear()
+
+
 def _queue_hold(hold, sync=False):
     """Unref *hold* on the main context, or immediately when *sync*."""
     global _unref_source
     if sync:
-        hold.clear()
+        _free_hold(hold)
         schedule_trim()
         return
     _pending_holds.append(hold)
@@ -123,7 +147,7 @@ def _unref_one_hold():
     if not _pending_holds:
         _unref_source = 0
         return False
-    _pending_holds.pop(0).clear()
+    _free_hold(_pending_holds.pop(0))
     schedule_trim()
     if _pending_holds:
         return True
@@ -138,7 +162,7 @@ def _drain_pending_holds():
         GLib.source_remove(_unref_source)
         _unref_source = 0
     while _pending_holds:
-        _pending_holds.pop(0).clear()
+        _free_hold(_pending_holds.pop(0))
     schedule_trim()
 
 
