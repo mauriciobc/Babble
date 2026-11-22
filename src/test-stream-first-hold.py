@@ -73,6 +73,7 @@ class StandIn(HomeFilters):
         self.model.loading = True
         self._hide_boosts = False
         self._first_stream = []
+        self._first_stream_needs_refresh = False
         self._stream_pending = []
         self._stream_inflight = []
         self._stream_asked = set()
@@ -117,7 +118,6 @@ check('discard: clears the hold', not page._first_stream)
 # Dedup and bound. Overflow cannot refresh while loading, so it sets a
 # flag flushed after the first page lands.
 page = StandIn()
-page._first_stream_needs_refresh = False
 page._hold_first_stream(status(10))
 page._hold_first_stream(status(10))
 check('hold: duplicate id is kept once', len(page._first_stream) == 1)

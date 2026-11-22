@@ -198,6 +198,7 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         self._stream_inflight = []
         self._stream_asked = set()
         self._first_stream = []  # held while first page loads into empty list
+        self._first_stream_needs_refresh = False  # the hold overflowed
         self._resume_init(home)
         self.source = source
         # Paging flags and cursors. See PagedPosts.

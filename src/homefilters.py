@@ -206,7 +206,7 @@ class HomeFilters:
         paths fetch what is newer in order, and inserting here would pin
         the wrong post at the top. An overflow during the wait becomes
         one refresh after the page has landed."""
-        needs_refresh = getattr(self, '_first_stream_needs_refresh', False)
+        needs_refresh = self._first_stream_needs_refresh
         self._first_stream_needs_refresh = False
         held, self._first_stream = self._first_stream, []
         if (getattr(self, '_resume_pending', False)
