@@ -197,7 +197,6 @@ def score_statuses(
             if mod.type == 'freshness':
                 score = apply_freshness(score, status, mod)
             elif mod.type == 'sentiment_boost':
-                meta['inert'].append('sentiment_boost')
                 sent = sentiment_by_id.get(sid, 0.0)
                 score = apply_sentiment_boost(score, sent, mod)
             elif mod.type == 'trending':

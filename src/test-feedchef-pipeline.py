@@ -91,8 +91,20 @@ check('alt-text without media passes', ok.verdict == 'PASSED')
 
 diet.hard_filters.must_have_alt_text = False
 diet.hard_filters.positive_only = True
-pos = pass_diet(status('3', content='neutral'), diet)
-check('positive_only with stub 0 passes', pos.verdict == 'PASSED')
+pos = pass_diet(status('3', content='neutral'), diet,
+                sentiment=lambda _t: 0.0)
+check('positive_only with injected 0 passes', pos.verdict == 'PASSED')
+neg = pass_diet(status('3n', content='x'), diet, sentiment=lambda _t: -0.4)
+check('positive_only filters negative compound', neg.verdict == 'FILTERED')
+
+# --- sentiment (vendored VADER / LeIA) ---
+from src.feedchef.sentiment import compound_score, pick_engine  # noqa: E402
+check('pt language picks LeIA', pick_engine('pt-BR') == 'leia')
+check('en language picks VADER', pick_engine('en') == 'vader')
+check('VADER positive compound',
+      compound_score('I am so happy and grateful!', 'en') > 0.2)
+check('LeIA positive compound',
+      compound_score('Eu estou muito feliz!', 'pt') > 0.2)
 
 # --- kitchen formulas ---
 check('base score weights',

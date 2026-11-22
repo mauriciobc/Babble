@@ -15,6 +15,7 @@ from . import diet as dietmod
 from . import kitchen as kitchenmod
 from . import network_reach as reachmod
 from . import pantry as pantrymod
+from . import sentiment as sentimentmod
 from .decisionlog import FeedDecisionLogger
 from .recipe import FeedRecipe
 
@@ -290,9 +291,17 @@ class FeedEngine:
             except Exception:
                 server = kitchenmod.EMPTY_TRENDS
 
+        sentiment_by_id = {}
+        if sentimentmod.recipe_needs_sentiment(recipe):
+            for status in after_reach:
+                sid = str(status.get('id') or '')
+                if sid:
+                    sentiment_by_id[sid] = sentimentmod.score_status(status)
+
         kitchen_started = time.time()
         ordered, score_map, kitchen_meta = kitchenmod.score_statuses(
-            after_reach, recipe, server=server)
+            after_reach, recipe, server=server,
+            sentiment_by_id=sentiment_by_id)
         if count > 0:
             ordered = ordered[:count]
         logger.set_kitchen(

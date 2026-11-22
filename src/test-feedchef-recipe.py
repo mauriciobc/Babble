@@ -64,6 +64,9 @@ fresh = default_recipe()
 check('default has diversity modifier',
       fresh.kitchen.modifiers
       and fresh.kitchen.modifiers[0].type == 'diversity')
+check('default icon is PIZZA', fresh.meta.icon == 'PIZZA')
+
+# The builder form and the preview are driven for real in test-feedchef-ui.py.
 
 uri = recipe_share_uri(recipe)
 check('share uri is babble feedchef', is_feedchef_uri(uri))
