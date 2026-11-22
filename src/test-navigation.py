@@ -14,6 +14,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
+from src import accounts  # noqa: E402,F401  (real, before catchup is faked)
 from src import navigation  # noqa: E402
 
 
@@ -175,7 +176,9 @@ with patch.dict(sys.modules, {
               ('list:one', 'First list', 'view-list-symbolic'),
               ('list:three', 'Third', 'view-list-symbolic'),
               ('tag:hello world', '#hello world',
-               'babble-hashtag-symbolic')])
+               'babble-hashtag-symbolic'),
+              ('recipe:recipe-1', 'Feed Chef',
+               'emblem-favorite-symbolic')])
     with patch.object(navigation.pagenav, 'make_nav_page',
                       side_effect=lambda title, child, tag=None,
                       sidebar_control=None: FakePage(title, child, tag)) \

@@ -7,7 +7,7 @@ import logging
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -38,6 +38,11 @@ class FeedResult:
 
 class FeedEngine:
     """Per-view engine. ``fetch_scope(max_id, count)`` etc. injected by UI."""
+
+    # Java fetchPantry: 30 s plus 10 s per hashtag fetch. Attributes so a
+    # test can lower them.
+    pantry_timeout_base = 30.0
+    pantry_timeout_per_tag = 10.0
 
     def __init__(
         self,
@@ -192,23 +197,53 @@ class FeedEngine:
             mlt_posts = pantrymod.fetch_more_like_this(
                 recipe, self.search_statuses)
 
+        tags = []
         if max_id is None and self.fetch_hashtag is not None:
-            for tag in recipe.pantry.hashtags_include[:3]:
-                if cancel.is_set():
-                    raise InterruptedError('cancelled')
-                try:
-                    hashtag_posts.extend(self.fetch_hashtag(tag, count))
-                except Exception as error:
-                    logger.add_error('hashtag:%s:%s' % (tag, error))
-
-        timeout = 30 + 10 * min(3, len(recipe.pantry.hashtags_include or ()))
-        try:
-            scope_posts = self.fetch_scope(max_id, count)
-        except Exception as error:
-            logger.add_error('scope:%s' % error)
-            scope_posts = []
-        if time.time() - started > timeout:
+            tags = list(recipe.pantry.hashtags_include[:3])
+        # One pool per run: a fetch that outlives its deadline cannot be
+        # cancelled, and must not hold a worker a later run needs. Its
+        # thread ends on its own (the bridge bounds every fetch).
+        pool = ThreadPoolExecutor(
+            max_workers=1 + len(tags), thread_name_prefix='FeedEngine-pantry')
+        scope_future = pool.submit(self.fetch_scope, max_id, count)
+        tag_futures = [(tag, pool.submit(self.fetch_hashtag, tag, count))
+                       for tag in tags]
+        pool.shutdown(wait=False)
+        timeout = (self.pantry_timeout_base
+                   + self.pantry_timeout_per_tag * len(tags))
+        futures = [scope_future] + [future for _tag, future in tag_futures]
+        # Sliced wait: a cancel must not leave the single run worker
+        # blocked until the deadline.
+        deadline = time.monotonic() + timeout
+        pending = set(futures)
+        while pending and not cancel.is_set():
+            left = deadline - time.monotonic()
+            if left <= 0:
+                break
+            _done, pending = wait(pending, timeout=min(0.1, left))
+        if cancel.is_set():
+            for future in futures:
+                future.cancel()
+            raise InterruptedError('cancelled')
+        if pending:
+            # A fetch that missed the deadline is dropped; its late result
+            # is never read.
             timed_out = True
+            for future in pending:
+                future.cancel()
+            logger.add_error('pantry: %d fetch(es) timed out' % len(pending))
+        if scope_future not in pending:
+            try:
+                scope_posts = scope_future.result()
+            except Exception as error:
+                logger.add_error('scope:%s' % error)
+        for tag, future in tag_futures:
+            if future in pending:
+                continue
+            try:
+                hashtag_posts.extend(future.result())
+            except Exception as error:
+                logger.add_error('hashtag:%s:%s' % (tag, error))
 
         pantry = pantrymod.build_pantry(
             recipe,

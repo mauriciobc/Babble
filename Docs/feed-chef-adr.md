@@ -21,8 +21,8 @@ v1.
 | `pantry.time_window_hours` | absent | pantry 1–12 h | **absent** |
 | `RequestMode` / `onTimelineCacheUpdated` | absent | yes | **absent** |
 | `expected_outcome` | absent | yes | **absent** |
-| Pantry fetch shape | 1 scope + ≤3 tags if `maxId is None` + MLT search if focus; timeout `30+10*n`; partial | + window | **≈ Java fetch**; Babble `has_more` follows **scope page fullness** (not “single_task only”) so scope-oldest pagination works with tags/MLT |
-| UI cursor | last id after kitchen sort | oldest of merged pantry | **oldest id of scope response** (deliberate fix) |
+| Pantry fetch shape | 1 scope + ≤3 tags if `maxId is None` + MLT search if focus; timeout `30+10*n`; partial | + window | **= Java** (parallel, enforced timeout); Babble `has_more` follows **scope page fullness** (not “single_task only”) so scope-oldest pagination works with tags/MLT |
+| UI cursor | last id after kitchen sort | oldest of merged pantry | **smallest wrapper id of the scope response** (deliberate fix) |
 | Base score | fav·1 + reblog·2.5 + reply·1.5 on content | same | **= Java** (not Elk `rank()`) |
 | `freshness` | `score *= factor` | blend 0.4 | **= Java** |
 | `heat` / `diversity` | heat after scores, before structural; diversity pre-sort, author only | PRD order / instance | **= Java** |
@@ -52,6 +52,20 @@ v1.
    on an NLP gap.
 6. Full Java builder (icon picker, GetLists picker, every modifier row) is
    a **v1 cut** — see below. Port later or not; do not claim parity.
+7. The scope cursor is `pantry.scope_cursor`: the smallest **wrapper** id
+   (integers when all are digits, else the last item), because Mastodon
+   pages by the timeline entry id and a boost carries the old date of the
+   boosted post. `oldest_id()` stays the mirror of Java's `next_page_max_id`.
+8. A recipes file that cannot be read (or is not a JSON list) is renamed to
+   `<name>.corrupt-<unix-ts>` (mode 0600) before a save or delete writes;
+   Java wipes it. `load_recipes` stays read-only.
+9. More Like This is per post (a button on each row), not on the top post.
+   Keywords are the top 5 TF-IDF terms of the post against the current
+   timeline (the post alone when empty); accents are stripped and the 39
+   Java stopwords apply. The relevance **sort** is still inert (item 5).
+10. A request gate (`feed_model.RequestGate`) numbers every refresh and
+    older-page request: a result of a superseded request is dropped, and an
+    older page cannot start (or cancel) while a refresh is in flight.
 
 ## Builder v1 cut (item 4)
 

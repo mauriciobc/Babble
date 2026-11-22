@@ -6,17 +6,20 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gtk  # noqa: E402
+from functools import partial  # noqa: E402
+
+from gi.repository import Adw, Gtk, Pango  # noqa: E402
 
 from . import accounts, feedback, filterrules, timelinebase  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
-from .feedchef.feed_model import FeedChefModel  # noqa: E402
+from .feedchef.feed_model import FeedChefModel, RequestGate  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
 from .feedchef.textutil import extract_focus  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
+from .i18n import ngettext  # noqa: E402
 from .statusrow import StatusRow  # noqa: E402
 from .timelinedata import StatusItem  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
@@ -156,9 +159,6 @@ class FeedChefListPage(Gtk.Box):
             values.append(entry)
             settings.set_strv(key, values)
         feedback.show_toast(self, _('Pinned to the sidebar'))
-        window = self.get_root()
-        if window is not None and hasattr(window, 'rebuild_sidebar'):
-            window.rebuild_sidebar()
 
     def _delete_recipe(self, recipe_id):
         self._pending_delete = recipe_id
@@ -335,8 +335,7 @@ class FeedChefTimelinePage(Gtk.Box):
         self.account = account
         self.recipe = recipe
         self.model = FeedChefModel()
-        self._generation = None
-        self._paging = False
+        self._gate = RequestGate()
         self.storage = _storage_for(account)
         self.engine = make_engine(
             client, _account_key(account),
@@ -353,12 +352,13 @@ class FeedChefTimelinePage(Gtk.Box):
                 label=_('Some modifiers are inactive'), xalign=0)
             warn.add_css_class('warning')
             toolbar.append(warn)
-        mlt = Gtk.Button(label=_('More like this'))
-        connect_weak(mlt, 'clicked', self._more_like_this)
-        toolbar.append(mlt)
-        clear = Gtk.Button(label=_('Clear focus'))
-        connect_weak(clear, 'clicked', self._clear_focus)
-        toolbar.append(clear)
+        self.focus_label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        self.focus_label.add_css_class('dim-label')
+        toolbar.append(self.focus_label)
+        self.clear_focus_button = Gtk.Button(label=_('Clear focus'))
+        connect_weak(self.clear_focus_button, 'clicked', self._clear_focus)
+        toolbar.append(self.clear_focus_button)
+        self._update_focus_ui()
         refresh = Gtk.Button(icon_name='view-refresh-symbolic')
         connect_weak(refresh, 'clicked', self._refresh)
         toolbar.append(refresh)
@@ -383,56 +383,95 @@ class FeedChefTimelinePage(Gtk.Box):
         self.engine.shutdown()
         Gtk.Box.do_dispose(self)
 
-    def _more_like_this(self, *_args):
-        if not self.model.items:
-            feedback.show_toast(self, _('Cook the timeline first'))
-            return
-        tags, keywords = extract_focus(self.model.items[0])
+    def _update_focus_ui(self):
+        kitchen = self.recipe.kitchen
+        tags = kitchen.active_focus_hashtags or []
+        words = kitchen.active_focus_keywords or []
+        parts = ['#%s' % tag for tag in tags] + list(words)
+        self.focus_label.set_visible(bool(parts))
+        self.clear_focus_button.set_visible(bool(parts))
+        if parts:
+            # Translators: %s is the list of hashtags and keywords the
+            # timeline is focused on.
+            self.focus_label.set_label(_('Focus: %s') % ' '.join(parts))
+
+    def _more_like_this_clicked(self, button):
+        sid = getattr(button, 'status_id', '')
+        for status in self.model.items:
+            if str(status.get('id') or '') == sid:
+                self._more_like_this(status)
+                return
+
+    def _more_like_this(self, status):
+        tags, keywords = extract_focus(status, self.model.items)
         self.recipe.kitchen.active_focus_hashtags = tags or None
         self.recipe.kitchen.active_focus_keywords = keywords or None
         self.storage.save_recipe(self.recipe)
-        feedback.show_toast(self, _('Focus set from the top post'))
+        self._update_focus_ui()
+        feedback.show_toast(self, _('Focus set from this post'))
         self._refresh()
 
     def _clear_focus(self, *_args):
         self.recipe.kitchen.active_focus_hashtags = None
         self.recipe.kitchen.active_focus_keywords = None
         self.storage.save_recipe(self.recipe)
+        self._update_focus_ui()
         self._refresh()
 
     def _refresh(self, *_args):
-        self._paging = False
+        generation = self._gate.begin_refresh()
         self.engine.cancel()
         self.status.set_label(_('Cooking…'))
-        self._generation = self.engine.process_feed(
+        self.engine.process_feed(
             self.recipe,
             max_id=None,
             count=40,
-            on_stage=self._on_stage,
-            on_done=self._on_done,
-            on_error=self._on_error,
+            on_stage=partial(self._deliver_stage, generation),
+            on_done=partial(self._deliver_done, generation),
+            on_error=partial(self._deliver_error, generation),
         )
 
     def _load_older(self):
-        if self._paging or not self.model.has_more \
-                or not self.model.scope_oldest_id:
+        if not self.model.has_more or not self.model.scope_oldest_id:
             return
-        self._paging = True
+        generation = self._gate.begin_page()
+        if generation is None:
+            return
         self.status.set_label(_('Loading older…'))
-        self._generation = self.engine.process_feed(
+        self.engine.process_feed(
             self.recipe,
             max_id=self.model.scope_oldest_id,
             count=40,
             on_stage=None,
-            on_done=self._on_page,
-            on_error=self._on_error,
+            on_done=partial(self._deliver_page, generation),
+            on_error=partial(self._deliver_error, generation),
         )
+
+    def _deliver_stage(self, generation, stage, items):
+        if self._gate.accept(generation):
+            self._on_stage(stage, items)
+
+    def _deliver_done(self, generation, result):
+        if self._gate.finish(generation):
+            self._on_done(result)
+
+    def _deliver_page(self, generation, result):
+        if self._gate.finish(generation):
+            self._on_page(result)
+
+    def _deliver_error(self, generation, error):
+        if self._gate.finish(generation):
+            self._on_error(error)
 
     def _on_stage(self, stage, _items):
         self.status.set_label(_('Cooking… Stage: %s') % stage)
 
+    def _posts_label(self):
+        count = len(self.model)
+        # Translators: the number of posts in a Feed Chef timeline.
+        return ngettext('%d post', '%d posts', count) % count
+
     def _on_done(self, result):
-        self._paging = False
         filtered = _home_filter(result.items)
         self.model.replace(
             filtered,
@@ -441,10 +480,9 @@ class FeedChefTimelinePage(Gtk.Box):
             score_map=result.score_map,
         )
         self._rebuild_rows()
-        self.status.set_label(_('%d posts') % len(self.model))
+        self.status.set_label(self._posts_label())
 
     def _on_page(self, result):
-        self._paging = False
         filtered = _home_filter(result.items)
         self.model.append_page(
             filtered,
@@ -453,10 +491,9 @@ class FeedChefTimelinePage(Gtk.Box):
             score_map=result.score_map,
         )
         self._rebuild_rows()
-        self.status.set_label(_('%d posts') % len(self.model))
+        self.status.set_label(self._posts_label())
 
     def _on_error(self, error):
-        self._paging = False
         self.status.set_label(_('Could not cook this recipe'))
         feedback.report_error(self, _('Feed Chef'), error)
 
@@ -468,7 +505,16 @@ class FeedChefTimelinePage(Gtk.Box):
             row = StatusRow()
             row.filter_context = filterrules.HOME
             row.bind(item, self.client)
-            self.list.append(row)
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            box.append(row)
+            more = Gtk.Button(label=_('More like this'),
+                              halign=Gtk.Align.END, margin_end=12,
+                              margin_bottom=6)
+            more.add_css_class('flat')
+            more.status_id = str(status.get('id') or '')
+            connect_weak(more, 'clicked', self._more_like_this_clicked)
+            box.append(more)
+            self.list.append(box)
 
     def _maybe_page(self, adjustment):
         if adjustment.get_upper() <= 0:

@@ -331,9 +331,9 @@ class BabbleApplication(Adw.Application):
 
     def _open_feedchef_uri(self, win, uri):
         """Import a Feed Chef recipe from ``babble://feedchef?recipe=``."""
-        from .feedchef.sharecodec import parse_feedchef_uri
+        from .feedchef.sharecodec import try_parse_feedchef_uri
         from .feedchefpages import present_import
-        recipe = parse_feedchef_uri(uri)
+        recipe = try_parse_feedchef_uri(uri)
         if recipe is None:
             win.show_toast(_('Could not read that Feed Chef link'))
             return

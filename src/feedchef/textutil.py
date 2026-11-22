@@ -3,10 +3,20 @@
 
 from __future__ import annotations
 
+import math
 import re
+import unicodedata
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Any
+
+
+# TextProcessor.java STOP_WORDS (PRD 8.1), verbatim.
+STOP_WORDS = frozenset((
+    'the', 'and', 'is', 'of', 'to', 'in', 'for', 'on', 'it', 'this', 'that',
+    'with', 'are', 'was', 'but', 'not', 'have', 'has', 'had', 'from', 'they',
+    'them', 'his', 'her', 'she', 'him', 'you', 'your', 'http', 'https', 'www',
+    'com', 'net', 'org', 'mastodon', 'social', 'just', 'like', 'what'))
 
 
 class _StripHTML(HTMLParser):
@@ -70,28 +80,69 @@ def status_created_at(status: dict[str, Any], *, content: bool = True
     return parse_created_at(source.get('created_at'))
 
 
-def extract_focus(status: dict[str, Any], *, max_tags: int = 3,
-                  max_keywords: int = 5
-                  ) -> tuple[list[str], list[str]]:
-    """Hashtags + plain keywords from a status for More Like This focus."""
+def _focus_text(status: dict[str, Any]) -> str:
     content = content_of(status)
-    tags = []
+    parts = [(content.get('content') or '').replace('<', ' <'),
+             content.get('spoiler_text') or '']
+    for media in content.get('media_attachments') or []:
+        if isinstance(media, dict):
+            parts.append(media.get('description') or '')
+    return strip_html(' '.join(parts))
+
+
+def focus_tokens(status: dict[str, Any]) -> list[str]:
+    """Lowercase, accent-stripped letter words of 3+ characters, no
+    stopwords: the post body, content warning and every alt text."""
+    text = unicodedata.normalize('NFD', _focus_text(status).lower())
+    text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+    return [word for word in re.findall(r'[^\W\d_]{3,}', text)
+            if word not in STOP_WORDS]
+
+
+def _tfidf_scores(target: list[str], docs: list[list[str]]
+                  ) -> dict[str, float]:
+    if not target:
+        return {}
+    counts: dict[str, int] = {}
+    for token in target:
+        counts[token] = counts.get(token, 0) + 1
+    top = max(counts.values())
+    total = len(docs)
+    scores = {}
+    for token, count in counts.items():
+        df = sum(1 for doc in docs if token in doc)
+        tf = 0.5 + 0.5 * count / top
+        idf = math.log(total / (1 + df)) + 1
+        scores[token] = tf * idf
+    return scores
+
+
+def extract_focus(status: dict[str, Any], corpus: list | None = None,
+                  max_tags: int = 3, max_keywords: int = 5
+                  ) -> tuple[list[str], list[str]]:
+    """Hashtags and TF-IDF keywords of a post, for More Like This.
+
+    Keywords are scored against *corpus* (the current timeline); with no
+    corpus the post alone is the one document.
+    """
+    content = content_of(status)
+    tags: list[str] = []
     for tag in content.get('tags') or []:
         name = str((tag or {}).get('name') or '').lstrip('#').lower()
         if name and name not in tags:
             tags.append(name)
         if len(tags) >= max_tags:
             break
-    words = []
-    text = strip_html(content.get('content'))
-    for token in re.findall(r'[A-Za-z][A-Za-z0-9_-]{2,}', text or ''):
-        lower = token.lower()
-        if lower in tags or lower in words:
-            continue
-        words.append(lower)
-        if len(words) >= max_keywords:
-            break
-    return tags[:max_tags], words[:max_keywords]
+    target = focus_tokens(status)
+    own_id = content.get('id')
+    docs = [set(focus_tokens(other)) for other in corpus or []
+            if not (own_id is not None
+                    and content_of(other).get('id') == own_id)]
+    docs.append(set(target))
+    scores = _tfidf_scores(target, docs)
+    ranked = sorted((token for token in scores if token not in tags),
+                    key=lambda token: (-scores[token], token))
+    return tags, ranked[:max_keywords]
 
 
 def host_of_account(account: dict) -> str:

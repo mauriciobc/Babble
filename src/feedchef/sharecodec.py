@@ -41,6 +41,17 @@ def parse_feedchef_uri(uri: str) -> FeedRecipe | None:
     return decode_recipe_b64(values[0])
 
 
+def try_parse_feedchef_uri(uri: str) -> FeedRecipe | None:
+    """Like parse_feedchef_uri, but None for a malformed link.
+
+    binascii.Error, JSONDecodeError and UnicodeDecodeError are ValueErrors.
+    """
+    try:
+        return parse_feedchef_uri(uri)
+    except (ValueError, TypeError, KeyError):
+        return None
+
+
 def is_feedchef_uri(uri: str) -> bool:
     """True only for ``babble://feedchef?...`` (host ``feedchef``)."""
     parsed = urlparse(uri)

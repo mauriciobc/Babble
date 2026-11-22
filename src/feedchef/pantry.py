@@ -74,6 +74,23 @@ def oldest_id(statuses: list[dict[str, Any]]) -> str | None:
     return best
 
 
+def scope_cursor(statuses: list[dict[str, Any]]) -> str | None:
+    """Paging cursor of a scope page: the smallest wrapper id.
+
+    Mastodon pages by the id of the timeline entry (the wrapper of a
+    boost), not by the created_at of the boosted post, so the cursor is
+    taken from the wrapper ids. Digit ids compare as integers; for any
+    other id the page is newest first, so the last one is the oldest.
+    """
+    ids = [str(status.get('id') or '') for status in statuses]
+    ids = [sid for sid in ids if sid]
+    if not ids:
+        return None
+    if all(sid.isdigit() for sid in ids):
+        return min(ids, key=int)
+    return ids[-1]
+
+
 def merge_pantry(
     *,
     more_like_this: list[dict[str, Any]],
@@ -156,12 +173,13 @@ def build_pantry(
         includes=includes,
         excludes=excludes,
     )
-    # Pagination follows the scope page (Babble cursor = scope oldest).
+    # Pagination follows the scope page (Babble cursor = scope's smallest
+    # wrapper id).
     # Hashtag/MLT enrichment on page 1 must not hide further scope pages.
     return PantryResult(
         items=merged,
         scope_items=list(scope_posts),
-        scope_oldest_id=oldest_id(scope_posts),
+        scope_oldest_id=scope_cursor(scope_posts),
         has_more=len(scope_posts) >= count,
         fetched_count=len(scope_posts) + len(tags) + len(mlt),
         deduplicated_count=len(merged),

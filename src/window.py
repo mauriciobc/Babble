@@ -350,7 +350,7 @@ class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
             self._rebuild_home_timeline()
         elif key in navigation.HIDE_KEYS.values() \
                 or key in ('favorite-lists-ids', 'favorite-tags-ids',
-                           SHOW_RESTRICTED_KEY):
+                           'favorite-feedchef-ids', SHOW_RESTRICTED_KEY):
             self._refresh_sidebar()
         elif key in ('live-updates', 'public-live-updates'):
             self._sync_streaming()

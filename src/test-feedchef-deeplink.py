@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(srcdir))
 from src.feedchef.recipe import default_recipe  # noqa: E402
 from src.feedchef.sharecodec import (  # noqa: E402
     is_feedchef_uri, parse_feedchef_uri, recipe_share_uri,
+    try_parse_feedchef_uri,
 )
 
 recipe = default_recipe('Share Me')
@@ -42,5 +43,11 @@ check('oauth path feedchef rejected',
 parsed = parse_feedchef_uri(uri)
 check('round-trip id', parsed is not None and parsed.id == recipe.id)
 check('round-trip name', parsed.meta.name == 'Share Me')
+for bad in ('babble://feedchef?recipe=%%%', 'babble://feedchef?recipe=abc',
+            'babble://feedchef?recipe=e30', 'babble://feedchef?recipe='):
+    check('malformed link gives None: %s' % bad,
+          try_parse_feedchef_uri(bad) is None)
+check('valid link still parses',
+      try_parse_feedchef_uri(uri) is not None)
 
 sys.exit(1 if failures else 0)

@@ -6,6 +6,44 @@ from __future__ import annotations
 from typing import Any
 
 
+class RequestGate:
+    """Which of the page's requests may still deliver (display-free).
+
+    Every refresh or older-page request bumps one counter; a result is
+    accepted only while its generation is the current one. A refresh stays
+    in flight until it finishes, and meanwhile no older page may start.
+    """
+
+    def __init__(self):
+        self.generation = 0
+        self.refreshing = False
+        self.paging = False
+
+    def begin_refresh(self) -> int:
+        self.generation += 1
+        self.refreshing = True
+        self.paging = False
+        return self.generation
+
+    def begin_page(self) -> int | None:
+        if self.refreshing or self.paging:
+            return None
+        self.generation += 1
+        self.paging = True
+        return self.generation
+
+    def accept(self, generation: int) -> bool:
+        return generation == self.generation
+
+    def finish(self, generation: int) -> bool:
+        """Close the request; False (and no state change) when stale."""
+        if not self.accept(generation):
+            return False
+        self.refreshing = False
+        self.paging = False
+        return True
+
+
 class FeedChefModel:
     """Ordered statuses plus the scope pagination cursor."""
 

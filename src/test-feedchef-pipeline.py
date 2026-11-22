@@ -29,14 +29,20 @@ sys.path.insert(0, os.path.dirname(srcdir))
 
 from src.feedchef.diet import pass_diet  # noqa: E402
 from src.feedchef.engine import FeedEngine  # noqa: E402
-from src.feedchef.feed_model import FeedChefModel  # noqa: E402
+from src.feedchef.feed_model import FeedChefModel, RequestGate  # noqa: E402
 from src.feedchef.kitchen import (  # noqa: E402
     apply_diversity, apply_freshness, apply_heat, base_score, score_statuses,
 )
 from src.feedchef.network_reach import (  # noqa: E402
     NetworkReachCalculator, apply_network_reach,
 )
-from src.feedchef.pantry import build_pantry, merge_pantry, oldest_id  # noqa: E402
+from src.feedchef.pantry import (  # noqa: E402
+    build_pantry, merge_pantry, oldest_id, scope_cursor,
+)
+from src.feedchef import storage as storagemod  # noqa: E402
+from src.feedchef.textutil import (  # noqa: E402
+    STOP_WORDS, extract_focus, focus_tokens,
+)
 from src.feedchef.recipe import (  # noqa: E402
     DietConfig, HardFilters, Modifier, NetworkReachConfig, default_recipe,
 )
@@ -267,5 +273,160 @@ cancel_engine.cancel()
 time.sleep(0.35)
 check('cancel skips obsolete on_done', done_box['called'] is False)
 cancel_engine.shutdown()
+
+# --- More Like This extraction ---
+cafe = status('c1', content='<p>This is just the best thing about café '
+              'culture, café rules</p>')
+tags_c, words_c = extract_focus(cafe)
+check('focus: accent stripped keyword', 'cafe' in words_c)
+check('focus: no stopwords',
+      not ({'this', 'just', 'the'} & set(words_c)))
+check('focus: stopword list verbatim', 'mastodon' in STOP_WORDS
+      and 'what' in STOP_WORDS and len(STOP_WORDS) == 39)
+check('focus: top keyword is the repeated one', words_c[0] == 'cafe')
+check('focus: at most 5 keywords', len(words_c) <= 5)
+pt = status('p1', content='<p>Adoro o pão de queijo mineiro, pão quentinho</p>',
+            tags=['Comida', 'Minas', 'queijo', 'extra'],
+            spoiler='Receitas', media=[{'description': 'Fotografia de pão'}])
+tags_p, words_p = extract_focus(pt)
+check('focus: hashtags lowercase, max 3', tags_p == ['comida', 'minas', 'queijo'])
+check('focus: accents stripped (pao)', words_p[0] == 'pao')
+check('focus: alt text and spoiler read',
+      'fotografia' in focus_tokens(pt) and 'receitas' in focus_tokens(pt))
+check('focus: tag token not repeated as keyword', 'queijo' not in words_p)
+corpus = [status('x%d' % i, content='<p>pao e muito pao hoje</p>')
+          for i in range(4)] + [pt]
+_t, words_corpus = extract_focus(pt, corpus)
+check('focus: common corpus word ranks below a rare one',
+      'adoro' in words_corpus and
+      (words_corpus.index('adoro') < words_corpus.index('pao')
+       if 'pao' in words_corpus else True))
+check('focus: deterministic', extract_focus(pt, corpus)
+      == extract_focus(pt, corpus))
+
+# --- request gate ---
+gate = RequestGate()
+g1 = gate.begin_refresh()
+check('gate: no older page while refreshing', gate.begin_page() is None)
+g2 = gate.begin_refresh()
+check('gate: stale refresh result dropped', not gate.accept(g1)
+      and not gate.finish(g1) and gate.refreshing)
+check('gate: current refresh finishes', gate.finish(g2) and not gate.refreshing)
+g3 = gate.begin_page()
+check('gate: page allowed after refresh', g3 is not None)
+check('gate: second page refused while paging', gate.begin_page() is None)
+g4 = gate.begin_refresh()
+check('gate: refresh supersedes a page', not gate.accept(g3)
+      and gate.accept(g4))
+
+# --- storage never destroys a corrupt file ---
+with tempfile.TemporaryDirectory() as tmp:
+    storagemod.set_root(tmp)
+    store = storagemod.FeedRecipeStorage('acct#corrupt')
+    store.save_recipe(default_recipe('first'))
+    path = storagemod._path('acct#corrupt')
+    with open(path, 'w') as handle:
+        handle.write('{garbage')
+    fresh = default_recipe('second')
+    store.save_recipe(fresh)
+    backups = [name for name in os.listdir(tmp) if '.corrupt-' in name]
+    check('storage: backup created', len(backups) == 1)
+    with open(os.path.join(tmp, backups[0])) as handle:
+        check('storage: backup holds the garbage', handle.read() == '{garbage')
+    check('storage: backup mode 0600',
+          (os.stat(os.path.join(tmp, backups[0])).st_mode & 0o777) == 0o600)
+    check('storage: new file holds only the new recipe',
+          [r.id for r in store.load_recipes()] == [fresh.id])
+    with open(path, 'w') as handle:
+        handle.write('{"not": "a list"}')
+    store.delete_recipe('nothing')
+    check('storage: non-list root kept on delete',
+          len([n for n in os.listdir(tmp) if '.corrupt-' in n]) == 2)
+storagemod.set_root(None)
+
+# --- scope cursor from wrapper ids ---
+boost = status('inner', author='f1', wrapper_author='z',
+               created='2019-01-01T00:00:00+00:00')
+boost['id'] = '900'
+page = [status('120'), boost, status('105')]
+check('scope cursor: smallest wrapper id, not the boost date',
+      scope_cursor(page) == '105')
+check('scope cursor: compares as integers', scope_cursor(
+    [status('1000'), status('999')]) == '999')
+check('scope cursor: non-digit ids use the last item',
+      scope_cursor([status('a'), status('b')]) == 'b')
+check('scope cursor: empty is None', scope_cursor([]) is None)
+check('pantry scope_oldest_id uses the cursor', build_pantry(
+    default_recipe(), scope_posts=page, count=3).scope_oldest_id == '105')
+
+# --- parallel pantry with enforced timeout ---
+def hashtag_recipe(tags):
+    recipe = default_recipe()
+    recipe.pantry.hashtags_include = tags
+    return recipe
+
+def slow_scope_fast(max_id, count):
+    time.sleep(0.4)
+    return [status('sc1', tags=['a'], author='as')]
+
+def slow_tag(tag, count):
+    time.sleep(0.4)
+    return [status('tag-' + tag, tags=[tag], author='au-' + tag)]
+
+overlap = FeedEngine(account_key='a#par', self_account_id='me',
+                     fetch_scope=slow_scope_fast, fetch_hashtag=slow_tag)
+begun = time.time()
+par = overlap.process_feed_sync(hashtag_recipe(['a', 'b', 'c']), count=40)
+elapsed = time.time() - begun
+check('pantry fetches overlap (%.2fs)' % elapsed, elapsed < 0.9)
+check('pantry parallel gathers everything', len(par.items) == 4)
+overlap.shutdown()
+
+def very_slow_tag(tag, count):
+    if tag == 'slow':
+        time.sleep(1.5)
+    return [status('tag-' + tag, tags=[tag])]
+
+timed = FeedEngine(account_key='a#to', self_account_id='me',
+                   fetch_scope=lambda max_id, count: [status('s', tags=['fast'])],
+                   fetch_hashtag=very_slow_tag)
+timed.pantry_timeout_base = 0.2
+timed.pantry_timeout_per_tag = 0.1
+begun = time.time()
+partial_result = timed.process_feed_sync(
+    hashtag_recipe(['fast', 'slow']), count=40)
+elapsed = time.time() - begun
+ids_partial = {item['id'] for item in partial_result.items}
+check('timeout: partial results kept', {'s', 'tag-fast'} <= ids_partial)
+check('timeout: slow fetch dropped', 'tag-slow' not in ids_partial)
+check('timeout: returns without waiting (%.2fs)' % elapsed, elapsed < 1.0)
+check('timeout: flagged in the log',
+      partial_result.logger.log.pantry.get('pantry_timed_out') is True)
+timed.shutdown()
+
+# A cancel must free the run worker at once, not at the pantry deadline.
+hang = threading.Event()
+stuck = FeedEngine(account_key='a#stuck', self_account_id='me',
+                   fetch_scope=lambda max_id, count: hang.wait(3) or [])
+stuck.process_feed(default_recipe('x'), max_id=None, count=40,
+                   on_stage=None, on_done=lambda r: None,
+                   on_error=lambda e: None)
+time.sleep(0.2)
+stuck.cancel()
+second = {}
+begun = time.time()
+stuck.fetch_scope = lambda max_id, count: [status('z')]
+stuck.process_feed(default_recipe('x'), max_id=None, count=40,
+                   on_stage=None, on_done=lambda r: second.update(ok=True),
+                   on_error=lambda e: None)
+for _i in range(40):
+    if second:
+        break
+    time.sleep(0.05)
+check('cancel: next run starts without waiting for the stuck fetch '
+      '(%.2fs)' % (time.time() - begun), second.get('ok') is True
+      and time.time() - begun < 1.5)
+hang.set()
+stuck.shutdown()
 
 sys.exit(1 if failures else 0)

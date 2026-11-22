@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Per-account FeedRecipe persistence (mashdon FeedRecipeStorage semantics).
 
-Corrupt JSON → empty list without wiping the file. Upsert keeps insertion
+Corrupt JSON → empty list on read. A save or delete never overwrites an
+unreadable file: it is first renamed to ``<name>.corrupt-<unix-ts>`` (Java
+wipes it). Upsert keeps insertion
 order (dict insertion order). Lock per account key.
 """
 
@@ -11,6 +13,7 @@ import json
 import logging
 import os
 import threading
+import time
 import urllib.parse
 from typing import Any
 
@@ -102,6 +105,7 @@ class FeedRecipeStorage:
     def save_recipe(self, recipe: FeedRecipe) -> None:
         recipe = validate_for_save(recipe)
         with self._lock:
+            self._quarantine_corrupt()
             by_id: dict[str, dict[str, Any]] = {}
             for existing in self.load_recipes():
                 by_id[existing.id] = recipe_to_dict(existing)
@@ -110,12 +114,40 @@ class FeedRecipeStorage:
 
     def delete_recipe(self, recipe_id: str) -> bool:
         with self._lock:
+            self._quarantine_corrupt()
             recipes = self.load_recipes()
             kept = [recipe for recipe in recipes if recipe.id != recipe_id]
             if len(kept) == len(recipes):
                 return False
             self._write([recipe_to_dict(recipe) for recipe in kept])
             return True
+
+    def _quarantine_corrupt(self) -> None:
+        """Keep an unreadable recipes file before a write replaces it."""
+        path = _path(self.account_key)
+        if not os.path.isfile(path):
+            return
+        try:
+            with open(path, 'r', encoding='utf-8') as handle:
+                raw = json.load(handle)
+            if isinstance(raw, list):
+                return
+        except (OSError, ValueError, TypeError):
+            pass
+        backup = '%s.corrupt-%d' % (path, int(time.time()))
+        n = 1
+        while os.path.exists(backup):
+            backup = '%s.corrupt-%d-%d' % (path, int(time.time()), n)
+            n += 1
+        try:
+            os.replace(path, backup)
+            os.chmod(backup, 0o600)
+        except OSError as error:
+            log.error('feedchef: could not keep corrupt file %s: %s',
+                      path, error)
+            return
+        log.error('feedchef: unreadable recipes for %s kept as %s',
+                  self.account_key, backup)
 
     def _write(self, payload: list[dict[str, Any]]) -> None:
         directory = _dir()
