@@ -537,7 +537,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      invert=True)
         # No mnemonic: `_F` would clash with Federated Timeline on this page.
         self._switch(sidebar, 'hide-feed-chef', _('Feed Chef'),
-                     _('Cook continuous timelines from recipes (not Catch Up)'),
+                     _('Build your own timelines from recipes'),
                      invert=True)
         self._switch(sidebar, 'hide-trending', _('_Explore'),
                      _('Show posts trending on your server'), invert=True)

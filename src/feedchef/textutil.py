@@ -141,7 +141,7 @@ def extract_focus(status: dict[str, Any], corpus: list | None = None,
     docs.append(set(target))
     scores = _tfidf_scores(target, docs)
     ranked = sorted((token for token in scores if token not in tags),
-                    key=lambda token: (-scores[token], token))
+                    key=lambda token: (-scores[token], -len(token), token))
     return tags, ranked[:max_keywords]
 
 

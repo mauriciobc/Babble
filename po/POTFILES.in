@@ -44,6 +44,7 @@ src/collectionbase.py
 src/collectionedit.py
 src/collectionpage.py
 src/feedback.py
+src/feedchefbuilder.py
 src/feedchefpages.py
 src/filters.py
 src/hashtagcompleter.py

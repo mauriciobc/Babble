@@ -593,6 +593,16 @@ class TimelineModel(GObject.Object, Gio.ListModel):
         self.exhausted = False
         return True
 
+    def clear(self):
+        """Drop every post and forget the cursors: the model reads as new,
+        for a timeline that is cooked again rather than refreshed."""
+        self._store.remove_all()
+        self._seen.clear()
+        self._boosted_reblog_ids.clear()
+        self.oldest_id = None
+        self.newest_id = None
+        self.exhausted = False
+
     def replace_status(self, status):
         """Swap in an edited post, keeping the row's view state.
         Returns True when a row was found and updated."""

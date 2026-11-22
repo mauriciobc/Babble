@@ -29,7 +29,6 @@ sys.path.insert(0, os.path.dirname(srcdir))
 
 from src.feedchef.diet import pass_diet  # noqa: E402
 from src.feedchef.engine import FeedEngine  # noqa: E402
-from src.feedchef.feed_model import FeedChefModel, RequestGate  # noqa: E402
 from src.feedchef.kitchen import (  # noqa: E402
     apply_diversity, apply_freshness, apply_heat, base_score, score_statuses,
 )
@@ -215,13 +214,6 @@ check('engine returns items', len(result.items) == 2)
 check('scope_oldest_id set', result.scope_oldest_id is not None)
 engine.shutdown()
 
-# --- feed model cursor ---
-model = FeedChefModel()
-model.replace(result.items, scope_oldest_id='10', has_more=True)
-check('model length', len(model) == 2)
-added = model.append_page([status('12')], scope_oldest_id='12', has_more=False)
-check('append skips dupes / adds', added == 1 and model.scope_oldest_id == '12')
-
 # --- kitchen ranks: filtered → -1 ---
 recipe = default_recipe()
 recipe.kitchen.modifiers = [
@@ -301,23 +293,12 @@ check('focus: common corpus word ranks below a rare one',
       'adoro' in words_corpus and
       (words_corpus.index('adoro') < words_corpus.index('pao')
        if 'pao' in words_corpus else True))
+_t, words_tie = extract_focus(
+    {'content': '<p>Python decorators explained, you can paste them</p>'})
+check('focus: equal scores rank longer, more specific words first '
+      '(%s)' % words_tie, words_tie[:2] == ['decorators', 'explained'])
 check('focus: deterministic', extract_focus(pt, corpus)
       == extract_focus(pt, corpus))
-
-# --- request gate ---
-gate = RequestGate()
-g1 = gate.begin_refresh()
-check('gate: no older page while refreshing', gate.begin_page() is None)
-g2 = gate.begin_refresh()
-check('gate: stale refresh result dropped', not gate.accept(g1)
-      and not gate.finish(g1) and gate.refreshing)
-check('gate: current refresh finishes', gate.finish(g2) and not gate.refreshing)
-g3 = gate.begin_page()
-check('gate: page allowed after refresh', g3 is not None)
-check('gate: second page refused while paging', gate.begin_page() is None)
-g4 = gate.begin_refresh()
-check('gate: refresh supersedes a page', not gate.accept(g3)
-      and gate.accept(g4))
 
 # --- storage never destroys a corrupt file ---
 with tempfile.TemporaryDirectory() as tmp:

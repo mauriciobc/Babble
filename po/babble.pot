@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-22 13:20-0300\n"
+"POT-Creation-Date: 2026-11-22 15:28-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -41,7 +41,7 @@ msgid "New Post"
 msgstr ""
 
 #: data/io.github.mauriciobc.Babble.desktop.in:22 src/filters.py:30
-#: src/navigation.py:76 src/preferences.py:666 src/sidebarcontrol.py:83
+#: src/navigation.py:80 src/preferences.py:670 src/sidebarcontrol.py:83
 #: src/sidebarcontrol.py:86 src/window.ui:509 src/window.ui:511
 #: src/window.ui:526
 msgid "Notifications"
@@ -94,86 +94,100 @@ msgid "Hide the Catch Up page from the sidebar"
 msgstr ""
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:95
+msgid "Hide the Feed Chef page from the sidebar"
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:96
+msgid ""
+"Catch Up is a period digest of Home; Feed Chef is a recipe-driven continuous "
+"timeline. They coexist."
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:100
+msgid "Feed Chef recipes pinned to the sidebar, as \"account-id/recipe-id\""
+msgstr ""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:104
 msgid "Hide the Explore page from the sidebar"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:99
+#: data/io.github.mauriciobc.Babble.gschema.xml:108
 msgid "Hide the Local timeline from the sidebar"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:103
+#: data/io.github.mauriciobc.Babble.gschema.xml:112
 msgid "Hide the Federated timeline from the sidebar"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:107
+#: data/io.github.mauriciobc.Babble.gschema.xml:116
 msgid ""
 "Show local and federated timelines the server disabled but this account may "
 "still read"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:111
+#: data/io.github.mauriciobc.Babble.gschema.xml:120
 msgid "Style preference: follow the system, light or dark"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:115
+#: data/io.github.mauriciobc.Babble.gschema.xml:124
 msgid ""
 "Language of the interface, as a gettext locale name such as pt_BR; empty "
 "follows the system. Applied on the next start"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:119 src/preferences.py:338
+#: data/io.github.mauriciobc.Babble.gschema.xml:128 src/preferences.py:338
 msgid "Increase the line height in posts"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:123
+#: data/io.github.mauriciobc.Babble.gschema.xml:132
 msgid "Dim post media while the dark style is in use"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:127
+#: data/io.github.mauriciobc.Babble.gschema.xml:136
 msgid "Render favorite, boost and follow notifications less prominently"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:131
+#: data/io.github.mauriciobc.Babble.gschema.xml:140
 msgid "Render custom emojis in posts at a larger size"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:135
+#: data/io.github.mauriciobc.Babble.gschema.xml:144
 msgid "Slightly enlarge custom emojis under the pointer"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:139
+#: data/io.github.mauriciobc.Babble.gschema.xml:148
 msgid ""
 "Blur the desktop behind a translucent sidebar, where the compositor supports "
 "it"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:143
+#: data/io.github.mauriciobc.Babble.gschema.xml:152
 msgid "Sidebar presentation when it is expanded: full labels, or an icon rail"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:147
+#: data/io.github.mauriciobc.Babble.gschema.xml:156
 msgid "Hide the expanded sidebar; the content header keeps the shell controls"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:151
+#: data/io.github.mauriciobc.Babble.gschema.xml:160
 msgid "Collapse long posts behind a Show More button"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:155
+#: data/io.github.mauriciobc.Babble.gschema.xml:164
 msgid "Letterbox media instead of cropping it to the preview frame"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:159
+#: data/io.github.mauriciobc.Babble.gschema.xml:168
 msgid ""
 "How the media viewer opens photos: as a box over the window, or filling it"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:163
+#: data/io.github.mauriciobc.Babble.gschema.xml:172
 msgid ""
 "Whether to load media your server has no copy of from the original server"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:164
+#: data/io.github.mauriciobc.Babble.gschema.xml:173
 msgid ""
 "Mastodon servers keep a copy of the media in posts they show you. When your "
 "server has none, the original lives on the author's server, and loading it "
@@ -181,211 +195,211 @@ msgid ""
 "each time, \"load\" loads it, \"never\" does not."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:168
+#: data/io.github.mauriciobc.Babble.gschema.xml:177
 msgid "Play animated GIFs by themselves"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:169
+#: data/io.github.mauriciobc.Babble.gschema.xml:178
 msgid ""
 "Mastodon GIFs are muted loops. When off, they wait for a click. Reduced "
 "motion, disabled animations and power saving stop them even when this is on."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:173
+#: data/io.github.mauriciobc.Babble.gschema.xml:182
 msgid "Play animated GIFs inside timelines"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:174
+#: data/io.github.mauriciobc.Babble.gschema.xml:183
 msgid ""
 "Plays the animated GIF that is most in view in a timeline, one at a time. It "
 "needs autoplay of animated media to be on too. It uses more memory than "
 "still pictures and may pause the window briefly the first time one plays."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:178
+#: data/io.github.mauriciobc.Babble.gschema.xml:187
 msgid "When video, audio and animated GIFs load without a click"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:179
+#: data/io.github.mauriciobc.Babble.gschema.xml:188
 msgid ""
 "Images always load. \"always\" loads streamed media at once, \"unmetered\" "
 "waits for a click on a metered connection, \"never\" always waits for a "
 "click."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:183
+#: data/io.github.mauriciobc.Babble.gschema.xml:192
 msgid "Reveal media marked as sensitive without a click"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:187
+#: data/io.github.mauriciobc.Babble.gschema.xml:196
 msgid "Expand posts behind content warnings by default"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:191
+#: data/io.github.mauriciobc.Babble.gschema.xml:200
 msgid "Show link preview cards under posts"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:195
+#: data/io.github.mauriciobc.Babble.gschema.xml:204
 msgid "Show Bluesky posts natively"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:199
+#: data/io.github.mauriciobc.Babble.gschema.xml:208
 msgid "Show reply, boost and favorite counts on post actions"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:203
+#: data/io.github.mauriciobc.Babble.gschema.xml:212
 msgid "Show the reply, boost and favorite actions on every post in timelines"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:207
+#: data/io.github.mauriciobc.Babble.gschema.xml:216
 msgid ""
 "Group bursts of boosts into a horizontal carousel instead of listing each "
 "boost in the timeline"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:211
+#: data/io.github.mauriciobc.Babble.gschema.xml:220
 msgid "Show only the first boost of a post that several people boosted"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:215
+#: data/io.github.mauriciobc.Babble.gschema.xml:224
 msgid "Hide reply posts on the home timeline from people you do not follow"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:219
+#: data/io.github.mauriciobc.Babble.gschema.xml:228
 msgid "Hide boosts on the home timeline"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:223
+#: data/io.github.mauriciobc.Babble.gschema.xml:232
 msgid "Reopen the home timeline at the post you were reading"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:227
+#: data/io.github.mauriciobc.Babble.gschema.xml:236
 msgid "The post each account was reading on the home timeline, by account key"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:231
+#: data/io.github.mauriciobc.Babble.gschema.xml:240
 msgid "Ask for visibility (and offer quoting) before boosting"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:235
+#: data/io.github.mauriciobc.Babble.gschema.xml:244
 msgid "Remove tracking parameters from opened links"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:239
+#: data/io.github.mauriciobc.Babble.gschema.xml:248
 msgid "Open links to posts and profiles on other servers inside Babble"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:243
+#: data/io.github.mauriciobc.Babble.gschema.xml:252
 msgid "Open web links in a column beside the timeline"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:244
+#: data/io.github.mauriciobc.Babble.gschema.xml:253
 msgid ""
 "When off, or when WebKitGTK is not installed, web links open in the default "
 "browser."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:248
+#: data/io.github.mauriciobc.Babble.gschema.xml:257
 msgid "Let pages opened in Babble run JavaScript"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:252
+#: data/io.github.mauriciobc.Babble.gschema.xml:261
 msgid "Offer to open post and profile links found on the clipboard"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:253
+#: data/io.github.mauriciobc.Babble.gschema.xml:262
 msgid ""
 "When the window gains focus, check the clipboard for a link to a post, "
 "profile or hashtag and offer to open it in Babble."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:257
+#: data/io.github.mauriciobc.Babble.gschema.xml:266
 msgid "Warn before replying to a post older than three months"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:261
+#: data/io.github.mauriciobc.Babble.gschema.xml:270
 msgid "Warn before copying a link to a non-public post"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:265
+#: data/io.github.mauriciobc.Babble.gschema.xml:274
 msgid "Warn before boosting a post with media that lacks alt text"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:269
+#: data/io.github.mauriciobc.Babble.gschema.xml:278
 msgid "Keep running after the window closes to deliver notifications"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:273
+#: data/io.github.mauriciobc.Babble.gschema.xml:282
 msgid "Bind a system-wide shortcut that opens the composer"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:274
+#: data/io.github.mauriciobc.Babble.gschema.xml:283
 msgid ""
 "Registered through the XDG GlobalShortcuts portal; the key combination is "
 "chosen in the system settings."
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:278
+#: data/io.github.mauriciobc.Babble.gschema.xml:287
 msgid "Stream new posts and notifications in real time"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:282
+#: data/io.github.mauriciobc.Babble.gschema.xml:291
 msgid "Also stream the Local and Federated timelines"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:286
+#: data/io.github.mauriciobc.Babble.gschema.xml:295
 msgid "ISO 639-1 language of new posts; empty follows the system locale"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:290
+#: data/io.github.mauriciobc.Babble.gschema.xml:299
 msgid "Default quote policy on your server account (not per post in Babble)"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:294
+#: data/io.github.mauriciobc.Babble.gschema.xml:303
 msgid "Mark new posts sensitive in the composer and on your server"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:298
+#: data/io.github.mauriciobc.Babble.gschema.xml:307
 msgid "Notification types announced on the desktop"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:302
+#: data/io.github.mauriciobc.Babble.gschema.xml:311
 msgid "Combine desktop notifications of the same type and post"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:306
+#: data/io.github.mauriciobc.Babble.gschema.xml:315
 msgid "Notification types hidden from the Notifications page"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:310
+#: data/io.github.mauriciobc.Babble.gschema.xml:319
 msgid "Most recent search queries, newest first"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:314
+#: data/io.github.mauriciobc.Babble.gschema.xml:323
 msgid "Shortcodes of recently inserted custom emojis, newest first"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:318
+#: data/io.github.mauriciobc.Babble.gschema.xml:327
 msgid "Lists pinned to the sidebar, as \"account-id/list-id\""
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:322
+#: data/io.github.mauriciobc.Babble.gschema.xml:331
 msgid "Hashtags pinned to the sidebar, as \"account-id/tag\""
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:326
+#: data/io.github.mauriciobc.Babble.gschema.xml:335
 msgid "Saved multi-hashtag timelines as JSON {\"title\", \"tags\": [...]}"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:330
+#: data/io.github.mauriciobc.Babble.gschema.xml:339
 msgid "Unsent composer drafts as JSON, newest first"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:335
+#: data/io.github.mauriciobc.Babble.gschema.xml:344
 msgid "Volume of videos and audio in the media viewer"
 msgstr ""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:336
+#: data/io.github.mauriciobc.Babble.gschema.xml:345
 msgid ""
 "The volume the media viewer last played video and audio at, from 0 (silent) "
 "to 1 (full). It is restored when the next video or audio opens. Whether the "
@@ -760,7 +774,7 @@ msgstr ""
 msgid "All Locations"
 msgstr ""
 
-#: src/adminaccounts.py:49 src/navigation.py:80
+#: src/adminaccounts.py:49 src/feedchefbuilder.py:28 src/navigation.py:84
 msgid "Local"
 msgstr ""
 
@@ -793,7 +807,7 @@ msgstr ""
 msgid "Suspended"
 msgstr ""
 
-#: src/adminaccounts.py:61 src/navigation.py:77 src/search.py:297
+#: src/adminaccounts.py:61 src/navigation.py:81 src/search.py:297
 #: src/shortcuts-dialog.ui:77
 msgid "Search"
 msgstr ""
@@ -1012,11 +1026,11 @@ msgstr ""
 #: src/adminfederation.py:125 src/adminfederation.py:342
 #: src/adminreports.py:422 src/catchup/page_controls.py:70
 #: src/composepost.py:372 src/collectionedit.py:41 src/feedback.py:120
-#: src/feedback.py:148 src/hashtags.py:452 src/lists.py:171
-#: src/notificationctrl.py:658 src/profiledialogs.py:57
-#: src/profiledialogs.py:85 src/profileedit.py:231 src/remotemedia.py:78
-#: src/scheduled.py:123 src/searchadvanced.py:28 src/statusactions.py:622
-#: src/statusactions.py:670 src/windowsession.py:432
+#: src/feedback.py:148 src/feedchefbuilder.py:176 src/feedchefpages.py:534
+#: src/hashtags.py:452 src/lists.py:171 src/notificationctrl.py:658
+#: src/profiledialogs.py:57 src/profiledialogs.py:85 src/profileedit.py:231
+#: src/remotemedia.py:78 src/scheduled.py:123 src/searchadvanced.py:28
+#: src/statusactions.py:622 src/statusactions.py:670 src/windowsession.py:432
 msgid "_Cancel"
 msgstr ""
 
@@ -1100,7 +1114,7 @@ msgstr ""
 
 #: src/adminfederation.py:214 src/adminfederation.py:327
 #: src/catchup/page_controls.py:201 src/collectionactions.py:131
-#: src/profileactions.py:230 src/statusmenu.py:458 src/windowsession.py:233
+#: src/profileactions.py:230 src/statusmenu.py:499 src/windowsession.py:233
 msgid "_Remove"
 msgstr ""
 
@@ -1126,7 +1140,7 @@ msgid "Block an e-mail domain"
 msgstr ""
 
 #: src/adminfederation.py:241 src/adminfederation.py:282
-#: src/profileactions.py:242 src/profileactions.py:264 src/statusmenu.py:636
+#: src/profileactions.py:242 src/profileactions.py:264 src/statusmenu.py:677
 msgid "_Block"
 msgstr ""
 
@@ -1141,7 +1155,7 @@ msgstr[1] ""
 msgid "Could not block the domain"
 msgstr ""
 
-#: src/adminfederation.py:279 src/profileactions.py:239 src/statusmenu.py:633
+#: src/adminfederation.py:279 src/profileactions.py:239 src/statusmenu.py:674
 #, python-format
 msgid "Block %s?"
 msgstr ""
@@ -1635,7 +1649,8 @@ msgstr ""
 msgid "Bluesky hides this post from people who are not signed in."
 msgstr ""
 
-#: src/blueskycard.py:181 src/blueskycard.py:275 src/notificationpolicy.py:68
+#: src/blueskycard.py:181 src/blueskycard.py:275 src/feedchefbuilder.py:304
+#: src/notificationpolicy.py:68
 msgid "Loading…"
 msgstr ""
 
@@ -1810,7 +1825,7 @@ msgstr[1] ""
 msgid "The server limited requests, so this catch-up is incomplete."
 msgstr ""
 
-#: src/catchup/page_controls.py:32 src/navigation.py:75
+#: src/catchup/page_controls.py:32 src/navigation.py:77
 #: src/shortcuts-dialog.ui:169
 msgid "Catch Up"
 msgstr ""
@@ -2019,7 +2034,7 @@ msgid "Replies"
 msgstr ""
 
 #: src/catchup/pipeline.py:355 src/catchup/pipeline.py:373
-#: src/notificationcopy.py:63 src/preferences.py:554 src/statusrow.py:640
+#: src/notificationcopy.py:63 src/preferences.py:558 src/statusrow.py:640
 #: src/statusviews.py:26 src/statusviews.py:113
 msgid "Boosts"
 msgstr ""
@@ -2434,7 +2449,7 @@ msgid "Quote Post"
 msgstr ""
 
 #: src/composedialog.py:123 src/desktopnotify.py:236 src/scheduled.py:421
-#: src/statusactions.py:330 src/statusmenu.py:249
+#: src/statusactions.py:330 src/statusmenu.py:290
 msgid "Reply"
 msgstr ""
 
@@ -2688,7 +2703,7 @@ msgstr ""
 msgid "The text, attachments and poll of this post will be lost"
 msgstr ""
 
-#: src/composepost.py:373 src/profileedit.py:653
+#: src/composepost.py:373 src/feedchefbuilder.py:424 src/profileedit.py:653
 msgid "_Discard"
 msgstr ""
 
@@ -2787,9 +2802,9 @@ msgid ""
 msgstr ""
 
 #: src/conversations.py:213 src/collectionactions.py:147
-#: src/collectionpage.py:117 src/filters.py:365 src/hashtags.py:541
-#: src/lists.py:288 src/lists.py:600 src/scheduled.py:496 src/statusmenu.py:207
-#: src/statusmenu.py:486
+#: src/collectionpage.py:117 src/feedchefpages.py:159 src/filters.py:365
+#: src/hashtags.py:541 src/lists.py:288 src/lists.py:600 src/scheduled.py:496
+#: src/statusmenu.py:220 src/statusmenu.py:527
 msgid "_Delete"
 msgstr ""
 
@@ -2829,12 +2844,12 @@ msgstr[1] ""
 msgid "Follow Back"
 msgstr ""
 
-#: src/desktopnotify.py:238 src/statusactions.py:340 src/statusmenu.py:253
+#: src/desktopnotify.py:238 src/statusactions.py:340 src/statusmenu.py:294
 msgid "Favorite"
 msgstr ""
 
 #: src/desktopnotify.py:241 src/statusactions.py:333 src/statusactions.py:446
-#: src/statusmenu.py:250
+#: src/statusmenu.py:291
 msgid "Boost"
 msgstr ""
 
@@ -3035,7 +3050,7 @@ msgstr ""
 msgid "No Trending News"
 msgstr ""
 
-#: src/explore.py:398 src/hashtags.py:472 src/navigation.py:79
+#: src/explore.py:398 src/hashtags.py:472 src/navigation.py:83
 #: src/search.py:540
 msgid "Hashtags"
 msgstr ""
@@ -3073,7 +3088,7 @@ msgid "Delete"
 msgstr ""
 
 #: src/collectionactions.py:76 src/hashtags.py:197 src/profile.py:100
-#: src/statusmenu.py:71
+#: src/statusmenu.py:81
 msgid "More Options"
 msgstr ""
 
@@ -3171,9 +3186,9 @@ msgstr ""
 msgid "Edit Collection"
 msgstr ""
 
-#: src/collectionedit.py:45 src/filters.py:179 src/hashtags.py:455
-#: src/lists.py:175 src/mediaexport.py:200 src/profiledialogs.py:88
-#: src/profileedit.py:236
+#: src/collectionedit.py:45 src/feedchefbuilder.py:176 src/filters.py:179
+#: src/hashtags.py:455 src/lists.py:175 src/mediaexport.py:200
+#: src/profiledialogs.py:88 src/profileedit.py:236
 msgid "_Save"
 msgstr ""
 
@@ -3181,7 +3196,7 @@ msgstr ""
 msgid "_Create"
 msgstr ""
 
-#: src/collectionedit.py:52
+#: src/collectionedit.py:52 src/feedchefbuilder.py:202
 msgid "Name"
 msgstr ""
 
@@ -3271,7 +3286,7 @@ msgstr ""
 msgid "Copy _URL"
 msgstr ""
 
-#: src/collectionpage.py:112 src/statusmenu.py:205
+#: src/collectionpage.py:112 src/feedchefpages.py:155 src/statusmenu.py:218
 msgid "_Edit"
 msgstr ""
 
@@ -3310,6 +3325,406 @@ msgstr ""
 msgid "_Don’t Remind Me Again"
 msgstr ""
 
+#: src/feedchefbuilder.py:28 src/navigation.py:77 src/window.ui:489
+msgid "Home"
+msgstr ""
+
+#: src/feedchefbuilder.py:29 src/navigation.py:84
+msgid "Federated"
+msgstr ""
+
+#: src/feedchefbuilder.py:29 src/feedchefbuilder.py:220 src/lists.py:529
+#: src/navigation.py:307 src/navigation.py:380
+msgid "List"
+msgstr ""
+
+#: src/feedchefbuilder.py:110
+msgid "Favor Fresh Posts"
+msgstr ""
+
+#: src/feedchefbuilder.py:111
+msgid "Newer posts rank higher"
+msgstr ""
+
+#: src/feedchefbuilder.py:112
+msgid "Fade-Out Time"
+msgstr ""
+
+#: src/feedchefbuilder.py:112
+msgid "In hours"
+msgstr ""
+
+#: src/feedchefbuilder.py:116
+msgid "Hide the Least Engaging"
+msgstr ""
+
+#: src/feedchefbuilder.py:117
+msgid "Drops the posts people reacted to least"
+msgstr ""
+
+#: src/feedchefbuilder.py:118
+msgid "Percent to Hide"
+msgstr ""
+
+#: src/feedchefbuilder.py:118
+msgid "Of the posts in each batch"
+msgstr ""
+
+#: src/feedchefbuilder.py:125
+msgid "Limit Posts per Person"
+msgstr ""
+
+#: src/feedchefbuilder.py:126
+msgid "Keeps one voice from filling the feed"
+msgstr ""
+
+#: src/feedchefbuilder.py:127
+msgid "Posts per Person"
+msgstr ""
+
+#: src/feedchefbuilder.py:127
+msgid "In each batch"
+msgstr ""
+
+#: src/feedchefbuilder.py:131
+msgid "Boost Trending Topics"
+msgstr ""
+
+#: src/feedchefbuilder.py:132
+msgid "Posts about what is rising on the server rank higher"
+msgstr ""
+
+#: src/feedchefbuilder.py:133
+msgid "Minimum Growth"
+msgstr ""
+
+#: src/feedchefbuilder.py:133
+msgid "How fast a topic must rise"
+msgstr ""
+
+#: src/feedchefbuilder.py:142
+msgid "similarity grouping"
+msgstr ""
+
+#: src/feedchefbuilder.py:143
+msgid "sentiment"
+msgstr ""
+
+#: src/feedchefbuilder.py:144
+msgid "connections"
+msgstr ""
+
+#: src/feedchefbuilder.py:145
+msgid "positive posts only"
+msgstr ""
+
+#: src/feedchefbuilder.py:146
+msgid "sorting by focus keywords"
+msgstr ""
+
+#: src/feedchefbuilder.py:160 src/feedchefpages.py:87 src/feedchefpages.py:88
+#: src/feedchefpages.py:106 src/feedchefpages.py:186
+msgid "New Recipe"
+msgstr ""
+
+#: src/feedchefbuilder.py:160 src/feedchefpages.py:290 src/feedchefpages.py:338
+msgid "Edit Recipe"
+msgstr ""
+
+#: src/feedchefbuilder.py:185
+msgid "Copy Share _Link"
+msgstr ""
+
+#: src/feedchefbuilder.py:210
+msgid "Pantry"
+msgstr ""
+
+#: src/feedchefbuilder.py:211
+msgid "Where posts come from. Separate hashtags with spaces."
+msgstr ""
+
+#: src/feedchefbuilder.py:214
+msgid "Posts From"
+msgstr ""
+
+#: src/feedchefbuilder.py:222
+msgid "Include Hashtags"
+msgstr ""
+
+#: src/feedchefbuilder.py:225
+msgid "Exclude Hashtags"
+msgstr ""
+
+#: src/feedchefbuilder.py:228
+msgid "Only People I Follow"
+msgstr ""
+
+#: src/feedchefbuilder.py:229
+msgid "Plus your own posts"
+msgstr ""
+
+#: src/feedchefbuilder.py:238
+msgid "Diet"
+msgstr ""
+
+#: src/feedchefbuilder.py:239
+msgid "Separate words with spaces."
+msgstr ""
+
+#: src/feedchefbuilder.py:240
+msgid "Blocked Words"
+msgstr ""
+
+#: src/feedchefbuilder.py:243
+msgid "Only Posts With Media"
+msgstr ""
+
+#: src/feedchefbuilder.py:246
+msgid "Only Posts With Alt Text"
+msgstr ""
+
+#: src/feedchefbuilder.py:249
+msgid "Hide Sensitive Media"
+msgstr ""
+
+#: src/feedchefbuilder.py:253
+msgid "Minimum Length"
+msgstr ""
+
+#: src/feedchefbuilder.py:253
+msgid "In characters; 0 turns it off"
+msgstr ""
+
+#: src/feedchefbuilder.py:260
+msgid "Kitchen"
+msgstr ""
+
+#: src/feedchefbuilder.py:261
+msgid "How posts are ordered and balanced"
+msgstr ""
+
+#: src/feedchefbuilder.py:263
+msgid "Order"
+msgstr ""
+
+#: src/feedchefbuilder.py:265
+msgid "Most engaging"
+msgstr ""
+
+#: src/feedchefbuilder.py:265
+msgid "Newest first"
+msgstr ""
+
+#: src/feedchefbuilder.py:276
+msgid "Some Ingredients Are Not Supported Yet"
+msgstr ""
+
+#. Translators: %s is a list of features, such as
+#. "sentiment, connections".
+#: src/feedchefbuilder.py:279
+#, python-format
+msgid "Not applied: %s"
+msgstr ""
+
+#: src/feedchefbuilder.py:311
+msgid "Could not load lists"
+msgstr ""
+
+#. An empty combo row reads as broken: say why there is nothing
+#. to pick, and that Save waits for a list.
+#: src/feedchefbuilder.py:345
+msgid "No lists"
+msgstr ""
+
+#: src/feedchefbuilder.py:346
+msgid "Create a list first"
+msgstr ""
+
+#: src/feedchefbuilder.py:421 src/profileedit.py:650
+msgid "Discard Changes?"
+msgstr ""
+
+#: src/feedchefbuilder.py:422
+msgid "Your changes to this recipe will be lost."
+msgstr ""
+
+#: src/feedchefbuilder.py:423 src/profileedit.py:652
+msgid "_Keep Editing"
+msgstr ""
+
+#: src/feedchefbuilder.py:443
+msgid "Untitled Recipe"
+msgstr ""
+
+#: src/feedchefbuilder.py:473 src/feedchefpages.py:446 src/feedchefpages.py:546
+msgid "Could not save the recipe"
+msgstr ""
+
+#: src/feedchefbuilder.py:484 src/feedchefpages.py:224
+msgid "Share link copied"
+msgstr ""
+
+#. Translators: a recipe's source and hashtags, for example
+#. "Home · #linux #python".
+#: src/feedchefpages.py:47
+#, python-format
+msgid "%(scope)s · %(tags)s"
+msgstr ""
+
+#: src/feedchefpages.py:103
+msgid "No Recipes Yet"
+msgstr ""
+
+#: src/feedchefpages.py:104
+msgid "A recipe turns your timelines into a feed of your own"
+msgstr ""
+
+#: src/feedchefpages.py:156
+msgid "_Unpin From Sidebar"
+msgstr ""
+
+#: src/feedchefpages.py:157
+msgid "_Pin to Sidebar"
+msgstr ""
+
+#: src/feedchefpages.py:158
+msgid "_Copy Share Link"
+msgstr ""
+
+#. Translators: tooltip and accessible name of a recipe's menu
+#. button; %s is the recipe's name.
+#: src/feedchefpages.py:172
+#, python-format
+msgid "Options for “%s”"
+msgstr ""
+
+#: src/feedchefpages.py:202 src/feedchefpages.py:483
+msgid "Recipe saved"
+msgstr ""
+
+#: src/feedchefpages.py:210
+msgid "Removed from the sidebar"
+msgstr ""
+
+#: src/feedchefpages.py:213
+msgid "Pinned to the sidebar"
+msgstr ""
+
+#: src/feedchefpages.py:254
+msgid "Recipe deleted"
+msgstr ""
+
+#: src/feedchefpages.py:294
+msgid "Cooking Your Timeline"
+msgstr ""
+
+#: src/feedchefpages.py:295
+msgid "Could Not Load This Recipe"
+msgstr ""
+
+#. The focus banner sits above the timeline's own stack.
+#: src/feedchefpages.py:302
+msgid "Clear Focus"
+msgstr ""
+
+#: src/feedchefpages.py:332
+msgid "Load Older Posts"
+msgstr ""
+
+#: src/feedchefpages.py:353
+msgid "No Matching Posts Yet"
+msgstr ""
+
+#: src/feedchefpages.py:355
+msgid "Older posts may still match this recipe"
+msgstr ""
+
+#: src/feedchefpages.py:357
+msgid "No Matching Posts"
+msgstr ""
+
+#: src/feedchefpages.py:359
+msgid "Try fewer filters or a wider scope"
+msgstr ""
+
+#: src/feedchefpages.py:401
+msgid "Gathering posts…"
+msgstr ""
+
+#: src/feedchefpages.py:404
+msgid "Applying your diet…"
+msgstr ""
+
+#: src/feedchefpages.py:405
+msgid "Seasoning…"
+msgstr ""
+
+#. Translators: post menu entry; the underscore marks the access
+#. key, L, which no other entry of that menu uses.
+#: src/feedchefpages.py:415
+msgid "More _Like This"
+msgstr ""
+
+#: src/feedchefpages.py:428
+msgid "Nothing to focus on in this post"
+msgstr ""
+
+#: src/feedchefpages.py:434
+msgid "Focus set from this post"
+msgstr ""
+
+#. Translators: %(terms)s lists the first hashtags and words
+#. the timeline is focused on, such as "#a, #b, #c"; %(count)d
+#. is how many more there are.
+#: src/feedchefpages.py:463
+#, python-format
+msgid "%(terms)s and %(count)d more"
+msgid_plural "%(terms)s and %(count)d more"
+msgstr[0] ""
+msgstr[1] ""
+
+#. Translators: %s lists the hashtags and words the timeline is
+#. focused on, for example "#python, decorators".
+#: src/feedchefpages.py:468
+#, python-format
+msgid "Showing more like %s"
+msgstr ""
+
+#: src/feedchefpages.py:516
+msgid "Replace Recipe?"
+msgstr ""
+
+#: src/feedchefpages.py:517
+#, python-format
+msgid "This replaces your recipe “%s”."
+msgstr ""
+
+#: src/feedchefpages.py:518
+msgid "_Replace"
+msgstr ""
+
+#: src/feedchefpages.py:522
+msgid "Import Recipe?"
+msgstr ""
+
+#: src/feedchefpages.py:524
+#, python-format
+msgid "Import “%(name)s” by %(author)s into this account?"
+msgstr ""
+
+#: src/feedchefpages.py:528
+#, python-format
+msgid "Import “%(name)s” into this account?"
+msgstr ""
+
+#: src/feedchefpages.py:530
+msgid "_Import"
+msgstr ""
+
+#: src/feedchefpages.py:550
+msgid "Recipe imported"
+msgstr ""
+
 #: src/filters.py:29
 msgid "Home and Lists"
 msgstr ""
@@ -3318,7 +3733,7 @@ msgstr ""
 msgid "Public Timelines"
 msgstr ""
 
-#: src/filters.py:32 src/navigation.py:77
+#: src/filters.py:32 src/navigation.py:81
 msgid "Conversations"
 msgstr ""
 
@@ -3810,10 +4225,6 @@ msgstr ""
 msgid "Add members to the list to see their posts"
 msgstr ""
 
-#: src/lists.py:529 src/navigation.py:300 src/navigation.py:350
-msgid "List"
-msgstr ""
-
 #: src/lists.py:550
 msgid "Delete List"
 msgstr ""
@@ -3847,7 +4258,7 @@ msgstr ""
 msgid "Add to Lists"
 msgstr ""
 
-#: src/lists.py:667 src/navigation.py:81
+#: src/lists.py:667 src/navigation.py:85
 msgid "Lists"
 msgstr ""
 
@@ -3865,13 +4276,21 @@ msgstr ""
 msgid "Could not load the lists: %s"
 msgstr ""
 
+#: src/main.py:338
+msgid "Could not read that Feed Chef link"
+msgstr ""
+
+#: src/main.py:341
+msgid "Sign in to import this recipe"
+msgstr ""
+
 #. Translators: toast when a web+ap:// or web+mastodon:// link
 #. is opened before any account is signed in.
-#: src/main.py:350
+#: src/main.py:367
 msgid "Sign in to open this link"
 msgstr ""
 
-#: src/main.py:391
+#: src/main.py:408
 msgid "translator-credits"
 msgstr ""
 
@@ -4201,48 +4620,46 @@ msgstr ""
 msgid "Type a name to search"
 msgstr ""
 
-#: src/navigation.py:75 src/window.ui:489
-msgid "Home"
+#. Translators: recipe-driven continuous timeline (not Catch Up)
+#. No mnemonic: `_F` would clash with Federated Timeline on this page.
+#: src/navigation.py:79 src/navigation.py:319 src/preferences.py:539
+msgid "Feed Chef"
 msgstr ""
 
-#: src/navigation.py:78 src/notificationcopy.py:64 src/statusviews.py:25
+#: src/navigation.py:82 src/notificationcopy.py:64 src/statusviews.py:25
 #: src/statusviews.py:113 src/statusviews.py:115
 msgid "Favorites"
 msgstr ""
 
-#: src/navigation.py:78
+#: src/navigation.py:82
 msgid "Bookmarks"
 msgstr ""
 
-#: src/navigation.py:79
+#: src/navigation.py:83
 msgid "Explore"
 msgstr ""
 
-#: src/navigation.py:80
-msgid "Federated"
-msgstr ""
-
-#: src/navigation.py:324 src/statusviews.py:78
+#: src/navigation.py:354 src/statusviews.py:78
 msgid "No Favorites Yet"
 msgstr ""
 
-#: src/navigation.py:324
+#: src/navigation.py:354
 msgid "Posts you favorite will appear here"
 msgstr ""
 
-#: src/navigation.py:328
+#: src/navigation.py:358
 msgid "No Bookmarks Yet"
 msgstr ""
 
-#: src/navigation.py:328
+#: src/navigation.py:358
 msgid "Posts you bookmark will appear here"
 msgstr ""
 
-#: src/navigation.py:341 src/timelinepage.py:233
+#: src/navigation.py:371 src/timelinepage.py:233
 msgid "No Posts Yet"
 msgstr ""
 
-#: src/navigation.py:341 src/timelinepage.py:234
+#: src/navigation.py:371 src/timelinepage.py:234
 msgid "New posts will appear here"
 msgstr ""
 
@@ -5204,7 +5621,7 @@ msgstr ""
 msgid "_Language"
 msgstr ""
 
-#: src/preferences.py:328 src/preferences.py:646
+#: src/preferences.py:328 src/preferences.py:650
 msgid "System language"
 msgstr ""
 
@@ -5564,77 +5981,81 @@ msgstr ""
 msgid "Summarize what you missed in your home timeline"
 msgstr ""
 
-#: src/preferences.py:538
-msgid "_Explore"
-msgstr ""
-
-#: src/preferences.py:539
-msgid "Show posts trending on your server"
-msgstr ""
-
 #: src/preferences.py:540
-msgid "_Local Timeline"
-msgstr ""
-
-#: src/preferences.py:541
-msgid "Show posts from your server"
+msgid "Build your own timelines from recipes"
 msgstr ""
 
 #: src/preferences.py:542
-msgid "_Federated Timeline"
+msgid "_Explore"
 msgstr ""
 
 #: src/preferences.py:543
-msgid "Show posts from all known servers"
+msgid "Show posts trending on your server"
+msgstr ""
+
+#: src/preferences.py:544
+msgid "_Local Timeline"
+msgstr ""
+
+#: src/preferences.py:545
+msgid "Show posts from your server"
 msgstr ""
 
 #: src/preferences.py:546
-msgid "Disabled _Timelines"
+msgid "_Federated Timeline"
 msgstr ""
 
 #: src/preferences.py:547
+msgid "Show posts from all known servers"
+msgstr ""
+
+#: src/preferences.py:550
+msgid "Disabled _Timelines"
+msgstr ""
+
+#: src/preferences.py:551
 msgid ""
 "Your server has turned these timelines off, but this account may still read "
 "them"
 msgstr ""
 
-#: src/preferences.py:555
+#: src/preferences.py:559
 msgid "_Boosts Carousel"
 msgstr ""
 
-#: src/preferences.py:556
+#: src/preferences.py:560
 msgid ""
 "When a page of posts is mostly boosts, fold them into a horizontal carousel "
 "instead of one row each. Applies to timelines opened afterwards"
 msgstr ""
 
-#: src/preferences.py:559
+#: src/preferences.py:563
 msgid "Si_ngle Boost per Post"
 msgstr ""
 
-#: src/preferences.py:560
+#: src/preferences.py:564
 msgid ""
 "Show only the first boost of a post that several people boosted. Applies to "
 "timelines opened afterwards"
 msgstr ""
 
-#: src/preferences.py:577
+#: src/preferences.py:581
 msgid "Posting"
 msgstr ""
 
-#: src/preferences.py:581
+#: src/preferences.py:585
 msgid "Defaults for New Posts"
 msgstr ""
 
-#: src/preferences.py:582
+#: src/preferences.py:586
 msgid "Changes are also saved to your server preferences"
 msgstr ""
 
-#: src/preferences.py:584
+#: src/preferences.py:588
 msgid "Default _Visibility"
 msgstr ""
 
-#: src/preferences.py:594
+#: src/preferences.py:598
 msgid "Default _Quote Policy"
 msgstr ""
 
@@ -5643,55 +6064,55 @@ msgstr ""
 #. source preferences, which is where this is
 #. sent. Say so, rather than letting the row
 #. read as a Babble-side switch.
-#: src/preferences.py:600
+#: src/preferences.py:604
 msgid "Saved to your server preferences, so it applies to every new post"
 msgstr ""
 
-#: src/preferences.py:605
+#: src/preferences.py:609
 msgid "Media Marked _Sensitive"
 msgstr ""
 
-#: src/preferences.py:611
+#: src/preferences.py:615
 msgid "Server _Preferences"
 msgstr ""
 
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:638 src/windowlogin.py:236 src/windowlogin.py:241
+#: src/preferences.py:642 src/windowlogin.py:236 src/windowlogin.py:241
 msgid "Could not open the web browser"
 msgstr ""
 
-#: src/preferences.py:647
+#: src/preferences.py:651
 msgid "Default _Language"
 msgstr ""
 
-#: src/preferences.py:670
+#: src/preferences.py:674
 msgid "Desktop Notifications"
 msgstr ""
 
-#: src/preferences.py:671
+#: src/preferences.py:675
 msgid "Announced while the window is not focused"
 msgstr ""
 
-#: src/preferences.py:680
+#: src/preferences.py:684
 msgid "Grouped _Notifications"
 msgstr ""
 
-#: src/preferences.py:681
+#: src/preferences.py:685
 msgid "Combine notifications of the same type and post into one"
 msgstr ""
 
-#: src/preferences.py:691 plugins/hashpanel/babble_hashpanel.py:278
+#: src/preferences.py:695 plugins/hashpanel/babble_hashpanel.py:278
 #: plugins/nareal/babble_nareal.py:441 plugins/wallabag/babble_wallabag.py:391
 msgid "Server"
 msgstr ""
 
-#: src/preferences.py:693
+#: src/preferences.py:697
 msgid "Notification _Filtering"
 msgstr ""
 
-#: src/preferences.py:694
+#: src/preferences.py:698
 msgid "Choose whose notifications reach you"
 msgstr ""
 
@@ -5888,11 +6309,11 @@ msgstr ""
 msgid "Copy _Handle"
 msgstr ""
 
-#: src/profileactions.py:101 src/statusmenu.py:163 src/webcolumn.py:198
+#: src/profileactions.py:101 src/statusmenu.py:173 src/webcolumn.py:198
 msgid "_Copy Link"
 msgstr ""
 
-#: src/profileactions.py:102 src/statusmenu.py:162 src/webcolumn.py:197
+#: src/profileactions.py:102 src/statusmenu.py:172 src/webcolumn.py:197
 msgid "Open in _Browser"
 msgstr ""
 
@@ -6016,7 +6437,7 @@ msgid ""
 "be hidden from you."
 msgstr ""
 
-#: src/profileactions.py:244 src/profileactions.py:387 src/statusmenu.py:629
+#: src/profileactions.py:244 src/profileactions.py:387 src/statusmenu.py:670
 #, python-format
 msgid "Blocked %s"
 msgstr ""
@@ -6069,7 +6490,7 @@ msgstr ""
 msgid "Could not unblock domain"
 msgstr ""
 
-#: src/profileactions.py:399 src/statusmenu.py:610
+#: src/profileactions.py:399 src/statusmenu.py:651
 #, python-format
 msgid "Muted %s"
 msgstr ""
@@ -6327,16 +6748,8 @@ msgstr ""
 msgid "Profile Tabs"
 msgstr ""
 
-#: src/profileedit.py:650
-msgid "Discard Changes?"
-msgstr ""
-
 #: src/profileedit.py:651
 msgid "Your edits to the profile have not been saved."
-msgstr ""
-
-#: src/profileedit.py:652
-msgid "_Keep Editing"
 msgstr ""
 
 #: src/profileedit.py:735
@@ -7241,11 +7654,11 @@ msgstr ""
 msgid "Collection %s"
 msgstr ""
 
-#: src/statusactions.py:337 src/statusactions.py:442 src/statusmenu.py:252
+#: src/statusactions.py:337 src/statusactions.py:442 src/statusmenu.py:293
 msgid "Quote"
 msgstr ""
 
-#: src/statusactions.py:344 src/statusmenu.py:254
+#: src/statusactions.py:344 src/statusmenu.py:295
 msgid "Bookmark"
 msgstr ""
 
@@ -7330,199 +7743,199 @@ msgstr ""
 msgid "Show content warning: %s"
 msgstr ""
 
-#: src/statusmenu.py:161
+#: src/statusmenu.py:171
 msgid "_View Post"
 msgstr ""
 
 #. S: B is Open in _Browser, and the other letters here are taken.
-#: src/statusmenu.py:166
+#: src/statusmenu.py:176
 msgid "View on Blue_sky"
 msgstr ""
 
-#: src/statusmenu.py:168
+#: src/statusmenu.py:178
 msgid "View S_tats"
 msgstr ""
 
-#: src/statusmenu.py:170
+#: src/statusmenu.py:180
 msgid "View Edit _History"
 msgstr ""
 
 #. Not _Translate: View S_tats already takes T in this menu.
-#: src/statusmenu.py:179 src/statusrow.py:316
+#: src/statusmenu.py:192 src/statusrow.py:316
 msgid "Show _Original"
 msgstr ""
 
-#: src/statusmenu.py:180
+#: src/statusmenu.py:193
 msgid "Tr_anslate"
 msgstr ""
 
-#: src/statusmenu.py:182
+#: src/statusmenu.py:195
 msgid "Un_mute Conversation"
 msgstr ""
 
-#: src/statusmenu.py:183
+#: src/statusmenu.py:196
 msgid "_Mute Conversation"
 msgstr ""
 
-#: src/statusmenu.py:186
+#: src/statusmenu.py:199
 msgid "_Unpin From Profile"
 msgstr ""
 
-#: src/statusmenu.py:187
+#: src/statusmenu.py:200
 msgid "_Pin to Profile"
 msgstr ""
 
-#: src/statusmenu.py:196
+#: src/statusmenu.py:209
 msgid "Who Can _Quote"
 msgstr ""
 
 #. Not _Remove…: Delete and _Redraft takes R in the same menu.
-#: src/statusmenu.py:199
+#: src/statusmenu.py:212
 msgid "Remove My Post _From Quote"
 msgstr ""
 
-#: src/statusmenu.py:206
+#: src/statusmenu.py:219
 msgid "Delete and _Redraft"
 msgstr ""
 
 #. Access keys are unique across the whole open menu, not per
 #. section: _Mute Conversation (M), Open in _Browser (B) and
 #. Show _Original (O) already hold those letters in it.
-#: src/statusmenu.py:214
+#: src/statusmenu.py:227
 #, python-format
 msgid "Ment_ion %s"
 msgstr ""
 
-#: src/statusmenu.py:215
+#: src/statusmenu.py:228
 #, python-format
 msgid "M_ute %s"
 msgstr ""
 
-#: src/statusmenu.py:216
+#: src/statusmenu.py:229
 #, python-format
 msgid "Bloc_k %s"
 msgstr ""
 
-#: src/statusmenu.py:217
+#: src/statusmenu.py:230
 msgid "_Report Post…"
 msgstr ""
 
-#: src/statusmenu.py:326
+#: src/statusmenu.py:367
 msgid "Link copied"
 msgstr ""
 
-#: src/statusmenu.py:332
+#: src/statusmenu.py:373
 msgid "Only mentioned people will be able to view it."
 msgstr ""
 
-#: src/statusmenu.py:334
+#: src/statusmenu.py:375
 msgid "Only mentioned people and your followers will be able to view it."
 msgstr ""
 
-#: src/statusmenu.py:337
+#: src/statusmenu.py:378
 #, python-format
 msgid ""
 "Only mentioned people and people that follow %s will be able to view it."
 msgstr ""
 
-#: src/statusmenu.py:340
+#: src/statusmenu.py:381
 #, python-format
 msgid "Copy “%s” Post Link?"
 msgstr ""
 
-#: src/statusmenu.py:341
+#: src/statusmenu.py:382
 msgid "_Copy"
 msgstr ""
 
-#: src/statusmenu.py:383
+#: src/statusmenu.py:424
 msgid "Could not translate"
 msgstr ""
 
-#: src/statusmenu.py:409
+#: src/statusmenu.py:450
 msgid "Could not unmute conversation"
 msgstr ""
 
-#: src/statusmenu.py:410
+#: src/statusmenu.py:451
 msgid "Could not mute conversation"
 msgstr ""
 
-#: src/statusmenu.py:417
+#: src/statusmenu.py:458
 msgid "Could not unpin post"
 msgstr ""
 
-#: src/statusmenu.py:418
+#: src/statusmenu.py:459
 msgid "Could not pin post"
 msgstr ""
 
-#: src/statusmenu.py:435
+#: src/statusmenu.py:476
 msgid "Could not change quote policy"
 msgstr ""
 
-#: src/statusmenu.py:448
+#: src/statusmenu.py:489
 msgid "Your post was removed from the quote"
 msgstr ""
 
-#: src/statusmenu.py:454
+#: src/statusmenu.py:495
 msgid "Could not remove your post"
 msgstr ""
 
-#: src/statusmenu.py:456
+#: src/statusmenu.py:497
 msgid "Remove Your Post From the Quote?"
 msgstr ""
 
-#: src/statusmenu.py:457
+#: src/statusmenu.py:498
 msgid "The quote will no longer show your post."
 msgstr ""
 
-#: src/statusmenu.py:476
+#: src/statusmenu.py:517
 msgid "Could not load post for editing"
 msgstr ""
 
-#: src/statusmenu.py:483
+#: src/statusmenu.py:524
 msgid "Delete Post?"
 msgstr ""
 
-#: src/statusmenu.py:484
+#: src/statusmenu.py:525
 msgid ""
 "This post will be removed from your profile and from the timelines of other "
 "servers."
 msgstr ""
 
-#: src/statusmenu.py:493
+#: src/statusmenu.py:534
 msgid "Delete and Redraft?"
 msgstr ""
 
-#: src/statusmenu.py:494
+#: src/statusmenu.py:535
 msgid ""
 "This post will be deleted and its text, attachments and poll copied into a "
 "new draft."
 msgstr ""
 
-#: src/statusmenu.py:496
+#: src/statusmenu.py:537
 msgid "_Delete and Redraft"
 msgstr ""
 
-#: src/statusmenu.py:535 src/statusmenu.py:561
+#: src/statusmenu.py:576 src/statusmenu.py:602
 msgid "Could not delete post"
 msgstr ""
 
-#: src/statusmenu.py:541 src/statusmenu.py:555
+#: src/statusmenu.py:582 src/statusmenu.py:596
 msgid "Post deleted"
 msgstr ""
 
-#: src/statusmenu.py:608
+#: src/statusmenu.py:649
 msgid "Unmute failed"
 msgstr ""
 
-#: src/statusmenu.py:616
+#: src/statusmenu.py:657
 msgid "Mute failed"
 msgstr ""
 
-#: src/statusmenu.py:630
+#: src/statusmenu.py:671
 msgid "Block failed"
 msgstr ""
 
-#: src/statusmenu.py:634
+#: src/statusmenu.py:675
 msgid ""
 "They will no longer be able to follow your account or see your posts, and "
 "their posts will be hidden."

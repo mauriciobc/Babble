@@ -67,7 +67,9 @@ install_data(
   'collectionpage.py',
   'feedback.py',
   'feedchefbridge.py',
+  'feedchefbuilder.py',
   'feedchefpages.py',
+  'feedchefsource.py',
   'filterrules.py',
   'filters.py',
   'imagecache.py',
@@ -203,7 +205,6 @@ install_data(
   'feedchef/decisionlog.py',
   'feedchef/diet.py',
   'feedchef/engine.py',
-  'feedchef/feed_model.py',
   'feedchef/kitchen.py',
   'feedchef/network_reach.py',
   'feedchef/pantry.py',
@@ -803,6 +804,12 @@ test('feedchef deeplink', python,
   args: [files('test-feedchef-deeplink.py')],
   env: test_env,
   timeout: 60,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake.
+test('feedchef ui', python,
+  args: [files('test-feedchef-ui.py')],
+  env: fatal_test_env,
+  timeout: 90,
 )
 # Needs no display: it reads the sources with ast only.
 test('api boundary', python,

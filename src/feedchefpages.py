@@ -6,551 +6,549 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from functools import partial  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from gi.repository import Adw, Gtk, Pango  # noqa: E402
-
-from . import accounts, feedback, filterrules, timelinebase  # noqa: E402
+from . import accounts, feedback, pagenav  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
-from .feedchef.feed_model import FeedChefModel, RequestGate  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
-from .feedchef.storage import FeedRecipeStorage  # noqa: E402
 from .feedchef.textutil import extract_focus  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
-from .i18n import gettext as _  # noqa: E402
-from .i18n import ngettext  # noqa: E402
-from .statusrow import StatusRow  # noqa: E402
-from .timelinedata import StatusItem  # noqa: E402
-from .weakconnect import connect_weak  # noqa: E402
+from .feedchefbuilder import (FeedChefBuilderDialog, scope_label,  # noqa: E402
+                              storage_for)
+from .feedchefsource import FeedChefSource  # noqa: E402
+from .i18n import gettext as _, ngettext  # noqa: E402
+from .pages import PagedPosts  # noqa: E402
+from .timelinebase import COLUMN_WIDTH  # noqa: E402
+from .timelinepage import TimelinePage  # noqa: E402
+from .uihelpers import icon_button, set_accessible_label  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
+
+ICON = 'babble-feed-chef-symbolic'
+PINNED_KEY = 'favorite-feedchef-ids'
+SUBTITLE_TAGS = 3
+# Terms the focus banner names before "and N more".
+BANNER_TERMS = 3
 
 
-def _account_key(account):
-    return accounts.account_key(account)
+def _pin_entry(account, recipe_id):
+    return '%s/%s' % (str(account.get('id') or ''), recipe_id)
 
 
-def _storage_for(account):
-    return FeedRecipeStorage(_account_key(account))
+def recipe_subtitle(recipe):
+    """"Home · #linux #python": the scope and up to three hashtags."""
+    scope = scope_label(recipe.pantry.scope)
+    tags = ' '.join('#%s' % tag
+                    for tag in recipe.pantry.hashtags_include[:SUBTITLE_TAGS])
+    if not tags:
+        return scope
+    # Translators: a recipe's source and hashtags, for example
+    # "Home · #linux #python".
+    return _('%(scope)s · %(tags)s') % {'scope': scope, 'tags': tags}
 
 
-def _home_filter(statuses):
-    filtered = []
-    for status in statuses:
-        hit = timelinebase.status_filter(status, filterrules.HOME)
-        if hit is not None and hit[0] == 'hide':
-            continue
-        filtered.append(status)
-    return filtered
+def recipe_stored(widget, account, recipe, skip=None):
+    """Bring the places that show *recipe* up to date after it was saved
+    or replaced by an import: the open recipe list reloads, a built
+    timeline of it cooks the new version (its title follows a rename),
+    and the sidebar is rebuilt when the recipe is pinned, since that is
+    where its title is read. *skip* is the caller, which does its own."""
+    window = pagenav.window_of(widget)
+    navigation = getattr(window, 'navigation', None)
+    if navigation is None:
+        return
+    listing = navigation.children.get('feed-chef')
+    if listing is not None and listing is not skip:
+        listing.reload()
+    timeline = navigation.children.get('recipe:%s' % recipe.id)
+    if isinstance(timeline, FeedChefTimelinePage) and timeline is not skip:
+        timeline.use_recipe(recipe)
+    if _pin_entry(account, recipe.id) in app_settings().get_strv(
+            PINNED_KEY):
+        host = getattr(window, 'sidebar_host', None)
+        if host is not None:
+            host.refresh()
 
 
-class FeedChefListPage(Gtk.Box):
-    """Manager: list recipes, open / edit / pin / delete."""
+class FeedChefListPage(Adw.Bin):
+    """Manager: list recipes, open / edit / pin / copy link / delete."""
 
     __gtype_name__ = 'BabbleFeedChefListPage'
 
     def __init__(self, client, account):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        super().__init__()
         self.client = client
         self.account = account
-        self.storage = _storage_for(account)
+        self.storage = storage_for(account)
+        self._rows = []
+        self._row_by_id = {}
 
-        header = Gtk.Box(spacing=8, margin_top=12, margin_bottom=8,
-                         margin_start=12, margin_end=12)
-        # Translators: Feed Chef is a recipe-driven timeline; Catch Up is a
-        # period digest of home — they coexist.
-        blurb = Gtk.Label(
-            label=_('Feed Chef builds continuous timelines from recipes. '
-                    'Catch Up remains a period digest of Home.'),
-            wrap=True, xalign=0.0, hexpand=True)
-        blurb.add_css_class('dim-label')
-        header.append(blurb)
-        add = Gtk.Button(label=_('New Recipe'))
-        add.add_css_class('suggested-action')
+        add = Gtk.Button(icon_name='list-add-symbolic',
+                         tooltip_text=_('New Recipe'))
+        set_accessible_label(add, _('New Recipe'))
         connect_weak(add, 'clicked', self._on_new)
-        header.append(add)
-        self.append(header)
+        # Packed at the end of the header by pagenav.make_nav_page.
+        self.header_widgets = [add]
 
-        scrolled = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
-        self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.list.add_css_class('boxed-list')
-        self.list.set_margin_start(12)
-        self.list.set_margin_end(12)
-        self.list.set_margin_bottom(12)
-        scrolled.set_child(self.list)
-        self.append(scrolled)
+        self.stack = Gtk.Stack()
+        self.group = Adw.PreferencesGroup()
+        clamp = Adw.Clamp(maximum_size=COLUMN_WIDTH, child=self.group,
+                          margin_top=12, margin_bottom=24,
+                          margin_start=12, margin_end=12)
+        scrolled = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
+        scrolled.set_child(clamp)
+        self.stack.add_named(scrolled, 'list')
+        empty = Adw.StatusPage(
+            icon_name=ICON, title=_('No Recipes Yet'),
+            description=_('A recipe turns your timelines into a feed of '
+                          'your own'))
+        pill = Gtk.Button(label=_('New Recipe'), halign=Gtk.Align.CENTER)
+        pill.add_css_class('pill')
+        pill.add_css_class('suggested-action')
+        connect_weak(pill, 'clicked', self._on_new)
+        empty.set_child(pill)
+        self.stack.add_named(empty, 'empty')
+        self.set_child(self.stack)
+
+        self._add_actions()
         self.reload()
+
+    def _add_actions(self):
+        group = Gio.SimpleActionGroup()
+        for name, handler in (('open', self._on_open),
+                              ('edit', self._on_edit),
+                              ('pin', self._on_pin),
+                              ('copy-link', self._on_copy_link),
+                              ('delete', self._on_delete)):
+            action = Gio.SimpleAction.new(name, GLib.VariantType.new('s'))
+            connect_weak(action, 'activate', handler)
+            group.add_action(action)
+        self.insert_action_group('recipe', group)
 
     def reload(self):
-        while child := self.list.get_first_child():
-            self.list.remove(child)
+        for row in self._rows:
+            self.group.remove(row)
+        self._rows = []
+        self._row_by_id = {}
         recipes = self.storage.load_recipes()
-        if not recipes:
-            empty = Adw.ActionRow(
-                title=_('No recipes yet'),
-                subtitle=_('Create a recipe to cook a custom timeline'))
-            self.list.append(empty)
-            return
+        self.stack.set_visible_child_name('list' if recipes else 'empty')
+        pinned = set(app_settings().get_strv(PINNED_KEY))
         for recipe in recipes:
-            inert = recipe.inert_modifiers()
-            subtitle = recipe.pantry.scope
-            if inert:
-                subtitle = _('%s — some modifiers need NLP (shown as inactive)'
-                             ) % subtitle
-            row = Adw.ActionRow(title=recipe.meta.name, subtitle=subtitle)
-            open_btn = Gtk.Button(label=_('Open'), valign=Gtk.Align.CENTER)
-            open_btn.recipe_id = recipe.id
-            connect_weak(open_btn, 'clicked', self._open_clicked)
-            row.add_suffix(open_btn)
-            edit_btn = Gtk.Button(label=_('Edit'), valign=Gtk.Align.CENTER)
-            edit_btn.recipe_id = recipe.id
-            connect_weak(edit_btn, 'clicked', self._edit_clicked)
-            row.add_suffix(edit_btn)
-            pin_btn = Gtk.Button(label=_('Pin'), valign=Gtk.Align.CENTER)
-            pin_btn.recipe_id = recipe.id
-            connect_weak(pin_btn, 'clicked', self._pin_clicked)
-            row.add_suffix(pin_btn)
-            del_btn = Gtk.Button(label=_('Delete'), valign=Gtk.Align.CENTER)
-            del_btn.add_css_class('destructive-action')
-            del_btn.recipe_id = recipe.id
-            connect_weak(del_btn, 'clicked', self._delete_clicked)
-            row.add_suffix(del_btn)
-            self.list.append(row)
+            row = self._make_row(
+                recipe, _pin_entry(self.account, recipe.id) in pinned)
+            self.group.add(row)
+            self._rows.append(row)
+            self._row_by_id[recipe.id] = row
 
-    def _on_new(self, _button):
-        recipe = default_recipe()
-        self.storage.save_recipe(recipe)
-        self._edit_recipe(recipe.id)
+    def _make_row(self, recipe, pinned):
+        target = GLib.Variant.new_string(recipe.id)
+        row = Adw.ActionRow(title=GLib.markup_escape_text(recipe.meta.name),
+                            subtitle=GLib.markup_escape_text(
+                                recipe_subtitle(recipe)),
+                            activatable=True)
+        row.set_action_name('recipe.open')
+        row.set_action_target_value(target)
+        menu = Gio.Menu()
+        # Delete is alone in its section, away from the everyday entries.
+        for entries in (
+                ((_('_Edit'), 'recipe.edit'),
+                 (_('_Unpin From Sidebar') if pinned
+                  else _('_Pin to Sidebar'), 'recipe.pin'),
+                 (_('_Copy Share Link'), 'recipe.copy-link')),
+                ((_('_Delete'), 'recipe.delete'),)):
+            section = Gio.Menu()
+            for label, action in entries:
+                item = Gio.MenuItem.new(label, None)
+                item.set_action_and_target_value(action, target)
+                section.append_item(item)
+            menu.append_section(None, section)
+        options = Gtk.MenuButton(
+            icon_name='view-more-symbolic', menu_model=menu,
+            valign=Gtk.Align.CENTER)
+        options.add_css_class('flat')
+        # Translators: tooltip and accessible name of a recipe's menu
+        # button; %s is the recipe's name.
+        set_accessible_label(options, _('Options for “%s”')
+                             % recipe.meta.name)
+        row.add_suffix(options)
+        row.add_suffix(Gtk.Image.new_from_icon_name('go-next-symbolic'))
+        return row
 
-    def _open_clicked(self, button):
-        self._open_recipe(getattr(button, 'recipe_id', ''))
+    # Actions: the parameter is the recipe id.
 
-    def _edit_clicked(self, button):
-        self._edit_recipe(getattr(button, 'recipe_id', ''))
-
-    def _pin_clicked(self, button):
-        self._pin_recipe(getattr(button, 'recipe_id', ''))
-
-    def _delete_clicked(self, button):
-        self._delete_recipe(getattr(button, 'recipe_id', ''))
-
-    def _open_recipe(self, recipe_id):
+    def _on_open(self, _action, parameter):
         window = self.get_root()
         if window is not None and hasattr(window, 'show_page'):
-            window.show_page('recipe:%s' % recipe_id)
+            window.show_page('recipe:%s' % parameter.get_string())
 
-    def _edit_recipe(self, recipe_id):
-        recipe = self.storage.get_recipe_by_id(recipe_id)
-        if recipe is None:
-            return
-        dialog = FeedChefBuilderDialog(self.client, self.account, recipe)
-        connect_weak(dialog, 'closed', self._on_builder_closed)
-        dialog.present(self.get_root())
+    def _on_new(self, _button):
+        self._edit(default_recipe(_('New Recipe')), is_new=True)
 
-    def _on_builder_closed(self, _dialog):
+    def _on_edit(self, _action, parameter):
+        recipe = self.storage.get_recipe_by_id(parameter.get_string())
+        if recipe is not None:
+            self._edit(recipe)
+
+    def _edit(self, recipe, is_new=False):
+        dialog = FeedChefBuilderDialog(
+            self.client, self.account, recipe, is_new=is_new)
+        connect_weak(dialog, 'saved', self._on_saved)
+        dialog.present(self)
+
+    def _on_saved(self, dialog):
         self.reload()
-
-    def _pin_recipe(self, recipe_id):
-        settings = app_settings()
-        key = 'favorite-feedchef-ids'
-        account_id = str(self.account.get('id') or '')
-        entry = '%s/%s' % (account_id, recipe_id)
-        values = list(settings.get_strv(key))
-        if entry not in values:
-            values.append(entry)
-            settings.set_strv(key, values)
-        feedback.show_toast(self, _('Pinned to the sidebar'))
-
-    def _delete_recipe(self, recipe_id):
-        self._pending_delete = recipe_id
-        dialog = Adw.AlertDialog(
-            heading=_('Delete recipe?'),
-            body=_('This removes the recipe from this account.'))
-        dialog.add_response('cancel', _('Cancel'))
-        dialog.add_response('delete', _('Delete'))
-        dialog.set_response_appearance(
-            'delete', Adw.ResponseAppearance.DESTRUCTIVE)
-        connect_weak(dialog, 'response', self._on_delete_response)
-        dialog.present(self.get_root())
-
-    def _on_delete_response(self, _dialog, response):
-        if response != 'delete':
-            return
-        recipe_id = getattr(self, '_pending_delete', None)
-        if not recipe_id:
-            return
-        self.storage.delete_recipe(recipe_id)
-        settings = app_settings()
-        account_id = str(self.account.get('id') or '')
-        prefix = '%s/' % account_id
-        key = 'favorite-feedchef-ids'
-        values = [item for item in settings.get_strv(key)
-                  if not (item.startswith(prefix)
-                          and item[len(prefix):] == recipe_id)]
-        settings.set_strv(key, values)
-        self.reload()
-
-
-class FeedChefBuilderDialog(Adw.PreferencesDialog):
-    __gtype_name__ = 'BabbleFeedChefBuilderDialog'
-
-    def __init__(self, client, account, recipe):
-        super().__init__(title=_('Feed Chef Recipe'))
-        self.client = client
-        self.account = account
-        self.recipe = recipe
-        self.storage = _storage_for(account)
-
-        page = Adw.PreferencesPage()
-        self.add(page)
-        general = Adw.PreferencesGroup(title=_('Recipe'))
-        self.name_row = Adw.EntryRow(title=_('Name'))
-        self.name_row.set_text(recipe.meta.name)
-        general.add(self.name_row)
-        page.add(general)
-
-        pantry = Adw.PreferencesGroup(
-            title=_('Pantry'),
-            description=_('Where posts come from'))
-        self.scope = Adw.ComboRow(title=_('Scope'))
-        model = Gtk.StringList.new(['home', 'local', 'federated', 'list'])
-        self.scope.set_model(model)
-        scopes = ['home', 'local', 'federated', 'list']
-        try:
-            self.scope.set_selected(scopes.index(recipe.pantry.scope))
-        except ValueError:
-            self.scope.set_selected(0)
-        pantry.add(self.scope)
-        self.list_id = Adw.EntryRow(title=_('List id'))
-        self.list_id.set_text(recipe.pantry.list_id or '')
-        pantry.add(self.list_id)
-        self.include = Adw.EntryRow(title=_('Include hashtags'))
-        self.include.set_text(' '.join(recipe.pantry.hashtags_include))
-        pantry.add(self.include)
-        self.exclude = Adw.EntryRow(title=_('Exclude hashtags'))
-        self.exclude.set_text(' '.join(recipe.pantry.hashtags_exclude))
-        pantry.add(self.exclude)
-        reach = Adw.SwitchRow(
-            title=_('Network reach (degree 1)'),
-            subtitle=_('Off when degrees is unset — not “unlimited”'))
-        reach.set_active(recipe.pantry.network_reach.enabled)
-        self.reach_switch = reach
-        pantry.add(reach)
-        self.reach_degrees = Adw.SpinRow(
-            title=_('Max degrees'),
-            adjustment=Gtk.Adjustment(value=float(
-                recipe.pantry.network_reach.max_degrees or 0),
-                lower=0, upper=5, step_increment=1),
-            digits=0)
-        pantry.add(self.reach_degrees)
-        page.add(pantry)
-
-        diet = Adw.PreferencesGroup(title=_('Diet'))
-        self.blocklist = Adw.EntryRow(title=_('Keyword blocklist'))
-        self.blocklist.set_text(' '.join(recipe.diet.keyword_blocklist))
-        diet.add(self.blocklist)
-        self.media = Adw.SwitchRow(title=_('Must have media'))
-        self.media.set_active(recipe.diet.hard_filters.must_have_media)
-        diet.add(self.media)
-        self.alt = Adw.SwitchRow(title=_('Must have alt text'))
-        self.alt.set_active(recipe.diet.hard_filters.must_have_alt_text)
-        diet.add(self.alt)
-        self.sensitive = Adw.SwitchRow(title=_('No sensitive media'))
-        self.sensitive.set_active(recipe.diet.hard_filters.no_sensitive_media)
-        diet.add(self.sensitive)
-        page.add(diet)
-
-        kitchen = Adw.PreferencesGroup(
-            title=_('Kitchen'),
-            description=_('Similarity / sentiment stay inactive until NLP '
-                          'is approved'))
-        self.base_sort = Adw.ComboRow(title=_('Base sort'))
-        self.base_sort.set_model(Gtk.StringList.new(['score', 'chronological']))
-        self.base_sort.set_selected(
-            0 if recipe.kitchen.base_sort != 'chronological' else 1)
-        kitchen.add(self.base_sort)
-        inert = recipe.inert_modifiers()
-        if inert:
-            warn = Adw.ActionRow(
-                title=_('Inactive modifiers'),
-                subtitle=', '.join(inert))
-            kitchen.add(warn)
-        page.add(kitchen)
-
-        actions = Adw.PreferencesGroup()
-        save = Adw.ButtonRow(title=_('Save'))
-        connect_weak(save, 'activated', self._save)
-        actions.add(save)
-        share = Adw.ButtonRow(title=_('Copy share link'))
-        connect_weak(share, 'activated', self._share)
-        actions.add(share)
-        page.add(actions)
-
-    def _collect(self):
-        scopes = ['home', 'local', 'federated', 'list']
-        self.recipe.meta.name = self.name_row.get_text().strip() or _(
-            'Untitled Recipe')
-        self.recipe.pantry.scope = scopes[self.scope.get_selected()]
-        self.recipe.pantry.list_id = self.list_id.get_text().strip() or None
-        self.recipe.pantry.hashtags_include = [
-            part.lstrip('#').lower()
-            for part in self.include.get_text().split() if part.strip()]
-        self.recipe.pantry.hashtags_exclude = [
-            part.lstrip('#').lower()
-            for part in self.exclude.get_text().split() if part.strip()]
-        self.recipe.pantry.network_reach.enabled = self.reach_switch.get_active()
-        degrees = int(self.reach_degrees.get_value())
-        self.recipe.pantry.network_reach.max_degrees = (
-            None if degrees <= 0 else degrees)
-        self.recipe.diet.keyword_blocklist = [
-            part.lower() for part in self.blocklist.get_text().split()
-            if part.strip()]
-        self.recipe.diet.hard_filters.must_have_media = self.media.get_active()
-        self.recipe.diet.hard_filters.must_have_alt_text = self.alt.get_active()
-        self.recipe.diet.hard_filters.no_sensitive_media = (
-            self.sensitive.get_active())
-        self.recipe.kitchen.base_sort = (
-            'chronological' if self.base_sort.get_selected() == 1 else 'score')
-        return self.recipe
-
-    def _save(self, *_args):
-        self.storage.save_recipe(self._collect())
+        recipe_stored(self, self.account, dialog.recipe, skip=self)
         feedback.show_toast(self, _('Recipe saved'))
-        self.close()
 
-    def _share(self, *_args):
-        recipe = self._collect()
-        uri = recipe_share_uri(recipe)
+    def _on_pin(self, _action, parameter):
+        entry = _pin_entry(self.account, parameter.get_string())
+        settings = app_settings()
+        values = list(settings.get_strv(PINNED_KEY))
+        if entry in values:
+            values.remove(entry)
+            message = _('Removed from the sidebar')
+        else:
+            values.append(entry)
+            message = _('Pinned to the sidebar')
+        settings.set_strv(PINNED_KEY, values)
+        self.reload()
+        feedback.show_toast(self, message)
+
+    def _on_copy_link(self, _action, parameter):
+        recipe = self.storage.get_recipe_by_id(parameter.get_string())
         display = self.get_display()
-        if display is not None:
-            display.get_clipboard().set(uri)
+        if recipe is None or display is None:
+            return
+        display.get_clipboard().set(recipe_share_uri(recipe))
         feedback.show_toast(self, _('Share link copied'))
 
+    def _on_delete(self, _action, parameter):
+        """Take the row out of view at once and delete the recipe only
+        when the Undo toast goes away, so a slip costs nothing."""
+        recipe_id = parameter.get_string()
+        row = self._row_by_id.get(recipe_id)
+        if row is None:
+            return
+        anchor = pagenav.window_of(self) or self
+        page = self.weak_ref()
+        storage, account = self.storage, self.account
 
-class FeedChefTimelinePage(Gtk.Box):
+        def commit():
+            storage.delete_recipe(recipe_id)
+            settings = app_settings()
+            entry = _pin_entry(account, recipe_id)
+            settings.set_strv(PINNED_KEY, [
+                item for item in settings.get_strv(PINNED_KEY)
+                if item != entry])
+            listing = page()
+            if listing is not None:
+                listing.reload()
+
+        def restore():
+            listing = page()
+            if listing is not None:
+                listing._show_row(recipe_id, True)
+
+        self._show_row(recipe_id, False)
+        feedback.deferred_action(anchor, _('Recipe deleted'),
+                                 commit, restore)
+
+    def _show_row(self, recipe_id, visible):
+        row = self._row_by_id.get(recipe_id)
+        if row is not None:
+            row.set_visible(visible)
+        shown = any(r.get_visible() for r in self._rows)
+        self.stack.set_visible_child_name('list' if shown else 'empty')
+
+
+class FeedChefTimelinePage(TimelinePage):
+    """A recipe's timeline: a TimelinePage over a FeedChefSource.
+
+    The cook's order is the kitchen's, so the list is never sorted by id
+    and a refresh cooks again instead of inserting newer posts on top."""
+
     __gtype_name__ = 'BabbleFeedChefTimelinePage'
 
     def __init__(self, client, account, recipe):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL)
-        self.client = client
+        engine = make_engine(client, accounts.account_key(account),
+                             str(account.get('id') or ''), recipe)
+        engine.init_preload()
+        source = FeedChefSource(engine, recipe)
+        # No boost carousel: grouping boosts would reorder the kitchen's
+        # list.
+        super().__init__(client, source=source, boosts_carousel=False,
+                         autoload=False)
         self.account = account
         self.recipe = recipe
-        self.model = FeedChefModel()
-        self._gate = RequestGate()
-        self.storage = _storage_for(account)
-        self.engine = make_engine(
-            client, _account_key(account),
-            str(account.get('id') or ''), recipe)
-        self.engine.init_preload()
+        self.engine = engine
+        self.storage = storage_for(account)
+        source.stage_listener = weak_method(self._on_stage)
 
-        toolbar = Gtk.Box(spacing=8, margin_top=8, margin_bottom=8,
-                          margin_start=12, margin_end=12)
-        self.status = Gtk.Label(label=_('Ready'), xalign=0, hexpand=True)
-        self.status.add_css_class('dim-label')
-        toolbar.append(self.status)
-        if recipe.inert_modifiers():
-            warn = Gtk.Label(
-                label=_('Some modifiers are inactive'), xalign=0)
-            warn.add_css_class('warning')
-            toolbar.append(warn)
-        self.focus_label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
-        self.focus_label.add_css_class('dim-label')
-        toolbar.append(self.focus_label)
-        self.clear_focus_button = Gtk.Button(label=_('Clear focus'))
-        connect_weak(self.clear_focus_button, 'clicked', self._clear_focus)
-        toolbar.append(self.clear_focus_button)
+        # Packed at the end of the header by pagenav.make_nav_page.
+        self.edit_button = icon_button('document-edit-symbolic',
+                                       _('Edit Recipe'))
+        connect_weak(self.edit_button, 'clicked', self._on_edit_clicked)
+        self.header_widgets = [self.edit_button]
+
+        self.loading_page.set_title(_('Cooking Your Timeline'))
+        self.error_page.set_title(_('Could Not Load This Recipe'))
+        self.empty_page.set_icon_name(ICON)
+        self._build_empty_actions()
+        self._sync_empty()
+        self._reset_stage_hint()
+
+        # The focus banner sits above the timeline's own stack.
+        self.banner = Adw.Banner(button_label=_('Clear Focus'),
+                                 use_markup=False)
+        connect_weak(self.banner, 'button-clicked', self._clear_focus)
+        column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        stack = self.get_child()
+        self.set_child(None)
+        stack.set_vexpand(True)
+        column.append(self.banner)
+        column.append(stack)
+        self.set_child(column)
         self._update_focus_ui()
-        refresh = Gtk.Button(icon_name='view-refresh-symbolic')
-        connect_weak(refresh, 'clicked', self._refresh)
-        toolbar.append(refresh)
-        self.append(toolbar)
-
-        self.scroller = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
-        self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.list.add_css_class('timeline')
-        self.scroller.set_child(self.list)
-        self.append(self.scroller)
-        connect_weak(self.scroller.get_vadjustment(), 'value-changed',
-                     self._maybe_page)
-        self._refresh()
-
-    def close_requests(self):
-        self.cancel()
-
-    def cancel(self):
-        self.engine.cancel()
+        self.ensure_loaded()
 
     def do_dispose(self):
-        self.engine.shutdown()
-        Gtk.Box.do_dispose(self)
+        engine = getattr(self, 'engine', None)
+        if engine is not None:
+            # The scope first: it cancels the request this page is waiting
+            # on, which the page's callback drops without a word. Closing
+            # the source first would answer it, and a page being disposed
+            # would show that as an error.
+            self._close_paging_scope()
+            self.source.close()
+            engine.shutdown()
+        TimelinePage.do_dispose(self)
+
+    # The empty page
+
+    def _build_empty_actions(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                      halign=Gtk.Align.CENTER)
+        self.more_button = Gtk.Button(label=_('Load Older Posts'),
+                                      halign=Gtk.Align.CENTER)
+        self.more_button.add_css_class('pill')
+        self.more_button.add_css_class('suggested-action')
+        connect_weak(self.more_button, 'clicked', self._on_load_older)
+        box.append(self.more_button)
+        self.empty_edit = Gtk.Button(label=_('Edit Recipe'),
+                                     halign=Gtk.Align.CENTER)
+        self.empty_edit.add_css_class('pill')
+        connect_weak(self.empty_edit, 'clicked', self._on_edit_clicked)
+        box.append(self.empty_edit)
+        self.empty_page.set_child(box)
+
+    def _sync_empty(self):
+        """The empty page is final only when the scope has nothing older.
+        After the source gave up hopping over empty batches, older posts
+        may still match: say so and offer to keep going."""
+        paused = bool(self.source.stalled) \
+            and self.model.get_n_items() == 0
+        self.more_button.set_visible(paused)
+        if paused:
+            self.empty_page.set_title(_('No Matching Posts Yet'))
+            self.empty_page.set_description(
+                _('Older posts may still match this recipe'))
+        else:
+            self.empty_page.set_title(_('No Matching Posts'))
+            self.empty_page.set_description(
+                _('Try fewer filters or a wider scope'))
+
+    def _finish_page_loaded(self, statuses, ticket=None, raw_oldest=None):
+        TimelinePage._finish_page_loaded(self, statuses, ticket, raw_oldest)
+        self._sync_empty()
+
+    def _finish_older_loaded(self, statuses, ticket=None, before=0,
+                             raw_oldest=None):
+        TimelinePage._finish_older_loaded(
+            self, statuses, ticket, before=before, raw_oldest=raw_oldest)
+        if self.source.stalled and self.model.exhausted:
+            # An empty batch after several hops is a pause, not the end:
+            # the next scroll to the bottom continues.
+            self.model.exhausted = False
+
+    def _on_load_older(self, _button):
+        """Cook on from the scope cursor when nothing is on screen yet
+        (load_older needs a post to page from)."""
+        cursor = self.source.cursor
+        if cursor is None or self.model.loading or self._scope.closed:
+            return
+        self.model.loading = True
+        self.stack.set_visible_child_name('loading')
+        self._request({'limit': self.PAGE_SIZE, 'max_id': cursor},
+                      self.on_page_loaded, on_drop=PagedPosts._drop_loading,
+                      owns_loading=True)
+
+    # Cooking
+
+    def refresh(self):
+        """Cook again: the list is replaced, in kitchen order."""
+        if self._scope.closed:
+            return
+        self.model.loading = False
+        self._older_pending = False
+        self._loading_older = False
+        self._release_bottom()
+        self.model.clear()
+        self._reset_stage_hint()
+        self.load()
+
+    def _reset_stage_hint(self):
+        self.loading_page.set_description(_('Gathering posts…'))
+
+    def _on_stage(self, stage):
+        hint = {'PANTRY': _('Applying your diet…'),
+                'DIET': _('Seasoning…')}.get(stage)
+        if hint:
+            self.loading_page.set_description(hint)
+
+    # More Like This
+
+    def post_menu_entries(self, status):
+        """The post menu's own entry (see StatusMenuButton._page_section)."""
+        # Translators: post menu entry; the underscore marks the access
+        # key, L, which no other entry of that menu uses.
+        return [(_('More _Like This'), self._more_like_this)]
+
+    def _shown_statuses(self):
+        found = []
+        for position in range(self.model.get_n_items()):
+            status = getattr(self.model.get_item(position), 'status', None)
+            if isinstance(status, dict):
+                found.append(status)
+        return found
+
+    def _more_like_this(self, status):
+        tags, keywords = extract_focus(status, self._shown_statuses())
+        if not tags and not keywords:
+            feedback.show_toast(self, _('Nothing to focus on in this post'))
+            return
+        kitchen = self.recipe.kitchen
+        kitchen.active_focus_hashtags = tags or None
+        kitchen.active_focus_keywords = keywords or None
+        self._save_focus()
+        feedback.show_toast(self, _('Focus set from this post'))
+
+    def _clear_focus(self, *_args):
+        kitchen = self.recipe.kitchen
+        kitchen.active_focus_hashtags = None
+        kitchen.active_focus_keywords = None
+        self._save_focus()
+
+    def _save_focus(self):
+        try:
+            self.storage.save_recipe(self.recipe)
+        except Exception as error:
+            feedback.report_error(self, _('Could not save the recipe'),
+                                  error)
+            return
+        self._update_focus_ui()
+        self.refresh()
 
     def _update_focus_ui(self):
         kitchen = self.recipe.kitchen
-        tags = kitchen.active_focus_hashtags or []
-        words = kitchen.active_focus_keywords or []
-        parts = ['#%s' % tag for tag in tags] + list(words)
-        self.focus_label.set_visible(bool(parts))
-        self.clear_focus_button.set_visible(bool(parts))
+        parts = ['#%s' % tag for tag in kitchen.active_focus_hashtags or []]
+        parts += list(kitchen.active_focus_keywords or [])
         if parts:
-            # Translators: %s is the list of hashtags and keywords the
-            # timeline is focused on.
-            self.focus_label.set_label(_('Focus: %s') % ' '.join(parts))
+            terms = ', '.join(parts[:BANNER_TERMS])
+            extra = len(parts) - BANNER_TERMS
+            if extra > 0:
+                # Translators: %(terms)s lists the first hashtags and words
+                # the timeline is focused on, such as "#a, #b, #c"; %(count)d
+                # is how many more there are.
+                terms = ngettext('%(terms)s and %(count)d more',
+                                 '%(terms)s and %(count)d more',
+                                 extra) % {'terms': terms, 'count': extra}
+            # Translators: %s lists the hashtags and words the timeline is
+            # focused on, for example "#python, decorators".
+            self.banner.set_title(_('Showing more like %s') % terms)
+        # The whole list, for when the title had to leave some out.
+        self.banner.set_tooltip_text(', '.join(parts) if parts else None)
+        self.banner.set_revealed(bool(parts))
 
-    def _more_like_this_clicked(self, button):
-        sid = getattr(button, 'status_id', '')
-        for status in self.model.items:
-            if str(status.get('id') or '') == sid:
-                self._more_like_this(status)
-                return
+    # Editing the recipe
 
-    def _more_like_this(self, status):
-        tags, keywords = extract_focus(status, self.model.items)
-        self.recipe.kitchen.active_focus_hashtags = tags or None
-        self.recipe.kitchen.active_focus_keywords = keywords or None
-        self.storage.save_recipe(self.recipe)
+    def _on_edit_clicked(self, _button):
+        dialog = FeedChefBuilderDialog(self.client, self.account, self.recipe)
+        connect_weak(dialog, 'saved', self._on_recipe_saved)
+        dialog.present(self)
+
+    def _on_recipe_saved(self, dialog):
+        self.use_recipe(dialog.recipe)
+        recipe_stored(self, self.account, self.recipe, skip=self)
+        feedback.show_toast(self, _('Recipe saved'))
+
+    def use_recipe(self, recipe):
+        """Cook *recipe* from now on: a new engine, the list replaced, the
+        place title following a rename."""
+        self.recipe = recipe
+        if self._scope.closed:
+            return
+        # Supersede the cook in flight first: its cancelled task is then
+        # dropped by the scope instead of being shown as an error.
+        self._scope.begin()
+        self.source.close()
+        old = self.engine
+        self.engine = make_engine(
+            self.client, accounts.account_key(self.account),
+            str(self.account.get('id') or ''), self.recipe)
+        self.engine.init_preload()
+        self.source.engine = self.engine
+        self.source.recipe = self.recipe
+        old.shutdown()
         self._update_focus_ui()
-        feedback.show_toast(self, _('Focus set from this post'))
-        self._refresh()
-
-    def _clear_focus(self, *_args):
-        self.recipe.kitchen.active_focus_hashtags = None
-        self.recipe.kitchen.active_focus_keywords = None
-        self.storage.save_recipe(self.recipe)
-        self._update_focus_ui()
-        self._refresh()
-
-    def _refresh(self, *_args):
-        generation = self._gate.begin_refresh()
-        self.engine.cancel()
-        self.status.set_label(_('Cooking…'))
-        self.engine.process_feed(
-            self.recipe,
-            max_id=None,
-            count=40,
-            on_stage=partial(self._deliver_stage, generation),
-            on_done=partial(self._deliver_done, generation),
-            on_error=partial(self._deliver_error, generation),
-        )
-
-    def _load_older(self):
-        if not self.model.has_more or not self.model.scope_oldest_id:
-            return
-        generation = self._gate.begin_page()
-        if generation is None:
-            return
-        self.status.set_label(_('Loading older…'))
-        self.engine.process_feed(
-            self.recipe,
-            max_id=self.model.scope_oldest_id,
-            count=40,
-            on_stage=None,
-            on_done=partial(self._deliver_page, generation),
-            on_error=partial(self._deliver_error, generation),
-        )
-
-    def _deliver_stage(self, generation, stage, items):
-        if self._gate.accept(generation):
-            self._on_stage(stage, items)
-
-    def _deliver_done(self, generation, result):
-        if self._gate.finish(generation):
-            self._on_done(result)
-
-    def _deliver_page(self, generation, result):
-        if self._gate.finish(generation):
-            self._on_page(result)
-
-    def _deliver_error(self, generation, error):
-        if self._gate.finish(generation):
-            self._on_error(error)
-
-    def _on_stage(self, stage, _items):
-        self.status.set_label(_('Cooking… Stage: %s') % stage)
-
-    def _posts_label(self):
-        count = len(self.model)
-        # Translators: the number of posts in a Feed Chef timeline.
-        return ngettext('%d post', '%d posts', count) % count
-
-    def _on_done(self, result):
-        filtered = _home_filter(result.items)
-        self.model.replace(
-            filtered,
-            scope_oldest_id=result.scope_oldest_id,
-            has_more=result.has_more,
-            score_map=result.score_map,
-        )
-        self._rebuild_rows()
-        self.status.set_label(self._posts_label())
-
-    def _on_page(self, result):
-        filtered = _home_filter(result.items)
-        self.model.append_page(
-            filtered,
-            scope_oldest_id=result.scope_oldest_id,
-            has_more=result.has_more,
-            score_map=result.score_map,
-        )
-        self._rebuild_rows()
-        self.status.set_label(self._posts_label())
-
-    def _on_error(self, error):
-        self.status.set_label(_('Could not cook this recipe'))
-        feedback.report_error(self, _('Feed Chef'), error)
-
-    def _rebuild_rows(self):
-        while child := self.list.get_first_child():
-            self.list.remove(child)
-        for status in self.model.items:
-            item = StatusItem(status)
-            row = StatusRow()
-            row.filter_context = filterrules.HOME
-            row.bind(item, self.client)
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            box.append(row)
-            more = Gtk.Button(label=_('More like this'),
-                              halign=Gtk.Align.END, margin_end=12,
-                              margin_bottom=6)
-            more.add_css_class('flat')
-            more.status_id = str(status.get('id') or '')
-            connect_weak(more, 'clicked', self._more_like_this_clicked)
-            box.append(more)
-            self.list.append(box)
-
-    def _maybe_page(self, adjustment):
-        if adjustment.get_upper() <= 0:
-            return
-        if adjustment.get_value() + adjustment.get_page_size() \
-                >= adjustment.get_upper() - 200:
-            self._load_older()
+        nav_page = self.get_ancestor(Adw.NavigationPage)
+        if nav_page is not None:
+            nav_page.set_title(recipe.meta.name)
+        self.refresh()
 
 
-def present_import(parent, account, recipe, *, replace_existing=False):
-    """Always confirm import (Java). Upsert then replaces silently."""
-    del replace_existing  # callers may pass it; confirm is always shown
-    author = (recipe.meta.author or '').strip()
-    if author:
-        body = _('Import “%s” by %s into this account?') % (
-            recipe.meta.name, author)
+def present_import(parent, account, recipe):
+    """Ask before a shared recipe is stored. A recipe with the same id is
+    replaced, which is said, since the old one is lost; otherwise the
+    recipe is added. Returns the dialog."""
+    existing = storage_for(account).get_recipe_by_id(recipe.id)
+    if existing is not None:
+        heading = _('Replace Recipe?')
+        body = _('This replaces your recipe “%s”.') % existing.meta.name
+        action, label = 'replace', _('_Replace')
+        appearance = Adw.ResponseAppearance.DESTRUCTIVE
     else:
-        body = _('Import “%s” into this account?') % recipe.meta.name
+        author = (recipe.meta.author or '').strip()
+        heading = _('Import Recipe?')
+        if author:
+            body = _('Import “%(name)s” by %(author)s into this '
+                     'account?') % {'name': recipe.meta.name,
+                                    'author': author}
+        else:
+            body = _('Import “%(name)s” into this account?') % {
+                'name': recipe.meta.name}
+        action, label = 'import', _('_Import')
+        appearance = Adw.ResponseAppearance.SUGGESTED
 
-    dialog = Adw.AlertDialog(
-        heading=_('Import Feed Chef recipe?'),
-        body=body)
-    dialog.add_response('cancel', _('Cancel'))
-    dialog.add_response('import', _('Import'))
-    dialog.set_response_appearance(
-        'import', Adw.ResponseAppearance.SUGGESTED)
+    dialog = Adw.AlertDialog(heading=heading, body=body)
+    dialog.add_response('cancel', _('_Cancel'))
+    dialog.add_response(action, label)
+    dialog.set_response_appearance(action, appearance)
+    dialog.set_default_response('cancel')
+    dialog.set_close_response('cancel')
 
     def response(_dialog, answer):
-        if answer != 'import':
+        if answer != action:
             return
         try:
-            _storage_for(account).save_recipe(recipe)
+            storage_for(account).save_recipe(recipe)
         except Exception as error:
-            feedback.report_error(parent, _('Feed Chef'), error)
+            feedback.report_error(parent, _('Could not save the recipe'),
+                                  error)
             return
+        recipe_stored(parent, account, recipe)
         feedback.show_toast(parent, _('Recipe imported'))
 
     dialog.connect('response', response)
     dialog.present(parent)
+    return dialog

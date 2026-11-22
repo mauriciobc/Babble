@@ -59,22 +59,35 @@ v1.
 8. A recipes file that cannot be read (or is not a JSON list) is renamed to
    `<name>.corrupt-<unix-ts>` (mode 0600) before a save or delete writes;
    Java wipes it. `load_recipes` stays read-only.
-9. More Like This is per post (a button on each row), not on the top post.
+9. More Like This is per post (an entry in the post's overflow menu, added
+   through the generic `page.` hook of `statusmenu`), not on the top post.
    Keywords are the top 5 TF-IDF terms of the post against the current
    timeline (the post alone when empty); accents are stripped and the 39
    Java stopwords apply. The relevance **sort** is still inert (item 5).
-10. A request gate (`feed_model.RequestGate`) numbers every refresh and
-    older-page request: a result of a superseded request is dropped, and an
-    older page cannot start (or cancel) while a refresh is in flight.
+10. The timeline is a `TimelinePage` over `feedchefsource.FeedChefSource`.
+    Its `RequestScope` supersedes a request in flight (the source answers
+    CANCELLED and stops the engine), so no request gate of its own is kept.
+    Older pages use the scope cursor of the last result, not TimelinePage's
+    id cursor. A refresh cooks again and replaces the list in kitchen order.
 
 ## Builder v1 cut (item 4)
 
-Shipped builder: name, pantry scope/list id/include/exclude, reach on/off +
-max degrees, diet blocklist + hard media filters, `base_sort`, inert
-warnings, save/share. **Not** in v1 UI: icon picker, live list picker,
-`positive_only` toggle, min-length slider, reach include-unknown control,
-per-modifier heat/similarity/diversity/sentiment/trending/freshness editors.
-Defaults and imported JSON still carry Java modifiers; inert ones warn.
+The builder is an `Adw.Dialog` (`feedchefbuilder.py`) that edits a copy of
+the recipe: Cancel discards it, Save stores it, and a new recipe is not
+stored before Save. It edits: name; pantry source (Home, Local, Federated or
+one of the account's lists, loaded through the lists API), include and
+exclude hashtags, and "Only People I Follow" (network reach on, one degree,
+or off; an imported recipe's other degree count is kept until the switch is
+changed); diet blocklist, media, alt text and sensitive-media filters and
+the minimum length; the kitchen order (most engaging or newest first) and
+the four modifiers that run without NLP (freshness in hours, heat percent,
+posts per person, trending growth), each an expander with an enable switch.
+Writing back keeps the modifier order, adds a newly enabled one at the end,
+removes a switched-off one, and leaves unsupported modifiers and values the
+reader did not touch as they were. Unsupported ingredients (similarity,
+sentiment, connections, positive only, focus keyword sorting) are named in
+one plain row. "Copy Share Link" sits in its own group. **Not** in the UI:
+icon picker, reach include-unknown control, fetch strategy, focus weights.
 
 ## Out of v1
 

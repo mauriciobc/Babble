@@ -20,7 +20,7 @@ from .api import relationships as api_relationships  # noqa: E402
 from .api import statuses as api_statuses  # noqa: E402
 from .blueskycard import view_on_bluesky  # noqa: E402
 from .bskytext import bridged_ref  # noqa: E402
-from .weakconnect import connect_weak  # noqa: E402
+from .weakconnect import connect_weak, weak_method  # noqa: E402
 from .textemoji import (launch_uri,  # noqa: E402
                         )
 
@@ -31,6 +31,16 @@ from .statusactions import (
 from .timelinebase import (
     QUOTE_POLICIES, VISIBILITY_INFO, _flag, _own_account_id,
     _translation_enabled, can_quote, quote_policy_of, ui_language)
+
+
+def _page_activate(callback, status):
+    """Handler of a page's menu entry: *callback(status)*, with the page
+    held weakly so the menu's actions never pin it."""
+    call = weak_method(callback)
+
+    def activate(_action, _parameter):
+        call(status)
+    return activate
 
 
 class StatusMenuButton(_PostBound, Gtk.MenuButton):
@@ -172,6 +182,9 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
         plugins = self._plugin_section(status)
         if plugins is not None:
             menu.append_section(None, plugins)
+        page_entries = self._page_section(status)
+        if page_entries is not None:
+            menu.append_section(None, page_entries)
 
         post = Gio.Menu()
         if self._can_translate():
@@ -236,6 +249,34 @@ class StatusMenuButton(_PostBound, Gtk.MenuButton):
             group.add_action(action)
             section.append(label, 'plugin.' + name)
         self.insert_action_group('plugin', group)
+        return section
+
+    def _page_section(self, status):
+        """The entries of the page that shows this post, under the 'page'
+        action group, rebuilt with the menu; None when there are none.
+
+        The first ancestor with a callable ``post_menu_entries(status)``
+        answers ``[(label, callback)]``; *callback* is a bound method of a
+        GObject, held weakly, and is called with the post's status dict."""
+        widget = self.host() if self.host else self
+        while widget is not None:
+            hook = getattr(widget, 'post_menu_entries', None)
+            if callable(hook):
+                break
+            widget = widget.get_parent()
+        entries = hook(status) if widget is not None else None
+        if not entries:
+            self.insert_action_group('page', None)
+            return None
+        group = Gio.SimpleActionGroup()
+        section = Gio.Menu()
+        for number, (label, callback) in enumerate(entries):
+            name = 'item%d' % number
+            action = Gio.SimpleAction.new(name, None)
+            action.connect('activate', _page_activate(callback, status))
+            group.add_action(action)
+            section.append(label, 'page.' + name)
+        self.insert_action_group('page', group)
         return section
 
     def _action_section(self, status):

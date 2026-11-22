@@ -12,7 +12,7 @@ from . import pagenav
 PLACES = (
     ('home', 'user-home-symbolic', 0),
     ('catch-up', 'babble-catch-up-symbolic', 0),
-    ('feed-chef', 'emblem-favorite-symbolic', 0),
+    ('feed-chef', 'babble-feed-chef-symbolic', 0),
     ('notifications', 'babble-notifications-symbolic', 0),
     ('conversations', 'mail-unread-symbolic', 0),
     ('search', 'system-search-symbolic', 0),
@@ -102,7 +102,7 @@ def pinned_routes(settings, account_id):
              for value in lists]
             + [(pinned_tag('tag', value), 'babble-hashtag-symbolic')
                for value in tags]
-            + [('recipe:%s' % value, 'emblem-favorite-symbolic')
+            + [('recipe:%s' % value, 'babble-feed-chef-symbolic')
                for value in recipes])
 
 
