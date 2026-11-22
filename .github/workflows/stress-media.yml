@@ -20,10 +20,6 @@ jobs:
     container:
       image: docker.io/library/fedora:rawhide
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Install build dependencies
         run: |
           sudo -E dnf install -y \
@@ -41,6 +37,12 @@ jobs:
             glycin-libs glycin-gtk4-libs glycin-loaders \
             dbus-daemon dbus-x11 git
           [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+
+      # After the install: without git in the container, checkout falls
+      # back to a tarball, and the baseline cannot read main's engine.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use main's engine (baseline only)
         if: matrix.variant == 'baseline'
