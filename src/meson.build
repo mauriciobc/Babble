@@ -11,6 +11,24 @@ gnome.compile_resources('babble',
 
 python = import('python').find_installation('python3')
 
+# Feed Chef's optional Python modules: a report, never a failure. Without
+# them the feature degrades (src/feedchef/deps.py) and its tests skip.
+feedchef_modules = ['numpy', 'py3langid', 'kmedoids', 'segno']
+feedchef_found = []
+feedchef_missing = []
+foreach module : feedchef_modules
+  probe = import('python').find_installation('python3', modules: [module], required: false)
+  if probe.found()
+    feedchef_found += module
+  else
+    feedchef_missing += module
+  endif
+endforeach
+message('Feed Chef Python modules found: ' + (feedchef_found.length() > 0 ? ', '.join(feedchef_found) : 'none'))
+if feedchef_missing.length() > 0
+  message('Feed Chef Python modules missing (the feature degrades, its tests skip): ' + ', '.join(feedchef_missing))
+endif
+
 conf = configuration_data()
 conf.set('PYTHON', python.full_path())
 conf.set('VERSION', meson.project_version())
@@ -209,6 +227,7 @@ install_data(
   'feedchef/auditreport.py',
   'feedchef/contract.py',
   'feedchef/decisionlog.py',
+  'feedchef/deps.py',
   'feedchef/diet.py',
   'feedchef/engine.py',
   'feedchef/icons.py',
@@ -831,7 +850,7 @@ test('feedchef recipe', python,
 )
 test('feedchef pipeline', python,
   args: [files('test-feedchef-pipeline.py')],
-  env: test_env,
+  env: fatal_test_env,
   timeout: 60,
 )
 # Needs no display: a seeded fuzz of recipes and statuses through the real
@@ -866,6 +885,15 @@ test('feedchef deeplink', python,
   args: [files('test-feedchef-deeplink.py')],
   env: test_env,
   timeout: 60,
+)
+# Needs a display (headless mutter at 1280x1024): the real window with Feed
+# Chef off imports nothing of it, starts nothing and shows nothing; turning it
+# on and off live brings the entry and a pinned recipe page and takes them
+# away, and the page's engine stops.
+test('feedchef optional', python,
+  args: [files('test-feedchef-optional.py')],
+  env: fatal_test_env,
+  timeout: 90,
 )
 # Needs a display (headless mutter at 1280x1024); the engine is a fake.
 test('feedchef ui', python,

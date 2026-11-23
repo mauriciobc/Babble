@@ -189,11 +189,9 @@ def make_engine(client, account_key, account_id, recipe,
                 cancellable=cancellable)
 
         def finish(c, result):
-            try:
-                data, next_params, _prev = api_core.finish_paged(c, result)
-            except Exception:
-                data = api_core.finish(c, result)
-                next_params = None
+            # One decode: a Gio.Task result can be propagated only once, so
+            # a second finish after a failed one would hit a consumed task.
+            data, next_params, _prev = api_core.finish_paged(c, result)
             next_max = None
             if isinstance(next_params, dict):
                 next_max = next_params.get('max_id')

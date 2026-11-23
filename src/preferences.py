@@ -536,9 +536,12 @@ class PreferencesDialog(Adw.PreferencesDialog):
                      _('Summarize what you missed in your home timeline'),
                      invert=True)
         # No mnemonic: `_F` would clash with Federated Timeline on this page.
-        self._switch(sidebar, 'hide-feed-chef', _('Feed Chef'),
-                     _('Build your own timelines from recipes'),
-                     invert=True)
+        # Translators: the subtitle of the Feed Chef switch; "restart" is
+        # the app, not the computer
+        self._switch(sidebar, 'feed-chef-enabled', _('Feed Chef'),
+                     _('Recipe timelines; uses more memory and network. '
+                       'Turning it off closes its pages now and frees the '
+                       'rest after a restart'))
         self._switch(sidebar, 'hide-trending', _('_Explore'),
                      _('Show posts trending on your server'), invert=True)
         self._switch(sidebar, 'hide-local', _('_Local Timeline'),

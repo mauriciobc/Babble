@@ -242,6 +242,8 @@ class SidebarHost:
                   if window.settings.get_boolean(key)}
         # Looked up on the window at call time so a test can rebind
         # window._restricted_public_places and still hit this path.
+        if not navigation.feed_chef_enabled(window.settings):
+            hidden.add('feed-chef')
         closed = window._restricted_public_places()
         hidden |= closed
         # A place the reader can no longer reach keeps neither a page nor

@@ -154,7 +154,14 @@ class FeedChefSource:
             dict(self._author_counts) if older else {},
             self._cook_id if older else uuid.uuid4().hex[:12],
             self._page_index + 1 if older else 0)
-        self._active = cook
+        # A cook this one supersedes, whose request nobody cancelled, is
+        # answered now: a Gio.Task left unanswered is never finished.
+        previous, self._active = self._active, cook
+        if previous is not None and not previous.done:
+            self._settle(previous)
+            previous.task.return_error(GLib.Error(
+                'Cancelled', 'g-io-error-quark',
+                int(Gio.IOErrorEnum.CANCELLED)))
         if cancellable is not None:
             cook.handler = cancellable.connect(partial(self._cancelled, cook))
         self.error_kind = None

@@ -93,7 +93,12 @@
     <key name="hide-feed-chef" type="b">
       <default>false</default>
       <summary>Hide the Feed Chef page from the sidebar</summary>
-      <description>Catch Up is a period digest of Home; Feed Chef is a recipe-driven continuous timeline. They coexist.</description>
+      <description>Deprecated: replaced by feed-chef-enabled and kept for one release. At startup a stored true value turns feed-chef-enabled off and the key is reset; nothing else reads it.</description>
+    </key>
+    <key name="feed-chef-enabled" type="b">
+      <default>true</default>
+      <summary>Enable Feed Chef</summary>
+      <description>When off, Feed Chef is not loaded at all: no sidebar entry, no background work and no network requests. Its open pages are freed at once; the memory of its code is freed after a restart.</description>
     </key>
     <key name="favorite-feedchef-ids" type="as">
       <default>[]</default>

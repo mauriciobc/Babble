@@ -24,7 +24,21 @@ from .feedchefsource import FeedChefSource  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .timelinepage import (TimelineFactory, TimelinePage,  # noqa: E402
                            filter_context_for)
+from .appsettings import settings as app_settings  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
+
+
+class CloseWhenFeedChefOff:
+    """Mixin for a Feed Chef dialog: it closes itself, and so lets go of
+    its engine, when `feed-chef-enabled` turns off while it is open."""
+
+    def watch_feed_chef_key(self):
+        connect_weak(app_settings(), 'changed::feed-chef-enabled',
+                     self._on_feed_chef_key)
+
+    def _on_feed_chef_key(self, settings, key):
+        if not settings.get_boolean(key):
+            self.force_close()
 
 
 class _ReadOnlyFactory(TimelineFactory):
@@ -93,7 +107,7 @@ class FeedChefPreviewPage(TimelinePage):
         TimelinePage.do_dispose(self)
 
 
-class FeedChefPreviewDialog(ToastDialog):
+class FeedChefPreviewDialog(CloseWhenFeedChefOff, ToastDialog):
     """Shows what an unsaved recipe cooks. The caller hands over a copy:
     the dialog never changes it."""
 
@@ -106,6 +120,7 @@ class FeedChefPreviewDialog(ToastDialog):
         self.timeline = FeedChefPreviewPage(client, account, recipe)
         self.set_content(self.timeline)
         connect_weak(self, 'closed', self._on_closed)
+        self.watch_feed_chef_key()
 
     def _on_closed(self, _dialog):
         self.timeline.shutdown()

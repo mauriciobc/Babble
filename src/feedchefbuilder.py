@@ -17,7 +17,8 @@ from .feedchef.icons import ICONS, icon_name  # noqa: E402
 from .feedchef.recipe import Modifier  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
-from .feedchefpreview import FeedChefPreviewDialog  # noqa: E402
+from .feedchefpreview import (CloseWhenFeedChefOff,  # noqa: E402
+                              FeedChefPreviewDialog)
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .uihelpers import set_accessible_label  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
@@ -211,7 +212,7 @@ def _unsupported_names(recipe):
     return [names.get(kind, kind) for kind in recipe.inert_modifiers()]
 
 
-class FeedChefBuilderDialog(ToastDialog):
+class FeedChefBuilderDialog(CloseWhenFeedChefOff, ToastDialog):
     """Edits a copy of a recipe. Cancel drops the copy; Save stores it,
     emits ``saved`` and closes. A new recipe is not stored before Save."""
 
@@ -258,6 +259,7 @@ class FeedChefBuilderDialog(ToastDialog):
         actions.add(row)
         page.add(actions)
         self._sync_scope()
+        self.watch_feed_chef_key()
         self._sync_subtitles()
         self.submit_on_enter(self.save_button, self.name_row, self.include,
                              self.exclude, self.blocklist)

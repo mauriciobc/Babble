@@ -7,6 +7,7 @@ from typing import Any
 
 from .i18n import gettext as _
 from . import pagenav
+from .appsettings import settings as app_settings
 
 
 PLACES = (
@@ -28,9 +29,22 @@ PLACES = (
 # Places whose pages get live updates and a refresh timer from the window.
 PUBLIC_TAGS = ('local', 'federated')
 
-HIDE_KEYS = {'catch-up': 'hide-catch-up', 'feed-chef': 'hide-feed-chef',
+# Feed Chef is not here: the old `hide-feed-chef` key was replaced by
+# `feed-chef-enabled` (see `main.migrate_hide_feed_chef`).
+HIDE_KEYS = {'catch-up': 'hide-catch-up',
              'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
+
+
+# Feed Chef is optional. With the key off nothing of it is imported: no
+# sidebar entry, no recipe pages, no engine (the feedchef modules are
+# imported only inside the functions below, behind this check).
+FEED_CHEF_KEY = 'feed-chef-enabled'
+
+
+def feed_chef_enabled(settings=None):
+    """Whether Feed Chef is on (the *settings* given, else the app's)."""
+    return (settings or app_settings()).get_boolean(FEED_CHEF_KEY)
 
 
 @dataclass(frozen=True)
@@ -97,7 +111,8 @@ def pinned_routes(settings, account_id):
     """Return ordered ``(tag, icon)`` routes for pinned lists/tags/recipes."""
     lists = pinned_entries(settings, 'favorite-lists-ids', account_id)
     tags = pinned_entries(settings, 'favorite-tags-ids', account_id)
-    recipes = pinned_entries(settings, 'favorite-feedchef-ids', account_id)
+    recipes = (pinned_entries(settings, 'favorite-feedchef-ids', account_id)
+               if feed_chef_enabled(settings) else [])
     return ([(pinned_tag('list', value), 'view-list-symbolic')
              for value in lists]
             + [(pinned_tag('tag', value), 'babble-hashtag-symbolic')
@@ -315,7 +330,7 @@ class Navigation:
     def _recipe(self, tag):
         """The stored recipe of a ``recipe:<id>`` place, or None."""
         account = self.host.account()
-        if account is None:
+        if account is None or not feed_chef_enabled():
             return None
         from . import accounts as accountsmod
         from .feedchef.storage import FeedRecipeStorage
@@ -341,6 +356,9 @@ class Navigation:
     def build_place(self, tag):
         """Construct a place's content widget, importing its page lazily."""
         client = self.host.client()
+        if (tag == 'feed-chef' or tag.startswith('recipe:')) \
+                and not feed_chef_enabled():
+            return None
         if tag == 'conversations':
             from .conversations import ConversationsPage
             return ConversationsPage(client)

@@ -451,7 +451,7 @@ check('list: an unknown icon shows the chef hat',
           i.get_icon_name() for i in
           find(list_page._row_by_id[unknown.id], Gtk.Image)])
 routing = navigation.Navigation(SimpleNamespace(account=lambda: account))
-pins = SimpleNamespace(get_strv=lambda key: (
+pins = SimpleNamespace(get_boolean=lambda key: True, get_strv=lambda key: (
     ['1/%s' % icon_recipe.id, '1/%s' % unknown.id, '1/gone']
     if key == 'favorite-feedchef-ids' else []))
 check('sidebar: a pinned recipe uses its icon, an unknown one the chef '

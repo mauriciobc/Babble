@@ -116,11 +116,11 @@ class FeedEngine:
         self.fetch_following_page = fetch_following_page
         self.ui_idle = ui_idle or (lambda cb: cb())
         self._executor = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix='FeedEngine')
+            max_workers=1, thread_name_prefix='feedchef-engine')
         self._trends_executor = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix='FeedEngine-trends')
+            max_workers=1, thread_name_prefix='feedchef-trends')
         self._reach_executor = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix='NetworkReach')
+            max_workers=1, thread_name_prefix='feedchef-reach')
         self._current = None
         self._preload_future = None
         self._cancel = threading.Event()
@@ -332,7 +332,7 @@ class FeedEngine:
         # cancelled, and must not hold a worker a later run needs. Its
         # thread ends on its own (the bridge bounds every fetch).
         pool = ThreadPoolExecutor(
-            max_workers=1 + len(tags), thread_name_prefix='FeedEngine-pantry')
+            max_workers=1 + len(tags), thread_name_prefix='feedchef-pantry')
         scope_future = pool.submit(self.fetch_scope, max_id, count)
         tag_futures = [(tag, pool.submit(self.fetch_hashtag, tag, count))
                        for tag in tags]

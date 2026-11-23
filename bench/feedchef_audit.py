@@ -27,6 +27,9 @@ installed; it runs from the source tree and reads only those files.
   evaluates a folder of logs and prints a report per recipe and cook.
   ``--json`` writes counts, verdicts, the recipe hash and dates only: no
   post id, handle or text.
+* ``langbench [LOG...] [--simplemma]`` scores language detection against the
+  languages posts declare: precision, recall and coverage by threshold and
+  text length (numbers only; needs numpy and py3langid).
 * ``self-test`` checks all of that on synthetic cooks, tampered records
   included, with no network and no display
   (``meson test -C build 'feedchef audit'``).

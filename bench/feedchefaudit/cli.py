@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The command line of the Feed Chef audit: ``show``, ``replay``,
-``evaluate``, ``collect`` and ``self-test``."""
+``evaluate``, ``collect``, ``langbench`` and ``self-test``."""
 
 import argparse
 import sys
@@ -8,6 +8,7 @@ import sys
 from feedchefaudit import evaluate as evalmod
 from feedchefaudit import replay as replaymod
 from feedchefaudit.collect import collect
+from feedchefaudit.langbench import langbench
 from feedchefaudit.records import LogError, Loaded, expand, load
 from feedchefaudit.selfcheck import run_self_test
 from feedchefaudit.show import show
@@ -46,6 +47,13 @@ def build_parser():
     collected.add_argument('--force', action='store_true')
     collected.add_argument('--allow-partial', action='store_true',
                            help='accept posts whose text is unverified')
+    lang = commands.add_parser(
+        'langbench',
+        help='language-ID precision and recall against declared languages')
+    lang.add_argument('paths', nargs='*',
+                      help='logs or folders (default: the app\'s)')
+    lang.add_argument('--simplemma', action='store_true',
+                      help='also compare simplemma, when importable')
     commands.add_parser('self-test', help='check the harness itself')
     return parser
 
@@ -113,6 +121,8 @@ def main(argv=None):
         return collect(args.paths, recipe_id=args.recipe, since=args.since,
                        json_path=args.json_path, force=args.force,
                        allow_partial=args.allow_partial)
+    if args.command == 'langbench':
+        return langbench(args.paths, with_simplemma=args.simplemma)
     if args.command == 'self-test':
         return run_self_test()
     return 2

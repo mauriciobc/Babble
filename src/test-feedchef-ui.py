@@ -25,7 +25,7 @@ import gi  # noqa: E402
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -716,5 +716,33 @@ check('freed: a dropped Feed Chef page is freed', freed(page_ref))
 check('freed: its engine was shut down', engine.shutdown_called)
 window.destroy()
 pump()
+
+# --- a superseded cook is answered, never left open ---
+from src.feedchefsource import FeedChefSource  # noqa: E402
+
+_engine = FakeEngine([([], False, None), ([], False, None)])
+_source = FeedChefSource(_engine, default_recipe())
+_answers = []
+
+
+def _answer(label):
+    def callback(_source_object, result, *_data):
+        try:
+            _source.finish(result)
+            _answers.append((label, None))
+        except GLib.Error as error:
+            _answers.append((label, error.code))
+    return callback
+
+
+_source.fetch({}, _answer('first'))
+_source.fetch({}, _answer('second'))
+pump_until(lambda: len(_answers) >= 2)
+check('superseded cook: the first request is answered CANCELLED',
+      ('first', int(Gio.IOErrorEnum.CANCELLED)) in _answers)
+check('superseded cook: the second request is answered with its page',
+      ('second', None) in _answers)
+check('superseded cook: each request answered exactly once',
+      len(_answers) == 2)
 
 sys.exit(1 if failures else 0)

@@ -125,6 +125,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = [fixtures.status(base, i, ANCHOR) for i in ids]
             self._send(200, json.dumps(body).encode(), 'application/json')
             return
+        if len(parts) == 5 and parts[:3] == ['api', 'v1', 'accounts'] \
+                and parts[4] == 'following':
+            # The viewer follows nobody here; the engine preloads the list.
+            self._send(200, b'[]', 'application/json')
+            return
         if url.path == '/api/v2/instance':
             body = {'domain': 'bench.local', 'title': 'Bench',
                     'configuration': {'translation': {'enabled': False},

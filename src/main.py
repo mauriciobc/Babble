@@ -22,6 +22,7 @@ from . import desktopnotify
 # already imported at startup; WebKit stays lazy inside webcolumn.
 from . import pluginlinks, webcolumn  # noqa: F401
 from .statustext import is_web_link
+from .weakconnect import connect_weak
 from .window import BabbleWindow, ISSUES_URL, PROJECT_URL
 
 # Links the desktop hands over by scheme: FEP-07d7 ``web+ap://`` object
@@ -112,6 +113,28 @@ def open_web_target(win, target):
         linkrouting.open_link(win, value, resolve=True)
 
 
+def migrate_hide_feed_chef(settings):
+    """Carry the old `hide-feed-chef` preference over: a reader who had
+    hidden Feed Chef gets it turned off, and the old key is reset so this
+    runs once. Only a value the user set counts (not the default)."""
+    value = settings.get_user_value('hide-feed-chef')
+    if value is None:
+        return
+    if value.get_boolean():
+        settings.set_boolean('feed-chef-enabled', False)
+    settings.reset('hide-feed-chef')
+
+
+def _is_feedchef_link(uri):
+    """True for ``babble://feedchef?...``. Plain GLib, so the check
+    never imports Feed Chef, which may be turned off."""
+    try:
+        parsed = GLib.Uri.parse(uri, GLib.UriFlags.NONE)
+    except GLib.Error:
+        return False
+    return (parsed.get_host() or '').lower() == 'feedchef'
+
+
 class BabbleApplication(Adw.Application):
     def __init__(self, version):
         super().__init__(application_id='io.github.mauriciobc.Babble',
@@ -200,6 +223,8 @@ class BabbleApplication(Adw.Application):
         # the first timestamps are formatted.
         from . import statustext
         statustext.clock_format()
+        from . import appsettings
+        migrate_hide_feed_chef(appsettings.settings())
         from . import pluginhost
         pluginhost.start_if_enabled()
 
@@ -316,8 +341,8 @@ class BabbleApplication(Adw.Application):
                 continue
             delivered.add(uri)
             if file.has_uri_scheme('babble'):
-                from .feedchef.sharecodec import is_feedchef_uri
-                if is_feedchef_uri(uri):
+                # Decided without importing Feed Chef, which may be off.
+                if _is_feedchef_link(uri):
                     self._open_feedchef_uri(win, uri)
                 else:
                     win.on_oauth_callback(uri)
@@ -331,6 +356,9 @@ class BabbleApplication(Adw.Application):
 
     def _open_feedchef_uri(self, win, uri):
         """Import a Feed Chef recipe from ``babble://feedchef?recipe=``."""
+        if not win.settings.get_boolean('feed-chef-enabled'):
+            self._offer_feedchef(win, uri)
+            return
         from .feedchef.sharecodec import try_parse_feedchef_uri
         from .feedchefpages import present_import
         recipe = try_parse_feedchef_uri(uri)
@@ -341,6 +369,19 @@ class BabbleApplication(Adw.Application):
             win.show_toast(_('Sign in to import this recipe'))
             return
         present_import(win, win.account, recipe)
+
+    def _offer_feedchef(self, win, uri):
+        """Feed Chef is off: say so, and offer to turn it on and go on."""
+        toast = Adw.Toast(title=_('Feed Chef is turned off'),
+                          button_label=_('Turn On'), use_markup=False)
+        # The URI only: the toast must not hold the window.
+        connect_weak(toast, 'button-clicked', self._turn_on_feedchef, uri)
+        win.add_toast(toast)
+
+    def _turn_on_feedchef(self, _toast, uri):
+        win = self.ensure_window()
+        win.settings.set_boolean('feed-chef-enabled', True)
+        self._open_feedchef_uri(win, uri)
 
     def open_web_uri(self, win, uri):
         """Route a ``web+ap://``/``web+mastodon://`` *uri* inside *win*;

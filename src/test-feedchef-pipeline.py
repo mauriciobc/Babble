@@ -302,6 +302,39 @@ time.sleep(0.35)
 check('cancel skips obsolete on_done', done_box['called'] is False)
 cancel_engine.shutdown()
 
+# --- the sentiment engines load on the worker, never on the main thread ---
+from src.feedchef import sentiment as sentimentmod  # noqa: E402
+
+_loaded_on = []
+_real_analyzer = sentimentmod._analyzer
+
+def _recording_analyzer(kind):
+    if kind not in sentimentmod._analyzers:
+        _loaded_on.append(threading.current_thread())
+    return _real_analyzer(kind)
+
+sentimentmod._analyzers.clear()
+sentimentmod._analyzer = _recording_analyzer
+tone_recipe = default_recipe()
+tone_recipe.diet.hard_filters.positive_only = True
+tone_done = threading.Event()
+tone_engine = FeedEngine(
+    account_key='a#tone', self_account_id='me',
+    fetch_scope=lambda max_id, count: [
+        dict(status('t1', content='<p>I am so happy and grateful!</p>'),
+             language='en')],
+)
+tone_engine.process_feed(
+    tone_recipe, on_done=lambda _result: tone_done.set(),
+    on_error=lambda _error: tone_done.set())
+tone_done.wait(timeout=10)
+sentimentmod._analyzer = _real_analyzer
+tone_engine.shutdown()
+check('sentiment engine loaded during a cook',
+      bool(_loaded_on))
+check('sentiment engine loaded off the main thread',
+      all(thread is not threading.main_thread() for thread in _loaded_on))
+
 # --- More Like This extraction ---
 cafe = status('c1', content='<p>This is just the best thing about café '
               'culture, café rules</p>')
@@ -486,5 +519,58 @@ worker_loop.run()
 worker.join(1)
 check('bridge: worker wait takes a two-argument callback (%r)'
       % worker_box.get('error'), worker_box.get('value') == 'answer')
+
+# --- the follow list: a failed page reports its own error, once ---
+# A Gio.Task result is propagated only once; decoding it a second time
+# after a failed first decode was a GLib critical ("result_set") and hid the
+# HTTP error behind "Invalid type". Run under fatal criticals (meson).
+import http.server  # noqa: E402
+
+from src.mastodon import MastodonClient  # noqa: E402
+
+
+class _NotFound(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(404)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(b'{"error": "Record not found"}')
+
+    def log_message(self, *_args):
+        pass
+
+
+httpd = http.server.HTTPServer(('127.0.0.1', 0), _NotFound)
+threading.Thread(target=httpd.serve_forever, daemon=True).start()
+follow_client = MastodonClient('https://bench.invalid')
+follow_client.instance = 'http://127.0.0.1:%d' % httpd.server_address[1]
+follow_client.api_base = follow_client.instance + '/api/v1'
+follow_engine = feedchefbridge.make_engine(
+    follow_client, 'a#follow', '1', default_recipe('x'))
+follow_box = {}
+
+
+def follow_worker():
+    try:
+        follow_box['value'] = follow_engine.fetch_following_page(None)
+    except Exception as error:
+        follow_box['error'] = error
+
+
+follow_thread = threading.Thread(target=follow_worker)
+follow_thread.start()
+follow_loop = GLib.MainLoop()
+GLib.timeout_add(50, lambda: (follow_thread.is_alive()
+                              or follow_loop.quit()) and True)
+GLib.timeout_add(8000, lambda: follow_loop.quit() or False)
+follow_loop.run()
+follow_thread.join(1)
+follow_error = follow_box.get('error')
+check('follow list: a 404 page raises (%r)' % follow_error,
+      follow_error is not None and 'value' not in follow_box)
+check('follow list: the error is the HTTP one, not a second decode',
+      follow_error is not None and 'Invalid type' not in str(follow_error))
+follow_engine.shutdown()
+httpd.shutdown()
 
 sys.exit(1 if failures else 0)

@@ -334,6 +334,16 @@ class FeedChefTimelinePage(TimelinePage):
         self.error_page.set_title(_('Could Not Load This Recipe'))
         return statuses
 
+    def close_requests(self):
+        """Stop the cook and its worker threads now, for a place the
+        sidebar drops (Feed Chef turned off); a page held by a reference
+        cycle would otherwise keep them until the next collection."""
+        TimelinePage.close_requests(self)
+        engine = getattr(self, 'engine', None)
+        if engine is not None:
+            self.source.close()
+            engine.shutdown()
+
     def do_dispose(self):
         engine = getattr(self, 'engine', None)
         if engine is not None:
