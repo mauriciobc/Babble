@@ -204,6 +204,7 @@ install_data(
 )
 install_data(
   'feedchef/__init__.py',
+  'feedchef/audit.py',
   'feedchef/contract.py',
   'feedchef/decisionlog.py',
   'feedchef/diet.py',

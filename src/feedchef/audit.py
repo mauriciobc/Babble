@@ -1,0 +1,474 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""The audit record of a Feed Chef cook (no widgets, no GTK).
+
+The engine only *observes* through this module: every hook takes a recorder,
+the default ``NullAudit`` does nothing, and no selection code ever reads from
+it. Facts are captured where they are already known (origin in
+``pantry.merge_pantry``, rule results in ``contract.violations``, score factors in the
+kitchen modifiers), and each removed post has exactly one reason, from the
+closed set below. A record holds every input a cook needs, so a replay
+(``bench/feedchef_audit.py replay``) can reproduce the selection, the order and
+the scores exactly.
+
+Schema 2, stored under the ``audit`` key of a decision log, next to the v1
+``stages``. The visible text of each post is *not* in it: it goes to a private
+sidecar (``<log>.text.json``, mode 0600) that is never exported.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from datetime import datetime
+from typing import Any
+
+from . import contract
+from . import sentiment as sentimentmod
+from .recipe import FeedRecipe, recipe_to_dict
+from .textutil import account_of, content_of
+
+SCHEMA = 2
+# Bumped by hand whenever the meaning of a stage changes; a replay refuses
+# a record made by another revision unless it is forced.
+ENGINE_REV = 1
+# The stripped text kept per post in the sidecar.
+TEXT_CAP = 2000
+
+PANTRY_REASONS = ('pantry_excluded_tag', 'pantry_missing_included_tag')
+FIXED_REASONS = frozenset(PANTRY_REASONS + (
+    'reach_not_followed', 'viewer_hide', 'heat_cut', 'author_cap'))
+_STAGES = {'reach_not_followed': 'reach', 'viewer_hide': 'viewer',
+           'heat_cut': 'kitchen', 'author_cap': 'kitchen'}
+_RANK = {'focus': 0, 'hashtag': 1, 'scope': 2}
+_PANTRY_PROMISE = {'pantry_excluded_tag': 'hashtags_exclude',
+                   'pantry_missing_included_tag': 'hashtags_include'}
+# The order the stages ask the promises: the pantry's hashtags, the diet's
+# six, then network reach.
+_EVAL_ORDER = (contract.PROMISE_IDS[6:8] + contract.PROMISE_IDS[:6]
+               + contract.PROMISE_IDS[8:])
+
+
+def is_reason(reason: str) -> bool:
+    """Whether *reason* is in the closed set of removal reasons."""
+    if reason in FIXED_REASONS:
+        return True
+    kind, _sep, promise = reason.partition(':')
+    if kind == 'diet':
+        return promise in contract.DIET_IDS
+    return kind == 'guard' and promise in contract.PROMISE_IDS
+
+
+def stage_of(reason: str) -> str:
+    if reason.startswith('pantry_'):
+        return 'pantry'
+    return _STAGES.get(reason) or reason.partition(':')[0]
+
+
+def recipe_hash(recipe: FeedRecipe) -> str:
+    """sha256 of the recipe as the same canonical JSON everywhere."""
+    text = json.dumps(recipe_to_dict(recipe), sort_keys=True,
+                      separators=(',', ':'))
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def _rank_of(label: str) -> int:
+    return _RANK[label.partition(':')[0]]
+
+
+def sidecar_path(log_path: str) -> str:
+    """The text sidecar of a log: ``session_X.json`` -> ``session_X.text.json``."""
+    return log_path[:-len('.json')] + '.text.json'
+
+
+def write_private(path: str, payload: Any) -> None:
+    """Write *payload* as JSON readable by this user only (0600), through
+    a temporary file so a reader never sees half of it."""
+    tmp = path + '.tmp'
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        json.dump(payload, handle, ensure_ascii=False,
+                  separators=(',', ':'))
+        handle.write('\n')
+    os.replace(tmp, path)
+
+
+class PantryTrace:
+    """Where each post came from and why the pantry dropped it, filled by
+    ``pantry.merge_pantry`` (an out-map: it is never read back there).
+
+    The engine fills ``tag_of`` (per-tag fetch results) and ``focus_of``
+    (More Like This), because only it knows which hashtag a post came
+    from; status dicts are never mutated."""
+
+    def __init__(self):
+        self.tag_of: dict[str, list[str]] = {}
+        self.focus_of: dict[str, list[str]] = {}
+        self.labels: dict[str, list[str]] = {}
+        self.winner: dict[str, str] = {}
+        self.removed: dict[str, str] = {}
+        self.duplicates = 0
+        self.no_id = 0
+
+    def _labels(self, bucket: str, sid: str) -> list[str]:
+        if bucket == 'scope':
+            return ['scope']
+        found = (self.focus_of if bucket == 'focus' else self.tag_of
+                 ).get(sid) or ['?']
+        prefix = 'focus:' if bucket == 'focus' else 'hashtag:'
+        return [prefix + name for name in found]
+
+    def appear(self, bucket: str, sid: str) -> None:
+        seen = self.labels.setdefault(sid, [])
+        for label in self._labels(bucket, sid):
+            if label not in seen:
+                seen.append(label)
+
+    def drop(self, bucket: str, sid: str, reason: str) -> None:
+        self.appear(bucket, sid)
+        self.removed.setdefault(sid, reason)
+
+    def keep(self, bucket: str, sid: str) -> None:
+        self.appear(bucket, sid)
+        self.winner.setdefault(sid, self._labels(bucket, sid)[0])
+
+    def duplicate(self, bucket: str, sid: str) -> None:
+        self.appear(bucket, sid)
+        self.duplicates += 1
+
+    def sources(self, sid: str) -> tuple[str, list[str]]:
+        """(origin, also_in): the label that got the post into the pantry
+        (or, for a dropped one, the first it appeared in), then the
+        others in a fixed order."""
+        labels = sorted(self.labels.get(sid, ['scope']), key=_rank_of)
+        origin = self.winner.get(sid) or labels[0]
+        return origin, [label for label in labels if label != origin]
+
+
+class NullAudit:
+    """The recorder of a cook nobody audits: every hook does nothing."""
+
+    enabled = False
+    trace = None
+
+    def __getattr__(self, name):
+        return _nothing
+
+
+def _nothing(*_args, **_kwargs):
+    return None
+
+
+NULL = NullAudit()
+
+
+def _number(content: dict, *names: str) -> Any:
+    for name in names:
+        if content.get(name):
+            return content[name]
+    return 0
+
+
+class Recorder:
+    """Collects one page's audit as the stages run; ``build()`` makes the
+    record. All of it runs on the engine worker."""
+
+    enabled = True
+
+    def __init__(self, recipe: FeedRecipe, *, account_key: str = '',
+                 self_id: str = '', cook_id: str = '', page_index: int = 0,
+                 hop: int = 0, cursor_in: str | None = None, count: int = 0,
+                 app_version: str = 'dev', session_id: str = ''):
+        self.recipe = recipe
+        self.identity = {
+            'session_id': session_id, 'cook_id': cook_id,
+            'page_index': page_index, 'hop': hop, 'cursor_in': cursor_in,
+            'cursor_out': None}
+        self.account_key = account_key
+        self.self_id = str(self_id or '')
+        self.app_version = app_version or 'dev'
+        self.count = count
+        self.trace = PantryTrace()
+        self.now: datetime | None = None
+        self.native = False
+        self.raw: list[dict] = []
+        self.merged: list[dict] = []
+        self.diet: dict[str, str] = {}
+        self.follow_info = {'status': 'none', 'count': 0, 'fingerprint': ''}
+        self._follow_ids: set[str] | None = None
+        self.reach_dropped: set[str] = set()
+        self.hidden: set[str] = set()
+        self.trends: dict[str, Any] = {'tags': {}, 'status_ids': []}
+        self.tag_heat: dict[str, float] = {}
+        self.factors: dict[str, dict[str, float]] = {}
+        self.kitchen_removed: dict[str, str] = {}
+        self.guard_broken: dict[str, list[str]] = {}
+        self.judged: dict[str, Any] = {}
+        self.counts_in: dict[str, int] = {}
+        self.counts_out: dict[str, int] = {}
+        self.ordered: list[str] | None = None
+        self.score_map: dict[str, float] = {}
+        self.error = ''
+        self.sidecar: dict[str, dict] = {}
+
+    # -- hooks, in the order the engine calls them ------------------------
+
+    def clock(self, now: datetime, native: bool = False) -> None:
+        self.now = now
+        self.native = native
+
+    def fetched(self, mlt, tags, scope) -> None:
+        self.raw = [*mlt, *tags, *scope]
+
+    def hashtag_fetched(self, tag: str, posts) -> None:
+        for status in posts:
+            self.trace.tag_of.setdefault(
+                str(status.get('id') or ''), []).append(tag)
+
+    def pantry(self, items) -> None:
+        self.merged = list(items)
+
+    def counts(self, counts) -> None:
+        self.counts_in = dict(counts or {})
+
+    def follow_state(self, snapshot, *, error: bool = False,
+                     needed: bool = True) -> None:
+        if not needed:
+            self.follow_info = {'status': 'none', 'count': 0,
+                                'fingerprint': ''}
+            return
+        ids = None if snapshot is None else snapshot.following_ids
+        if error or ids is None:
+            self.follow_info = {'status': 'error', 'count': 0,
+                                'fingerprint': ''}
+            return
+        self._follow_ids = set(ids)
+        digest = hashlib.sha256(
+            '\n'.join(sorted(ids)).encode('utf-8')).hexdigest()
+        self.follow_info = {
+            'status': 'stale' if snapshot.stale else 'fresh',
+            'count': len(ids), 'fingerprint': digest[:16]}
+
+    def diet_decisions(self, decisions) -> None:
+        self.diet = {d.post_id: d.reason for d in decisions
+                     if d.verdict != 'PASSED'}
+
+    def reach_removed(self, before, after) -> None:
+        kept = {id(item) for item in after}
+        self.reach_dropped = {str(item.get('id') or '') for item in before
+                              if id(item) not in kept}
+
+    def viewer_hidden(self, sids) -> None:
+        self.hidden = set(sids)
+
+    def trends_seen(self, server) -> None:
+        wanted = {str(content_of(s).get('id') or s.get('id') or '')
+                  for s in self.merged}
+        self.trends = {
+            'tags': dict(server.trending_hashtags),
+            'status_ids': sorted(set(server.trending_status_ids) & wanted)}
+
+    def judged_scores(self, judge, statuses) -> None:
+        for status in statuses:
+            found = judge.peek(status)
+            if found is not judge.MISSING:
+                self.judged[str(status.get('id') or '')] = found
+
+    def heat_map(self, tag_heat) -> None:
+        self.tag_heat = dict(tag_heat)
+
+    def factor(self, sid: str, kind: str, value: float) -> None:
+        row = self.factors.setdefault(sid, {})
+        row[kind] = row[kind] * value if kind in row and kind != 'base' \
+            else value
+
+    def kitchen_cut(self, reason: str, before, after) -> None:
+        kept = {id(item) for item in after}
+        for item in before:
+            if id(item) not in kept:
+                self.kitchen_removed.setdefault(
+                    str(item.get('id') or ''), reason)
+
+    def guard_verdict(self, sid: str, broken) -> None:
+        self.guard_broken[sid] = list(broken)
+
+    def finish(self, ordered, score_map, counts_out, cursor_out) -> None:
+        self.ordered = [str(s.get('id') or '') for s in ordered]
+        self.score_map = dict(score_map)
+        self.counts_out = dict(counts_out or {})
+        self.identity['cursor_out'] = cursor_out
+
+    def failed(self, message: str) -> None:
+        self.error = message
+
+    # -- the record ------------------------------------------------------
+
+    def _verdict(self, status) -> str:
+        reach = self.recipe.pantry.network_reach
+        if contract.reach_kind(reach) is None:
+            return 'n/a'
+        author = contract.author_id(status)
+        if author and author == self.self_id:
+            return 'self'
+        if self._follow_ids is None:
+            return 'unknown'
+        return 'follows' if author in self._follow_ids else 'not_followed'
+
+    def _facts(self, status, ref: str) -> dict:
+        content = content_of(status)
+        text = contract.post_text(status, self.native)
+        spoiler = contract.spoiler_of(status)
+        attachments = contract.attachments_of(status)
+        self.sidecar[ref] = {
+            'text': text[:TEXT_CAP], 'spoiler': spoiler[:TEXT_CAP],
+            'text_truncated': len(text) > TEXT_CAP
+            or len(spoiler) > TEXT_CAP}
+        boost = isinstance(status.get('reblog'), dict)
+        return {
+            'created_w': status.get('created_at'),
+            'created_c': content.get('created_at'),
+            'fav': _number(content, 'favourites_count', 'favouritesCount'),
+            'reblog': _number(content, 'reblogs_count', 'reblogsCount'),
+            'reply': _number(content, 'replies_count', 'repliesCount'),
+            'tags': [str((tag or {}).get('name') or '')
+                     for tag in content.get('tags') or []],
+            'lang': sentimentmod.language_of(status),
+            'media': len(attachments),
+            'alt': sum(1 for item in attachments
+                       if str(item.get('description') or '').strip()),
+            'sensitive': bool(content.get('sensitive')),
+            'text_len': len(text), 'text_ref': ref,
+            'author_id': contract.author_id(status),
+            'booster_id': (str(account_of(status, wrapper=True).get('id')
+                               or '') if boost else None),
+            'boost': boost,
+        }
+
+    def _rules(self, sid: str, reason: str | None) -> dict[str, str]:
+        """pass | fail | n/a for each promise, in the order the stages ran
+        (pantry hashtags, diet, network reach): a promise after the one
+        that removed the post was never asked (n/a), like one the recipe
+        does not make. The guard asks every promise of a post it checks."""
+        broken = self.guard_broken.get(sid)
+        failed = None
+        if broken is None and reason:
+            failed = _PANTRY_PROMISE.get(reason) or (
+                reason[5:] if reason.startswith('diet:') else
+                'network_reach' if reason == 'reach_not_followed' else None)
+        done = _EVAL_ORDER.index(failed) if failed else len(_EVAL_ORDER)
+        rules = {}
+        for promise in contract.PROMISES:
+            if not promise.active(self.recipe):
+                rules[promise.id] = 'n/a'
+            elif broken is not None:
+                rules[promise.id] = 'fail' if promise.id in broken \
+                    else 'pass'
+            else:
+                at = _EVAL_ORDER.index(promise.id)
+                rules[promise.id] = ('pass' if at < done else
+                                     'fail' if at == done else 'n/a')
+        return rules
+
+    def _removal(self, sid: str, merged: set[str]) -> tuple[str, list] | None:
+        if sid not in merged:
+            return self.trace.removed[sid], []
+        if sid in self.diet:
+            return 'diet:' + self.diet[sid], []
+        if sid in self.reach_dropped:
+            return 'reach_not_followed', []
+        if sid in self.hidden:
+            return 'viewer_hide', []
+        if sid in self.kitchen_removed:
+            return self.kitchen_removed[sid], []
+        broken = self.guard_broken.get(sid)
+        if broken:
+            return 'guard:' + broken[0], ['guard:' + b for b in broken[1:]]
+        return None
+
+    def _sent(self, sid: str, status) -> dict | None:
+        if sid not in self.judged:
+            return None
+        engine = sentimentmod.pick_engine(sentimentmod.language_of(status))
+        return {'engine': engine, 'score': self.judged[sid]}
+
+    def _posts(self) -> tuple[list[dict], dict[str, int]]:
+        by_sid: dict[str, dict] = {}
+        for status in self.merged:
+            by_sid.setdefault(str(status.get('id') or ''), status)
+        order = [sid for sid in by_sid if sid]
+        merged = set(order)
+        for status in self.raw:
+            sid = str(status.get('id') or '')
+            if sid and sid not in by_sid:
+                by_sid[sid] = status
+                order.append(sid)
+        ranks = {sid: i for i, sid in enumerate(self.ordered or [])}
+        by_reason: dict[str, int] = {}
+        posts = []
+        for index, sid in enumerate(order):
+            status = by_sid[sid]
+            removal = self._removal(sid, merged)
+            reason = removal[0] if removal else None
+            if removal:
+                by_reason[reason] = by_reason.get(reason, 0) + 1
+            origin, also = self.trace.sources(sid)
+            if sid in self.factors:
+                row = self.factors[sid]
+                score = {'base': row.get('base', 0.0),
+                         'fresh': row.get('fresh', 1.0),
+                         'sent': row.get('sent', 1.0),
+                         'trend': row.get('trend', 1.0),
+                         'final': self.score_map.get(sid)}
+            else:
+                score = None
+            posts.append({
+                'id': sid,
+                'cid': str(content_of(status).get('id') or sid),
+                'origin': origin, 'also_in': also,
+                'facts': self._facts(status, 'p%d' % index),
+                'follow': {'verdict': self._verdict(status)},
+                'rules': self._rules(sid, reason),
+                'sent': self._sent(sid, status),
+                'score': score,
+                'removal': ({'stage': stage_of(reason), 'reason': reason,
+                             'also': removal[1]} if removal else None),
+                'rank': ranks.get(sid, -1),
+            })
+        return posts, by_reason
+
+    def build(self) -> dict:
+        """The schema-2 record. The text of each post goes to
+        ``self.sidecar``, keyed by the post's ``text_ref``."""
+        failed = self.ordered is None
+        posts, by_reason = ([], {}) if failed else self._posts()
+        instance, _sep, account = self.account_key.rpartition('#')
+        return {
+            'schema': SCHEMA, 'engine_rev': ENGINE_REV,
+            **self.identity,
+            'app': {'version': self.app_version},
+            'recipe': {'id': self.recipe.id,
+                       'hash': recipe_hash(self.recipe),
+                       'snapshot': recipe_to_dict(self.recipe)},
+            'account': {'id': account or self.self_id, 'instance': instance},
+            'clock': {'now_utc': None if self.now is None
+                      else self.now.isoformat()},
+            'env': {'self_id': self.self_id, 'native_bluesky': self.native,
+                    'follow': self.follow_info, 'trends': self.trends,
+                    'local_heat': self.tag_heat},
+            'params': {'count': self.count,
+                       'author_counts_in': self.counts_in},
+            'outcome': {'status': 'failed' if failed else 'ok',
+                        'error': self.error},
+            'summary': {
+                'raw_fetched': len(self.raw),
+                'pantry_in': len(posts),
+                'duplicates': self.trace.duplicates,
+                'no_id': self.trace.no_id,
+                'by_reason': by_reason,
+                'selected': len(self.ordered or []),
+                'guard_checked': len(self.guard_broken)},
+            'outputs': {'order': list(self.ordered or []),
+                        'author_counts_out': self.counts_out},
+            'posts': posts,
+        }
