@@ -118,6 +118,12 @@ class FeedChefSource:
         # one; the engine builds them, the source only keeps them.
         self.last_audit = None
         self._audits = []
+        # The posts of the shown pages that wear the Hot badge (the ids of
+        # the timeline's entries), and the heat step the last page fell back
+        # to, until the page has said so once in this cook session.
+        self.fire_ids = set()
+        self._heat_fallback = None
+        self._heat_said = False
 
     def audit_for(self, status_id):
         """The audit entry of a post of the shown pages, with the page's
@@ -135,6 +141,16 @@ class FeedChefSource:
         """The audit records of the pages the last cook showed, oldest
         first (a refresh starts the list again)."""
         return list(self._audits)
+
+    def heat_fallback(self):
+        """(step asked for, step used) when the page just shown stepped
+        down, and this cook session has not said so yet (it is said once,
+        not on every page); else None."""
+        found, self._heat_fallback = self._heat_fallback, None
+        if found is None or self._heat_said:
+            return None
+        self._heat_said = True
+        return found
 
     @property
     def cursor(self):
@@ -260,6 +276,14 @@ class FeedChefSource:
         record = getattr(result.logger, 'record', None)
         if not cook.older:
             self._audits = []
+            self.fire_ids = set()
+            self._heat_said = False
+        self.fire_ids.update(
+            (result.kitchen_meta.get('fire') or {}).get('ids') or ())
+        self._heat_fallback = next(
+            ((row['requested'], row['used'])
+             for row in result.kitchen_meta.get('heat_steps') or ()
+             if row['used'] != row['requested']), None)
         if record is not None:
             self.last_audit = record
             self._audits = (self._audits + [record])[-AUDIT_PAGES:]

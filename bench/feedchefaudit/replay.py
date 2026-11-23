@@ -125,6 +125,8 @@ def first_difference(recorded, replayed, unreliable=()):
     for key in ('trends', 'local_heat'):
         if recorded['env'][key] != replayed['env'][key]:
             return 'kitchen', '', 'env.%s differs' % key
+    if recorded.get('heat') != replayed.get('heat'):
+        return 'kitchen', '', 'heat differs'
     if _page_view(recorded) != _page_view(replayed):
         return 'kitchen', '', '%s differs' % _field(
             'cluster', _page_view(recorded), _page_view(replayed))

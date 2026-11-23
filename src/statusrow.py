@@ -25,6 +25,7 @@ from .statusactions import (CollectionCard, QuoteCard, StatusActions,
 from .statusfold import StatusFold
 from .statusmenu import StatusMenuButton
 from . import tileactions
+from .rowdecor import decorate
 from .mediacache import AvatarCache, StatusBody
 from .mediabox import BoostCarousel, MediaBox, _rewatch
 from .pollbox import PollBox
@@ -529,6 +530,11 @@ class StatusRow(StatusFold, Gtk.Overlay):
             text = _('Translated')
         self.translation_label.set_text(text)
 
+    def add_decoration_chip(self, chip):
+        """Put a chip a page adds (see ``rowdecor``) beside the language."""
+        self.language_label.get_parent().insert_child_after(
+            chip, self.language_label)
+
     def _bind_indicators(self, item):
         status = item.status
         info = VISIBILITY_INFO.get(status.get('visibility'))
@@ -556,6 +562,7 @@ class StatusRow(StatusFold, Gtk.Overlay):
                 [_('Edited. Show edit history')])
         self.pinned_badge.set_visible(bool(status.get('pinned')))
         bridged_badge(self, status)
+        decorate(self, item.raw)
 
     def _bind_reply_line(self, item):
         status = item.status

@@ -20,6 +20,7 @@ import random
 import re
 import sys
 import tempfile
+from types import SimpleNamespace
 from datetime import datetime
 
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
@@ -34,7 +35,11 @@ from feedchefaudit.fuzz import (  # noqa: E402
     ME, NOW, World, cook, random_recipe,
 )
 from src.feedchef import decisionlog as logmod  # noqa: E402
+from src.feedchef import contract as contractmod  # noqa: E402
 from src.feedchef import deps  # noqa: E402
+from src.feedchef import heat as heatmod  # noqa: E402
+from src.feedchef import kitchen as kitchenmod  # noqa: E402
+from src.feedchef.recipe import Modifier, default_recipe  # noqa: E402
 from src.feedchef import network_reach as reachmod  # noqa: E402
 from src.feedchef import sentiment as sentmod  # noqa: E402
 from src.feedchef.textutil import focus_tokens  # noqa: E402
@@ -121,6 +126,18 @@ def oracle_violations(recipe, status, follows):
         if author != ME and author not in follows:
             broken.append('only people I follow')
     return broken
+
+
+def fallback_step(requested, n):
+    """The percent a heat cut of *n* posts is made at: the requested one
+    when it leaves at least 5 posts, else the next lower standard step
+    that does, else 0 (Cool)."""
+    for percent in [requested] + [s for s in (90, 75, 50) if s < requested]:
+        if percent <= 0:
+            return 0
+        if n - min(math.floor(percent * n / 100), n - 1) >= 5:
+            return percent
+    return 0
 
 
 def non_increasing(values):
@@ -311,6 +328,19 @@ for case in range(CASES):
                     count_seen('floor lifted')
                 elif raw < 0.2:
                     count_seen('floor not lifted without trending')
+        # The Hot badge: posts above the page's own 90th percentile, and no
+        # others (both directions).
+        if items:
+            shown = [result.score_map[i['id']] for i in items]
+            top = percentile(shown, 90)
+            flagged = set(meta['fire']['ids'])
+            want = {i['id'] for i in items
+                    if result.score_map[i['id']] > top}
+            if flagged != want:
+                fail('hot badge', seed, 'flagged %d posts, %d are above '
+                     'the 90th percentile' % (len(flagged), len(want)))
+            count_seen('hot badge', len(items))
+            count_seen('hot posts', len(want))
         chronological = recipe.kitchen.base_sort == 'chronological'
         if keywords and not meta.get('focus_unmatched'):
             ordered, name = True, 'order by relevance'
@@ -350,11 +380,22 @@ for case in range(CASES):
                 for group in clustered.values():
                     sizes[group] = sizes.get(group, 0) + 1
                 n = sum(min(per, size) for size in sizes.values())
-            hide = min(math.floor(mod.percentile_threshold * n / 100), n - 1)
+            # The fallback: the first step, from the requested one down,
+            # that leaves 5 posts (or Cool); the oracle is written here.
+            used = fallback_step(mod.percentile_threshold, n)
+            hide = min(math.floor(used * n / 100), n - 1) if used else 0
             info = result.kitchen_meta['heat']
-            if (info['before'], info['after']) != (n, n - hide):
-                fail('heat', seed, 'kept %d of %d, expected %d'
-                     % (info['after'], info['before'], n - hide))
+            if (info['before'], info['after'], info['used']) \
+                    != (n, n - hide, used):
+                fail('heat', seed, 'kept %d of %d at %s, expected %d at %s'
+                     % (info['after'], info['before'], info['used'],
+                        n - hide, used))
+            if used != mod.percentile_threshold:
+                count_seen('heat fell back')
+            else:
+                count_seen('heat held')
+            if mod.percentile_threshold not in (0, 50, 75, 90):
+                count_seen('heat custom')
             if hide and clustered is None:
                 cutoff = sorted(page_scores)[hide - 1]
                 for item in items:
@@ -375,7 +416,7 @@ for name in ('blocked words', 'only with media', 'alt text', 'sensitive',
              'exclude hashtags', 'only people I follow', 'per person',
              'order newest first', 'order most engaging', 'order with focus',
              'order by relevance', 'relevance', 'per group', 'per server',
-             'freshness floor', 'heat'):
+             'freshness floor', 'heat', 'hot badge'):
     bad = problems.get(name, [])
     check('promise: %s (%d posts checked)%s'
           % (name, seen.get(name, 0),
@@ -388,6 +429,15 @@ check('the freshness floor lifted a factor with trending (%d) and never '
          seen.get('floor not lifted without trending', 0)),
       seen.get('floor lifted', 0) > 5
       and seen.get('floor not lifted without trending', 0) > 5)
+check('the heat cut fell back to a lower step (%d), held its step (%d) and '
+      'met a Custom percent (%d)' % (
+          seen.get('heat fell back', 0), seen.get('heat held', 0),
+          seen.get('heat custom', 0)),
+      seen.get('heat fell back', 0) > 5 and seen.get('heat held', 0) > 5
+      and seen.get('heat custom', 0) > 5)
+check('the Hot badge was given to some posts (%d) and withheld from the '
+      'rest' % seen.get('hot posts', 0),
+      0 < seen.get('hot posts', 0) < seen.get('hot badge', 0))
 check('no duplicate posts across pages' + ' -- %s' % problems.get(
     'no duplicates', ''), 'no duplicates' not in problems)
 check('the seeded focus cases bind included hashtags (%d posts)'
@@ -395,5 +445,104 @@ check('the seeded focus cases bind included hashtags (%d posts)'
       seen.get('include hashtags with focus', 0) > 0)
 
 
+
+# --- the heat fallback and the Hot badge, each with a stage broken on purpose
+
+def fire_cook(patch=None):
+    """One page of a Fire-heat recipe over a world of 40 posts; *patch* is
+    applied to the kitchen for the cook and undone."""
+    recipe = default_recipe('fire')
+    recipe.kitchen.modifiers = [Modifier(type='heat',
+                                         percentile_threshold=90)]
+    rng = random.Random(77)
+    world = World(rng, recipe)
+    saved = (kitchenmod.heatmod, kitchenmod._fire)
+    try:
+        if patch:
+            patch()
+        return cook(world, recipe, 9001, pages=1, now=NOW)[0]
+    finally:
+        kitchenmod.heatmod, kitchenmod._fire = saved
+
+
+def shim(**names):
+    return SimpleNamespace(**{**vars(heatmod), **names})
+
+
+honest = fire_cook()
+check('Fire heat on 40 posts steps down to Hot, leaves 10 and the guard is '
+      'silent (%s)' % honest.kitchen_meta['heat'],
+      honest.kitchen_meta['heat']['requested'] == 90
+      and honest.kitchen_meta['heat']['used'] == 75
+      and len(honest.items) == 10 and not honest.guard['dropped'])
+check('and the page tells the step it asked for and the step it used',
+      honest.kitchen_meta['heat_steps'] == [
+          {'requested': 90, 'used': 75, 'before': 40, 'after': 10}])
+skipped = fire_cook(lambda: setattr(
+    kitchenmod, 'heatmod', shim(used=lambda requested, n: requested)))
+check('a stage that skips the fallback is caught by the guard (%r)'
+      % skipped.guard['dropped'],
+      skipped.guard['dropped'].get('heat_fallback') == 1)
+needless = fire_cook(lambda: setattr(
+    kitchenmod, 'heatmod', shim(used=lambda requested, n: 50)))
+check('a stage that falls further than it must is caught too (%r)'
+      % needless.guard['dropped'],
+      needless.guard['dropped'].get('heat_fallback') == 1)
+miscount = fire_cook(lambda: setattr(
+    kitchenmod, 'heatmod', shim(hidden_count=lambda percent, n: 3)))
+check('a cut that hides another number of posts than floor(P x n / 100) is '
+      'caught (%r)' % miscount.guard['dropped'],
+      miscount.guard['dropped'].get('heat_count') == 1)
+rows = [{'requested': 90, 'used': 75, 'before': 40, 'after': 10}]
+heat_recipe = default_recipe('rows')
+heat_recipe.kitchen.modifiers = [Modifier(type='heat',
+                                          percentile_threshold=90)]
+check('the contract judges the rows of a page: right, a step it did not ask '
+      'for, no rows, and Cool on a page too short for any cut',
+      contractmod.heat_violations(heat_recipe, rows) == []
+      and contractmod.heat_violations(
+          heat_recipe, [{**rows[0], 'requested': 75}]) == ['heat_fallback']
+      and contractmod.heat_violations(heat_recipe, []) == ['heat_fallback']
+      and contractmod.heat_violations(heat_recipe, [
+          {'requested': 90, 'used': 0, 'before': 3, 'after': 3}]) == []
+      and contractmod.heat_violations(heat_recipe, None) == [])
+check('a Custom percent steps to the next lower standard step',
+      heatmod.candidates(60) == [60, 50, 0]
+      and heatmod.candidates(95) == [95, 90, 75, 50, 0]
+      and heatmod.candidates(90) == [90, 75, 50, 0]
+      and heatmod.candidates(0) == [0] and heatmod.used(60, 10) == 50
+      and heatmod.used(60, 11) == 60)
+real_fire = kitchenmod._fire
+extra = fire_cook(lambda: setattr(
+    kitchenmod, '_fire', lambda ordered, scores: {
+        **real_fire(ordered, scores),
+        'ids': [str(i['id']) for i in ordered]}))
+check('a Popular badge on a post that is not above the 90th percentile is '
+      'caught and the post dropped (%r)' % extra.guard['dropped'],
+      extra.guard['dropped'].get('fire_badge', 0) >= 1
+      and len(extra.items) < len(honest.items))
+none = fire_cook(lambda: setattr(
+    kitchenmod, '_fire', lambda ordered, scores: {
+        **real_fire(ordered, scores), 'ids': []}))
+check('and so is the lack of one on a post above it (%r)'
+      % none.guard['dropped'], none.guard['dropped'].get('fire_badge', 0) >= 1)
+lying = fire_cook(lambda: setattr(
+    kitchenmod, '_fire', lambda ordered, scores: {
+        **real_fire(ordered, scores), 'threshold': -1.0}))
+check('a threshold that is not the 90th percentile of the page is caught '
+      '(%r)' % lying.guard['dropped'],
+      lying.guard['dropped'].get('fire_badge', 0) >= 1)
+check('the honest page flags %d of %d posts, from its own threshold'
+      % (len(honest.kitchen_meta['fire']['ids']), len(honest.items)),
+      honest.kitchen_meta['fire']['threshold'] == heatmod.fire_threshold(
+          honest.kitchen_meta['fire']['scores']))
+# The guard dropping a post later does not move the threshold: the badge
+# of the posts that stay is judged against the kitchen's page.
+dropping = fire_cook(lambda: setattr(
+    kitchenmod, '_fire', lambda ordered, scores: real_fire(ordered, scores)))
+check('a page whose scores are all equal gives no badge',
+      heatmod.fire_threshold([3.0] * 10) is None
+      and kitchenmod._fire(
+          [{'id': '1'}, {'id': '2'}], {'1': 2.0, '2': 2.0})['ids'] == [])
 
 sys.exit(1 if failures or problems else 0)

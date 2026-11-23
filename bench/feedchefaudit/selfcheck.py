@@ -307,6 +307,73 @@ def _floor_cases(checks, folder):
            replaymod.replay(missing).stage == 'kitchen')
 
 
+def heat_recipe():
+    """Fire heat on a page of 40 posts: it would leave 4, so the page steps
+    down to Hot (75), which leaves 10."""
+    recipe = default_recipe('heat')
+    recipe.kitchen.modifiers = [Modifier(type='heat',
+                                         percentile_threshold=90)]
+    return recipe
+
+
+def _unjustified_step(record):
+    """Claim a step lower than the first that leaves 5 posts."""
+    row = record['heat'][0]
+    row['used'] = 50
+
+
+def _skipped_fallback(record):
+    """Claim the cut was made at Fire and left 4: no fallback."""
+    row = record['heat'][0]
+    row['used'] = row['requested']
+    row['after'] = row['before'] - int(row['requested'] * row['before']
+                                       / 100)
+
+
+def _fire_at_the_line(record):
+    """Give the Hot badge to the weakest post of the page."""
+    record_order = record['outputs']['order']
+    _by_id(record)[record_order[-1]]['score']['fire'] = True
+
+
+def _forget_fire(record):
+    """Take the Hot badge off the strongest post of the page."""
+    _by_id(record)[record['outputs']['order'][0]]['score']['fire'] = False
+
+
+def heat_cases(checks, folder):
+    """The heat fallback and the Hot badge, each tampered with one way and
+    caught by the check made for it (evaluate, and a replay mismatch)."""
+    page = _cook_recipe(heat_recipe(), 45, 914, folder)
+    row = (page.record.get('heat') or [{}])[0]
+    checks('a fire-heat page of 40 posts falls back to Hot and records both '
+           'steps (%s)' % row, row.get('requested') == 90
+           and row.get('used') == 75 and row.get('before') == 40
+           and row.get('after') == 10)
+    tally = evalmod.evaluate_record(page)
+    checks('an untouched page passes the heat and the Hot badge checks '
+           '(%d, %d checked)' % (tally.checked['heat'], tally.checked['fire']),
+           tally.verdict('heat') == 'PASS' and tally.verdict('fire') == 'PASS'
+           and tally.ok())
+    for label, mutate in (('a step lower than needed', _unjustified_step),
+                          ('a fallback that was not made',
+                           _skipped_fallback)):
+        bad = _copy(page, mutate)
+        checks('%s fails the heat check' % label,
+               evalmod.evaluate_record(bad).verdict('heat') == 'FAIL')
+        checks('and is a replay mismatch at the kitchen',
+               replaymod.replay(bad).stage == 'kitchen')
+    for label, mutate in (('the Hot badge on the weakest post',
+                           _fire_at_the_line),
+                          ('no Hot badge on the strongest post',
+                           _forget_fire)):
+        bad = _copy(page, mutate)
+        checks('%s fails the fire check' % label,
+               evalmod.evaluate_record(bad).verdict('fire') == 'FAIL')
+        checks('and is a replay mismatch at the kitchen',
+               replaymod.replay(bad).stage == 'kitchen')
+
+
 def _write(folder, name, loaded, record=None, sidecar=True):
     """A log file of *loaded* (its record replaced by *record*) with its
     sidecar (replaced by *sidecar* when that is not True, none if None)."""
@@ -576,6 +643,14 @@ def _run(checks, tmp):
     except LogError:
         refused = True
     checks('another engine revision is refused', refused)
+    old_rev = _copy(logs[0], lambda record: record.update(engine_rev=3))
+    try:
+        replaymod.replay(old_rev)
+        said = ''
+    except LogError as error:
+        said = str(error)
+    checks('a record of revision 3 is refused cleanly (%s)' % said[:40],
+           said.startswith('made by engine revision 3'))
     checks('and replays when forced',
            replaymod.replay(stale, force=True).status == 'identical')
     loaded = _cook_strict(31, 900, os.path.join(tmp, 'logs'))
@@ -585,3 +660,4 @@ def _run(checks, tmp):
     negative_cases(checks, loaded)
     negative_cases_more(checks, loaded, tmp)
     new_cases(checks, os.path.join(tmp, 'logs'))
+    heat_cases(checks, os.path.join(tmp, 'logs'))

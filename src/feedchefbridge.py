@@ -213,4 +213,6 @@ def make_engine(client, account_key, account_id, recipe,
         app_version=app_version(),
     )
     engine.audit = audit
+    # A view with no audit leaves no decision log either.
+    engine.persist_log = audit
     return engine

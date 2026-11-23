@@ -141,6 +141,12 @@ def structure(record):
             {'status': str, 'n': int, 'k': int, 'strategy': str,
              'max_per': int, 'init': str, 'seed': int, 'weights': list}):
         return problems
+    if 'heat' in record and not (isinstance(record['heat'], list) and all(
+            _need(problems, 'heat', row, {
+                'requested': _NUM, 'used': _NUM, 'before': int,
+                'after': int}) for row in record['heat'])):
+        problems.append('heat has the wrong shape')
+        return problems
     if record['outcome']['status'] not in STATUSES:
         problems.append('outcome.status is not one of %s' % ', '.join(
             STATUSES))

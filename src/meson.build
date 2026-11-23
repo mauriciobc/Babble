@@ -86,9 +86,13 @@ install_data(
   'feedback.py',
   'feedchefbridge.py',
   'feedchefbuilder.py',
+  'feedchefbuilderlive.py',
   'feedchefexplain.py',
+  'feedchefmodifiers.py',
   'feedchefpages.py',
   'feedchefpreview.py',
+  'feedchefrelax.py',
+  'feedchefshare.py',
   'feedchefsource.py',
   'quoteline.py',
   'filterrules.py',
@@ -180,6 +184,8 @@ install_data(
   'homefilters.py',
   'readingposition.py',
   'requestscope.py',
+  'rowdecor.py',
+  'scrollkeep.py',
   'statusrun.py',
   'statusactions.py',
   'statusmenu.py',
@@ -232,13 +238,18 @@ install_data(
   'feedchef/diet.py',
   'feedchef/engine.py',
   'feedchef/focus.py',
+  'feedchef/heat.py',
   'feedchef/icons.py',
   'feedchef/kitchen.py',
   'feedchef/langguess.py',
+  'feedchef/livecook.py',
   'feedchef/network_reach.py',
   'feedchef/pantry.py',
+  'feedchef/qrcode.py',
   'feedchef/recipe.py',
+  'feedchef/relax.py',
   'feedchef/relevance.py',
+  'feedchef/sentence.py',
   'feedchef/sentiment.py',
   'feedchef/sharecodec.py',
   'feedchef/storage.py',
@@ -940,6 +951,31 @@ test('feedchef audit ui', python,
 # Needs a display (headless mutter at 1280x1024); the engine is a fake.
 test('feedchef builder', python,
   args: [files('test-feedchef-builder.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs no display: the heat steps and their fallback, the Hot badge's
+# percentile, the recipe in one sentence, the chef a share fills in, Relax
+# Filters' choice, the QR code's pixels (skips them without segno) and the live
+# count's worker (one fetch for many cooks, a newer request supersedes).
+test('feedchef steps', python,
+  args: [files('test-feedchef-steps.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs a display (headless mutter at 1280x1024); the counting worker is a
+# fake. The heat steps (and Custom), the sentence and the live count of the
+# builder, and the Share Recipe dialog with its QR code.
+test('feedchef live', python,
+  args: [files('test-feedchef-live.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake. The
+# heat toast, the Hot chip, Relax Filters with Undo, Taste Test on import and
+# the chef.
+test('feedchef experience', python,
+  args: [files('test-feedchef-experience.py')],
   env: fatal_test_env,
   timeout: 90,
 )

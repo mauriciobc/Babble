@@ -384,7 +384,8 @@ fuzz runs 240 seeded cases over three pages.
 | Only People I Follow: plus your own posts, boosts judged by the original author | reach (after the wait for the follow list) | `network_reach` (unknown list fails closed) | loading, error, timeout, retry, empty, no-source, stale-disk and include_unknown cases; fuzz: only people I follow |
 | Order: Newest first | kitchen order | (list level) | fuzz: order newest first; tie-by-id case |
 | Order: Most engaging | kitchen order | (list level) | fuzz: order most engaging; order with focus |
-| Hide the Least Engaging: percent of each batch; engagement is replies, boosts and favorites, weighted, after freshness and trending | kitchen heat | (list level) | fuzz: heat (exact count); `feedchef regressions`: ties, P=1, P=10, P=90, one and two posts |
+| Hide the Least Engaging: Warm, Hot or Fire (50, 75, 90 percent of each batch; off is the switch; an imported percent is kept and said); engagement is replies, boosts and favorites, weighted, after freshness and trending. A page never keeps fewer than 5 posts: the cut steps down to the first level that leaves them, or to every post, and the page says which | kitchen heat | `heat_count` and `heat_fallback` (page level, guard: recorded, no post to drop) | fuzz: heat (exact count at the level used, fallback, imported percents); `feedchef contract`: a stage that skips or overdoes the fallback, a wrong count; `feedchef steps`; the audit's `heat` rule; `feedchef regressions` |
+| Popular badge: a post whose score is above the 90th percentile of the page's scores (none when every score is equal) | kitchen (after the cap) | `fire_badge` (list level, guard, both directions, against the kitchen's own threshold) | fuzz: hot badge; `feedchef contract`: a badge on a post that is not above, none on one that is, a threshold that is not the percentile; the audit's `fire` rule; `feedchef experience` |
 | Favor Fresh Posts: newer posts rank higher; older than the fade-out score zero | kitchen score | (list level) | 300 equal pairs |
 | Boost Trending Topics: hashtags many people use now, and posts trending on the server | kitchen score | (list level) | 300 equal pairs; a server-trending post |
 | Favor Positive Posts: English and Portuguese posts that read as positive rank higher | kitchen score | (list level) | per-language cases |
@@ -394,8 +395,18 @@ fuzz runs 240 seeded cases over three pages.
 | More Like This focus: the page is non-increasing by relevance to the focus | kitchen order | `relevance_order` (list level, guard) | fuzz: order by relevance and an oracle that writes Java's formulas again; `feedchef relevance`; the audit's `relevance` rule |
 | Favor Fresh Posts with Boost Trending Topics: a factor under 0.2 is raised to 0.2, and only then | kitchen score | `fresh_floor` (list level, guard) | fuzz: freshness floor, both directions; `feedchef relevance`; the audit's `floor` rule |
 
+The two promises about the heat cut name no post (a cut that hid the wrong
+number of posts cannot be undone): `contract.PAGE_IDS`
+(`heat_count`, `heat_fallback`, `contract.heat_violations`) are recorded by
+the guard in `guard.dropped`, with a `contract:<id>` error in the log, and
+nothing is dropped for them. `heat_fallback` is "the step asked for is the
+recipe's, and the step used is the first, from it down, that leaves at least
+`heat.MIN_LEFT` (5) posts, or Cool"; `heat_count` is "the cut hid exactly
+floor(P_used x n / 100) of the n posts, never all of them". The audit records
+one row per heat modifier (`heat`: requested, used, before, after).
+
 The promises about the page as a whole (`relevance_order`, `cluster_cap`,
-`fresh_floor`, `instance_cap`; `contract.LIST_IDS`, `contract.list_violations`) are
+`fresh_floor`, `instance_cap`, `fire_badge`; `contract.LIST_IDS`, `contract.list_violations`) are
 checked by the guard after the per-post ones, against what the stages decided
 (`kitchen_meta['relevance_scores']`, `['groups']`, `['fresh']`, the session's
 server counts), and a post that breaks one is dropped and logged as
@@ -553,7 +564,7 @@ weights and words, and `score.relevance` must be the cosine), the grouping
 kept what its strategy says from the recorded groups (`cluster`: the selection is checked against the groups the record
 names; it is the replay that runs the clustering again and compares it), the
 freshness factor and its floor are what the recipe says (`floor`, in both directions: raised with trending and only then), heat
-removed exactly floor(P x n / 100) of what the grouping left, the cap per
+removed exactly floor(P_used x n / 100) of what the grouping left, with P_used the first step from the requested one down that leaves 5 posts (or Cool), the Popular badge is on exactly the posts above the 90th percentile of the page's scores (`fire`, both directions; none when all scores are equal), the cap per
 person and per server holds across the pages of a cook, the hashtags and the follow setting are respected, no post
 was dropped by the guard (a stage let a violator through), and each removal is
 justified by the recipe. `viewer_hide` is the one reason it cannot judge.
@@ -601,6 +612,97 @@ also uses, so the command line and the dialogs say the same thing.
   status page, "No Report Yet".
 
 Test: `feedchef audit ui` (the real Recorder's record behind a fake engine).
+
+## Heat levels, the fallback and the Popular badge (Phase 2)
+
+Babble, not Java. Java's heat is a percentile threshold the builder sets with
+a slider; the PRD asks for named levels and for a page that does not run dry.
+
+- **Levels.** "Hide the Least Engaging" is an on/off switch with a toggle
+  group Warm (50), Hot (75), Fire (90); off is the switch, not a level. A
+  recipe with another percent (an imported one) selects no level, says
+  "Imported value: 62.5%. Choose a level to replace it." and keeps the exact
+  value until a level is picked. A percent is read one way everywhere
+  (`heat.clean`: a number from 0 to 100, 0 when missing); an import with one
+  outside 0 to 100 is refused (`validate_for_import`).
+- **Fallback (the maintainer chose to show it).** When the cut would leave a
+  page fewer than 5 posts, it steps down Fire, Hot, Warm, then to every post
+  (an imported percent steps to the next lower level) until at least 5 remain.
+  A page of fewer than 5 posts is therefore never cut. The page says so in a
+  toast ("Too few posts for Fire. Showing Hot."), once per cook session. This
+  replaces the parity port of `auto_fallback`'s heat rule. The live count of
+  the builder falls back the same way.
+- **Popular badge.** A post whose final score is above the 90th percentile of
+  the scores of the posts the page shows (`heat.percentile`, exact between
+  equal neighbours) gets a "Popular" chip with a flame icon (the first of
+  `fire-symbolic`, `flame-symbolic`, `babble-trending-symbolic` the theme has,
+  else text only); a page whose scores are all equal gets none. The chip is
+  built lazily through a generic row hook (`rowdecor`: a page offers
+  `row_decorations(status)`, `StatusRow.add_decoration_chip` places it). The
+  audit records `score.fire`. The guard judges the badge against the
+  threshold and the scores of the kitchen's whole page, so a post it drops
+  later cannot make a false violation; `evaluate` recomputes the percentile
+  from the kept posts alone.
+- **Engine revision 4.** `ENGINE_REV` is 4: the record gained `heat` and
+  `score.fire`, and heat and the badge changed meaning. A replay of a revision
+  3 record says "made by engine revision 3" and stops.
+
+## The builder and the recipe page (Phase 2)
+
+- **Sentence.** `feedchef/sentence.py` writes the recipe as one sentence from
+  whole translatable phrases in whole-sentence templates, one per source ("Posts
+  from Home about #cats, without sensitive posts, most engaging first"); the
+  phrases join with a template for each length up to four, and more settings end
+  in "N more settings". It is a wrapped label at the top of the builder and the
+  recipe list's subtitle, with "Chef: @handle" when the recipe has one.
+- **Live count.** `feedchef/livecook.py` fetches the pantry (scope, included
+  hashtags, More Like This) once on its own worker and cooks it again through
+  the real engine, audit and decision log off, on every change after a 300 ms
+  debounce; only a change of scope, list, hashtags, follow filter or focus
+  fetches again. Each edit supersedes the request in flight. The old count
+  stays, dimmed, "Updating…", until the new one arrives, is mirrored into the
+  Preview Recipe row and announced; a failure is "Could not count posts" with a
+  retry. **It is a view the reader asked for by editing, so it is not gated by
+  `sysstate` (power saver, metered connection), unlike the peek cooks of Phase
+  3.** Its cost is one pantry fetch per change of source settings.
+- **Relax Filters.** The empty page offers to turn off the rule that removed
+  most of the last cook's posts (the audit's `by_reason`, summed over the
+  cook's pages; `feedchef/relax.py`), saves, cooks again, and shows an Undo
+  toast. Undo works on the recipe as it is stored then (only that rule comes
+  back, other edits stay), also when the page is gone, and never brings back a
+  deleted recipe (it says so).
+- **Recipe from the list.** A recipe opened from the Recipes list is pushed on
+  the window's navigation stack (`open_recipe`), so the back button, Escape,
+  Alt+Left and the swipe return to the list with its scroll kept
+  (`scrollkeep`). It is its own page instance, not the cached place of a
+  pinned sidebar entry (one widget cannot be a root place and a pushed page),
+  so a recipe that is pinned and opened from the list has two pages and two
+  engines while both exist; the pushed one is freed when the reader goes back,
+  and goes by itself when Feed Chef is turned off. A pinned entry stays a
+  top-level place, with the place cache, the stream router and `forget_many`
+  as before.
+- **Preview before import.** The import question has a Preview response: a
+  preview of a copy of the incoming recipe (nothing stored, no audit record, no
+  decision log, no follow list unless the recipe needs it), then the question
+  comes back if the reader closed the preview and Feed Chef is still on.
+- **Chef.** A share fills `meta.author` with the sharer's `@user@instance` when
+  it is empty and never overwrites an author; the stored recipe is not changed.
+  An imported name and chef are one line of plain text (no control or direction
+  characters, 200 characters), and every place that shows them with markup
+  escapes them. The import question reads "Chef: @handle" on its own line.
+- **Share link and QR.** A link is `babble://feedchef?r=2.<blob>`: the recipe
+  without the default recipe's values and without None, the id as the 22
+  characters of its UUID, minimal JSON, raw deflate (level 9), base64url; the
+  reader inflates at most 64 KiB, lays it over the default recipe and validates
+  it as an import. The old `recipe=` links still read; an unknown `r=` version
+  is not a recipe. The Share Recipe dialog (`feedchefshare.py`) shows the link,
+  Copy Link, and a QR code made by segno on a worker when it opens (never
+  before): black on white with a quiet zone of 4 modules, at least 3 pixels a
+  module, nearest-pixel scaled, whatever the theme. A code above version 25 is
+  not drawn ("This recipe is too large for a QR code. Copy the link instead.");
+  without segno the dialog is the link and Copy Link.
+
+Tests: `feedchef steps`, `feedchef live`, `feedchef experience`.
 
 ## Out of v1
 

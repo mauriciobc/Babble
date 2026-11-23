@@ -36,7 +36,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import feedback, feedchefbuilder, feedchefpages  # noqa: E402
+from src import (feedback, feedchefbuilder, feedchefbuilderlive,  # noqa: E402
+                 feedchefpages)
 from src.feedchefsource import MAX_EMPTY_HOPS  # noqa: E402
 from src.feedchef import storage as storagemod  # noqa: E402
 from src.feedchef.engine import FeedResult  # noqa: E402
@@ -173,6 +174,9 @@ def fake_toast(_widget, text, undo=None, undo_label=None, dismissed=None):
 
 
 feedback.show_toast = fake_toast
+feedchefbuilderlive.make_live_cook = lambda _client, _account: SimpleNamespace(
+    request=lambda _recipe, _done, _error: None, supersede=lambda: None,
+    close=lambda: None)
 # The account's lists are answered by the test, not by a server.
 LIST_REQUESTS = []
 feedchefbuilder.pages.call_api = (
@@ -207,9 +211,11 @@ list_page.reload()
 rows = find(list_page, Adw.ActionRow)
 check('list: a row per recipe, activatable',
       len(rows) == 2 and all(r.get_activatable() for r in rows))
-check('list: subtitle is scope and up to three hashtags',
-      rows[0].get_subtitle() == 'Home · #linux #python #gnome'
-      and rows[1].get_subtitle() == 'Local')
+check('list: subtitle is the recipe in one sentence',
+      rows[0].get_subtitle() == 'Posts from Home about #linux #python '
+      '#gnome and 1 more, up to 3 posts per person, most engaging first'
+      and rows[1].get_subtitle() == 'Posts from the local timeline, up to '
+      '3 posts per person, most engaging first')
 check('list: a row opens its recipe by action',
       rows[0].get_action_name() == 'recipe.open')
 menus = find(rows[0], Gtk.MenuButton)
@@ -438,10 +444,11 @@ dialog = open_builder(default_recipe('Enter'), True)
 check('builder: Enter in the name saves (default widget, activates)',
       dialog.get_default_widget() is header_button(dialog, '_Save')
       and dialog.name_row.get_activates_default())
-share_rows = find(dialog.page, Adw.ButtonRow)
+share_rows = [r for r in find(dialog.page, Adw.PreferencesRow)
+              if r.get_title() in ('_Preview Recipe', 'S_hare Recipe')]
 check('builder: the bottom rows use access keys no header button uses',
       [r.get_title() for r in share_rows]
-      == ['_Preview Recipe', 'Copy Share _Link'])
+      == ['_Preview Recipe', 'S_hare Recipe'])
 orders = dialog.order.get_model()
 check('builder: Order items are sentence case',
       [orders.get_string(i) for i in range(orders.get_n_items())]
@@ -707,6 +714,7 @@ alert = feedchefpages.present_import(window, account, incoming)
 check('import: a recipe with the same id asks "Replace Recipe?"',
       alert.get_heading() == 'Replace Recipe?'
       and alert.get_body() == 'This replaces your recipe “Cooked Again”.'
+      '\nChef: Ana'
       and alert.get_response_label('replace') == '_Replace'
       and alert.get_response_appearance('replace')
       == Adw.ResponseAppearance.DESTRUCTIVE
@@ -731,7 +739,7 @@ alert = feedchefpages.present_import(window, account, newcomer)
 check('import: a new recipe asks "Import Recipe?" with name and author',
       alert.get_heading() == 'Import Recipe?'
       and alert.get_body()
-      == 'Import “Shiny” by Ana into this account?'
+      == 'Import “Shiny” into this account?\nChef: Ana'
       and alert.get_response_label('import') == '_Import'
       and alert.get_response_appearance('import')
       == Adw.ResponseAppearance.SUGGESTED

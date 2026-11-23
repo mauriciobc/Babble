@@ -20,7 +20,9 @@ installed; it runs from the source tree and reads only those files.
   cannot be replayed (another engine revision, unless ``--force``).
 * ``evaluate LOG...`` judges the output against the recipe it recorded:
   each kept post keeps every promise, the order is the recipe's, heat
-  removed exactly floor(P x n / 100), the cap per person holds across the
+  removed exactly floor(P_used x n / 100) at the first step that leaves 5
+  posts (the fallback), the Hot badge is on exactly the posts above the
+  page's 90th percentile, the cap per person holds across the
   pages of a cook, the hashtags and follow setting are respected, and every
   removal is justified. Each rule is PASS or FAIL, with no tolerance.
 * ``collect [--recipe ID] [--since DATE] [--json PATH]`` replays and

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Feed Chef list and timeline UI (Adwaita)."""
 
+import copy
+
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -11,17 +13,24 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 from . import accounts, feedback, pagenav  # noqa: E402
 from . import feedchefexplain  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
+from .feedchef import relax  # noqa: E402
 from .feedchef.focus import decay_focus  # noqa: E402
 from .feedchef.icons import icon_name  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
-from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
+from .feedchef.sentence import chef_line, list_subtitle  # noqa: E402
+from .feedchef.sharecodec import handle_of, recipe_share_uri  # noqa: E402
 from .feedchef.textutil import extract_focus  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
-from .feedchefbuilder import (FeedChefBuilderDialog, scope_label,  # noqa: E402
+from .feedchefbuilder import (FeedChefBuilderDialog,  # noqa: E402
                               storage_for)
+from .feedchefmodifiers import heat_label  # noqa: E402
+from .feedchefrelax import undo_relax  # noqa: E402
+from .feedchefpreview import FeedChefPreviewDialog  # noqa: E402
 from .feedchefsource import FeedChefSource  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
+from . import scrollkeep  # noqa: E402
 from .pages import PagedPosts  # noqa: E402
+from .rowdecor import Decoration  # noqa: E402
 from .timelinebase import COLUMN_WIDTH  # noqa: E402
 from .timelinepage import TimelinePage  # noqa: E402
 from .uihelpers import icon_button, set_accessible_label  # noqa: E402
@@ -29,7 +38,8 @@ from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 ICON = 'babble-feed-chef-symbolic'
 PINNED_KEY = 'favorite-feedchef-ids'
-SUBTITLE_TAGS = 3
+# The symbolic icons the Hot badge tries, in order; none: text only.
+FIRE_ICONS = ('fire-symbolic', 'flame-symbolic', 'babble-trending-symbolic')
 # Terms the focus banner names before "and N more".
 BANNER_TERMS = 3
 
@@ -39,15 +49,9 @@ def _pin_entry(account, recipe_id):
 
 
 def recipe_subtitle(recipe):
-    """"Home · #linux #python": the scope and up to three hashtags."""
-    scope = scope_label(recipe.pantry.scope)
-    tags = ' '.join('#%s' % tag
-                    for tag in recipe.pantry.hashtags_include[:SUBTITLE_TAGS])
-    if not tags:
-        return scope
-    # Translators: a recipe's source and hashtags, for example
-    # "Home · #linux #python".
-    return _('%(scope)s · %(tags)s') % {'scope': scope, 'tags': tags}
+    """What the list shows under a recipe's name: its sentence ("Posts from
+    Home about #linux #python, most engaging first") and its chef."""
+    return list_subtitle(recipe, feedchefexplain.WORDS)
 
 
 def recipe_stored(widget, account, recipe, skip=None):
@@ -102,6 +106,7 @@ class FeedChefListPage(Adw.Bin):
             hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         scrolled.set_child(clamp)
         self.stack.add_named(scrolled, 'list')
+        scrollkeep.watch(self, scrolled)
         empty = Adw.StatusPage(
             icon_name=ICON, title=_('No Recipes Yet'),
             description=_('A recipe turns your timelines into a feed of '
@@ -183,9 +188,17 @@ class FeedChefListPage(Adw.Bin):
     # Actions: the parameter is the recipe id.
 
     def _on_open(self, _action, parameter):
-        window = self.get_root()
-        if window is not None and hasattr(window, 'show_page'):
-            window.show_page('recipe:%s' % parameter.get_string())
+        """Open the recipe above this list, on the navigation stack: the
+        back button, Escape and the swipe return to it, scroll kept."""
+        recipe = self.storage.get_recipe_by_id(parameter.get_string())
+        if recipe is None:
+            return
+        scrollkeep.remember(self)
+        if open_recipe(self, self.client, self.account, recipe) is None:
+            # A host with no navigation stack: the recipe as a place.
+            window = self.get_root()
+            if window is not None and hasattr(window, 'show_page'):
+                window.show_page('recipe:%s' % recipe.id)
 
     def _on_new(self, _button):
         self._edit(default_recipe(_('New Recipe')), is_new=True)
@@ -225,7 +238,8 @@ class FeedChefListPage(Adw.Bin):
         display = self.get_display()
         if recipe is None or display is None:
             return
-        display.get_clipboard().set(recipe_share_uri(recipe))
+        display.get_clipboard().set(recipe_share_uri(
+            recipe, author=handle_of(self.account)))
         feedback.show_toast(self, _('Share link copied'))
 
     def _on_delete(self, _action, parameter):
@@ -265,6 +279,20 @@ class FeedChefListPage(Adw.Bin):
             row.set_visible(visible)
         shown = any(r.get_visible() for r in self._rows)
         self.stack.set_visible_child_name('list' if shown else 'empty')
+
+
+def open_recipe(widget, client, account, recipe):
+    """Push a recipe's timeline onto the window's navigation stack (so it
+    has the back button); its navigation page, or None without a window. It
+    is its own instance, not the cached place of a pinned sidebar entry (one
+    widget cannot be a root place and a pushed page), freed on going back."""
+    window = pagenav.window_of(widget)
+    if window is None or getattr(window, 'navigation_view', None) is None:
+        return None
+    page = FeedChefTimelinePage(client, account, recipe)
+    page.watch_feed_chef_key()
+    return pagenav.push_page(widget, recipe.meta.name, page,
+                             tag='recipe-open:%s' % recipe.id)
 
 
 class FeedChefTimelinePage(TimelinePage):
@@ -334,7 +362,52 @@ class FeedChefTimelinePage(TimelinePage):
             raise
         self.error_page.set_title(_('Could Not Load This Recipe'))
         self._update_focus_ui()
+        self._say_heat_fallback()
         return statuses
+
+    def _say_heat_fallback(self):
+        """A page that had too few posts for the heat level steps down to a
+        cooler one, and says which, once per cook session."""
+        found = self.source.heat_fallback()
+        if found is None:
+            return
+        # Translators: a toast; the first %s is the heat level the recipe
+        # asks for, such as "Fire", and the second the cooler one the page
+        # used instead, such as "Hot" (or "every post"), because the page
+        # would have kept fewer than five posts.
+        feedback.show_toast(self, _('Too few posts for %(asked)s. Showing '
+                                    '%(used)s.') % {
+            'asked': heat_label(found[0]), 'used': heat_label(found[1])})
+
+    def row_decorations(self, status):
+        """The chips a post wears on this page (see ``rowdecor``): "Popular"
+        for a post above the page's 90th percentile of scores."""
+        if str(status.get('id') or '') not in self.source.fire_ids:
+            return ()
+        theme = Gtk.IconTheme.get_for_display(self.get_display())
+        icon = next((name for name in FIRE_ICONS if theme.has_icon(name)),
+                    None)
+        return (Decoration('fire', _('Popular'), icon,
+                           _('Popular, among the most engaging posts')),)
+
+    def watch_feed_chef_key(self):
+        """For a page pushed above the list (not a place the sidebar drops
+        itself): when Feed Chef is turned off it stops its work and leaves
+        the stack."""
+        connect_weak(app_settings(), 'changed::feed-chef-enabled',
+                     self._on_feed_chef_key)
+
+    def _on_feed_chef_key(self, settings, key):
+        if settings.get_boolean(key):
+            return
+        self.close_requests()
+        nav_page = self.get_ancestor(Adw.NavigationPage)
+        window = pagenav.window_of(self)
+        view = getattr(window, 'navigation_view', None)
+        if nav_page is not None and view is not None:
+            below = view.get_previous_page(nav_page)
+            if below is not None:
+                view.pop_to_page(below)
 
     def close_requests(self):
         """Stop the cook and its worker threads now, for a place the
@@ -369,6 +442,19 @@ class FeedChefTimelinePage(TimelinePage):
         self.more_button.add_css_class('suggested-action')
         connect_weak(self.more_button, 'clicked', self._on_load_older)
         box.append(self.more_button)
+        # Relax Filters: one click turns off the rule that removed the most
+        # posts (named on the button), with Undo.
+        # A label that wraps: a rule's name can be long, and the button
+        # must fit a narrow window and a large text size.
+        self.relax_label = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
+        self.relax_button = Gtk.Button(halign=Gtk.Align.CENTER,
+                                       child=self.relax_label)
+        self.relax_button.add_css_class('pill')
+        self.relax_button.add_css_class('suggested-action')
+        self.relax_button.set_visible(False)
+        connect_weak(self.relax_button, 'clicked', self._on_relax)
+        self._relax_rule = None
+        box.append(self.relax_button)
         self.empty_edit = Gtk.Button(label=_('Edit Recipe'),
                                      halign=Gtk.Align.CENTER)
         self.empty_edit.add_css_class('pill')
@@ -383,10 +469,29 @@ class FeedChefTimelinePage(TimelinePage):
         paused = bool(self.source.stalled) \
             and self.model.get_n_items() == 0
         self.more_button.set_visible(paused)
+        records = self.source.cook_audits()
+        rule = None if paused else relax.suggestion(self.recipe, records)
+        self._relax_rule = rule
+        self.relax_button.set_visible(rule is not None)
+        if rule is not None:
+            text = relax.label(rule, feedchefexplain.WORDS)
+            self.relax_label.set_label(text)
+            self.relax_button.update_property(
+                [Gtk.AccessibleProperty.LABEL], [text])
+        # One suggested action at a time: Edit Recipe is it when nothing
+        # else is offered.
+        if paused or rule is not None:
+            self.empty_edit.remove_css_class('suggested-action')
+        else:
+            self.empty_edit.add_css_class('suggested-action')
         if paused:
             self.empty_page.set_title(_('No Matching Posts Yet'))
             self.empty_page.set_description(
                 _('Older posts may still match this recipe'))
+        elif rule is None and relax.source_is_empty(records):
+            self.empty_page.set_title(_('No Matching Posts'))
+            self.empty_page.set_description(
+                _('The source has no posts yet'))
         else:
             self.empty_page.set_title(_('No Matching Posts'))
             self.empty_page.set_description(
@@ -554,6 +659,42 @@ class FeedChefTimelinePage(TimelinePage):
         self.banner.set_tooltip_text(', '.join(parts) if parts else None)
         self.banner.set_revealed(bool(parts))
 
+    # Relax Filters
+
+    def _on_relax(self, _button):
+        """Turn off the rule that removed the most posts, save, cook again
+        and offer Undo."""
+        rule = self._relax_rule
+        if rule is None or self._scope.closed:
+            return
+        before = copy.deepcopy(self.recipe)
+        after = copy.deepcopy(self.recipe)
+        relax.apply(after, rule)
+        if not self._switch_to(after):
+            return
+        ref = self.weak_ref()
+        anchor = pagenav.window_of(self) or self
+        storage, account = self.storage, self.account
+
+        def undo():
+            undo_relax(ref, anchor, storage, account, before, rule)
+
+        feedback.show_toast(self, relax.done(rule, feedchefexplain.WORDS),
+                            undo=undo)
+
+    def _switch_to(self, recipe):
+        """Store *recipe* and cook it; False (and the reader told) when it
+        could not be stored."""
+        try:
+            self.storage.save_recipe(recipe)
+        except Exception as error:
+            feedback.report_error(self, _('Could not save the recipe'),
+                                  error)
+            return False
+        self.use_recipe(recipe)
+        recipe_stored(self, self.account, recipe, skip=self)
+        return True
+
     # Editing the recipe
 
     def _on_edit_clicked(self, _button):
@@ -594,34 +735,38 @@ class FeedChefTimelinePage(TimelinePage):
 def present_import(parent, account, recipe):
     """Ask before a shared recipe is stored. A recipe with the same id is
     replaced, which is said, since the old one is lost; otherwise the
-    recipe is added. Returns the dialog."""
+    recipe is added. Preview cooks the incoming recipe first (nothing is
+    stored), and the question comes back after it.
+    Returns the dialog."""
     existing = storage_for(account).get_recipe_by_id(recipe.id)
+    chef = chef_line(recipe, feedchefexplain.WORDS)
     if existing is not None:
         heading = _('Replace Recipe?')
         body = _('This replaces your recipe “%s”.') % existing.meta.name
         action, label = 'replace', _('_Replace')
         appearance = Adw.ResponseAppearance.DESTRUCTIVE
+        if chef:
+            body = '%s\n%s' % (body, chef)
     else:
-        author = (recipe.meta.author or '').strip()
         heading = _('Import Recipe?')
-        if author:
-            body = _('Import “%(name)s” by %(author)s into this '
-                     'account?') % {'name': recipe.meta.name,
-                                    'author': author}
-        else:
-            body = _('Import “%(name)s” into this account?') % {
-                'name': recipe.meta.name}
+        body = _('Import “%s” into this account?') % recipe.meta.name
         action, label = 'import', _('_Import')
         appearance = Adw.ResponseAppearance.SUGGESTED
+        if chef:
+            body = '%s\n%s' % (body, chef)
 
     dialog = Adw.AlertDialog(heading=heading, body=body)
     dialog.add_response('cancel', _('_Cancel'))
+    dialog.add_response('preview', _('_Preview'))
     dialog.add_response(action, label)
     dialog.set_response_appearance(action, appearance)
     dialog.set_default_response('cancel')
     dialog.set_close_response('cancel')
 
     def response(_dialog, answer):
+        if answer == 'preview':
+            _preview_import(parent, account, recipe)
+            return
         if answer != action:
             return
         try:
@@ -636,3 +781,20 @@ def present_import(parent, account, recipe):
     dialog.connect('response', response)
     dialog.present(parent)
     return dialog
+
+
+def _preview_import(parent, account, recipe):
+    """Cook the incoming recipe in the preview (a copy: nothing is stored,
+    and the preview leaves no audit record or decision log), then ask again
+    if the reader closed it and Feed Chef is still on."""
+    client = pagenav.client_of(parent)
+    if client is None:
+        present_import(parent, account, recipe)
+        return
+    preview = FeedChefPreviewDialog(client, account, copy.deepcopy(recipe))
+    def back(_dialog):
+        if app_settings().get_boolean('feed-chef-enabled'):
+            present_import(parent, account, recipe)
+
+    preview.connect('closed', back)
+    preview.present(parent)

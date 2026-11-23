@@ -653,6 +653,21 @@ avatar.profile-image-button:focus-visible {
   color: var(--error-color);
 }
 
+/* A chip a page adds to a post (rowdecor.py): the Hot badge of a Feed Chef
+   recipe. The text carries the meaning; the border keeps it visible in high
+   contrast. */
+.decoration-chip {
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  padding: 0 8px;
+}
+
+.decoration-fire {
+  border-color: var(--warning-color);
+  background-color: color-mix(in srgb, var(--warning-bg-color) 18%, transparent);
+  color: var(--warning-color);
+}
+
 /* Moved-account notice above the banner. */
 .profile-moved {
   padding: 6px 0;

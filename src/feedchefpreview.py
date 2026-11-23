@@ -18,6 +18,7 @@ from gi.repository import Adw  # noqa: E402
 
 from . import accounts  # noqa: E402
 from .feedback import ToastDialog  # noqa: E402
+from .feedchef import network_reach as reachmod  # noqa: E402
 from .feedchef.icons import icon_name  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
 from .feedchefsource import FeedChefSource  # noqa: E402
@@ -72,7 +73,9 @@ class FeedChefPreviewPage(TimelinePage):
         engine = make_engine(client, accounts.account_key(account),
                              str(account.get('id') or ''), recipe,
                              audit=False)
-        engine.init_preload()
+        if reachmod.needs_follow_list(recipe.pantry.network_reach):
+            # Only a recipe limited to the people you follow needs the list.
+            engine.init_preload()
         source = FeedChefSource(engine, recipe)
         super().__init__(client, source=source, boosts_carousel=False,
                          autoload=False)

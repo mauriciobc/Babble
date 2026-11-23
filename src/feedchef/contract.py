@@ -21,6 +21,7 @@ from typing import Any, Callable
 
 from .. import quoteline
 from . import cluster as clustermod
+from . import heat as heatmod
 from . import relevance as relevancemod
 from .recipe import FeedRecipe, NetworkReachConfig, max_per
 from .textutil import (account_of, content_of, host_of_account, squash_space,
@@ -301,7 +302,11 @@ def violations(
 # reason is `guard:<id>`.
 
 LIST_IDS = ('relevance_order', 'cluster_cap', 'fresh_floor',
-            'instance_cap')
+            'instance_cap', 'fire_badge')
+# The promises about the heat cut of a page: they name no post (a cut that
+# hid the wrong number of posts cannot be undone), so the guard records them
+# and drops nothing.
+PAGE_IDS = ('heat_count', 'heat_fallback')
 
 
 @dataclass(frozen=True)
@@ -321,6 +326,13 @@ class ListFacts:
     instance_counts: dict[str, int] | None = None
     # The page's one clock reading, which the freshness check needs.
     now: Any = None
+    # One row per heat modifier ({requested, used, before, after}); None
+    # when the kitchen did not say.
+    heat: list[dict[str, Any]] | None = None
+    # The final score of each post and the Hot badge the kitchen gave
+    # ({'ids': [...]}); None when it did not say.
+    scores: dict[str, float] | None = None
+    fire: dict[str, Any] | None = None
 
 
 def _sid(status: dict[str, Any]) -> str:
@@ -387,11 +399,30 @@ def list_violations(recipe: FeedRecipe, ordered: list[dict[str, Any]],
       calls for, recomputed here: raised to 0.2 with trending and only then.
     * ``instance_cap``: at most ``max_per_cluster`` posts per server over
       the cook session, for each diversity modifier that caps servers; the
-      ones past the cap break it."""
+      ones past the cap break it.
+    * ``fire_badge``: a post wears the Popular badge exactly when its score
+      is above the 90th percentile of the scores of the page (and a page
+      whose scores are all equal gives none); one that wears it without, or
+      lacks it with, breaks it (both directions)."""
     found: dict[str, list[str]] = {}
 
     def add(status, promise):
         found.setdefault(_sid(status), []).append(promise)
+
+    if facts.fire is not None and facts.scores is not None:
+        # The threshold is the one the kitchen made from the scores of its
+        # whole page (a post the guard drops later cannot move it); it must
+        # be the page's 90th percentile of those scores, and the badge goes
+        # exactly to the posts above it.
+        flagged = set(facts.fire.get('ids') or ())
+        threshold = facts.fire.get('threshold')
+        page = facts.fire.get('scores')
+        sound = page is None or threshold == heatmod.fire_threshold(page)
+        for status in ordered:
+            score = facts.scores.get(_sid(status), 0.0)
+            wanted = threshold is not None and score > threshold
+            if not sound or (_sid(status) in flagged) != wanted:
+                add(status, 'fire_badge')
 
     if facts.relevance is not None \
             and relevancemod.focus_keywords(recipe.kitchen):
@@ -440,4 +471,38 @@ def list_violations(recipe: FeedRecipe, ordered: list[dict[str, Any]],
             if counts[server] > cap and 'instance_cap' not in found.get(
                     _sid(status), ()):
                 add(status, 'instance_cap')
+    return found
+
+
+def heat_violations(recipe: FeedRecipe,
+                    rows: list[dict[str, Any]] | None) -> list[str]:
+    """The promises about the heat cut that a page breaks, from what each
+    "Hide the Least Engaging" modifier asked for and did (``rows``, one per
+    modifier, in order; None: nothing to judge):
+
+    * ``heat_count``: the cut hid exactly floor(P_used x n / 100) of the n
+      posts it judged, and never all of them.
+    * ``heat_fallback``: the step asked for is the recipe's, and the step
+      used is the first one, from it down, that leaves at least
+      ``heat.MIN_LEFT`` posts, or Cool (the fallback was neither skipped
+      nor made without need)."""
+    if rows is None:
+        return []
+    mods = [mod for mod in recipe.kitchen.modifiers if mod.type == 'heat']
+    found: list[str] = []
+
+    def add(promise):
+        if promise not in found:
+            found.append(promise)
+
+    if len(rows) != len(mods):
+        add('heat_fallback')
+    for mod, row in zip(mods, rows, strict=False):
+        wanted = heatmod.whole(heatmod.clean(mod.percentile_threshold))
+        if row['requested'] != wanted or row['used'] != heatmod.used(
+                row['requested'], row['before']):
+            add('heat_fallback')
+        if row['before'] - row['after'] != heatmod.hidden_count(
+                row['used'], row['before']):
+            add('heat_count')
     return found

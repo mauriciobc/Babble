@@ -36,8 +36,8 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.getcwd()
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
-from src import (feedback, feedchefbuilder, feedchefpages,  # noqa: E402
-                 feedchefpreview, navigation)
+from src import (feedback, feedchefbuilder, feedchefbuilderlive,  # noqa: E402
+                 feedchefpages, feedchefpreview, navigation)
 from src.feedchef import icons  # noqa: E402
 from src.feedchef import storage as storagemod  # noqa: E402
 from src.feedchef.engine import FeedResult  # noqa: E402
@@ -187,6 +187,10 @@ def fake_toast(_widget, text, undo=None, undo_label=None, dismissed=None):
 
 
 feedback.show_toast = fake_toast
+
+feedchefbuilderlive.make_live_cook = lambda _client, _account: SimpleNamespace(
+    request=lambda _recipe, _done, _error: None, supersede=lambda: None,
+    close=lambda: None)
 # The account's lists are answered by the test, not by a server.
 LIST_REQUESTS = []
 feedchefbuilder.pages.call_api = (
@@ -330,7 +334,7 @@ trending_editor.row.set_enable_expansion(True)
 sentiment_editor.row.set_enable_expansion(True)
 trending_editor.spin.set_value(30)
 check('modifiers: percent and per-person values are shown',
-      heat.row.get_subtitle().endswith(' · 50%')
+      heat.row.get_subtitle().endswith(' · Warm')
       and diversity.row.get_subtitle().endswith(' · 3 per person')
       and trending_editor.row.get_subtitle().endswith(' · 30%')
       and sentiment_editor.row.get_subtitle().endswith(' · 50%'))
@@ -342,12 +346,14 @@ check('modifiers: turning one off takes the value away again',
 dialog.force_close()
 pump()
 dialog = open_builder(default_recipe('Actions'), True)
-action_rows = {r.get_title(): r for r in find(dialog.page, Adw.ButtonRow)}
-check('builder: Preview Recipe and Copy Share Link have start icons',
-      action_rows['_Preview Recipe'].get_start_icon_name()
+action_rows = {r.get_title(): r for r in find(
+    dialog.page, Adw.PreferencesRow) if r.get_title() in (
+        '_Preview Recipe', 'S_hare Recipe')}
+check('builder: Preview Recipe and Share Recipe have start icons',
+      find(action_rows['_Preview Recipe'], Gtk.Image)[0].get_icon_name()
       == 'view-reveal-symbolic'
-      and action_rows['Copy Share _Link'].get_start_icon_name()
-      == 'edit-copy-symbolic')
+      and action_rows['S_hare Recipe'].get_start_icon_name()
+      == 'send-to-symbolic')
 dialog.force_close()
 pump()
 
@@ -587,13 +593,13 @@ host.present()
 dialog = open_builder(unsaved, False, host)
 dialog.name_row.set_text('Unsaved Name')
 dialog.positive.set_active(True)
-preview_rows = find(dialog.page, Adw.ButtonRow,
+preview_rows = find(dialog.page, Adw.ActionRow,
                     lambda r: r.get_title() == '_Preview Recipe')
-check('preview: Preview Recipe sits with Copy Share Link in the bottom '
+check('preview: Preview Recipe sits with Share Recipe in the bottom '
       'group',
       len(preview_rows) == 1 and preview_rows[0].get_parent().get_parent()
       is find(dialog.page, Adw.ButtonRow,
-              lambda r: r.get_title() == 'Copy Share _Link')[0]
+              lambda r: r.get_title() == 'S_hare Recipe')[0]
       .get_parent().get_parent())
 preview_rows[0].emit('activated')
 pump()

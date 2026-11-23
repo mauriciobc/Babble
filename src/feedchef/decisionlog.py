@@ -117,9 +117,15 @@ class FeedDecisionLogger:
         with self._lock:
             self.log.reliability['errors'].append(redact(message))
 
+    # False for a cook nobody may read later (the unsaved preview, the live
+    # count): nothing of it is written.
+    persistent = True
+
     def persist(self) -> str | None:
         """Write the log. The log observes the cook and never decides it:
         a folder that cannot be written is a warning, and the cook goes on."""
+        if not self.persistent:
+            return None
         try:
             return self._persist()
         except OSError as error:

@@ -141,6 +141,12 @@ self_check('R12 rejects a module-level import of Feed Chef',
 self_check('R12 rejects a module-level package import of Feed Chef',
            {'src/main.py': 'from .feedchef import sharecodec\n'},
            'R12: src/main.py:1 imports feedchef at load time')
+self_check('R12 rejects a load-time import of the share dialog in window.py',
+           {'src/window.py': 'from .feedchefshare import X\n'},
+           'R12: src/window.py:1 imports feedchefshare at load time')
+self_check('R12 rejects a load-time import of the pushed recipe helpers',
+           {'src/window.py': 'from .feedchefpages import open_recipe\n'},
+           'R12: src/window.py:1 imports feedchefpages at load time')
 self_check('R12 rejects a class-body import of Feed Chef',
            {'src/main.py': 'class A:\n    from . import feedchefpages\n'},
            'R12: src/main.py:2 imports feedchefpages at load time')

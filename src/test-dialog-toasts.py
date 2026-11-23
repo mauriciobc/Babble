@@ -100,6 +100,7 @@ EXPECTED = {
     ('feedchefexplain', 'KitchenReportDialog'),
     ('feedchefexplain', 'WhyThisPostDialog'),
     ('feedchefpreview', 'FeedChefPreviewDialog'),
+    ('feedchefshare', 'FeedChefShareDialog'),
     ('pluginspage', 'PluginsDialog'),
     ('preferences', 'PreferencesDialog'),
     ('profiledialogs', 'PrivateNoteDialog'),

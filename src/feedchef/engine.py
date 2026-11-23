@@ -111,6 +111,9 @@ class FeedEngine:
         # its decision log. ``audit = False`` turns it off; ``clock`` is the
         # one reading of the time per page (a test or a replay injects it).
         self.audit = True
+        # Whether each page also writes its decision log (False for a view
+        # nobody may read the choices of later: see ``feedchefbridge``).
+        self.persist_log = True
         self.app_version = app_version
         self.clock = lambda: datetime.now(timezone.utc)
         # Whether the native Bluesky setting is on, asked once per cook
@@ -319,6 +322,7 @@ class FeedEngine:
             app_version=self.app_version)
             if self.audit else NULL)
         logger = FeedDecisionLogger(recipe.id, audit, cook_id)
+        logger.persistent = self.persist_log
         if audit.enabled:
             audit.identity['cook_id'] = logger.cook_id
         now = self.clock()
@@ -511,7 +515,9 @@ class FeedEngine:
                 relevance=kitchen_meta.get('relevance_scores'),
                 groups=kitchen_meta.get('groups'),
                 fresh=kitchen_meta.get('fresh'),
-                instance_counts=instance_counts, now=now))
+                instance_counts=instance_counts, now=now,
+                heat=kitchen_meta.get('heat_steps'), scores=score_map,
+                fire=kitchen_meta.get('fire')))
         audit.judged_scores(judge, pantry.items)
         logger.set_kitchen(
             input_count=len(after_reach),
@@ -613,6 +619,11 @@ class FeedEngine:
         """The promises about the page as a whole (``contract.LIST_IDS``),
         asked of the posts that kept their own; a violator is dropped and
         recorded the same way."""
+        for promise_id in contract.heat_violations(recipe, facts.heat):
+            dropped[promise_id] = dropped.get(promise_id, 0) + 1
+            logger.add_error('contract:%s' % promise_id)
+            log.warning('feedchef: contract %s broken by the heat cut of '
+                        'the page', promise_id)
         broken = contract.list_violations(recipe, kept, facts)
         if not broken:
             return kept

@@ -39,7 +39,7 @@ log = logging.getLogger('babble.feedchef')
 SCHEMA = 2
 # Bumped by hand whenever the meaning of a stage changes; a replay refuses
 # a record made by another revision unless it is forced.
-ENGINE_REV = 3
+ENGINE_REV = 4
 # The stripped text kept per post in the sidecar.
 TEXT_CAP = 2000
 
@@ -258,6 +258,10 @@ class Recorder:
         self.grouping = None
         self.word_cache = None
         self.unmatched = False
+        # The heat cuts (one row per heat modifier: the step asked for and
+        # the one used) and the Hot badge of the page.
+        self.heat_rows: list[dict] = []
+        self.fire_ids: set[str] | None = None
         self.ordered: list[str] | None = None
         self.score_map: dict[str, float] = {}
         self.error = ''
@@ -376,6 +380,15 @@ class Recorder:
     def cluster(self, outcome) -> None:
         """The similarity grouping of the page (a ``cluster.ClusterRun``)."""
         self.grouping = outcome
+
+    def heat_steps(self, rows) -> None:
+        """What each "Hide the Least Engaging" modifier asked for and which
+        step the page was cut at (see ``heat.used``)."""
+        self.heat_rows = [dict(row) for row in rows]
+
+    def fire(self, info) -> None:
+        """The posts of the page that beat the page's 90th percentile."""
+        self.fire_ids = set(info['ids'])
 
     def kitchen_cut(self, reason: str, before, after) -> None:
         kept = {id(item) for item in after}
@@ -567,6 +580,8 @@ class Recorder:
                 if self.relevance_of is not None \
                         and sid in self.relevance_of:
                     score['relevance'] = self.relevance_of[sid]
+                if sid in ranks and self.fire_ids is not None:
+                    score['fire'] = sid in self.fire_ids
             else:
                 score = None
             group = (self.grouping.groups.get(sid)
@@ -655,6 +670,7 @@ class Recorder:
             **({'cluster': self.grouping.record()}
                if self.grouping is not None else {}),
             **({'focus_unmatched': True} if self.unmatched else {}),
+            **({'heat': self.heat_rows} if self.heat_rows else {}),
         }
 
 
@@ -676,7 +692,7 @@ for _name in ('clock', 'fetched', 'hashtag_fetched', 'pantry', 'counts',
               'follow_state', 'diet_decisions', 'reach_removed',
               'viewer_checked', 'trends_seen', 'judged_scores', 'heat_map',
               'factor', 'fresh_floor', 'relevance', 'focus_unmatched', 'words',
-              'cluster',
+              'cluster', 'heat_steps', 'fire',
               'kitchen_cut',
               'guard_verdict', 'finish', 'failed', 'cancelled'):
     setattr(Recorder, _name, _guarded(getattr(Recorder, _name)))

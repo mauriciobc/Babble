@@ -770,14 +770,19 @@ check('the record holds each post\'s group and medoid, and the loss, '
       and record['cluster']['seed'] == 0
       and all('cluster' in e and e['cluster']['medoid']
               for e in record['posts'] if e['score'])
-      and record['engine_rev'] == 3)
+      and record['engine_rev'] == 4)
 heat_recipe = default_recipe()
 heat_recipe.kitchen.modifiers = [
     Modifier(type='similarity_cluster', max_per_cluster=2),
-    Modifier(type='heat', percentile_threshold=50)]
+    Modifier(type='heat', percentile_threshold=25)]
 _o, _s, hmeta = kitchenmod.score_statuses(posts40, heat_recipe, now=NOW)
 check('the grouping runs before heat: heat judges what is left of it '
-      '(8 posts, 4 hidden)', hmeta['heat']['before'] == 8
-      and hmeta['heat']['after'] == 4)
+      '(8 posts, 2 hidden)', hmeta['heat']['before'] == 8
+      and hmeta['heat']['after'] == 6)
+heat_recipe.kitchen.modifiers[1].percentile_threshold = 50
+_o, _s, hmeta = kitchenmod.score_statuses(posts40, heat_recipe, now=NOW)
+check('and a cut that would leave 4 of those 8 steps down to Cool',
+      hmeta['heat']['before'] == 8 and hmeta['heat']['after'] == 8
+      and hmeta['heat']['requested'] == 50 and hmeta['heat']['used'] == 0)
 
 sys.exit(1 if failures else 0)

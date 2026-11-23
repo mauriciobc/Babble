@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
+import unicodedata
 import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -297,12 +298,38 @@ def _check_caps(data: dict[str, Any]) -> None:
                 'number of 1 or more' % mod['type'])
 
 
+def _check_percentiles(data: dict[str, Any]) -> None:
+    """Reject a heat percent that is not a number from 0 to 100."""
+    for mod in (data.get('kitchen') or {}).get('modifiers') or ():
+        if not isinstance(mod, dict) or mod.get('type') != 'heat':
+            continue
+        value = mod.get('percentile_threshold')
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or not math.isfinite(value) or not 0 <= value <= 100:
+            raise ValueError('the "heat" modifier needs percentile_threshold '
+                             'to be a number from 0 to 100')
+
+
+def plain_text(value: Any, limit: int = 200) -> str:
+    """*value* as one line of plain text for a name shown to the reader: no
+    control or formatting characters, whitespace squashed, at most *limit*
+    characters (an imported recipe is text from a stranger)."""
+    text = ''.join(' ' if char.isspace() else char for char in str(value or '')
+                   if char.isspace() or unicodedata.category(char)[0] != 'C')
+    return ' '.join(text.split())[:limit]
+
+
 def validate_for_import(data: dict[str, Any]) -> FeedRecipe:
     """Import activity: meta required; empty id → new UUID."""
     if data is None or data.get('meta') is None:
         raise ValueError('recipe meta is required')
     _check_caps(data)
+    _check_percentiles(data)
     recipe = recipe_from_dict(data)
+    recipe.meta.author = plain_text(recipe.meta.author)
+    recipe.meta.name = plain_text(recipe.meta.name)
     if not recipe.id:
         recipe.id = str(uuid.uuid4())
     if not (recipe.meta.name or '').strip():

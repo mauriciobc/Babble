@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from . import cluster as clustermod
+from . import heat as heatmod
 from . import relevance as relevancemod
 from .audit import NULL
 from .contract import FRESHNESS_FLOOR
@@ -169,21 +171,7 @@ def apply_trending(score: float, status: dict[str, Any],
     return score if factor is None else score * factor
 
 
-def _percentile(values: list[float], percentile: float) -> float:
-    if not values:
-        return -1.0
-    if percentile <= 0:
-        return -1.0
-    ordered = sorted(values)
-    if percentile >= 100:
-        return ordered[-1]
-    rank = (percentile / 100.0) * (len(ordered) - 1)
-    low = int(math.floor(rank))
-    high = int(math.ceil(rank))
-    if low == high:
-        return ordered[low]
-    weight = rank - low
-    return ordered[low] * (1 - weight) + ordered[high] * weight
+_percentile = heatmod.percentile
 
 
 def apply_heat(statuses: list[dict[str, Any]], scores: dict[str, float],
@@ -191,13 +179,9 @@ def apply_heat(statuses: list[dict[str, Any]], scores: dict[str, float],
     """Hide exactly floor(P x n / 100) of the n posts: the ones with the
     lowest score, the older first among equals, and never all of them
     (a batch of one is never emptied). The rest keep their order."""
-    percentile = float(mod.percentile_threshold
-                       if mod.percentile_threshold is not None else 0)
-    if percentile <= 0 or not statuses:
-        return statuses
     total = len(statuses)
-    hide = min(int(math.floor(percentile * total / 100.0)), total - 1)
-    if hide <= 0:
+    hide = heatmod.hidden_count(mod.percentile_threshold, total)
+    if hide <= 0 or not statuses:
         return statuses
 
     def weakest(item):
@@ -365,6 +349,7 @@ def score_statuses(
     sentiment_by_id = sentiment_by_id or {}
     scores: dict[str, float] = {}
     meta: dict[str, Any] = {'inert': [], 'heat': None, 'diversity': None,
+                            'heat_steps': [], 'fire': None,
                             'cluster': None, 'unavailable': {},
                             # What the final guard checks the page against
                             # (contract.ListFacts): each post's freshness
@@ -422,16 +407,7 @@ def score_statuses(
             meta['inert'] = sorted({*meta['inert'], 'similarity_cluster#2'})
     for mod in recipe.kitchen.modifiers:
         if mod.type == 'heat':
-            before = len(working)
-            kept = apply_heat(working, scores, mod)
-            if audit.enabled:
-                audit.kitchen_cut('heat_cut', working, kept)
-            working = kept
-            meta['heat'] = {
-                'before': before,
-                'after': len(working),
-                'percentile': mod.percentile_threshold,
-            }
+            working = _heat(working, scores, mod, meta, audit)
 
     keywords = relevancemod.focus_keywords(recipe.kitchen)
     ordered = None
@@ -468,6 +444,9 @@ def score_statuses(
             ordered = kept
             meta['diversity'] = {'before': before, 'after': len(ordered)}
 
+    meta['fire'] = _fire(ordered, scores)
+    audit.heat_steps(meta['heat_steps'])
+    audit.fire(meta['fire'])
     # Java DecisionLog: kitchen-filtered posts keep rank -1.
     ranks: dict[str, int] = {}
     for status in statuses:
@@ -477,6 +456,43 @@ def score_statuses(
     meta['ranks'] = ranks
     meta['inert'] = sorted(set(meta['inert']))
     return ordered, scores, meta
+
+
+def _heat(working: list[dict[str, Any]], scores: dict[str, float],
+          mod: Modifier, meta: dict[str, Any], audit
+          ) -> list[dict[str, Any]]:
+    """The heat cut of one modifier, at the first step that leaves the page
+    enough posts (see ``heat.used``); *meta* and the audit say which
+    step was asked for and which one cut."""
+    before = len(working)
+    requested = heatmod.whole(heatmod.clean(mod.percentile_threshold))
+    percent = heatmod.used(requested, before)
+    stepped = mod if percent == requested else dataclasses.replace(
+        mod, percentile_threshold=percent)
+    kept = apply_heat(working, scores, stepped)
+    if audit.enabled:
+        audit.kitchen_cut('heat_cut', working, kept)
+    row = {'requested': requested, 'used': percent, 'before': before,
+           'after': len(kept)}
+    meta['heat_steps'].append(row)
+    meta['heat'] = {'before': before, 'after': len(kept),
+                    'percentile': mod.percentile_threshold, **{
+                        key: row[key] for key in ('requested', 'used')}}
+    return kept
+
+
+def _fire(ordered: list[dict[str, Any]], scores: dict[str, float]
+          ) -> dict[str, Any]:
+    """The Hot badge of the page: the score a post must beat (the 90th
+    percentile of the scores of the posts shown) and the ids of the posts
+    that beat it."""
+    shown = [(str(item.get('id') or ''),
+              scores.get(str(item.get('id') or ''), 0.0))
+             for item in ordered]
+    threshold = heatmod.fire_threshold([score for _sid, score in shown])
+    return {'threshold': threshold, 'scores': [s for _sid, s in shown],
+            'ids': [sid for sid, score in shown
+                    if threshold is not None and score > threshold]}
 
 
 def _group(working: list[dict[str, Any]], mod: Modifier,

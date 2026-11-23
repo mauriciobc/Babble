@@ -156,7 +156,7 @@ def random_recipe(rng):
     if rng.random() < 0.4:
         mods.append(Modifier(type='heat',
                              percentile_threshold=rng.choice(
-                                 [0, 10, 25, 50, 75, 90])))
+                                 [0, 10, 25, 50, 60, 75, 90])))
     if rng.random() < 0.5:
         mods.append(Modifier(type='diversity',
                              max_per_cluster=rng.choice([1, 2, 3, 4]),

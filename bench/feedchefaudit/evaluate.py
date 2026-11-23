@@ -24,7 +24,8 @@ from feedchefaudit.records import (LogError, Rebuilt, check_replayable,
                                    patched, recipe_of, structure_problem)
 
 RULES = ('record', 'promises', 'hashtags', 'follow', 'order', 'relevance',
-         'cluster', 'floor', 'language', 'heat', 'cap', 'removal_reasons',
+         'cluster', 'floor', 'language', 'heat', 'fire', 'cap',
+         'removal_reasons',
          'guard')
 
 
@@ -98,19 +99,64 @@ def _removed_by(entry, *reasons):
     return bool(entry['removal']) and entry['removal']['reason'] in reasons
 
 
-def _heat_expected(recipe, scored):
+def _hidden(percent, total):
+    """floor(P x n / 100) of n posts, never all of them."""
+    if percent <= 0 or total <= 0:
+        return 0
+    return max(0, min(int(math.floor(percent * total / 100.0)), total - 1))
+
+
+def _heat_step(requested, total):
+    """The percent a page of *total* posts is cut at: the first of the
+    requested one and then Fire (90), Hot (75) and Warm (50) below it that
+    leaves at least 5 posts, else Cool (0). Written out here, not read from
+    the engine."""
+    if requested <= 0:
+        return 0
+    for percent in [requested] + [s for s in (90, 75, 50)
+                                  if s < requested]:
+        if total - _hidden(percent, total) >= 5:
+            return percent
+    return 0
+
+
+def _heat_expected(recipe, scored, rows=None):
+    """(posts the heat cut must hide, why the record's steps are wrong or
+    ''): each heat modifier cuts what is left at the step the fallback
+    picks. Without the record's own rows (a record from before the
+    fallback) each modifier cuts at the percent it asks for."""
     total = 0
     left = scored
-    for mod in _mods(recipe, 'heat'):
-        percentile = float(mod.percentile_threshold
-                           if mod.percentile_threshold is not None else 0)
-        if percentile <= 0 or not left:
-            continue
-        hide = min(int(math.floor(percentile * left / 100.0)), left - 1)
-        if hide > 0:
-            total += hide
-            left -= hide
-    return total
+    mods = _mods(recipe, 'heat')
+    wrong = ''
+    if rows is not None and len(rows) != len(mods):
+        wrong = 'the record has %d heat rows for %d modifiers' % (
+            len(rows), len(mods))
+        rows = None
+    for index, mod in enumerate(mods):
+        try:
+            requested = float(mod.percentile_threshold
+                              if mod.percentile_threshold is not None else 0)
+        except (TypeError, ValueError):
+            requested = 0.0
+        # One reading of a stored percent: finite, between 0 and 100.
+        requested = (max(0.0, min(100.0, requested))
+                     if math.isfinite(requested) else 0.0)
+        used = _heat_step(requested, left) if rows is not None \
+            else requested
+        if rows is not None:
+            row = rows[index]
+            if float(row['requested']) != requested \
+                    or float(row['used']) != used \
+                    or row['before'] != left:
+                wrong = wrong or (
+                    'heat asked for %s, used %s of %d posts; the first '
+                    'step that leaves 5 is %s' % (
+                        row['requested'], row['used'], left, used))
+        hide = _hidden(used, left)
+        total += hide
+        left -= hide
+    return total, wrong
 
 
 def _key(entry, rebuilt):
@@ -449,9 +495,11 @@ def _check_kitchen(tally, rebuilt, selected):
         cut = sum(1 for e in scored if _removed_by(e, 'heat_cut'))
         # The grouping runs before heat: heat judges what is left of it.
         left = sum(1 for e in scored if not _removed_by(e, 'cluster_cap'))
-        want = _heat_expected(recipe, left)
-        tally.add('heat', 1, cut != want,
-                  'heat removed %d, floor(P*n/100) is %d' % (cut, want))
+        want, wrong = _heat_expected(recipe, left, record.get('heat'))
+        tally.add('heat', 1, cut != want or bool(wrong),
+                  wrong or 'heat removed %d, floor(P_used*n/100) is %d'
+                  % (cut, want))
+    _check_fire(tally, selected)
     caps = _caps(recipe)
     if caps:
         mine = {}
@@ -465,6 +513,34 @@ def _check_kitchen(tally, rebuilt, selected):
                       total, '%s has %d, cap %d' % (
                           _tail(person), total, min(caps)))
     _check_instance_cap(tally, rebuilt, selected)
+
+
+def _page_percentile(values, percent):
+    ordered = sorted(values)
+    rank = percent / 100.0 * (len(ordered) - 1)
+    low, high = int(math.floor(rank)), int(math.ceil(rank))
+    return ordered[low] + (ordered[high] - ordered[low]) * (rank - low)
+
+
+def _check_fire(tally, selected):
+    """The Hot badge, in both directions: a post wears it when its score is
+    above the 90th percentile of the scores of the page, and not otherwise.
+    A record from before the badge has none to judge."""
+    if not selected or not any('fire' in (e['score'] or {})
+                               for e in selected):
+        return
+    finals = [e['score']['final'] for e in selected]
+    # A page whose scores are all equal has no post that stands out.
+    threshold = (None if min(finals) == max(finals)
+                 else _page_percentile(finals, 90))
+    for entry in selected:
+        flag = entry['score'].get('fire')
+        wanted = threshold is not None and entry['score']['final'] > threshold
+        tally.add('fire', 1, flag is not wanted,
+                  '%s %s the Hot badge, its score is %s the 90th percentile'
+                  % (_tail(entry['id']),
+                     'has' if flag else 'lacks',
+                     'above' if wanted else 'not above'))
 
 
 def _check_instance_cap(tally, rebuilt, selected):
