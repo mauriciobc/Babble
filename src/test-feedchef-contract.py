@@ -19,7 +19,7 @@ import random
 import re
 import sys
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 
@@ -27,19 +27,17 @@ srcdir = os.environ.get('BABBLE_SRCDIR') or os.path.dirname(
     os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(srcdir))
 
-from src.feedchef import decisionlog as logmod  # noqa: E402
-from src.feedchef import kitchen as kitchenmod  # noqa: E402
-from src.feedchef import network_reach as reachmod  # noqa: E402
-from src.feedchef import pantry as pantrymod  # noqa: E402
-from src.feedchef import sentiment as sentmod  # noqa: E402
-from src.feedchef.engine import FeedEngine  # noqa: E402
-from src.feedchef.recipe import (  # noqa: E402
-    Modifier, NetworkReachConfig, default_recipe,
+sys.path.insert(0, os.path.join(os.path.dirname(srcdir), 'bench'))
+
+from feedchefaudit.fuzz import (  # noqa: E402
+    ME, World, cook, random_recipe,
 )
+from src.feedchef import decisionlog as logmod  # noqa: E402
+from src.feedchef import network_reach as reachmod  # noqa: E402
+from src.feedchef import sentiment as sentmod  # noqa: E402
 
 CASES = int(os.environ.get('FEEDCHEF_CONTRACT_CASES', '240'))
 failures = 0
-NOW = datetime.now(timezone.utc)
 
 TMP = tempfile.mkdtemp(prefix='feedchef-contract-')
 reachmod.set_root(os.path.join(TMP, 'reach'))
@@ -53,144 +51,6 @@ def check(label, condition):
     else:
         failures += 1
         print('FAIL - %s' % label)
-
-
-# --- the generator -----------------------------------------------------
-
-TAGS = ['coffee', 'tea', 'art', 'news', 'cats', 'music']
-FOLLOWED = ['f%d' % i for i in range(1, 7)]
-STRANGERS = ['u%d' % i for i in range(1, 7)]
-ME = 'me'
-TEXTS = [
-    ('en', 'I love this wonderful amazing day!'),
-    ('en', 'This is terrible, I hate it so much'),
-    ('en', 'Just a plain note about the weather'),
-    ('en', 'Buy crypto now, this is spam'),
-    ('pt', 'Eu adoro este dia maravilhoso, estou muito feliz!'),
-    ('pt-BR', 'Eu odeio isso, é horrível e terrível'),
-    ('es', 'Me encanta este día maravilhoso'),
-    ('es', 'Esto es terrible, lo odio'),
-    (None, 'A short one'),
-    (None, 'Un café bien largo para pensar en todo lo que pasó hoy y ayer'),
-    ('en', 'Check https://example.com/some/long/path?x=1 for a long, long '
-           'story about the café scene downtown that I enjoyed'),
-]
-WORDS = ['spam', 'crypto', 'terrible', 'café', 'weather']
-
-_ids = [10 ** 6]
-
-
-def next_id():
-    _ids[0] += 1
-    return str(_ids[0])
-
-
-def html_of(rng, text):
-    if rng.random() < 0.3:
-        text = text.replace('https://example.com/some/long/path?x=1', (
-            '<a href="https://example.com/some/long/path?x=1">'
-            '<span class="invisible">https://</span>'
-            '<span class="ellipsis">example.com/some/lo</span>'
-            '<span class="invisible">ng/path?x=1</span></a>'))
-    return '<p>%s</p>' % text.replace('&', '&amp;')
-
-
-def make_content(rng, author, tags=None, created=None):
-    lang, text = rng.choice(TEXTS)
-    media = []
-    for _i in range(rng.choice([0, 0, 0, 1, 1, 2])):
-        desc = rng.choice([None, '', '  ', 'A photo of a cat'])
-        media.append({'id': next_id(), 'type': 'image',
-                      'description': desc})
-    spoiler = rng.choice(['', '', '', 'politics', 'weather talk'])
-    created = created or (NOW - timedelta(minutes=rng.randint(1, 3000)))
-    return {
-        'id': next_id(),
-        'created_at': created.isoformat(),
-        'content': html_of(rng, text),
-        'spoiler_text': spoiler,
-        'sensitive': bool(spoiler) and rng.random() < 0.9
-        or rng.random() < 0.1,
-        'language': lang,
-        'favourites_count': rng.choice([0, 0, 1, 2, 5, 9, 30]),
-        'reblogs_count': rng.choice([0, 0, 1, 3, 8]),
-        'replies_count': rng.choice([0, 0, 1, 2, 6]),
-        'account': {'id': author, 'url': 'https://ex.ample/@%s' % author},
-        'tags': [{'name': t} for t in (
-            tags if tags is not None
-            else rng.sample(TAGS, rng.choice([0, 0, 1, 1, 2])))],
-        'media_attachments': media,
-    }
-
-
-def make_status(rng, tags=None, created=None):
-    """A timeline entry: a post, or a boost of one."""
-    if rng.random() < 0.3:
-        original = make_content(
-            rng, rng.choice(FOLLOWED + STRANGERS + [ME]), tags, created)
-        booster = rng.choice(FOLLOWED + STRANGERS + [ME])
-        return {
-            'id': next_id(),
-            'created_at': (NOW - timedelta(minutes=rng.randint(1, 50))
-                           ).isoformat(),
-            'account': {'id': booster,
-                        'url': 'https://ex.ample/@%s' % booster},
-            'reblog': original,
-            'content': '', 'tags': [], 'media_attachments': [],
-        }
-    return make_content(
-        rng, rng.choice(FOLLOWED + STRANGERS + [ME]), tags, created)
-
-
-def random_recipe(rng):
-    recipe = default_recipe('fuzz')
-    recipe.pantry.scope = rng.choice(['home', 'local', 'federated'])
-    if rng.random() < 0.35:
-        recipe.pantry.hashtags_include = rng.sample(TAGS, rng.choice([1, 2]))
-    if rng.random() < 0.35:
-        recipe.pantry.hashtags_exclude = rng.sample(TAGS, rng.choice([1, 2]))
-    if rng.random() < 0.5:
-        recipe.pantry.network_reach = NetworkReachConfig(
-            enabled=True, max_degrees=1,
-            include_self=rng.random() < 0.7)
-    diet = recipe.diet
-    if rng.random() < 0.35:
-        diet.keyword_blocklist = [w.lower() for w in
-                                  rng.sample(WORDS, rng.choice([1, 2, 3]))]
-    hard = diet.hard_filters
-    hard.must_have_media = rng.random() < 0.15
-    hard.must_have_alt_text = rng.random() < 0.2
-    hard.no_sensitive_media = rng.random() < 0.25
-    hard.min_content_length = rng.choice([0, 0, 0, 20, 40, 80])
-    hard.positive_only = rng.random() < 0.3
-    kit = recipe.kitchen
-    kit.base_sort = rng.choice(['score', 'chronological'])
-    mods = []
-    if rng.random() < 0.5:
-        mods.append(Modifier(type='freshness',
-                             decay_minutes=rng.choice([60, 360, 2000])))
-    if rng.random() < 0.4:
-        mods.append(Modifier(type='heat',
-                             percentile_threshold=rng.choice(
-                                 [0, 10, 25, 50, 75, 90])))
-    if rng.random() < 0.5:
-        mods.append(Modifier(type='diversity',
-                             max_per_cluster=rng.choice([1, 2, 3, 4]),
-                             diversity_dimensions=['author']))
-    if rng.random() < 0.35:
-        mods.append(Modifier(type='trending',
-                             growth_threshold=rng.choice([0.1, 0.3, 1.0])))
-    if rng.random() < 0.35:
-        mods.append(Modifier(type='sentiment_boost',
-                             sentiment_boost=rng.choice([0.2, 0.5, 1.0])))
-    rng.shuffle(mods)
-    kit.modifiers = mods
-    if rng.random() < 0.2:
-        if rng.random() < 0.5:
-            kit.active_focus_hashtags = [rng.choice(TAGS)]
-        else:
-            kit.active_focus_keywords = ['coffee']
-    return recipe
 
 
 # --- the oracles (nothing here calls the contract module) ----------------
@@ -265,71 +125,6 @@ def key_of(status):
     content = content_of(status)
     return (datetime.fromisoformat(content['created_at']),
             int(status['id']))
-
-
-# --- the world of one case -----------------------------------------------
-
-class World:
-    def __init__(self, rng, recipe):
-        self.follows = set(rng.sample(FOLLOWED, rng.choice([0, 2, 4, 6])))
-        self.pool = sorted((make_status(rng) for _i in range(110)),
-                           key=lambda s: int(s['id']), reverse=True)
-        self.tag_pool = {tag: [make_status(rng, tags=[tag])
-                               for _i in range(8)] for tag in TAGS}
-        self.focus_pool = [make_status(rng) for _i in range(30)]
-        self.rng = rng
-
-    def fetch_scope(self, max_id, count):
-        items = [s for s in self.pool
-                 if max_id is None or int(s['id']) < int(max_id)]
-        return items[:count]
-
-    def fetch_hashtag(self, tag, count):
-        return list(self.tag_pool.get(tag, []))
-
-    def search(self, query):
-        wanted = query.lstrip('#')
-        return [s for s in self.focus_pool
-                if wanted in {t['name'] for t in
-                              content_of(s).get('tags') or []}
-                or wanted not in TAGS][:20]
-
-    def trends(self):
-        return kitchenmod.ServerTrendContext(
-            trending_hashtags={'coffee': 1.0, 'art': 1.0},
-            trending_status_ids={self.pool[3]['id'], self.pool[9]['id']})
-
-    def following_page(self, max_id):
-        ordered = sorted(self.follows)
-        start = int(max_id or 0)
-        page = ordered[start:start + 3]
-        nxt = str(start + 3) if start + 3 < len(ordered) else None
-        return [{'id': a} for a in page], nxt
-
-
-def cook(world, recipe, case, pages=3, count=40):
-    engine = FeedEngine(
-        account_key='case#%d' % case, self_account_id=ME,
-        fetch_scope=world.fetch_scope, fetch_hashtag=world.fetch_hashtag,
-        search_statuses=world.search, fetch_trends=world.trends,
-        fetch_following_page=world.following_page)
-    engine.init_preload()
-    pantrymod._mlt_cache.clear()
-    results = []
-    counts = {}
-    cursor = None
-    try:
-        for _page in range(pages):
-            result = engine.process_feed_sync(
-                recipe, max_id=cursor, count=count, author_counts=counts)
-            results.append(result)
-            counts = result.author_counts
-            cursor = result.scope_oldest_id
-            if not result.has_more or not cursor:
-                break
-    finally:
-        engine.shutdown()
-    return results
 
 
 # --- the fuzz ------------------------------------------------------------

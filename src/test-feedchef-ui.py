@@ -133,7 +133,7 @@ class FakeEngine:
 
     def process_feed(self, recipe, *, max_id=None, count=80, on_stage=None,
                      on_done=None, on_error=None, author_counts=None,
-                     hide=None):
+                     hide=None, cook_id=None, page_index=0, hop=0):
         self.calls.append(max_id)
         items, has_more, cursor = (self.queue.pop(0) if self.queue
                                    else ([], False, None))

@@ -312,7 +312,9 @@ class Recorder:
         if author and author == self.self_id:
             return 'self'
         if self._follow_ids is None:
-            return 'unknown'
+            # Degree zero asks no list: anyone else is not let in.
+            return 'unknown' if contract.reach_kind(reach) == 'follows' \
+                else 'not_followed'
         return 'follows' if author in self._follow_ids else 'not_followed'
 
     def _facts(self, status, ref: str) -> dict:

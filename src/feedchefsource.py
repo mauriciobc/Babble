@@ -10,6 +10,7 @@ source therefore ignores TimelinePage's cursor and keeps its own.
 """
 
 import datetime
+import uuid
 from functools import partial
 
 from gi.repository import Gio, GLib, GObject
@@ -26,7 +27,7 @@ COOK_COUNT = 40
 MAX_EMPTY_HOPS = 3
 
 
-def viewer_hides(status):
+def viewer_hides(status, now=None):
     """Whether the viewer's own filters hide *status* in this timeline.
 
     The filter context is the one TimelinePage gives a source that has no
@@ -34,10 +35,18 @@ def viewer_hides(status):
     action 'hide' counts; a 'warn' or 'blur' post stays in the page, which
     shows it collapsed or covered with a Show Anyway button. Called by the
     engine before the kitchen, so a hidden post uses no one's slot of
-    "Limit Posts per Person"."""
+    "Limit Posts per Person". *now* is the page's one clock reading, which
+    the engine passes (``takes_now``)."""
     rule = filterrules.strongest(
-        status, filterrules.HOME, datetime.datetime.now(datetime.timezone.utc))
+        status, filterrules.HOME,
+        now or datetime.datetime.now(datetime.timezone.utc))
     return rule is not None and rule[0] == filterrules.HIDE
+
+
+viewer_hides.takes_now = True
+
+# The audit records of the last pages of a cook kept for Why This Post?.
+AUDIT_PAGES = 10
 
 
 def _batch(items):
@@ -50,9 +59,14 @@ class _Cook:
     """One ``fetch()``: its task, and whether it is still open."""
 
     __slots__ = ('task', 'cancellable', 'handler', 'done', 'older',
-                 'counts')
+                 'counts', 'cook_id', 'page_index')
 
-    def __init__(self, task, cancellable, older, counts):
+    def __init__(self, task, cancellable, older, counts, cook_id='',
+                 page_index=0):
+        # The cook session this page belongs to: a refresh starts a new
+        # one, an older page goes on with the session's.
+        self.cook_id = cook_id
+        self.page_index = page_index
         self.task = task
         self.cancellable = cancellable
         self.handler = 0
@@ -94,6 +108,24 @@ class FeedChefSource:
         self._author_counts = {}
         # Why the last cook failed: 'follow-list' or None.
         self.error_kind = None
+        self._cook_id = ''
+        self._page_index = -1
+        # The audit records of the pages shown (newest last) and the last
+        # one; the engine builds them, the source only keeps them.
+        self.last_audit = None
+        self._audits = []
+
+    def audit_for(self, status_id):
+        """The audit entry of a post of the shown pages, with the page's
+        record around it: ``(entry, record)``, or None when there is
+        none (a post that is not from this cook, or an engine without an
+        audit)."""
+        wanted = str(status_id or '')
+        for record in reversed(self._audits):
+            for entry in record.get('posts') or []:
+                if entry.get('id') == wanted:
+                    return entry, record
+        return None
 
     @property
     def cursor(self):
@@ -112,8 +144,11 @@ class FeedChefSource:
         # A refresh starts from nothing but changes nothing here until its
         # page lands (_on_done): one that fails or is cancelled leaves the
         # session as it was, and the older pages go on from its cursor.
-        cook = _Cook(task, cancellable, older,
-                     dict(self._author_counts) if older else {})
+        cook = _Cook(
+            task, cancellable, older,
+            dict(self._author_counts) if older else {},
+            self._cook_id if older else uuid.uuid4().hex[:12],
+            self._page_index + 1 if older else 0)
         self._active = cook
         if cancellable is not None:
             cook.handler = cancellable.connect(partial(self._cancelled, cook))
@@ -151,7 +186,8 @@ class FeedChefSource:
             on_stage=partial(self._on_stage, cook),
             on_done=partial(self._on_done, cook, hops),
             on_error=partial(self._on_error, cook),
-            author_counts=dict(cook.counts), hide=viewer_hides)
+            author_counts=dict(cook.counts), hide=viewer_hides,
+            cook_id=cook.cook_id, page_index=cook.page_index, hop=hops)
 
     def _settle(self, cook):
         cook.done = True
@@ -190,10 +226,23 @@ class FeedChefSource:
         self._cursor = cursor
         self._has_more = has_more
         self._author_counts = cook.counts
+        self._keep_audit(cook, result)
         self.stalled = bool(not result.items and has_more)
         self._settle(cook)
         self._active = None
         cook.task.return_value(_batch(list(result.items)))
+
+    def _keep_audit(self, cook, result):
+        """Remember the record of the page about to be shown; a refresh
+        forgets the pages of the cook it replaces."""
+        self._cook_id = cook.cook_id
+        self._page_index = cook.page_index
+        record = getattr(result.logger, 'record', None)
+        if not cook.older:
+            self._audits = []
+        if record is not None:
+            self.last_audit = record
+            self._audits = (self._audits + [record])[-AUDIT_PAGES:]
 
     def _on_error(self, cook, error):
         if cook.done or cook is not self._active:

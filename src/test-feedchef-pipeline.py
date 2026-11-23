@@ -254,7 +254,17 @@ with tempfile.TemporaryDirectory() as tmp:
         extra.persist()
         time.sleep(0.002)
     remaining = [name for name in os.listdir(tmp) if name.endswith('.json')]
-    check('decision log rotates to 50', len(remaining) == 50)
+    # Retention is per recipe now (last 20 cooks each, see the audit
+    # test): another recipe never evicts a recipe's history.
+    check('decision log keeps each recipe (56 recipes, 56 files)',
+          len(remaining) == 56)
+    for _index in range(25):
+        logmod.FeedDecisionLogger('r-0').persist()
+        time.sleep(0.002)
+    remaining = [name for name in os.listdir(tmp)
+                 if name.endswith('.json') and '_r-0__' in name]
+    check('decision log keeps the last 20 cooks of one recipe',
+          len(remaining) == 20)
 
 # --- cancel does not deliver stale on_done ---
 done_box = {'called': False}

@@ -30,22 +30,37 @@ class PantryResult:
     deduplicated_count: int = 0
 
 
-_mlt_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_mlt_cache: dict[str, tuple[float, list[dict[str, Any]],
+                            dict[str, list[str]]]] = {}
 _MLT_TTL = 30.0
 
 
-def _filter_excludes(statuses: list[dict], excludes: list[str]) -> list[dict]:
+def _filter_excludes(statuses: list[dict], excludes: list[str],
+                     trace=None, bucket: str = '') -> list[dict]:
     if not excludes:
         return statuses
-    return [item for item in statuses
-            if not any(contract.has_tag(item, tag) for tag in excludes)]
+    kept = []
+    for item in statuses:
+        if any(contract.has_tag(item, tag) for tag in excludes):
+            if trace is not None and item.get('id'):
+                trace.drop(bucket, str(item['id']), 'pantry_excluded_tag')
+        else:
+            kept.append(item)
+    return kept
 
 
-def _filter_includes(statuses: list[dict], includes: list[str]) -> list[dict]:
+def _filter_includes(statuses: list[dict], includes: list[str],
+                     trace=None, bucket: str = '') -> list[dict]:
     if not includes:
         return statuses
-    return [item for item in statuses
-            if any(contract.has_tag(item, tag) for tag in includes)]
+    kept = []
+    for item in statuses:
+        if any(contract.has_tag(item, tag) for tag in includes):
+            kept.append(item)
+        elif trace is not None and item.get('id'):
+            trace.drop(bucket, str(item['id']),
+                       'pantry_missing_included_tag')
+    return kept
 
 
 def oldest_id(statuses: list[dict[str, Any]]) -> str | None:
@@ -90,25 +105,39 @@ def merge_pantry(
     scope_posts: list[dict[str, Any]],
     includes: list[str],
     excludes: list[str],
+    origins=None,
 ) -> list[dict[str, Any]]:
+    # *origins*: an optional ``audit.PantryTrace``, an out-map for the audit
+    # (where each post came from, why it was dropped); never read here.
     # Included hashtags bind every source whose posts are not tagged by
     # construction: the scope and the More Like This search (a focus
     # narrows within the recipe, it does not escape it). A hashtag
     # timeline is the posts of one included tag, so it matches already;
     # the final contract guard asserts it.
-    scope = _filter_includes(_filter_excludes(scope_posts, excludes), includes)
-    tags = _filter_excludes(hashtag_posts, excludes)
-    mlt = _filter_includes(_filter_excludes(more_like_this, excludes),
-                           includes)
+    scope = _filter_includes(
+        _filter_excludes(scope_posts, excludes, origins, 'scope'),
+        includes, origins, 'scope')
+    tags = _filter_excludes(hashtag_posts, excludes, origins, 'hashtag')
+    mlt = _filter_includes(
+        _filter_excludes(more_like_this, excludes, origins, 'focus'),
+        includes, origins, 'focus')
     seen = set()
     merged = []
-    for bucket in (mlt, tags, scope):
+    for name, bucket in (('focus', mlt), ('hashtag', tags),
+                         ('scope', scope)):
         for status in bucket:
             sid = str(status.get('id') or '')
             if not sid or sid in seen:
+                if origins is not None:
+                    if sid:
+                        origins.duplicate(name, sid)
+                    else:
+                        origins.no_id += 1
                 continue
             seen.add(sid)
             merged.append(status)
+            if origins is not None:
+                origins.keep(name, sid)
     return merged
 
 
@@ -117,7 +146,10 @@ def fetch_more_like_this(
     search: SearchFn,
     *,
     now: float | None = None,
+    terms: dict[str, list[str]] | None = None,
 ) -> list[dict[str, Any]]:
+    # *terms*: an optional out-map, post id -> the focus terms it was
+    # found by (for the audit); a cache hit fills it too.
     hashtags = normalize_hashtags(recipe.kitchen.active_focus_hashtags or [])
     keywords = [str(item).strip().lower()
                 for item in (recipe.kitchen.active_focus_keywords or [])
@@ -128,23 +160,33 @@ def fetch_more_like_this(
     now = time.time() if now is None else now
     cached = _mlt_cache.get(key)
     if cached and now - cached[0] <= _MLT_TTL:
+        if terms is not None:
+            terms.update({sid: list(found) for sid, found in cached[2].items()})
         return list(cached[1])
     collected: list[dict[str, Any]] = []
+    found_by: dict[str, list[str]] = {}
     try:
-        if hashtags:
-            for tag in hashtags[:3]:
-                collected.extend(search('#' + tag)[:20])
-        else:
-            collected.extend(search(keywords[0])[:20])
+        queries = ([(tag, '#' + tag) for tag in hashtags[:3]] if hashtags
+                   else [(keywords[0], keywords[0])])
+        for term, query in queries:
+            found = search(query)[:20]
+            collected.extend(found)
+            for status in found:
+                names = found_by.setdefault(str(status.get('id') or ''), [])
+                if term not in names:
+                    names.append(term)
     except Exception as error:
         log.warning('feedchef: MLT search failed: %s', error)
         collected = []
+        found_by = {}
     # Drop cache entries older than 60 s.
-    stale = [name for name, (stamp, _items) in _mlt_cache.items()
+    stale = [name for name, (stamp, _items, _terms) in _mlt_cache.items()
              if now - stamp > 60]
     for name in stale:
         _mlt_cache.pop(name, None)
-    _mlt_cache[key] = (now, collected)
+    _mlt_cache[key] = (now, collected, found_by)
+    if terms is not None:
+        terms.update({sid: list(found) for sid, found in found_by.items()})
     return collected
 
 
@@ -156,6 +198,7 @@ def build_pantry(
     more_like_this: list[dict[str, Any]] | None = None,
     max_id: str | None = None,
     count: int = 80,
+    origins=None,
 ) -> PantryResult:
     includes = recipe.pantry.hashtags_include
     excludes = recipe.pantry.hashtags_exclude
@@ -170,6 +213,7 @@ def build_pantry(
         scope_posts=scope_posts,
         includes=includes,
         excludes=excludes,
+        origins=origins,
     )
     # Pagination follows the scope page (Babble cursor = scope's smallest
     # wrapper id).

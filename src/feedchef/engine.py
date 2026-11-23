@@ -9,6 +9,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from . import contract
@@ -17,6 +18,7 @@ from . import kitchen as kitchenmod
 from . import network_reach as reachmod
 from . import pantry as pantrymod
 from . import sentiment as sentimentmod
+from .audit import NULL, Recorder
 from .decisionlog import FeedDecisionLogger
 from .recipe import FeedRecipe
 
@@ -55,8 +57,14 @@ class _Judge:
     """Memoizes the sentiment of each post for one cook: the diet, the
     kitchen and the guard all ask, and the engines are not cheap."""
 
+    MISSING = object()
+
     def __init__(self):
         self._memo: dict[int, float | None] = {}
+
+    def peek(self, status):
+        """The score already asked for, or MISSING; never judges."""
+        return self._memo.get(id(status), self.MISSING)
 
     def __call__(self, status):
         key = id(status)
@@ -88,8 +96,15 @@ class FeedEngine:
                                       tuple[list[dict], str | None]] | None = None,
         ui_idle: Callable[[Callable[[], None]], None] | None = None,
         native_bluesky: Callable[[], bool] | None = None,
+        app_version: str = 'dev',
     ):
         self.account_key = account_key
+        # The audit: every page writes a schema-2 record (audit.py) beside
+        # its decision log. ``audit = False`` turns it off; ``clock`` is the
+        # one reading of the time per page (a test or a replay injects it).
+        self.audit = True
+        self.app_version = app_version
+        self.clock = lambda: datetime.now(timezone.utc)
         # Whether the native Bluesky setting is on, asked once per cook
         # (it decides what the minimum length counts, see ``quoteline``).
         self.native_bluesky = native_bluesky or (lambda: False)
@@ -171,6 +186,9 @@ class FeedEngine:
         on_error: ErrorCallback | None = None,
         author_counts: dict[str, int] | None = None,
         hide: Callable[[dict[str, Any]], bool] | None = None,
+        cook_id: str | None = None,
+        page_index: int = 0,
+        hop: int = 0,
     ):
         self.cancel()
         self._cancel = threading.Event()
@@ -182,7 +200,8 @@ class FeedEngine:
                 result = self._process_sync(
                     recipe, max_id=max_id, count=count,
                     on_stage=on_stage, cancel=cancel, generation=generation,
-                    author_counts=author_counts, hide=hide)
+                    author_counts=author_counts, hide=hide,
+                    cook_id=cook_id, page_index=page_index, hop=hop)
                 if cancel.is_set():
                     return
                 if on_done:
@@ -206,11 +225,15 @@ class FeedEngine:
         count: int = 80,
         author_counts: dict[str, int] | None = None,
         hide: Callable[[dict[str, Any]], bool] | None = None,
+        cook_id: str | None = None,
+        page_index: int = 0,
+        hop: int = 0,
     ) -> FeedResult:
         return self._process_sync(
             recipe, max_id=max_id, count=count,
             on_stage=None, cancel=threading.Event(), generation='sync',
-            author_counts=author_counts, hide=hide)
+            author_counts=author_counts, hide=hide,
+            cook_id=cook_id, page_index=page_index, hop=hop)
 
     def _server_trends(self, recipe: FeedRecipe
                        ) -> kitchenmod.ServerTrendContext:
@@ -245,6 +268,9 @@ class FeedEngine:
         generation: str,
         author_counts: dict[str, int] | None = None,
         hide: Callable[[dict[str, Any]], bool] | None = None,
+        cook_id: str | None = None,
+        page_index: int = 0,
+        hop: int = 0,
     ) -> FeedResult:
         """One page. *author_counts*: posts per person already shown by
         the earlier pages of the cook session ("Limit Posts per Person"
@@ -263,7 +289,16 @@ class FeedEngine:
         A scope that failed or timed out raises (the page offers Try
         Again): an empty page with no more to come would end the paging
         while older posts exist."""
-        logger = FeedDecisionLogger(recipe.id)
+        audit = (Recorder(
+            recipe, account_key=self.account_key,
+            self_id=self.self_account_id, cook_id=cook_id or '',
+            page_index=page_index, hop=hop, cursor_in=max_id, count=count,
+            app_version=self.app_version)
+            if self.audit else NULL)
+        logger = FeedDecisionLogger(recipe.id, audit, cook_id)
+        if audit.enabled:
+            audit.identity['cook_id'] = logger.cook_id
+        now = self.clock()
         started = time.time()
         # Trends on a separate executor (Babble deviation from Java deadlock).
         trends_future = None
@@ -282,7 +317,8 @@ class FeedEngine:
         # MLT before scope latch wait (Java order).
         if max_id is None and self.search_statuses is not None:
             mlt_posts = pantrymod.fetch_more_like_this(
-                recipe, self.search_statuses)
+                recipe, self.search_statuses,
+                terms=audit.trace.focus_of if audit.enabled else None)
 
         tags = []
         if max_id is None and self.fetch_hashtag is not None:
@@ -333,7 +369,9 @@ class FeedEngine:
             if future in pending:
                 continue
             try:
-                hashtag_posts.extend(future.result())
+                found = future.result()
+                hashtag_posts.extend(found)
+                audit.hashtag_fetched(tag, found)
             except Exception as error:
                 logger.add_error('hashtag:%s:%s' % (tag, error))
 
@@ -344,7 +382,11 @@ class FeedEngine:
             more_like_this=mlt_posts,
             max_id=max_id,
             count=count,
+            origins=audit.trace,
         )
+        audit.fetched(mlt_posts, hashtag_posts, scope_posts)
+        audit.pantry(pantry.items)
+        audit.counts(author_counts)
         pantry.timed_out = timed_out
         logger.set_pantry(
             fetched_count=pantry.fetched_count,
@@ -360,17 +402,21 @@ class FeedEngine:
 
         judge = _Judge()
         native = bool(self.native_bluesky())
+        audit.clock(now, native)
         if reachmod.needs_follow_list(recipe.pantry.network_reach):
             # Fail closed: wait for the list, or fail the cook.
             try:
                 self._await_follow_list(cancel)
+                audit.follow_state(self.reach.cache_snapshot())
             except reachmod.FollowListError as error:
+                audit.follow_state(None, error=True)
                 logger.add_error('reach:%s' % error)
                 logger.persist()
                 raise
         diet_started = time.time()
         after_diet, decisions = dietmod.apply_diet(
             pantry.items, recipe, sentiment=judge, native_bluesky=native)
+        audit.diet_decisions(decisions)
         try:
             after_reach, reach_stats = reachmod.apply_network_reach(
                 after_diet, recipe, self.reach)
@@ -378,9 +424,18 @@ class FeedEngine:
             logger.add_error('reach:%s' % error)
             logger.persist()
             raise
+        audit.reach_removed(after_diet, after_reach)
+        hidden: list[str] = []
         if hide is not None:
-            after_reach = [status for status in after_reach
-                           if not hide(status)]
+            shown = []
+            for status in after_reach:
+                if (hide(status, now) if getattr(hide, 'takes_now', False)
+                        else hide(status)):
+                    hidden.append(str(status.get('id') or ''))
+                else:
+                    shown.append(status)
+            after_reach = shown
+        audit.viewer_hidden(hidden)
         logger.set_diet(
             input_count=len(pantry.items),
             output_count=len(after_reach),
@@ -400,6 +455,7 @@ class FeedEngine:
                 server = trends_future.result(timeout=5)
             except Exception:
                 server = kitchenmod.EMPTY_TRENDS
+        audit.trends_seen(server)
 
         sentiment_by_id = {}
         if sentimentmod.recipe_needs_sentiment(recipe):
@@ -412,9 +468,11 @@ class FeedEngine:
         kitchen_started = time.time()
         ordered, score_map, kitchen_meta = kitchenmod.score_statuses(
             after_reach, recipe, server=server,
-            sentiment_by_id=sentiment_by_id, author_counts=author_counts)
+            sentiment_by_id=sentiment_by_id, author_counts=author_counts,
+            now=now, audit=audit)
         ordered, guard_stats = self._guard(
-            recipe, ordered, judge, logger, native)
+            recipe, ordered, judge, logger, native, audit)
+        audit.judged_scores(judge, pantry.items)
         logger.set_kitchen(
             input_count=len(after_reach),
             output_count=len(ordered),
@@ -432,6 +490,7 @@ class FeedEngine:
                      for mod in recipe.kitchen.modifiers)
         counts = (kitchenmod.tally_authors(ordered, author_counts)
                   if capped else dict(author_counts or {}))
+        audit.finish(ordered, score_map, counts, pantry.scope_oldest_id)
         logger.persist()
         # next_page_max_id mirrors Java FeedResult (oldest merged); UI should
         # prefer scope_oldest_id (Babble deviation).
@@ -449,7 +508,7 @@ class FeedEngine:
 
     def _guard(self, recipe: FeedRecipe, ordered: list[dict[str, Any]],
                judge: _Judge, logger: FeedDecisionLogger,
-               native_bluesky: bool = False
+               native_bluesky: bool = False, audit=NULL
                ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """The final contract guard: every promise of the recipe, checked
         again on every post about to be returned, independently of the
@@ -466,6 +525,7 @@ class FeedEngine:
                 recipe, status, follow_ids=follow_ids,
                 self_id=self.self_account_id, sentiment=judge,
                 native_bluesky=native_bluesky)
+            audit.guard_verdict(str(status.get('id') or ''), broken)
             if not broken:
                 kept.append(status)
                 continue

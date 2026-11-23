@@ -104,6 +104,13 @@ def fetch_scope_for(client, scope, list_id, max_id, count):
     return data if isinstance(data, list) else []
 
 
+def app_version() -> str:
+    """The version the launcher set on the package ("dev" when it did
+    not: imported by a test or run from the source tree)."""
+    from . import VERSION
+    return 'dev' if VERSION in ('', '0.0.0') else str(VERSION)
+
+
 def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
     scope = recipe.pantry.scope
     list_id = recipe.pantry.list_id
@@ -202,4 +209,5 @@ def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
         ui_idle=lambda cb: GLib.idle_add(cb),
         native_bluesky=lambda: appsettings.settings().get_boolean(
             'bluesky-native'),
+        app_version=app_version(),
     )

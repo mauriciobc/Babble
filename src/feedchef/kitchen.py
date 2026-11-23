@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from .audit import NULL
 from .recipe import FeedRecipe, Modifier
 from .textutil import account_of, content_of, status_created_at
 
@@ -40,39 +41,52 @@ def base_score(status: dict[str, Any]) -> float:
     return score
 
 
-def _age_minutes(status: dict[str, Any]) -> float:
+def _age_minutes(status: dict[str, Any],
+                 now: datetime | None = None) -> float:
     created = status_created_at(status, content=True)
     if created is None:
         return 0.0
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
     return (now - created).total_seconds() / 60.0
 
 
-def apply_freshness(score: float, status: dict[str, Any],
-                    mod: Modifier) -> float:
+def freshness_factor(status: dict[str, Any], mod: Modifier,
+                     now: datetime | None = None) -> float | None:
+    """What freshness multiplies the score by; None: it leaves it be."""
     decay = float(mod.decay_minutes or 360)
     if decay <= 0:
-        return score
-    age = _age_minutes(status)
+        return None
+    age = _age_minutes(status, now)
     if age < 0:
-        return score
-    factor = max(0.0, min(1.0, 1.0 - age / decay))
-    return score * factor
+        return None
+    return max(0.0, min(1.0, 1.0 - age / decay))
+
+
+def apply_freshness(score: float, status: dict[str, Any],
+                    mod: Modifier, now: datetime | None = None) -> float:
+    factor = freshness_factor(status, mod, now)
+    return score if factor is None else score * factor
+
+
+def sentiment_factor(sentiment: float, mod: Modifier) -> float | None:
+    boost = float(mod.sentiment_boost or 0.0)
+    if sentiment > 0 and boost > 0:
+        return 1.0 + sentiment * boost
+    return None
 
 
 def apply_sentiment_boost(score: float, sentiment: float,
                           mod: Modifier) -> float:
-    boost = float(mod.sentiment_boost or 0.0)
-    if sentiment > 0 and boost > 0:
-        return score * (1.0 + sentiment * boost)
-    return score
+    factor = sentiment_factor(sentiment, mod)
+    return score if factor is None else score * factor
 
 
 def local_tag_heat(statuses: list[dict[str, Any]],
-                   server: ServerTrendContext) -> dict[str, float]:
+                   server: ServerTrendContext,
+                   now: datetime | None = None) -> dict[str, float]:
     heat: dict[str, float] = {}
     authors: dict[str, set[str]] = {}
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
     for status in statuses:
         created = status_created_at(status, content=False)
         if created is None:
@@ -102,10 +116,10 @@ def local_tag_heat(statuses: list[dict[str, Any]],
     return cleaned
 
 
-def apply_trending(score: float, status: dict[str, Any],
-                   tag_heat: dict[str, float],
-                   server: ServerTrendContext,
-                   mod: Modifier) -> float:
+def trending_factor(status: dict[str, Any], tag_heat: dict[str, float],
+                    server: ServerTrendContext,
+                    mod: Modifier) -> float | None:
+    """What trending multiplies the score by; None: the post is not hot."""
     content = content_of(status)
     raw_threshold = mod.growth_threshold
     if raw_threshold is None or float(raw_threshold) <= 0:
@@ -120,8 +134,16 @@ def apply_trending(score: float, status: dict[str, Any],
     if content_id and content_id in server.trending_status_ids:
         trend_score += _STATUS_TREND_BONUS
     if trend_score >= threshold:
-        return score * (1.0 + trend_score)
-    return score
+        return 1.0 + trend_score
+    return None
+
+
+def apply_trending(score: float, status: dict[str, Any],
+                   tag_heat: dict[str, float],
+                   server: ServerTrendContext,
+                   mod: Modifier) -> float:
+    factor = trending_factor(status, tag_heat, server, mod)
+    return score if factor is None else score * factor
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -245,32 +267,48 @@ def score_statuses(
     server: ServerTrendContext | None = None,
     sentiment_by_id: dict[str, float] | None = None,
     author_counts: dict[str, int] | None = None,
+    now: datetime | None = None,
+    audit=None,
 ) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, Any]]:
     """Score, filter by heat, order, then cap each person.
 
     The cap runs after the order so that it keeps each person's best-ranked
     posts, and *author_counts* (posts per person already shown by earlier
-    pages of the cook session) makes it a cap on the whole session."""
+    pages of the cook session) makes it a cap on the whole session.
+
+    *now* is the one clock reading of the page (None: read it here); *audit*
+    only observes: the factors and the posts each cut removed."""
+    audit = NULL if audit is None else audit
+    now = now or datetime.now(timezone.utc)
     server = server or EMPTY_TRENDS
     sentiment_by_id = sentiment_by_id or {}
     scores: dict[str, float] = {}
     meta: dict[str, Any] = {'inert': [], 'heat': None, 'diversity': None}
-    tag_heat = local_tag_heat(statuses, server)
+    tag_heat = local_tag_heat(statuses, server, now)
+    audit.heat_map(tag_heat)
 
     for status in statuses:
         sid = str(status.get('id') or '')
         content_id = str(content_of(status).get('id') or sid)
         score = base_score(status)
+        audit.factor(sid, 'base', score)
         for mod in recipe.kitchen.modifiers:
             if mod.type == 'freshness':
-                score = apply_freshness(score, status, mod)
+                factor = freshness_factor(status, mod, now)
+                kind = 'fresh'
             elif mod.type == 'sentiment_boost':
                 # Posts that are not judged (other languages) keep theirs.
-                if sid in sentiment_by_id:
-                    score = apply_sentiment_boost(
-                        score, sentiment_by_id[sid], mod)
+                factor = (sentiment_factor(sentiment_by_id[sid], mod)
+                          if sid in sentiment_by_id else None)
+                kind = 'sent'
             elif mod.type == 'trending':
-                score = apply_trending(score, status, tag_heat, server, mod)
+                factor = trending_factor(status, tag_heat, server, mod)
+                kind = 'trend'
+            else:
+                factor = None
+            if factor is not None:
+                score = score * factor
+                audit.factor(sid, kind, factor)
             elif mod.type in ('similarity_cluster', 'connection'):
                 meta['inert'].append(mod.type)
         scores[sid] = score
@@ -280,7 +318,10 @@ def score_statuses(
     for mod in recipe.kitchen.modifiers:
         if mod.type == 'heat':
             before = len(working)
-            working = apply_heat(working, scores, mod)
+            kept = apply_heat(working, scores, mod)
+            if audit.enabled:
+                audit.kitchen_cut('heat_cut', working, kept)
+            working = kept
             meta['heat'] = {
                 'before': before,
                 'after': len(working),
@@ -297,7 +338,10 @@ def score_statuses(
     for mod in recipe.kitchen.modifiers:
         if mod.type == 'diversity':
             before = len(ordered)
-            ordered = apply_diversity(ordered, mod, author_counts)
+            kept = apply_diversity(ordered, mod, author_counts)
+            if audit.enabled:
+                audit.kitchen_cut('author_cap', ordered, kept)
+            ordered = kept
             meta['diversity'] = {'before': before, 'after': len(ordered)}
         elif mod.type == 'similarity_cluster':
             meta['inert'].append('similarity_cluster')
