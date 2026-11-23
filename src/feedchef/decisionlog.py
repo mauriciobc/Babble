@@ -37,6 +37,11 @@ def _dir() -> str:
     return os.path.join(base, 'babble', 'feed_chef_logs')
 
 
+def log_dir() -> str:
+    """The folder the audit logs are kept in."""
+    return _dir()
+
+
 def _sanitize_recipe_id(recipe_id: str) -> str:
     cleaned = _SAFE.sub('_', recipe_id or 'unknown')
     return cleaned[:80] or 'unknown'

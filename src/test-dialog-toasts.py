@@ -97,6 +97,8 @@ EXPECTED = {
     ('notificationpolicy', 'NotificationPolicyDialog'),
     ('feedback', 'ToastDialog'),
     ('feedchefbuilder', 'FeedChefBuilderDialog'),
+    ('feedchefexplain', 'KitchenReportDialog'),
+    ('feedchefexplain', 'WhyThisPostDialog'),
     ('feedchefpreview', 'FeedChefPreviewDialog'),
     ('pluginspage', 'PluginsDialog'),
     ('preferences', 'PreferencesDialog'),

@@ -44,7 +44,9 @@ src/collectionbase.py
 src/collectionedit.py
 src/collectionpage.py
 src/feedback.py
+src/feedchef/auditreport.py
 src/feedchefbuilder.py
+src/feedchefexplain.py
 src/feedchefpages.py
 src/feedchefsource.py
 src/feedchefpreview.py

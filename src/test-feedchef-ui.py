@@ -627,7 +627,7 @@ check('banner: no focus hides it', not page.banner.get_revealed())
 
 # --- the header's Edit Recipe button ---
 check('header: Edit Recipe is an icon button with tooltip and name',
-      page.header_widgets == [page.edit_button]
+      page.header_widgets == [page.report_button, page.edit_button]
       and page.edit_button.get_icon_name() == 'document-edit-symbolic'
       and page.edit_button.get_tooltip_text() == 'Edit Recipe')
 made = []

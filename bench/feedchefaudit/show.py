@@ -8,6 +8,7 @@ on their machine, but the report is the part people paste into an issue.
 from feedchefaudit import validate
 from feedchefaudit.records import (LogError, check_replayable, load,
                                    text_of)
+from src.feedchef import auditreport
 
 
 def _factor(value):
@@ -37,17 +38,16 @@ def _text(loaded, entry):
     return '%s%s' % (row['text'], more)
 
 
-def _post(entry, loaded, text, out):
+def _post(entry, record, loaded, text, out):
     out('post %s' % entry['id'])
-    out('  from: %s' % _origin(entry))
+    # The words of the app's Why This Post? dialog, in English.
+    auditreport.render(auditreport.explain_post(entry, record), out)
     removal = entry['removal']
     if removal:
         out('  removed at %s: %s%s' % (
             removal['stage'], removal['reason'],
             ' (also %s)' % ', '.join(removal['also'])
             if removal['also'] else ''))
-    else:
-        out('  selected, rank %d' % (entry['rank'] + 1))
     out('  follow: %s' % entry['follow']['verdict'])
     for promise, verdict in entry['rules'].items():
         if verdict != 'n/a':
@@ -101,8 +101,10 @@ def show(path, post=None, text=False, out=print):
             out('no post %s in this log' % post)
             return 2
         for entry in found:
-            _post(entry, loaded, text, out)
+            _post(entry, record, loaded, text, out)
         return 0
+    # The words of the app's Kitchen Report, in English.
+    auditreport.render(auditreport.cook_report([record]).sections, out)
     out('removed, by reason:')
     for reason, count in sorted(summary['by_reason'].items(),
                                 key=lambda item: -item[1]):

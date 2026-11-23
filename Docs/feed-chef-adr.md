@@ -346,6 +346,37 @@ cook first and the newest always kept; one busy recipe never evicts another's
 history. `decisionlog.clear_all()` and `clear_recipe(id)` back Clear Audit
 Logs.
 
+**In the app.** The record is read in two places, both worded by
+`src/feedchef/auditreport.py` (GTK-free: it takes the app's gettext and
+ngettext as a `Words`, English by default), which `bench/feedchefaudit/show.py`
+also uses, so the command line and the dialogs say the same thing.
+`src/feedchefexplain.py` lays the rows out and holds no page, client or source.
+
+- **Why This Post?** is an entry of the post menu of a recipe's timeline
+  (`FeedChefTimelinePage.post_menu_entries`, access key W). It opens a dialog
+  with "Where It Came From", "Checks It Passed" (each rule that applied and
+  held, the follow verdict, the language and tone when they were judged) and
+  "How It Was Ranked" (reactions, then freshness, positive tone and trending
+  as multipliers when the recipe uses them, the score, and the position among
+  the posts of its page). A post with no record (not in the pages kept by
+  `FeedChefSource.audit_for`) shows "No Record for This Post". A removed
+  post, which the dialog can only reach through a record, gets "Why It Was
+  Removed" in place of the ranking; a guard drop is called "removed by a
+  safety check".
+- **Kitchen Report** is a button in the recipe page's header. It sums the
+  pages of the last cook (`FeedChefSource.cook_audits`, which a refresh
+  starts again): posts gathered, posts shown, each reason posts were left out
+  for in plain words, and the recipe's settings as one line of counts and kinds
+  (no names). Copy Report puts counts, verdicts, the recipe hash and dates on
+  the clipboard, in English, and no post id, handle, name or text. Open Logs
+  Folder opens the log folder with `Gtk.FileLauncher` (a portal when
+  sandboxed). Clear Audit Logs asks first ("Clear Audit Logs?", Cancel by
+  default) and then calls `decisionlog.clear_all()`, which deletes the
+  history of every recipe on this machine. With no cook yet the dialog is a
+  status page, "No Report Yet".
+
+Test: `feedchef audit ui` (the real Recorder's record behind a fake engine).
+
 ## Out of v1
 
 `RequestMode`, federated time window, `LocalPostRepository` in the engine,

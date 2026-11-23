@@ -9,6 +9,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import accounts, feedback, pagenav  # noqa: E402
+from . import feedchefexplain  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
 from .feedchef.icons import icon_name  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
@@ -292,7 +293,10 @@ class FeedChefTimelinePage(TimelinePage):
         self.edit_button = icon_button('document-edit-symbolic',
                                        _('Edit Recipe'))
         connect_weak(self.edit_button, 'clicked', self._on_edit_clicked)
-        self.header_widgets = [self.edit_button]
+        self.report_button = icon_button('document-properties-symbolic',
+                                         _('Kitchen Report'))
+        connect_weak(self.report_button, 'clicked', self._on_report_clicked)
+        self.header_widgets = [self.report_button, self.edit_button]
 
         self.loading_page.set_title(_('Cooking Your Timeline'))
         self.error_page.set_title(_('Could Not Load This Recipe'))
@@ -428,9 +432,18 @@ class FeedChefTimelinePage(TimelinePage):
 
     def post_menu_entries(self, status):
         """The post menu's own entry (see StatusMenuButton._page_section)."""
-        # Translators: post menu entry; the underscore marks the access
-        # key, L, which no other entry of that menu uses.
-        return [(_('More _Like This'), self._more_like_this)]
+        # Translators: post menu entries; the underscore marks the access
+        # key (L and W), which no other entry of that menu uses.
+        return [(_('More _Like This'), self._more_like_this),
+                (_('_Why This Post?'), self._why_this_post)]
+
+    def _why_this_post(self, status):
+        feedchefexplain.WhyThisPostDialog(
+            self.source.audit_for(status.get('id'))).present(self)
+
+    def _on_report_clicked(self, _button):
+        feedchefexplain.KitchenReportDialog(
+            self.source.cook_audits()).present(self)
 
     def _shown_statuses(self):
         found = []

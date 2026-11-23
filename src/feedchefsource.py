@@ -127,6 +127,11 @@ class FeedChefSource:
                     return entry, record
         return None
 
+    def cook_audits(self):
+        """The audit records of the pages the last cook showed, oldest
+        first (a refresh starts the list again)."""
+        return list(self._audits)
+
     @property
     def cursor(self):
         """The scope's own cursor: where the next older cook starts."""

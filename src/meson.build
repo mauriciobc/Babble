@@ -68,6 +68,7 @@ install_data(
   'feedback.py',
   'feedchefbridge.py',
   'feedchefbuilder.py',
+  'feedchefexplain.py',
   'feedchefpages.py',
   'feedchefpreview.py',
   'feedchefsource.py',
@@ -205,6 +206,7 @@ install_data(
 install_data(
   'feedchef/__init__.py',
   'feedchef/audit.py',
+  'feedchef/auditreport.py',
   'feedchef/contract.py',
   'feedchef/decisionlog.py',
   'feedchef/diet.py',
@@ -868,6 +870,13 @@ test('feedchef deeplink', python,
 # Needs a display (headless mutter at 1280x1024); the engine is a fake.
 test('feedchef ui', python,
   args: [files('test-feedchef-ui.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake, the
+# audit record is the real Recorder's. Why This Post? and the Kitchen Report.
+test('feedchef audit ui', python,
+  args: [files('test-feedchef-audit-ui.py')],
   env: fatal_test_env,
   timeout: 90,
 )

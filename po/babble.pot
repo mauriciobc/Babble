@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-22 17:19-0300\n"
+"POT-Creation-Date: 2026-11-22 23:51-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1026,7 +1026,7 @@ msgstr ""
 #: src/adminfederation.py:125 src/adminfederation.py:342
 #: src/adminreports.py:422 src/catchup/page_controls.py:70
 #: src/composepost.py:372 src/collectionedit.py:41 src/feedback.py:120
-#: src/feedback.py:148 src/feedchefbuilder.py:240 src/feedchefpages.py:552
+#: src/feedback.py:148 src/feedchefbuilder.py:240 src/feedchefpages.py:565
 #: src/hashtags.py:452 src/lists.py:171 src/notificationctrl.py:658
 #: src/profiledialogs.py:57 src/profiledialogs.py:85 src/profileedit.py:231
 #: src/remotemedia.py:78 src/scheduled.py:123 src/searchadvanced.py:28
@@ -1688,7 +1688,7 @@ msgid "Open Video on Bluesky"
 msgstr ""
 
 #. Translators: %s is a number, such as 3 or 1.5K
-#: src/blueskythread.py:202
+#: src/blueskythread.py:202 src/feedchef/auditreport.py:212
 #, python-format
 msgid "%s reply"
 msgid_plural "%s replies"
@@ -2226,7 +2226,8 @@ msgstr ""
 msgid "%(shown)s of %(total)s"
 msgstr ""
 
-#: src/catchup/tiles.py:69
+#: src/catchup/tiles.py:69 src/feedchef/auditreport.py:237
+#: src/feedchef/auditreport.py:335
 msgid "Trending"
 msgstr ""
 
@@ -2803,7 +2804,7 @@ msgid ""
 msgstr ""
 
 #: src/conversations.py:213 src/collectionactions.py:147
-#: src/collectionpage.py:117 src/feedchefpages.py:162 src/filters.py:365
+#: src/collectionpage.py:117 src/feedchefpages.py:163 src/filters.py:365
 #: src/hashtags.py:541 src/lists.py:288 src/lists.py:600 src/scheduled.py:496
 #: src/statusmenu.py:220 src/statusmenu.py:527
 msgid "_Delete"
@@ -2849,8 +2850,8 @@ msgstr ""
 msgid "Favorite"
 msgstr ""
 
-#: src/desktopnotify.py:241 src/statusactions.py:333 src/statusactions.py:446
-#: src/statusmenu.py:291
+#: src/desktopnotify.py:241 src/feedchef/auditreport.py:136
+#: src/statusactions.py:333 src/statusactions.py:446 src/statusmenu.py:291
 msgid "Boost"
 msgstr ""
 
@@ -3205,7 +3206,7 @@ msgstr ""
 msgid "Topic (Hashtag)"
 msgstr ""
 
-#: src/collectionedit.py:62 src/search.py:92
+#: src/collectionedit.py:62 src/feedchef/auditreport.py:190 src/search.py:92
 msgid "Language"
 msgstr ""
 
@@ -3287,7 +3288,7 @@ msgstr ""
 msgid "Copy _URL"
 msgstr ""
 
-#: src/collectionpage.py:112 src/feedchefpages.py:158 src/statusmenu.py:218
+#: src/collectionpage.py:112 src/feedchefpages.py:159 src/statusmenu.py:218
 msgid "_Edit"
 msgstr ""
 
@@ -3324,6 +3325,359 @@ msgstr ""
 
 #: src/feedback.py:149
 msgid "_Don’t Remind Me Again"
+msgstr ""
+
+#. Translators: a multiplier, for example "× 1.3"; %s is the number.
+#: src/feedchef/auditreport.py:68
+#, python-format
+msgid "× %s"
+msgstr ""
+
+#: src/feedchef/auditreport.py:73
+msgid "Your home timeline"
+msgstr ""
+
+#: src/feedchef/auditreport.py:74
+msgid "The local timeline"
+msgstr ""
+
+#: src/feedchef/auditreport.py:75
+msgid "The federated timeline"
+msgstr ""
+
+#: src/feedchef/auditreport.py:76
+msgid "One of your lists"
+msgstr ""
+
+#: src/feedchef/auditreport.py:76
+msgid "Your timeline"
+msgstr ""
+
+#: src/feedchef/auditreport.py:83
+msgid "English"
+msgstr ""
+
+#: src/feedchef/auditreport.py:85
+msgid "Portuguese"
+msgstr ""
+
+#: src/feedchef/auditreport.py:93
+msgid "Removed by a safety check"
+msgstr ""
+
+#: src/feedchef/auditreport.py:95
+msgid "Had a hashtag you excluded"
+msgstr ""
+
+#: src/feedchef/auditreport.py:97
+msgid "Had none of the hashtags you included"
+msgstr ""
+
+#: src/feedchef/auditreport.py:98
+msgid "Contained a blocked word"
+msgstr ""
+
+#: src/feedchef/auditreport.py:99
+msgid "Had no media"
+msgstr ""
+
+#: src/feedchef/auditreport.py:100
+msgid "Had media without a description"
+msgstr ""
+
+#: src/feedchef/auditreport.py:101
+msgid "Marked as sensitive"
+msgstr ""
+
+#: src/feedchef/auditreport.py:102
+msgid "Too short"
+msgstr ""
+
+#: src/feedchef/auditreport.py:103
+msgid "Read as negative"
+msgstr ""
+
+#: src/feedchef/auditreport.py:104
+msgid "Not from someone you follow"
+msgstr ""
+
+#: src/feedchef/auditreport.py:105
+msgid "Hidden by your mutes and filters"
+msgstr ""
+
+#: src/feedchef/auditreport.py:106
+msgid "Below the popularity cutoff"
+msgstr ""
+
+#: src/feedchef/auditreport.py:107
+msgid "Over the limit per person"
+msgstr ""
+
+#: src/feedchef/auditreport.py:109
+msgid "Removed for another reason"
+msgstr ""
+
+#. Translators: %s is a hashtag name, without the #.
+#: src/feedchef/auditreport.py:119
+#, python-format
+msgid "The hashtag #%s"
+msgstr ""
+
+#. Translators: %s is a word or hashtag from a More Like This search.
+#: src/feedchef/auditreport.py:122
+#, python-format
+msgid "A More Like This search for “%s”"
+msgstr ""
+
+#: src/feedchef/auditreport.py:129
+msgid "Found Through"
+msgstr ""
+
+#: src/feedchef/auditreport.py:134
+msgid "Also Found Through"
+msgstr ""
+
+#: src/feedchef/auditreport.py:136
+msgid "Someone you can see boosted it"
+msgstr ""
+
+#: src/feedchef/auditreport.py:142 src/feedchefbuilder.py:362
+msgid "Diet"
+msgstr ""
+
+#: src/feedchef/auditreport.py:142 src/feedchef/auditreport.py:180
+#: src/feedchefbuilder.py:330
+msgid "Pantry"
+msgstr ""
+
+#: src/feedchef/auditreport.py:144
+msgid "No Blocked Words"
+msgstr ""
+
+#: src/feedchef/auditreport.py:145
+msgid "Has Media"
+msgstr ""
+
+#: src/feedchef/auditreport.py:146
+msgid "Media Has Descriptions"
+msgstr ""
+
+#: src/feedchef/auditreport.py:147
+msgid "Not Marked as Sensitive"
+msgstr ""
+
+#: src/feedchef/auditreport.py:148
+msgid "Long Enough"
+msgstr ""
+
+#: src/feedchef/auditreport.py:149
+msgid "Not Negative"
+msgstr ""
+
+#: src/feedchef/auditreport.py:150
+msgid "No Excluded Hashtags"
+msgstr ""
+
+#: src/feedchef/auditreport.py:151
+msgid "Has an Included Hashtag"
+msgstr ""
+
+#: src/feedchef/auditreport.py:162
+msgid "Positive"
+msgstr ""
+
+#: src/feedchef/auditreport.py:164
+msgid "Negative"
+msgstr ""
+
+#: src/feedchef/auditreport.py:165
+msgid "Neutral"
+msgstr ""
+
+#: src/feedchef/auditreport.py:179
+msgid "Your Own Post"
+msgstr ""
+
+#: src/feedchef/auditreport.py:180
+msgid "From Someone You Follow"
+msgstr ""
+
+#: src/feedchef/auditreport.py:185
+msgid "Allowed by Your Filters"
+msgstr ""
+
+#: src/feedchef/auditreport.py:186
+msgid "Mutes and keyword filters"
+msgstr ""
+
+#: src/feedchef/auditreport.py:192
+msgid "Tone"
+msgstr ""
+
+#: src/feedchef/auditreport.py:194
+msgid "No Rules Applied"
+msgstr ""
+
+#: src/feedchef/auditreport.py:195
+msgid "Your recipe sets no limits that apply to this post"
+msgstr ""
+
+#: src/feedchef/auditreport.py:206
+#, python-format
+msgid "%s favorite"
+msgid_plural "%s favorites"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/feedchef/auditreport.py:209
+#, python-format
+msgid "%s boost"
+msgid_plural "%s boosts"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/feedchef/auditreport.py:214
+msgid "No reactions yet"
+msgstr ""
+
+#: src/feedchef/auditreport.py:228
+msgid "Not Scored"
+msgstr ""
+
+#: src/feedchef/auditreport.py:228
+msgid "This post was not ranked"
+msgstr ""
+
+#: src/feedchef/auditreport.py:230
+msgid "Reactions"
+msgstr ""
+
+#: src/feedchef/auditreport.py:233 src/feedchef/auditreport.py:334
+msgid "Freshness"
+msgstr ""
+
+#: src/feedchef/auditreport.py:234
+msgid "Newer posts count for more"
+msgstr ""
+
+#: src/feedchef/auditreport.py:235 src/feedchef/auditreport.py:334
+msgid "Positive Tone"
+msgstr ""
+
+#: src/feedchef/auditreport.py:236
+msgid "Positive posts count for more"
+msgstr ""
+
+#: src/feedchef/auditreport.py:238
+msgid "Posts on rising topics count for more"
+msgstr ""
+
+#: src/feedchef/auditreport.py:242
+msgid "Score"
+msgstr ""
+
+#: src/feedchef/auditreport.py:250
+msgid "Position"
+msgstr ""
+
+#: src/feedchef/auditreport.py:251
+#, python-format
+msgid "On page %s of this timeline"
+msgstr ""
+
+#: src/feedchef/auditreport.py:253
+#, python-format
+msgid "%(place)s of %(total)s"
+msgstr ""
+
+#: src/feedchef/auditreport.py:268
+msgid "Removed"
+msgstr ""
+
+#: src/feedchef/auditreport.py:278
+msgid "Where It Came From"
+msgstr ""
+
+#: src/feedchef/auditreport.py:280
+msgid "Checks It Passed"
+msgstr ""
+
+#: src/feedchef/auditreport.py:282
+msgid "Why It Was Removed"
+msgstr ""
+
+#: src/feedchef/auditreport.py:286
+msgid "How It Was Ranked"
+msgstr ""
+
+#: src/feedchef/auditreport.py:315
+msgid "Only people you follow"
+msgstr ""
+
+#: src/feedchef/auditreport.py:319
+#, python-format
+msgid "%s hashtag included"
+msgid_plural "%s hashtags included"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/feedchef/auditreport.py:323
+#, python-format
+msgid "%s hashtag excluded"
+msgid_plural "%s hashtags excluded"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/feedchef/auditreport.py:329
+#, python-format
+msgid "%s diet rule"
+msgid_plural "%s diet rules"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/feedchef/auditreport.py:331 src/feedchefbuilder.py:408
+msgid "Newest first"
+msgstr ""
+
+#: src/feedchef/auditreport.py:333
+msgid "Most engaging first"
+msgstr ""
+
+#: src/feedchef/auditreport.py:335
+msgid "Popularity cutoff"
+msgstr ""
+
+#: src/feedchef/auditreport.py:336
+msgid "Limit per person"
+msgstr ""
+
+#. Translators: separates the parts of a one-line summary.
+#: src/feedchef/auditreport.py:343
+msgid " · "
+msgstr ""
+
+#: src/feedchef/auditreport.py:394
+msgid "Seen more than once"
+msgstr ""
+
+#: src/feedchef/auditreport.py:396
+msgid "Nothing was left out"
+msgstr ""
+
+#: src/feedchef/auditreport.py:398
+msgid "Last Cook"
+msgstr ""
+
+#: src/feedchef/auditreport.py:399
+msgid "Posts Gathered"
+msgstr ""
+
+#: src/feedchef/auditreport.py:400
+msgid "Posts Shown"
+msgstr ""
+
+#: src/feedchef/auditreport.py:401
+msgid "Left Out"
 msgstr ""
 
 #: src/feedchefbuilder.py:31 src/navigation.py:77 src/window.ui:489
@@ -3531,12 +3885,12 @@ msgstr ""
 msgid "sorting by focus keywords"
 msgstr ""
 
-#: src/feedchefbuilder.py:223 src/feedchefpages.py:88 src/feedchefpages.py:89
-#: src/feedchefpages.py:107 src/feedchefpages.py:189
+#: src/feedchefbuilder.py:223 src/feedchefpages.py:89 src/feedchefpages.py:90
+#: src/feedchefpages.py:108 src/feedchefpages.py:190
 msgid "New Recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:223 src/feedchefpages.py:293 src/feedchefpages.py:356
+#: src/feedchefbuilder.py:223 src/feedchefpages.py:294 src/feedchefpages.py:360
 msgid "Edit Recipe"
 msgstr ""
 
@@ -3554,10 +3908,6 @@ msgstr ""
 
 #: src/feedchefbuilder.py:314
 msgid "Choose Icon"
-msgstr ""
-
-#: src/feedchefbuilder.py:330
-msgid "Pantry"
 msgstr ""
 
 #: src/feedchefbuilder.py:331
@@ -3585,10 +3935,6 @@ msgstr ""
 
 #: src/feedchefbuilder.py:352
 msgid "Plus your own posts. Boosts are judged by the original author."
-msgstr ""
-
-#: src/feedchefbuilder.py:362
-msgid "Diet"
 msgstr ""
 
 #: src/feedchefbuilder.py:363
@@ -3653,10 +3999,6 @@ msgstr ""
 msgid "Most engaging"
 msgstr ""
 
-#: src/feedchefbuilder.py:408
-msgid "Newest first"
-msgstr ""
-
 #: src/feedchefbuilder.py:419
 msgid "Some Ingredients Are Not Supported Yet"
 msgstr ""
@@ -3698,132 +4040,204 @@ msgstr ""
 msgid "Untitled Recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:631 src/feedchefpages.py:464 src/feedchefpages.py:564
+#: src/feedchefbuilder.py:631 src/feedchefpages.py:477 src/feedchefpages.py:577
 msgid "Could not save the recipe"
 msgstr ""
 
-#: src/feedchefbuilder.py:649 src/feedchefpages.py:227
+#: src/feedchefbuilder.py:649 src/feedchefpages.py:228
 msgid "Share link copied"
+msgstr ""
+
+#: src/feedchefexplain.py:60
+msgid "Why This Post?"
+msgstr ""
+
+#: src/feedchefexplain.py:64
+msgid "No Record for This Post"
+msgstr ""
+
+#: src/feedchefexplain.py:65
+msgid ""
+"Feed Chef keeps a record of the pages it shows while this timeline is open, "
+"and this post is not in one of them"
+msgstr ""
+
+#: src/feedchefexplain.py:79 src/feedchefpages.py:297
+msgid "Kitchen Report"
+msgstr ""
+
+#: src/feedchefexplain.py:84
+msgid "No Report Yet"
+msgstr ""
+
+#: src/feedchefexplain.py:85
+msgid "Load some posts in this timeline, then check back here"
+msgstr ""
+
+#: src/feedchefexplain.py:93
+msgid "_Copy Report"
+msgstr ""
+
+#: src/feedchefexplain.py:98
+msgid "Open _Logs Folder"
+msgstr ""
+
+#: src/feedchefexplain.py:103
+msgid "Clear _Audit Logs"
+msgstr ""
+
+#: src/feedchefexplain.py:115
+msgid "Report copied"
+msgstr ""
+
+#: src/feedchefexplain.py:120
+msgid "There are no audit logs yet"
+msgstr ""
+
+#: src/feedchefexplain.py:128
+msgid "Could not open the folder"
+msgstr ""
+
+#: src/feedchefexplain.py:132
+msgid "Clear Audit Logs?"
+msgstr ""
+
+#: src/feedchefexplain.py:133
+msgid ""
+"This deletes the Feed Chef audit history kept on this computer, for all of "
+"your recipes. Your recipes and timelines are not affected."
+msgstr ""
+
+#: src/feedchefexplain.py:136 src/notificationctrl.py:659 src/search.py:359
+msgid "_Clear"
+msgstr ""
+
+#: src/feedchefexplain.py:140
+msgid "Audit logs cleared"
 msgstr ""
 
 #. Translators: a recipe's source and hashtags, for example
 #. "Home · #linux #python".
-#: src/feedchefpages.py:48
+#: src/feedchefpages.py:49
 #, python-format
 msgid "%(scope)s · %(tags)s"
 msgstr ""
 
-#: src/feedchefpages.py:104
+#: src/feedchefpages.py:105
 msgid "No Recipes Yet"
 msgstr ""
 
-#: src/feedchefpages.py:105
+#: src/feedchefpages.py:106
 msgid "A recipe turns your timelines into a feed of your own"
 msgstr ""
 
-#: src/feedchefpages.py:159
+#: src/feedchefpages.py:160
 msgid "_Unpin From Sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:160
+#: src/feedchefpages.py:161
 msgid "_Pin to Sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:161
+#: src/feedchefpages.py:162
 msgid "_Copy Share Link"
 msgstr ""
 
 #. Translators: tooltip and accessible name of a recipe's menu
 #. button; %s is the recipe's name.
-#: src/feedchefpages.py:175
+#: src/feedchefpages.py:176
 #, python-format
 msgid "Options for “%s”"
 msgstr ""
 
-#: src/feedchefpages.py:205 src/feedchefpages.py:501
+#: src/feedchefpages.py:206 src/feedchefpages.py:514
 msgid "Recipe saved"
 msgstr ""
 
-#: src/feedchefpages.py:213
+#: src/feedchefpages.py:214
 msgid "Removed from the sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:216
+#: src/feedchefpages.py:217
 msgid "Pinned to the sidebar"
 msgstr ""
 
-#: src/feedchefpages.py:257
+#: src/feedchefpages.py:258
 msgid "Recipe deleted"
 msgstr ""
 
-#: src/feedchefpages.py:297 src/feedchefpreview.py:62
+#: src/feedchefpages.py:301 src/feedchefpreview.py:66
 msgid "Cooking Your Timeline"
 msgstr ""
 
-#: src/feedchefpages.py:298 src/feedchefpages.py:328 src/feedchefpages.py:330
-#: src/feedchefpreview.py:66
+#: src/feedchefpages.py:302 src/feedchefpages.py:332 src/feedchefpages.py:334
+#: src/feedchefpreview.py:70
 msgid "Could Not Load This Recipe"
 msgstr ""
 
 #. The focus banner sits above the timeline's own stack.
-#: src/feedchefpages.py:305
+#: src/feedchefpages.py:309
 msgid "Clear Focus"
 msgstr ""
 
-#: src/feedchefpages.py:326
+#: src/feedchefpages.py:330
 msgid "Could Not Check Who You Follow"
 msgstr ""
 
-#: src/feedchefpages.py:350
+#: src/feedchefpages.py:354
 msgid "Load Older Posts"
 msgstr ""
 
-#: src/feedchefpages.py:371
+#: src/feedchefpages.py:375
 msgid "No Matching Posts Yet"
 msgstr ""
 
-#: src/feedchefpages.py:373
+#: src/feedchefpages.py:377
 msgid "Older posts may still match this recipe"
 msgstr ""
 
-#: src/feedchefpages.py:375 src/feedchefpreview.py:68
+#: src/feedchefpages.py:379 src/feedchefpreview.py:72
 msgid "No Matching Posts"
 msgstr ""
 
-#: src/feedchefpages.py:377 src/feedchefpreview.py:70
+#: src/feedchefpages.py:381 src/feedchefpreview.py:74
 msgid "Try fewer filters or a wider scope"
 msgstr ""
 
-#: src/feedchefpages.py:419 src/feedchefpreview.py:63
+#: src/feedchefpages.py:423 src/feedchefpreview.py:67
 msgid "Gathering posts…"
 msgstr ""
 
-#: src/feedchefpages.py:422
+#: src/feedchefpages.py:426
 msgid "Applying your diet…"
 msgstr ""
 
-#: src/feedchefpages.py:423
+#: src/feedchefpages.py:427
 msgid "Seasoning…"
 msgstr ""
 
-#. Translators: post menu entry; the underscore marks the access
-#. key, L, which no other entry of that menu uses.
-#: src/feedchefpages.py:433
+#. Translators: post menu entries; the underscore marks the access
+#. key (L and W), which no other entry of that menu uses.
+#: src/feedchefpages.py:437
 msgid "More _Like This"
 msgstr ""
 
-#: src/feedchefpages.py:446
+#: src/feedchefpages.py:438
+msgid "_Why This Post?"
+msgstr ""
+
+#: src/feedchefpages.py:459
 msgid "Nothing to focus on in this post"
 msgstr ""
 
-#: src/feedchefpages.py:452
+#: src/feedchefpages.py:465
 msgid "Focus set from this post"
 msgstr ""
 
 #. Translators: %(terms)s lists the first hashtags and words
 #. the timeline is focused on, such as "#a, #b, #c"; %(count)d
 #. is how many more there are.
-#: src/feedchefpages.py:481
+#: src/feedchefpages.py:494
 #, python-format
 msgid "%(terms)s and %(count)d more"
 msgid_plural "%(terms)s and %(count)d more"
@@ -3832,57 +4246,57 @@ msgstr[1] ""
 
 #. Translators: %s lists the hashtags and words the timeline is
 #. focused on, for example "#python, decorators".
-#: src/feedchefpages.py:486
+#: src/feedchefpages.py:499
 #, python-format
 msgid "Showing more like %s"
 msgstr ""
 
-#: src/feedchefpages.py:534
+#: src/feedchefpages.py:547
 msgid "Replace Recipe?"
 msgstr ""
 
-#: src/feedchefpages.py:535
+#: src/feedchefpages.py:548
 #, python-format
 msgid "This replaces your recipe “%s”."
 msgstr ""
 
-#: src/feedchefpages.py:536
+#: src/feedchefpages.py:549
 msgid "_Replace"
 msgstr ""
 
-#: src/feedchefpages.py:540
+#: src/feedchefpages.py:553
 msgid "Import Recipe?"
 msgstr ""
 
-#: src/feedchefpages.py:542
+#: src/feedchefpages.py:555
 #, python-format
 msgid "Import “%(name)s” by %(author)s into this account?"
 msgstr ""
 
-#: src/feedchefpages.py:546
+#: src/feedchefpages.py:559
 #, python-format
 msgid "Import “%(name)s” into this account?"
 msgstr ""
 
-#: src/feedchefpages.py:548
+#: src/feedchefpages.py:561
 msgid "_Import"
 msgstr ""
 
-#: src/feedchefpages.py:568
+#: src/feedchefpages.py:581
 msgid "Recipe imported"
 msgstr ""
 
-#: src/feedchefsource.py:205
+#: src/feedchefsource.py:259
 msgid "The posts of this recipe did not load in time. Try again."
 msgstr ""
 
-#: src/feedchefsource.py:211
+#: src/feedchefsource.py:265
 msgid ""
 "Your list of follows could not be loaded, so nothing is shown rather than "
 "posts from people you do not follow."
 msgstr ""
 
-#: src/feedchefpreview.py:99 src/feedchefpreview.py:101
+#: src/feedchefpreview.py:103 src/feedchefpreview.py:105
 msgid "Preview"
 msgstr ""
 
@@ -5035,10 +5449,6 @@ msgstr ""
 
 #: src/notificationctrl.py:657
 msgid "All notifications will be permanently deleted"
-msgstr ""
-
-#: src/notificationctrl.py:659 src/search.py:359
-msgid "_Clear"
 msgstr ""
 
 #: src/notificationctrl.py:675
