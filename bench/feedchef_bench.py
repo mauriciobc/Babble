@@ -34,6 +34,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 _STATE = tempfile.mkdtemp(prefix='babble-feedchef-bench-')
 os.environ['XDG_STATE_HOME'] = os.path.join(_STATE, 'state')
 os.environ['XDG_DATA_HOME'] = os.path.join(_STATE, 'data')
+# The follow-list cache goes to the temporary folder too, but Mesa's shader
+# cache must stay where it is: a cold one compiles every shader during the
+# first frame (about 450 ms on the main thread) and hides what is measured.
+os.environ.setdefault('MESA_SHADER_CACHE_DIR', os.path.join(
+    os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache'),
+    'mesa_shader_cache'))
 os.environ['XDG_CACHE_HOME'] = os.path.join(_STATE, 'cache')
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 os.environ.setdefault('BENCH_TOTAL', '120')
