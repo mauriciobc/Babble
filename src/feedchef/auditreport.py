@@ -30,6 +30,10 @@ class Section(NamedTuple):
 class Words(NamedTuple):
     gettext: Callable[[str], str]
     ngettext: Callable[[str, str, int], str]
+    # Names a language code in the reader's language, or None when it
+    # cannot: the dialogs pass one (it needs the desktop), this module
+    # stays free of GTK.
+    language: Callable[[str], 'str | None'] | None = None
 
 
 def _plural(one: str, other: str, count: int) -> str:
@@ -59,11 +63,22 @@ def whole(value: Any) -> str:
 
 
 def _factor(value: Any, words: Words) -> str:
+    """A multiplier that never rounds a small factor down to zero."""
     _ = words.gettext
     try:
-        shown = locale.format_string('%.3g', float(value))
+        number_ = float(value)
     except (TypeError, ValueError):
         return ''
+    if number_ == 0:
+        shown = '0'
+    elif abs(number_) < 0.001:
+        # Translators: a multiplier too small to write out, for example
+        # "× less than 0.001".
+        return _('× less than 0.001')
+    elif abs(number_) < 0.1:
+        shown = locale.format_string('%.2g', number_)
+    else:
+        shown = locale.format_string('%.3g', number_)
     # Translators: a multiplier, for example "× 1.3"; %s is the number.
     return _('× %s') % shown
 
@@ -78,12 +93,20 @@ def _scope_name(scope: Any, words: Words) -> str:
 
 def _language_name(code: Any, words: Words) -> str:
     _ = words.gettext
-    lang = str(code or '').lower().replace('_', '-')
+    raw = str(code or '').strip()
+    if words.language is not None and raw:
+        try:
+            name = words.language(raw)
+        except Exception:
+            name = None
+        if name:
+            return name
+    lang = raw.lower().replace('_', '-')
     if lang == 'en' or lang.startswith('en-'):
         return _('English')
     if lang == 'pt' or lang.startswith('pt-'):
         return _('Portuguese')
-    return str(code or '')
+    return _('Another language')
 
 
 def reason_text(reason: str, words: Words = ENGLISH) -> str:
@@ -133,67 +156,92 @@ def _origin_rows(entry: dict, snapshot: dict, words: Words) -> list[Row]:
     if also:
         rows.append(Row(_('Also Found Through'), ', '.join(also)))
     if (entry.get('facts') or {}).get('boost'):
-        rows.append(Row(_('Boost'), _('Someone you can see boosted it')))
+        rows.append(Row(_('Boosted'), _('Someone else shared it')))
     return rows
 
 
-def _rule_rows(words: Words) -> dict[str, tuple[str, str]]:
+def rule_titles(words: Words) -> dict[str, str]:
+    """The row title of each rule that can be passed."""
     _ = words.gettext
-    diet, pantry = _('Diet'), _('Pantry')
     return {
-        'keyword_blocklist': (_('No Blocked Words'), diet),
-        'must_have_media': (_('Has Media'), diet),
-        'must_have_alt_text': (_('Media Has Descriptions'), diet),
-        'no_sensitive_media': (_('Not Marked as Sensitive'), diet),
-        'min_content_length': (_('Long Enough'), diet),
-        'positive_only': (_('Not Negative'), diet),
-        'hashtags_exclude': (_('No Excluded Hashtags'), pantry),
-        'hashtags_include': (_('Has an Included Hashtag'), pantry),
+        'keyword_blocklist': _('No Blocked Words'),
+        'must_have_media': _('Has Media'),
+        'must_have_alt_text': _('Media Has Descriptions'),
+        'no_sensitive_media': _('Not Marked as Sensitive'),
+        'min_content_length': _('Long Enough'),
+        'positive_only': _('Not Negative'),
+        'hashtags_exclude': _('No Excluded Hashtags'),
+        'hashtags_include': _('Has an Included Hashtag'),
     }
 
 
-def _tone(score: Any, words: Words) -> str:
+def _tone(score: Any, words: Words) -> str | None:
+    """The tone a number means, or None when there is no number."""
     _ = words.gettext
-    try:
-        value = float(score)
-    except (TypeError, ValueError):
-        return ''
-    if value >= NEUTRAL_BAND:
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
+        return None
+    if score >= NEUTRAL_BAND:
         return _('Positive')
-    if value <= -NEUTRAL_BAND:
+    if score <= -NEUTRAL_BAND:
         return _('Negative')
     return _('Neutral')
 
 
+def _about_rows(entry: dict, words: Words) -> list[Row]:
+    """The post's language and, when it was judged, its tone: facts of
+    the record, not checks."""
+    _ = words.gettext
+    rows = []
+    lang = (entry.get('facts') or {}).get('lang')
+    if lang:
+        rows.append(Row(_('Language'), '', _language_name(lang, words)))
+    tone = _tone((entry.get('sent') or {}).get('score'), words)
+    if tone:
+        rows.append(Row(_('Tone'), '', tone))
+    return rows
+
+
+def _not_checked_rows(entry: dict, words: Words) -> list[Row]:
+    _ = words.gettext
+    sent = entry.get('sent')
+    if sent is not None and _tone(sent.get('score'), words) is None:
+        return [Row(_('Tone'), _('Tone is only judged for English and '
+                                 'Portuguese posts'))]
+    return []
+
+
 def _check_rows(entry: dict, words: Words) -> list[Row]:
+    """Only rules the record says were applied to this post and passed."""
     _ = words.gettext
     rules = entry.get('rules') or {}
-    titles = _rule_rows(words)
+    titles = rule_titles(words)
     follow = (entry.get('follow') or {}).get('verdict')
+    recipe_rule = _('Recipe rule')
     rows = []
     for promise, verdict in rules.items():
         if verdict != 'pass':
             continue
         if promise == 'network_reach':
-            rows.append(Row(
-                _('Your Own Post') if follow == 'self'
-                else _('From Someone You Follow'), _('Pantry')))
+            if follow == 'self':
+                title = _('Your Own Post')
+            elif follow == 'follows':
+                title = _('From Someone You Follow')
+            else:
+                title = _('Allowed by the Network Rule')
+            rows.append(Row(title, recipe_rule))
         elif promise in titles:
-            title, section = titles[promise]
-            rows.append(Row(title, section))
+            rows.append(Row(titles[promise], recipe_rule))
     if entry.get('viewer') == 'shown':
         rows.append(Row(_('Allowed by Your Filters'),
                         _('Mutes and keyword filters')))
-    sent = entry.get('sent')
-    if sent:
-        facts = entry.get('facts') or {}
-        rows.append(Row(_('Language'), '',
-                        _language_name(facts.get('lang'), words)))
-        rows.append(Row(_('Tone'), '', _tone(sent.get('score'), words)))
     if not rows:
-        rows.append(Row(_('No Rules Applied'),
-                        _('Your recipe sets no limits that apply to '
-                          'this post')))
+        if entry.get('removal'):
+            rows.append(Row(_('No Checks Passed'),
+                            _('See why it was removed below')))
+        else:
+            rows.append(Row(_('No Rules Applied'),
+                            _('Your recipe sets no limits that apply to '
+                              'this post')))
     return rows
 
 
@@ -227,7 +275,10 @@ def _rank_rows(entry: dict, record: dict, snapshot: dict,
     if not score:
         return [Row(_('Not Scored'), _('This post was not ranked'))]
     types = _modifier_types(snapshot)
-    rows = [Row(_('Reactions'), _reactions(entry.get('facts') or {}, words),
+    rows = [Row(_('Reaction Counts'),
+                _reactions(entry.get('facts') or {}, words)),
+            Row(_('Reactions'),
+                _('Favorites, boosts and replies, weighted'),
                 number(score.get('base')))]
     for key, kind, title, hint in (
             ('fresh', 'freshness', _('Freshness'),
@@ -238,8 +289,11 @@ def _rank_rows(entry: dict, record: dict, snapshot: dict,
              _('Posts on rising topics count for more'))):
         factor = score.get(key)
         if kind in types or (factor is not None and factor != 1.0):
+            if kind == 'freshness' and factor == 0:
+                hint = _('Older than the fade-out time')
             rows.append(Row(title, hint, _factor(factor, words)))
-    rows.append(Row(_('Score'), '', number(score.get('final'))))
+    rows.append(Row(_('Score'), _('Higher scores are shown first'),
+                    number(score.get('final'))))
     rank = entry.get('rank')
     if isinstance(rank, int) and rank >= 0:
         total = (record.get('summary') or {}).get('selected') or 0
@@ -274,10 +328,15 @@ def explain_post(entry: dict, record: dict,
     it passed and how it was ranked (or why it was removed)."""
     _ = words.gettext
     snapshot = (record.get('recipe') or {}).get('snapshot') or {}
-    sections = [
-        Section(_('Where It Came From'), _origin_rows(entry, snapshot,
-                                                      words)),
-        Section(_('Checks It Passed'), _check_rows(entry, words))]
+    sections = [Section(_('Where It Came From'),
+                        _origin_rows(entry, snapshot, words))]
+    about = _about_rows(entry, words)
+    if about:
+        sections.append(Section(_('About This Post'), about))
+    sections.append(Section(_('Checks It Passed'), _check_rows(entry, words)))
+    not_checked = _not_checked_rows(entry, words)
+    if not_checked:
+        sections.append(Section(_('Not Checked'), not_checked))
     if entry.get('removal'):
         sections.append(Section(_('Why It Was Removed'),
                                 _removal_rows(entry, words)))
@@ -396,8 +455,8 @@ def cook_report(records: list[dict], words: Words = ENGLISH) -> Report:
         left_out.append(Row(_('Nothing was left out')))
     sections = [
         Section(_('Last Cook'), [
-            Row(_('Posts Gathered'), '', whole(gathered)),
-            Row(_('Posts Shown'), '', whole(selected))]),
+            Row(_('Posts gathered'), '', whole(gathered)),
+            Row(_('Posts shown'), '', whole(selected))]),
         Section(_('Left Out'), left_out)]
     dates = [str((record.get('clock') or {}).get('now_utc') or '')
              for record in usable]

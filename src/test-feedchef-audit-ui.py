@@ -287,17 +287,39 @@ button.activate_action(labels['_Why This Post?'], None)
 pump()
 dialog = last_dialog()
 sections = rows_of(dialog)
+core = [t for t in sections if t in (
+    'Where It Came From', 'Checks It Passed', 'How It Was Ranked')]
 check('why: it has the three sections, in words, and a title',
       dialog.get_title() == 'Why This Post?'
-      and list(sections) == ['Where It Came From', 'Checks It Passed',
-                             'How It Was Ranked'])
+      and core == ['Where It Came From', 'Checks It Passed',
+                   'How It Was Ranked']
+      and set(sections) <= {'Where It Came From', 'About This Post',
+                            'Checks It Passed', 'Not Checked',
+                            'How It Was Ranked'})
+passed = {t for rule, t in auditreport.rule_titles(
+    auditreport.ENGLISH).items() if entry['rules'].get(rule) == 'pass'}
+check('why: every row under Checks It Passed is a rule the record passed',
+      {t for t in sections['Checks It Passed']
+       if t not in ('Your Own Post', 'From Someone You Follow',
+                    'Allowed by the Network Rule', 'Allowed by Your Filters',
+                    'No Rules Applied', 'No Checks Passed')} == passed)
+check('why: a language is named, never shown as its code',
+      not entry['facts'].get('lang')
+      or (sections['About This Post']['Language'][1]
+          not in ('', entry['facts']['lang'])))
+check('why: Not Checked rows say why and have no empty value',
+      all(sub and not value for sub, value in
+          sections.get('Not Checked', {}).values()))
 ranking = sections.get('How It Was Ranked', {})
+check('why: Reactions and Score explain themselves',
+      ranking['Reactions'][0] == 'Favorites, boosts and replies, weighted'
+      and ranking['Score'][0] == 'Higher scores are shown first')
 score = entry['score']
 facts = entry['facts']
 check('why: Reactions names the counts and shows the base',
       ranking.get('Reactions', ('', ''))[1]
       == '%.1f' % score['base'])
-reactions = ranking.get('Reactions', ('',))[0]
+reactions = ranking.get('Reaction Counts', ('',))[0]
 check('why: the counts are in plain words',
       all(text in reactions for text in (
           ['%d favorite' % facts['fav']] if facts['fav'] else [])
@@ -345,6 +367,10 @@ statuses = find(dialog, Adw.StatusPage)
 check('why: a post with no record shows a status page',
       dialog.found is False and statuses
       and statuses[0].get_title() == 'No Record for This Post'
+      and statuses[0].get_description()
+      == 'This post isn’t in the record Feed Chef keeps while this '
+         'timeline is open.'
+      and statuses[0].get_icon_name() == 'document-properties-symbolic'
       and not find(dialog, Adw.PreferencesGroup))
 number = MADE[-1]
 dialog.force_close()
@@ -380,9 +406,9 @@ sections = rows_of(dialog)
 summary = record['summary']
 check('report: posts gathered and shown match the record',
       list(sections)[:2] == ['Last Cook', 'Left Out']
-      and sections['Last Cook']['Posts Gathered'][1]
+      and sections['Last Cook']['Posts gathered'][1]
       == str(summary['raw_fetched'])
-      and sections['Last Cook']['Posts Shown'][1]
+      and sections['Last Cook']['Posts shown'][1]
       == str(summary['selected']))
 left = sum(int(v) for t, (s, v) in sections['Left Out'].items()
            if v.isdigit() and t != 'Seen more than once')
@@ -399,6 +425,28 @@ check('report: the recipe\'s settings are one line under Last Cook',
 titles = [r.get_title() for r in find(dialog, Adw.ButtonRow)]
 check('report: Copy Report, Open Logs Folder and Clear Audit Logs',
       titles == ['_Copy Report', 'Open _Logs Folder', 'Clear _Audit Logs'])
+
+icons = Gtk.IconTheme.get_for_display(window.get_display())
+check('report: the icons the dialogs use resolve in the theme',
+      all(icons.has_icon(name) for name in (
+          'document-properties-symbolic', 'folder-symbolic',
+          'user-trash-symbolic', 'edit-copy-symbolic')))
+check('report: Clear sits in a group of its own with a trash icon, '
+      'Open Logs Folder has a folder icon',
+      dialog.clear_row.get_start_icon_name() == 'user-trash-symbolic'
+      and dialog.folder_row.get_start_icon_name() == 'folder-symbolic'
+      and dialog.clear_row.get_ancestor(Adw.PreferencesGroup)
+      is not dialog.copy_row.get_ancestor(Adw.PreferencesGroup))
+check('report: Open Logs Folder is sensitive when the folder exists',
+      dialog.folder_row.get_sensitive() is True)
+logmod.set_root(os.path.join(_TMP, 'no-logs-at-all'))
+bare = feedchefexplain.KitchenReportDialog([record])
+check('report: Open Logs Folder is insensitive when there is no folder',
+      bare.folder_row.get_sensitive() is False)
+bare.force_close()
+pump()
+del bare
+logmod.set_root(os.path.join(_TMP, 'logs'))
 
 # Copy Report: counts, verdicts, a hash and dates, and nothing of a post.
 text = dialog.report.text
@@ -458,10 +506,13 @@ alert = dialog.alert
 check('clear: it asks "Clear Audit Logs?", Cancel by default, '
       'with a destructive Clear',
       alert.get_heading() == 'Clear Audit Logs?'
-      and 'all of your recipes' in alert.get_body()
+      and alert.get_body() == (
+          'This deletes the audit history Feed Chef keeps on this computer, '
+          'for all your recipes. Your recipes and timelines are not '
+          'affected.')
       and alert.get_default_response() == 'cancel'
       and alert.get_response_label('cancel') == '_Cancel'
-      and alert.get_response_label('ok') == '_Clear'
+      and alert.get_response_label('ok') == '_Clear Logs'
       and alert.get_response_appearance('ok')
       == Adw.ResponseAppearance.DESTRUCTIVE and not CLEARS)
 alert.emit('response', 'cancel')
@@ -476,6 +527,12 @@ alert.force_close()
 pump()
 check('clear: Clear calls clear_all once and the logs are gone',
       CLEARS == [1] and not logs())
+statuses = find(dialog, Adw.StatusPage)
+check('clear: the report is swapped for "No Report Yet", no stale counts',
+      statuses and statuses[0].get_title() == 'No Report Yet'
+      and not find(dialog, Adw.ButtonRow)
+      and not find(dialog, Adw.PreferencesGroup)
+      and dialog.report.pages == 0)
 logmod.clear_all = real_clear
 
 number = MADE[-1]
@@ -492,6 +549,9 @@ dialog = last_dialog()
 statuses = find(dialog, Adw.StatusPage)
 check('report: with no cook it is a status page "No Report Yet"',
       statuses and statuses[0].get_title() == 'No Report Yet'
+      and statuses[0].get_description()
+      == 'Load some posts in this timeline, and a summary will appear here.'
+      and statuses[0].get_icon_name() == 'document-properties-symbolic'
       and not find(dialog, Adw.ButtonRow))
 dialog.force_close()
 pump()

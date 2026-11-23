@@ -34,6 +34,7 @@ from feedchefaudit import replay as replaymod  # noqa: E402
 from feedchefaudit.collect import collect  # noqa: E402
 from feedchefaudit.records import expand, load  # noqa: E402
 from src.feedchef import audit as auditmod  # noqa: E402
+from src.feedchef import auditreport  # noqa: E402
 from src.feedchef import decisionlog as logmod  # noqa: E402
 from src.feedchef import network_reach as reachmod  # noqa: E402
 
@@ -594,5 +595,110 @@ check('a record already written is rewritten as cancelled when the cook '
       'was cancelled after it', late.record['outcome']['status']
       == 'cancelled' and result.logger.record['outcome']['status']
       == 'cancelled')
+
+# --- the words of a record say only what the record holds ------------------
+
+REPORT_RULES = auditreport.rule_titles(auditreport.ENGLISH)
+EXTRA_PASSED = {'Your Own Post', 'From Someone You Follow',
+                'Allowed by the Network Rule', 'Allowed by Your Filters',
+                'No Checks Passed', 'No Rules Applied'}
+fresh_logs('words')
+posts_read = passed_rows = skipped_rules = not_checked = numbers = 0
+wrong = []
+for case in range(60):
+    rng = random.Random(5000 + case)
+    recipe = fuzz.random_recipe(rng)
+    world = fuzz.World(rng, recipe)
+    for result in fuzz.cook(world, recipe, case, pages=2, now=fuzz.NOW,
+                            hide=hide_some):
+        record = result.logger.record
+        for entry in record['posts']:
+            posts_read += 1
+            sections = {s.title: s.rows for s in
+                        auditreport.explain_post(entry, record)}
+            rules = entry['rules']
+            passed = {title for rule, title in REPORT_RULES.items()
+                      if rules.get(rule) == 'pass'}
+            skipped_rules += sum(1 for v in rules.values() if v == 'n/a')
+            shown = {row.title for row in sections['Checks It Passed']}
+            passed_rows += len(shown)
+            if (shown - EXTRA_PASSED) != passed \
+                    or (passed and shown & {'No Rules Applied',
+                                            'No Checks Passed'}):
+                wrong.append(('passed', case, entry['id']))
+            # A rule that did not apply is never listed as passed.
+            for rule, verdict in rules.items():
+                if verdict != 'pass' and REPORT_RULES.get(rule) in shown:
+                    wrong.append(('n/a shown', case, entry['id']))
+            sent = entry['sent']
+            tone = [r for r in sections.get('About This Post', [])
+                    if r.title == 'Tone']
+            unchecked = sections.get('Not Checked', [])
+            if bool(sent and isinstance(sent['score'], (int, float))) != bool(tone) \
+                    or any(not r.value for r in tone):
+                wrong.append(('tone', case, entry['id']))
+            if sent and sent['score'] is None:
+                not_checked += 1
+                if [r.title for r in unchecked] != ['Tone'] or tone:
+                    wrong.append(('not checked', case, entry['id']))
+            elif unchecked:
+                wrong.append(('not checked without reason', case,
+                              entry['id']))
+            if entry['facts'].get('lang'):
+                language = [r for r in sections['About This Post']
+                            if r.title == 'Language']
+                if not language or not language[0].value \
+                        or language[0].value == entry['facts']['lang']:
+                    wrong.append(('language', case, entry['id']))
+            if bool(entry['facts'].get('boost')) != any(
+                    r.title == 'Boosted'
+                    for r in sections['Where It Came From']):
+                wrong.append(('boost', case, entry['id']))
+            ranked = sections.get('How It Was Ranked')
+            if ranked is None:
+                continue
+            by_title = {r.title: r for r in ranked}
+            score = entry['score']
+            if score is None:
+                continue
+            numbers += 1
+            if by_title['Reactions'].value != '%.1f' % score['base'] \
+                    or by_title['Score'].value != '%.1f' % score['final']:
+                wrong.append(('numbers', case, entry['id']))
+            for key, title in (('fresh', 'Freshness'), ('sent', 'Positive Tone'),
+                               ('trend', 'Trending')):
+                if title not in by_title:
+                    continue
+                text = by_title[title].value
+                factor = score[key]
+                if text.startswith('× less than'):
+                    ok = 0 < factor < 0.001
+                else:
+                    ok = abs(float(text[2:]) - factor) <= 0.05 * factor \
+                        + 1e-12
+                if not ok or text in ('× 0', '× 0.0') and factor != 0:
+                    wrong.append(('factor', case, entry['id'], text, factor))
+            position = by_title.get('Position')
+            if position and position.value != '%d of %d' % (
+                    entry['rank'] + 1, record['summary']['selected']):
+                wrong.append(('position', case, entry['id']))
+check('every statement of Why This Post? is in the record: passed rows are '
+      'rules that passed, never one that did not apply, tone only when '
+      'judged, every number matches (%d posts, %d passed rows, %d n/a rules, '
+      '%d not judged, %d scored)%s'
+      % (posts_read, passed_rows, skipped_rules, not_checked, numbers,
+         ' -- %r' % wrong[:3] if wrong else ''),
+      not wrong and posts_read > 500 and skipped_rules > 0 and numbers > 100)
+check('a small factor is never written as zero',
+      auditreport._factor(0.004, auditreport.ENGLISH) == '× 0.004'
+      and auditreport._factor(0.00001, auditreport.ENGLISH)
+      == '× less than 0.001'
+      and auditreport._factor(0, auditreport.ENGLISH) == '× 0'
+      and auditreport._factor(1.234, auditreport.ENGLISH) == '× 1.23')
+check('a language with no name is "Another language", never its code',
+      auditreport._language_name('xx', auditreport.ENGLISH)
+      == 'Another language'
+      and auditreport._language_name('xx', auditreport.Words(
+          lambda t: t, auditreport._plural, lambda c: 'Xish'))  == 'Xish')
 
 sys.exit(1 if failures else 0)

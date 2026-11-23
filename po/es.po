@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-22 23:51-0300\n"
+"POT-Creation-Date: 2026-11-23 00:03-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -1849,7 +1849,7 @@ msgid "Open Video on Bluesky"
 msgstr "Abrir vídeo en Bluesky"
 
 #. Translators: %s is a number, such as 3 or 1.5K
-#: src/blueskythread.py:202 src/feedchef/auditreport.py:212
+#: src/blueskythread.py:202 src/feedchef/auditreport.py:260
 #, python-format
 msgid "%s reply"
 msgid_plural "%s replies"
@@ -2398,8 +2398,8 @@ msgstr "Publicaciones en el tiempo"
 msgid "%(shown)s of %(total)s"
 msgstr "%(shown)s de %(total)s"
 
-#: src/catchup/tiles.py:69 src/feedchef/auditreport.py:237
-#: src/feedchef/auditreport.py:335
+#: src/catchup/tiles.py:69 src/feedchef/auditreport.py:288
+#: src/feedchef/auditreport.py:394
 msgid "Trending"
 msgstr "Tendencia"
 
@@ -3029,8 +3029,8 @@ msgstr "Seguir también"
 msgid "Favorite"
 msgstr "Marcar como favorito"
 
-#: src/desktopnotify.py:241 src/feedchef/auditreport.py:136
-#: src/statusactions.py:333 src/statusactions.py:446 src/statusmenu.py:291
+#: src/desktopnotify.py:241 src/statusactions.py:333 src/statusactions.py:446
+#: src/statusmenu.py:291
 msgid "Boost"
 msgstr "Impulsar"
 
@@ -3385,7 +3385,7 @@ msgstr "Nombre"
 msgid "Topic (Hashtag)"
 msgstr "Tema (etiqueta)"
 
-#: src/collectionedit.py:62 src/feedchef/auditreport.py:190 src/search.py:92
+#: src/collectionedit.py:62 src/feedchef/auditreport.py:197 src/search.py:92
 msgid "Language"
 msgstr "Idioma"
 
@@ -3513,392 +3513,446 @@ msgstr "_Mostrar contenido"
 msgid "_Don’t Remind Me Again"
 msgstr "_No volver a recordármelo"
 
+#. Translators: a multiplier too small to write out, for example
+#. "× less than 0.001".
+#: src/feedchef/auditreport.py:77
+msgid "× less than 0.001"
+msgstr ""
+
 #. Translators: a multiplier, for example "× 1.3"; %s is the number.
-#: src/feedchef/auditreport.py:68
+#: src/feedchef/auditreport.py:83
 #, python-format
 msgid "× %s"
 msgstr ""
 
-#: src/feedchef/auditreport.py:73
+#: src/feedchef/auditreport.py:88
 #, fuzzy
 msgid "Your home timeline"
 msgstr "tu cronología"
 
-#: src/feedchef/auditreport.py:74
+#: src/feedchef/auditreport.py:89
 #, fuzzy
 msgid "The local timeline"
 msgstr "Cronología _local"
 
-#: src/feedchef/auditreport.py:75
+#: src/feedchef/auditreport.py:90
 #, fuzzy
 msgid "The federated timeline"
 msgstr "Cronología _federada"
 
-#: src/feedchef/auditreport.py:76
+#: src/feedchef/auditreport.py:91
 msgid "One of your lists"
 msgstr ""
 
-#: src/feedchef/auditreport.py:76
+#: src/feedchef/auditreport.py:91
 #, fuzzy
 msgid "Your timeline"
 msgstr "tu cronología"
 
-#: src/feedchef/auditreport.py:83
+#: src/feedchef/auditreport.py:106
 msgid "English"
 msgstr ""
 
-#: src/feedchef/auditreport.py:85
+#: src/feedchef/auditreport.py:108
 msgid "Portuguese"
 msgstr ""
 
-#: src/feedchef/auditreport.py:93
+#: src/feedchef/auditreport.py:109
+#, fuzzy
+msgid "Another language"
+msgstr "Idioma del sistema"
+
+#: src/feedchef/auditreport.py:116
 msgid "Removed by a safety check"
 msgstr ""
 
-#: src/feedchef/auditreport.py:95
+#: src/feedchef/auditreport.py:118
 msgid "Had a hashtag you excluded"
 msgstr ""
 
-#: src/feedchef/auditreport.py:97
+#: src/feedchef/auditreport.py:120
 msgid "Had none of the hashtags you included"
 msgstr ""
 
-#: src/feedchef/auditreport.py:98
+#: src/feedchef/auditreport.py:121
 msgid "Contained a blocked word"
 msgstr ""
 
-#: src/feedchef/auditreport.py:99
+#: src/feedchef/auditreport.py:122
 #, fuzzy
 msgid "Had no media"
 msgstr "Reproduciendo medios"
 
-#: src/feedchef/auditreport.py:100
+#: src/feedchef/auditreport.py:123
 #, fuzzy
 msgid "Had media without a description"
 msgstr "Descripción de la cabecera"
 
-#: src/feedchef/auditreport.py:101
+#: src/feedchef/auditreport.py:124
 #, fuzzy
 msgid "Marked as sensitive"
 msgstr "Marcada como sensible"
 
-#: src/feedchef/auditreport.py:102
+#: src/feedchef/auditreport.py:125
 msgid "Too short"
 msgstr ""
 
-#: src/feedchef/auditreport.py:103
+#: src/feedchef/auditreport.py:126
 #, fuzzy
 msgid "Read as negative"
 msgstr "Marcada como sensible"
 
-#: src/feedchef/auditreport.py:104
+#: src/feedchef/auditreport.py:127
 #, fuzzy
 msgid "Not from someone you follow"
 msgstr "Ninguna cuenta que sigues coincide"
 
-#: src/feedchef/auditreport.py:105
+#: src/feedchef/auditreport.py:128
 msgid "Hidden by your mutes and filters"
 msgstr ""
 
-#: src/feedchef/auditreport.py:106
+#: src/feedchef/auditreport.py:129
 msgid "Below the popularity cutoff"
 msgstr ""
 
-#: src/feedchef/auditreport.py:107
+#: src/feedchef/auditreport.py:130
 #, fuzzy
 msgid "Over the limit per person"
 msgstr "Dónde se aplica el filtro"
 
-#: src/feedchef/auditreport.py:109
+#: src/feedchef/auditreport.py:132
 #, fuzzy
 msgid "Removed for another reason"
 msgstr "%s desfijada de la barra lateral"
 
 #. Translators: %s is a hashtag name, without the #.
-#: src/feedchef/auditreport.py:119
+#: src/feedchef/auditreport.py:142
 #, fuzzy, python-format
 msgid "The hashtag #%s"
 msgstr "Del hashtag %s"
 
 #. Translators: %s is a word or hashtag from a More Like This search.
-#: src/feedchef/auditreport.py:122
+#: src/feedchef/auditreport.py:145
 #, fuzzy, python-format
 msgid "A More Like This search for “%s”"
 msgstr "Buscar “%s”"
 
-#: src/feedchef/auditreport.py:129
+#: src/feedchef/auditreport.py:152
 msgid "Found Through"
 msgstr ""
 
-#: src/feedchef/auditreport.py:134
+#: src/feedchef/auditreport.py:157
 msgid "Also Found Through"
 msgstr ""
 
-#: src/feedchef/auditreport.py:136
-msgid "Someone you can see boosted it"
+#: src/feedchef/auditreport.py:159
+#, fuzzy
+msgid "Boosted"
+msgstr "Impulsar"
+
+#: src/feedchef/auditreport.py:159
+msgid "Someone else shared it"
 msgstr ""
 
-#: src/feedchef/auditreport.py:142 src/feedchefbuilder.py:362
-msgid "Diet"
-msgstr ""
-
-#: src/feedchef/auditreport.py:142 src/feedchef/auditreport.py:180
-#: src/feedchefbuilder.py:330
-msgid "Pantry"
-msgstr ""
-
-#: src/feedchef/auditreport.py:144
+#: src/feedchef/auditreport.py:167
 #, fuzzy
 msgid "No Blocked Words"
 msgstr "%s bloqueado"
 
-#: src/feedchef/auditreport.py:145
+#: src/feedchef/auditreport.py:168
 #, fuzzy
 msgid "Has Media"
 msgstr "Guardar multimedia"
 
-#: src/feedchef/auditreport.py:146
+#: src/feedchef/auditreport.py:169
 #, fuzzy
 msgid "Media Has Descriptions"
 msgstr "Descripción del avatar"
 
-#: src/feedchef/auditreport.py:147
+#: src/feedchef/auditreport.py:170
 #, fuzzy
 msgid "Not Marked as Sensitive"
 msgstr "Marcada como sensible"
 
-#: src/feedchef/auditreport.py:148
+#: src/feedchef/auditreport.py:171
 msgid "Long Enough"
 msgstr ""
 
-#: src/feedchef/auditreport.py:149
+#: src/feedchef/auditreport.py:172
 #, fuzzy
 msgid "Not Negative"
 msgstr "Sin definir"
 
-#: src/feedchef/auditreport.py:150
+#: src/feedchef/auditreport.py:173
 #, fuzzy
 msgid "No Excluded Hashtags"
 msgstr "Etiquetas seguidas"
 
-#: src/feedchef/auditreport.py:151
+#: src/feedchef/auditreport.py:174
 #, fuzzy
 msgid "Has an Included Hashtag"
 msgstr "Etiquetas seguidas"
 
-#: src/feedchef/auditreport.py:162
+#: src/feedchef/auditreport.py:184
 #, fuzzy
 msgid "Positive"
 msgstr "Sensible"
 
-#: src/feedchef/auditreport.py:164
+#: src/feedchef/auditreport.py:186
 msgid "Negative"
 msgstr ""
 
-#: src/feedchef/auditreport.py:165
+#: src/feedchef/auditreport.py:187
 msgid "Neutral"
 msgstr ""
 
-#: src/feedchef/auditreport.py:179
+#: src/feedchef/auditreport.py:200 src/feedchef/auditreport.py:208
+msgid "Tone"
+msgstr ""
+
+#: src/feedchef/auditreport.py:208
+msgid "Tone is only judged for English and Portuguese posts"
+msgstr ""
+
+#: src/feedchef/auditreport.py:219
+#, fuzzy
+msgid "Recipe rule"
+msgstr "Colección eliminada"
+
+#: src/feedchef/auditreport.py:226
 #, fuzzy
 msgid "Your Own Post"
 msgstr "Abrir publicación"
 
-#: src/feedchef/auditreport.py:180
+#: src/feedchef/auditreport.py:228
 #, fuzzy
 msgid "From Someone You Follow"
 msgstr "Personas que sigues"
 
-#: src/feedchef/auditreport.py:185
+#: src/feedchef/auditreport.py:230
+msgid "Allowed by the Network Rule"
+msgstr ""
+
+#: src/feedchef/auditreport.py:235
 msgid "Allowed by Your Filters"
 msgstr ""
 
-#: src/feedchef/auditreport.py:186
+#: src/feedchef/auditreport.py:236
 msgid "Mutes and keyword filters"
 msgstr ""
 
-#: src/feedchef/auditreport.py:192
-msgid "Tone"
+#: src/feedchef/auditreport.py:239
+msgid "No Checks Passed"
 msgstr ""
 
-#: src/feedchef/auditreport.py:194
+#: src/feedchef/auditreport.py:240
+msgid "See why it was removed below"
+msgstr ""
+
+#: src/feedchef/auditreport.py:242
 msgid "No Rules Applied"
 msgstr ""
 
-#: src/feedchef/auditreport.py:195
+#: src/feedchef/auditreport.py:243
 msgid "Your recipe sets no limits that apply to this post"
 msgstr ""
 
-#: src/feedchef/auditreport.py:206
+#: src/feedchef/auditreport.py:254
 #, fuzzy, python-format
 msgid "%s favorite"
 msgid_plural "%s favorites"
 msgstr[0] "%d favorito"
 msgstr[1] "%d favoritos"
 
-#: src/feedchef/auditreport.py:209
+#: src/feedchef/auditreport.py:257
 #, fuzzy, python-format
 msgid "%s boost"
 msgid_plural "%s boosts"
 msgstr[0] "%s impulsó"
 msgstr[1] "%s impulsó"
 
-#: src/feedchef/auditreport.py:214
+#: src/feedchef/auditreport.py:262
 #, fuzzy
 msgid "No reactions yet"
 msgstr "Sin colecciones"
 
-#: src/feedchef/auditreport.py:228
+#: src/feedchef/auditreport.py:276
 #, fuzzy
 msgid "Not Scored"
 msgstr "No confirmada"
 
-#: src/feedchef/auditreport.py:228
+#: src/feedchef/auditreport.py:276
 #, fuzzy
 msgid "This post was not ranked"
 msgstr "Esta publicación no tiene multimedia."
 
-#: src/feedchef/auditreport.py:230
+#: src/feedchef/auditreport.py:278
+#, fuzzy
+msgid "Reaction Counts"
+msgstr "Contadores de _interacción"
+
+#: src/feedchef/auditreport.py:280
 #, fuzzy
 msgid "Reactions"
 msgstr "Añadir reacción"
 
-#: src/feedchef/auditreport.py:233 src/feedchef/auditreport.py:334
+#: src/feedchef/auditreport.py:281
+msgid "Favorites, boosts and replies, weighted"
+msgstr ""
+
+#: src/feedchef/auditreport.py:284 src/feedchef/auditreport.py:393
 msgid "Freshness"
 msgstr ""
 
-#: src/feedchef/auditreport.py:234
+#: src/feedchef/auditreport.py:285
 #, fuzzy
 msgid "Newer posts count for more"
 msgstr "Las publicaciones nuevas aparecerán aquí"
 
-#: src/feedchef/auditreport.py:235 src/feedchef/auditreport.py:334
+#: src/feedchef/auditreport.py:286 src/feedchef/auditreport.py:393
 #, fuzzy
 msgid "Positive Tone"
 msgstr "Mostrar contenido sensible"
 
-#: src/feedchef/auditreport.py:236
+#: src/feedchef/auditreport.py:287
 msgid "Positive posts count for more"
 msgstr ""
 
-#: src/feedchef/auditreport.py:238
+#: src/feedchef/auditreport.py:289
 msgid "Posts on rising topics count for more"
 msgstr ""
 
-#: src/feedchef/auditreport.py:242
+#: src/feedchef/auditreport.py:293
+msgid "Older than the fade-out time"
+msgstr ""
+
+#: src/feedchef/auditreport.py:295
 msgid "Score"
 msgstr ""
 
-#: src/feedchef/auditreport.py:250
+#: src/feedchef/auditreport.py:295
+msgid "Higher scores are shown first"
+msgstr ""
+
+#: src/feedchef/auditreport.py:304
 #, fuzzy
 msgid "Position"
 msgstr "Descripción"
 
-#: src/feedchef/auditreport.py:251
+#: src/feedchef/auditreport.py:305
 #, python-format
 msgid "On page %s of this timeline"
 msgstr ""
 
-#: src/feedchef/auditreport.py:253
+#: src/feedchef/auditreport.py:307
 #, fuzzy, python-format
 msgid "%(place)s of %(total)s"
 msgstr "%(shown)s de %(total)s"
 
-#: src/feedchef/auditreport.py:268
+#: src/feedchef/auditreport.py:322
 #, fuzzy
 msgid "Removed"
 msgstr "Eliminar"
 
-#: src/feedchef/auditreport.py:278
+#: src/feedchef/auditreport.py:331
 msgid "Where It Came From"
 msgstr ""
 
-#: src/feedchef/auditreport.py:280
+#: src/feedchef/auditreport.py:335
+msgid "About This Post"
+msgstr ""
+
+#: src/feedchef/auditreport.py:336
 msgid "Checks It Passed"
 msgstr ""
 
-#: src/feedchef/auditreport.py:282
+#: src/feedchef/auditreport.py:339
+#, fuzzy
+msgid "Not Checked"
+msgstr "No confirmada"
+
+#: src/feedchef/auditreport.py:341
 msgid "Why It Was Removed"
 msgstr ""
 
-#: src/feedchef/auditreport.py:286
+#: src/feedchef/auditreport.py:345
 msgid "How It Was Ranked"
 msgstr ""
 
-#: src/feedchef/auditreport.py:315
+#: src/feedchef/auditreport.py:374
 #, fuzzy
 msgid "Only people you follow"
 msgstr "Personas que sigues"
 
-#: src/feedchef/auditreport.py:319
+#: src/feedchef/auditreport.py:378
 #, python-format
 msgid "%s hashtag included"
 msgid_plural "%s hashtags included"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/feedchef/auditreport.py:323
+#: src/feedchef/auditreport.py:382
 #, python-format
 msgid "%s hashtag excluded"
 msgid_plural "%s hashtags excluded"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/feedchef/auditreport.py:329
+#: src/feedchef/auditreport.py:388
 #, python-format
 msgid "%s diet rule"
 msgid_plural "%s diet rules"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/feedchef/auditreport.py:331 src/feedchefbuilder.py:408
+#: src/feedchef/auditreport.py:390 src/feedchefbuilder.py:408
 #, fuzzy
 msgid "Newest first"
 msgstr "más recientes primero"
 
-#: src/feedchef/auditreport.py:333
+#: src/feedchef/auditreport.py:392
 #, fuzzy
 msgid "Most engaging first"
 msgstr "Idioma de la publicación"
 
-#: src/feedchef/auditreport.py:335
+#: src/feedchef/auditreport.py:394
 msgid "Popularity cutoff"
 msgstr ""
 
-#: src/feedchef/auditreport.py:336
+#: src/feedchef/auditreport.py:395
 #, fuzzy
 msgid "Limit per person"
 msgstr "Publicaciones por mes"
 
 #. Translators: separates the parts of a one-line summary.
-#: src/feedchef/auditreport.py:343
+#: src/feedchef/auditreport.py:402
 msgid " · "
 msgstr ""
 
-#: src/feedchef/auditreport.py:394
+#: src/feedchef/auditreport.py:453
 msgid "Seen more than once"
 msgstr ""
 
-#: src/feedchef/auditreport.py:396
+#: src/feedchef/auditreport.py:455
 msgid "Nothing was left out"
 msgstr ""
 
-#: src/feedchef/auditreport.py:398
+#: src/feedchef/auditreport.py:457
 #, fuzzy
 msgid "Last Cook"
 msgstr "Última hora"
 
-#: src/feedchef/auditreport.py:399
+#: src/feedchef/auditreport.py:458
 #, fuzzy
-msgid "Posts Gathered"
+msgid "Posts gathered"
 msgstr "Publicación programada"
 
-#: src/feedchef/auditreport.py:400
+#: src/feedchef/auditreport.py:459
 #, fuzzy
-msgid "Posts Shown"
+msgid "Posts shown"
 msgstr "No se encontraron publicaciones"
 
-#: src/feedchef/auditreport.py:401
+#: src/feedchef/auditreport.py:460
 #, fuzzy
 msgid "Left Out"
 msgstr "¿Cerrar sesión?"
@@ -4153,6 +4207,10 @@ msgstr ""
 msgid "Choose Icon"
 msgstr "Elegir…"
 
+#: src/feedchefbuilder.py:330
+msgid "Pantry"
+msgstr ""
+
 #: src/feedchefbuilder.py:331
 msgid ""
 "Where posts come from. Separate hashtags with spaces. With included "
@@ -4182,6 +4240,10 @@ msgstr "Personas que sigues"
 
 #: src/feedchefbuilder.py:352
 msgid "Plus your own posts. Boosts are judged by the original author."
+msgstr ""
+
+#: src/feedchefbuilder.py:362
+msgid "Diet"
 msgstr ""
 
 #: src/feedchefbuilder.py:363
@@ -4305,77 +4367,77 @@ msgstr "No se pudo guardar el filtro"
 msgid "Share link copied"
 msgstr "Enlace copiado"
 
-#: src/feedchefexplain.py:60
+#: src/feedchefexplain.py:80
 msgid "Why This Post?"
 msgstr ""
 
-#: src/feedchefexplain.py:64
+#: src/feedchefexplain.py:84
 msgid "No Record for This Post"
 msgstr ""
 
-#: src/feedchefexplain.py:65
+#: src/feedchefexplain.py:85
 msgid ""
-"Feed Chef keeps a record of the pages it shows while this timeline is open, "
-"and this post is not in one of them"
+"This post isn’t in the record Feed Chef keeps while this timeline is open."
 msgstr ""
 
-#: src/feedchefexplain.py:79 src/feedchefpages.py:297
+#: src/feedchefexplain.py:98 src/feedchefpages.py:297
 #, fuzzy
 msgid "Kitchen Report"
 msgstr "_Enviar denuncia"
 
-#: src/feedchefexplain.py:84
-#, fuzzy
-msgid "No Report Yet"
-msgstr "Sin denuncias"
-
-#: src/feedchefexplain.py:85
-msgid "Load some posts in this timeline, then check back here"
-msgstr ""
-
-#: src/feedchefexplain.py:93
+#: src/feedchefexplain.py:109
 #, fuzzy
 msgid "_Copy Report"
 msgstr "_Reportar"
 
-#: src/feedchefexplain.py:98
+#: src/feedchefexplain.py:114
 #, fuzzy
 msgid "Open _Logs Folder"
 msgstr "_Abrir la carpeta de plugins"
 
-#: src/feedchefexplain.py:103
+#: src/feedchefexplain.py:123
 msgid "Clear _Audit Logs"
 msgstr ""
 
-#: src/feedchefexplain.py:115
+#: src/feedchefexplain.py:132
+#, fuzzy
+msgid "No Report Yet"
+msgstr "Sin denuncias"
+
+#: src/feedchefexplain.py:133
+msgid "Load some posts in this timeline, and a summary will appear here."
+msgstr ""
+
+#: src/feedchefexplain.py:141
 #, fuzzy
 msgid "Report copied"
 msgstr "Denuncias abiertas"
 
-#: src/feedchefexplain.py:120
+#: src/feedchefexplain.py:146
 msgid "There are no audit logs yet"
 msgstr ""
 
-#: src/feedchefexplain.py:128
+#: src/feedchefexplain.py:154
 #, fuzzy
 msgid "Could not open the folder"
 msgstr "No se ha podido abrir el perfil"
 
-#: src/feedchefexplain.py:132
+#: src/feedchefexplain.py:158
 msgid "Clear Audit Logs?"
 msgstr ""
 
-#: src/feedchefexplain.py:133
+#: src/feedchefexplain.py:159
 msgid ""
-"This deletes the Feed Chef audit history kept on this computer, for all of "
+"This deletes the audit history Feed Chef keeps on this computer, for all "
 "your recipes. Your recipes and timelines are not affected."
 msgstr ""
 
-#: src/feedchefexplain.py:136 src/notificationctrl.py:659 src/search.py:359
-msgid "_Clear"
-msgstr "_Borrar"
+#: src/feedchefexplain.py:162
+#, fuzzy
+msgid "_Clear Logs"
+msgstr "_Quitar programación"
 
-#: src/feedchefexplain.py:140
+#: src/feedchefexplain.py:169
 msgid "Audit logs cleared"
 msgstr ""
 
@@ -5749,6 +5811,10 @@ msgstr "¿Borrar todas las notificaciones?"
 #: src/notificationctrl.py:657
 msgid "All notifications will be permanently deleted"
 msgstr "Todas las notificaciones se eliminarán de forma permanente"
+
+#: src/notificationctrl.py:659 src/search.py:359
+msgid "_Clear"
+msgstr "_Borrar"
 
 #: src/notificationctrl.py:675
 msgid "Clear failed"

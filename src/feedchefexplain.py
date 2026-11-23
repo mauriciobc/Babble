@@ -13,13 +13,33 @@ gi.require_version('Adw', '1')
 
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
+try:
+    gi.require_version('GnomeDesktop', '4.0')
+    from gi.repository import GnomeDesktop  # noqa: E402
+except (ValueError, ImportError):
+    GnomeDesktop = None
+
 from . import feedback  # noqa: E402
 from .feedchef import auditreport, decisionlog  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
-WORDS = auditreport.Words(_, ngettext)
-STATUS_ICON = 'dialog-information-symbolic'
+
+
+def language_name(code):
+    """A language code in the reader's language, or None when the desktop
+    has no name for it."""
+    if GnomeDesktop is None:
+        return None
+    try:
+        return GnomeDesktop.get_language_from_locale(
+            code.replace('-', '_'), None)
+    except Exception:
+        return None
+
+
+WORDS = auditreport.Words(_, ngettext, language_name)
+STATUS_ICON = 'document-properties-symbolic'
 
 
 def _row(row):
@@ -62,9 +82,8 @@ class WhyThisPostDialog(feedback.ToastDialog):
         if found is None:
             self.set_content(Adw.StatusPage(
                 icon_name=STATUS_ICON, title=_('No Record for This Post'),
-                description=_('Feed Chef keeps a record of the pages it '
-                              'shows while this timeline is open, and this '
-                              'post is not in one of them')))
+                description=_('This post isn’t in the record Feed Chef '
+                              'keeps while this timeline is open.')))
             return
         entry, record = found
         add_sections(self.page,
@@ -80,10 +99,7 @@ class KitchenReportDialog(feedback.ToastDialog):
         self.alert = None
         self.report = auditreport.cook_report(records, WORDS)
         if not self.report.pages:
-            self.set_content(Adw.StatusPage(
-                icon_name=STATUS_ICON, title=_('No Report Yet'),
-                description=_('Load some posts in this timeline, then '
-                              'check back here')))
+            self._show_empty()
             return
         groups = add_sections(self.page, self.report.sections)
         # The recipe's settings sit under the cook's title.
@@ -96,16 +112,26 @@ class KitchenReportDialog(feedback.ToastDialog):
         group.add(self.copy_row)
         self.folder_row = Adw.ButtonRow(
             title=_('Open _Logs Folder'), use_underline=True,
-            start_icon_name='folder-open-symbolic')
+            start_icon_name='folder-symbolic',
+            sensitive=os.path.isdir(decisionlog.log_dir()))
         connect_weak(self.folder_row, 'activated', self._on_folder)
         group.add(self.folder_row)
+        self.page.add(group)
+        # Clearing is apart from the harmless rows above it.
+        danger = Adw.PreferencesGroup()
         self.clear_row = Adw.ButtonRow(
             title=_('Clear _Audit Logs'), use_underline=True,
-            start_icon_name='edit-delete-symbolic')
+            start_icon_name='user-trash-symbolic')
         self.clear_row.add_css_class('destructive-action')
         connect_weak(self.clear_row, 'activated', self._on_clear)
-        group.add(self.clear_row)
-        self.page.add(group)
+        danger.add(self.clear_row)
+        self.page.add(danger)
+
+    def _show_empty(self):
+        self.set_content(Adw.StatusPage(
+            icon_name=STATUS_ICON, title=_('No Report Yet'),
+            description=_('Load some posts in this timeline, and a '
+                          'summary will appear here.')))
 
     def _on_copy(self, _row):
         display = self.get_display()
@@ -130,11 +156,14 @@ class KitchenReportDialog(feedback.ToastDialog):
     def _on_clear(self, _row):
         self.alert = feedback.confirm(
             self.clear_row, _('Clear Audit Logs?'),
-            _('This deletes the Feed Chef audit history kept on this '
-              'computer, for all of your recipes. Your recipes and '
+            _('This deletes the audit history Feed Chef keeps on this '
+              'computer, for all your recipes. Your recipes and '
               'timelines are not affected.'),
-            _('_Clear'), weak_method(self._clear_confirmed))
+            _('_Clear Logs'), weak_method(self._clear_confirmed))
 
     def _clear_confirmed(self):
         decisionlog.clear_all()
+        # The counts above are gone with the logs: show none.
+        self.report = auditreport.cook_report([], WORDS)
+        self._show_empty()
         self.toast(_('Audit logs cleared'))
