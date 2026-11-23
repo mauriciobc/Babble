@@ -145,7 +145,7 @@ class FeedDecisionLogger:
 # Retention: the last cooks of each recipe, then a cap on the whole folder.
 MAX_COOKS = 20
 MAX_BYTES = 50 * 1024 * 1024
-_NAME = re.compile(r'^session_(\d+)_(.+?)(?:__c([0-9a-f]+)_[0-9a-f]{6})?'
+_NAME = re.compile(r'^session_(\d+)[_](.+?)(?:__c([0-9a-f]+)_[0-9a-f]{6})?'
                    r'(\.text)?\.json$')
 
 
@@ -161,10 +161,11 @@ def _cooks(directory: str) -> list[dict[str, Any]]:
             continue
         recipe, cook = match.group(2), match.group(3) or entry
         row = cooks.setdefault((recipe, cook), {
-            'recipe': recipe, 'files': [], 'mtime': 0.0, 'size': 0})
+            'recipe': recipe, 'files': [], 'mtime': (0.0, ''), 'size': 0})
         stat = os.stat(full)
         row['files'].append(full)
-        row['mtime'] = max(row['mtime'], stat.st_mtime)
+        # The file name breaks a tie of the (coarse) modification time.
+        row['mtime'] = max(row['mtime'], (stat.st_mtime, entry))
         row['size'] += stat.st_size
     return list(cooks.values())
 

@@ -839,6 +839,16 @@ test('feedchef contract', python,
   env: test_env,
   timeout: 120,
 )
+# Needs no display: the audit record the engine writes beside each decision
+# log. The same world with the audit on and off gives the same posts, order
+# and scores; every fuzz record replays identically; retention, the size
+# cap, Clear Audit Logs, the private sidecar, the privacy of an export, and
+# capture cost (p95 <= 5 ms per 40-post page).
+test('feedchef audit record', python,
+  args: [files('test-feedchef-audit.py')],
+  env: test_env,
+  timeout: 300,
+)
 test('feedchef promises', python,
   args: [files('test-feedchef-promises.py')],
   env: test_env,
@@ -1008,6 +1018,13 @@ test('affinity', python,
 # fake client, and the real one is replaced by a class that raises.
 test('rank eval', python,
   args: [files('../bench/rank_eval.py'), 'self-test'],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display and no network: the Feed Chef audit CLI (show, replay,
+# evaluate, collect) on synthetic cooks, tampered records included.
+test('feedchef audit', python,
+  args: [files('../bench/feedchef_audit.py'), 'self-test'],
   env: test_env,
   timeout: 120,
 )

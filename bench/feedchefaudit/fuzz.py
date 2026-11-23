@@ -199,7 +199,8 @@ class World:
         return [{'id': a} for a in page], nxt
 
 
-def cook(world, recipe, case, pages=3, count=40, audit=True, now=None):
+def cook(world, recipe, case, pages=3, count=40, audit=True, now=None,
+         hide=None):
     """Cook up to *pages* pages of *recipe* over *world* through the real
     engine. *audit* turns the audit record on or off; *now* (a datetime)
     pins the page clock, so two runs can be compared bit for bit."""
@@ -220,7 +221,7 @@ def cook(world, recipe, case, pages=3, count=40, audit=True, now=None):
         for page in range(pages):
             result = engine.process_feed_sync(
                 recipe, max_id=cursor, count=count, author_counts=counts,
-                cook_id='case%d' % case, page_index=page)
+                cook_id='case%d' % case, page_index=page, hide=hide)
             results.append(result)
             counts = result.author_counts
             cursor = result.scope_oldest_id

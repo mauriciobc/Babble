@@ -253,6 +253,87 @@ place itself keeps the chef hat.
 with an engine of its own that is shut down when the dialog closes. It has
 no focus banner, no edit button and no More Like This entry.
 
+## Audit: a replayable record of every page
+
+The decision log (v1 `stages`) could not answer "why is this post here, or
+not": no recipe snapshot, no origin, no reason for a removal after the diet,
+no score breakdown, a clock read inside the stages. Every engine page now
+also writes a schema-2 record under the `audit` key of its log
+(`src/feedchef/audit.py`, GTK-free). `bench/feedchef_audit.py` reads it.
+
+**The audit only observes.** The engine hooks take a recorder; the default
+`NullAudit` does nothing and no selection code reads from it. Neutrality is a
+test (`feedchef audit record`): the same world with the audit on and off
+gives the same items, order, scores, counts and kitchen meta over the fuzz
+seeds. Capture adds under 5 ms (p95) per 40-post page, measured by that test
+and run on the engine worker, never the UI thread. `FeedEngine.audit = False`
+turns it off; `FeedEngine.clock` is the one reading of the time per page (the
+kitchen and the viewer filter take it as `now`).
+
+**What a record holds** (one entry per unique post):
+
+- identity: `session_id`, `cook_id` (one per refresh session), `page_index`,
+  `hop` (an empty page followed by the next older one), cursors;
+- `app.version` (`babble.VERSION`, "dev" when unset), the recipe id, its
+  sha256 (`recipe_hash`, canonical JSON) and the full snapshot, the account;
+- the environment a replay needs: the clock, `self_id`, the Bluesky setting,
+  the follow state (fresh, stale, none or error, the count and a 16-hex
+  fingerprint: the list itself is never stored), the server trends of the page,
+  the local tag heat, the author counts the page started from;
+- per post: `origin` (`scope`, `hashtag:<tag>`, `focus:<term>`) and
+  `also_in`, `facts` (dates, counts, tags, language, media and alt, sensitive,
+  text length and a reference into the sidecar, author and booster ids), the
+  follow verdict, a pass/fail/n-a result for each promise in the order the
+  stages ask them, the sentiment (engine and score), the score breakdown
+  (`base`, `fresh`, `sent`, `trend` factors, `final`), the removal and the
+  rank.
+
+**Each removed post has exactly one reason, from a closed set** (`is_reason`):
+`pantry_excluded_tag`, `pantry_missing_included_tag`, `diet:<promise>`,
+`reach_not_followed`, `viewer_hide`, `heat_cut`, `author_cap`,
+`guard:<promise>`. The guard is the only stage that lists every promise a post
+breaks (`removal.also`). Two deviations from the first plan: a post fetched
+twice is one entry (the duplicate is an `also_in` and a count in
+`summary.duplicates`, not a removal), and a post with no id is only counted
+(`summary.no_id`). `summary.pantry_in == selected + sum(by_reason)` holds.
+
+**Replay is the proof.** `replay` rebuilds each post from its facts and the
+sidecar, runs the real engine over fake fetches that hand them back in the
+sources the record names, at the recorded clock, and compares the record it
+writes with the one it replays: posts, reasons, rules, scores, order, bit for
+bit (floats go out as `repr`, which round-trips). What is not replayable is
+recorded and fed back: the viewer's own filter verdicts, the sentiment score of
+each post (the analyser is re-run on the rebuilt text only to warn about
+drift). A record made by another `ENGINE_REV` (bumped by hand when a stage
+changes meaning) is refused unless `--force`. When the text is not whole (a
+post over 2,000 characters, or the sidecar deleted) the two rules that read it
+(blocked words, minimum length) use their recorded verdicts and the replay says
+how many posts it did so for ("partial"). Known limits: the follow list is
+snapshotted once, after the wait, so a preload that lands mid-cook can make
+the reach stage and the record disagree; the order of posts inside one source
+is rebuilt from the order of the entries, which only matters for ids that are
+not digits.
+
+**`evaluate`** checks the output against the recipe snapshot with no
+tolerance: every kept post keeps every promise, the order is the recipe's,
+heat removed exactly floor(P x n / 100), the cap per person holds across the
+pages of a cook, the hashtags and the follow setting are respected, no post
+was dropped by the guard (a stage let a violator through), and each removal is
+justified by the recipe. `viewer_hide` is the one reason it cannot judge.
+
+**Privacy.** The visible text (the stripped text the contract reads, 2,000
+characters at most, and the content warning) goes to `<log>.text.json` beside
+the log, mode 0600 in the 0700 log folder; it is deleted with its log and never
+exported. `collect --json` and Copy Report carry counts, verdicts, the recipe
+hash and dates: no post id, handle, text, account or recipe name (the test
+greps the export for every id, handle and text it recorded).
+
+**Retention.** The last 20 cooks of each recipe (grouped by `cook_id`, so every
+page and hop of a cook stays together), then a 50 MB cap on the folder, oldest
+cook first and the newest always kept; one busy recipe never evicts another's
+history. `decisionlog.clear_all()` and `clear_recipe(id)` back Clear Audit
+Logs.
+
 ## Out of v1
 
 `RequestMode`, federated time window, `LocalPostRepository` in the engine,
