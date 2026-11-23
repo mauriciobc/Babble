@@ -147,6 +147,12 @@ def structure(record):
                 'after': int}) for row in record['heat'])):
         problems.append('heat has the wrong shape')
         return problems
+    if 'fresh_fallback' in record and record['fresh_fallback'] is not True:
+        problems.append('fresh_fallback has the wrong shape')
+    if 'variant' in record and not _need(
+            problems, 'variant', record['variant'],
+            {'id': str, 'seed': int, 'original': str, 'proposed': str}):
+        return problems
     if record['outcome']['status'] not in STATUSES:
         problems.append('outcome.status is not one of %s' % ', '.join(
             STATUSES))

@@ -303,10 +303,10 @@ def violations(
 
 LIST_IDS = ('relevance_order', 'cluster_cap', 'fresh_floor',
             'instance_cap', 'fire_badge')
-# The promises about the heat cut of a page: they name no post (a cut that
-# hid the wrong number of posts cannot be undone), so the guard records them
-# and drops nothing.
-PAGE_IDS = ('heat_count', 'heat_fallback')
+# The promises about the heat cut and the freshness fallback of a page: they
+# name no post (a cut that hid the wrong number of posts cannot be undone), so
+# the guard records them and drops nothing.
+PAGE_IDS = ('heat_count', 'heat_fallback', 'fresh_fallback')
 
 
 @dataclass(frozen=True)
@@ -333,6 +333,9 @@ class ListFacts:
     # ({'ids': [...]}); None when it did not say.
     scores: dict[str, float] | None = None
     fire: dict[str, Any] | None = None
+    # Whether the kitchen raised the page's freshness factors to the floor
+    # because every score was zero (see ``fresh_fallback_wanted``).
+    fresh_fallback: bool = False
 
 
 def _sid(status: dict[str, Any]) -> str:
@@ -369,6 +372,54 @@ def expected_freshness(status: dict[str, Any], decay_minutes: Any,
         return None
     factor = max(0.0, min(1.0, 1.0 - age / decay))
     return max(factor, FRESHNESS_FLOOR) if trending else factor
+
+
+def expected_fresh_factor(status: dict[str, Any], recipe: FeedRecipe,
+                          now, floor: bool) -> float | None:
+    """What the product of the freshness factors of every "Favor Fresh
+    Posts" modifier of *recipe* must be for a post, written out here (see
+    ``expected_freshness``); None when none of them touches the post."""
+    wanted = None
+    for mod in recipe.kitchen.modifiers:
+        if mod.type != 'freshness':
+            continue
+        one = expected_freshness(status, mod.decay_minutes, now, floor)
+        if one is not None:
+            wanted = one if wanted is None else wanted * one
+    return wanted
+
+
+def fresh_fallback_wanted(recipe: FeedRecipe,
+                          rows: list[tuple[float, float | None]]) -> bool:
+    """Whether a page must have its freshness factors raised to the floor
+    because freshness zeroed every score (the moshidon ``auto_fallback``
+    rule, freshness half). *rows* holds, for each post the kitchen scored,
+    its base (engagement) score and the product of its freshness factors
+    *without* any floor (None: freshness leaves it be). It is wanted when
+    the recipe has "Favor Fresh Posts" and not "Boost Trending Topics" (which
+    already has the floor), at least one post has engagement, and the
+    final score of every post is zero: the other factors only ever raise a
+    score, so a zero stays zero."""
+    mods = [mod.type for mod in recipe.kitchen.modifiers]
+    if 'freshness' not in mods or 'trending' in mods or not rows:
+        return False
+    if not any(base > 0 for base, _fresh in rows):
+        return False
+    return all(base * (1.0 if fresh is None else fresh) == 0
+               for base, fresh in rows)
+
+
+def fresh_fallback_violations(recipe: FeedRecipe, applied: bool) -> list[str]:
+    """``['fresh_fallback']`` when the page says it used the fallback and
+    the recipe cannot have needed it: no "Favor Fresh Posts", or with
+    "Boost Trending Topics" (the floor is already there). Whether it was
+    needed for the posts is what ``fresh_fallback_wanted`` says, which
+    ``evaluate`` asks of the record."""
+    if not applied:
+        return []
+    mods = [mod.type for mod in recipe.kitchen.modifiers]
+    return [] if 'freshness' in mods and 'trending' not in mods \
+        else ['fresh_fallback']
 
 
 def instance_caps(recipe: FeedRecipe) -> list[int]:
@@ -447,18 +498,15 @@ def list_violations(recipe: FeedRecipe, ordered: list[dict[str, Any]],
     freshness = [mod for mod in recipe.kitchen.modifiers
                  if mod.type == 'freshness']
     if facts.fresh is not None and freshness:
-        trending = any(mod.type == 'trending'
-                       for mod in recipe.kitchen.modifiers)
+        # The floor is there with trending, and on a page whose scores
+        # freshness zeroed (the fallback).
+        floor = facts.fresh_fallback or any(
+            mod.type == 'trending' for mod in recipe.kitchen.modifiers)
         for status in ordered:
             row = facts.fresh.get(_sid(status))
             if row is None:
                 continue
-            wanted = None
-            for mod in freshness:
-                one = expected_freshness(status, mod.decay_minutes,
-                                         facts.now, trending)
-                if one is not None:
-                    wanted = one if wanted is None else wanted * one
+            wanted = expected_fresh_factor(status, recipe, facts.now, floor)
             if wanted is None or not abs(row[0] - wanted) <= 1e-12:
                 add(status, 'fresh_floor')
     for cap in instance_caps(recipe):

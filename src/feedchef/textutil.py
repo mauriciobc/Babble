@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import functools
 import math
 import re
 import unicodedata
@@ -84,6 +85,13 @@ def strip_html(html: str | None, *, drop_quote_inline: bool = False) -> str:
     as a card)."""
     if not html:
         return ''
+    return _strip(html, drop_quote_inline)
+
+
+@functools.lru_cache(maxsize=512)
+def _strip(html: str, drop_quote_inline: bool) -> str:
+    """The pure body of ``strip_html``, cached: the same post is read by the
+    diet, the contract, the guard and the audit within one cook."""
     parser = _StripHTML(drop_quote_inline)
     try:
         parser.feed(html)

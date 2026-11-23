@@ -310,6 +310,11 @@ for case in range(CASES):
             count_seen('per group', len(items))
         if 'freshness' in kinds:
             decay = kinds['freshness'].decay_minutes
+            # The floor is there with trending, and on a page whose scores
+            # freshness zeroed (the fallback), which is worked out below
+            # from the posts and compared with what the kitchen said.
+            floor_on = 'trending' in kinds or bool(meta.get('fresh_fallback'))
+            raws = {}
             for sid, (factor, lifted) in meta['fresh'].items():
                 age = (NOW - datetime.fromisoformat(
                     content_of(by_id[sid])['created_at'])
@@ -318,16 +323,33 @@ for case in range(CASES):
                     if age >= 0 else None
                 if raw is None:
                     continue
-                want = max(raw, 0.2) if 'trending' in kinds else raw
+                raws[sid] = raw
+                want = max(raw, 0.2) if floor_on else raw
                 if abs(factor - want) > 1e-12 \
-                        or lifted != ('trending' in kinds and raw < 0.2):
+                        or lifted != (floor_on and raw < 0.2):
                     fail('freshness floor', seed, 'factor %r, expected %r'
                          % (factor, want))
                 count_seen('freshness floor')
                 if 'trending' in kinds and raw < 0.2:
                     count_seen('floor lifted')
-                elif raw < 0.2:
+                elif raw < 0.2 and not floor_on:
                     count_seen('floor not lifted without trending')
+            engagement = {
+                sid: (content_of(by_id[sid]).get('favourites_count', 0)
+                      + 2.5 * content_of(by_id[sid]).get('reblogs_count', 0)
+                      + 1.5 * content_of(by_id[sid]).get('replies_count', 0))
+                for sid in raws}
+            due = ('trending' not in kinds and bool(raws)
+                   and any(engagement.values())
+                   and all(engagement[sid] * raws[sid] == 0 for sid in raws))
+            if due != bool(meta.get('fresh_fallback')):
+                fail('freshness fallback', seed,
+                     'the page %s the fallback, the scores say it %s be'
+                     % ('used' if meta.get('fresh_fallback') else 'did not '
+                        'use', 'must' if due else 'must not'))
+            count_seen('freshness fallback')
+            if due:
+                count_seen('fallback applied')
         # The Hot badge: posts above the page's own 90th percentile, and no
         # others (both directions).
         if items:
@@ -416,7 +438,7 @@ for name in ('blocked words', 'only with media', 'alt text', 'sensitive',
              'exclude hashtags', 'only people I follow', 'per person',
              'order newest first', 'order most engaging', 'order with focus',
              'order by relevance', 'relevance', 'per group', 'per server',
-             'freshness floor', 'heat', 'hot badge'):
+             'freshness floor', 'freshness fallback', 'heat', 'hot badge'):
     bad = problems.get(name, [])
     check('promise: %s (%d posts checked)%s'
           % (name, seen.get(name, 0),
@@ -429,6 +451,9 @@ check('the freshness floor lifted a factor with trending (%d) and never '
          seen.get('floor not lifted without trending', 0)),
       seen.get('floor lifted', 0) > 5
       and seen.get('floor not lifted without trending', 0) > 5)
+check('the freshness fallback was used on pages whose scores freshness '
+      'zeroed (%d), and only on those' % seen.get('fallback applied', 0),
+      seen.get('fallback applied', 0) >= 1)
 check('the heat cut fell back to a lower step (%d), held its step (%d) and '
       'met a Custom percent (%d)' % (
           seen.get('heat fell back', 0), seen.get('heat held', 0),

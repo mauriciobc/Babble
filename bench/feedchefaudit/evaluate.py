@@ -28,7 +28,7 @@ from feedchefaudit.records import (LogError, Rebuilt, check_replayable,
 RULES = ('record', 'promises', 'hashtags', 'follow', 'order', 'relevance',
          'cluster', 'floor', 'language', 'heat', 'fire', 'cap',
          'removal_reasons',
-         'guard', 'merge')
+         'guard', 'merge', 'variant')
 
 
 class Tally:
@@ -242,6 +242,7 @@ def evaluate_record(loaded):
             return tally
         rebuilt = Rebuilt(loaded)
         _check_merge(tally, record, rebuilt.recipe)
+        _check_variant(tally, record)
     except LogError as error:
         tally.add('record', 1, 1, str(error))
         return tally
@@ -252,6 +253,22 @@ def evaluate_record(loaded):
         tally.add('record', 0, 1, 'the record could not be judged (%s)'
                   % type(error).__name__)
     return tally
+
+
+def _check_variant(tally, record):
+    """A cook of the A/B optimizer cooked the recipe it says: variant A is
+    the original recipe and variant B the proposed one, each named by its
+    hash, and the record's own recipe is the one that variant stands for.
+    A record with no variant has nothing to judge."""
+    found = record.get('variant')
+    if found is None:
+        return
+    mine = record['recipe']['hash']
+    named = found.get('original' if found.get('id') == 'A' else 'proposed')
+    bad = (found.get('id') not in ('A', 'B') or named != mine
+           or found.get('original') == found.get('proposed'))
+    tally.add('variant', 1, bad, 'variant %s cooked a recipe that is not the '
+              'one it names' % found.get('id'))
 
 
 def _check_merge(tally, record, recipe):
@@ -452,13 +469,33 @@ def _check_cluster(tally, rebuilt):
 
 def _check_floor(tally, rebuilt):
     """"Favor Fresh Posts" raises a factor under 0.2 exactly when the
-    recipe also has "Boost Trending Topics" (and says so)."""
+    recipe also has "Boost Trending Topics", or the page's scores were all
+    zero because freshness faded every post (the fallback), and says so.
+    Whether the fallback was due is worked out here from the base scores
+    and the dates of the record, with no floor."""
     recipe = rebuilt.recipe
     mods = _mods(recipe, 'freshness')
+    fallback = bool(rebuilt.record.get('fresh_fallback'))
     if not mods:
+        if fallback:
+            tally.add('floor', 1, 1, 'the page used the freshness fallback '
+                      'and the recipe has no "Favor Fresh Posts"')
         return
     now = datetime.fromisoformat(rebuilt.record['clock']['now_utc'])
-    trending = kitchenmod.has_trending(recipe)
+    scored = [e for e in rebuilt.entries() if e['score'] is not None]
+    if scored:
+        rows = [(e['score']['base'], contract.expected_fresh_factor(
+            rebuilt.statuses[e['id']], recipe, now, False)) for e in scored]
+        tally.add('floor', 1, fallback != contract.fresh_fallback_wanted(
+            recipe, rows), 'the freshness fallback is %s, and the scores '
+            'say it %s be' % ('recorded' if fallback else 'not recorded',
+                              'must not' if fallback else 'must'))
+    elif fallback:
+        # A claim with no scored post to base it on is as wrong as one the
+        # scores do not support (a page that scored nothing used no floor).
+        tally.add('floor', 1, 1, 'the page used the freshness fallback and '
+                  'scored no post')
+    trending = kitchenmod.has_trending(recipe) or fallback
     for entry in rebuilt.entries():
         if entry['score'] is None:
             continue

@@ -44,9 +44,13 @@ src/collectionbase.py
 src/collectionedit.py
 src/collectionpage.py
 src/feedback.py
+src/feedchef/advice.py
 src/feedchef/auditreport.py
+src/feedchef/health.py
+src/feedchef/quality.py
 src/feedchef/relax.py
 src/feedchef/sentence.py
+src/feedchef/templates.py
 src/feedchefbuilder.py
 src/feedchefbuilderlive.py
 src/feedchefmodifiers.py

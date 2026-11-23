@@ -29,6 +29,13 @@ installed; it runs from the source tree and reads only those files.
   evaluates a folder of logs and prints a report per recipe and cook.
   ``--json`` writes counts, verdicts, the recipe hash and dates only: no
   post id, handle or text.
+* ``quality [LOG...] [--recipe ID] [--since DATE] [--json PATH]`` reports how
+  each recipe's cooks did, per stage (pantry, diet, kitchen): the posts'
+  engagement bands and percentiles, the recipe score, the recipe's health and
+  the recommendations. Validity is 100% at the diet and kitchen stages by
+  construction (every filter is enforced), so the score mostly measures
+  engagement; the report says so. ``collect`` prints the same section.
+  ``--json`` carries numbers, ids, the recipe hash and dates only.
 * ``langbench [LOG...] [--simplemma]`` scores language detection against the
   languages posts declare: precision, recall and coverage by threshold and
   text length (numbers only; needs numpy and py3langid).

@@ -770,7 +770,7 @@ check('the record holds each post\'s group and medoid, and the loss, '
       and record['cluster']['seed'] == 0
       and all('cluster' in e and e['cluster']['medoid']
               for e in record['posts'] if e['score'])
-      and record['engine_rev'] == 4)
+      and record['engine_rev'] == 5)
 heat_recipe = default_recipe()
 heat_recipe.kitchen.modifiers = [
     Modifier(type='similarity_cluster', max_per_cluster=2),

@@ -231,6 +231,7 @@ install_data(
 )
 install_data(
   'feedchef/__init__.py',
+  'feedchef/advice.py',
   'feedchef/audit.py',
   'feedchef/auditreport.py',
   'feedchef/cluster.py',
@@ -240,15 +241,19 @@ install_data(
   'feedchef/diet.py',
   'feedchef/engine.py',
   'feedchef/focus.py',
+  'feedchef/health.py',
   'feedchef/heat.py',
   'feedchef/icons.py',
   'feedchef/kitchen.py',
   'feedchef/langguess.py',
   'feedchef/livecook.py',
   'feedchef/network_reach.py',
+  'feedchef/optimizer.py',
   'feedchef/pantry.py',
   'feedchef/qrcode.py',
+  'feedchef/quality.py',
   'feedchef/recipe.py',
+  'feedchef/recipeedit.py',
   'feedchef/relax.py',
   'feedchef/relevance.py',
   'feedchef/sentence.py',
@@ -256,6 +261,7 @@ install_data(
   'feedchef/sharecodec.py',
   'feedchef/smartmerge.py',
   'feedchef/storage.py',
+  'feedchef/templates.py',
   'feedchef/textutil.py',
   install_dir: moduledir / 'feedchef',
 )
@@ -979,6 +985,37 @@ test('feedchef builder', python,
 # count's worker (one fetch for many cooks, a newer request supersedes).
 test('feedchef steps', python,
   args: [files('test-feedchef-steps.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: the quality layer ported from moshidon (per-stage metrics
+# from audit records with moshidon's own example numbers, the bands, the recipe
+# score, recipe health and its alert, and the advice with its undo).
+test('feedchef quality', python,
+  args: [files('test-feedchef-quality.py')],
+  env: test_env,
+  timeout: 180,
+)
+# Needs no display: the New Recipe templates, moshidon's smart defaults mapped
+# to the heat steps, the modes and the More Posts <-> Better slider.
+test('feedchef templates', python,
+  args: [files('test-feedchef-templates.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: the A/B optimizer (permission, seeded Thompson sampling,
+# keep or revert, exact restore, the sidecar) and a real experiment through the
+# engine, each cook recording its variant.
+test('feedchef optimizer', python,
+  args: [files('test-feedchef-optimizer.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: the freshness fallback (kitchen, contract, audit, replay,
+# evaluate) and the quality section of the audit CLI with its privacy-checked
+# JSON.
+test('feedchef fallback', python,
+  args: [files('test-feedchef-fallback.py')],
   env: test_env,
   timeout: 120,
 )

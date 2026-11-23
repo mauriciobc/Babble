@@ -80,9 +80,17 @@ for case in range(CASES):
     rng = random.Random(1000 + case)
     recipe = fuzz.random_recipe(rng)
     world = fuzz.World(rng, recipe)
-    on = fuzz.cook(world, recipe, case, now=fuzz.NOW, hide=hide_some)
+    # Every fourth cook is a cook of the A/B optimizer (the variant is
+    # recorded, never read, so it too leaves the page as it was).
+    mine, other = auditmod.recipe_hash(recipe), 'f' * 64
+    variant = None if case % 4 else {
+        'id': 'AB'[case // 4 % 2], 'seed': case, 'n': 0,
+        'original': mine if case // 4 % 2 == 0 else other,
+        'proposed': mine if case // 4 % 2 == 1 else other}
+    on = fuzz.cook(world, recipe, case, now=fuzz.NOW, hide=hide_some,
+                   variant=variant)
     off = fuzz.cook(world, recipe, case, audit=False, now=fuzz.NOW,
-                    hide=hide_some)
+                    hide=hide_some, variant=variant)
     if len(on) != len(off) or any(
             page_view(a) != page_view(b) for a, b in zip(on, off, strict=True)):
         different.append(1000 + case)
@@ -166,9 +174,15 @@ for item in audit_logs:
         secrets.add(row['text'][:20])
 # A post id is a run of digits that could sit inside a hex hash by
 # chance: it counts as leaked only as a token of its own.
+# Ids and hashes are whole tokens (looked up in a set: the export has grown
+# a quality section per recipe, and a regex scan per id is minutes); what has
+# punctuation or spaces in it (a handle in quotes, the start of a text) is
+# searched for as before.
+tokens = set(re.findall(r'[0-9A-Za-z]+', exported))
 leaked = sorted(
-    s for s in secrets if s and re.search(
-        r'(?<![0-9A-Za-z])%s(?![0-9A-Za-z])' % re.escape(s), exported))
+    s for s in secrets if s and (
+        s in tokens if re.fullmatch(r'[0-9A-Za-z]+', s) else re.search(
+            r'(?<![0-9A-Za-z])%s(?![0-9A-Za-z])' % re.escape(s), exported)))
 check('the export (%d bytes) carries none of %d ids, handles or texts%s'
       % (len(exported), len(secrets), ' -- %r' % leaked[:3] if leaked
          else ''), not leaked)
@@ -318,6 +332,21 @@ print('# capture cost per page over %d pages: median %.2f ms, p95 %.2f ms, '
                        deltas[-1]))
 check('capture adds at most 5 ms (p95) per 40-post page (%.2f ms)' % p95,
       p95 <= 5.0)
+# What keeps it there: what is the same for every record of a process is
+# asked once (the installed version of the language detector, the text of a
+# post that the diet, the contract, the guard and the audit all read).
+from src.feedchef import langguess as langmod  # noqa: E402
+from src.feedchef import textutil as textmod  # noqa: E402
+check('the capture reads nothing twice: the detector\'s version and the '
+      'text of a post are cached (%s, %s)' % (
+          langmod.version.cache_info(), textmod._strip.cache_info()),
+      langmod.version.cache_info().hits > 0
+      and textmod._strip.cache_info().hits > 0
+      and textmod.strip_html('<p>a<br>b</p>') == textmod._strip.__wrapped__(
+          '<p>a<br>b</p>', False)
+      and textmod.strip_html(None) == '' and textmod.strip_html('') == ''
+      and textmod.strip_html('<p>x</p>', drop_quote_inline=True).strip()
+      == 'x')
 
 # --- defects an adversarial review found --------------------------------
 

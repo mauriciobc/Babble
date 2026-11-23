@@ -24,6 +24,7 @@ No GTK.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import re
 import threading
@@ -77,9 +78,10 @@ def status() -> tuple[str, str]:
     return ('unavailable', reason) if reason else ('ok', '')
 
 
+@functools.cache
 def version() -> str:
     """The installed py3langid version ('' when there is none); reads the
-    metadata, imports nothing."""
+    metadata (once per process: every audit record asks), imports nothing."""
     from importlib import metadata
     try:
         return metadata.version('py3langid')

@@ -386,6 +386,7 @@ fuzz runs 240 seeded cases over three pages.
 | Order: Most engaging | kitchen order | (list level) | fuzz: order most engaging; order with focus |
 | Hide the Least Engaging: Warm, Hot or Fire (50, 75, 90 percent of each batch; off is the switch; an imported percent is kept and said); engagement is replies, boosts and favorites, weighted, after freshness and trending. A page never keeps fewer than 5 posts: the cut steps down to the first level that leaves them, or to every post, and the page says which | kitchen heat | `heat_count` and `heat_fallback` (page level, guard: recorded, no post to drop) | fuzz: heat (exact count at the level used, fallback, imported percents); `feedchef contract`: a stage that skips or overdoes the fallback, a wrong count; `feedchef steps`; the audit's `heat` rule; `feedchef regressions` |
 | Popular badge: a post whose score is above the 90th percentile of the page's scores (none when every score is equal) | kitchen (after the cap) | `fire_badge` (list level, guard, both directions, against the kitchen's own threshold) | fuzz: hot badge; `feedchef contract`: a badge on a post that is not above, none on one that is, a threshold that is not the percentile; the audit's `fire` rule; `feedchef experience` |
+| When freshness gives every post a score of zero (and the recipe has no "Boost Trending Topics", which already has the floor), the page raises its freshness factors to the 0.2 floor, for that page only, and says so | kitchen (scoring) | `fresh_fallback` (page level, guard: recorded, no post to drop; `fresh_floor` expects the floor on that page and only there) | fuzz: freshness fallback (used exactly when the scores say it is due); `feedchef fallback`; the audit's `floor` rule (works out from the record's base scores and dates whether it was due) |
 | Favor Fresh Posts: newer posts rank higher; older than the fade-out score zero | kitchen score | (list level) | 300 equal pairs |
 | Boost Trending Topics: hashtags many people use now, and posts trending on the server | kitchen score | (list level) | 300 equal pairs; a server-trending post |
 | Favor Positive Posts: English and Portuguese posts that read as positive rank higher | kitchen score | (list level) | per-language cases |
@@ -405,6 +406,9 @@ recipe's, and the step used is the first, from it down, that leaves at least
 `heat.MIN_LEFT` (5) posts, or Cool"; `heat_count` is "the cut hid exactly
 floor(P_used x n / 100) of the n posts, never all of them". The audit records
 one row per heat modifier (`heat`: requested, used, before, after).
+`fresh_fallback` (`contract.fresh_fallback_violations`) is also a page promise:
+the page says it used the freshness fallback only for a recipe that has "Favor
+Fresh Posts" and not "Boost Trending Topics".
 
 The promises about the page as a whole (`relevance_order`, `cluster_cap`,
 `fresh_floor`, `instance_cap`, `fire_badge`; `contract.LIST_IDS`, `contract.list_violations`) are
@@ -526,8 +530,17 @@ and weights to the recorded ones, and turns the stagger off; a record whose
 sidecar cannot give the whole focus text of every post is `skipped`, never a
 false mismatch. Writing the log uses the one-shot C JSON encoder (the bytes
 are the same, several times faster), which pays for the larger record: capture
-costs 3.7 ms at p95 per 40-post page with grouping and focus recipes in the
-fuzz.
+costs a median of 1.3 ms and 2.3 to 2.7 ms at p95 per 40-post page (three runs
+of the test's own harness over the fuzz, which has grouping and focus recipes;
+the same harness on the code before the change measured 2.6 to 2.7 and 4.3 to
+4.6 under the same load, so it was close to the 5 ms budget). The saving is
+three things asked once: the installed version of the language detector
+(`functools.cache`), the stripped text of a post (an `lru_cache` of 512 on the
+pure body of `strip_html`, which the diet, the contract, the guard and the
+audit all read) and which promises a recipe makes (once per record, not per
+post). The records are byte for byte the same: the fuzz records (posts, outputs
+and summary of 80 pages) compare equal before and after, and the neutrality
+and replay tests pass.
 
 **Replay is the proof.** `replay` rebuilds each post from its facts and the
 sidecar, runs the real engine over fake fetches that hand them back in the
@@ -810,13 +823,226 @@ the two halves that touch the page (`SourcePeek` for `FeedChefSource`,
   `process_feed` so they share the worker with the cooks (a cook always wins:
   it cancels a peek). A peek's log is kept only while it is the held one.
 
+## Quality layer (Phase 4: moshidon's quality tools, and the A/B optimizer)
+
+Ported from moshidon's Python tools (`toot_quality_metrics.py`,
+`quality_based_recommendations.py`, `rule_based_recommendations.py`,
+`comparison_recommendations.py`, `algorithm_improvement_analyzer.py`,
+`smart_defaults.py` with `optimal_scope_defaults.py`, `auto_fallback.py`,
+`recommendation_engine.py` and `feed_chef_improvements.md`), with their
+formulas, thresholds and weights, as GTK-free modules in `src/feedchef/` that
+compute from audit records and fetch nothing. The UI (a later part) calls them
+on workers.
+
+| Module | What it holds |
+|---|---|
+| `quality.py` | per-post validation, quality and relevance; the per-stage aggregates (P25-P95, the four bands, validity rate); the recipe score (validity 0.4, engagement 0.35, relevance 0.25); a cook's summary |
+| `health.py` | Working Well / Needs Attention with reasons, and the alert (mean score under 0.5 over the last 10 cooks) |
+| `advice.py` | the rule-based, quality-based, analyzer and comparison recommendations, each with a field, current and suggested value, severity, an impact labelled an estimate, and edits that apply to a copy and undo |
+| `recipeedit.py` | the reversible edits (`heat`, `freshness`, `base_sort`, `scope`, `hard.*`, `hashtags_include`) that advice, modes and the optimizer share |
+| `templates.py` | the New Recipe templates, `smart_defaults`, the modes and the "More Posts <-> Better" slider |
+| `optimizer.py` | the A/B optimizer's state machine |
+
+### What the score measures (the honest caveat)
+
+Babble enforces every filter and checks each post again before it is shown, so
+**validity is 100% at the diet and kitchen stages by construction**. The
+recipe score is computed from the kitchen stage, so it mostly measures how
+much people *engaged* with the posts (and how the fade-out aged them), not
+whether the recipe keeps its rules. Every aggregate carries
+`caveat: 'validity_enforced'`, `quality.caveat_text()` says it in words, the CLI
+prints it first and the JSON carries it. The pantry stage is where validity
+can be under 100%: it shows what the diet then removed.
+
+### Mappings (moshidon concept -> Babble)
+
+- **Stages.** moshidon judges the posts "after pantry", "after diet" and
+  "after kitchen", each against the pantry's and the diet's criteria. Babble:
+  *pantry* = the posts no pantry-hashtag removal took out; *diet* = those no
+  removal before the kitchen took out (diet, "Only People I Follow", the
+  viewer's own filters), what enters the kitchen; *kitchen* = the page shown.
+  A post's validity is read from the record's per-post `rules` (pass, fail or
+  n/a), not recomputed: pantry rules (`hashtags_include`, `hashtags_exclude`)
+  halve the validation score, diet rules (the six diet rules, plus
+  `network_reach`, which moshidon has no counterpart for) zero it.
+- **Quality score.** moshidon's formula (favorites 1 + boosts 2.5 + replies
+  1.5) times the recipe's "Favor Fresh Posts" fade, from the record's counts
+  and dates. It has no floor and no sentiment or trending factor, so numbers
+  compare with moshidon's; for a recipe with trending, or a page that used the
+  fallback below, it differs from the kitchen's final score.
+- **Heat.** A moshidon heat threshold is a free percent; a suggestion is
+  mapped to the *nearest* Babble step (Cool 0, Warm 50, Hot 75, Fire 90; a tie
+  to the hotter). The slider and the modes map *down* (40 -> Cool, 60 -> Warm,
+  80 -> Hot), so "More Posts" never hides more than moshidon's value would.
+- **Freshness.** `decay_minutes` as moshidon, with its cap of a day for a
+  doubled fade-out.
+- **Moshidon's "overall score" and "estimated filter rate".** The first is a
+  heuristic of how complex the settings are, the second a guess from them;
+  neither exists here. The comparison recommender's "score below 0.3" reads the
+  recipe quality score, and the filter-rate rule reads the *actual* share the
+  diet removed in the last cook (pantry stage against diet stage). The
+  settings-only numbers (`complexity`, `aggressiveness`) are ported as written.
+- **Where Babble's own promise wins.** moshidon's `auto_fallback` lowers a
+  heat threshold by 15 when fewer than 5 posts are left. Babble has a stricter
+  promise already: `heat.used` steps a page down Fire -> Hot -> Warm -> Cool
+  to the first step that leaves 5 posts, recorded and judged by `heat_count`
+  and `heat_fallback`. It is reused and not duplicated: advice never suggests a
+  step the page would fall back from. Moshidon's third fallback ("raise the
+  heat when over 85% of posts are Low") is a suggestion here (`heat_up`), not
+  a change made behind the reader's back.
+
+### What advice does not suggest
+
+Never something the engine cannot do, and nothing that would break a promise.
+Moshidon's absolute thresholds (fewer than 5 or 10 posts, more than 20) and the
+heat fallback are judged on a *page*: the metrics carry how many posts each
+stage had on each page (§page_sizes§) and the smallest non-empty page is the
+one checked, so a step a typical page would fall back from is not suggested.
+A post count that is not a number (text, NaN, negative) is read as 0, flagged
+(§bad_counts§) and never reaches a score or a file; a post dated after the
+record's clock keeps its engagement unfaded, as the kitchen leaves its
+freshness be; a clock with no zone is read as UTC. Also:
+a heat step the page would fall back from; a change that leaves a recipe the
+import refuses or does not change it; a newest-first order for a recipe with a
+focus (More Like This); switching off alt text (moshidon itself says to keep
+it); cutting blocked words (nobody can tell which); the "too conservative"
+rule (it fires only for a newest-first recipe, whose order is the reader's
+choice); the Home source for a list. A suggestion that needs the reader's
+choice (which hashtags; "review the filters") is `manual` and has no edits.
+Moshidon's recipe-score check reads a key its own caller does not pass (it is
+always 0), and its impact estimate adds the "all scores zero" gain whatever the
+data; the intent is ported (the real score, the real mean). Every impact is an
+*estimate*: the percentages are moshidon's guesses, shown under "Estimate:".
+
+### Templates, defaults, modes and the slider
+
+Recent News (newest first, a 12-hour fade-out, the federated timeline,
+#news), Viral (most engaging, Fire, a day-long fade-out, federated), Topic
+(federated, the reader's hashtag, Warm, a day-long fade-out), Safe Feed (Home,
+alt text, no sensitive posts, minimum length 20, Warm) and Blank (the default
+recipe: Home and a cap of 3 per person). moshidon names the four use cases
+but gives no numbers; the values are its own scope defaults mapped to Babble's
+steps. Light and medium fade-outs are moshidon's 12 and 6 hours. The slider
+bands are 0-25 (More Posts: Cool, newest first, no fade-out), 25-75
+(Balanced: Warm, most engaging, 12 hours) and 75-100 (Better: Hot, 6 hours);
+Explore, Focused and Premium are those three, Custom leaves the recipe alone. A
+recipe with a focus (More Like This) keeps its sort in every mode and at every
+slider position, as the advice does (the focus decides the order); a slider
+position that is not a number is no preset and leaves the recipe as it is.
+Names go through the caller's gettext (`Words`), as in the audit report.
+
+### The freshness fallback (engine revision 5)
+
+When every final score of a page is zero *because of freshness decay*, the
+page uses the 0.2 floor for its freshness factors, for that page only. The
+condition (`contract.fresh_fallback_wanted`): the recipe has "Favor Fresh Posts"
+and not "Boost Trending Topics" (which already has the floor), some post has
+engagement, and the score of every post is zero. It is the freshness half of
+moshidon's `auto_fallback` (which instead doubled the decay in the saved recipe
+or switched to chronological: a silent change of the reader's recipe, not
+done). The kitchen sets `meta['fresh_fallback']`, the audit records
+`fresh_fallback: true` (and each lifted post's `fresh_floor`), the engine adds
+the fallback `fresh_floor_fallback` to the decision log so a screen can say it
+(the toast is the UI's), the guard's `fresh_floor` check expects the floor on
+such a page and only there, and the page promise `fresh_fallback` (in
+`contract.PAGE_IDS`) fails a page that claims it for a recipe that cannot have
+needed it. `evaluate` recomputes whether it was due from the record's base
+scores and dates (rule `floor`), `replay` compares the flag, `validate` checks
+its shape. A page that claims the fallback and scored no post fails the same
+rule (consistently a FAIL, whatever the recipe). `ENGINE_REV` is 5; the audit record also gained an optional
+`variant` (below).
+
+### The A/B optimizer: permission and restore rules
+
+**What it measures: engagement of the posts shown, not the quality of the
+recipe.** The reward is the recipe score of a cook (`quality.py`), which is
+validity (100% by construction), the engagement of the shown posts and their
+relevance. A change that hides more of the least engaging posts (a hotter
+heat step) raises that by construction, so **a proposal that is only a heat
+change is never made** (`optimizer.testable`): it stays one-click advice. The
+experiment says which of two recipes got more engagement on the posts it
+showed, and the UI must say that, not "better".
+
+- **Permission.** `propose` builds a state in the phase `proposed` from a
+  recommendation that has edits and is not heat-only; nothing is cooked
+  differently until the reader accepts (`accept`). Declining is kept, so the
+  same change is not proposed again. No phase implies permission. `trials` is
+  4 to 50 (each arm needs 2 cooks); anything else is a `ValueError`, and a
+  stored state out of that range is no state.
+- **Edits, not recipes.** The state holds the change as *edits* and their
+  *undo*, never whole recipes. Variant B is made at cook time by applying the
+  edits to the recipe the reader has now (`next_cook`), so a focus that fades on
+  every refresh, More Like This included, is in both arms as it is that day,
+  and the kept recipe (`result_recipe(state, current)`) and the undo
+  (`restore(state, current)`) are applied to the current recipe too.
+- **Identity.** An experiment belongs to a recipe by `optimizer.identity`: the
+  recipe's hash without its name and without the focus a refresh rewrites
+  (`active_focus_keywords`, `_weights`, `_hashtags`, `_strength`). A rename or a
+  fading focus does not end it; any other change aborts it (`aborted`), and
+  `restore` then refuses (nothing of the reader's is overwritten). The audit
+  record's own recipe hash is of the whole recipe of that cook, and the tag
+  names both A's and B's hash for that cook.
+- **Trials.** Variant B alternates with A on refreshes, chosen by seeded
+  Thompson sampling: a Beta(1 + wins, 1 + losses) draw per arm through
+  `random.Random('seed:n')`, so the choice is a pure function of the state and
+  survives a restart. Each arm is guaranteed 2 cooks within the trials
+  (moshidon's "after 10 uses"). The reward is a cook's recipe score of at
+  least 0.6, and a score that is not a finite number is no result.
+- **Only a refresh's first page is a trial.** The engine records no variant
+  for a peek (Smart New Posts) or for a page past the first, and the reward is
+  `optimizer.score_of(records, tag)`: the score of the page-0, hop-0, shown
+  record that carries the tag, never a peek's or a load-more's.
+- **Verdict.** After the trials B is kept only if its reward rate is strictly
+  higher than A's; a tie keeps what the reader had. The stored recipe is never
+  changed while it runs; a kept B is saved by the caller.
+- **Off and restore.** `turn_off` ends it in any phase. `restore` applies the
+  undo to the current recipe when it is the kept variant, returns the
+  current recipe when it is the original, and returns nothing otherwise. With
+  no focus and no other change that is the original recipe exactly (the same
+  stored form, field for field).
+- **Where the state lives.** In a sidecar per account
+  (`feed-chef/optimizer/<account>.json`, mode 0600 from its creation, through
+  the audit's atomic private writer, in a 0700 folder;
+  `FeedRecipeStorage.load_optimizer` validates it with `optimizer.validate`
+  and `save_optimizer`), never in the recipe: the share link is made from the
+  recipe alone, so the state cannot leak into one; the recipe's file and hash
+  stay as they were; a lost, corrupt or invalid sidecar only ends an
+  experiment. Deleting a recipe deletes its state.
+- **Recorded.** Each cook carries a tag (variant id, seed, the number of the
+  trial, the hashes of A and B for that cook) passed as
+  `process_feed(variant=)` and written to the audit record of its first page.
+  The `variant` rule of `evaluate` checks that the record's recipe is the one
+  the variant names. A replay passes the recorded variant back and compares
+  it. The CLI reports an experiment as one line (the cooks of each arm and
+  their mean score, no seed); the cooks of arm B are not listed as a recipe.
+
+### Recipe health
+
+`health.assess` over the cook summaries (`quality.summaries`, oldest first):
+Working Well, or Needs Attention with the reasons `low_score` (the mean of the
+last 10 under 0.5, judged from 3 cooks on), `few_posts` (the last cook showed
+fewer than 5), `zero_scores` and `mostly_low` (over 85% of its posts Low:
+moshidon's fallback conditions). The alert is: the mean score over the last 10
+cooks is under 0.5, and it needs exactly 10 cooks. Cooks are ordered by the
+clock their records carry (not by the order they are handed over), a record
+with no readable clock sorting last.
+
+### CLI
+
+`bench/feedchef_audit.py quality [LOG...] [--recipe ID] [--since DATE] [--json
+PATH]` prints, per recipe, the caveat, the stages, the health and the advice;
+`collect` prints the same section and its `--json` adds it per recipe. The
+JSON has numbers, ids, the recipe hash and dates only (a list of hashtags only
+as its length); the test checks that every string in it is an id, a date or a
+hash.
+
 ## Out of v1
 
 `RequestMode`, federated time window, `LocalPostRepository` in the engine,
 `FeedEngineFactory`, `expected_outcome`, BFS degree ≥ 2, dedicated MLT
 fragment, mashdon `sentiment_words.json` (replaced by VADER/LeIA),
 freshness blend 0.4, synonyms and trigram expansion,
-federated 8 h manual QA, mashdon `tools/` Python helpers, PRD-only pantry
+federated 8 h manual QA, PRD-only pantry
 window / `RequestMode` / `expected_outcome`.
 
 ## Module boundary

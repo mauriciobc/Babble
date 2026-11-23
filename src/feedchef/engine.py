@@ -204,8 +204,11 @@ class FeedEngine:
         instance_counts: dict[str, int] | None = None,
         peek: bool = False,
         exclude: frozenset[str] | set[str] | None = None,
+        variant: dict[str, Any] | None = None,
     ):
-        """Cook one page on the engine worker. *peek* makes it the page
+        """Cook one page on the engine worker. *variant* is what the A/B
+        optimizer says of this cook (see ``optimizer.cook_tag``): recorded,
+        never read. *peek* makes it the page
         Smart New Posts looks at (audit outcome 'peek', never shown by
         itself); *exclude* are the ids already on screen, dropped from the
         sources before anything else so they use no one's slot of the
@@ -227,7 +230,7 @@ class FeedEngine:
                     author_counts=author_counts, hide=hide,
                     cook_id=cook_id, page_index=page_index, hop=hop,
                     instance_counts=instance_counts, peek=peek,
-                    exclude=exclude)
+                    exclude=exclude, variant=variant)
                 if cancel.is_set():
                     # Its page is never shown: the record, already
                     # written, says so. A peek nobody saw leaves no log.
@@ -262,6 +265,7 @@ class FeedEngine:
         page_index: int = 0,
         hop: int = 0,
         instance_counts: dict[str, int] | None = None,
+        variant: dict[str, Any] | None = None,
     ) -> FeedResult:
         recipe = copy.deepcopy(recipe)
         return self._process_sync(
@@ -269,7 +273,7 @@ class FeedEngine:
             on_stage=None, cancel=threading.Event(), generation='sync',
             author_counts=author_counts, hide=hide,
             cook_id=cook_id, page_index=page_index, hop=hop,
-            instance_counts=instance_counts)
+            instance_counts=instance_counts, variant=variant)
 
     def run_background(self, work: Callable[[], None]) -> None:
         """Run *work* on the engine worker, after the cook it may be
@@ -326,6 +330,7 @@ class FeedEngine:
         instance_counts: dict[str, int] | None = None,
         peek: bool = False,
         exclude: frozenset[str] | set[str] | None = None,
+        variant: dict[str, Any] | None = None,
     ) -> FeedResult:
         """One page. *peek* and *exclude* are those of ``process_feed``.
         *instance_counts* is the same as *author_counts* for
@@ -350,7 +355,10 @@ class FeedEngine:
             recipe, account_key=self.account_key,
             self_id=self.self_account_id, cook_id=cook_id or '',
             page_index=page_index, hop=hop, cursor_in=max_id, count=count,
-            app_version=self.app_version)
+            app_version=self.app_version,
+            # Only the first page of a refresh is a trial of the A/B
+            # optimizer: a peek, and a page loaded further down, are not.
+            variant=None if peek or page_index else variant)
             if self.audit else NULL)
         logger = FeedDecisionLogger(recipe.id, audit, cook_id)
         logger.persistent = self.persist_log
@@ -562,7 +570,8 @@ class FeedEngine:
                 fresh=kitchen_meta.get('fresh'),
                 instance_counts=instance_counts, now=now,
                 heat=kitchen_meta.get('heat_steps'), scores=score_map,
-                fire=kitchen_meta.get('fire')))
+                fire=kitchen_meta.get('fire'),
+                fresh_fallback=bool(kitchen_meta.get('fresh_fallback'))))
         audit.judged_scores(judge, pantry.items)
         logger.set_kitchen(
             input_count=len(after_reach),
@@ -575,6 +584,9 @@ class FeedEngine:
             cluster=kitchen_meta.get('cluster'),
             unavailable=kitchen_meta.get('unavailable'),
         )
+        if kitchen_meta.get('fresh_fallback'):
+            # Not a silent change: the page says it used the floor.
+            logger.add_fallback('fresh_floor_fallback')
         for kind in kitchen_meta.get('unavailable') or ():
             # A modifier that could not run here (a package it needs is
             # missing) is a fallback of the cook, not a quiet no-op.
@@ -669,6 +681,12 @@ class FeedEngine:
             logger.add_error('contract:%s' % promise_id)
             log.warning('feedchef: contract %s broken by the heat cut of '
                         'the page', promise_id)
+        for promise_id in contract.fresh_fallback_violations(
+                recipe, facts.fresh_fallback):
+            dropped[promise_id] = dropped.get(promise_id, 0) + 1
+            logger.add_error('contract:%s' % promise_id)
+            log.warning('feedchef: contract %s broken by the page: the '
+                        'freshness fallback was not needed', promise_id)
         broken = contract.list_violations(recipe, kept, facts)
         if not broken:
             return kept

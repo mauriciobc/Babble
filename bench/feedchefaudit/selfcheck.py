@@ -83,11 +83,11 @@ def floor_recipe():
     return recipe
 
 
-def _cook_recipe(recipe, seed, case, folder):
+def _cook_recipe(recipe, seed, case, folder, variant=None):
     """The Loaded log of one page of *recipe*."""
     before = set(expand([folder]))
     fuzz.cook(fuzz.World(random.Random(seed), recipe), recipe, case,
-              pages=1, now=fuzz.NOW)
+              pages=1, now=fuzz.NOW, variant=variant)
     return load((set(expand([folder])) - before).pop())
 
 
@@ -305,6 +305,96 @@ def _floor_cases(checks, folder):
            evalmod.evaluate_record(missing).verdict('floor') == 'FAIL')
     checks('and is a replay mismatch at the kitchen',
            replaymod.replay(missing).stage == 'kitchen')
+    fresh_cases(checks, folder)
+    variant_cases(checks, folder)
+
+
+def fade_recipe(decay=1):
+    """A fade-out of one minute: freshness zeroes every score of the
+    page, and with no trending it is the page's fallback that holds them
+    at the floor."""
+    recipe = default_recipe('fade')
+    recipe.kitchen.modifiers = [Modifier(type='freshness',
+                                         decay_minutes=decay)]
+    return recipe
+
+
+def _drop_fallback(record):
+    """Forget that the page used the floor."""
+    del record['fresh_fallback']
+
+
+def _claim_fallback(record):
+    """Say the page used the floor when its scores were not all zero."""
+    record['fresh_fallback'] = True
+
+
+def fresh_cases(checks, folder):
+    """The freshness fallback: a page whose scores are all zero because of
+    the fade-out uses the floor and records it; a record that hides it, or
+    claims it for a page that did not need it, is caught."""
+    faded = _cook_recipe(fade_recipe(), 45, 914, folder)
+    tally = evalmod.evaluate_record(faded)
+    checks('a page whose scores freshness zeroed used the floor and says '
+           'so (%d posts), and passes the floor check'
+           % faded.record['summary']['selected'],
+           faded.record.get('fresh_fallback') is True
+           and faded.record['summary']['selected'] > 0
+           and tally.verdict('floor') == 'PASS' and tally.ok()
+           and all((e['score'] or {}).get('fresh_floor')
+                   for e in faded.record['posts'] if e['score']))
+    checks('and replays identically',
+           replaymod.replay(faded).status == 'identical')
+    missing = _copy(faded, _drop_fallback)
+    checks('a fallback that is not recorded fails the floor check',
+           evalmod.evaluate_record(missing).verdict('floor') == 'FAIL')
+    checks('and is a replay mismatch at the kitchen',
+           replaymod.replay(missing).stage == 'kitchen')
+    calm = _cook_recipe(fade_recipe(100000), 45, 915, folder)
+    checks('a page whose scores are not zero used no fallback, and passes',
+           'fresh_fallback' not in calm.record
+           and evalmod.evaluate_record(calm).verdict('floor') == 'PASS')
+    claimed = _copy(calm, _claim_fallback)
+    checks('a fallback claimed for such a page fails the floor check',
+           evalmod.evaluate_record(claimed).verdict('floor') == 'FAIL')
+    checks('and is a replay mismatch at the kitchen',
+           replaymod.replay(claimed).stage == 'kitchen')
+
+
+def _variant_tag(recipe, arm, other='f' * 64):
+    mine = auditmod.recipe_hash(recipe)
+    return {'id': arm, 'seed': 7, 'n': 0,
+            'original': mine if arm == 'A' else other,
+            'proposed': mine if arm == 'B' else other}
+
+
+def variant_cases(checks, folder):
+    """A cook of the A/B optimizer records which recipe it cooked and the
+    seed; the record's own recipe is the one the variant names."""
+    recipe = strict_recipe()
+    for index, arm in enumerate(('A', 'B')):
+        cooked = _cook_recipe(recipe, 46, 960 + index, folder,
+                              variant=_variant_tag(recipe, arm))
+        tally = evalmod.evaluate_record(cooked)
+        checks('a cook of variant %s records it with its seed, and the '
+               'recipe is the one it names' % arm,
+               cooked.record['variant']['id'] == arm
+               and cooked.record['variant']['seed'] == 7
+               and tally.verdict('variant') == 'PASS' and tally.ok()
+               and replaymod.replay(cooked).status == 'identical')
+    wrong = _copy(cooked, lambda record: record['variant'].update(id='A'))
+    checks('a record that says variant A for the recipe of B fails the '
+           'variant check',
+           evalmod.evaluate_record(wrong).verdict('variant') == 'FAIL')
+    same = _copy(cooked, lambda record: record['variant'].update(
+        original=record['variant']['proposed']))
+    checks('and so does one whose two recipes are the same',
+           evalmod.evaluate_record(same).verdict('variant') == 'FAIL')
+    plain = _cook_recipe(recipe, 46, 970, folder)
+    checks('a cook that is not one of the optimizer has no variant to '
+           'judge',
+           'variant' not in plain.record
+           and evalmod.evaluate_record(plain).verdict('variant') == 'n/a')
 
 
 def heat_recipe():
@@ -701,7 +791,12 @@ def _run(checks, tmp):
     for seed in range(SEEDS):
         rng = random.Random(7000 + seed)
         recipe = fuzz.random_recipe(rng)
-        fuzz.cook(fuzz.World(rng, recipe), recipe, seed, now=fuzz.NOW)
+        # Every fifth cook is one of the A/B optimizer's (alternating the
+        # arm): the variant it records is judged by the variant rule.
+        arm = 'AB'[seed // 5 % 2]
+        variant = None if seed % 5 else _variant_tag(recipe, arm)
+        fuzz.cook(fuzz.World(rng, recipe), recipe, seed, now=fuzz.NOW,
+                  variant=variant)
     logs = [load(path) for path in expand([os.path.join(tmp, 'logs')])]
     checks('%d synthetic pages were recorded' % len(logs), len(logs) > SEEDS)
     base = next(item for item in logs

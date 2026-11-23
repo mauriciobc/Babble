@@ -13,7 +13,7 @@ from . import cluster as clustermod
 from . import heat as heatmod
 from . import relevance as relevancemod
 from .audit import NULL
-from .contract import FRESHNESS_FLOOR
+from .contract import FRESHNESS_FLOOR, fresh_fallback_wanted
 from .recipe import FeedRecipe, Modifier
 from .recipe import max_per as max_per_value
 from .textutil import (account_of, content_of, host_of_account,
@@ -84,6 +84,25 @@ def floor_applied(status: dict[str, Any], mod: Modifier,
 
 def has_trending(recipe: FeedRecipe) -> bool:
     return any(mod.type == 'trending' for mod in recipe.kitchen.modifiers)
+
+
+def fresh_rows(statuses: list[dict[str, Any]], recipe: FeedRecipe,
+               now: datetime) -> list[tuple[float, float | None]]:
+    """For each post, its engagement score and the product of its
+    freshness factors without any floor: what ``fresh_fallback_wanted``
+    judges (the page's scores when freshness is the only thing that can
+    zero them)."""
+    mods = [mod for mod in recipe.kitchen.modifiers
+            if mod.type == 'freshness']
+    rows = []
+    for status in statuses:
+        product = None
+        for mod in mods:
+            factor = freshness_factor(status, mod, now, False)
+            if factor is not None:
+                product = factor if product is None else product * factor
+        rows.append((base_score(status), product))
+    return rows
 
 
 def apply_freshness(score: float, status: dict[str, Any],
@@ -361,6 +380,16 @@ def score_statuses(
     tag_heat = local_tag_heat(statuses, server, now)
     audit.heat_map(tag_heat)
     floor = has_trending(recipe)
+    # Every score zero because freshness faded every post (and the recipe
+    # has no trending to hold the floor): this page, and only this page, uses
+    # the floor of 0.2 (moshidon's auto_fallback, its freshness half). The
+    # heat half of that rule is ``heat.used``.
+    fallback = (not floor and fresh_fallback_wanted(
+        recipe, fresh_rows(statuses, recipe, now)))
+    meta['fresh_fallback'] = fallback
+    if fallback:
+        audit.fresh_fallback()
+        floor = True
     words = relevancemod.WordCache()
     audit.words(words)
     meta['inert'] = sorted({mod.type for mod in recipe.kitchen.modifiers

@@ -62,6 +62,13 @@ def _path(account_key: str) -> str:
     return os.path.join(_dir(), _safe_name(account_key) + '.json')
 
 
+def _optimizer_path(account_key: str) -> str:
+    """The A/B optimizer's sidecar: apart from the recipes, so a recipe's
+    file, its hash and its share link never carry it."""
+    return os.path.join(_dir(), 'optimizer', _safe_name(account_key)
+                        + '.json')
+
+
 class FeedRecipeStorage:
     def __init__(self, account_key: str):
         if not account_key:
@@ -120,7 +127,47 @@ class FeedRecipeStorage:
             if len(kept) == len(recipes):
                 return False
             self._write([recipe_to_dict(recipe) for recipe in kept])
+            self.save_optimizer(recipe_id, None)
             return True
+
+    # -- the A/B optimizer's state (see feedchef.optimizer) ---------------
+
+    def _optimizer_states(self) -> dict[str, Any]:
+        try:
+            with open(_optimizer_path(self.account_key), 'r',
+                      encoding='utf-8') as handle:
+                raw = json.load(handle)
+        except (OSError, ValueError, TypeError):
+            return {}
+        return raw if isinstance(raw, dict) else {}
+
+    def load_optimizer(self, recipe_id: str) -> dict[str, Any] | None:
+        """The experiment of a recipe, or None: no file, an unreadable one,
+        or a state that is not valid (it ends the experiment, nothing
+        else)."""
+        from . import optimizer
+        with self._lock:
+            state = self._optimizer_states().get(recipe_id)
+        return optimizer.validate(state)
+
+    def save_optimizer(self, recipe_id: str,
+                       state: dict[str, Any] | None) -> None:
+        """Keep the experiment of a recipe (None: forget it), private to
+        the user."""
+        with self._lock:
+            states = self._optimizer_states()
+            if state is None:
+                if states.pop(recipe_id, None) is None:
+                    return
+            else:
+                states[recipe_id] = state
+            from .audit import write_private
+            path = _optimizer_path(self.account_key)
+            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+            os.chmod(os.path.dirname(path), 0o700)
+            # Private from its creation (never a moment at the umask's
+            # mode), and replaced atomically.
+            write_private(path, states)
 
     def _quarantine_corrupt(self) -> None:
         """Keep an unreadable recipes file before a write replaces it."""

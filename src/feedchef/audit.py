@@ -39,7 +39,7 @@ log = logging.getLogger('babble.feedchef')
 SCHEMA = 2
 # Bumped by hand whenever the meaning of a stage changes; a replay refuses
 # a record made by another revision unless it is forced.
-ENGINE_REV = 4
+ENGINE_REV = 5
 # The stripped text kept per post in the sidecar.
 TEXT_CAP = 2000
 # The outcomes of a page that finished: 'ok' (shown as a page of the cook),
@@ -51,7 +51,8 @@ FINISHED = ('ok', 'peek', 'shown')
 SHOWN = ('ok', 'shown')
 
 PANTRY_REASONS = ('pantry_excluded_tag', 'pantry_missing_included_tag')
-# Revision 3 added cluster_cap and instance_cap.
+# Revision 3 added cluster_cap and instance_cap. Revision 5 added the page's
+# freshness fallback (``fresh_fallback``) and the optimizer's ``variant``.
 FIXED_REASONS = frozenset(PANTRY_REASONS + (
     'reach_not_followed', 'viewer_hide', 'heat_cut', 'author_cap',
     'cluster_cap', 'instance_cap'))
@@ -65,6 +66,7 @@ _PANTRY_PROMISE = {'pantry_excluded_tag': 'hashtags_exclude',
 # six, then network reach.
 _EVAL_ORDER = (contract.PROMISE_IDS[6:8] + contract.PROMISE_IDS[:6]
                + contract.PROMISE_IDS[8:])
+_EVAL_AT = {name: at for at, name in enumerate(_EVAL_ORDER)}
 
 
 def is_reason(reason: str) -> bool:
@@ -224,8 +226,14 @@ class Recorder:
     def __init__(self, recipe: FeedRecipe, *, account_key: str = '',
                  self_id: str = '', cook_id: str = '', page_index: int = 0,
                  hop: int = 0, cursor_in: str | None = None, count: int = 0,
-                 app_version: str = 'dev', session_id: str = ''):
+                 app_version: str = 'dev', session_id: str = '',
+                 variant: dict | None = None):
         self.recipe = recipe
+        # The cook of the A/B optimizer (feedchef.optimizer): which variant
+        # this page cooked, with the seed that chose it. Observed only.
+        self.variant = dict(variant) if variant else None
+        self.fallback_fresh = False
+        self._actives: set[str] | None = None
         self.identity = {
             'session_id': session_id, 'cook_id': cook_id,
             'page_index': page_index, 'hop': hop, 'cursor_in': cursor_in,
@@ -364,6 +372,11 @@ class Recorder:
         row = self.factors.setdefault(sid, {})
         row[kind] = row[kind] * value if kind in row and kind != 'base' \
             else value
+
+    def fresh_fallback(self) -> None:
+        """Every score of the page was zero because freshness faded every
+        post, so the page used the floor of 0.2 (``kitchen.score_statuses``)."""
+        self.fallback_fresh = True
 
     def fresh_floor(self, sid: str) -> None:
         """The freshness factor of this post was raised to the floor."""
@@ -522,16 +535,21 @@ class Recorder:
             failed = _PANTRY_PROMISE.get(reason) or (
                 reason[5:] if reason.startswith('diet:') else
                 'network_reach' if reason == 'reach_not_followed' else None)
-        done = _EVAL_ORDER.index(failed) if failed else len(_EVAL_ORDER)
+        done = _EVAL_AT[failed] if failed else len(_EVAL_ORDER)
+        if self._actives is None:
+            # One recipe per record: which promises it makes is asked once.
+            self._actives = {promise.id for promise in contract.PROMISES
+                             if promise.active(self.recipe)}
+        active = self._actives
         rules = {}
         for promise in contract.PROMISES:
-            if not promise.active(self.recipe):
+            if promise.id not in active:
                 rules[promise.id] = 'n/a'
             elif broken is not None:
                 rules[promise.id] = 'fail' if promise.id in broken \
                     else 'pass'
             else:
-                at = _EVAL_ORDER.index(promise.id)
+                at = _EVAL_AT[promise.id]
                 rules[promise.id] = ('pass' if at < done else
                                      'fail' if at == done else 'n/a')
         return rules
@@ -685,6 +703,8 @@ class Recorder:
                if self.grouping is not None else {}),
             **({'focus_unmatched': True} if self.unmatched else {}),
             **({'heat': self.heat_rows} if self.heat_rows else {}),
+            **({'fresh_fallback': True} if self.fallback_fresh else {}),
+            **({'variant': self.variant} if self.variant else {}),
         }
 
 
@@ -705,8 +725,8 @@ def _guarded(method):
 for _name in ('clock', 'fetched', 'hashtag_fetched', 'pantry', 'counts',
               'follow_state', 'diet_decisions', 'reach_removed',
               'viewer_checked', 'trends_seen', 'judged_scores', 'heat_map',
-              'factor', 'fresh_floor', 'relevance', 'focus_unmatched', 'words',
-              'cluster', 'heat_steps', 'fire',
+              'factor', 'fresh_floor', 'fresh_fallback', 'relevance',
+              'focus_unmatched', 'words', 'cluster', 'heat_steps', 'fire',
               'kitchen_cut',
               'guard_verdict', 'finish', 'failed', 'cancelled', 'peeked'):
     setattr(Recorder, _name, _guarded(getattr(Recorder, _name)))

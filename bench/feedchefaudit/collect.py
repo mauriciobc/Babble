@@ -11,6 +11,7 @@ import json
 import os
 
 from feedchefaudit import evaluate as evalmod
+from feedchefaudit import qualityreport
 from feedchefaudit import replay as replaymod
 from feedchefaudit.records import LogError, Loaded, expand, load
 
@@ -81,11 +82,14 @@ def _replay(row, loaded, force):
         row['notes'].append('replay mismatch: %s' % result.detail)
 
 
-def _export(rows, unreadable=0):
+def _export(rows, unreadable=0, scored=None):
     recipes = []
+    scored = scored or {}
     for digest, row in sorted(rows.items()):
         tally = row['tally']
         recipes.append({
+            **({'quality': qualityreport.export(scored[digest])}
+               if digest in scored else {}),
             'recipe_hash': digest, 'cooks': len(row['cooks']),
             'pages': row['pages'], 'first_day': min(row['days']),
             'last_day': max(row['days']), 'pantry_in': row['pantry_in'],
@@ -131,6 +135,7 @@ def collect(paths, recipe_id=None, since=None, json_path=None, force=False,
         return 1 if unreadable else 2
     good = not unreadable
     unverified = False
+    scored = qualityreport.gather(loaded)
     for digest, row in sorted(rows.items()):
         tally = row['tally']
         replay = row['replay']
@@ -161,15 +166,20 @@ def collect(paths, recipe_id=None, since=None, json_path=None, force=False,
             out('  %d pages were cancelled and are not counted'
                 % row['cancelled'])
         out('  overall: %s' % tally.overall())
+        if digest in scored:
+            qualityreport.lines(scored[digest], out)
         for note in row['notes'][:5]:
             out('  note: %s' % note)
         good = good and tally.ok() and not replay['mismatch'] \
             and not replay['cannot']
         unverified = unverified or bool(tally.text_unverified
                                         or replay['unverified_posts'])
+    for row in qualityreport.experiments(loaded):
+        out(qualityreport.experiment_line(row))
     if json_path:
         with open(json_path, 'w', encoding='utf-8') as handle:
-            json.dump(_export(rows, len(unreadable)), handle, indent=2,
+            json.dump(_export(rows, len(unreadable), scored), handle,
+                      indent=2,
                       sort_keys=True)
             handle.write('\n')
     if not good:

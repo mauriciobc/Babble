@@ -229,10 +229,11 @@ class World:
 
 
 def cook(world, recipe, case, pages=3, count=40, audit=True, now=None,
-         hide=None):
+         hide=None, variant=None):
     """Cook up to *pages* pages of *recipe* over *world* through the real
     engine. *audit* turns the audit record on or off; *now* (a datetime)
-    pins the page clock, so two runs can be compared bit for bit."""
+    pins the page clock, so two runs can be compared bit for bit. *variant*
+    is what the A/B optimizer says of the cook (recorded, never read)."""
     engine = FeedEngine(
         account_key='case#%d' % case, self_account_id=ME,
         fetch_scope=world.fetch_scope, fetch_hashtag=world.fetch_hashtag,
@@ -253,7 +254,8 @@ def cook(world, recipe, case, pages=3, count=40, audit=True, now=None,
             result = engine.process_feed_sync(
                 recipe, max_id=cursor, count=count, author_counts=counts,
                 instance_counts=instances,
-                cook_id='case%d' % case, page_index=page, hide=hide)
+                cook_id='case%d' % case, page_index=page, hide=hide,
+                variant=variant)
             results.append(result)
             counts = result.author_counts
             instances = result.instance_counts

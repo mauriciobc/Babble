@@ -128,6 +128,10 @@ def first_difference(recorded, replayed, unreliable=()):
             return 'kitchen', '', 'env.%s differs' % key
     if recorded.get('heat') != replayed.get('heat'):
         return 'kitchen', '', 'heat differs'
+    if recorded.get('fresh_fallback') != replayed.get('fresh_fallback'):
+        return 'kitchen', '', 'fresh_fallback differs'
+    if recorded.get('variant') != replayed.get('variant'):
+        return 'summary', '', 'variant differs'
     if _page_view(recorded) != _page_view(replayed):
         return 'kitchen', '', '%s differs' % _field(
             'cluster', _page_view(recorded), _page_view(replayed))
@@ -192,7 +196,7 @@ def run(rebuilt):
             hide=(lambda status: str(status.get('id') or '') in hidden)
             if env['viewer_filter'] else None,
             cook_id=record['cook_id'], page_index=record['page_index'],
-            hop=record['hop'])
+            hop=record['hop'], variant=record.get('variant'))
     finally:
         engine.shutdown()
         # The follow-list preload may still be writing its cache file.
