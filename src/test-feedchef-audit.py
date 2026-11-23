@@ -120,7 +120,10 @@ check('every fuzz cook passes every recipe check (%s)' % ', '.join(
     tally.ok() and all(
         tally.checked[rule] for rule in evalmod.RULES
         # Posts are only guessed at with py3langid (CI installs it).
-        if rule != 'language' or not deps.unavailable_reason('py3langid')))
+        if (rule != 'language' or not deps.unavailable_reason('py3langid'))
+        # A merge exists only for a peek that was shown: the self-test and
+        # 'feedchef peek' judge it.
+        and rule != 'merge'))
 record = audit_logs[0].record
 check('the record is schema 2, from engine revision %d, app "dev"'
       % auditmod.ENGINE_REV,

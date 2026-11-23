@@ -18,6 +18,7 @@ from gi.repository import Gio, GLib, GObject
 from . import filterrules
 from .feedchef.engine import ScopeFetchError
 from .feedchef.network_reach import FollowListError
+from .feedchefpeek import SourcePeek
 from .i18n import gettext as _
 
 # Posts asked of the engine for one page.
@@ -80,7 +81,7 @@ class _Cook:
         self.servers = servers if servers is not None else {}
 
 
-class FeedChefSource:
+class FeedChefSource(SourcePeek):
     """Source protocol of ``TimelinePage`` over ``FeedEngine.process_feed``.
 
     ``paging = 'cook'`` is neither 'id' nor 'link': TimelinePage then does
@@ -92,6 +93,10 @@ class FeedChefSource:
 
     paginated = True
     paging = 'cook'
+    # What a peek (feedchefpeek) cooks, and how many audit pages are kept.
+    peek_count = COOK_COUNT
+    peek_hide = staticmethod(viewer_hides)
+    audit_keep = AUDIT_PAGES
 
     def __init__(self, engine, recipe):
         self.engine = engine
@@ -124,6 +129,7 @@ class FeedChefSource:
         self.fire_ids = set()
         self._heat_fallback = None
         self._heat_said = False
+        self._peek_init()
 
     def audit_for(self, status_id):
         """The audit entry of a post of the shown pages, with the page's
@@ -186,6 +192,11 @@ class FeedChefSource:
         if cancellable is not None:
             cook.handler = cancellable.connect(partial(self._cancelled, cook))
         self.error_kind = None
+        # A peek in flight is cancelled by this cook (one engine, one
+        # worker); a refresh also ends the session the held one belongs to.
+        self._peek_token = None
+        if not older:
+            self._peek_forget()
         self._start(cook, self._cursor if older else None, 0)
 
     def finish(self, result):
@@ -205,6 +216,8 @@ class FeedChefSource:
         (``_close_paging_scope()`` on dispose, ``_scope.begin()`` when
         it cooks another recipe); otherwise the reader would be shown an
         error page for something they did."""
+        self._peek_token = None
+        self._peek_drop()
         cook, self._active = self._active, None
         self.engine.cancel()
         if cook is not None and not cook.done:
@@ -278,6 +291,15 @@ class FeedChefSource:
             self._audits = []
             self.fire_ids = set()
             self._heat_said = False
+            self.scores.clear()
+            self.shown.clear()
+            self._peek_serial = 0
+        # The counts moved: a peek made against the old ones is stale.
+        self._rev += 1
+        self._peek_drop()
+        if self.peek_listener is not None:
+            self.peek_listener(None)
+        self.cache_page(result)
         self.fire_ids.update(
             (result.kitchen_meta.get('fire') or {}).get('ids') or ())
         self._heat_fallback = next(

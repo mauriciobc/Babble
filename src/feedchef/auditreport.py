@@ -15,6 +15,8 @@ from __future__ import annotations
 import locale
 from typing import Any, Callable, NamedTuple
 
+from .audit import SHOWN
+
 
 class Row(NamedTuple):
     title: str
@@ -392,8 +394,12 @@ def explain_post(entry: dict, record: dict,
     it passed and how it was ranked (or why it was removed)."""
     _ = words.gettext
     snapshot = (record.get('recipe') or {}).get('snapshot') or {}
-    sections = [Section(_('Where It Came From'),
-                        _origin_rows(entry, snapshot, words))]
+    origin = _origin_rows(entry, snapshot, words)
+    if entry.get('id') in ((record.get('merge') or {}).get('inserted') or ()):
+        # Smart New Posts: a peek put this post on top after the page was
+        # shown.
+        origin.append(Row(_('Arrived'), _('It arrived later as a new post')))
+    sections = [Section(_('Where It Came From'), origin)]
     about = _about_rows(entry, words)
     if about:
         sections.append(Section(_('About This Post'), about))
@@ -493,7 +499,7 @@ def cook_report(records: list[dict], words: Words = ENGLISH) -> Report:
     audit records of the cook's pages."""
     _ = words.gettext
     usable = [record for record in records
-              if (record.get('outcome') or {}).get('status') == 'ok']
+              if (record.get('outcome') or {}).get('status') in SHOWN]
     gathered = selected = duplicates = 0
     removed: dict[str, int] = {}
     for record in usable:

@@ -13,10 +13,12 @@ import math
 import os
 from datetime import datetime
 
+from src.feedchef import audit as auditmod
 from src.feedchef import cluster as clustermod
 from src.feedchef import langguess
 from src.feedchef import contract, kitchen as kitchenmod
 from src.feedchef import relevance as relevancemod
+from src.feedchef import smartmerge
 from src.feedchef.recipe import max_per
 from src.feedchef.textutil import parse_created_at
 from feedchefaudit import validate
@@ -26,7 +28,7 @@ from feedchefaudit.records import (LogError, Rebuilt, check_replayable,
 RULES = ('record', 'promises', 'hashtags', 'follow', 'order', 'relevance',
          'cluster', 'floor', 'language', 'heat', 'fire', 'cap',
          'removal_reasons',
-         'guard')
+         'guard', 'merge')
 
 
 class Tally:
@@ -38,6 +40,8 @@ class Tally:
         self.examples = {rule: [] for rule in RULES}
         self.unverifiable = 0
         self.text_unverified = 0
+        # Things worth saying that are not a rule's verdict.
+        self.notes = []
 
     def add(self, rule, checked=1, violated=0, example=''):
         self.checked[rule] += checked
@@ -53,6 +57,7 @@ class Tally:
                                    + other.examples[rule])[:5]
         self.unverifiable += other.unverifiable
         self.text_unverified += other.text_unverified
+        self.notes.extend(other.notes)
 
     def verdict(self, rule):
         if self.violations[rule]:
@@ -232,9 +237,11 @@ def evaluate_record(loaded):
         tally.add('record', 1, 0)
         for problem in problems:
             tally.add('record', 0, 1, problem)
-        if problems or record['outcome']['status'] != 'ok':
+        if problems or record['outcome']['status'] \
+                not in auditmod.FINISHED:
             return tally
         rebuilt = Rebuilt(loaded)
+        _check_merge(tally, record, rebuilt.recipe)
     except LogError as error:
         tally.add('record', 1, 1, str(error))
         return tally
@@ -245,6 +252,18 @@ def evaluate_record(loaded):
         tally.add('record', 0, 1, 'the record could not be judged (%s)'
                   % type(error).__name__)
     return tally
+
+
+def _check_merge(tally, record, recipe):
+    """A peek that was shown kept the promises of the merged list: the
+    ids put on top came from this page's own selection, none twice, only
+    the window was ordered again and its order does not rise."""
+    merge = record.get('merge')
+    if merge is None:
+        return
+    problems = smartmerge.record_violations(
+        merge, record['outputs']['order'], recipe)
+    tally.add('merge', 1, bool(problems), ', '.join(problems))
 
 
 def _judge(tally, rebuilt, record):
@@ -589,7 +608,8 @@ def evaluate_cook(pages):
         mine = evaluate_record(loaded)
         tally.merge(mine)
         record = loaded.record
-        if record['outcome']['status'] != 'ok' or mine.violations['record']:
+        if record['outcome']['status'] not in auditmod.SHOWN \
+                or mine.violations['record']:
             continue
         try:
             recipe = recipe or recipe_of(record)
@@ -602,6 +622,7 @@ def evaluate_cook(pages):
                 if _host(entry):
                     per_host[_host(entry)] = per_host.get(
                         _host(entry), 0) + 1
+    _note_unmarked_peeks(tally, dedupe_pages(pages))
     caps = _caps(recipe) if recipe else []
     for person, count in per_person.items():
         if caps:
@@ -614,6 +635,27 @@ def evaluate_cook(pages):
             tally.add('cap', 1, count > cap,
                       'a server has %d over the cook, cap %d' % (count, cap))
     return tally
+
+
+def _note_unmarked_peeks(tally, pages):
+    """A peek whose posts were shown but whose log still says ``peek``
+    (the write that marks it ``shown`` was dropped, say at quit): the
+    counts of a later page of the cook start from the ones the peek ended
+    with, which only happens when its posts went on screen."""
+    records = [loaded.record for loaded in pages if loaded.record
+               and not validate.structure(loaded.record)]
+    for record in records:
+        if record['outcome']['status'] != 'peek' \
+                or not record['outputs']['order']:
+            continue
+        out = record['outputs']['author_counts_out']
+        if out == record['params']['author_counts_in']:
+            continue
+        if any(other is not record and other['params'][
+                'author_counts_in'] == out for other in records):
+            tally.notes.append(
+                'a peek page (%d) looks shown but is not marked so'
+                % record['page_index'])
 
 
 def group_cooks(loaded_list, rejects=None):

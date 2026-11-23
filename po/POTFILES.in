@@ -53,7 +53,9 @@ src/feedchefmodifiers.py
 src/feedchefrelax.py
 src/feedchefshare.py
 src/feedchefexplain.py
+src/feedcheffocus.py
 src/feedchefpages.py
+src/feedchefpeek.py
 src/feedchefsource.py
 src/feedchefpreview.py
 src/filters.py

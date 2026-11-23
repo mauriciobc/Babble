@@ -88,8 +88,10 @@ install_data(
   'feedchefbuilder.py',
   'feedchefbuilderlive.py',
   'feedchefexplain.py',
+  'feedcheffocus.py',
   'feedchefmodifiers.py',
   'feedchefpages.py',
+  'feedchefpeek.py',
   'feedchefpreview.py',
   'feedchefrelax.py',
   'feedchefshare.py',
@@ -252,6 +254,7 @@ install_data(
   'feedchef/sentence.py',
   'feedchef/sentiment.py',
   'feedchef/sharecodec.py',
+  'feedchef/smartmerge.py',
   'feedchef/storage.py',
   'feedchef/textutil.py',
   install_dir: moduledir / 'feedchef',
@@ -938,6 +941,22 @@ test('feedchef optional', python,
 # Needs a display (headless mutter at 1280x1024); the engine is a fake.
 test('feedchef ui', python,
   args: [files('test-feedchef-ui.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake. Smart
+# New Posts: the score cache, the peek's timer and pauses, the pill's
+# threshold, the merge by minimal splices, the audit and a freed page.
+test('feedchef peek', python,
+  args: [files('test-feedchef-peek.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024). The review round of Smart New
+# Posts: the score cache never evicts the list, scoreless windows, covered
+# pages, the setting, boost grouping, the head-only diff and the peek's logs.
+test('feedchef peek review', python,
+  args: [files('test-feedchef-peek-review.py')],
   env: fatal_test_env,
   timeout: 90,
 )

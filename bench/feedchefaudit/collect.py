@@ -45,6 +45,12 @@ def gather(loaded_list, force=False, unreadable=None):
             if record['outcome']['status'] == 'cancelled':
                 row['cancelled'] = row.get('cancelled', 0) + 1
                 continue
+            if record['outcome']['status'] == 'peek':
+                # Looked at, never shown: judged, but not a page of the
+                # cook's totals.
+                row['peeks'] = row.get('peeks', 0) + 1
+                _replay(row, loaded, force)
+                continue
             row['pantry_in'] += record['summary']['pantry_in']
             row['selected'] += record['summary']['selected']
             for reason, count in record['summary']['by_reason'].items():
@@ -52,7 +58,9 @@ def gather(loaded_list, force=False, unreadable=None):
                     row['by_reason'].get(reason, 0) + count
             _replay(row, loaded, force)
         try:
-            rows[digest]['tally'].merge(evalmod.evaluate_cook(pages))
+            cook = evalmod.evaluate_cook(pages)
+            rows[digest]['tally'].merge(cook)
+            rows[digest]['notes'].extend(cook.notes)
         except LogError as error:
             rows[digest]['notes'].append(str(error))
     return rows
@@ -146,6 +154,9 @@ def collect(paths, recipe_id=None, since=None, json_path=None, force=False,
                 tally.violations[rule]))
             for example in tally.examples[rule]:
                 out('      %s' % example)
+        if row.get('peeks'):
+            out('  %d peeks were not shown and are not counted'
+                % row['peeks'])
         if row.get('cancelled'):
             out('  %d pages were cancelled and are not counted'
                 % row['cancelled'])

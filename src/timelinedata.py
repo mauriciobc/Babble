@@ -10,6 +10,8 @@ gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Graphene', '1.0')
 
 
+import difflib  # noqa: E402
+
 from gi.repository import (GObject, Gio,  # noqa: E402
                            )
 
@@ -486,6 +488,49 @@ class TimelineModel(GObject.Object, Gio.ListModel):
                     or id_key(newest) > id_key(self.newest_id):
                 self.newest_id = newest
         return len(fresh)
+
+    def unseen(self, statuses):
+        """The statuses of *statuses* the model would take as new."""
+        return self._filter_unseen(statuses)
+
+    def plain(self, statuses):
+        """Whether *statuses* would become one row each (no boosts
+        carousel groups them): a merge into the top of the list can only
+        be checked for rows that are the posts."""
+        return not self.group_boosts_enabled \
+            or group_boosts(statuses) is statuses
+
+    def merge_head(self, fresh, arrange, window):
+        """Put *fresh* (statuses already filtered by :meth:`unseen`) on
+        top and order the first *window* rows again with *arrange* (a
+        function from a list of rows to the same rows in their new order);
+        the rows beyond keep theirs and are never looked at. Only the
+        spans of the window that changed are announced, one splice for
+        each, and every row that stays is the same StatusItem. Returns the
+        new rows added."""
+        added = self._statuses_to_items(fresh)
+        # The window is the first rows of the merged list: the new rows
+        # and as many old ones as fit.
+        count = min(self._store.get_n_items(), max(0, window - len(added)))
+        old = [self._store.get_item(i) for i in range(count)]
+        wanted = list(arrange((added + old)[:window]))
+        keys = {id(item): number for number, item in enumerate(old + added)}
+        matcher = difflib.SequenceMatcher(
+            None, [keys[id(item)] for item in old],
+            [keys[id(item)] for item in wanted], autojunk=False)
+        # One splice for each run of rows that differ, last first so the
+        # positions of the earlier ones stay true.
+        for tag, i1, i2, j1, j2 in reversed(matcher.get_opcodes()):
+            if tag != 'equal':
+                self._store.splice(i1, i2 - i1, wanted[j1:j2])
+        for item in added:
+            self._register_seen(item)
+        if fresh:
+            newest = max((s['id'] for s in fresh), key=id_key)
+            if self.newest_id is None \
+                    or id_key(newest) > id_key(self.newest_id):
+                self.newest_id = newest
+        return added
 
     def append_old(self, statuses):
         """Append older statuses. Returns False when there is nothing

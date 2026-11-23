@@ -19,15 +19,16 @@ from .feedchef.icons import icon_name  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
 from .feedchef.sentence import chef_line, list_subtitle  # noqa: E402
 from .feedchef.sharecodec import handle_of, recipe_share_uri  # noqa: E402
-from .feedchef.textutil import extract_focus  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
 from .feedchefbuilder import (FeedChefBuilderDialog,  # noqa: E402
                               storage_for)
+from .feedcheffocus import FocusMixin  # noqa: E402
 from .feedchefmodifiers import heat_label  # noqa: E402
+from .feedchefpeek import PagePeek  # noqa: E402
 from .feedchefrelax import undo_relax  # noqa: E402
 from .feedchefpreview import FeedChefPreviewDialog  # noqa: E402
 from .feedchefsource import FeedChefSource  # noqa: E402
-from .i18n import gettext as _, ngettext  # noqa: E402
+from .i18n import gettext as _  # noqa: E402
 from . import scrollkeep  # noqa: E402
 from .pages import PagedPosts  # noqa: E402
 from .rowdecor import Decoration  # noqa: E402
@@ -40,8 +41,6 @@ ICON = 'babble-feed-chef-symbolic'
 PINNED_KEY = 'favorite-feedchef-ids'
 # The symbolic icons the Hot badge tries, in order; none: text only.
 FIRE_ICONS = ('fire-symbolic', 'flame-symbolic', 'babble-trending-symbolic')
-# Terms the focus banner names before "and N more".
-BANNER_TERMS = 3
 
 
 def _pin_entry(account, recipe_id):
@@ -295,7 +294,7 @@ def open_recipe(widget, client, account, recipe):
                              tag='recipe-open:%s' % recipe.id)
 
 
-class FeedChefTimelinePage(TimelinePage):
+class FeedChefTimelinePage(FocusMixin, PagePeek, TimelinePage):
     """A recipe's timeline: a TimelinePage over a FeedChefSource.
 
     The cook's order is the kitchen's, so the list is never sorted by id
@@ -346,6 +345,7 @@ class FeedChefTimelinePage(TimelinePage):
         column.append(stack)
         self.set_child(column)
         self._update_focus_ui()
+        self._peek_init()
         self.ensure_loaded()
 
     def _finish(self, result):
@@ -414,12 +414,14 @@ class FeedChefTimelinePage(TimelinePage):
         sidebar drops (Feed Chef turned off); a page held by a reference
         cycle would otherwise keep them until the next collection."""
         TimelinePage.close_requests(self)
+        self.set_auto_refresh_interval(0)
         engine = getattr(self, 'engine', None)
         if engine is not None:
             self.source.close()
             engine.shutdown()
 
     def do_dispose(self):
+        self.set_auto_refresh_interval(0)
         engine = getattr(self, 'engine', None)
         if engine is not None:
             # The scope first: it cancels the request this page is waiting
@@ -589,75 +591,6 @@ class FeedChefTimelinePage(TimelinePage):
     def _on_report_clicked(self, _button):
         feedchefexplain.KitchenReportDialog(
             self.source.cook_audits()).present(self)
-
-    def _shown_statuses(self):
-        found = []
-        for position in range(self.model.get_n_items()):
-            status = getattr(self.model.get_item(position), 'status', None)
-            if isinstance(status, dict):
-                found.append(status)
-        return found
-
-    def _more_like_this(self, status):
-        tags, keywords = extract_focus(status, self._shown_statuses())
-        if not tags and not keywords:
-            feedback.show_toast(self, _('Nothing to focus on in this post'))
-            return
-        kitchen = self.recipe.kitchen
-        kitchen.active_focus_hashtags = tags or None
-        kitchen.active_focus_keywords = keywords or None
-        kitchen.active_focus_weights = None
-        kitchen.active_focus_strength = 1.0
-        self._save_focus()
-        feedback.show_toast(self, _('Focus set from this post'))
-
-    def _clear_focus(self, *_args):
-        kitchen = self.recipe.kitchen
-        kitchen.active_focus_hashtags = None
-        kitchen.active_focus_keywords = None
-        kitchen.active_focus_weights = None
-        kitchen.active_focus_strength = 1.0
-        self._save_focus()
-
-    def _save_focus(self):
-        try:
-            self.storage.save_recipe(self.recipe)
-        except Exception as error:
-            feedback.report_error(self, _('Could not save the recipe'),
-                                  error)
-            return
-        self._update_focus_ui()
-        self._cook()
-
-    def _update_focus_ui(self):
-        kitchen = self.recipe.kitchen
-        parts = ['#%s' % tag for tag in kitchen.active_focus_hashtags or []]
-        parts += list(kitchen.active_focus_keywords or [])
-        if parts:
-            terms = ', '.join(parts[:BANNER_TERMS])
-            extra = len(parts) - BANNER_TERMS
-            if extra > 0:
-                # Translators: %(terms)s lists the first hashtags and words
-                # the timeline is focused on, such as "#a, #b, #c"; %(count)d
-                # is how many more there are.
-                terms = ngettext('%(terms)s and %(count)d more',
-                                 '%(terms)s and %(count)d more',
-                                 extra) % {'terms': terms, 'count': extra}
-            # Translators: %s lists the hashtags and words the timeline is
-            # focused on, for example "#python, decorators".
-            last = getattr(getattr(self, 'source', None), 'last_audit', None)
-            if isinstance(last, dict) and last.get('focus_unmatched'):
-                # Translators: %s lists the hashtags and words the timeline
-                # is focused on; none of the posts shown matches them, so
-                # the posts are in the order the recipe asks for.
-                self.banner.set_title(
-                    _('No post here matches %s; showing your recipe’s '
-                      'order') % terms)
-            else:
-                self.banner.set_title(_('Showing more like %s') % terms)
-        # The whole list, for when the title had to leave some out.
-        self.banner.set_tooltip_text(', '.join(parts) if parts else None)
-        self.banner.set_revealed(bool(parts))
 
     # Relax Filters
 

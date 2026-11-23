@@ -117,7 +117,7 @@ def check_replayable(loaded, force=False, replay=False):
         raise LogError('malformed audit record: %s' % problems[0])
     page = record.get('cluster')
     if replay and isinstance(page, dict) and page.get('status') == 'ok' \
-            and record['outcome']['status'] == 'ok':
+            and record['outcome']['status'] in auditmod.FINISHED:
         missing = [name for name in ('kmedoids', 'numpy')
                    if deps.unavailable_reason(name)]
         if missing:

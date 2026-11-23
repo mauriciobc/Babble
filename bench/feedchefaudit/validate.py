@@ -16,7 +16,7 @@ from src.feedchef import audit as auditmod
 
 _NONE = type(None)
 _NUM = (int, float)
-STATUSES = ('ok', 'failed', 'cancelled')
+STATUSES = ('ok', 'peek', 'shown', 'failed', 'cancelled')
 
 TOP = {'schema': int, 'engine_rev': int, 'session_id': str, 'cook_id': str,
        'page_index': int, 'hop': int, 'cursor_in': (str, _NONE),
@@ -152,7 +152,14 @@ def structure(record):
             STATUSES))
     if not all(isinstance(sid, str) for sid in record['outputs']['order']):
         problems.append('outputs.order has an id that is not text')
-    if record['outcome']['status'] == 'ok':
+    status = record['outcome']['status']
+    if status == 'shown' and 'merge' not in record:
+        problems.append('a shown peek has no merge')
+    elif 'merge' in record and not (_need(problems, 'merge', record['merge'], {
+            'window': int, 'size': int, 'inserted': list, 'head': list,
+            'order': str, 'keys': list}) and status == 'shown'):
+        problems.append('merge is only for a peek that was shown')
+    if record['outcome']['status'] in auditmod.FINISHED:
         try:
             datetime.fromisoformat(record['clock']['now_utc'])
         except (TypeError, ValueError):
@@ -221,7 +228,7 @@ def consistency(record):
     if status == 'failed' and (order or any(
             entry['rank'] >= 0 for entry in posts)):
         return ['failed cook with output']
-    if status != 'ok':
+    if status not in auditmod.FINISHED:
         return problems
     by_id = {}
     for entry in posts:

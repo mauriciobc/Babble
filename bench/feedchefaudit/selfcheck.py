@@ -607,6 +607,96 @@ def run_self_test(out=print):
     return 1 if checks.failures else 0
 
 
+def peek_cases(checks, base):
+    """Smart New Posts: a peek page is judged like any page, a shown one
+    also by its merge; a merge that names an id no peek page selected, a
+    post twice or a rising order is a FAIL. The shown copy is a page of
+    a cook of its own (the cap counts each post once). Returns it."""
+    order = base.record['outputs']['order']
+    posts = _by_id(base.record)
+    keys = sorted((posts[sid]['score']['final'] for sid in order),
+                  reverse=True)
+
+    def peeked(record):
+        record['cook_id'] = 'peekcopy'
+        record['page_index'] = 1001
+        record['outcome'] = {'status': 'peek', 'error': ''}
+
+    def shown(record):
+        peeked(record)
+        record['outcome'] = {'status': 'shown', 'error': ''}
+        record['merge'] = {'window': 50, 'size': len(order),
+                           'inserted': order[:1], 'head': list(order),
+                           'order': 'score', 'keys': list(keys)}
+
+    peek = _copy(base, peeked)
+    kept = _copy(base, shown)
+    tally = evalmod.evaluate_record(peek)
+    checks('a peek page keeps every promise (%s)' % tally.overall(),
+           tally.ok() and tally.checked['promises'])
+    checks('and replays identically',
+           replaymod.replay(peek).status == 'identical')
+    tally = evalmod.evaluate_record(kept)
+    checks('a shown peek is judged with its merge (%s)' % tally.overall(),
+           tally.ok() and tally.checked['merge'] == 1)
+
+    def merged(change):
+        def mutate(record):
+            shown(record)
+            change(record['merge'])
+        return evalmod.evaluate_record(_copy(base, mutate))
+
+    foreign = merged(lambda merge: merge.update(inserted=['ghost']))
+    checks('an inserted id from no peek page is a FAIL (%s)'
+           % ' '.join(foreign.examples['merge']),
+           foreign.violations['merge'] == 1)
+    twice = merged(lambda merge: merge.update(
+        head=merge['head'][:1] + merge['head'][:1] + merge['head'][2:]))
+    checks('a post twice in the merged window is a FAIL (%s)'
+           % ' '.join(twice.examples['merge']),
+           twice.violations['merge'] == 1)
+    inserted_twice = merged(lambda merge: merge.update(
+        inserted=order[:1] * 2))
+    checks('a post inserted twice is a FAIL',
+           inserted_twice.violations['merge'] == 1)
+    if len(keys) > 1 and keys[0] > keys[-1]:
+        rising = merged(lambda merge: merge.update(keys=keys[::-1]))
+        checks('a window ordered the wrong way round is a FAIL',
+               rising.violations['merge'] == 1)
+    wide = merged(lambda merge: merge.update(window=len(order) - 1))
+    checks('a window longer than it says is a FAIL',
+           wide.violations['merge'] == 1)
+    for label, change in (
+            ('an order the recipe cannot make', lambda merge: merge.update(
+                order='chronological', keys=[],
+                head=list(reversed(merge['head'])))),
+            ('an order that is not one of the three', lambda merge:
+             merge.update(order='bogus')),
+            ('a window that is not the window', lambda merge: merge.update(
+                window=10 ** 9)),
+            ('keys that are not finite', lambda merge: merge.update(
+                keys=[float('nan')] * len(merge['head']))),
+            ('a head cut short of the list it says', lambda merge:
+             merge.update(head=merge['head'][:1])),
+            ('nothing inserted by a shown peek', lambda merge: merge.update(
+                inserted=[])),
+            ('a size smaller than what was inserted', lambda merge:
+             merge.update(size=0))):
+        tampered = merged(change)
+        checks('%s is a FAIL (%s)' % (label, ' '.join(
+            tampered.examples['merge'])), tampered.violations['merge'] == 1)
+    unmarked = evalmod.evaluate_record(_copy(base, lambda record: (
+        shown(record), record.pop('merge'))))
+    checks('a shown peek with no merge is a malformed record',
+           unmarked.violations['record'] == 1)
+    misplaced = evalmod.evaluate_record(_copy(base, lambda record: (
+        shown(record), record.update(
+            outcome={'status': 'ok', 'error': ''}))))
+    checks('a merge on a page that was not a peek is a malformed record',
+           misplaced.violations['record'] == 1)
+    return kept
+
+
 def _run(checks, tmp):
     for seed in range(SEEDS):
         rng = random.Random(7000 + seed)
@@ -614,6 +704,10 @@ def _run(checks, tmp):
         fuzz.cook(fuzz.World(rng, recipe), recipe, seed, now=fuzz.NOW)
     logs = [load(path) for path in expand([os.path.join(tmp, 'logs')])]
     checks('%d synthetic pages were recorded' % len(logs), len(logs) > SEEDS)
+    base = next(item for item in logs
+                if item.record['summary']['selected'] >= 3
+                and item.record['outcome']['status'] == 'ok')
+    logs.append(peek_cases(checks, base))
     results = [replaymod.replay(item) for item in logs]
     bad = [r for r in results if r.status != 'identical']
     checks('every synthetic record replays identically (%d)' % len(results),

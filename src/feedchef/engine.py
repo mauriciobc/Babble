@@ -22,6 +22,7 @@ from . import sentiment as sentimentmod
 from .audit import NULL, Recorder
 from .decisionlog import FeedDecisionLogger
 from .recipe import FeedRecipe
+from .textutil import content_of
 
 log = logging.getLogger('babble.feedchef')
 
@@ -201,7 +202,14 @@ class FeedEngine:
         page_index: int = 0,
         hop: int = 0,
         instance_counts: dict[str, int] | None = None,
+        peek: bool = False,
+        exclude: frozenset[str] | set[str] | None = None,
     ):
+        """Cook one page on the engine worker. *peek* makes it the page
+        Smart New Posts looks at (audit outcome 'peek', never shown by
+        itself); *exclude* are the ids already on screen, dropped from the
+        sources before anything else so they use no one's slot of the
+        cap."""
         self.cancel()
         # The cook works on a copy taken now: the caller may change its
         # recipe (a focus that fades on refresh) while the cook runs, and
@@ -218,12 +226,16 @@ class FeedEngine:
                     on_stage=on_stage, cancel=cancel, generation=generation,
                     author_counts=author_counts, hide=hide,
                     cook_id=cook_id, page_index=page_index, hop=hop,
-                    instance_counts=instance_counts)
+                    instance_counts=instance_counts, peek=peek,
+                    exclude=exclude)
                 if cancel.is_set():
                     # Its page is never shown: the record, already
-                    # written, says so.
+                    # written, says so. A peek nobody saw leaves no log.
                     if result.logger is not None:
-                        result.logger.mark_cancelled()
+                        if peek:
+                            result.logger.discard()
+                        else:
+                            result.logger.mark_cancelled()
                     return
                 if on_done:
                     self.ui_idle(lambda: on_done(result))
@@ -258,6 +270,22 @@ class FeedEngine:
             author_counts=author_counts, hide=hide,
             cook_id=cook_id, page_index=page_index, hop=hop,
             instance_counts=instance_counts)
+
+    def run_background(self, work: Callable[[], None]) -> None:
+        """Run *work* on the engine worker, after the cook it may be
+        queued behind: file writes the page must not do on the main
+        thread. Nothing it raises reaches the caller."""
+        def guarded():
+            try:
+                work()
+            except Exception:
+                log.debug('feedchef: background work failed', exc_info=True)
+        try:
+            self._executor.submit(guarded)
+        except RuntimeError:
+            # Shut down: the work (a file removed or written) still must
+            # happen, so a short-lived thread does it.
+            threading.Thread(target=guarded, daemon=True).start()
 
     def _server_trends(self, recipe: FeedRecipe
                        ) -> kitchenmod.ServerTrendContext:
@@ -296,8 +324,11 @@ class FeedEngine:
         page_index: int = 0,
         hop: int = 0,
         instance_counts: dict[str, int] | None = None,
+        peek: bool = False,
+        exclude: frozenset[str] | set[str] | None = None,
     ) -> FeedResult:
-        """One page. *instance_counts* is the same as *author_counts* for
+        """One page. *peek* and *exclude* are those of ``process_feed``.
+        *instance_counts* is the same as *author_counts* for
         the servers of the posts. *author_counts*: posts per person already shown by
         the earlier pages of the cook session ("Limit Posts per Person"
         is a cap on the whole session). The engine never changes it; the
@@ -325,6 +356,19 @@ class FeedEngine:
         logger.persistent = self.persist_log
         if audit.enabled:
             audit.identity['cook_id'] = logger.cook_id
+            if peek:
+                audit.peeked()
+        shown_ids = exclude or ()
+
+        def fresh(posts):
+            """The posts not already on screen (a boost counts by the
+            post it shows as well as by itself)."""
+            if not shown_ids:
+                return posts
+            return [post for post in posts
+                    if str(post.get('id') or '') not in shown_ids
+                    and str(content_of(post).get('id') or '')
+                    not in shown_ids]
         now = self.clock()
         started = time.time()
         # Trends on a separate executor (Babble deviation from Java deadlock).
@@ -365,6 +409,7 @@ class FeedEngine:
                     sequences=(audit.trace.focus_seq if audit.enabled
                                else None),
                     pause=self._stagger(cancel))
+                mlt_posts = fresh(mlt_posts)
             except pantrymod.Cancelled:
                 scope_future.cancel()
                 for _tag, future in tag_futures:
@@ -398,7 +443,7 @@ class FeedEngine:
             logger.persist()
             raise ScopeFetchError('the posts did not load in time')
         try:
-            scope_posts = scope_future.result()
+            scope_posts = fresh(scope_future.result())
         except Exception as error:
             logger.add_error('scope:%s' % error)
             logger.persist()
@@ -407,7 +452,7 @@ class FeedEngine:
             if future in pending:
                 continue
             try:
-                found = future.result()
+                found = fresh(future.result())
                 hashtag_posts.extend(found)
                 audit.hashtag_fetched(tag, found)
             except Exception as error:

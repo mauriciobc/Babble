@@ -42,6 +42,13 @@ SCHEMA = 2
 ENGINE_REV = 4
 # The stripped text kept per post in the sidecar.
 TEXT_CAP = 2000
+# The outcomes of a page that finished: 'ok' (shown as a page of the cook),
+# 'peek' (cooked by Smart New Posts, not shown) and 'shown' (a peek whose
+# new posts were inserted at the top). Anything else (failed, cancelled)
+# has nothing to judge.
+FINISHED = ('ok', 'peek', 'shown')
+# What counts as a page of the cook in the Kitchen Report and the caps.
+SHOWN = ('ok', 'shown')
 
 PANTRY_REASONS = ('pantry_excluded_tag', 'pantry_missing_included_tag')
 # Revision 3 added cluster_cap and instance_cap.
@@ -240,6 +247,7 @@ class Recorder:
         self.viewer: dict[str, str] | None = None
         self.sources: dict = {'scope': [], 'hashtag': {}, 'focus': {}}
         self.cancelled_flag = False
+        self.peek = False
         self.broken = ''
         self.trends: dict[str, Any] = {'tags': {}, 'status_ids': []}
         self.tag_heat: dict[str, float] = {}
@@ -407,6 +415,10 @@ class Recorder:
         self.counts_out = dict(counts_out or {})
         self.instances_out = dict(instances_out or {})
         self.identity['cursor_out'] = cursor_out
+
+    def peeked(self) -> None:
+        """This page is a peek of Smart New Posts, not a page shown."""
+        self.peek = True
 
     def failed(self, message: str) -> None:
         self.error = redact(message)
@@ -624,7 +636,9 @@ class Recorder:
         if self.broken:
             error = ('audit capture failed in %s' % self.broken
                      + ('; ' + error if error else ''))
-        return {'status': 'failed' if failed else 'ok', 'error': error}
+        if failed:
+            return {'status': 'failed', 'error': error}
+        return {'status': 'peek' if self.peek else 'ok', 'error': error}
 
     def _build(self) -> dict:
         failed = self.ordered is None or bool(self.broken)
@@ -694,6 +708,6 @@ for _name in ('clock', 'fetched', 'hashtag_fetched', 'pantry', 'counts',
               'factor', 'fresh_floor', 'relevance', 'focus_unmatched', 'words',
               'cluster', 'heat_steps', 'fire',
               'kitchen_cut',
-              'guard_verdict', 'finish', 'failed', 'cancelled'):
+              'guard_verdict', 'finish', 'failed', 'cancelled', 'peeked'):
     setattr(Recorder, _name, _guarded(getattr(Recorder, _name)))
 del _name

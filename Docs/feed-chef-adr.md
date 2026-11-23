@@ -394,6 +394,7 @@ fuzz runs 240 seeded cases over three pages.
 | Group Similar Posts: at most N posts of each group of similar posts | kitchen grouping, before heat | `cluster_cap` (list level, guard) | fuzz: per group; `feedchef cluster`: honest and broken stage; the audit's `cluster` rule |
 | More Like This focus: the page is non-increasing by relevance to the focus | kitchen order | `relevance_order` (list level, guard) | fuzz: order by relevance and an oracle that writes Java's formulas again; `feedchef relevance`; the audit's `relevance` rule |
 | Favor Fresh Posts with Boost Trending Topics: a factor under 0.2 is raised to 0.2, and only then | kitchen score | `fresh_floor` (list level, guard) | fuzz: freshness floor, both directions; `feedchef relevance`; the audit's `floor` rule |
+| New posts worth seeing, merged into the top of the list: no post twice, every inserted post from a recorded peek page, only the first 50 posts ordered again and by the recipe's order rule, the rest of the list untouched | page (`smartmerge.merge_violations`, before the model is touched) | `merge_duplicate`, `merge_foreign`, `merge_members`, `merge_window`, `merge_tail`, `merge_order` (merge level: a merge that breaks one is refused, nothing is inserted; the audit's `merge` rule judges the record of a shown peek) | `feedchef peek`; the audit self-test |
 
 The two promises about the heat cut name no post (a cut that hid the wrong
 number of posts cannot be undone): `contract.PAGE_IDS`
@@ -703,6 +704,111 @@ a slider; the PRD asks for named levels and for a page that does not run dry.
   without segno the dialog is the link and Copy Link.
 
 Tests: `feedchef steps`, `feedchef live`, `feedchef experience`.
+
+## Smart New Posts (Phase 3, Java section 12)
+
+A recipe page asks again for page one while it is on screen, and offers the
+result as a pill only when it is worth interrupting the reader. The decisions
+are in `src/feedchef/smartmerge.py` (no widget); `src/feedchefpeek.py` holds
+the two halves that touch the page (`SourcePeek` for `FeedChefSource`,
+`PagePeek` for `FeedChefTimelinePage`).
+
+- **Score cache.** An LRU (`collections.OrderedDict`) of
+  `SCORE_CACHE_SIZE` = 100 final scores by post id in `FeedChefSource`,
+  filled from every page that is shown (and from a peek once its posts are).
+  The scores of posts still in the list are never evicted (`keep`: the
+  source's set of shown ids); the LRU of 100 forgets only posts no longer
+  shown, so the cache grows with the list. A merge whose window has a post
+  with no score is refused (`merge_unscored`).
+  The relevance to a focus is kept beside the score and leaves with it. A
+  refresh clears the cache (a new recipe or focus makes old scores wrong).
+- **Peek.** `FeedEngine.process_feed(..., peek=True, exclude=ids)`: a cook of
+  page one on the engine worker (never the main thread), started with the
+  cook session's person and server counts, so "Limit Posts per Person" and
+  "Count Servers Too" keep holding across the merged list. The ids on screen
+  are dropped from the sources before the pantry (a boost counts by the post
+  it shows too), so they use no one's slot of the cap and the record names
+  only what the peek could add. Audit outcome `peek`; `page_index` is
+  `PEEK_PAGE_BASE` (1000) plus a serial, so a peek never shares the key of a
+  page of the cook. A peek starts only when no cook is out; a refresh or an
+  older page cancels one in flight (one engine, one worker). The result is
+  held, one at a time: a newer peek replaces it and deletes its log (on the
+  worker), and an older page landing or a refresh drops it (the counts moved,
+  so it no longer fits). The pill count is the number of new posts the list would take
+  (`TimelineModel.unseen`); a peek with none is dropped.
+- **The timer is the poll timer of `TimelinePage`.** `_peek_sync` sets it to
+  300 s (`PEEK_INTERVAL_S`) and `_on_auto_refresh` peeks instead of
+  refreshing. It exists only while a recipe page is mapped and is the
+  visible page of its navigation view (a page pushed over it covers it; the
+  page follows `notify::visible-page`), the window is visible, Feed Chef is on
+  (it follows `changed::feed-chef-enabled`), and the system is neither in power saver nor on a
+  metered connection (read from `sysstate`; it is removed, not just ignored,
+  and comes back on the same signals). Feed Chef off, a closed page, a hidden
+  window, a page left or disposed: no timer at all (Principle 6).
+- **Cost.** One request to the recipe's scope (plus a hashtag fetch for each
+  included hashtag, which page one asks for as always) every five minutes for
+  each open recipe page that is on screen, none while paused. Page one is
+  never fetched more often than that, and the cook runs off the main thread.
+- **When the pill shows.** The mean and the population standard deviation of
+  the cached scores of the posts on screen (the rows the list reports as laid
+  out inside the viewport; the top five rows when it has not been laid out),
+  and the pill only if at least one new post scores above mean + 1 SD. With no
+  visible post that has a score there is nothing to compare with and no pill
+  (Java would use 0.0). Otherwise the result is held
+  silently, and a refresh shows those posts in order anyway. The label is
+  "N New Posts Worth Seeing" (`ngettext`).
+- **The click.** The held posts go on top and only the first
+  `RERANK_WINDOW_SIZE` = 50 posts are ordered again, by the recipe's own
+  order rule (`kitchen.order_statuses`, so the v1 tie rules: newer first, then
+  the larger id; relevance when the recipe has a focus whose posts all have it
+  cached; the creation date for "Newest first"); a post with no cached score
+  counts as 0.0, as in Java. The model applies it with
+  `TimelineModel.merge_head`: one splice for each run of rows that changed (a
+  post put on top and one in the middle are two), the same `StatusItem`
+  objects for every row that stays, no reload. Then the page scrolls to the
+  top (`TimelinePage` sets the value, with no animation to respect).
+- **What the merge keeps.** A merge is checked before the model is touched
+  (`merge_violations`): no post twice, every inserted id from the peek page's
+  own selection, the same set of posts plus the inserted ones, only the first
+  50 changed and in order, the rest unchanged. A merge that breaks one is
+  refused and the peek dropped. Caps hold because the peek started from the
+  session counts, which become the peek's counts on insertion; heat and the
+  Popular badge are per page as recorded (the peek page's heat cut and fire
+  ids; the fire ids join the session's on insertion), and the cluster cap is
+  per page.
+- **Audit.** A peek's record is `outcome.status` `peek`. When its posts are
+  inserted it becomes `shown` (the page's own record, changed in memory on the
+  main thread and written by the worker) and gains `merge`: `{window,
+  inserted, head, order, keys}`, the ids put on top, the window after the
+  merge and the value (relevance or score) each of its posts was ordered by.
+  `bench/feedchefaudit` treats `peek` and `shown` like `ok` for every promise
+  of the page, replays them (the sources are recorded after the shown ids
+  were dropped, so the replay needs no exclusion), counts only `ok` and
+  `shown` pages toward the cap of the cook (`audit.SHOWN`), and judges a
+  merge with the new `merge` rule (`smartmerge.record_violations`: ids from
+  the peek page, none twice, the window within its size, the keys never
+  rising). The Kitchen Report counts a `shown` page and ignores a `peek`.
+  Why This Post? says "It arrived later as a new post" for an inserted post.
+  The file is rewritten by the worker from shallow copies the page makes on
+  the main thread (`FeedDecisionLogger.writer()`), so the worker never sees
+  the record change. A peek cancelled while it cooks, or one that lands after
+  the page closed, has its log and sidecar deleted (on the worker; a shut-down
+  engine runs the work on a short-lived thread instead of skipping it).
+  **Known gap:** if the write that marks a peek `shown` is lost (quit before
+  the worker ran), the log still says `peek` although its posts were shown.
+  `evaluate_cook` reports it as a note when it can detect it: a later page of
+  the cook starts from the counts the peek ended with. A merge into a list
+  whose model groups boosts into a carousel is refused (the rows would not be
+  the posts that were checked).
+- **Tests.** `feedchef peek` (the cache, the threshold, the merge and its
+  refusals, a real engine's peek record, replay and evaluation, the timer and
+  every pause, the pill, the splices, the stale peek, a freed page) and the
+  audit self-test (a shown peek, an inserted id from no peek page, a post
+  twice, a rising order).
+- **Decisions the plan left open.** The pill counts every new post, not only
+  those above the threshold; the click inserts all of them. Peeks go through
+  `process_feed` so they share the worker with the cooks (a cook always wins:
+  it cancels a peek). A peek's log is kept only while it is the held one.
 
 ## Out of v1
 

@@ -14,6 +14,7 @@ import contextlib
 import tempfile
 from datetime import datetime
 
+from src.feedchef import audit as auditmod
 from src.feedchef import cluster as clustermod
 from src.feedchef import langguess
 from src.feedchef import decisionlog, kitchen as kitchenmod
@@ -204,7 +205,7 @@ def replay(loaded, force=False):
     cannot be replayed."""
     check_replayable(loaded, force, replay=True)
     record = loaded.record
-    if record['outcome']['status'] != 'ok':
+    if record['outcome']['status'] not in auditmod.FINISHED:
         return Result('skipped', 'the cook did not finish (%s): nothing '
                       'to replay' % record['outcome']['status'])
     try:

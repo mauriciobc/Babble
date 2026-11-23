@@ -8,6 +8,7 @@ on their machine, but the report is the part people paste into an issue.
 from feedchefaudit import validate
 from feedchefaudit.records import (LogError, check_replayable, load,
                                    text_of)
+from src.feedchef import audit as auditmod
 from src.feedchef import auditreport
 
 
@@ -91,7 +92,7 @@ def show(path, post=None, text=False, out=print):
     summary = record['summary']
     out('posts: %d fetched, %d in the pantry, %d selected' % (
         summary['raw_fetched'], summary['pantry_in'], summary['selected']))
-    if record['outcome']['status'] != 'ok':
+    if record['outcome']['status'] not in auditmod.FINISHED:
         out('the cook failed: %s' % record['outcome']['error'])
         return 0
     if post:

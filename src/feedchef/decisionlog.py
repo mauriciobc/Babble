@@ -184,13 +184,67 @@ class FeedDecisionLogger:
         was never shown, so the record must not read as a finished cook."""
         record = self.record
         if record is None or self._payload is None \
-                or record['outcome']['status'] != 'ok':
+                or record['outcome']['status'] not in ('ok', 'peek'):
             return
         record['outcome'] = {'status': 'cancelled', 'error': ''}
+        self._rewrite()
+
+    def mark_shown(self, merge: dict[str, Any], write: bool = True) -> bool:
+        """A peek whose posts were inserted: its outcome reads 'shown' and
+        the record keeps the merge (see ``smartmerge.merge_record``). False
+        when the record is not a peek or its file is gone."""
+        record = self.record
+        if record is None or self._payload is None \
+                or record['outcome']['status'] != 'peek':
+            return False
+        record['outcome'] = {'status': 'shown', 'error': ''}
+        record['merge'] = merge
+        return self.flush() if write else True
+
+    def writer(self):
+        """A function that writes the record as it is now, to be run on
+        the worker. It holds shallow copies made here, on the calling
+        thread, so what the worker serializes is never changed by the
+        page afterwards."""
+        path, payload = self._path, self._payload
+        if path is None or payload is None or self.record is None:
+            return lambda: False
+        payload = {**payload, 'audit': {**self.record}}
+
+        def write():
+            try:
+                write_private(path, payload)
+            except OSError as error:
+                log.warning('feedchef: could not mark the log: %s', error)
+                return False
+            return True
+        return write
+
+    def flush(self) -> bool:
+        """Write the record as it is now, on the calling thread."""
+        return self._rewrite()
+
+    def discard(self) -> None:
+        """Delete this page's files: a peek nobody saw and a newer one
+        replaced, so the folder does not fill with them."""
+        if self._path is None or not self.persistent:
+            return
+        for path in (self._path, sidecar_path(self._path)):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        self._path = None
+
+    def _rewrite(self) -> bool:
+        if self._path is None:
+            return False
         try:
             write_private(self._path, self._payload)
         except OSError as error:
             log.warning('feedchef: could not mark the log: %s', error)
+            return False
+        return True
 
     def _rotate(self, directory: str) -> None:
         prune(directory)
