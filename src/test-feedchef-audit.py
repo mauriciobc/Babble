@@ -617,8 +617,13 @@ for case in range(60):
             sections = {s.title: s.rows for s in
                         auditreport.explain_post(entry, record)}
             rules = entry['rules']
+            judged = isinstance((entry['sent'] or {}).get('score'),
+                                (int, float))
+            # Only Positive passes an unjudged post without checking its
+            # tone, so it is not a check it passed.
             passed = {title for rule, title in REPORT_RULES.items()
-                      if rules.get(rule) == 'pass'}
+                      if rules.get(rule) == 'pass'
+                      and (rule != 'positive_only' or judged)}
             skipped_rules += sum(1 for v in rules.values() if v == 'n/a')
             shown = {row.title for row in sections['Checks It Passed']}
             passed_rows += len(shown)
@@ -626,6 +631,8 @@ for case in range(60):
                     or (passed and shown & {'No Rules Applied',
                                             'No Checks Passed'}):
                 wrong.append(('passed', case, entry['id']))
+            if not judged and REPORT_RULES['positive_only'] in shown:
+                wrong.append(('tone claimed', case, entry['id']))
             # A rule that did not apply is never listed as passed.
             for rule, verdict in rules.items():
                 if verdict != 'pass' and REPORT_RULES.get(rule) in shown:

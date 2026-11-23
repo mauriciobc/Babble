@@ -229,6 +229,12 @@ def _check_rows(entry: dict, words: Words) -> list[Row]:
             else:
                 title = _('Allowed by the Network Rule')
             rows.append(Row(title, recipe_rule))
+        elif promise == 'positive_only' and _tone(
+                (entry.get('sent') or {}).get('score'), words) is None:
+            # The rule only hides English and Portuguese posts that read
+            # as negative: a post it did not judge passed without a tone
+            # check, so it is listed under Not Checked, not here.
+            continue
         elif promise in titles:
             rows.append(Row(titles[promise], recipe_rule))
     if entry.get('viewer') == 'shown':

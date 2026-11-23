@@ -296,8 +296,11 @@ check('why: it has the three sections, in words, and a title',
       and set(sections) <= {'Where It Came From', 'About This Post',
                             'Checks It Passed', 'Not Checked',
                             'How It Was Ranked'})
+judged = isinstance((entry['sent'] or {}).get('score'), (int, float))
+# Only Positive passes an unjudged post without checking its tone.
 passed = {t for rule, t in auditreport.rule_titles(
-    auditreport.ENGLISH).items() if entry['rules'].get(rule) == 'pass'}
+    auditreport.ENGLISH).items() if entry['rules'].get(rule) == 'pass'
+    and (rule != 'positive_only' or judged)}
 check('why: every row under Checks It Passed is a rule the record passed',
       {t for t in sections['Checks It Passed']
        if t not in ('Your Own Post', 'From Someone You Follow',
