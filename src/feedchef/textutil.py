@@ -137,7 +137,9 @@ def status_created_at(status: dict[str, Any], *, content: bool = True
     return parse_created_at(source.get('created_at'))
 
 
-def _focus_text(status: dict[str, Any]) -> str:
+def focus_text(status: dict[str, Any]) -> str:
+    """The text a post's focus words are read from: its body, content
+    warning and every alt text, as plain text."""
     content = content_of(status)
     parts = [(content.get('content') or '').replace('<', ' <'),
              content.get('spoiler_text') or '']
@@ -150,28 +152,51 @@ def _focus_text(status: dict[str, Any]) -> str:
 def focus_tokens(status: dict[str, Any]) -> list[str]:
     """Lowercase, accent-stripped letter words of 3+ characters, no
     stopwords: the post body, content warning and every alt text."""
-    text = unicodedata.normalize('NFD', _focus_text(status).lower())
-    text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+    return text_tokens(focus_text(status))
+
+
+def text_tokens(text: str) -> list[str]:
+    """The words of *text* that count (see ``focus_tokens``)."""
+    text = fold_text(text)
     return [word for word in re.findall(r'[^\W\d_]{3,}', text)
             if word not in STOP_WORDS]
+
+
+def fold_text(text: str) -> str:
+    """*text* lowercased with its accents removed: the form a focus word
+    is kept and matched in."""
+    text = unicodedata.normalize('NFD', text.lower())
+    return ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+
+
+def tfidf_vector(tokens: list[str], df: dict[str, int], total: int
+                 ) -> dict[str, float]:
+    """The TF-IDF weight of each distinct token of one document, with
+    Java's formulas: the augmented term frequency 0.5 + 0.5 * count /
+    most frequent count, and the smoothed inverse document frequency
+    log(total / (1 + df)) + 1. *df* is the number of the *total* documents
+    each term is in."""
+    if not tokens:
+        return {}
+    counts: dict[str, int] = {}
+    for token in tokens:
+        counts[token] = counts.get(token, 0) + 1
+    top = max(counts.values())
+    scores = {}
+    for token, count in counts.items():
+        tf = 0.5 + 0.5 * count / top
+        idf = math.log(total / (1 + df.get(token, 0))) + 1
+        scores[token] = tf * idf
+    return scores
 
 
 def _tfidf_scores(target: list[str], docs: list[list[str]]
                   ) -> dict[str, float]:
     if not target:
         return {}
-    counts: dict[str, int] = {}
-    for token in target:
-        counts[token] = counts.get(token, 0) + 1
-    top = max(counts.values())
-    total = len(docs)
-    scores = {}
-    for token, count in counts.items():
-        df = sum(1 for doc in docs if token in doc)
-        tf = 0.5 + 0.5 * count / top
-        idf = math.log(total / (1 + df)) + 1
-        scores[token] = tf * idf
-    return scores
+    df = {token: sum(1 for doc in docs if token in doc)
+          for token in dict.fromkeys(target)}
+    return tfidf_vector(target, df, len(docs))
 
 
 def extract_focus(status: dict[str, Any], corpus: list | None = None,

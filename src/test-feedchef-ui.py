@@ -133,7 +133,8 @@ class FakeEngine:
 
     def process_feed(self, recipe, *, max_id=None, count=80, on_stage=None,
                      on_done=None, on_error=None, author_counts=None,
-                     hide=None, cook_id=None, page_index=0, hop=0):
+                     hide=None, cook_id=None, page_index=0, hop=0,
+                     instance_counts=None):
         self.calls.append(max_id)
         items, has_more, cursor = (self.queue.pop(0) if self.queue
                                    else ([], False, None))
@@ -325,7 +326,7 @@ check('builder: Cancel leaves the caller\'s recipe alone',
 
 kept = default_recipe('Keeps Inert')
 kept.kitchen.modifiers = [
-    Modifier(type='similarity_cluster'),
+    Modifier(type='connection'),
     Modifier(type='diversity', max_per_cluster=3,
              diversity_dimensions=['author']),
     Modifier(type='freshness', decay_minutes=100),
@@ -337,9 +338,10 @@ check('builder: edit is titled Edit Recipe',
 inert_rows = find(dialog.page, Adw.ActionRow, lambda r: r.get_title()
                   == 'Some Ingredients Are Not Supported Yet')
 check('builder: an unsupported ingredient is named in plain words, and '
-      'sentiment, which is active now, is not',
-      len(inert_rows) == 1 and 'similarity' in inert_rows[0].get_subtitle()
+      'sentiment and similarity grouping, which are active now, are not',
+      len(inert_rows) == 1 and 'connections' in inert_rows[0].get_subtitle()
       and 'sentiment' not in inert_rows[0].get_subtitle()
+      and 'similarity' not in inert_rows[0].get_subtitle()
       and 'positive' not in inert_rows[0].get_subtitle())
 dialog.name_row.set_text('Renamed')
 dialog.min_length.set_value(120)
@@ -359,11 +361,11 @@ check('builder: minimum length and reach are written',
       and after.pantry.network_reach.max_degrees == 1)
 types = [m.type for m in after.kitchen.modifiers]
 check('builder: order kept, switched-off removed, new one appended',
-      types == ['similarity_cluster', 'freshness', 'heat'])
+      types == ['connection', 'freshness', 'heat'])
 fresh_mod = after.kitchen.modifiers[1]
 check('builder: an untouched value is not rewritten',
       fresh_mod.decay_minutes == 100
-      and after.kitchen.modifiers[0].type == 'similarity_cluster')
+      and after.kitchen.modifiers[0].type == 'connection')
 check('builder: a new heat modifier defaults to 50 percent',
       after.kitchen.modifiers[2].percentile_threshold == 50)
 
@@ -542,6 +544,43 @@ page.refresh()
 check('refresh: the engine is asked again and the list is replaced',
       pump_until(lambda: ids(page) == ['00008', '00007'])
       and len(engine.calls) == count + 1)
+
+# A reader's refresh fades the focus (focus_decay); setting the focus and
+# the recipe's own changes do not.
+kit = page.recipe.kitchen
+kit.active_focus_keywords = ['coffee', 'tea']
+kit.active_focus_hashtags = ['python']
+kit.focus_decay = 0.5
+page._update_focus_ui()
+engine.queue = [([status(3)], False, None)]
+count = len(engine.calls)
+stopped = engine.cancelled
+page.refresh()
+check('decay: the cook in flight is cancelled before the focus changes',
+      engine.cancelled > stopped)
+check('decay: a refresh multiplies the focus weights and stores the recipe',
+      kit.active_focus_weights == [0.5, 0.5]
+      and store.get_recipe_by_id(recipe.id).kitchen.active_focus_weights
+      == [0.5, 0.5] and pump_until(lambda: len(engine.calls) == count + 1))
+for _step in range(3):
+    engine.queue = [([status(3)], False, None)]
+    page.refresh()
+    pump()
+check('decay: a weight under 0.1 goes, with none left the focus clears and '
+      'the banner follows',
+      kit.active_focus_keywords is None and kit.active_focus_hashtags is None
+      and not page.banner.get_revealed()
+      and store.get_recipe_by_id(recipe.id).kitchen.active_focus_keywords
+      is None)
+kit.focus_decay = 1.0
+kit.active_focus_keywords = ['coffee']
+engine.queue = [([status(3)], False, None)]
+page.refresh()
+check('decay: the default of 1.0 changes nothing',
+      kit.active_focus_keywords == ['coffee']
+      and kit.active_focus_weights is None)
+kit.active_focus_keywords = None
+pump()
 
 # Errors show the error page; an empty cook shows the empty page.
 engine.fail = True

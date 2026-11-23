@@ -4,8 +4,10 @@
 Babble deviation from mashdon ``SimpleSentimentAnalyzer`` + JSON lexicon:
 social-media compound scores from MIT VADER/LeIA, not the Android JSON.
 
-Only English and Portuguese posts are judged. A post in another language,
-or one whose server gave no language, has no score (``None``): a lexicon
+Only English and Portuguese posts are judged: by their declared language, or,
+when a post declares none, by a guess (`langguess.py`, ADR deviation 15). A
+post in another language, or one with no language and no confident guess, has
+no score (``None``): a lexicon
 of the wrong language reads nearly every word as neutral, so a score of 0
 would claim a judgment nobody made. The stages treat None as "not judged":
 the post is neither hidden by "Only Positive Posts" nor boosted by "Favor
@@ -16,6 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import langguess
 from .textutil import content_of, strip_html
 
 _analyzers: dict[str, Any] = {}
@@ -68,8 +71,18 @@ def language_of(status: dict[str, Any]) -> str | None:
     return language if isinstance(language, str) else None
 
 
+def effective_language(status: dict[str, Any]) -> str | None:
+    """The language the engines read the post in: the declared one, or for a
+    post that declares none the guess when it passes the gates of
+    ``langguess`` ('en' or 'pt', enough text, enough confidence)."""
+    declared = language_of(status)
+    if declared and declared.strip():
+        return declared
+    return langguess.acted(langguess.guess(status))
+
+
 def is_judged(status: dict[str, Any]) -> bool:
-    return pick_engine(language_of(status)) is not None
+    return pick_engine(effective_language(status)) is not None
 
 
 def score_status(status: dict[str, Any]) -> float | None:
@@ -77,7 +90,7 @@ def score_status(status: dict[str, Any]) -> float | None:
     spoiler = str(content.get('spoiler_text') or content.get('spoilerText')
                   or '')
     text = '%s %s' % (strip_html(content.get('content')), spoiler)
-    return compound_score(text, language_of(status))
+    return compound_score(text, effective_language(status))
 
 
 def recipe_needs_sentiment(recipe) -> bool:

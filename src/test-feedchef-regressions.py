@@ -412,6 +412,49 @@ check('viewer filters: a warn rule and a rule of another context stay in '
       len(res.items) == 2)
 
 
+# --- 5b. the person counts of the session, per dimension ------------------
+
+def at(server, number, age):
+    return post(author='v%d' % number, age=age, account={
+        'id': 'v%d' % number, 'url': 'https://%s.example/@v%d' % (
+            server, number)})
+
+
+by_server = default_recipe('by server')
+by_server.kitchen.modifiers = [Modifier(
+    type='diversity', max_per_cluster=2,
+    diversity_dimensions=['author', 'instance'])]
+# A full first page (the scope pages on while it is full): 4 posts of one
+# server and 36 of servers of their own.
+fill = [at('p%d' % i, 100 + i, 10 + i) for i in range(36)]
+pager, src = source_for(
+    [[at('one', i, 1 + i) for i in range(4)] + fill,
+     [at('one', 10 + i, 1001 + i) for i in range(3)]
+     + [at('two', 20, 1010)]], by_server)
+one = run_fetch(src, {})
+check('servers: page one keeps 2 posts of the crowded server (%d shown)'
+      % len(one.get('items', [])), len(one.get('items', [])) == 38
+      and src._instance_counts.get('one.example') == 2)
+two = run_fetch(src, {'max_id': 'x'})
+check('servers: the next page is at the cap for that server, so only the '
+      'other server shows, and the session counts both',
+      len(two.get('items', [])) == 1
+      and src._instance_counts.get('one.example') == 2
+      and src._instance_counts.get('two.example') == 1
+      and sum(src._author_counts.values()) == 39)
+again = run_fetch(src, {})
+check('servers: a refresh starts the counts again',
+      len(again.get('items', [])) == 38
+      and 'two.example' not in src._instance_counts)
+legacy = default_recipe('legacy')
+legacy.kitchen.modifiers = [Modifier(
+    type='diversity', max_per_cluster=2, diversity_dimensions=['author'])]
+pager, src = source_for([[at('one', i, 1 + i) for i in range(4)]], legacy)
+run_fetch(src, {})
+check('servers: a recipe that caps people only counts no servers (as '
+      'before)', src._instance_counts == {})
+
+
 # --- 6. a page one that loses no post ------------------------------------
 
 scope_page = [post(author='s%d' % i, age=100 + i) for i in range(5)]

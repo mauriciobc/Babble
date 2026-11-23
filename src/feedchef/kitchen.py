@@ -8,9 +8,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from . import cluster as clustermod
+from . import relevance as relevancemod
 from .audit import NULL
+from .contract import FRESHNESS_FLOOR
 from .recipe import FeedRecipe, Modifier
-from .textutil import account_of, content_of, status_created_at
+from .recipe import max_per as max_per_value
+from .textutil import (account_of, content_of, host_of_account,
+                       status_created_at)
 
 _HALF_LIFE_HOURS = 12.0
 _DECAY = math.log(2) / _HALF_LIFE_HOURS
@@ -51,20 +56,38 @@ def _age_minutes(status: dict[str, Any],
 
 
 def freshness_factor(status: dict[str, Any], mod: Modifier,
-                     now: datetime | None = None) -> float | None:
-    """What freshness multiplies the score by; None: it leaves it be."""
+                     now: datetime | None = None,
+                     floor: bool = False) -> float | None:
+    """What freshness multiplies the score by; None: it leaves it be.
+    With *floor* (the recipe also has "trending") a factor under
+    `FRESHNESS_FLOOR` is raised to it."""
     decay = float(mod.decay_minutes or 360)
     if decay <= 0:
         return None
     age = _age_minutes(status, now)
     if age < 0:
         return None
-    return max(0.0, min(1.0, 1.0 - age / decay))
+    factor = max(0.0, min(1.0, 1.0 - age / decay))
+    if floor and factor < FRESHNESS_FLOOR:
+        return FRESHNESS_FLOOR
+    return factor
+
+
+def floor_applied(status: dict[str, Any], mod: Modifier,
+                  now: datetime | None = None) -> bool:
+    """Whether the floor raised this post's freshness factor."""
+    raw = freshness_factor(status, mod, now)
+    return raw is not None and raw < FRESHNESS_FLOOR
+
+
+def has_trending(recipe: FeedRecipe) -> bool:
+    return any(mod.type == 'trending' for mod in recipe.kitchen.modifiers)
 
 
 def apply_freshness(score: float, status: dict[str, Any],
-                    mod: Modifier, now: datetime | None = None) -> float:
-    factor = freshness_factor(status, mod, now)
+                    mod: Modifier, now: datetime | None = None,
+                    floor: bool = False) -> float:
+    factor = freshness_factor(status, mod, now, floor)
     return score if factor is None else score * factor
 
 
@@ -192,27 +215,62 @@ def author_key(status: dict[str, Any]) -> str:
     return str(account_of(status, wrapper=True).get('id') or '')
 
 
-def apply_diversity(statuses: list[dict[str, Any]], mod: Modifier,
-                    counts: dict[str, int] | None = None
-                    ) -> list[dict[str, Any]]:
-    """Keep the first ``max_per_cluster`` posts of each person *in the
-    order given*, so called on a ranked list it keeps each person's best.
-    *counts* is what each person already has in the cook session (older
-    pages); it is read, never changed."""
-    max_per = int(mod.max_per_cluster if mod.max_per_cluster is not None else 1)
+def instance_key(status: dict[str, Any]) -> str:
+    """The server a post counts for in the 'instance' dimension of the
+    cap: the host of the account that put it in the feed (as for the
+    person), '' when it has none (such a post is never capped, as in Java)."""
+    return host_of_account(account_of(status, wrapper=True))
+
+
+def diversity_dimensions(mod: Modifier) -> tuple[bool, bool]:
+    """(by person, by server): what a diversity modifier caps. A modifier
+    with no dimensions caps the person, as in Java."""
     dimensions = mod.diversity_dimensions or ['author']
-    if 'author' not in dimensions:
-        return list(statuses)
-    seen_counts = dict(counts or {})
+    return 'author' in dimensions, 'instance' in dimensions
+
+
+def diversity_pass(statuses: list[dict[str, Any]], mod: Modifier,
+                   counts: dict[str, int] | None = None,
+                   instance_counts: dict[str, int] | None = None
+                   ) -> tuple[list[dict[str, Any]], dict[int, str]]:
+    """The posts the cap keeps, and the reason each of the others was
+    removed for (``id(post)`` -> 'author_cap' or 'instance_cap'). A post
+    is kept while its person, and its server when the modifier caps those,
+    each have fewer than ``max_per_cluster`` kept posts, so only a kept
+    post is counted."""
+    max_per = max_per_value(mod.max_per_cluster)
+    by_person, by_server = diversity_dimensions(mod)
+    people = dict(counts or {})
+    servers = dict(instance_counts or {})
     kept = []
+    removed: dict[int, str] = {}
     for status in statuses:
         author = author_key(status)
-        seen = seen_counts.get(author, 0)
-        if seen >= max_per:
+        server = instance_key(status) if by_server else ''
+        if by_person and people.get(author, 0) >= max_per:
+            removed[id(status)] = 'author_cap'
             continue
-        seen_counts[author] = seen + 1
+        if server and servers.get(server, 0) >= max_per:
+            removed[id(status)] = 'instance_cap'
+            continue
+        if by_person:
+            people[author] = people.get(author, 0) + 1
+        if server:
+            servers[server] = servers.get(server, 0) + 1
         kept.append(status)
-    return kept
+    return kept, removed
+
+
+def apply_diversity(statuses: list[dict[str, Any]], mod: Modifier,
+                    counts: dict[str, int] | None = None,
+                    instance_counts: dict[str, int] | None = None
+                    ) -> list[dict[str, Any]]:
+    """Keep the first ``max_per_cluster`` posts of each person (and of
+    each server, when the modifier says so) *in the order given*, so called
+    on a ranked list it keeps the best of each. *counts* and
+    *instance_counts* are what each person and server already have in the
+    cook session (older pages); they are read, never changed."""
+    return diversity_pass(statuses, mod, counts, instance_counts)[0]
 
 
 def tally_authors(statuses: list[dict[str, Any]],
@@ -222,6 +280,18 @@ def tally_authors(statuses: list[dict[str, Any]],
     for status in statuses:
         author = author_key(status)
         total[author] = total.get(author, 0) + 1
+    return total
+
+
+def tally_instances(statuses: list[dict[str, Any]],
+                    counts: dict[str, int] | None = None) -> dict[str, int]:
+    """*counts* plus one for each post of each server in *statuses* (a post
+    with no server is not counted)."""
+    total = dict(counts or {})
+    for status in statuses:
+        server = instance_key(status)
+        if server:
+            total[server] = total.get(server, 0) + 1
     return total
 
 
@@ -260,6 +330,12 @@ def order_statuses(statuses: list[dict[str, Any]], scores: dict[str, float],
     return sorted(statuses, key=key, reverse=True)
 
 
+def _tie_key(status: dict[str, Any]) -> tuple:
+    """(date, id) of the post the reader sees: the larger, the newer."""
+    return (status_created_at(status, content=True) or _NO_DATE,
+            _id_key(status))
+
+
 def score_statuses(
     statuses: list[dict[str, Any]],
     recipe: FeedRecipe,
@@ -267,14 +343,19 @@ def score_statuses(
     server: ServerTrendContext | None = None,
     sentiment_by_id: dict[str, float] | None = None,
     author_counts: dict[str, int] | None = None,
+    instance_counts: dict[str, int] | None = None,
     now: datetime | None = None,
     audit=None,
 ) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, Any]]:
-    """Score, filter by heat, order, then cap each person.
+    """Score, group, filter by heat, order, then cap each person.
 
-    The cap runs after the order so that it keeps each person's best-ranked
-    posts, and *author_counts* (posts per person already shown by earlier
-    pages of the cook session) makes it a cap on the whole session.
+    The order of the stages is Java's, but for the cap: similarity
+    grouping, then the heat cut, then the order (by relevance to the
+    focus when there is one, else by *base_sort*), and the cap after the
+    order so that it keeps each person's best-ranked posts. *author_counts*
+    and *instance_counts* (posts per person and per server already shown by
+    earlier pages of the cook session) make the cap one on the whole
+    session.
 
     *now* is the one clock reading of the page (None: read it here); *audit*
     only observes: the factors and the posts each cut removed."""
@@ -283,9 +364,22 @@ def score_statuses(
     server = server or EMPTY_TRENDS
     sentiment_by_id = sentiment_by_id or {}
     scores: dict[str, float] = {}
-    meta: dict[str, Any] = {'inert': [], 'heat': None, 'diversity': None}
+    meta: dict[str, Any] = {'inert': [], 'heat': None, 'diversity': None,
+                            'cluster': None, 'unavailable': {},
+                            # What the final guard checks the page against
+                            # (contract.ListFacts): each post's freshness
+                            # factor and whether the floor raised it, the
+                            # relevance the order used, the group of each
+                            # post.
+                            'fresh': {}, 'relevance_scores': None,
+                            'groups': None}
     tag_heat = local_tag_heat(statuses, server, now)
     audit.heat_map(tag_heat)
+    floor = has_trending(recipe)
+    words = relevancemod.WordCache()
+    audit.words(words)
+    meta['inert'] = sorted({mod.type for mod in recipe.kitchen.modifiers
+                            if mod.type == 'connection'})
 
     for status in statuses:
         sid = str(status.get('id') or '')
@@ -294,8 +388,13 @@ def score_statuses(
         audit.factor(sid, 'base', score)
         for mod in recipe.kitchen.modifiers:
             if mod.type == 'freshness':
-                factor = freshness_factor(status, mod, now)
+                factor = freshness_factor(status, mod, now, floor)
                 kind = 'fresh'
+                lifted = floor and floor_applied(status, mod, now)
+                if lifted:
+                    audit.fresh_floor(sid)
+                if factor is not None:
+                    meta['fresh'][sid] = (factor, bool(lifted))
             elif mod.type == 'sentiment_boost':
                 # Posts that are not judged (other languages) keep theirs.
                 factor = (sentiment_factor(sentiment_by_id[sid], mod)
@@ -309,12 +408,18 @@ def score_statuses(
             if factor is not None:
                 score = score * factor
                 audit.factor(sid, kind, factor)
-            elif mod.type in ('similarity_cluster', 'connection'):
-                meta['inert'].append(mod.type)
         scores[sid] = score
         scores[content_id] = score
 
     working = list(statuses)
+    groupings = [mod for mod in recipe.kitchen.modifiers
+                 if mod.type == 'similarity_cluster']
+    if groupings:
+        working = _group(working, groupings[0], meta, audit, words)
+        if len(groupings) > 1:
+            # Only the first one is applied; the rest are said, not
+            # silently dropped.
+            meta['inert'] = sorted({*meta['inert'], 'similarity_cluster#2'})
     for mod in recipe.kitchen.modifiers:
         if mod.type == 'heat':
             before = len(working)
@@ -328,23 +433,40 @@ def score_statuses(
                 'percentile': mod.percentile_threshold,
             }
 
-    keywords = recipe.kitchen.active_focus_keywords or []
+    keywords = relevancemod.focus_keywords(recipe.kitchen)
+    ordered = None
     if keywords:
-        # TF-IDF relevance is inert without NLP; fall back to base_sort
-        # (Java uses relevance when TF-IDF is available — never freeze merge).
-        meta['inert'].append('active_focus_keywords')
-    ordered = order_statuses(working, scores, recipe.kitchen.base_sort)
+        # Java: a focus replaces the base sort. The relevance is the
+        # cosine of each post with the focus, over the posts that are left.
+        weights = recipe.kitchen.active_focus_weights
+        found = relevancemod.relevance_scores(working, keywords, weights,
+                                              words)
+        if relevancemod.matched(found) or not working:
+            audit.relevance(found, keywords, weights)
+            meta['relevance'] = len(keywords)
+            meta['relevance_scores'] = found
+            ordered = order_statuses(working, found, 'score')
+        else:
+            # Babble, not Java: when no post has any relevance to the focus
+            # the page would silently become "newest first", whatever the
+            # recipe asks. It keeps the recipe's order and says so.
+            meta['focus_unmatched'] = True
+            audit.focus_unmatched()
+    if ordered is None:
+        ordered = order_statuses(working, scores, recipe.kitchen.base_sort)
 
     for mod in recipe.kitchen.modifiers:
         if mod.type == 'diversity':
             before = len(ordered)
-            kept = apply_diversity(ordered, mod, author_counts)
+            kept, removed = diversity_pass(
+                ordered, mod, author_counts, instance_counts)
             if audit.enabled:
-                audit.kitchen_cut('author_cap', ordered, kept)
+                for reason in ('author_cap', 'instance_cap'):
+                    audit.kitchen_cut(reason, ordered, [
+                        item for item in ordered
+                        if removed.get(id(item)) != reason])
             ordered = kept
             meta['diversity'] = {'before': before, 'after': len(ordered)}
-        elif mod.type == 'similarity_cluster':
-            meta['inert'].append('similarity_cluster')
 
     # Java DecisionLog: kitchen-filtered posts keep rank -1.
     ranks: dict[str, int] = {}
@@ -355,3 +477,25 @@ def score_statuses(
     meta['ranks'] = ranks
     meta['inert'] = sorted(set(meta['inert']))
     return ordered, scores, meta
+
+
+def _group(working: list[dict[str, Any]], mod: Modifier,
+           meta: dict[str, Any], audit,
+           words: relevancemod.WordCache) -> list[dict[str, Any]]:
+    """Similarity grouping of the page (see ``cluster.py``): the posts
+    each group keeps, or all of them when it did not run, which *meta* and
+    the audit then say and why."""
+    outcome = clustermod.run(working, mod, score_of=base_score,
+                             tie_key=_tie_key, words=words)
+    meta['cluster'] = outcome.record()
+    audit.cluster(outcome)
+    if outcome.status == 'ok':
+        meta['groups'] = {sid: group[0]
+                          for sid, group in outcome.groups.items()}
+    if outcome.status == 'unavailable':
+        meta['unavailable']['similarity_cluster'] = outcome.reason
+    if outcome.status != 'ok':
+        return working
+    if audit.enabled:
+        audit.kitchen_cut('cluster_cap', working, outcome.kept)
+    return outcome.kept

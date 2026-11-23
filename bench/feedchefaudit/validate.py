@@ -84,6 +84,10 @@ def _post(problems, index, entry):
     if not _need(problems, where + '.follow', entry['follow'],
                  {'verdict': str}):
         return
+    group = entry.get('cluster')
+    if group is not None:
+        _need(problems, where + '.cluster', group,
+              {'id': int, 'medoid': str})
     for key, spec in (('score', SCORE), ('removal', {
             'stage': str, 'reason': str, 'also': list}), ('sent', {
             'engine': object, 'score': (*_NUM, _NONE)})):
@@ -127,6 +131,16 @@ def structure(record):
         return problems
     _snapshot(problems, record['recipe']['snapshot'])
     _sources(problems, record['sources'])
+    # Revision 3 added these; a record of revision 2 has none of them.
+    for where, key in (('params', 'instance_counts_in'),
+                       ('outputs', 'instance_counts_out')):
+        if key in record[where] and not isinstance(record[where][key], dict):
+            problems.append('%s.%s has the wrong type' % (where, key))
+    if 'cluster' in record and not _need(
+            problems, 'cluster', record['cluster'],
+            {'status': str, 'n': int, 'k': int, 'strategy': str,
+             'max_per': int, 'init': str, 'seed': int, 'weights': list}):
+        return problems
     if record['outcome']['status'] not in STATUSES:
         problems.append('outcome.status is not one of %s' % ', '.join(
             STATUSES))
@@ -232,6 +246,10 @@ def consistency(record):
         problems.append('summary.pantry_in is not selected plus the removals')
     if summary['by_reason'] != counted:
         problems.append('summary.by_reason is not the removals counted')
+    if counted.get('cluster_cap') and (record.get('cluster') or {}).get(
+            'status') != 'ok':
+        problems.append('posts were removed by the grouping, which the '
+                        'record does not show ran')
     guard = sum(count for reason, count in counted.items()
                 if reason.startswith('guard:'))
     if summary['guard_checked'] != len(order) + guard:

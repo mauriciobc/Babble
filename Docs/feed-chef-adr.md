@@ -2,7 +2,13 @@
 
 Status: accepted for implementation. Behaviour source of truth is mashdon
 `master` @ `23277cd1ca40f6fe618c4f246896fd80777bf4ea`, not the PRD where they
-diverge. The PRD describes newer behaviour that is **not** on that master
+diverge. **Two Java revisions are pinned.** `23277cd` is the reference of the
+v1 rows below (contract table, deviations 1 to 19). `bc0b874` (moshidon,
+branch `claude/review-feed-recipe-timelines-hZSbi`) is the reference of Phase 1
+(engine revision 3): the relevance sort, the similarity grouping and its
+weights (0.1 / 0.7 / 0.2), the freshness floor and the 450 ms stagger
+(deviations 6, 20 to 24, and the freshness and diversity rows). A row or
+deviation that names one SHA means that one. The PRD describes newer behaviour that is **not** on that master
 SHA; Babble v1 does not implement PRD-only rows. Adversarial review:
 Project store `internal/feed-chef-plan-adversarial-review-deep.md`.
 
@@ -24,14 +30,14 @@ v1.
 | Pantry fetch shape | 1 scope + ≤3 tags if `maxId is None` + MLT search if focus; timeout `30+10*n`; partial | + window | **= Java** (parallel, enforced timeout); Babble `has_more` follows **scope page fullness** (not “single_task only”) so scope-oldest pagination works with tags/MLT |
 | UI cursor | last id after kitchen sort | oldest of merged pantry | **smallest wrapper id of the scope response** (deliberate fix) |
 | Base score | fav·1 + reblog·2.5 + reply·1.5 on content | same | **= Java** (not Elk `rank()`) |
-| `freshness` | `score *= factor` | blend 0.4 | **= Java** |
+| `freshness` | `23277cd`: `score *= factor`. `bc0b874`: `score *= 0.6 + 0.4 * factor`, with the floor of 0.2 on the factor | blend 0.4 | **`score *= factor`, no blend, with the floor of 0.2 under trending (deviation 21).** In Java at `bc0b874` the blend keeps a score at 60% or more of itself, so its floor is nearly inert; here, with no blend, the floor is what keeps an old viral post from scoring zero |
 | `heat` / `diversity` | heat after scores, before structural; diversity pre-sort, author only | PRD order / instance | **Java order; heat hides exactly floor(P x n / 100), the lowest first** (see Promises) |
-| `similarity_cluster` / TF-IDF / synonyms | present | present | **inert + UI warning** (no `synonyms.json` 16 MB LGPL in the binary) |
+| `similarity_cluster` / TF-IDF / synonyms | present | present | **active** since engine revision 3: TF-IDF relevance sort and similarity grouping (deviations 6, 20, 21); **synonyms and trigrams stay off** (no `synonyms.json` 16 MB LGPL in the binary); grouping needs the optional `kmedoids` package and says so when it is missing |
 | Sentiment | `SimpleSentimentAnalyzer` + `sentiment_words.json` (~94 KB); often `0` if missing | present | **Vendored VADER (EN) + LeIA (pt*)** — MIT, no PyPI; activates `positive_only` / `sentiment_boost` (Babble upgrade, not Java JSON parity) |
 | Server trends | deadlocked same executor | own executor / 2 s | **separate thread + 5 min memory cache**; never nest `submit`+`get` on that pool |
 | Network reach | degree 1 only; `null` disables; author = **boosted** content account; everyone passes while the list loads or is empty | BFS / null=∞ | **degree 1; null=off; boosted author** (= Java), but **fails closed** (deviation 12) |
 | More Like This | same timeline pantry when focus is set; UI can set focus | dedicated fragment | **pantry MLT = Java**; focus via import **or** timeline “More like this” (no dedicated fragment) |
-| Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) + preview sheet | full | Java form fields in a HIG `Adw.Dialog` (`src/feedchefbuilder.py`), without `include_unknown`, similarity and the diversity dimension (deviation 7), plus an icon table, `positive_only`, `sentiment_boost` and a **preview** (`FeedChefPreviewDialog`, own engine) |
+| Builder controls | full (icon, lists, diet/kitchen sliders, modifiers) + preview sheet | full | Java form fields in a HIG `Adw.Dialog` (`src/feedchefbuilder.py`), without `include_unknown` (deviation 7), plus an icon table, `positive_only`, `sentiment_boost`, the similarity grouping (posts per group, which post stays), the server dimension of the person cap, and a **preview** (`FeedChefPreviewDialog`, own engine) |
 | Import confirm | always confirm (name/author); then upsert replaces silently | varies | **= Java** (always confirm; replace without a second prompt) |
 | Engine lifetime | `new` per view | factory singleton | **= Java** (no singleton) |
 
@@ -47,20 +53,36 @@ v1.
 4. Fuzzy synonyms stay **off** in v1 (no 16 MB LGPL `synonyms.json`).
 5. Sentiment is **vendored VADER + LeIA** (`src/feedchef/vendor/`, MIT
    NOTICE), not mashdon’s JSON lexicon and not a PyPI dependency. `pt` /
-   `pt-*` status language → LeIA, `en` / `en-*` → VADER, any other or no language
-   → not judged (deviation 15). Scores are VADER
+   `pt-*` status language → LeIA, `en` / `en-*` → VADER, any other language, or none
+   and no confident guess → not judged (deviation 15). Scores are VADER
    `compound` in [-1, 1].
-6. Without TF-IDF, an active focus does **not** freeze merge order: kitchen
-   falls back to `base_sort` (score or chronological). Relevance sort waits
-   on an NLP gap.
+6. **A focus orders the page by relevance** (engine revision 3; this lifts the
+   first version's fallback to `base_sort`). Java's `applyRelevanceSort` is
+   ported (`src/feedchef/relevance.py`): a TF-IDF vector per post (augmented
+   TF, smoothed IDF `log(N / (1 + df)) + 1`, at most 100 terms) over the posts
+   that are left after the grouping and the heat cut, the reference vector of
+   `active_focus_keywords` with `active_focus_weights` (all 1.0 when they are
+   not given for every keyword, 0.1 for a weight not above zero), and the
+   cosine; the page is ordered by it, then by the tie rule of deviation 16.
+   The focus replaces `base_sort` while it is set, as in Java. What differs:
+   synonyms and trigrams (Java's fuzzy matching, on by default there) stay
+   off, as for deviation 4, and `enable_fuzzy_matching` is read as off; a
+   keyword is lowercased and stripped of accents like the words of a post
+   (Java compares it as written); sums run over sorted terms, so a score does
+   not depend on dictionary order. The code is plain Python, not numpy: at the
+   size of a page (120 posts: 2 ms measured by `feedchef relevance`) a loop is
+   fast enough, and a BLAS sum need not round like a loop, which a replay
+   would show. A recipe that sets no focus is untouched. The audit records
+   `score.relevance` for every post that reached the order.
 7. The Java builder is ported in part, on purpose (see Builder below). Not
    exposed, each for a reason in the code, not for want of time:
    `include_unknown` (with degree 1 the only thing it would do is switch the
-   follow filter off, which "Only People I Follow" already does);
-   similarity clustering (inert without embeddings or TF-IDF, so a control
-   would promise what the kitchen does not do); the diversity dimension
-   toggle (only the author dimension has an effect, and it is what the
-   "Limit Posts per Person" modifier writes).
+   follow filter off, which "Only People I Follow" already does). The
+   similarity grouping ("Group Similar Posts": posts per
+   group and which post stays) and the server dimension of the person cap
+   ("Count Servers Too") are exposed since engine revision 3, each active in
+   the kitchen; a control for the grouping is shown but not editable, with the
+   reason, while the optional packages it needs are missing.
 8. The scope cursor is `pantry.scope_cursor`: the smallest **wrapper** id
    (integers when all are digits, else the last item), because Mastodon
    pages by the timeline entry id and a boost carries the old date of the
@@ -72,7 +94,8 @@ v1.
    through the generic `page.` hook of `statusmenu`), not on the top post.
    Keywords are the top 5 TF-IDF terms of the post against the current
    timeline (the post alone when empty); accents are stripped and the 39
-   Java stopwords apply. The relevance **sort** is still inert (item 6).
+   Java stopwords apply. The focus those keywords make orders the page by
+   relevance (deviation 6) and fades with `focus_decay` (deviation 23).
 11. The timeline is a `TimelinePage` over `feedchefsource.FeedChefSource`.
     Its `RequestScope` supersedes a request in flight (the source answers
     CANCELLED and stops the engine), so no request gate of its own is kept.
@@ -116,17 +139,51 @@ v1.
     for a page it showed (a cancelled cook is not counted), and a refresh
     resets them. The person is the account that put the post in the feed
     (the booster for a boost, as in Java); the builder says so.
-15. **Posts in other languages are not judged.** `sentiment.score_status`
-    returns `None` unless the post's language is English or Portuguese (the
-    boosted post's, else the wrapper's). A missing language is not guessed:
-    the English lexicon over text of an unknown language reads nearly
-    everything as neutral, a judgment nobody made. "Only Positive Posts"
-    neither hides nor "Favor Positive Posts" boosts an unjudged post.
+15. **Posts in other languages are not judged; a post with no declared
+    language is judged on a confident guess** (maintainer's decision,
+    2026-11-23). `sentiment.score_status` reads a post in English (VADER) or
+    Portuguese (LeIA) by its declared language (the boosted post's, else the
+    wrapper's); any other declared language is not judged, and a declared
+    language is never second-guessed. For a post that declares **none**, a
+    guess by py3langid (`src/feedchef/langguess.py`, through `feedchef.deps`,
+    on the engine worker; restricted to `RUNTIME_LANGS`, the set
+    `bench/feedchefaudit/langbench.py` measured, held equal by a test; text
+    cleaned as langbench cleans it: links and handles removed) is acted on only
+    when **all** hold: the cleaned visible text is at least 40 characters, the
+    normalised probability is at least 0.63, and the guess is `en` (VADER) or
+    `pt` (LeIA). Any other guess, a lower probability, or a short text is "not
+    judged", as before: "Only Positive Posts" neither hides nor "Favor Positive
+    Posts" boosts it. **Why these numbers** (`langbench`, 1,371 posts that
+    declare a language, once per distinct text): the labels are the authors'
+    declared languages, which are noisy (clients default the field), so the
+    precisions are a lower-bound proxy; posts under 40 characters are excluded
+    because the detector is unreliable on them; 0.63 gave the best worst-case
+    Wilson 95% lower bound of precision over `en` and `pt` (0.929) with
+    coverage 0.89; no threshold reached the 0.97 the plan hoped for, and the
+    maintainer chose to enable guessing at that point rather than leave these
+    posts unjudged. The guess is deterministic. **Recorded:**
+    `facts.lang_guess {lang, p}` (p a float) for every post that declares no
+    language and has 40 characters of text, whatever the answer, **when the
+    recipe reads sentiment** (positive-only or favor-positive; a recipe that
+    does not never imports py3langid, Principle 6), `sent.engine`
+    for a judged one, and `env.lang_guess {status, reason, min_p, min_chars, version}`
+    per page; without py3langid the status is `unavailable`, the Kitchen Report
+    says so for a recipe that reads sentiment, and such posts stay unjudged.
+    **Enforced:** the contract promise `language_guess` (a judged post with no
+    declared language must have an acted-on guess: enough text, `en` or `pt`,
+    at least 0.63) is checked by the guard, and `evaluate` has a `language`
+    rule that holds each such post to p >= 0.63, a matching engine and 40
+    characters. **Replay** feeds the recorded guess back and runs the guesser
+    again to compare: a guesser that answers otherwise is a drift warning (as for
+    sentiment); a selection that changes (the guard dropping a post whose guess
+    is below the gate) is a mismatch. Why This Post? says "Guessed as English,
+    78% sure" for such a post.
 16. **Order is total and tied by id.** "Newest first" is non-increasing by the
     created_at of the post the reader sees, ties by id, newest id first;
     "Most engaging" is non-increasing by final score (after the freshness,
-    trending and sentiment boosts), ties newest first, then by id. A focus
-    does not change either (the relevance sort is inert).
+    trending and sentiment boosts), ties newest first, then by id. A focus of
+    keywords replaces both: the page is non-increasing by relevance, with the
+    same tie rule (deviation 6); a focus of hashtags only changes nothing.
 17. **Blocked words and the minimum length read the visible text.** Java
     matched the HTML source (a blocked word such as `href` hit every link).
     The text is the post's HTML stripped, with the content warning; a word
@@ -177,6 +234,132 @@ v1.
     open would cost more than the briefly stale answer; a recipe that must
     be exact is refreshed once.
 
+20. **Similarity grouping** (`src/feedchef/cluster.py`; the "Group Similar
+    Posts" modifier `similarity_cluster`), Java's `applySimilarityClustering`
+    with these pins and changes. *Similarity* of two posts is
+    `0.1 * Jaccard(hashtags) + 0.7 * cosine(TF-IDF) + 0.2 * same person`:
+    the weights of the current Java (`PostSimilarityCalculator` at bc0b874,
+    rebalanced from 0.3 / 0.5 / 0.2 because hashtags are rare; the audit
+    records the weights, so a change of them is a one-line edit and old
+    records still replay). *k* is `min(5, max(1, n // 10))`, and fewer than ten
+    posts are not grouped (recorded as `skipped`). `similarity_threshold` is
+    stored by Java and read by nothing; it is not read here either. The posts
+    are grouped by **k-medoids (FasterPAM, the `kmedoids` package) over
+    `1 - similarity`**, from `init='build'` and `random_state=0` (both
+    recorded), where Java runs a randomly started PAM-like loop: the same
+    posts **in the same order** always give the same groups (the distances are
+    built in page order and a tie between equally good medoids is settled by
+    position, so another order may group differently), and a replay reproduces
+    them (a record made with other settings replays with the ones it names).
+    The record holds `max_iter` and the versions of `kmedoids` and numpy; a
+    replay where a version differs and the page differs gives no verdict
+    (`skipped`, the versions named), not a mismatch, and one made on a machine
+    without `kmedoids` is "cannot be replayed here". The library's answer is
+    checked (labels and medoids in range, one medoid per group, a finite
+    loss); a malformed one is `unavailable`. Groups are
+    numbered by the page position of their medoid. *Selection* is Java's
+    round robin (`ClusterSelector`): each group keeps up to
+    `max_per_cluster` posts (1 when missing; Java returned nothing for 0, here
+    it is at least 1), `best_score` by engagement (Java's raw replies, boosts
+    and favourites count, not the score after the modifiers), `most_recent` by
+    date, `centroid` (Java's enum is `CENTROID_THEN_SCORE`; a recipe may spell it `centroid`, as Java's builder writes it, or `centroid_then_score`, and both are accepted) the medoid first and then by
+    engagement; equal keys are broken newest first, then by id, where Java
+    kept the order of arrival; the kept posts keep their order in the page.
+    A post is read as the post it shows (hashtags, words), and "the same
+    person" is the account that put it in the feed, as for the cap
+    (deviation 14); Java reads the wrapper's own fields, which are empty for a
+    boost. The stage
+    sits where Java puts it: **grouping, then the heat cut, then the order,
+    then the person cap**, so heat hides floor(P x n / 100) of what is left of
+    the grouping. A removed post has the reason `cluster_cap`, and the record
+    holds each post's group and medoid and, per page, the loss, k, start,
+    seed, weights and strategy. **Without `numpy` and `kmedoids`, or when the
+    call fails, the modifier is marked `unavailable` with the reason (the
+    kitchen meta, the audit record, and the builder, which shows the row but
+    not editable) and removes nothing: never a quiet no-op.** Only the first
+    grouping modifier of a recipe applies; another is listed as inert. K-means
+    and e-means were considered (the plan, "Dependencies"): the dissimilarity
+    mixes sets and a same-person term that are not vectors, and a real post is
+    needed as the centre of a group, which a medoid is; at 40 to 120 posts
+    FasterPAM takes under a millisecond. The loss is recorded so that another
+    algorithm can be compared with it later.
+21. **The freshness floor.** When a recipe has both "Favor Fresh Posts" and
+    "Boost Trending Topics", a freshness factor under 0.2 is raised to 0.2
+    (Java's `FRESHNESS_FLOOR_FOR_TRENDING`), so an old viral post is not scored
+    zero. The audit records `score.fresh_floor: true` for each post whose
+    factor it raised. Java also blends the factor (`0.6 + 0.4 * factor`); that
+    stays out (see Out of v1).
+22. **The server dimension of the person cap.** `diversity_dimensions` may hold
+    `'author'` (the default), `'instance'` or both; the cap (`max_per_cluster`)
+    applies to each. The server is the host of the account that put the post
+    in the feed; a post whose account has no host is never capped by it (Java).
+    Only a kept post is counted for either dimension (Java counted the person
+    of a post the server cap then refused). The counts of both travel with the
+    session: `FeedResult.instance_counts` and the engine's `instance_counts`
+    parameter sit beside `author_counts` (which is unchanged, so old callers
+    and records read as before; `params.instance_counts_in` and
+    `outputs.instance_counts_out` are new and optional in the record). The
+    removal reason is `instance_cap`.
+22b. **A cap is read tolerantly and imported strictly.** `max_per_cluster` of a
+    `similarity_cluster` or `diversity` modifier is read by `recipe.max_per`: a
+    whole number of 1 or more, and 1 for anything else (missing, 0, negative,
+    text, infinite), never an exception, the same for both modifiers (Java
+    returned no post at all for a grouping cap of 0). `validate_for_import`
+    rejects a value that is not a whole number of 1 or more, with a message
+    that says so.
+23. **`focus_decay` is Babble's definition.** Java keeps the field in the recipe
+    and nothing applies it. Here (`src/feedchef/focus.py`): on each refresh
+    the reader asks for while a focus is active, every focus weight is
+    multiplied by `focus_decay` (a keyword with no weight counts as 1.0); a
+    keyword whose weight is then below 0.1 is dropped; when none is left the
+    focus clears (hashtags too). The recipe is saved and the banner follows.
+    A value of 1.0 or more never decays. Every weight is multiplied by the same
+    number, so the order does not change while keywords remain: the decay is the
+    focus's lifetime (22 refreshes at 0.9 from equal weights), and a keyword
+    imported with a smaller weight goes first. A hashtag has no weight: it
+    stays until the keywords are gone. It runs in `FeedChefTimelinePage.pull_refresh`
+    (the reader's refresh), never in the engine, so a page always cooks with
+    the weights its record shows.
+    **Revision (review):** the focus has a **strength**
+    (`kitchen.active_focus_strength`, 1.0 when it is set, serialised; a recipe
+    without it reads 1.0) that is multiplied by `focus_decay` on each refresh,
+    so a focus of hashtags only, which has no weights, fades too: the whole
+    focus (hashtags and keywords) clears when the strength is under 0.1, or when
+    it had keywords and none is left. Setting a focus or clearing it resets the
+    strength. A weight is read as the relevance sort reads it (0, negative or
+    not a number is 0.1), so the two never disagree. The order does not change
+    while keywords remain: the relevance reference vector is scaled by its
+    largest weight and relevances are rounded to 12 significant digits
+    (deviation 6), so a uniform fade cannot reorder a page (400 random pages, 0
+    reordered). The engine cooks a **copy** of the recipe taken when the cook
+    starts, and a refresh cancels the cook in flight before it fades the focus,
+    so a record always shows the weights the page was cooked with. Known and
+    left as it is: a wheel pull at the top of the page is a refresh, and fades
+    the focus too.
+24. **The 450 ms stagger is Java's, for the searches of More Like This.** Java
+    pauses 450 ms between the *searches* of its More Like This (the hashtag
+    searches, then the keyword one); the hashtag *timelines* of the pantry are
+    fetched in parallel with no pause. Babble does the same:
+    `FeedEngine.search_stagger_ms = 450` is the pause between two searches of
+    `pantry.fetch_more_like_this` (none before the first, none on a cache hit),
+    and it is a wait on the cook's cancel event, so a cancelled cook ends at
+    once with `pantry.Cancelled` (not a failed search; nothing is cached; any
+    other `InterruptedError`, a search's own, is a soft failure). Java searches
+    by keyword only when there are no hashtags, so its pause before the keyword
+    search never fires; here too a focus searches hashtags or the top keyword,
+    never both. Java runs these searches before it waits for the pantry; here the
+    scope and hashtag fetches are **started first** and the searches run while
+    they are under way, so page one is not delayed by up to 0.9 s, and the
+    pantry's deadline (30 s plus 10 s per hashtag timeline) starts when the
+    searches end. A replay sets the pause to 0.
+25. **A focus that matches nothing keeps the recipe's order** (Babble, not Java:
+    Java sorts by relevance whatever the scores, which makes every score 0 and
+    the page "newest first" with the recipe's order lost). When no post of the
+    page has any relevance, the kitchen orders it as the recipe says, records
+    `focus_unmatched` (kitchen meta and the record), the focus banner says none
+    of the posts here match it, and Why This Post? says the page is in the
+    recipe's order. The relevance promise is then not made for that page.
+
 ## Promises and enforcement
 
 Each promise the builder makes is a predicate in `src/feedchef/contract.py`
@@ -206,10 +389,22 @@ fuzz runs 240 seeded cases over three pages.
 | Boost Trending Topics: hashtags many people use now, and posts trending on the server | kitchen score | (list level) | 300 equal pairs; a server-trending post |
 | Favor Positive Posts: English and Portuguese posts that read as positive rank higher | kitchen score | (list level) | per-language cases |
 | Limit Posts per Person: until you refresh; a boost counts for the person who boosted | kitchen cap, after the order, session counts | (list level) | fuzz: per person; 3-page best-ranked case |
+| Count Servers Too: at most N posts per server, over the session | kitchen cap, after the order, session counts | `instance_cap` (list level, guard) | fuzz: per server; `feedchef cluster`: honest and broken stage |
+| Group Similar Posts: at most N posts of each group of similar posts | kitchen grouping, before heat | `cluster_cap` (list level, guard) | fuzz: per group; `feedchef cluster`: honest and broken stage; the audit's `cluster` rule |
+| More Like This focus: the page is non-increasing by relevance to the focus | kitchen order | `relevance_order` (list level, guard) | fuzz: order by relevance and an oracle that writes Java's formulas again; `feedchef relevance`; the audit's `relevance` rule |
+| Favor Fresh Posts with Boost Trending Topics: a factor under 0.2 is raised to 0.2, and only then | kitchen score | `fresh_floor` (list level, guard) | fuzz: freshness floor, both directions; `feedchef relevance`; the audit's `floor` rule |
+
+The promises about the page as a whole (`relevance_order`, `cluster_cap`,
+`fresh_floor`, `instance_cap`; `contract.LIST_IDS`, `contract.list_violations`) are
+checked by the guard after the per-post ones, against what the stages decided
+(`kitchen_meta['relevance_scores']`, `['groups']`, `['fresh']`, the session's
+server counts), and a post that breaks one is dropped and logged as
+`guard:<id>`, like any other. `evaluate` recomputes them from the record
+(see Audit).
 
 "Hide the Least Engaging" hides exactly floor(P x n / 100) of the n posts of
-a batch: the lowest by score, the older first among equal scores, and never
-all of them (a batch of one is never emptied). The rest keep their order.
+a batch (what is left of it after "Group Similar Posts" took its share): the
+lowest by score, the older first among equal scores, and never all of them (a batch of one is never emptied). The rest keep their order.
 This replaces Java's percentile cut with a relax rule: it hid a count that
 depended on ties, and nothing at all when every score was equal.
 
@@ -223,15 +418,19 @@ include and exclude hashtags, and "Only People I Follow" (network reach on,
 one degree, or off; an imported recipe's other degree count is kept until
 the switch is changed); diet blocklist, media, alt text and sensitive-media
 filters, "Only Positive Posts" (`positive_only`) and the minimum length;
-the kitchen order (most engaging or newest first) and the five modifiers
-that run today (freshness in hours, heat percent, posts per person,
-trending growth in percent, and "Favor Positive Posts" as a strength of 10
-to 100 percent, written as `sentiment_boost` 0.1 to 1.0), each an expander
-with an enable switch. Writing back keeps the modifier order, adds a newly
+the kitchen order (most engaging or newest first) and the six modifiers
+that run today (freshness in hours, heat percent, posts per person with a
+"Count Servers Too" switch for the server dimension, trending growth in
+percent, "Favor Positive Posts" as a strength of 10 to 100 percent, written as
+`sentiment_boost` 0.1 to 1.0, and "Group Similar Posts" with posts per group
+and which post stays: most engaging, newest, or most typical), each an
+expander with an enable switch. The grouping row needs numpy and kmedoids:
+asked without importing them (`deps.unavailable_reason`), it is shown but not
+editable, with the reason, when they are missing. Writing back keeps the modifier order, adds a newly
 enabled one at the end, removes a switched-off one, and leaves unsupported
 modifiers and values the reader did not touch as they were. Unsupported
-ingredients (similarity grouping, connections, focus keyword sorting) are
-named in one plain row; sentiment is no longer among them.
+ingredients (connections) are named in one plain row; sentiment, the
+similarity grouping and the focus sort are no longer among them.
 
 **Sentiment is active.** `positive_only` hides posts whose score is
 negative, and `sentiment_boost` lifts positive ones, scored by the vendored
@@ -290,12 +489,33 @@ kitchen and the viewer filter take it as `now`).
 
 **Each removed post has exactly one reason, from a closed set** (`is_reason`):
 `pantry_excluded_tag`, `pantry_missing_included_tag`, `diet:<promise>`,
-`reach_not_followed`, `viewer_hide`, `heat_cut`, `author_cap`,
-`guard:<promise>`. The guard is the only stage that lists every promise a post
+`reach_not_followed`, `viewer_hide`, `cluster_cap`, `heat_cut`, `author_cap`,
+`instance_cap`, `guard:<promise>` (a promise of a post, or one about the page). The guard is the only stage that lists every promise a post
 breaks (`removal.also`). Two deviations from the first plan: a post fetched
 twice is one entry (the duplicate is an `also_in` and a count in
 `summary.duplicates`, not a removal), and a post with no id is only counted
 (`summary.no_id`). `summary.pantry_in == selected + sum(by_reason)` holds.
+
+**Engine revision 3** (`audit.ENGINE_REV`) added, all optional in the schema so
+records of revision 2 still load (they replay only with `--force`, as ever,
+and evaluate refuses them for the same reason): `score.relevance` and
+`score.fresh_floor`; per post `cluster: {id, medoid}` and
+`facts.host` (the server the cap counts) and, for a recipe that reads words,
+`facts.focus_sha256`; per page `cluster: {status, n, k, strategy, max_per, init,
+seed, weights, loss}` (`status` is `ok`, `skipped` for fewer than ten posts, or
+`unavailable` with a `reason`); `params.instance_counts_in`,
+`outputs.instance_counts_out`; the reasons `cluster_cap` and `instance_cap`.
+The sidecar gains `focus` (the words the relevance sort and the grouping read:
+the body, the content warning and every alt text, 2,000 characters) for a
+recipe with a focus or a grouping, because the visible text the contract
+reads is not the text the TF-IDF reads; it is private like the rest. A
+replay patches `textutil.focus_text` with it, sets the grouping's start, seed
+and weights to the recorded ones, and turns the stagger off; a record whose
+sidecar cannot give the whole focus text of every post is `skipped`, never a
+false mismatch. Writing the log uses the one-shot C JSON encoder (the bytes
+are the same, several times faster), which pays for the larger record: capture
+costs 3.7 ms at p95 per 40-post page with grouping and focus recipes in the
+fuzz.
 
 **Replay is the proof.** `replay` rebuilds each post from its facts and the
 sidecar, runs the real engine over fake fetches that hand them back in the
@@ -327,9 +547,14 @@ traceback. A page cooked twice counts once; a cook cancelled after its record
 was written is rewritten as `cancelled`. A preview leaves no audit record.
 
 **`evaluate`** checks the output against the recipe snapshot with no
-tolerance: every kept post keeps every promise, the order is the recipe's,
-heat removed exactly floor(P x n / 100), the cap per person holds across the
-pages of a cook, the hashtags and the follow setting are respected, no post
+tolerance: every kept post keeps every promise, the order is the recipe's (by
+relevance when there is a focus, recomputed from the recorded keywords,
+weights and words, and `score.relevance` must be the cosine), the grouping
+kept what its strategy says from the recorded groups (`cluster`: the selection is checked against the groups the record
+names; it is the replay that runs the clustering again and compares it), the
+freshness factor and its floor are what the recipe says (`floor`, in both directions: raised with trending and only then), heat
+removed exactly floor(P x n / 100) of what the grouping left, the cap per
+person and per server holds across the pages of a cook, the hashtags and the follow setting are respected, no post
 was dropped by the guard (a stage let a violator through), and each removal is
 justified by the recipe. `viewer_hide` is the one reason it cannot judge.
 
@@ -382,7 +607,7 @@ Test: `feedchef audit ui` (the real Recorder's record behind a fake engine).
 `RequestMode`, federated time window, `LocalPostRepository` in the engine,
 `FeedEngineFactory`, `expected_outcome`, BFS degree ≥ 2, dedicated MLT
 fragment, mashdon `sentiment_words.json` (replaced by VADER/LeIA),
-`focus_decay`, 450 ms search stagger, freshness blend 0.4 / floor 0.2,
+freshness blend 0.4, synonyms and trigram expansion,
 federated 8 h manual QA, mashdon `tools/` Python helpers, PRD-only pantry
 window / `RequestMode` / `expected_outcome`.
 
@@ -395,6 +620,9 @@ Enforced by prefix rules in `testkit/moduleboundary.py`.
 
 ## Kitchen policy
 
-Silent no-ops are forbidden. Modifiers without an approved NLP gap show as
-inert in the builder/import UI. Elk `rank()` / DPP / `affinity` are not
+Silent no-ops are forbidden. Modifiers the kitchen does not apply
+(`connection`) show as inert in the builder/import UI, and one that cannot run
+here (grouping without numpy and kmedoids) is marked `unavailable` with the
+reason in the kitchen meta and the audit record, and not editable in the
+builder. Elk `rank()` / DPP / `affinity` are not
 kitchen implementations.

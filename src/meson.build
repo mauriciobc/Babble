@@ -225,16 +225,20 @@ install_data(
   'feedchef/__init__.py',
   'feedchef/audit.py',
   'feedchef/auditreport.py',
+  'feedchef/cluster.py',
   'feedchef/contract.py',
   'feedchef/decisionlog.py',
   'feedchef/deps.py',
   'feedchef/diet.py',
   'feedchef/engine.py',
+  'feedchef/focus.py',
   'feedchef/icons.py',
   'feedchef/kitchen.py',
+  'feedchef/langguess.py',
   'feedchef/network_reach.py',
   'feedchef/pantry.py',
   'feedchef/recipe.py',
+  'feedchef/relevance.py',
   'feedchef/sentiment.py',
   'feedchef/sharecodec.py',
   'feedchef/storage.py',
@@ -869,6 +873,31 @@ test('feedchef audit record', python,
   args: [files('test-feedchef-audit.py')],
   env: test_env,
   timeout: 300,
+)
+# Needs no display: Java's relevance sort (TF-IDF, cosine, the reference
+# vector of a focus), the freshness floor of 0.2 under trending, and the
+# fading focus, ported from Java's tests; the relevance runs on the worker.
+test('feedchef relevance', python,
+  args: [files('test-feedchef-relevance.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: similarity grouping (hybrid similarity, k, the three
+# strategies, FasterPAM from a fixed start), the cap per server, the stagger
+# of the searches and the guard on the new list promises. Skips (77) the
+# checks that group posts when the optional kmedoids package is missing.
+test('feedchef cluster', python,
+  args: [files('test-feedchef-cluster.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: language guessing for posts that declare none (the
+# maintainer's gates: 0.63, 40 characters, en and pt), off the main thread, in
+# the record, replayed. Skips (77) without py3langid.
+test('feedchef langguess', python,
+  args: [files('test-feedchef-langguess.py')],
+  env: test_env,
+  timeout: 120,
 )
 test('feedchef promises', python,
   args: [files('test-feedchef-promises.py')],

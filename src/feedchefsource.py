@@ -59,10 +59,10 @@ class _Cook:
     """One ``fetch()``: its task, and whether it is still open."""
 
     __slots__ = ('task', 'cancellable', 'handler', 'done', 'older',
-                 'counts', 'cook_id', 'page_index')
+                 'counts', 'servers', 'cook_id', 'page_index')
 
     def __init__(self, task, cancellable, older, counts, cook_id='',
-                 page_index=0):
+                 page_index=0, servers=None):
         # The cook session this page belongs to: a refresh starts a new
         # one, an older page goes on with the session's.
         self.cook_id = cook_id
@@ -75,6 +75,9 @@ class _Cook:
         # The person counts the next hop of this cook starts from: the
         # session's, or none for a refresh.
         self.counts = counts
+        # The same for the servers of the posts (the 'instance' dimension
+        # of "Limit Posts per Person").
+        self.servers = servers if servers is not None else {}
 
 
 class FeedChefSource:
@@ -106,6 +109,7 @@ class FeedChefSource:
         # and every older one): "Limit Posts per Person" caps the whole
         # session, and a refresh starts it again.
         self._author_counts = {}
+        self._instance_counts = {}
         # Why the last cook failed: 'follow-list' or None.
         self.error_kind = None
         self._cook_id = ''
@@ -153,7 +157,8 @@ class FeedChefSource:
             task, cancellable, older,
             dict(self._author_counts) if older else {},
             self._cook_id if older else uuid.uuid4().hex[:12],
-            self._page_index + 1 if older else 0)
+            self._page_index + 1 if older else 0,
+            dict(self._instance_counts) if older else {})
         # A cook this one supersedes, whose request nobody cancelled, is
         # answered now: a Gio.Task left unanswered is never finished.
         previous, self._active = self._active, cook
@@ -199,7 +204,8 @@ class FeedChefSource:
             on_done=partial(self._on_done, cook, hops),
             on_error=partial(self._on_error, cook),
             author_counts=dict(cook.counts), hide=viewer_hides,
-            cook_id=cook.cook_id, page_index=cook.page_index, hop=hops)
+            cook_id=cook.cook_id, page_index=cook.page_index, hop=hops,
+            instance_counts=dict(cook.servers))
 
     def _settle(self, cook):
         cook.done = True
@@ -230,6 +236,7 @@ class FeedChefSource:
         # Only a page that is shown counts: a cook that was cancelled
         # never gets here, so a retry does not count its posts twice.
         cook.counts = dict(result.author_counts or {})
+        cook.servers = dict(getattr(result, 'instance_counts', None) or {})
         if not result.items and has_more and hops < MAX_EMPTY_HOPS:
             self._start(cook, cursor, hops + 1)
             return
@@ -238,6 +245,7 @@ class FeedChefSource:
         self._cursor = cursor
         self._has_more = has_more
         self._author_counts = cook.counts
+        self._instance_counts = cook.servers
         self._keep_audit(cook, result)
         self.stalled = bool(not result.items and has_more)
         self._settle(cook)

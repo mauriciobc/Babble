@@ -11,15 +11,21 @@ here from the plain meaning of each setting.
 
 import math
 import os
+from datetime import datetime
 
+from src.feedchef import cluster as clustermod
+from src.feedchef import langguess
 from src.feedchef import contract, kitchen as kitchenmod
+from src.feedchef import relevance as relevancemod
+from src.feedchef.recipe import max_per
 from src.feedchef.textutil import parse_created_at
 from feedchefaudit import validate
 from feedchefaudit.records import (LogError, Rebuilt, check_replayable,
                                    patched, recipe_of, structure_problem)
 
-RULES = ('record', 'promises', 'hashtags', 'follow', 'order', 'heat', 'cap',
-         'removal_reasons', 'guard')
+RULES = ('record', 'promises', 'hashtags', 'follow', 'order', 'relevance',
+         'cluster', 'floor', 'language', 'heat', 'cap', 'removal_reasons',
+         'guard')
 
 
 class Tally:
@@ -80,9 +86,16 @@ def _mods(recipe, kind):
 
 def _caps(recipe):
     """max_per_cluster of each diversity modifier that caps by author."""
-    return [int(mod.max_per_cluster if mod.max_per_cluster is not None
-                else 1) for mod in _mods(recipe, 'diversity')
+    return [max_per(mod.max_per_cluster) for mod in _mods(recipe, 'diversity')
             if 'author' in (mod.diversity_dimensions or ['author'])]
+
+
+def _host(entry):
+    return entry['facts'].get('host') or ''
+
+
+def _removed_by(entry, *reasons):
+    return bool(entry['removal']) and entry['removal']['reason'] in reasons
 
 
 def _heat_expected(recipe, scored):
@@ -137,6 +150,19 @@ def _justified(entry, reason, rebuilt, env_args, survivors):
     if reason == 'heat_cut':
         weaker = survivors and _key(entry, rebuilt) > min(survivors)
         return 'a kept post is weaker' if weaker else None
+    if reason == 'cluster_cap':
+        if entry['score'] is None or 'cluster' not in entry:
+            return 'it was never grouped'
+        keep = _cluster_keep(rebuilt)
+        if keep is None:
+            return None
+        return 'the strategy keeps it' if entry['id'] in keep else None
+    if reason == 'instance_cap':
+        cap = contract.instance_cap(recipe)
+        left = rebuilt.record['outputs'].get('instance_counts_out', {}).get(
+            _host(entry), 0)
+        return None if cap is not None and _host(entry) and left >= cap \
+            else 'the server is under the cap'
     if reason == 'author_cap':
         caps = _caps(recipe)
         left = rebuilt.record['outputs']['author_counts_out'].get(
@@ -206,10 +232,10 @@ def _judge(tally, rebuilt, record):
                 tally.add('follow', 1, not allowed,
                           '%s author not followed' % _tail(sid))
         _check_kitchen(tally, rebuilt, selected)
+        _check_language(tally, rebuilt)
         scored = [e for e in rebuilt.entries() if e['score'] is not None]
         survivors = [_key(e, rebuilt) for e in scored
-                     if not (e['removal'] and
-                             e['removal']['reason'] == 'heat_cut')]
+                     if not _removed_by(e, 'heat_cut', 'cluster_cap')]
         for entry in rebuilt.entries():
             removal = entry['removal']
             if removal is None:
@@ -228,20 +254,202 @@ def _judge(tally, rebuilt, record):
     tally.add('guard', record['summary']['guard_checked'], 0)
 
 
+def _relevance_map(rebuilt):
+    """{post id: relevance} recomputed from the recipe's focus and the
+    words of the posts that reached the order (not cut by the grouping or
+    heat); None when the recipe has no focus, False when the words of the
+    posts are not all in the record."""
+    recipe = rebuilt.recipe
+    keywords = relevancemod.focus_keywords(recipe.kitchen)
+    if not keywords:
+        return None
+    if not rebuilt.words_whole():
+        return False
+    corpus = [rebuilt.statuses[e['id']] for e in rebuilt.entries()
+              if e['score'] is not None
+              and not _removed_by(e, 'cluster_cap', 'heat_cut')]
+    found = relevancemod.relevance_scores(
+        corpus, keywords, recipe.kitchen.active_focus_weights)
+    if corpus and not relevancemod.matched(found):
+        # No post matched the focus: the page keeps the recipe's order.
+        return None
+    return found
+
+
+def _check_order(tally, rebuilt, selected):
+    recipe = rebuilt.recipe
+    record = rebuilt.record
+    statuses = [rebuilt.statuses[e['id']] for e in selected]
+    found = _relevance_map(rebuilt)
+    if found is False:
+        tally.unverifiable += 1
+        return
+    if found is None:
+        scores = {e['id']: e['score']['final'] for e in selected}
+        again = kitchenmod.order_statuses(statuses, scores,
+                                          recipe.kitchen.base_sort)
+        wanted = recipe.kitchen.base_sort
+    else:
+        again = kitchenmod.order_statuses(statuses, found, 'score')
+        wanted = 'relevance to the focus'
+    tally.add('order', 1, [str(s.get('id') or '') for s in again]
+              != record['outputs']['order'], 'the order is not %s' % wanted)
+    if found is None:
+        return
+    mine = [e for e in rebuilt.entries() if e['score'] is not None
+            and not _removed_by(e, 'cluster_cap', 'heat_cut')]
+    wrong = sum(1 for e in mine
+                if e['score'].get('relevance') != found[e['id']])
+    tally.add('relevance', 1, wrong, '%d posts have a relevance that is not '
+              'the cosine of their words with the focus' % wrong)
+    shown = [found[e['id']] for e in selected]
+    rising = any(a < b for a, b in zip(shown, shown[1:], strict=False))
+    tally.add('relevance', 1, rising,
+              'the page is not non-increasing by relevance')
+
+
+def _cluster_keep(rebuilt):
+    """The ids of the posts the grouping's strategy keeps, chosen again
+    from the groups the record names; None when they cannot be."""
+    if rebuilt.keep_known:
+        return rebuilt.keep
+    rebuilt.keep_known = True
+    page = rebuilt.record.get('cluster')
+    mods = _mods(rebuilt.recipe, 'similarity_cluster')
+    if not mods or not page or page.get('status') != 'ok' \
+            or not rebuilt.words_whole():
+        return None
+    entries = [e for e in rebuilt.entries() if e['score'] is not None]
+    if any('cluster' not in e for e in entries):
+        return None
+    where = {e['id']: index for index, e in enumerate(entries)}
+    labels = [e['cluster']['id'] for e in entries]
+    medoids = {}
+    for e in entries:
+        medoids[e['cluster']['id']] = where.get(e['cluster']['medoid'], -1)
+    if sorted(medoids) != list(range(len(medoids))) or -1 in medoids.values():
+        return None
+    statuses = [rebuilt.statuses[e['id']] for e in entries]
+    keep = clustermod.select(
+        statuses, labels, [medoids[g] for g in sorted(medoids)],
+        clustermod.strategy_of(mods[0].cluster_strategy),
+        clustermod.max_per_cluster(mods[0].max_per_cluster),
+        kitchenmod.base_score, kitchenmod._tie_key)
+    rebuilt.keep = {entries[index]['id'] for index in keep}
+    return rebuilt.keep
+
+
+def _check_cluster(tally, rebuilt):
+    recipe = rebuilt.recipe
+    page = rebuilt.record.get('cluster')
+    mods = _mods(recipe, 'similarity_cluster')
+    scored = [e for e in rebuilt.entries() if e['score'] is not None]
+    cut = [e for e in scored if _removed_by(e, 'cluster_cap')]
+    if not mods:
+        tally.add('cluster', 1, bool(cut), 'a post was cut by a grouping '
+                  'the recipe does not have')
+        return
+    if page is None:
+        tally.add('cluster', 1, 1, 'the recipe groups posts and the record '
+                  'has no grouping')
+        return
+    if page['status'] != 'ok':
+        # Nothing may have been cut, and "too few" must be true.
+        short = page['status'] == 'skipped' and page['n'] >= \
+            clustermod.MIN_POSTS
+        tally.add('cluster', 1, bool(cut) or short,
+                  'the grouping did not run (%s) but posts were cut or it '
+                  'had enough posts' % page['status'])
+        return
+    if not rebuilt.words_whole():
+        tally.unverifiable += 1
+        return
+    count = len(scored)
+    groups = {e['cluster']['id'] for e in scored if 'cluster' in e}
+    shape = (page['n'] == count and page['k'] == clustermod.group_count(count)
+             and len(groups) <= page['k'] and all(
+                 'cluster' in e for e in scored))
+    tally.add('cluster', 1, not shape, 'the groups are not the k of the '
+              'recipe, or a post has none')
+    per = clustermod.max_per_cluster(mods[0].max_per_cluster)
+    over = {}
+    for e in scored:
+        if not _removed_by(e, 'cluster_cap'):
+            over[e['cluster']['id']] = over.get(e['cluster']['id'], 0) + 1
+    tally.add('cluster', 1, any(n > per for n in over.values()),
+              'a group keeps more than %d posts' % per)
+    keep = _cluster_keep(rebuilt)
+    again = keep is not None and {e['id'] for e in scored} - keep != {
+        e['id'] for e in cut}
+    tally.add('cluster', 1, keep is None or again,
+              'the posts cut are not the ones the strategy leaves out')
+
+
+def _check_floor(tally, rebuilt):
+    """"Favor Fresh Posts" raises a factor under 0.2 exactly when the
+    recipe also has "Boost Trending Topics" (and says so)."""
+    recipe = rebuilt.recipe
+    mods = _mods(recipe, 'freshness')
+    if not mods:
+        return
+    now = datetime.fromisoformat(rebuilt.record['clock']['now_utc'])
+    trending = kitchenmod.has_trending(recipe)
+    for entry in rebuilt.entries():
+        if entry['score'] is None:
+            continue
+        status = rebuilt.statuses[entry['id']]
+        wanted = None
+        for mod in mods:
+            factor = kitchenmod.freshness_factor(status, mod, now, trending)
+            if factor is not None:
+                wanted = factor if wanted is None else wanted * factor
+        wanted = 1.0 if wanted is None else wanted
+        lifted = trending and any(
+            kitchenmod.floor_applied(status, mod, now) for mod in mods)
+        score = entry['score']
+        bad = (score['fresh'] != wanted
+               or bool(score.get('fresh_floor')) != bool(lifted)
+               or (trending and len(mods) == 1
+                   and not contract.floor_holds(True, score['fresh'], lifted)))
+        tally.add('floor', 1, bad, '%s: freshness %r, floor %s' % (
+            _tail(entry['id']), score['fresh'], score.get('fresh_floor')))
+
+
+def _check_language(tally, rebuilt):
+    """A post with no declared language that was judged was judged on a
+    guess of 'en' (VADER) or 'pt' (LeIA) with a probability of at least
+    ``langguess.MIN_P`` and at least ``MIN_CHARS`` characters of text."""
+    engines = {'en': 'vader', 'pt': 'leia'}
+    for entry in rebuilt.entries():
+        sent = entry['sent']
+        facts = entry['facts']
+        if sent is None or sent['score'] is None or facts.get('lang'):
+            continue
+        found = facts.get('lang_guess')
+        bad = found is None or found['p'] < langguess.MIN_P \
+            or engines.get(found['lang']) != sent['engine']
+        if not bad:
+            if entry['id'] in rebuilt.unreliable:
+                bad = facts['text_len'] < langguess.MIN_CHARS
+            else:
+                bad = len(langguess.visible_text(
+                    rebuilt.statuses[entry['id']])) < langguess.MIN_CHARS
+        tally.add('language', 1, bad, '%s judged on a guess that does not '
+                  'pass the gates' % _tail(entry['id']))
+
+
 def _check_kitchen(tally, rebuilt, selected):
     record = rebuilt.record
     recipe = rebuilt.recipe
-    statuses = [rebuilt.statuses[e['id']] for e in selected]
-    scores = {e['id']: e['score']['final'] for e in selected}
-    again = [str(s.get('id') or '') for s in kitchenmod.order_statuses(
-        statuses, scores, recipe.kitchen.base_sort)]
-    tally.add('order', 1, again != record['outputs']['order'],
-              'the order is not %s' % recipe.kitchen.base_sort)
+    _check_order(tally, rebuilt, selected)
+    _check_cluster(tally, rebuilt)
+    _check_floor(tally, rebuilt)
     scored = [e for e in rebuilt.entries() if e['score'] is not None]
     if _mods(recipe, 'heat'):
-        cut = sum(1 for e in scored if e['removal']
-                  and e['removal']['reason'] == 'heat_cut')
-        want = _heat_expected(recipe, len(scored))
+        cut = sum(1 for e in scored if _removed_by(e, 'heat_cut'))
+        # The grouping runs before heat: heat judges what is left of it.
+        left = sum(1 for e in scored if not _removed_by(e, 'cluster_cap'))
+        want = _heat_expected(recipe, left)
         tally.add('heat', 1, cut != want,
                   'heat removed %d, floor(P*n/100) is %d' % (cut, want))
     caps = _caps(recipe)
@@ -256,6 +464,24 @@ def _check_kitchen(tally, rebuilt, selected):
             tally.add('cap', 1, total > min(caps) or out.get(person) !=
                       total, '%s has %d, cap %d' % (
                           _tail(person), total, min(caps)))
+    _check_instance_cap(tally, rebuilt, selected)
+
+
+def _check_instance_cap(tally, rebuilt, selected):
+    cap = contract.instance_cap(rebuilt.recipe)
+    if cap is None:
+        return
+    record = rebuilt.record
+    mine = {}
+    for entry in selected:
+        if _host(entry):
+            mine[_host(entry)] = mine.get(_host(entry), 0) + 1
+    before = record['params'].get('instance_counts_in', {})
+    out = record['outputs'].get('instance_counts_out', {})
+    for host, count in mine.items():
+        total = before.get(host, 0) + count
+        tally.add('cap', 1, total > cap or out.get(host) != total,
+                  'a server has %d, cap %d' % (total, cap))
 
 
 def dedupe_pages(pages):
@@ -282,6 +508,7 @@ def evaluate_cook(pages):
     tally = Tally()
     recipe = None
     per_person = {}
+    per_host = {}
     for loaded in dedupe_pages(pages):
         mine = evaluate_record(loaded)
         tally.merge(mine)
@@ -296,12 +523,20 @@ def evaluate_cook(pages):
             if entry['removal'] is None:
                 person = _person(entry)
                 per_person[person] = per_person.get(person, 0) + 1
+                if _host(entry):
+                    per_host[_host(entry)] = per_host.get(
+                        _host(entry), 0) + 1
     caps = _caps(recipe) if recipe else []
     for person, count in per_person.items():
         if caps:
             tally.add('cap', 1, count > min(caps),
                       '%s has %d over the cook, cap %d' % (
                           _tail(person), count, min(caps)))
+    cap = contract.instance_cap(recipe) if recipe else None
+    for count in per_host.values():
+        if cap is not None:
+            tally.add('cap', 1, count > cap,
+                      'a server has %d over the cook, cap %d' % (count, cap))
     return tally
 
 

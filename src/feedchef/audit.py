@@ -27,24 +27,30 @@ from datetime import datetime
 from typing import Any
 
 from . import contract
+from . import langguess
 from . import sentiment as sentimentmod
 from .recipe import FeedRecipe, recipe_to_dict
-from .textutil import account_of, content_of
+from .relevance import focus_keywords
+from . import textutil
+from .textutil import account_of, content_of, host_of_account
 
 log = logging.getLogger('babble.feedchef')
 
 SCHEMA = 2
 # Bumped by hand whenever the meaning of a stage changes; a replay refuses
 # a record made by another revision unless it is forced.
-ENGINE_REV = 2
+ENGINE_REV = 3
 # The stripped text kept per post in the sidecar.
 TEXT_CAP = 2000
 
 PANTRY_REASONS = ('pantry_excluded_tag', 'pantry_missing_included_tag')
+# Revision 3 added cluster_cap and instance_cap.
 FIXED_REASONS = frozenset(PANTRY_REASONS + (
-    'reach_not_followed', 'viewer_hide', 'heat_cut', 'author_cap'))
+    'reach_not_followed', 'viewer_hide', 'heat_cut', 'author_cap',
+    'cluster_cap', 'instance_cap'))
 _STAGES = {'reach_not_followed': 'reach', 'viewer_hide': 'viewer',
-           'heat_cut': 'kitchen', 'author_cap': 'kitchen'}
+           'heat_cut': 'kitchen', 'author_cap': 'kitchen',
+           'cluster_cap': 'kitchen', 'instance_cap': 'kitchen'}
 _RANK = {'focus': 0, 'hashtag': 1, 'scope': 2}
 _PANTRY_PROMISE = {'pantry_excluded_tag': 'hashtags_exclude',
                    'pantry_missing_included_tag': 'hashtags_include'}
@@ -61,7 +67,8 @@ def is_reason(reason: str) -> bool:
     kind, _sep, promise = reason.partition(':')
     if kind == 'diet':
         return promise in contract.DIET_IDS
-    return kind == 'guard' and promise in contract.PROMISE_IDS
+    return kind == 'guard' and (promise in contract.PROMISE_IDS
+                                or promise in contract.LIST_IDS)
 
 
 def stage_of(reason: str) -> str:
@@ -115,8 +122,10 @@ def write_private(path: str, payload: Any) -> None:
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as handle:
         os.fchmod(handle.fileno(), 0o600)
-        json.dump(payload, handle, ensure_ascii=False,
-                  separators=(',', ':'))
+        # dumps, not dump: the one-shot encoder is the C one, several times
+        # faster than the chunked one `dump` uses (the bytes are the same).
+        handle.write(json.dumps(payload, ensure_ascii=False,
+                                separators=(',', ':')))
         handle.write('\n')
     os.replace(tmp, path)
 
@@ -240,6 +249,15 @@ class Recorder:
         self.judged: dict[str, Any] = {}
         self.counts_in: dict[str, int] = {}
         self.counts_out: dict[str, int] = {}
+        self.instances_in: dict[str, int] = {}
+        self.instances_out: dict[str, int] = {}
+        # Revision 3: the freshness floor, the relevance to the focus and
+        # the similarity grouping of the page (None: it did not run).
+        self.floored: set[str] = set()
+        self.relevance_of: dict[str, float] | None = None
+        self.grouping = None
+        self.word_cache = None
+        self.unmatched = False
         self.ordered: list[str] | None = None
         self.score_map: dict[str, float] = {}
         self.error = ''
@@ -277,8 +295,9 @@ class Recorder:
     def pantry(self, items) -> None:
         self.merged = list(items)
 
-    def counts(self, counts) -> None:
+    def counts(self, counts, instances=None) -> None:
         self.counts_in = dict(counts or {})
+        self.instances_in = dict(instances or {})
 
     def follow_state(self, snapshot, *, error: bool = False,
                      needed: bool = True) -> None:
@@ -334,6 +353,30 @@ class Recorder:
         row[kind] = row[kind] * value if kind in row and kind != 'base' \
             else value
 
+    def fresh_floor(self, sid: str) -> None:
+        """The freshness factor of this post was raised to the floor."""
+        self.floored.add(sid)
+
+    def relevance(self, scores, keywords, weights) -> None:
+        """The relevance of each post to the focus (the cosine of its
+        TF-IDF vector with the reference vector of the recipe's keywords
+        and weights, which the recipe snapshot holds)."""
+        self.relevance_of = dict(scores)
+
+    def focus_unmatched(self) -> None:
+        """No post of the page had any relevance to the focus: the page was
+        ordered as the recipe says, not by relevance."""
+        self.unmatched = True
+
+    def words(self, cache) -> None:
+        """The cook's cache of the words of the posts, which ``_facts``
+        reads the focus text from instead of parsing every post again."""
+        self.word_cache = cache
+
+    def cluster(self, outcome) -> None:
+        """The similarity grouping of the page (a ``cluster.ClusterRun``)."""
+        self.grouping = outcome
+
     def kitchen_cut(self, reason: str, before, after) -> None:
         kept = {id(item) for item in after}
         for item in before:
@@ -344,10 +387,12 @@ class Recorder:
     def guard_verdict(self, sid: str, broken) -> None:
         self.guard_broken[sid] = list(broken)
 
-    def finish(self, ordered, score_map, counts_out, cursor_out) -> None:
+    def finish(self, ordered, score_map, counts_out, cursor_out,
+               instances_out=None) -> None:
         self.ordered = [str(s.get('id') or '') for s in ordered]
         self.score_map = dict(score_map)
         self.counts_out = dict(counts_out or {})
+        self.instances_out = dict(instances_out or {})
         self.identity['cursor_out'] = cursor_out
 
     def failed(self, message: str) -> None:
@@ -389,7 +434,31 @@ class Recorder:
         self.sidecar[ref] = {**kept, 'text_truncated':
                              len(text) > TEXT_CAP or len(spoiler) > TEXT_CAP}
         boost = isinstance(status.get('reblog'), dict)
+        wrapper = account_of(status, wrapper=True)
+        extra = {}
+        if self._reads_words():
+            # What the relevance sort and the grouping read is the focus
+            # text (it has the alt text and keeps what the contract's
+            # text drops), so a replay needs it as it was.
+            words = (self.word_cache.text(status) if self.word_cache
+                     else textutil.focus_text(status))
+            self.sidecar[ref].update(
+                focus=words[:TEXT_CAP], focus_truncated=len(words) > TEXT_CAP)
+            extra = {'focus_sha256': hashlib.sha256(
+                words[:TEXT_CAP].encode('utf-8')).hexdigest()}
+        # Only a recipe that reads sentiment guesses (and so loads
+        # py3langid): the guess is what lets the engines judge a post.
+        found = (langguess.guess(status)
+                 if sentimentmod.recipe_needs_sentiment(self.recipe)
+                 else None)
+        if found is not None:
+            # A post that declares no language and has enough text was
+            # guessed at (whatever the answer): the guess, for a replay
+            # to rerun and for ``evaluate`` to check against the gates.
+            extra['lang_guess'] = {'lang': found[0], 'p': found[1]}
         return {
+            **extra,
+            'host': host_of_account(wrapper),
             'created_w': status.get('created_at'),
             'created_c': content.get('created_at'),
             'fav': _number(content, 'favourites_count', 'favouritesCount'),
@@ -409,6 +478,13 @@ class Recorder:
                                or '') if boost else None),
             'boost': boost,
         }
+
+    def _reads_words(self) -> bool:
+        """Whether the recipe has a stage that reads the words of the posts
+        (the relevance sort, similarity grouping)."""
+        return bool(focus_keywords(self.recipe.kitchen)) or any(
+            mod.type == 'similarity_cluster'
+            for mod in self.recipe.kitchen.modifiers)
 
     def _rules(self, sid: str, reason: str | None) -> dict[str, str]:
         """pass | fail | n/a for each promise, in the order the stages ran
@@ -454,7 +530,8 @@ class Recorder:
     def _sent(self, sid: str, status) -> dict | None:
         if sid not in self.judged:
             return None
-        engine = sentimentmod.pick_engine(sentimentmod.language_of(status))
+        engine = sentimentmod.pick_engine(
+            sentimentmod.effective_language(status))
         return {'engine': engine, 'score': self.judged[sid]}
 
     def _posts(self) -> tuple[list[dict], dict[str, int]]:
@@ -485,8 +562,15 @@ class Recorder:
                          'sent': row.get('sent', 1.0),
                          'trend': row.get('trend', 1.0),
                          'final': self.score_map.get(sid)}
+                if sid in self.floored:
+                    score['fresh_floor'] = True
+                if self.relevance_of is not None \
+                        and sid in self.relevance_of:
+                    score['relevance'] = self.relevance_of[sid]
             else:
                 score = None
+            group = (self.grouping.groups.get(sid)
+                     if self.grouping is not None else None)
             posts.append({
                 'id': sid,
                 'cid': str(content_of(status).get('id') or sid),
@@ -501,6 +585,8 @@ class Recorder:
                              'also': removal[1]} if removal else None),
                 'rank': ranks.get(sid, -1),
             })
+            if group is not None:
+                posts[-1]['cluster'] = {'id': group[0], 'medoid': group[1]}
         return posts, by_reason
 
     def build(self) -> dict:
@@ -543,9 +629,15 @@ class Recorder:
             'env': {'self_id': self.self_id, 'native_bluesky': self.native,
                     'follow': self.follow_info, 'trends': self.trends,
                     'local_heat': self.tag_heat,
-                    'viewer_filter': self.viewer is not None},
+                    'viewer_filter': self.viewer is not None,
+                    'lang_guess': dict(zip(
+                        ('status', 'reason'), langguess.status(),
+                        strict=True), min_p=langguess.MIN_P,
+                        min_chars=langguess.MIN_CHARS,
+                        version=langguess.version())},
             'params': {'count': self.count,
-                       'author_counts_in': self.counts_in},
+                       'author_counts_in': self.counts_in,
+                       'instance_counts_in': self.instances_in},
             'sources': self.sources,
             'outcome': self._outcome(failed),
             'summary': {
@@ -557,8 +649,12 @@ class Recorder:
                 'selected': len(selected),
                 'guard_checked': 0 if failed else len(self.guard_broken)},
             'outputs': {'order': selected,
-                        'author_counts_out': self.counts_out},
+                        'author_counts_out': self.counts_out,
+                        'instance_counts_out': self.instances_out},
             'posts': posts,
+            **({'cluster': self.grouping.record()}
+               if self.grouping is not None else {}),
+            **({'focus_unmatched': True} if self.unmatched else {}),
         }
 
 
@@ -579,7 +675,9 @@ def _guarded(method):
 for _name in ('clock', 'fetched', 'hashtag_fetched', 'pantry', 'counts',
               'follow_state', 'diet_decisions', 'reach_removed',
               'viewer_checked', 'trends_seen', 'judged_scores', 'heat_map',
-              'factor', 'kitchen_cut', 'guard_verdict', 'finish', 'failed',
-              'cancelled'):
+              'factor', 'fresh_floor', 'relevance', 'focus_unmatched', 'words',
+              'cluster',
+              'kitchen_cut',
+              'guard_verdict', 'finish', 'failed', 'cancelled'):
     setattr(Recorder, _name, _guarded(getattr(Recorder, _name)))
 del _name

@@ -154,11 +154,23 @@ ordered, smap, meta = score_statuses(
 check('score sort puts higher first', ordered[0]['id'] == '2')
 recipe.kitchen.active_focus_keywords = ['coffee']
 focused, _s, fmeta = score_statuses(
-    [status('1', fav=1), status('2', fav=10)], recipe)
-check('focus without NLP still score-sorts', focused[0]['id'] == '2')
-check('focus keywords marked inert',
-      'active_focus_keywords' in fmeta.get('inert', []))
+    [status('1', fav=10, content='<p>tea time</p>'),
+     status('2', fav=1, content='<p>morning coffee</p>')], recipe)
+check('a focus orders by relevance, over the engagement',
+      focused[0]['id'] == '2')
+check('a focus is no longer inert',
+      'active_focus_keywords' not in fmeta.get('inert', [])
+      and fmeta.get('relevance') == 1)
+check('the relevance the order used is in the kitchen meta',
+      fmeta['relevance_scores']['2'] > fmeta['relevance_scores']['1'] == 0)
 recipe.kitchen.active_focus_keywords = None
+grouped = default_recipe()
+grouped.kitchen.modifiers = [Modifier(type='similarity_cluster')]
+_o, _s, gmeta = score_statuses([status('1'), status('2')], grouped)
+check('grouping fewer than ten posts does nothing and says so',
+      gmeta['cluster']['status'] == 'skipped'
+      and 'similarity_cluster' not in gmeta['inert']
+      and not gmeta['unavailable'])
 
 # chronological nulls last
 recipe.kitchen.base_sort = 'chronological'

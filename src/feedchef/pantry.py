@@ -14,6 +14,12 @@ from .textutil import status_created_at
 
 log = logging.getLogger('babble.feedchef')
 
+
+class Cancelled(InterruptedError):
+    """The cook was cancelled while it waited between two searches. Only
+    this stops a search sequence: any other ``InterruptedError`` (a search
+    callback's own) is a failed search like any other."""
+
 FetchFn = Callable[[], list[dict[str, Any]]]
 SearchFn = Callable[[str], list[dict[str, Any]]]
 
@@ -149,8 +155,12 @@ def fetch_more_like_this(
     now: float | None = None,
     terms: dict[str, list[str]] | None = None,
     sequences: dict[str, list[dict[str, Any]]] | None = None,
+    pause: Callable[[], None] | None = None,
 ) -> list[dict[str, Any]]:
-    # *terms*: an optional out-map, post id -> the focus terms it was
+    # *pause*: called between two searches (Java staggers them, to stay
+    # under the servers' rate limit for search); it may raise
+    # ``Cancelled`` to stop, which is not a failed search and is not
+    # caught here. *terms*: an optional out-map, post id -> the focus terms it was
     # found by (for the audit); a cache hit fills it too. *sequences*
     # likewise: term -> the posts its search gave, in order.
     hashtags = normalize_hashtags(recipe.kitchen.active_focus_hashtags or [])
@@ -175,7 +185,9 @@ def fetch_more_like_this(
     try:
         queries = ([(tag, '#' + tag) for tag in hashtags[:3]] if hashtags
                    else [(keywords[0], keywords[0])])
-        for term, query in queries:
+        for position, (term, query) in enumerate(queries):
+            if position and pause is not None:
+                pause()
             found = search(query)[:20]
             collected.extend(found)
             by_term[term] = list(found)
@@ -183,6 +195,8 @@ def fetch_more_like_this(
                 names = found_by.setdefault(str(status.get('id') or ''), [])
                 if term not in names:
                     names.append(term)
+    except Cancelled:
+        raise
     except Exception as error:
         log.warning('feedchef: MLT search failed: %s', error)
         collected = []

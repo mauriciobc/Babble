@@ -37,11 +37,27 @@ TEXTS = [
     ('es', 'Me encanta este día maravilhoso'),
     ('es', 'Esto es terrible, lo odio'),
     (None, 'A short one'),
+    (None, 'I really love this wonderful sunny morning, everything feels '
+           'great and I am so happy about it'),
+    (None, 'This is the worst terrible awful day, I hate everything about '
+           'this horrible situation right now'),
+    (None, 'Estou muito feliz hoje, o dia está maravilhoso e eu adorei '
+           'passear com os meus amigos na praia'),
     (None, 'Un café bien largo para pensar en todo lo que pasó hoy y ayer'),
     ('en', 'Check https://example.com/some/long/path?x=1 for a long, long '
            'story about the café scene downtown that I enjoyed'),
 ]
 WORDS = ['spam', 'crypto', 'terrible', 'café', 'weather']
+# Words of the texts above, for a focus (More Like This) to look for.
+FOCUS_WORDS = ['wonderful', 'weather', 'terrible', 'cafe', 'story', 'spam',
+               'downtown', 'amazing', 'maravilhoso', 'check']
+# The servers the accounts of the world are on (an account is on the same
+# one every time, chosen by its id).
+HOSTS = ['ex.ample', 'b.example', 'c.example']
+
+
+def host_of(account_id):
+    return HOSTS[sum(map(ord, account_id)) % len(HOSTS)]
 
 _ids = [10 ** 6]
 
@@ -81,7 +97,8 @@ def make_content(rng, author, tags=None, created=None):
         'favourites_count': rng.choice([0, 0, 1, 2, 5, 9, 30]),
         'reblogs_count': rng.choice([0, 0, 1, 3, 8]),
         'replies_count': rng.choice([0, 0, 1, 2, 6]),
-        'account': {'id': author, 'url': 'https://ex.ample/@%s' % author},
+        'account': {'id': author,
+                    'url': 'https://%s/@%s' % (host_of(author), author)},
         'tags': [{'name': t} for t in (
             tags if tags is not None
             else rng.sample(TAGS, rng.choice([0, 0, 1, 1, 2])))],
@@ -100,7 +117,8 @@ def make_status(rng, tags=None, created=None):
             'created_at': (NOW - timedelta(minutes=rng.randint(1, 50))
                            ).isoformat(),
             'account': {'id': booster,
-                        'url': 'https://ex.ample/@%s' % booster},
+                        'url': 'https://%s/@%s' % (host_of(booster),
+                                                   booster)},
             'reblog': original,
             'content': '', 'tags': [], 'media_attachments': [],
         }
@@ -142,20 +160,31 @@ def random_recipe(rng):
     if rng.random() < 0.5:
         mods.append(Modifier(type='diversity',
                              max_per_cluster=rng.choice([1, 2, 3, 4]),
-                             diversity_dimensions=['author']))
+                             diversity_dimensions=rng.choice(
+                                 [['author'], ['author'],
+                                  ['author', 'instance'], ['instance']])))
     if rng.random() < 0.35:
         mods.append(Modifier(type='trending',
                              growth_threshold=rng.choice([0.1, 0.3, 1.0])))
     if rng.random() < 0.35:
         mods.append(Modifier(type='sentiment_boost',
                              sentiment_boost=rng.choice([0.2, 0.5, 1.0])))
+    if rng.random() < 0.45:
+        mods.append(Modifier(
+            type='similarity_cluster', max_per_cluster=rng.choice([1, 2, 3]),
+            cluster_strategy=rng.choice(
+                ['best_score', 'most_recent', 'centroid', None])))
     rng.shuffle(mods)
     kit.modifiers = mods
-    if rng.random() < 0.2:
-        if rng.random() < 0.5:
+    if rng.random() < 0.3:
+        if rng.random() < 0.3:
             kit.active_focus_hashtags = [rng.choice(TAGS)]
         else:
-            kit.active_focus_keywords = ['coffee']
+            words = rng.sample(FOCUS_WORDS, rng.choice([1, 2, 3]))
+            kit.active_focus_keywords = words
+            if rng.random() < 0.5:
+                kit.active_focus_weights = [
+                    rng.choice([0.2, 0.5, 1.0, 0, -1]) for _ in words]
     return recipe
 
 
@@ -210,20 +239,24 @@ def cook(world, recipe, case, pages=3, count=40, audit=True, now=None,
         search_statuses=world.search, fetch_trends=world.trends,
         fetch_following_page=world.following_page)
     engine.audit = audit
+    engine.search_stagger_ms = 0
     if now is not None:
         engine.clock = lambda: now
     engine.init_preload()
     pantrymod._mlt_cache.clear()
     results = []
     counts = {}
+    instances = {}
     cursor = None
     try:
         for page in range(pages):
             result = engine.process_feed_sync(
                 recipe, max_id=cursor, count=count, author_counts=counts,
+                instance_counts=instances,
                 cook_id='case%d' % case, page_index=page, hide=hide)
             results.append(result)
             counts = result.author_counts
+            instances = result.instance_counts
             cursor = result.scope_oldest_id
             if not result.has_more or not cursor:
                 break

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import time
@@ -45,6 +46,9 @@ class FeedResult:
     # Posts per person in the cook session after this page, for the next
     # one (see ``author_counts`` of ``process_feed``).
     author_counts: dict[str, int] = field(default_factory=dict)
+    # The same for servers ("Limit Posts per Person" with the instance
+    # dimension).
+    instance_counts: dict[str, int] = field(default_factory=dict)
 
 
 class ScopeFetchError(Exception):
@@ -82,6 +86,10 @@ class FeedEngine:
     # "Only People I Follow" waits this long for the follow list to load
     # before the cook fails with ``FollowListError``.
     reach_wait_timeout = 20.0
+    # Java staggers the searches of More Like This by this long (an
+    # attribute so a test or a replay can turn it off), to stay under the
+    # servers' rate limit for search.
+    search_stagger_ms = 450
 
     def __init__(
         self,
@@ -189,8 +197,13 @@ class FeedEngine:
         cook_id: str | None = None,
         page_index: int = 0,
         hop: int = 0,
+        instance_counts: dict[str, int] | None = None,
     ):
         self.cancel()
+        # The cook works on a copy taken now: the caller may change its
+        # recipe (a focus that fades on refresh) while the cook runs, and
+        # the page and its audit record must say what was cooked.
+        recipe = copy.deepcopy(recipe)
         self._cancel = threading.Event()
         cancel = self._cancel
         generation = uuid.uuid4().hex
@@ -201,7 +214,8 @@ class FeedEngine:
                     recipe, max_id=max_id, count=count,
                     on_stage=on_stage, cancel=cancel, generation=generation,
                     author_counts=author_counts, hide=hide,
-                    cook_id=cook_id, page_index=page_index, hop=hop)
+                    cook_id=cook_id, page_index=page_index, hop=hop,
+                    instance_counts=instance_counts)
                 if cancel.is_set():
                     # Its page is never shown: the record, already
                     # written, says so.
@@ -232,12 +246,15 @@ class FeedEngine:
         cook_id: str | None = None,
         page_index: int = 0,
         hop: int = 0,
+        instance_counts: dict[str, int] | None = None,
     ) -> FeedResult:
+        recipe = copy.deepcopy(recipe)
         return self._process_sync(
             recipe, max_id=max_id, count=count,
             on_stage=None, cancel=threading.Event(), generation='sync',
             author_counts=author_counts, hide=hide,
-            cook_id=cook_id, page_index=page_index, hop=hop)
+            cook_id=cook_id, page_index=page_index, hop=hop,
+            instance_counts=instance_counts)
 
     def _server_trends(self, recipe: FeedRecipe
                        ) -> kitchenmod.ServerTrendContext:
@@ -275,8 +292,10 @@ class FeedEngine:
         cook_id: str | None = None,
         page_index: int = 0,
         hop: int = 0,
+        instance_counts: dict[str, int] | None = None,
     ) -> FeedResult:
-        """One page. *author_counts*: posts per person already shown by
+        """One page. *instance_counts* is the same as *author_counts* for
+        the servers of the posts. *author_counts*: posts per person already shown by
         the earlier pages of the cook session ("Limit Posts per Person"
         is a cap on the whole session). The engine never changes it; the
         counts for the next page come back in ``FeedResult.author_counts``
@@ -318,13 +337,6 @@ class FeedEngine:
         if cancel.is_set():
             raise InterruptedError('cancelled')
 
-        # MLT before scope latch wait (Java order).
-        if max_id is None and self.search_statuses is not None:
-            mlt_posts = pantrymod.fetch_more_like_this(
-                recipe, self.search_statuses,
-                terms=audit.trace.focus_of if audit.enabled else None,
-                sequences=audit.trace.focus_seq if audit.enabled else None)
-
         tags = []
         if max_id is None and self.fetch_hashtag is not None:
             tags = list(recipe.pantry.hashtags_include[:3])
@@ -337,6 +349,23 @@ class FeedEngine:
         tag_futures = [(tag, pool.submit(self.fetch_hashtag, tag, count))
                        for tag in tags]
         pool.shutdown(wait=False)
+        # More Like This runs while the scope is already being fetched, so
+        # its stagger (up to 0.9 s) does not delay page one (Java does it
+        # before the wait for the latch; the fetches started first here).
+        # Its searches are still 450 ms apart.
+        if max_id is None and self.search_statuses is not None:
+            try:
+                mlt_posts = pantrymod.fetch_more_like_this(
+                    recipe, self.search_statuses,
+                    terms=audit.trace.focus_of if audit.enabled else None,
+                    sequences=(audit.trace.focus_seq if audit.enabled
+                               else None),
+                    pause=self._stagger(cancel))
+            except pantrymod.Cancelled:
+                scope_future.cancel()
+                for _tag, future in tag_futures:
+                    future.cancel()
+                raise
         timeout = (self.pantry_timeout_base
                    + self.pantry_timeout_per_tag * len(tags))
         futures = [scope_future] + [future for _tag, future in tag_futures]
@@ -391,7 +420,7 @@ class FeedEngine:
         )
         audit.fetched(mlt_posts, hashtag_posts, scope_posts)
         audit.pantry(pantry.items)
-        audit.counts(author_counts)
+        audit.counts(author_counts, instance_counts)
         pantry.timed_out = timed_out
         logger.set_pantry(
             fetched_count=pantry.fetched_count,
@@ -475,9 +504,14 @@ class FeedEngine:
         ordered, score_map, kitchen_meta = kitchenmod.score_statuses(
             after_reach, recipe, server=server,
             sentiment_by_id=sentiment_by_id, author_counts=author_counts,
-            now=now, audit=audit)
+            instance_counts=instance_counts, now=now, audit=audit)
         ordered, guard_stats = self._guard(
-            recipe, ordered, judge, logger, native, audit)
+            recipe, ordered, judge, logger, native, audit,
+            contract.ListFacts(
+                relevance=kitchen_meta.get('relevance_scores'),
+                groups=kitchen_meta.get('groups'),
+                fresh=kitchen_meta.get('fresh'),
+                instance_counts=instance_counts, now=now))
         audit.judged_scores(judge, pantry.items)
         logger.set_kitchen(
             input_count=len(after_reach),
@@ -487,16 +521,27 @@ class FeedEngine:
             diversity_stats=kitchen_meta.get('diversity'),
             inert=kitchen_meta.get('inert'),
             ranks=kitchen_meta.get('ranks'),
+            cluster=kitchen_meta.get('cluster'),
+            unavailable=kitchen_meta.get('unavailable'),
         )
+        for kind in kitchen_meta.get('unavailable') or ():
+            # A modifier that could not run here (a package it needs is
+            # missing) is a fallback of the cook, not a quiet no-op.
+            logger.add_fallback('%s_unavailable' % kind)
         if on_stage:
             items = list(ordered)
             self.ui_idle(lambda: on_stage('KITCHEN', items))
 
-        capped = any(mod.type == 'diversity'
-                     for mod in recipe.kitchen.modifiers)
+        capped = [mod for mod in recipe.kitchen.modifiers
+                  if mod.type == 'diversity']
         counts = (kitchenmod.tally_authors(ordered, author_counts)
                   if capped else dict(author_counts or {}))
-        audit.finish(ordered, score_map, counts, pantry.scope_oldest_id)
+        by_server = any(kitchenmod.diversity_dimensions(mod)[1]
+                        for mod in capped)
+        instances = (kitchenmod.tally_instances(ordered, instance_counts)
+                     if by_server else dict(instance_counts or {}))
+        audit.finish(ordered, score_map, counts, pantry.scope_oldest_id,
+                     instances)
         if cancel.is_set():
             audit.cancelled()
         logger.persist()
@@ -512,11 +557,23 @@ class FeedEngine:
             logger=logger,
             guard=guard_stats,
             author_counts=counts,
+            instance_counts=instances,
         )
+
+    def _stagger(self, cancel: threading.Event) -> Callable[[], None]:
+        """The pause between two searches of More Like This: it ends the
+        moment the cook is cancelled, and raises ``pantry.Cancelled`` then,
+        so a cancelled cook does not go on to the next search."""
+        def pause():
+            if self.search_stagger_ms > 0 and cancel.wait(
+                    self.search_stagger_ms / 1000.0):
+                raise pantrymod.Cancelled('cancelled')
+        return pause
 
     def _guard(self, recipe: FeedRecipe, ordered: list[dict[str, Any]],
                judge: _Judge, logger: FeedDecisionLogger,
-               native_bluesky: bool = False, audit=NULL
+               native_bluesky: bool = False, audit=NULL,
+               facts: contract.ListFacts | None = None
                ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """The final contract guard: every promise of the recipe, checked
         again on every post about to be returned, independently of the
@@ -544,6 +601,30 @@ class FeedEngine:
                 log.warning(
                     'feedchef: contract %s broken by post %s: a stage let '
                     'it through; dropped', promise_id, post_id)
+        if facts is not None:
+            kept = self._guard_list(recipe, kept, facts, logger, audit,
+                                    dropped)
         stats = {'checked': len(ordered), 'dropped': dropped}
         logger.set_guard(**stats)
         return kept, stats
+
+    @staticmethod
+    def _guard_list(recipe, kept, facts, logger, audit, dropped):
+        """The promises about the page as a whole (``contract.LIST_IDS``),
+        asked of the posts that kept their own; a violator is dropped and
+        recorded the same way."""
+        broken = contract.list_violations(recipe, kept, facts)
+        if not broken:
+            return kept
+        for status in kept:
+            post_id = str(status.get('id') or '')
+            for promise_id in broken.get(post_id, ()):
+                dropped[promise_id] = dropped.get(promise_id, 0) + 1
+                logger.add_error('contract:%s:%s' % (promise_id, post_id))
+                log.warning(
+                    'feedchef: contract %s broken by post %s: a stage let '
+                    'it through; dropped', promise_id, post_id)
+            if post_id in broken:
+                audit.guard_verdict(post_id, broken[post_id])
+        return [status for status in kept
+                if str(status.get('id') or '') not in broken]

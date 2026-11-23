@@ -73,7 +73,8 @@ def _replay(args):
             path, result.status,
             ': ' + result.detail if result.detail else '', extra))
         for _sid in result.drift:
-            print('  warning: a sentiment score drifted from the record')
+            print('  warning: a sentiment score or language guess drifted '
+                  'from the record')
         if result.unverified:
             print('  text unverified for %d posts: the sidecar is missing '
                   'or is not the one this record was made with'

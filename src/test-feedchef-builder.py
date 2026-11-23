@@ -135,7 +135,8 @@ class FakeEngine:
 
     def process_feed(self, recipe, *, max_id=None, count=80, on_stage=None,
                      on_done=None, on_error=None, author_counts=None,
-                     hide=None, cook_id=None, page_index=0, hop=0):
+                     hide=None, cook_id=None, page_index=0, hop=0,
+                     instance_counts=None):
         self.calls.append(max_id)
         items, has_more, cursor = (self.queue.pop(0) if self.queue
                                    else ([], False, None))
@@ -368,6 +369,102 @@ pump()
 check('builder: a changed growth_threshold is written',
       store.get_recipe_by_id(wild.id).kitchen.modifiers[0]
       .growth_threshold == 0.5)
+
+# The grouping and the server dimension of the person cap.
+grouping = default_recipe('Grouping')
+grouping.kitchen.modifiers = [
+    Modifier(type='diversity', max_per_cluster=2,
+             diversity_dimensions=['author', 'instance'])]
+dialog = open_builder(grouping, True)
+people = [e for e in dialog.editors if e.kind == 'diversity'][0]
+groups = [e for e in dialog.editors if e.kind == 'similarity_cluster'][0]
+check('builder: the server switch shows an imported instance dimension',
+      people.extras[0].widget.get_active())
+check('builder: grouping is a modifier row with posts per group and a '
+      'choice of which post stays',
+      groups.row.get_title() == 'Group Similar Posts'
+      and groups.spin.get_title() == 'Posts per Group'
+      and groups.extras[0].widget.get_title() == 'Post That Stays'
+      and groups.extras[0].widget.get_subtitle() == 'In each group'
+      and groups.extras[0].widget.get_model().get_string(2)
+      == 'Most representative')
+check('builder: a new grouping starts at 3 posts per group, and the row '
+      'says how many groups and how many posts it needs',
+      groups.spin.get_value() == 3
+      and 'up to 5 groups' in groups.row.get_subtitle()
+      and 'Needs 10 posts or more' in groups.row.get_subtitle())
+dialog.name_row.set_text('Grouping 2')
+header_button(dialog, '_Save').emit('clicked')
+pump()
+check('builder: a save that did not touch the dimensions keeps them',
+      store.get_recipe_by_id(grouping.id).kitchen.modifiers[0]
+      .diversity_dimensions == ['author', 'instance'])
+dialog = open_builder(store.get_recipe_by_id(grouping.id), False)
+people = [e for e in dialog.editors if e.kind == 'diversity'][0]
+people.extras[0].widget.set_active(False)
+header_button(dialog, '_Save').emit('clicked')
+pump()
+check('builder: switching the server dimension off writes the author only',
+      store.get_recipe_by_id(grouping.id).kitchen.modifiers[0]
+      .diversity_dimensions == ['author'])
+dialog = open_builder(store.get_recipe_by_id(grouping.id), False)
+people = [e for e in dialog.editors if e.kind == 'diversity'][0]
+groups = [e for e in dialog.editors if e.kind == 'similarity_cluster'][0]
+people.extras[0].widget.set_active(True)
+groups.row.set_enable_expansion(True)
+groups.spin.set_value(3)
+groups.extras[0].widget.set_selected(2)
+header_button(dialog, '_Save').emit('clicked')
+pump()
+mods = {m.type: m for m in store.get_recipe_by_id(grouping.id)
+        .kitchen.modifiers}
+check('builder: the server switch is written, and a grouping is added with '
+      'its posts per group and its strategy (centroid)',
+      mods['diversity'].diversity_dimensions == ['author', 'instance']
+      and mods['similarity_cluster'].max_per_cluster == 3
+      and mods['similarity_cluster'].cluster_strategy == 'centroid')
+check('builder: an imported "centroid_then_score" is shown as the third '
+      'choice',
+      feedchefbuilder.STRATEGIES.index(
+          feedchefbuilder.strategy_of('centroid_then_score')) == 2)
+# Without the packages grouping needs, the row says so and cannot be set.
+from src.feedchef import deps  # noqa: E402
+real = (deps._modules.get('kmedoids', 'unset'),
+        deps._reasons.get('kmedoids', 'unset'))
+deps._modules['kmedoids'] = None
+deps._reasons['kmedoids'] = 'ImportError: simulated'
+off = default_recipe('Needs Packages')
+dialog = open_builder(off, True)
+groups = [e for e in dialog.editors if e.kind == 'similarity_cluster'][0]
+check('builder: without kmedoids the grouping row says, in plain words, '
+      'that it needs a component that is not installed, and shows no '
+      'package name or error',
+      groups.row.get_subtitle() == 'Needs an optional component that is '
+      'not installed' and 'simulated' not in groups.row.get_subtitle()
+      and 'kmedoids' not in groups.row.get_subtitle())
+check('builder: the row stays reachable by the keyboard (sensitive, '
+      'focusable) and only its controls are off',
+      groups.row.get_sensitive() and groups.row.get_focusable()
+      and not groups.row.get_show_enable_switch()
+      and not groups.spin.get_sensitive()
+      and not groups.extras[0].widget.get_sensitive())
+check('builder: and the other rows are untouched',
+      all(e.row.get_sensitive() and e.row.get_show_enable_switch()
+          for e in dialog.editors if e.kind != 'similarity_cluster'))
+dialog.name_row.set_text('Needs Packages 2')
+header_button(dialog, '_Save').emit('clicked')
+pump()
+check('builder: saving it adds no grouping',
+      not any(m.type == 'similarity_cluster' for m in
+              store.get_recipe_by_id(off.id).kitchen.modifiers))
+if real[0] == 'unset':
+    del deps._modules['kmedoids']
+else:
+    deps._modules['kmedoids'] = real[0]
+if real[1] == 'unset':
+    del deps._reasons['kmedoids']
+else:
+    deps._reasons['kmedoids'] = real[1]
 
 # The icon picker.
 JAVA_ICONS = (

@@ -128,6 +128,8 @@ def reason_text(reason: str, words: Words = ENGLISH) -> str:
         'viewer_hide': _('Hidden by your mutes and filters'),
         'heat_cut': _('Below the popularity cutoff'),
         'author_cap': _('Over the limit per person'),
+        'instance_cap': _('Over the limit per server'),
+        'cluster_cap': _('Left out as too similar to a post that stayed'),
     }
     return known.get(reason) or _('Removed for another reason')
 
@@ -192,9 +194,22 @@ def _about_rows(entry: dict, words: Words) -> list[Row]:
     the record, not checks."""
     _ = words.gettext
     rows = []
-    lang = (entry.get('facts') or {}).get('lang')
+    facts = entry.get('facts') or {}
+    lang = facts.get('lang')
+    guess = facts.get('lang_guess')
+    sent = entry.get('sent') or {}
     if lang:
         rows.append(Row(_('Language'), '', _language_name(lang, words)))
+    elif isinstance(guess, dict) and sent.get('score') is not None:
+        # Translators: the language of a post that declares none, which was
+        # guessed from its text; %(language)s is a language name and
+        # %(percent)s how sure the guess was, for example "Guessed as
+        # English, 78% sure".
+        shown = _('Guessed as %(language)s, %(percent)s%% sure') % {
+            'language': _language_name(guess.get('lang'), words),
+            'percent': whole(round(float(guess.get('p') or 0) * 100))}
+        rows.append(Row(_('Language'), _('The post does not say which'),
+                        shown))
     tone = _tone((entry.get('sent') or {}).get('score'), words)
     if tone:
         rows.append(Row(_('Tone'), '', tone))
@@ -297,8 +312,29 @@ def _rank_rows(entry: dict, record: dict, snapshot: dict,
         if kind in types or (factor is not None and factor != 1.0):
             if kind == 'freshness' and factor == 0:
                 hint = _('Older than the fade-out time')
+            elif kind == 'freshness' and score.get('fresh_floor'):
+                hint = _('Kept from scoring zero because the recipe also '
+                         'boosts trending posts')
             rows.append(Row(title, hint, _factor(factor, words)))
-    rows.append(Row(_('Score'), _('Higher scores are shown first'),
+    if record.get('focus_unmatched'):
+        rows.append(Row(
+            _('Focus'), _('None of the posts on this page match the focus, '
+                          'so they are in your recipe’s order')))
+    relevance = score.get('relevance')
+    if isinstance(relevance, (int, float)) and not isinstance(
+            relevance, bool):
+        # Translators: how closely a post matches the focus of a More Like
+        # This, as a percentage, for example "62%"; %s is the number.
+        shown = _('%s%%') % whole(round(relevance * 100))
+        rows.append(Row(
+            _('Relevance'),
+            _('How closely its words match the post you asked for more '
+              'like'), shown))
+    rows.extend(_group_rows(entry, record, words))
+    rows.append(Row(_('Score'),
+                    _('Posts are ordered by relevance while there is a '
+                      'focus') if relevance is not None
+                    else _('Higher scores are shown first'),
                     number(score.get('final'))))
     rank = entry.get('rank')
     if isinstance(rank, int) and rank >= 0:
@@ -312,6 +348,28 @@ def _rank_rows(entry: dict, record: dict, snapshot: dict,
             if page else '',
             _('%(place)s of %(total)s') % {'place': whole(rank + 1),
                                            'total': whole(total)}))
+    return rows
+
+
+def _group_rows(entry: dict, record: dict, words: Words) -> list[Row]:
+    """Where the post stands among similar posts, when the recipe groups
+    them and the record says how it did."""
+    _ = words.gettext
+    group = entry.get('cluster')
+    page = record.get('cluster') or {}
+    if not isinstance(group, dict) or page.get('status') != 'ok':
+        return []
+    # Translators: the group a post belongs to among the groups of similar
+    # posts, for example "2 of 3".
+    place = _('%(group)s of %(count)s') % {
+        'group': whole(int(group.get('id') or 0) + 1),
+        'count': whole(page.get('k'))}
+    rows = [Row(_('Group of Similar Posts'),
+                _('Posts that read alike form a group, and only some of '
+                  'each group stay'), place)]
+    if group.get('medoid') == entry.get('id'):
+        rows.append(Row(_('Most Typical'),
+                        _('This post is the middle of its group')))
     return rows
 
 
@@ -398,9 +456,11 @@ def settings_line(snapshot: dict, words: Words = ENGLISH) -> str:
                  else _('Most engaging first'))
     names = {'freshness': _('Freshness'), 'sentiment_boost': _('Positive Tone'),
              'trending': _('Trending'), 'heat': _('Popularity cutoff'),
-             'diversity': _('Limit per person')}
+             'diversity': _('Limit per person'),
+             'similarity_cluster': _('Similar posts grouped')}
     mods = [names[kind] for kind in ('freshness', 'sentiment_boost',
-                                     'trending', 'heat', 'diversity')
+                                     'trending', 'heat', 'diversity',
+                                     'similarity_cluster')
             if kind in _modifier_types(snapshot)]
     if mods:
         parts.append(', '.join(mods))
@@ -459,10 +519,19 @@ def cook_report(records: list[dict], words: Words = ENGLISH) -> Report:
         left_out.append(Row(_('Seen more than once'), '', whole(duplicates)))
     if not left_out:
         left_out.append(Row(_('Nothing was left out')))
+    last_rows = [Row(_('Posts gathered'), '', whole(gathered)),
+                 Row(_('Posts shown'), '', whole(selected))]
+    guessing = ((last.get('env') or {}).get('lang_guess') or {})
+    if guessing.get('status') == 'unavailable' and (
+            (snapshot.get('diet') or {}).get('hard_filters', {}).get(
+                'positive_only')
+            or 'sentiment_boost' in _modifier_types(snapshot)):
+        last_rows.append(Row(
+            _('Language Guessing'),
+            _('Not available, so posts that declare no language are not '
+              'judged')))
     sections = [
-        Section(_('Last Cook'), [
-            Row(_('Posts gathered'), '', whole(gathered)),
-            Row(_('Posts shown'), '', whole(selected))]),
+        Section(_('Last Cook'), last_rows),
         Section(_('Left Out'), left_out)]
     dates = [str((record.get('clock') or {}).get('now_utc') or '')
              for record in usable]

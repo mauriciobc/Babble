@@ -9,13 +9,16 @@ the sidecar gone), the recorded verdicts of the two rules that read it.
 """
 
 import contextlib
+import hashlib
 import html
 import json
 import os
 
 from feedchefaudit import validate
 from src.feedchef import audit as auditmod
-from src.feedchef import contract, decisionlog
+from src.feedchef import (contract, decisionlog, deps, langguess,
+                         textutil)
+from src.feedchef import relevance as relevancemod
 from src.feedchef import sentiment as sentimentmod
 from src.feedchef.recipe import recipe_from_dict
 
@@ -95,8 +98,11 @@ def recipe_of(record):
     return recipe
 
 
-def check_replayable(loaded, force=False):
-    """Raise LogError unless the record can be replayed or evaluated."""
+def check_replayable(loaded, force=False, replay=False):
+    """Raise LogError unless the record can be replayed or evaluated. A
+    replay (*replay*) also needs the libraries the record's grouping used:
+    cooking it again without them would call a missing package a
+    mismatch."""
     record = loaded.record
     if not isinstance(record, dict) or record.get('schema') != \
             auditmod.SCHEMA:
@@ -109,6 +115,14 @@ def check_replayable(loaded, force=False):
     problems = validate.structure(record)
     if problems:
         raise LogError('malformed audit record: %s' % problems[0])
+    page = record.get('cluster')
+    if replay and isinstance(page, dict) and page.get('status') == 'ok' \
+            and record['outcome']['status'] == 'ok':
+        missing = [name for name in ('kmedoids', 'numpy')
+                   if deps.unavailable_reason(name)]
+        if missing:
+            raise LogError('cannot be replayed here: %s missing'
+                           % missing[0])
 
 
 def structure_problem(record):
@@ -139,6 +153,10 @@ def text_of(loaded, entry):
 
 def rebuild_status(entry, row):
     facts = entry['facts']
+    host = facts.get('host') or ''
+    # The server the account that put the post in the feed is on (the
+    # 'instance' dimension of the cap reads it from the account's url).
+    seat = {'url': 'https://%s/@x' % host} if host else {}
     content = {
         'id': entry['cid'] if facts['boost'] else entry['id'],
         'created_at': facts['created_c'],
@@ -148,7 +166,8 @@ def rebuild_status(entry, row):
         'sensitive': facts['sensitive'], 'language': facts['lang'],
         'favourites_count': facts['fav'], 'reblogs_count': facts['reblog'],
         'replies_count': facts['reply'],
-        'account': {'id': facts['author_id']},
+        'account': {'id': facts['author_id'], **({} if facts['boost']
+                                                  else seat)},
         'tags': [{'name': name} for name in facts['tags']],
         'media_attachments': [
             {'id': str(index), 'type': 'image',
@@ -158,7 +177,8 @@ def rebuild_status(entry, row):
     if not facts['boost']:
         return content
     return {'id': entry['id'], 'created_at': facts['created_w'],
-            'account': {'id': facts['booster_id']}, 'reblog': content,
+            'account': {'id': facts['booster_id'], **seat},
+            'reblog': content,
             'content': '', 'tags': [], 'media_attachments': []}
 
 
@@ -175,9 +195,20 @@ class Rebuilt:
         self.sentiment = {}
         self.text_len = {}
         self.keyword_failed = set()
+        # The posts the grouping's strategy keeps, worked out once by
+        # evaluate (keep_known: asked for yet; None: cannot be told).
+        self.keep = None
+        self.keep_known = False
+        # The language each post was guessed to be in (if it was).
+        self.guesses = {}
+        # The words the relevance sort and the grouping read, by post, and
+        # the posts whose words are not whole or not the recorded ones.
+        self.words = {}
+        self.words_unreliable = set()
         for entry in self.record['posts']:
             sid = entry['id']
             row, whole, verified = text_of(loaded, entry)
+            self._words(entry, row)
             if not verified:
                 self.unverified.add(sid)
             self.statuses[sid] = rebuild_status(entry, row)
@@ -188,6 +219,37 @@ class Rebuilt:
                 self.keyword_failed.add(sid)
             if entry['sent'] is not None:
                 self.sentiment[sid] = entry['sent']['score']
+            found = entry['facts'].get('lang_guess')
+            if isinstance(found, dict):
+                self.guesses[sid] = (found['lang'], found['p'])
+
+    def _words(self, entry, row):
+        """The focus text of a post, when the record kept it (revision 3,
+        for a recipe with a focus or grouping) and the sidecar still holds
+        what it hashed to."""
+        facts = entry['facts']
+        digest = facts.get('focus_sha256')
+        if digest is None:
+            return
+        words = row.get('focus')
+        if not (isinstance(words, str) and not row.get('focus_truncated')
+                and hashlib.sha256(words.encode('utf-8')).hexdigest()
+                == digest):
+            self.words_unreliable.add(entry['id'])
+            return
+        self.words[entry['id']] = words
+
+    def needs_words(self):
+        """Whether the recipe has a stage that reads the words of posts."""
+        kitchen = self.recipe.kitchen
+        return bool(relevancemod.focus_keywords(kitchen)) or any(
+            mod.type == 'similarity_cluster' for mod in kitchen.modifiers)
+
+    def words_whole(self):
+        """Whether every post's words are known (or no stage needs them)."""
+        return not self.needs_words() or (
+            not self.words_unreliable
+            and len(self.words) == len(self.record['posts']))
 
     def entries(self):
         return self.record['posts']
@@ -206,6 +268,20 @@ class Rebuilt:
             again = sentimentmod.score_status(self.statuses[sid])
             if again is None or abs(again - recorded) > 1e-9:
                 drifted.append(sid)
+        return drifted + self.guess_drift()
+
+    def guess_drift(self):
+        """Posts whose recorded language guess the guesser, run again on the
+        rebuilt text, no longer gives (whole text only). A warning, as for
+        sentiment: the replay itself feeds the recorded guess back."""
+        drifted = []
+        for sid, recorded in self.guesses.items():
+            if sid in self.unreliable:
+                continue
+            again = langguess.guess(self.statuses[sid])
+            if again is None or again[0] != recorded[0] \
+                    or abs(again[1] - recorded[1]) > 1e-9:
+                drifted.append(sid)
         return drifted
 
 
@@ -219,7 +295,7 @@ def patched(rebuilt):
     whose text is not whole by its recorded verdicts of the two rules that
     read the text (blocked words, minimum length)."""
     real = (contract.blocked_hit, contract.text_length, contract.post_text,
-            sentimentmod.score_status)
+            sentimentmod.score_status, textutil.focus_text, langguess.guess)
 
     def blocked_hit(status, words):
         if _sid(status) in rebuilt.unreliable:
@@ -240,12 +316,22 @@ def patched(rebuilt):
     def score_status(status):
         return rebuilt.sentiment.get(_sid(status))
 
+    def guess(status):
+        return rebuilt.guesses.get(_sid(status))
+
+    def focus_text(status):
+        found = rebuilt.words.get(_sid(status))
+        return real[4](status) if found is None else found
+
     contract.blocked_hit = blocked_hit
     contract.text_length = text_length
     contract.post_text = post_text
     sentimentmod.score_status = score_status
+    textutil.focus_text = focus_text
+    langguess.guess = guess
     try:
         yield
     finally:
         (contract.blocked_hit, contract.text_length, contract.post_text,
-         sentimentmod.score_status) = real
+         sentimentmod.score_status, textutil.focus_text,
+         langguess.guess) = real

@@ -22,7 +22,7 @@ from feedchefaudit.collect import collect
 from feedchefaudit.records import LogError, Loaded, expand, load
 from feedchefaudit.show import show
 from src.feedchef import audit as auditmod
-from src.feedchef import decisionlog
+from src.feedchef import decisionlog, deps
 from src.feedchef import network_reach as reachmod
 from src.feedchef.recipe import Modifier, default_recipe
 
@@ -55,13 +55,45 @@ def strict_recipe():
     return recipe
 
 
-def _cook_strict(seed, case, folder):
-    """The Loaded log of one page of the strict recipe."""
+def focus_recipe():
+    """A More Like This focus: the posts are ordered by relevance."""
+    recipe = default_recipe('focus')
+    recipe.kitchen.modifiers = []
+    recipe.kitchen.active_focus_keywords = ['wonderful', 'weather', 'story']
+    recipe.kitchen.active_focus_weights = [1.0, 0.5, 0.5]
+    return recipe
+
+
+def grouped_recipe():
+    """Similar posts grouped: one post of each group stays."""
+    recipe = default_recipe('grouped')
+    recipe.diet.hard_filters.no_sensitive_media = True
+    recipe.kitchen.modifiers = [Modifier(
+        type='similarity_cluster', max_per_cluster=1,
+        cluster_strategy='best_score')]
+    return recipe
+
+
+def floor_recipe():
+    """Freshness with trending: the factor of an old post has a floor."""
+    recipe = default_recipe('floor')
+    recipe.kitchen.modifiers = [
+        Modifier(type='freshness', decay_minutes=120),
+        Modifier(type='trending', growth_threshold=0.3)]
+    return recipe
+
+
+def _cook_recipe(recipe, seed, case, folder):
+    """The Loaded log of one page of *recipe*."""
     before = set(expand([folder]))
-    recipe = strict_recipe()
     fuzz.cook(fuzz.World(random.Random(seed), recipe), recipe, case,
               pages=1, now=fuzz.NOW)
     return load((set(expand([folder])) - before).pop())
+
+
+def _cook_strict(seed, case, folder):
+    """The Loaded log of one page of the strict recipe."""
+    return _cook_recipe(strict_recipe(), seed, case, folder)
 
 
 def _copy(loaded, mutate):
@@ -139,6 +171,140 @@ def negative_cases(checks, loaded):
     wrong = evalmod.evaluate_record(_copy(loaded, _wrong_reason))
     checks('a removal whose reason is wrong fails the justification',
            wrong.verdict('removal_reasons') == 'FAIL')
+
+
+def _swap_relevance(record):
+    """Swap two neighbours of different relevance, ranks following."""
+    order = record['outputs']['order']
+    posts = _by_id(record)
+    for at in range(len(order) - 1):
+        if posts[order[at]]['score']['relevance'] \
+                != posts[order[at + 1]]['score']['relevance']:
+            order[at], order[at + 1] = order[at + 1], order[at]
+            for rank, sid in enumerate(order):
+                posts[sid]['rank'] = rank
+            return
+
+
+def _regroup(record):
+    """Put two posts the grouping kept into one group, so that it seems
+    to keep more than it may."""
+    kept = [e for e in record['posts'] if 'cluster' in e and not (
+        e['removal'] and e['removal']['reason'] == 'cluster_cap')]
+    other = next(e for e in kept
+                 if e['cluster']['id'] != kept[0]['cluster']['id'])
+    other['cluster'] = dict(kept[0]['cluster'])
+
+
+def _wrong_cluster_cut(record):
+    """Say a post the grouping never saw was cut by it."""
+    entry = next(e for e in record['posts']
+                 if e['removal'] and e['removal']['reason'] != 'cluster_cap'
+                 and e['score'] is None)
+    _rereason(record, entry, 'cluster_cap')
+
+
+def _drop_floor(record):
+    """Forget that the floor raised a factor."""
+    entry = next(e for e in record['posts']
+                 if (e['score'] or {}).get('fresh_floor'))
+    del entry['score']['fresh_floor']
+
+
+def guess_recipe():
+    """Favor Positive Posts: posts that declare no language are read on a
+    guess."""
+    recipe = default_recipe('guess')
+    recipe.kitchen.modifiers = [Modifier(type='sentiment_boost',
+                                         sentiment_boost=0.5)]
+    return recipe
+
+
+def _weak_guess(record):
+    """Make a judged guess less sure than the gate allows."""
+    entry = next(e for e in record['posts'] if e['sent']
+                 and e['sent']['score'] is not None
+                 and not e['facts']['lang'] and e['facts'].get('lang_guess'))
+    entry['facts']['lang_guess']['p'] = 0.5
+
+
+def new_cases(checks, folder):
+    if not deps.unavailable_reason('py3langid'):
+        guessed = _cook_recipe(guess_recipe(), 44, 913, folder)
+        tally = evalmod.evaluate_record(guessed)
+        checks('a page with posts judged on a guess passes the language '
+               'check (%d)' % tally.checked['language'],
+               tally.verdict('language') == 'PASS')
+        weak = _copy(guessed, _weak_guess)
+        checks('a guess under the gate fails the language check',
+               evalmod.evaluate_record(weak).verdict('language') == 'FAIL')
+        checks('and is a replay mismatch: the guard drops the post, so the '
+               'selection changes',
+               replaymod.replay(weak).status == 'mismatch')
+    """The relevance order, the grouping and the freshness floor, each
+    tampered with one way and caught by the check made for it."""
+    ranked = _cook_recipe(focus_recipe(), 41, 910, folder)
+    checks('the focus recipe records the relevance of each post (%d)'
+           % ranked.record['summary']['selected'],
+           ranked.record['summary']['selected'] >= 3 and all(
+               'relevance' in e['score'] for e in ranked.record['posts']
+               if e['score']))
+    tally = evalmod.evaluate_record(ranked)
+    checks('an untouched focus page passes the relevance and order checks',
+           tally.verdict('relevance') == 'PASS'
+           and tally.verdict('order') == 'PASS')
+    swapped = _copy(ranked, _swap_relevance)
+    tally = evalmod.evaluate_record(swapped)
+    checks('a tampered relevance order fails the relevance and order checks',
+           tally.verdict('relevance') == 'FAIL'
+           and tally.verdict('order') == 'FAIL')
+    checks('and is a replay mismatch',
+           replaymod.replay(swapped).status == 'mismatch')
+    if deps.unavailable_reason('numpy', 'kmedoids'):
+        out = checks.out
+        out('skip - kmedoids is not installed: the grouping cases are skipped')
+        _floor_cases(checks, folder)
+        return
+    for seed in range(42, 60):
+        # A world with at least two groups, so one can be moved.
+        grouped = _cook_recipe(grouped_recipe(), seed, 911, folder)
+        if grouped.record['cluster'].get('k', 0) >= 2:
+            break
+    page = grouped.record['cluster']
+    checks('the grouping recorded its groups, medoids and loss (%s)'
+           % {k: page[k] for k in ('status', 'k', 'loss')},
+           page['status'] == 'ok' and page['loss'] >= 0 and any(
+               e['removal'] and e['removal']['reason'] == 'cluster_cap'
+               for e in grouped.record['posts']))
+    tally = evalmod.evaluate_record(grouped)
+    checks('an untouched grouping passes the cluster check',
+           tally.verdict('cluster') == 'PASS'
+           and tally.verdict('removal_reasons') == 'PASS')
+    wrong = evalmod.evaluate_record(_copy(grouped, _wrong_cluster_cut))
+    checks('a cluster_cap removal of a post that was never grouped fails '
+           'the justification',
+           wrong.verdict('removal_reasons') == 'FAIL')
+    regrouped = _copy(grouped, _regroup)
+    checks('a group that seems to keep two posts fails the cluster check',
+           evalmod.evaluate_record(regrouped).verdict('cluster') == 'FAIL')
+    checks('and is a replay mismatch at the kitchen',
+           replaymod.replay(regrouped).stage == 'kitchen')
+    _floor_cases(checks, folder)
+
+
+def _floor_cases(checks, folder):
+    floored = _cook_recipe(floor_recipe(), 43, 912, folder)
+    tally = evalmod.evaluate_record(floored)
+    checks('a freshness page with trending passes the floor check (%d '
+           'posts)' % tally.checked['floor'],
+           tally.verdict('floor') == 'PASS'
+           and any((e['score'] or {}).get('fresh_floor')
+                   for e in floored.record['posts']))
+    missing = _copy(floored, _drop_floor)
+    checks('a floor that is not recorded fails the floor check',
+           evalmod.evaluate_record(missing).verdict('floor') == 'FAIL')
+    checks('and is a replay mismatch at the kitchen',
+           replaymod.replay(missing).stage == 'kitchen')
 
 
 def _write(folder, name, loaded, record=None, sidecar=True):
@@ -393,7 +559,8 @@ def _run(checks, tmp):
     for rule in evalmod.RULES:
         checks('evaluate %s: %s (%d checked)' % (
             rule, tally.verdict(rule), tally.checked[rule]),
-            tally.verdict(rule) == 'PASS')
+            tally.verdict(rule) == 'PASS' or (
+                rule == 'language' and deps.unavailable_reason('py3langid')))
     # Without the sidecar the text-reading rules fall back on the
     # recorded verdicts: still identical, and said to be partial.
     bare = Loaded(logs[0].path, logs[0].payload, logs[0].record, None)
@@ -417,3 +584,4 @@ def _run(checks, tmp):
            loaded.record['summary']['selected'] >= 3)
     negative_cases(checks, loaded)
     negative_cases_more(checks, loaded, tmp)
+    new_cases(checks, os.path.join(tmp, 'logs'))

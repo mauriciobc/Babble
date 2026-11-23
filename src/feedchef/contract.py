@@ -20,8 +20,16 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .. import quoteline
-from .recipe import FeedRecipe, NetworkReachConfig
-from .textutil import account_of, content_of, squash_space, strip_html
+from . import cluster as clustermod
+from . import relevance as relevancemod
+from .recipe import FeedRecipe, NetworkReachConfig, max_per
+from .textutil import (account_of, content_of, host_of_account, squash_space,
+                       status_created_at, strip_html)
+
+# What a freshness factor is raised to when the recipe also boosts
+# trending posts, so that an old viral post is not scored zero (Java's
+# FRESHNESS_FLOOR_FOR_TRENDING).
+FRESHNESS_FLOOR = 0.2
 
 # status -> compound score in [-1, 1], or None when the post is not judged
 # (a language the sentiment engines do not read).
@@ -196,6 +204,24 @@ def _follows(recipe, status, facts):
                         facts.follow_ids, facts.self_id)
 
 
+def _guessed(recipe, status, facts):
+    """A post with no declared language is only read by the sentiment
+    engines on a guess that passes the gates: enough text, 'en' or 'pt',
+    a probability of at least ``langguess.MIN_P``."""
+    from . import langguess
+    from . import sentiment as sentmod
+    if langguess.declared(status) is not None:
+        return True
+    judge = facts.sentiment or sentmod.score_status
+    # What the engine did (a post judged, or not) against what the gates
+    # allow, worked out here from the guess alone: a judge that reads a post
+    # it should not, or skips one it should read, is caught.
+    found = langguess.guess(status)
+    allowed = (found is not None and found[1] >= langguess.MIN_P
+               and found[0] in langguess.ACTED)
+    return (judge(status) is not None) == allowed
+
+
 PROMISES: tuple[Promise, ...] = (
     Promise('keyword_blocklist',
             'no blocked word, as a whole word, in the text or the content '
@@ -224,6 +250,12 @@ PROMISES: tuple[Promise, ...] = (
             'the content author is followed, or is the viewer',
             lambda r: reach_kind(r.pantry.network_reach) is not None,
             _follows),
+    Promise('language_guess',
+            'a post with no declared language is judged only on a guess of '
+            'English or Portuguese with enough text and confidence',
+            lambda r: r.diet.hard_filters.positive_only or any(
+                m.type == 'sentiment_boost' for m in r.kitchen.modifiers),
+            _guessed),
 )
 
 PROMISE_IDS = tuple(promise.id for promise in PROMISES)
@@ -262,3 +294,150 @@ def violations(
             if first:
                 break
     return broken
+
+
+# The promises about the page as a whole. A post that breaks one is dropped
+# by the guard like one that breaks a promise of its own, and the removal
+# reason is `guard:<id>`.
+
+LIST_IDS = ('relevance_order', 'cluster_cap', 'fresh_floor',
+            'instance_cap')
+
+
+@dataclass(frozen=True)
+class ListFacts:
+    """What the stages decided that the list promises are checked against
+    (the kitchen's ``meta``); the guard never recomputes the grouping or
+    the relevance, the audit's ``evaluate`` does."""
+
+    # Relevance of each post to the focus, by the id of its entry; None
+    # when the recipe has no focus (or no post matched it).
+    relevance: dict[str, float] | None = None
+    # Group of each post, by id; None when the grouping did not run.
+    groups: dict[str, int] | None = None
+    # (freshness factor, raised by the floor) of each post that has one.
+    fresh: dict[str, tuple[float, bool]] | None = None
+    # Posts per server shown by the earlier pages of the cook session.
+    instance_counts: dict[str, int] | None = None
+    # The page's one clock reading, which the freshness check needs.
+    now: Any = None
+
+
+def _sid(status: dict[str, Any]) -> str:
+    return str(status.get('id') or '')
+
+
+def _grouping(recipe: FeedRecipe):
+    return next((mod for mod in recipe.kitchen.modifiers
+                 if mod.type == 'similarity_cluster'), None)
+
+
+def floor_holds(trending: bool, factor: float, lifted: bool) -> bool:
+    """"Favor Fresh Posts" raises a factor under 0.2 to 0.2 exactly when
+    the recipe also has "Boost Trending Topics": with it no factor is
+    under the floor, without it the floor never lifted one."""
+    return factor >= FRESHNESS_FLOOR if trending else not lifted
+
+
+def expected_freshness(status: dict[str, Any], decay_minutes: Any,
+                       now, trending: bool) -> float | None:
+    """What the freshness factor of a post must be, written out here and
+    not read from the kitchen: 1 - age / fade-out, kept in [0, 1], raised to
+    the floor with trending; None when freshness leaves the post be (no
+    date, a date in the future, or no fade-out)."""
+    try:
+        decay = float(decay_minutes or 360)
+    except (TypeError, ValueError):
+        return None
+    created = status_created_at(status, content=True)
+    if decay <= 0 or created is None or now is None:
+        return None
+    age = (now - created).total_seconds() / 60.0
+    if age < 0:
+        return None
+    factor = max(0.0, min(1.0, 1.0 - age / decay))
+    return max(factor, FRESHNESS_FLOOR) if trending else factor
+
+
+def instance_caps(recipe: FeedRecipe) -> list[int]:
+    """The cap per server of every diversity modifier that caps them: all
+    of them must hold on the page."""
+    return [max_per(mod.max_per_cluster) for mod in recipe.kitchen.modifiers
+            if mod.type == 'diversity'
+            and 'instance' in (mod.diversity_dimensions or [])]
+
+
+def instance_cap(recipe: FeedRecipe) -> int | None:
+    """The tightest of ``instance_caps``, or None."""
+    caps = instance_caps(recipe)
+    return min(caps) if caps else None
+
+
+def list_violations(recipe: FeedRecipe, ordered: list[dict[str, Any]],
+                    facts: ListFacts) -> dict[str, list[str]]:
+    """The posts of *ordered* that break a promise about the page, with the
+    ids of the promises (see ``LIST_IDS``), in page order:
+
+    * ``relevance_order``: with a focus the page is non-increasing by
+      relevance; a post more relevant than the one before it, or whose
+      relevance is not a number, breaks it.
+    * ``cluster_cap``: at most ``max_per_cluster`` posts of each group;
+      the ones past the cap break it.
+    * ``fresh_floor``: each post's freshness factor is the one the recipe
+      calls for, recomputed here: raised to 0.2 with trending and only then.
+    * ``instance_cap``: at most ``max_per_cluster`` posts per server over
+      the cook session, for each diversity modifier that caps servers; the
+      ones past the cap break it."""
+    found: dict[str, list[str]] = {}
+
+    def add(status, promise):
+        found.setdefault(_sid(status), []).append(promise)
+
+    if facts.relevance is not None \
+            and relevancemod.focus_keywords(recipe.kitchen):
+        last = None
+        for status in ordered:
+            score = facts.relevance.get(_sid(status), 0.0)
+            if score != score or (last is not None and score > last):
+                add(status, 'relevance_order')
+            else:
+                last = score
+    grouping = _grouping(recipe)
+    if facts.groups is not None and grouping is not None:
+        per = clustermod.max_per_cluster(grouping.max_per_cluster)
+        seen: dict[int, int] = {}
+        for status in ordered:
+            group = facts.groups.get(_sid(status))
+            if group is None:
+                continue
+            seen[group] = seen.get(group, 0) + 1
+            if seen[group] > per:
+                add(status, 'cluster_cap')
+    freshness = [mod for mod in recipe.kitchen.modifiers
+                 if mod.type == 'freshness']
+    if facts.fresh is not None and freshness:
+        trending = any(mod.type == 'trending'
+                       for mod in recipe.kitchen.modifiers)
+        for status in ordered:
+            row = facts.fresh.get(_sid(status))
+            if row is None:
+                continue
+            wanted = None
+            for mod in freshness:
+                one = expected_freshness(status, mod.decay_minutes,
+                                         facts.now, trending)
+                if one is not None:
+                    wanted = one if wanted is None else wanted * one
+            if wanted is None or not abs(row[0] - wanted) <= 1e-12:
+                add(status, 'fresh_floor')
+    for cap in instance_caps(recipe):
+        counts = dict(facts.instance_counts or {})
+        for status in ordered:
+            server = host_of_account(account_of(status, wrapper=True))
+            if not server:
+                continue
+            counts[server] = counts.get(server, 0) + 1
+            if counts[server] > cap and 'instance_cap' not in found.get(
+                    _sid(status), ()):
+                add(status, 'instance_cap')
+    return found

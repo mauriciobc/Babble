@@ -11,6 +11,7 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 from . import accounts, feedback, pagenav  # noqa: E402
 from . import feedchefexplain  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
+from .feedchef.focus import decay_focus  # noqa: E402
 from .feedchef.icons import icon_name  # noqa: E402
 from .feedchef.recipe import default_recipe  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
@@ -332,6 +333,7 @@ class FeedChefTimelinePage(TimelinePage):
                 else _('Could Not Load This Recipe'))
             raise
         self.error_page.set_title(_('Could Not Load This Recipe'))
+        self._update_focus_ui()
         return statuses
 
     def close_requests(self):
@@ -418,6 +420,34 @@ class FeedChefTimelinePage(TimelinePage):
     # Cooking
 
     def refresh(self):
+        """The reader's refresh (the pull, the window's reload): a focus
+        fades one step (see ``feedchef.focus``) and the recipe is saved
+        with it, then the page is cooked again."""
+        if self._scope.closed:
+            return
+        if self._fading():
+            # The cook in flight is over before the focus it cooks changes
+            # (the engine also works on a copy of the recipe).
+            self._scope.begin()
+            self.source.close()
+        if decay_focus(self.recipe.kitchen):
+            try:
+                self.storage.save_recipe(self.recipe)
+            except Exception as error:
+                feedback.report_error(
+                    self, _('Could not save the recipe'), error)
+            self._update_focus_ui()
+        self._cook()
+
+    def _fading(self):
+        """Whether a refresh now would fade the focus."""
+        kitchen = self.recipe.kitchen
+        return bool(kitchen.active_focus_keywords
+                    or kitchen.active_focus_hashtags) \
+            and isinstance(kitchen.focus_decay, (int, float)) \
+            and kitchen.focus_decay < 1.0
+
+    def _cook(self):
         """Cook again: the list is replaced, in kitchen order."""
         if self._scope.closed:
             return
@@ -471,6 +501,8 @@ class FeedChefTimelinePage(TimelinePage):
         kitchen = self.recipe.kitchen
         kitchen.active_focus_hashtags = tags or None
         kitchen.active_focus_keywords = keywords or None
+        kitchen.active_focus_weights = None
+        kitchen.active_focus_strength = 1.0
         self._save_focus()
         feedback.show_toast(self, _('Focus set from this post'))
 
@@ -478,6 +510,8 @@ class FeedChefTimelinePage(TimelinePage):
         kitchen = self.recipe.kitchen
         kitchen.active_focus_hashtags = None
         kitchen.active_focus_keywords = None
+        kitchen.active_focus_weights = None
+        kitchen.active_focus_strength = 1.0
         self._save_focus()
 
     def _save_focus(self):
@@ -488,7 +522,7 @@ class FeedChefTimelinePage(TimelinePage):
                                   error)
             return
         self._update_focus_ui()
-        self.refresh()
+        self._cook()
 
     def _update_focus_ui(self):
         kitchen = self.recipe.kitchen
@@ -506,7 +540,16 @@ class FeedChefTimelinePage(TimelinePage):
                                  extra) % {'terms': terms, 'count': extra}
             # Translators: %s lists the hashtags and words the timeline is
             # focused on, for example "#python, decorators".
-            self.banner.set_title(_('Showing more like %s') % terms)
+            last = getattr(getattr(self, 'source', None), 'last_audit', None)
+            if isinstance(last, dict) and last.get('focus_unmatched'):
+                # Translators: %s lists the hashtags and words the timeline
+                # is focused on; none of the posts shown matches them, so
+                # the posts are in the order the recipe asks for.
+                self.banner.set_title(
+                    _('No post here matches %s; showing your recipe’s '
+                      'order') % terms)
+            else:
+                self.banner.set_title(_('Showing more like %s') % terms)
         # The whole list, for when the title had to leave some out.
         self.banner.set_tooltip_text(', '.join(parts) if parts else None)
         self.banner.set_revealed(bool(parts))
@@ -545,7 +588,7 @@ class FeedChefTimelinePage(TimelinePage):
         nav_page = self.get_ancestor(Adw.NavigationPage)
         if nav_page is not None:
             nav_page.set_title(recipe.meta.name)
-        self.refresh()
+        self._cook()
 
 
 def present_import(parent, account, recipe):

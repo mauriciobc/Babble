@@ -8,6 +8,7 @@ Java engine ignores are still stored so round-trips stay lossless.
 from __future__ import annotations
 
 import copy
+import math
 import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -88,7 +89,13 @@ class KitchenConfig:
     modifiers: list[Modifier] = field(default_factory=list)
     active_focus_keywords: list[str] | None = None
     active_focus_weights: list[float] | None = None
-    focus_decay: float = 1.0  # persisted; engine ignores in v1
+    # Multiplies every focus weight on a refresh (focus.decay_focus); 1.0
+    # or more: the focus never fades.
+    focus_decay: float = 1.0
+    # How much of the focus is left (1.0 when it is set): multiplied by
+    # focus_decay on each refresh, and the whole focus (hashtags too) clears
+    # when it falls under 0.1 (focus.decay_focus).
+    active_focus_strength: float = 1.0
     enable_fuzzy_matching: bool = True  # v1 treats as off for synonyms
     active_focus_hashtags: list[str] | None = None
 
@@ -102,14 +109,24 @@ class FeedRecipe:
     kitchen: KitchenConfig = field(default_factory=KitchenConfig)
 
     def inert_modifiers(self) -> list[str]:
-        """Modifier types that need NLP/gap work and are inert in v1 core."""
-        inert = []
-        for mod in self.kitchen.modifiers:
-            if mod.type in INERT_WITHOUT_GAP:
-                inert.append(mod.type)
-        if self.kitchen.active_focus_keywords:
-            inert.append('active_focus_keywords')
-        return sorted(set(inert))
+        """Modifier types the kitchen does not apply (see
+        ``INERT_WITHOUT_GAP``). Similarity grouping and the focus sort are
+        not among them: the first needs the optional ``kmedoids`` package,
+        which the builder checks (``feedchef.deps``), and the kitchen says
+        when it could not run."""
+        return sorted({mod.type for mod in self.kitchen.modifiers
+                       if mod.type in INERT_WITHOUT_GAP})
+
+
+def max_per(value) -> int:
+    """A cap (``max_per_cluster``) as the engine reads it: a whole number
+    of 1 or more, 1 when it is missing, not a number, infinite or under 1.
+    Never raises: a recipe is imported text. (validate_for_import is
+    stricter and rejects such a value.)"""
+    try:
+        return max(1, int(value if value is not None else 1))
+    except (TypeError, ValueError, OverflowError):
+        return 1
 
 
 def default_recipe(name: str = 'New Recipe') -> FeedRecipe:
@@ -173,6 +190,14 @@ def _modifier_from(raw: dict) -> Modifier:
     )
 
 
+def _strength(value) -> float:
+    try:
+        number = float(value if value is not None else 1.0)
+    except (TypeError, ValueError):
+        return 1.0
+    return number if math.isfinite(number) else 1.0
+
+
 def recipe_from_dict(data: dict[str, Any] | None) -> FeedRecipe:
     data = migrate_recipe(data or {})
     meta_raw = data.get('meta') or {}
@@ -225,6 +250,8 @@ def recipe_from_dict(data: dict[str, Any] | None) -> FeedRecipe:
             focus_decay=float(kitchen_raw.get('focus_decay')
                               if kitchen_raw.get('focus_decay') is not None
                               else 1.0),
+            active_focus_strength=_strength(
+                kitchen_raw.get('active_focus_strength')),
             enable_fuzzy_matching=bool(
                 kitchen_raw.get('enable_fuzzy_matching', True)),
             active_focus_hashtags=(
@@ -253,10 +280,28 @@ def validate_for_save(recipe: FeedRecipe) -> FeedRecipe:
     return recipe
 
 
+def _check_caps(data: dict[str, Any]) -> None:
+    """Reject a cap that is not a whole number of 1 or more, with a message
+    the reader can act on (the engine itself reads such a value as 1)."""
+    for mod in (data.get('kitchen') or {}).get('modifiers') or ():
+        if not isinstance(mod, dict) or mod.get('type') not in (
+                'similarity_cluster', 'diversity'):
+            continue
+        value = mod.get('max_per_cluster')
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, int) \
+                or value < 1:
+            raise ValueError(
+                'the "%s" modifier needs max_per_cluster to be a whole '
+                'number of 1 or more' % mod['type'])
+
+
 def validate_for_import(data: dict[str, Any]) -> FeedRecipe:
     """Import activity: meta required; empty id → new UUID."""
     if data is None or data.get('meta') is None:
         raise ValueError('recipe meta is required')
+    _check_caps(data)
     recipe = recipe_from_dict(data)
     if not recipe.id:
         recipe.id = str(uuid.uuid4())
@@ -268,8 +313,10 @@ def validate_for_import(data: dict[str, Any]) -> FeedRecipe:
 # Modifiers active without further NLP gap work in v1.
 ACTIVE_MODIFIER_TYPES = frozenset({
     'freshness', 'heat', 'diversity', 'trending', 'sentiment_boost',
+    'similarity_cluster',
 })
-# Still inert: cluster/TF-IDF and connection (no synonyms / embeddings).
+# Still inert: connection (no synonyms / embeddings). Similarity grouping
+# and the focus (relevance) sort run since engine revision 3.
 INERT_WITHOUT_GAP = frozenset({
-    'similarity_cluster', 'connection',
+    'connection',
 })

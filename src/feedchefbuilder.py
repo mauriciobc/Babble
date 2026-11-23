@@ -2,6 +2,7 @@
 """Feed Chef recipe builder: an Adw.Dialog that edits a copy of a recipe."""
 
 import copy
+import logging
 
 import gi
 
@@ -13,6 +14,9 @@ from gi.repository import Adw, Gio, GLib, GObject, Gtk  # noqa: E402
 from . import accounts, pages  # noqa: E402
 from .api import lists as api_lists  # noqa: E402
 from .feedback import ToastDialog  # noqa: E402
+from .feedchef import deps  # noqa: E402
+from .feedchef.cluster import (MAX_GROUPS, MIN_POSTS,  # noqa: E402
+                                STRATEGIES, strategy_of)
 from .feedchef.icons import ICONS, icon_name  # noqa: E402
 from .feedchef.recipe import Modifier  # noqa: E402
 from .feedchef.sharecodec import recipe_share_uri  # noqa: E402
@@ -22,6 +26,8 @@ from .feedchefpreview import (CloseWhenFeedChefOff,  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .uihelpers import set_accessible_label  # noqa: E402
 from .weakconnect import connect_weak  # noqa: E402
+
+log = logging.getLogger('babble.feedchef')
 
 SCOPES = ('home', 'local', 'federated', 'list')
 ORDERS = ('score', 'chronological')
@@ -68,6 +74,38 @@ def _spin(title, subtitle, value, lower, upper, step, digits=0):
                                   step_increment=step))
 
 
+class _Extra:
+    """A second control of a modifier's expander: a switch or a choice,
+    written back only when the reader changed it."""
+
+    def __init__(self, widget, read, write):
+        self.widget = widget
+        self._read = read
+        self._write = write
+        self.initial = self.value()
+
+    def value(self):
+        if isinstance(self.widget, Adw.SwitchRow):
+            return self.widget.get_active()
+        return self.widget.get_selected()
+
+    def load(self, mod):
+        if mod is None:
+            return
+        value = self._read(mod)
+        if isinstance(self.widget, Adw.SwitchRow):
+            self.widget.set_active(value)
+        else:
+            self.widget.set_selected(value)
+        self.initial = self.value()
+
+    def changed(self):
+        return self.value() != self.initial
+
+    def write(self, mod):
+        self._write(mod, self.value())
+
+
 class _ModifierEditor:
     """An expander with an enable switch for one kitchen modifier.
 
@@ -77,17 +115,45 @@ class _ModifierEditor:
     not rewritten, and a modifier of another type is never looked at."""
 
     def __init__(self, kind, title, subtitle, spin, read, write_value,
-                 show_value):
+                 show_value, extras=()):
         self.kind = kind
         self._read = read
         self._write = write_value
         self._subtitle = subtitle
         self._show_value = show_value
+        # Why the modifier cannot be switched on here (a package it needs
+        # is missing), or '': the row is then shown but not editable.
+        self.blocked = ''
         self.row = Adw.ExpanderRow(title=title, subtitle=subtitle,
                                    show_enable_switch=True)
         self.spin = spin
         self.row.add_row(spin)
+        self.extras = list(extras)
+        for extra in self.extras:
+            self.row.add_row(extra.widget)
         self.initial = spin.get_value()
+
+    def block(self, reason):
+        """Show the modifier as not available. *reason* is the technical
+        detail (a package name, an import error): it goes to the log, and
+        the reader sees a plain sentence. The row stays focusable and
+        expandable, so the explanation is reachable with the keyboard; only
+        what would change the setting is turned off."""
+        log.info('feedchef: %s is not available: %s', self.kind, reason)
+        self.blocked = reason
+        self.row.set_show_enable_switch(False)
+        self.spin.set_sensitive(False)
+        for extra in self.extras:
+            extra.widget.set_sensitive(False)
+        note = Adw.ActionRow(title=_('Needs an optional component that is not '
+                                'installed'), activatable=False)
+        note.add_prefix(Gtk.Image.new_from_icon_name(
+            'dialog-information-symbolic'))
+        self.row.add_row(note)
+
+    def state(self):
+        return (self.row.get_enable_expansion(), self.spin.get_value(),
+                *(extra.value() for extra in self.extras))
 
     def load(self, recipe):
         mod = next((m for m in recipe.kitchen.modifiers
@@ -95,13 +161,20 @@ class _ModifierEditor:
         self.present = mod is not None
         if mod is not None:
             self.spin.set_value(self._read(mod))
+        for extra in self.extras:
+            extra.load(mod)
         self.initial = self.spin.get_value()
-        self.row.set_enable_expansion(self.present)
+        # A blocked row has no switch and always opens, to show why.
+        self.row.set_enable_expansion(self.present or bool(self.blocked))
         self.row.set_expanded(False)
 
     def sync_subtitle(self):
         """The subtitle names what the modifier does, and, while it is
         on, the value it is set to."""
+        if self.blocked:
+            self.row.set_subtitle(_('Needs an optional component that is '
+                                    'not installed'))
+            return
         if not self.row.get_enable_expansion():
             self.row.set_subtitle(self._subtitle)
             return
@@ -112,18 +185,25 @@ class _ModifierEditor:
             'value': self._show_value(int(round(self.spin.get_value())))})
 
     def apply(self, recipe):
+        if self.blocked:
+            # Nothing here can be edited: a modifier the recipe has (an
+            # imported one) is kept as it is, and none is added.
+            return
         modifiers = recipe.kitchen.modifiers
         wanted = self.row.get_enable_expansion()
         if not wanted:
             modifiers[:] = [m for m in modifiers if m.type != self.kind]
             return
         mod = next((m for m in modifiers if m.type == self.kind), None)
-        if mod is None:
+        fresh = mod is None
+        if fresh:
             mod = Modifier(type=self.kind)
             modifiers.append(mod)
-        elif self.spin.get_value() == self.initial:
-            return
-        self._write(mod, self.spin.get_value())
+        if fresh or self.spin.get_value() != self.initial:
+            self._write(mod, self.spin.get_value())
+        for extra in self.extras:
+            if fresh or extra.changed():
+                extra.write(mod)
 
 
 def _modifier_editors():
@@ -135,7 +215,26 @@ def _modifier_editors():
 
     def diversity_write(mod, value):
         mod.max_per_cluster = int(round(value))
-        mod.diversity_dimensions = ['author']
+        if not mod.diversity_dimensions:
+            mod.diversity_dimensions = ['author']
+
+    def servers_read(mod):
+        return 'instance' in (mod.diversity_dimensions or [])
+
+    def servers_write(mod, on):
+        dimensions = [d for d in (mod.diversity_dimensions or ['author'])
+                      if d != 'instance']
+        mod.diversity_dimensions = dimensions + ['instance'] if on \
+            else dimensions
+
+    def group_write(mod, value):
+        mod.max_per_cluster = int(round(value))
+
+    def strategy_read(mod):
+        return STRATEGIES.index(strategy_of(mod.cluster_strategy))
+
+    def strategy_write(mod, index):
+        mod.cluster_strategy = STRATEGIES[index]
 
     def trending_write(mod, value):
         mod.growth_threshold = round(value / 100.0, 2)
@@ -155,6 +254,19 @@ def _modifier_editors():
 
     def per_person(value):
         return ngettext('%d per person', '%d per person', value) % value
+
+    def per_group(value):
+        return ngettext('%d per group', '%d per group', value) % value
+
+    servers = Adw.SwitchRow(
+        title=_('Count Servers Too'),
+        subtitle=_('Also limits the posts from each server, so one server '
+                   'cannot fill the feed'))
+    strategy = Adw.ComboRow(
+        title=_('Post That Stays'),
+        subtitle=_('In each group'),
+        model=Gtk.StringList.new([_('Most engaging'), _('Newest'),
+                                  _('Most representative')]))
 
     return [
         _ModifierEditor(
@@ -181,7 +293,8 @@ def _modifier_editors():
                   _('Until you refresh; a boost counts for the person who '
                     'boosted'), 3, 1, 10, 1),
             lambda m: clamp(m.max_per_cluster or 3, 1, 10),
-            diversity_write, per_person),
+            diversity_write, per_person,
+            [_Extra(servers, servers_read, servers_write)]),
         _ModifierEditor(
             'trending', _('Boost Trending Topics'),
             _('Posts on hashtags many people are using now, and posts '
@@ -200,15 +313,23 @@ def _modifier_editors():
             lambda m: clamp(round(float(m.sentiment_boost or 0.5) * 100),
                             10, 100),
             sentiment_write, percent),
+        _ModifierEditor(
+            'similarity_cluster', _('Group Similar Posts'),
+            # Translators: %(groups)d is the most groups a page is split into
+            # and %(posts)d the fewest posts it needs to be split at all.
+            _('Posts that read alike form up to %(groups)d groups, and only '
+              'some of each group show. Needs %(posts)d posts or more.')
+            % {'groups': MAX_GROUPS, 'posts': MIN_POSTS},
+            _spin(_('Posts per Group'), _('How many posts of each group '
+                                          'stay'), 3, 1, 10, 1),
+            lambda m: clamp(m.max_per_cluster or 1, 1, 10),
+            group_write, per_group,
+            [_Extra(strategy, strategy_read, strategy_write)]),
     ]
 
 
 def _unsupported_names(recipe):
-    names = {
-        'similarity_cluster': _('similarity grouping'),
-        'connection': _('connections'),
-        'active_focus_keywords': _('sorting by focus keywords'),
-    }
+    names = {'connection': _('connections')}
     return [names.get(kind, kind) for kind in recipe.inert_modifiers()]
 
 
@@ -412,6 +533,12 @@ class FeedChefBuilderDialog(CloseWhenFeedChefOff, ToastDialog):
             1 if recipe.kitchen.base_sort == 'chronological' else 0)
         group.add(self.order)
         self.editors = _modifier_editors()
+        # Grouping needs two optional packages; whether they are there is
+        # asked without importing them (this runs on the main thread).
+        missing = deps.unavailable_reason('numpy', 'kmedoids')
+        for editor in self.editors:
+            if missing and editor.kind == 'similarity_cluster':
+                editor.block(missing)
         for editor in self.editors:
             editor.load(recipe)
             group.add(editor.row)
@@ -525,8 +652,7 @@ class FeedChefBuilderDialog(CloseWhenFeedChefOff, ToastDialog):
             self.sensitive.get_active(), self.positive.get_active(),
             self.min_length.get_value(), self._icon,
             self.order.get_selected(),
-            tuple((editor.row.get_enable_expansion(),
-                   editor.spin.get_value()) for editor in self.editors))
+            tuple(editor.state() for editor in self.editors))
 
     def _watch(self):
         for row in (self.name_row, self.include, self.exclude,
@@ -543,6 +669,10 @@ class FeedChefBuilderDialog(CloseWhenFeedChefOff, ToastDialog):
         for editor in self.editors:
             connect_weak(editor.row, 'notify::enable-expansion',
                          self._on_edited)
+            for extra in editor.extras:
+                connect_weak(extra.widget, 'notify::active'
+                             if isinstance(extra.widget, Adw.SwitchRow)
+                             else 'notify::selected', self._on_edited)
         for row in spins[1:]:
             connect_weak(row, 'notify::value', self._sync_subtitles)
         for editor in self.editors:

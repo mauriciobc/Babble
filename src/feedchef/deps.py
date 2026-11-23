@@ -14,6 +14,7 @@ and the first result stored wins.
 """
 
 import importlib
+import importlib.util
 import logging
 import threading
 
@@ -59,6 +60,33 @@ def get(name, allow_main=False):
 def available(name, allow_main=False):
     """Whether *name* imports."""
     return get(name, allow_main=allow_main) is not None
+
+
+def findable(name):
+    """Whether *name* is installed, found without importing it (so it is
+    cheap and safe on the main thread, which the builder asks from)."""
+    if name not in NAMES:
+        return False
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def unavailable_reason(*names):
+    """Why the first of *names* that cannot be used cannot, for the
+    interface, or '' when all of them can be: an import that already
+    failed says so, otherwise a module that is not installed. Never
+    imports anything."""
+    for name in names:
+        failure = _reasons.get(name)
+        if failure:
+            return failure
+        if name in _modules and _modules[name] is not None:
+            continue
+        if not findable(name):
+            return '%s is not installed' % name
+    return ''
 
 
 def reason(name):

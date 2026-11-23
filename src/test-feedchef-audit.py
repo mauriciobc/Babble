@@ -36,6 +36,7 @@ from feedchefaudit.records import expand, load  # noqa: E402
 from src.feedchef import audit as auditmod  # noqa: E402
 from src.feedchef import auditreport  # noqa: E402
 from src.feedchef import decisionlog as logmod  # noqa: E402
+from src.feedchef import deps  # noqa: E402
 from src.feedchef import network_reach as reachmod  # noqa: E402
 
 CASES = int(os.environ.get('FEEDCHEF_AUDIT_CASES', '120'))
@@ -116,7 +117,10 @@ for pages in evalmod.group_cooks(audit_logs).values():
     tally.merge(evalmod.evaluate_cook(pages))
 check('every fuzz cook passes every recipe check (%s)' % ', '.join(
     '%s %d' % (rule, tally.checked[rule]) for rule in evalmod.RULES),
-    tally.ok() and all(tally.checked[rule] for rule in evalmod.RULES))
+    tally.ok() and all(
+        tally.checked[rule] for rule in evalmod.RULES
+        # Posts are only guessed at with py3langid (CI installs it).
+        if rule != 'language' or not deps.unavailable_reason('py3langid')))
 record = audit_logs[0].record
 check('the record is schema 2, from engine revision %d, app "dev"'
       % auditmod.ENGINE_REV,

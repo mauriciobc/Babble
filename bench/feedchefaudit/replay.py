@@ -10,9 +10,12 @@ one it replays: same posts, same reasons, same order, same scores, bit for
 bit. Nothing about the comparison is loosened to make a record pass.
 """
 
+import contextlib
 import tempfile
 from datetime import datetime
 
+from src.feedchef import cluster as clustermod
+from src.feedchef import langguess
 from src.feedchef import decisionlog, kitchen as kitchenmod
 from src.feedchef import network_reach as reachmod
 from src.feedchef import pantry as pantrymod
@@ -25,6 +28,7 @@ _FIELD_STAGE = (('origin', 'pantry'), ('also_in', 'pantry'),
                 ('facts', 'facts'), ('follow', 'reach'), ('viewer', 'viewer'),
                 ('rules', 'rules'),
                 ('sent', 'sentiment'), ('score', 'kitchen'),
+                ('cluster', 'kitchen'),
                 ('removal', 'removal'), ('rank', 'order'))
 
 
@@ -46,6 +50,9 @@ class Result:
 def _entry_view(entry, unreliable):
     facts = dict(entry['facts'])
     facts.pop('text_ref', None)
+    # A guess that drifts is a warning (Rebuilt.guess_drift), not a
+    # mismatch: the replay feeds the recorded one back.
+    facts.pop('lang_guess', None)
     if unreliable:
         facts.pop('text_len', None)
         facts.pop('text_sha256', None)
@@ -60,6 +67,33 @@ def _field(key, left, right):
             if left.get(name) != right.get(name):
                 return '%s.%s' % (key, name)
     return key
+
+
+def _page_view(record):
+    """The page's grouping record without the library versions (a version
+    that differs is not a difference of the page: see ``_versions``)."""
+    page = record.get('cluster')
+    if not isinstance(page, dict):
+        return page
+    return {key: value for key, value in page.items() if key != 'versions'}
+
+
+def _versions(record):
+    """What differs between the libraries the record was made with and the
+    ones here, as a sentence; '' when nothing does."""
+    found = []
+    page = record.get('cluster')
+    if isinstance(page, dict) and isinstance(page.get('versions'), dict):
+        now = clustermod.versions()
+        for name, then in page['versions'].items():
+            if then != now.get(name):
+                found.append('%s %s recorded, %s here' % (
+                    name, then or '?', now.get(name) or '?'))
+    guess = (record.get('env') or {}).get('lang_guess') or {}
+    if guess.get('version') and guess['version'] != langguess.version():
+        found.append('py3langid %s recorded, %s here' % (
+            guess['version'], langguess.version() or '?'))
+    return ', '.join(found)
 
 
 def first_difference(recorded, replayed, unreliable=()):
@@ -77,9 +111,9 @@ def first_difference(recorded, replayed, unreliable=()):
         left = _entry_view(entry, sid in unreliable)
         right = _entry_view(other[sid], sid in unreliable)
         for key, stage in _FIELD_STAGE:
-            if left[key] != right[key]:
+            if left.get(key) != right.get(key):
                 return stage, sid, '%s differs' % _field(
-                    key, left[key], right[key])
+                    key, left.get(key), right.get(key))
     if recorded['sources'] != replayed['sources']:
         return 'pantry', '', 'sources differ'
     for key in ('summary', 'outputs'):
@@ -91,6 +125,9 @@ def first_difference(recorded, replayed, unreliable=()):
     for key in ('trends', 'local_heat'):
         if recorded['env'][key] != replayed['env'][key]:
             return 'kitchen', '', 'env.%s differs' % key
+    if _page_view(recorded) != _page_view(replayed):
+        return 'kitchen', '', '%s differs' % _field(
+            'cluster', _page_view(recorded), _page_view(replayed))
     if recorded['cursor_out'] != replayed['cursor_out']:
         return 'pantry', '', 'cursor_out differs'
     return None
@@ -139,12 +176,16 @@ def run(rebuilt):
         native_bluesky=lambda: env['native_bluesky'],
         app_version=record['app']['version'])
     engine.clock = lambda: now
+    # The searches of More Like This are staggered to be kind to a
+    # server; a replay asks no one.
+    engine.search_stagger_ms = 0
     try:
         engine.init_preload()
         result = engine.process_feed_sync(
             recipe, max_id=record['cursor_in'],
             count=record['params']['count'],
             author_counts=record['params']['author_counts_in'],
+            instance_counts=record['params'].get('instance_counts_in'),
             hide=(lambda status: str(status.get('id') or '') in hidden)
             if env['viewer_filter'] else None,
             cook_id=record['cook_id'], page_index=record['page_index'],
@@ -159,7 +200,7 @@ def run(rebuilt):
 def replay(loaded, force=False):
     """A Result for one loaded log. Raises LogError for a record that
     cannot be replayed."""
-    check_replayable(loaded, force)
+    check_replayable(loaded, force, replay=True)
     record = loaded.record
     if record['outcome']['status'] != 'ok':
         return Result('skipped', 'the cook did not finish (%s): nothing '
@@ -171,8 +212,31 @@ def replay(loaded, force=False):
                        % type(error).__name__) from error
 
 
+@contextlib.contextmanager
+def recorded_grouping(record):
+    """While inside, the grouping runs with the start, seed and weights
+    the record says it used, so a record made with other ones replays."""
+    saved = (clustermod.INIT, clustermod.SEED, clustermod.WEIGHTS,
+             clustermod.MAX_ITER)
+    page = record.get('cluster')
+    if isinstance(page, dict):
+        clustermod.INIT = page.get('init', clustermod.INIT)
+        clustermod.SEED = page.get('seed', clustermod.SEED)
+        clustermod.WEIGHTS = tuple(page.get('weights', clustermod.WEIGHTS))
+        clustermod.MAX_ITER = page.get('max_iter', clustermod.MAX_ITER)
+    try:
+        yield
+    finally:
+        (clustermod.INIT, clustermod.SEED, clustermod.WEIGHTS,
+         clustermod.MAX_ITER) = saved
+
+
 def _replay(record, loaded):
     rebuilt = Rebuilt(loaded)
+    if not rebuilt.words_whole():
+        return Result(
+            'skipped', 'the relevance sort and similarity grouping read the '
+            'whole text of every post, and the sidecar does not hold it')
     drift = rebuilt.drift()
     old = (decisionlog._root, reachmod._root)
     saved_cache = dict(pantrymod._mlt_cache)
@@ -181,7 +245,7 @@ def _replay(record, loaded):
         with tempfile.TemporaryDirectory(prefix='feedchef-replay-') as tmp:
             decisionlog.set_root(tmp + '/logs')
             reachmod.set_root(tmp + '/reach')
-            with patched(rebuilt):
+            with patched(rebuilt), recorded_grouping(record):
                 again = run(rebuilt)
     finally:
         decisionlog.set_root(old[0])
@@ -196,6 +260,13 @@ def _replay(record, loaded):
     if found is None:
         return Result('identical', partial=partial, drift=drift,
                       unverified=unverified)
+    different = _versions(record)
+    if different:
+        # Another version of a library may group or guess otherwise: no
+        # verdict, rather than a mismatch the code did not cause.
+        return Result('skipped', 'a library version differs (%s): the '
+                      'cook may differ, so there is no verdict' % different,
+                      partial=partial, drift=drift, unverified=unverified)
     stage, sid, what = found
     return Result('mismatch', '%s%s: %s' % (
         stage, ' (post %s)' % sid[-6:] if sid else '', what),

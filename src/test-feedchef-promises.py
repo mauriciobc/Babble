@@ -477,7 +477,10 @@ check('guard: with broken stages it still returns only the good post (%s)'
 check('guard: it counts what it checked and what it dropped by promise '
       '(%r)' % (broken.guard,),
       broken.guard['checked'] == len(scope)
-      and set(broken.guard['dropped']) == set(contract.PROMISE_IDS))
+      # language_guess has its own broken-judge case in feedchef langguess:
+      # the stages cannot break it with a violator, only a judge can.
+      and set(broken.guard['dropped'])
+      == set(contract.PROMISE_IDS) - {'language_guess'})
 logged = broken.logger.log.reliability['errors']
 check('guard: each violation is in the decision log as '
       'contract:<promise>:<post id>',
@@ -529,7 +532,6 @@ chrono = default_recipe('chrono')
 chrono.kitchen.modifiers = [Modifier(type='diversity', max_per_cluster=5,
                                      diversity_dimensions=['author'])]
 chrono.kitchen.base_sort = 'chronological'
-chrono.kitchen.active_focus_keywords = ['coffee']
 same_time = NOW - timedelta(hours=1)
 items = [post('40', 'a', 'en', favourites_count=1,
               created_at=same_time.isoformat()),
@@ -540,7 +542,7 @@ items = [post('40', 'a', 'en', favourites_count=1,
          post('42', 'd', 'en', favourites_count=9,
               created_at=(NOW - timedelta(hours=9)).isoformat())]
 ordered = run_engine(items, chrono)
-check('order: newest first, ties by id, a focus changes nothing (%s)'
+check('order: newest first, ties by id (%s)'
       % [i['id'] for i in ordered.items],
       [i['id'] for i in ordered.items] == ['39', '41', '40', '42'])
 

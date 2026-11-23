@@ -392,6 +392,73 @@ check('report: a guard drop is "removed by a safety check"',
       == 'Removed by a safety check')
 check('report: an unknown reason is still plain words',
       auditreport.reason_text('???') == 'Removed for another reason')
+check('report: the grouping and the server cap are in plain words',
+      auditreport.reason_text('cluster_cap')
+      == 'Left out as too similar to a post that stayed'
+      and auditreport.reason_text('instance_cap')
+      == 'Over the limit per server'
+      and auditreport.reason_text('guard:relevance_order')
+      == 'Removed by a safety check')
+
+# Revision 3: the relevance, the group and the freshness floor, in plain
+# words, and a record without them (revision 2) still reads.
+new_entry = {
+    'id': '7', 'origin': 'scope', 'also_in': [], 'follow': {'verdict': 'n/a'},
+    'viewer': None, 'rules': {}, 'sent': None, 'removal': None, 'rank': 0,
+    'facts': {'fav': 2, 'reblog': 0, 'reply': 0, 'lang': 'en',
+              'boost': False},
+    'score': {'base': 2.0, 'fresh': 0.2, 'sent': 1.0, 'trend': 1.0,
+              'final': 0.4, 'fresh_floor': True, 'relevance': 0.624},
+    'cluster': {'id': 1, 'medoid': '7'}}
+new_record = {
+    'page_index': 0, 'summary': {'selected': 3},
+    'cluster': {'status': 'ok', 'k': 3},
+    'recipe': {'snapshot': {
+        'pantry': {'scope': 'home'}, 'kitchen': {'modifiers': [
+            {'type': 'freshness'}, {'type': 'trending'},
+            {'type': 'similarity_cluster'}]}}}}
+ranked = {row.title: row for section in auditreport.explain_post(
+    new_entry, new_record) if section.title == 'How It Was Ranked'
+    for row in section.rows}
+check('report: relevance is a percentage with a sentence to explain it',
+      ranked['Relevance'].value == '62%'
+      and 'match' in ranked['Relevance'].subtitle)
+check('report: the group is "2 of 3", and the middle post says so',
+      ranked['Group of Similar Posts'].value == '2 of 3'
+      and 'Most Typical' in ranked)
+check('report: the floor is explained on the Freshness row',
+      ranked['Freshness'].subtitle.startswith('Kept from scoring zero')
+      and ranked['Freshness'].value == '× 0.2')
+check('report: with a focus the score says it does not order the page',
+      ranked['Score'].subtitle.startswith('Posts are ordered by relevance'))
+old_entry = {**new_entry, 'score': {k: v for k, v in new_entry[
+    'score'].items() if k not in ('relevance', 'fresh_floor')}}
+old_entry.pop('cluster')
+old_rows = {row.title for section in auditreport.explain_post(
+    old_entry, {'page_index': 0, 'summary': {'selected': 3},
+                'recipe': new_record['recipe']})
+    if section.title == 'How It Was Ranked' for row in section.rows}
+check('report: a record without the revision-3 fields still reads',
+      'Relevance' not in old_rows and 'Group of Similar Posts'
+      not in old_rows and 'Score' in old_rows)
+guessed_entry = {**new_entry, 'sent': {'engine': 'vader', 'score': 0.5},
+                 'facts': {**new_entry['facts'], 'lang': None,
+                           'lang_guess': {'lang': 'en', 'p': 0.784}}}
+about = {row.title: row for section in auditreport.explain_post(
+    guessed_entry, new_record) if section.title == 'About This Post'
+    for row in section.rows}
+check('report: a guessed language says it was guessed, and how sure',
+      about['Language'].value == 'Guessed as English, 78% sure'
+      and about['Language'].subtitle == 'The post does not say which')
+unavailable = auditreport.cook_report([{
+    'outcome': {'status': 'ok'}, 'summary': {},
+    'env': {'lang_guess': {'status': 'unavailable'}},
+    'recipe': {'snapshot': {'diet': {'hard_filters': {
+        'positive_only': True}}, 'kitchen': {}}}}])
+check('report: guessing that is unavailable is said, for a recipe that '
+      'reads sentiment',
+      any(row.title == 'Language Guessing'
+          for section in unavailable.sections for row in section.rows))
 
 # --- Kitchen Report -------------------------------------------------------
 
