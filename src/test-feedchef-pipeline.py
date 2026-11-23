@@ -48,6 +48,14 @@ from src.feedchef.recipe import (  # noqa: E402
 from src.feedchef import decisionlog as logmod  # noqa: E402
 from src.feedchef import network_reach as reachmod  # noqa: E402
 
+# Every engine below logs and caches: keep it all out of the reader's
+# real state and cache folders, for the whole run.
+_TMP = tempfile.TemporaryDirectory()
+LOG_ROOT = os.path.join(_TMP.name, 'logs')
+REACH_ROOT = os.path.join(_TMP.name, 'reach')
+logmod.set_root(LOG_ROOT)
+reachmod.set_root(REACH_ROOT)
+
 
 def status(sid, *, author='a1', fav=0, reblog=0, reply=0, content='hello',
            created=None, tags=None, sensitive=False, media=None,
@@ -211,6 +219,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check('an empty follow list is a valid answer: only own posts',
           [item['id'] for item in kept3] == ['1']
           and stats3.get('fallback') is None)
+reachmod.set_root(REACH_ROOT)
 
 # --- engine sync ---
 posts_scope = [status('10', fav=1), status('11', fav=5)]
@@ -224,6 +233,8 @@ engine = FeedEngine(
 )
 result = engine.process_feed_sync(default_recipe(), count=40)
 check('engine returns items', len(result.items) == 2)
+check('engine log written under the test root',
+      any(name.endswith('.json') for name in os.listdir(LOG_ROOT)))
 check('scope_oldest_id set', result.scope_oldest_id is not None)
 engine.shutdown()
 
@@ -265,6 +276,7 @@ with tempfile.TemporaryDirectory() as tmp:
                  if name.endswith('.json') and '_r-0__' in name]
     check('decision log keeps the last 20 cooks of one recipe',
           len(remaining) == 20)
+logmod.set_root(LOG_ROOT)
 
 # --- cancel does not deliver stale on_done ---
 done_box = {'called': False}
