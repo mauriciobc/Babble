@@ -8,7 +8,7 @@ import sys
 from feedchefaudit import evaluate as evalmod
 from feedchefaudit import replay as replaymod
 from feedchefaudit.collect import collect
-from feedchefaudit.records import LogError, expand, load
+from feedchefaudit.records import LogError, Loaded, expand, load
 from feedchefaudit.selfcheck import run_self_test
 from feedchefaudit.show import show
 
@@ -28,6 +28,10 @@ def build_parser():
     replayed.add_argument('logs', nargs='+')
     replayed.add_argument('--force', action='store_true',
                           help='replay a record of another engine revision')
+    replayed.add_argument(
+        '--allow-partial', action='store_true',
+        help='accept posts whose text cannot be checked against its hash '
+             '(exit 3 otherwise)')
     evaluated = commands.add_parser(
         'evaluate', help='check the choices against the recipe')
     evaluated.add_argument('logs', nargs='*')
@@ -40,6 +44,8 @@ def build_parser():
     collected.add_argument('--json', dest='json_path',
                            help='write counts, verdicts and dates only')
     collected.add_argument('--force', action='store_true')
+    collected.add_argument('--allow-partial', action='store_true',
+                           help='accept posts whose text is unverified')
     commands.add_parser('self-test', help='check the harness itself')
     return parser
 
@@ -60,22 +66,29 @@ def _replay(args):
             ': ' + result.detail if result.detail else '', extra))
         for _sid in result.drift:
             print('  warning: a sentiment score drifted from the record')
+        if result.unverified:
+            print('  text unverified for %d posts: the sidecar is missing '
+                  'or is not the one this record was made with'
+                  % result.unverified)
+            if not args.allow_partial:
+                code = max(code, 3)
         if result.status == 'mismatch':
             code = max(code, 1)
     return code
 
 
 def _evaluate(args):
-    try:
-        loaded = [load(path) for path in expand(args.logs)]
-    except LogError as error:
-        print(error)
-        return 2
-    cooks = evalmod.group_cooks(loaded)
-    if not cooks:
+    loaded, rejects = [], []
+    for path in expand(args.logs):
+        try:
+            loaded.append(load(path))
+        except LogError as error:
+            rejects.append((Loaded(path, None, None, None), str(error)))
+    cooks = evalmod.group_cooks(loaded, rejects)
+    if not cooks and not rejects:
         print('no audit logs to evaluate')
         return 2
-    tally = evalmod.Tally()
+    tally = evalmod.reject_tally(rejects)
     for pages in cooks.values():
         tally.merge(evalmod.evaluate_cook(pages))
     for rule in evalmod.RULES:
@@ -84,6 +97,7 @@ def _evaluate(args):
             tally.violations[rule]))
         for example in tally.examples[rule]:
             print('    %s' % example)
+    print('overall: %s' % tally.overall())
     return 0 if tally.ok() else 1
 
 
@@ -97,7 +111,8 @@ def main(argv=None):
         return _evaluate(args)
     if args.command == 'collect':
         return collect(args.paths, recipe_id=args.recipe, since=args.since,
-                       json_path=args.json_path, force=args.force)
+                       json_path=args.json_path, force=args.force,
+                       allow_partial=args.allow_partial)
     if args.command == 'self-test':
         return run_self_test()
     return 2

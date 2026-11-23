@@ -52,8 +52,12 @@ class FeedChefPreviewPage(TimelinePage):
     _shut_down = False
 
     def __init__(self, client, account, recipe):
+        # An unsaved recipe leaves no audit record: the log of its page
+        # would hold a recipe that was never kept, and fill the retention
+        # of the saved ones.
         engine = make_engine(client, accounts.account_key(account),
-                             str(account.get('id') or ''), recipe)
+                             str(account.get('id') or ''), recipe,
+                             audit=False)
         engine.init_preload()
         source = FeedChefSource(engine, recipe)
         super().__init__(client, source=source, boosts_carousel=False,

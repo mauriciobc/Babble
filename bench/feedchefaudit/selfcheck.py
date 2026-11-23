@@ -7,7 +7,10 @@ must be caught by the check that exists for it. No network, no display,
 and the real log folder is never touched.
 """
 
+import contextlib
 import copy
+import io
+import json
 import os
 import random
 import tempfile
@@ -15,7 +18,9 @@ import tempfile
 from feedchefaudit import evaluate as evalmod
 from feedchefaudit import fuzz
 from feedchefaudit import replay as replaymod
+from feedchefaudit.collect import collect
 from feedchefaudit.records import LogError, Loaded, expand, load
+from feedchefaudit.show import show
 from src.feedchef import audit as auditmod
 from src.feedchef import decisionlog
 from src.feedchef import network_reach as reachmod
@@ -67,9 +72,17 @@ def _copy(loaded, mutate):
                   loaded.sidecar)
 
 
+def _by_id(record):
+    return {entry['id']: entry for entry in record['posts']}
+
+
 def _swap_order(record):
     order = record['outputs']['order']
     order[0], order[1] = order[1], order[0]
+    # The ranks follow the order, so only the order check can tell.
+    posts = _by_id(record)
+    for rank, sid in enumerate(order):
+        posts[sid]['rank'] = rank
 
 
 def _bump_score(record):
@@ -86,11 +99,23 @@ def _break_diet(record):
             entry['facts']['sensitive'] = True
 
 
+def _rereason(record, entry, reason):
+    """Give a removed post another reason, the summary kept in step: a
+    record that is consistent with itself and wrong about the recipe."""
+    counts = record['summary']['by_reason']
+    old = entry['removal']['reason']
+    counts[old] -= 1
+    if not counts[old]:
+        del counts[old]
+    counts[reason] = counts.get(reason, 0) + 1
+    entry['removal']['reason'] = reason
+
+
 def _wrong_reason(record):
     for entry in record['posts']:
         if entry['removal'] and entry['removal']['reason'].startswith(
                 'diet:'):
-            entry['removal']['reason'] = 'diet:must_have_media'
+            _rereason(record, entry, 'diet:must_have_media')
             return
 
 
@@ -114,6 +139,224 @@ def negative_cases(checks, loaded):
     wrong = evalmod.evaluate_record(_copy(loaded, _wrong_reason))
     checks('a removal whose reason is wrong fails the justification',
            wrong.verdict('removal_reasons') == 'FAIL')
+
+
+def _write(folder, name, loaded, record=None, sidecar=True):
+    """A log file of *loaded* (its record replaced by *record*) with its
+    sidecar (replaced by *sidecar* when that is not True, none if None)."""
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, name)
+    payload = {**loaded.payload, 'audit': loaded.record
+               if record is None else record}
+    with open(path, 'w', encoding='utf-8') as handle:
+        json.dump(payload, handle)
+    side = loaded.sidecar if sidecar is True else sidecar
+    if side is not None:
+        with open(auditmod.sidecar_path(path), 'w',
+                  encoding='utf-8') as handle:
+            json.dump(side, handle)
+    return path
+
+
+def _cli(*argv):
+    """(exit code, what it printed) of the command line."""
+    from feedchefaudit import cli  # cli imports this module
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = cli.main(list(argv))
+    return code, out.getvalue()
+
+
+def _removed(record, prefix=''):
+    return next(entry for entry in record['posts']
+                if entry['removal'] and entry['removal']['reason']
+                != 'viewer_hide' and entry['removal']['reason'].startswith(
+                    prefix))
+
+
+def _forged_viewer(record):
+    _rereason(record, _removed(record), 'viewer_hide')
+
+
+def _uncounted(record):
+    _removed(record)['removal'] = None
+
+
+def _failed_with_output(record):
+    record['outcome'] = {'status': 'failed', 'error': 'x'}
+
+
+def _verdict(loaded):
+    """The evaluate verdict of one record, and the reasons it gave."""
+    tally = evalmod.evaluate_record(loaded)
+    return tally, ' '.join(tally.examples['record'])
+
+
+MALFORMED = (
+    ('no outputs', lambda r: r.pop('outputs')),
+    ('facts of a post is null', lambda r: r['posts'][0].update(facts=None)),
+    ('a selected id that is not a post', lambda r: r['outputs'][
+        'order'].append('ghost')),
+    ('a post without its rules', lambda r: r['posts'][0].pop('rules')),
+    ('the summary is a list', lambda r: r.update(summary=[])),
+    ('a recipe that does not hash', lambda r: r['recipe'].update(
+        hash='0' * 64)),
+)
+INCONSISTENT = (
+    ('pantry_in off by one', lambda r: r['summary'].update(
+        pantry_in=r['summary']['pantry_in'] + 1)),
+    ('by_reason not the removals', lambda r: r['summary'].update(
+        by_reason={'heat_cut': 99})),
+    ('a post neither selected nor removed', _uncounted),
+    ('guard_checked off by one', lambda r: r['summary'].update(
+        guard_checked=r['summary']['guard_checked'] + 1)),
+    ('a failed cook with output', _failed_with_output),
+    ('a viewer_hide the record never shows', _forged_viewer),
+    ('a removal reason out of the closed set', lambda r: _removed(r)[
+        'removal'].update(reason='because')),
+)
+
+
+def malformed_cases(checks, loaded, tmp):
+    """A record that is not one, or that contradicts itself, is a FAIL with
+    a reason (evaluate, show, collect and replay never raise)."""
+    for label, mutate in MALFORMED + INCONSISTENT:
+        bad = _copy(loaded, mutate)
+        try:
+            tally, why = _verdict(bad)
+        except Exception as error:
+            checks('%s: evaluate does not raise (%s)'
+                   % (label, type(error).__name__), False)
+            continue
+        checks('%s: FAIL with a reason (%s)' % (label, why[:60]),
+               tally.verdict('record') == 'FAIL' and bool(why))
+    hashed = _verdict(_copy(loaded, MALFORMED[-1][1]))[1]
+    checks('a snapshot that does not hash says so',
+           'recipe snapshot does not match its hash' in hashed)
+    folder = os.path.join(tmp, 'bad')
+    for number, (label, mutate) in enumerate(MALFORMED[:5]):
+        record = copy.deepcopy(loaded.record)
+        mutate(record)
+        path = _write(folder, 'session_%d_bad.json' % number, loaded, record)
+        lines = []
+        try:
+            code = show(path, out=lines.append)
+            evaluated = _cli('evaluate', path)[0]
+            collected = collect([path], out=lines.append)
+            replayed = _cli('replay', path)[0]
+        except Exception as error:
+            checks('%s: show, evaluate, collect, replay do not raise (%s)'
+                   % (label, type(error).__name__), False)
+            continue
+        checks('%s: show 2, evaluate 1, collect 1, replay not 0' % label,
+               (code, evaluated, collected) == (2, 1, 1) and replayed)
+    path = _write(folder, 'session_9_bad.json', loaded)
+    with open(path, 'w', encoding='utf-8') as handle:
+        handle.write('{not json')
+    checks('a log that is not JSON fails evaluate and collect (1), no '
+           'traceback', _cli('evaluate', path)[0] == 1
+           and collect([path], out=lambda _line: None) == 1)
+
+
+def _page_twice(loaded, folder):
+    """Two logs of one page: the first, and a later retry of it."""
+    again = _copy(loaded, lambda record: None)
+    again.path = os.path.join(folder, 'session_9_retry.json')
+    again.payload = {**loaded.payload,
+                     'timestamp': loaded.timestamp + 5.0}
+    return again
+
+
+def dedupe_and_cancel_cases(checks, loaded, tmp):
+    """A page cooked twice counts once; a cancelled cook is no page."""
+    once = evalmod.evaluate_cook([loaded])
+    twice = evalmod.evaluate_cook([loaded, _page_twice(loaded, tmp)])
+    checks('a page cooked twice counts once (%d promises checked, once '
+           'is %d)' % (twice.checked['promises'], once.checked['promises']),
+           twice.checked == once.checked and twice.ok())
+    grouped = evalmod.group_cooks([loaded, _page_twice(loaded, tmp)])
+    checks('and the cook groups it once', all(
+        len(pages) == 1 for pages in grouped.values()))
+    cancelled = _copy(loaded, lambda record: record.update(
+        outcome={'status': 'cancelled', 'error': ''}))
+    tally = evalmod.evaluate_cook([cancelled])
+    checks('a cancelled page judges nothing and is not a failure',
+           tally.ok() and not tally.checked['promises'])
+    result = replaymod.replay(cancelled)
+    checks('and is not replayed (%s)' % result.status,
+           result.status == 'skipped')
+
+
+def text_cases(checks, loaded, tmp):
+    """Text that cannot be checked against its hash is said so."""
+    clean = evalmod.evaluate_cook([loaded])
+    checks('a record with its sidecar is a plain PASS (%s)'
+           % clean.overall(), clean.overall() == 'PASS')
+    folder = os.path.join(tmp, 'text')
+    sid = loaded.record['outputs']['order'][0]
+    ref = _by_id(loaded.record)[sid]['facts']['text_ref']
+    changed = copy.deepcopy(loaded.sidecar)
+    changed[ref]['text'] += ' and more'
+    cases = (('a sidecar with a post changed', changed),
+             ('a sidecar that is gone', None),
+             ('a sidecar with the post missing', {
+                 k: v for k, v in loaded.sidecar.items() if k != ref}),
+             ('a sidecar of the wrong type', {ref: ['x']}))
+    for number, (label, sidecar) in enumerate(cases):
+        path = _write(folder, 'session_%d_t.json' % number, loaded,
+                      sidecar=sidecar)
+        again = load(path)
+        tally = evalmod.evaluate_cook([again])
+        code, printed = _cli('evaluate', path)
+        replayed = _cli('replay', path)
+        allowed = _cli('replay', '--allow-partial', path)
+        checks('%s: %s, never a plain PASS' % (label, tally.overall()),
+               tally.overall().startswith('PASS (text unverified: ')
+               and code == 0 and 'overall: PASS (text unverified' in printed)
+        checks('%s: replay exits 3, 0 with --allow-partial' % label,
+               replayed[0] == 3 and allowed[0] == 0
+               and 'text unverified' in replayed[1])
+    lines = []
+    path = os.path.join(folder, 'session_0_t.json')
+    checks('collect says it too and exits 3, 0 with --allow-partial',
+           collect([path], out=lines.append) == 3
+           and collect([path], out=lines.append, allow_partial=True) == 0
+           and any('PASS (text unverified' in line for line in lines))
+
+
+def _tamper_fact(record):
+    sid = record['outputs']['order'][0]
+    _by_id(record)[sid]['facts']['text_len'] += 1000
+
+
+def report_cases(checks, loaded, tmp):
+    """A replay's report names a stage, a post and a field: no facts."""
+    record = copy.deepcopy(loaded.record)
+    _tamper_fact(record)
+    path = _write(os.path.join(tmp, 'report'), 'session_0_r.json', loaded,
+                  record)
+    code, printed = _cli('replay', path)
+    result = replaymod.replay(load(path))
+    checks('a replay mismatch names the field only (%s)' % result.detail,
+           code == 1 and result.detail.startswith('facts (post ')
+           and 'facts.text_len differs' in result.detail
+           and '{' not in printed and 'recorded' not in printed
+           and '1000' not in printed)
+    lines = []
+    collect([path], out=lines.append)
+    notes = [line for line in lines if 'replay mismatch' in line]
+    checks('collect prints none of the facts either (%s)' % notes[:1],
+           len(notes) == 1 and notes[0].endswith(
+               'facts (post %s): facts.text_len differs' % notes[0][
+                   notes[0].index('(post ') + 6:][:6])
+           and not any('{' in line for line in lines))
+
+
+def negative_cases_more(checks, loaded, tmp):
+    malformed_cases(checks, loaded, tmp)
+    dedupe_and_cancel_cases(checks, loaded, tmp)
+    text_cases(checks, loaded, tmp)
+    report_cases(checks, loaded, tmp)
 
 
 def run_self_test(out=print):
@@ -173,3 +416,4 @@ def _run(checks, tmp):
            % loaded.record['summary']['selected'],
            loaded.record['summary']['selected'] >= 3)
     negative_cases(checks, loaded)
+    negative_cases_more(checks, loaded, tmp)

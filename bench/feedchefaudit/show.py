@@ -5,7 +5,9 @@ No post text unless asked (``--text``): the log is the reader's own and stays
 on their machine, but the report is the part people paste into an issue.
 """
 
-from feedchefaudit.records import LogError, check_replayable, load
+from feedchefaudit import validate
+from feedchefaudit.records import (LogError, check_replayable, load,
+                                   text_of)
 
 
 def _factor(value):
@@ -26,9 +28,10 @@ def _origin(entry):
 
 
 def _text(loaded, entry):
-    row = (loaded.sidecar or {}).get(entry['facts']['text_ref'])
-    if row is None:
-        return '(no text kept)'
+    row, _whole, verified = text_of(loaded, entry)
+    if not verified:
+        return '(text unverified: the sidecar is missing or not the one ' \
+            'this record was made with)'
     more = ' (cut at %d characters)' % len(row['text']) \
         if row.get('text_truncated') else ''
     return '%s%s' % (row['text'], more)
@@ -71,6 +74,10 @@ def show(path, post=None, text=False, out=print):
         out('%s' % error)
         return 2
     record = loaded.record
+    problems = validate.consistency(record)
+    if problems:
+        out('inconsistent audit record: %s' % problems[0])
+        return 2
     recipe = record['recipe']
     snapshot = recipe['snapshot']
     out('recipe: %s  (hash %s)  scope %s' % (

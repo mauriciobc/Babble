@@ -31,7 +31,8 @@ class PantryResult:
 
 
 _mlt_cache: dict[str, tuple[float, list[dict[str, Any]],
-                            dict[str, list[str]]]] = {}
+                            dict[str, list[str]],
+                            dict[str, list[dict[str, Any]]]]] = {}
 _MLT_TTL = 30.0
 
 
@@ -147,9 +148,11 @@ def fetch_more_like_this(
     *,
     now: float | None = None,
     terms: dict[str, list[str]] | None = None,
+    sequences: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
     # *terms*: an optional out-map, post id -> the focus terms it was
-    # found by (for the audit); a cache hit fills it too.
+    # found by (for the audit); a cache hit fills it too. *sequences*
+    # likewise: term -> the posts its search gave, in order.
     hashtags = normalize_hashtags(recipe.kitchen.active_focus_hashtags or [])
     keywords = [str(item).strip().lower()
                 for item in (recipe.kitchen.active_focus_keywords or [])
@@ -162,15 +165,20 @@ def fetch_more_like_this(
     if cached and now - cached[0] <= _MLT_TTL:
         if terms is not None:
             terms.update({sid: list(found) for sid, found in cached[2].items()})
+        if sequences is not None:
+            sequences.update({term: list(found)
+                              for term, found in cached[3].items()})
         return list(cached[1])
     collected: list[dict[str, Any]] = []
     found_by: dict[str, list[str]] = {}
+    by_term: dict[str, list[dict[str, Any]]] = {}
     try:
         queries = ([(tag, '#' + tag) for tag in hashtags[:3]] if hashtags
                    else [(keywords[0], keywords[0])])
         for term, query in queries:
             found = search(query)[:20]
             collected.extend(found)
+            by_term[term] = list(found)
             for status in found:
                 names = found_by.setdefault(str(status.get('id') or ''), [])
                 if term not in names:
@@ -179,14 +187,17 @@ def fetch_more_like_this(
         log.warning('feedchef: MLT search failed: %s', error)
         collected = []
         found_by = {}
+        by_term = {}
     # Drop cache entries older than 60 s.
-    stale = [name for name, (stamp, _items, _terms) in _mlt_cache.items()
+    stale = [name for name, (stamp, *_rest) in _mlt_cache.items()
              if now - stamp > 60]
     for name in stale:
         _mlt_cache.pop(name, None)
-    _mlt_cache[key] = (now, collected, found_by)
+    _mlt_cache[key] = (now, collected, found_by, by_term)
     if terms is not None:
         terms.update({sid: list(found) for sid, found in found_by.items()})
+    if sequences is not None:
+        sequences.update(by_term)
     return collected
 
 

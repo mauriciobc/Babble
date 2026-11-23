@@ -22,7 +22,8 @@ from feedchefaudit.records import (LogError, Rebuilt, check_replayable,
 
 # What a mismatch names, from the earliest stage on.
 _FIELD_STAGE = (('origin', 'pantry'), ('also_in', 'pantry'),
-                ('facts', 'facts'), ('follow', 'reach'), ('rules', 'rules'),
+                ('facts', 'facts'), ('follow', 'reach'), ('viewer', 'viewer'),
+                ('rules', 'rules'),
                 ('sent', 'sentiment'), ('score', 'kitchen'),
                 ('removal', 'removal'), ('rank', 'order'))
 
@@ -30,10 +31,14 @@ _FIELD_STAGE = (('origin', 'pantry'), ('also_in', 'pantry'),
 class Result:
     """status: identical | mismatch | skipped (nothing to replay)."""
 
-    def __init__(self, status, detail='', partial=0, drift=(), stage=''):
+    def __init__(self, status, detail='', partial=0, drift=(), stage='',
+                 unverified=0):
         self.status = status
         self.detail = detail
         self.partial = partial
+        # Posts whose text is not the one the record was made with (the
+        # sidecar is gone or was changed): a replay of them is not proof.
+        self.unverified = unverified
         self.drift = list(drift)
         self.stage = stage
 
@@ -43,7 +48,18 @@ def _entry_view(entry, unreliable):
     facts.pop('text_ref', None)
     if unreliable:
         facts.pop('text_len', None)
+        facts.pop('text_sha256', None)
     return {**entry, 'facts': facts}
+
+
+def _field(key, left, right):
+    """Where two values of a post differ, by name only: a replay's report
+    is pasted into issues and holds none of what the post says."""
+    if isinstance(left, dict) and isinstance(right, dict):
+        for name in sorted({*left, *right}):
+            if left.get(name) != right.get(name):
+                return '%s.%s' % (key, name)
+    return key
 
 
 def first_difference(recorded, replayed, unreliable=()):
@@ -62,8 +78,10 @@ def first_difference(recorded, replayed, unreliable=()):
         right = _entry_view(other[sid], sid in unreliable)
         for key, stage in _FIELD_STAGE:
             if left[key] != right[key]:
-                return stage, sid, '%s: recorded %r, replay %r' % (
+                return stage, sid, '%s differs' % _field(
                     key, left[key], right[key])
+    if recorded['sources'] != replayed['sources']:
+        return 'pantry', '', 'sources differ'
     for key in ('summary', 'outputs'):
         if recorded[key] != replayed[key]:
             name = next(name for name in recorded[key]
@@ -79,24 +97,23 @@ def first_difference(recorded, replayed, unreliable=()):
 
 
 def _fetchers(rebuilt):
-    """The fake fetch functions that hand back the recorded posts, each
-    in the sources the record says it came from."""
-    scope, tags, focus = [], {}, {}
-    for entry in rebuilt.entries():
-        status = rebuilt.statuses[entry['id']]
-        for label in [entry['origin'], *entry['also_in']]:
-            if label == 'scope':
-                scope.append(status)
-            elif label.startswith('hashtag:'):
-                tags.setdefault(label[len('hashtag:'):], []).append(status)
-            else:
-                focus.setdefault(label[len('focus:'):], []).append(status)
+    """The fake fetch functions that hand back what each source gave, in
+    its own order: the record lists them (a post twice in one source, a post
+    with no id and ids that are not digits all come back as they were)."""
+    sources = rebuilt.record['sources']
+
+    def posts(slots):
+        return [{'tags': [{'name': name} for name in slot['tags']],
+                 'content': '', 'media_attachments': []}
+                if isinstance(slot, dict) else rebuilt.statuses[slot]
+                for slot in slots]
 
     def search(query):
-        return list(focus.get(query.lstrip('#'), []))
+        return posts(sources['focus'].get(query.lstrip('#'), []))
 
-    return (lambda max_id, count: list(scope),
-            lambda tag, count: list(tags.get(tag, [])), search)
+    return (lambda max_id, count: posts(sources['scope']),
+            lambda tag, count: posts(sources['hashtag'].get(tag, [])),
+            search)
 
 
 def run(rebuilt):
@@ -110,8 +127,7 @@ def run(rebuilt):
         trending_hashtags=dict(env['trends']['tags']),
         trending_status_ids=set(env['trends']['status_ids']))
     hidden = {entry['id'] for entry in rebuilt.entries()
-              if entry['removal'] and entry['removal']['reason']
-              == 'viewer_hide'}
+              if entry['viewer'] == 'hidden'}
     now = datetime.fromisoformat(record['clock']['now_utc'])
     engine = FeedEngine(
         account_key='replay#' + str(record['account']['id']),
@@ -129,7 +145,8 @@ def run(rebuilt):
             recipe, max_id=record['cursor_in'],
             count=record['params']['count'],
             author_counts=record['params']['author_counts_in'],
-            hide=lambda status: str(status.get('id') or '') in hidden,
+            hide=(lambda status: str(status.get('id') or '') in hidden)
+            if env['viewer_filter'] else None,
             cook_id=record['cook_id'], page_index=record['page_index'],
             hop=record['hop'])
     finally:
@@ -145,7 +162,16 @@ def replay(loaded, force=False):
     check_replayable(loaded, force)
     record = loaded.record
     if record['outcome']['status'] != 'ok':
-        return Result('skipped', 'the cook failed: nothing to replay')
+        return Result('skipped', 'the cook did not finish (%s): nothing '
+                      'to replay' % record['outcome']['status'])
+    try:
+        return _replay(record, loaded)
+    except (LookupError, TypeError, ValueError, AttributeError) as error:
+        raise LogError('the record cannot be replayed (%s)'
+                       % type(error).__name__) from error
+
+
+def _replay(record, loaded):
     rebuilt = Rebuilt(loaded)
     drift = rebuilt.drift()
     old = (decisionlog._root, reachmod._root)
@@ -166,10 +192,12 @@ def replay(loaded, force=False):
         raise LogError('the replay wrote no audit record')
     found = first_difference(record, again, rebuilt.unreliable)
     partial = len(rebuilt.unreliable)
+    unverified = len(rebuilt.unverified)
     if found is None:
-        return Result('identical', partial=partial, drift=drift)
+        return Result('identical', partial=partial, drift=drift,
+                      unverified=unverified)
     stage, sid, what = found
     return Result('mismatch', '%s%s: %s' % (
         stage, ' (post %s)' % sid[-6:] if sid else '', what),
-        partial=partial, drift=drift, stage=stage)
+        partial=partial, drift=drift, stage=stage, unverified=unverified)
 

@@ -470,9 +470,11 @@ for stored in store.load_recipes():
 # --- the preview ---
 PREVIEW_BATCHES.append(([status(11), status(12)], False, None))
 cooked = []
+preview_asked = []
 preview_engines = []
 feedchefpreview.make_engine = (
-    lambda _c, _k, _i, recipe_: cooked.append(recipe_)
+    lambda _c, _k, _i, recipe_, **kw: cooked.append(recipe_)
+    or preview_asked.append(kw)
     or preview_engines.append(FakeEngine(PREVIEW_BATCHES))
     or preview_engines[-1])
 previews = []
@@ -509,6 +511,8 @@ check('preview: it cooks the unsaved edits, on a copy',
       and cooked[0].diet.hard_filters.positive_only
       and cooked[0] is not dialog.recipe
       and store.get_recipe_by_id(unsaved.id).meta.name == 'Saved Name')
+check('preview: its engine leaves no audit record (audit=False)',
+      preview_asked and preview_asked[0] == {'audit': False})
 check('preview: no focus banner and no More Like This hook',
       not hasattr(preview.timeline, 'banner')
       and getattr(preview.timeline, 'post_menu_entries', None) is None)
@@ -605,7 +609,7 @@ def open_preview(recipe_, fail_first=False, batches=()):
     PREVIEW_BATCHES[:] = list(batches)
     preview_engines.clear()
     feedchefpreview.make_engine = (
-        lambda _c, _k, _i, _r: preview_engines.append(
+        lambda _c, _k, _i, _r, **_kw: preview_engines.append(
             FakeEngine(PREVIEW_BATCHES)) or preview_engines[-1])
     original = FakeEngine.process_feed
 

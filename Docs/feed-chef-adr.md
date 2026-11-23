@@ -310,9 +310,21 @@ post over 2,000 characters, or the sidecar deleted) the two rules that read it
 (blocked words, minimum length) use their recorded verdicts and the replay says
 how many posts it did so for ("partial"). Known limits: the follow list is
 snapshotted once, after the wait, so a preload that lands mid-cook can make
-the reach stage and the record disagree; the order of posts inside one source
-is rebuilt from the order of the entries, which only matters for ids that are
-not digits.
+the reach stage and the record disagree; a post cannot be proven
+when its text cannot be checked.
+
+**The record vouches for itself.** Each source's list of posts is recorded
+(`sources`: the scope, each hashtag and each More Like This term, in order, a
+post twice or with no id included), so a replay rebuilds the exact order and
+counts, ids that are not digits included. Each post carries the sha256 of its
+sidecar text; `evaluate` and `replay` report a text that is missing or does
+not match as unverified (`PASS (text unverified: N)`, and `replay` exits 3
+unless `--allow-partial`). The viewer filter's verdict is recorded per post,
+and `evaluate` first checks the record's own consistency (every post selected
+or removed once, the summary adding up, a failed cook with no output) and its
+shape, so a malformed or contradictory log is a FAIL with a reason, never a
+traceback. A page cooked twice counts once; a cook cancelled after its record
+was written is rewritten as `cancelled`. A preview leaves no audit record.
 
 **`evaluate`** checks the output against the recipe snapshot with no
 tolerance: every kept post keeps every promise, the order is the recipe's,

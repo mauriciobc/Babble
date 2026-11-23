@@ -13,6 +13,7 @@ import html
 import json
 import os
 
+from feedchefaudit import validate
 from src.feedchef import audit as auditmod
 from src.feedchef import contract, decisionlog
 from src.feedchef import sentiment as sentimentmod
@@ -52,7 +53,14 @@ def expand(paths):
                          and not name.endswith('.text.json'))
         else:
             found.append(path)
-    return sorted(found, key=lambda path: (os.path.getmtime(path), path))
+    return sorted(found, key=lambda path: (_mtime(path), path))
+
+
+def _mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
 
 
 def load(path):
@@ -71,11 +79,17 @@ def load(path):
                 sidecar = json.load(handle)
         except (OSError, ValueError):
             sidecar = None
+        if not isinstance(sidecar, dict):
+            sidecar = None
     return Loaded(path, payload, record, sidecar)
 
 
 def recipe_of(record):
-    recipe = recipe_from_dict(record['recipe']['snapshot'])
+    try:
+        recipe = recipe_from_dict(record['recipe']['snapshot'])
+    except Exception as error:
+        raise LogError('the recipe snapshot cannot be read (%s)'
+                       % type(error).__name__) from error
     if auditmod.recipe_hash(recipe) != record['recipe']['hash']:
         raise LogError('the recipe snapshot does not match its hash')
     return recipe
@@ -92,17 +106,35 @@ def check_replayable(loaded, force=False):
         raise LogError('made by engine revision %s, this is %s (--force '
                        'replays anyway)' % (record.get('engine_rev'),
                                             auditmod.ENGINE_REV))
-    if not (record.get('clock') or {}).get('now_utc'):
-        raise LogError('the record has no clock')
+    problems = validate.structure(record)
+    if problems:
+        raise LogError('malformed audit record: %s' % problems[0])
+
+
+def structure_problem(record):
+    """Why *record* (the ``audit`` of a log) cannot be read, or None."""
+    if not isinstance(record, dict) or record.get('schema') != \
+            auditmod.SCHEMA:
+        return 'no schema-%d audit record in this log' % auditmod.SCHEMA
+    problems = validate.structure(record)
+    return 'malformed audit record: %s' % problems[0] if problems else None
 
 
 def text_of(loaded, entry):
-    """(text row, whole): the sidecar row of a post, and whether it holds
-    all of the text."""
+    """(text row, whole, verified): the sidecar row of a post, whether it
+    holds all of the text, and whether it is the text the record was made
+    with (its sha256 is the recorded one). A row that is missing, not a
+    row, or not verified is empty: nothing reads text that cannot be
+    vouched for."""
     row = (loaded.sidecar or {}).get(entry['facts']['text_ref'])
-    if row is None:
-        return {'text': '', 'spoiler': ''}, False
-    return row, not row.get('text_truncated')
+    empty = {'text': '', 'spoiler': ''}
+    if not (isinstance(row, dict) and isinstance(row.get('text'), str)
+            and isinstance(row.get('spoiler'), str)):
+        return empty, False, False
+    if auditmod.text_digest(row['text'], row['spoiler']) \
+            != entry['facts']['text_sha256']:
+        return empty, False, False
+    return row, not row.get('text_truncated'), True
 
 
 def rebuild_status(entry, row):
@@ -139,12 +171,15 @@ class Rebuilt:
         self.recipe = recipe_of(self.record)
         self.statuses = {}
         self.unreliable = set()
+        self.unverified = set()
         self.sentiment = {}
         self.text_len = {}
         self.keyword_failed = set()
         for entry in self.record['posts']:
             sid = entry['id']
-            row, whole = text_of(loaded, entry)
+            row, whole, verified = text_of(loaded, entry)
+            if not verified:
+                self.unverified.add(sid)
             self.statuses[sid] = rebuild_status(entry, row)
             self.text_len[sid] = entry['facts']['text_len']
             if not whole:

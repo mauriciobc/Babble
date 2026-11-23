@@ -111,7 +111,10 @@ def app_version() -> str:
     return 'dev' if VERSION in ('', '0.0.0') else str(VERSION)
 
 
-def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
+def make_engine(client, account_key, account_id, recipe,
+                audit=True) -> FeedEngine:
+    """The engine of one view. *audit* False for a view nobody should be
+    able to read the choices of later (the unsaved preview)."""
     scope = recipe.pantry.scope
     list_id = recipe.pantry.list_id
 
@@ -198,7 +201,7 @@ def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
 
         return _wait(start, finish, client)
 
-    return FeedEngine(
+    engine = FeedEngine(
         account_key=account_key,
         self_account_id=account_id,
         fetch_scope=fetch_scope,
@@ -211,3 +214,5 @@ def make_engine(client, account_key, account_id, recipe) -> FeedEngine:
             'bluesky-native'),
         app_version=app_version(),
     )
+    engine.audit = audit
+    return engine

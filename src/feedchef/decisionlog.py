@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
@@ -12,7 +13,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from .audit import NULL, sidecar_path, write_private
+from .audit import NULL, redact, sidecar_path, write_private
+
+log = logging.getLogger('babble.feedchef')
 
 _SAFE = re.compile(r'[^a-zA-Z0-9._-]+')
 _root = None
@@ -81,6 +84,8 @@ class FeedDecisionLogger:
             self.audit.identity['session_id'] = self.log.session_id
         # The schema-2 record of the last persist (None without an audit).
         self.record: dict[str, Any] | None = None
+        self._payload: dict[str, Any] | None = None
+        self._path: str | None = None
         self._lock = threading.Lock()
 
     def set_pantry(self, **fields: Any) -> None:
@@ -105,11 +110,23 @@ class FeedDecisionLogger:
 
     def add_error(self, message: str) -> None:
         with self._lock:
-            self.log.reliability['errors'].append(message)
+            self.log.reliability['errors'].append(redact(message))
 
     def persist(self) -> str | None:
+        """Write the log. The log observes the cook and never decides it:
+        a folder that cannot be written is a warning, and the cook goes on."""
+        try:
+            return self._persist()
+        except OSError as error:
+            log.warning('feedchef: could not write the decision log: %s',
+                        error)
+            return None
+
+    def _persist(self) -> str | None:
         directory = _dir()
         os.makedirs(directory, mode=0o700, exist_ok=True)
+        if os.stat(directory).st_mode & 0o077:
+            os.chmod(directory, 0o700)
         name = 'session_%s__c%s_%s.json' % (
             self.log.session_id, self.cook_id, uuid.uuid4().hex[:6])
         path = os.path.join(directory, name)
@@ -120,15 +137,14 @@ class FeedDecisionLogger:
             name = 'session_%d_safe.json' % int(time.time() * 1000)
             path = os.path.join(directory, name)
         payload = self.log.to_dict()
-        if self.audit.enabled:
-            if self.audit.ordered is None:
-                self.audit.failed('; '.join(self.log.reliability['errors']))
-            self.record = self.audit.build()
-            payload['audit'] = self.record
+        record = self._record()
+        if record is not None:
+            payload['audit'] = record
             # Floats go out as repr: json writes them so, and they come
             # back bit for bit. The visible text goes to a private sidecar.
             write_private(sidecar_path(path), self.audit.sidecar)
             write_private(path, payload)
+            self._payload, self._path = payload, path
         else:
             tmp = path + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as handle:
@@ -138,6 +154,33 @@ class FeedDecisionLogger:
         self._rotate(directory)
         return path
 
+    def _record(self) -> dict[str, Any] | None:
+        """The schema-2 record of this page, None when the audit is off or
+        could not be built (it never stops the log)."""
+        if not self.audit.enabled:
+            return None
+        if self.audit.ordered is None:
+            self.audit.failed('; '.join(self.log.reliability['errors']))
+        try:
+            self.record = self.audit.build()
+        except Exception:
+            log.debug('feedchef: audit record not built', exc_info=True)
+            self.record = None
+        return self.record
+
+    def mark_cancelled(self) -> None:
+        """The cook was cancelled after its record was written: the page
+        was never shown, so the record must not read as a finished cook."""
+        record = self.record
+        if record is None or self._payload is None \
+                or record['outcome']['status'] != 'ok':
+            return
+        record['outcome'] = {'status': 'cancelled', 'error': ''}
+        try:
+            write_private(self._path, self._payload)
+        except OSError as error:
+            log.warning('feedchef: could not mark the log: %s', error)
+
     def _rotate(self, directory: str) -> None:
         prune(directory)
 
@@ -145,14 +188,16 @@ class FeedDecisionLogger:
 # Retention: the last cooks of each recipe, then a cap on the whole folder.
 MAX_COOKS = 20
 MAX_BYTES = 50 * 1024 * 1024
+# A log, its text sidecar, or the temporary file of either mid-write.
 _NAME = re.compile(r'^session_(\d+)[_](.+?)(?:__c([0-9a-f]+)_[0-9a-f]{6})?'
-                   r'(\.text)?\.json$')
+                   r'(\.text)?\.json(\.tmp)?$')
+_PAGE = re.compile(r'(\.text)?\.json(\.tmp)?$')
 
 
 def _cooks(directory: str) -> list[dict[str, Any]]:
-    """Every cook in *directory*: its log files (a page each) and their
-    sidecars, newest page's time, total size. A log from before the cook id
-    existed is a cook of its own."""
+    """Every cook in *directory*: its pages (a log, its sidecar and any
+    temporary file each), the newest page's time, total size. A log from
+    before the cook id existed is a cook of its own."""
     cooks: dict[tuple[str, str], dict[str, Any]] = {}
     for entry in os.listdir(directory):
         match = _NAME.match(entry)
@@ -161,27 +206,49 @@ def _cooks(directory: str) -> list[dict[str, Any]]:
             continue
         recipe, cook = match.group(2), match.group(3) or entry
         row = cooks.setdefault((recipe, cook), {
-            'recipe': recipe, 'files': [], 'mtime': (0.0, ''), 'size': 0})
+            'recipe': recipe, 'pages': {}, 'mtime': (0.0, ''), 'size': 0})
         stat = os.stat(full)
-        row['files'].append(full)
+        page = row['pages'].setdefault(_PAGE.sub('', entry), {
+            'files': [], 'mtime': (0.0, ''), 'size': 0})
+        page['files'].append(full)
         # The file name breaks a tie of the (coarse) modification time.
+        page['mtime'] = max(page['mtime'], (stat.st_mtime, entry))
+        page['size'] += stat.st_size
         row['mtime'] = max(row['mtime'], (stat.st_mtime, entry))
         row['size'] += stat.st_size
     return list(cooks.values())
 
 
-def _remove(cook: dict[str, Any]) -> None:
-    for path in cook['files']:
+def _remove_files(files: list[str]) -> None:
+    for path in files:
         try:
             os.remove(path)
         except OSError:
             pass
 
 
+def _remove(cook: dict[str, Any]) -> None:
+    for page in cook['pages'].values():
+        _remove_files(page['files'])
+
+
+def _trim_pages(cook: dict[str, Any], limit: int) -> int:
+    """Remove the oldest pages of one cook while it is over *limit*,
+    keeping at least the newest page; the bytes left."""
+    pages = sorted(cook['pages'].values(), key=lambda page: page['mtime'])
+    total = cook['size']
+    while total > limit and len(pages) > 1:
+        oldest = pages.pop(0)
+        total -= oldest['size']
+        _remove_files(oldest['files'])
+    return total
+
+
 def prune(directory: str) -> None:
     """Keep the last ``MAX_COOKS`` cooks of each recipe (a busy recipe never
     evicts another one's history), then evict the oldest cooks overall
-    while the folder is over ``MAX_BYTES``. The newest cook always stays."""
+    while the folder is over ``MAX_BYTES``; the one cook left is trimmed
+    page by page, oldest first. The newest page always stays."""
     by_recipe: dict[str, list[dict[str, Any]]] = {}
     for cook in _cooks(directory):
         by_recipe.setdefault(cook['recipe'], []).append(cook)
@@ -197,6 +264,8 @@ def prune(directory: str) -> None:
         oldest = kept.pop(0)
         total -= oldest['size']
         _remove(oldest)
+    if kept and total > MAX_BYTES:
+        _trim_pages(kept[0], MAX_BYTES)
 
 
 def clear_all() -> int:

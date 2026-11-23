@@ -17,9 +17,12 @@ sidecar (``<log>.text.json``, mode 0600) that is never exported.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
+import logging
 import os
+import re
 from datetime import datetime
 from typing import Any
 
@@ -28,10 +31,12 @@ from . import sentiment as sentimentmod
 from .recipe import FeedRecipe, recipe_to_dict
 from .textutil import account_of, content_of
 
+log = logging.getLogger('babble.feedchef')
+
 SCHEMA = 2
 # Bumped by hand whenever the meaning of a stage changes; a replay refuses
 # a record made by another revision unless it is forced.
-ENGINE_REV = 1
+ENGINE_REV = 2
 # The stripped text kept per post in the sidecar.
 TEXT_CAP = 2000
 
@@ -63,6 +68,28 @@ def stage_of(reason: str) -> str:
     if reason.startswith('pantry_'):
         return 'pantry'
     return _STAGES.get(reason) or reason.partition(':')[0]
+
+
+_URL_QUERY = re.compile(r'(https?://[^\s?#]*)[?#]\S*')
+_SECRET = re.compile(
+    r'(?i)\b(access_token|refresh_token|token|client_secret|password|'
+    r'authorization)\b\s*[=:]\s*[^\s&;,]+')
+_BEARER = re.compile(r'(?i)\bbearer\s+\S+')
+
+
+def redact(text: str, limit: int = 300) -> str:
+    """*text* without what must not reach a log that may be shared: a
+    URL's query string and fragment, and the value of a token or secret."""
+    text = _URL_QUERY.sub(r'\1', str(text or ''))
+    text = _BEARER.sub('bearer …', text)
+    return _SECRET.sub(lambda m: m.group(1) + '=…', text)[:limit]
+
+
+def text_digest(text: str, spoiler: str) -> str:
+    """sha256 of the text and the spoiler exactly as the sidecar keeps
+    them: the proof that the sidecar is the one this record was made with."""
+    return hashlib.sha256(
+        (text + '\0' + spoiler).encode('utf-8')).hexdigest()
 
 
 def recipe_hash(recipe: FeedRecipe) -> str:
@@ -110,6 +137,8 @@ class PantryTrace:
         self.removed: dict[str, str] = {}
         self.duplicates = 0
         self.no_id = 0
+        # Per More Like This term, the posts its search gave, in order.
+        self.focus_seq: dict[str, list[dict]] = {}
 
     def _labels(self, bucket: str, sid: str) -> list[str]:
         if bucket == 'scope':
@@ -199,6 +228,10 @@ class Recorder:
         self._follow_ids: set[str] | None = None
         self.reach_dropped: set[str] = set()
         self.hidden: set[str] = set()
+        self.viewer: dict[str, str] | None = None
+        self.sources: dict = {'scope': [], 'hashtag': {}, 'focus': {}}
+        self.cancelled_flag = False
+        self.broken = ''
         self.trends: dict[str, Any] = {'tags': {}, 'status_ids': []}
         self.tag_heat: dict[str, float] = {}
         self.factors: dict[str, dict[str, float]] = {}
@@ -218,10 +251,25 @@ class Recorder:
         self.now = now
         self.native = native
 
+    @staticmethod
+    def _slot(status):
+        """A post in a source's list: its id, or for a post with no id
+        the tags it carries (a replay needs them to count it the same)."""
+        sid = str(status.get('id') or '')
+        if sid:
+            return sid
+        return {'tags': [str((tag or {}).get('name') or '')
+                         for tag in content_of(status).get('tags') or []]}
+
     def fetched(self, mlt, tags, scope) -> None:
         self.raw = [*mlt, *tags, *scope]
+        self.sources['scope'] = [self._slot(s) for s in scope]
+        self.sources['focus'] = {
+            term: [self._slot(s) for s in found]
+            for term, found in self.trace.focus_seq.items()}
 
     def hashtag_fetched(self, tag: str, posts) -> None:
+        self.sources['hashtag'][tag] = [self._slot(s) for s in posts]
         for status in posts:
             self.trace.tag_of.setdefault(
                 str(status.get('id') or ''), []).append(tag)
@@ -259,8 +307,11 @@ class Recorder:
         self.reach_dropped = {str(item.get('id') or '') for item in before
                               if id(item) not in kept}
 
-    def viewer_hidden(self, sids) -> None:
-        self.hidden = set(sids)
+    def viewer_checked(self, hidden, shown) -> None:
+        """The viewer's own filter was asked about these posts."""
+        self.hidden = set(hidden)
+        self.viewer = {**dict.fromkeys(shown, 'shown'),
+                       **dict.fromkeys(hidden, 'hidden')}
 
     def trends_seen(self, server) -> None:
         wanted = {str(content_of(s).get('id') or s.get('id') or '')
@@ -300,7 +351,19 @@ class Recorder:
         self.identity['cursor_out'] = cursor_out
 
     def failed(self, message: str) -> None:
-        self.error = message
+        self.error = redact(message)
+
+    def cancelled(self) -> None:
+        """The cook was cancelled or superseded: its page was never shown."""
+        self.cancelled_flag = True
+
+    def _break(self, where: str, error: Exception) -> None:
+        """A hook could not record: the audit gives up on this page and
+        the cook goes on exactly as it would with the audit off."""
+        if not self.broken:
+            self.broken = '%s: %s' % (where, type(error).__name__)
+            log.debug('feedchef: audit capture failed in %s', where,
+                      exc_info=True)
 
     # -- the record ------------------------------------------------------
 
@@ -322,10 +385,9 @@ class Recorder:
         text = contract.post_text(status, self.native)
         spoiler = contract.spoiler_of(status)
         attachments = contract.attachments_of(status)
-        self.sidecar[ref] = {
-            'text': text[:TEXT_CAP], 'spoiler': spoiler[:TEXT_CAP],
-            'text_truncated': len(text) > TEXT_CAP
-            or len(spoiler) > TEXT_CAP}
+        kept = {'text': text[:TEXT_CAP], 'spoiler': spoiler[:TEXT_CAP]}
+        self.sidecar[ref] = {**kept, 'text_truncated':
+                             len(text) > TEXT_CAP or len(spoiler) > TEXT_CAP}
         boost = isinstance(status.get('reblog'), dict)
         return {
             'created_w': status.get('created_at'),
@@ -341,6 +403,7 @@ class Recorder:
                        if str(item.get('description') or '').strip()),
             'sensitive': bool(content.get('sensitive')),
             'text_len': len(text), 'text_ref': ref,
+            'text_sha256': text_digest(kept['text'], kept['spoiler']),
             'author_id': contract.author_id(status),
             'booster_id': (str(account_of(status, wrapper=True).get('id')
                                or '') if boost else None),
@@ -430,6 +493,7 @@ class Recorder:
                 'origin': origin, 'also_in': also,
                 'facts': self._facts(status, 'p%d' % index),
                 'follow': {'verdict': self._verdict(status)},
+                'viewer': (self.viewer or {}).get(sid),
                 'rules': self._rules(sid, reason),
                 'sent': self._sent(sid, status),
                 'score': score,
@@ -441,9 +505,30 @@ class Recorder:
 
     def build(self) -> dict:
         """The schema-2 record. The text of each post goes to
-        ``self.sidecar``, keyed by the post's ``text_ref``."""
-        failed = self.ordered is None
+        ``self.sidecar``, keyed by the post's ``text_ref``. It never
+        raises: a page the hooks or this method could not capture is a
+        record that says so (outcome failed, no posts), and the cook,
+        which never reads it, is not affected."""
+        try:
+            return self._build()
+        except Exception as error:
+            self._break('build', error)
+            self.sidecar = {}
+            return self._build()
+
+    def _outcome(self, failed: bool) -> dict:
+        if self.cancelled_flag and not failed:
+            return {'status': 'cancelled', 'error': ''}
+        error = self.error
+        if self.broken:
+            error = ('audit capture failed in %s' % self.broken
+                     + ('; ' + error if error else ''))
+        return {'status': 'failed' if failed else 'ok', 'error': error}
+
+    def _build(self) -> dict:
+        failed = self.ordered is None or bool(self.broken)
         posts, by_reason = ([], {}) if failed else self._posts()
+        selected = [] if failed else list(self.ordered)
         instance, _sep, account = self.account_key.rpartition('#')
         return {
             'schema': SCHEMA, 'engine_rev': ENGINE_REV,
@@ -457,20 +542,44 @@ class Recorder:
                       else self.now.isoformat()},
             'env': {'self_id': self.self_id, 'native_bluesky': self.native,
                     'follow': self.follow_info, 'trends': self.trends,
-                    'local_heat': self.tag_heat},
+                    'local_heat': self.tag_heat,
+                    'viewer_filter': self.viewer is not None},
             'params': {'count': self.count,
                        'author_counts_in': self.counts_in},
-            'outcome': {'status': 'failed' if failed else 'ok',
-                        'error': self.error},
+            'sources': self.sources,
+            'outcome': self._outcome(failed),
             'summary': {
                 'raw_fetched': len(self.raw),
                 'pantry_in': len(posts),
                 'duplicates': self.trace.duplicates,
                 'no_id': self.trace.no_id,
                 'by_reason': by_reason,
-                'selected': len(self.ordered or []),
-                'guard_checked': len(self.guard_broken)},
-            'outputs': {'order': list(self.ordered or []),
+                'selected': len(selected),
+                'guard_checked': 0 if failed else len(self.guard_broken)},
+            'outputs': {'order': selected,
                         'author_counts_out': self.counts_out},
             'posts': posts,
         }
+
+
+def _guarded(method):
+    @functools.wraps(method)
+    def hook(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except Exception as error:
+            self._break(method.__name__, error)
+            return None
+    return hook
+
+
+# Every hook the engine calls: none may raise into a cook (the audit is
+# observation only), so a post the recorder cannot read costs the record,
+# never the page.
+for _name in ('clock', 'fetched', 'hashtag_fetched', 'pantry', 'counts',
+              'follow_state', 'diet_decisions', 'reach_removed',
+              'viewer_checked', 'trends_seen', 'judged_scores', 'heat_map',
+              'factor', 'kitchen_cut', 'guard_verdict', 'finish', 'failed',
+              'cancelled'):
+    setattr(Recorder, _name, _guarded(getattr(Recorder, _name)))
+del _name

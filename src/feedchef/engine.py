@@ -203,6 +203,10 @@ class FeedEngine:
                     author_counts=author_counts, hide=hide,
                     cook_id=cook_id, page_index=page_index, hop=hop)
                 if cancel.is_set():
+                    # Its page is never shown: the record, already
+                    # written, says so.
+                    if result.logger is not None:
+                        result.logger.mark_cancelled()
                     return
                 if on_done:
                     self.ui_idle(lambda: on_done(result))
@@ -318,7 +322,8 @@ class FeedEngine:
         if max_id is None and self.search_statuses is not None:
             mlt_posts = pantrymod.fetch_more_like_this(
                 recipe, self.search_statuses,
-                terms=audit.trace.focus_of if audit.enabled else None)
+                terms=audit.trace.focus_of if audit.enabled else None,
+                sequences=audit.trace.focus_seq if audit.enabled else None)
 
         tags = []
         if max_id is None and self.fetch_hashtag is not None:
@@ -435,7 +440,8 @@ class FeedEngine:
                 else:
                     shown.append(status)
             after_reach = shown
-        audit.viewer_hidden(hidden)
+            audit.viewer_checked(
+                hidden, [str(status.get('id') or '') for status in shown])
         logger.set_diet(
             input_count=len(pantry.items),
             output_count=len(after_reach),
@@ -491,6 +497,8 @@ class FeedEngine:
         counts = (kitchenmod.tally_authors(ordered, author_counts)
                   if capped else dict(author_counts or {}))
         audit.finish(ordered, score_map, counts, pantry.scope_oldest_id)
+        if cancel.is_set():
+            audit.cancelled()
         logger.persist()
         # next_page_max_id mirrors Java FeedResult (oldest merged); UI should
         # prefer scope_oldest_id (Babble deviation).

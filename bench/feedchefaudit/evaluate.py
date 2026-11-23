@@ -10,13 +10,15 @@ here from the plain meaning of each setting.
 """
 
 import math
+import os
 
-from src.feedchef import audit as auditmod
 from src.feedchef import contract, kitchen as kitchenmod
 from src.feedchef.textutil import parse_created_at
-from feedchefaudit.records import Rebuilt, check_replayable, patched
+from feedchefaudit import validate
+from feedchefaudit.records import (LogError, Rebuilt, check_replayable,
+                                   patched, recipe_of, structure_problem)
 
-RULES = ('promises', 'hashtags', 'follow', 'order', 'heat', 'cap',
+RULES = ('record', 'promises', 'hashtags', 'follow', 'order', 'heat', 'cap',
          'removal_reasons', 'guard')
 
 
@@ -28,6 +30,7 @@ class Tally:
         self.violations = dict.fromkeys(RULES, 0)
         self.examples = {rule: [] for rule in RULES}
         self.unverifiable = 0
+        self.text_unverified = 0
 
     def add(self, rule, checked=1, violated=0, example=''):
         self.checked[rule] += checked
@@ -42,6 +45,7 @@ class Tally:
             self.examples[rule] = (self.examples[rule]
                                    + other.examples[rule])[:5]
         self.unverifiable += other.unverifiable
+        self.text_unverified += other.text_unverified
 
     def verdict(self, rule):
         if self.violations[rule]:
@@ -50,6 +54,15 @@ class Tally:
 
     def ok(self):
         return not any(self.violations.values())
+
+    def overall(self):
+        """FAIL, or PASS: never a plain PASS when some text could not be
+        checked against its hash."""
+        if not self.ok():
+            return 'FAIL'
+        if self.text_unverified:
+            return 'PASS (text unverified: %d)' % self.text_unverified
+        return 'PASS'
 
 
 def _tail(sid):
@@ -134,13 +147,35 @@ def _justified(entry, reason, rebuilt, env_args, survivors):
 
 
 def evaluate_record(loaded):
-    """A Tally for one loaded log (a failed cook has nothing to judge)."""
-    check_replayable(loaded)
+    """A Tally for one loaded log. A record that is malformed, says
+    something that cannot be true of itself, or whose recipe is not the
+    one it hashes to is a FAIL of the ``record`` rule with the reason,
+    never an exception (a failed or cancelled cook has nothing else to
+    judge)."""
     tally = Tally()
-    record = loaded.record
-    if record['outcome']['status'] != 'ok':
+    try:
+        check_replayable(loaded)
+        record = loaded.record
+        problems = validate.consistency(record)
+        tally.add('record', 1, 0)
+        for problem in problems:
+            tally.add('record', 0, 1, problem)
+        if problems or record['outcome']['status'] != 'ok':
+            return tally
+        rebuilt = Rebuilt(loaded)
+    except LogError as error:
+        tally.add('record', 1, 1, str(error))
         return tally
-    rebuilt = Rebuilt(loaded)
+    tally.text_unverified += len(rebuilt.unverified)
+    try:
+        _judge(tally, rebuilt, record)
+    except (LookupError, TypeError, ValueError, AttributeError) as error:
+        tally.add('record', 0, 1, 'the record could not be judged (%s)'
+                  % type(error).__name__)
+    return tally
+
+
+def _judge(tally, rebuilt, record):
     recipe = rebuilt.recipe
     env = record['env']
     kind = contract.reach_kind(recipe.pantry.network_reach)
@@ -191,7 +226,6 @@ def evaluate_record(loaded):
             tally.add('removal_reasons', 1, problem is not None,
                       '%s %s: %s' % (_tail(entry['id']), reason, problem))
     tally.add('guard', record['summary']['guard_checked'], 0)
-    return tally
 
 
 def _check_kitchen(tally, rebuilt, selected):
@@ -224,18 +258,40 @@ def _check_kitchen(tally, rebuilt, selected):
                           _tail(person), total, min(caps)))
 
 
+def dedupe_pages(pages):
+    """The pages of one cook with one log per (cook, page, hop): a page
+    cooked twice (a retry) counts once, by the latest log."""
+    latest = {}
+    for loaded in pages:
+        record = loaded.record
+        key = (record['cook_id'], record['page_index'], record['hop'])
+        mine = (loaded.timestamp, loaded.path)
+        if key not in latest or mine > (latest[key].timestamp,
+                                        latest[key].path):
+            latest[key] = loaded
+    return sorted(latest.values(), key=lambda p: (
+        p.record['page_index'], p.record['hop']))
+
+
 def evaluate_cook(pages):
     """Add the check that spans a cook: the cap holds over all of its
-    pages together. *pages* are the loaded logs of one cook."""
+    pages together. *pages* are the loaded logs of one cook (a page cooked
+    twice counts once, by its latest log). A cook whose record cannot be
+    read is a FAIL of the ``record`` rule; one that was cancelled is no
+    page of the cook."""
     tally = Tally()
     recipe = None
     per_person = {}
-    for loaded in pages:
-        tally.merge(evaluate_record(loaded))
+    for loaded in dedupe_pages(pages):
+        mine = evaluate_record(loaded)
+        tally.merge(mine)
         record = loaded.record
-        if record['outcome']['status'] != 'ok':
+        if record['outcome']['status'] != 'ok' or mine.violations['record']:
             continue
-        recipe = recipe or Rebuilt(loaded).recipe
+        try:
+            recipe = recipe or recipe_of(record)
+        except LogError:
+            continue
         for entry in record['posts']:
             if entry['removal'] is None:
                 person = _person(entry)
@@ -249,17 +305,33 @@ def evaluate_cook(pages):
     return tally
 
 
-def group_cooks(loaded_list):
+def group_cooks(loaded_list, rejects=None):
     """{(recipe hash, cook id): [loaded, ...]} of the readable audit
-    records, pages in order."""
+    records, pages in order, a page cooked twice once. A log with no audit
+    record (v1) is skipped; one whose record cannot be read is appended to
+    *rejects* as (loaded, why) when given."""
     cooks = {}
     for loaded in loaded_list:
         record = loaded.record
-        if not isinstance(record, dict) or record.get('schema') != \
-                auditmod.SCHEMA:
+        if record is None:
+            continue
+        why = structure_problem(record)
+        if why:
+            if rejects is not None:
+                rejects.append((loaded, why))
             continue
         key = (record['recipe']['hash'], record['cook_id'])
         cooks.setdefault(key, []).append(loaded)
-    for pages in cooks.values():
-        pages.sort(key=lambda p: (p.record['page_index'], p.record['hop']))
+    for key, pages in cooks.items():
+        cooks[key] = dedupe_pages(pages)
     return cooks
+
+
+def reject_tally(rejects):
+    """A Tally holding one ``record`` FAIL for each log that could not be
+    read."""
+    tally = Tally()
+    for loaded, why in rejects:
+        tally.add('record', 1, 1, '%s: %s' % (
+            os.path.basename(loaded.path), why))
+    return tally
