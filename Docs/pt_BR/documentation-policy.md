@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Título** | Política de documentação do Babble — o que é documentado, quem escreve, quem aprova e quando muda |
-| **Identificador / versão** | `BABBLE-POL-001` — v1.2 — aprovado |
-| **Data de emissão** | 2026-11-11 |
+| **Identificador / versão** | `BABBLE-POL-001` — v1.3 — aprovado |
+| **Data de emissão** | 2026-11-22 |
 | **Autoria** | Os mantenedores do Babble |
 | **Aprovado por** | O mantenedor, na fusão do [PR #109](https://github.com/mauriciobc/Babble/pull/109) (2026-11-11). O pull request é o registro: contém o diff, a revisão, a execução da CI e a fusão. |
 | **Âmbito** | Todos os documentos que o projeto distribui ou mantém: o manual do usuário, as páginas de ajuda no aplicativo, os documentos de referência e de plano sob `Docs/`, as notas de trabalho na raiz do repositório e os catálogos de tradução — cada um em inglês e, onde o conjunto assim o diz, em português do Brasil. Cobre **como** esses documentos são planejados, escritos, traduzidos, revisados, aprovados, versionados, distribuídos e aposentados. Não cobre o software em si, o processo de versão estável, nem o que os documentos dizem. |
@@ -61,6 +61,8 @@ O que o projeto documenta, quem o lê e quando ele é produzido. «Norma» desig
 | `Docs/IMPROVEMENTS.md` | Contribuidores | Markdown | 15289 (registro) | De forma contínua | Cada achado, sua decisão e o que foi adiado | Atual |
 | `Docs/glossary.md` | Contribuidores | Markdown | — | A cada novo conceito em que o código se apoia | Cada termo de domínio que o código e os testes nomeiam, definido em palavras simples, em acordo com o glossário do manual onde os dois nomeiam a mesma coisa | Atual |
 | `Docs/*-plan.md`, `Docs/*-audit.md`, `Docs/*-study.md`, `Docs/*-review*.md` | Contribuidores | Markdown | 15289 (plano / relatório) | Com o trabalho que descrevem | O plano ou os achados, com critérios de aceitação | Alguns são históricos; ver a seção 11 |
+| `Docs/hashtag-links-plan.md` | Contribuidores | Markdown | 15289 (plano) | Com o trabalho que descreveu | Concluído; mantido como registro de desenho (seção 14.2) | Histórico |
+| `Docs/pip-plan.md` | Contribuidores | Markdown | 15289 (plano) | Com o trabalho que descreveu | Concluído; mantido como registro de desenho (seção 14.2) | Histórico |
 
 ### 3.3 Para tradutores
 
@@ -390,3 +392,4 @@ O primeiro é imposto pela suíte. O segundo e o terceiro são buscas baratas; o
 | 1.0 | 2026-11-11 | Os mantenedores do Babble | Primeira versão. Escrita depois do manual do usuário e das páginas de ajuda em português, que mostraram o que faltava: um rito escrito, um aprovador nomeado e um teste que mantém a documentação fiel ao código. Aprovada na fusão do PR #107. |
 | 1.1 | 2026-11-11 | Os mantenedores do Babble | A documentação é escrita duas vezes: uma nova secção sobre as duas árvores de idiomas, a regra de nomenclatura de uma tradução, e a verificação mecânica que mantém as duas edições em passo. |. Approved in the merge of PR #108.
 | 1.2 | 2026-11-11 | Os mantenedores do Babble | Uma correção de conteúdo nos termos da seção 4.2 (MINOR): o inventário (seção 3.2) lista `Docs/glossary.md`, uma nota de trabalho para contribuidores (os termos de domínio em que o código se apoia; fica em inglês, como a seção 3.5 diz das notas de trabalho), e a seção 1 conta vinte e oito arquivos sob `Docs/` em vez de vinte e sete. O que a política diz não muda. Aprovada na fusão do PR #109. |
+| 1.3 | 2026-11-22 | Os mantenedores do Babble | Uma correção de conteúdo nos termos da seção 4.2 (MINOR): a seção 3.2 marca `Docs/hashtag-links-plan.md` e `Docs/pip-plan.md` como Histórico sob a seção 14.2 (notas de trabalho concluídas). O que a política diz não muda. |

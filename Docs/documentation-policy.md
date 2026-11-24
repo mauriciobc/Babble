@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Title** | Babble documentation policy — what gets documented, who writes it, who approves it, and when it changes |
-| **Identifier / version** | `BABBLE-POL-001` — v1.2 — approved |
-| **Date of issue** | 2026-11-11 |
+| **Identifier / version** | `BABBLE-POL-001` — v1.3 — approved |
+| **Date of issue** | 2026-11-22 |
 | **Author** | The Babble maintainers |
 | **Approved by** | The maintainer, in the merge of [PR #109](https://github.com/mauriciobc/Babble/pull/109) (2026-11-11). The pull request is the record: it holds the diff, the review, the CI run and the merge. |
 | **Scope** | Every document the project ships or keeps: the user manual, the in-app help pages, the reference and plan documents under `Docs/`, the working notes at the repository root, and the translation catalogues -- each in English and, where the set says so, in Brazilian Portuguese. It covers **how** those documents are planned, written, translated, reviewed, approved, versioned, distributed and retired. It does not cover the software itself, the release process, or what the documents say. |
@@ -61,6 +61,8 @@ What the project documents, who reads it, and when it is produced. "Standard" na
 | `Docs/IMPROVEMENTS.md` | Contributors | Markdown | 15289 (record) | Continuously | Every finding, its decision, and what was deferred | Current |
 | `Docs/glossary.md` | Contributors | Markdown | — | With every new concept the code is built around | Every domain term the code and the tests name, defined in plain words, agreeing with the manual's glossary where both name the same thing | Current |
 | `Docs/*-plan.md`, `Docs/*-audit.md`, `Docs/*-study.md`, `Docs/*-review*.md` | Contributors | Markdown | 15289 (plan / report) | With the work they describe | The plan or the findings, with acceptance criteria | Some are historical; see section 11 |
+| `Docs/hashtag-links-plan.md` | Contributors | Markdown | 15289 (plan) | With the work it described | Finished; kept as a design record (section 14.2) | Historical |
+| `Docs/pip-plan.md` | Contributors | Markdown | 15289 (plan) | With the work it described | Finished; kept as a design record (section 14.2) | Historical |
 
 ### 3.3 For translators
 
@@ -391,3 +393,4 @@ The first is enforced by the suite. The second and third are cheap searches; the
 | 1.0 | 2026-11-11 | The Babble maintainers | First version. Written after the user manual and the Portuguese help pages, which showed what was missing: a written-down rito, a named approver, and a test that keeps the documents true of the code. Approved in the merge of PR #107. |
 | 1.1 | 2026-11-11 | The Babble maintainers | The documentation is written twice: a new section on the two language trees, the naming rule for a translation, and the mechanical check that holds the two editions together. |. Approved in the merge of PR #108.
 | 1.2 | 2026-11-11 | The Babble maintainers | A content correction under section 4.2 (MINOR): the inventory (section 3.2) lists `Docs/glossary.md`, a working note for contributors (the domain terms the code is built around; it stays in English, as section 3.5 says of working notes), and section 1 counts twenty-eight files under `Docs/` instead of twenty-seven. What the policy says is unchanged. Approved in the merge of PR #109. |
+| 1.3 | 2026-11-22 | The Babble maintainers | A content correction under section 4.2 (MINOR): section 3.2 marks `Docs/hashtag-links-plan.md` and `Docs/pip-plan.md` Historical under section 14.2 (finished working notes). What the policy says is unchanged. |

@@ -1,10 +1,12 @@
 # Picture-in-Picture — product plan
 
-Status: proposal in implementation. Working note (English only, per the
-documentation policy). The interaction and wording contract the DEV and
-QA agents implement against is `Docs/pip-ux-spec.md`; the engineering
-contract is the working note held by the session (mirrored in this
-file's Engineering plan section).
+Status: historical — implemented (`src/mediapip.py`, `src/pipgeometry.py`,
+`src/mediaviewer.py` `minimize_to_pip` → `mediapip.open_pip`,
+`src/test-media-pip.py`). Design record; body is not current guidance.
+Working note (English only, per the documentation policy). The interaction
+and wording contract the DEV and QA agents implement against is
+`Docs/pip-ux-spec.md`; the engineering contract is the working note held
+by the session (mirrored in this file's Engineering plan section).
 
 ## Problem
 
