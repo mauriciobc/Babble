@@ -1,7 +1,7 @@
 # 9 — Plugins
 
 > **Document:** `BABBLE-MAN-001` — chapter 9 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 A plugin adds a feature to Babble: an item in the menu of a post, a panel on a hashtag page, a pair of entries in the main menu, a settings page of its own. It is third-party code running inside the application, with the same permissions as the application.
 

@@ -1,7 +1,7 @@
 # 1 — Getting started
 
 > **Document:** `BABBLE-MAN-001` — chapter 1 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 This chapter takes you from opening the application to reading your feed: signing in to your account, understanding what the application asks the server for, managing several accounts, and signing out.
 

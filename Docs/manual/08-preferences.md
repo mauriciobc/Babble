@@ -1,7 +1,7 @@
 # 8 — Preferences: complete reference
 
 > **Document:** `BABBLE-MAN-001` — chapter 8 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 This chapter is **reference** material: it lists every preference, what it does, and when it takes effect. There is no step-by-step here — for that, see the feature chapters.
 
@@ -109,6 +109,7 @@ The group description is *"Choose which timelines the sidebar offers"*.
 | Preference | Subtitle | Control | Effect |
 |---|---|---|---|
 | `Catch Up` | Summarize what you missed in your home timeline | Switch | Shows or hides the `Catch Up` place. |
+| `Feed Chef` | Recipe timelines; uses more memory and network. Turning it off closes its pages now and frees the rest after a restart | Switch (on) | Shows Feed Chef and loads it. Off, Feed Chef is not loaded at all. |
 | `Explore` | Show posts trending on your server | Switch | Shows or hides the `Explore` place. |
 | `Local Timeline` | Show posts from your server | Switch | Shows or hides the `Local` place. |
 | `Federated Timeline` | Show posts from all known servers | Switch | Shows or hides the `Federated` place. |

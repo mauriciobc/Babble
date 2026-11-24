@@ -1,7 +1,7 @@
 # 2 — Reading: timelines, threads, profiles and search
 
 > **Document:** `BABBLE-MAN-001` — chapter 2 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 This chapter is the heart of the manual: the six answers to the question "where does what I read come from".
 
@@ -13,6 +13,7 @@ The sidebar is the list of destinations in the application. Each item is a *plac
 |---|---|
 | `Home` | Posts from the accounts you follow, plus their boosts. |
 | `Catch Up` | A ranked summary of what you missed. See [chapter 6](06-catch-up.md). |
+| `Feed Chef` | Recipe timelines you design yourself. See [chapter 13](13-feed-chef.md). |
 | `Notifications` | Mentions, boosts, favorites, followers, and the rest. See [chapter 3](03-notifications-and-messages.md). |
 | `Conversations` | Direct messages. See [chapter 3](03-notifications-and-messages.md). |
 | `Search` | Search for accounts, hashtags and posts. |

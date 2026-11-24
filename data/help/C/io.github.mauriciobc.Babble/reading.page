@@ -58,6 +58,18 @@
     </p>
   </section>
 
+  <section id="feedchef">
+    <title>Feed Chef</title>
+    <p>
+      <gui>Feed Chef</gui> builds live timelines from a recipe you design:
+      where posts come from, what they must pass, and how they are ordered.
+      You can preview a recipe, pin it to the sidebar, share it as a link or
+      a QR code, and ask why a post was kept or left out. Turn it off under
+      <gui>Feed Chef</gui> in the <gui>Sidebar</gui> group of the
+      <gui>Timelines</gui> page of Preferences when you do not want it loaded.
+    </p>
+  </section>
+
   <section id="links">
     <title>Links beside the timeline</title>
     <p>

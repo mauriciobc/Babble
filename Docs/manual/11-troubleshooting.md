@@ -1,7 +1,7 @@
 # 11 — Troubleshooting
 
 > **Document:** `BABBLE-MAN-001` — chapter 11 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 Each item below carries the **symptom** (what you see), the **likely cause** and the **action** that fixes it. If the symptom is not here, [chapter 10](10-reference.md) has the list of messages by area.
 
@@ -111,7 +111,7 @@ After a plugin has been loaded, **restarting the application** is necessary: Pyt
 
 | Symptom | Likely cause | Action |
 |---|---|---|
-| The interface is not in Portuguese | The translation is not complete in 0.3.0, or the catalogue is not installed | Preferences → Appearance → `Language` → `Português (Brasil)`, and **restart the application** — the language only takes effect at the next start. |
+| The interface is not in Portuguese | The catalogue is not installed, or the language preference still points elsewhere | Preferences → Appearance → `Language` → `Português (Brasil)`, and **restart the application** — the language only takes effect at the next start. |
 | Only some labels are in Portuguese | The pt-BR catalogue is incomplete | The missing ones appear in English; that is the expected behaviour in this version. The [label table in the Brazilian Portuguese edition of chapter 10](10-reference.md#105-interface-labels-in-english-and-portuguese) shows what is already translated. |
 
 ## 11.12 A feature does not appear

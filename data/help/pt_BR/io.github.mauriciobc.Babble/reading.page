@@ -69,6 +69,20 @@
     </p>
   </section>
 
+  <section id="feedchef">
+    <title>Feed Chef</title>
+    <p>
+      O <gui>Feed Chef</gui> monta timelines ao vivo a partir de uma receita
+      que você desenha: de onde vêm as publicações, o que elas precisam
+      passar e como são ordenadas. Você pode pré-visualizar uma receita,
+      fixá-la na barra lateral, compartilhá-la como link ou QR code, e
+      perguntar por que uma publicação ficou ou saiu. Desligue em
+      <gui>Feed Chef</gui> no grupo <gui>Sidebar</gui> da página
+      <gui>Timelines</gui> das Preferências quando não quiser que ele seja
+      carregado.
+    </p>
+  </section>
+
   <section id="search">
     <title>Busca</title>
     <p>

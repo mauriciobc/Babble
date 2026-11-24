@@ -1,7 +1,7 @@
 # 12 — Glossary, index and support
 
 > **Document:** `BABBLE-MAN-001` — chapter 12 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 ## 12.1 Glossary
 
@@ -20,6 +20,10 @@
 **Profile field** — a line of custom information on the profile (website, pronouns, whatever the account chose).
 
 **Catch Up** — the separate view that goes back in time on your timeline and ranks what you missed reading. [Chapter 6](06-catch-up.md).
+
+**Feed Chef** — recipe timelines you design yourself: pantry (sources), diet (filters) and kitchen (ranking). [Chapter 13](13-feed-chef.md).
+
+**Recipe** — a Feed Chef configuration that builds a continuous timeline. [Chapter 13](13-feed-chef.md).
 
 **Keyring** — the system service that keeps secret data, such as the access token. On GNOME, GNOME Keyring.
 
@@ -132,6 +136,7 @@
 | Screenshot | [5.1](05-media.md#51-four-ways-to-attach-media), [7.5](07-desktop-integration.md#75-screenshot) |
 | Boosts carousel | [2.15](02-reading.md#215-repeated-posts-the-boosts-carousel) |
 | Catch Up | [6](06-catch-up.md) |
+| Feed Chef | [13](13-feed-chef.md) |
 | Keyring | [1.1](01-getting-started.md#11-how-sign-in-works), [11.3](11-troubleshooting.md#113-the-keyring-does-not-keep-the-login) |
 | Quoting | [4.10](04-writing.md#410-quoting-a-post) |
 | Web column | [7.1](07-desktop-integration.md#71-the-web-column-beside-the-timeline) |
@@ -191,6 +196,7 @@ Each chapter of the manual corresponds to a set of the application's modules. Th
 | 4 — Writing | `src/compose.py`, `src/composeattach.py`, `src/composeupload.py`, `src/composequote.py`, `src/composeschedule.py`, `src/drafts.py`, `src/scheduled.py`, `src/mentioncompleter.py`, `src/hashtagcompleter.py`, `src/emojichooser.py`, `src/pollbox.py` |
 | 5 — Media | `src/mediabox.py`, `src/mediaviewer.py`, `src/mediaviewerchrome.py`, `src/mediapip.py`, `src/mediazoom.py`, `src/mediaexport.py`, `src/mediainline.py`, `src/mediaplayback.py`, `src/remotemedia.py` |
 | 6 — Catch Up | `src/catchup/` (`rank.py`, `rank_model.py`, `rank_text.py`, and the other modules of the package) |
+| 13 — Feed Chef | `src/feedchef/` and the `src/feedchef*.py` pages |
 | 7 — Desktop integration | `src/portals.py`, `src/clipboard.py`, `src/desktopnotify.py`, `src/searchprovider.py`, `src/mediabox.py`, `src/composeattach.py`, `src/sysstate.py` |
 | 8 — Preferences | `src/preferences.py`, `data/io.github.mauriciobc.Babble.gschema.xml` |
 | 9 — Plugins | `src/plugin.py`, `src/pluginhost.py`, `src/pluginspage.py`, `plugins/` |

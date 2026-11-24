@@ -1,7 +1,7 @@
 # 3 — Notifications and direct messages
 
 > **Document:** `BABBLE-MAN-001` — chapter 3 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 Notifications are what the server tells you happened to you: someone mentioned your post, someone boosted, someone asked to follow you. This chapter covers the notifications box, direct messages, and the three administration boxes of your account — follow requests, mutes and blocks.
 

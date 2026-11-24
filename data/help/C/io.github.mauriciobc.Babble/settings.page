@@ -101,4 +101,16 @@
     </p>
   </section>
 
+  <section id="feedchef">
+    <title>Feed Chef</title>
+    <p>
+      <gui>Feed Chef</gui> in the <gui>Sidebar</gui> group of the
+      <gui>Timelines</gui> page turns recipe timelines on or off. When it is
+      off, Babble does not load Feed Chef at all: no sidebar entries, no
+      background work and no network requests for it. Turning it off closes
+      its open pages at once; the memory of its code is freed after a
+      restart.
+    </p>
+  </section>
+
 </page>

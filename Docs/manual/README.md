@@ -3,13 +3,13 @@
 | | |
 |---|---|
 | **Title** | The Babble User Manual — reading, writing and integrating with GNOME |
-| **Identifier / version** | `BABBLE-MAN-001` — v1.0 — approved |
-| **Date of issue** | 2026-11-11 |
+| **Identifier / version** | `BABBLE-MAN-001` — v1.1 — approved |
+| **Date of issue** | 2026-11-24 |
 | **Author(s)** | The Babble team |
 | **Approved by** | Approved in the merge of [PR #106](https://github.com/mauriciobc/Babble/pull/106), on 2026-11-11, by mauriciobc. The process that governs this approval is in [the documentation policy](../documentation-policy.md), and the checker that enforces it is `src/test-docs.py`. |
-| **Software described** | Babble 0.3.0 (`io.github.mauriciobc.Babble`) |
+| **Software described** | Babble 0.4.0 (`io.github.mauriciobc.Babble`) |
 | **Standards applied** | ISO/IEC 26514 (user documentation); ISO/IEC/IEEE 15289 (identification of the information item); ISO/IEC/IEEE 12207 (documentation process governance, through the [documentation policy](../documentation-policy.md)) |
-| **Scope** | Covers the use of Babble 0.3.0 as a Mastodon client for GNOME: signing in, reading, interacting, posting, handling media, installing and configuring plugins, and integrating the application with the desktop environment. **It does not cover** installation from the source tree, development, the internal architecture, the Mastodon API, the translation policy, nor the project's publishing process. The corresponding technical documentation is in `Docs/building.md`, `Docs/features.md`, `Docs/mastodon-compat.md` and `Docs/desktop-integration.md`. |
+| **Scope** | Covers the use of Babble 0.4.0 as a Mastodon client for GNOME: signing in, reading, interacting, posting, handling media, installing and configuring plugins, and integrating the application with the desktop environment. **It does not cover** installation from the source tree, development, the internal architecture, the Mastodon API, the translation policy, nor the project's publishing process. The corresponding technical documentation is in `Docs/building.md`, `Docs/features.md`, `Docs/mastodon-compat.md` and `Docs/desktop-integration.md`. |
 | **Purpose** | To let a person who uses Babble for the first time, or who knows the application only in broad strokes, carry out the everyday tasks — read the feed, reply, post, recover what was missed — without relying on unstated knowledge. It is aimed at the end user; it is not a development document. |
 | **Audience** | People who use Babble on a GNOME 51 or later desktop. |
 | **Language** | English. Interface labels are quoted in their original English form; this is the English edition of the manual, and the Brazilian Portuguese edition lives in `Docs/pt_BR/manual/`, where chapter 10 carries the Portuguese equivalent of each label quoted. |
@@ -26,6 +26,7 @@
 | [4](04-writing.md) | Writing: the composer, polls, quotes and drafts | Conceptual + procedural |
 | [5](05-media.md) | Media: attaching, viewing, saving | Conceptual + procedural |
 | [6](06-catch-up.md) | Catch Up: recovering what you missed | Conceptual + procedural |
+| [13](13-feed-chef.md) | Feed Chef: recipe timelines | Conceptual + procedural |
 | [7](07-desktop-integration.md) | Desktop integration | Conceptual + procedural |
 | [8](08-preferences.md) | Preferences: complete reference | Reference |
 | [9](09-plugins.md) | Plugins | Conceptual + procedural |
@@ -43,7 +44,7 @@ The manual separates three kinds of information, as ISO/IEC 26514 requires:
 
 ### Purpose and audience
 
-This manual accompanies Babble 0.3.0, a Mastodon client for GNOME. It was written for the person who uses the application: the one who wants to know *how* to do something with it, not how it was built. No chapter requires knowledge of programming, of OAuth, or of the Mastodon protocol.
+This manual accompanies Babble 0.4.0, a Mastodon client for GNOME. It was written for the person who uses the application: the one who wants to know *how* to do something with it, not how it was built. No chapter requires knowledge of programming, of OAuth, or of the Mastodon protocol.
 
 ### The product scope, in one page
 
@@ -51,7 +52,7 @@ Babble is a client for a federated social network. It reads and posts on any Mas
 
 Three functional blocks summarize the application:
 
-1. **Reading.** *Home* gathers the posts of the accounts you follow; *Local* shows the public timeline of your server; *Federated* shows the public timeline of every known server. *Notifications* gathers mentions, boosts, favorites and followers; *Conversations* keeps the direct messages. *Catch Up* is the recovery tool: it goes back in time and ranks what you left unread.
+1. **Reading.** *Home* gathers the posts of the accounts you follow; *Local* shows the public timeline of your server; *Federated* shows the public timeline of every known server. *Notifications* gathers mentions, boosts, favorites and followers; *Conversations* keeps the direct messages. *Catch Up* is the recovery tool: it goes back in time and ranks what you left unread. *Feed Chef* builds live recipe timelines you design yourself.
 2. **Writing.** The composer checks spelling, completes mentions and hashtags, attaches media, builds polls, quotes other posts, keeps drafts and schedules posts.
 3. **Settings.** Preferences, plugins and shortcuts. Everything that is a preference of the application lives in the Preferences window; everything that is a preference of the *server* (default visibility, default language) lives on the server and follows you to other clients.
 
@@ -122,7 +123,7 @@ The four main verbs — `Reply`, `Boost`, `Quote`, `Favorite` — and the `Bookm
 
 The Babble window has three layers, and it is worth knowing which one you are in when something happens:
 
-1. **Sidebar.** The column of destinations: `Home`, `Catch Up`, `Notifications`, `Conversations`, `Search`, `Favorites`, `Bookmarks`, `Hashtags`, `Explore`, `Local`, `Federated`, `Lists`, plus the lists and hashtags you pin. At the top sits the account button, which switches accounts; at the bottom, the button that changes the sidebar mode.
+1. **Sidebar.** The column of destinations: `Home`, `Catch Up`, `Feed Chef`, `Notifications`, `Conversations`, `Search`, `Favorites`, `Bookmarks`, `Hashtags`, `Explore`, `Local`, `Federated`, `Lists`, plus the lists, hashtags and recipes you pin. At the top sits the account button, which switches accounts; at the bottom, the button that changes the sidebar mode.
 2. **Page.** The content of the chosen destination. Pages such as the profile, the thread and search open over it, and `Alt+Left` goes back.
 3. **Overlay.** The media viewer and the web page viewer are not windows: they cover the main window and the close button is always at hand. The *toasts* — the bars that appear at the bottom — are the only thing that appears above everything.
 
@@ -149,6 +150,7 @@ Every account in Babble is `(server, identifier)`. Two accounts with the same id
 | Local drafts (up to 5, per account) | Files in the application data directory |
 | Drafts, scheduled posts, lists, filters | On your Mastodon server |
 | Catch Up snapshots | On your computer, per account |
+| Feed Chef recipes and cook logs | On your computer, per account |
 | Preferences | GSettings; the server ones, on the server |
 | Pasted screenshots and temporary files | The application cache |
 
@@ -159,3 +161,4 @@ The point that matters: **none of this is a password file**. Babble never keeps 
 | Version | Date | Author | Changes |
 |---|---|---|---|
 | 1.0 | 2026-11-11 | The Babble team | Initial version, written from Babble 0.3.0 (`main` on 2026-11-11). |
+| 1.1 | 2026-11-24 | The Babble team | Babble 0.4.0: Feed Chef chapter, preference and sidebar coverage; software version brought to the release. |
