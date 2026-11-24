@@ -129,6 +129,48 @@ self_check('R1 rejects affinity importing a Catch Up module',
 self_check('R1 rejects navigation importing a Catch Up submodule',
            {'src/navigation.py': 'from .catchup.store import X\n'},
            'R1: src/navigation.py:1 imports store')
+self_check('R1 rejects feedchef package importing Catch Up fetch',
+           {'src/feedchef/engine.py': 'from src.catchup import fetch\n'},
+           'R1: src/feedchef/engine.py:1 imports fetch')
+self_check('R2 rejects Catch Up importing feedchef',
+           {'src/catchup/page.py': 'from src.feedchef import storage\n'},
+           'R2: src/catchup/page.py:1 imports feedchef')
+self_check('R12 rejects a module-level import of Feed Chef',
+           {'src/navigation.py': 'from .feedchefpages import X\n'},
+           'R12: src/navigation.py:1 imports feedchefpages at load time')
+self_check('R12 rejects a module-level package import of Feed Chef',
+           {'src/main.py': 'from .feedchef import sharecodec\n'},
+           'R12: src/main.py:1 imports feedchef at load time')
+self_check('R12 rejects a load-time import of the share dialog in window.py',
+           {'src/window.py': 'from .feedchefshare import X\n'},
+           'R12: src/window.py:1 imports feedchefshare at load time')
+self_check('R12 rejects a load-time import of the pushed recipe helpers',
+           {'src/window.py': 'from .feedchefpages import open_recipe\n'},
+           'R12: src/window.py:1 imports feedchefpages at load time')
+self_check('R12 rejects a class-body import of Feed Chef',
+           {'src/main.py': 'class A:\n    from . import feedchefpages\n'},
+           'R12: src/main.py:2 imports feedchefpages at load time')
+self_check('R12 rejects an import inside a function of another module',
+           {'src/window.py':
+            'def f():\n    from .feedchef.icons import icon_name\n'},
+           'R12: src/window.py:2 imports feedchef: only')
+self_check('R12 rejects from babble.feedchefpages at load time',
+           {'src/main.py': 'from babble.feedchefpages import X\n'},
+           'R12: src/main.py:1 imports feedchefpages at load time')
+self_check('R12 rejects import babble.feedchef in another module',
+           {'src/window.py': 'def f():\n    import babble.feedchef\n'},
+           'R12: src/window.py:2 imports feedchef: only')
+check('R12 accepts a function-body import in an allowed module',
+      not [line for line in violations({
+          'src/navigation.py': 'def f():\n    from .feedchefpages import X\n',
+          'src/main.py': 'def g():\n    from .feedchef.sharecodec import Y\n'})
+          if line.startswith('R12')])
+check('R12 lets the Feed Chef modules and tests import each other',
+      not [line for line in violations({
+          'src/feedchefpages.py': 'from .feedchef.icons import X\n',
+          'src/feedchef/engine.py': 'from . import recipe\n',
+          'src/test-feedchef-ui.py': 'from src.feedchef import recipe\n'})
+          if line.startswith('R12')])
 self_check('R8 rejects src/api importing GObject',
            {'src/api/statuses.py': 'import gi\n'},
            'R8: src/api/statuses.py:1 imports gi')

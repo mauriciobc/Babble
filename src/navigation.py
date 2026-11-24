@@ -1,17 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Lazy construction and pinned-entry routing for window-owned pages."""
 
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from .i18n import gettext as _
 from . import pagenav
+from .appsettings import settings as app_settings
 
 
 PLACES = (
     ('home', 'user-home-symbolic', 0),
     ('catch-up', 'babble-catch-up-symbolic', 0),
+    ('feed-chef', 'babble-feed-chef-symbolic', 0),
     ('notifications', 'babble-notifications-symbolic', 0),
     ('conversations', 'mail-unread-symbolic', 0),
     ('search', 'system-search-symbolic', 0),
@@ -27,8 +30,39 @@ PLACES = (
 # Places whose pages get live updates and a refresh timer from the window.
 PUBLIC_TAGS = ('local', 'federated')
 
-HIDE_KEYS = {'catch-up': 'hide-catch-up', 'explore': 'hide-trending',
+# Feed Chef is not here: the old `hide-feed-chef` key was replaced by
+# `feed-chef-enabled` (see `main.migrate_hide_feed_chef`).
+HIDE_KEYS = {'catch-up': 'hide-catch-up',
+             'explore': 'hide-trending',
              'local': 'hide-local', 'federated': 'hide-federated'}
+
+
+# Feed Chef is optional. With the key off nothing of it is imported: no
+# sidebar entry, no recipe pages, no engine (the feedchef modules are
+# imported only inside the functions below, behind this check).
+FEED_CHEF_KEY = 'feed-chef-enabled'
+
+
+def feed_chef_enabled(settings=None):
+    """Whether Feed Chef is on (the *settings* given, else the app's)."""
+    return (settings or app_settings()).get_boolean(FEED_CHEF_KEY)
+
+
+# The modules that keep a cache for the session: what the quality layer
+# computed (each recipe's health, the alerts shown, the suggestions the
+# reader declined).
+_FEED_CHEF_CACHES = ('feedchefquality', 'feedchefexperiment')
+
+
+def forget_feed_chef_session():
+    """Drop what Feed Chef cached for the session, when it is turned off:
+    a reader who turns it on again starts clean. Only the modules already
+    loaded are asked, so turning it off imports nothing."""
+    package = __name__.rpartition('.')[0]
+    for name in _FEED_CHEF_CACHES:
+        module = sys.modules.get('%s.%s' % (package, name))
+        if module is not None:
+            module.forget_session()
 
 
 @dataclass(frozen=True)
@@ -73,6 +107,8 @@ def place_policy(tag):
 def place_title(tag):
     return {
         'home': _('Home'), 'catch-up': _('Catch Up'),
+        # Translators: recipe-driven continuous timeline (not Catch Up)
+        'feed-chef': _('Feed Chef'),
         'notifications': _('Notifications'),
         'conversations': _('Conversations'), 'search': _('Search'),
         'favourites': _('Favorites'), 'bookmarks': _('Bookmarks'),
@@ -90,13 +126,17 @@ def pinned_entries(settings, key, account_id):
 
 
 def pinned_routes(settings, account_id):
-    """Return ordered ``(tag, icon)`` routes for pinned lists/tags."""
+    """Return ordered ``(tag, icon)`` routes for pinned lists/tags/recipes."""
     lists = pinned_entries(settings, 'favorite-lists-ids', account_id)
     tags = pinned_entries(settings, 'favorite-tags-ids', account_id)
+    recipes = (pinned_entries(settings, 'favorite-feedchef-ids', account_id)
+               if feed_chef_enabled(settings) else [])
     return ([(pinned_tag('list', value), 'view-list-symbolic')
              for value in lists]
             + [(pinned_tag('tag', value), 'babble-hashtag-symbolic')
-               for value in tags])
+               for value in tags]
+            + [('recipe:%s' % value, 'babble-feed-chef-symbolic')
+               for value in recipes])
 
 
 def pinned_tag(kind, value):
@@ -291,15 +331,40 @@ class Navigation:
         self.pinned_lists.clear()
 
     def pinned_routes(self, settings, account_id):
-        routes = pinned_routes(settings, account_id)
-        return [(tag, self.place_title(tag), icon)
-                for tag, icon in routes]
+        """``(tag, title, icon)`` for each pinned place; a recipe brings
+        its own icon (the chef hat when it has none the app can draw)."""
+        found = []
+        for tag, icon in pinned_routes(settings, account_id):
+            if tag.startswith('recipe:'):
+                recipe = self._recipe(tag)
+                if recipe is not None:
+                    from .feedchef.icons import icon_name
+                    found.append((tag, recipe.meta.name,
+                                  icon_name(recipe.meta.icon)))
+                    continue
+            found.append((tag, self.place_title(tag), icon))
+        return found
+
+    def _recipe(self, tag):
+        """The stored recipe of a ``recipe:<id>`` place, or None."""
+        account = self.host.account()
+        if account is None or not feed_chef_enabled():
+            return None
+        from . import accounts as accountsmod
+        from .feedchef.storage import FeedRecipeStorage
+        storage = FeedRecipeStorage(accountsmod.account_key(account))
+        return storage.get_recipe_by_id(tag[7:])
 
     def place_title(self, tag):
         if tag.startswith('list:'):
             return self.pinned_lists.get(tag[5:]) or _('List')
         if tag.startswith('tag:'):
             return '#' + tag[4:]
+        if tag.startswith('recipe:'):
+            recipe = self._recipe(tag)
+            if recipe is not None:
+                return recipe.meta.name
+            return _('Feed Chef')
         return place_title(tag)
 
     def set_pinned_lists(self, lists):
@@ -309,12 +374,28 @@ class Navigation:
     def build_place(self, tag):
         """Construct a place's content widget, importing its page lazily."""
         client = self.host.client()
+        if (tag == 'feed-chef' or tag.startswith('recipe:')) \
+                and not feed_chef_enabled():
+            return None
         if tag == 'conversations':
             from .conversations import ConversationsPage
             return ConversationsPage(client)
         if tag == 'catch-up':
             from .catchup import CatchUpPage
             return CatchUpPage(client, account=self.host.account())
+        if tag == 'feed-chef':
+            from .feedcheflist import FeedChefListPage
+            return FeedChefListPage(client, self.host.account())
+        if tag.startswith('recipe:'):
+            from .feedchef.storage import FeedRecipeStorage
+            from .feedchefpages import FeedChefTimelinePage
+            from . import accounts as accountsmod
+            account = self.host.account()
+            storage = FeedRecipeStorage(accountsmod.account_key(account))
+            recipe = storage.get_recipe_by_id(tag[7:])
+            if recipe is None:
+                return None
+            return FeedChefTimelinePage(client, account, recipe)
         if tag == 'search':
             from .search import SearchPage
             return SearchPage(client)

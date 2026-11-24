@@ -1,0 +1,11 @@
+<svg xmlns='http://www.w3.org/2000/svg'
+        xmlns:gpa='https://www.gtk.org/grappa'
+        gpa:rendering='symbolic'
+        width='16' height='16' viewBox='0 0 16 16'>
+  <circle cx='4.75' cy='6' r='3' fill='url(#gpa:foreground) rgb(0,0,0)'/>
+  <circle cx='8' cy='4.5' r='3.5' fill='url(#gpa:foreground) rgb(0,0,0)'/>
+  <circle cx='11.25' cy='6' r='3' fill='url(#gpa:foreground) rgb(0,0,0)'/>
+  <rect x='4' y='6' width='8' height='4' fill='url(#gpa:foreground) rgb(0,0,0)'/>
+  <rect x='4' y='11' width='8' height='3' rx='1'
+        fill='url(#gpa:foreground) rgb(0,0,0)'/>
+</svg>

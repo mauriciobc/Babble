@@ -72,6 +72,58 @@
 			]
 		},
 		{
+			"name": "python-deps",
+			"x-comment": "Feed Chef: numpy (language scoring), py3langid (language ID), kmedoids (taste clusters) and segno (QR codes for sharing a recipe). Pinned wheels for the GNOME 51 runtime Python (3.14, cp314), installed from the files below with no network (the flatpak-pip-generator shape). The licences are recorded in Docs/third-party-notices.md.",
+			"buildsystem": "simple",
+			"build-commands": [
+				"pip3 install --verbose --exists-action=i --no-index --no-deps --find-links=\"file://${PWD}\" --prefix=${FLATPAK_DEST} --no-build-isolation numpy py3langid kmedoids segno"
+			],
+			"sources": [
+				{
+					"type": "file",
+					"url": "https://files.pythonhosted.org/packages/26/5b/5cd4b88a64bb57ca6d3bd6a9e057db445544a2179a2ebf985660e0454648/numpy-2.5.5-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl",
+					"sha256": "cc6eb7502facce90349b4097a26821af224aaa0ab36e78304711cdb544352882",
+					"only-arches": [
+						"aarch64"
+					]
+				},
+				{
+					"type": "file",
+					"url": "https://files.pythonhosted.org/packages/a4/1f/fcdce1061fba2bfb2e9bfda01fbd8132d5f7522a4f7c8e2b2f629d54ee38/numpy-2.5.5-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+					"sha256": "c48960d420e90cf305cb1fde0d4e6082cc90512cda87a9acf0b6e04e91cf4abe",
+					"only-arches": [
+						"x86_64"
+					]
+				},
+				{
+					"type": "file",
+					"url": "https://files.pythonhosted.org/packages/69/2d/0eeff2727c970b1d553be70d15ba2d84e3830696c09a79d954c5ae3d5212/py3langid-0.4.0-py3-none-any.whl",
+					"sha256": "c25bd038147951ba3a89efe9ec12cc7d2116cb6f311ff8af84ade398a8bc0616"
+				},
+				{
+					"type": "file",
+					"url": "https://files.pythonhosted.org/packages/15/d1/7bbc4226f87ee5fc6e3473ad2580103c6abcd0524c59382eee308676aba0/kmedoids-0.5.5-cp314-cp314-manylinux_2_28_aarch64.whl",
+					"sha256": "2fc723f21fcad47bd952bc05a233b8163a20be9681455b7e1d2544356852e9af",
+					"only-arches": [
+						"aarch64"
+					]
+				},
+				{
+					"type": "file",
+					"url": "https://files.pythonhosted.org/packages/9e/62/fd80b2b72be0531f8bb9debff75fa6e1cd6ea3d26a0d660d21c5c989ab2b/kmedoids-0.5.5-cp314-cp314-manylinux_2_28_x86_64.whl",
+					"sha256": "df7f17cfdf0c105a2f321236d05ae85695daabf31e78f0e9e2340a6e8c3e39da",
+					"only-arches": [
+						"x86_64"
+					]
+				},
+				{
+					"type": "file",
+					"url": "https://files.pythonhosted.org/packages/d6/02/12c73fd423eb9577b97fc1924966b929eff7074ae6b2e15dd3d30cb9e4ae/segno-1.6.6-py3-none-any.whl",
+					"sha256": "28c7d081ed0cf935e0411293a465efd4d500704072cdb039778a2ab8736190c7"
+				}
+			]
+		},
+		{
 			"name": "babble",
 			"buildsystem": "meson",
 			"sources": [

@@ -11,6 +11,24 @@ gnome.compile_resources('babble',
 
 python = import('python').find_installation('python3')
 
+# Feed Chef's optional Python modules: a report, never a failure. Without
+# them the feature degrades (src/feedchef/deps.py) and its tests skip.
+feedchef_modules = ['numpy', 'py3langid', 'kmedoids', 'segno']
+feedchef_found = []
+feedchef_missing = []
+foreach module : feedchef_modules
+  probe = import('python').find_installation('python3', modules: [module], required: false)
+  if probe.found()
+    feedchef_found += module
+  else
+    feedchef_missing += module
+  endif
+endforeach
+message('Feed Chef Python modules found: ' + (feedchef_found.length() > 0 ? ', '.join(feedchef_found) : 'none'))
+if feedchef_missing.length() > 0
+  message('Feed Chef Python modules missing (the feature degrades, its tests skip): ' + ', '.join(feedchef_missing))
+endif
+
 conf = configuration_data()
 conf.set('PYTHON', python.full_path())
 conf.set('VERSION', meson.project_version())
@@ -66,6 +84,26 @@ install_data(
   'collectionedit.py',
   'collectionpage.py',
   'feedback.py',
+  'feedchefbridge.py',
+  'feedchefbuilder.py',
+  'feedchefbuilderlive.py',
+  'feedchefcontroller.py',
+  'feedchefexperiment.py',
+  'feedchefexplain.py',
+  'feedcheffocus.py',
+  'feedcheflist.py',
+  'feedchefmodes.py',
+  'feedchefmodifiers.py',
+  'feedchefnewrecipe.py',
+  'feedchefpages.py',
+  'feedchefpeek.py',
+  'feedchefpreview.py',
+  'feedchefquality.py',
+  'feedchefqualityview.py',
+  'feedchefrelax.py',
+  'feedchefshare.py',
+  'feedchefsource.py',
+  'quoteline.py',
   'filterrules.py',
   'filters.py',
   'imagecache.py',
@@ -155,6 +193,8 @@ install_data(
   'homefilters.py',
   'readingposition.py',
   'requestscope.py',
+  'rowdecor.py',
+  'scrollkeep.py',
   'statusrun.py',
   'statusactions.py',
   'statusmenu.py',
@@ -195,6 +235,73 @@ install_data(
   'catchup/tiles_cards.py',
   'catchup/geometry.py',
   install_dir: moduledir / 'catchup',
+)
+install_data(
+  'feedchef/__init__.py',
+  'feedchef/advice.py',
+  'feedchef/audit.py',
+  'feedchef/auditconst.py',
+  'feedchef/auditbuild.py',
+  'feedchef/auditreport.py',
+  'feedchef/cluster.py',
+  'feedchef/contract.py',
+  'feedchef/decisionlog.py',
+  'feedchef/deps.py',
+  'feedchef/diet.py',
+  'feedchef/engine.py',
+  'feedchef/focus.py',
+  'feedchef/health.py',
+  'feedchef/heat.py',
+  'feedchef/history.py',
+  'feedchef/icons.py',
+  'feedchef/kitchen.py',
+  'feedchef/langguess.py',
+  'feedchef/livecook.py',
+  'feedchef/network_reach.py',
+  'feedchef/optimizer.py',
+  'feedchef/pantry.py',
+  'feedchef/qrcode.py',
+  'feedchef/quality.py',
+  'feedchef/recipe.py',
+  'feedchef/recipeedit.py',
+  'feedchef/relax.py',
+  'feedchef/relevance.py',
+  'feedchef/sentence.py',
+  'feedchef/sentiment.py',
+  'feedchef/sharecodec.py',
+  'feedchef/smartmerge.py',
+  'feedchef/stages.py',
+  'feedchef/storage.py',
+  'feedchef/templates.py',
+  'feedchef/textutil.py',
+  'feedchef/words.py',
+  install_dir: moduledir / 'feedchef',
+)
+install_data(
+  'feedchef/vendor/__init__.py',
+  'feedchef/vendor/NOTICE',
+  install_dir: moduledir / 'feedchef' / 'vendor',
+)
+install_data(
+  'feedchef/vendor/vader/__init__.py',
+  'feedchef/vendor/vader/vadersentiment.py',
+  'feedchef/vendor/vader/vader_lexicon.txt',
+  'feedchef/vendor/vader/emoji_utf8_lexicon.txt',
+  'feedchef/vendor/vader/LICENSE.txt',
+  install_dir: moduledir / 'feedchef' / 'vendor' / 'vader',
+)
+install_data(
+  'feedchef/vendor/leia/__init__.py',
+  'feedchef/vendor/leia/leia.py',
+  'feedchef/vendor/leia/LICENSE.txt',
+  install_dir: moduledir / 'feedchef' / 'vendor' / 'leia',
+)
+install_data(
+  'feedchef/vendor/leia/lexicons/booster.txt',
+  'feedchef/vendor/leia/lexicons/negate.txt',
+  'feedchef/vendor/leia/lexicons/vader_lexicon_ptbr.txt',
+  'feedchef/vendor/leia/lexicons/emoji_utf8_lexicon_ptbr.txt',
+  install_dir: moduledir / 'feedchef' / 'vendor' / 'leia' / 'lexicons',
 )
 install_data(
   'api/__init__.py',
@@ -772,6 +879,192 @@ test('module boundary', python,
   env: test_env,
   timeout: 60,
 )
+test('feedchef recipe', python,
+  args: [files('test-feedchef-recipe.py')],
+  env: test_env,
+  timeout: 60,
+)
+test('feedchef pipeline', python,
+  args: [files('test-feedchef-pipeline.py')],
+  env: fatal_test_env,
+  timeout: 60,
+)
+# Needs no display: a seeded fuzz of recipes and statuses through the real
+# engine, every promise of the builder checked on the combined pages.
+test('feedchef contract', python,
+  args: [files('test-feedchef-contract.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: the audit record the engine writes beside each decision
+# log. The same world with the audit on and off gives the same posts, order
+# and scores; every fuzz record replays identically; retention, the size
+# cap, Clear Audit Logs, the private sidecar, the privacy of an export, and
+# capture cost (p95 <= 5 ms per 40-post page).
+test('feedchef audit record', python,
+  args: [files('test-feedchef-audit.py')],
+  env: test_env,
+  timeout: 300,
+)
+# Needs no display: Java's relevance sort (TF-IDF, cosine, the reference
+# vector of a focus), the freshness floor of 0.2 under trending, and the
+# fading focus, ported from Java's tests; the relevance runs on the worker.
+test('feedchef relevance', python,
+  args: [files('test-feedchef-relevance.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: similarity grouping (hybrid similarity, k, the three
+# strategies, FasterPAM from a fixed start), the cap per server, the stagger
+# of the searches and the guard on the new list promises. Skips (77) the
+# checks that group posts when the optional kmedoids package is missing.
+test('feedchef cluster', python,
+  args: [files('test-feedchef-cluster.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: language guessing for posts that declare none (the
+# maintainer's gates: 0.63, 40 characters, en and pt), off the main thread, in
+# the record, replayed. Skips (77) without py3langid.
+test('feedchef langguess', python,
+  args: [files('test-feedchef-langguess.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('feedchef promises', python,
+  args: [files('test-feedchef-promises.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: promises an adversarial QA broke, pinned by a case each.
+test('feedchef regressions', python,
+  args: [files('test-feedchef-regressions.py')],
+  env: test_env,
+  timeout: 120,
+)
+test('feedchef deeplink', python,
+  args: [files('test-feedchef-deeplink.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs a display (headless mutter at 1280x1024): the real window with Feed
+# Chef off imports nothing of it, starts nothing and shows nothing; turning it
+# on and off live brings the entry and a pinned recipe page and takes them
+# away, and the page's engine stops.
+test('feedchef optional', python,
+  args: [files('test-feedchef-optional.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake.
+test('feedchef ui', python,
+  args: [files('test-feedchef-ui.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake. Smart
+# New Posts: the score cache, the peek's timer and pauses, the pill's
+# threshold, the merge by minimal splices, the audit and a freed page.
+test('feedchef peek', python,
+  args: [files('test-feedchef-peek.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024). The review round of Smart New
+# Posts: the score cache never evicts the list, scoreless windows, covered
+# pages, the setting, boost grouping, the head-only diff and the peek's logs.
+test('feedchef peek review', python,
+  args: [files('test-feedchef-peek-review.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake, the
+# audit record is the real Recorder's. Why This Post? and the Kitchen Report.
+test('feedchef audit ui', python,
+  args: [files('test-feedchef-audit-ui.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake.
+test('feedchef builder', python,
+  args: [files('test-feedchef-builder.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs no display: the heat steps and their fallback, the Hot badge's
+# percentile, the recipe in one sentence, the chef a share fills in, Relax
+# Filters' choice, the QR code's pixels (skips them without segno) and the live
+# count's worker (one fetch for many cooks, a newer request supersedes).
+test('feedchef steps', python,
+  args: [files('test-feedchef-steps.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: the quality layer ported from moshidon (per-stage metrics
+# from audit records with moshidon's own example numbers, the bands, the recipe
+# score, recipe health and its alert, and the advice with its undo).
+test('feedchef quality', python,
+  args: [files('test-feedchef-quality.py')],
+  env: test_env,
+  timeout: 180,
+)
+# Needs no display: the New Recipe templates, moshidon's smart defaults mapped
+# to the heat steps, the modes and the More Posts <-> Better slider.
+test('feedchef templates', python,
+  args: [files('test-feedchef-templates.py')],
+  env: test_env,
+  timeout: 60,
+)
+# Needs no display: the A/B optimizer (permission, seeded Thompson sampling,
+# keep or revert, exact restore, the sidecar) and a real experiment through the
+# engine, each cook recording its variant.
+test('feedchef optimizer', python,
+  args: [files('test-feedchef-optimizer.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display: the freshness fallback (kitchen, contract, audit, replay,
+# evaluate) and the quality section of the audit CLI with its privacy-checked
+# JSON.
+test('feedchef fallback', python,
+  args: [files('test-feedchef-fallback.py')],
+  env: test_env,
+  timeout: 120,
+)
+# Needs a display (headless mutter at 1280x1024); the counting worker is a
+# fake. The heat steps (and Custom), the sentence and the live count of the
+# builder, and the Share Recipe dialog with its QR code.
+test('feedchef live', python,
+  args: [files('test-feedchef-live.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake. The
+# heat toast, the Hot chip, Relax Filters with Undo, Taste Test on import and
+# the chef.
+test('feedchef experience', python,
+  args: [files('test-feedchef-experience.py')],
+  env: fatal_test_env,
+  timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake, the
+# records are the real Recorder's. The Kitchen Report's Quality section, Apply
+# with Undo, the health badge (computed off the main thread), the banner at the
+# alert boundary and the proactive toast.
+test('feedchef quality ui', python,
+  args: [files('test-feedchef-quality-ui.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+# Needs a display (headless mutter at 1280x1024); the same fake engine. The A/B
+# experiment through the page (permission, arms alternating over refreshes, keep
+# or revert, an exact restore, Stop, no variant on a peek or a load-more), the
+# New Recipe chooser and the builder's modes and slider.
+test('feedchef experiment ui', python,
+  args: [files('test-feedchef-experiment-ui.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
 # Needs no display: it reads the sources with ast only.
 test('api boundary', python,
   args: [files('test-api-boundary.py')],
@@ -913,6 +1206,13 @@ test('affinity', python,
 # fake client, and the real one is replaced by a class that raises.
 test('rank eval', python,
   args: [files('../bench/rank_eval.py'), 'self-test'],
+  env: test_env,
+  timeout: 120,
+)
+# Needs no display and no network: the Feed Chef audit CLI (show, replay,
+# evaluate, collect) on synthetic cooks, tampered records included.
+test('feedchef audit', python,
+  args: [files('../bench/feedchef_audit.py'), 'self-test'],
   env: test_env,
   timeout: 120,
 )

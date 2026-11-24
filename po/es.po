@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: babble\n"
 "Report-Msgid-Bugs-To: https://github.com/mauriciobc/Babble/issues\n"
-"POT-Creation-Date: 2026-11-22 13:20-0300\n"
+"POT-Creation-Date: 2026-11-23 23:00-0300\n"
 "PO-Revision-Date: 2026-10-10 00:00+0000\n"
 "Last-Translator: Babble contributors\n"
 "Language-Team: Spanish\n"
@@ -39,7 +39,7 @@ msgid "New Post"
 msgstr "Nueva publicación"
 
 #: data/io.github.mauriciobc.Babble.desktop.in:22 src/filters.py:30
-#: src/navigation.py:76 src/preferences.py:666 src/sidebarcontrol.py:83
+#: src/navigation.py:94 src/preferences.py:673 src/sidebarcontrol.py:83
 #: src/sidebarcontrol.py:86 src/window.ui:509 src/window.ui:511
 #: src/window.ui:526
 msgid "Notifications"
@@ -96,18 +96,44 @@ msgid "Hide the Catch Up page from the sidebar"
 msgstr "Ocultar la página de Catch Up de la barra lateral"
 
 #: data/io.github.mauriciobc.Babble.gschema.xml:95
+msgid "Hide the Feed Chef page from the sidebar"
+msgstr "Ocultar la página de Feed Chef de la barra lateral"
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:96
+msgid ""
+"Deprecated: replaced by feed-chef-enabled and kept for one release. At "
+"startup a stored true value turns feed-chef-enabled off and the key is "
+"reset; nothing else reads it."
+msgstr "Obsoleto: sustituido por feed-chef-enabled y conservado durante una versión. Al iniciar, un valor verdadero guardado desactiva feed-chef-enabled y la clave se restablece; nada más la lee."
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:100
+msgid "Enable Feed Chef"
+msgstr "Activar Feed Chef"
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:101
+msgid ""
+"When off, Feed Chef is not loaded at all: no sidebar entry, no background "
+"work and no network requests. Its open pages are freed at once; the memory "
+"of its code is freed after a restart."
+msgstr "Si está desactivado, Feed Chef no se carga en absoluto: sin entrada en la barra lateral, sin trabajo en segundo plano y sin solicitudes de red. Sus páginas abiertas se liberan al instante; la memoria de su código se libera tras reiniciar."
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:105
+msgid "Feed Chef recipes pinned to the sidebar, as \"account-id/recipe-id\""
+msgstr "Recetas de Feed Chef fijadas en la barra lateral, como \"account-id/recipe-id\""
+
+#: data/io.github.mauriciobc.Babble.gschema.xml:109
 msgid "Hide the Explore page from the sidebar"
 msgstr "Ocultar la página de Explorar de la barra lateral"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:99
+#: data/io.github.mauriciobc.Babble.gschema.xml:113
 msgid "Hide the Local timeline from the sidebar"
 msgstr "Ocultar la cronología local de la barra lateral"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:103
+#: data/io.github.mauriciobc.Babble.gschema.xml:117
 msgid "Hide the Federated timeline from the sidebar"
 msgstr "Ocultar la cronología federada de la barra lateral"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:107
+#: data/io.github.mauriciobc.Babble.gschema.xml:121
 msgid ""
 "Show local and federated timelines the server disabled but this account may "
 "still read"
@@ -115,11 +141,11 @@ msgstr ""
 "Mostrar cronologías local y federada que el servidor deshabilitó pero esta "
 "cuenta aún puede leer"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:111
+#: data/io.github.mauriciobc.Babble.gschema.xml:125
 msgid "Style preference: follow the system, light or dark"
 msgstr "Preferencia de estilo: seguir el sistema, claro o oscuro"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:115
+#: data/io.github.mauriciobc.Babble.gschema.xml:129
 msgid ""
 "Language of the interface, as a gettext locale name such as pt_BR; empty "
 "follows the system. Applied on the next start"
@@ -127,29 +153,29 @@ msgstr ""
 "Idioma de la interfaz, como nombre de configuración regional de gettext como "
 "pt_BR; vacío sigue el sistema. Aplicado al reiniciar."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:119 src/preferences.py:338
+#: data/io.github.mauriciobc.Babble.gschema.xml:133 src/preferences.py:338
 msgid "Increase the line height in posts"
 msgstr "Aumenta la altura de línea en las publicaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:123
+#: data/io.github.mauriciobc.Babble.gschema.xml:137
 msgid "Dim post media while the dark style is in use"
 msgstr "Atenúa los medios de publicaciones mientras se usa el estilo oscuro"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:127
+#: data/io.github.mauriciobc.Babble.gschema.xml:141
 msgid "Render favorite, boost and follow notifications less prominently"
 msgstr ""
 "Renderizar notificaciones de favoritos, impulsos y seguimientos con menos "
 "prominencia"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:131
+#: data/io.github.mauriciobc.Babble.gschema.xml:145
 msgid "Render custom emojis in posts at a larger size"
 msgstr "Renderizar emojis personalizados en publicaciones en tamaño mayor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:135
+#: data/io.github.mauriciobc.Babble.gschema.xml:149
 msgid "Slightly enlarge custom emojis under the pointer"
 msgstr "Agrandar ligeramente emojis personalizados bajo el puntero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:139
+#: data/io.github.mauriciobc.Babble.gschema.xml:153
 msgid ""
 "Blur the desktop behind a translucent sidebar, where the compositor supports "
 "it"
@@ -158,41 +184,41 @@ msgstr ""
 "soporta el compositorDifuminar el escritorio detrás de la barra lateral. "
 "Necesita un compositor con desenfoque de fondo"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:143
+#: data/io.github.mauriciobc.Babble.gschema.xml:157
 msgid "Sidebar presentation when it is expanded: full labels, or an icon rail"
 msgstr ""
 "Presentación de la barra lateral cuando está expandida: etiquetas completas "
 "o una fila de iconos"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:147
+#: data/io.github.mauriciobc.Babble.gschema.xml:161
 msgid "Hide the expanded sidebar; the content header keeps the shell controls"
 msgstr ""
 "Ocultar la barra lateral expandida; la cabecera de contenido mantiene los "
 "controles del entorno"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:151
+#: data/io.github.mauriciobc.Babble.gschema.xml:165
 msgid "Collapse long posts behind a Show More button"
 msgstr "Colapsa publicaciones largas tras un botón “Mostrar más”"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:155
+#: data/io.github.mauriciobc.Babble.gschema.xml:169
 msgid "Letterbox media instead of cropping it to the preview frame"
 msgstr ""
 "Mostrar medios en letterbox en lugar de recortar al marco de vista previa"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:159
+#: data/io.github.mauriciobc.Babble.gschema.xml:173
 msgid ""
 "How the media viewer opens photos: as a box over the window, or filling it"
 msgstr ""
 "Cómo el visor de medios abre fotos: como caja sobre la ventana, o llenándola"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:163
+#: data/io.github.mauriciobc.Babble.gschema.xml:177
 msgid ""
 "Whether to load media your server has no copy of from the original server"
 msgstr ""
 "Cargar o no los medios de los que tu servidor no tiene copia desde el "
 "servidor original"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:164
+#: data/io.github.mauriciobc.Babble.gschema.xml:178
 msgid ""
 "Mastodon servers keep a copy of the media in posts they show you. When your "
 "server has none, the original lives on the author's server, and loading it "
@@ -205,11 +231,11 @@ msgstr ""
 "ver tu dirección IP y que lo has visto. “ask” pregunta cada vez, “load” lo "
 "carga y “never” no."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:168
+#: data/io.github.mauriciobc.Babble.gschema.xml:182
 msgid "Play animated GIFs by themselves"
 msgstr "Reproducir GIF animados por sí solos"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:169
+#: data/io.github.mauriciobc.Babble.gschema.xml:183
 msgid ""
 "Mastodon GIFs are muted loops. When off, they wait for a click. Reduced "
 "motion, disabled animations and power saving stop them even when this is on."
@@ -218,11 +244,11 @@ msgstr ""
 "esperan un clic. La reducción de movimiento, las animaciones desactivadas y "
 "el ahorro de energía los detienen aunque esté activada."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:173
+#: data/io.github.mauriciobc.Babble.gschema.xml:187
 msgid "Play animated GIFs inside timelines"
 msgstr "Reproducir GIF animados dentro de las cronologías"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:174
+#: data/io.github.mauriciobc.Babble.gschema.xml:188
 msgid ""
 "Plays the animated GIF that is most in view in a timeline, one at a time. It "
 "needs autoplay of animated media to be on too. It uses more memory than "
@@ -233,11 +259,11 @@ msgstr ""
 "activada. Usa más memoria que las imágenes fijas y puede detener la ventana "
 "un instante la primera vez que se reproduce uno."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:178
+#: data/io.github.mauriciobc.Babble.gschema.xml:192
 msgid "When video, audio and animated GIFs load without a click"
 msgstr "Cuándo se cargan sin un clic el video, el audio y los GIF animados"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:179
+#: data/io.github.mauriciobc.Babble.gschema.xml:193
 msgid ""
 "Images always load. \"always\" loads streamed media at once, \"unmetered\" "
 "waits for a click on a metered connection, \"never\" always waits for a "
@@ -247,37 +273,37 @@ msgstr ""
 "inmediato, \"unmetered\" espera un clic en una conexión medida y \"never\" "
 "siempre espera un clic."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:183
+#: data/io.github.mauriciobc.Babble.gschema.xml:197
 msgid "Reveal media marked as sensitive without a click"
 msgstr "Revelar medios marcados como sensibles sin un clic"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:187
+#: data/io.github.mauriciobc.Babble.gschema.xml:201
 msgid "Expand posts behind content warnings by default"
 msgstr "Expande publicaciones detrás de advertencias de contenido por defecto"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:191
+#: data/io.github.mauriciobc.Babble.gschema.xml:205
 msgid "Show link preview cards under posts"
 msgstr "Mostrar tarjetas de vista previa de enlaces bajo publicaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:195
+#: data/io.github.mauriciobc.Babble.gschema.xml:209
 msgid "Show Bluesky posts natively"
 msgstr "Mostrar publicaciones de Bluesky de forma nativa"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:199
+#: data/io.github.mauriciobc.Babble.gschema.xml:213
 msgid "Show reply, boost and favorite counts on post actions"
 msgstr ""
 "Mostrar conteos de respuestas, impulsos y favoritos en acciones de "
 "publicaciónRecuentos de respuestas, impulsos y favoritos en las acciones de "
 "la publicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:203
+#: data/io.github.mauriciobc.Babble.gschema.xml:217
 msgid "Show the reply, boost and favorite actions on every post in timelines"
 msgstr ""
 "Mostrar acciones de respuesta, impulso y favorito en cada publicación en "
 "cronologíasRecuentos de respuestas, impulsos y favoritos en las acciones de "
 "la publicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:207
+#: data/io.github.mauriciobc.Babble.gschema.xml:221
 msgid ""
 "Group bursts of boosts into a horizontal carousel instead of listing each "
 "boost in the timeline"
@@ -287,53 +313,53 @@ msgstr ""
 "impulsos, los agrupa en un carrusel horizontal en lugar de una fila para "
 "cada uno. Se aplica a las cronologías abiertas después"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:211
+#: data/io.github.mauriciobc.Babble.gschema.xml:225
 msgid "Show only the first boost of a post that several people boosted"
 msgstr ""
 "Mostrar solo el primer impulso de una publicación que varias personas "
 "impulsaronMuestra solo el primer impulso de una publicación impulsada por "
 "varias personas. Se aplica a las cronologías abiertas después"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:215
+#: data/io.github.mauriciobc.Babble.gschema.xml:229
 msgid "Hide reply posts on the home timeline from people you do not follow"
 msgstr ""
 "Ocultar publicaciones de respuesta en la cronología de inicio de personas "
 "que no sigues"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:219
+#: data/io.github.mauriciobc.Babble.gschema.xml:233
 msgid "Hide boosts on the home timeline"
 msgstr "Ocultar impulsos en la página de inicio"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:223
+#: data/io.github.mauriciobc.Babble.gschema.xml:237
 msgid "Reopen the home timeline at the post you were reading"
 msgstr "Reabrir la cronología de inicio en la publicación que estabas leyendo"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:227
+#: data/io.github.mauriciobc.Babble.gschema.xml:241
 msgid "The post each account was reading on the home timeline, by account key"
 msgstr ""
 "La publicación que cada cuenta estaba leyendo en la cronología de inicio, "
 "por clave de cuenta"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:231
+#: data/io.github.mauriciobc.Babble.gschema.xml:245
 msgid "Ask for visibility (and offer quoting) before boosting"
 msgstr "Solicita visibilidad (y ofrece citar) antes de impulsar"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:235
+#: data/io.github.mauriciobc.Babble.gschema.xml:249
 msgid "Remove tracking parameters from opened links"
 msgstr "Remover parámetros de seguimiento de enlaces abiertos"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:239
+#: data/io.github.mauriciobc.Babble.gschema.xml:253
 msgid "Open links to posts and profiles on other servers inside Babble"
 msgstr ""
 "Abrir enlaces a publicaciones y perfiles en otros servidores dentro de "
 "BabbleAbre los enlaces a publicaciones y perfiles de otros servidores dentro "
 "de la aplicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:243
+#: data/io.github.mauriciobc.Babble.gschema.xml:257
 msgid "Open web links in a column beside the timeline"
 msgstr "Abrir enlaces web en una columna junto a la cronología"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:244
+#: data/io.github.mauriciobc.Babble.gschema.xml:258
 msgid ""
 "When off, or when WebKitGTK is not installed, web links open in the default "
 "browser."
@@ -341,17 +367,17 @@ msgstr ""
 "Cuando está desactivado, o cuando WebKitGTK no está instalado, los enlaces "
 "web se abren en el navegador predeterminado."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:248
+#: data/io.github.mauriciobc.Babble.gschema.xml:262
 msgid "Let pages opened in Babble run JavaScript"
 msgstr "Permitir que las páginas abiertas en Babble ejecuten JavaScript"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:252
+#: data/io.github.mauriciobc.Babble.gschema.xml:266
 msgid "Offer to open post and profile links found on the clipboard"
 msgstr ""
 "Oferta para abrir enlaces a publicaciones y perfiles encontrados en el "
 "portapapeles"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:253
+#: data/io.github.mauriciobc.Babble.gschema.xml:267
 msgid ""
 "When the window gains focus, check the clipboard for a link to a post, "
 "profile or hashtag and offer to open it in Babble."
@@ -359,29 +385,29 @@ msgstr ""
 "Cuando la ventana gana el foco, verificar el portapapeles en busca de un "
 "enlace a una publicación, perfil u hashtag y ofrecer abrirlo en Babble."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:257
+#: data/io.github.mauriciobc.Babble.gschema.xml:271
 msgid "Warn before replying to a post older than three months"
 msgstr "Advertir antes de responder a una publicación con más de tres meses"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:261
+#: data/io.github.mauriciobc.Babble.gschema.xml:275
 msgid "Warn before copying a link to a non-public post"
 msgstr "Advertir antes de copiar un enlace a una publicación no pública"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:265
+#: data/io.github.mauriciobc.Babble.gschema.xml:279
 msgid "Warn before boosting a post with media that lacks alt text"
 msgstr ""
 "Advertir antes de impulsar una publicación con medios que carecen de texto "
 "alternativo"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:269
+#: data/io.github.mauriciobc.Babble.gschema.xml:283
 msgid "Keep running after the window closes to deliver notifications"
 msgstr "Seguir funcionando tras cerrar la ventana para entregar notificaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:273
+#: data/io.github.mauriciobc.Babble.gschema.xml:287
 msgid "Bind a system-wide shortcut that opens the composer"
 msgstr "Vincula un atajo de sistema que abre el compositor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:274
+#: data/io.github.mauriciobc.Babble.gschema.xml:288
 msgid ""
 "Registered through the XDG GlobalShortcuts portal; the key combination is "
 "chosen in the system settings."
@@ -389,76 +415,76 @@ msgstr ""
 "Registrado a través del portal XDG GlobalShortcuts; la combinación de teclas "
 "se elige en la configuración del sistema."
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:278
+#: data/io.github.mauriciobc.Babble.gschema.xml:292
 msgid "Stream new posts and notifications in real time"
 msgstr "Transmitir nuevas publicaciones y notificaciones en tiempo real"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:282
+#: data/io.github.mauriciobc.Babble.gschema.xml:296
 msgid "Also stream the Local and Federated timelines"
 msgstr "Transmite también las cronologías Local y Federada"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:286
+#: data/io.github.mauriciobc.Babble.gschema.xml:300
 msgid "ISO 639-1 language of new posts; empty follows the system locale"
 msgstr ""
 "Idioma ISO 639-1 de publicaciones nuevas; vacío sigue la configuración "
 "regional del sistema"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:290
+#: data/io.github.mauriciobc.Babble.gschema.xml:304
 msgid "Default quote policy on your server account (not per post in Babble)"
 msgstr ""
 "Política de cotización por defecto en tu cuenta del servidor (no por "
 "publicación en Babble)"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:294
+#: data/io.github.mauriciobc.Babble.gschema.xml:308
 msgid "Mark new posts sensitive in the composer and on your server"
 msgstr ""
 "Marcar publicaciones nuevas como sensibles en el compositor y en tu servidor"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:298
+#: data/io.github.mauriciobc.Babble.gschema.xml:312
 msgid "Notification types announced on the desktop"
 msgstr "Tipos de notificación anunciados en el escritorio"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:302
+#: data/io.github.mauriciobc.Babble.gschema.xml:316
 msgid "Combine desktop notifications of the same type and post"
 msgstr "Combina notificaciones de escritorio del mismo tipo y publicación"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:306
+#: data/io.github.mauriciobc.Babble.gschema.xml:320
 msgid "Notification types hidden from the Notifications page"
 msgstr "Tipos de notificación ocultos de la página de Notificaciones"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:310
+#: data/io.github.mauriciobc.Babble.gschema.xml:324
 msgid "Most recent search queries, newest first"
 msgstr "Consultas de búsqueda más recientes, primero primero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:314
+#: data/io.github.mauriciobc.Babble.gschema.xml:328
 msgid "Shortcodes of recently inserted custom emojis, newest first"
 msgstr ""
 "Códigos cortos de emojis personalizados insertados recientemente, primero "
 "primero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:318
+#: data/io.github.mauriciobc.Babble.gschema.xml:332
 msgid "Lists pinned to the sidebar, as \"account-id/list-id\""
 msgstr "Listas fijadas a la barra lateral, como \"account-id/list-id\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:322
+#: data/io.github.mauriciobc.Babble.gschema.xml:336
 msgid "Hashtags pinned to the sidebar, as \"account-id/tag\""
 msgstr "Hashtags fijados a la barra lateral, como \"account-id/tag\""
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:326
+#: data/io.github.mauriciobc.Babble.gschema.xml:340
 msgid "Saved multi-hashtag timelines as JSON {\"title\", \"tags\": [...]}"
 msgstr ""
 "Guardar cronologías de múltiples hashtags como JSON {\"title\", \"tags\": "
 "[...]}"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:330
+#: data/io.github.mauriciobc.Babble.gschema.xml:344
 msgid "Unsent composer drafts as JSON, newest first"
 msgstr "Borradores no enviados del compositor como JSON, primero primero"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:335
+#: data/io.github.mauriciobc.Babble.gschema.xml:349
 msgid "Volume of videos and audio in the media viewer"
 msgstr "Volumen de vídeos y audio en el visor de medios"
 
-#: data/io.github.mauriciobc.Babble.gschema.xml:336
+#: data/io.github.mauriciobc.Babble.gschema.xml:350
 msgid ""
 "The volume the media viewer last played video and audio at, from 0 (silent) "
 "to 1 (full). It is restored when the next video or audio opens. Whether the "
@@ -524,7 +550,7 @@ msgid ""
 "A video or animated GIF playing in the media viewer can move into a small "
 "picture-in-picture card and keep playing while you read. Press P or use the "
 "viewer's button, and drag the card to any corner."
-msgstr ""
+msgstr "Un vídeo o GIF animado que se reproduce en el visor multimedia puede pasar a una pequeña tarjeta de imagen en imagen y seguir reproduciéndose mientras lees. Pulsa P o usa el botón del visor y arrastra la tarjeta a cualquier esquina."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:71
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:95
@@ -537,23 +563,23 @@ msgstr "Otros cambios:"
 msgid ""
 "Opening Notifications withdraws the desktop notifications Babble sent, and "
 "pulling down there refreshes the list."
-msgstr ""
+msgstr "Al abrir Notificaciones se retiran las notificaciones de escritorio que envió Babble, y tirar de la lista hacia abajo allí la actualiza."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:74
 msgid ""
 "Posts that arrive while Home is still loading its first page now land in the "
 "right place."
-msgstr ""
+msgstr "Las publicaciones que llegan mientras Inicio aún carga su primera página ahora quedan en el lugar correcto."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:75
 msgid ""
 "A quoted Bluesky post that cannot be read is no longer requested again every "
 "time it scrolls into view."
-msgstr ""
+msgstr "Una publicación citada de Bluesky que no se puede leer ya no se solicita de nuevo cada vez que aparece en pantalla al desplazarse."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:76
 msgid "Closing a video no longer risks freezing the application."
-msgstr ""
+msgstr "Cerrar un vídeo ya no corre el riesgo de congelar la aplicación."
 
 #: data/io.github.mauriciobc.Babble.metainfo.xml.in:82
 msgid ""
@@ -891,7 +917,8 @@ msgstr "_Autorizar la moderación"
 msgid "All Locations"
 msgstr "Todas las ubicaciones"
 
-#: src/adminaccounts.py:49 src/navigation.py:80
+#: src/adminaccounts.py:49 src/feedchef/advice.py:580 src/feedchefbuilder.py:40
+#: src/navigation.py:98
 msgid "Local"
 msgstr "Local"
 
@@ -924,7 +951,7 @@ msgstr "Limitada"
 msgid "Suspended"
 msgstr "Suspendida"
 
-#: src/adminaccounts.py:61 src/navigation.py:77 src/search.py:297
+#: src/adminaccounts.py:61 src/navigation.py:95 src/search.py:297
 #: src/shortcuts-dialog.ui:77
 msgid "Search"
 msgstr "Buscar"
@@ -1077,6 +1104,7 @@ msgid "No Limits"
 msgstr "Sin límites"
 
 #: src/adminbase.py:274 src/adminfederation.py:72 src/adminfederation.py:76
+#: src/feedchef/advice.py:586
 msgid "None"
 msgstr "Ninguno"
 
@@ -1144,7 +1172,8 @@ msgstr "_Desbloquear"
 #: src/adminfederation.py:125 src/adminfederation.py:342
 #: src/adminreports.py:422 src/catchup/page_controls.py:70
 #: src/composepost.py:372 src/collectionedit.py:41 src/feedback.py:120
-#: src/feedback.py:148 src/hashtags.py:452 src/lists.py:171
+#: src/feedback.py:148 src/feedchefbuilder.py:104 src/feedchefexperiment.py:217
+#: src/feedchefpages.py:735 src/hashtags.py:452 src/lists.py:171
 #: src/notificationctrl.py:658 src/profiledialogs.py:57
 #: src/profiledialogs.py:85 src/profileedit.py:231 src/remotemedia.py:78
 #: src/scheduled.py:123 src/searchadvanced.py:28 src/statusactions.py:622
@@ -1238,7 +1267,7 @@ msgstr "¿Eliminar la federación con %s?"
 
 #: src/adminfederation.py:214 src/adminfederation.py:327
 #: src/catchup/page_controls.py:201 src/collectionactions.py:131
-#: src/profileactions.py:230 src/statusmenu.py:458 src/windowsession.py:233
+#: src/profileactions.py:230 src/statusmenu.py:499 src/windowsession.py:233
 msgid "_Remove"
 msgstr "_Eliminar"
 
@@ -1264,7 +1293,7 @@ msgid "Block an e-mail domain"
 msgstr "Bloquear un dominio de correo"
 
 #: src/adminfederation.py:241 src/adminfederation.py:282
-#: src/profileactions.py:242 src/profileactions.py:264 src/statusmenu.py:636
+#: src/profileactions.py:242 src/profileactions.py:264 src/statusmenu.py:677
 msgid "_Block"
 msgstr "_Bloquear"
 
@@ -1279,7 +1308,7 @@ msgstr[1] "%d intentos de registro"
 msgid "Could not block the domain"
 msgstr "No se pudo bloquear el dominio"
 
-#: src/adminfederation.py:279 src/profileactions.py:239 src/statusmenu.py:633
+#: src/adminfederation.py:279 src/profileactions.py:239 src/statusmenu.py:674
 #, python-format
 msgid "Block %s?"
 msgstr "¿Bloquear %s?"
@@ -1782,28 +1811,29 @@ msgstr "Se guardó el acceso de moderación para la cuenta con la que cambiaste.
 msgid "Moderation access granted"
 msgstr "Acceso a la moderación concedido"
 
-#: src/blueskycard.py:163 src/blueskycard.py:390
+#: src/blueskycard.py:156 src/blueskycard.py:383
 msgid "Bluesky"
 msgstr "Bluesky"
 
 #. The author keeps the post from readers who are not signed
 #. in: say why, instead of saying it is unavailable.
-#: src/blueskycard.py:175 src/blueskycard.py:272 src/blueskythread.py:124
+#: src/blueskycard.py:168 src/blueskycard.py:265 src/blueskythread.py:124
 #: src/blueskythread.py:162
 msgid "Bluesky hides this post from people who are not signed in."
 msgstr ""
 "Bluesky oculta esta publicación a las personas que no han iniciado sesión."
 
-#: src/blueskycard.py:181 src/blueskycard.py:275 src/notificationpolicy.py:68
+#: src/blueskycard.py:174 src/blueskycard.py:268 src/feedchefbuilder.py:327
+#: src/notificationpolicy.py:68
 msgid "Loading…"
 msgstr "Cargando…"
 
-#: src/blueskycard.py:278 src/blueskythread.py:121
+#: src/blueskycard.py:271 src/blueskythread.py:121
 #, python-format
 msgid "Bluesky post by %(author)s: %(text)s"
 msgstr "Publicación de Bluesky de %(author)s: %(text)s"
 
-#: src/blueskycard.py:393
+#: src/blueskycard.py:386
 msgid "Bridged from Bluesky"
 msgstr "Transferida de Bluesky"
 
@@ -1832,7 +1862,7 @@ msgid "Open Video on Bluesky"
 msgstr "Abrir vídeo en Bluesky"
 
 #. Translators: %s is a number, such as 3 or 1.5K
-#: src/blueskythread.py:202
+#: src/blueskythread.py:202 src/feedchef/auditreport.py:283
 #, python-format
 msgid "%s reply"
 msgid_plural "%s replies"
@@ -1922,8 +1952,9 @@ msgstr "Analizando la cronología…"
 msgid "Preparing your catch-up…"
 msgstr "Preparando tu Catch Up…"
 
-#: src/catchup/page.py:482 src/explore.py:397 src/preferences.py:365
-#: src/profile.py:432 src/search.py:541 src/timelinepage.py:181
+#: src/catchup/page.py:482 src/explore.py:397 src/feedchef/sentence.py:60
+#: src/preferences.py:365 src/profile.py:432 src/search.py:541
+#: src/timelinepage.py:181
 msgid "Posts"
 msgstr "Publicaciones"
 
@@ -1974,7 +2005,7 @@ msgid "The server limited requests, so this catch-up is incomplete."
 msgstr ""
 "El servidor limitó las solicitudes, así que este Catch Up está incompleto."
 
-#: src/catchup/page_controls.py:32 src/navigation.py:75
+#: src/catchup/page_controls.py:32 src/navigation.py:91
 #: src/shortcuts-dialog.ui:169
 msgid "Catch Up"
 msgstr "Catch Up"
@@ -2160,8 +2191,8 @@ msgid_plural "the last %d hours"
 msgstr[0] "la última %d hora"
 msgstr[1] "las últimas %d horas"
 
-#: src/catchup/pipeline.py:138 src/filters.py:109 src/hashtags.py:51
-#: src/profile.py:386 src/wrapped.py:502
+#: src/catchup/pipeline.py:138 src/feedchefqualityview.py:219
+#: src/filters.py:109 src/hashtags.py:51 src/profile.py:386 src/wrapped.py:502
 #, python-format
 msgid "%d post"
 msgid_plural "%d posts"
@@ -2189,7 +2220,7 @@ msgid "Replies"
 msgstr "Respuestas"
 
 #: src/catchup/pipeline.py:355 src/catchup/pipeline.py:373
-#: src/notificationcopy.py:63 src/preferences.py:554 src/statusrow.py:640
+#: src/notificationcopy.py:63 src/preferences.py:561 src/statusrow.py:647
 #: src/statusviews.py:26 src/statusviews.py:113
 msgid "Boosts"
 msgstr "Impulsos"
@@ -2208,7 +2239,7 @@ msgid "Groups"
 msgstr "Grupos"
 
 #: src/catchup/pipeline.py:357 src/catchup/rows.py:59
-#: src/notificationpost.py:220 src/notifications.py:396 src/statusrow.py:432
+#: src/notificationpost.py:220 src/notifications.py:396 src/statusrow.py:433
 msgid "Filtered"
 msgstr "Filtrada"
 
@@ -2256,11 +2287,11 @@ msgstr "Favoritos"
 msgid "Density"
 msgstr "Densidad"
 
-#: src/catchup/pipeline.py:374
+#: src/catchup/pipeline.py:374 src/feedchef/auditreport.py:332
 msgid "Relevance"
 msgstr "Relevancia"
 
-#: src/catchup/pipeline.py:381
+#: src/catchup/pipeline.py:381 src/feedchef/sentence.py:137
 msgid "newest first"
 msgstr "más recientes primero"
 
@@ -2336,7 +2367,7 @@ msgstr "Mostrando %s"
 #. Translators: the row of a post hidden behind a filter; %s names
 #. the filter(s)
 #: src/catchup/rows.py:58 src/notificationpost.py:220 src/notifications.py:396
-#: src/statusrow.py:432
+#: src/statusrow.py:433
 #, python-format
 msgid "Filtered: %s"
 msgstr "Filtrada: %s"
@@ -2381,12 +2412,13 @@ msgstr "Publicaciones en el tiempo"
 msgid "%(shown)s of %(total)s"
 msgstr "%(shown)s de %(total)s"
 
-#: src/catchup/tiles.py:69
+#: src/catchup/tiles.py:69 src/feedchef/auditreport.py:311
+#: src/feedchef/auditreport.py:464
 msgid "Trending"
 msgstr "Tendencia"
 
 #: src/catchup/tiles.py:392 src/profileheader.py:454 src/profileheader.py:505
-#: src/statusrow.py:221 src/statusrow.py:592
+#: src/statusrow.py:222 src/statusrow.py:599
 msgid "Show More"
 msgstr "Mostrar más"
 
@@ -2423,7 +2455,7 @@ msgstr[0] "%s y %d más lo impulsó"
 msgstr[1] "%s y %d más lo impulsaron"
 
 #: src/catchup/tiles_cards.py:48 src/catchup/tiles_cards.py:67
-#: src/explore.py:399
+#: src/explore.py:399 src/feedchefbuilder.py:48
 msgid "News"
 msgstr "Noticias"
 
@@ -2432,7 +2464,8 @@ msgid "Open in Browser"
 msgstr "Abrir en el navegador"
 
 #: src/catchup/tiles_cards.py:180 src/catchup/tiles_cards.py:193
-#: src/searchprovider.py:574 plugins/nareal/babble_nareal.py:452
+#: src/feedchefbuilder.py:49 src/searchprovider.py:574
+#: plugins/nareal/babble_nareal.py:452
 msgid "Hashtag"
 msgstr "Etiqueta"
 
@@ -2500,7 +2533,7 @@ msgstr "¿Abrir hashtag copiado?"
 msgid "Open copied collection?"
 msgstr "¿Abrir colección copiada?"
 
-#: src/compose.py:149 src/statusrow.py:573
+#: src/compose.py:149 src/statusrow.py:580
 msgid "Replying to a post"
 msgstr "Respondiendo a una publicación"
 
@@ -2604,7 +2637,7 @@ msgid "Quote Post"
 msgstr "Citar publicación"
 
 #: src/composedialog.py:123 src/desktopnotify.py:236 src/scheduled.py:421
-#: src/statusactions.py:330 src/statusmenu.py:249
+#: src/statusactions.py:330 src/statusmenu.py:290
 msgid "Reply"
 msgstr "Responder"
 
@@ -2758,7 +2791,8 @@ msgid_plural "%d days"
 msgstr[0] "%d día"
 msgstr[1] "%d días"
 
-#: src/composeoptions.py:74
+#: src/composeoptions.py:74 src/feedchef/advice.py:575
+#: src/feedchefmodifiers.py:319
 #, python-format
 msgid "%d hour"
 msgid_plural "%d hours"
@@ -2863,7 +2897,7 @@ msgstr "¿Descartar el borrador?"
 msgid "The text, attachments and poll of this post will be lost"
 msgstr "Se perderán el texto, los adjuntos y la encuesta de esta publicación"
 
-#: src/composepost.py:373 src/profileedit.py:653
+#: src/composepost.py:373 src/feedchefbuilder.py:465 src/profileedit.py:653
 msgid "_Discard"
 msgstr "_Descartar"
 
@@ -2964,9 +2998,9 @@ msgstr ""
 "conservan su copia."
 
 #: src/conversations.py:213 src/collectionactions.py:147
-#: src/collectionpage.py:117 src/filters.py:365 src/hashtags.py:541
-#: src/lists.py:288 src/lists.py:600 src/scheduled.py:496 src/statusmenu.py:207
-#: src/statusmenu.py:486
+#: src/collectionpage.py:117 src/feedchefpages.py:193 src/filters.py:365
+#: src/hashtags.py:541 src/lists.py:288 src/lists.py:600 src/scheduled.py:496
+#: src/statusmenu.py:220 src/statusmenu.py:527
 msgid "_Delete"
 msgstr "_Eliminar"
 
@@ -3006,12 +3040,12 @@ msgstr[1] "%(first)s, %(second)s y %(count)d más"
 msgid "Follow Back"
 msgstr "Seguir también"
 
-#: src/desktopnotify.py:238 src/statusactions.py:340 src/statusmenu.py:253
+#: src/desktopnotify.py:238 src/statusactions.py:340 src/statusmenu.py:294
 msgid "Favorite"
 msgstr "Marcar como favorito"
 
 #: src/desktopnotify.py:241 src/statusactions.py:333 src/statusactions.py:446
-#: src/statusmenu.py:250
+#: src/statusmenu.py:291
 msgid "Boost"
 msgstr "Impulsar"
 
@@ -3066,6 +3100,7 @@ msgid "Emoji"
 msgstr "Emoji"
 
 #: src/emojichooser.py:326 src/emojichooser.py:487
+#: src/feedchef/templates.py:261
 msgid "Custom"
 msgstr "Personalizados"
 
@@ -3196,7 +3231,7 @@ msgstr "Solicitado"
 msgid "Could not dismiss the suggestion"
 msgstr "No se pudo descartar la sugerencia"
 
-#: src/explore.py:333
+#: src/explore.py:333 src/feedchefqualityview.py:259
 msgid "No Suggestions"
 msgstr "Sin sugerencias"
 
@@ -3212,7 +3247,7 @@ msgstr "Sin etiquetas en tendencia"
 msgid "No Trending News"
 msgstr "Sin noticias en tendencia"
 
-#: src/explore.py:398 src/hashtags.py:472 src/navigation.py:79
+#: src/explore.py:398 src/hashtags.py:472 src/navigation.py:97
 #: src/search.py:540
 msgid "Hashtags"
 msgstr "Etiquetas"
@@ -3250,7 +3285,7 @@ msgid "Delete"
 msgstr "Eliminar"
 
 #: src/collectionactions.py:76 src/hashtags.py:197 src/profile.py:100
-#: src/statusmenu.py:71
+#: src/statusmenu.py:81
 msgid "More Options"
 msgstr "Más opciones"
 
@@ -3348,9 +3383,9 @@ msgstr "No se pudieron cargar las cuentas"
 msgid "Edit Collection"
 msgstr "Editar colección"
 
-#: src/collectionedit.py:45 src/filters.py:179 src/hashtags.py:455
-#: src/lists.py:175 src/mediaexport.py:200 src/profiledialogs.py:88
-#: src/profileedit.py:236
+#: src/collectionedit.py:45 src/feedchefbuilder.py:104 src/filters.py:179
+#: src/hashtags.py:455 src/lists.py:175 src/mediaexport.py:200
+#: src/profiledialogs.py:88 src/profileedit.py:236
 msgid "_Save"
 msgstr "_Guardar"
 
@@ -3358,7 +3393,7 @@ msgstr "_Guardar"
 msgid "_Create"
 msgstr "_Crear"
 
-#: src/collectionedit.py:52
+#: src/collectionedit.py:52 src/feedchefbuilder.py:147
 msgid "Name"
 msgstr "Nombre"
 
@@ -3366,7 +3401,8 @@ msgstr "Nombre"
 msgid "Topic (Hashtag)"
 msgstr "Tema (etiqueta)"
 
-#: src/collectionedit.py:62 src/search.py:92
+#: src/collectionedit.py:62 src/feedchef/auditreport.py:204
+#: src/feedchef/auditreport.py:213 src/search.py:92
 msgid "Language"
 msgstr "Idioma"
 
@@ -3454,7 +3490,7 @@ msgstr "No se pudo guardar la colección"
 msgid "Copy _URL"
 msgstr "Copiar _URL"
 
-#: src/collectionpage.py:112 src/statusmenu.py:205
+#: src/collectionpage.py:112 src/feedchefpages.py:189 src/statusmenu.py:218
 msgid "_Edit"
 msgstr "_Editar"
 
@@ -3494,6 +3530,2166 @@ msgstr "_Mostrar contenido"
 msgid "_Don’t Remind Me Again"
 msgstr "_No volver a recordármelo"
 
+#: src/feedchef/advice.py:547 src/feedchef/relax.py:205
+#: src/feedchefmodifiers.py:350
+msgid "Hide the Least Engaging"
+msgstr "Ocultar las de menor interacción"
+
+#: src/feedchef/advice.py:548 src/feedchefmodifiers.py:343
+msgid "Favor Fresh Posts"
+msgstr "Favorecer publicaciones recientes"
+
+#: src/feedchef/advice.py:549
+msgid "Sort Order"
+msgstr "Orden"
+
+#: src/feedchef/advice.py:550
+msgid "Source"
+msgstr "Origen"
+
+#: src/feedchef/advice.py:551 src/feedchef/relax.py:202
+#: src/feedchefbuilder.py:218
+msgid "Include Hashtags"
+msgstr "Incluir hashtags"
+
+#: src/feedchef/advice.py:552 src/feedchef/relax.py:200
+#: src/feedchefbuilder.py:268
+msgid "Minimum Length"
+msgstr "Longitud mínima"
+
+#: src/feedchef/advice.py:553 src/feedchef/relax.py:197
+#: src/feedchefbuilder.py:251
+msgid "Require Alt Text on Media"
+msgstr "Exigir texto alternativo en los archivos multimedia"
+
+#: src/feedchef/advice.py:554 src/feedchef/relax.py:201
+#: src/feedchefbuilder.py:240
+msgid "Blocked Words"
+msgstr "Palabras bloqueadas"
+
+#: src/feedchef/advice.py:555 src/filters.py:393 src/filters.py:485
+#: src/filters.py:489 src/preferences.py:491
+msgid "Filters"
+msgstr "Filtros"
+
+#: src/feedchef/advice.py:556
+msgid "Recipe"
+msgstr "Receta"
+
+#: src/feedchef/advice.py:564 src/feedchef/advice.py:584 src/preferences.py:51
+msgid "Off"
+msgstr "Desactivado"
+
+#: src/feedchef/advice.py:567
+msgid "Cool"
+msgstr "Fresco"
+
+#: src/feedchef/advice.py:567 src/feedchefmodifiers.py:28
+msgid "Warm"
+msgstr "Templado"
+
+#: src/feedchef/advice.py:567 src/feedchefmodifiers.py:28
+msgid "Hot"
+msgstr "Caliente"
+
+#: src/feedchef/advice.py:568 src/feedchefmodifiers.py:29
+msgid "Fire"
+msgstr "Fuego"
+
+#. Translators: %d is a percent the reader set by hand.
+#: src/feedchef/advice.py:571
+#, python-format
+msgid "Custom (%d)"
+msgstr "Personalizado (%d)"
+
+#: src/feedchef/advice.py:577 src/feedchef/auditreport.py:460
+#: src/feedchefbuilder.py:282
+msgid "Newest first"
+msgstr "Más recientes primero"
+
+#: src/feedchef/advice.py:578 src/feedchefbuilder.py:282
+#: src/feedchefmodifiers.py:338
+msgid "Most engaging"
+msgstr "Más interacción"
+
+#: src/feedchef/advice.py:580 src/feedchefbuilder.py:40 src/navigation.py:91
+#: src/window.ui:489
+msgid "Home"
+msgstr "Inicio"
+
+#: src/feedchef/advice.py:581 src/feedchefbuilder.py:41 src/navigation.py:98
+msgid "Federated"
+msgstr "Federada"
+
+#: src/feedchef/advice.py:581 src/feedchefbuilder.py:41
+#: src/feedchefbuilder.py:216 src/lists.py:529 src/navigation.py:342
+#: src/navigation.py:413
+msgid "List"
+msgstr "Lista"
+
+#: src/feedchef/advice.py:584
+msgid "On"
+msgstr "Activado"
+
+#: src/feedchef/advice.py:595
+#, python-format
+msgid "%(pct)s of the posts got little engagement"
+msgstr "%(pct)s de las publicaciones recibieron poca interacción"
+
+#: src/feedchef/advice.py:597
+#, python-format
+msgid "Only %(pct)s of the posts got a lot of engagement"
+msgstr "Solo %(pct)s de las publicaciones recibieron mucha interacción"
+
+#: src/feedchef/advice.py:599
+#, python-format
+msgid "The average engagement is very low (%(avg)s)"
+msgstr "La interacción media es muy baja (%(avg)s)"
+
+#: src/feedchef/advice.py:601
+msgid "Posts are so recent that they have little engagement yet"
+msgstr "Las publicaciones son tan recientes que aún tienen poca interacción"
+
+#: src/feedchef/advice.py:603
+msgid "Fading older posts gives every post a score of zero"
+msgstr "Atenuar las publicaciones antiguas deja todas las publicaciones con puntuación cero"
+
+#: src/feedchef/advice.py:605
+msgid "Favoring fresh posts puts newer posts first"
+msgstr "Favorecer publicaciones recientes pone primero las más nuevas"
+
+#: src/feedchef/advice.py:607
+#, python-format
+msgid "Hiding so few leaves only %(pct)s of the posts with a lot of engagement"
+msgstr "Ocultar tan pocas deja solo %(pct)s de las publicaciones con mucha interacción"
+
+#: src/feedchef/advice.py:609
+#, python-format
+msgid "Hiding so many leaves only %(count)d posts"
+msgstr "Ocultar tantas deja solo %(count)d publicaciones"
+
+#: src/feedchef/advice.py:611
+#, python-format
+msgid "The filters remove %(pct)s of the posts"
+msgstr "Los filtros eliminan %(pct)s de las publicaciones"
+
+#: src/feedchef/advice.py:613
+msgid "The settings fade and hide posts aggressively"
+msgstr "Los ajustes atenúan y ocultan publicaciones de forma agresiva"
+
+#: src/feedchef/advice.py:615
+#, python-format
+msgid "Only the first 3 of %(count)d hashtags are searched"
+msgstr "Solo se buscan los 3 primeros de %(count)d hashtags"
+
+#: src/feedchef/advice.py:617
+msgid "The federated timeline with no hashtag is very wide"
+msgstr "La cronología federada sin hashtag es muy amplia"
+
+#: src/feedchef/advice.py:619
+#, python-format
+msgid "The recipe score is low (%(score)s)"
+msgstr "La puntuación de la receta es baja (%(score)s)"
+
+#: src/feedchef/advice.py:620
+#, python-format
+msgid "%(have)d of %(total)d similar recipes hide the least engaging"
+msgstr "%(have)d de %(total)d recetas similares ocultan las de menor interacción"
+
+#: src/feedchef/advice.py:622
+#, python-format
+msgid "%(have)d of %(total)d similar recipes favor fresh posts"
+msgstr "%(have)d de %(total)d recetas similares favorecen publicaciones recientes"
+
+#: src/feedchef/advice.py:624
+msgid "Similar recipes may have settings that work better"
+msgstr "Las recetas similares pueden tener ajustes que funcionan mejor"
+
+#: src/feedchef/advice.py:626
+#, python-format
+msgid "Only %(pct)s of the posts meet the rules"
+msgstr "Solo %(pct)s de las publicaciones cumplen las reglas"
+
+#: src/feedchef/advice.py:630
+msgid "about 30 to 40 percent better average engagement"
+msgstr "aproximadamente un 30 a 40 por ciento más de interacción media"
+
+#: src/feedchef/advice.py:631
+msgid "about 20 percent better average engagement"
+msgstr "aproximadamente un 20 por ciento más de interacción media"
+
+#: src/feedchef/advice.py:632
+msgid "a larger share of posts with a lot of engagement"
+msgstr "una mayor proporción de publicaciones con mucha interacción"
+
+#: src/feedchef/advice.py:634
+msgid "posts get time to gather engagement"
+msgstr "las publicaciones tienen tiempo de reunir interacción"
+
+#: src/feedchef/advice.py:635
+msgid "about 30 to 50 percent more posts"
+msgstr "aproximadamente un 30 a 50 por ciento más de publicaciones"
+
+#: src/feedchef/advice.py:636
+msgid "about 20 to 30 percent more posts"
+msgstr "aproximadamente un 20 a 30 por ciento más de publicaciones"
+
+#: src/feedchef/advice.py:637
+msgid "more relevant posts"
+msgstr "publicaciones más relevantes"
+
+#: src/feedchef/advice.py:638
+msgid "fewer requests and a faster page"
+msgstr "menos solicitudes y una página más rápida"
+
+#: src/feedchef/advice.py:639
+msgid "a more focused feed"
+msgstr "una cronología más enfocada"
+
+#: src/feedchef/advice.py:640
+msgid "newer posts first"
+msgstr "publicaciones más nuevas primero"
+
+#: src/feedchef/advice.py:641
+msgid "new posts get scores above zero"
+msgstr "las publicaciones nuevas obtienen puntuaciones superiores a cero"
+
+#: src/feedchef/advice.py:642
+msgid "more posts and the same relevance"
+msgstr "más publicaciones con la misma relevancia"
+
+#: src/feedchef/advice.py:643
+msgid "learn from similar recipes"
+msgstr "aprender de recetas similares"
+
+#: src/feedchef/advice.py:644
+msgid "more posts that meet your rules"
+msgstr "más publicaciones que cumplen tus reglas"
+
+#: src/feedchef/advice.py:645
+msgid "the score may rise above 0.7"
+msgstr "la puntuación puede superar 0,7"
+
+#. Translators: the label before a guess of what a change would do.
+#: src/feedchef/advice.py:648
+#, python-format
+msgid "Estimate: %s"
+msgstr "Estimación: %s"
+
+#. Translators: a multiplier too small to write out, for example
+#. "× less than 0.001".
+#: src/feedchef/auditreport.py:79
+msgid "× less than 0.001"
+msgstr "× menos de 0,001"
+
+#. Translators: a multiplier, for example "× 1.3"; %s is the number.
+#: src/feedchef/auditreport.py:85
+#, python-format
+msgid "× %s"
+msgstr "× %s"
+
+#: src/feedchef/auditreport.py:90
+msgid "Your home timeline"
+msgstr "Tu cronología de inicio"
+
+#: src/feedchef/auditreport.py:91
+msgid "The local timeline"
+msgstr "La cronología local"
+
+#: src/feedchef/auditreport.py:92
+msgid "The federated timeline"
+msgstr "La cronología federada"
+
+#: src/feedchef/auditreport.py:93
+msgid "One of your lists"
+msgstr "Una de tus listas"
+
+#: src/feedchef/auditreport.py:93
+msgid "Your timeline"
+msgstr "Tu cronología"
+
+#: src/feedchef/auditreport.py:108
+msgid "English"
+msgstr "Inglés"
+
+#: src/feedchef/auditreport.py:110
+msgid "Portuguese"
+msgstr "Portugués"
+
+#: src/feedchef/auditreport.py:111
+msgid "Another language"
+msgstr "Otro idioma"
+
+#: src/feedchef/auditreport.py:118
+msgid "Removed by a safety check"
+msgstr "Eliminada por una comprobación de seguridad"
+
+#: src/feedchef/auditreport.py:120
+msgid "Had a hashtag you excluded"
+msgstr "Tenía un hashtag que excluiste"
+
+#: src/feedchef/auditreport.py:122
+msgid "Had none of the hashtags you included"
+msgstr "No tenía ninguno de los hashtags que incluiste"
+
+#: src/feedchef/auditreport.py:123
+msgid "Contained a blocked word"
+msgstr "Contenía una palabra bloqueada"
+
+#: src/feedchef/auditreport.py:124
+msgid "Had no media"
+msgstr "Sin multimedia"
+
+#: src/feedchef/auditreport.py:125
+msgid "Had media without a description"
+msgstr "Tenía multimedia sin descripción"
+
+#: src/feedchef/auditreport.py:126
+msgid "Marked as sensitive"
+msgstr "Marcada como sensible"
+
+#: src/feedchef/auditreport.py:127
+msgid "Too short"
+msgstr "Demasiado corta"
+
+#: src/feedchef/auditreport.py:128
+msgid "Read as negative"
+msgstr "Interpretada como negativa"
+
+#: src/feedchef/auditreport.py:129
+msgid "Not from someone you follow"
+msgstr "No es de alguien a quien sigues"
+
+#: src/feedchef/auditreport.py:130
+msgid "Hidden by your mutes and filters"
+msgstr "Oculta por tus silencios y filtros"
+
+#: src/feedchef/auditreport.py:131
+msgid "Below the popularity cutoff"
+msgstr "Por debajo del umbral de popularidad"
+
+#: src/feedchef/auditreport.py:132
+msgid "Over the limit per person"
+msgstr "Por encima del límite por persona"
+
+#: src/feedchef/auditreport.py:133
+msgid "Over the limit per server"
+msgstr "Por encima del límite por servidor"
+
+#: src/feedchef/auditreport.py:134
+msgid "Left out as too similar to a post that stayed"
+msgstr "Omitida por ser demasiado parecida a una publicación que se quedó"
+
+#: src/feedchef/auditreport.py:136
+msgid "Removed for another reason"
+msgstr "Eliminada por otro motivo"
+
+#. Translators: %s is a hashtag name, without the #.
+#: src/feedchef/auditreport.py:146
+#, python-format
+msgid "The hashtag #%s"
+msgstr "El hashtag #%s"
+
+#. Translators: %s is a word or hashtag from a More Like This search.
+#: src/feedchef/auditreport.py:149
+#, python-format
+msgid "A More Like This search for “%s”"
+msgstr "Una búsqueda de Más como esto para «%s»"
+
+#: src/feedchef/auditreport.py:156
+msgid "Found Through"
+msgstr "Encontrada a través de"
+
+#: src/feedchef/auditreport.py:161
+msgid "Also Found Through"
+msgstr "También encontrada a través de"
+
+#: src/feedchef/auditreport.py:163
+msgid "Boosted"
+msgstr "Impulsada"
+
+#: src/feedchef/auditreport.py:163
+msgid "Someone else shared it"
+msgstr "Otra persona la compartió"
+
+#: src/feedchef/auditreport.py:171
+msgid "No Blocked Words"
+msgstr "Sin palabras bloqueadas"
+
+#: src/feedchef/auditreport.py:172
+msgid "Has Media"
+msgstr "Tiene multimedia"
+
+#: src/feedchef/auditreport.py:173
+msgid "Media Has Descriptions"
+msgstr "La multimedia tiene descripciones"
+
+#: src/feedchef/auditreport.py:174
+msgid "Not Marked as Sensitive"
+msgstr "No marcada como sensible"
+
+#: src/feedchef/auditreport.py:175
+msgid "Long Enough"
+msgstr "Suficientemente larga"
+
+#: src/feedchef/auditreport.py:176
+msgid "Not Negative"
+msgstr "No negativa"
+
+#: src/feedchef/auditreport.py:177
+msgid "No Excluded Hashtags"
+msgstr "Sin hashtags excluidos"
+
+#: src/feedchef/auditreport.py:178
+msgid "Has an Included Hashtag"
+msgstr "Tiene un hashtag incluido"
+
+#: src/feedchef/auditreport.py:188
+msgid "Positive"
+msgstr "Positivo"
+
+#: src/feedchef/auditreport.py:190
+msgid "Negative"
+msgstr "Negativo"
+
+#: src/feedchef/auditreport.py:191
+msgid "Neutral"
+msgstr "Neutro"
+
+#. Translators: the language of a post that declares none, which was
+#. guessed from its text; %(language)s is a language name and
+#. %(percent)s how sure the guess was, for example "Guessed as
+#. English, 78% sure".
+#: src/feedchef/auditreport.py:210
+#, python-format
+msgid "Guessed as %(language)s, %(percent)s%% sure"
+msgstr "Detectado como %(language)s, %(percent)s%% de seguridad"
+
+#: src/feedchef/auditreport.py:213
+msgid "The post does not say which"
+msgstr "La publicación no indica cuál"
+
+#: src/feedchef/auditreport.py:217 src/feedchef/auditreport.py:225
+msgid "Tone"
+msgstr "Tono"
+
+#: src/feedchef/auditreport.py:225
+msgid "Tone is only judged for English and Portuguese posts"
+msgstr "El tono solo se evalúa en publicaciones en inglés y portugués"
+
+#: src/feedchef/auditreport.py:236
+msgid "Recipe rule"
+msgstr "Regla de la receta"
+
+#: src/feedchef/auditreport.py:243
+msgid "Your Own Post"
+msgstr "Tu propia publicación"
+
+#: src/feedchef/auditreport.py:245
+msgid "From Someone You Follow"
+msgstr "De alguien a quien sigues"
+
+#: src/feedchef/auditreport.py:247
+msgid "Allowed by the Network Rule"
+msgstr "Permitida por la regla de red"
+
+#: src/feedchef/auditreport.py:258
+msgid "Allowed by Your Filters"
+msgstr "Permitida por tus filtros"
+
+#: src/feedchef/auditreport.py:259
+msgid "Mutes and keyword filters"
+msgstr "Silencios y filtros de palabras clave"
+
+#: src/feedchef/auditreport.py:262
+msgid "No Checks Passed"
+msgstr "Ninguna comprobación superada"
+
+#: src/feedchef/auditreport.py:263
+msgid "See why it was removed below"
+msgstr "Consulta abajo por qué se eliminó"
+
+#: src/feedchef/auditreport.py:265
+msgid "No Rules Applied"
+msgstr "Ninguna regla aplicada"
+
+#: src/feedchef/auditreport.py:266
+msgid "Your recipe sets no limits that apply to this post"
+msgstr "Tu receta no define límites que se apliquen a esta publicación"
+
+#: src/feedchef/auditreport.py:277
+#, python-format
+msgid "%s favorite"
+msgid_plural "%s favorites"
+msgstr[0] "%s favorito"
+msgstr[1] "%s favoritos"
+
+#: src/feedchef/auditreport.py:280
+#, python-format
+msgid "%s boost"
+msgid_plural "%s boosts"
+msgstr[0] "%s impulso"
+msgstr[1] "%s impulsos"
+
+#: src/feedchef/auditreport.py:285
+msgid "No reactions yet"
+msgstr "Aún no hay reacciones"
+
+#: src/feedchef/auditreport.py:299
+msgid "Not Scored"
+msgstr "Sin puntuar"
+
+#: src/feedchef/auditreport.py:299
+msgid "This post was not ranked"
+msgstr "Esta publicación no se clasificó"
+
+#: src/feedchef/auditreport.py:301
+msgid "Reaction Counts"
+msgstr "Recuento de reacciones"
+
+#: src/feedchef/auditreport.py:303
+msgid "Reactions"
+msgstr "Reacciones"
+
+#: src/feedchef/auditreport.py:304
+msgid "Favorites, boosts and replies, weighted"
+msgstr "Favoritos, impulsos y respuestas, ponderados"
+
+#: src/feedchef/auditreport.py:307 src/feedchef/auditreport.py:463
+msgid "Freshness"
+msgstr "Actualidad"
+
+#: src/feedchef/auditreport.py:308
+msgid "Newer posts count for more"
+msgstr "Las publicaciones más nuevas cuentan más"
+
+#: src/feedchef/auditreport.py:309 src/feedchef/auditreport.py:463
+msgid "Positive Tone"
+msgstr "Tono positivo"
+
+#: src/feedchef/auditreport.py:310
+msgid "Positive posts count for more"
+msgstr "Las publicaciones positivas cuentan más"
+
+#: src/feedchef/auditreport.py:312
+msgid "Posts on rising topics count for more"
+msgstr "Las publicaciones sobre temas en auge cuentan más"
+
+#: src/feedchef/auditreport.py:316
+msgid "Older than the fade-out time"
+msgstr "Más antigua que el tiempo de atenuación"
+
+#: src/feedchef/auditreport.py:318
+msgid "Kept from scoring zero because the recipe also boosts trending posts"
+msgstr "Se evitó la puntuación cero porque la receta también impulsa las publicaciones en tendencia"
+
+#: src/feedchef/auditreport.py:323
+msgid "Focus"
+msgstr "Enfoque"
+
+#: src/feedchef/auditreport.py:323
+msgid ""
+"None of the posts on this page match the focus, so they are in your recipe’s "
+"order"
+msgstr "Ninguna publicación de esta página coincide con el enfoque, así que siguen el orden de tu receta"
+
+#. Translators: how closely a post matches the focus of a More Like
+#. This, as a percentage, for example "62%"; %s is the number.
+#: src/feedchef/auditreport.py:330
+#, python-format
+msgid "%s%%"
+msgstr "%s%%"
+
+#: src/feedchef/auditreport.py:333
+msgid "How closely its words match the post you asked for more like"
+msgstr "Cuánto se parecen sus palabras a la publicación de la que pediste más como ella"
+
+#: src/feedchef/auditreport.py:336
+msgid "Score"
+msgstr "Puntuación"
+
+#: src/feedchef/auditreport.py:337
+msgid "Posts are ordered by relevance while there is a focus"
+msgstr "Las publicaciones se ordenan por relevancia mientras haya un enfoque"
+
+#: src/feedchef/auditreport.py:339
+msgid "Higher scores are shown first"
+msgstr "Las puntuaciones más altas se muestran primero"
+
+#: src/feedchef/auditreport.py:348
+msgid "Position"
+msgstr "Posición"
+
+#: src/feedchef/auditreport.py:349
+#, python-format
+msgid "On page %s of this timeline"
+msgstr "En la página %s de esta cronología"
+
+#: src/feedchef/auditreport.py:351
+#, python-format
+msgid "%(place)s of %(total)s"
+msgstr "%(place)s de %(total)s"
+
+#. Translators: the group a post belongs to among the groups of similar
+#. posts, for example "2 of 3".
+#: src/feedchef/auditreport.py:366
+#, python-format
+msgid "%(group)s of %(count)s"
+msgstr "%(group)s de %(count)s"
+
+#: src/feedchef/auditreport.py:369
+msgid "Group of Similar Posts"
+msgstr "Grupo de publicaciones similares"
+
+#: src/feedchef/auditreport.py:370
+msgid "Posts that read alike form a group, and only some of each group stay"
+msgstr "Las publicaciones que se leen parecido forman un grupo, y solo algunas de cada grupo se quedan"
+
+#: src/feedchef/auditreport.py:373
+msgid "Most Typical"
+msgstr "La más típica"
+
+#: src/feedchef/auditreport.py:374
+msgid "This post is the middle of its group"
+msgstr "Esta publicación es el centro de su grupo"
+
+#: src/feedchef/auditreport.py:388
+msgid "Removed"
+msgstr "Eliminada"
+
+#. Smart New Posts: a peek put this post on top after the page was
+#. shown.
+#: src/feedchef/auditreport.py:401
+msgid "Arrived"
+msgstr "Llegó"
+
+#: src/feedchef/auditreport.py:401
+msgid "It arrived later as a new post"
+msgstr "Llegó más tarde como publicación nueva"
+
+#: src/feedchef/auditreport.py:402
+msgid "Where It Came From"
+msgstr "De dónde vino"
+
+#: src/feedchef/auditreport.py:405
+msgid "About This Post"
+msgstr "Sobre esta publicación"
+
+#: src/feedchef/auditreport.py:406
+msgid "Checks It Passed"
+msgstr "Comprobaciones superadas"
+
+#: src/feedchef/auditreport.py:409
+msgid "Not Checked"
+msgstr "Sin comprobar"
+
+#: src/feedchef/auditreport.py:411
+msgid "Why It Was Removed"
+msgstr "Por qué se eliminó"
+
+#: src/feedchef/auditreport.py:415
+msgid "How It Was Ranked"
+msgstr "Cómo se clasificó"
+
+#: src/feedchef/auditreport.py:444
+msgid "Only people you follow"
+msgstr "Solo personas a las que sigues"
+
+#: src/feedchef/auditreport.py:448
+#, python-format
+msgid "%s hashtag included"
+msgid_plural "%s hashtags included"
+msgstr[0] "%s hashtag incluido"
+msgstr[1] "%s hashtags incluidos"
+
+#: src/feedchef/auditreport.py:452
+#, python-format
+msgid "%s hashtag excluded"
+msgid_plural "%s hashtags excluded"
+msgstr[0] "%s hashtag excluido"
+msgstr[1] "%s hashtags excluidos"
+
+#: src/feedchef/auditreport.py:458
+#, python-format
+msgid "%s diet rule"
+msgid_plural "%s diet rules"
+msgstr[0] "%s regla de la dieta"
+msgstr[1] "%s reglas de la dieta"
+
+#: src/feedchef/auditreport.py:462
+msgid "Most engaging first"
+msgstr "Más interacción primero"
+
+#: src/feedchef/auditreport.py:464
+msgid "Popularity cutoff"
+msgstr "Umbral de popularidad"
+
+#: src/feedchef/auditreport.py:465
+msgid "Limit per person"
+msgstr "Límite por persona"
+
+#: src/feedchef/auditreport.py:466
+msgid "Similar posts grouped"
+msgstr "Publicaciones similares agrupadas"
+
+#. Translators: separates the parts of a one-line summary.
+#: src/feedchef/auditreport.py:474
+msgid " · "
+msgstr " · "
+
+#: src/feedchef/auditreport.py:525
+msgid "Seen more than once"
+msgstr "Vista más de una vez"
+
+#: src/feedchef/auditreport.py:527
+msgid "Nothing was left out"
+msgstr "No se dejó nada fuera"
+
+#: src/feedchef/auditreport.py:528
+msgid "Posts gathered"
+msgstr "Publicaciones reunidas"
+
+#: src/feedchef/auditreport.py:529 src/feedchefqualityview.py:230
+msgid "Posts shown"
+msgstr "Publicaciones mostradas"
+
+#: src/feedchef/auditreport.py:536
+msgid "Language Guessing"
+msgstr "Detección de idioma"
+
+#: src/feedchef/auditreport.py:537
+msgid "Not available, so posts that declare no language are not judged"
+msgstr "No disponible, así que no se evalúan las publicaciones que no declaran idioma"
+
+#: src/feedchef/auditreport.py:540
+msgid "Last Cook"
+msgstr "Última cocción"
+
+#: src/feedchef/auditreport.py:541
+msgid "Left Out"
+msgstr "Dejadas fuera"
+
+#: src/feedchef/health.py:96
+msgid "Working Well"
+msgstr "Funciona bien"
+
+#: src/feedchef/health.py:96
+msgid "Needs Attention"
+msgstr "Necesita atención"
+
+#: src/feedchef/health.py:97 src/feedchefqualityview.py:241
+msgid "Not Enough Cooks Yet"
+msgstr "Aún hay pocas cocciones"
+
+#: src/feedchef/health.py:103
+msgid "The score has been low over the last cooks"
+msgstr "La puntuación ha sido baja en las últimas cocciones"
+
+#: src/feedchef/health.py:104
+msgid "The last cook showed very few posts"
+msgstr "La última cocción mostró muy pocas publicaciones"
+
+#: src/feedchef/health.py:105
+msgid "Every post scored zero in the last cook"
+msgstr "Todas las publicaciones tuvieron puntuación cero en la última cocción"
+
+#: src/feedchef/health.py:106
+msgid "Most posts of the last cook got little engagement"
+msgstr "La mayoría de las publicaciones de la última cocción recibieron poca interacción"
+
+#: src/feedchef/quality.py:77
+msgid ""
+"Your filters are always applied, so the score reflects how much people "
+"engaged with the posts shown."
+msgstr "Tus filtros se aplican siempre, así que la puntuación refleja cuánto interactuó la gente con las publicaciones mostradas."
+
+#: src/feedchef/quality.py:83
+msgid "Low"
+msgstr "Baja"
+
+#: src/feedchef/quality.py:83
+msgid "Medium"
+msgstr "Media"
+
+#: src/feedchef/quality.py:83
+msgid "High"
+msgstr "Alta"
+
+#: src/feedchef/quality.py:84
+msgid "Very High"
+msgstr "Muy alta"
+
+#: src/feedchef/relax.py:196 src/feedchefbuilder.py:247
+msgid "Only Posts With Media"
+msgstr "Solo publicaciones con multimedia"
+
+#: src/feedchef/relax.py:198 src/feedchefbuilder.py:256
+msgid "Hide Posts Marked Sensitive"
+msgstr "Ocultar publicaciones marcadas como sensibles"
+
+#: src/feedchef/relax.py:199 src/feedchefbuilder.py:262
+msgid "Only Positive Posts"
+msgstr "Solo publicaciones positivas"
+
+#: src/feedchef/relax.py:203 src/feedchefbuilder.py:221
+msgid "Exclude Hashtags"
+msgstr "Excluir hashtags"
+
+#: src/feedchef/relax.py:204 src/feedchefbuilder.py:225
+msgid "Only People I Follow"
+msgstr "Solo personas a las que sigo"
+
+#: src/feedchef/relax.py:206 src/feedchefmodifiers.py:356
+msgid "Limit Posts per Person"
+msgstr "Limitar publicaciones por persona"
+
+#: src/feedchef/relax.py:207 src/feedchefmodifiers.py:332
+msgid "Count Servers Too"
+msgstr "Contar también los servidores"
+
+#: src/feedchef/relax.py:208 src/feedchefmodifiers.py:383
+msgid "Group Similar Posts"
+msgstr "Agrupar publicaciones similares"
+
+#. Translators: a button that empties a field of the recipe; %s is
+#. the field's name, such as "Blocked Words".
+#: src/feedchef/relax.py:219
+#, python-format
+msgid "Clear “%s”"
+msgstr "Vaciar «%s»"
+
+#. Translators: a button that switches a setting of the recipe off; %s
+#. is the setting's name, such as "Only Posts With Media".
+#: src/feedchef/relax.py:222
+#, python-format
+msgid "Turn Off “%s”"
+msgstr "Desactivar «%s»"
+
+#. Translators: a toast after Relax Filters; %s is the setting that was
+#. switched off or emptied, such as "Only Posts With Media".
+#: src/feedchef/relax.py:229
+#, python-format
+msgid "Relaxed “%s”"
+msgstr "«%s» relajado"
+
+#. Translators: %(tags)s lists the first hashtags, such as "#a #b #c",
+#. and %(count)d is how many more there are.
+#: src/feedchef/sentence.py:32
+#, python-format
+msgid "%(tags)s and %(count)d more"
+msgid_plural "%(tags)s and %(count)d more"
+msgstr[0] "%(tags)s y %(count)d más"
+msgstr[1] "%(tags)s y %(count)d más"
+
+#. Translators: the start of a recipe's sentence; %s lists
+#. hashtags, such as "#cats #dogs".
+#: src/feedchef/sentence.py:45
+#, python-format
+msgid "Posts from Home about %s"
+msgstr "Publicaciones de Inicio sobre %s"
+
+#. Translators: as above, for the local timeline.
+#: src/feedchef/sentence.py:47
+#, python-format
+msgid "Posts from the local timeline about %s"
+msgstr "Publicaciones de la cronología local sobre %s"
+
+#. Translators: as above, for the federated timeline.
+#: src/feedchef/sentence.py:49
+#, python-format
+msgid "Posts from the federated timeline about %s"
+msgstr "Publicaciones de la cronología federada sobre %s"
+
+#. Translators: as above, for one of the reader's lists.
+#: src/feedchef/sentence.py:51
+#, python-format
+msgid "Posts from a list about %s"
+msgstr "Publicaciones de una lista sobre %s"
+
+#: src/feedchef/sentence.py:53
+#, python-format
+msgid "Posts about %s"
+msgstr "Publicaciones sobre %s"
+
+#. Translators: the start of a recipe's sentence, with no hashtags.
+#: src/feedchef/sentence.py:56
+msgid "Posts from Home"
+msgstr "Publicaciones de Inicio"
+
+#: src/feedchef/sentence.py:57
+msgid "Posts from the local timeline"
+msgstr "Publicaciones de la cronología local"
+
+#: src/feedchef/sentence.py:58
+msgid "Posts from the federated timeline"
+msgstr "Publicaciones de la cronología federada"
+
+#: src/feedchef/sentence.py:59
+msgid "Posts from a list"
+msgstr "Publicaciones de una lista"
+
+#. Translators: %s lists hashtags, such as "#a #b"; the posts that
+#. carry any of them are left out.
+#: src/feedchef/sentence.py:74
+#, python-format
+msgid "without %s"
+msgstr "sin %s"
+
+#: src/feedchef/sentence.py:77
+#, python-format
+msgid "without %d blocked word"
+msgid_plural "without %d blocked words"
+msgstr[0] "sin %d palabra bloqueada"
+msgstr[1] "sin %d palabras bloqueadas"
+
+#: src/feedchef/sentence.py:80
+msgid "only posts with media"
+msgstr "solo publicaciones con multimedia"
+
+#: src/feedchef/sentence.py:82
+msgid "with alt text on media"
+msgstr "con texto alternativo en los archivos multimedia"
+
+#: src/feedchef/sentence.py:84
+msgid "without sensitive posts"
+msgstr "sin publicaciones sensibles"
+
+#: src/feedchef/sentence.py:86
+msgid "only positive posts"
+msgstr "solo publicaciones positivas"
+
+#: src/feedchef/sentence.py:88
+#, python-format
+msgid "at least %d character"
+msgid_plural "at least %d characters"
+msgstr[0] "al menos %d carácter"
+msgstr[1] "al menos %d caracteres"
+
+#: src/feedchef/sentence.py:93
+msgid "only people you follow"
+msgstr "solo personas a las que sigues"
+
+#: src/feedchef/sentence.py:105
+msgid "favoring fresh posts"
+msgstr "favoreciendo publicaciones recientes"
+
+#: src/feedchef/sentence.py:107
+msgid "boosting trending topics"
+msgstr "impulsando temas en tendencia"
+
+#: src/feedchef/sentence.py:109
+msgid "favoring positive posts"
+msgstr "favoreciendo publicaciones positivas"
+
+#: src/feedchef/sentence.py:111
+msgid "hiding the least engaging"
+msgstr "ocultando las de menor interacción"
+
+#: src/feedchef/sentence.py:115
+#, python-format
+msgid "up to %d post per server"
+msgid_plural "up to %d posts per server"
+msgstr[0] "hasta %d publicación por servidor"
+msgstr[1] "hasta %d publicaciones por servidor"
+
+#: src/feedchef/sentence.py:117
+#, python-format
+msgid "up to %d post per person"
+msgid_plural "up to %d posts per person"
+msgstr[0] "hasta %d publicación por persona"
+msgstr[1] "hasta %d publicaciones por persona"
+
+#: src/feedchef/sentence.py:121
+#, python-format
+msgid "up to %d post per group of similar ones"
+msgid_plural "up to %d posts per group of similar ones"
+msgstr[0] "hasta %d publicación por grupo de similares"
+msgstr[1] "hasta %d publicaciones por grupo de similares"
+
+#. Translators: the end of a recipe's sentence; %s lists the
+#. hashtags and words the timeline is focused on.
+#: src/feedchef/sentence.py:135
+#, python-format
+msgid "most like %s first"
+msgstr "primero las más parecidas a %s"
+
+#: src/feedchef/sentence.py:138
+msgid "most engaging first"
+msgstr "primero las de más interacción"
+
+#. Translators: two phrases of a recipe's sentence, such as "without
+#. sensitive posts and only posts with media".
+#: src/feedchef/sentence.py:152
+#, python-format
+msgid "%(a)s and %(b)s"
+msgstr "%(a)s y %(b)s"
+
+#. Translators: three phrases, such as "a, b and c".
+#: src/feedchef/sentence.py:155
+#, python-format
+msgid "%(a)s, %(b)s and %(c)s"
+msgstr "%(a)s, %(b)s y %(c)s"
+
+#. Translators: four phrases, such as "a, b, c and d".
+#: src/feedchef/sentence.py:157
+#, python-format
+msgid "%(a)s, %(b)s, %(c)s and %(d)s"
+msgstr "%(a)s, %(b)s, %(c)s y %(d)s"
+
+#: src/feedchef/sentence.py:167
+#, python-format
+msgid "%d more setting"
+msgid_plural "%d more settings"
+msgstr[0] "%d ajuste más"
+msgstr[1] "%d ajustes más"
+
+#. Translators: a recipe's sentence with nothing left out, such as
+#. "Posts from Home, most engaging first".
+#: src/feedchef/sentence.py:173
+#, python-format
+msgid "%(source)s, %(order)s"
+msgstr "%(source)s, %(order)s"
+
+#. Translators: a recipe's sentence, such as "Posts from Home about
+#. #cats, without sensitive posts, most engaging first".
+#: src/feedchef/sentence.py:177
+#, python-format
+msgid "%(source)s, %(extras)s, %(order)s"
+msgstr "%(source)s, %(extras)s, %(order)s"
+
+#. Translators: who wrote a recipe, such as "Chef: @user@example.social".
+#: src/feedchef/sentence.py:186
+#, python-format
+msgid "Chef: %s"
+msgstr "Chef: %s"
+
+#. Translators: a recipe's sentence and then its chef, such as "Posts
+#. from Home, most engaging first · Chef: @user@example.social".
+#: src/feedchef/sentence.py:198
+#, python-format
+msgid "%(sentence)s · %(chef)s"
+msgstr "%(sentence)s · %(chef)s"
+
+#: src/feedchef/templates.py:257 src/navigation.py:97
+msgid "Explore"
+msgstr "Explorar"
+
+#: src/feedchef/templates.py:257
+msgid "Show everything, newest first"
+msgstr "Mostrar todo, lo más reciente primero"
+
+#: src/feedchef/templates.py:258
+msgid "Focused"
+msgstr "Enfocada"
+
+#: src/feedchef/templates.py:259
+msgid "Hide the least engaging half and fade older posts"
+msgstr "Oculta la mitad menos interactiva y atenúa las publicaciones antiguas"
+
+#: src/feedchef/templates.py:260
+msgid "Premium"
+msgstr "Premium"
+
+#: src/feedchef/templates.py:260
+msgid "Only the most engaging posts"
+msgstr "Solo las publicaciones con más interacción"
+
+#: src/feedchef/templates.py:261
+msgid "Your own settings"
+msgstr "Tus propios ajustes"
+
+#: src/feedchef/templates.py:268
+msgid "More Posts"
+msgstr "Más publicaciones"
+
+#: src/feedchef/templates.py:268
+msgid "Better Posts"
+msgstr "Mejores publicaciones"
+
+#: src/feedchef/templates.py:280
+msgid "Blank Recipe"
+msgstr "Receta en blanco"
+
+#: src/feedchef/templates.py:280
+msgid "Start from your Home timeline"
+msgstr "Empieza desde tu cronología de inicio"
+
+#: src/feedchef/templates.py:281
+msgid "Recent News"
+msgstr "Noticias recientes"
+
+#: src/feedchef/templates.py:282
+msgid "The newest posts about the news"
+msgstr "Las publicaciones más nuevas sobre las noticias"
+
+#: src/feedchef/templates.py:283
+msgid "Viral"
+msgstr "Viral"
+
+#: src/feedchef/templates.py:283
+msgid "Only what many people are reacting to"
+msgstr "Solo lo que mucha gente está comentando"
+
+#: src/feedchef/templates.py:284
+msgid "Topic"
+msgstr "Tema"
+
+#: src/feedchef/templates.py:284
+msgid "Posts about the hashtags you pick"
+msgstr "Publicaciones sobre los hashtags que elijas"
+
+#: src/feedchef/templates.py:285
+msgid "Safe Feed"
+msgstr "Cronología segura"
+
+#: src/feedchef/templates.py:286
+msgid "Strict filters on the people you follow"
+msgstr "Filtros estrictos sobre las personas a las que sigues"
+
+#: src/feedchefbuilder.py:47
+msgid "Food"
+msgstr "Comida"
+
+#: src/feedchefbuilder.py:47
+msgid "Heart"
+msgstr "Corazón"
+
+#: src/feedchefbuilder.py:47
+msgid "Star"
+msgstr "Estrella"
+
+#: src/feedchefbuilder.py:48
+msgid "People"
+msgstr "Personas"
+
+#: src/feedchefbuilder.py:48 src/profileedit.py:250 src/profileedit.py:326
+msgid "Images"
+msgstr "Imágenes"
+
+#: src/feedchefbuilder.py:49
+msgid "Music"
+msgstr "Música"
+
+#: src/feedchefbuilder.py:49
+msgid "Games"
+msgstr "Juegos"
+
+#: src/feedchefbuilder.py:50
+msgid "Pin"
+msgstr "Chincheta"
+
+#: src/feedchefbuilder.py:50
+msgid "Weather"
+msgstr "Clima"
+
+#: src/feedchefbuilder.py:50
+msgid "Nature"
+msgstr "Naturaleza"
+
+#: src/feedchefbuilder.py:51
+msgid "Sports"
+msgstr "Deportes"
+
+#: src/feedchefbuilder.py:51
+msgid "Travel"
+msgstr "Viajes"
+
+#: src/feedchefbuilder.py:51
+msgid "Humor"
+msgstr "Humor"
+
+#: src/feedchefbuilder.py:52
+msgid "Safety"
+msgstr "Seguridad"
+
+#: src/feedchefbuilder.py:52
+msgid "Important"
+msgstr "Importante"
+
+#: src/feedchefbuilder.py:53
+msgid "Code"
+msgstr "Código"
+
+#: src/feedchefbuilder.py:53 src/mediabox.py:441 src/mediaviewer.py:299
+msgid "Audio"
+msgstr "Audio"
+
+#: src/feedchefbuilder.py:53
+msgid "Books"
+msgstr "Libros"
+
+#: src/feedchefbuilder.py:60
+msgid "Chef Hat"
+msgstr "Gorro de chef"
+
+#: src/feedchefbuilder.py:73
+msgid "connections"
+msgstr "conexiones"
+
+#: src/feedchefbuilder.py:87 src/feedchefnewrecipe.py:33
+#: src/feedchefnewrecipe.py:65 src/feedchefpages.py:99 src/feedchefpages.py:100
+#: src/feedchefpages.py:119
+msgid "New Recipe"
+msgstr "Nueva receta"
+
+#: src/feedchefbuilder.py:87 src/feedchefpages.py:355 src/feedchefpages.py:497
+msgid "Edit Recipe"
+msgstr "Editar receta"
+
+#: src/feedchefbuilder.py:118
+msgid "_Preview Recipe"
+msgstr "_Vista previa de la receta"
+
+#: src/feedchefbuilder.py:125
+msgid "S_hare Recipe"
+msgstr "Co_mpartir receta"
+
+#: src/feedchefbuilder.py:156
+msgid "Icon"
+msgstr "Icono"
+
+#: src/feedchefbuilder.py:188
+msgid "Choose Icon"
+msgstr "Elegir icono"
+
+#: src/feedchefbuilder.py:204 src/feedchefqualityview.py:227
+msgid "Pantry"
+msgstr "Despensa"
+
+#: src/feedchefbuilder.py:205
+msgid ""
+"Where posts come from. Separate hashtags with spaces. With included "
+"hashtags, only posts with at least one of them show; a post with an excluded "
+"hashtag never does."
+msgstr "De dónde vienen las publicaciones. Separa los hashtags con espacios. Con hashtags incluidos, solo se muestran las publicaciones que tengan al menos uno; una publicación con un hashtag excluido nunca se muestra."
+
+#: src/feedchefbuilder.py:210
+msgid "Posts From"
+msgstr "Publicaciones de"
+
+#: src/feedchefbuilder.py:226
+msgid "Plus your own posts. Boosts are judged by the original author."
+msgstr "Más tus propias publicaciones. Los impulsos se juzgan por el autor original."
+
+#: src/feedchefbuilder.py:236 src/feedchefqualityview.py:229
+msgid "Diet"
+msgstr "Dieta"
+
+#: src/feedchefbuilder.py:237
+msgid ""
+"Separate words with spaces. Whole words only, in the post and its content "
+"warning, ignoring case."
+msgstr "Separa las palabras con espacios. Solo palabras completas, en la publicación y en su advertencia de contenido, sin distinguir mayúsculas de minúsculas."
+
+#: src/feedchefbuilder.py:252
+msgid "Posts without media still show"
+msgstr "Las publicaciones sin multimedia se siguen mostrando"
+
+#: src/feedchefbuilder.py:257
+msgid "Hides posts flagged as sensitive, often those with a content warning"
+msgstr "Oculta las publicaciones marcadas como sensibles, a menudo las que tienen advertencia de contenido"
+
+#: src/feedchefbuilder.py:263
+msgid "Hides English and Portuguese posts that read as negative"
+msgstr "Oculta las publicaciones en inglés y portugués que se leen como negativas"
+
+#: src/feedchefbuilder.py:269
+msgid "In characters of text, links counted in full; 0 turns it off"
+msgstr "En caracteres de texto, con los enlaces contados completos; 0 lo desactiva"
+
+#: src/feedchefbuilder.py:277 src/feedchefqualityview.py:230
+msgid "Kitchen"
+msgstr "Cocina"
+
+#: src/feedchefbuilder.py:278
+msgid "How posts are ordered and balanced"
+msgstr "Cómo se ordenan y equilibran las publicaciones"
+
+#: src/feedchefbuilder.py:280
+msgid "Order"
+msgstr "Orden"
+
+#: src/feedchefbuilder.py:299
+msgid "Some Ingredients Are Not Supported Yet"
+msgstr "Algunos ingredientes aún no son compatibles"
+
+#. Translators: %s is a list of features, such as
+#. "similarity grouping, connections".
+#: src/feedchefbuilder.py:302
+#, python-format
+msgid "Not applied: %s"
+msgstr "No aplicado: %s"
+
+#: src/feedchefbuilder.py:334
+msgid "Could not load lists"
+msgstr "No se pudieron cargar las listas"
+
+#. An empty combo row reads as broken: say why there is nothing
+#. to pick, and that Save waits for a list.
+#: src/feedchefbuilder.py:368
+msgid "No lists"
+msgstr "Sin listas"
+
+#: src/feedchefbuilder.py:369
+msgid "Create a list first"
+msgstr "Crea primero una lista"
+
+#: src/feedchefbuilder.py:462 src/profileedit.py:650
+msgid "Discard Changes?"
+msgstr "¿Descartar los cambios?"
+
+#: src/feedchefbuilder.py:463
+msgid "Your changes to this recipe will be lost."
+msgstr "Se perderán tus cambios en esta receta."
+
+#: src/feedchefbuilder.py:464 src/profileedit.py:652
+msgid "_Keep Editing"
+msgstr "_Seguir editando"
+
+#: src/feedchefbuilder.py:484
+msgid "Untitled Recipe"
+msgstr "Receta sin título"
+
+#: src/feedchefbuilder.py:517 src/feedchefrelax.py:31 src/feedcheffocus.py:53
+#: src/feedchefpages.py:582 src/feedchefpages.py:667 src/feedchefpages.py:751
+msgid "Could not save the recipe"
+msgstr "No se pudo guardar la receta"
+
+#: src/feedchefbuilderlive.py:67 src/feedchefbuilderlive.py:148
+msgid "Counting posts…"
+msgstr "Contando publicaciones…"
+
+#: src/feedchefbuilderlive.py:69
+msgid "Updating the count"
+msgstr "Actualizando el recuento"
+
+#: src/feedchefbuilderlive.py:72
+msgid "Count Again"
+msgstr "Contar de nuevo"
+
+#: src/feedchefbuilderlive.py:110
+msgid "Choose a list to count posts"
+msgstr "Elige una lista para contar publicaciones"
+
+#: src/feedchefbuilderlive.py:143
+msgid "Updating…"
+msgstr "Actualizando…"
+
+#: src/feedchefbuilderlive.py:163
+#, python-format
+msgid "%d post matches"
+msgid_plural "%d posts match"
+msgstr[0] "Coincide %d publicación"
+msgstr[1] "Coinciden %d publicaciones"
+
+#. Translators: under Preview Recipe; how many of the recent
+#. posts the recipe keeps.
+#: src/feedchefbuilderlive.py:170
+#, python-format
+msgid "%(matching)d of %(fetched)d posts matches"
+msgid_plural "%(matching)d of %(fetched)d posts match"
+msgstr[0] "%(matching)d de %(fetched)d publicaciones coincide"
+msgstr[1] "%(matching)d de %(fetched)d publicaciones coinciden"
+
+#. Translators: %d is how many recent posts were looked at.
+#: src/feedchefbuilderlive.py:177
+#, python-format
+msgid "Out of the latest %d post"
+msgid_plural "Out of the latest %d posts"
+msgstr[0] "De la última %d publicación"
+msgstr[1] "De las últimas %d publicaciones"
+
+#: src/feedchefbuilderlive.py:188
+msgid "Could not count posts"
+msgstr "No se pudieron contar las publicaciones"
+
+#: src/feedchefbuilderlive.py:190
+msgid "The recipe can still be saved or previewed"
+msgstr "La receta aún se puede guardar o previsualizar"
+
+#: src/feedchefmodifiers.py:37
+msgid "every post"
+msgstr "todas las publicaciones"
+
+#. Translators: the heat level of a recipe imported with its own
+#. percent, kept as it is; %s is that percent, such as "62".
+#: src/feedchefmodifiers.py:42
+#, python-format
+msgid "Imported level (%s%%)"
+msgstr "Nivel importado (%s%%)"
+
+#: src/feedchefmodifiers.py:61 src/feedchefmodifiers.py:65
+#: src/feedchefmodifiers.py:87
+msgid "Heat Level"
+msgstr "Nivel de calor"
+
+#: src/feedchefmodifiers.py:69
+#, python-format
+msgid ""
+"Warm hides half of the posts, Hot three in four, Fire nine in ten. A page "
+"never keeps fewer than %d posts: it steps down to a cooler level when needed."
+msgstr "Templado oculta la mitad de las publicaciones, Caliente tres de cada cuatro, Fuego nueve de cada diez. Una página nunca conserva menos de %d publicaciones: baja a un nivel más fresco cuando hace falta."
+
+#: src/feedchefmodifiers.py:80
+msgid "Hides the weaker half"
+msgstr "Oculta la mitad más débil"
+
+#: src/feedchefmodifiers.py:81
+msgid "Hides three posts in four"
+msgstr "Oculta tres de cada cuatro publicaciones"
+
+#: src/feedchefmodifiers.py:82
+msgid "Hides nine posts in ten"
+msgstr "Oculta nueve de cada diez publicaciones"
+
+#: src/feedchefmodifiers.py:110
+#, python-format
+msgid "Imported value: %s%%. Choose a level to replace it."
+msgstr "Valor importado: %s%%. Elige un nivel para reemplazarlo."
+
+#: src/feedchefmodifiers.py:211 src/feedchefmodifiers.py:238
+msgid "Needs an optional component that is not installed"
+msgstr "Necesita un componente opcional que no está instalado"
+
+#: src/feedchefmodifiers.py:247
+#, python-format
+msgid "%(what)s · %(value)s"
+msgstr "%(what)s · %(value)s"
+
+#. Translators: a percentage, such as "50%".
+#: src/feedchefmodifiers.py:323
+#, python-format
+msgid "%d%%"
+msgstr "%d%%"
+
+#: src/feedchefmodifiers.py:326
+#, python-format
+msgid "%d per person"
+msgid_plural "%d per person"
+msgstr[0] "%d por persona"
+msgstr[1] "%d por persona"
+
+#: src/feedchefmodifiers.py:329
+#, python-format
+msgid "%d per group"
+msgid_plural "%d per group"
+msgstr[0] "%d por grupo"
+msgstr[1] "%d por grupo"
+
+#: src/feedchefmodifiers.py:333
+msgid ""
+"Also limits the posts from each server, so one server cannot fill the feed"
+msgstr "También limita las publicaciones de cada servidor, para que un solo servidor no llene la cronología"
+
+#: src/feedchefmodifiers.py:336
+msgid "Post That Stays"
+msgstr "Publicación que se queda"
+
+#: src/feedchefmodifiers.py:337
+msgid "In each group"
+msgstr "En cada grupo"
+
+#: src/feedchefmodifiers.py:338
+msgid "Newest"
+msgstr "La más reciente"
+
+#: src/feedchefmodifiers.py:339
+msgid "Most representative"
+msgstr "La más representativa"
+
+#: src/feedchefmodifiers.py:344
+msgid "Newer posts rank higher"
+msgstr "Las publicaciones más nuevas se posicionan más arriba"
+
+#: src/feedchefmodifiers.py:345
+msgid "Fade-Out Time"
+msgstr "Tiempo de atenuación"
+
+#: src/feedchefmodifiers.py:346
+msgid "In hours; older posts score zero"
+msgstr "En horas; las publicaciones más antiguas tienen puntuación cero"
+
+#: src/feedchefmodifiers.py:351
+msgid "Hides the least engaging posts"
+msgstr "Oculta las publicaciones con menos interacción"
+
+#: src/feedchefmodifiers.py:357
+msgid "Keeps one voice from filling the feed"
+msgstr "Evita que una sola voz llene la cronología"
+
+#: src/feedchefmodifiers.py:358
+msgid "Posts per Person"
+msgstr "Publicaciones por persona"
+
+#: src/feedchefmodifiers.py:359
+msgid "Until you refresh; a boost counts for the person who boosted"
+msgstr "Hasta que actualices; un impulso cuenta para quien impulsó"
+
+#: src/feedchefmodifiers.py:365
+msgid "Boost Trending Topics"
+msgstr "Impulsar temas en tendencia"
+
+#: src/feedchefmodifiers.py:366
+msgid ""
+"Posts on hashtags many people are using now, and posts trending on the "
+"server, rank higher"
+msgstr "Las publicaciones con hashtags que mucha gente usa ahora, y las que están en tendencia en el servidor, se posicionan más arriba"
+
+#: src/feedchefmodifiers.py:368
+msgid "Minimum Momentum"
+msgstr "Ritmo mínimo"
+
+#: src/feedchefmodifiers.py:368
+msgid "How fast a hashtag must be growing, in percent"
+msgstr "Qué tan rápido debe crecer un hashtag, en porcentaje"
+
+#: src/feedchefmodifiers.py:375
+msgid "Favor Positive Posts"
+msgstr "Favorecer publicaciones positivas"
+
+#: src/feedchefmodifiers.py:376
+msgid "English and Portuguese posts that read as positive rank higher"
+msgstr "Las publicaciones en inglés y portugués que se leen como positivas se posicionan más arriba"
+
+#: src/feedchefmodifiers.py:378
+msgid "Strength"
+msgstr "Intensidad"
+
+#: src/feedchefmodifiers.py:378
+msgid "In percent"
+msgstr "En porcentaje"
+
+#. Translators: %(groups)d is the most groups a page is split into
+#. and %(posts)d the fewest posts it needs to be split at all.
+#: src/feedchefmodifiers.py:386
+#, python-format
+msgid ""
+"Posts that read alike form up to %(groups)d groups, and only some of each "
+"group show. Needs %(posts)d posts or more."
+msgstr "Las publicaciones que se leen parecido forman hasta %(groups)d grupos, y solo algunas de cada grupo se muestran. Hacen falta %(posts)d publicaciones o más."
+
+#: src/feedchefmodifiers.py:389
+msgid "Posts per Group"
+msgstr "Publicaciones por grupo"
+
+#: src/feedchefmodifiers.py:389
+msgid "How many posts of each group stay"
+msgstr "Cuántas publicaciones de cada grupo se quedan"
+
+#: src/feedchefrelax.py:24
+msgid "The recipe no longer exists, so nothing was restored"
+msgstr "La receta ya no existe, así que no se restauró nada"
+
+#: src/feedchefshare.py:82
+msgid "Share Recipe"
+msgstr "Compartir receta"
+
+#: src/feedchefshare.py:104
+msgid "Scan the code or copy the link to share this recipe."
+msgstr "Escanea el código o copia el enlace para compartir esta receta."
+
+#: src/feedchefshare.py:107
+msgid "Share Link"
+msgstr "Enlace para compartir"
+
+#: src/feedchefshare.py:110
+msgid "This recipe is too large for a QR code. Copy the link instead."
+msgstr "Esta receta es demasiado grande para un código QR. Copia el enlace en su lugar."
+
+#: src/feedchefshare.py:116 src/profileactions.py:101 src/statusmenu.py:173
+#: src/webcolumn.py:198
+msgid "_Copy Link"
+msgstr "_Copiar enlace"
+
+#: src/feedchefshare.py:154
+msgid "QR code of the recipe’s share link"
+msgstr "Código QR del enlace para compartir de la receta"
+
+#: src/feedchefshare.py:170 src/feedchefpages.py:274
+msgid "Share link copied"
+msgstr "Enlace para compartir copiado"
+
+#: src/feedchefexperiment.py:50
+msgid "This recipe is getting less engagement"
+msgstr "Esta receta está recibiendo menos interacción"
+
+#: src/feedchefexperiment.py:51
+msgid "Improve…"
+msgstr "Mejorar…"
+
+#: src/feedchefexperiment.py:54
+msgid "Stop Experiment"
+msgstr "Detener experimento"
+
+#. Translators: the banner of a running experiment; %(done)d of
+#. %(total)d is how many of its refreshes have been tried.
+#: src/feedchefexperiment.py:75
+#, python-format
+msgid "Experiment running (%(done)d of %(total)d)"
+msgstr "Experimento en curso (%(done)d de %(total)d)"
+
+#: src/feedchefexperiment.py:114
+#, python-format
+msgid "“%s” needs attention"
+msgstr "«%s» necesita atención"
+
+#: src/feedchefexperiment.py:116
+msgid "_See Suggestions"
+msgstr "_Ver sugerencias"
+
+#: src/feedchefexperiment.py:155
+msgid "Could not apply this change"
+msgstr "No se pudo aplicar este cambio"
+
+#. Translators: a toast after a suggestion was applied; %s is the
+#. setting it changed, such as "Favor Fresh Posts".
+#: src/feedchefexperiment.py:174
+#, python-format
+msgid "Applied “%s”"
+msgstr "«%s» aplicado"
+
+#: src/feedchefexperiment.py:198
+msgid "There is nothing to try right now"
+msgstr "No hay nada que probar ahora"
+
+#: src/feedchefexperiment.py:209
+#, python-format
+msgid ""
+"Babble will alternate “%(change)s” with your recipe on your next %(count)d "
+"refresh, and keep it only if it does better. You can stop at any time."
+msgid_plural ""
+"Babble will alternate “%(change)s” with your recipe over your next %(count)d "
+"refreshes, and keep it only if it does better. You can stop at any time."
+msgstr[0] "Babble alternará «%(change)s» con tu receta en tu próxima actualización (%(count)d) y solo lo conservará si va mejor. Puedes detenerlo en cualquier momento."
+msgstr[1] "Babble alternará «%(change)s» con tu receta durante tus próximas %(count)d actualizaciones y solo lo conservará si va mejor. Puedes detenerlo en cualquier momento."
+
+#: src/feedchefexperiment.py:216
+msgid "Try This Change?"
+msgstr "¿Probar este cambio?"
+
+#: src/feedchefexperiment.py:218
+msgid "_Start Test"
+msgstr "_Iniciar prueba"
+
+#: src/feedchefexperiment.py:271
+msgid "The experiment ended because the recipe was changed"
+msgstr "El experimento terminó porque se modificó la receta"
+
+#: src/feedchefexperiment.py:302
+msgid ""
+"Experiment finished: the change did not help, so your recipe stays as it was"
+msgstr "Experimento terminado: el cambio no ayudó, así que tu receta queda como estaba"
+
+#: src/feedchefexperiment.py:308
+msgid "Could not keep the change"
+msgstr "No se pudo conservar el cambio"
+
+#: src/feedchefexperiment.py:318
+msgid "Experiment finished: change kept"
+msgstr "Experimento terminado: cambio conservado"
+
+#. Edited since: nothing of the reader's is overwritten.
+#: src/feedchefexperiment.py:336
+msgid "Experiment stopped; your later edits were kept"
+msgstr "Experimento detenido; se conservaron tus ediciones posteriores"
+
+#: src/feedchefexperiment.py:338
+msgid "Experiment stopped; change undone"
+msgstr "Experimento detenido; cambio deshecho"
+
+#: src/feedchefexperiment.py:341
+msgid "Experiment stopped; recipe unchanged"
+msgstr "Experimento detenido; receta sin cambios"
+
+#: src/feedchefexplain.py:81
+msgid "Why This Post?"
+msgstr "¿Por qué esta publicación?"
+
+#: src/feedchefexplain.py:85
+msgid "No Record for This Post"
+msgstr "Sin registro de esta publicación"
+
+#: src/feedchefexplain.py:86
+msgid ""
+"This post isn’t in the record Feed Chef keeps while this timeline is open."
+msgstr "Esta publicación no está en el registro que Feed Chef conserva mientras esta cronología está abierta."
+
+#: src/feedchefexplain.py:104
+msgid "Improve This Recipe"
+msgstr "Mejorar esta receta"
+
+#: src/feedchefexplain.py:105 src/feedchefpages.py:358
+msgid "Kitchen Report"
+msgstr "Informe de la cocina"
+
+#: src/feedchefexplain.py:122
+msgid "_Copy Report"
+msgstr "_Copiar informe"
+
+#: src/feedchefexplain.py:127
+msgid "Open _Logs Folder"
+msgstr "Abrir carpeta de _registros"
+
+#: src/feedchefexplain.py:136
+msgid "Clear _Audit Logs"
+msgstr "Borrar registros de _auditoría"
+
+#: src/feedchefexplain.py:145
+msgid "No Report Yet"
+msgstr "Aún no hay informe"
+
+#: src/feedchefexplain.py:146
+msgid "Load some posts in this timeline, and a summary will appear here."
+msgstr "Carga algunas publicaciones en esta cronología y aquí aparecerá un resumen."
+
+#: src/feedchefexplain.py:154
+msgid "Report copied"
+msgstr "Informe copiado"
+
+#: src/feedchefexplain.py:159
+msgid "There are no audit logs yet"
+msgstr "Aún no hay registros de auditoría"
+
+#: src/feedchefexplain.py:167
+msgid "Could not open the folder"
+msgstr "No se pudo abrir la carpeta"
+
+#: src/feedchefexplain.py:171
+msgid "Clear Audit Logs?"
+msgstr "¿Borrar los registros de auditoría?"
+
+#: src/feedchefexplain.py:172
+msgid ""
+"This deletes the audit history Feed Chef keeps on this computer, for all "
+"your recipes. Your recipes and timelines are not affected."
+msgstr "Esto elimina el historial de auditoría que Feed Chef conserva en este equipo, de todas tus recetas. Tus recetas y cronologías no se ven afectadas."
+
+#: src/feedchefexplain.py:175
+msgid "_Clear Logs"
+msgstr "_Borrar registros"
+
+#: src/feedchefexplain.py:182
+msgid "Audit logs cleared"
+msgstr "Registros de auditoría borrados"
+
+#: src/feedcheffocus.py:31
+msgid "Nothing to focus on in this post"
+msgstr "Nada en lo que enfocarse en esta publicación"
+
+#: src/feedcheffocus.py:39
+msgid "Focus set from this post"
+msgstr "Enfoque establecido a partir de esta publicación"
+
+#. Translators: %(terms)s lists the first hashtags and words
+#. the timeline is focused on, such as "#a, #b, #c"; %(count)d
+#. is how many more there are.
+#: src/feedcheffocus.py:70
+#, python-format
+msgid "%(terms)s and %(count)d more"
+msgid_plural "%(terms)s and %(count)d more"
+msgstr[0] "%(terms)s y %(count)d más"
+msgstr[1] "%(terms)s y %(count)d más"
+
+#: src/feedcheffocus.py:79
+#, python-format
+msgid "No post here matches %s; showing your recipe’s order"
+msgstr "Ninguna publicación coincide con %s; se muestra el orden de tu receta"
+
+#. Translators: %s lists the hashtags and words the timeline
+#. is focused on, for example "#python, decorators".
+#: src/feedcheffocus.py:84
+#, python-format
+msgid "Showing more like %s"
+msgstr "Mostrando más como %s"
+
+#: src/feedchefmodes.py:44 src/wrapped.py:227
+msgid "Style"
+msgstr "Estilo"
+
+#: src/feedchefmodes.py:45
+msgid ""
+"A starting point for how many posts you see and how engaging they are. The "
+"settings below follow it."
+msgstr "Un punto de partida para cuántas publicaciones ves y cuánta interacción tienen. Los ajustes de abajo lo siguen."
+
+#: src/feedchefmodes.py:49
+msgid "Mode"
+msgstr "Modo"
+
+#: src/feedchefmodes.py:58
+msgid "Balanced"
+msgstr "Equilibrado"
+
+#: src/feedchefmodes.py:61
+msgid "More Posts or Better Posts"
+msgstr "Más publicaciones o mejores publicaciones"
+
+#: src/feedchefnewrecipe.py:36
+msgid "Start From"
+msgstr "Empezar desde"
+
+#: src/feedchefnewrecipe.py:37
+msgid "You can change everything in the builder"
+msgstr "Puedes cambiarlo todo en el constructor"
+
+#: src/feedchefquality.py:170
+#, python-format
+msgid "Recipe health: %s"
+msgstr "Salud de la receta: %s"
+
+#: src/feedchefqualityview.py:56
+msgid "Excellent"
+msgstr "Excelente"
+
+#: src/feedchefqualityview.py:56
+msgid "Good"
+msgstr "Buena"
+
+#: src/feedchefqualityview.py:57
+msgid "Moderate"
+msgstr "Moderada"
+
+#: src/feedchefqualityview.py:57
+msgid "Poor"
+msgstr "Mala"
+
+#: src/feedchefqualityview.py:104
+msgid "Quality"
+msgstr "Calidad"
+
+#: src/feedchefqualityview.py:106
+msgid "How People Engaged"
+msgstr "Cómo interactuó la gente"
+
+#: src/feedchefqualityview.py:107
+msgid "The posts shown, by how much people reacted"
+msgstr "Las publicaciones mostradas, según cuánto reaccionó la gente"
+
+#: src/feedchefqualityview.py:109
+msgid "Posts at Each Stage"
+msgstr "Publicaciones en cada etapa"
+
+#: src/feedchefqualityview.py:110
+msgid "From your source, through your diet, to your timeline"
+msgstr "Desde tu origen, pasando por tu dieta, hasta tu cronología"
+
+#: src/feedchefqualityview.py:112
+msgid "Issues"
+msgstr "Problemas"
+
+#: src/feedchefqualityview.py:114
+msgid "Suggestions"
+msgstr "Sugerencias"
+
+#: src/feedchefqualityview.py:118
+msgid "Analyzing…"
+msgstr "Analizando…"
+
+#: src/feedchefqualityview.py:154
+msgid "Could Not Analyze This Recipe"
+msgstr "No se pudo analizar esta receta"
+
+#: src/feedchefqualityview.py:155
+msgid "The rest of the report is not affected"
+msgstr "El resto del informe no se ve afectado"
+
+#: src/feedchefqualityview.py:170
+msgid "Freshness Minimum Applied"
+msgstr "Mínimo de actualidad aplicado"
+
+#: src/feedchefqualityview.py:171
+msgid "Some posts were older than the freshness window; a minimum was applied"
+msgstr "Algunas publicaciones eran más antiguas que la ventana de actualidad; se aplicó un mínimo"
+
+#: src/feedchefqualityview.py:176
+msgid "No Score Yet"
+msgstr "Aún sin puntuación"
+
+#: src/feedchefqualityview.py:177
+msgid "The score comes from the posts the last cook showed"
+msgstr "La puntuación sale de las publicaciones que mostró la última cocción"
+
+#: src/feedchefqualityview.py:180
+msgid "Latest Cook"
+msgstr "Última cocción"
+
+#. Translators: under the recipe's health; %(count)d is how many
+#. cooks the average is over and %(mean)s the average score.
+#: src/feedchefqualityview.py:191
+#, python-format
+msgid "Average over the last cook: %(mean)s"
+msgid_plural "Average over the last %(count)d cooks: %(mean)s"
+msgstr[0] "Media de la última cocción: %(mean)s"
+msgstr[1] "Media de las últimas %(count)d cocciones: %(mean)s"
+
+#: src/feedchefqualityview.py:195
+msgid "Needs a few more cooks to judge"
+msgstr "Hacen falta algunas cocciones más para juzgar"
+
+#: src/feedchefqualityview.py:199
+msgid "One good cook does not change the average"
+msgstr "Una buena cocción no cambia la media"
+
+#: src/feedchefqualityview.py:201
+msgid "One poor cook does not change the average"
+msgstr "Una mala cocción no cambia la media"
+
+#: src/feedchefqualityview.py:202
+msgid "Recipe Health"
+msgstr "Salud de la receta"
+
+#: src/feedchefqualityview.py:228
+msgid "Posts from your source and hashtags"
+msgstr "Publicaciones de tu origen y tus hashtags"
+
+#: src/feedchefqualityview.py:229
+msgid "Posts that passed your diet"
+msgstr "Publicaciones que pasaron tu dieta"
+
+#: src/feedchefqualityview.py:242
+msgid "Issues show once this recipe has been cooked a few times"
+msgstr "Los problemas aparecen cuando esta receta se ha cocinado algunas veces"
+
+#: src/feedchefqualityview.py:250
+msgid "No Issues Found"
+msgstr "No se encontraron problemas"
+
+#: src/feedchefqualityview.py:260
+msgid "This recipe looks fine"
+msgstr "Esta receta se ve bien"
+
+#. Translators: the title of an important suggestion; %s is
+#. what it changes. The icon alone would not say it.
+#: src/feedchefqualityview.py:269
+#, python-format
+msgid "Important: %s"
+msgstr "Importante: %s"
+
+#: src/feedchefqualityview.py:272
+msgid "Choose this yourself in the recipe builder"
+msgstr "Elígelo tú mismo en el constructor de recetas"
+
+#: src/feedchefqualityview.py:279 src/feedchefqualityview.py:331
+msgid "Apply"
+msgstr "Aplicar"
+
+#. Translators: the accessible name of a suggestion's Apply
+#. button; %s is what it changes, such as "Favor Fresh
+#. Posts: 6 hours → 12 hours".
+#: src/feedchefqualityview.py:285
+#, python-format
+msgid "Apply: %s"
+msgstr "Aplicar: %s"
+
+#: src/feedchefqualityview.py:295
+msgid "Experiment Running"
+msgstr "Experimento en curso"
+
+#: src/feedchefqualityview.py:303 src/feedchefqualityview.py:309
+msgid "Try a Change"
+msgstr "Probar un cambio"
+
+#: src/feedchefqualityview.py:304
+msgid ""
+"Test the most useful suggestion on your next refreshes, and keep it only if "
+"it does better"
+msgstr "Prueba la sugerencia más útil en tus próximas actualizaciones y consérvala solo si va mejor"
+
+#: src/feedchefqualityview.py:307
+msgid "Try…"
+msgstr "Probar…"
+
+#: src/feedchefqualityview.py:325
+msgid "Applied"
+msgstr "Aplicado"
+
+#: src/feedchefpages.py:116
+msgid "No Recipes Yet"
+msgstr "Aún no hay recetas"
+
+#: src/feedchefpages.py:117
+msgid "A recipe turns your timelines into a feed of your own"
+msgstr "Una receta convierte tus cronologías en una propia"
+
+#: src/feedchefpages.py:190
+msgid "_Unpin From Sidebar"
+msgstr "_Desfijar de la barra lateral"
+
+#: src/feedchefpages.py:191
+msgid "_Pin to Sidebar"
+msgstr "_Fijar en la barra lateral"
+
+#: src/feedchefpages.py:192
+msgid "_Copy Share Link"
+msgstr "_Copiar enlace para compartir"
+
+#. Translators: tooltip and accessible name of a recipe's menu
+#. button; %s is the recipe's name.
+#: src/feedchefpages.py:206
+#, python-format
+msgid "Options for “%s”"
+msgstr "Opciones de «%s»"
+
+#: src/feedchefpages.py:251 src/feedchefpages.py:684
+msgid "Recipe saved"
+msgstr "Receta guardada"
+
+#: src/feedchefpages.py:259
+msgid "Removed from the sidebar"
+msgstr "Quitada de la barra lateral"
+
+#: src/feedchefpages.py:262
+msgid "Pinned to the sidebar"
+msgstr "Fijada en la barra lateral"
+
+#: src/feedchefpages.py:304
+msgid "Recipe deleted"
+msgstr "Receta eliminada"
+
+#: src/feedchefpages.py:362 src/feedchefpreview.py:83
+msgid "Cooking Your Timeline"
+msgstr "Cocinando tu cronología"
+
+#: src/feedchefpages.py:363 src/feedchefpages.py:395 src/feedchefpages.py:397
+#: src/feedchefpreview.py:87
+msgid "Could Not Load This Recipe"
+msgstr "No se pudo cargar esta receta"
+
+#. The focus banner sits above the timeline's own stack.
+#: src/feedchefpages.py:370
+msgid "Clear Focus"
+msgstr "Quitar enfoque"
+
+#: src/feedchefpages.py:393
+msgid "Could Not Check Who You Follow"
+msgstr "No se pudo comprobar a quién sigues"
+
+#. Translators: a toast; the first %s is the heat level the recipe
+#. asks for, such as "Fire", and the second the cooler one the page
+#. used instead, such as "Hot" (or "every post"), because the page
+#. would have kept fewer than five posts.
+#: src/feedchefpages.py:413
+#, python-format
+msgid "Too few posts for %(asked)s. Showing %(used)s."
+msgstr "Hay muy pocas publicaciones para %(asked)s. Se muestra %(used)s."
+
+#: src/feedchefpages.py:425
+msgid "Popular"
+msgstr "Popular"
+
+#: src/feedchefpages.py:426
+msgid "Popular, among the most engaging posts"
+msgstr "Popular, entre las publicaciones con más interacción"
+
+#: src/feedchefpages.py:478
+msgid "Load Older Posts"
+msgstr "Cargar publicaciones más antiguas"
+
+#: src/feedchefpages.py:527
+msgid "No Matching Posts Yet"
+msgstr "Aún no hay publicaciones coincidentes"
+
+#: src/feedchefpages.py:529
+msgid "Older posts may still match this recipe"
+msgstr "Las publicaciones más antiguas aún pueden coincidir con esta receta"
+
+#: src/feedchefpages.py:531 src/feedchefpages.py:535 src/feedchefpreview.py:89
+msgid "No Matching Posts"
+msgstr "Ninguna publicación coincidente"
+
+#: src/feedchefpages.py:533
+msgid "The source has no posts yet"
+msgstr "El origen aún no tiene publicaciones"
+
+#: src/feedchefpages.py:537 src/feedchefpreview.py:91
+msgid "Try fewer filters or a wider scope"
+msgstr "Prueba con menos filtros o un alcance más amplio"
+
+#: src/feedchefpages.py:607 src/feedchefpreview.py:84
+msgid "Gathering posts…"
+msgstr "Reuniendo publicaciones…"
+
+#: src/feedchefpages.py:610
+msgid "Applying your diet…"
+msgstr "Aplicando tu dieta…"
+
+#: src/feedchefpages.py:611
+msgid "Seasoning…"
+msgstr "Sazonando…"
+
+#. Translators: post menu entries; the underscore marks the access
+#. key (L and W), which no other entry of that menu uses.
+#: src/feedchefpages.py:621
+msgid "More _Like This"
+msgstr "_Más como esto"
+
+#: src/feedchefpages.py:622
+msgid "_Why This Post?"
+msgstr "¿_Por qué esta publicación?"
+
+#. Deleted since (in another window, or under an Undo toast):
+#. saving would bring it back.
+#: src/feedchefpages.py:662
+msgid "This recipe no longer exists"
+msgstr "Esta receta ya no existe"
+
+#: src/feedchefpages.py:720
+msgid "Replace Recipe?"
+msgstr "¿Reemplazar la receta?"
+
+#: src/feedchefpages.py:721
+#, python-format
+msgid "This replaces your recipe “%s”."
+msgstr "Esto reemplaza tu receta «%s»."
+
+#: src/feedchefpages.py:722
+msgid "_Replace"
+msgstr "_Reemplazar"
+
+#: src/feedchefpages.py:727
+msgid "Import Recipe?"
+msgstr "¿Importar la receta?"
+
+#: src/feedchefpages.py:728
+#, python-format
+msgid "Import “%s” into this account?"
+msgstr "¿Importar «%s» en esta cuenta?"
+
+#: src/feedchefpages.py:729
+msgid "_Import"
+msgstr "_Importar"
+
+#: src/feedchefpages.py:736
+msgid "_Preview"
+msgstr "_Vista previa"
+
+#: src/feedchefpages.py:755
+msgid "Recipe imported"
+msgstr "Receta importada"
+
+#. Translators: the label of the pill on a recipe's timeline when
+#. new posts that score well arrived; %d is how many.
+#: src/feedchefpeek.py:366
+#, python-format
+msgid "%d New Post Worth Seeing"
+msgid_plural "%d New Posts Worth Seeing"
+msgstr[0] "%d publicación nueva que vale la pena ver"
+msgstr[1] "%d publicaciones nuevas que valen la pena ver"
+
+#: src/feedchefsource.py:348
+msgid "The posts of this recipe did not load in time. Try again."
+msgstr "Las publicaciones de esta receta no se cargaron a tiempo. Inténtalo de nuevo."
+
+#: src/feedchefsource.py:354
+msgid ""
+"Your list of follows could not be loaded, so nothing is shown rather than "
+"posts from people you do not follow."
+msgstr "No se pudo cargar tu lista de seguidos, así que no se muestra nada en lugar de publicaciones de gente a la que no sigues."
+
+#: src/feedchefpreview.py:120 src/feedchefpreview.py:122
+msgid "Preview"
+msgstr "Vista previa"
+
 #: src/filters.py:29
 msgid "Home and Lists"
 msgstr "Inicio y listas"
@@ -3502,7 +5698,7 @@ msgstr "Inicio y listas"
 msgid "Public Timelines"
 msgstr "Cronologías públicas"
 
-#: src/filters.py:32 src/navigation.py:77
+#: src/filters.py:32 src/navigation.py:95
 msgid "Conversations"
 msgstr "Conversaciones"
 
@@ -3652,11 +5848,6 @@ msgstr "Sin filtros"
 msgid "Hide or warn about posts that match keywords"
 msgstr ""
 "Ocultar o advertir sobre publicaciones que coincidan con palabras clave"
-
-#: src/filters.py:393 src/filters.py:485 src/filters.py:489
-#: src/preferences.py:491
-msgid "Filters"
-msgstr "Filtros"
 
 #. Translators: second line of a hashtag suggestion in the composer,
 #. under the hashtag: you have used it in your posts recently.
@@ -4002,10 +6193,6 @@ msgstr "Sin publicaciones en esta lista"
 msgid "Add members to the list to see their posts"
 msgstr "Añade miembros a la lista para ver sus publicaciones"
 
-#: src/lists.py:529 src/navigation.py:300 src/navigation.py:350
-msgid "List"
-msgstr "Lista"
-
 #: src/lists.py:550
 msgid "Delete List"
 msgstr "Eliminar lista"
@@ -4040,7 +6227,7 @@ msgstr "_Nueva lista"
 msgid "Add to Lists"
 msgstr "Añadir a listas"
 
-#: src/lists.py:667 src/navigation.py:81
+#: src/lists.py:667 src/navigation.py:99
 msgid "Lists"
 msgstr "Listas"
 
@@ -4058,13 +6245,29 @@ msgstr "Aún no tienes listas"
 msgid "Could not load the lists: %s"
 msgstr "No se pudieron cargar las listas: %s"
 
+#: src/main.py:366
+msgid "Could not read that Feed Chef link"
+msgstr "No se pudo leer ese enlace de Feed Chef"
+
+#: src/main.py:369
+msgid "Sign in to import this recipe"
+msgstr "Inicia sesión para importar esta receta"
+
+#: src/main.py:375
+msgid "Feed Chef is turned off"
+msgstr "Feed Chef está desactivado"
+
+#: src/main.py:376
+msgid "Turn On"
+msgstr "Activar"
+
 #. Translators: toast when a web+ap:// or web+mastodon:// link
 #. is opened before any account is signed in.
-#: src/main.py:350
+#: src/main.py:408
 msgid "Sign in to open this link"
 msgstr "Iniciar sesión para abrir este enlace"
 
-#: src/main.py:391
+#: src/main.py:449
 msgid "translator-credits"
 msgstr "créditos del traductor"
 
@@ -4124,10 +6327,6 @@ msgstr "Vídeo"
 #: src/mediabox.py:441
 msgid "Animated Image"
 msgstr "Imagen animada"
-
-#: src/mediabox.py:441 src/mediaviewer.py:299
-msgid "Audio"
-msgstr "Audio"
 
 #: src/mediabox.py:510 src/mediabox.py:692
 msgid "Show Sensitive Content"
@@ -4194,13 +6393,13 @@ msgstr "Reproduciendo medios"
 
 #: src/mediapip.py:197 src/mediapip.py:263
 msgid "Pause"
-msgstr ""
+msgstr "Pausar"
 
 #. Translators: the Picture-in-Picture card button that puts the
 #. media back into the full-size viewer.
 #: src/mediapip.py:210 src/webpip.py:287
 msgid "Expand"
-msgstr ""
+msgstr "Expandir"
 
 #: src/mediapip.py:217 src/mediaviewerchrome.py:62 src/mediaviewerchrome.py:64
 #: src/webpip.py:293
@@ -4210,13 +6409,12 @@ msgstr "_Cerrar"
 #. Translators: the stream ended; this button starts it from
 #. the beginning again.
 #: src/mediapip.py:260
-#, fuzzy
 msgid "Replay"
-msgstr "Responder"
+msgstr "Repetir"
 
 #: src/mediapip.py:266
 msgid "Play"
-msgstr ""
+msgstr "Reproducir"
 
 #: src/mediaplayback.py:58 src/mediaviewer.py:88
 #, python-brace-format
@@ -4331,7 +6529,7 @@ msgstr "Multimedia"
 
 #: src/mediaviewerchrome.py:76 src/webcolumn.py:195 src/webcolumn.py:207
 msgid "Minimize to Picture-in-Picture"
-msgstr ""
+msgstr "Minimizar a imagen en imagen"
 
 #: src/mediaviewerchrome.py:81
 msgid "_Copy URL"
@@ -4401,48 +6599,44 @@ msgstr "Cuentas sugeridas"
 msgid "Type a name to search"
 msgstr "Escribe un nombre para buscar"
 
-#: src/navigation.py:75 src/window.ui:489
-msgid "Home"
-msgstr "Inicio"
+#. Translators: recipe-driven continuous timeline (not Catch Up)
+#. No mnemonic: `_F` would clash with Federated Timeline on this page.
+#. Translators: the subtitle of the Feed Chef switch; "restart" is
+#. the app, not the computer
+#: src/navigation.py:93 src/navigation.py:349 src/preferences.py:541
+msgid "Feed Chef"
+msgstr "Feed Chef"
 
-#: src/navigation.py:78 src/notificationcopy.py:64 src/statusviews.py:25
+#: src/navigation.py:96 src/notificationcopy.py:64 src/statusviews.py:25
 #: src/statusviews.py:113 src/statusviews.py:115
 msgid "Favorites"
 msgstr "Favoritos"
 
-#: src/navigation.py:78
+#: src/navigation.py:96
 msgid "Bookmarks"
 msgstr "Marcadores"
 
-#: src/navigation.py:79
-msgid "Explore"
-msgstr "Explorar"
-
-#: src/navigation.py:80
-msgid "Federated"
-msgstr "Federada"
-
-#: src/navigation.py:324 src/statusviews.py:78
+#: src/navigation.py:387 src/statusviews.py:78
 msgid "No Favorites Yet"
 msgstr "Aún no hay favoritos"
 
-#: src/navigation.py:324
+#: src/navigation.py:387
 msgid "Posts you favorite will appear here"
 msgstr "Las publicaciones que marques como favoritas aparecerán aquí"
 
-#: src/navigation.py:328
+#: src/navigation.py:391
 msgid "No Bookmarks Yet"
 msgstr "Aún no hay marcadores"
 
-#: src/navigation.py:328
+#: src/navigation.py:391
 msgid "Posts you bookmark will appear here"
 msgstr "Las publicaciones que añadas a marcadores aparecerán aquí"
 
-#: src/navigation.py:341 src/timelinepage.py:233
+#: src/navigation.py:404 src/timelinepage.py:233
 msgid "No Posts Yet"
 msgstr "Aún no hay publicaciones"
 
-#: src/navigation.py:341 src/timelinepage.py:234
+#: src/navigation.py:404 src/timelinepage.py:234
 msgid "New posts will appear here"
 msgstr "Las publicaciones nuevas aparecerán aquí"
 
@@ -4973,7 +7167,7 @@ msgid_plural "%d votes"
 msgstr[0] "%d voto"
 msgstr[1] "%d votos"
 
-#: src/notificationpost.py:175 src/statusrow.py:93
+#: src/notificationpost.py:175 src/statusrow.py:94
 msgid "Show _Anyway"
 msgstr "Mostrar _de todos modos"
 
@@ -5349,10 +7543,6 @@ msgid "Large"
 msgstr "Grande"
 
 #: src/preferences.py:51
-msgid "Off"
-msgstr "Desactivado"
-
-#: src/preferences.py:51
 msgid "Every 30 seconds"
 msgstr "Cada 30 segundos"
 
@@ -5423,7 +7613,7 @@ msgstr "Apariencia"
 msgid "_Language"
 msgstr "_Idioma"
 
-#: src/preferences.py:328 src/preferences.py:646
+#: src/preferences.py:328 src/preferences.py:653
 msgid "System language"
 msgstr "Idioma del sistema"
 
@@ -5818,35 +8008,41 @@ msgstr "Elige qué cronologías ofrece la barra lateral"
 msgid "Summarize what you missed in your home timeline"
 msgstr "Resumir lo que perdiste en tu cronología de inicio"
 
-#: src/preferences.py:538
+#: src/preferences.py:542
+msgid ""
+"Recipe timelines; uses more memory and network. Turning it off closes its "
+"pages now and frees the rest after a restart"
+msgstr "Cronologías de recetas; usa más memoria y red. Al desactivarlo se cierran sus páginas ahora y el resto se libera tras reiniciar"
+
+#: src/preferences.py:545
 msgid "_Explore"
 msgstr "_Explorar"
 
-#: src/preferences.py:539
+#: src/preferences.py:546
 msgid "Show posts trending on your server"
 msgstr "Muestra publicaciones en tendencia en tu servidor"
 
-#: src/preferences.py:540
+#: src/preferences.py:547
 msgid "_Local Timeline"
 msgstr "Cronología _local"
 
-#: src/preferences.py:541
+#: src/preferences.py:548
 msgid "Show posts from your server"
 msgstr "Muestra publicaciones de tu servidor"
 
-#: src/preferences.py:542
+#: src/preferences.py:549
 msgid "_Federated Timeline"
 msgstr "Cronología _federada"
 
-#: src/preferences.py:543
+#: src/preferences.py:550
 msgid "Show posts from all known servers"
 msgstr "Muestra publicaciones de todos los servidores conocidos"
 
-#: src/preferences.py:546
+#: src/preferences.py:553
 msgid "Disabled _Timelines"
 msgstr "Cronologías _deshabilitadas"
 
-#: src/preferences.py:547
+#: src/preferences.py:554
 msgid ""
 "Your server has turned these timelines off, but this account may still read "
 "them"
@@ -5854,11 +8050,11 @@ msgstr ""
 "Tu servidor ha desactivado estas cronologías, pero esta cuenta aún puede "
 "leerlas"
 
-#: src/preferences.py:555
+#: src/preferences.py:562
 msgid "_Boosts Carousel"
 msgstr "_Carrusel de impulsos"
 
-#: src/preferences.py:556
+#: src/preferences.py:563
 msgid ""
 "When a page of posts is mostly boosts, fold them into a horizontal carousel "
 "instead of one row each. Applies to timelines opened afterwards"
@@ -5867,11 +8063,11 @@ msgstr ""
 "carrusel horizontal en lugar de una fila para cada uno. Se aplica a las "
 "cronologías abiertas después"
 
-#: src/preferences.py:559
+#: src/preferences.py:566
 msgid "Si_ngle Boost per Post"
 msgstr "_Un impulso por publicación"
 
-#: src/preferences.py:560
+#: src/preferences.py:567
 msgid ""
 "Show only the first boost of a post that several people boosted. Applies to "
 "timelines opened afterwards"
@@ -5879,23 +8075,23 @@ msgstr ""
 "Muestra solo el primer impulso de una publicación impulsada por varias "
 "personas. Se aplica a las cronologías abiertas después"
 
-#: src/preferences.py:577
+#: src/preferences.py:584
 msgid "Posting"
 msgstr "Publicación"
 
-#: src/preferences.py:581
+#: src/preferences.py:588
 msgid "Defaults for New Posts"
 msgstr "Valores predeterminados para publicaciones nuevas"
 
-#: src/preferences.py:582
+#: src/preferences.py:589
 msgid "Changes are also saved to your server preferences"
 msgstr "Los cambios también se guardan en las preferencias de tu servidor"
 
-#: src/preferences.py:584
+#: src/preferences.py:591
 msgid "Default _Visibility"
 msgstr "_Visibilidad predeterminada"
 
-#: src/preferences.py:594
+#: src/preferences.py:601
 msgid "Default _Quote Policy"
 msgstr "Política de _citas predeterminada"
 
@@ -5904,57 +8100,57 @@ msgstr "Política de _citas predeterminada"
 #. source preferences, which is where this is
 #. sent. Say so, rather than letting the row
 #. read as a Babble-side switch.
-#: src/preferences.py:600
+#: src/preferences.py:607
 msgid "Saved to your server preferences, so it applies to every new post"
 msgstr ""
 "Se guarda en las preferencias de tu servidor y se aplica a cada publicación "
 "nueva"
 
-#: src/preferences.py:605
+#: src/preferences.py:612
 msgid "Media Marked _Sensitive"
 msgstr "_Multimedia marcada como sensible"
 
-#: src/preferences.py:611
+#: src/preferences.py:618
 msgid "Server _Preferences"
 msgstr "_Preferencias del servidor"
 
 #. Without a callback the refusal is silent, and the row
 #. looks like it did nothing. The wording is the one
 #. window.open_url already uses, so it is one string.
-#: src/preferences.py:638 src/windowlogin.py:236 src/windowlogin.py:241
+#: src/preferences.py:645 src/windowlogin.py:236 src/windowlogin.py:241
 msgid "Could not open the web browser"
 msgstr "No se pudo abrir el navegador"
 
-#: src/preferences.py:647
+#: src/preferences.py:654
 msgid "Default _Language"
 msgstr "_Idioma predeterminado"
 
-#: src/preferences.py:670
+#: src/preferences.py:677
 msgid "Desktop Notifications"
 msgstr "Notificaciones de escritorio"
 
-#: src/preferences.py:671
+#: src/preferences.py:678
 msgid "Announced while the window is not focused"
 msgstr "Se anuncian cuando la ventana no tiene el foco"
 
-#: src/preferences.py:680
+#: src/preferences.py:687
 msgid "Grouped _Notifications"
 msgstr "_Notificaciones agrupadas"
 
-#: src/preferences.py:681
+#: src/preferences.py:688
 msgid "Combine notifications of the same type and post into one"
 msgstr "Combina en una las notificaciones del mismo tipo y publicación"
 
-#: src/preferences.py:691 plugins/hashpanel/babble_hashpanel.py:278
+#: src/preferences.py:698 plugins/hashpanel/babble_hashpanel.py:278
 #: plugins/nareal/babble_nareal.py:441 plugins/wallabag/babble_wallabag.py:391
 msgid "Server"
 msgstr "Servidor"
 
-#: src/preferences.py:693
+#: src/preferences.py:700
 msgid "Notification _Filtering"
 msgstr "_Filtrado de notificaciones"
 
-#: src/preferences.py:694
+#: src/preferences.py:701
 msgid "Choose whose notifications reach you"
 msgstr "Elige de quién te llegan las notificaciones"
 
@@ -6038,7 +8234,7 @@ msgstr[1] "Mostrar los %d perfiles"
 msgid "No Featured Profiles"
 msgstr "Sin perfiles destacados"
 
-#: src/profile.py:434 src/sidebarhost.py:321 src/statusrow.py:156
+#: src/profile.py:434 src/sidebarhost.py:323 src/statusrow.py:157
 msgid "Pinned"
 msgstr "Fijadas"
 
@@ -6152,11 +8348,7 @@ msgstr "_Mensaje directo"
 msgid "Copy _Handle"
 msgstr "Copiar _identificador"
 
-#: src/profileactions.py:101 src/statusmenu.py:163 src/webcolumn.py:198
-msgid "_Copy Link"
-msgstr "_Copiar enlace"
-
-#: src/profileactions.py:102 src/statusmenu.py:162 src/webcolumn.py:197
+#: src/profileactions.py:102 src/statusmenu.py:172 src/webcolumn.py:197
 msgid "Open in _Browser"
 msgstr "Abrir en el _navegador"
 
@@ -6282,7 +8474,7 @@ msgstr ""
 "No podrá seguirte ni ver tus publicaciones, y sus publicaciones se te "
 "ocultarán."
 
-#: src/profileactions.py:244 src/profileactions.py:387 src/statusmenu.py:629
+#: src/profileactions.py:244 src/profileactions.py:387 src/statusmenu.py:670
 #, python-format
 msgid "Blocked %s"
 msgstr "%s bloqueado"
@@ -6340,7 +8532,7 @@ msgstr "No se pudo bloquear el dominio"
 msgid "Could not unblock domain"
 msgstr "No se pudo desbloquear el dominio"
 
-#: src/profileactions.py:399 src/statusmenu.py:610
+#: src/profileactions.py:399 src/statusmenu.py:651
 #, python-format
 msgid "Muted %s"
 msgstr "%s silenciado"
@@ -6510,10 +8702,6 @@ msgstr "Quitar campo"
 msgid "Field %d"
 msgstr "Campo %d"
 
-#: src/profileedit.py:250 src/profileedit.py:326
-msgid "Images"
-msgstr "Imágenes"
-
 #: src/profileedit.py:286
 msgid "Avatar"
 msgstr "Avatar"
@@ -6606,17 +8794,9 @@ msgstr "Idioma predeterminado"
 msgid "Profile Tabs"
 msgstr "Pestañas del perfil"
 
-#: src/profileedit.py:650
-msgid "Discard Changes?"
-msgstr "¿Descartar los cambios?"
-
 #: src/profileedit.py:651
 msgid "Your edits to the profile have not been saved."
 msgstr "Tus cambios en el perfil no se han guardado."
-
-#: src/profileedit.py:652
-msgid "_Keep Editing"
-msgstr "_Seguir editando"
 
 #: src/profileedit.py:735
 msgid "Profile updated"
@@ -6706,7 +8886,7 @@ msgstr "La propiedad de este enlace se verificó el %s"
 msgid "Verified Link"
 msgstr "Enlace verificado"
 
-#: src/profileheader.py:505 src/statusrow.py:592
+#: src/profileheader.py:505 src/statusrow.py:599
 msgid "Show Less"
 msgstr "Mostrar menos"
 
@@ -7540,11 +9720,11 @@ msgstr "No se pudo abrir la publicación citada"
 msgid "Collection %s"
 msgstr "Colección %s"
 
-#: src/statusactions.py:337 src/statusactions.py:442 src/statusmenu.py:252
+#: src/statusactions.py:337 src/statusactions.py:442 src/statusmenu.py:293
 msgid "Quote"
 msgstr "Citar"
 
-#: src/statusactions.py:344 src/statusmenu.py:254
+#: src/statusactions.py:344 src/statusmenu.py:295
 msgid "Bookmark"
 msgstr "Añadir a marcadores"
 
@@ -7631,159 +9811,159 @@ msgstr "Ocultar advertencia de contenido: %s"
 msgid "Show content warning: %s"
 msgstr "Mostrar advertencia de contenido: %s"
 
-#: src/statusmenu.py:161
+#: src/statusmenu.py:171
 msgid "_View Post"
 msgstr "_Ver publicación"
 
 #. S: B is Open in _Browser, and the other letters here are taken.
-#: src/statusmenu.py:166
+#: src/statusmenu.py:176
 msgid "View on Blue_sky"
 msgstr "Ver en Blue_sky"
 
-#: src/statusmenu.py:168
+#: src/statusmenu.py:178
 msgid "View S_tats"
 msgstr "Ver es_tadísticas"
 
-#: src/statusmenu.py:170
+#: src/statusmenu.py:180
 msgid "View Edit _History"
 msgstr "Ver _historial de ediciones"
 
 #. Not _Translate: View S_tats already takes T in this menu.
-#: src/statusmenu.py:179 src/statusrow.py:316
+#: src/statusmenu.py:192 src/statusrow.py:317
 msgid "Show _Original"
 msgstr "Mostrar _original"
 
-#: src/statusmenu.py:180
+#: src/statusmenu.py:193
 msgid "Tr_anslate"
 msgstr "Tr_aducir"
 
-#: src/statusmenu.py:182
+#: src/statusmenu.py:195
 msgid "Un_mute Conversation"
 msgstr "Dejar de si_lenciar conversación"
 
-#: src/statusmenu.py:183
+#: src/statusmenu.py:196
 msgid "_Mute Conversation"
 msgstr "_Silenciar conversación"
 
-#: src/statusmenu.py:186
+#: src/statusmenu.py:199
 msgid "_Unpin From Profile"
 msgstr "_Desfijar del perfil"
 
-#: src/statusmenu.py:187
+#: src/statusmenu.py:200
 msgid "_Pin to Profile"
 msgstr "_Fijar en el perfil"
 
-#: src/statusmenu.py:196
+#: src/statusmenu.py:209
 msgid "Who Can _Quote"
 msgstr "Quién puede _citar"
 
 #. Not _Remove…: Delete and _Redraft takes R in the same menu.
-#: src/statusmenu.py:199
+#: src/statusmenu.py:212
 msgid "Remove My Post _From Quote"
 msgstr "Quitar mi publicación de la _cita"
 
-#: src/statusmenu.py:206
+#: src/statusmenu.py:219
 msgid "Delete and _Redraft"
 msgstr "Eliminar y _reescribir"
 
 #. Access keys are unique across the whole open menu, not per
 #. section: _Mute Conversation (M), Open in _Browser (B) and
 #. Show _Original (O) already hold those letters in it.
-#: src/statusmenu.py:214
+#: src/statusmenu.py:227
 #, python-format
 msgid "Ment_ion %s"
 msgstr "Menc_ionar a %s"
 
-#: src/statusmenu.py:215
+#: src/statusmenu.py:228
 #, python-format
 msgid "M_ute %s"
 msgstr "_Silenciar a %s"
 
-#: src/statusmenu.py:216
+#: src/statusmenu.py:229
 #, python-format
 msgid "Bloc_k %s"
 msgstr "Bloque_ar a %s"
 
-#: src/statusmenu.py:217
+#: src/statusmenu.py:230
 msgid "_Report Post…"
 msgstr "_Denunciar publicación…"
 
-#: src/statusmenu.py:326
+#: src/statusmenu.py:367
 msgid "Link copied"
 msgstr "Enlace copiado"
 
-#: src/statusmenu.py:332
+#: src/statusmenu.py:373
 msgid "Only mentioned people will be able to view it."
 msgstr "Solo las personas mencionadas podrán verla."
 
-#: src/statusmenu.py:334
+#: src/statusmenu.py:375
 msgid "Only mentioned people and your followers will be able to view it."
 msgstr "Solo las personas mencionadas y tus seguidores podrán verla."
 
-#: src/statusmenu.py:337
+#: src/statusmenu.py:378
 #, python-format
 msgid ""
 "Only mentioned people and people that follow %s will be able to view it."
 msgstr "Solo las personas mencionadas y quienes siguen a %s podrán verla."
 
-#: src/statusmenu.py:340
+#: src/statusmenu.py:381
 #, python-format
 msgid "Copy “%s” Post Link?"
 msgstr "¿Copiar el enlace de la publicación «%s»?"
 
-#: src/statusmenu.py:341
+#: src/statusmenu.py:382
 msgid "_Copy"
 msgstr "_Copiar"
 
-#: src/statusmenu.py:383
+#: src/statusmenu.py:424
 msgid "Could not translate"
 msgstr "No se pudo traducir"
 
-#: src/statusmenu.py:409
+#: src/statusmenu.py:450
 msgid "Could not unmute conversation"
 msgstr "No se pudo dejar de silenciar la conversación"
 
-#: src/statusmenu.py:410
+#: src/statusmenu.py:451
 msgid "Could not mute conversation"
 msgstr "No se pudo silenciar la conversación"
 
-#: src/statusmenu.py:417
+#: src/statusmenu.py:458
 msgid "Could not unpin post"
 msgstr "No se pudo desfijar la publicación"
 
-#: src/statusmenu.py:418
+#: src/statusmenu.py:459
 msgid "Could not pin post"
 msgstr "No se pudo fijar la publicación"
 
-#: src/statusmenu.py:435
+#: src/statusmenu.py:476
 msgid "Could not change quote policy"
 msgstr "No se pudo cambiar la política de citas"
 
-#: src/statusmenu.py:448
+#: src/statusmenu.py:489
 msgid "Your post was removed from the quote"
 msgstr "Tu publicación se quitó de la cita"
 
-#: src/statusmenu.py:454
+#: src/statusmenu.py:495
 msgid "Could not remove your post"
 msgstr "No se pudo quitar tu publicación"
 
-#: src/statusmenu.py:456
+#: src/statusmenu.py:497
 msgid "Remove Your Post From the Quote?"
 msgstr "¿Quitar tu publicación de la cita?"
 
-#: src/statusmenu.py:457
+#: src/statusmenu.py:498
 msgid "The quote will no longer show your post."
 msgstr "La cita ya no mostrará tu publicación."
 
-#: src/statusmenu.py:476
+#: src/statusmenu.py:517
 msgid "Could not load post for editing"
 msgstr "No se pudo cargar la publicación para editarla"
 
-#: src/statusmenu.py:483
+#: src/statusmenu.py:524
 msgid "Delete Post?"
 msgstr "¿Eliminar la publicación?"
 
-#: src/statusmenu.py:484
+#: src/statusmenu.py:525
 msgid ""
 "This post will be removed from your profile and from the timelines of other "
 "servers."
@@ -7791,11 +9971,11 @@ msgstr ""
 "Esta publicación se quitará de tu perfil y de las cronologías de otros "
 "servidores."
 
-#: src/statusmenu.py:493
+#: src/statusmenu.py:534
 msgid "Delete and Redraft?"
 msgstr "¿Eliminar y reescribir?"
 
-#: src/statusmenu.py:494
+#: src/statusmenu.py:535
 msgid ""
 "This post will be deleted and its text, attachments and poll copied into a "
 "new draft."
@@ -7803,31 +9983,31 @@ msgstr ""
 "Esta publicación se eliminará y su texto, adjuntos y encuesta se copiarán en "
 "un nuevo borrador."
 
-#: src/statusmenu.py:496
+#: src/statusmenu.py:537
 msgid "_Delete and Redraft"
 msgstr "_Eliminar y reescribir"
 
-#: src/statusmenu.py:535 src/statusmenu.py:561
+#: src/statusmenu.py:576 src/statusmenu.py:602
 msgid "Could not delete post"
 msgstr "No se pudo eliminar la publicación"
 
-#: src/statusmenu.py:541 src/statusmenu.py:555
+#: src/statusmenu.py:582 src/statusmenu.py:596
 msgid "Post deleted"
 msgstr "Publicación eliminada"
 
-#: src/statusmenu.py:608
+#: src/statusmenu.py:649
 msgid "Unmute failed"
 msgstr "Error al dejar de silenciar"
 
-#: src/statusmenu.py:616
+#: src/statusmenu.py:657
 msgid "Mute failed"
 msgstr "Error al silenciar"
 
-#: src/statusmenu.py:630
+#: src/statusmenu.py:671
 msgid "Block failed"
 msgstr "Error al bloquear"
 
-#: src/statusmenu.py:634
+#: src/statusmenu.py:675
 msgid ""
 "They will no longer be able to follow your account or see your posts, and "
 "their posts will be hidden."
@@ -7837,66 +10017,66 @@ msgstr ""
 
 #. Fills the header up to the time and menu, so its hover pill
 #. reads as the header's left side, not a box hugging the name.
-#: src/statusrow.py:112
+#: src/statusrow.py:113
 msgid "View Profile"
 msgstr "Ver perfil"
 
-#: src/statusrow.py:130
+#: src/statusrow.py:131
 msgid "Bot"
 msgstr "Bot"
 
-#: src/statusrow.py:170
+#: src/statusrow.py:171
 msgid "Edited"
 msgstr "Editada"
 
-#: src/statusrow.py:363
+#: src/statusrow.py:364
 #, python-format
 msgid "Post %(position)d of %(total)d in Thread"
 msgstr "Publicación %(position)d de %(total)d del hilo"
 
-#: src/statusrow.py:404
+#: src/statusrow.py:405
 #, python-format
 msgid "Post by %(author)s, boosted by %(booster)s"
 msgstr "Publicación de %(author)s, impulsada por %(booster)s"
 
-#: src/statusrow.py:408
+#: src/statusrow.py:409
 #, python-format
 msgid "Post by %s"
 msgstr "Publicación de %s"
 
-#: src/statusrow.py:524
+#: src/statusrow.py:525
 #, python-format
 msgid "Translated from %(language)s using %(provider)s"
 msgstr "Traducido del %(language)s con %(provider)s"
 
-#: src/statusrow.py:527
+#: src/statusrow.py:528
 #, python-format
 msgid "Translated using %s"
 msgstr "Traducido con %s"
 
-#: src/statusrow.py:529
+#: src/statusrow.py:530
 msgid "Translated"
 msgstr "Traducido"
 
-#: src/statusrow.py:548
+#: src/statusrow.py:554
 #, python-format
 msgid "Language: %s"
 msgstr "Idioma: %s"
 
-#: src/statusrow.py:552
+#: src/statusrow.py:558
 #, python-format
 msgid "Edited %s"
 msgstr "Editada %s"
 
-#: src/statusrow.py:556
+#: src/statusrow.py:562
 msgid "Edited. Show edit history"
 msgstr "Editada. Mostrar historial de ediciones"
 
-#: src/statusrow.py:568
+#: src/statusrow.py:575
 msgid "Replying to themselves"
 msgstr "Respondiéndose a sí mismo"
 
-#: src/statusrow.py:572
+#: src/statusrow.py:579
 #, python-format
 msgid "Replying to @%s"
 msgstr "Respondiendo a @%s"
@@ -8290,7 +10470,7 @@ msgid "Scheduled Posts"
 msgstr "Publicaciones programadas"
 
 #. Translators: banner shown while the computer has no network.
-#: src/window.py:393
+#: src/window.py:394
 msgid "You’re offline"
 msgstr "Estás sin conexión"
 
@@ -8493,10 +10673,6 @@ msgstr "Wrapped"
 #: src/wrapped.py:221
 msgid "Save as Image…"
 msgstr "Guardar como imagen…"
-
-#: src/wrapped.py:227
-msgid "Style"
-msgstr "Estilo"
 
 #: src/wrapped.py:231
 msgid "Year"
@@ -8873,5 +11049,43 @@ msgstr ""
 msgid "Your password is used once to sign in and is not stored"
 msgstr "Tu contraseña se usa una vez para iniciar sesión y no se guarda"
 
+#, fuzzy
+#~ msgid "Percent to Hide"
+#~ msgstr "Fijar en la barra lateral"
+
+#, fuzzy
+#~ msgid "Copy Share _Link"
+#~ msgstr "_Copiar enlace"
+
+#, fuzzy
+#~ msgid "In hours"
+#~ msgstr "1 hora"
+
+#, fuzzy
+#~ msgid "Only Posts With Alt Text"
+#~ msgstr "Esta publicación tiene multimedia sin texto alternativo"
+
+#, fuzzy
+#~ msgid "Hide Sensitive Media"
+#~ msgstr "Multimedia _sensible"
+
+#, fuzzy
+#~ msgid "Activities"
+#~ msgstr "Activa"
+
+#, fuzzy
+#~ msgid "Objects"
+#~ msgstr "Rechazar"
+
+#, fuzzy
+#~ msgid "Terminal"
+#~ msgstr "Original"
+
+#, fuzzy
+#~ msgid "sentiment"
+#~ msgstr "Mencionar"
+
 #~ msgid "This attachment has no address to load."
 #~ msgstr "Este adjunto no tiene ninguna dirección que cargar."
+
+

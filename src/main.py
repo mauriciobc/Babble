@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import collections
 import logging
 import re
 import sys
+import threading
 import urllib.parse
 
 import gi
@@ -22,6 +24,7 @@ from . import desktopnotify
 # already imported at startup; WebKit stays lazy inside webcolumn.
 from . import pluginlinks, webcolumn  # noqa: F401
 from .statustext import is_web_link
+from .weakconnect import connect_weak
 from .window import BabbleWindow, ISSUES_URL, PROJECT_URL
 
 # Links the desktop hands over by scheme: FEP-07d7 ``web+ap://`` object
@@ -112,6 +115,30 @@ def open_web_target(win, target):
         linkrouting.open_link(win, value, resolve=True)
 
 
+def migrate_hide_feed_chef(settings):
+    """Carry the old `hide-feed-chef` preference over: a reader who had
+    hidden Feed Chef gets it turned off, and the old key is reset so this
+    runs once. Only a value the user set counts (not the default)."""
+    value = settings.get_user_value('hide-feed-chef')
+    if value is None:
+        return
+    if value.get_boolean():
+        settings.set_boolean('feed-chef-enabled', False)
+    settings.reset('hide-feed-chef')
+
+
+def _is_feedchef_link(uri):
+    """True for ``babble://feedchef?...``. Plain GLib, so the check
+    never imports Feed Chef, which may be turned off."""
+    try:
+        # The host is in the first characters of any link that has one;
+        # a megabyte-long URI is never parsed whole here.
+        parsed = GLib.Uri.parse(uri[:512], GLib.UriFlags.NONE)
+    except GLib.Error:
+        return False
+    return (parsed.get_host() or '').lower() == 'feedchef'
+
+
 class BabbleApplication(Adw.Application):
     def __init__(self, version):
         super().__init__(application_id='io.github.mauriciobc.Babble',
@@ -120,10 +147,16 @@ class BabbleApplication(Adw.Application):
                          resource_base_path='/io/github/mauriciobc/Babble')
         self.version = version
         self._search_provider = None
-        # web+ap/web+mastodon links opened before a session exists, and
-        # the (stack, handler id) waiting for the shell to deliver them.
-        self._pending_web = []
-        self._pending_web_handler = None
+        # Links opened before a session exists (web+ap/web+mastodon targets
+        # and Feed Chef recipes), as (kind, payload), and the (stack,
+        # handler id) waiting for the shell to deliver them.
+        self._after_sign_in = []
+        self._after_sign_in_handler = None
+        # Feed Chef links waiting to be read, oldest first, and whether
+        # the one worker thread that reads them is running.
+        self._link_lock = threading.Lock()
+        self._link_jobs = collections.deque()
+        self._link_busy = False
         # Started by D-Bus for a shell search there is no window to keep
         # the service alive between Shell's calls; linger for a while.
         self.set_inactivity_timeout(10000)
@@ -200,6 +233,8 @@ class BabbleApplication(Adw.Application):
         # the first timestamps are formatted.
         from . import statustext
         statustext.clock_format()
+        from . import appsettings
+        migrate_hide_feed_chef(appsettings.settings())
         from . import pluginhost
         pluginhost.start_if_enabled()
 
@@ -316,7 +351,11 @@ class BabbleApplication(Adw.Application):
                 continue
             delivered.add(uri)
             if file.has_uri_scheme('babble'):
-                win.on_oauth_callback(uri)
+                # Decided without importing Feed Chef, which may be off.
+                if _is_feedchef_link(uri):
+                    self._open_feedchef_uri(win, uri)
+                else:
+                    win.on_oauth_callback(uri)
             elif (GLib.Uri.peek_scheme(uri) or '') in WEB_SCHEMES:
                 self.open_web_uri(win, uri)
             elif file.is_native() and file.get_path() is not None:
@@ -324,6 +363,88 @@ class BabbleApplication(Adw.Application):
                 paths.append(file.get_path())
         if paths:
             win.compose_with_files(paths)
+
+    def _open_feedchef_uri(self, win, uri):
+        """Import a Feed Chef recipe from ``babble://feedchef?recipe=``."""
+        if not win.settings.get_boolean('feed-chef-enabled'):
+            self._offer_feedchef(win, (uri,))
+            return
+        from .feedchef.sharecodec import MAX_LINK_CHARS
+        if len(uri) > MAX_LINK_CHARS:
+            win.show_toast(_('Could not read that Feed Chef link'))
+            return
+        if win.client is None or win.account is None:
+            self._queue_after_sign_in(win, ('feedchef', uri))
+            return
+        # Decoded off the UI thread: the link is untrusted input. One
+        # worker reads the links in the order they came. The window is
+        # held weakly, so a link read after it closed opens nothing.
+        with self._link_lock:
+            self._link_jobs.append((win.weak_ref(), uri))
+            if self._link_busy:
+                return
+            self._link_busy = True
+        threading.Thread(target=self._read_feedchef_links,
+                         name='feedchef-link', daemon=True).start()
+
+    def _read_feedchef_links(self):
+        """Worker thread: parse each waiting link, oldest first, and hand
+        the result to the main loop. Touches no widget, and whatever a
+        link does to the parser, the reader still gets an answer (None)."""
+        while True:
+            with self._link_lock:
+                if not self._link_jobs:
+                    self._link_busy = False
+                    return
+                ref, uri = self._link_jobs.popleft()
+            try:
+                from .feedchef.sharecodec import try_parse_feedchef_uri
+                recipe = try_parse_feedchef_uri(uri)
+            except Exception:
+                logging.getLogger(__name__).debug(
+                    'feedchef: link could not be read', exc_info=True)
+                recipe = None
+            # Default priority, not idle: a busy timer or animation in
+            # the main loop starves idle-priority callbacks, and the
+            # reader is waiting for this answer.
+            GLib.idle_add(self._finish_feedchef, ref, uri, recipe,
+                          priority=GLib.PRIORITY_DEFAULT)
+
+    def _finish_feedchef(self, ref, uri, recipe):
+        """Main thread: the link was read; the world may have changed
+        while the worker was at it, so decide again."""
+        win = ref()
+        # A destroyed window is gone from the application, whether or not
+        # some wrapper still keeps the object alive.
+        if win is None or win.in_destruction() \
+                or win.get_application() is None:
+            return GLib.SOURCE_REMOVE
+        if not win.settings.get_boolean('feed-chef-enabled'):
+            self._offer_feedchef(win, (uri,))
+        elif recipe is None:
+            win.show_toast(_('Could not read that Feed Chef link'))
+        elif win.client is None or win.account is None:
+            self._queue_after_sign_in(win, ('feedchef', uri))
+        else:
+            from .feedchefpages import present_import
+            present_import(win, win.account, recipe)
+        return GLib.SOURCE_REMOVE
+
+    def _offer_feedchef(self, win, uris):
+        """Feed Chef is off: say so, and offer to turn it on and open
+        the links *uris* that were waiting."""
+        toast = Adw.Toast(title=_('Feed Chef is turned off'),
+                          button_label=_('Turn On'), use_markup=False)
+        # The URIs only: the toast must not hold the window.
+        connect_weak(toast, 'button-clicked', self._turn_on_feedchef,
+                     tuple(uris))
+        win.add_toast(toast)
+
+    def _turn_on_feedchef(self, _toast, uris):
+        win = self.ensure_window()
+        win.settings.set_boolean('feed-chef-enabled', True)
+        for uri in uris:
+            self._open_feedchef_uri(win, uri)
 
     def open_web_uri(self, win, uri):
         """Route a ``web+ap://``/``web+mastodon://`` *uri* inside *win*;
@@ -334,20 +455,28 @@ class BabbleApplication(Adw.Application):
         if win.client is not None and win.account is not None:
             open_web_target(win, target)
             return
-        if target not in self._pending_web:
-            self._pending_web.append(target)
+        self._queue_after_sign_in(win, ('web', target))
+
+    def _queue_after_sign_in(self, win, entry):
+        """Keep *entry* until a session exists, then open it."""
+        new = entry not in self._after_sign_in
+        if new:
+            self._after_sign_in.append(entry)
         stack = win.main_stack
-        waiting = self._pending_web_handler
+        waiting = self._after_sign_in_handler
         if waiting is not None and waiting[0] is not stack:
             waiting[0].disconnect(waiting[1])
             waiting = None
         if waiting is None:
-            self._pending_web_handler = (stack, stack.connect(
-                'notify::visible-child-name', self._on_session_page))
-        if stack.get_visible_child_name() == 'login':
-            # Translators: toast when a web+ap:// or web+mastodon:// link
-            # is opened before any account is signed in.
-            win.show_toast(_('Sign in to open this link'))
+            self._after_sign_in_handler = (stack, connect_weak(
+                stack, 'notify::visible-child-name', self._on_session_page))
+        if new and stack.get_visible_child_name() == 'login':
+            if entry[0] == 'feedchef':
+                win.show_toast(_('Sign in to import this recipe'))
+            else:
+                # Translators: toast when a web+ap:// or web+mastodon://
+                # link is opened before any account is signed in.
+                win.show_toast(_('Sign in to open this link'))
 
     def _on_session_page(self, stack, _pspec):
         win = stack.get_root()
@@ -355,11 +484,21 @@ class BabbleApplication(Adw.Application):
                 or getattr(win, 'client', None) is None \
                 or getattr(win, 'account', None) is None:
             return
-        stack.disconnect(self._pending_web_handler[1])
-        self._pending_web_handler = None
-        pending, self._pending_web = self._pending_web, []
-        for target in pending:
-            open_web_target(win, target)
+        stack.disconnect(self._after_sign_in_handler[1])
+        self._after_sign_in_handler = None
+        pending, self._after_sign_in = self._after_sign_in, []
+        links = []
+        for kind, payload in pending:
+            if kind == 'web':
+                open_web_target(win, payload)
+            else:
+                links.append(payload)
+        if links and not win.settings.get_boolean('feed-chef-enabled'):
+            # Turned off while they waited: one offer opens them all.
+            self._offer_feedchef(win, links)
+        else:
+            for uri in links:
+                self._open_feedchef_uri(win, uri)
 
     def on_compose_action(self, *_args):
         win = self.ensure_window()

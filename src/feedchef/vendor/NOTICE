@@ -1,0 +1,16 @@
+Feed Chef vendors the following MIT-licensed sentiment engines.
+
+VADER Sentiment Analysis
+  https://github.com/cjhutto/vaderSentiment
+  Copyright (c) 2016 C.J. Hutto
+  See vendor/vader/LICENSE.txt
+
+LeIA — Léxico para Inferência Adaptada
+  https://github.com/rafjaa/LeIA
+  Portuguese adaptation (fork) of VADER for social-media text. Its
+  LICENSE.txt is the VADER MIT licence text, naming C.J. Hutto as the
+  copyright holder; it names no other holder.
+  See vendor/leia/LICENSE.txt
+
+Neither package is installed from PyPI; sources and lexicons are copied
+into this tree. The optional VADER translation demo (requests) was removed.

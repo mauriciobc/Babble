@@ -14,6 +14,7 @@ srcdir = os.environ.get('BABBLE_SRCDIR') \
     or os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 
+from src import accounts  # noqa: E402,F401  (real, before catchup is faked)
 from src import navigation  # noqa: E402
 
 
@@ -29,10 +30,17 @@ def check(label, condition):
 
 
 class Settings:
+    feed_chef = True
+
+    def get_boolean(self, key):
+        assert key == 'feed-chef-enabled', key
+        return self.feed_chef
+
     def get_strv(self, key):
         return {
             'favorite-lists-ids': ['a/one', 'b/two', 'a/three'],
             'favorite-tags-ids': ['b/other', 'a/hello world'],
+            'favorite-feedchef-ids': ['a/recipe-1'],
         }[key]
 
 
@@ -174,7 +182,14 @@ with patch.dict(sys.modules, {
               ('list:one', 'First list', 'view-list-symbolic'),
               ('list:three', 'Third', 'view-list-symbolic'),
               ('tag:hello world', '#hello world',
-               'babble-hashtag-symbolic')])
+               'babble-hashtag-symbolic'),
+              ('recipe:recipe-1', 'Feed Chef',
+               'babble-feed-chef-symbolic')])
+    settings.feed_chef = False
+    check('pinned routes leave recipes out while Feed Chef is off',
+          [route[0] for route in routing.pinned_routes(settings, 'a')]
+          == ['list:one', 'list:three', 'tag:hello world'])
+    settings.feed_chef = True
     with patch.object(navigation.pagenav, 'make_nav_page',
                       side_effect=lambda title, child, tag=None,
                       sidebar_control=None: FakePage(title, child, tag)) \

@@ -27,6 +27,30 @@ RANK = frozenset({'rank', 'rank_diversity', 'rank_text', 'rank_model'})
 NEW = frozenset({'affinity', 'rankedstore', 'rankedfeed', 'rankedpage',
                  'navigation', 'tileactions'})
 
+# Feed Chef package prefix (not the stem — ``engine.py`` alone is not enough).
+FEEDCHEF_ALLOWED = frozenset({
+    'api', 'statustext', 'filterrules', 'timelinebase',
+    # Sibling UI/bridge modules may import the package; the package itself
+    # must not import Catch Up fetch/page/store/tiles/rank or navigation.
+})
+FEEDCHEF_FORBIDDEN = frozenset({
+    'catchup', 'page', 'page_controls', 'pipeline', 'fetch', 'rows', 'store',
+    'digest', 'digest_layout', 'rank', 'rank_diversity', 'rank_text',
+    'rank_model', 'tiles', 'tiles_render', 'tiles_cards', 'geometry',
+    'navigation',
+})
+
+# R12: Feed Chef is optional (the `feed-chef-enabled` key), so with it off
+# nothing of it may be imported. Outside the Feed Chef modules themselves
+# (`src/feedchef/`, `src/feedchef*.py`) and the tests, an import of one is
+# allowed only inside a function body, and only in these modules: the
+# navigation (builds the recipe pages) and the application (the
+# `babble://feedchef` link). Each checks the setting first.
+# The rule checks where an import sits (function body, allowed module), not
+# that the setting is read first, and it cannot see an import by name
+# (`importlib.import_module('...feedchef...')`, `__import__`).
+FEEDCHEF_IMPORTERS = frozenset({'navigation', 'main'})
+
 BENCH = ('rank_eval.py', 'ranked_stall.py')
 
 HTTP_PATHS = frozenset({'http', 'http.client', 'urllib.request', 'requests',
@@ -45,6 +69,12 @@ def is_new_importer(name):
             or name == 'test-affinity'
             or name.startswith('test-ranked-')
             or name in ('rank_eval', 'ranked_stall'))
+
+def is_feedchef_path(path):
+    return path.startswith('src/feedchef/')
+
+def is_feedchef_test(name):
+    return name.startswith('test-feedchef')
 
 def source_imports(tree):
     """(module in src, line) for every src module a syntax tree imports.
@@ -118,6 +148,29 @@ def _is_type_checking(test):
     return (isinstance(test, ast.Name) and test.id == 'TYPE_CHECKING'
             or isinstance(test, ast.Attribute)
             and test.attr == 'TYPE_CHECKING')
+
+def feedchef_import_lines(tree):
+    """(line, module, at_load) for each import of a Feed Chef module."""
+    load = {id(node) for node in load_time_imports(tree)}
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            base = node.module or ''
+            names = [base] + [(base + '.' if base else '') + alias.name
+                              for alias in node.names]
+        else:
+            continue
+        for name in names:
+            parts = [part for part in name.split('.') if part]
+            # The app is imported as `src` by the tests, `babble` installed.
+            if parts and parts[0] in ('src', 'babble'):
+                parts = parts[1:]
+            if parts and parts[0].startswith('feedchef'):
+                found.append((node.lineno, parts[0], id(node) in load))
+                break
+    return found
 
 def load_time_imports(tree):
     """The import statements that run when the module loads: everything
@@ -454,6 +507,12 @@ def violations(sources: dict[str, str]) -> list[str]:
                              and module == 'tileactions')):
                 found.append('R2: %s:%d imports %s'
                              % (path, line, module))
+            if is_catchup_importer(path) and module == 'feedchef':
+                found.append('R2: %s:%d imports feedchef'
+                             % (path, line))
+            if is_feedchef_path(path) and module in FEEDCHEF_FORBIDDEN:
+                found.append('R1: %s:%d imports %s'
+                             % (path, line, module))
             if path == 'src/affinity.py' and module in RANK:
                 found.append('R5: %s:%d imports rank module %s'
                              % (path, line, module))
@@ -463,6 +522,20 @@ def violations(sources: dict[str, str]) -> list[str]:
                              and module == 'tileactions')):
                 found.append('R7: %s:%d imports window-owned %s'
                              % (path, line, module))
+        if (path.startswith('src/') and not is_feedchef_path(path)
+                and not importer.startswith(('feedchef', 'test-'))
+                and not path.startswith('src/testkit/')):
+            for line, module, at_load in feedchef_import_lines(tree):
+                if at_load:
+                    found.append('R12: %s:%d imports %s at load time: '
+                                 'Feed Chef is optional, import it inside '
+                                 'a function behind the setting'
+                                 % (path, line, module))
+                elif importer not in FEEDCHEF_IMPORTERS:
+                    found.append('R12: %s:%d imports %s: only %s may '
+                                 'import Feed Chef'
+                                 % (path, line, module,
+                                    ', '.join(sorted(FEEDCHEF_IMPORTERS))))
         if importer in TOOLKIT and path == 'src/%s.py' % importer:
             for module, line in source_imports(tree):
                 if module in SIDECAR:

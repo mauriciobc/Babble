@@ -90,3 +90,24 @@ def public_async(client, params=None, callback=None, cancellable=None):
 
 def public_finish(client, result):
     return core.finish(client, result)
+
+
+def tag_async(client, name, params=None, callback=None, cancellable=None):
+    """GET ``/timelines/tag/:name``; *name* is percent-encoded like ``list_path``."""
+    encoded = urllib.parse.quote(name, safe='')
+    return core.send(client, TAG, encoded, params=params, callback=callback,
+                     cancellable=cancellable)
+
+
+def tag_finish(client, result):
+    return core.finish(client, result)
+
+
+def list_async(client, list_id, params=None, callback=None, cancellable=None):
+    """GET the list timeline (``lists.TIMELINE``) for *list_id*."""
+    return core.send(client, lists.TIMELINE, list_id, params=params,
+                     callback=callback, cancellable=cancellable)
+
+
+def list_finish(client, result):
+    return core.finish(client, result)

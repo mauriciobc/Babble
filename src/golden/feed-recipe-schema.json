@@ -1,0 +1,51 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "meta": {
+    "name": "Golden Mashdon Shape",
+    "icon": "restaurant",
+    "author": "babble-tests",
+    "version": 1
+  },
+  "pantry": {
+    "scope": "home",
+    "list_id": null,
+    "hashtags_include": ["coffee"],
+    "hashtags_exclude": ["spam"],
+    "fetch_strategy": "mix",
+    "network_reach": {
+      "enabled": false,
+      "max_degrees": null,
+      "include_self": true,
+      "include_unknown": false
+    }
+  },
+  "diet": {
+    "hard_filters": {
+      "must_have_media": false,
+      "must_have_alt_text": false,
+      "no_sensitive_media": false,
+      "min_content_length": 0,
+      "positive_only": false
+    },
+    "keyword_blocklist": []
+  },
+  "kitchen": {
+    "base_sort": "score",
+    "modifiers": [
+      {
+        "type": "diversity",
+        "max_per_cluster": 3,
+        "diversity_dimensions": ["author"]
+      },
+      {
+        "type": "freshness",
+        "decay_minutes": 360
+      }
+    ],
+    "active_focus_keywords": null,
+    "active_focus_weights": null,
+    "focus_decay": 1.0,
+    "enable_fuzzy_matching": true,
+    "active_focus_hashtags": null
+  }
+}

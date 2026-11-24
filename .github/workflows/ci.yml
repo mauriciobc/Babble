@@ -54,13 +54,27 @@ jobs:
             gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-libs \
             gstreamer1-plugin-gtk4 \
             glycin-libs glycin-gtk4-libs glycin-loaders \
-            dbus-daemon dbus-x11
+            dbus-daemon dbus-x11 \
+            python3-pip python3-numpy
           # webkitgtk6.0 is a runtime dependency only (the web column
           # imports it lazily), but without it `web column` skips, and
           # the skip check below fails the run on purpose.
           # Secret needs a session bus to answer at all, and D-Bus
           # refuses to start without a machine id.
           [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+
+      - name: Install the Feed Chef Python dependencies
+        # Without these the Feed Chef tests skip and the skip check
+        # below fails the run on purpose. numpy comes from dnf above;
+        # the others are pip, pinned to the versions Docs/third-party-notices.md
+        # and the local Flatpak manifest record.
+        run: |
+          python3 --version
+          # Wheels only: a missing wheel for this Python must fail here,
+          # clearly, not start a Rust source build of kmedoids.
+          python3 -m pip install --break-system-packages --only-binary=:all: \
+            py3langid==0.4.0 kmedoids==0.5.5 segno==1.6.6
+          python3 -c "import numpy, py3langid, kmedoids, segno"
 
       - name: Check the media stack
         run: |

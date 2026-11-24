@@ -350,8 +350,14 @@ class BabbleWindow(WindowLogin, WindowSession, WindowPlaces,
             self._rebuild_home_timeline()
         elif key in navigation.HIDE_KEYS.values() \
                 or key in ('favorite-lists-ids', 'favorite-tags-ids',
-                           SHOW_RESTRICTED_KEY):
+                           navigation.FEED_CHEF_KEY,
+                           'favorite-feedchef-ids', SHOW_RESTRICTED_KEY):
             self._refresh_sidebar()
+            if key == navigation.FEED_CHEF_KEY \
+                    and not navigation.feed_chef_enabled(settings):
+                # After the sidebar closed the recipe pages, so a job
+                # of theirs cannot fill the caches again.
+                navigation.forget_feed_chef_session()
         elif key in ('live-updates', 'public-live-updates'):
             self._sync_streaming()
         elif key == 'translucent-sidebar':
