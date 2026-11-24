@@ -258,6 +258,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Embed` | Incorporação |
 | `Emoji` | Emoji |
 | `End of the previous post` | Fim da publicação anterior |
+| `English` | Inglês |
 | `Every 30 seconds` | A cada 30 segundos |
 | `Every 5 minutes` | A cada 5 minutos |
 | `Every minute` | A cada minuto |

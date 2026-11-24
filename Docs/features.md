@@ -37,6 +37,31 @@ The full feature inventory. The [README](../README.md) has the short version.
 
 ![A thread](../data/screenshots/thread.png)
 
+## Feed Chef
+
+- A timeline of your own, built from a *recipe*: pick where posts come from
+  (Home, Local, Federated or one of your lists, with hashtags to include or
+  exclude), what they must pass (a *diet*: blocked words, media, alt text,
+  sensitivity, tone, minimum length, only people you follow) and how they are
+  ordered and balanced (a *kitchen*: engagement, freshness, trending topics,
+  a limit per person or server, grouping of similar posts). Start from a
+  template, or from a blank recipe, in the recipe builder, which counts the
+  matching posts as you change it and can preview the result.
+- A *heat level* (Cool, Warm, Hot, Fire) hides the less engaging half, three in
+  four or nine in ten of the posts. Posts among the most engaging carry a
+  Popular badge, and new posts that score well wait behind a pill instead of
+  moving the page.
+- Every post can say why it is there or was left out (*Why This Post?*), and a
+  Kitchen Report summarises the last cooks. A health indicator, suggestions
+  and a short experiment that alternates a change with your recipe help you
+  improve a recipe. The audit logs stay on your computer, and you can clear
+  them.
+- *More Like This* on a post focuses the timeline on its hashtags and words.
+- Pin a recipe to the sidebar, and share it as a link or a QR code; opening a
+  Feed Chef link asks before it imports the recipe into your account.
+- Turn it off in the Sidebar section of Preferences: it is then not loaded at all, and
+  makes no requests.
+
 ## Writing
 
 - Media uploads (paste, drag, or take a screenshot right from the composer),

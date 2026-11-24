@@ -39,6 +39,33 @@ O inventário completo de recursos. O [README](../README.md) traz a versão curt
 
 ![Um fio](../../data/screenshots/thread.png)
 
+## Feed Chef
+
+- Uma timeline só sua, montada a partir de uma *receita*: escolha de onde vêm
+  as publicações (Início, Local, Federada ou uma das suas listas, com hashtags
+  para incluir ou excluir), o que elas precisam passar (uma *dieta*: palavras
+  bloqueadas, mídia, texto alternativo, sensibilidade, tom, tamanho mínimo,
+  só quem você segue) e como são ordenadas e equilibradas (uma *cozinha*:
+  engajamento, atualidade, assuntos em alta, um limite por pessoa ou servidor,
+  agrupamento de publicações semelhantes). Comece por um modelo ou por uma
+  receita em branco, no construtor de receitas, que conta as publicações
+  correspondentes conforme você muda e pode mostrar uma pré-visualização.
+- Um *nível de calor* (Frio, Morno, Quente, Fogo) oculta a metade menos
+  engajada, três em cada quatro ou nove em cada dez publicações. As
+  publicações entre as mais engajadas ganham o selo Popular, e as novas que
+  pontuam bem esperam atrás de uma pílula em vez de mover a página.
+- Cada publicação pode dizer por que está ali ou por que ficou de fora (*Por
+  que esta publicação?*), e um Relatório da cozinha resume os últimos preparos.
+  Um indicador de saúde, sugestões e um breve experimento que alterna uma
+  mudança com a sua receita ajudam a melhorá-la. Os logs de auditoria ficam no
+  seu computador, e você pode limpá-los.
+- *Mais parecidas com esta*, em uma publicação, foca a timeline nas hashtags e
+  palavras dela.
+- Fixe uma receita na barra lateral e compartilhe-a como link ou QR code; abrir
+  um link do Feed Chef pergunta antes de importar a receita para a sua conta.
+- Desative na seção Barra lateral das Preferências: ele deixa de ser carregado e não faz
+  nenhuma requisição.
+
 ## Escrita
 
 - Envio de mídia (cole, arraste ou tire uma captura de tela direto do

@@ -540,10 +540,37 @@ check('copy: it has the counts, the hash and the dates',
 dialog.copy_row.emit('activated')
 pump()
 clipboard = dialog.get_display().get_clipboard()
-got = []
-clipboard.read_text_async(None, lambda c, r: got.append(c.read_text_finish(r)))
-check('copy: the clipboard holds the report',
-      pump_until(lambda: got) and got[0] == text)
+
+
+def read_clipboard(attempts=20):
+    # The set is local, but under Wayland the compositor's selection
+    # events can land after it and briefly leave the clipboard without
+    # a format ("No compatible transfer format found"). Retry on that
+    # one error only, a bounded number of times; any other error, or
+    # a different text, still fails.
+    box = []
+
+    def done(c, r):
+        try:
+            box.append((c.read_text_finish(r), None))
+        except GLib.Error as e:
+            box.append((None, e))
+
+    for _ in range(attempts):
+        box.clear()
+        clipboard.read_text_async(None, done)
+        if not pump_until(lambda: box):
+            return None
+        value, err = box[0]
+        if err is None:
+            return value
+        if 'transfer format' not in err.message:
+            return None
+        pump_until(lambda: False, 0.05)
+    return None
+
+
+check('copy: the clipboard holds the report', read_clipboard() == text)
 
 # Open Logs Folder: the log folder, or a word when there is none.
 LAUNCHED = []
