@@ -138,9 +138,11 @@ class NotificationsPage(NotificationController, PagedPosts, Adw.Bin):
         # sections) keeps up as before.
         # Lazy: notificationrow imports helpers from this module.
         from .notificationrow import NotificationFactory
+        self._factory = NotificationFactory(client)
+        self._header_factory = NotificationFactory(client)
         self.list_view = Gtk.ListView(
-            factory=NotificationFactory(client),
-            header_factory=NotificationFactory(client),
+            factory=self._factory,
+            header_factory=self._header_factory,
             single_click_activate=True)
         self.list_view.add_css_class('canvas-list')
         connect_weak(self.list_view, 'activate', self.on_row_activated)

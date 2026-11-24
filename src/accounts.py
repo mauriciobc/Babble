@@ -30,6 +30,7 @@ from .i18n import gettext as _  # noqa: E402
 from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from .catchup import store as catchupstore  # noqa: E402
+from .weakconnect import connect_weak  # noqa: E402
 
 _SHORTCODE = re.compile(r':[A-Za-z0-9_]{2,}:')
 
@@ -240,7 +241,10 @@ class AccountSwitcher(Gtk.Popover):
                                       hscrollbar_policy=Gtk.PolicyType.NEVER)
         scrolled.set_child(self._box)
         self.set_child(scrolled)
-        self.connect('show', lambda *_a: self.refresh())
+        connect_weak(self, 'show', self._on_show)
+
+    def _on_show(self, *_args):
+        self.refresh()
 
     def refresh(self):
         from .mediacache import AvatarCache

@@ -185,7 +185,14 @@ class _BoostCard(Gtk.Button):
     that arrives later does not change what the card asks for. Building
     and laying out a page of these was the largest single cost of the
     card-population idles (Docs/performance-profiling.md).
+
+    Registered, and held by the carousel that shows it: a card only GTK
+    holds can have its wrapper dropped and rebuilt (losing status and
+    client), and one left in cyclic garbage used to be disposed by a
+    worker thread's collection, off the main thread.
     """
+
+    __gtype_name__ = 'BabbleBoostCard'
 
     def __init__(self, number, status, client):
         super().__init__(width_request=BOOST_CARD_WIDTH)
@@ -255,7 +262,7 @@ class _BoostCard(Gtk.Button):
             slot = Gtk.Overlay(child=Gtk.Box(height_request=96))
             slot.add_overlay(picture)
             box.append(slot)
-        self.connect('clicked', self._on_clicked)
+        connect_weak(self, 'clicked', self._on_clicked)
 
     def set_number(self, number):
         self._badge.set_label(str(number))
@@ -346,6 +353,9 @@ class BoostCarousel(Gtk.Box):
             else:
                 self.cards_box.reorder_child_after(card, previous)
             previous = card
+        # The carousel holds its cards: their wrappers must live as long
+        # as the widgets (see _BoostCard).
+        self._cards = cards
         self.set_visible(bool(seen))
         self.title.set_text(
             ngettext('%d Boost', '%d Boosts', len(seen)) % len(seen))

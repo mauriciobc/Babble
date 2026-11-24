@@ -327,7 +327,7 @@ class SearchPage(Adw.Bin):
             maximum_size=pages.COLUMN_WIDTH, child=self.results_box))
         self.stack.add_named(self.results_scrolled, 'results')
         self.stack.set_visible_child_name('start')
-        self.connect('map', self._on_map)
+        connect_weak(self, 'map', self._on_map)
 
         if query:
             self.set_query(query, submit=True)

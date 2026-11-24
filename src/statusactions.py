@@ -35,6 +35,12 @@ class QuoteCard(Gtk.Button):
     first picture) opening its thread, or a notice for quotes that are
     pending, declined, removed or hidden."""
 
+    # Registered, and held by the row that shows it: a card only GTK holds
+    # can have its wrapper dropped and rebuilt (losing quote and client),
+    # and one left in cyclic garbage used to be disposed by a worker
+    # thread's collection, off the main thread.
+    __gtype_name__ = 'BabbleQuoteCard'
+
     NOTICES = {
         'pending': _('Quote Pending'),
         'rejected': _('Quote Not Approved'),
@@ -59,7 +65,7 @@ class QuoteCard(Gtk.Button):
         self.set_child(box)
         if quoted:
             self._fill(box, quoted)
-            self.connect('clicked', self._open_quoted, quoted)
+            connect_weak(self, 'clicked', self._open_quoted, quoted)
             return
         state = quote.get('state') or ''
         if state == 'accepted' and quote.get('quoted_status_id'):
@@ -67,7 +73,7 @@ class QuoteCard(Gtk.Button):
             row.append(Gtk.Image(icon_name='format-indent-more-symbolic'))
             row.append(Gtk.Label(label=_('Quoted a Post'), xalign=0.0))
             box.append(row)
-            self.connect('clicked', self._resolve_quoted)
+            connect_weak(self, 'clicked', self._resolve_quoted)
             return
         text = self.NOTICES.get(state, _('Quote Unavailable'))
         row = Gtk.Box(spacing=8)
