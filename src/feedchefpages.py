@@ -8,35 +8,29 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from . import accounts, feedback, pagenav  # noqa: E402
 from . import feedchefexplain  # noqa: E402
 from .appsettings import settings as app_settings  # noqa: E402
 from .feedchef import relax  # noqa: E402
 from .feedchef.focus import decay_focus  # noqa: E402
-from .feedchef.icons import icon_name  # noqa: E402
 from .feedchef.sentence import chef_line, list_subtitle  # noqa: E402
-from .feedchef.sharecodec import handle_of, recipe_share_uri  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
 from .feedchefbuilder import (FeedChefBuilderDialog,  # noqa: E402
                               storage_for)
-from .feedchefexperiment import ExperimentMixin  # noqa: E402
-from .feedcheffocus import FocusMixin  # noqa: E402
+from .feedchefexperiment import ExperimentController  # noqa: E402
+from .feedcheffocus import FocusController  # noqa: E402
 from .feedchefmodifiers import heat_label  # noqa: E402
-from .feedchefnewrecipe import NewRecipeDialog  # noqa: E402
-from .feedchefpeek import PagePeek  # noqa: E402
+from .feedchefpeek import PeekController  # noqa: E402
 from .feedchefrelax import undo_relax  # noqa: E402
 from .feedchefpreview import FeedChefPreviewDialog  # noqa: E402
-from .feedchefquality import ListHealthMixin  # noqa: E402
 from .feedchefsource import FeedChefSource  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
-from . import scrollkeep  # noqa: E402
 from .pages import PagedPosts  # noqa: E402
 from .rowdecor import Decoration  # noqa: E402
-from .timelinebase import COLUMN_WIDTH  # noqa: E402
 from .timelinepage import TimelinePage  # noqa: E402
-from .uihelpers import icon_button, set_accessible_label  # noqa: E402
+from .uihelpers import icon_button  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 ICON = 'babble-feed-chef-symbolic'
@@ -78,240 +72,6 @@ def recipe_stored(widget, account, recipe, skip=None):
             host.refresh()
 
 
-class FeedChefListPage(ListHealthMixin, Adw.Bin):
-    """Manager: list recipes, open / edit / pin / copy link / delete."""
-
-    __gtype_name__ = 'BabbleFeedChefListPage'
-
-    # Set by the narrow-width breakpoint: the health badges show their
-    # icon only.
-    compact = GObject.Property(type=bool, default=False)
-
-    def __init__(self, client, account):
-        super().__init__()
-        self.client = client
-        self.account = account
-        self.storage = storage_for(account)
-        self._rows = []
-        self._row_by_id = {}
-
-        add = Gtk.Button(icon_name='list-add-symbolic',
-                         tooltip_text=_('New Recipe'))
-        set_accessible_label(add, _('New Recipe'))
-        connect_weak(add, 'clicked', self._on_new)
-        # Packed at the end of the header by pagenav.make_nav_page.
-        self.header_widgets = [add]
-
-        self.stack = Gtk.Stack()
-        self.group = Adw.PreferencesGroup()
-        clamp = Adw.Clamp(maximum_size=COLUMN_WIDTH, child=self.group,
-                          margin_top=12, margin_bottom=24,
-                          margin_start=12, margin_end=12)
-        scrolled = Gtk.ScrolledWindow(
-            hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
-        scrolled.set_child(clamp)
-        self.stack.add_named(scrolled, 'list')
-        scrollkeep.watch(self, scrolled)
-        empty = Adw.StatusPage(
-            icon_name=ICON, title=_('No Recipes Yet'),
-            description=_('A recipe turns your timelines into a feed of '
-                          'your own'))
-        pill = Gtk.Button(label=_('New Recipe'), halign=Gtk.Align.CENTER)
-        pill.add_css_class('pill')
-        pill.add_css_class('suggested-action')
-        connect_weak(pill, 'clicked', self._on_new)
-        empty.set_child(pill)
-        self.stack.add_named(empty, 'empty')
-        narrow = Adw.BreakpointBin(width_request=280, height_request=200)
-        narrow.set_child(self.stack)
-        breakpoint_ = Adw.Breakpoint.new(
-            Adw.BreakpointCondition.parse('max-width: 450sp'))
-        breakpoint_.add_setter(self, 'compact', True)
-        narrow.add_breakpoint(breakpoint_)
-        connect_weak(self, 'notify::compact', self._on_compact)
-        self.set_child(narrow)
-
-        self._add_actions()
-        self.reload()
-        self.watch_shown(self._on_shown)
-
-    def _on_compact(self, *_args):
-        self.set_badges_compact(self.compact)
-
-    def _on_shown(self, *_args):
-        self.apply_health(feedchefexplain.WORDS)
-        self.refresh_health(feedchefexplain.WORDS,
-                            list(self._row_by_id))
-
-    def _add_actions(self):
-        group = Gio.SimpleActionGroup()
-        for name, handler in (('open', self._on_open),
-                              ('edit', self._on_edit),
-                              ('pin', self._on_pin),
-                              ('copy-link', self._on_copy_link),
-                              ('delete', self._on_delete)):
-            action = Gio.SimpleAction.new(name, GLib.VariantType.new('s'))
-            connect_weak(action, 'activate', handler)
-            group.add_action(action)
-        self.insert_action_group('recipe', group)
-
-    def reload(self):
-        for row in self._rows:
-            self.group.remove(row)
-        self._rows = []
-        self._row_by_id = {}
-        self._badges = {}
-        self._slots = {}
-        recipes = self.storage.load_recipes()
-        self.stack.set_visible_child_name('list' if recipes else 'empty')
-        pinned = set(app_settings().get_strv(PINNED_KEY))
-        for recipe in recipes:
-            row = self._make_row(
-                recipe, _pin_entry(self.account, recipe.id) in pinned)
-            self.group.add(row)
-            self._rows.append(row)
-            self._row_by_id[recipe.id] = row
-        self.refresh_health(feedchefexplain.WORDS, self._row_by_id)
-
-    def _make_row(self, recipe, pinned):
-        target = GLib.Variant.new_string(recipe.id)
-        row = Adw.ActionRow(title=GLib.markup_escape_text(recipe.meta.name),
-                            subtitle=GLib.markup_escape_text(
-                                recipe_subtitle(recipe)),
-                            activatable=True)
-        row.set_action_name('recipe.open')
-        row.set_action_target_value(target)
-        row.add_prefix(Gtk.Image.new_from_icon_name(
-            icon_name(recipe.meta.icon)))
-        menu = Gio.Menu()
-        # Delete is alone in its section, away from the everyday entries.
-        for entries in (
-                ((_('_Edit'), 'recipe.edit'),
-                 (_('_Unpin From Sidebar') if pinned
-                  else _('_Pin to Sidebar'), 'recipe.pin'),
-                 (_('_Copy Share Link'), 'recipe.copy-link')),
-                ((_('_Delete'), 'recipe.delete'),)):
-            section = Gio.Menu()
-            for label, action in entries:
-                item = Gio.MenuItem.new(label, None)
-                item.set_action_and_target_value(action, target)
-                section.append_item(item)
-            menu.append_section(None, section)
-        options = Gtk.MenuButton(
-            icon_name='view-more-symbolic', menu_model=menu,
-            valign=Gtk.Align.CENTER)
-        options.add_css_class('flat')
-        # Translators: tooltip and accessible name of a recipe's menu
-        # button; %s is the recipe's name.
-        set_accessible_label(options, _('Options for “%s”')
-                             % recipe.meta.name)
-        row.add_suffix(self._health_badge(recipe, feedchefexplain.WORDS))
-        row.add_suffix(options)
-        row.add_suffix(Gtk.Image.new_from_icon_name('go-next-symbolic'))
-        return row
-
-    # Actions: the parameter is the recipe id.
-
-    def _on_open(self, _action, parameter):
-        """Open the recipe above this list, on the navigation stack: the
-        back button, Escape and the swipe return to it, scroll kept."""
-        recipe = self.storage.get_recipe_by_id(parameter.get_string())
-        if recipe is None:
-            return
-        scrollkeep.remember(self)
-        if open_recipe(self, self.client, self.account, recipe) is None:
-            # A host with no navigation stack: the recipe as a place.
-            window = self.get_root()
-            if window is not None and hasattr(window, 'show_page'):
-                window.show_page('recipe:%s' % recipe.id)
-
-    def _on_new(self, _button):
-        """New Recipe: pick what to start from, then the builder."""
-        chooser = NewRecipeDialog()
-        connect_weak(chooser, 'chosen', self._on_template_chosen)
-        chooser.present(self)
-
-    def _on_template_chosen(self, chooser):
-        self._edit(chooser.recipe, is_new=True)
-
-    def _on_edit(self, _action, parameter):
-        recipe = self.storage.get_recipe_by_id(parameter.get_string())
-        if recipe is not None:
-            self._edit(recipe)
-
-    def _edit(self, recipe, is_new=False):
-        dialog = FeedChefBuilderDialog(
-            self.client, self.account, recipe, is_new=is_new)
-        connect_weak(dialog, 'saved', self._on_saved)
-        dialog.present(self)
-
-    def _on_saved(self, dialog):
-        self.reload()
-        recipe_stored(self, self.account, dialog.recipe, skip=self)
-        feedback.show_toast(self, _('Recipe saved'))
-
-    def _on_pin(self, _action, parameter):
-        entry = _pin_entry(self.account, parameter.get_string())
-        settings = app_settings()
-        values = list(settings.get_strv(PINNED_KEY))
-        if entry in values:
-            values.remove(entry)
-            message = _('Removed from the sidebar')
-        else:
-            values.append(entry)
-            message = _('Pinned to the sidebar')
-        settings.set_strv(PINNED_KEY, values)
-        self.reload()
-        feedback.show_toast(self, message)
-
-    def _on_copy_link(self, _action, parameter):
-        recipe = self.storage.get_recipe_by_id(parameter.get_string())
-        display = self.get_display()
-        if recipe is None or display is None:
-            return
-        display.get_clipboard().set(recipe_share_uri(
-            recipe, author=handle_of(self.account)))
-        feedback.show_toast(self, _('Share link copied'))
-
-    def _on_delete(self, _action, parameter):
-        """Take the row out of view at once and delete the recipe only
-        when the Undo toast goes away, so a slip costs nothing."""
-        recipe_id = parameter.get_string()
-        row = self._row_by_id.get(recipe_id)
-        if row is None:
-            return
-        anchor = pagenav.window_of(self) or self
-        page = self.weak_ref()
-        storage, account = self.storage, self.account
-
-        def commit():
-            storage.delete_recipe(recipe_id)
-            settings = app_settings()
-            entry = _pin_entry(account, recipe_id)
-            settings.set_strv(PINNED_KEY, [
-                item for item in settings.get_strv(PINNED_KEY)
-                if item != entry])
-            listing = page()
-            if listing is not None:
-                listing.reload()
-
-        def restore():
-            listing = page()
-            if listing is not None:
-                listing._show_row(recipe_id, True)
-
-        self._show_row(recipe_id, False)
-        feedback.deferred_action(anchor, _('Recipe deleted'),
-                                 commit, restore)
-
-    def _show_row(self, recipe_id, visible):
-        row = self._row_by_id.get(recipe_id)
-        if row is not None:
-            row.set_visible(visible)
-        shown = any(r.get_visible() for r in self._rows)
-        self.stack.set_visible_child_name('list' if shown else 'empty')
-
-
 def open_recipe(widget, client, account, recipe):
     """Push a recipe's timeline onto the window's navigation stack (so it
     has the back button); its navigation page, or None without a window. It
@@ -326,12 +86,19 @@ def open_recipe(widget, client, account, recipe):
                              tag='recipe-open:%s' % recipe.id)
 
 
-class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
-                          TimelinePage):
+class FeedChefTimelinePage(TimelinePage):
     """A recipe's timeline: a TimelinePage over a FeedChefSource.
 
     The cook's order is the kitchen's, so the list is never sorted by id
-    and a refresh cooks again instead of inserting newer posts on top."""
+    and a refresh cooks again instead of inserting newer posts on top.
+
+    What it keeps for itself: the cook, the empty page and the recipe. The
+    peek (``peek``), the quality layer and experiments (``experiment``)
+    and the focus (``focus_ctl``) are controllers it owns; the page forwards
+    the hooks ``TimelinePage`` and the post menu call, and offers them the
+    few accessors they need (``scope_closed``, ``is_loading``,
+    ``polling``, ``viewport``, ``set_pill_count``, ``cook`` and
+    ``switch_to``)."""
 
     __gtype_name__ = 'BabbleFeedChefTimelinePage'
 
@@ -367,19 +134,18 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
         self._reset_stage_hint()
 
         # The focus banner sits above the timeline's own stack.
-        self.banner = Adw.Banner(button_label=_('Clear Focus'),
-                                 use_markup=False)
-        connect_weak(self.banner, 'button-clicked', self._clear_focus)
+        self.focus_ctl = FocusController(self)
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         stack = self.get_child()
         self.set_child(None)
         stack.set_vexpand(True)
-        column.append(self.banner)
-        self.quality_init(column, feedchefexplain.WORDS)
+        column.append(self.focus_ctl.banner)
+        self.experiment = ExperimentController(
+            self, column, feedchefexplain.WORDS)
         column.append(stack)
         self.set_child(column)
-        self._update_focus_ui()
-        self._peek_init()
+        self.focus_ctl.update_ui()
+        self.peek = PeekController(self)
         self.ensure_loaded()
 
     def _finish(self, result):
@@ -395,9 +161,9 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
                 else _('Could Not Load This Recipe'))
             raise
         self.error_page.set_title(_('Could Not Load This Recipe'))
-        self._update_focus_ui()
+        self.focus_ctl.update_ui()
         self._say_heat_fallback()
-        self.after_cook()
+        self.experiment.after_cook()
         return statuses
 
     def _say_heat_fallback(self):
@@ -449,7 +215,7 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
         sidebar drops (Feed Chef turned off); a page held by a reference
         cycle would otherwise keep them until the next collection."""
         TimelinePage.close_requests(self)
-        self.close_quality()
+        self._close_quality()
         self.set_auto_refresh_interval(0)
         engine = getattr(self, 'engine', None)
         if engine is not None:
@@ -458,7 +224,7 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
 
     def do_dispose(self):
         self.set_auto_refresh_interval(0)
-        self.close_quality()
+        self._close_quality()
         engine = getattr(self, 'engine', None)
         if engine is not None:
             # The scope first: it cancels the request this page is waiting
@@ -469,6 +235,46 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
             self.source.close()
             engine.shutdown()
         TimelinePage.do_dispose(self)
+
+    # What the controllers ask of the page, and the hooks the toolkit calls
+
+    @property
+    def scope_closed(self):
+        """Whether the page was closed: nothing it starts may answer."""
+        return self._scope.closed
+
+    def is_loading(self):
+        """Whether a page of the list is on its way, first or older."""
+        return bool(self.model.loading or self._loading_older
+                    or self._older_pending)
+
+    @property
+    def polling(self):
+        """Whether the poll timer (the peek's tick) is armed."""
+        return bool(self._auto_refresh_id)
+
+    @property
+    def viewport(self):
+        """The scrolled window the list is shown in."""
+        return self._scrolled
+
+    def set_pill_count(self, count):
+        self._pill_count = count
+
+    def _close_quality(self):
+        experiment = getattr(self, 'experiment', None)
+        if experiment is not None:
+            experiment.close()
+
+    def _on_auto_refresh(self):
+        self.peek.on_auto_refresh()
+
+    def _show_new_pill(self, count):
+        self.peek.show_new_pill(count)
+
+    def _on_new_pill_clicked(self, button):
+        self.peek.insert_peeked()
+        TimelinePage._on_new_pill_clicked(self, button)
 
     # The empty page
 
@@ -580,8 +386,8 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
             except Exception as error:
                 feedback.report_error(
                     self, _('Could not save the recipe'), error)
-            self._update_focus_ui()
-        self._cook()
+            self.focus_ctl.update_ui()
+        self.cook()
 
     def _fading(self):
         """Whether a refresh now would fade the focus."""
@@ -591,7 +397,7 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
             and isinstance(kitchen.focus_decay, (int, float)) \
             and kitchen.focus_decay < 1.0
 
-    def _cook(self):
+    def cook(self):
         """Cook again: the list is replaced, in kitchen order."""
         if self._scope.closed:
             return
@@ -618,7 +424,7 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
         """The post menu's own entry (see StatusMenuButton._page_section)."""
         # Translators: post menu entries; the underscore marks the access
         # key (L and W), which no other entry of that menu uses.
-        return [(_('More _Like This'), self._more_like_this),
+        return [(_('More _Like This'), self.focus_ctl.more_like_this),
                 (_('_Why This Post?'), self._why_this_post)]
 
     def _why_this_post(self, status):
@@ -628,7 +434,7 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
     def _on_report_clicked(self, _button):
         feedchefexplain.KitchenReportDialog(
             self.source.cook_audits(),
-            self._quality_context()).present(self)
+            self.experiment.quality_context()).present(self)
 
     # Relax Filters
 
@@ -641,7 +447,7 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
         before = copy.deepcopy(self.recipe)
         after = copy.deepcopy(self.recipe)
         relax.apply(after, rule)
-        if not self._switch_to(after):
+        if not self.switch_to(after):
             return
         ref = self.weak_ref()
         anchor = pagenav.window_of(self) or self
@@ -653,7 +459,7 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
         feedback.show_toast(self, relax.done(rule, feedchefexplain.WORDS),
                             undo=undo)
 
-    def _switch_to(self, recipe):
+    def switch_to(self, recipe):
         """Store *recipe* and cook it; False (and the reader told) when it
         could not be stored."""
         if self.storage.get_recipe_by_id(recipe.id) is None:
@@ -701,11 +507,11 @@ class FeedChefTimelinePage(ExperimentMixin, FocusMixin, PagePeek,
         self.source.engine = self.engine
         self.source.recipe = self.recipe
         old.shutdown()
-        self._update_focus_ui()
+        self.focus_ctl.update_ui()
         nav_page = self.get_ancestor(Adw.NavigationPage)
         if nav_page is not None:
             nav_page.set_title(recipe.meta.name)
-        self._cook()
+        self.cook()
 
 
 def present_import(parent, account, recipe):

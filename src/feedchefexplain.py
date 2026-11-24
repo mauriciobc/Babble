@@ -21,7 +21,8 @@ except (ValueError, ImportError):
 
 from . import feedback  # noqa: E402
 from .feedchef import auditreport, decisionlog  # noqa: E402
-from .feedchefqualityview import QualityReportMixin  # noqa: E402
+from .feedchef.words import Words  # noqa: E402
+from .feedchefqualityview import QualityReport  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
@@ -39,7 +40,7 @@ def language_name(code):
         return None
 
 
-WORDS = auditreport.Words(_, ngettext, language_name)
+WORDS = Words(_, ngettext, language_name)
 STATUS_ICON = 'document-properties-symbolic'
 
 
@@ -91,7 +92,7 @@ class WhyThisPostDialog(feedback.ToastDialog):
                      auditreport.explain_post(entry, record, WORDS))
 
 
-class KitchenReportDialog(QualityReportMixin, feedback.ToastDialog):
+class KitchenReportDialog(feedback.ToastDialog):
     """What the last cook did, with Copy Report, Open Logs Folder and
     Clear Audit Logs. *records* are the audit records of its pages. With
     *quality* (a ``feedchefqualityview.QualityContext``) the report also has
@@ -104,9 +105,10 @@ class KitchenReportDialog(QualityReportMixin, feedback.ToastDialog):
         super().__init__(_('Improve This Recipe') if quality_only
                          else _('Kitchen Report'))
         self.alert = None
+        self.quality = None
         if quality_only and quality is not None:
             self.report = auditreport.cook_report([], WORDS)
-            self.quality_begin(quality, WORDS, focus_quality)
+            self.quality = QualityReport(self, quality, WORDS, focus_quality)
             return
         self.report = auditreport.cook_report(records, WORDS)
         if not self.report.pages:
@@ -116,7 +118,7 @@ class KitchenReportDialog(QualityReportMixin, feedback.ToastDialog):
         # The recipe's settings sit under the cook's title.
         groups[0].set_description(self.report.settings)
         if quality is not None:
-            self.quality_begin(quality, WORDS, focus_quality)
+            self.quality = QualityReport(self, quality, WORDS, focus_quality)
         group = Adw.PreferencesGroup()
         self.copy_row = Adw.ButtonRow(
             title=_('_Copy Report'), use_underline=True,

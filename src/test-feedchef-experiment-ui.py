@@ -51,7 +51,7 @@ def start_experiment(page):
                             lambda b: b.get_label() == 'Try…'))
     dialog.activate_action('quality.try', None)
     pump(10)
-    alert = page.proposal_alert
+    alert = page.experiment.proposal_alert
     body = alert.get_body() if alert is not None else ''
     alert.emit('response', 'start')
     alert.force_close()
@@ -62,13 +62,13 @@ def start_experiment(page):
 
 def refresh_once(page):
     before = len(CALLS)
-    done = optimizer.done(page.opt_state) if page.opt_state else 0
+    done = optimizer.done(page.experiment.opt_state) if page.experiment.opt_state else 0
     page.refresh()
     pump_until(lambda: len(CALLS) > before)
     pump_until(lambda: page.model.get_n_items() > 0)
-    pump_until(lambda: optimizer.phase(page.opt_state)
+    pump_until(lambda: optimizer.phase(page.experiment.opt_state)
                != optimizer.RUNNING
-               or optimizer.done(page.opt_state) > done)
+               or optimizer.done(page.experiment.opt_state) > done)
     settle()
 
 
@@ -87,7 +87,8 @@ history.analyze = watch('analyze', stub_analyze)
 
 page, original = new_experiment({'A': 'bad', 'B': 'good'})
 check('experiment: nothing runs before the reader says yes',
-      page.opt_state is None and not page.experiment_banner.get_revealed()
+      page.experiment.opt_state is None
+      and not page.experiment.experiment_banner.get_revealed()
       and all(c.variant is None for c in CALLS))
 body = start_experiment(page)
 check('experiment: the dialog says what changes, that it alternates over '
@@ -97,20 +98,20 @@ check('experiment: the dialog says what changes, that it alternates over '
       and 'stop at any time' in body)
 check('experiment: accepting starts it and saves it in the sidecar, not '
       'in the recipe',
-      optimizer.phase(page.opt_state) == optimizer.RUNNING
+      optimizer.phase(page.experiment.opt_state) == optimizer.RUNNING
       and storage.load_optimizer('opt-1')['phase'] == 'running'
       and stored(storage.get_recipe_by_id('opt-1')) == original
       and 'running' not in original)
 check('experiment: the indicator shows how far it is, with Stop',
-      page.experiment_banner.get_revealed()
-      and page.experiment_banner.get_title()
+      page.experiment.experiment_banner.get_revealed()
+      and page.experiment.experiment_banner.get_title()
       == 'Experiment running (0 of 10)'
-      and page.experiment_banner.get_button_label() == 'Stop Experiment')
+      and page.experiment.experiment_banner.get_button_label() == 'Stop Experiment')
 del CALLS[:]
 for _n in range(3):
     refresh_once(page)
 check('experiment: each refresh moves the indicator',
-      page.experiment_banner.get_title()
+      page.experiment.experiment_banner.get_title()
       == 'Experiment running (3 of 10)')
 persisted = storage.load_optimizer('opt-1')
 check('experiment: its state is written as it goes, on the worker',
@@ -145,17 +146,17 @@ check('experiment: the arm B pages cooked the change, the A pages the '
           == (c.variant['id'] == 'B') for c in CALLS if c.variant))
 check('experiment: scoring ran on the worker, never the main thread',
       THREADS['score'] and all(t is not MAIN for t in THREADS['score']))
-pump_until(lambda: optimizer.phase(page.opt_state) == optimizer.KEPT)
+pump_until(lambda: optimizer.phase(page.experiment.opt_state) == optimizer.KEPT)
 settle()
 verdict = [t for t in TOASTS if t.text.startswith('Experiment finished')]
 check('experiment: B did better, so it is kept: saved, with a toast and '
       'Undo',
-      optimizer.phase(page.opt_state) == optimizer.KEPT and verdict
+      optimizer.phase(page.experiment.opt_state) == optimizer.KEPT and verdict
       and 'kept' in verdict[-1].text and verdict[-1].undo is not None
       and recipeedit.current(page.recipe, 'freshness') == 600
       and recipeedit.current(storage.get_recipe_by_id('opt-1'),
                              'freshness') == 600
-      and not page.experiment_banner.get_revealed())
+      and not page.experiment.experiment_banner.get_revealed())
 verdict[-1].undo()
 pump(10)
 settle()
@@ -163,7 +164,7 @@ check('experiment: Undo restores the recipe exactly, in the page and in '
       'storage, and the experiment is off',
       stored(page.recipe) == original
       and stored(storage.get_recipe_by_id('opt-1')) == original
-      and optimizer.phase(page.opt_state) == optimizer.OFF
+      and optimizer.phase(page.experiment.opt_state) == optimizer.OFF
       and storage.load_optimizer('opt-1')['phase'] == 'off')
 page = None
 
@@ -175,7 +176,7 @@ settle()
 verdict = [t for t in TOASTS if t.text.startswith('Experiment finished')]
 check('experiment: B did worse, so it is reverted: a toast, and the recipe '
       'was never touched',
-      optimizer.phase(page.opt_state) == optimizer.REVERTED and verdict
+      optimizer.phase(page.experiment.opt_state) == optimizer.REVERTED and verdict
       and 'did not help' in verdict[-1].text
       and stored(page.recipe) == original
       and stored(storage.get_recipe_by_id('opt-1')) == original)
@@ -185,15 +186,15 @@ page, original = new_experiment({'A': 'good', 'B': 'good'})
 start_experiment(page)
 for _n in range(3):
     refresh_once(page)
-page.experiment_banner.emit('button-clicked')
+page.experiment.experiment_banner.emit('button-clicked')
 pump(10)
 settle()
 check('experiment: Stop in the middle ends it, restores the recipe as it '
       'was, hides the indicator and says so',
-      optimizer.phase(page.opt_state) == optimizer.OFF
+      optimizer.phase(page.experiment.opt_state) == optimizer.OFF
       and stored(page.recipe) == original
       and stored(storage.get_recipe_by_id('opt-1')) == original
-      and not page.experiment_banner.get_revealed()
+      and not page.experiment.experiment_banner.get_revealed()
       and TOASTS[-1].text == 'Experiment stopped; recipe unchanged'
       and storage.load_optimizer('opt-1')['phase'] == 'off')
 del CALLS[:]
@@ -212,7 +213,7 @@ pump(10)
 del CALLS[:]
 refresh_once(page)
 check('experiment: editing the recipe ends the experiment, and says so',
-      optimizer.phase(page.opt_state) == optimizer.ABORTED
+      optimizer.phase(page.experiment.opt_state) == optimizer.ABORTED
       and all(c.variant is None for c in CALLS)
       and any('ended because the recipe was changed' in t.text
               for t in TOASTS))
@@ -240,7 +241,7 @@ check('stale: a new recipe on the page forgets the session\'s recipe, so a '
       'peek or a load-more never cooks the old one',
       page.source._session_recipe is None)
 pump(10)
-page.stop_experiment()
+page.experiment.stop_experiment()
 pump(10)
 check('stale: Stop after an edit says the edits were kept, not that the '
       'recipe is unchanged',
@@ -251,15 +252,15 @@ page = None
 # A recipe deleted under a running experiment leaves no sidecar behind.
 page, original = new_experiment({'A': 'good', 'B': 'good'})
 start_experiment(page)
-tag = {'id': 'A', 'seed': page.opt_state['seed'], 'n': 0}
+tag = {'id': 'A', 'seed': page.experiment.opt_state['seed'], 'n': 0}
 storage.delete_recipe('opt-1')
-page._on_scored(tag, 0.9)
+page.experiment._on_scored(tag, 0.9)
 settle()
 check('stale: a score that lands after the recipe was deleted writes no '
       'sidecar and does not bring the recipe back',
       storage.load_optimizer('opt-1') is None
       and storage.get_recipe_by_id('opt-1') is None
-      and page._switch_to(page.recipe) is False
+      and page.switch_to(page.recipe) is False
       and TOASTS[-1].text == 'This recipe no longer exists')
 page = None
 
@@ -282,8 +283,8 @@ check('two windows: five refreshes across two pages count five, none lost '
       optimizer.done(storage.load_optimizer('opt-1')) == 5)
 check('two windows: the page that did not start it cooked variants, and '
       'its indicator follows the sidecar',
-      other.experiment_banner.get_revealed()
-      and other.experiment_banner.get_title()
+      other.experiment.experiment_banner.get_revealed()
+      and other.experiment.experiment_banner.get_title()
       == 'Experiment running (4 of 10)')
 other = page = None
 
@@ -291,16 +292,16 @@ other = page = None
 # changes.
 page, original = new_experiment({'A': 'good', 'B': 'good'})
 recs = advice.recommend(page.recipe, SYN)
-page.propose_experiment(recs)
+page.experiment.propose_experiment(recs)
 pump(5)
-alert = page.proposal_alert
+alert = page.experiment.proposal_alert
 first_body = alert.get_body()
 alert.emit('response', 'cancel')
 alert.force_close()
 pump(5)
-page.propose_experiment(recs)
+page.experiment.propose_experiment(recs)
 pump(5)
-again_body = getattr(page.proposal_alert, 'get_body', lambda: '')()
+again_body = getattr(page.experiment.proposal_alert, 'get_body', lambda: '')()
 check('declined: the same change is not proposed again for this recipe',
       again_body != first_body)
 changed = copy.deepcopy(page.recipe)
@@ -356,7 +357,7 @@ check('icons: every icon the quality screens and templates name resolves '
 # --- 6. New Recipe ------------------------------------------------------------
 
 reset()
-listing = feedchefpages.FeedChefListPage(Client(), account)
+listing = feedcheflist.FeedChefListPage(Client(), account)
 window.set_child(listing)
 listing._on_new(None)
 pump(10)
@@ -414,8 +415,8 @@ def open_builder(recipe):
 
 
 def controls(dialog):
-    heat = dialog._editor('heat')
-    fresh = dialog._editor('freshness')
+    heat = dialog.modes.editor('heat')
+    fresh = dialog.modes.editor('freshness')
     return (heat.row.get_enable_expansion() and heat.spin.get_value(),
             fresh.row.get_enable_expansion() and fresh.spin.get_value(),
             dialog.order.get_selected())
@@ -423,55 +424,55 @@ def controls(dialog):
 
 builder = open_builder(default_recipe('Modes'))
 check('modes: a plain recipe starts in Custom',
-      builder.get_mode() == 'custom'
-      and builder.mode_row.get_model().get_n_items() == 4
-      and builder.mode_row.get_title() == 'Mode')
-builder.set_mode('premium')
+      builder.modes.get_mode() == 'custom'
+      and builder.modes.mode_row.get_model().get_n_items() == 4
+      and builder.modes.mode_row.get_title() == 'Mode')
+builder.modes.set_mode('premium')
 pump(5)
 target = templates.with_mode(default_recipe('Modes'), 'premium')
 check('modes: Premium sets the heat, the fade-out and the order below, '
       'and moves the slider to Better',
       controls(builder) == (recipeedit.current(target, 'heat'),
                             recipeedit.current(target, 'freshness') / 60, 0)
-      and builder.slider.get_value() == 87.5
-      and builder.mode_row.get_subtitle()
+      and builder.modes.slider.get_value() == 87.5
+      and builder.modes.mode_row.get_subtitle()
       == templates.mode_names(WORDS)['premium'][1])
 check('modes: the live sentence follows',
-      builder.sentence_label.get_label() and 'engaging' in
-      builder.sentence_label.get_label().lower())
-builder.set_mode('explore')
+      builder.summary.sentence_label.get_label() and 'engaging' in
+      builder.summary.sentence_label.get_label().lower())
+builder.modes.set_mode('explore')
 pump(5)
 check('modes: Explore turns heat and freshness off and sorts newest first',
       controls(builder) == (False, False, 1)
-      and builder.slider.get_value() == 12.5)
-builder.slider.set_value(50)
+      and builder.modes.slider.get_value() == 12.5)
+builder.modes.slider.set_value(50)
 pump(5)
 check('modes: the slider\'s middle is Focused, and sets its controls',
-      builder.get_mode() == 'focused'
+      builder.modes.get_mode() == 'focused'
       and controls(builder)[0] == recipeedit.current(
           templates.with_mode(default_recipe('x'), 'focused'), 'heat')
       and controls(builder)[2] == 0)
-builder.slider.set_value(40)
+builder.modes.slider.set_value(40)
 pump(5)
 check('modes: dragging the slider does not move it under the hand',
-      builder.slider.get_value() == 40)
-builder.slider.set_value(0)
+      builder.modes.slider.get_value() == 40)
+builder.modes.slider.set_value(0)
 pump(5)
 check('modes: the slider reaches 0 and 100',
-      builder.slider.get_value() == 0 and builder.get_mode() == 'explore')
-builder.slider.set_value(100)
+      builder.modes.slider.get_value() == 0 and builder.modes.get_mode() == 'explore')
+builder.modes.slider.set_value(100)
 pump(5)
 check('modes: ...and 100',
-      builder.slider.get_value() == 100 and builder.get_mode() == 'premium')
-builder.slider.set_value(50)
+      builder.modes.slider.get_value() == 100 and builder.modes.get_mode() == 'premium')
+builder.modes.slider.set_value(50)
 pump(5)
-builder._editor('freshness').spin.set_value(7)
+builder.modes.editor('freshness').spin.set_value(7)
 pump(5)
 check('modes: editing a mapped control by hand switches to Custom, and '
       'dims the slider',
-      builder.get_mode() == 'custom'
-      and 'dimmed' in builder.slider_row.get_css_classes())
-builder.set_mode('focused')
+      builder.modes.get_mode() == 'custom'
+      and 'dimmed' in builder.modes.slider_row.get_css_classes())
+builder.modes.set_mode('focused')
 pump(5)
 builder.save_button.emit('clicked')
 pump(5)
@@ -487,7 +488,7 @@ focus_recipe = default_recipe('Focus')
 focus_recipe.kitchen.base_sort = 'chronological'
 focus_recipe.kitchen.active_focus_keywords = ['cats']
 builder = open_builder(focus_recipe)
-builder.set_mode('premium')
+builder.modes.set_mode('premium')
 pump(5)
 check('modes: a recipe with a focus keeps its order whatever the mode',
       builder.order.get_selected() == 1
@@ -502,5 +503,40 @@ check('threads: the quality worker is one daemon thread',
       and [t.daemon for t in threading.enumerate()
            if t.name == 'feedchef-quality'] == [True])
 
+# A controller outlives a page only in a callback that lands late: it then
+# does nothing, and says nothing.
+late = open_page(make_recipe())
+ctls = [late.peek, late.experiment, late.focus_ctl]
+late_ref = late.weak_ref()
+window.set_child(None)
+late = None
+check('late: the page is freed while its controllers are held',
+      freed(late_ref))
+raised = []
+for call in (ctls[0].sync, ctls[0].on_auto_refresh,
+             lambda: ctls[0].on_peek_result(None), ctls[1].request_health,
+             lambda: ctls[1]._on_health(None), ctls[1].stop_experiment,
+             lambda: ctls[2].update_ui(), lambda: ctls[2].clear()):
+    try:
+        call()
+    except Exception as error:  # noqa: BLE001 - any raise is the failure
+        raised.append(error)
+check('late: a callback after the owner was freed does nothing (%s)'
+      % raised, not raised)
+ctls = None
+
+# Drop the pages before the window, so no ListView is freed by the
+# interpreter after the rest is gone.
+for _name, _value in list(globals().items()):
+    # A page, a recorded toast that names one, or a list of them.
+    if _value is not window and _value is not TOASTS and (
+            isinstance(_value, Gtk.Widget) or hasattr(_value, 'widget')
+            or isinstance(_value, list)
+            and any(hasattr(item, 'widget') for item in _value)):
+        globals()[_name] = None
+del TOASTS[:]
+window.set_child(None)
+window.destroy()
+pump()
 print('%d failure(s)' % len(failures))
 sys.exit(1 if failures else 0)

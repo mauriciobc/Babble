@@ -3,7 +3,8 @@
 measures, how the posts engaged, how many reached each stage, the issues
 the health check found and the suggestions, each with an Apply button.
 
-It is a mixin of ``KitchenReportDialog``. The dialog shows its groups at
+It is a controller of ``KitchenReportDialog`` (``feedchefcontroller``; the
+dialog owns it). The dialog shows its groups at
 once and the numbers when the worker has them (``feedchefquality``): the
 section only lays out what ``feedchef.history``, ``quality``, ``health`` and
 ``advice`` word (through the ``Words`` the dialog gives), and does no
@@ -22,6 +23,7 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from .feedchef import advice, history, optimizer, quality  # noqa: E402
 from .feedchef import health as healthmod  # noqa: E402
+from .feedchefcontroller import PageController, guarded  # noqa: E402
 from .feedchefquality import HealthBadge, worker  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .uihelpers import set_accessible_label  # noqa: E402
@@ -84,16 +86,16 @@ def _row(title, subtitle='', icon=None):
     return row
 
 
-class QualityReportMixin:
+class QualityReport(PageController):
     """The quality half of ``KitchenReportDialog``. The dialog offers
-    ``page`` (its preferences page) and ``force_close()``."""
+    ``page`` (its preferences page), ``insert_action_group()`` and
+    ``force_close()``."""
 
-    quality_ctx = None
-    _quality_job = None
-
-    def quality_begin(self, ctx, words, focus=False):
+    def __init__(self, owner, ctx, words, focus=False):
         """Add the section's groups (empty) and ask the worker for the
         numbers."""
+        super().__init__(owner)
+        self._quality_job = None
         self.quality_ctx = ctx
         self._quality_words = words
         self._quality_focus = focus
@@ -121,7 +123,7 @@ class QualityReportMixin:
         for group in (self.quality_group, self.engagement_group,
                       self.stages_group, self.issues_group,
                       self.suggestions_group):
-            self.page.add(group)
+            self.owner.page.add(group)
         actions = Gio.SimpleActionGroup()
         apply = Gio.SimpleAction.new('apply', GLib.VariantType.new('s'))
         connect_weak(apply, 'activate', self._on_quality_apply)
@@ -129,7 +131,7 @@ class QualityReportMixin:
         propose = Gio.SimpleAction.new('try', None)
         connect_weak(propose, 'activate', self._on_quality_try)
         actions.add_action(propose)
-        self.insert_action_group('quality', actions)
+        self.owner.insert_action_group('quality', actions)
         recipe, records, others = ctx.recipe, ctx.records, ctx.others
         self._quality_job = worker().submit(
             lambda: history.analyze(recipe, records, others()),
@@ -313,6 +315,7 @@ class QualityReportMixin:
 
     # Actions
 
+    @guarded
     def _on_quality_apply(self, _action, parameter):
         """Apply stays in the report: its Undo toast is the dialog's own,
         and the button says it was done."""
@@ -321,7 +324,7 @@ class QualityReportMixin:
             return
         undone = partial(weak_method(self._on_quality_undone), rec.id)
         button = self._quality_buttons.get(rec.id)
-        if self.quality_ctx.apply(rec, self, undone) and button is not None:
+        if self.quality_ctx.apply(rec, self.owner, undone) and button is not None:
             button.set_label(_('Applied'))
             button.set_sensitive(False)
 
@@ -331,8 +334,9 @@ class QualityReportMixin:
             button.set_label(_('Apply'))
             button.set_sensitive(True)
 
+    @guarded
     def _on_quality_try(self, _action, _parameter):
         testable = getattr(self, '_testable', None)
         if testable:
-            self.force_close()
+            self.owner.force_close()
             self.quality_ctx.try_change(testable)

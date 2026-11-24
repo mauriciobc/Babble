@@ -16,9 +16,10 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gtk  # noqa: E402
 
 from . import accounts  # noqa: E402
+from .feedchefcontroller import PageController, guarded  # noqa: E402
 from .feedchef.livecook import LiveCook  # noqa: E402
 from .feedchef.sentence import recipe_sentence  # noqa: E402
 from .feedchefbridge import make_engine  # noqa: E402
@@ -46,18 +47,18 @@ def make_live_cook(client, account):
         callback), hide=viewer_hides)
 
 
-class LiveSummary:
-    """Mixin of the builder: the sentence row and the live count row.
-    The builder offers ``_collect()`` (the recipe on screen),
-    ``_selected_scope()`` and ``_selected_list_id()``."""
+class LiveSummary(PageController):
+    """The sentence row and the live count row of the builder, as a
+    controller the builder owns (``feedchefcontroller``). The builder
+    offers ``current_recipe()`` (the recipe on screen), ``has_countable_scope()``,
+    ``client``, ``account`` and ``preview_row``."""
 
-    sentence_label = None
-    count_row = None
-    _live = None
-    _timer = 0
-    _shown_count = None
-
-    def build_summary_group(self, page):
+    def __init__(self, owner, page):
+        """Build the group into *page* (the preferences page)."""
+        super().__init__(owner)
+        self._live = None
+        self._timer = 0
+        self._shown_count = None
         group = Adw.PreferencesGroup()
         # A wrapped label, not a row: the sentence is text to read.
         self.sentence_label = Gtk.Label(
@@ -76,17 +77,21 @@ class LiveSummary:
         self.count_row.add_suffix(self.count_retry)
         group.add(self.count_row)
         page.add(group)
-        return group
 
     # Starting and stopping
 
-    def start_summary(self):
+    @guarded
+    def start(self):
         """Show the sentence and ask for the first count (this fetches the
         pantry once)."""
-        connect_weak(self, 'closed', self._stop_summary)
-        self.summary_changed(first=True)
+        connect_weak(self.owner, 'closed', self.stop)
+        self.changed(first=True)
 
-    def _stop_summary(self, *_args):
+    def do_dispose(self):
+        self.stop()
+        GObject.Object.do_dispose(self)
+
+    def stop(self, *_args):
         if self._timer:
             GLib.source_remove(self._timer)
             self._timer = 0
@@ -96,28 +101,32 @@ class LiveSummary:
 
     # Edits
 
-    def summary_changed(self, first=False):
+    @guarded
+    def changed(self, first=False):
         """The recipe on screen changed: the sentence at once, the count
         stale until it is cooked again."""
-        recipe = self._collect()
+        recipe = self.owner.current_recipe()
         self.sentence_label.set_label(recipe_sentence(recipe, WORDS))
         if self._live is not None:
             # An answer to what was asked before this edit is not about the
             # recipe on screen: it must never show as fresh.
             self._live.supersede()
-        if not self._counts():
+        if not self.owner.has_countable_scope():
             self._stop_pending()
             self._count_idle(_('Choose a list to count posts'))
             return
         self._count_stale()
         if self._timer:
             GLib.source_remove(self._timer)
-        self._timer = GLib.timeout_add(
-            0 if first else DEBOUNCE_MS, self._tick_summary)
+        # A weak callback: a pending timer never keeps the builder (or this
+        # controller) alive, so closing the builder frees it at once.
+        ref = self.weak_ref()
 
-    def _counts(self):
-        return self._selected_scope() != 'list' \
-            or bool(self._selected_list_id())
+        def fire():
+            controller = ref()
+            return GLib.SOURCE_REMOVE if controller is None \
+                else controller._tick_summary()
+        self._timer = GLib.timeout_add(0 if first else DEBOUNCE_MS, fire)
 
     def _stop_pending(self):
         if self._timer:
@@ -127,11 +136,13 @@ class LiveSummary:
             # The answer of the last request is not wanted any more.
             self._live.supersede()
 
+    @guarded
     def _tick_summary(self):
         self._timer = 0
+        owner = self.owner
         if self._live is None:
-            self._live = make_live_cook(self.client, self.account)
-        recipe = copy.deepcopy(self._collect())
+            self._live = make_live_cook(owner.client, owner.account)
+        recipe = copy.deepcopy(owner.current_recipe())
         self._live.request(recipe, weak_method(self._on_count),
                            weak_method(self._on_count_error))
         return GLib.SOURCE_REMOVE
@@ -148,7 +159,7 @@ class LiveSummary:
             self.count_row.set_title(_('Counting posts…'))
 
     def _count_idle(self, text):
-        self.preview_row.set_subtitle('')
+        self.owner.preview_row.set_subtitle('')
         self.count_row.remove_css_class('dimmed')
         self.count_row.set_title(text)
         self.count_row.set_subtitle('')
@@ -157,6 +168,7 @@ class LiveSummary:
         self.count_retry.set_visible(False)
         self._shown_count = None
 
+    @guarded
     def _on_count(self, count):
         self._shown_count = count
         self.count_row.remove_css_class('dimmed')
@@ -164,7 +176,7 @@ class LiveSummary:
                          count.matching) % count.matching
         changed = title != self.count_row.get_title()
         self.count_row.set_title(title)
-        self.preview_row.set_subtitle(ngettext(
+        self.owner.preview_row.set_subtitle(ngettext(
             # Translators: under Preview Recipe; how many of the recent
             # posts the recipe keeps.
             '%(matching)d of %(fetched)d posts matches',
@@ -180,10 +192,11 @@ class LiveSummary:
         self.count_spinner.set_visible(False)
         self.count_retry.set_visible(False)
 
+    @guarded
     def _on_count_error(self, _error):
         """Fail soft: the form works, the row says it could not count."""
         self._shown_count = None
-        self.preview_row.set_subtitle('')
+        self.owner.preview_row.set_subtitle('')
         self.count_row.remove_css_class('dimmed')
         self.count_row.set_title(_('Could not count posts'))
         self.count_row.set_subtitle(
@@ -193,4 +206,4 @@ class LiveSummary:
         self.count_retry.set_visible(True)
 
     def _on_count_retry(self, _button):
-        self.summary_changed(first=True)
+        self.changed(first=True)

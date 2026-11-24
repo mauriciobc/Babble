@@ -6,7 +6,7 @@ gettext."""
 
 import json
 
-from src.feedchef.auditreport import Words
+from src.feedchef.words import Words
 from src.feedchef.recipe import default_recipe, recipe_to_dict
 
 # What a translation does to a text: nothing but wrap it, so every text

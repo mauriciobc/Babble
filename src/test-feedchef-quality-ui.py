@@ -43,7 +43,7 @@ dialog = None
 pump_until(lambda: dialogs(feedchefexplain.KitchenReportDialog))
 dialog = dialogs(feedchefexplain.KitchenReportDialog)[-1]
 check('report: the Quality section is there, waiting, before the numbers',
-      dialog.quality_group.get_title() == 'Quality')
+      dialog.quality.quality_group.get_title() == 'Quality')
 shown = pump_until(lambda: any(
     r.get_title() == 'Recipe Health'
     for r in find(dialog, Adw.ActionRow)))
@@ -69,9 +69,9 @@ check('report: the score is the core\'s, with the caveat of what it '
       'measures under the title',
       number_of(rows['Latest Cook'])
       == '%.2f' % metrics_real['recipe_quality_score']
-      and dialog.quality_group.get_description()
+      and dialog.quality.quality_group.get_description()
       == quality.caveat_text(WORDS)
-      and 'filters' in dialog.quality_group.get_description())
+      and 'filters' in dialog.quality.quality_group.get_description())
 names = quality.band_names(WORDS)
 kitchen = metrics_real['kitchen']
 counts = [number_of(rows[names[b]]) for b in quality.BANDS]
@@ -87,7 +87,7 @@ check('report: pantry, diet and kitchen show how many posts each had',
 analysed = real_analyze(recipe, [BASE])
 reasons = {healthmod_text for healthmod_text in (
     health.reason_text(r, WORDS) for r in health.REASONS)}
-issues = [r.get_title() for r in find(dialog.issues_group, Adw.ActionRow)]
+issues = [r.get_title() for r in find(dialog.quality.issues_group, Adw.ActionRow)]
 check('report: the issues are the health reasons in words (or none found)',
       issues and all(i in reasons or i in ('No Issues Found',
                                            'Not Enough Cooks Yet')
@@ -95,7 +95,7 @@ check('report: the issues are the health reasons in words (or none found)',
       and (set(issues) & reasons
            == {health.reason_text(r, WORDS)
                for r in analysed.health.reasons}))
-buttons = find(dialog.suggestions_group, Gtk.Button,
+buttons = find(dialog.quality.suggestions_group, Gtk.Button,
                lambda b: b.get_label() == 'Apply')
 expected = [r for r in analysed.recommendations[:6] if not r.manual]
 check('report: each suggestion that has edits has an Apply button, with '
@@ -103,7 +103,7 @@ check('report: each suggestion that has edits has an Apply button, with '
       len(buttons) == len(expected)
       and all((b.get_tooltip_text() or '').startswith('Apply: ')
               for b in buttons)
-      and len(find(dialog.suggestions_group, Adw.ActionRow))
+      and len(find(dialog.quality.suggestions_group, Adw.ActionRow))
       >= len(analysed.recommendations[:6]))
 check('report: the analysis ran off the main thread',
       THREADS['analyze'] and all(t is not MAIN
@@ -140,10 +140,16 @@ pump()
 check('report: without a fallback there is no such notice',
       notice not in [r.get_title() for r in find(
           feedchefexplain.KitchenReportDialog(
-              [BASE], page.report_button and page._quality_context()),
+              [BASE], page.report_button and page.experiment.quality_context()),
           Adw.ActionRow)])
 dialog = None
 page2 = None
+report = feedchefexplain.KitchenReportDialog(
+    [BASE], page.experiment.quality_context())
+refs = [report.weak_ref(), report.quality.weak_ref()]
+report = None
+check('report: a report dialog is freed with its Quality controller',
+      all(freed(r) for r in refs))
 
 # The page, its dialogs and the worker leave nothing behind.
 del TOASTS[:]
@@ -152,6 +158,11 @@ window.set_child(None)
 page = None
 check('page: a recipe page with the quality layer is freed once closed',
       freed(ref))
+listing = feedcheflist.FeedChefListPage(Client(), account)
+refs = [listing.weak_ref(), listing.health.weak_ref()]
+listing = None
+check('list: a recipe list is freed with its health controller',
+      all(freed(r) for r in refs))
 
 # --- 2. Apply, Undo ----------------------------------------------------------
 
@@ -168,9 +179,9 @@ engines_before = len(ENGINES)
 page.report_button.emit('clicked')
 pump_until(lambda: dialogs(feedchefexplain.KitchenReportDialog))
 dialog = dialogs(feedchefexplain.KitchenReportDialog)[-1]
-pump_until(lambda: find(dialog.suggestions_group, Gtk.Button,
+pump_until(lambda: find(dialog.quality.suggestions_group, Gtk.Button,
                         lambda b: b.get_label() == 'Apply'))
-titles = [r.get_title() for r in find(dialog.suggestions_group,
+titles = [r.get_title() for r in find(dialog.quality.suggestions_group,
                                        Adw.ActionRow)]
 check('apply: a high-severity suggestion says so in words, not by its icon',
       all(any(t.startswith('Important: ') for t in titles)
@@ -184,7 +195,7 @@ check('apply: one click saves the recipe with the change and cooks it again',
       stored(page.recipe) == stored(applied)
       and stored(storage.get_recipe_by_id('opt-1')) == stored(applied)
       and len(ENGINES) > engines_before)
-apply_button = dialog._quality_buttons[rec.id]
+apply_button = dialog.quality._quality_buttons[rec.id]
 check('apply: the report stays open, its button says Applied, and the Undo '
       'toast is the dialog\'s own and names the setting',
       dialogs(feedchefexplain.KitchenReportDialog)
@@ -212,7 +223,7 @@ storage.delete_recipe('opt-1')
 toasts_before = len(TOASTS)
 check('apply: a recipe deleted since is not brought back by Apply, and the '
       'reader is told',
-      page.apply_recommendation(rec) is False
+      page.experiment.apply_recommendation(rec) is False
       and storage.get_recipe_by_id('opt-1') is None
       and TOASTS[-1].text == 'This recipe no longer exists')
 proposed = optimizer.propose(make_recipe(), advice.recommend(
@@ -242,16 +253,16 @@ none = default_recipe('hl-none')
 none.id = 'hl-none'
 storage.save_recipe(none)
 del THREADS['health_map'][:]
-listing = feedchefpages.FeedChefListPage(Client(), account)
+listing = feedcheflist.FeedChefListPage(Client(), account)
 window.set_child(listing)
 check('badge: before the worker answers, no badge claims anything',
-      all(not b.get_visible() for b in listing._badges.values()))
-pump_until(lambda: 'hl-bad' in listing._badges)
+      all(not b.get_visible() for b in listing.health.badges.values()))
+pump_until(lambda: 'hl-bad' in listing.health.badges)
 settle()
 
 
 def badge(rid):
-    found = listing._badges.get(rid)
+    found = listing.health.badges.get(rid)
     return found.label.get_label() if found is not None \
         and found.get_visible() else None
 
@@ -262,18 +273,18 @@ check('badge: Needs Attention for the recipe whose last cooks did badly, '
       badge('hl-bad') == 'Needs Attention'
       and badge('hl-good') == 'Working Well' and badge('hl-none') is None)
 check('badge: it is an icon and words, with the reasons in a tooltip',
-      listing._badges['hl-bad'].icon.get_icon_name()
+      listing.health.badges['hl-bad'].icon.get_icon_name()
       == 'dialog-warning-symbolic'
-      and listing._badges['hl-good'].icon.get_icon_name()
+      and listing.health.badges['hl-good'].icon.get_icon_name()
       == 'object-select-symbolic'
-      and listing._badges['hl-bad'].get_tooltip_text())
+      and listing.health.badges['hl-bad'].get_tooltip_text())
 check('badge: it was computed on the worker, not the main thread',
       THREADS['health_map']
       and all(t is not MAIN for t in THREADS['health_map']))
 before = len(THREADS['health_map'])
-again = feedchefpages.FeedChefListPage(Client(), account)
+again = feedcheflist.FeedChefListPage(Client(), account)
 check('badge: a list shown again reads the cache, with no new job',
-      again._badges['hl-bad'].get_visible()
+      again.health.badges['hl-bad'].get_visible()
       and len(THREADS['health_map']) == before)
 window.set_child(None)
 again = listing = None
@@ -344,10 +355,10 @@ check('badge: a recipe that cannot be judged is said once, not at every '
 check('badge: the log folder is read once per refresh for all the recipes',
       len(scans) == 2)
 
-listing = feedchefpages.FeedChefListPage(Client(), account)
+listing = feedcheflist.FeedChefListPage(Client(), account)
 window.set_child(listing)
-pump_until(lambda: 'hl-bad' in listing._badges)
-badge = listing._badges['hl-bad']
+pump_until(lambda: 'hl-bad' in listing.health.badges)
+badge = listing.health.badges['hl-bad']
 check('badge: it is an image with a name for a screen reader',
       badge.get_accessible_role() == Gtk.AccessibleRole.IMG
       and badge.label.get_visible())
@@ -372,17 +383,18 @@ for cook in range(9):
 page = open_page(storage.get_recipe_by_id(rid),
                  lambda r, v, m, p: None)
 check('banner: nine bad cooks need attention but are no alert yet',
-      page._health.state == 'needs_attention' and not page._health.alert
-      and not page.health_banner.get_revealed())
+      page.experiment._health.state == 'needs_attention'
+      and not page.experiment._health.alert
+      and not page.experiment.health_banner.get_revealed())
 write_cook(rid, 309, 'bad')
-page.request_health()
-pump_until(lambda: page.health_banner.get_revealed())
+page.experiment.request_health()
+pump_until(lambda: page.experiment.health_banner.get_revealed())
 check('banner: the tenth turns it on, with the words and the button',
-      page.health_banner.get_revealed()
-      and page.health_banner.get_title()
+      page.experiment.health_banner.get_revealed()
+      and page.experiment.health_banner.get_title()
       == 'This recipe is getting less engagement'
-      and page.health_banner.get_button_label() == 'Improve…')
-page.health_banner.emit('button-clicked')
+      and page.experiment.health_banner.get_button_label() == 'Improve…')
+page.experiment.health_banner.emit('button-clicked')
 pump_until(lambda: dialogs(feedchefexplain.KitchenReportDialog))
 dialog = dialogs(feedchefexplain.KitchenReportDialog)[-1]
 pump_until(lambda: any(r.get_title() == 'Recipe Health'
@@ -391,7 +403,7 @@ check('banner: Improve… opens the Quality section, which says the recipe '
       'needs attention',
       dialog.get_title() == 'Improve This Recipe'
       and any(r.get_title() == 'The score has been low over the last cooks'
-              for r in find(dialog.issues_group, Adw.ActionRow)))
+              for r in find(dialog.quality.issues_group, Adw.ActionRow)))
 dialog.force_close()
 pump()
 dialog = None
@@ -407,10 +419,10 @@ for cook in range(4):
     write_cook(rid, 400 + cook, 'good')
 page_b = open_page(storage.get_recipe_by_id(rid), lambda r, v, m, p: None)
 check('toast: first the recipe is working well, and says nothing',
-      page_b._health.state == 'working_well' and not TOASTS)
+      page_b.experiment._health.state == 'working_well' and not TOASTS)
 for cook in range(10):
     write_cook(rid, 500 + cook, 'bad')
-page_b.request_health()
+page_b.experiment.request_health()
 pump_until(lambda: TOASTS)
 check('toast: it names the recipe, with a button to the suggestions',
       TOASTS and TOASTS[-1].text
@@ -418,7 +430,7 @@ check('toast: it names the recipe, with a button to the suggestions',
       and TOASTS[-1].undo_label == '_See Suggestions'
       and TOASTS[-1].undo is not None)
 count = len(TOASTS)
-page_b.request_health()
+page_b.experiment.request_health()
 settle()
 check('toast: not again in the same session',
       len(TOASTS) == count)

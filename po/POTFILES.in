@@ -59,6 +59,7 @@ src/feedchefshare.py
 src/feedchefexperiment.py
 src/feedchefexplain.py
 src/feedcheffocus.py
+src/feedcheflist.py
 src/feedchefmodes.py
 src/feedchefnewrecipe.py
 src/feedchefquality.py

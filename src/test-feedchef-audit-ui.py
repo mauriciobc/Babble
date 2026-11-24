@@ -43,7 +43,7 @@ sys.path.insert(0, srcdir)
 
 from feedchefaudit import fuzz  # noqa: E402
 from src import feedback, feedchefexplain, feedchefpages  # noqa: E402
-from src.feedchef import auditreport  # noqa: E402
+from src.feedchef import auditreport, words  # noqa: E402
 from src.feedchef import decisionlog as logmod  # noqa: E402
 from src.feedchef import storage as storagemod  # noqa: E402
 from src.feedchef.engine import FeedResult  # noqa: E402
@@ -299,7 +299,7 @@ check('why: it has the three sections, in words, and a title',
 judged = isinstance((entry['sent'] or {}).get('score'), (int, float))
 # Only Positive passes an unjudged post without checking its tone.
 passed = {t for rule, t in auditreport.rule_titles(
-    auditreport.ENGLISH).items() if entry['rules'].get(rule) == 'pass'
+    words.ENGLISH).items() if entry['rules'].get(rule) == 'pass'
     and (rule != 'positive_only' or judged)}
 check('why: every row under Checks It Passed is a rule the record passed',
       {t for t in sections['Checks It Passed']

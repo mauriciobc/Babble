@@ -19,7 +19,7 @@ from .feedchef.cluster import STRATEGIES, strategy_of  # noqa: E402,F401
 from .feedchef.icons import ICONS, icon_name  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
 from .feedchefbuilderlive import LiveSummary  # noqa: E402
-from .feedchefmodes import ModesMixin  # noqa: E402
+from .feedchefmodes import Modes  # noqa: E402
 from .feedchefmodifiers import modifier_editors  # noqa: E402
 from .feedchefmodifiers import spin_row as _spin  # noqa: E402
 from .feedchefpreview import (CloseWhenFeedChefOff,  # noqa: E402
@@ -74,8 +74,7 @@ def _unsupported_names(recipe):
     return [names.get(kind, kind) for kind in recipe.inert_modifiers()]
 
 
-class FeedChefBuilderDialog(ModesMixin, LiveSummary, CloseWhenFeedChefOff,
-                           ToastDialog):
+class FeedChefBuilderDialog(CloseWhenFeedChefOff, ToastDialog):
     """Edits a copy of a recipe. Cancel drops the copy; Save stores it,
     emits ``saved`` and closes. A new recipe is not stored before Save."""
 
@@ -105,11 +104,11 @@ class FeedChefBuilderDialog(ModesMixin, LiveSummary, CloseWhenFeedChefOff,
             css='suggested-action')
         page = self.page
         recipe = self.recipe
-        self.build_summary_group(page)
+        self.summary = LiveSummary(self, page)
         self._build_recipe_group(page, recipe)
         self._build_pantry_group(page, recipe)
         self._build_diet_group(page, recipe)
-        self.build_modes_group(page)
+        self.modes = Modes(self, page)
         self._build_kitchen_group(page, recipe)
         actions = Adw.PreferencesGroup()
         # An action row, not a button row: its subtitle carries the live
@@ -131,7 +130,7 @@ class FeedChefBuilderDialog(ModesMixin, LiveSummary, CloseWhenFeedChefOff,
         self._sync_scope()
         self.watch_feed_chef_key()
         self._sync_subtitles()
-        self.sync_mode(force=True)
+        self.modes.sync(force=True)
         self.submit_on_enter(self.save_button, self.name_row, self.include,
                              self.exclude, self.blocklist)
         # Taken after the widgets hold the recipe's values: the baseline
@@ -139,7 +138,7 @@ class FeedChefBuilderDialog(ModesMixin, LiveSummary, CloseWhenFeedChefOff,
         self._initial = self._state()
         self._watch()
         self._sync_save()
-        self.start_summary()
+        self.summary.start()
         connect_weak(self, 'close-attempt', self._on_close_attempt)
 
     def _build_recipe_group(self, page, recipe):
@@ -438,9 +437,9 @@ class FeedChefBuilderDialog(ModesMixin, LiveSummary, CloseWhenFeedChefOff,
         if self._syncing:
             return
         self._sync_save()
-        self.summary_changed()
-        if not self._mode_syncing:
-            self.sync_mode()
+        self.summary.changed()
+        if not self.modes.syncing:
+            self.modes.sync()
         # With can-close off, closing asks first (close-attempt).
         self.set_can_close(self._state() == self._initial)
 
@@ -475,6 +474,23 @@ class FeedChefBuilderDialog(ModesMixin, LiveSummary, CloseWhenFeedChefOff,
         self.discard_alert = None
         if response == 'discard':
             self.force_close()
+
+    # What the Style and summary controllers ask of the builder
+
+    def has_countable_scope(self):
+        """Whether the recipe's source can be counted (a list needs one
+        chosen)."""
+        return self._selected_scope() != 'list' \
+            or bool(self._selected_list_id())
+
+    def current_recipe(self):
+        """The recipe the controls describe now (what Save would store)."""
+        return self._collect()
+
+    def controls_edited(self):
+        """The controls were set from code: the builder follows them as it
+        follows the reader's edits."""
+        self._on_edited()
 
     # Collecting
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
-from .auditreport import ENGLISH, Words
+from .words import ENGLISH, Words
 
 # The alert: the mean score of the last WINDOW cooks is under ALERT_BELOW
 # (moshidon: "after 10 uses, if the quality is under 0.5").

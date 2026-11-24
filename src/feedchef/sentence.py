@@ -13,7 +13,7 @@ translation module.
 
 from __future__ import annotations
 
-from .auditreport import ENGLISH, Words
+from .words import ENGLISH, Words
 from .recipe import FeedRecipe
 
 # Hashtags the sentence names before "and N more".

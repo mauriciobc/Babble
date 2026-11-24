@@ -627,6 +627,35 @@ also uses, so the command line and the dialogs say the same thing.
 
 Test: `feedchef audit ui` (the real Recorder's record behind a fake engine).
 
+**Where the audit code lives.** The record is observed where each fact is
+known and built elsewhere, so no file has to hold both:
+
+- `src/feedchef/stages.py`: one function per stage of a cook (`gather`,
+  `diet`, `reach`, `viewer_hide`, `kitchen`, `guard`, `caps`, `finish`, with
+  the reports between them) over a read-only `CookContext`: what one stage
+  hands to the next (the trends, the judge, the stage clocks) is its return
+  value, and the engine members the stages use are public
+  (`trends_executor`, `server_trends`, `stagger`, `await_follow_list`).
+  `gather` is a sequence of `_start_fetches`, `_more_like_this`,
+  `_wait_fetches` and `_fetched_posts`. `FeedEngine._process_sync` is the
+  sequence of them. The audit calls stay in the stage that owns the fact.
+- `src/feedchef/audit.py`: the event sinks (`Recorder`, filling a trace),
+  `NullAudit`, `recipe_hash` and `write_private`. No caller changed.
+- `src/feedchef/auditbuild.py`: the record building, as functions of the
+  recorder and a small `Build` (the text sidecar and the promises the recipe
+  makes). It only reads the recorder; `build_record` returns the record and
+  the sidecar, and `Recorder.build()` keeps the sidecar.
+- `src/feedchef/auditconst.py`: a leaf holding `SCHEMA`, `ENGINE_REV`,
+  `TEXT_CAP`, `recipe_hash`, `stage_of` and `text_digest`. `audit` and
+  `auditbuild` both import it at load time (so they do not import each
+  other), and `audit` re-exports the names.
+- `src/feedchef/words.py`: `Words`, `ENGLISH` and `_plural`, the app's
+  gettext handed in by the caller. Every text module imports them from here;
+  `auditreport` still re-exports them for one release.
+- `bench/feedchefaudit/selfcheck.py` is the runner of `self-test` and
+  `selfcases.py` holds its recipes and tampered records. The size rule
+  (`file size rule`) walks `bench/feedchefaudit/` as well.
+
 ## Heat levels, the fallback and the Popular badge (Phase 2)
 
 Babble, not Java. Java's heat is a percentile threshold the builder sets with
@@ -724,7 +753,7 @@ A recipe page asks again for page one while it is on screen, and offers the
 result as a pill only when it is worth interrupting the reader. The decisions
 are in `src/feedchef/smartmerge.py` (no widget); `src/feedchefpeek.py` holds
 the two halves that touch the page (`SourcePeek` for `FeedChefSource`,
-`PagePeek` for `FeedChefTimelinePage`).
+`PeekController` for `FeedChefTimelinePage`, a controller the page owns).
 
 - **Score cache.** An LRU (`collections.OrderedDict`) of
   `SCORE_CACHE_SIZE` = 100 final scores by post id in `FeedChefSource`,
@@ -1118,7 +1147,50 @@ and `quoteline` (display-free). It must not import Catch Up UI/fetch/store/tiles
 `navigation`, or `catchup.rank*`. Catch Up must not import `feedchef`.
 Enforced by prefix rules in `testkit/moduleboundary.py`.
 
+**The engine (display-free, `src/feedchef/`).** `engine.py` (the worker, the
+cancellation and the `process_feed` entry) runs the stages of `stages.py`; the
+audit is `audit.py` (sinks) plus `auditbuild.py` (the record) and is worded by
+`auditreport.py`; `words.py` is the `Words` every text module takes.
+
+**The screens (`src/feedchef*.py`).** A page or dialog does not inherit a
+concern of its own as a mixin of its private state: it owns a controller
+(`feedchefcontroller.PageController`, a GObject that holds its owner by a weak
+reference, so the only strong reference runs from the page to the controller
+and both are freed together). The page forwards the hooks the toolkit calls
+and names the accessors a controller uses (listed below; a controller reads
+the page's public attributes `source`, `model`, `recipe`, `storage`,
+`account`, `client`, `new_pill` and `new_posts_revealer` as well, and never a
+private one). A callback that lands after the owner was freed does nothing
+(`feedchefcontroller.guarded`).
+
+| Owner | Controller | Module |
+| --- | --- | --- |
+| `FeedChefTimelinePage` | `peek`: `PeekController` (the timer, the pill, the merge) | `feedchefpeek` |
+| `FeedChefTimelinePage` | `experiment`: `ExperimentController` (health, suggestions, the A/B experiment) | `feedchefexperiment` |
+| `FeedChefTimelinePage` | `focus_ctl`: `FocusController` (More Like This, the banner; not `focus`, which would shadow `Gtk.Widget.focus()`) | `feedcheffocus` |
+| `FeedChefListPage` (`feedcheflist`) | `health`: `ListHealth` (the recipe badges) | `feedchefquality` |
+| `FeedChefBuilderDialog` | `modes`: `Modes` (the Style group) | `feedchefmodes` |
+| `FeedChefBuilderDialog` | `summary`: `LiveSummary` (the sentence and the live count; its debounce timer holds nothing, so a closed builder is freed at once) | `feedchefbuilderlive` |
+| `KitchenReportDialog` | `quality`: `QualityReport` (the Quality section) | `feedchefqualityview` |
+
+`CloseWhenFeedChefOff` (`feedchefpreview`) stays a mixin on purpose: it is a
+one-behaviour lifecycle helper (close the dialog when `feed-chef-enabled` turns
+off) that holds no state of its own and reads none of the dialog's.
+
+The page's own accessors for them: `scope_closed`, `is_loading()`,
+`polling`, `viewport`, `set_pill_count()`, `cook()` and `switch_to()`; the
+builder's: `current_recipe()`, `controls_edited()` and `has_countable_scope()`. `feedchefpages` keeps the
+recipe's timeline and the pushed page; the recipe list moved to
+`feedcheflist`. The session caches of the quality layer (`HEALTH`, `ALERTED`,
+`DECLINED`) are dropped when `feed-chef-enabled` turns off
+(`navigation.forget_feed_chef_session`).
+
 ## Kitchen policy
+
+The kitchen applies the modifiers that act on a page as a whole through
+`kitchen.STAGES`, a table keyed by stage (`similarity_cluster`, `heat`,
+`order`, `diversity`) whose sequence `kitchen.ORDER` fixes (Java's), and the
+per-post factors through `kitchen.FACTORS`.
 
 Silent no-ops are forbidden. Modifiers the kitchen does not apply
 (`connection`) show as inert in the builder/import UI, and one that cannot run

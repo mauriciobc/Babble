@@ -48,7 +48,7 @@ from typing import Any
 
 from . import contract
 from .audit import SHOWN
-from .auditreport import ENGLISH, Words
+from .words import ENGLISH, Words
 from .textutil import parse_created_at
 
 STAGES = ('pantry', 'diet', 'kitchen')

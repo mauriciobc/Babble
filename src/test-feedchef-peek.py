@@ -372,7 +372,7 @@ def spy(seconds):
 
 
 page.set_auto_refresh_interval = spy
-page._peek_sync()
+page.peek.sync()
 check('timer: syncing again keeps the timer (no restart)',
       asked == [] and page._auto_refresh_id != 0)
 monitor.metered = True
@@ -402,15 +402,15 @@ window.present()
 pump_until(page.get_mapped)
 check('pause: it comes back with the window', page._auto_refresh_id != 0)
 settings.set_boolean('feed-chef-enabled', False)
-page._peek_sync()
+page.peek.sync()
 check('off: with Feed Chef off there is no timer at all',
       page._auto_refresh_id == 0)
 settings.set_boolean('feed-chef-enabled', True)
-page._peek_sync()
+page.peek.sync()
 page.close_requests()
 check('off: closing the requests of the page removes the timer too',
       page._auto_refresh_id == 0)
-page._peek_sync()
+page.peek.sync()
 check('off: a closed page does not get the timer back',
       page._auto_refresh_id == 0)
 del page.set_auto_refresh_interval
@@ -448,7 +448,7 @@ check('pill: new posts that score under the viewport are kept silently',
       source.peeked is not None
       and not page.new_posts_revealer.get_reveal_child())
 check('pill: the model did not change', len(ids(page)) == 6)
-visible = page._visible_scores()
+visible = page.peek.visible_scores()
 limit = smartmerge.threshold(visible)
 check('pill: the threshold is mean + SD of the cached scores on screen '
       '(%.3f of %d posts)' % (limit, len(visible)),
@@ -567,7 +567,7 @@ check('free: no peek is left in flight on any engine',
 # Feed Chef off: no engine is touched, no timer exists.
 page2, engine2, view2 = make_page()
 settings.set_boolean('feed-chef-enabled', False)
-page2._peek_sync()
+page2.peek.sync()
 page2._on_auto_refresh()
 check('off: a page with Feed Chef off has no timer', page2._auto_refresh_id
       == 0)

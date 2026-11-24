@@ -189,7 +189,7 @@ check('rows: the shells under the list are found (%d)' % len(rows),
       rows and all(isinstance(r, StatusRunRow) for r in rows)
       and any(r.get_mapped() for r in rows))
 check('rows: the viewport statistics read their posts',
-      len(page._visible_scores()) >= 1)
+      len(page.peek.visible_scores()) >= 1)
 
 # QA4: a page pushed over the recipe covers it.
 page, engine, view = make_page()

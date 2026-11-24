@@ -37,7 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src import (feedback, feedchefbuilder, feedchefbuilderlive,  # noqa: E402
-                 feedchefpages)
+                 feedcheflist, feedchefpages)
 from src.feedchefsource import MAX_EMPTY_HOPS  # noqa: E402
 from src.feedchef import storage as storagemod  # noqa: E402
 from src.feedchef.engine import FeedResult  # noqa: E402
@@ -192,7 +192,7 @@ window = Gtk.Window(default_width=900, default_height=700)
 window.present()
 
 # --- the recipe list: empty state, then rows ---
-list_page = feedchefpages.FeedChefListPage(client, account)
+list_page = feedcheflist.FeedChefListPage(client, account)
 window.set_child(list_page)
 check('list: no recipes shows the empty state',
       list_page.stack.get_visible_child_name() == 'empty')
@@ -484,7 +484,7 @@ check('timeline: kitchen order is kept, not sorted by id',
 check('timeline: one cook was started for the first page',
       engine.calls == [None])
 check('timeline: the banner is hidden without a focus',
-      not page.banner.get_revealed())
+      not page.focus_ctl.banner.get_revealed())
 
 # Older page: the engine's own cursor, then the end.
 engine.queue = [([status(5)], False, None)]
@@ -523,7 +523,8 @@ button.activate_action(entries['More _Like This'], None)
 check('menu: it sets the focus from that post',
       page.recipe.kitchen.active_focus_hashtags == ['python'])
 check('menu: the banner shows the focus',
-      page.banner.get_revealed() and '#python' in page.banner.get_title())
+      page.focus_ctl.banner.get_revealed()
+      and '#python' in page.focus_ctl.banner.get_title())
 check('menu: the focus is stored',
       store.get_recipe_by_id(recipe.id).kitchen.active_focus_hashtags
       == ['python'])
@@ -535,11 +536,11 @@ check('menu: refresh replaced the list, nothing was prepended',
 
 # Clear.
 engine.queue = [([status(2)], False, None)]
-page.banner.emit('button-clicked')
+page.focus_ctl.banner.emit('button-clicked')
 check('banner: the button says what it clears',
-      page.banner.get_button_label() == 'Clear Focus')
+      page.focus_ctl.banner.get_button_label() == 'Clear Focus')
 check('banner: Clear hides it and clears the focus',
-      not page.banner.get_revealed()
+      not page.focus_ctl.banner.get_revealed()
       and page.recipe.kitchen.active_focus_hashtags is None)
 check('banner: Clear cooks again',
       pump_until(lambda: ids(page) == ['00002']))
@@ -558,7 +559,7 @@ kit = page.recipe.kitchen
 kit.active_focus_keywords = ['coffee', 'tea']
 kit.active_focus_hashtags = ['python']
 kit.focus_decay = 0.5
-page._update_focus_ui()
+page.focus_ctl.update_ui()
 engine.queue = [([status(3)], False, None)]
 count = len(engine.calls)
 stopped = engine.cancelled
@@ -576,7 +577,7 @@ for _step in range(3):
 check('decay: a weight under 0.1 goes, with none left the focus clears and '
       'the banner follows',
       kit.active_focus_keywords is None and kit.active_focus_hashtags is None
-      and not page.banner.get_revealed()
+      and not page.focus_ctl.banner.get_revealed()
       and store.get_recipe_by_id(recipe.id).kitchen.active_focus_keywords
       is None)
 kit.focus_decay = 1.0
@@ -657,19 +658,19 @@ check('close: a page disposed mid-cook is freed without a critical',
 kitchen = page.recipe.kitchen
 kitchen.active_focus_hashtags = ['a', 'b', 'c', 'd', 'e']
 kitchen.active_focus_keywords = ['kw']
-page._update_focus_ui()
+page.focus_ctl.update_ui()
 check('banner: at most three terms, hashtags first, then "and N more"',
-      page.banner.get_title() == 'Showing more like #a, #b, #c and 3 more')
+      page.focus_ctl.banner.get_title() == 'Showing more like #a, #b, #c and 3 more')
 check('banner: the tooltip keeps the whole list',
-      page.banner.get_tooltip_text() == '#a, #b, #c, #d, #e, kw')
+      page.focus_ctl.banner.get_tooltip_text() == '#a, #b, #c, #d, #e, kw')
 kitchen.active_focus_hashtags = ['a']
-page._update_focus_ui()
+page.focus_ctl.update_ui()
 check('banner: a short list is shown whole',
-      page.banner.get_title() == 'Showing more like #a, kw')
+      page.focus_ctl.banner.get_title() == 'Showing more like #a, kw')
 kitchen.active_focus_hashtags = None
 kitchen.active_focus_keywords = None
-page._update_focus_ui()
-check('banner: no focus hides it', not page.banner.get_revealed())
+page.focus_ctl.update_ui()
+check('banner: no focus hides it', not page.focus_ctl.banner.get_revealed())
 
 # --- the header's Edit Recipe button ---
 check('header: Edit Recipe is an icon button with tooltip and name',
@@ -758,8 +759,12 @@ feedchefpages.FeedChefBuilderDialog = Builder
 # --- the page is freed, and its engine is shut down ---
 window.set_child(None)
 page_ref = page.weak_ref()
+controller_refs = [page.peek.weak_ref(), page.experiment.weak_ref(),
+                   page.focus_ctl.weak_ref()]
 page = button = menu = navpage = navview = None
 check('freed: a dropped Feed Chef page is freed', freed(page_ref))
+check('freed: and so are its peek, experiment and focus controllers',
+      all(freed(ref) for ref in controller_refs))
 check('freed: its engine was shut down', engine.shutdown_called)
 window.destroy()
 pump()

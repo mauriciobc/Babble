@@ -9,8 +9,9 @@ them back to say which mode the recipe is in. Editing one of those controls
 by hand turns the mode to Custom (or to the mode whose settings the reader
 has dialled in). A recipe with a focus keeps its order, as everywhere else.
 
-A mixin of ``FeedChefBuilderDialog``: it reads the builder's ``editors``,
-``order``, ``_collect()`` and ``_on_edited()``.
+A controller of ``FeedChefBuilderDialog`` (the builder owns it, see
+``feedchefcontroller``): it reads the builder's ``editors`` and ``order``,
+asks it for ``current_recipe()`` and tells it ``controls_edited()``.
 """
 
 import gi
@@ -21,6 +22,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gtk  # noqa: E402
 
 from .feedchef import recipeedit, templates  # noqa: E402
+from .feedchefcontroller import PageController, guarded  # noqa: E402
 from .feedchefexplain import WORDS  # noqa: E402
 from .i18n import gettext as _  # noqa: E402
 from .uihelpers import set_accessible_label  # noqa: E402
@@ -34,11 +36,14 @@ def mapped(recipe):
             recipe.kitchen.base_sort)
 
 
-class ModesMixin:
-    _mode_syncing = False
-    _mapped_seen = None
+class Modes(PageController):
+    """The Style group of the builder: its widgets and what they say."""
 
-    def build_modes_group(self, page):
+    def __init__(self, builder, page):
+        """Build the Style group into *page* (the preferences page)."""
+        super().__init__(builder)
+        self.syncing = False
+        self._mapped_seen = None
         names = templates.mode_names(WORDS)
         group = Adw.PreferencesGroup(
             title=_('Style'),
@@ -79,15 +84,17 @@ class ModesMixin:
     def set_mode(self, mode):
         self.mode_row.set_selected(templates.MODES.index(mode))
 
-    def _editor(self, kind):
-        return next(e for e in self.editors if e.kind == kind)
+    @guarded
+    def editor(self, kind):
+        return next(e for e in self.owner.editors if e.kind == kind)
 
     # Reading the controls
 
-    def sync_mode(self, force=False):
+    @guarded
+    def sync(self, force=False):
         """Show the mode the controls are in (Custom when none), and where
         the slider sits. Only when what a mode sets changed."""
-        recipe = self._collect()
+        recipe = self.owner.current_recipe()
         seen = mapped(recipe)
         if not force and seen == self._mapped_seen:
             return
@@ -96,7 +103,7 @@ class ModesMixin:
                         templates.slider_position(recipe))
 
     def _show_mode(self, mode, position, move_slider=True):
-        self._mode_syncing = True
+        self.syncing = True
         try:
             self.set_mode(mode)
             # Not while the reader drags it: it would jump under the hand.
@@ -108,47 +115,51 @@ class ModesMixin:
                 self.slider_row.remove_css_class('dimmed')
             self.mode_row.set_subtitle(templates.mode_names(WORDS)[mode][1])
         finally:
-            self._mode_syncing = False
+            self.syncing = False
 
     # Writing them
 
+    @guarded
     def _write_controls(self, target, move_slider=True):
         """Put the heat, freshness and order of *target* into the
         controls."""
-        self._mode_syncing = True
+        self.syncing = True
         try:
             heat = recipeedit.current(target, 'heat')
-            editor = self._editor('heat')
+            editor = self.editor('heat')
             editor.row.set_enable_expansion(heat is not None)
             if heat is not None:
                 editor.spin.set_value(heat)
             minutes = recipeedit.current(target, 'freshness')
-            editor = self._editor('freshness')
+            editor = self.editor('freshness')
             editor.row.set_enable_expansion(minutes is not None)
             if minutes is not None:
                 editor.spin.set_value(max(1, min(48, round(minutes / 60))))
             if not templates.focused(target):
-                self.order.set_selected(
+                self.owner.order.set_selected(
                     1 if target.kitchen.base_sort == 'chronological' else 0)
         finally:
-            self._mode_syncing = False
+            self.syncing = False
         self._mapped_seen = mapped(target)
         self._show_mode(templates.mode_of(target),
                         templates.slider_position(target), move_slider)
-        self._on_edited()
+        self.owner.controls_edited()
 
+    @guarded
     def _on_mode_selected(self, _row, _pspec):
-        if self._mode_syncing:
+        if self.syncing:
             return
         mode = self.get_mode()
         self.mode_row.set_subtitle(templates.mode_names(WORDS)[mode][1])
         if mode != 'custom':
-            self._write_controls(templates.with_mode(self._collect(), mode))
+            self._write_controls(templates.with_mode(
+                self.owner.current_recipe(), mode))
 
+    @guarded
     def _on_slider_moved(self, scale):
-        if self._mode_syncing:
+        if self.syncing:
             return
-        current = self._collect()
+        current = self.owner.current_recipe()
         target = templates.with_slider(current, scale.get_value())
         if mapped(target) != mapped(current):
             self._write_controls(target, move_slider=False)

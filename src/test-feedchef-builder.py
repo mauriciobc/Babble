@@ -37,7 +37,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src import (feedback, feedchefbuilder, feedchefbuilderlive,  # noqa: E402
-                 feedchefpages, feedchefpreview, navigation)
+                 feedcheflist, feedchefpages, feedchefpreview,
+                 navigation)
 from src.feedchef import icons  # noqa: E402
 from src.feedchef import storage as storagemod  # noqa: E402
 from src.feedchef.engine import FeedResult  # noqa: E402
@@ -205,7 +206,7 @@ client = Client()
 window = Gtk.Window(default_width=900, default_height=700)
 window.present()
 
-list_page = feedchefpages.FeedChefListPage(client, account)
+list_page = feedcheflist.FeedChefListPage(client, account)
 window.set_child(list_page)
 saved = []
 
@@ -354,8 +355,13 @@ check('builder: Preview Recipe and Share Recipe have start icons',
       == 'view-reveal-symbolic'
       and action_rows['S_hare Recipe'].get_start_icon_name()
       == 'send-to-symbolic')
+dialog.name_row.set_text('Pending')  # arms the live count's debounce
 dialog.force_close()
 pump()
+refs = [dialog.weak_ref(), dialog.modes.weak_ref(), dialog.summary.weak_ref()]
+action_rows = dialog = None
+check('builder: a closed builder is freed at once with its controllers',
+      all(freed(r) for r in refs))
 
 # A growth threshold imported outside the editor's range is not rewritten
 # unless the reader changes it.
@@ -782,7 +788,7 @@ check('builder: an edited Blocked Words field is read as separate words (%r)'
 store.delete_recipe(phrase.id)
 
 # The deprecated style class is not used by Feed Chef's UI.
-for name in ('feedchefbuilder.py', 'feedchefpages.py',
+for name in ('feedchefbuilder.py', 'feedcheflist.py', 'feedchefpages.py',
              'feedchefpreview.py'):
     with open(os.path.join(srcdir, name), encoding='utf-8') as handle:
         check('style: %s does not use dim-label' % name,

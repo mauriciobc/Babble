@@ -39,7 +39,7 @@ from typing import Any, NamedTuple
 from . import heat as heatmod
 from . import recipeedit
 from . import templates
-from .auditreport import ENGLISH, Words
+from .words import ENGLISH, Words
 from .recipe import FeedRecipe
 from .recipeedit import Edit
 

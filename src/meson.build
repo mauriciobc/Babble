@@ -87,9 +87,11 @@ install_data(
   'feedchefbridge.py',
   'feedchefbuilder.py',
   'feedchefbuilderlive.py',
+  'feedchefcontroller.py',
   'feedchefexperiment.py',
   'feedchefexplain.py',
   'feedcheffocus.py',
+  'feedcheflist.py',
   'feedchefmodes.py',
   'feedchefmodifiers.py',
   'feedchefnewrecipe.py',
@@ -238,6 +240,7 @@ install_data(
   'feedchef/__init__.py',
   'feedchef/advice.py',
   'feedchef/audit.py',
+  'feedchef/auditconst.py',
   'feedchef/auditbuild.py',
   'feedchef/auditreport.py',
   'feedchef/cluster.py',
@@ -271,6 +274,7 @@ install_data(
   'feedchef/storage.py',
   'feedchef/templates.py',
   'feedchef/textutil.py',
+  'feedchef/words.py',
   install_dir: moduledir / 'feedchef',
 )
 install_data(

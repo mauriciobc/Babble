@@ -7,7 +7,8 @@ Two halves, one for each side of the page:
   peek (a cook of page one on the engine worker, with the person and server
   counts of the whole cook session, so the caps keep holding across the
   merged list) and the bookkeeping that keeps a held peek honest.
-* ``PagePeek`` is what ``FeedChefTimelinePage`` adds: a timer that exists only
+* ``PeekController`` is what ``FeedChefTimelinePage`` adds (a controller the
+  page owns, not a mixin): a timer that exists only
   while a recipe page is on screen with Feed Chef on, the pill, and the
   merge into the top of the list.
 
@@ -32,12 +33,12 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw  # noqa: E402
 
 from . import appsettings, feedback, sysstate  # noqa: E402
+from .feedchefcontroller import PageController, guarded  # noqa: E402
 from .feedchef import smartmerge  # noqa: E402
 from .feedchef.smartmerge import (PEEK_INTERVAL_S,  # noqa: E402
                                   PEEK_PAGE_BASE, ScoreCache)
 from .i18n import ngettext  # noqa: E402
 from .statusrun import StatusRunRow  # noqa: E402
-from .timelinepage import TimelinePage  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
 _log = logging.getLogger(__name__)
@@ -257,131 +258,145 @@ def _id_of(item):
     return str((getattr(item, 'raw', None) or {}).get('id'))
 
 
-class PagePeek:
-    """The peeking half of ``FeedChefTimelinePage`` (a mixin)."""
+class PeekController(PageController):
+    """The peeking half of ``FeedChefTimelinePage``, as a controller: it
+    reads the page only through the page's public attributes (``source``,
+    ``model``, ``recipe``, the pill) and the narrow accessors the page
+    names for it (``scope_closed``, ``is_loading``, ``polling``,
+    ``viewport``, ``set_pill_count``)."""
 
-    def _peek_init(self):
-        self._peek_view = None
-        self.source.peek_listener = weak_method(self._on_peek_result)
-        connect_weak(self, 'map', self._peek_sync)
-        connect_weak(self, 'unmap', self._peek_sync)
+    def __init__(self, page):
+        super().__init__(page)
+        self._view = None
+        page.source.peek_listener = weak_method(self.on_peek_result)
+        connect_weak(page, 'map', self.sync)
+        connect_weak(page, 'unmap', self.sync)
         monitor = sysstate.monitor()
-        connect_weak(monitor, 'notify::power-saver', self._peek_sync)
-        connect_weak(monitor, 'notify::metered', self._peek_sync)
+        connect_weak(monitor, 'notify::power-saver', self.sync)
+        connect_weak(monitor, 'notify::metered', self.sync)
         connect_weak(appsettings.settings(), 'changed::feed-chef-enabled',
-                     self._peek_sync)
+                     self.sync)
 
-    def _watch_view(self):
+    def _watch_view(self, page):
         """Follow which page of the navigation view is the visible one:
         a page pushed over this one covers it, and a covered page does
         not peek."""
-        nav_page = self.get_ancestor(Adw.NavigationPage)
+        nav_page = page.get_ancestor(Adw.NavigationPage)
         view = (nav_page.get_ancestor(Adw.NavigationView)
                 if nav_page is not None else None)
-        if view is None or (self._peek_view is not None
-                            and self._peek_view() is view):
+        if view is None or (self._view is not None
+                            and self._view() is view):
             return
-        self._peek_view = view.weak_ref()
-        connect_weak(view, 'notify::visible-page', self._peek_sync)
+        self._view = view.weak_ref()
+        connect_weak(view, 'notify::visible-page', self.sync)
 
-    def _peek_sync(self, *_args):
+    @guarded
+    def sync(self, *_args):
         """The peek timer exists only while this recipe page is the one
         on screen, Feed Chef is on and nothing asks the page to wait; it
-        is the poll timer of ``TimelinePage``, which ``_on_auto_refresh``
+        is the poll timer of ``TimelinePage``, which ``on_auto_refresh``
         turns into a peek."""
-        self._watch_view()
-        wanted = (not self._scope.closed and not paused_by(self)
+        page = self.owner
+        self._watch_view(page)
+        wanted = (not page.scope_closed and not paused_by(page)
                   and appsettings.settings().get_boolean(
                       'feed-chef-enabled'))
         interval = PEEK_INTERVAL_S if wanted else 0
-        if interval and self._auto_refresh_id:
+        if interval and page.polling:
             return
-        self.set_auto_refresh_interval(interval)
+        page.set_auto_refresh_interval(interval)
 
-    def _on_auto_refresh(self):
+    @guarded
+    def on_auto_refresh(self):
         """A tick: peek at page one, unless the page is busy."""
-        client = getattr(self, 'client', None)
+        page = self.owner
+        client = getattr(page, 'client', None)
         enabled = appsettings.settings().get_boolean('feed-chef-enabled')
-        if self._scope.closed or not enabled or self.model.loading \
-                or self._loading_older or self._older_pending \
-                or paused_by(self) \
+        if page.scope_closed or not enabled or page.is_loading() \
+                or paused_by(page) \
                 or (client is not None and client.rate_limited()):
             return
-        self.source.peek(self._shown_ids())
+        page.source.peek(self._shown_ids(page))
 
-    def _shown_ids(self):
+    @staticmethod
+    def _shown_ids(page):
         ids = set()
-        for position in range(self.model.get_n_items()):
-            ids |= self.model.get_item(position).ids()
+        for position in range(page.model.get_n_items()):
+            ids |= page.model.get_item(position).ids()
         return ids
 
-    def _visible_scores(self):
+    @guarded
+    def visible_scores(self):
         """Cached scores of the posts on screen that have one (the top
         rows when the list has not been laid out)."""
-        height = self._scrolled.get_height()
+        page = self.owner
+        scrolled = page.viewport
+        height = scrolled.get_height()
         seen = []
-        for row in _visible_rows(self.list_view):
+        for row in _visible_rows(page.list_view):
             run = getattr(row, '_run', None)
             if run is None or not row.get_mapped():
                 continue
-            ok, bounds = row.compute_bounds(self._scrolled)
+            ok, bounds = row.compute_bounds(scrolled)
             if ok and bounds.get_y() < height \
                     and bounds.get_y() + bounds.get_height() > 0:
                 seen.extend(run.items)
         if not seen:
-            seen = [self.model.get_item(position) for position in range(
-                min(UNLAID_ROWS, self.model.get_n_items()))]
-        cache = self.source.scores
+            seen = [page.model.get_item(position) for position in range(
+                min(UNLAID_ROWS, page.model.get_n_items()))]
+        cache = page.source.scores
         scores = [cache.get(_id_of(item)) for item in seen]
         return [score for score in scores if score is not None]
 
-    def _on_peek_result(self, held):
+    @guarded
+    def on_peek_result(self, held):
         """A peek landed (or the held one is gone): the pill is shown
         only when a new post scores above the viewport's mean plus one
         standard deviation; otherwise the result waits silently. A peek
         with nothing the list would take is dropped."""
-        self._pill_count = 0
+        page = self.owner
+        page.set_pill_count(0)
         if held is None:
-            self.new_posts_revealer.set_reveal_child(False)
+            page.new_posts_revealer.set_reveal_child(False)
             return
-        fresh = self.model.unseen(held.items)
+        fresh = page.model.unseen(held.items)
         if not fresh:
-            self.source.refuse_peek()
+            page.source.refuse_peek()
             return
         worth = smartmerge.worth_interrupting(
-            self._visible_scores(), [held.scores.get(
+            self.visible_scores(), [held.scores.get(
                 str(s.get('id') or ''), 0.0) for s in fresh])
         if worth:
-            self._show_new_pill(len(fresh))
+            self.show_new_pill(len(fresh))
         else:
-            self.new_posts_revealer.set_reveal_child(False)
+            page.new_posts_revealer.set_reveal_child(False)
 
-    def _show_new_pill(self, count):
+    @guarded
+    def show_new_pill(self, count):
         """The pill of a peek, with its own label (the base pill counts
         posts that arrived, not posts worth seeing), announced as it
         reads."""
-        self._pill_count = count
+        page = self.owner
+        page.set_pill_count(count)
         # Translators: the label of the pill on a recipe's timeline when
         # new posts that score well arrived; %d is how many.
         label = ngettext('%d New Post Worth Seeing',
                          '%d New Posts Worth Seeing', count) % count
-        self.new_pill.set_label(label)
-        self.new_posts_revealer.set_reveal_child(True)
-        feedback.announce(self, label)
+        page.new_pill.set_label(label)
+        page.new_posts_revealer.set_reveal_child(True)
+        feedback.announce(page, label)
 
-    def _on_new_pill_clicked(self, button):
-        self._insert_peeked()
-        TimelinePage._on_new_pill_clicked(self, button)
-
-    def _insert_peeked(self):
+    @guarded
+    def insert_peeked(self):
         """Put the held peek's posts on top and order the first
         ``RERANK_WINDOW_SIZE`` posts again by cached score, announcing only
         the spans that changed. A merge that breaks a promise of the list,
         or whose window has a post with no score, is refused."""
-        held = self.source.take_peek()
+        page = self.owner
+        held = page.source.take_peek()
         if held is None:
             return
-        model, recipe, cache = self.model, self.recipe, self.source.scores
+        model, recipe, cache = page.model, page.recipe, page.source.scores
         fresh = model.unseen(held.items)
         for status in fresh:
             sid = str(status.get('id') or '')
@@ -400,13 +415,13 @@ class PagePeek:
         if not fresh or broken or not model.plain(fresh):
             _log.warning('feedchef: merge refused (%s)',
                          ', '.join(broken) or 'nothing new, or grouped')
-            self.source.refuse_peek()
+            page.source.refuse_peek()
             return
         rank = {sid: i for i, sid in enumerate(after)}
         model.merge_head(
             fresh, lambda items: sorted(
                 items, key=lambda item: rank.get(_id_of(item), len(rank))),
             smartmerge.RERANK_WINDOW_SIZE)
-        self.source.commit_merge(held, smartmerge.merge_record(
+        page.source.commit_merge(held, smartmerge.merge_record(
             recipe, inserted=inserted, after=after, statuses=statuses,
             cache=cache))

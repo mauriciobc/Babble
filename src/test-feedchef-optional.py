@@ -208,7 +208,15 @@ preview.present(window)
 builder.present(window)
 preview_engine = preview.timeline.engine
 
+# What the quality layer cached for the session goes with the key.
+from src import feedchefexperiment, feedchefquality  # noqa: E402
+feedchefquality.HEALTH[('account', 'recipe')] = object()
+feedchefquality.ALERTED.add(('account', 'recipe'))
+feedchefexperiment.DECLINED.add(('identity', 'change'))
 settings.set_boolean('feed-chef-enabled', False)
+check('off again: the session caches (health, alerts, declined) are dropped',
+      not feedchefquality.HEALTH and not feedchefquality.ALERTED
+      and not feedchefexperiment.DECLINED)
 check('off again: open Feed Chef dialogs are closed',
       sorted(closed) == ['builder', 'preview'])
 check('off again: the preview dialog\'s engine was shut down',

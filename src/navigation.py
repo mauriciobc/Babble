@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Lazy construction and pinned-entry routing for window-owned pages."""
 
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -45,6 +46,23 @@ FEED_CHEF_KEY = 'feed-chef-enabled'
 def feed_chef_enabled(settings=None):
     """Whether Feed Chef is on (the *settings* given, else the app's)."""
     return (settings or app_settings()).get_boolean(FEED_CHEF_KEY)
+
+
+# The modules that keep a cache for the session: what the quality layer
+# computed (each recipe's health, the alerts shown, the suggestions the
+# reader declined).
+_FEED_CHEF_CACHES = ('feedchefquality', 'feedchefexperiment')
+
+
+def forget_feed_chef_session():
+    """Drop what Feed Chef cached for the session, when it is turned off:
+    a reader who turns it on again starts clean. Only the modules already
+    loaded are asked, so turning it off imports nothing."""
+    package = __name__.rpartition('.')[0]
+    for name in _FEED_CHEF_CACHES:
+        module = sys.modules.get('%s.%s' % (package, name))
+        if module is not None:
+            module.forget_session()
 
 
 @dataclass(frozen=True)
@@ -366,7 +384,7 @@ class Navigation:
             from .catchup import CatchUpPage
             return CatchUpPage(client, account=self.host.account())
         if tag == 'feed-chef':
-            from .feedchefpages import FeedChefListPage
+            from .feedcheflist import FeedChefListPage
             return FeedChefListPage(client, self.host.account())
         if tag.startswith('recipe:'):
             from .feedchef.storage import FeedRecipeStorage

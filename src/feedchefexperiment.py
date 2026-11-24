@@ -3,8 +3,9 @@
 suggestions that apply with one click, the proactive alert and the A/B
 experiment (its permission, its cooks, its verdict and its indicator).
 
-A mixin of ``FeedChefTimelinePage``. It reads the page's ``recipe``,
-``source``, ``storage``, ``account`` and ``_switch_to()``. Everything that
+A controller of ``FeedChefTimelinePage`` (the page owns it, see
+``feedchefcontroller``). It reads the page's ``recipe``, ``source``,
+``storage``, ``account`` and calls its ``switch_to()``. Everything that
 computes (the health, the advice, the score of an experiment's cook, the
 write of its state) runs on the quality worker (``feedchefquality``), and
 the page only receives the answers; what happens on the main thread is a
@@ -23,9 +24,10 @@ from . import feedback  # noqa: E402
 from .feedchef import advice, history, optimizer  # noqa: E402
 from .feedchef import health as healthmod  # noqa: E402
 from .feedchef.recipe import recipe_to_dict  # noqa: E402
+from .feedchefcontroller import PageController, guarded  # noqa: E402
 from .feedchefqualityview import QualityContext  # noqa: E402
-from .feedchefquality import (ALERTED, HEALTH, health_key,  # noqa: E402
-                              worker)
+from .feedchefquality import (ALERTED, HEALTH, feed_chef_on,  # noqa: E402
+                              health_key, worker)
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
@@ -34,17 +36,24 @@ from .weakconnect import connect_weak, weak_method  # noqa: E402
 DECLINED = set()
 
 
-class ExperimentMixin:
+def forget_session():
+    """Feed Chef was turned off: what the reader declined is asked again
+    after turning it on."""
+    DECLINED.clear()
+
+
+class ExperimentController(PageController):
     """The quality half of ``FeedChefTimelinePage``."""
 
-    opt_state = None
-    _health = None
-    _health_job = None
-
-    def quality_init(self, column, words):
+    def __init__(self, page, column, words):
         """Build the two banners into *column*, wire the source's hooks and
         ask for the recipe's health. Everything is quiet until an answer
         says otherwise."""
+        super().__init__(page)
+        self.opt_state = None
+        self._health = None
+        self._health_job = None
+        self.proposal_alert = None
         self._words = words
         self.health_banner = Adw.Banner(
             title=_('This recipe is getting less engagement'),
@@ -56,10 +65,10 @@ class ExperimentMixin:
                      self._on_stop_experiment)
         column.append(self.health_banner)
         column.append(self.experiment_banner)
-        self.opt_state = self.storage.load_optimizer(self.recipe.id)
-        self._health = HEALTH.get(health_key(self.account, self.recipe.id))
-        self.source.planner = weak_method(self._plan_cook)
-        self.source.variant_listener = weak_method(self._variant_landed)
+        self.opt_state = page.storage.load_optimizer(page.recipe.id)
+        self._health = HEALTH.get(health_key(page.account, page.recipe.id))
+        page.source.planner = weak_method(self._plan_cook)
+        page.source.variant_listener = weak_method(self._variant_landed)
         self._sync_quality_ui()
         self.request_health()
 
@@ -84,22 +93,26 @@ class ExperimentMixin:
 
     # The health
 
+    @guarded
     def request_health(self):
         """Compute the health again, from the logs and the cook on screen
         (on the worker); a newer request supersedes the last."""
+        page = self.owner
         if self._health_job is not None:
             self._health_job.cancel()
-        recipe_id = self.recipe.id
-        live = self.source.cook_audits()
+        recipe_id = page.recipe.id
+        live = page.source.cook_audits()
         self._health_job = worker().submit(
             lambda: history.health_of(recipe_id, live),
             weak_method(self._on_health))
 
+    @guarded
     def _on_health(self, found):
+        page = self.owner
         self._health_job = None
-        if found is None:
+        if found is None or not feed_chef_on():
             return
-        key = health_key(self.account, self.recipe.id)
+        key = health_key(page.account, page.recipe.id)
         before = HEALTH.get(key)
         HEALTH[key] = found
         self._health = found
@@ -111,7 +124,7 @@ class ExperimentMixin:
             ALERTED.add(key)
             # Translators: a toast; %s is the recipe's name.
             feedback.show_toast(
-                self, _('“%s” needs attention') % self.recipe.meta.name,
+                page, _('“%s” needs attention') % page.recipe.meta.name,
                 undo=weak_method(self._on_improve),
                 undo_label=_('_See Suggestions'))
 
@@ -121,51 +134,57 @@ class ExperimentMixin:
 
     # The report
 
-    def _quality_context(self):
-        recipe, storage = self.recipe, self.storage
+    @guarded
+    def quality_context(self):
+        page = self.owner
+        recipe, storage = page.recipe, page.storage
 
         def others():
             return [item for item in storage.load_recipes()
                     if item.id != recipe.id]
         mine = optimizer.identity(recipe)
         return QualityContext(
-            recipe, self.source.cook_audits(), others,
+            recipe, page.source.cook_audits(), others,
             weak_method(self.apply_recommendation),
             weak_method(self.propose_experiment),
             self._experiment_text(),
             [rid for ident, rid in DECLINED if ident == mine])
 
+    @guarded
     def _on_improve(self, *_args):
         from . import feedchefexplain
+        page = self.owner
         feedchefexplain.KitchenReportDialog(
-            self.source.cook_audits(), self._quality_context(),
-            focus_quality=True, quality_only=True).present(self)
+            page.source.cook_audits(), self.quality_context(),
+            focus_quality=True, quality_only=True).present(page)
 
     # Suggestions
 
+    @guarded
     def apply_recommendation(self, rec, anchor=None, undone=None):
         """Make a suggestion: save the recipe, cook it again and offer Undo
         (on *anchor*, the report, when it was made there). False when it
         was not made: it could not be, the recipe has it already (nothing
         is saved or cooked then), or the recipe is gone."""
-        anchor = anchor or self
+        page = self.owner
+        anchor = anchor or page
         try:
-            done = rec.apply(self.recipe)
+            done = rec.apply(page.recipe)
         except ValueError:
             feedback.show_toast(anchor, _('Could not apply this change'))
             return False
-        if recipe_to_dict(done.recipe) == recipe_to_dict(self.recipe):
+        if recipe_to_dict(done.recipe) == recipe_to_dict(page.recipe):
             return False
-        if not self._switch_to(done.recipe):
+        if not page.switch_to(done.recipe):
             return False
         text = advice.describe(rec, self._words)
         undo = done.undo
         ref = self.weak_ref()
 
         def restore():
-            page = ref()
-            if page is not None:
-                page.undo_recommendation(undo)
+            controller = ref()
+            if controller is not None:
+                controller.undo_recommendation(undo)
                 if undone is not None:
                     undone()
 
@@ -175,27 +194,31 @@ class ExperimentMixin:
                             undo=restore)
         return True
 
+    @guarded
     def undo_recommendation(self, undo):
         """Put back what an applied suggestion changed, in the recipe as it
         is now (a reader's edit since stays)."""
         from .feedchef import recipeedit
-        restored = recipeedit.restore(self.recipe, undo)
-        if recipe_to_dict(restored) == recipe_to_dict(self.recipe):
+        page = self.owner
+        restored = recipeedit.restore(page.recipe, undo)
+        if recipe_to_dict(restored) == recipe_to_dict(page.recipe):
             return
-        self._switch_to(restored)
+        page.switch_to(restored)
 
     # The experiment: permission
 
+    @guarded
     def propose_experiment(self, recommendations):
         """Ask the reader to try the first testable change."""
+        page = self.owner
         if optimizer.phase(self.opt_state) == optimizer.RUNNING:
             return
-        mine = optimizer.identity(self.recipe)
+        mine = optimizer.identity(page.recipe)
         recommendations = [r for r in recommendations
                            if (mine, r.id) not in DECLINED]
-        state = optimizer.propose(self.recipe, recommendations)
+        state = optimizer.propose(page.recipe, recommendations)
         if state is None:
-            feedback.show_toast(self, _('There is nothing to try right '
+            feedback.show_toast(page, _('There is nothing to try right '
                                         'now'))
             return
         text = advice.describe(self._recommendation_of(
@@ -223,7 +246,7 @@ class ExperimentMixin:
         connect_weak(alert, 'response', self._on_proposal_answer, state,
                      mine)
         self.proposal_alert = alert
-        alert.present(self)
+        alert.present(page)
 
     @staticmethod
     def _recommendation_of(recommendations, state):
@@ -240,35 +263,41 @@ class ExperimentMixin:
 
     # The experiment: cooks
 
+    @guarded
     def _fresh_state(self):
         """The experiment as the sidecar has it now: another window on the
         same recipe may have moved it. A small file, read before each
         transition so that no window overwrites another's with its own
         older copy."""
-        self.opt_state = self.storage.load_optimizer(self.recipe.id)
+        page = self.owner
+        self.opt_state = page.storage.load_optimizer(page.recipe.id)
         return self.opt_state
 
+    @guarded
     def _set_experiment(self, state):
         """Keep *state*: the page's, and the sidecar's (written at once, a
         file of a few hundred bytes; none is left for a recipe that was
         deleted)."""
+        page = self.owner
         self.opt_state = state
-        self.storage.save_optimizer(self.recipe.id, state,
+        page.storage.save_optimizer(page.recipe.id, state,
                                     require_recipe=True)
         self._sync_quality_ui()
 
+    @guarded
     def _plan_cook(self):
         """What a refresh cooks (called by the source on the main thread; a
         few dictionary lookups, and a hash when an experiment runs)."""
+        page = self.owner
         state = self._fresh_state()
         self._sync_quality_ui()
         if optimizer.phase(state) != optimizer.RUNNING:
             return None
-        new, plan = optimizer.next_cook(state, self.recipe)
+        new, plan = optimizer.next_cook(state, page.recipe)
         if new is not state:
             self._set_experiment(new)
             feedback.show_toast(
-                self, _('The experiment ended because the recipe was '
+                page, _('The experiment ended because the recipe was '
                         'changed'))
         return plan if plan.tag else None
 
@@ -279,12 +308,13 @@ class ExperimentMixin:
         ref = self.weak_ref()
 
         def deliver(score):
-            page = ref()
-            if page is not None:
-                page._on_scored(tag, score)
+            controller = ref()
+            if controller is not None:
+                controller._on_scored(tag, score)
 
         worker().submit(lambda: optimizer.score_of([record], tag), deliver)
 
+    @guarded
     def _on_scored(self, tag, score):
         state = self._fresh_state()
         if score is None or optimizer.phase(state) != optimizer.RUNNING:
@@ -296,53 +326,57 @@ class ExperimentMixin:
         if new['phase'] in (optimizer.KEPT, optimizer.REVERTED):
             self._experiment_finished(new)
 
+    @guarded
     def _experiment_finished(self, state):
+        page = self.owner
         if state['phase'] == optimizer.REVERTED:
             feedback.show_toast(
-                self, _('Experiment finished: the change did not help, so '
+                page, _('Experiment finished: the change did not help, so '
                         'your recipe stays as it was'))
             return
-        done = optimizer.result_recipe(state, self.recipe)
-        if done is None or not self._switch_to(done):
+        done = optimizer.result_recipe(state, page.recipe)
+        if done is None or not page.switch_to(done):
             feedback.show_toast(
-                self, _('Could not keep the change'))
+                page, _('Could not keep the change'))
             return
         ref = self.weak_ref()
 
         def restore():
-            page = ref()
-            if page is not None:
-                page.stop_experiment()
+            controller = ref()
+            if controller is not None:
+                controller.stop_experiment()
 
         feedback.show_toast(
-            self, _('Experiment finished: change kept'), undo=restore)
+            page, _('Experiment finished: change kept'), undo=restore)
 
     # The experiment: stopping
 
     def _on_stop_experiment(self, *_args):
         self.stop_experiment()
 
+    @guarded
     def stop_experiment(self):
         """Switch the experiment off and put the recipe back as it was
         (the change is undone only when it was kept; the recipe itself is
         never touched while the experiment only alternates)."""
+        page = self.owner
         state = self._fresh_state()
         if state is None:
             return
-        restored = optimizer.restore(state, self.recipe)
+        restored = optimizer.restore(state, page.recipe)
         self._set_experiment(optimizer.turn_off(state))
         if restored is None:
             # Edited since: nothing of the reader's is overwritten.
             text = _('Experiment stopped; your later edits were kept')
-        elif recipe_to_dict(restored) != recipe_to_dict(self.recipe):
+        elif recipe_to_dict(restored) != recipe_to_dict(page.recipe):
             text = _('Experiment stopped; change undone') \
-                if self._switch_to(restored) else None
+                if page.switch_to(restored) else None
         else:
             text = _('Experiment stopped; recipe unchanged')
         if text:
-            feedback.show_toast(self, text)
+            feedback.show_toast(page, text)
 
-    def close_quality(self):
+    def close(self):
         """The page is going: nothing it started may answer it."""
         if self._health_job is not None:
             self._health_job.cancel()

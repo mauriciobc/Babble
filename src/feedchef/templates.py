@@ -29,7 +29,7 @@ from typing import Any, NamedTuple
 
 from . import heat as heatmod
 from . import recipeedit
-from .auditreport import ENGLISH, Words
+from .words import ENGLISH, Words
 from .recipe import FeedRecipe, default_recipe
 
 # moshidon's OptimalScopeDefaults.SCOPE_CONFIGS['optimal_settings'] and its

@@ -31,7 +31,7 @@ from src.feedchef import network_reach as reachmod  # noqa: E402
 from src.feedchef.recipe import Modifier  # noqa: E402
 
 from feedchefaudit import evaluate as evalmod  # noqa: E402
-from feedchefaudit import fuzz, qualityreport, selfcheck  # noqa: E402
+from feedchefaudit import fuzz, qualityreport, selfcases  # noqa: E402
 from feedchefaudit.collect import collect  # noqa: E402
 from feedchefaudit.qualitykit import metrics, plain  # noqa: E402
 from feedchefaudit.records import expand, load  # noqa: E402
@@ -146,7 +146,7 @@ check('the heat half of moshidon\'s auto_fallback stays heat.py\'s: the '
 # Through the real engine: the record, the guard, the audit's checks.
 fresh_logs('fallback')
 rng = random.Random(81)
-fade = selfcheck.fade_recipe()
+fade = selfcases.fade_recipe()
 results = fuzz.cook(fuzz.World(rng, fade), fade, 1, pages=2, now=NOW)
 page = results[0]
 record = page.logger.record
@@ -176,8 +176,8 @@ class Collect:
 
 
 collector = Collect()
-selfcheck.fresh_cases(collector, fresh_logs('selfcheck-fresh'))
-selfcheck.variant_cases(collector, fresh_logs('selfcheck-variant'))
+selfcases.fresh_cases(collector, fresh_logs('selfcheck-fresh'))
+selfcases.variant_cases(collector, fresh_logs('selfcheck-variant'))
 # A kitchen that claims the fallback for a recipe without freshness: the
 # guard records it and evaluate fails it.
 saved = kitchen.fresh_fallback_wanted
@@ -201,7 +201,7 @@ check('a stage that claims the fallback for a recipe that cannot need it '
 from types import SimpleNamespace  # noqa: E402
 
 empty_page = SimpleNamespace(
-    recipe=selfcheck.fade_recipe(), statuses={}, entries=lambda: [],
+    recipe=selfcases.fade_recipe(), statuses={}, entries=lambda: [],
     record={'fresh_fallback': True, 'clock': {'now_utc': NOW.isoformat()}})
 claimed = evalmod.Tally()
 evalmod._check_floor(claimed, empty_page)

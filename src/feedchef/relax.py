@@ -14,7 +14,7 @@ from __future__ import annotations
 import copy
 from typing import Any, NamedTuple
 
-from .auditreport import ENGLISH, Words
+from .words import ENGLISH, Words
 from .recipe import FeedRecipe
 
 

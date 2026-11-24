@@ -39,7 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(srcdir)))
 sys.path.insert(0, srcdir)
 
 from src import (feedback, feedchefbuilder, feedchefbuilderlive,  # noqa: E402
-                 feedchefpages)
+                 feedcheflist, feedchefpages)
 from src.feedchef import storage as storagemod  # noqa: E402
 from src.feedchef.engine import FeedResult  # noqa: E402
 from src.feedchef.recipe import Modifier, default_recipe  # noqa: E402
@@ -429,7 +429,7 @@ Adw.AlertDialog.present = real_present
 
 # --- the chef
 
-list_page = feedchefpages.FeedChefListPage(client, account)
+list_page = feedcheflist.FeedChefListPage(client, account)
 window.set_content(list_page)
 rows = find(list_page, Adw.ActionRow)
 imported = [r for r in rows if r.get_title() == 'Incoming']
@@ -494,7 +494,7 @@ host.navigation_view = nav
 host.make_sidebar_control = None
 for number in range(30):
     store.save_recipe(default_recipe('Recipe %02d' % number))
-listing = feedchefpages.FeedChefListPage(client, account)
+listing = feedcheflist.FeedChefListPage(client, account)
 nav.add(Adw.NavigationPage(title='Recipes', child=listing, tag='recipes'))
 host.set_content(nav)
 host.present()

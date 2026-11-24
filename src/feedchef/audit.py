@@ -26,18 +26,16 @@ import re
 from datetime import datetime
 from typing import Any
 
-from . import contract
-from .recipe import FeedRecipe, recipe_to_dict
+from . import auditbuild, contract
+# The record's constants and small functions live in a leaf module both
+# this one and ``auditbuild`` import; they are re-exported for callers.
+from .auditconst import (ENGINE_REV, SCHEMA, TEXT_CAP,  # noqa: F401
+                         recipe_hash, stage_of, text_digest)
+from .recipe import FeedRecipe
 from .textutil import content_of
 
 log = logging.getLogger('babble.feedchef')
 
-SCHEMA = 2
-# Bumped by hand whenever the meaning of a stage changes; a replay refuses
-# a record made by another revision unless it is forced.
-ENGINE_REV = 5
-# The stripped text kept per post in the sidecar.
-TEXT_CAP = 2000
 # The outcomes of a page that finished: 'ok' (shown as a page of the cook),
 # 'peek' (cooked by Smart New Posts, not shown) and 'shown' (a peek whose
 # new posts were inserted at the top). Anything else (failed, cancelled)
@@ -52,9 +50,6 @@ PANTRY_REASONS = ('pantry_excluded_tag', 'pantry_missing_included_tag')
 FIXED_REASONS = frozenset(PANTRY_REASONS + (
     'reach_not_followed', 'viewer_hide', 'heat_cut', 'author_cap',
     'cluster_cap', 'instance_cap'))
-_STAGES = {'reach_not_followed': 'reach', 'viewer_hide': 'viewer',
-           'heat_cut': 'kitchen', 'author_cap': 'kitchen',
-           'cluster_cap': 'kitchen', 'instance_cap': 'kitchen'}
 _RANK = {'focus': 0, 'hashtag': 1, 'scope': 2}
 
 
@@ -67,12 +62,6 @@ def is_reason(reason: str) -> bool:
         return promise in contract.DIET_IDS
     return kind == 'guard' and (promise in contract.PROMISE_IDS
                                 or promise in contract.LIST_IDS)
-
-
-def stage_of(reason: str) -> str:
-    if reason.startswith('pantry_'):
-        return 'pantry'
-    return _STAGES.get(reason) or reason.partition(':')[0]
 
 
 _URL_QUERY = re.compile(r'(https?://[^\s?#]*)[?#]\S*')
@@ -88,20 +77,6 @@ def redact(text: str, limit: int = 300) -> str:
     text = _URL_QUERY.sub(r'\1', str(text or ''))
     text = _BEARER.sub('bearer …', text)
     return _SECRET.sub(lambda m: m.group(1) + '=…', text)[:limit]
-
-
-def text_digest(text: str, spoiler: str) -> str:
-    """sha256 of the text and the spoiler exactly as the sidecar keeps
-    them: the proof that the sidecar is the one this record was made with."""
-    return hashlib.sha256(
-        (text + '\0' + spoiler).encode('utf-8')).hexdigest()
-
-
-def recipe_hash(recipe: FeedRecipe) -> str:
-    """sha256 of the recipe as the same canonical JSON everywhere."""
-    text = json.dumps(recipe_to_dict(recipe), sort_keys=True,
-                      separators=(',', ':'))
-    return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
 def _rank_of(label: str) -> int:
@@ -215,7 +190,6 @@ class Recorder:
         # this page cooked, with the seed that chose it. Observed only.
         self.variant = dict(variant) if variant else None
         self.fallback_fresh = False
-        self._actives: set[str] | None = None
         self.identity = {
             'session_id': session_id, 'cook_id': cook_id,
             'page_index': page_index, 'hop': hop, 'cursor_in': cursor_in,
@@ -231,7 +205,7 @@ class Recorder:
         self.merged: list[dict] = []
         self.diet: dict[str, str] = {}
         self.follow_info = {'status': 'none', 'count': 0, 'fingerprint': ''}
-        self._follow_ids: set[str] | None = None
+        self.follow_ids: set[str] | None = None
         self.reach_dropped: set[str] = set()
         self.hidden: set[str] = set()
         self.viewer: dict[str, str] | None = None
@@ -312,7 +286,7 @@ class Recorder:
             self.follow_info = {'status': 'error', 'count': 0,
                                 'fingerprint': ''}
             return
-        self._follow_ids = set(ids)
+        self.follow_ids = set(ids)
         digest = hashlib.sha256(
             '\n'.join(sorted(ids)).encode('utf-8')).hexdigest()
         self.follow_info = {
@@ -428,13 +402,14 @@ class Recorder:
         raises: a page the hooks or this method could not capture is a
         record that says so (outcome failed, no posts), and the cook,
         which never reads it, is not affected."""
-        from . import auditbuild
         try:
-            return auditbuild.build_record(self)
+            record, sidecar = auditbuild.build_record(self)
         except Exception as error:
             auditbuild.capture_failed(self, 'build', error)
             self.sidecar = {}
-            return auditbuild.build_record(self)
+            record, sidecar = auditbuild.build_record(self)
+        self.sidecar.update(sidecar)
+        return record
 
 
 def _guarded(method):
@@ -443,7 +418,6 @@ def _guarded(method):
         try:
             return method(self, *args, **kwargs)
         except Exception as error:
-            from . import auditbuild
             auditbuild.capture_failed(self, method.__name__, error)
             return None
     return hook

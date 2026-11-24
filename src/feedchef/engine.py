@@ -101,7 +101,7 @@ class FeedEngine:
         self.ui_idle = ui_idle or (lambda cb: cb())
         self._executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix='feedchef-engine')
-        self._trends_executor = ThreadPoolExecutor(
+        self.trends_executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix='feedchef-trends')
         self._reach_executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix='feedchef-reach')
@@ -134,7 +134,7 @@ class FeedEngine:
         self._preload_future = self._reach_executor.submit(work)
         return True
 
-    def _await_follow_list(self, cancel: threading.Event
+    def await_follow_list(self, cancel: threading.Event
                            ) -> reachmod.ReachCache:
         """The follow list, waiting for the preload (bounded, cancellable).
         Raises ``FollowListError`` when it cannot be had: "Only People I
@@ -156,7 +156,7 @@ class FeedEngine:
     def shutdown(self) -> None:
         self.cancel()
         self._executor.shutdown(wait=False, cancel_futures=True)
-        self._trends_executor.shutdown(wait=False, cancel_futures=True)
+        self.trends_executor.shutdown(wait=False, cancel_futures=True)
         self._reach_executor.shutdown(wait=False, cancel_futures=True)
 
     def process_feed(
@@ -263,11 +263,11 @@ class FeedEngine:
             # happen, so a short-lived thread does it.
             threading.Thread(target=guarded, daemon=True).start()
 
-    def _server_trends(self, recipe: FeedRecipe
+    def server_trends(self, recipe: FeedRecipe
                        ) -> kitchenmod.ServerTrendContext:
         """Run on the trends worker only — call ``fetch_trends`` directly.
 
-        Never nest ``submit``+``result`` on ``_trends_executor`` (that
+        Never nest ``submit``+``result`` on ``trends_executor`` (that
         deadlocks the single worker and was Java's failure mode).
         """
         wants = any(mod.type == 'trending'
@@ -329,16 +329,21 @@ class FeedEngine:
             cook_id=cook_id, page_index=page_index, hop=hop,
             instance_counts=instance_counts, peek=peek, exclude=exclude,
             variant=variant)
+        trends = stages.start_trends(ctx)
         pantry = stages.gather(ctx)
-        stages.ready(ctx)
-        after_diet, decisions = stages.diet(ctx, pantry)
+        judge, native = stages.ready(ctx)
+        after_diet, decisions, diet_started = stages.diet(
+            ctx, pantry, judge, native)
         after_reach, reach_stats = stages.reach(ctx, after_diet)
         after_reach = stages.viewer_hide(ctx, after_reach)
-        stages.diet_report(ctx, pantry, after_reach, reach_stats, decisions)
-        ordered, score_map, kitchen_meta = stages.kitchen(ctx, after_reach)
+        stages.diet_report(ctx, pantry, after_reach, reach_stats, decisions,
+                           diet_started)
+        ordered, score_map, kitchen_meta, kitchen_started = stages.kitchen(
+            ctx, after_reach, judge, trends)
         ordered, guard_stats = stages.guard(
-            ctx, pantry, ordered, score_map, kitchen_meta)
-        stages.kitchen_report(ctx, after_reach, ordered, kitchen_meta)
+            ctx, pantry, ordered, score_map, kitchen_meta, judge, native)
+        stages.kitchen_report(ctx, after_reach, ordered, kitchen_meta,
+                              kitchen_started)
         counts, instances = stages.caps(ctx, ordered)
         stages.finish(ctx, pantry, ordered, score_map, counts, instances)
         # next_page_max_id mirrors Java FeedResult (oldest merged); UI should
@@ -356,7 +361,7 @@ class FeedEngine:
             instance_counts=instances,
         )
 
-    def _stagger(self, cancel: threading.Event) -> Callable[[], None]:
+    def stagger(self, cancel: threading.Event) -> Callable[[], None]:
         """The pause between two searches of More Like This: it ends the
         moment the cook is cancelled, and raises ``pantry.Cancelled`` then,
         so a cancelled cook does not go on to the next search."""

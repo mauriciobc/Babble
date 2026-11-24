@@ -16,6 +16,7 @@ import locale
 from typing import Any, Callable, NamedTuple
 
 from .audit import SHOWN
+from .words import ENGLISH, Words, _plural  # noqa: F401 - re-exported
 
 
 class Row(NamedTuple):
@@ -28,21 +29,6 @@ class Section(NamedTuple):
     title: str
     rows: list
 
-
-class Words(NamedTuple):
-    gettext: Callable[[str], str]
-    ngettext: Callable[[str, str, int], str]
-    # Names a language code in the reader's language, or None when it
-    # cannot: the dialogs pass one (it needs the desktop), this module
-    # stays free of GTK.
-    language: Callable[[str], 'str | None'] | None = None
-
-
-def _plural(one: str, other: str, count: int) -> str:
-    return one if count == 1 else other
-
-
-ENGLISH = Words(lambda text: text, _plural)
 
 # A tone is neutral inside this band around zero (the VADER convention).
 NEUTRAL_BAND = 0.05

@@ -25,8 +25,8 @@ from gi.repository import Adw, GLib, Gtk  # noqa: E402,F401
 from feedchefaudit import fuzz  # noqa: E402,F401
 from feedchefaudit.qualitykit import metrics, plain, stored  # noqa: E402,F401
 from src import (feedback, feedchefbuilder,  # noqa: E402,F401
-                 feedchefbuilderlive, feedchefexplain, feedchefpages,
-                 feedchefquality)
+                 feedchefbuilderlive, feedchefexplain, feedcheflist,
+                 feedchefpages, feedchefquality)
 from src.feedchef import advice, contract, health, history  # noqa: E402,F401
 from src.feedchef import optimizer, quality, recipeedit  # noqa: E402,F401
 from src.feedchef import templates  # noqa: E402,F401

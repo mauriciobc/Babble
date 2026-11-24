@@ -117,10 +117,13 @@ sized += [os.path.join(srcdir, name)
           for name in sorted(os.listdir(srcdir))
           if name.startswith('test-') and name.endswith('.py')]
 sized.append(os.path.join(root, 'bench', 'rank_eval.py'))
-for directory, _dirs, files in os.walk(os.path.join(root, 'bench',
-                                                    'rankeval')):
-    sized += [os.path.join(directory, name) for name in sorted(files)
-              if name.endswith('.py')]
+# The Feed Chef audit harness (bench/feedchefaudit) is held to the same
+# limit as the rank evaluation harness beside it.
+for harness in ('rankeval', 'feedchefaudit'):
+    for directory, _dirs, files in os.walk(os.path.join(root, 'bench',
+                                                        harness)):
+        sized += [os.path.join(directory, name) for name in sorted(files)
+                  if name.endswith('.py')]
 over = []
 pending_over = []
 for path in sized:

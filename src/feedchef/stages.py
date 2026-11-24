@@ -62,9 +62,9 @@ class _Judge:
 @dataclass
 class CookContext:
     """What every stage of one page reads: the recipe and the arguments of
-    the cook, its clock, the recorder and the decision log, and the few
-    things an early stage hands to a later one (``trends_future``,
-    ``judge``, ``native``, ``diet_started``, ``kitchen_started``)."""
+    the cook, its clock, the recorder and the decision log. It is not
+    written to after ``begin``: what one stage hands to the next (the
+    trends, the judge, the stage clocks) is its return value."""
 
     engine: Any
     recipe: FeedRecipe
@@ -80,11 +80,6 @@ class CookContext:
     exclude: Any
     audit: Any
     logger: FeedDecisionLogger
-    trends_future: Any = None
-    judge: _Judge | None = None
-    native: bool = False
-    diet_started: float = 0.0
-    kitchen_started: float = 0.0
 
 
 def begin(engine, recipe, *, max_id, count, on_stage, cancel, author_counts,
@@ -115,76 +110,79 @@ def begin(engine, recipe, *, max_id, count, on_stage, cancel, author_counts,
         hide=hide, exclude=exclude, audit=audit, logger=logger)
 
 
-def gather(ctx: CookContext) -> pantrymod.PantryResult:
-    """Fetch the scope, the hashtags and More Like This, and merge them
-    into the pantry."""
+def start_trends(ctx: CookContext):
+    """Trends on a separate executor (Babble deviation from Java
+    deadlock); the future, or None when the recipe has no trending
+    modifier."""
     engine = ctx.engine
     recipe = ctx.recipe
-    started = ctx.started
-    max_id = ctx.max_id
-    count = ctx.count
-    cancel = ctx.cancel
-    on_stage = ctx.on_stage
-    author_counts = ctx.author_counts
-    instance_counts = ctx.instance_counts
-    audit = ctx.audit
-    logger = ctx.logger
-    shown_ids = ctx.exclude or ()
-
-    def fresh(posts):
-        """The posts not already on screen (a boost counts by the
-        post it shows as well as by itself)."""
-        if not shown_ids:
-            return posts
-        return [post for post in posts
-                if str(post.get('id') or '') not in shown_ids
-                and str(content_of(post).get('id') or '')
-                not in shown_ids]
-    # Trends on a separate executor (Babble deviation from Java deadlock).
     trends_future = None
     if any(mod.type == 'trending' for mod in recipe.kitchen.modifiers):
-        trends_future = engine._trends_executor.submit(
-            engine._server_trends, recipe)
-    ctx.trends_future = trends_future
+        trends_future = engine.trends_executor.submit(
+            engine.server_trends, recipe)
+    return trends_future
 
-    hashtag_posts: list[dict[str, Any]] = []
-    mlt_posts: list[dict[str, Any]] = []
-    scope_posts: list[dict[str, Any]] = []
-    timed_out = False
 
-    if cancel.is_set():
-        raise InterruptedError('cancelled')
+def _not_shown(posts, shown_ids):
+    """The posts not already on screen (a boost counts by the post it
+    shows as well as by itself)."""
+    if not shown_ids:
+        return posts
+    return [post for post in posts
+            if str(post.get('id') or '') not in shown_ids
+            and str(content_of(post).get('id') or '')
+            not in shown_ids]
 
+
+def _start_fetches(ctx: CookContext):
+    """The scope and the hashtags, fetched on a pool of this run."""
+    engine = ctx.engine
     tags = []
-    if max_id is None and engine.fetch_hashtag is not None:
-        tags = list(recipe.pantry.hashtags_include[:3])
+    if ctx.max_id is None and engine.fetch_hashtag is not None:
+        tags = list(ctx.recipe.pantry.hashtags_include[:3])
     # One pool per run: a fetch that outlives its deadline cannot be
     # cancelled, and must not hold a worker a later run needs. Its
     # thread ends on its own (the bridge bounds every fetch).
     pool = ThreadPoolExecutor(
         max_workers=1 + len(tags), thread_name_prefix='feedchef-pantry')
-    scope_future = pool.submit(engine.fetch_scope, max_id, count)
-    tag_futures = [(tag, pool.submit(engine.fetch_hashtag, tag, count))
+    scope_future = pool.submit(engine.fetch_scope, ctx.max_id, ctx.count)
+    tag_futures = [(tag, pool.submit(engine.fetch_hashtag, tag, ctx.count))
                    for tag in tags]
     pool.shutdown(wait=False)
-    # More Like This runs while the scope is already being fetched, so
-    # its stagger (up to 0.9 s) does not delay page one (Java does it
-    # before the wait for the latch; the fetches started first here).
-    # Its searches are still 450 ms apart.
-    if max_id is None and engine.search_statuses is not None:
+    return tags, scope_future, tag_futures
+
+
+def _more_like_this(ctx: CookContext, scope_future, tag_futures):
+    """More Like This runs while the scope is already being fetched, so
+    its stagger (up to 0.9 s) does not delay page one (Java does it
+    before the wait for the latch; the fetches started first here).
+    Its searches are still 450 ms apart."""
+    engine = ctx.engine
+    audit = ctx.audit
+    mlt_posts: list[dict[str, Any]] = []
+    if ctx.max_id is None and engine.search_statuses is not None:
         try:
             mlt_posts = pantrymod.fetch_more_like_this(
-                recipe, engine.search_statuses,
+                ctx.recipe, engine.search_statuses,
                 terms=audit.trace.focus_of if audit.enabled else None,
                 sequences=(audit.trace.focus_seq if audit.enabled
                            else None),
-                pause=engine._stagger(cancel))
-            mlt_posts = fresh(mlt_posts)
+                pause=engine.stagger(ctx.cancel))
+            mlt_posts = _not_shown(mlt_posts, ctx.exclude or ())
         except pantrymod.Cancelled:
             scope_future.cancel()
             for _tag, future in tag_futures:
                 future.cancel()
             raise
+    return mlt_posts
+
+
+def _wait_fetches(ctx: CookContext, tags, scope_future, tag_futures):
+    """Wait for the fetches, up to the deadline: the futures that did
+    not answer in time, and whether any did not."""
+    engine = ctx.engine
+    cancel = ctx.cancel
+    logger = ctx.logger
     timeout = (engine.pantry_timeout_base
                + engine.pantry_timeout_per_tag * len(tags))
     futures = [scope_future] + [future for _tag, future in tag_futures]
@@ -201,6 +199,7 @@ def gather(ctx: CookContext) -> pantrymod.PantryResult:
         for future in futures:
             future.cancel()
         raise InterruptedError('cancelled')
+    timed_out = False
     if pending:
         # A fetch that missed the deadline is dropped; its late result
         # is never read.
@@ -208,12 +207,22 @@ def gather(ctx: CookContext) -> pantrymod.PantryResult:
         for future in pending:
             future.cancel()
         logger.add_error('pantry: %d fetch(es) timed out' % len(pending))
+    return pending, timed_out
+
+
+def _fetched_posts(ctx: CookContext, pending, scope_future, tag_futures):
+    """The scope's posts and the hashtags' (a scope that failed or timed
+    out raises; a hashtag that did is only recorded)."""
+    logger = ctx.logger
+    audit = ctx.audit
+    shown_ids = ctx.exclude or ()
+    hashtag_posts: list[dict[str, Any]] = []
     if scope_future in pending:
         logger.add_error('scope: timed out')
         logger.persist()
         raise ScopeFetchError('the posts did not load in time')
     try:
-        scope_posts = fresh(scope_future.result())
+        scope_posts = _not_shown(scope_future.result(), shown_ids)
     except Exception as error:
         logger.add_error('scope:%s' % error)
         logger.persist()
@@ -222,11 +231,31 @@ def gather(ctx: CookContext) -> pantrymod.PantryResult:
         if future in pending:
             continue
         try:
-            found = fresh(future.result())
+            found = _not_shown(future.result(), shown_ids)
             hashtag_posts.extend(found)
             audit.hashtag_fetched(tag, found)
         except Exception as error:
             logger.add_error('hashtag:%s:%s' % (tag, error))
+    return scope_posts, hashtag_posts
+
+
+def gather(ctx: CookContext) -> pantrymod.PantryResult:
+    """Fetch the scope, the hashtags and More Like This, and merge them
+    into the pantry."""
+    engine = ctx.engine
+    recipe = ctx.recipe
+    max_id = ctx.max_id
+    count = ctx.count
+    on_stage = ctx.on_stage
+    audit = ctx.audit
+    logger = ctx.logger
+    if ctx.cancel.is_set():
+        raise InterruptedError('cancelled')
+    tags, scope_future, tag_futures = _start_fetches(ctx)
+    mlt_posts = _more_like_this(ctx, scope_future, tag_futures)
+    pending, timed_out = _wait_fetches(ctx, tags, scope_future, tag_futures)
+    scope_posts, hashtag_posts = _fetched_posts(
+        ctx, pending, scope_future, tag_futures)
 
     pantry = pantrymod.build_pantry(
         recipe,
@@ -239,13 +268,13 @@ def gather(ctx: CookContext) -> pantrymod.PantryResult:
     )
     audit.fetched(mlt_posts, hashtag_posts, scope_posts)
     audit.pantry(pantry.items)
-    audit.counts(author_counts, instance_counts)
+    audit.counts(ctx.author_counts, ctx.instance_counts)
     pantry.timed_out = timed_out
     logger.set_pantry(
         fetched_count=pantry.fetched_count,
         deduplicated_count=pantry.deduplicated_count,
         hashtag_filtered_count=pantry.deduplicated_count,
-        duration_ms=int((time.time() - started) * 1000),
+        duration_ms=int((time.time() - ctx.started) * 1000),
         pantry_timed_out=timed_out,
         pantry_has_more=pantry.has_more,
     )
@@ -255,10 +284,11 @@ def gather(ctx: CookContext) -> pantrymod.PantryResult:
     return pantry
 
 
-def ready(ctx: CookContext) -> None:
+def ready(ctx: CookContext):
     """The sentiment judge and the clock of the page, then the follow
     list when the recipe's network reach needs it (fail closed: wait for
-    the list, or fail the cook)."""
+    the list, or fail the cook). Returns the judge and whether Bluesky is
+    read natively."""
     engine = ctx.engine
     recipe = ctx.recipe
     now = ctx.now
@@ -268,32 +298,29 @@ def ready(ctx: CookContext) -> None:
     judge = _Judge()
     native = bool(engine.native_bluesky())
     audit.clock(now, native)
-    ctx.judge = judge
-    ctx.native = native
     if reachmod.needs_follow_list(recipe.pantry.network_reach):
         # Fail closed: wait for the list, or fail the cook.
         try:
-            engine._await_follow_list(cancel)
+            engine.await_follow_list(cancel)
             audit.follow_state(engine.reach.cache_snapshot())
         except reachmod.FollowListError as error:
             audit.follow_state(None, error=True)
             logger.add_error('reach:%s' % error)
             logger.persist()
             raise
+    return judge, native
 
 
-def diet(ctx: CookContext, pantry):
-    """The diet: the posts it lets through, and its decisions."""
+def diet(ctx: CookContext, pantry, judge, native):
+    """The diet: the posts it lets through, its decisions, and when it
+    started."""
     recipe = ctx.recipe
     audit = ctx.audit
-    judge = ctx.judge
-    native = ctx.native
     diet_started = time.time()
-    ctx.diet_started = diet_started
     after_diet, decisions = dietmod.apply_diet(
         pantry.items, recipe, sentiment=judge, native_bluesky=native)
     audit.diet_decisions(decisions)
-    return after_diet, decisions
+    return after_diet, decisions, diet_started
 
 
 def reach(ctx: CookContext, after_diet):
@@ -335,12 +362,11 @@ def viewer_hide(ctx: CookContext, after_reach):
 
 
 def diet_report(ctx: CookContext, pantry, after_reach, reach_stats,
-                decisions) -> None:
+                decisions, diet_started) -> None:
     """The decision log of the diet stages, and the DIET stage callback."""
     engine = ctx.engine
     on_stage = ctx.on_stage
     logger = ctx.logger
-    diet_started = ctx.diet_started
     logger.set_diet(
         input_count=len(pantry.items),
         output_count=len(after_reach),
@@ -355,15 +381,15 @@ def diet_report(ctx: CookContext, pantry, after_reach, reach_stats,
         engine.ui_idle(lambda: on_stage('DIET', items))
 
 
-def kitchen(ctx: CookContext, after_reach):
-    """The kitchen: score, group, cut by heat, order and cap each person."""
+def kitchen(ctx: CookContext, after_reach, judge, trends_future):
+    """The kitchen: score, group, cut by heat, order and cap each person.
+    Returns the page, the scores, the kitchen's meta and when it
+    started."""
     recipe = ctx.recipe
     now = ctx.now
     author_counts = ctx.author_counts
     instance_counts = ctx.instance_counts
     audit = ctx.audit
-    judge = ctx.judge
-    trends_future = ctx.trends_future
     server = kitchenmod.EMPTY_TRENDS
     if trends_future is not None:
         try:
@@ -381,15 +407,15 @@ def kitchen(ctx: CookContext, after_reach):
                 sentiment_by_id[sid] = score
 
     kitchen_started = time.time()
-    ctx.kitchen_started = kitchen_started
     ordered, score_map, kitchen_meta = kitchenmod.score_statuses(
         after_reach, recipe, server=server,
         sentiment_by_id=sentiment_by_id, author_counts=author_counts,
         instance_counts=instance_counts, now=now, audit=audit)
-    return ordered, score_map, kitchen_meta
+    return ordered, score_map, kitchen_meta, kitchen_started
 
 
-def guard(ctx: CookContext, pantry, ordered, score_map, kitchen_meta):
+def guard(ctx: CookContext, pantry, ordered, score_map, kitchen_meta,
+          judge, native):
     """The final contract guard over the kitchen's page, and the
     sentiment scores the audit keeps."""
     engine = ctx.engine
@@ -398,8 +424,6 @@ def guard(ctx: CookContext, pantry, ordered, score_map, kitchen_meta):
     instance_counts = ctx.instance_counts
     audit = ctx.audit
     logger = ctx.logger
-    judge = ctx.judge
-    native = ctx.native
     ordered, guard_stats = check_promises(
         engine, recipe, ordered, judge, logger, native, audit,
         contract.ListFacts(
@@ -414,14 +438,13 @@ def guard(ctx: CookContext, pantry, ordered, score_map, kitchen_meta):
     return ordered, guard_stats
 
 
-def kitchen_report(ctx: CookContext, after_reach, ordered,
-                   kitchen_meta) -> None:
+def kitchen_report(ctx: CookContext, after_reach, ordered, kitchen_meta,
+                   kitchen_started) -> None:
     """The decision log of the kitchen, its fallbacks, and the KITCHEN
     stage callback."""
     engine = ctx.engine
     on_stage = ctx.on_stage
     logger = ctx.logger
-    kitchen_started = ctx.kitchen_started
     logger.set_kitchen(
         input_count=len(after_reach),
         output_count=len(ordered),

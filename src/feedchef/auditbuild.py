@@ -3,8 +3,11 @@
 
 These functions read the recorder (``rec``: its trace of the pantry, its
 recipe and everything the stages told it) and make the record; they never
-write to the cook. ``Recorder.build()`` calls ``build_record``, and a page
-the hooks could not capture is reported through ``capture_failed``.
+write to the recorder. What building needs to keep (the text sidecar, and
+which promises the recipe makes) lives in a ``Build`` made by
+``build_record``, which returns the record and the sidecar.
+``Recorder.build()`` calls it. The one thing written to the recorder is the
+flag a page the hooks could not capture is given, by ``capture_failed``.
 """
 
 from __future__ import annotations
@@ -17,8 +20,8 @@ from . import contract
 from . import langguess
 from . import sentiment as sentimentmod
 from . import textutil
-from .audit import (ENGINE_REV, SCHEMA, TEXT_CAP, recipe_hash, stage_of,
-                    text_digest)
+from .auditconst import (ENGINE_REV, SCHEMA, TEXT_CAP, recipe_hash,
+                         stage_of, text_digest)
 from .recipe import recipe_to_dict
 from .relevance import focus_keywords
 from .textutil import account_of, content_of, host_of_account
@@ -32,6 +35,18 @@ _PANTRY_PROMISE = {'pantry_excluded_tag': 'hashtags_exclude',
 _EVAL_ORDER = (contract.PROMISE_IDS[6:8] + contract.PROMISE_IDS[:6]
                + contract.PROMISE_IDS[8:])
 _EVAL_AT = {name: at for at, name in enumerate(_EVAL_ORDER)}
+
+
+class Build:
+    """What one build of a record keeps: the text of each post for the
+    sidecar (by ``text_ref``), and the promises the recipe makes (asked
+    once). The recorder is only read."""
+
+    __slots__ = ('sidecar', 'actives')
+
+    def __init__(self) -> None:
+        self.sidecar: dict[str, dict] = {}
+        self.actives: set[str] | None = None
 
 
 def _number(content: dict, *names: str) -> Any:
@@ -48,20 +63,20 @@ def _verdict(rec, status) -> str:
     author = contract.author_id(status)
     if author and author == rec.self_id:
         return 'self'
-    if rec._follow_ids is None:
+    if rec.follow_ids is None:
         # Degree zero asks no list: anyone else is not let in.
         return 'unknown' if contract.reach_kind(reach) == 'follows' \
             else 'not_followed'
-    return 'follows' if author in rec._follow_ids else 'not_followed'
+    return 'follows' if author in rec.follow_ids else 'not_followed'
 
-def _facts(rec, status, ref: str) -> dict:
+def _facts(rec, build, status, ref: str) -> dict:
     content = content_of(status)
     text = contract.post_text(status, rec.native)
     spoiler = contract.spoiler_of(status)
     attachments = contract.attachments_of(status)
     kept = {'text': text[:TEXT_CAP], 'spoiler': spoiler[:TEXT_CAP]}
-    rec.sidecar[ref] = {**kept, 'text_truncated':
-                         len(text) > TEXT_CAP or len(spoiler) > TEXT_CAP}
+    build.sidecar[ref] = {**kept, 'text_truncated':
+                          len(text) > TEXT_CAP or len(spoiler) > TEXT_CAP}
     boost = isinstance(status.get('reblog'), dict)
     wrapper = account_of(status, wrapper=True)
     extra = {}
@@ -71,7 +86,7 @@ def _facts(rec, status, ref: str) -> dict:
         # text drops), so a replay needs it as it was.
         words = (rec.word_cache.text(status) if rec.word_cache
                  else textutil.focus_text(status))
-        rec.sidecar[ref].update(
+        build.sidecar[ref].update(
             focus=words[:TEXT_CAP], focus_truncated=len(words) > TEXT_CAP)
         extra = {'focus_sha256': hashlib.sha256(
             words[:TEXT_CAP].encode('utf-8')).hexdigest()}
@@ -115,7 +130,7 @@ def _reads_words(rec) -> bool:
         mod.type == 'similarity_cluster'
         for mod in rec.recipe.kitchen.modifiers)
 
-def _rules(rec, sid: str, reason: str | None) -> dict[str, str]:
+def _rules(rec, build, sid: str, reason: str | None) -> dict[str, str]:
     """pass | fail | n/a for each promise, in the order the stages ran
     (pantry hashtags, diet, network reach): a promise after the one
     that removed the post was never asked (n/a), like one the recipe
@@ -127,11 +142,11 @@ def _rules(rec, sid: str, reason: str | None) -> dict[str, str]:
             reason[5:] if reason.startswith('diet:') else
             'network_reach' if reason == 'reach_not_followed' else None)
     done = _EVAL_AT[failed] if failed else len(_EVAL_ORDER)
-    if rec._actives is None:
+    if build.actives is None:
         # One recipe per record: which promises it makes is asked once.
-        rec._actives = {promise.id for promise in contract.PROMISES
+        build.actives = {promise.id for promise in contract.PROMISES
                          if promise.active(rec.recipe)}
-    active = rec._actives
+    active = build.actives
     rules = {}
     for promise in contract.PROMISES:
         if promise.id not in active:
@@ -168,7 +183,7 @@ def _sent(rec, sid: str, status) -> dict | None:
         sentimentmod.effective_language(status))
     return {'engine': engine, 'score': rec.judged[sid]}
 
-def _posts(rec) -> tuple[list[dict], dict[str, int]]:
+def _posts(rec, build) -> tuple[list[dict], dict[str, int]]:
     by_sid: dict[str, dict] = {}
     for status in rec.merged:
         by_sid.setdefault(str(status.get('id') or ''), status)
@@ -211,10 +226,10 @@ def _posts(rec) -> tuple[list[dict], dict[str, int]]:
             'id': sid,
             'cid': str(content_of(status).get('id') or sid),
             'origin': origin, 'also_in': also,
-            'facts': _facts(rec, status, 'p%d' % index),
+            'facts': _facts(rec, build, status, 'p%d' % index),
             'follow': {'verdict': _verdict(rec, status)},
             'viewer': (rec.viewer or {}).get(sid),
-            'rules': _rules(rec, sid, reason),
+            'rules': _rules(rec, build, sid, reason),
             'sent': _sent(rec, sid, status),
             'score': score,
             'removal': ({'stage': stage_of(reason), 'reason': reason,
@@ -238,12 +253,14 @@ def _outcome(rec, failed: bool) -> dict:
     return {'status': 'peek' if rec.peek else 'ok', 'error': error}
 
 
-def build_record(rec) -> dict:
+def build_record(rec) -> tuple[dict, dict[str, dict]]:
+    """The record of a page, and the text sidecar that goes with it."""
+    build = Build()
     failed = rec.ordered is None or bool(rec.broken)
-    posts, by_reason = ([], {}) if failed else _posts(rec)
+    posts, by_reason = ([], {}) if failed else _posts(rec, build)
     selected = [] if failed else list(rec.ordered)
     instance, _sep, account = rec.account_key.rpartition('#')
-    return {
+    record = {
         'schema': SCHEMA, 'engine_rev': ENGINE_REV,
         **rec.identity,
         'app': {'version': rec.app_version},
@@ -286,6 +303,7 @@ def build_record(rec) -> dict:
         **({'fresh_fallback': True} if rec.fallback_fresh else {}),
         **({'variant': rec.variant} if rec.variant else {}),
     }
+    return record, build.sidecar
 
 
 def capture_failed(rec, where: str, error: Exception) -> None:

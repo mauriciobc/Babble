@@ -35,7 +35,7 @@ from feedchefaudit.collect import collect  # noqa: E402
 from feedchefaudit.records import expand, load  # noqa: E402
 from src.feedchef import audit as auditmod  # noqa: E402
 from src.feedchef import auditbuild as auditbuildmod  # noqa: E402
-from src.feedchef import auditreport  # noqa: E402
+from src.feedchef import auditreport, words  # noqa: E402
 from src.feedchef import decisionlog as logmod  # noqa: E402
 from src.feedchef import deps  # noqa: E402
 from src.feedchef import network_reach as reachmod  # noqa: E402
@@ -486,7 +486,7 @@ check('a recorder that gave up builds a failed record with a note, no '
       and not rec.build()['posts'])
 
 
-def broken_facts(rec, status, ref):
+def broken_facts(rec, build, status, ref):
     raise ValueError('a post the recorder cannot read')
 
 
@@ -635,7 +635,7 @@ check('a record already written is rewritten as cancelled when the cook '
 
 # --- the words of a record say only what the record holds ------------------
 
-REPORT_RULES = auditreport.rule_titles(auditreport.ENGLISH)
+REPORT_RULES = auditreport.rule_titles(words.ENGLISH)
 EXTRA_PASSED = {'Your Own Post', 'From Someone You Follow',
                 'Allowed by the Network Rule', 'Allowed by Your Filters',
                 'No Checks Passed', 'No Rules Applied'}
@@ -734,15 +734,15 @@ check('every statement of Why This Post? is in the record: passed rows are '
          ' -- %r' % wrong[:3] if wrong else ''),
       not wrong and posts_read > 500 and skipped_rules > 0 and numbers > 100)
 check('a small factor is never written as zero',
-      auditreport._factor(0.004, auditreport.ENGLISH) == '× 0.004'
-      and auditreport._factor(0.00001, auditreport.ENGLISH)
+      auditreport._factor(0.004, words.ENGLISH) == '× 0.004'
+      and auditreport._factor(0.00001, words.ENGLISH)
       == '× less than 0.001'
-      and auditreport._factor(0, auditreport.ENGLISH) == '× 0'
-      and auditreport._factor(1.234, auditreport.ENGLISH) == '× 1.23')
+      and auditreport._factor(0, words.ENGLISH) == '× 0'
+      and auditreport._factor(1.234, words.ENGLISH) == '× 1.23')
 check('a language with no name is "Another language", never its code',
-      auditreport._language_name('xx', auditreport.ENGLISH)
+      auditreport._language_name('xx', words.ENGLISH)
       == 'Another language'
-      and auditreport._language_name('xx', auditreport.Words(
-          lambda t: t, auditreport._plural, lambda c: 'Xish'))  == 'Xish')
+      and auditreport._language_name('xx', words.Words(
+          lambda t: t, words._plural, lambda c: 'Xish'))  == 'Xish')
 
 sys.exit(1 if failures else 0)

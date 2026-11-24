@@ -272,24 +272,24 @@ live = FakeLive.made[-1]
 check('summary: the builder asks for the first count as it opens, once',
       len(live.requests) == 1)
 check('summary: the sentence is at the top, above the recipe group',
-      dialog.sentence_label.get_label() == 'Posts from Home, up to 3 posts '
+      dialog.summary.sentence_label.get_label() == 'Posts from Home, up to 3 posts '
       'per person, most engaging first'
       and dialog.page.get_first_child() is not None)
 check('summary: the count reads "7 posts match" and where it comes from',
-      pump_until(lambda: dialog.count_row.get_title() == '7 posts match')
-      and dialog.count_row.get_subtitle() == 'Out of the latest 40 posts'
-      and not dialog.count_row.has_css_class('dimmed'))
+      pump_until(lambda: dialog.summary.count_row.get_title() == '7 posts match')
+      and dialog.summary.count_row.get_subtitle() == 'Out of the latest 40 posts'
+      and not dialog.summary.count_row.has_css_class('dimmed'))
 dialog.sensitive.set_active(True)
 check('summary: an edit supersedes the request in flight, so a stale answer '
       'never shows as fresh', live.superseded >= 1)
 check('summary: the sentence follows an edit at once, with no waiting',
-      dialog.sentence_label.get_label() == 'Posts from Home, without '
+      dialog.summary.sentence_label.get_label() == 'Posts from Home, without '
       'sensitive posts and up to 3 posts per person, most engaging first')
 check('summary: the count goes stale, not blank: dimmed, "Updating…", the '
-      'old number kept', dialog.count_row.has_css_class('dimmed')
-      and dialog.count_row.get_subtitle() == 'Updating…'
-      and dialog.count_row.get_title() == '7 posts match'
-      and dialog.count_spinner.get_spinning())
+      'old number kept', dialog.summary.count_row.has_css_class('dimmed')
+      and dialog.summary.count_row.get_subtitle() == 'Updating…'
+      and dialog.summary.count_row.get_title() == '7 posts match'
+      and dialog.summary.count_spinner.get_spinning())
 check('summary: no request is made inside the edit itself',
       len(live.requests) == 1)
 live.matching = 1
@@ -305,9 +305,9 @@ check('summary: it asks for what is on screen, a copy of the recipe',
       and live.requests[-1] is not dialog.recipe)
 check('summary: and the answer lands within half a second of the debounce '
       '(singular for one)',
-      pump_until(lambda: dialog.count_row.get_title() == '1 post matches',
-                 0.5) and not dialog.count_row.has_css_class('dimmed')
-      and not dialog.count_spinner.get_spinning())
+      pump_until(lambda: dialog.summary.count_row.get_title() == '1 post matches',
+                 0.5) and not dialog.summary.count_row.has_css_class('dimmed')
+      and not dialog.summary.count_spinner.get_spinning())
 check('summary: the count is mirrored into the Preview Recipe row (%s)'
       % dialog.preview_row.get_subtitle(),
       dialog.preview_row.get_subtitle() == '1 of 40 posts matches')
@@ -316,20 +316,20 @@ dialog.min_length.set_value(30)
 pump_until(lambda: len(live.requests) == 3, 1.0)
 check('summary: a count that fails says so and offers to try again, and '
       'the form is untouched',
-      pump_until(lambda: dialog.count_row.get_title()
+      pump_until(lambda: dialog.summary.count_row.get_title()
                  == 'Could not count posts')
-      and dialog.count_retry.get_visible()
+      and dialog.summary.count_retry.get_visible()
       and dialog.save_button.get_sensitive())
 live.fail = False
-dialog.count_retry.emit('clicked')
+dialog.summary.count_retry.emit('clicked')
 check('summary: Count Again asks again right away',
-      pump_until(lambda: dialog.count_row.get_title() == '7 posts match'
-                 or dialog.count_row.get_title() == '1 post matches')
+      pump_until(lambda: dialog.summary.count_row.get_title() == '7 posts match'
+                 or dialog.summary.count_row.get_title() == '1 post matches')
       and len(live.requests) == 4)
 dialog.scope.set_selected(3)
 check('summary: a list scope with no list yet cannot be counted, and says '
-      'so', dialog.count_row.get_title() == 'Choose a list to count posts'
-      and not dialog.count_spinner.get_spinning()
+      'so', dialog.summary.count_row.get_title() == 'Choose a list to count posts'
+      and not dialog.summary.count_spinner.get_spinning()
       and live.superseded >= 1)
 dialog.force_close()
 check('summary: closing the builder closes the worker',
