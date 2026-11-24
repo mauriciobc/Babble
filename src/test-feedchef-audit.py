@@ -34,6 +34,7 @@ from feedchefaudit import replay as replaymod  # noqa: E402
 from feedchefaudit.collect import collect  # noqa: E402
 from feedchefaudit.records import expand, load  # noqa: E402
 from src.feedchef import audit as auditmod  # noqa: E402
+from src.feedchef import auditbuild as auditbuildmod  # noqa: E402
 from src.feedchef import auditreport  # noqa: E402
 from src.feedchef import decisionlog as logmod  # noqa: E402
 from src.feedchef import deps  # noqa: E402
@@ -485,19 +486,19 @@ check('a recorder that gave up builds a failed record with a note, no '
       and not rec.build()['posts'])
 
 
-def broken_facts(self, status, ref):
+def broken_facts(rec, status, ref):
     raise ValueError('a post the recorder cannot read')
 
 
 plain = Fixed([post('%d' % (900 + i), author='u%d' % (i % 4))
                for i in range(20)])
-real = auditmod.Recorder._facts
-auditmod.Recorder._facts = broken_facts
+real = auditbuildmod._facts
+auditbuildmod._facts = broken_facts
 try:
     shown = plain.cook(fuzz.default_recipe('broken'),
                        os.path.join(TMP, 'broken'))
 finally:
-    auditmod.Recorder._facts = real
+    auditbuildmod._facts = real
 quiet = plain.cook(fuzz.default_recipe('broken'),
                    os.path.join(TMP, 'quiet'), audit=False)
 record = logs_in(os.path.join(TMP, 'broken'))[0].record

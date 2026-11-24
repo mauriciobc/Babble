@@ -339,6 +339,198 @@ def _tie_key(status: dict[str, Any]) -> tuple:
             _id_key(status))
 
 
+class _Page:
+    """What the modifier handlers of one ``score_statuses`` call share:
+    the posts, the recipe's clock and trends, and what the stages have
+    made so far (``working``, ``ordered``, ``scores``, ``meta``)."""
+
+    def __init__(self, statuses, recipe, server, sentiment_by_id,
+                 author_counts, instance_counts, now, audit):
+        self.statuses = statuses
+        self.recipe = recipe
+        self.server = server
+        self.sentiment_by_id = sentiment_by_id
+        self.author_counts = author_counts
+        self.instance_counts = instance_counts
+        self.now = now
+        self.audit = audit
+        self.scores: dict[str, float] = {}
+        self.meta: dict[str, Any] = {
+            'inert': [], 'heat': None, 'diversity': None,
+            'heat_steps': [], 'fire': None,
+            'cluster': None, 'unavailable': {},
+            # What the final guard checks the page against
+            # (contract.ListFacts): each post's freshness
+            # factor and whether the floor raised it, the
+            # relevance the order used, the group of each
+            # post.
+            'fresh': {}, 'relevance_scores': None,
+            'groups': None}
+        self.tag_heat: dict[str, float] = {}
+        self.floor = False
+        self.words = None
+        self.working: list[dict[str, Any]] = []
+        self.ordered: list[dict[str, Any]] = []
+
+
+# The modifiers that multiply a post's score: each handler gives the
+# (kind, factor) of one post, factor None leaving the score be. They apply in
+# the order the recipe lists its modifiers (a float product depends on it).
+def _freshness(page, status, sid, mod):
+    factor = freshness_factor(status, mod, page.now, page.floor)
+    lifted = page.floor and floor_applied(status, mod, page.now)
+    if lifted:
+        page.audit.fresh_floor(sid)
+    if factor is not None:
+        page.meta['fresh'][sid] = (factor, bool(lifted))
+    return 'fresh', factor
+
+
+def _sentiment_boost(page, status, sid, mod):
+    # Posts that are not judged (other languages) keep theirs.
+    factor = (sentiment_factor(page.sentiment_by_id[sid], mod)
+              if sid in page.sentiment_by_id else None)
+    return 'sent', factor
+
+
+def _trending(page, status, sid, mod):
+    return 'trend', trending_factor(status, page.tag_heat, page.server, mod)
+
+
+# 'connection' is inert (named in meta, no handler): the type is not here.
+FACTORS = {'freshness': _freshness, 'sentiment_boost': _sentiment_boost,
+           'trending': _trending}
+
+
+# The modifiers that act on the page as a whole, and the order the stages
+# run in (Java's, but for the cap): each handler takes the page and the
+# modifiers of its type, in recipe order. 'order' has none of its own.
+ORDER = ('similarity_cluster', 'heat', 'order', 'diversity')
+
+
+def _similarity_cluster(page, mods):
+    if mods:
+        page.working = _group(page.working, mods[0], page.meta, page.audit,
+                              page.words)
+        if len(mods) > 1:
+            # Only the first one is applied; the rest are said, not
+            # silently dropped.
+            page.meta['inert'] = sorted(
+                {*page.meta['inert'], 'similarity_cluster#2'})
+
+
+def _heat_stage(page, mods):
+    for mod in mods:
+        page.working = _heat(page.working, page.scores, mod, page.meta,
+                             page.audit)
+
+
+def _order(page, _mods):
+    recipe, meta, audit, working = (page.recipe, page.meta, page.audit,
+                                    page.working)
+    keywords = relevancemod.focus_keywords(recipe.kitchen)
+    ordered = None
+    if keywords:
+        # Java: a focus replaces the base sort. The relevance is the
+        # cosine of each post with the focus, over the posts that are left.
+        weights = recipe.kitchen.active_focus_weights
+        found = relevancemod.relevance_scores(working, keywords, weights,
+                                              page.words)
+        if relevancemod.matched(found) or not working:
+            audit.relevance(found, keywords, weights)
+            meta['relevance'] = len(keywords)
+            meta['relevance_scores'] = found
+            ordered = order_statuses(working, found, 'score')
+        else:
+            # Babble, not Java: when no post has any relevance to the focus
+            # the page would silently become "newest first", whatever the
+            # recipe asks. It keeps the recipe's order and says so.
+            meta['focus_unmatched'] = True
+            audit.focus_unmatched()
+    if ordered is None:
+        ordered = order_statuses(working, page.scores,
+                                 recipe.kitchen.base_sort)
+    page.ordered = ordered
+
+
+def _diversity(page, mods):
+    audit = page.audit
+    for mod in mods:
+        ordered = page.ordered
+        before = len(ordered)
+        kept, removed = diversity_pass(
+            ordered, mod, page.author_counts, page.instance_counts)
+        if audit.enabled:
+            for reason in ('author_cap', 'instance_cap'):
+                audit.kitchen_cut(reason, ordered, [
+                    item for item in ordered
+                    if removed.get(id(item)) != reason])
+        page.ordered = kept
+        page.meta['diversity'] = {'before': before, 'after': len(kept)}
+
+
+STAGES = {'similarity_cluster': _similarity_cluster, 'heat': _heat_stage,
+          'order': _order, 'diversity': _diversity}
+
+
+def _prepare(page):
+    """The page's heat of tags, its floor, and its word cache."""
+    recipe, audit = page.recipe, page.audit
+    page.tag_heat = local_tag_heat(page.statuses, page.server, page.now)
+    audit.heat_map(page.tag_heat)
+    floor = has_trending(recipe)
+    # Every score zero because freshness faded every post (and the recipe
+    # has no trending to hold the floor): this page, and only this page, uses
+    # the floor of 0.2 (moshidon's auto_fallback, its freshness half). The
+    # heat half of that rule is ``heat.used``.
+    fallback = (not floor and fresh_fallback_wanted(
+        recipe, fresh_rows(page.statuses, recipe, page.now)))
+    page.meta['fresh_fallback'] = fallback
+    if fallback:
+        audit.fresh_fallback()
+        floor = True
+    page.floor = floor
+    page.words = relevancemod.WordCache()
+    audit.words(page.words)
+    page.meta['inert'] = sorted({mod.type for mod in recipe.kitchen.modifiers
+                                 if mod.type == 'connection'})
+
+
+def _score_posts(page):
+    """The score of each post: its engagement, times each factor."""
+    audit, scores = page.audit, page.scores
+    steps = [(FACTORS[mod.type], mod) for mod in page.recipe.kitchen.modifiers
+             if mod.type in FACTORS]
+    for status in page.statuses:
+        sid = str(status.get('id') or '')
+        content_id = str(content_of(status).get('id') or sid)
+        score = base_score(status)
+        audit.factor(sid, 'base', score)
+        for handler, mod in steps:
+            kind, factor = handler(page, status, sid, mod)
+            if factor is not None:
+                score = score * factor
+                audit.factor(sid, kind, factor)
+        scores[sid] = score
+        scores[content_id] = score
+
+
+def _close(page):
+    """The Hot badge, the ranks and the inert modifiers of the page."""
+    meta, audit, ordered = page.meta, page.audit, page.ordered
+    meta['fire'] = _fire(ordered, page.scores)
+    audit.heat_steps(meta['heat_steps'])
+    audit.fire(meta['fire'])
+    # Java DecisionLog: kitchen-filtered posts keep rank -1.
+    ranks: dict[str, int] = {}
+    for status in page.statuses:
+        ranks[str(status.get('id') or '')] = -1
+    for index, item in enumerate(ordered):
+        ranks[str(item.get('id') or '')] = index
+    meta['ranks'] = ranks
+    meta['inert'] = sorted(set(meta['inert']))
+
+
 def score_statuses(
     statuses: list[dict[str, Any]],
     recipe: FeedRecipe,
@@ -355,136 +547,26 @@ def score_statuses(
     The order of the stages is Java's, but for the cap: similarity
     grouping, then the heat cut, then the order (by relevance to the
     focus when there is one, else by *base_sort*), and the cap after the
-    order so that it keeps each person's best-ranked posts. *author_counts*
+    order so that it keeps each person's best-ranked posts (``ORDER``
+    names them, ``STAGES`` holds each). *author_counts*
     and *instance_counts* (posts per person and per server already shown by
     earlier pages of the cook session) make the cap one on the whole
     session.
 
     *now* is the one clock reading of the page (None: read it here); *audit*
     only observes: the factors and the posts each cut removed."""
-    audit = NULL if audit is None else audit
-    now = now or datetime.now(timezone.utc)
-    server = server or EMPTY_TRENDS
-    sentiment_by_id = sentiment_by_id or {}
-    scores: dict[str, float] = {}
-    meta: dict[str, Any] = {'inert': [], 'heat': None, 'diversity': None,
-                            'heat_steps': [], 'fire': None,
-                            'cluster': None, 'unavailable': {},
-                            # What the final guard checks the page against
-                            # (contract.ListFacts): each post's freshness
-                            # factor and whether the floor raised it, the
-                            # relevance the order used, the group of each
-                            # post.
-                            'fresh': {}, 'relevance_scores': None,
-                            'groups': None}
-    tag_heat = local_tag_heat(statuses, server, now)
-    audit.heat_map(tag_heat)
-    floor = has_trending(recipe)
-    # Every score zero because freshness faded every post (and the recipe
-    # has no trending to hold the floor): this page, and only this page, uses
-    # the floor of 0.2 (moshidon's auto_fallback, its freshness half). The
-    # heat half of that rule is ``heat.used``.
-    fallback = (not floor and fresh_fallback_wanted(
-        recipe, fresh_rows(statuses, recipe, now)))
-    meta['fresh_fallback'] = fallback
-    if fallback:
-        audit.fresh_fallback()
-        floor = True
-    words = relevancemod.WordCache()
-    audit.words(words)
-    meta['inert'] = sorted({mod.type for mod in recipe.kitchen.modifiers
-                            if mod.type == 'connection'})
-
-    for status in statuses:
-        sid = str(status.get('id') or '')
-        content_id = str(content_of(status).get('id') or sid)
-        score = base_score(status)
-        audit.factor(sid, 'base', score)
-        for mod in recipe.kitchen.modifiers:
-            if mod.type == 'freshness':
-                factor = freshness_factor(status, mod, now, floor)
-                kind = 'fresh'
-                lifted = floor and floor_applied(status, mod, now)
-                if lifted:
-                    audit.fresh_floor(sid)
-                if factor is not None:
-                    meta['fresh'][sid] = (factor, bool(lifted))
-            elif mod.type == 'sentiment_boost':
-                # Posts that are not judged (other languages) keep theirs.
-                factor = (sentiment_factor(sentiment_by_id[sid], mod)
-                          if sid in sentiment_by_id else None)
-                kind = 'sent'
-            elif mod.type == 'trending':
-                factor = trending_factor(status, tag_heat, server, mod)
-                kind = 'trend'
-            else:
-                factor = None
-            if factor is not None:
-                score = score * factor
-                audit.factor(sid, kind, factor)
-        scores[sid] = score
-        scores[content_id] = score
-
-    working = list(statuses)
-    groupings = [mod for mod in recipe.kitchen.modifiers
-                 if mod.type == 'similarity_cluster']
-    if groupings:
-        working = _group(working, groupings[0], meta, audit, words)
-        if len(groupings) > 1:
-            # Only the first one is applied; the rest are said, not
-            # silently dropped.
-            meta['inert'] = sorted({*meta['inert'], 'similarity_cluster#2'})
-    for mod in recipe.kitchen.modifiers:
-        if mod.type == 'heat':
-            working = _heat(working, scores, mod, meta, audit)
-
-    keywords = relevancemod.focus_keywords(recipe.kitchen)
-    ordered = None
-    if keywords:
-        # Java: a focus replaces the base sort. The relevance is the
-        # cosine of each post with the focus, over the posts that are left.
-        weights = recipe.kitchen.active_focus_weights
-        found = relevancemod.relevance_scores(working, keywords, weights,
-                                              words)
-        if relevancemod.matched(found) or not working:
-            audit.relevance(found, keywords, weights)
-            meta['relevance'] = len(keywords)
-            meta['relevance_scores'] = found
-            ordered = order_statuses(working, found, 'score')
-        else:
-            # Babble, not Java: when no post has any relevance to the focus
-            # the page would silently become "newest first", whatever the
-            # recipe asks. It keeps the recipe's order and says so.
-            meta['focus_unmatched'] = True
-            audit.focus_unmatched()
-    if ordered is None:
-        ordered = order_statuses(working, scores, recipe.kitchen.base_sort)
-
-    for mod in recipe.kitchen.modifiers:
-        if mod.type == 'diversity':
-            before = len(ordered)
-            kept, removed = diversity_pass(
-                ordered, mod, author_counts, instance_counts)
-            if audit.enabled:
-                for reason in ('author_cap', 'instance_cap'):
-                    audit.kitchen_cut(reason, ordered, [
-                        item for item in ordered
-                        if removed.get(id(item)) != reason])
-            ordered = kept
-            meta['diversity'] = {'before': before, 'after': len(ordered)}
-
-    meta['fire'] = _fire(ordered, scores)
-    audit.heat_steps(meta['heat_steps'])
-    audit.fire(meta['fire'])
-    # Java DecisionLog: kitchen-filtered posts keep rank -1.
-    ranks: dict[str, int] = {}
-    for status in statuses:
-        ranks[str(status.get('id') or '')] = -1
-    for index, item in enumerate(ordered):
-        ranks[str(item.get('id') or '')] = index
-    meta['ranks'] = ranks
-    meta['inert'] = sorted(set(meta['inert']))
-    return ordered, scores, meta
+    page = _Page(statuses, recipe, server or EMPTY_TRENDS,
+                 sentiment_by_id or {}, author_counts, instance_counts,
+                 now or datetime.now(timezone.utc),
+                 NULL if audit is None else audit)
+    _prepare(page)
+    _score_posts(page)
+    page.working = list(statuses)
+    for name in ORDER:
+        STAGES[name](page, [mod for mod in recipe.kitchen.modifiers
+                            if mod.type == name])
+    _close(page)
+    return page.ordered, page.scores, page.meta
 
 
 def _heat(working: list[dict[str, Any]], scores: dict[str, float],

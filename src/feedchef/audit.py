@@ -27,12 +27,8 @@ from datetime import datetime
 from typing import Any
 
 from . import contract
-from . import langguess
-from . import sentiment as sentimentmod
 from .recipe import FeedRecipe, recipe_to_dict
-from .relevance import focus_keywords
-from . import textutil
-from .textutil import account_of, content_of, host_of_account
+from .textutil import content_of
 
 log = logging.getLogger('babble.feedchef')
 
@@ -60,13 +56,6 @@ _STAGES = {'reach_not_followed': 'reach', 'viewer_hide': 'viewer',
            'heat_cut': 'kitchen', 'author_cap': 'kitchen',
            'cluster_cap': 'kitchen', 'instance_cap': 'kitchen'}
 _RANK = {'focus': 0, 'hashtag': 1, 'scope': 2}
-_PANTRY_PROMISE = {'pantry_excluded_tag': 'hashtags_exclude',
-                   'pantry_missing_included_tag': 'hashtags_include'}
-# The order the stages ask the promises: the pantry's hashtags, the diet's
-# six, then network reach.
-_EVAL_ORDER = (contract.PROMISE_IDS[6:8] + contract.PROMISE_IDS[:6]
-               + contract.PROMISE_IDS[8:])
-_EVAL_AT = {name: at for at, name in enumerate(_EVAL_ORDER)}
 
 
 def is_reason(reason: str) -> bool:
@@ -208,13 +197,6 @@ def _nothing(*_args, **_kwargs):
 
 
 NULL = NullAudit()
-
-
-def _number(content: dict, *names: str) -> Any:
-    for name in names:
-        if content.get(name):
-            return content[name]
-    return 0
 
 
 class Recorder:
@@ -440,272 +422,19 @@ class Recorder:
         """The cook was cancelled or superseded: its page was never shown."""
         self.cancelled_flag = True
 
-    def _break(self, where: str, error: Exception) -> None:
-        """A hook could not record: the audit gives up on this page and
-        the cook goes on exactly as it would with the audit off."""
-        if not self.broken:
-            self.broken = '%s: %s' % (where, type(error).__name__)
-            log.debug('feedchef: audit capture failed in %s', where,
-                      exc_info=True)
-
-    # -- the record ------------------------------------------------------
-
-    def _verdict(self, status) -> str:
-        reach = self.recipe.pantry.network_reach
-        if contract.reach_kind(reach) is None:
-            return 'n/a'
-        author = contract.author_id(status)
-        if author and author == self.self_id:
-            return 'self'
-        if self._follow_ids is None:
-            # Degree zero asks no list: anyone else is not let in.
-            return 'unknown' if contract.reach_kind(reach) == 'follows' \
-                else 'not_followed'
-        return 'follows' if author in self._follow_ids else 'not_followed'
-
-    def _facts(self, status, ref: str) -> dict:
-        content = content_of(status)
-        text = contract.post_text(status, self.native)
-        spoiler = contract.spoiler_of(status)
-        attachments = contract.attachments_of(status)
-        kept = {'text': text[:TEXT_CAP], 'spoiler': spoiler[:TEXT_CAP]}
-        self.sidecar[ref] = {**kept, 'text_truncated':
-                             len(text) > TEXT_CAP or len(spoiler) > TEXT_CAP}
-        boost = isinstance(status.get('reblog'), dict)
-        wrapper = account_of(status, wrapper=True)
-        extra = {}
-        if self._reads_words():
-            # What the relevance sort and the grouping read is the focus
-            # text (it has the alt text and keeps what the contract's
-            # text drops), so a replay needs it as it was.
-            words = (self.word_cache.text(status) if self.word_cache
-                     else textutil.focus_text(status))
-            self.sidecar[ref].update(
-                focus=words[:TEXT_CAP], focus_truncated=len(words) > TEXT_CAP)
-            extra = {'focus_sha256': hashlib.sha256(
-                words[:TEXT_CAP].encode('utf-8')).hexdigest()}
-        # Only a recipe that reads sentiment guesses (and so loads
-        # py3langid): the guess is what lets the engines judge a post.
-        found = (langguess.guess(status)
-                 if sentimentmod.recipe_needs_sentiment(self.recipe)
-                 else None)
-        if found is not None:
-            # A post that declares no language and has enough text was
-            # guessed at (whatever the answer): the guess, for a replay
-            # to rerun and for ``evaluate`` to check against the gates.
-            extra['lang_guess'] = {'lang': found[0], 'p': found[1]}
-        return {
-            **extra,
-            'host': host_of_account(wrapper),
-            'created_w': status.get('created_at'),
-            'created_c': content.get('created_at'),
-            'fav': _number(content, 'favourites_count', 'favouritesCount'),
-            'reblog': _number(content, 'reblogs_count', 'reblogsCount'),
-            'reply': _number(content, 'replies_count', 'repliesCount'),
-            'tags': [str((tag or {}).get('name') or '')
-                     for tag in content.get('tags') or []],
-            'lang': sentimentmod.language_of(status),
-            'media': len(attachments),
-            'alt': sum(1 for item in attachments
-                       if str(item.get('description') or '').strip()),
-            'sensitive': bool(content.get('sensitive')),
-            'text_len': len(text), 'text_ref': ref,
-            'text_sha256': text_digest(kept['text'], kept['spoiler']),
-            'author_id': contract.author_id(status),
-            'booster_id': (str(account_of(status, wrapper=True).get('id')
-                               or '') if boost else None),
-            'boost': boost,
-        }
-
-    def _reads_words(self) -> bool:
-        """Whether the recipe has a stage that reads the words of the posts
-        (the relevance sort, similarity grouping)."""
-        return bool(focus_keywords(self.recipe.kitchen)) or any(
-            mod.type == 'similarity_cluster'
-            for mod in self.recipe.kitchen.modifiers)
-
-    def _rules(self, sid: str, reason: str | None) -> dict[str, str]:
-        """pass | fail | n/a for each promise, in the order the stages ran
-        (pantry hashtags, diet, network reach): a promise after the one
-        that removed the post was never asked (n/a), like one the recipe
-        does not make. The guard asks every promise of a post it checks."""
-        broken = self.guard_broken.get(sid)
-        failed = None
-        if broken is None and reason:
-            failed = _PANTRY_PROMISE.get(reason) or (
-                reason[5:] if reason.startswith('diet:') else
-                'network_reach' if reason == 'reach_not_followed' else None)
-        done = _EVAL_AT[failed] if failed else len(_EVAL_ORDER)
-        if self._actives is None:
-            # One recipe per record: which promises it makes is asked once.
-            self._actives = {promise.id for promise in contract.PROMISES
-                             if promise.active(self.recipe)}
-        active = self._actives
-        rules = {}
-        for promise in contract.PROMISES:
-            if promise.id not in active:
-                rules[promise.id] = 'n/a'
-            elif broken is not None:
-                rules[promise.id] = 'fail' if promise.id in broken \
-                    else 'pass'
-            else:
-                at = _EVAL_AT[promise.id]
-                rules[promise.id] = ('pass' if at < done else
-                                     'fail' if at == done else 'n/a')
-        return rules
-
-    def _removal(self, sid: str, merged: set[str]) -> tuple[str, list] | None:
-        if sid not in merged:
-            return self.trace.removed[sid], []
-        if sid in self.diet:
-            return 'diet:' + self.diet[sid], []
-        if sid in self.reach_dropped:
-            return 'reach_not_followed', []
-        if sid in self.hidden:
-            return 'viewer_hide', []
-        if sid in self.kitchen_removed:
-            return self.kitchen_removed[sid], []
-        broken = self.guard_broken.get(sid)
-        if broken:
-            return 'guard:' + broken[0], ['guard:' + b for b in broken[1:]]
-        return None
-
-    def _sent(self, sid: str, status) -> dict | None:
-        if sid not in self.judged:
-            return None
-        engine = sentimentmod.pick_engine(
-            sentimentmod.effective_language(status))
-        return {'engine': engine, 'score': self.judged[sid]}
-
-    def _posts(self) -> tuple[list[dict], dict[str, int]]:
-        by_sid: dict[str, dict] = {}
-        for status in self.merged:
-            by_sid.setdefault(str(status.get('id') or ''), status)
-        order = [sid for sid in by_sid if sid]
-        merged = set(order)
-        for status in self.raw:
-            sid = str(status.get('id') or '')
-            if sid and sid not in by_sid:
-                by_sid[sid] = status
-                order.append(sid)
-        ranks = {sid: i for i, sid in enumerate(self.ordered or [])}
-        by_reason: dict[str, int] = {}
-        posts = []
-        for index, sid in enumerate(order):
-            status = by_sid[sid]
-            removal = self._removal(sid, merged)
-            reason = removal[0] if removal else None
-            if removal:
-                by_reason[reason] = by_reason.get(reason, 0) + 1
-            origin, also = self.trace.sources(sid)
-            if sid in self.factors:
-                row = self.factors[sid]
-                score = {'base': row.get('base', 0.0),
-                         'fresh': row.get('fresh', 1.0),
-                         'sent': row.get('sent', 1.0),
-                         'trend': row.get('trend', 1.0),
-                         'final': self.score_map.get(sid)}
-                if sid in self.floored:
-                    score['fresh_floor'] = True
-                if self.relevance_of is not None \
-                        and sid in self.relevance_of:
-                    score['relevance'] = self.relevance_of[sid]
-                if sid in ranks and self.fire_ids is not None:
-                    score['fire'] = sid in self.fire_ids
-            else:
-                score = None
-            group = (self.grouping.groups.get(sid)
-                     if self.grouping is not None else None)
-            posts.append({
-                'id': sid,
-                'cid': str(content_of(status).get('id') or sid),
-                'origin': origin, 'also_in': also,
-                'facts': self._facts(status, 'p%d' % index),
-                'follow': {'verdict': self._verdict(status)},
-                'viewer': (self.viewer or {}).get(sid),
-                'rules': self._rules(sid, reason),
-                'sent': self._sent(sid, status),
-                'score': score,
-                'removal': ({'stage': stage_of(reason), 'reason': reason,
-                             'also': removal[1]} if removal else None),
-                'rank': ranks.get(sid, -1),
-            })
-            if group is not None:
-                posts[-1]['cluster'] = {'id': group[0], 'medoid': group[1]}
-        return posts, by_reason
-
     def build(self) -> dict:
         """The schema-2 record. The text of each post goes to
         ``self.sidecar``, keyed by the post's ``text_ref``. It never
         raises: a page the hooks or this method could not capture is a
         record that says so (outcome failed, no posts), and the cook,
         which never reads it, is not affected."""
+        from . import auditbuild
         try:
-            return self._build()
+            return auditbuild.build_record(self)
         except Exception as error:
-            self._break('build', error)
+            auditbuild.capture_failed(self, 'build', error)
             self.sidecar = {}
-            return self._build()
-
-    def _outcome(self, failed: bool) -> dict:
-        if self.cancelled_flag and not failed:
-            return {'status': 'cancelled', 'error': ''}
-        error = self.error
-        if self.broken:
-            error = ('audit capture failed in %s' % self.broken
-                     + ('; ' + error if error else ''))
-        if failed:
-            return {'status': 'failed', 'error': error}
-        return {'status': 'peek' if self.peek else 'ok', 'error': error}
-
-    def _build(self) -> dict:
-        failed = self.ordered is None or bool(self.broken)
-        posts, by_reason = ([], {}) if failed else self._posts()
-        selected = [] if failed else list(self.ordered)
-        instance, _sep, account = self.account_key.rpartition('#')
-        return {
-            'schema': SCHEMA, 'engine_rev': ENGINE_REV,
-            **self.identity,
-            'app': {'version': self.app_version},
-            'recipe': {'id': self.recipe.id,
-                       'hash': recipe_hash(self.recipe),
-                       'snapshot': recipe_to_dict(self.recipe)},
-            'account': {'id': account or self.self_id, 'instance': instance},
-            'clock': {'now_utc': None if self.now is None
-                      else self.now.isoformat()},
-            'env': {'self_id': self.self_id, 'native_bluesky': self.native,
-                    'follow': self.follow_info, 'trends': self.trends,
-                    'local_heat': self.tag_heat,
-                    'viewer_filter': self.viewer is not None,
-                    'lang_guess': dict(zip(
-                        ('status', 'reason'), langguess.status(),
-                        strict=True), min_p=langguess.MIN_P,
-                        min_chars=langguess.MIN_CHARS,
-                        version=langguess.version())},
-            'params': {'count': self.count,
-                       'author_counts_in': self.counts_in,
-                       'instance_counts_in': self.instances_in},
-            'sources': self.sources,
-            'outcome': self._outcome(failed),
-            'summary': {
-                'raw_fetched': len(self.raw),
-                'pantry_in': len(posts),
-                'duplicates': self.trace.duplicates,
-                'no_id': self.trace.no_id,
-                'by_reason': by_reason,
-                'selected': len(selected),
-                'guard_checked': 0 if failed else len(self.guard_broken)},
-            'outputs': {'order': selected,
-                        'author_counts_out': self.counts_out,
-                        'instance_counts_out': self.instances_out},
-            'posts': posts,
-            **({'cluster': self.grouping.record()}
-               if self.grouping is not None else {}),
-            **({'focus_unmatched': True} if self.unmatched else {}),
-            **({'heat': self.heat_rows} if self.heat_rows else {}),
-            **({'fresh_fallback': True} if self.fallback_fresh else {}),
-            **({'variant': self.variant} if self.variant else {}),
-        }
+            return auditbuild.build_record(self)
 
 
 def _guarded(method):
@@ -714,7 +443,8 @@ def _guarded(method):
         try:
             return method(self, *args, **kwargs)
         except Exception as error:
-            self._break(method.__name__, error)
+            from . import auditbuild
+            auditbuild.capture_failed(self, method.__name__, error)
             return None
     return hook
 
