@@ -63,6 +63,16 @@ def wait_for(condition, what, limit=30.0):
             tb.fail('timed out waiting for %s' % what)
 
 
+def _die_with_parent():
+    """Stop the fixture server when the bench dies: losing the compositor
+    makes GDK exit the process before the finally below can run."""
+    import ctypes
+    import signal
+    pr_set_pdeathsig = 1
+    ctypes.CDLL('libc.so.6', use_errno=True).prctl(
+        pr_set_pdeathsig, signal.SIGTERM)
+
+
 def main():
     total = tb.TOTAL
     anchor = (datetime.datetime.now(datetime.timezone.utc)
@@ -71,7 +81,7 @@ def main():
     server = subprocess.Popen(
         [sys.executable, os.path.join(HERE, 'fixture_server.py'),
          str(total), anchor.isoformat()],
-        stdout=subprocess.PIPE, text=True)
+        stdout=subprocess.PIPE, text=True, preexec_fn=_die_with_parent)
     try:
         run(int(server.stdout.readline()))
     finally:
