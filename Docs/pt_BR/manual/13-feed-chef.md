@@ -38,11 +38,11 @@ O Feed Chef é **opcional**. Preferências → Timelines → Sidebar → `Feed C
 Abra uma receita na lista do Feed Chef, ou no lugar fixado na barra lateral.
 
 - Publicações entre as mais engajadas podem mostrar o selo `Popular`.
-- Um **nível de calor** (`Heat Level`: Cool, Warm, Hot, Fire) esconde uma parte das publicações mais quietas para o feed ficar mais afiado.
+- Um **nível de calor** (`Heat Level`: `Cool`, `Warm`, `Hot`, `Fire`) esconde uma parte das publicações mais quietas para o feed ficar mais afiado.
 - Publicações novas que pontuam bem podem esperar atrás de uma pílula em vez de pular a página.
-- `_Why This Post?` em uma publicação explica por que ela foi mantida ou removida naquele preparo.
+- `_Why This Post?` em uma publicação abre `Why This Post?` e explica por que ela foi mantida ou removida naquele preparo.
 - `Kitchen Report` resume os preparos recentes daquela receita.
-- `More Like This` em uma publicação foca a timeline nas hashtags e palavras dela (`Showing more like %s`).
+- `More _Like This` em uma publicação foca a timeline nas hashtags e palavras dela (`Showing more like %s`).
 
 Tudo o que o Feed Chef registra para essas explicações fica **no seu computador**. Você pode limpar esse histórico de auditoria no Feed Chef sem apagar as receitas.
 
@@ -50,7 +50,7 @@ Tudo o que o Feed Chef registra para essas explicações fica **no seu computado
 
 **Fixar.** Em uma timeline de receita, use `Pin to Sidebar` / `Unpin from Sidebar` como em qualquer outro lugar.
 
-**Compartilhar.** `Share Recipe` (ou `S_hare Recipe`) oferece um link de compartilhamento e, quando a receita é pequena o bastante, um QR code. `_Copy Share Link` copia o link; uma receita grande demais para QR code avisa e ainda deixa copiar o link.
+**Compartilhar.** `Share Recipe` (ou `S_hare Recipe`) abre um diálogo com o link de compartilhamento e, quando a receita é pequena o bastante, um QR code. Nesse diálogo, `_Copy Link` copia o link; uma receita grande demais para QR code avisa e ainda deixa copiar o link. No menu da lista de receitas, `_Copy Share Link` copia o mesmo link sem abrir o diálogo.
 
 **Importar.** Abrir um link do Feed Chef pergunta antes de gravar qualquer coisa: `Import Recipe?` / `Import “%s” into this account?`, com `_Import`. Se já existir uma receita da mesma identidade, o Babble pergunta `Replace Recipe?` primeiro. Nada é importado até você confirmar.
 

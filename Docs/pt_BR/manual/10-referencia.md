@@ -209,6 +209,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Conversation deleted` | Conversa excluída |
 | `Conversations` | Conversas |
 | `Convert into a Draft` | Converter em rascunho |
+| `Cool` | Frio |
 | `Copy URL` | Copiar URL |
 | `Could Not Load Image` | Não foi possível carregar a imagem |
 | `Could Not Load Media` | Não foi possível carregar a mídia |
@@ -278,6 +279,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Filter` | Filtrar |
 | `Filtered` | Filtrada |
 | `Filters` | Filtros |
+| `Fire` | Fogo |
 | `Fit to Window` | Ajustar à janela |
 | `Follow` | Seguir |
 | `Follow Back` | Seguir de volta |
@@ -324,6 +326,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Hide Web Column` | Ocultar coluna web |
 | `Home` | Início |
 | `Home Timeline` | Linha do tempo inicial |
+| `Hot` | Quente |
 | `Ignore` | Ignorar |
 | `Image` | Imagem |
 | `Image copied` | Imagem copiada |
@@ -371,6 +374,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Moderation Warnings` | Advertências da moderação |
 | `More Actions` | Mais ações |
 | `More Options` | Mais opções |
+| `More _Like This` | Mais _parecidas com esta |
 | `Mute failed` | Falha ao silenciar |
 | `Muted` | Silenciada |
 | `Mutes & Blocks` | Silenciados e bloqueados |
@@ -557,6 +561,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Visible for all` | Visível para todos |
 | `Visible for your followers only` | Visível somente para seus seguidores |
 | `Vote failed` | Falha ao votar |
+| `Warm` | Morno |
 | `Warn` | Avisar |
 | `Web Column` | Coluna web |
 | `Welcome to Babble` | Boas-vindas ao Babble |
@@ -577,6 +582,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `_Catch Up` | _Catch Up |
 | `_Clear` | _Limpar |
 | `_Clear Schedule` | _Remover agendamento |
+| `_Copy Link` | _Copiar link |
 | `_Copy Share Link` | _Copiar link de compartilhamento |
 | `_Follow` | _Seguir |
 | `_Follow Back` | _Seguir de volta |
@@ -704,6 +710,18 @@ As mensagens do aplicativo são as que o servidor devolve, mais as do próprio B
 | `Remove This Catch-Up?` | Ao remover um instantâneo. |
 | `It will be deleted from this device.` | O corpo dessa confirmação. |
 | `At most {n} hashtags can be combined` | Limite de hashtags de uma timeline combinada. |
+
+### Feed Chef
+
+| Mensagem | Significado |
+|---|---|
+| `Import Recipe?` | Confirmação antes de importar uma receita compartilhada. |
+| `Import “%s” into this account?` | O corpo dessa confirmação. |
+| `Replace Recipe?` | Quando uma receita compartilhada substituiria uma que você já tem. |
+| `Why This Post?` | O diálogo que explica por que uma publicação ficou ou saiu. |
+| `Your changes to this recipe will be lost.` | Ao fechar o construtor sem salvar. |
+| `Could not save the recipe` | A receita não pôde ser gravada. |
+| `Showing more like %s` | A faixa de foco depois de `More _Like This`. |
 
 ### Conexão
 

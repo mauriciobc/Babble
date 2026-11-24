@@ -232,6 +232,18 @@ The application's messages are the ones the server returns, plus the ones Babble
 | `It will be deleted from this device.` | The body of that confirmation. |
 | `At most {n} hashtags can be combined` | The hashtag limit of a combined timeline. |
 
+### Feed Chef
+
+| Message | Meaning |
+|---|---|
+| `Import Recipe?` | Confirmation before importing a shared recipe. |
+| `Import “%s” into this account?` | The body of that confirmation. |
+| `Replace Recipe?` | When a shared recipe would overwrite one you already have. |
+| `Why This Post?` | The dialog that explains why a post was kept or removed. |
+| `Your changes to this recipe will be lost.` | Closing the builder without saving. |
+| `Could not save the recipe` | The recipe could not be written. |
+| `Showing more like %s` | The focus banner after `More _Like This`. |
+
 ### Connection
 
 | Message | Meaning |

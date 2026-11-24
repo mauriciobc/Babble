@@ -38,11 +38,11 @@ Feed Chef is **optional**. Preferences → Timelines → Sidebar → `Feed Chef`
 Open a recipe from the Feed Chef list, or from its pinned place in the sidebar.
 
 - Posts among the most engaging can show a `Popular` badge.
-- A **heat level** (`Heat Level`: Cool, Warm, Hot, Fire) hides a share of the quieter posts so the feed stays sharper.
+- A **heat level** (`Heat Level`: `Cool`, `Warm`, `Hot`, `Fire`) hides a share of the quieter posts so the feed stays sharper.
 - New posts that score well can wait behind a pill instead of jumping the page.
-- `_Why This Post?` on a post explains why it was kept or removed for this cook.
+- `_Why This Post?` on a post opens `Why This Post?` and explains why it was kept or removed for this cook.
 - `Kitchen Report` summarizes recent cooks for that recipe.
-- `More Like This` on a post focuses the timeline on its hashtags and words (`Showing more like %s`).
+- `More _Like This` on a post focuses the timeline on its hashtags and words (`Showing more like %s`).
 
 Everything Feed Chef records for those explanations stays **on your computer**. You can clear that audit history from Feed Chef without deleting the recipes themselves.
 
@@ -50,7 +50,7 @@ Everything Feed Chef records for those explanations stays **on your computer**. 
 
 **Pin.** On a recipe timeline, use `Pin to Sidebar` / `Unpin from Sidebar` like any other place.
 
-**Share.** `Share Recipe` (or `S_hare Recipe`) offers a share link and, when the recipe is small enough, a QR code. `_Copy Share Link` copies the link; a recipe that is too large for a QR code says so and still lets you copy the link.
+**Share.** `Share Recipe` (or `S_hare Recipe`) opens a dialog with the share link and, when the recipe is small enough, a QR code. In that dialog, `_Copy Link` copies the link; a recipe that is too large for a QR code says so and still lets you copy the link. From the recipe list menu, `_Copy Share Link` copies the same link without opening the dialog.
 
 **Import.** Opening a Feed Chef link asks before anything is written: `Import Recipe?` / `Import “%s” into this account?`, with `_Import`. If a recipe of the same identity already exists, Babble asks `Replace Recipe?` first. Nothing is imported until you confirm.
 
