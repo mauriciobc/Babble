@@ -41,6 +41,12 @@ from .timelinedata import (
 
 class TimelineFactory(Gtk.SignalListItemFactory):
 
+    # Registered, and held by the page that builds it: a factory only GTK
+    # holds can have its wrapper dropped and rebuilt (losing client and
+    # filter_context), and one left in cyclic garbage used to be disposed
+    # by a worker thread's collection, off the main thread.
+    __gtype_name__ = 'BabbleTimelineFactory'
+
     def __init__(self, client, filter_context=filterrules.HOME):
         super().__init__()
         self.client = client
@@ -171,10 +177,11 @@ class TimelinePage(ReadingPosition, HomeFilters, FollowedTags, PagedPosts,
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
 
         self.run_model = RunModel(self.model)
+        self._factory = TimelineFactory(client,
+                                        filter_context_for(source))
         self.list_view = Gtk.ListView(
             model=Gtk.NoSelection.new(self.run_model),
-            factory=TimelineFactory(client,
-                                    filter_context_for(source)),
+            factory=self._factory,
             single_click_activate=True)
         self.list_view.add_css_class('canvas-list')
         self.list_view.update_property([Gtk.AccessibleProperty.LABEL],

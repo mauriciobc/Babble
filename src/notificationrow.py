@@ -83,6 +83,12 @@ def make_date_heading():
 
 class NotificationFactory(Gtk.SignalListItemFactory):
 
+    # Registered, and held by the page that builds it: a factory only GTK
+    # holds can have its wrapper dropped and rebuilt (losing client and
+    # rows), and one left in cyclic garbage used to be disposed by a
+    # worker thread's collection, off the main thread.
+    __gtype_name__ = 'BabbleNotificationFactory'
+
     def __init__(self, client):
         super().__init__()
         self.client = client

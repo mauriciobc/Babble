@@ -12,6 +12,7 @@ import os
 # real stored account, and one that finds no keyring entry forgets it.
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
+import threading
 
 import gi
 
@@ -592,6 +593,45 @@ held.new_pill.emit('clicked')
 check('a page held only by GTK still handles its signals',
       held._pill_count == 0
       and not held.new_posts_revealer.get_reveal_child())
+
+# A worker thread's cyclic collection must never dispose a timeline's
+# widget tree: a factory or card whose GObject its own signal handlers
+# kept alive used to be finalized off the main thread (the factory with
+# the whole row tree under it) and crash.
+worker_done = threading.Event()
+
+
+def _collect_on_worker():
+    gc.collect()
+    worker_done.set()
+
+
+def collect_on_worker():
+    worker = threading.Thread(target=_collect_on_worker, daemon=True)
+    worker.start()
+    worker_done.wait(10)
+    worker.join()
+
+
+factory_page = timelinepage.TimelinePage(None, source=_Source())
+box.append(factory_page)
+factory_ref = factory_page.list_view.get_factory().weak_ref()
+card_row = statusrow.StatusRow()
+card_row.bind(timelinedata.StatusItem(status(7, 'quoted')), _Client())
+box.append(card_row)
+card_row._show_quote({'quoted_status': status(8)})
+card_ref = card_row.quote_box.get_first_child().weak_ref()
+collect_on_worker()
+check('a worker collection leaves the live factory and quote card alone',
+      factory_ref() is not None and card_ref() is not None)
+card_row._show_quote({'quoted_status': status(9)})
+box.remove(card_row)
+del card_row
+check('a recycled quote card is freed on the main thread',
+      freed(card_ref))
+box.remove(factory_page)
+del factory_page
+check('a closed timeline page frees its factory', freed(factory_ref))
 
 # Catch Up: a page with a populated snapshot, its rows and its items are
 # freed once it is dropped, and a run in flight is cancelled with it.
