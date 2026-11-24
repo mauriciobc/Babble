@@ -1,7 +1,7 @@
 # 6 — Catch Up: recovering what you missed
 
 > **Document:** `BABBLE-MAN-001` — chapter 6 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 `Catch Up` is Babble's answer to the question every social network leaves behind: *what did I miss?*
 

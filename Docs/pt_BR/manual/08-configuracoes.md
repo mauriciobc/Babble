@@ -1,7 +1,7 @@
 # 8 — Preferências: referência completa
 
 > **Documento:** `BABBLE-MAN-001` — capítulo 8 — v1.0 — aprovado
-> **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
+> **Software descrito:** Babble 0.4.0 · **Data:** 2026-11-24 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Este capítulo é de **referência**: ele lista cada preferência, o que ela faz e quando ela tem efeito. Não há passo a passo aqui — para isso, veja os capítulos de função.
 
@@ -109,6 +109,7 @@ A descrição do grupo é *"Choose which timelines the sidebar offers"*.
 | Preferência | Subtítulo | Controle | Efeito |
 |---|---|---|---|
 | `Catch Up` | Summarize what you missed in your home timeline | Interruptor | Mostra ou esconde o lugar `Catch Up`. |
+| `Feed Chef` | Recipe timelines; uses more memory and network. Turning it off closes its pages now and frees the rest after a restart | Interruptor (ligado) | Mostra o Feed Chef e o carrega. Desligado, o Feed Chef não é carregado de jeito nenhum. |
 | `Explore` | Show posts trending on your server | Interruptor | Mostra ou esconde o lugar `Explore`. |
 | `Local Timeline` | Show posts from your server | Interruptor | Mostra ou esconde o lugar `Local`. |
 | `Federated Timeline` | Show posts from all known servers | Interruptor | Mostra ou esconde o lugar `Federated`. |

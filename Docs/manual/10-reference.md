@@ -1,7 +1,7 @@
 # 10 — Reference: shortcuts, menus, messages and limits
 
 > **Document:** `BABBLE-MAN-001` — chapter 10 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 This chapter is reference material. It is not read from beginning to end: you look up the line you need.
 
@@ -128,7 +128,7 @@ On the welcome screen, the main menu shows only: `Preferences`, `Plugins`, `Keyb
 
 ## 10.5 Interface labels in English and Portuguese
 
-The manual quotes interface labels as the source code defines them, in English. The application is translated into German, Spanish, French and Brazilian Portuguese; the Brazilian Portuguese edition of this manual carries the label-by-label table with the Portuguese equivalent of each label quoted here. Labels that do not appear in that table have no Brazilian Portuguese translation in application 0.3.0, so the interface shows them in English; the translation is incomplete in 0.3.0, and the table grows with every release.
+The manual quotes interface labels as the source code defines them, in English. The application is translated into German, Spanish, French and Brazilian Portuguese; the Brazilian Portuguese edition of this manual carries the label-by-label table with the Portuguese equivalent of each label quoted here. Labels that do not appear in that table have no Brazilian Portuguese translation in application 0.4.0, so the interface shows them in English; the table grows with every release.
 
 ## 10.6 Messages and notices
 
@@ -231,6 +231,18 @@ The application's messages are the ones the server returns, plus the ones Babble
 | `Remove This Catch-Up?` | When removing a snapshot. |
 | `It will be deleted from this device.` | The body of that confirmation. |
 | `At most {n} hashtags can be combined` | The hashtag limit of a combined timeline. |
+
+### Feed Chef
+
+| Message | Meaning |
+|---|---|
+| `Import Recipe?` | Confirmation before importing a shared recipe. |
+| `Import “%s” into this account?` | The body of that confirmation. |
+| `Replace Recipe?` | When a shared recipe would overwrite one you already have. |
+| `Why This Post?` | The dialog that explains why a post was kept or removed. |
+| `Your changes to this recipe will be lost.` | Closing the builder without saving. |
+| `Could not save the recipe` | The recipe could not be written. |
+| `Showing more like %s` | The focus banner after `More _Like This`. |
 
 ### Connection
 

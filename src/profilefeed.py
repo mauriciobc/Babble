@@ -124,7 +124,7 @@ class ProfileDialog(Adw.Dialog):
         self._view = view
         # The window's navigation view outlives the sheet.
         self._pushed = connect_weak(view, 'pushed', self._on_view_pushed)
-        self.connect('closed', self._on_closed)
+        connect_weak(self, 'closed', self._on_closed)
 
     def _on_view_pushed(self, _view):
         self.close()

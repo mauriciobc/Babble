@@ -1,7 +1,7 @@
 # 2 — Leitura: timelines, fios, perfis e busca
 
 > **Documento:** `BABBLE-MAN-001` — capítulo 2 — v1.0 — aprovado
-> **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
+> **Software descrito:** Babble 0.4.0 · **Data:** 2026-11-24 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Este capítulo é o centro do manual: as seis respostas à pergunta "de onde vem o que eu leio".
 
@@ -13,6 +13,7 @@ A barra lateral é a lista de destinos do aplicativo. Cada item é um *lugar* (*
 |---|---|
 | `Home` | As publicações das contas que você segue, mais os impulsos delas. |
 | `Catch Up` | O resumo ranqueado do que você deixou de ler. Ver [capítulo 6](06-catch-up.md). |
+| `Feed Chef` | Timelines de receita que você mesmo desenha. Ver [capítulo 13](13-feed-chef.md). |
 | `Notifications` | Menções, impulsos, favoritos, seguidores e o resto. Ver [capítulo 3](03-notificacoes-e-mensagens.md). |
 | `Conversations` | As mensagens diretas. Ver [capítulo 3](03-notificacoes-e-mensagens.md). |
 | `Search` | Busca de contas, hashtags e publicações. |

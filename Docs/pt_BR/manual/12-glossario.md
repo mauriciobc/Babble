@@ -1,7 +1,7 @@
 # 12 — Glossário, índice remissivo e suporte
 
 > **Documento:** `BABBLE-MAN-001` — capítulo 12 — v1.0 — aprovado
-> **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
+> **Software descrito:** Babble 0.4.0 · **Data:** 2026-11-24 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 ## 12.1 Glossário
 
@@ -20,6 +20,10 @@
 **Campo de perfil** — uma linha de informação personalizada no perfil (site, pronouns, whatever the account chose).
 
 **Catch Up** — a visão separada que volta no tempo na sua timeline e ranqueia o que você deixou de ler. [Capítulo 6](06-catch-up.md).
+
+**Feed Chef** — timelines de receita que você mesmo desenha: despensa (fontes), dieta (filtros) e cozinha (ordenação). [Capítulo 13](13-feed-chef.md).
+
+**Receita** — uma configuração do Feed Chef que monta uma timeline contínua. [Capítulo 13](13-feed-chef.md).
 
 **Chaveiro (keyring)** — o serviço do sistema que guarda dados secretos, como o token de acesso. No GNOME, o GNOME Keyring.
 
@@ -132,6 +136,7 @@
 | Captura de tela | [5.1](05-midia.md#51-quatro-maneiras-de-anexar), [7.5](07-integracao-com-o-desktop.md#75-captura-de-tela) |
 | Carrossel de impulsos | [2.15](02-leitura.md#215-publicações-repetidas-o-carrossel-de-impulsos) |
 | Catch Up | [6](06-catch-up.md) |
+| Feed Chef | [13](13-feed-chef.md) |
 | Chaveiro | [1.1](01-primeiros-passos.md#11-como-funciona-a-entrada), [11.3](11-solucao-de-problemas.md#113-o-chaveiro-não-guarda-o-login) |
 | Citar | [4.10](04-escrita.md#410-citar-uma-publicação) |
 | Coluna web | [7.1](07-integracao-com-o-desktop.md#71-a-coluna-web-ao-lado-da-timeline) |
@@ -191,6 +196,7 @@ Cada capítulo do manual corresponde a um conjunto de módulos do aplicativo. É
 | 4 — Escrita | `src/compose.py`, `src/composeattach.py`, `src/composeupload.py`, `src/composequote.py`, `src/composeschedule.py`, `src/drafts.py`, `src/scheduled.py`, `src/mentioncompleter.py`, `src/hashtagcompleter.py`, `src/emojichooser.py`, `src/pollbox.py` |
 | 5 — Mídia | `src/mediabox.py`, `src/mediaviewer.py`, `src/mediaviewerchrome.py`, `src/mediapip.py`, `src/mediazoom.py`, `src/mediaexport.py`, `src/mediainline.py`, `src/mediaplayback.py`, `src/remotemedia.py` |
 | 6 — Catch Up | `src/catchup/` (`rank.py`, `rank_model.py`, `rank_text.py`, e os demais módulos do pacote) |
+| 13 — Feed Chef | `src/feedchef/` e as páginas `src/feedchef*.py` |
 | 7 — Integração com o GNOME | `src/portals.py`, `src/clipboard.py`, `src/desktopnotify.py`, `src/searchprovider.py`, `src/mediabox.py`, `src/composeattach.py`, `src/sysstate.py` |
 | 8 — Preferências | `src/preferences.py`, `data/io.github.mauriciobc.Babble.gschema.xml` |
 | 9 — Plugins | `src/plugin.py`, `src/pluginhost.py`, `src/pluginspage.py`, `plugins/` |

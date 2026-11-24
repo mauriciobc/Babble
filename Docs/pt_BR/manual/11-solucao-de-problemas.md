@@ -1,7 +1,7 @@
 # 11 — Solução de problemas
 
 > **Documento:** `BABBLE-MAN-001` — capítulo 11 — v1.0 — aprovado
-> **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
+> **Software descrito:** Babble 0.4.0 · **Data:** 2026-11-24 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Cada item abaixo traz o **sintoma** (o que você vê), a **causa provável** e a **ação** que resolve. Se o sintoma não estiver aqui, o [capítulo 10](10-referencia.md) tem a lista de mensagens por área.
 
@@ -111,7 +111,7 @@ Depois de um plugin ter sido carregado, **reiniciar o aplicativo** é necessári
 
 | Sintoma | Causa provável | Ação |
 |---|---|---|
-| A interface não está em português | A tradução não está completa em 0.3.0, ou o catálogo não está instalado | Preferências → Appearance → `Language` → `Português (Brasil)`, e **reinicie o aplicativo** — o idioma só vale na próxima inicialização. |
+| A interface não está em português | O catálogo não está instalado, ou a preferência de idioma ainda aponta para outro lugar | Preferências → Appearance → `Language` → `Português (Brasil)`, e **reinicie o aplicativo** — o idioma só vale na próxima inicialização. |
 | Só alguns rótulos estão em português | O catálogo pt-BR está incompleto | Os que faltam aparecem em inglês; é o comportamento esperado nesta versão. A [tabela do capítulo 10](10-referencia.md#105-rótulos-da-interface-em-inglês-e-em-português) mostra o que já tem tradução. |
 
 ## 11.12 Um recurso não aparece

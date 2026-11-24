@@ -1,7 +1,7 @@
 # 5 — Media: attaching, viewing, saving
 
 > **Document:** `BABBLE-MAN-001` — chapter 5 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 Media is everything that is not text: images, videos, animated GIFs and audio. This chapter runs from "how do I attach this" to "how do I save that", and passes through the decision Babble takes on your behalf when the media is not on your server.
 

@@ -23,6 +23,9 @@ This app was developed using AI, and is built upon the brilliant codebases of Tu
 - **Catch Up.** A separate sidebar place that pages back through the home
   timeline for a window you choose, ranks the posts you missed, and keeps that
   run frozen as a snapshot.
+- **Feed Chef.** Recipe timelines you build yourself: pick the sources, the
+  filters and the ranking, preview the result, pin recipes to the sidebar, and
+  share them as a link or a QR code.
 - **Writing.** A composer with spell checking, `@mention` suggestions,
   media uploads, polls, drafts, and scheduled posts.
 - **At home on GNOME.** Paste or drag media straight into the composer,
@@ -31,7 +34,7 @@ This app was developed using AI, and is built upon the brilliant codebases of Tu
 
 ## Status
 
-- **0.3.2** is the current version. **Not on Flathub yet** — build it from
+- **0.4.0** is the current version. **Not on Flathub yet** — build it from
   source [below](#getting-it).
 - The interface is translated into German, Spanish, French and Brazilian
   Portuguese. [Adding a language](Docs/localization.md) is a page of its own.

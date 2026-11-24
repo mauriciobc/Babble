@@ -1,7 +1,7 @@
 # 4 — Writing: the composer, polls, quotes and drafts
 
 > **Document:** `BABBLE-MAN-001` — chapter 4 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 The Babble composer is a dialog on top of the main window. It keeps what you have written, checks the spelling, completes mentions and hashtags, and knows what your server accepts.
 

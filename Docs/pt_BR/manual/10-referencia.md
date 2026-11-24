@@ -1,7 +1,7 @@
 # 10 — Referência: atalhos, menus, mensagens e limites
 
 > **Documento:** `BABBLE-MAN-001` — capítulo 10 — v1.0 — aprovado
-> **Software descrito:** Babble 0.3.0 · **Data:** 2026-11-11 · **Pai:** [Manual do Usuário do Babble](README.md)
+> **Software descrito:** Babble 0.4.0 · **Data:** 2026-11-24 · **Pai:** [Manual do Usuário do Babble](README.md)
 
 Este capítulo é material de consulta. Ele não se lê do começo ao fim: você procura a linha de que precisa.
 
@@ -130,7 +130,7 @@ Na tela de boas-vindas, o menu principal mostra apenas: `Preferences`, `Plugins`
 
 O manual cita os rótulos como o código-fonte os define, em inglês. A tabela abaixo relaciona cada um deles à tradução em português (pt-BR) disponível no aplicativo.
 
-**Rótulos que não aparecem na tabela não têm tradução em português (pt-BR) no aplicativo 0.3.0** — nesse caso, a interface mostra o texto em inglês. A tradução do aplicativo está incompleta em 0.3.0, e essa tabela cresce a cada versão.
+**Rótulos que não aparecem na tabela não têm tradução em português (pt-BR) no aplicativo 0.4.0** — nesse caso, a interface mostra o texto em inglês. A tabela cresce a cada versão.
 
 <!-- label-table:start -->
 | Rótulo em inglês | Em português (pt-BR) |
@@ -177,6 +177,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Background` | Segundo plano |
 | `Before` | Antes |
 | `Bio` | Biografia |
+| `Blank Recipe` | Receita em branco |
 | `Blocked` | Bloqueado |
 | `Blocks you` | Bloqueia você |
 | `Bluesky` | Bluesky |
@@ -208,6 +209,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Conversation deleted` | Conversa excluída |
 | `Conversations` | Conversas |
 | `Convert into a Draft` | Converter em rascunho |
+| `Cool` | Frio |
 | `Copy URL` | Copiar URL |
 | `Could Not Load Image` | Não foi possível carregar a imagem |
 | `Could Not Load Media` | Não foi possível carregar a mídia |
@@ -222,6 +224,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Could not pin post` | Não foi possível fixar a publicação |
 | `Could not save media` | Não foi possível salvar a mídia |
 | `Could not save notification settings` | Não foi possível salvar as configurações de notificação |
+| `Could not save the recipe` | Não foi possível salvar a receita |
 | `Could not take a screenshot` | Não foi possível tirar uma captura de tela |
 | `Could not translate` | Não foi possível traduzir |
 | `Could not unmute conversation` | Não foi possível deixar de silenciar a conversa |
@@ -272,9 +275,11 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Favorites` | Favoritos |
 | `Featured by the server staff` | Destacado pela equipe do servidor |
 | `Federated` | Federada |
+| `Feed Chef` | Feed Chef |
 | `Filter` | Filtrar |
 | `Filtered` | Filtrada |
 | `Filters` | Filtros |
+| `Fire` | Fogo |
 | `Fit to Window` | Ajustar à janela |
 | `Follow` | Seguir |
 | `Follow Back` | Seguir de volta |
@@ -310,6 +315,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Hashtags` | Hashtags |
 | `Header Description` | Descrição do cabeçalho |
 | `Header Image` | Imagem de cabeçalho |
+| `Heat Level` | Nível de calor |
 | `Help` | Ajuda |
 | `Hide` | Ocultar |
 | `Hide Content` | Ocultar conteúdo |
@@ -320,6 +326,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Hide Web Column` | Ocultar coluna web |
 | `Home` | Início |
 | `Home Timeline` | Linha do tempo inicial |
+| `Hot` | Quente |
 | `Ignore` | Ignorar |
 | `Image` | Imagem |
 | `Image copied` | Imagem copiada |
@@ -333,6 +340,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Installed by You` | Instalados por você |
 | `Keep Open for a Thread` | Manter aberto para um fio |
 | `Keyboard Shortcuts` | Atalhos de teclado |
+| `Kitchen Report` | Relatório da cozinha |
 | `Language` | Idioma |
 | `Large` | Grande |
 | `Last hour` | Última hora |
@@ -366,6 +374,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Moderation Warnings` | Advertências da moderação |
 | `More Actions` | Mais ações |
 | `More Options` | Mais opções |
+| `More _Like This` | Mais _parecidas com esta |
 | `Mute failed` | Falha ao silenciar |
 | `Muted` | Silenciada |
 | `Mutes & Blocks` | Silenciados e bloqueados |
@@ -379,6 +388,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `New Multi-Hashtag Timeline` | Nova linha do tempo de várias hashtags |
 | `New Post` | Nova publicação |
 | `New Posts` | Novas publicações |
+| `New Recipe` | Nova receita |
 | `New Reports` | Novas denúncias |
 | `New Sign-Ups` | Novos cadastros |
 | `News` | Notícias |
@@ -430,6 +440,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Poll Results` | Resultados de enquetes |
 | `Poll choices must be unique` | As opções da enquete devem ser diferentes |
 | `Polls` | Enquetes |
+| `Popular` | Popular |
 | `Popular lately` | Popular recentemente |
 | `Popular on the server` | Popular no servidor |
 | `Post Edits` | Edições de publicações |
@@ -484,6 +495,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Reschedule` | Reagendar |
 | `Reset Text Size` | Redefinir tamanho do texto |
 | `Restore` | Restaurar |
+| `S_hare Recipe` | Co_mpartilhar receita |
 | `Save As…` | Salvar como… |
 | `Save Media` | Salvar mídia |
 | `Scanning timeline…` | Analisando a linha do tempo… |
@@ -500,6 +512,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Send Post` | Enviar publicação |
 | `Server` | Servidor |
 | `Severed Relationships` | Relações rompidas |
+| `Share Recipe` | Compartilhar receita |
 | `Show Content` | Mostrar conteúdo |
 | `Show Featured Tab` | Mostrar aba Destaques |
 | `Show Less` | Mostrar menos |
@@ -510,6 +523,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Show Replies To` | Mostrar respostas para |
 | `Show Sensitive Content` | Mostrar conteúdo sensível |
 | `Show or Hide Description` | Mostrar ou ocultar descrição |
+| `Showing more like %s` | Mostrando mais parecidas com %s |
 | `Sidebar` | Barra lateral |
 | `Sign-Ups` | Cadastros |
 | `Similar to people you followed` | Semelhante a pessoas que você seguiu |
@@ -547,6 +561,7 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `Visible for all` | Visível para todos |
 | `Visible for your followers only` | Visível somente para seus seguidores |
 | `Vote failed` | Falha ao votar |
+| `Warm` | Morno |
 | `Warn` | Avisar |
 | `Web Column` | Coluna web |
 | `Welcome to Babble` | Boas-vindas ao Babble |
@@ -567,14 +582,19 @@ O manual cita os rótulos como o código-fonte os define, em inglês. A tabela a
 | `_Catch Up` | _Catch Up |
 | `_Clear` | _Limpar |
 | `_Clear Schedule` | _Remover agendamento |
+| `_Copy Link` | _Copiar link |
+| `_Copy Share Link` | _Copiar link de compartilhamento |
 | `_Follow` | _Seguir |
 | `_Follow Back` | _Seguir de volta |
+| `_Import` | _Importar |
 | `_Load` | Ca_rregar |
 | `_New List` | _Nova lista |
 | `_Nobody` | _Ninguém |
 | `_Open` | _Abrir |
 | `_Open in Browser` | _Abrir no navegador |
 | `_Post` | _Publicar |
+| `_Preview` | _Pré-visualizar |
+| `_Preview Recipe` | _Pré-visualizar receita |
 | `_Reject` | _Rejeitar |
 | `_Remember This Choice` | _Lembrar esta escolha |
 | `_Reset Filters` | _Redefinir filtros |
@@ -690,6 +710,18 @@ As mensagens do aplicativo são as que o servidor devolve, mais as do próprio B
 | `Remove This Catch-Up?` | Ao remover um instantâneo. |
 | `It will be deleted from this device.` | O corpo dessa confirmação. |
 | `At most {n} hashtags can be combined` | Limite de hashtags de uma timeline combinada. |
+
+### Feed Chef
+
+| Mensagem | Significado |
+|---|---|
+| `Import Recipe?` | Confirmação antes de importar uma receita compartilhada. |
+| `Import “%s” into this account?` | O corpo dessa confirmação. |
+| `Replace Recipe?` | Quando uma receita compartilhada substituiria uma que você já tem. |
+| `Why This Post?` | O diálogo que explica por que uma publicação ficou ou saiu. |
+| `Your changes to this recipe will be lost.` | Ao fechar o construtor sem salvar. |
+| `Could not save the recipe` | A receita não pôde ser gravada. |
+| `Showing more like %s` | A faixa de foco depois de `More _Like This`. |
 
 ### Conexão
 

@@ -100,4 +100,16 @@
     </p>
   </section>
 
+  <section id="feedchef">
+    <title>Feed Chef</title>
+    <p>
+      <gui>Feed Chef</gui> no grupo <gui>Sidebar</gui> da página
+      <gui>Timelines</gui> liga ou desliga as timelines de receita. Quando
+      está desligado, o Babble não carrega o Feed Chef de jeito nenhum: sem
+      entradas na barra lateral, sem trabalho em segundo plano e sem
+      requisições de rede por causa dele. Desligar fecha as páginas abertas
+      na hora; a memória do código é liberada depois de reiniciar.
+    </p>
+  </section>
+
 </page>

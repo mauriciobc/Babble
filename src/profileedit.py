@@ -241,7 +241,7 @@ class ProfileEditDialog(feedback.ToastDialog):
             row for row in (self.name_row, self.avatar_alt, self.header_alt)
             if row is not None))
 
-        self.connect('close-attempt', self.on_close_attempt)
+        connect_weak(self, 'close-attempt', self.on_close_attempt)
         self.update_state()
 
     # Images

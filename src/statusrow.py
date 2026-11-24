@@ -603,7 +603,10 @@ class StatusRow(StatusFold, Gtk.Overlay):
         uihelpers.clear_children(self.quote_box)
         self.quote_box.set_visible(bool(quote))
         if quote:
-            self.quote_box.append(QuoteCard(quote, self.client))
+            # The row holds the card: its wrapper must live as long as the
+            # widget (see QuoteCard).
+            self._quote_card = QuoteCard(quote, self.client)
+            self.quote_box.append(self._quote_card)
 
     def _show_collections(self, collections):
         """Cards for the Collections a post links to (Mastodon 4.6+,

@@ -1,7 +1,7 @@
 # 7 — Desktop integration
 
 > **Document:** `BABBLE-MAN-001` — chapter 7 — v1.0 — approved
-> **Software described:** Babble 0.3.0 · **Date:** 2026-11-11 · **Parent:** [The Babble User Manual](README.md)
+> **Software described:** Babble 0.4.0 · **Date:** 2026-11-24 · **Parent:** [The Babble User Manual](README.md)
 
 Babble was made for GNOME, and uses what GNOME offers instead of recreating it. This chapter lists every integration, what it does, and what it needs.
 

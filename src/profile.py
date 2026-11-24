@@ -155,7 +155,7 @@ class ProfilePage(ProfileActions, Adw.Bin):
         breakpoint_bin.add_breakpoint(narrow)
         self.set_child(breakpoint_bin)
 
-        self.connect('notify::root', self._on_root_changed)
+        connect_weak(self, 'notify::root', self._on_root_changed)
         if account.get('id') is not None:
             self.on_account_ready()
         else:

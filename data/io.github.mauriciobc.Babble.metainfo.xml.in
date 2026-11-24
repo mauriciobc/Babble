@@ -60,6 +60,28 @@
   </supports>
   <translation type="gettext">babble</translation>
   <releases>
+    <release version="0.4.0" date="2026-11-24">
+      <description>
+        <p>
+          Feed Chef is a new kind of timeline you build yourself with a
+          recipe: choose where posts come from, what they must pass, and how
+          they are ordered. Start from a template or a blank recipe, preview
+          the result, pin recipes to the sidebar, and share them as a link or
+          a QR code.
+        </p>
+        <p>
+          Every post can explain why it is there, and a Kitchen Report
+          summarizes recent cooks. Heat levels hide the quieter posts, and
+          popular posts get a badge. Turn Feed Chef off in Preferences when
+          you do not want it loaded at all.
+        </p>
+        <p>Other changes:</p>
+        <ul>
+          <li>Feed Chef is translated into German, Spanish, French and Brazilian Portuguese.</li>
+          <li>Documentation for hashtag links, picture-in-picture and notification dismissal matches the software.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-11-22">
       <description>
         <p>
