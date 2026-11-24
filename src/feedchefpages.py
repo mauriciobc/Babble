@@ -739,24 +739,48 @@ def present_import(parent, account, recipe):
     dialog.set_default_response('cancel')
     dialog.set_close_response('cancel')
 
-    def response(_dialog, answer):
-        if answer == 'preview':
-            _preview_import(parent, account, recipe)
+    flow = _ImportFlow(parent, account, recipe, action)
+    connect_weak(dialog, 'response', flow.on_response)
+    # The dialog keeps the flow; the flow never names the dialog, so no
+    # cycle forms (the handler above holds the flow weakly).
+    dialog._flow = flow
+    dialog.present(parent)
+    return dialog
+
+
+class _ImportFlow(GObject.Object):
+    """What the import question does with its answer. The dialog owns it
+    (an attribute) and its handlers are weakly connected, as the leak
+    rule asks; it holds the window weakly, never the dialog."""
+
+    def __init__(self, parent, account, recipe, action):
+        super().__init__()
+        self._parent = parent.weak_ref()
+        self.account = account
+        self.recipe = recipe
+        self.action = action
+
+    def on_response(self, _dialog, answer):
+        parent = self._parent()
+        if parent is None or answer not in ('preview', self.action):
             return
-        if answer != action:
+        if answer == 'preview':
+            _preview_import(parent, self.account, self.recipe)
             return
         try:
-            storage_for(account).save_recipe(recipe)
+            storage_for(self.account).save_recipe(self.recipe)
         except Exception as error:
             feedback.report_error(parent, _('Could not save the recipe'),
                                   error)
             return
-        recipe_stored(parent, account, recipe)
+        recipe_stored(parent, self.account, self.recipe)
         feedback.show_toast(parent, _('Recipe imported'))
 
-    dialog.connect('response', response)
-    dialog.present(parent)
-    return dialog
+    def on_preview_closed(self, _preview):
+        parent = self._parent()
+        if parent is not None and app_settings().get_boolean(
+                'feed-chef-enabled'):
+            present_import(parent, self.account, self.recipe)
 
 
 def _preview_import(parent, account, recipe):
@@ -768,9 +792,7 @@ def _preview_import(parent, account, recipe):
         present_import(parent, account, recipe)
         return
     preview = FeedChefPreviewDialog(client, account, copy.deepcopy(recipe))
-    def back(_dialog):
-        if app_settings().get_boolean('feed-chef-enabled'):
-            present_import(parent, account, recipe)
-
-    preview.connect('closed', back)
+    flow = _ImportFlow(parent, account, recipe, '')
+    connect_weak(preview, 'closed', flow.on_preview_closed)
+    preview._flow = flow
     preview.present(parent)

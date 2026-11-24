@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import copy
 import json
+import logging
 import uuid
 import zlib
 from urllib.parse import parse_qs, urlparse
@@ -13,12 +14,23 @@ from urllib.parse import parse_qs, urlparse
 from .recipe import (FeedRecipe, default_recipe, recipe_to_dict,
                      validate_for_import)
 
+log = logging.getLogger(__name__)
+
 # The compact form (``r=2.<blob>``): the recipe without what the default
 # recipe already says, as minimal JSON, raw-deflated, base64url. It is what
 # the links and the QR codes carry; the older ``recipe=`` form still reads.
 COMPACT_VERSION = '2'
 # What a compact blob may inflate to: more is refused (a zip bomb).
 MAX_INFLATED = 65536
+# The longest link read at all, in characters, checked before any decoding.
+# The largest real compact link is under 800 characters and a legacy link
+# of a 3 kB recipe still fits.
+MAX_LINK_CHARS = 16384
+
+
+def _too_long(text) -> None:
+    if len(text or '') > MAX_LINK_CHARS:
+        raise ValueError('the link is too long')
 
 
 def encode_recipe(recipe: FeedRecipe) -> str:
@@ -86,6 +98,7 @@ def decode_recipe_compact(blob: str) -> FeedRecipe:
     """The recipe of a compact blob, laid over the default recipe and
     validated as an import. Raises ValueError for a blob that is damaged,
     inflates to more than ``MAX_INFLATED`` bytes, or is not a recipe."""
+    _too_long(blob)
     try:
         unpacker = zlib.decompressobj(-15)
         raw = unpacker.decompress(_unb64((blob or '').strip()), MAX_INFLATED)
@@ -106,6 +119,7 @@ def decode_recipe_compact(blob: str) -> FeedRecipe:
 
 
 def decode_recipe_b64(blob: str) -> FeedRecipe:
+    _too_long(blob)
     text = (blob or '').strip()
     pad = '=' * (-len(text) % 4)
     raw = base64.urlsafe_b64decode(text + pad)
@@ -158,6 +172,7 @@ def recipe_share_uri(recipe: FeedRecipe, *, scheme: str = 'babble',
 
 
 def parse_feedchef_uri(uri: str) -> FeedRecipe | None:
+    _too_long(uri)
     if not is_feedchef_uri(uri):
         return None
     parsed = urlparse(uri)
@@ -182,6 +197,9 @@ def try_parse_feedchef_uri(uri: str) -> FeedRecipe | None:
     try:
         return parse_feedchef_uri(uri)
     except (ValueError, TypeError, KeyError):
+        return None
+    except (MemoryError, RecursionError):
+        log.debug('feedchef: link too heavy to read', exc_info=True)
         return None
 
 

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
@@ -157,11 +156,7 @@ class FeedDecisionLogger:
             write_private(path, payload)
             self._payload, self._path = payload, path
         else:
-            tmp = path + '.tmp'
-            with open(tmp, 'w', encoding='utf-8') as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-                handle.write('\n')
-            os.replace(tmp, path)
+            write_private(path, payload)
         self._rotate(directory)
         return path
 

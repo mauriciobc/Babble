@@ -323,8 +323,21 @@ def plain_text(value: Any, limit: int = 200) -> str:
 
 def validate_for_import(data: dict[str, Any]) -> FeedRecipe:
     """Import activity: meta required; empty id → new UUID."""
-    if data is None or data.get('meta') is None:
+    if not isinstance(data, dict) or data.get('meta') is None:
         raise ValueError('recipe meta is required')
+    for section in ('meta', 'pantry', 'diet', 'kitchen'):
+        if section in data and not isinstance(data[section], dict):
+            raise ValueError('recipe %s must be an object' % section)
+    try:
+        return _import_checked(data)
+    except (AttributeError, TypeError, KeyError, OverflowError) as error:
+        # A value of the wrong type (a number for a list, infinity for a
+        # count) is a bad recipe, not a crash.
+        raise ValueError('the recipe has a value of the wrong type') \
+            from error
+
+
+def _import_checked(data: dict[str, Any]) -> FeedRecipe:
     _check_caps(data)
     _check_percentiles(data)
     recipe = recipe_from_dict(data)

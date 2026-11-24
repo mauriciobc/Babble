@@ -17,13 +17,14 @@ os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 import sys
 import tempfile
 import threading
+import time
 
 import gi
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 if not os.environ.get('DISPLAY') \
         and not os.environ.get('WAYLAND_DISPLAY'):
@@ -156,12 +157,26 @@ check('off: pinning a recipe adds nothing while off', tag not in items)
 rss_off = rss_kib()
 from src.feedchef.sharecodec import recipe_share_uri  # noqa: E402
 presented = []
+real_present_import = feedchefpages.present_import
 feedchefpages.present_import = lambda win, account, imported: \
     presented.append(imported.id)
 toasts.clear()
 app._open_feedchef_uri(window, recipe_share_uri(recipe))
 check('off: the link toast was offered again', len(toasts) == 1)
 toasts[0].emit('button-clicked')
+
+
+def pump(done, seconds=5):
+    # The link is read on a worker; the result comes back by idle.
+    context = GLib.MainContext.default()
+    deadline = time.monotonic() + seconds
+    while not done() and time.monotonic() < deadline:
+        context.iteration(False)
+        time.sleep(0.005)
+    return done()
+
+
+pump(lambda: presented)
 check('Turn On sets the key and goes on to import the recipe',
       settings.get_boolean('feed-chef-enabled')
       and presented == [recipe.id])
@@ -206,6 +221,272 @@ check('off again: the recipe page is dropped',
       and tag not in window.navigation.pages)
 check('off again: its engine was shut down',
       engine._executor._shutdown and engine._cancel.is_set())
+
+# Links: signed out, the worker, the order, a changed world.
+from src.feedchef.sharecodec import MAX_LINK_CHARS  # noqa: E402
+from src.feedchef import sharecodec  # noqa: E402
+import gc  # noqa: E402
+
+shown = []
+real_show_toast = BabbleWindow.show_toast
+real_add_toast = BabbleWindow.add_toast
+real_try_parse = sharecodec.try_parse_feedchef_uri
+thread_errors = []
+real_excepthook = threading.excepthook
+client, account = window.client, window.account
+
+
+def sign_out():
+    window.client = window.account = None
+    window.main_stack.set_visible_child_name('login')
+
+
+def sign_in():
+    window.client, window.account = client, account
+    window.main_stack.set_visible_child_name('shell')
+
+
+def uri_of(name):
+    return recipe_share_uri(default_recipe(name))
+
+
+def fresh_state():
+    shown.clear()
+    presented.clear()
+    toasts.clear()
+
+
+def link_checks():
+    settings.set_boolean('feed-chef-enabled', True)
+    # On the class: the worker's idle gets the window back by weak
+    # reference, which may be a new wrapper without instance attributes.
+    BabbleWindow.show_toast = lambda _self, text: shown.append(text)
+    BabbleWindow.add_toast = lambda _self, toast: toasts.append(toast)
+    presented_names = []
+    feedchefpages.present_import = lambda win, acct, imported: \
+        presented_names.append(imported.meta.name) or presented.append(
+            imported.id)
+
+    # --- signed out: queued, then opened after sign-in ---
+    sign_out()
+    fresh_state()
+    signed_out_uri = recipe_share_uri(recipe)
+    app._open_feedchef_uri(window, signed_out_uri)
+    pump(lambda: presented, 0.3)
+    check('signed out: the link is queued, nothing opens yet',
+          app._after_sign_in == [('feedchef', signed_out_uri)]
+          and not presented and shown == ['Sign in to import this recipe'])
+    app._open_feedchef_uri(window, signed_out_uri)
+    check('signed out: the same link again is kept once and toasts once',
+          len(app._after_sign_in) == 1 and len(shown) == 1)
+    app.open_web_uri(window, 'web+mastodon://follow?uri=acct:a@example.org')
+    check('signed out: web links share the one queue',
+          [kind for kind, _x in app._after_sign_in] == ['feedchef', 'web'])
+    app._after_sign_in = [entry for entry in app._after_sign_in
+                          if entry[0] == 'feedchef']
+    sign_in()
+    check('signed in: the queue is emptied', app._after_sign_in == []
+          and app._after_sign_in_handler is None)
+    check('signed in: the queued link opens the import',
+          pump(lambda: presented) and presented == [recipe.id])
+
+    # --- Feed Chef off at sign-in, several links: one offer opens all ---
+    sign_out()
+    fresh_state()
+    first, second = uri_of('One'), uri_of('Two')
+    app._open_feedchef_uri(window, first)
+    app._open_feedchef_uri(window, second)
+    presented_names.clear()
+    settings.set_boolean('feed-chef-enabled', False)
+    toasts.clear()
+    sign_in()
+    pump(lambda: presented, 0.3)
+    check('off at sign-in: nothing opens and there is one Turn On offer',
+          not presented and len(toasts) == 1
+          and toasts[0].get_button_label() == 'Turn On')
+    toasts[0].emit('button-clicked')
+    check('Turn On opens every waiting link, in order',
+          pump(lambda: len(presented_names) == 2)
+          and presented_names == ['One', 'Two'])
+    fresh_state()
+
+    # --- a link the parser raises on still gets an answer ---
+    def exploding(_uri):
+        raise RuntimeError('parser bug')
+
+    sharecodec.try_parse_feedchef_uri = exploding
+    threading.excepthook = lambda args: thread_errors.append(args)
+    app._open_feedchef_uri(window, uri_of('Boom'))
+    pump(lambda: shown, 3)
+    check('a parser that raises: the reader gets the toast, not silence',
+          shown == ['Could not read that Feed Chef link']
+          and not thread_errors and not presented)
+    sharecodec.try_parse_feedchef_uri = real_try_parse
+    fresh_state()
+
+    # --- the worker, the order ---
+    threads = []
+    gate = threading.Event()
+
+    def slow_parse(link):
+        threads.append(threading.current_thread())
+        if 'SLOW' in link:
+            gate.wait(3)
+        else:
+            time.sleep(0.1)
+        return real_try_parse(link.replace('&SLOW=1', ''))
+
+    sharecodec.try_parse_feedchef_uri = slow_parse
+    presented_names.clear()
+    app._open_feedchef_uri(window, uri_of('Slow') + '&SLOW=1')
+    app._open_feedchef_uri(window, uri_of('Quick'))
+    pump(lambda: False, 0.3)
+    check('the second link does not overtake the first',
+          presented_names == [])
+    gate.set()
+    pump(lambda: len(presented_names) == 2, 3)
+    check('links open in the order received',
+          presented_names == ['Slow', 'Quick'])
+    check('both were read on one worker thread, never the main thread',
+          len(set(threads)) == 1 and threads[0] is not
+          threading.main_thread())
+
+    # --- a 16 KiB link is read off the main thread, with no stall ---
+    long_uri = 'babble://feedchef?recipe=' + 'A' * (MAX_LINK_CHARS - 40)
+    gaps = []
+    last = [time.perf_counter()]
+
+    def tick():
+        now = time.perf_counter()
+        gaps.append((now - last[0]) * 1000)
+        last[0] = now
+        return True
+
+    fresh_state()
+    threads.clear()
+    source = GLib.timeout_add(2, tick)
+    app._open_feedchef_uri(window, long_uri)
+    pump(lambda: shown, 5)
+    pump(lambda: False, 0.1)
+    GLib.source_remove(source)
+    print('ok - worst main-loop gap while a link takes 100 ms to read: '
+          '%.1f ms' % max(gaps))
+    check('a 16 KiB link is read on a worker (slow parse stubbed)',
+          threads and threads[0] is not threading.main_thread())
+    check('a 16 KiB link is refused with the toast',
+          shown == ['Could not read that Feed Chef link'] and not presented)
+    check('no main-loop gap over 16 ms while it was read', max(gaps) <= 16)
+    sharecodec.try_parse_feedchef_uri = real_try_parse
+    fresh_state()
+    app._open_feedchef_uri(window, 'babble://feedchef?recipe=' + 'A' * 20000)
+    check('a link over the limit is refused on the main thread at once',
+          shown == ['Could not read that Feed Chef link'])
+
+    # --- the world changes while a link is being read ---
+    def gated(link):
+        gate.wait(3)
+        return real_try_parse(link)
+
+    sharecodec.try_parse_feedchef_uri = gated
+
+    fresh_state()
+    gate.clear()
+    app._open_feedchef_uri(window, uri_of('Off'))
+    pump(lambda: False, 0.1)
+    settings.set_boolean('feed-chef-enabled', False)
+    gate.set()
+    pump(lambda: toasts, 2)
+    check('turned off while reading: the Turn On offer, nothing opens',
+          len(toasts) == 1 and not presented)
+    settings.set_boolean('feed-chef-enabled', True)
+
+    fresh_state()
+    gate.clear()
+    waiting_uri = uri_of('SignedOut')
+    app._open_feedchef_uri(window, waiting_uri)
+    pump(lambda: False, 0.1)
+    sign_out()
+    gate.set()
+    pump(lambda: app._after_sign_in, 2)
+    check('signed out while reading: the link is queued, not dropped',
+          app._after_sign_in == [('feedchef', waiting_uri)]
+          and not presented)
+    sign_in()
+    check('and it opens after the next sign-in',
+          pump(lambda: presented))
+
+    fresh_state()
+    gate.clear()
+    other = BabbleWindow(application=app)
+    other.client, other.account = client, account
+    app._open_feedchef_uri(other, uri_of('Closed'))
+    pump(lambda: False, 0.1)
+    other.destroy()
+    del other
+    gc.collect()
+    gate.set()
+    pump(lambda: presented or shown, 0.5)
+    check('window closed while reading: nothing opens, nothing raises',
+          not presented and not shown)
+    sharecodec.try_parse_feedchef_uri = real_try_parse
+
+
+try:
+    link_checks()
+finally:
+    BabbleWindow.show_toast = real_show_toast
+    BabbleWindow.add_toast = real_add_toast
+    sharecodec.try_parse_feedchef_uri = real_try_parse
+    threading.excepthook = real_excepthook
+    feedchefpages.present_import = real_present_import
+    settings.set_boolean('feed-chef-enabled', True)
+
+# The import flow outlives its Python wrappers and is freed after use.
+freed = []
+fresh = default_recipe('Fresh')
+dialog = real_present_import(window, window.account, fresh)
+dialog.weak_ref(lambda: freed.append(True))
+check('import dialog: the flow object is held by the dialog',
+      isinstance(dialog._flow, feedchefpages._ImportFlow))
+del dialog
+for _round in range(5):
+    gc.collect()
+    pump(lambda: False, 0.05)
+shown_dialog = window.get_visible_dialog()
+check('import dialog survives the collector while it is shown',
+      shown_dialog is not None and not freed)
+storage = feedchefpages.storage_for(window.account)
+shown_dialog.emit('response', 'import')
+check('after the collector ran, Import still saves the recipe',
+      storage.get_recipe_by_id(fresh.id) is not None)
+shown_dialog.close()
+del shown_dialog
+for _round in range(5):
+    gc.collect()
+    pump(lambda: freed, 0.2)
+check('import dialog is freed after an answer', bool(freed))
+
+# The preview path: Preview, then the preview closes and the question
+# comes back, all after the collector ran.
+again = default_recipe('Again')
+dialog = real_present_import(window, window.account, again)
+dialog.emit('response', 'preview')
+del dialog
+for _round in range(5):
+    gc.collect()
+    pump(lambda: False, 0.05)
+preview_dialog = window.get_visible_dialog()
+check('preview: the preview dialog is shown',
+      isinstance(preview_dialog, FeedChefPreviewDialog))
+preview_dialog.force_close()
+del preview_dialog
+pump(lambda: False, 0.3)
+back = window.get_visible_dialog()
+check('preview closed: the import question comes back',
+      isinstance(back, Adw.AlertDialog)
+      and isinstance(back._flow, feedchefpages._ImportFlow))
+back.force_close()
+pump(lambda: False, 0.2)
 
 # The helper that loads the optional libraries.
 real_import = importlib.import_module

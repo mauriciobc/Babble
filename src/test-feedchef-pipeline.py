@@ -272,6 +272,19 @@ with tempfile.TemporaryDirectory() as tmp:
     logger.set_pantry(fetched_count=2)
     path = logger.persist()
     check('log written', path and os.path.isfile(path))
+    check('log without an audit record is 0600 (default umask)',
+          (os.stat(path).st_mode & 0o777) == 0o600)
+    with tempfile.TemporaryDirectory() as umask_tmp:
+        logmod.set_root(umask_tmp)
+        old_umask = os.umask(0)
+        try:
+            umask_path = logmod.FeedDecisionLogger('recipe-umask').persist()
+        finally:
+            os.umask(old_umask)
+        check('fallback log made under umask 0 is 0600 from creation',
+              umask_path and (os.stat(umask_path).st_mode & 0o777) == 0o600
+              and not os.path.exists(umask_path + '.tmp'))
+        logmod.set_root(tmp)
     for index in range(55):
         extra = logmod.FeedDecisionLogger('r-%d' % index)
         extra.persist()
