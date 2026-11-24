@@ -267,9 +267,13 @@ class ModifierEditor:
             modifiers.append(mod)
         if fresh or self.spin.get_value() != self.initial:
             self._write(mod, self.spin.get_value())
+            # The recipe has it now: the control going back to what it
+            # first showed is a change again, not "as it was read".
+            self.initial = self.spin.get_value()
         for extra in self.extras:
             if fresh or extra.changed():
                 extra.write(mod)
+                extra.initial = extra.value()
 
 
 def modifier_editors():

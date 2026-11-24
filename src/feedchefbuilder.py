@@ -19,6 +19,7 @@ from .feedchef.cluster import STRATEGIES, strategy_of  # noqa: E402,F401
 from .feedchef.icons import ICONS, icon_name  # noqa: E402
 from .feedchef.storage import FeedRecipeStorage  # noqa: E402
 from .feedchefbuilderlive import LiveSummary  # noqa: E402
+from .feedchefmodes import ModesMixin  # noqa: E402
 from .feedchefmodifiers import modifier_editors  # noqa: E402
 from .feedchefmodifiers import spin_row as _spin  # noqa: E402
 from .feedchefpreview import (CloseWhenFeedChefOff,  # noqa: E402
@@ -73,7 +74,8 @@ def _unsupported_names(recipe):
     return [names.get(kind, kind) for kind in recipe.inert_modifiers()]
 
 
-class FeedChefBuilderDialog(LiveSummary, CloseWhenFeedChefOff, ToastDialog):
+class FeedChefBuilderDialog(ModesMixin, LiveSummary, CloseWhenFeedChefOff,
+                           ToastDialog):
     """Edits a copy of a recipe. Cancel drops the copy; Save stores it,
     emits ``saved`` and closes. A new recipe is not stored before Save."""
 
@@ -107,6 +109,7 @@ class FeedChefBuilderDialog(LiveSummary, CloseWhenFeedChefOff, ToastDialog):
         self._build_recipe_group(page, recipe)
         self._build_pantry_group(page, recipe)
         self._build_diet_group(page, recipe)
+        self.build_modes_group(page)
         self._build_kitchen_group(page, recipe)
         actions = Adw.PreferencesGroup()
         # An action row, not a button row: its subtitle carries the live
@@ -128,6 +131,7 @@ class FeedChefBuilderDialog(LiveSummary, CloseWhenFeedChefOff, ToastDialog):
         self._sync_scope()
         self.watch_feed_chef_key()
         self._sync_subtitles()
+        self.sync_mode(force=True)
         self.submit_on_enter(self.save_button, self.name_row, self.include,
                              self.exclude, self.blocklist)
         # Taken after the widgets hold the recipe's values: the baseline
@@ -435,6 +439,8 @@ class FeedChefBuilderDialog(LiveSummary, CloseWhenFeedChefOff, ToastDialog):
             return
         self._sync_save()
         self.summary_changed()
+        if not self._mode_syncing:
+            self.sync_mode()
         # With can-close off, closing asks first (close-attempt).
         self.set_can_close(self._state() == self._initial)
 

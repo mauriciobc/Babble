@@ -56,8 +56,13 @@ src/feedchefbuilderlive.py
 src/feedchefmodifiers.py
 src/feedchefrelax.py
 src/feedchefshare.py
+src/feedchefexperiment.py
 src/feedchefexplain.py
 src/feedcheffocus.py
+src/feedchefmodes.py
+src/feedchefnewrecipe.py
+src/feedchefquality.py
+src/feedchefqualityview.py
 src/feedchefpages.py
 src/feedchefpeek.py
 src/feedchefsource.py

@@ -21,6 +21,7 @@ except (ValueError, ImportError):
 
 from . import feedback  # noqa: E402
 from .feedchef import auditreport, decisionlog  # noqa: E402
+from .feedchefqualityview import QualityReportMixin  # noqa: E402
 from .i18n import gettext as _, ngettext  # noqa: E402
 from .weakconnect import connect_weak, weak_method  # noqa: E402
 
@@ -90,13 +91,23 @@ class WhyThisPostDialog(feedback.ToastDialog):
                      auditreport.explain_post(entry, record, WORDS))
 
 
-class KitchenReportDialog(feedback.ToastDialog):
+class KitchenReportDialog(QualityReportMixin, feedback.ToastDialog):
     """What the last cook did, with Copy Report, Open Logs Folder and
-    Clear Audit Logs. *records* are the audit records of its pages."""
+    Clear Audit Logs. *records* are the audit records of its pages. With
+    *quality* (a ``feedchefqualityview.QualityContext``) the report also has
+    the Quality section, which the worker fills in; *focus_quality* puts
+    the keyboard focus there. With *quality_only* it is the Quality section
+    alone ("Improve This Recipe"), which needs no cook on screen."""
 
-    def __init__(self, records):
-        super().__init__(_('Kitchen Report'))
+    def __init__(self, records, quality=None, focus_quality=False,
+                 quality_only=False):
+        super().__init__(_('Improve This Recipe') if quality_only
+                         else _('Kitchen Report'))
         self.alert = None
+        if quality_only and quality is not None:
+            self.report = auditreport.cook_report([], WORDS)
+            self.quality_begin(quality, WORDS, focus_quality)
+            return
         self.report = auditreport.cook_report(records, WORDS)
         if not self.report.pages:
             self._show_empty()
@@ -104,6 +115,8 @@ class KitchenReportDialog(feedback.ToastDialog):
         groups = add_sections(self.page, self.report.sections)
         # The recipe's settings sit under the cook's title.
         groups[0].set_description(self.report.settings)
+        if quality is not None:
+            self.quality_begin(quality, WORDS, focus_quality)
         group = Adw.PreferencesGroup()
         self.copy_row = Adw.ButtonRow(
             title=_('_Copy Report'), use_underline=True,

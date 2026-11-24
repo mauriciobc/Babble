@@ -87,12 +87,17 @@ install_data(
   'feedchefbridge.py',
   'feedchefbuilder.py',
   'feedchefbuilderlive.py',
+  'feedchefexperiment.py',
   'feedchefexplain.py',
   'feedcheffocus.py',
+  'feedchefmodes.py',
   'feedchefmodifiers.py',
+  'feedchefnewrecipe.py',
   'feedchefpages.py',
   'feedchefpeek.py',
   'feedchefpreview.py',
+  'feedchefquality.py',
+  'feedchefqualityview.py',
   'feedchefrelax.py',
   'feedchefshare.py',
   'feedchefsource.py',
@@ -243,6 +248,7 @@ install_data(
   'feedchef/focus.py',
   'feedchef/health.py',
   'feedchef/heat.py',
+  'feedchef/history.py',
   'feedchef/icons.py',
   'feedchef/kitchen.py',
   'feedchef/langguess.py',
@@ -1034,6 +1040,24 @@ test('feedchef experience', python,
   args: [files('test-feedchef-experience.py')],
   env: fatal_test_env,
   timeout: 90,
+)
+# Needs a display (headless mutter at 1280x1024); the engine is a fake, the
+# records are the real Recorder's. The Kitchen Report's Quality section, Apply
+# with Undo, the health badge (computed off the main thread), the banner at the
+# alert boundary and the proactive toast.
+test('feedchef quality ui', python,
+  args: [files('test-feedchef-quality-ui.py')],
+  env: fatal_test_env,
+  timeout: 120,
+)
+# Needs a display (headless mutter at 1280x1024); the same fake engine. The A/B
+# experiment through the page (permission, arms alternating over refreshes, keep
+# or revert, an exact restore, Stop, no variant on a peek or a load-more), the
+# New Recipe chooser and the builder's modes and slider.
+test('feedchef experiment ui', python,
+  args: [files('test-feedchef-experiment-ui.py')],
+  env: fatal_test_env,
+  timeout: 120,
 )
 # Needs no display: it reads the sources with ast only.
 test('api boundary', python,

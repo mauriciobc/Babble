@@ -131,8 +131,11 @@ class SourcePeek:
             return False
         token = self._peek_token = object()
         self._peek_serial += 1
+        # The recipe the page on screen was cooked from (an experiment's
+        # arm, not necessarily the reader's), and never a variant tag.
         self.engine.process_feed(
-            self.recipe, count=self.peek_count,
+            getattr(self, '_session_recipe', None) or self.recipe,
+            count=self.peek_count,
             on_done=partial(self._on_peek_done, token, self._rev),
             on_error=partial(self._on_peek_error, token),
             author_counts=dict(self._author_counts), hide=self.peek_hide,

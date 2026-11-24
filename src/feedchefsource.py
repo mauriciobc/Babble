@@ -60,10 +60,15 @@ class _Cook:
     """One ``fetch()``: its task, and whether it is still open."""
 
     __slots__ = ('task', 'cancellable', 'handler', 'done', 'older',
-                 'counts', 'servers', 'cook_id', 'page_index')
+                 'counts', 'servers', 'cook_id', 'page_index', 'recipe',
+                 'tag')
 
     def __init__(self, task, cancellable, older, counts, cook_id='',
-                 page_index=0, servers=None):
+                 page_index=0, servers=None, recipe=None, tag=None):
+        # What this cook cooks (the reader's recipe, or the arm of an
+        # experiment) and the variant tag the audit records, or None.
+        self.recipe = recipe
+        self.tag = tag
         # The cook session this page belongs to: a refresh starts a new
         # one, an older page goes on with the session's.
         self.cook_id = cook_id
@@ -129,6 +134,15 @@ class FeedChefSource(SourcePeek):
         self.fire_ids = set()
         self._heat_fallback = None
         self._heat_said = False
+        # The A/B optimizer's two hooks, set by the page with weak
+        # methods: ``planner()`` is asked what a refresh cooks (an
+        # ``optimizer.Plan``, or None for the recipe as it is) and
+        # ``variant_listener(tag, record)`` hears of a tagged page that was
+        # shown. A load-more and a peek never ask, and cook the recipe the
+        # session's first page was cooked from.
+        self.planner = None
+        self.variant_listener = None
+        self._session_recipe = None
         self._peek_init()
 
     def audit_for(self, status_id):
@@ -172,6 +186,12 @@ class FeedChefSource(SourcePeek):
         if older and not (self._has_more and self._cursor):
             task.return_value(_batch([]))
             return
+        if older:
+            recipe, tag = self._session_recipe or self.recipe, None
+        else:
+            plan = self.planner() if self.planner is not None else None
+            recipe, tag = (self.recipe, None) if plan is None \
+                else (plan.recipe, plan.tag)
         # A refresh starts from nothing but changes nothing here until its
         # page lands (_on_done): one that fails or is cancelled leaves the
         # session as it was, and the older pages go on from its cursor.
@@ -180,7 +200,7 @@ class FeedChefSource(SourcePeek):
             dict(self._author_counts) if older else {},
             self._cook_id if older else uuid.uuid4().hex[:12],
             self._page_index + 1 if older else 0,
-            dict(self._instance_counts) if older else {})
+            dict(self._instance_counts) if older else {}, recipe, tag)
         # A cook this one supersedes, whose request nobody cancelled, is
         # answered now: a Gio.Task left unanswered is never finished.
         previous, self._active = self._active, cook
@@ -218,6 +238,8 @@ class FeedChefSource(SourcePeek):
         error page for something they did."""
         self._peek_token = None
         self._peek_drop()
+        # Whatever cooks next is another cook: not the old one's recipe.
+        self._session_recipe = None
         cook, self._active = self._active, None
         self.engine.cancel()
         if cook is not None and not cook.done:
@@ -228,13 +250,15 @@ class FeedChefSource(SourcePeek):
 
     def _start(self, cook, max_id, hops):
         self.engine.process_feed(
-            self.recipe, max_id=max_id, count=COOK_COUNT,
+            cook.recipe, max_id=max_id, count=COOK_COUNT,
             on_stage=partial(self._on_stage, cook),
             on_done=partial(self._on_done, cook, hops),
             on_error=partial(self._on_error, cook),
             author_counts=dict(cook.counts), hide=viewer_hides,
             cook_id=cook.cook_id, page_index=cook.page_index, hop=hops,
-            instance_counts=dict(cook.servers))
+            instance_counts=dict(cook.servers),
+            # Only a cook of the A/B optimizer says which arm it is.
+            **({'variant': cook.tag} if cook.tag else {}))
 
     def _settle(self, cook):
         cook.done = True
@@ -276,6 +300,9 @@ class FeedChefSource(SourcePeek):
         self._author_counts = cook.counts
         self._instance_counts = cook.servers
         self._keep_audit(cook, result)
+        if cook.tag and not cook.older and self.variant_listener is not None:
+            self.variant_listener(cook.tag,
+                                  getattr(result.logger, 'record', None))
         self.stalled = bool(not result.items and has_more)
         self._settle(cook)
         self._active = None
@@ -288,6 +315,7 @@ class FeedChefSource(SourcePeek):
         self._page_index = cook.page_index
         record = getattr(result.logger, 'record', None)
         if not cook.older:
+            self._session_recipe = cook.recipe
             self._audits = []
             self.fire_ids = set()
             self._heat_said = False

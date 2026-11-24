@@ -1027,6 +1027,72 @@ cooks is under 0.5, and it needs exactly 10 cooks. Cooks are ordered by the
 clock their records carry (not by the order they are handed over), a record
 with no readable clock sorting last.
 
+### The quality screens
+
+The core above has no widgets; these are the screens on top of it. Nothing of
+it computes on the main thread (Principle 5): `feedchefquality.worker()` is one
+daemon thread, `feedchef-quality`, niced, started on first use, that runs a
+job and hands the answer back through `GLib.idle_add` to a weak callback (a
+job superseded or whose owner is gone is never delivered). It also writes the
+optimizer's sidecar, so what it persists is written in the order given. A
+recipe that never reaches the quality layer never starts it.
+
+- **Kitchen Report, Quality section** (`feedchefqualityview`, a mixin of the
+  dialog). The groups are there at once and fill when `history.analyze` answers:
+  the score with the honest caveat as the group's description
+  (`quality.caveat_text`), the four bands as a count and a bar (words first, the
+  bar is only for a glance), the posts at the pantry, diet and kitchen stages,
+  the issues (the health reasons), and the suggestions (`advice.describe`),
+  each with an Apply button, or only text when it needs the reader's choice.
+  A cook whose page used the freshness fallback says so in the section. Words
+  come through the dialog's `Words`, so the core stays translatable.
+- **Apply** saves the recipe with the change, cooks it again and shows an
+  Undo toast; Undo applies the edit's own undo (`recipeedit.restore`) to the
+  recipe as it is then, so what the reader changed since stays.
+- **Health badge** on the recipe list: icon and words (Working Well, Needs
+  Attention; hidden until a recipe has been cooked), computed on the worker from
+  the recipe's last cooks in the decision log (`decisionlog.recent_cooks`,
+  `history`), cached for the session and refreshed after a cook lands.
+- **Banner and Improve…**: when the mean over the last 10 cooks is under 0.5
+  the recipe's page shows "This recipe's posts have been less engaging lately".
+  Improve… opens "Improve This Recipe", the Quality section alone (it needs no
+  cook on screen, since the cooks may be from another session). A recipe that
+  was Working Well and newly needs attention shows a toast once per session and
+  recipe, with a button to the same dialog (the first health computed in a
+  session is the baseline, so opening a recipe that already needs attention
+  says nothing).
+- **The experiment** is offered in the Quality section as Try a Change (the
+  first `optimizer.testable` suggestion). The confirmation dialog says what
+  changes, that it alternates over the next N refreshes, and that it can be
+  stopped any time and restores the recipe. Only then `optimizer.accept`. A
+  refresh asks `optimizer.next_cook` what to cook and passes the plan's tag as
+  `variant` for the first page; after it lands the worker computes
+  `optimizer.score_of` and the page records the result. State lives in the
+  sidecar (written on the worker). A banner "Experiment running (3 of 10)" has
+  Stop, which turns it off and restores. A kept change is saved with a toast and
+  an Undo that restores it exactly; a reverted one only says so; editing the
+  recipe ends the experiment. A peek and a load-more never carry a variant, and
+  both cook the recipe the page on screen was cooked from (the experiment's
+  arm), so a list never changes recipe in the middle.
+- **New Recipe** opens a chooser (Blank, Recent News, Viral, Topic, Safe Feed;
+  `templates.new_recipe`, with the icon that suits it), then the builder.
+- **Builder**: a Style group (before Kitchen) with the four modes and the
+  More Posts / Better Posts slider. They write the heat, fade-out and order
+  controls through `templates.with_mode` / `with_slider`; editing one of those
+  by hand turns the mode to the mode its values are, or Custom. A recipe with a
+  focus keeps its order.
+
+Decisions the plan did not settle: Blank stays blank (smart defaults are not
+applied to it: the heat it would add changes what "start from Home" shows); the
+experiment's sidecar is read before each transition and written at once on the
+main thread (a few hundred bytes, measured 0.4 ms for a write and a read, so
+no window overwrites another's state and nothing is lost at quit; no sidecar
+is written for a recipe that was deleted); peeks cook the recipe of the page on screen; the
+proactive toast is once per session and recipe, not once per session. The
+builder's writeback of a control (`ModifierEditor.apply`) now remembers what it
+wrote: before, a control that went back to the value it first showed was not
+written, leaving the previous value in the recipe.
+
 ### CLI
 
 `bench/feedchef_audit.py quality [LOG...] [--recipe ID] [--since DATE] [--json

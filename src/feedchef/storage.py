@@ -151,14 +151,20 @@ class FeedRecipeStorage:
         return optimizer.validate(state)
 
     def save_optimizer(self, recipe_id: str,
-                       state: dict[str, Any] | None) -> None:
+                       state: dict[str, Any] | None,
+                       require_recipe: bool = False) -> bool:
         """Keep the experiment of a recipe (None: forget it), private to
-        the user."""
+        the user. With *require_recipe* a state is kept only while the
+        recipe exists (a deleted recipe leaves no sidecar behind); False
+        when it was not."""
         with self._lock:
+            if state is not None and require_recipe and not any(
+                    r.id == recipe_id for r in self.load_recipes()):
+                return False
             states = self._optimizer_states()
             if state is None:
                 if states.pop(recipe_id, None) is None:
-                    return
+                    return True
             else:
                 states[recipe_id] = state
             from .audit import write_private
@@ -168,6 +174,7 @@ class FeedRecipeStorage:
             # Private from its creation (never a moment at the umask's
             # mode), and replaced atomically.
             write_private(path, states)
+            return True
 
     def _quarantine_corrupt(self) -> None:
         """Keep an unreadable recipes file before a write replaces it."""

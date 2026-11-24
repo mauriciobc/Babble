@@ -333,6 +333,38 @@ def prune(directory: str) -> None:
         _trim_pages(kept[0], MAX_BYTES)
 
 
+def recent_cooks_many(recipe_ids, limit: int = MAX_COOKS
+                      ) -> dict[str, list[list[str]]]:
+    """The log files of the last *limit* cooks of each recipe, oldest first:
+    for each cook the files of its pages (the logs, not their text
+    sidecars), oldest page first. The folder is read once, however many
+    recipes are asked for; a folder that is not there has none."""
+    found: dict[str, list[list[str]]] = {rid: [] for rid in recipe_ids}
+    directory = _dir()
+    if not os.path.isdir(directory):
+        return found
+    wanted = {_sanitize_recipe_id(rid): rid for rid in recipe_ids}
+    by_recipe: dict[str, list[dict[str, Any]]] = {}
+    for cook in _cooks(directory):
+        if cook['recipe'] in wanted:
+            by_recipe.setdefault(cook['recipe'], []).append(cook)
+    for name, cooks in by_recipe.items():
+        cooks.sort(key=lambda row: row['mtime'])
+        for cook in cooks[-limit:]:
+            pages = sorted(cook['pages'].values(),
+                           key=lambda page: page['mtime'])
+            found[wanted[name]].append(
+                [path for page in pages for path in page['files']
+                 if path.endswith('.json')
+                 and not path.endswith('.text.json')])
+    return found
+
+
+def recent_cooks(recipe_id: str, limit: int = MAX_COOKS) -> list[list[str]]:
+    """``recent_cooks_many`` for one recipe."""
+    return recent_cooks_many([recipe_id], limit)[recipe_id]
+
+
 def clear_all() -> int:
     """Delete every audit log and sidecar; the number of cooks removed."""
     return _clear(None)

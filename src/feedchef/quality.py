@@ -74,9 +74,8 @@ _GONE = {'pantry': ('pantry',),
 def caveat_text(words: Words = ENGLISH) -> str:
     """What the reader is told about the score (translatable)."""
     _ = words.gettext
-    return _('Every filter of a recipe is enforced, so validity is nearly '
-             'always 100%. The score mostly measures how much people '
-             'engaged with the posts.')
+    return _('Your filters are always applied, so the score reflects how '
+             'much people engaged with the posts shown.')
 
 
 def band_names(words: Words = ENGLISH) -> dict[str, str]:
